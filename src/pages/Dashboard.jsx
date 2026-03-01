@@ -1,0 +1,410 @@
+
+import React from 'react';
+import { User } from '@/entities/User';
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Users, TrendingUp, CheckCircle, AlertTriangle, Star, Brain, Zap, ChevronRight, Bot, Sparkles } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Link } from 'react-router-dom';
+import { createPageUrl } from '@/utils';
+
+import RecentIncidents from '../components/dashboard/RecentIncidents';
+import TrainingOverview from '../components/dashboard/TrainingOverview';
+import ChecklistStatus from '../components/dashboard/ChecklistStatus';
+import SalesChart from '../components/dashboard/SalesChart';
+import TableStatus from '../components/dashboard/TableStatus';
+import TodayReservations from '../components/dashboard/TodayReservations';
+import AiQuickAdd from '../components/dashboard/AiQuickAdd';
+import SeatingAiHelper from '../components/dashboard/SeatingAiHelper';
+import InvoiceScanner from '../components/dashboard/InvoiceScanner';
+import ManualSurveyTool from '../components/dashboard/ManualSurveyTool';
+import InventoryScanner from '../components/dashboard/InventoryScanner';
+import SurveyQRGenerator from '../components/dashboard/SurveyQRGenerator';
+
+// רכיב סטטיסטיקות מהירות מעודכן
+function QuickStats() {
+    const [realTimeData, setRealTimeData] = React.useState({
+        todayReservations: 0,
+        todaySales: 0,
+        completedChecklists: 0,
+        totalChecklists: 0,
+        openIncidents: 0
+    });
+    const [loading, setLoading] = React.useState(true);
+
+    const loadRealTimeData = React.useCallback(async () => {
+        try {
+            const today = new Date().toISOString().split('T')[0];
+            
+            // טעינת נתונים אמיתיים
+            const [
+                { TableSession },
+                { ShiftEndReport },
+                { ChecklistExecution },
+                { Checklist },
+                { Incident }
+            ] = await Promise.all([
+                import('@/entities/TableSession').catch(() => ({ TableSession: null })),
+                import('@/entities/ShiftEndReport').catch(() => ({ ShiftEndReport: null })),
+                import('@/entities/ChecklistExecution').catch(() => ({ ChecklistExecution: null })),
+                import('@/entities/Checklist').catch(() => ({ Checklist: null })),
+                import('@/entities/Incident').catch(() => ({ Incident: null }))
+            ]);
+
+            // Initialize a fresh data object for the current fetch to avoid stale closure issues
+            let data = {
+                todayReservations: 0,
+                todaySales: 0,
+                completedChecklists: 0,
+                totalChecklists: 0,
+                openIncidents: 0
+            };
+
+            // הזמנות היום מניהול הושבה
+            if (TableSession) {
+                try {
+                    const todaySessions = await TableSession.filter({ 
+                        session_start: { $gte: today + 'T00:00:00', $lt: today + 'T23:59:59' } 
+                    });
+                    data.todayReservations = todaySessions.length;
+                } catch (e) {
+                    console.warn('Could not load table sessions:', e);
+                }
+            }
+
+            // מכירות מדוחות סוף משמרת
+            if (ShiftEndReport) {
+                try {
+                    const todayReports = await ShiftEndReport.filter({ shift_date: today });
+                    data.todaySales = todayReports.reduce((sum, report) => sum + (report.total_revenue || 0), 0);
+                } catch (e) {
+                    console.warn('Could not load shift reports:', e);
+                }
+            }
+
+            // צ'קליסטים
+            if (ChecklistExecution && Checklist) {
+                try {
+                    const [executions, checklists] = await Promise.all([
+                        ChecklistExecution.filter({ execution_date: { $gte: today + 'T00:00:00' } }),
+                        Checklist.filter({ status: 'active' })
+                    ]);
+                    data.completedChecklists = executions.filter(e => e.status === 'completed').length;
+                    data.totalChecklists = checklists.length;
+                } catch (e) {
+                    console.warn('Could not load checklists:', e);
+                }
+            }
+
+            // תקריות פתוחות
+            if (Incident) {
+                try {
+                    const openIncidents = await Incident.filter({ 
+                        status: { $in: ['reported', 'investigating', 'in_progress'] } 
+                    });
+                    data.openIncidents = openIncidents.length;
+                } catch (e) {
+                    console.warn('Could not load incidents:', e);
+                }
+            }
+
+            setRealTimeData(data);
+        } catch (error) {
+            console.error('Error loading real-time data:', error);
+        } finally {
+            setLoading(false);
+        }
+    }, []); // Empty dependency array as `loadRealTimeData` constructs new state from scratch.
+
+    React.useEffect(() => {
+        loadRealTimeData();
+    }, [loadRealTimeData]); // `useEffect` depends on the memoized `loadRealTimeData` function.
+
+    const statsData = [
+        {
+            title: "הזמנות היום",
+            value: loading ? "טוען..." : realTimeData.todayReservations.toString(),
+            icon: Users,
+            color: "blue",
+            trend: "מניהול הושבה",
+            clickUrl: createPageUrl("TablesManagement")
+        },
+        {
+            title: "מכירות היום",
+            value: loading ? "טוען..." : `₪${realTimeData.todaySales.toLocaleString()}`,
+            icon: TrendingUp,
+            color: "green",
+            trend: "מדוחות יומיים",
+            clickUrl: createPageUrl("Reports")
+        },
+        {
+            title: "צ'קליסטים",
+            value: loading ? "טוען..." : `${realTimeData.completedChecklists}/${realTimeData.totalChecklists}`,
+            icon: CheckCircle,
+            color: "purple",
+            trend: `נותרו ${realTimeData.totalChecklists - realTimeData.completedChecklists}`,
+            clickUrl: createPageUrl("Checklists")
+        },
+        {
+            title: "תקריות פתוחות",
+            value: loading ? "טוען..." : realTimeData.openIncidents.toString(),
+            icon: AlertTriangle,
+            color: "orange",
+            trend: realTimeData.openIncidents > 0 ? "דורש טיפול" : "הכל תקין",
+            clickUrl: createPageUrl("Incidents")
+        }
+    ];
+
+    const colorVariants = {
+        blue: "from-blue-500 to-blue-600",
+        green: "from-green-500 to-green-600", 
+        purple: "from-purple-500 to-purple-600",
+        orange: "from-orange-500 to-orange-600"
+    };
+
+    return (
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 mb-8">
+            {statsData.map((stat, index) => {
+                const Icon = stat.icon;
+                return (
+                    <Link key={index} to={stat.clickUrl}>
+                        <Card className="relative overflow-hidden hover:shadow-lg transition-all duration-300 cursor-pointer hover:scale-105">
+                            <div className={`absolute inset-0 bg-gradient-to-br ${colorVariants[stat.color]} opacity-5`}></div>
+                            <CardContent className="p-6">
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <p className="text-sm font-medium text-gray-600 mb-1">{stat.title}</p>
+                                        <p className="text-2xl font-bold text-gray-900">{stat.value}</p>
+                                        <p className="text-xs text-gray-500 mt-1">{stat.trend}</p>
+                                    </div>
+                                    <div className={`p-3 rounded-lg bg-gradient-to-br ${colorVariants[stat.color]} text-white`}>
+                                        <Icon className="w-6 h-6" />
+                                    </div>
+                                </div>
+                            </CardContent>
+                        </Card>
+                    </Link>
+                );
+            })}
+        </div>
+    );
+}
+
+// רכיב כלים חכמים
+function SmartToolsPanel() {
+    const [isOpen, setIsOpen] = React.useState(false);
+
+    const tools = [
+        {
+            component: AiQuickAdd,
+            title: "הוספת ידע לעוזר AI",
+            description: "הכנס מתכונים, נהלים ומידע חדש",
+            icon: Brain
+        },
+        {
+            component: SeatingAiHelper,
+            title: "עוזר הושבה חכם",
+            description: "קבל המלצות הושבה מבוסס AI",
+            icon: Bot
+        },
+        {
+            component: InvoiceScanner,
+            title: "סריקת חשבוניות",
+            description: "סרוק חשבוניות ועדכן מלאי אוטומטית",
+            icon: Sparkles
+        },
+        {
+            component: InventoryScanner,
+            title: "סורק מלאי חכם",
+            description: "צלם מדף וקבל התראות מלאי",
+            icon: Zap
+        },
+        {
+            component: ManualSurveyTool,
+            title: "שליחת סקר ללקוח",
+            description: "שלח סקר שביעות רצון בוואטסאפ",
+            icon: Star
+        },
+        {
+            component: SurveyQRGenerator,
+            title: "ברקודי סקרים",
+            description: "יצור ברקודים להדפסה על חשבונות",
+            icon: CheckCircle
+        }
+    ];
+
+    return (
+        <>
+            <Card 
+                className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white cursor-pointer hover:shadow-xl transition-all duration-300 transform hover:scale-105"
+                onClick={() => setIsOpen(true)}
+            >
+                <CardContent className="p-6">
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <h3 className="text-xl font-bold mb-2">🤖 כלי עבודה חכמים</h3>
+                            <p className="text-indigo-100 mb-4">
+                                כלים מבוססי AI לחיסכון בזמן ושיפור היעילות
+                            </p>
+                            <div className="flex items-center gap-2">
+                                <Badge variant="secondary" className="bg-white/20 text-white">
+                                    {tools.length} כלים
+                                </Badge>
+                                <Badge variant="secondary" className="bg-white/20 text-white">
+                                    חדש!
+                                </Badge>
+                            </div>
+                        </div>
+                        <div className="flex flex-col items-center">
+                            <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center mb-2">
+                                <Brain className="w-8 h-8" />
+                            </div>
+                            <ChevronRight className="w-6 h-6" />
+                        </div>
+                    </div>
+                </CardContent>
+            </Card>
+
+            <Dialog open={isOpen} onOpenChange={setIsOpen}>
+                <DialogContent className="max-w-7xl max-h-[90vh] overflow-y-auto" dir="rtl">
+                    <DialogHeader>
+                        <DialogTitle className="text-2xl text-center mb-4">
+                            🤖 כלי עבודה חכמים - פתרונות AI למסעדה
+                        </DialogTitle>
+                    </DialogHeader>
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 p-4">
+                        {tools.map((tool, index) => {
+                            const ToolComponent = tool.component;
+                            return (
+                                <div key={index}>
+                                    <ToolComponent />
+                                </div>
+                            );
+                        })}
+                    </div>
+                </DialogContent>
+            </Dialog>
+        </>
+    );
+}
+
+export default function Dashboard() {
+    const [user, setUser] = React.useState(null);
+
+    React.useEffect(() => {
+        User.me().then(setUser).catch(() => setUser(null));
+    }, []);
+
+    // תצוגה לעובדים רגילים
+    if (user && user.role !== 'admin') {
+        return (
+            <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-6" dir="rtl">
+                <div className="max-w-7xl mx-auto">
+                    <div className="mb-8">
+                        <h1 className="text-3xl font-bold text-slate-900 mb-2">
+                            שלום {user?.full_name?.split(' ')[0] || 'עובד'}! 👋
+                        </h1>
+                        <p className="text-slate-600">הכלים שלך למשמרת היום</p>
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-8">
+                        <SmartToolsPanel />
+                        
+                        <Card>
+                            <CardHeader>
+                                <CardTitle className="flex items-center gap-2">
+                                    <Star className="w-5 h-5 text-yellow-500" />
+                                    הכלים שלך
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent className="space-y-4">
+                                <p className="text-gray-600">גש לתפריט הניווט עבור:</p>
+                                <div className="grid grid-cols-2 gap-3 text-sm">
+                                    <div className="p-3 bg-blue-50 rounded-lg">
+                                        <h4 className="font-semibold text-blue-900">הכשרות</h4>
+                                        <p className="text-blue-700">קורסים ואימונים</p>
+                                    </div>
+                                    <div className="p-3 bg-green-50 rounded-lg">
+                                        <h4 className="font-semibold text-green-900">צ'קליסטים</h4>
+                                        <p className="text-green-700">בדיקות יומיות</p>
+                                    </div>
+                                    <div className="p-3 bg-purple-50 rounded-lg">
+                                        <h4 className="font-semibold text-purple-900">לוח מובילים</h4>
+                                        <p className="text-purple-700">הישגים ונקודות</p>
+                                    </div>
+                                    <div className="p-3 bg-orange-50 rounded-lg">
+                                        <h4 className="font-semibold text-orange-900">דיווח תקריות</h4>
+                                        <p className="text-orange-700">דיווח מהיר</p>
+                                    </div>
+                                </div>
+                            </CardContent>
+                        </Card>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    // תצוגה למנהלים - מסודר לפי קטגוריות
+    return (
+        <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-6" dir="rtl">
+            <div className="max-w-7xl mx-auto space-y-8">
+                {/* כותרת ראשית */}
+                <div className="mb-8">
+                    <h1 className="text-4xl font-bold text-slate-900 mb-2">
+                        ברוך הבא, {user?.full_name?.split(' ')[0] || 'מנהל'}! 🎯
+                    </h1>
+                    <p className="text-xl text-slate-600">מבט כולל על מצב המסעדה היום</p>
+                </div>
+
+                {/* 🤖 כלי עבודה חכמים - במקום הראשון */}
+                <section>
+                    <h2 className="text-2xl font-bold text-slate-900 mb-4 flex items-center gap-2">
+                        🤖 כלי עבודה חכמים
+                        <Badge className="bg-indigo-100 text-indigo-800">AI</Badge>
+                    </h2>
+                    <SmartToolsPanel />
+                </section>
+
+                {/* 📊 סטטיסטיקות מהירות */}
+                <section>
+                    <h2 className="text-2xl font-bold text-slate-900 mb-4 flex items-center gap-2">
+                        📊 מבט מהיר
+                    </h2>
+                    <QuickStats />
+                </section>
+
+                {/* 📈 מידע בזמן אמת */}
+                <section>
+                    <h2 className="text-2xl font-bold text-slate-900 mb-4 flex items-center gap-2">
+                        📈 מידע בזמן אמת
+                    </h2>
+                    <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+                        <div className="xl:col-span-2">
+                            <SalesChart />
+                        </div>
+                        <div>
+                            <TableStatus />
+                        </div>
+                        <TodayReservations />
+                        <div className="lg:col-span-2">
+                            {/* ריק - לכלים נוספים בעתיד */}
+                        </div>
+                    </div>
+                </section>
+
+                {/* 🔍 מעקב ובקרה */}
+                <section>
+                    <h2 className="text-2xl font-bold text-slate-900 mb-4 flex items-center gap-2">
+                        🔍 מעקב ובקרה
+                    </h2>
+                    <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+                        <RecentIncidents />
+                        <TrainingOverview />
+                        <ChecklistStatus />
+                    </div>
+                </section>
+            </div>
+        </div>
+    );
+}

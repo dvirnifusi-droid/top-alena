@@ -1,0 +1,239 @@
+import React, { useState, useEffect } from 'react';
+import { User } from '@/entities/User';
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Star, GraduationCap, CheckSquare, AlertTriangle, Calendar, Utensils, Brain, Sparkles, FileText } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { createPageUrl } from '@/utils';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+
+import InvoiceScanner from '../components/dashboard/InvoiceScanner';
+import ManualSurveyTool from '../components/dashboard/ManualSurveyTool';
+import SeatingAiHelper from '../components/dashboard/SeatingAiHelper';
+import AiQuickAdd from '../components/dashboard/AiQuickAdd';
+
+export default function EmployeeHome() {
+    const [user, setUser] = useState(null);
+    const [showSmartTools, setShowSmartTools] = useState(false);
+
+    useEffect(() => {
+        User.me().then(setUser).catch(() => setUser(null));
+    }, []);
+
+    const smartTools = [
+        {
+            component: InvoiceScanner,
+            title: "סריקת חשבוניות ספק",
+            description: "סרוק חשבונית ועדכן מלאי אוטומטית",
+            icon: FileText,
+            color: "from-blue-500 to-indigo-600"
+        },
+        {
+            component: ManualSurveyTool,
+            title: "שליחת סקר ללקוח",
+            description: "שלח סקר שביעות רצון בוואטסאפ",
+            icon: Star,
+            color: "from-green-500 to-emerald-600"
+        },
+        {
+            component: SeatingAiHelper,
+            title: "עוזר הושבה חכם",
+            description: "קבל המלצות הושבה מבוסס AI",
+            icon: Brain,
+            color: "from-blue-500 to-indigo-600"
+        },
+        {
+            component: AiQuickAdd,
+            title: "הוספת ידע לעוזר AI",
+            description: "הכנס מתכונים, נהלים ומידע חדש",
+            icon: Sparkles,
+            color: "from-purple-500 to-blue-600"
+        }
+    ];
+
+    return (
+        <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-6" dir="rtl">
+            <div className="max-w-7xl mx-auto">
+                {/* כותרת */}
+                <div className="mb-8">
+                    <h1 className="text-3xl font-bold text-slate-900 mb-2">
+                        שלום {user?.full_name?.split(' ')[0] || 'עובד'}! 👋
+                    </h1>
+                    <p className="text-slate-600">הכלים שלך למשמרת היום</p>
+                </div>
+
+                {/* כרטיס כלי עבודה חכמים */}
+                <div className="mb-8">
+                    <Card 
+                        className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white cursor-pointer hover:shadow-xl transition-all duration-300 transform hover:scale-105"
+                        onClick={() => setShowSmartTools(true)}
+                    >
+                        <CardContent className="p-6">
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <h3 className="text-xl font-bold mb-2 flex items-center gap-2">
+                                        <Brain className="w-6 h-6" />
+                                        🤖 כלי עבודה חכמים
+                                    </h3>
+                                    <p className="text-indigo-100 mb-4">
+                                        כלים מבוססי AI לחיסכון בזמן ושיפור היעילות
+                                    </p>
+                                    <div className="flex items-center gap-2">
+                                        <Badge variant="secondary" className="bg-white/20 text-white">
+                                            {smartTools.length} כלים
+                                        </Badge>
+                                        <Badge variant="secondary" className="bg-white/20 text-white">
+                                            זמין עבורך!
+                                        </Badge>
+                                    </div>
+                                </div>
+                                <div className="flex flex-col items-center">
+                                    <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center mb-2">
+                                        <Sparkles className="w-8 h-8" />
+                                    </div>
+                                    <span className="text-sm">לחץ לפתיחה</span>
+                                </div>
+                            </div>
+                        </CardContent>
+                    </Card>
+                </div>
+
+                {/* כרטיסי גישה מהירה */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                    <Link to={createPageUrl("Training")}>
+                        <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full">
+                            <CardContent className="p-6">
+                                <div className="flex flex-col items-center text-center">
+                                    <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg flex items-center justify-center mb-3">
+                                        <GraduationCap className="w-6 h-6 text-white" />
+                                    </div>
+                                    <h3 className="font-semibold text-lg mb-2">הכשרות ואימונים</h3>
+                                    <p className="text-sm text-gray-600">קורסים ומשחקים לשיפור הביצועים</p>
+                                </div>
+                            </CardContent>
+                        </Card>
+                    </Link>
+
+                    <Link to={createPageUrl("Checklists")}>
+                        <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full">
+                            <CardContent className="p-6">
+                                <div className="flex flex-col items-center text-center">
+                                    <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-green-600 rounded-lg flex items-center justify-center mb-3">
+                                        <CheckSquare className="w-6 h-6 text-white" />
+                                    </div>
+                                    <h3 className="font-semibold text-lg mb-2">צ'קליסטים</h3>
+                                    <p className="text-sm text-gray-600">בדיקות יומיות ומשימות</p>
+                                </div>
+                            </CardContent>
+                        </Card>
+                    </Link>
+
+                    <Link to={createPageUrl("Incidents")}>
+                        <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full">
+                            <CardContent className="p-6">
+                                <div className="flex flex-col items-center text-center">
+                                    <div className="w-12 h-12 bg-gradient-to-br from-orange-500 to-orange-600 rounded-lg flex items-center justify-center mb-3">
+                                        <AlertTriangle className="w-6 h-6 text-white" />
+                                    </div>
+                                    <h3 className="font-semibold text-lg mb-2">דיווח תקריות</h3>
+                                    <p className="text-sm text-gray-600">דיווח מהיר על בעיות</p>
+                                </div>
+                            </CardContent>
+                        </Card>
+                    </Link>
+
+                    <Link to={createPageUrl("Leaderboard")}>
+                        <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full">
+                            <CardContent className="p-6">
+                                <div className="flex flex-col items-center text-center">
+                                    <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-purple-600 rounded-lg flex items-center justify-center mb-3">
+                                        <Star className="w-6 h-6 text-white" />
+                                    </div>
+                                    <h3 className="font-semibold text-lg mb-2">לוח מובילים</h3>
+                                    <p className="text-sm text-gray-600">הישגים ונקודות</p>
+                                </div>
+                            </CardContent>
+                        </Card>
+                    </Link>
+
+                    <Link to={createPageUrl("WorkScheduling")}>
+                        <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full">
+                            <CardContent className="p-6">
+                                <div className="flex flex-col items-center text-center">
+                                    <div className="w-12 h-12 bg-gradient-to-br from-cyan-500 to-cyan-600 rounded-lg flex items-center justify-center mb-3">
+                                        <Calendar className="w-6 h-6 text-white" />
+                                    </div>
+                                    <h3 className="font-semibold text-lg mb-2">סידור העבודה</h3>
+                                    <p className="text-sm text-gray-600">המשמרות שלך השבוע</p>
+                                </div>
+                            </CardContent>
+                        </Card>
+                    </Link>
+
+                    <Link to={createPageUrl("WaiterTables")}>
+                        <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full">
+                            <CardContent className="p-6">
+                                <div className="flex flex-col items-center text-center">
+                                    <div className="w-12 h-12 bg-gradient-to-br from-pink-500 to-pink-600 rounded-lg flex items-center justify-center mb-3">
+                                        <Utensils className="w-6 h-6 text-white" />
+                                    </div>
+                                    <h3 className="font-semibold text-lg mb-2">השולחנות שלי</h3>
+                                    <p className="text-sm text-gray-600">ניהול שולחנות במשמרת</p>
+                                </div>
+                            </CardContent>
+                        </Card>
+                    </Link>
+
+                    <Link to={createPageUrl("MyPerformance")}>
+                        <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full">
+                            <CardContent className="p-6">
+                                <div className="flex flex-col items-center text-center">
+                                    <div className="w-12 h-12 bg-gradient-to-br from-amber-500 to-amber-600 rounded-lg flex items-center justify-center mb-3">
+                                        <Star className="w-6 h-6 text-white" />
+                                    </div>
+                                    <h3 className="font-semibold text-lg mb-2">הביצועים שלי</h3>
+                                    <p className="text-sm text-gray-600">נתונים ודירוגים</p>
+                                </div>
+                            </CardContent>
+                        </Card>
+                    </Link>
+
+                    <Link to={createPageUrl("ShiftEndReport")}>
+                        <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full">
+                            <CardContent className="p-6">
+                                <div className="flex flex-col items-center text-center">
+                                    <div className="w-12 h-12 bg-gradient-to-br from-teal-500 to-teal-600 rounded-lg flex items-center justify-center mb-3">
+                                        <CheckSquare className="w-6 h-6 text-white" />
+                                    </div>
+                                    <h3 className="font-semibold text-lg mb-2">דוח סיום משמרת</h3>
+                                    <p className="text-sm text-gray-600">סיכום המשמרת</p>
+                                </div>
+                            </CardContent>
+                        </Card>
+                    </Link>
+                </div>
+            </div>
+
+            {/* דיאלוג כלי עבודה חכמים */}
+            <Dialog open={showSmartTools} onOpenChange={setShowSmartTools}>
+                <DialogContent className="max-w-7xl max-h-[90vh] overflow-y-auto" dir="rtl">
+                    <DialogHeader>
+                        <DialogTitle className="text-2xl text-center mb-4">
+                            🤖 כלי עבודה חכמים - פתרונות AI למסעדה
+                        </DialogTitle>
+                    </DialogHeader>
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 p-4">
+                        {smartTools.map((tool, index) => {
+                            const ToolComponent = tool.component;
+                            return (
+                                <div key={index}>
+                                    <ToolComponent />
+                                </div>
+                            );
+                        })}
+                    </div>
+                </DialogContent>
+            </Dialog>
+        </div>
+    );
+}

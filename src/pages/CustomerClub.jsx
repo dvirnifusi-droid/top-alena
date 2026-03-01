@@ -1,0 +1,223 @@
+
+import React, { useState, useEffect, useCallback } from 'react'; // Added useCallback
+import { Customer } from '@/entities/Customer';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Users, Search, Loader2, AlertTriangle, Heart, Frown, RefreshCw } from 'lucide-react';
+import { format } from 'date-fns';
+import { Link } from 'react-router-dom';
+import { createPageUrl } from '@/utils';
+
+export default function CustomerClubPage() {
+    const [customers, setCustomers] = useState([]);
+    const [filteredCustomers, setFilteredCustomers] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [searchTerm, setSearchTerm] = useState('');
+    const [statusFilter, setStatusFilter] = useState('all');
+
+    useEffect(() => {
+        loadCustomers();
+    }, []);
+
+    // Memoize filterCustomers to ensure its reference stability for useEffect dependencies
+    const filterCustomers = useCallback(() => {
+        const lowercasedFilter = searchTerm.toLowerCase();
+        let filteredData = customers.filter(item => {
+            return (
+                item.name?.toLowerCase().includes(lowercasedFilter) ||
+                item.phone?.toLowerCase().includes(lowercasedFilter) ||
+                item.email?.toLowerCase().includes(lowercasedFilter)
+            );
+        });
+
+        if (statusFilter !== 'all') {
+            filteredData = filteredData.filter(customer =>
+                customer.satisfaction_status === statusFilter
+            );
+        }
+
+        setFilteredCustomers(filteredData);
+    }, [searchTerm, customers, statusFilter]); // Dependencies for useCallback
+
+    useEffect(() => {
+        filterCustomers();
+    }, [searchTerm, customers, statusFilter, filterCustomers]); // Added filterCustomers to dependency array
+
+    const loadCustomers = async () => {
+        try {
+            const allCustomers = await Customer.list('-last_visit');
+            setCustomers(allCustomers);
+        } catch (error) {
+            console.error("Failed to load customers:", error);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const updateCustomerStatus = async (customerId, newStatus) => {
+        try {
+            await Customer.update(customerId, { satisfaction_status: newStatus });
+            loadCustomers(); // Refresh the data
+        } catch (error) {
+            console.error("Failed to update customer status:", error);
+            alert("שגיאה בעדכון הסטטוס. נסה שוב.");
+        }
+    };
+
+    const calculateAge = (birthday) => {
+        if (!birthday) return 'N/A';
+        const birthDate = new Date(birthday);
+        const today = new Date();
+        let age = today.getFullYear() - birthDate.getFullYear();
+        const m = today.getMonth() - birthDate.getMonth();
+        if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
+            age--;
+        }
+        return age;
+    };
+
+    const getSatisfactionBadge = (status) => {
+        const configs = {
+            satisfied: { text: 'מרוצה', className: 'bg-green-100 text-green-800', icon: Heart },
+            unsatisfied: { text: 'לא מרוצה', className: 'bg-red-100 text-red-800', icon: Frown },
+            recovering: { text: 'בטיפול', className: 'bg-yellow-100 text-yellow-800', icon: RefreshCw },
+            neutral: { text: 'ניטרלי', className: 'bg-gray-100 text-gray-800', icon: Users }
+        };
+
+        const config = configs[status] || configs.neutral;
+        const Icon = config.icon;
+
+        return (
+            <Badge className={config.className}>
+                <Icon className="w-3 h-3 ml-1" />
+                {config.text}
+            </Badge>
+        );
+    };
+
+    const unsatisfiedCount = customers.filter(c => c.satisfaction_status === 'unsatisfied').length;
+    const satisfiedCount = customers.filter(c => c.satisfaction_status === 'satisfied').length;
+    const recoveringCount = customers.filter(c => c.satisfaction_status === 'recovering').length;
+
+    return (
+        <div className="p-4 md:p-8" dir="rtl">
+            <Card>
+                <CardHeader>
+                    <div className="flex justify-between items-center">
+                        <div>
+                            <CardTitle className="flex items-center gap-2 text-2xl">
+                                <Users className="w-6 h-6 text-purple-600" />
+                                מועדון לקוחות
+                            </CardTitle>
+                            <CardDescription>רשימת כל הלקוחות, ביקורים וסטטוס שביעות רצון.</CardDescription>
+
+                            <div className="flex gap-4 mt-4">
+                                <Badge className="bg-green-100 text-green-800">
+                                    {satisfiedCount} לקוחות מרוצים
+                                </Badge>
+                                <Badge className="bg-red-100 text-red-800">
+                                    <AlertTriangle className="w-3 h-3 ml-1" />
+                                    {unsatisfiedCount} לקוחות לא מרוצים
+                                </Badge>
+                                <Badge className="bg-yellow-100 text-yellow-800">
+                                    {recoveringCount} בטיפול
+                                </Badge>
+                            </div>
+                        </div>
+                        <div className="relative w-1/3">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+                            <Input
+                                placeholder="חפש לפי שם, טלפון או מייל..."
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                className="pl-10"
+                            />
+                        </div>
+                    </div>
+                </CardHeader>
+                <CardContent>
+                    <Tabs value={statusFilter} onValueChange={setStatusFilter} className="mb-4">
+                        <TabsList>
+                            <TabsTrigger value="all">הכל</TabsTrigger>
+                            <TabsTrigger value="satisfied">מרוצים</TabsTrigger>
+                            <TabsTrigger value="unsatisfied">לא מרוצים</TabsTrigger>
+                            <TabsTrigger value="recovering">בטיפול</TabsTrigger>
+                            <TabsTrigger value="neutral">ניטרליים</TabsTrigger>
+                        </TabsList>
+                    </Tabs>
+
+                    {loading ? (
+                        <div className="flex justify-center items-center h-64">
+                            <Loader2 className="w-8 h-8 animate-spin text-purple-600" />
+                        </div>
+                    ) : (
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead>שם מלא</TableHead>
+                                    <TableHead>טלפון</TableHead>
+                                    <TableHead>מייל</TableHead>
+                                    <TableHead>ביקור אחרון</TableHead>
+                                    <TableHead>סטטוס שביעות רצון</TableHead>
+                                    <TableHead>פעולות</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {filteredCustomers.length > 0 ? (
+                                    filteredCustomers.map(customer => (
+                                        <TableRow key={customer.id}>
+                                            <TableCell className="font-medium">
+                                                <Link to={createPageUrl(`CustomerDetails?id=${customer.id}`)} className="text-blue-600 hover:underline font-semibold">
+                                                    {customer.name}
+                                                </Link>
+                                            </TableCell>
+                                            <TableCell>{customer.phone}</TableCell>
+                                            <TableCell>{customer.email || '-'}</TableCell>
+                                            <TableCell>
+                                                {customer.last_visit ? format(new Date(customer.last_visit), 'dd/MM/yyyy') : '-'}
+                                            </TableCell>
+                                            <TableCell>
+                                                {getSatisfactionBadge(customer.satisfaction_status)}
+                                                {customer.last_negative_feedback && (
+                                                    <div className="text-xs text-gray-500 mt-1">
+                                                        משוב שלילי: {format(new Date(customer.last_negative_feedback), 'dd/MM/yyyy')}
+                                                    </div>
+                                                )}
+                                            </TableCell>
+                                            <TableCell>
+                                                <Select
+                                                    value={customer.satisfaction_status || 'neutral'}
+                                                    onValueChange={(value) => updateCustomerStatus(customer.id, value)}
+                                                >
+                                                    <SelectTrigger className="w-32">
+                                                        <SelectValue />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        <SelectItem value="satisfied">מרוצה</SelectItem>
+                                                        <SelectItem value="unsatisfied">לא מרוצה</SelectItem>
+                                                        <SelectItem value="recovering">בטיפול</SelectItem>
+                                                        <SelectItem value="neutral">ניטרלי</SelectItem>
+                                                    </SelectContent>
+                                                </Select>
+                                            </TableCell>
+                                        </TableRow>
+                                    ))
+                                ) : (
+                                    <TableRow>
+                                        <TableCell colSpan="6" className="h-24 text-center">
+                                            לא נמצאו לקוחות.
+                                        </TableCell>
+                                    </TableRow>
+                                )}
+                            </TableBody>
+                        </Table>
+                    )}
+                </CardContent>
+            </Card>
+        </div>
+    );
+}
