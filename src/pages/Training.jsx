@@ -1111,12 +1111,6 @@ export default function TrainingPage() {
                             </>
                         )}
                     </>
-                ) : (
-                    <CourseDetails 
-                        course={selectedCourse} 
-                        onBack={handleBack}
-                        user={user}
-                    />
                 )}
             </div>
         </div>
