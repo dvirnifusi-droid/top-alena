@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { TrainingCourse, TrainingEnrollment, TrainingLesson, QuizQuestion, ConversationScript, User } from '@/entities/all';
+import { TrainingCourse, TrainingEnrollment, TrainingLesson, QuizQuestion, Quiz, ConversationScript, User } from '@/entities/all';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -1004,8 +1005,6 @@ export default function TrainingPage() {
     if (isLoading) {
         return <div className="flex justify-center items-center h-screen"><Loader2 className="w-12 h-12 animate-spin text-orange-600" /></div>
     }
-
-    const isAdmin = user?.role === 'admin';
 
     return (
         <div className="p-4 sm:p-8 bg-gradient-to-br from-orange-50 to-red-50 min-h-screen" dir="rtl">
