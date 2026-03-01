@@ -18,6 +18,7 @@ export default function WeeklyScheduleSummary({ userId }) {
         setLoading(true);
         try {
             if (!userId) {
+                console.log('No userId provided');
                 setLoading(false);
                 return;
             }
@@ -27,8 +28,12 @@ export default function WeeklyScheduleSummary({ userId }) {
             const weekStartStr = format(weekStart, 'yyyy-MM-dd');
             const weekEndStr = format(addDays(weekStart, 6), 'yyyy-MM-dd');
             
+            console.log('Loading shifts for userId:', userId, 'week:', weekStartStr, '-', weekEndStr);
+            
             // טוען את כל המשמרות
             const allShifts = await base44.entities.WorkShift.list();
+            console.log('Total shifts in DB:', allShifts.length);
+            
             const weekShifts = [];
             
             // סנן לפי שבוע נוכחי בהשוואה של strings
@@ -51,6 +56,7 @@ export default function WeeklyScheduleSummary({ userId }) {
                 }
             });
             
+            console.log('Found shifts for user:', weekShifts.length);
             // מיין לפי תאריך
             weekShifts.sort((a, b) => a.date - b.date);
             setShifts(weekShifts);
