@@ -304,8 +304,8 @@ const MobileSidebar = ({ userName, isCurrentViewAdmin, isOriginalAdmin, navigati
 
 const MobileHeader = ({ isCurrentViewAdmin }) => (
   <header className="sticky top-0 z-40 flex h-16 items-center justify-between border-b border-border bg-card px-3 lg:hidden min-w-0">
-    <SidebarTrigger className="p-3 rounded-xl bg-primary/10 hover:bg-primary/20 active:bg-primary/30 min-w-[52px] min-h-[52px] flex items-center justify-center">
-      <Menu className="w-11 h-11 text-primary" />
+    <SidebarTrigger className="p-3 rounded-xl bg-primary/10 hover:bg-primary/20 active:bg-primary/30 min-w-[56px] min-h-[56px] flex items-center justify-center" style={{minWidth:'56px',minHeight:'56px'}}>
+      <Menu style={{width:'44px',height:'44px',color:'var(--primary)',flexShrink:0}} />
     </SidebarTrigger>
     <div className="flex items-center gap-3 min-w-0">
       <div className="min-w-0 text-right">
