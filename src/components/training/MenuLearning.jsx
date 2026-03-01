@@ -374,6 +374,25 @@ export default function MenuLearning({ onComplete, user }) {
                                 <Label htmlFor="description" className="text-right">תיאור</Label>
                                 <Textarea id="description" value={editingItem.description || ''} onChange={(e) => setEditingItem({...editingItem, description: e.target.value})} className="col-span-3" />
                             </div>
+                            {/* Image Upload */}
+                            <div className="grid grid-cols-4 items-start gap-4">
+                                <Label className="text-right pt-2">תמונה</Label>
+                                <div className="col-span-3 space-y-2">
+                                    <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" id="menu-item-image" />
+                                    <Button type="button" variant="outline" size="sm" onClick={() => document.getElementById('menu-item-image').click()} disabled={imageUploading}>
+                                        {imageUploading ? <Loader className="w-4 h-4 animate-spin ml-1" /> : <Image className="w-4 h-4 ml-1" />}
+                                        {imageUploading ? 'מעלה...' : 'העלה תמונה'}
+                                    </Button>
+                                    {editingItem.image_url && (
+                                        <div className="flex items-center gap-2">
+                                            <img src={editingItem.image_url} alt="תצוגה מקדימה" className="h-20 w-20 object-cover rounded-lg border" />
+                                            <Button type="button" variant="ghost" size="sm" onClick={() => setEditingItem(p => ({ ...p, image_url: '' }))} className="text-red-500">
+                                                <X className="w-4 h-4" />
+                                            </Button>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
                         </div>
                     )}
                     <DialogFooter>
