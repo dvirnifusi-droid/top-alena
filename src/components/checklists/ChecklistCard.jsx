@@ -160,10 +160,10 @@ export default function ChecklistCard({ checklist, onStart, executions, onEdit, 
                 <div className="mt-6">
                     <Button
                         onClick={() => onStart(checklist)}
-                        className={`w-full h-14 text-lg font-bold rounded-2xl shadow-lg transition-all duration-300 ${
-                            lastExecution && lastExecution.status === 'completed' 
-                                ? 'bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white hover:shadow-xl hover:scale-105' 
-                                : 'bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-600 hover:to-cyan-600 text-white hover:shadow-xl hover:scale-105'
+                        className={`w-full h-14 text-lg font-bold rounded-2xl shadow-lg transition-all duration-300 hover:shadow-xl hover:scale-105 text-white bg-gradient-to-r ${
+                            lastExecution && lastExecution.status === 'completed'
+                                ? 'from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600'
+                                : `${colors.gradient} ${colors.hover}`
                         }`}
                     >
                         <Play className="w-6 h-6 mr-3" />
