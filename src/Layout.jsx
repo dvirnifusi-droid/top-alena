@@ -145,10 +145,12 @@ export default function Layout({ children, currentPageName }) {
         </div>
       </SidebarProvider>
 
-      {/* AI Assistant */}
-      <div className="fixed top-20 left-4 z-50 lg:top-auto lg:bottom-8 lg:left-8">
-        <AiChatWidget />
-      </div>
+      {/* AI Assistant - רק בדפי בית ולוח בקרה */}
+      {(currentPageName === 'EmployeeHome' || currentPageName === 'Dashboard') && (
+        <div className="fixed top-20 left-4 z-50 lg:top-auto lg:bottom-8 lg:left-8">
+          <AiChatWidget />
+        </div>
+      )}
     </div>
   );
 }
