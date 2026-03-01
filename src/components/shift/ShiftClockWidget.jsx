@@ -54,6 +54,8 @@ export default function ShiftClockWidget() {
         setActionLoading(true);
         const now = new Date().toISOString();
         const today = format(new Date(), 'yyyy-MM-dd');
+
+        // יצירת ShiftTracking
         const shift = await base44.entities.ShiftTracking.create({
             employee_id: user.id,
             employee_name: user.full_name,
@@ -64,6 +66,50 @@ export default function ShiftClockWidget() {
             total_break_minutes: 0,
             had_meal: false,
         });
+
+        // בדוק אם העובד מופיע בסידור עבודה של היום
+        const employeeRecord = await findEmployeeRecord(user);
+        const employeeId = employeeRecord?.id || user.id;
+
+        const workShifts = await base44.entities.WorkShift.filter({ date: today });
+        const isInSchedule = workShifts.some(ws =>
+            (ws.assigned_staff || []).some(a => a.employee_id === employeeId)
+        );
+
+        if (!isInSchedule) {
+            // קבע את שעת המשמרת (צהריים/ערב) לפי השעה הנוכחית
+            const hour = new Date().getHours();
+            const shiftType = hour < 16 ? 'lunch' : 'dinner';
+
+            // מצא משמרת קיימת לסוג זה, או צור אחת חדשה
+            let targetShift = workShifts.find(ws => ws.shift_type === shiftType);
+            if (!targetShift) {
+                targetShift = await base44.entities.WorkShift.create({
+                    date: today,
+                    shift_type: shiftType,
+                    start_time: shiftType === 'lunch' ? '12:00' : '17:00',
+                    end_time: shiftType === 'lunch' ? '17:00' : '23:00',
+                    assigned_staff: [],
+                    positions_needed: {},
+                });
+            }
+
+            // הוסף את העובד תחת "בלתם" (לא משויך)
+            const updatedStaff = [...(targetShift.assigned_staff || []), {
+                employee_id: employeeId,
+                employee_name: user.full_name,
+                position: 'בלתם',
+                start_time: format(new Date(now), 'HH:mm'),
+                end_time: '',
+                breaks: [],
+                notes: 'נוסף אוטומטית - לא היה בסידור',
+                had_meal: false,
+                meal_details: '',
+                total_break_minutes: 0,
+            }];
+            await base44.entities.WorkShift.update(targetShift.id, { assigned_staff: updatedStaff });
+        }
+
         setActiveShift(shift);
         setActionLoading(false);
     };
