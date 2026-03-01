@@ -264,8 +264,8 @@ export default function AiChatWidget() {
     }
 
     return (
-        <div className="relative">
-            <Card className={`w-[20rem] sm:w-[26rem] lg:w-[28rem] shadow-2xl border-0 bg-white/95 backdrop-blur-sm ${isMinimized ? 'h-16' : 'h-[450px] sm:h-[550px] lg:h-[600px]'}`}>
+        <div className="w-full">
+            <Card className={`w-full shadow-2xl border-0 bg-white/95 backdrop-blur-sm ${isMinimized ? 'h-16' : 'h-[500px]'}`}>
                 <CardHeader className="flex flex-row items-center justify-between bg-gradient-to-r from-orange-600 to-red-600 text-white p-3 sm:p-4 rounded-t-lg">
                     <div className="flex items-center gap-2">
                         <img 
