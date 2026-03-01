@@ -135,18 +135,27 @@ export default function QuickAssignDialog({ isOpen, onOpenChange, context, emplo
                             </SelectContent>
                         </Select>
                     </div>
-                    <div className="grid grid-cols-4 items-center gap-4">
-                        <Label htmlFor="start-time" className="text-right">שעת התחלה</Label>
-                        <div className="col-span-3">
-                          <TimePicker id="start-time" value={startTime} onChange={setStartTime} />
+                    {selectedPosition !== 'בלתם' && (
+                        <>
+                            <div className="grid grid-cols-4 items-center gap-4">
+                                <Label htmlFor="start-time" className="text-right">שעת התחלה</Label>
+                                <div className="col-span-3">
+                                  <TimePicker id="start-time" value={startTime} onChange={setStartTime} />
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-4 items-center gap-4">
+                                <Label htmlFor="end-time" className="text-right">שעת סיום</Label>
+                                <div className="col-span-3">
+                                  <TimePicker id="end-time" value={endTime} onChange={setEndTime} />
+                                </div>
+                            </div>
+                        </>
+                    )}
+                    {selectedPosition === 'בלתם' && (
+                        <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-700">
+                            🔄 השעות יתעדכנו אוטומטית כשהעובד נכנס למשמרת
                         </div>
-                    </div>
-                    <div className="grid grid-cols-4 items-center gap-4">
-                        <Label htmlFor="end-time" className="text-right">שעת סיום</Label>
-                        <div className="col-span-3">
-                          <TimePicker id="end-time" value={endTime} onChange={setEndTime} />
-                        </div>
-                    </div>
+                    )}
                 </div>
                 <DialogFooter className="justify-between">
                     <div>
