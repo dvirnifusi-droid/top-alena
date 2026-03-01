@@ -231,6 +231,7 @@ export default function ChecklistEditDialog({ isOpen, checklist, employees, onCl
                                                     variant="ghost" size="sm"
                                                     disabled={selectedItemIndex === 0}
                                                     onClick={() => setSelectedItemIndex(i => i - 1)}
+                                                    title="משימה קודמת"
                                                 >
                                                     <ChevronRight className="w-4 h-4" />
                                                 </Button>
@@ -238,8 +239,25 @@ export default function ChecklistEditDialog({ isOpen, checklist, employees, onCl
                                                     variant="ghost" size="sm"
                                                     disabled={selectedItemIndex === formData.items.length - 1}
                                                     onClick={() => setSelectedItemIndex(i => i + 1)}
+                                                    title="משימה הבאה"
                                                 >
                                                     <ChevronLeft className="w-4 h-4" />
+                                                </Button>
+                                                <Button
+                                                    variant="ghost" size="sm"
+                                                    disabled={selectedItemIndex === 0}
+                                                    onClick={() => moveItem(selectedItemIndex, -1)}
+                                                    title="הזז למעלה"
+                                                >
+                                                    <ArrowUp className="w-4 h-4" />
+                                                </Button>
+                                                <Button
+                                                    variant="ghost" size="sm"
+                                                    disabled={selectedItemIndex === formData.items.length - 1}
+                                                    onClick={() => moveItem(selectedItemIndex, 1)}
+                                                    title="הזז למטה"
+                                                >
+                                                    <ArrowDown className="w-4 h-4" />
                                                 </Button>
                                                 <Button
                                                     variant="ghost" size="sm"
