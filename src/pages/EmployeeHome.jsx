@@ -279,6 +279,17 @@ export default function EmployeeHome() {
                 </div>
             </div>
 
+            {/* דיאלוג תדריך */}
+            <Dialog open={!!selectedBrief} onOpenChange={(open) => !open && setSelectedBrief(null)}>
+                <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto p-0" dir="rtl">
+                    <DailyBriefView
+                        brief={selectedBrief}
+                        employeeId={user?.id}
+                        onReady={handleMarkAsRead}
+                    />
+                </DialogContent>
+            </Dialog>
+
             {/* דיאלוג כלי עבודה חכמים */}
             <Dialog open={showSmartTools} onOpenChange={setShowSmartTools}>
                 <DialogContent className="max-w-7xl max-h-[90vh] overflow-y-auto" dir="rtl">
