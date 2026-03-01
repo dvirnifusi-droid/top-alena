@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -268,11 +267,11 @@ export default function AiChatWidget() {
                         <CardTitle className="text-xs sm:text-sm">דביר - עוזר פנימי</CardTitle>
                     </div>
                     <div className="flex items-center gap-2">
-                         <Button variant="ghost" size="sm" onClick={() => setIsMinimized(!isMinimized)} className="text-white hover:bg-white/20 h-6 w-6 sm:h-8 sm:w-8 p-0">
-                            {isMinimized ? <Maximize2 className="h-3 w-3 sm:h-4 sm:w-4" /> : <Minimize2 className="h-3 w-3 sm:h-4 sm:w-4" />}
+                         <Button variant="ghost" size="sm" onClick={() => setIsMinimized(!isMinimized)} className="bg-white/30 hover:bg-white/50 text-white h-8 w-8 sm:h-8 sm:w-8 p-0 rounded-full">
+                            {isMinimized ? <Maximize2 className="h-4 w-4 sm:h-4 sm:w-4" /> : <Minimize2 className="h-4 w-4 sm:h-4 sm:w-4" />}
                         </Button>
-                        <Button variant="ghost" size="sm" onClick={() => setIsOpen(false)} className="text-white hover:bg-white/20 h-6 w-6 sm:h-8 sm:w-8 p-0">
-                            <X className="h-3 w-3 sm:h-4 sm:w-4" />
+                        <Button variant="ghost" size="sm" onClick={() => setIsOpen(false)} className="bg-white/30 hover:bg-white/50 text-white h-8 w-8 sm:h-8 sm:w-8 p-0 rounded-full">
+                            <X className="h-4 w-4 sm:h-4 sm:w-4" />
                         </Button>
                     </div>
                 </CardHeader>
