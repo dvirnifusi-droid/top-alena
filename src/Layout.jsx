@@ -313,8 +313,8 @@ const MobileHeader = ({ isCurrentViewAdmin }) => (
         <p className="text-xs text-muted-foreground truncate">{isCurrentViewAdmin ? 'ניהול' : 'אזור אישי'}</p>
       </div>
     </div>
-    <SidebarTrigger className="p-2 -mr-1">
-      <Menu className="w-6 h-6 text-foreground" />
+    <SidebarTrigger className="p-3 -mr-1">
+      <Menu className="w-8 h-8 text-foreground" />
     </SidebarTrigger>
   </header>
 );

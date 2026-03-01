@@ -75,7 +75,6 @@ import CustomerClub from './pages/CustomerClub';
 import SmartPrediction from './pages/SmartPrediction';
 import WorkScheduling from './pages/WorkScheduling';
 import Tips from './pages/Tips';
-import EmployeeHome from './pages/EmployeeHome';
 import EmployeeFeedback from './pages/EmployeeFeedback';
 import PositionsManagement from './pages/PositionsManagement';
 import SurveyQRCodes from './pages/SurveyQRCodes';
@@ -86,6 +85,7 @@ import ShiftEndReportDetails from './pages/ShiftEndReportDetails';
 import CustomerDetails from './pages/CustomerDetails';
 import RevenueForecasting from './pages/RevenueForecasting';
 import BriefingManagement from './pages/BriefingManagement';
+import EmployeeHome from './pages/EmployeeHome';
 import __Layout from './Layout.jsx';
 
 
@@ -118,7 +118,6 @@ export const PAGES = {
     "SmartPrediction": SmartPrediction,
     "WorkScheduling": WorkScheduling,
     "Tips": Tips,
-    "EmployeeHome": EmployeeHome,
     "EmployeeFeedback": EmployeeFeedback,
     "PositionsManagement": PositionsManagement,
     "SurveyQRCodes": SurveyQRCodes,
@@ -129,6 +128,7 @@ export const PAGES = {
     "CustomerDetails": CustomerDetails,
     "RevenueForecasting": RevenueForecasting,
     "BriefingManagement": BriefingManagement,
+    "EmployeeHome": EmployeeHome,
 }
 
 export const pagesConfig = {
