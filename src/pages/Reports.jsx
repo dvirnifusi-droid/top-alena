@@ -675,3 +675,11 @@ function ReportsInner() {
         </div>
     );
 }
+
+export default function Reports() {
+    return (
+        <PageGuard pageName="Reports" pageTitle="דוחות">
+            <ReportsInner />
+        </PageGuard>
+    );
+}
