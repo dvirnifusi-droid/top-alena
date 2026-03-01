@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { WorkShift } from '@/entities/WorkShift';
 import { WorkPosition } from '@/entities/WorkPosition';
@@ -24,10 +23,10 @@ const shiftTypesConfig = {
 };
 
 // New Fixed Order Definitions
-const LUNCH_POSITIONS_ORDER = ['קופה + אריזות', 'מלצר', 'טבח'];
+const LUNCH_POSITIONS_ORDER = ['קופה + אריזות', 'מלצר', 'טבח', 'בלתם'];
 const DINNER_POSITIONS_ORDER = [
     'מנהל משמרת', 'ברמן', 'מלצר', 'ראנר', 'מארח/ת',
-    'טבח', 'צאקר', 'גריל', 'פס בטטה', 'מקשר', 'מתלמד מטבח', 'שוטף כלים'
+    'טבח', 'צאקר', 'גריל', 'פס בטטה', 'מקשר', 'מתלמד מטבח', 'שוטף כלים', 'בלתם'
 ];
 
 // New constant for department definitions and their associated position names
