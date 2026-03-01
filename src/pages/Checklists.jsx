@@ -23,8 +23,9 @@ export default function ChecklistsPage() {
     const [user, setUser] = useState(null);
     const [loading, setLoading] = useState(true);
     const [editingChecklist, setEditingChecklist] = useState(null);
-    const [employees, setEmployees] = useState([]); // Add state for employees
-    const [assigningTasksFor, setAssigningTasksFor] = useState(null); // State for the new dialog
+    const [employees, setEmployees] = useState([]);
+    const [assigningTasksFor, setAssigningTasksFor] = useState(null);
+    const [shiftFilter, setShiftFilter] = useState('all');
 
     useEffect(() => {
         loadData();
