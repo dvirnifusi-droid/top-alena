@@ -1,4 +1,3 @@
-
 import React from "react";
 import { Link, useLocation } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -321,7 +320,7 @@ const MobileHeader = ({ isCurrentViewAdmin }) => (
 );
 
 const GlobalMobileStyles = () => (
-  <style global jsx>{`
+  <style>{`
     @import url('https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;700;900&family=Rubik:wght@700&display=swap');
 
     :root {

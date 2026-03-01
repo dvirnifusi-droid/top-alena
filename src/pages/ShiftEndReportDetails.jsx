@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { useLocation, Link } from 'react-router-dom';
 import { ShiftEndReport } from '@/entities/ShiftEndReport';
@@ -444,7 +443,7 @@ export default function ShiftEndReportDetailsPage() {
 
     return (
         <div className="p-4 sm:p-8 bg-gray-50 min-h-screen" dir="rtl">
-            <style jsx global>{`
+            <style>{`
                 @media print {
                     .no-print { display: none !important; }
                     body { font-family: 'Heebo', sans-serif; direction: rtl; }
