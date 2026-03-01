@@ -23,7 +23,7 @@ import {
     AlertDialogTrigger 
 } from '@/components/ui/alert-dialog';
 
-function ReportsInner() {
+function _ReportsInner_check() {}
     const [tipReports, setTipReports] = useState([]);
     const [workShifts, setWorkShifts] = useState([]);
     const [shiftEndReports, setShiftEndReports] = useState([]);
