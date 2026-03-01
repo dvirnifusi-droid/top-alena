@@ -146,7 +146,7 @@ export default function Layout({ children, currentPageName }) {
       </SidebarProvider>
 
       {/* AI Assistant - רק בדפי בית ולוח בקרה */}
-      {(currentPageName === 'EmployeeHome' || currentPageName === 'Dashboard') && (
+      {(['EmployeeHome', 'Dashboard'].includes(currentPageName)) && (
         <div className="fixed top-20 left-4 z-50 lg:top-auto lg:bottom-8 lg:left-8">
           <AiChatWidget />
         </div>
