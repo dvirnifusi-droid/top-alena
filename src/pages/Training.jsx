@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { TrainingCourse, TrainingEnrollment, TrainingLesson, QuizQuestion, ConversationScript, User } from '@/entities/all';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -18,7 +17,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 import LiveSimulation from "../components/training/LiveSimulation";
-import ToneTraining from "../components/training/ToneTraining"; // New Import
+import ToneTraining from "../components/training/ToneTraining";
+import QuizManager from "../components/training/QuizManager";
 
 // --- Components ---
 
