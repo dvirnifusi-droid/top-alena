@@ -239,18 +239,27 @@ export default function AiChatWidget() {
 
     if (!isOpen) {
         return (
-            <div className="relative">
-                <button
-                    onClick={() => setIsOpen(true)}
-                    className="bg-transparent border-0 p-0 cursor-pointer"
-                >
-                    <img 
-                        src={DVIR_ICON_URL} 
-                        alt="דביר AI" 
-                        className="h-16 w-16 sm:h-20 sm:w-20 object-contain hover:scale-110 transition-transform duration-300" 
-                    />
-                </button>
-            </div>
+            <button
+                onClick={() => setIsOpen(true)}
+                className="w-full flex items-center gap-4 bg-gradient-to-l from-purple-700 to-purple-500 text-white rounded-2xl px-5 py-3 shadow-2xl hover:brightness-110 transition-all duration-300 cursor-pointer border-0"
+                dir="rtl"
+            >
+                <img 
+                    src={DVIR_ICON_URL} 
+                    alt="דביר AI" 
+                    className="h-12 w-12 object-contain flex-shrink-0" 
+                />
+                <div className="flex-1 text-right min-w-0">
+                    <div className="flex items-center gap-2 justify-end mb-0.5">
+                        <span className="font-bold text-base">כלי עבודה חכמים 🧠 ✨</span>
+                    </div>
+                    <p className="text-purple-200 text-xs">כלים מבוססי AI לחיסכון בזמן ושיפור היעילות</p>
+                </div>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                    <span className="bg-white/20 text-white text-xs px-2 py-1 rounded-full whitespace-nowrap">4 כלים</span>
+                    <span className="bg-orange-400 text-white text-xs px-3 py-1 rounded-full font-bold whitespace-nowrap">לחץ לפתיחה!</span>
+                </div>
+            </button>
         );
     }
 
