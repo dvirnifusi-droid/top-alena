@@ -242,6 +242,11 @@ export default function MenuLearning({ onComplete, user }) {
                                         isViewed ? 'ring-2 ring-green-200 bg-green-50' : 'hover:shadow-xl'
                                     }`}
                                 >
+                                    {item.image_url && (
+                                        <div className="w-full h-40 overflow-hidden rounded-t-lg">
+                                            <img src={item.image_url} alt={item.name} className="w-full h-full object-cover cursor-pointer" onClick={() => handleItemView(item.id)} />
+                                        </div>
+                                    )}
                                     <CardHeader className="pb-3">
                                         <div className="flex justify-between items-start">
                                             <CardTitle 
