@@ -72,19 +72,28 @@ export default function ShiftClockWidget() {
         const employeeId = employeeRecord?.id || user.id;
 
         const workShifts = await base44.entities.WorkShift.filter({ date: today });
-        const isInSchedule = workShifts.some(ws =>
-            (ws.assigned_staff || []).some(a => a.employee_id === employeeId)
-        );
+        
+        // מצא את השיבוץ של העובד (בכל משמרה)
+        let assignmentFound = null;
+        let targetShift = null;
+        
+        for (const ws of workShifts) {
+            const assignment = (ws.assigned_staff || []).find(a => a.employee_id === employeeId);
+            if (assignment) {
+                assignmentFound = assignment;
+                targetShift = ws;
+                break;
+            }
+        }
 
-        if (!isInSchedule) {
-            // קבע את שעת המשמרת (צהריים/ערב) לפי השעה הנוכחית
+        // אם העובד לא בסידור, הוסף אותו תחת "בלתם"
+        if (!assignmentFound) {
             const hour = new Date().getHours();
             const shiftType = hour < 16 ? 'lunch' : 'dinner';
 
-            // מצא משמרת קיימת לסוג זה, או צור אחת חדשה
-            let targetShift = workShifts.find(ws => ws.shift_type === shiftType);
-            if (!targetShift) {
-                targetShift = await base44.entities.WorkShift.create({
+            let shift = workShifts.find(ws => ws.shift_type === shiftType);
+            if (!shift) {
+                shift = await base44.entities.WorkShift.create({
                     date: today,
                     shift_type: shiftType,
                     start_time: shiftType === 'lunch' ? '12:00' : '17:00',
@@ -94,19 +103,26 @@ export default function ShiftClockWidget() {
                 });
             }
 
-            // הוסף את העובד תחת "בלתם" (לא משויך)
-            const updatedStaff = [...(targetShift.assigned_staff || []), {
+            const updatedStaff = [...(shift.assigned_staff || []), {
                 employee_id: employeeId,
                 employee_name: user.full_name,
                 position: 'בלתם',
                 start_time: format(new Date(now), 'HH:mm'),
                 end_time: '',
                 breaks: [],
-                notes: 'נוסף אוטומטית - לא היה בסידור',
+                notes: 'נוסף אוטומטית',
                 had_meal: false,
                 meal_details: '',
                 total_break_minutes: 0,
             }];
+            await base44.entities.WorkShift.update(shift.id, { assigned_staff: updatedStaff });
+        } else if (assignmentFound.position === 'בלתם' || !assignmentFound.start_time) {
+            // עדכן את שעת ההתחלה של העובד בסידור אם הוא בתפקיד "בלתם" או ללא שעה
+            const updatedStaff = [...(targetShift.assigned_staff || [])].map(a =>
+                a.employee_id === employeeId
+                    ? { ...a, start_time: format(new Date(now), 'HH:mm') }
+                    : a
+            );
             await base44.entities.WorkShift.update(targetShift.id, { assigned_staff: updatedStaff });
         }
 
