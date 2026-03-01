@@ -1,6 +1,6 @@
-
 import React from 'react';
 import { User } from '@/entities/User';
+import PageGuard from '../components/shared/PageGuard';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Users, TrendingUp, CheckCircle, AlertTriangle, Star, Brain, Zap, ChevronRight, Bot, Sparkles } from 'lucide-react';
