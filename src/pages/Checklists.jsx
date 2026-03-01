@@ -3,7 +3,7 @@ import { Checklist, ChecklistExecution } from "@/entities/all";
 import { User } from "@/entities/User";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { CheckSquare, Clock, CheckCircle, AlertTriangle, FileText, Pencil } from "lucide-react";
+import { CheckSquare, Clock, CheckCircle, AlertTriangle, FileText, Pencil, Plus } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Link } from "react-router-dom";
 import { createPageUrl } from "@/utils";
