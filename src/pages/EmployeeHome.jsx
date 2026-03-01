@@ -29,6 +29,7 @@ export default function EmployeeHome() {
         User.me().then(u => {
             setUser(u);
             loadTodayBriefs();
+            loadTodayPosition();
         }).catch(() => setUser(null));
     }, []);
 
@@ -36,6 +37,27 @@ export default function EmployeeHome() {
         const today = format(new Date(), 'yyyy-MM-dd');
         const briefs = await DailyBrief.filter({ date: today, status: 'published' });
         setTodayBriefs(briefs);
+    };
+
+    const loadTodayPosition = async () => {
+        try {
+            const currentUser = await User.me();
+            const today = format(new Date(), 'yyyy-MM-dd');
+            const todayShifts = await base44.entities.WorkShift.filter({ date: today });
+            
+            for (const shift of todayShifts) {
+                const assignment = (shift.assigned_staff || []).find(
+                    a => a.employee_name && currentUser.full_name && 
+                    a.employee_name.toLowerCase() === currentUser.full_name.toLowerCase()
+                );
+                if (assignment) {
+                    setTodayPosition(assignment.position);
+                    return;
+                }
+            }
+        } catch (error) {
+            console.error('Error loading today position:', error);
+        }
     };
 
     const handleMarkAsRead = async (briefId) => {
