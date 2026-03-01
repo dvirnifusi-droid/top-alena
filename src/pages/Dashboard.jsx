@@ -410,3 +410,11 @@ function DashboardInner() {
         </div>
     );
 }
+
+export default function Dashboard() {
+    return (
+        <PageGuard pageName="Dashboard" pageTitle="לוח בקרה">
+            <DashboardInner />
+        </PageGuard>
+    );
+}
