@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { TrainingCourse, TrainingEnrollment, TrainingLesson, QuizQuestion, Quiz, ConversationScript, User } from '@/entities/all';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { TrainingCourse, TrainingEnrollment, TrainingLesson, QuizQuestion, ConversationScript, User } from '@/entities/all';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -945,6 +944,7 @@ export default function TrainingPage() {
     const [enrollments, setEnrollments] = useState({});
     const [selectedCourse, setSelectedCourse] = useState(null);
     const [showQuickPractice, setShowQuickPractice] = useState(false);
+    const [showQuizManager, setShowQuizManager] = useState(false);
     const [user, setUser] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
 
@@ -1002,11 +1002,11 @@ export default function TrainingPage() {
         setSelectedCourse(null);
     };
 
-    const isAdmin = user?.role === 'admin';
-
     if (isLoading) {
         return <div className="flex justify-center items-center h-screen"><Loader2 className="w-12 h-12 animate-spin text-orange-600" /></div>
     }
+
+    const isAdmin = user?.role === 'admin';
 
     return (
         <div className="p-4 sm:p-8 bg-gradient-to-br from-orange-50 to-red-50 min-h-screen" dir="rtl">
@@ -1041,7 +1041,35 @@ export default function TrainingPage() {
                     </div>
                 ) : !selectedCourse ? (
                     <>
-                        <h1 className="text-4xl font-bold text-slate-900 mb-2">מסלולי הכשרה</h1>
+                        <div className="flex items-center justify-between mb-2">
+                            <h1 className="text-4xl font-bold text-slate-900">מסלולי הכשרה</h1>
+                            {isAdmin && (
+                                <div className="flex gap-2 border rounded-xl p-1 bg-white shadow-sm">
+                                    <Button
+                                        variant={!showQuizManager ? 'default' : 'ghost'}
+                                        size="sm"
+                                        onClick={() => setShowQuizManager(false)}
+                                    >
+                                        📚 קורסים
+                                    </Button>
+                                    <Button
+                                        variant={showQuizManager ? 'default' : 'ghost'}
+                                        size="sm"
+                                        onClick={() => setShowQuizManager(true)}
+                                        className={showQuizManager ? 'bg-blue-600 hover:bg-blue-700' : ''}
+                                    >
+                                        🎓 מבחנים
+                                    </Button>
+                                </div>
+                            )}
+                        </div>
+
+                        {isAdmin && showQuizManager ? (
+                            <div className="mt-4">
+                                <QuizManager />
+                            </div>
+                        ) : (
+                        <div>
                         <p className="text-lg text-slate-600 mb-6">אלו הקורסים המיועדים עבורך. בחר קורס כדי להתחיל.</p>
                         
                         {/* Quick Practice Button */}
@@ -1081,6 +1109,8 @@ export default function TrainingPage() {
                                     />
                                 ))}
                             </div>
+                        )}
+                        </>
                         )}
                     </>
                 ) : (
