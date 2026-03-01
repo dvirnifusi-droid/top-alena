@@ -1041,8 +1041,10 @@ export default function TrainingPage() {
                     </div>
                 ) : !selectedCourse ? (
                     <>
-                        <div className="flex items-center justify-between mb-2">
-                            <h1 className="text-4xl font-bold text-slate-900">מסלולי הכשרה</h1>
+                        <div className="flex items-center justify-between mb-4">
+                            <h1 className="text-4xl font-bold text-slate-900">
+                                {showQuizManager ? 'ניהול מבחנים' : 'מסלולי הכשרה'}
+                            </h1>
                             {isAdmin && (
                                 <div className="flex gap-2 border rounded-xl p-1 bg-white shadow-sm">
                                     <Button
@@ -1056,61 +1058,51 @@ export default function TrainingPage() {
                                         variant={showQuizManager ? 'default' : 'ghost'}
                                         size="sm"
                                         onClick={() => setShowQuizManager(true)}
-                                        className={showQuizManager ? 'bg-blue-600 hover:bg-blue-700' : ''}
+                                        className={showQuizManager ? 'bg-blue-600 hover:bg-blue-700 text-white' : ''}
                                     >
-                                        🎓 מבחנים
+                                        📝 מבחנים
                                     </Button>
                                 </div>
                             )}
                         </div>
 
                         {isAdmin && showQuizManager ? (
-                            <div className="mt-4">
-                                <QuizManager />
-                            </div>
+                            <QuizManager />
                         ) : (
-                        <div>
-                        <p className="text-lg text-slate-600 mb-6">אלו הקורסים המיועדים עבורך. בחר קורס כדי להתחיל.</p>
-                        
-                        {/* Quick Practice Button */}
-                        <div className="mb-8 text-center">
-                            <Button 
-                                onClick={handleQuickPractice}
-                                className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white text-lg px-8 py-4 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300"
-                            >
-                                <MessageSquare className="w-6 h-6 mr-3" />
-                                🚀 תרגול מהיר עם לקוח AI
-                                <span className="block text-sm font-normal opacity-90 mt-1">
-                                    דלג על התיאוריה - ישר לתרגול!
-                                </span>
-                            </Button>
-                        </div>
-                        
-                        {courses.length === 0 ? (
-                            <div className="text-center py-12">
-                                <GraduationCap className="w-16 h-16 mx-auto text-gray-400 mb-4" />
-                                <h3 className="text-xl font-semibold text-gray-600 mb-2">אין קורסים זמינים כרגע</h3>
-                                <p className="text-gray-500">קורסי ההדרכה יופיעו כאן ברגע שיהיו מוכנים</p>
-                                <Button 
-                                    onClick={loadData} 
-                                    className="mt-4 bg-orange-600 hover:bg-orange-700"
-                                >
-                                    רענן
-                                </Button>
-                            </div>
-                        ) : (
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                                {courses.map(course => (
-                                    <CourseCard 
-                                        key={course.id} 
-                                        course={course} 
-                                        onSelect={setSelectedCourse} 
-                                        enrollment={enrollments[course.course_code]} 
-                                    />
-                                ))}
-                            </div>
-                        )}
-                        </>
+                            <>
+                                <p className="text-lg text-slate-600 mb-6">אלו הקורסים המיועדים עבורך. בחר קורס כדי להתחיל.</p>
+                                <div className="mb-8 text-center">
+                                    <Button 
+                                        onClick={handleQuickPractice}
+                                        className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white text-lg px-8 py-4 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300"
+                                    >
+                                        <MessageSquare className="w-6 h-6 mr-3" />
+                                        🚀 תרגול מהיר עם לקוח AI
+                                        <span className="block text-sm font-normal opacity-90 mt-1">
+                                            דלג על התיאוריה - ישר לתרגול!
+                                        </span>
+                                    </Button>
+                                </div>
+                                {courses.length === 0 ? (
+                                    <div className="text-center py-12">
+                                        <GraduationCap className="w-16 h-16 mx-auto text-gray-400 mb-4" />
+                                        <h3 className="text-xl font-semibold text-gray-600 mb-2">אין קורסים זמינים כרגע</h3>
+                                        <p className="text-gray-500">קורסי ההדרכה יופיעו כאן ברגע שיהיו מוכנים</p>
+                                        <Button onClick={loadData} className="mt-4 bg-orange-600 hover:bg-orange-700">רענן</Button>
+                                    </div>
+                                ) : (
+                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                                        {courses.map(course => (
+                                            <CourseCard 
+                                                key={course.id} 
+                                                course={course} 
+                                                onSelect={setSelectedCourse} 
+                                                enrollment={enrollments[course.course_code]} 
+                                            />
+                                        ))}
+                                    </div>
+                                )}
+                            </>
                         )}
                     </>
                 ) : (
