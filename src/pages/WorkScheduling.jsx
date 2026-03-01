@@ -50,6 +50,11 @@ const getOrderedPositionsForShift = (allPositions, shiftType) => {
         return indexA - indexB;
     });
 
+    // הוסף את "בלתם" תמיד בסוף אם הוא בסדר הקבוע
+    if (orderList.includes('בלתם') && !includedPositions.some(p => p.position_name === 'בלתם')) {
+        includedPositions.push({ position_name: 'בלתם', id: 'unassigned' });
+    }
+
     return includedPositions;
 };
 
