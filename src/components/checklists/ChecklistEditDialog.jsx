@@ -17,6 +17,8 @@ export default function ChecklistEditDialog({ isOpen, checklist, employees, onCl
         category: 'operational',
         frequency: 'daily',
         assigned_role: '',
+        shift: 'all',
+        color: 'emerald',
         items: []
     });
 
@@ -32,10 +34,12 @@ export default function ChecklistEditDialog({ isOpen, checklist, employees, onCl
                 category: checklist.category || 'operational',
                 frequency: checklist.frequency || 'daily',
                 assigned_role: checklist.assigned_role || '',
+                shift: checklist.shift || 'all',
+                color: checklist.color || 'emerald',
                 items: checklist.items ? checklist.items.map(item => ({ ...item })) : []
             });
         } else {
-            setFormData({ title: '', description: '', category: 'operational', frequency: 'daily', assigned_role: '', items: [] });
+            setFormData({ title: '', description: '', category: 'operational', frequency: 'daily', assigned_role: '', shift: 'all', color: 'emerald', items: [] });
         }
     }, [checklist, isOpen]);
 
