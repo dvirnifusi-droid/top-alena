@@ -15,6 +15,7 @@ import SeatingAiHelper from '../components/dashboard/SeatingAiHelper';
 import AiQuickAdd from '../components/dashboard/AiQuickAdd';
 import DailyBriefView from '../components/briefing/DailyBriefView';
 import ShiftClockWidget from '../components/shift/ShiftClockWidget';
+import WeeklyScheduleSummary from '../components/employee/WeeklyScheduleSummary';
 
 export default function EmployeeHome() {
     const [user, setUser] = useState(null);
@@ -91,6 +92,9 @@ export default function EmployeeHome() {
 
                 {/* שעון משמרת */}
                 <ShiftClockWidget />
+
+                {/* סידור עבודה שבועי */}
+                {user && <WeeklyScheduleSummary userId={user.id} />}
 
                 {/* תדריכי היום */}
                 {todayBriefs.length > 0 && (
