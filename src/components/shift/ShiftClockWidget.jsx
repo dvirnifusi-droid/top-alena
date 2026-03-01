@@ -44,6 +44,12 @@ export default function ShiftClockWidget() {
         setLoading(false);
     };
 
+    // Find employee record matching the current user by email
+    const findEmployeeRecord = async (u) => {
+        const allEmployees = await Employee.filter({ status: 'active' });
+        return allEmployees.find(emp => emp.email && u.email && emp.email.toLowerCase() === u.email.toLowerCase());
+    };
+
     const startShift = async () => {
         setActionLoading(true);
         const now = new Date().toISOString();
