@@ -339,9 +339,17 @@ const SimulationView = ({ scriptId, onComplete }) => {
                         המשך לשיעור הבא
                     </Button>
                 </div>
-            </div>
-        );
-    }
+                </div>
+                );
+                }
+
+                export default function TrainingPage() {
+                return (
+                <PageGuard pageName="Training" pageTitle="הכשרות ואימונים">
+                <TrainingInner />
+                </PageGuard>
+                );
+                }
 
     const currentScript = scripts[currentScriptIndex];
     if (!currentScript) return <p>שגיאה בטעינת השלב.</p>;
