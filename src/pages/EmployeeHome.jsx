@@ -36,13 +36,6 @@ export default function EmployeeHome() {
             color: "from-green-500 to-emerald-600"
         },
         {
-            component: SeatingAiHelper,
-            title: "עוזר הושבה חכם",
-            description: "קבל המלצות הושבה מבוסס AI",
-            icon: Brain,
-            color: "from-blue-500 to-indigo-600"
-        },
-        {
             component: AiQuickAdd,
             title: "הוספת ידע לעוזר AI",
             description: "הכנס מתכונים, נהלים ומידע חדש",
