@@ -944,6 +944,7 @@ export default function TrainingPage() {
     const [enrollments, setEnrollments] = useState({});
     const [selectedCourse, setSelectedCourse] = useState(null);
     const [showQuickPractice, setShowQuickPractice] = useState(false);
+    const [showQuizManager, setShowQuizManager] = useState(false);
     const [user, setUser] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
 
