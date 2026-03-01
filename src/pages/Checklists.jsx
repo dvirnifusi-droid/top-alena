@@ -174,7 +174,25 @@ export default function ChecklistsPage() {
                     </TabsList>
 
                     <TabsContent value="active" className="space-y-6">
-                        <div className="flex justify-end">
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                            <div className="flex flex-wrap gap-2">
+                                {[
+                                    { value: 'all', label: '🔁 הכל' },
+                                    { value: 'morning', label: '🌅 בוקר' },
+                                    { value: 'evening', label: '🌆 ערב' },
+                                    { value: 'thursday', label: '🎉 חמישי' },
+                                ].map(s => (
+                                    <Button
+                                        key={s.value}
+                                        variant={shiftFilter === s.value ? 'default' : 'outline'}
+                                        size="sm"
+                                        onClick={() => setShiftFilter(s.value)}
+                                        className="rounded-xl"
+                                    >
+                                        {s.label}
+                                    </Button>
+                                ))}
+                            </div>
                             <Button
                                 onClick={() => setEditingChecklist({})}
                                 className="bg-emerald-600 hover:bg-emerald-700 text-white"
@@ -183,7 +201,7 @@ export default function ChecklistsPage() {
                             </Button>
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                            {checklists.map((checklist, index) => (
+                            {checklists.filter(c => shiftFilter === 'all' || !c.shift || c.shift === 'all' || c.shift === shiftFilter).map((checklist, index) => (
                                 <div key={checklist.id} className="transform hover:scale-105 transition-all duration-500" style={{ animationDelay: `${index * 100}ms` }}>
                                     <ChecklistCard
                                         checklist={checklist}
