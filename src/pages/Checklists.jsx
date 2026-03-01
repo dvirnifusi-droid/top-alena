@@ -81,13 +81,10 @@ export default function ChecklistsPage() {
 
     const handleSaveChecklist = async (checklistData) => {
         try {
-            if (editingChecklist) {
+            if (editingChecklist?.id) {
                 await Checklist.update(editingChecklist.id, checklistData);
             } else {
-                // If editingChecklist is null, it means we are creating a new one
-                // This scenario isn't explicitly in the outline, but often follows from an edit dialog.
-                // Assuming for now, the dialog is only for editing existing ones based on outline.
-                // If create functionality is needed, a separate 'add new' button would set editingChecklist to a default new object.
+                await Checklist.create({ ...checklistData, status: 'active' });
             }
             setEditingChecklist(null);
             loadData();
