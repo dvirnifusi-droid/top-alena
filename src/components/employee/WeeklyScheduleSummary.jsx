@@ -19,32 +19,34 @@ export default function WeeklyScheduleSummary({ userId }) {
         try {
             const today = new Date();
             const weekStart = startOfWeek(today, { weekStartsOn: 0 });
+            const weekEnd = addDays(weekStart, 6);
             
-            // טוען משמרות דינמית לכל יום בשבוע
+            // טוען את כל המשמרות
+            const allShifts = await base44.entities.WorkShift.list();
             const weekShifts = [];
             
-            for (let i = 0; i < 7; i++) {
-                const date = addDays(weekStart, i);
-                const dateStr = format(date, 'yyyy-MM-dd');
+            // סנן לפי שבוע נוכחי
+            allShifts.forEach(shift => {
+                if (!shift.date) return;
                 
-                // סנן משמרות לתאריך זה
-                const shifts = await base44.entities.WorkShift.filter({ date: dateStr });
-                
-                shifts.forEach(shift => {
+                const shiftDate = new Date(shift.date);
+                if (shiftDate >= weekStart && shiftDate <= weekEnd) {
                     const userAssignment = (shift.assigned_staff || []).find(a => a.employee_id === userId);
                     if (userAssignment) {
                         weekShifts.push({
-                            date,
-                            dateStr,
+                            date: shiftDate,
+                            dateStr: shift.date,
                             shift_type: shift.shift_type,
                             start_time: userAssignment.start_time || shift.start_time,
                             end_time: userAssignment.end_time || shift.end_time,
                             position: userAssignment.position
                         });
                     }
-                });
-            }
+                }
+            });
             
+            // מיין לפי תאריך
+            weekShifts.sort((a, b) => a.date - b.date);
             setShifts(weekShifts);
         } catch (error) {
             console.error('Error loading weekly schedule:', error);
