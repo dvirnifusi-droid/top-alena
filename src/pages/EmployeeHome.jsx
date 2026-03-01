@@ -89,6 +89,9 @@ export default function EmployeeHome() {
                     <p className="text-slate-600">הכלים שלך למשמרת היום</p>
                 </div>
 
+                {/* שעון משמרת */}
+                <ShiftClockWidget />
+
                 {/* תדריכי היום */}
                 {todayBriefs.length > 0 && (
                     <div className="mb-6 space-y-3">
