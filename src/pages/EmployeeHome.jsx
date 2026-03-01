@@ -1,24 +1,50 @@
 import React, { useState, useEffect } from 'react';
 import { User } from '@/entities/User';
+import { DailyBrief } from '@/entities/DailyBrief';
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Star, GraduationCap, CheckSquare, AlertTriangle, Calendar, Utensils, Brain, Sparkles, FileText } from 'lucide-react';
+import { Star, GraduationCap, CheckSquare, AlertTriangle, Calendar, Utensils, Brain, Sparkles, FileText, Megaphone } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { format } from 'date-fns';
 
 import InvoiceScanner from '../components/dashboard/InvoiceScanner';
 import ManualSurveyTool from '../components/dashboard/ManualSurveyTool';
 import SeatingAiHelper from '../components/dashboard/SeatingAiHelper';
 import AiQuickAdd from '../components/dashboard/AiQuickAdd';
+import DailyBriefView from '../components/briefing/DailyBriefView';
 
 export default function EmployeeHome() {
     const [user, setUser] = useState(null);
     const [showSmartTools, setShowSmartTools] = useState(false);
+    const [todayBriefs, setTodayBriefs] = useState([]);
+    const [selectedBrief, setSelectedBrief] = useState(null);
 
     useEffect(() => {
-        User.me().then(setUser).catch(() => setUser(null));
+        User.me().then(u => {
+            setUser(u);
+            loadTodayBriefs();
+        }).catch(() => setUser(null));
     }, []);
+
+    const loadTodayBriefs = async () => {
+        const today = format(new Date(), 'yyyy-MM-dd');
+        const briefs = await DailyBrief.filter({ date: today, status: 'published' });
+        setTodayBriefs(briefs);
+    };
+
+    const handleMarkAsRead = async (briefId) => {
+        if (!user) return;
+        const brief = todayBriefs.find(b => b.id === briefId);
+        if (!brief) return;
+        const alreadyRead = brief.read_by?.includes(user.id);
+        if (alreadyRead) return;
+        const updatedReadBy = [...(brief.read_by || []), user.id];
+        await DailyBrief.update(briefId, { read_by: updatedReadBy });
+        setTodayBriefs(prev => prev.map(b => b.id === briefId ? { ...b, read_by: updatedReadBy } : b));
+        if (selectedBrief?.id === briefId) setSelectedBrief(prev => ({ ...prev, read_by: updatedReadBy }));
+    };
 
     const smartTools = [
         {
