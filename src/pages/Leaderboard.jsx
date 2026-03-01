@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Shift } from '@/entities/all';
+import PageGuard from '../components/shared/PageGuard';
 import { InvokeLLM } from "@/integrations/Core";
 import { Crown, Trophy, TrendingUp, Loader2, BrainCircuit, BarChart, Sparkles } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -8,7 +9,7 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import ReactMarkdown from 'react-markdown';
 
-export default function LeaderboardPage() {
+function LeaderboardInner() {
     const [performanceData, setPerformanceData] = useState([]);
     const [timeFrame, setTimeFrame] = useState('monthly');
     const [loading, setLoading] = useState(true);
@@ -234,5 +235,13 @@ export default function LeaderboardPage() {
                 </DialogContent>
             </Dialog>
         </div>
+    );
+}
+
+export default function LeaderboardPage() {
+    return (
+        <PageGuard pageName="Leaderboard" pageTitle="לוח המובילים">
+            <LeaderboardInner />
+        </PageGuard>
     );
 }

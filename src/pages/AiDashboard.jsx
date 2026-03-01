@@ -1,5 +1,5 @@
-
 import React, { useState, useEffect } from 'react';
+import PageGuard from '../components/shared/PageGuard';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,7 +15,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 
-export default function AiDashboard() {
+function AiDashboardInner() {
     const [knowledgeItems, setKnowledgeItems] = useState([]);
     const [recentQuestions, setRecentQuestions] = useState([]);
     const [pendingQuestions, setPendingQuestions] = useState([]);
@@ -952,5 +952,13 @@ export default function AiDashboard() {
                 </Card>
             </div>
         </div>
+    );
+}
+
+export default function AiDashboard() {
+    return (
+        <PageGuard pageName="AiDashboard" pageTitle="מרכז בקרת AI">
+            <AiDashboardInner />
+        </PageGuard>
     );
 }
