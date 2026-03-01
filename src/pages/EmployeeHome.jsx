@@ -111,7 +111,15 @@ export default function EmployeeHome() {
                     <h1 className="text-3xl font-bold text-slate-900 mb-2">
                         שלום {user?.full_name?.split(' ')[0] || 'עובד'}! 👋
                     </h1>
-                    <p className="text-slate-600">הכלים שלך למשמרת היום</p>
+                    <div className="flex items-center gap-3">
+                        <p className="text-slate-600">הכלים שלך למשמרת היום</p>
+                        {todayPosition && (
+                            <Badge className="bg-indigo-600 text-white flex items-center gap-1">
+                                <Briefcase className="w-4 h-4" />
+                                {todayPosition}
+                            </Badge>
+                        )}
+                    </div>
                 </div>
 
                 {/* שעון משמרת */}
