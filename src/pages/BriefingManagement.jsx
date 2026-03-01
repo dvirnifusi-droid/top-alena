@@ -334,10 +334,18 @@ export default function BriefingManagement() {
                         </TabsContent>
                     </div>
                 </Tabs>
-                <div className="flex justify-end gap-2 mt-6">
-                    <Button variant="outline" onClick={() => setCurrentBriefData(null)}>בטל</Button>
-                    <Button onClick={() => handleSaveBrief(false)} disabled={isLoading}><Save className="w-4 h-4 mr-2"/> שמור טיוטה</Button>
-                    <Button onClick={() => handleSaveBrief(true)} className="bg-green-600 hover:bg-green-700" disabled={isLoading}><Send className="w-4 h-4 mr-2"/> שמור ופרסם</Button>
+                <div className="flex flex-col sm:flex-row justify-between gap-3 mt-6 pt-4 border-t">
+                    <Button variant="outline" onClick={() => setCurrentBriefData(null)} className="order-last sm:order-first">ביטול</Button>
+                    <div className="flex gap-2 flex-col sm:flex-row">
+                        <Button onClick={() => handleSaveBrief(false)} disabled={isLoading} variant="outline" className="border-blue-300 text-blue-700 hover:bg-blue-50">
+                            {isLoading ? <Loader2 className="w-4 h-4 ml-2 animate-spin"/> : <Save className="w-4 h-4 ml-2"/>}
+                            שמור טיוטה
+                        </Button>
+                        <Button onClick={() => handleSaveBrief(true)} className="bg-green-600 hover:bg-green-700 text-white" disabled={isLoading}>
+                            {isLoading ? <Loader2 className="w-4 h-4 ml-2 animate-spin"/> : <Send className="w-4 h-4 ml-2"/>}
+                            פרסם לצוות
+                        </Button>
+                    </div>
                 </div>
             </CardContent>
         </Card>
