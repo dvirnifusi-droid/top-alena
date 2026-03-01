@@ -61,8 +61,10 @@ const QuizView = ({ quizId, onComplete }) => {
     useEffect(() => {
         const loadQuiz = async () => {
             setLoading(true);
-            const quizQuestions = await QuizQuestion.filter({ quiz_id: quizId });
-            setQuestions(quizQuestions);
+            const allQuestions = await QuizQuestion.filter({ quiz_id: quizId });
+            // Randomize questions order
+            const shuffled = [...allQuestions].sort(() => Math.random() - 0.5);
+            setQuestions(shuffled);
             setLoading(false);
         };
         loadQuiz();
