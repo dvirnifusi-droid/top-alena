@@ -145,12 +145,9 @@ export default function Layout({ children, currentPageName }) {
         </div>
       </SidebarProvider>
 
-      {/* AI Assistants */}
-      <div className="fixed bottom-4 left-4 z-50 flex flex-col gap-2 lg:gap-4">
-        <div className="scale-75 sm:scale-90 lg:scale-100">
-          <AiChatWidget />
-          <GeneralAiHelperWidget />
-        </div>
+      {/* AI Assistant */}
+      <div className="fixed top-20 left-4 z-50 lg:top-auto lg:bottom-8 lg:left-8">
+        <AiChatWidget />
       </div>
     </div>
   );
