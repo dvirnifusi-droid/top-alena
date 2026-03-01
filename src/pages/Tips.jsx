@@ -24,7 +24,7 @@ const RUNNER_HOURLY_PAY = 40;
 
 const TIP_ELIGIBLE_POSITIONS = ['מלצר', 'ברמן'];
 
-export default function TipsPage() {
+function TipsInner() {
     const [date, setDate] = useState(new Date());
     const [shiftType, setShiftType] = useState('dinner');
     const [totalTips, setTotalTips] = useState('');
@@ -382,5 +382,13 @@ export default function TipsPage() {
                 </CardFooter>
             </Card>
         </div>
+    );
+}
+
+export default function TipsPage() {
+    return (
+        <PageGuard pageName="Tips" pageTitle="ניהול טיפים">
+            <TipsInner />
+        </PageGuard>
     );
 }

@@ -23,7 +23,7 @@ import {
     AlertDialogTrigger 
 } from '@/components/ui/alert-dialog';
 
-export default function Reports() {
+function ReportsInner() {
     const [tipReports, setTipReports] = useState([]);
     const [workShifts, setWorkShifts] = useState([]);
     const [shiftEndReports, setShiftEndReports] = useState([]);

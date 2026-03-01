@@ -288,6 +288,14 @@ function SmartToolsPanel() {
     );
 }
 
+export default function Dashboard() {
+    return (
+        <PageGuard pageName="Dashboard" pageTitle="לוח בקרה">
+            <DashboardInner />
+        </PageGuard>
+    );
+}
+
 function DashboardInner() {
     const [user, setUser] = React.useState(null);
 

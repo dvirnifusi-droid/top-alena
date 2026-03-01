@@ -16,7 +16,7 @@ import ChecklistArchive from "../components/checklists/ChecklistArchive";
 import TaskAssignmentDialog from "../components/checklists/TaskAssignmentDialog"; // Import the new dialog
 import { Employee } from '@/entities/all'; // Import Employee entity
 
-export default function ChecklistsPage() {
+function ChecklistsInner() {
     const [checklists, setChecklists] = useState([]);
     const [executions, setExecutions] = useState([]);
     const [selectedChecklist, setSelectedChecklist] = useState(null);
@@ -449,5 +449,13 @@ export default function ChecklistsPage() {
                 onSave={handleSaveAssignments}
             />
         </div>
+    );
+}
+
+export default function ChecklistsPage() {
+    return (
+        <PageGuard pageName="Checklists" pageTitle="צ'קליסטים">
+            <ChecklistsInner />
+        </PageGuard>
     );
 }

@@ -940,7 +940,7 @@ const CourseDetails = ({ course, user, onBack }) => {
 };
 
 // --- Main Page Component ---
-export default function TrainingPage() {
+function TrainingInner() {
     const [courses, setCourses] = useState([]);
     const [enrollments, setEnrollments] = useState({});
     const [selectedCourse, setSelectedCourse] = useState(null);

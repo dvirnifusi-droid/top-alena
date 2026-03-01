@@ -299,7 +299,7 @@ function PermissionsDialog({ isOpen, onClose, employee, onRefresh }) {
   );
 }
 
-export default function EmployeesPage() {
+function EmployeesInner() {
   const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(true);
   const [editingEmployee, setEditingEmployee] = useState(null);
@@ -530,5 +530,13 @@ export default function EmployeesPage() {
         />
       </div>
     </div>
+  );
+}
+
+export default function EmployeesPage() {
+  return (
+    <PageGuard pageName="Employees" pageTitle="ניהול עובדים">
+      <EmployeesInner />
+    </PageGuard>
   );
 }

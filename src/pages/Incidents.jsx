@@ -362,7 +362,7 @@ function IncidentCard({ incident, onEdit, canEdit }) { // Added canEdit prop
   );
 }
 
-export default function IncidentsPage() {
+function IncidentsInner() {
   const [incidents, setIncidents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -561,5 +561,13 @@ export default function IncidentsPage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function IncidentsPage() {
+  return (
+    <PageGuard pageName="Incidents" pageTitle="ניהול תקריות">
+      <IncidentsInner />
+    </PageGuard>
   );
 }
