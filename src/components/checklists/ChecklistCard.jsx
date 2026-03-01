@@ -74,8 +74,10 @@ export default function ChecklistCard({ checklist, onStart, executions, onEdit, 
 
     return (
         <Card className="group relative overflow-hidden bg-white/80 backdrop-blur-sm border-0 shadow-xl hover:shadow-2xl transition-all duration-500 hover:-translate-y-2 rounded-3xl flex flex-col h-full">
-            {/* רקע מעוצב */}
-            <div className="absolute inset-0 bg-gradient-to-br from-blue-50 via-cyan-50 to-emerald-50 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+            {/* רקע צבעוני לפי צבע הצ'קליסט */}
+            <div className={`absolute inset-0 bg-gradient-to-br ${colors.bg} opacity-0 group-hover:opacity-100 transition-opacity duration-500`}></div>
+            {/* פס צבע עליון */}
+            <div className={`absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r ${colors.gradient} rounded-t-3xl`}></div>
             
             <div className="absolute top-4 left-4 z-10">
                 <DropdownMenu>
