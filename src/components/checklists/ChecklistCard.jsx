@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -11,8 +10,28 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
+const COLOR_MAP = {
+    emerald: { gradient: 'from-emerald-500 to-cyan-500', hover: 'hover:from-emerald-600 hover:to-cyan-600', bg: 'from-emerald-50 via-cyan-50 to-teal-50', border: 'border-emerald-100', header: 'bg-emerald-500' },
+    blue:    { gradient: 'from-blue-500 to-indigo-500',  hover: 'hover:from-blue-600 hover:to-indigo-600',  bg: 'from-blue-50 via-indigo-50 to-sky-50',     border: 'border-blue-100',    header: 'bg-blue-500'    },
+    orange:  { gradient: 'from-orange-500 to-amber-500', hover: 'hover:from-orange-600 hover:to-amber-600', bg: 'from-orange-50 via-amber-50 to-yellow-50', border: 'border-orange-100',  header: 'bg-orange-500'  },
+    purple:  { gradient: 'from-purple-500 to-violet-500',hover: 'hover:from-purple-600 hover:to-violet-600',bg: 'from-purple-50 via-violet-50 to-fuchsia-50',border: 'border-purple-100', header: 'bg-purple-500'  },
+    pink:    { gradient: 'from-pink-500 to-rose-500',    hover: 'hover:from-pink-600 hover:to-rose-600',    bg: 'from-pink-50 via-rose-50 to-fuchsia-50',   border: 'border-pink-100',    header: 'bg-pink-500'    },
+    yellow:  { gradient: 'from-yellow-500 to-orange-400',hover: 'hover:from-yellow-600 hover:to-orange-500',bg: 'from-yellow-50 via-orange-50 to-amber-50', border: 'border-yellow-100',  header: 'bg-yellow-500'  },
+    red:     { gradient: 'from-red-500 to-rose-500',     hover: 'hover:from-red-600 hover:to-rose-600',     bg: 'from-red-50 via-rose-50 to-pink-50',       border: 'border-red-100',     header: 'bg-red-500'     },
+    cyan:    { gradient: 'from-cyan-500 to-sky-500',     hover: 'hover:from-cyan-600 hover:to-sky-600',     bg: 'from-cyan-50 via-sky-50 to-blue-50',       border: 'border-cyan-100',    header: 'bg-cyan-500'    },
+};
+
+const SHIFT_LABELS = {
+    morning:  { label: 'משמרת בוקר',  emoji: '🌅' },
+    evening:  { label: 'משמרת ערב',   emoji: '🌆' },
+    thursday: { label: 'משמרת חמישי', emoji: '🎉' },
+    all:      { label: 'כל המשמרות',  emoji: '🔁' },
+};
+
 export default function ChecklistCard({ checklist, onStart, executions, onEdit, onDelete, onAssignTasks }) {
     const [isDeleting, setIsDeleting] = useState(false);
+    const colors = COLOR_MAP[checklist.color] || COLOR_MAP.emerald;
+    const shiftInfo = SHIFT_LABELS[checklist.shift] || null;
 
     const getLastExecution = () => {
         const today = new Date().toISOString().split('T')[0];
