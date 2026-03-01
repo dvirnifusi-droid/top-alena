@@ -88,6 +88,45 @@ export default function EmployeeHome() {
                     <p className="text-slate-600">הכלים שלך למשמרת היום</p>
                 </div>
 
+                {/* תדריכי היום */}
+                {todayBriefs.length > 0 && (
+                    <div className="mb-6 space-y-3">
+                        <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                            <Megaphone className="w-5 h-5 text-orange-500" />
+                            תדריכי היום
+                        </h2>
+                        {todayBriefs.map(brief => {
+                            const isRead = brief.read_by?.includes(user?.id);
+                            return (
+                                <Card
+                                    key={brief.id}
+                                    className={`cursor-pointer transition-all border-2 hover:shadow-md ${isRead ? 'border-green-200 bg-green-50' : 'border-orange-200 bg-orange-50 animate-pulse-slow'}`}
+                                    onClick={() => setSelectedBrief(brief)}
+                                >
+                                    <CardContent className="p-4 flex items-center justify-between">
+                                        <div className="flex items-center gap-3">
+                                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-xl flex-shrink-0 ${isRead ? 'bg-green-100' : 'bg-orange-100'}`}>
+                                                {brief.shift_type === 'lunch' ? '☀️' : '🌙'}
+                                            </div>
+                                            <div>
+                                                <p className="font-bold text-gray-800">תדריך {brief.shift_type === 'lunch' ? 'צהריים' : 'ערב'}</p>
+                                                <p className="text-xs text-gray-500">מנהל/ת: {brief.created_by_name}</p>
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            {isRead ? (
+                                                <Badge className="bg-green-500 text-white text-xs">✅ קראתי</Badge>
+                                            ) : (
+                                                <Badge className="bg-orange-500 text-white text-xs animate-bounce">📣 חדש!</Badge>
+                                            )}
+                                        </div>
+                                    </CardContent>
+                                </Card>
+                            );
+                        })}
+                    </div>
+                )}
+
                 {/* כרטיס כלי עבודה חכמים */}
                 <div className="mb-8">
                     <Card 
