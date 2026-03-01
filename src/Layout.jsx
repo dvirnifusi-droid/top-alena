@@ -303,19 +303,19 @@ const MobileSidebar = ({ userName, isCurrentViewAdmin, isOriginalAdmin, navigati
 );
 
 const MobileHeader = ({ isCurrentViewAdmin }) => (
-  <header className="sticky top-0 z-40 flex h-14 items-center justify-between border-b border-border bg-card px-4 lg:hidden min-w-0">
+  <header className="sticky top-0 z-40 flex h-16 items-center justify-between border-b border-border bg-card px-3 lg:hidden min-w-0">
+    <SidebarTrigger className="p-3 rounded-xl bg-primary/10 hover:bg-primary/20 active:bg-primary/30 min-w-[52px] min-h-[52px] flex items-center justify-center">
+      <Menu className="w-9 h-9 text-primary" />
+    </SidebarTrigger>
     <div className="flex items-center gap-3 min-w-0">
-      <div className="w-8 h-8 bg-gradient-to-br from-primary to-accent rounded-lg flex items-center justify-center shadow-md">
-        <Crown className="w-4 h-4 text-primary-foreground" />
-      </div>
-      <div className="min-w-0">
+      <div className="min-w-0 text-right">
         <h1 className="text-base font-bold text-foreground truncate">TOP ALENA</h1>
         <p className="text-xs text-muted-foreground truncate">{isCurrentViewAdmin ? 'ניהול' : 'אזור אישי'}</p>
       </div>
+      <div className="w-9 h-9 bg-gradient-to-br from-primary to-accent rounded-lg flex items-center justify-center shadow-md flex-shrink-0">
+        <Crown className="w-5 h-5 text-primary-foreground" />
+      </div>
     </div>
-    <SidebarTrigger className="p-3 -mr-1">
-      <Menu className="w-8 h-8 text-foreground" />
-    </SidebarTrigger>
   </header>
 );
 
