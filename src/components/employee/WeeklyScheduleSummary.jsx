@@ -17,24 +17,30 @@ export default function WeeklyScheduleSummary({ userId }) {
     const loadWeeklySchedule = async () => {
         setLoading(true);
         try {
+            if (!userId) {
+                setLoading(false);
+                return;
+            }
+
             const today = new Date();
             const weekStart = startOfWeek(today, { weekStartsOn: 0 });
-            const weekEnd = addDays(weekStart, 6);
+            const weekStartStr = format(weekStart, 'yyyy-MM-dd');
+            const weekEndStr = format(addDays(weekStart, 6), 'yyyy-MM-dd');
             
             // טוען את כל המשמרות
             const allShifts = await base44.entities.WorkShift.list();
             const weekShifts = [];
             
-            // סנן לפי שבוע נוכחי
+            // סנן לפי שבוע נוכחי בהשוואה של strings
             allShifts.forEach(shift => {
                 if (!shift.date) return;
                 
-                const shiftDate = new Date(shift.date);
-                if (shiftDate >= weekStart && shiftDate <= weekEnd) {
+                // השוואה של strings לא תאריך
+                if (shift.date >= weekStartStr && shift.date <= weekEndStr) {
                     const userAssignment = (shift.assigned_staff || []).find(a => a.employee_id === userId);
                     if (userAssignment) {
                         weekShifts.push({
-                            date: shiftDate,
+                            date: new Date(shift.date),
                             dateStr: shift.date,
                             shift_type: shift.shift_type,
                             start_time: userAssignment.start_time || shift.start_time,
