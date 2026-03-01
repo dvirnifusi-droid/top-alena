@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { DailyBrief } from '@/entities/DailyBrief';
 import { User } from '@/entities/User';
@@ -18,6 +17,17 @@ import { Badge } from '@/components/ui/badge';
 import { MenuItem } from '@/entities/MenuItem'; // Import MenuItem
 import { RestaurantProfile } from '@/entities/RestaurantProfile'; // Import RestaurantProfile
 
+const fieldLabels = {
+    item: 'פריט',
+    target_description: 'תיאור יעד',
+    target_value: 'ערך יעד',
+    bonus_description: 'תיאור בונוס',
+    employee_name: 'שם עובד',
+    station_name: 'אזור/עמדה',
+    assigned_to: 'אחראי',
+    task_description: 'תיאור משימה',
+};
+
 // Helper component for dynamic lists (reusable for shortages, targets, etc.)
 const DynamicListEditor = ({ title, items, setItems, itemStructure, placeholder }) => {
     const handleAddItem = () => {
@@ -33,30 +43,41 @@ const DynamicListEditor = ({ title, items, setItems, itemStructure, placeholder 
         setItems(newItems);
     };
 
+    const keys = Object.keys(itemStructure);
+
     return (
-        <div className="space-y-4 p-3 border rounded-lg bg-slate-50">
-            <h4 className="font-semibold text-slate-700">{title}</h4>
+        <div className="space-y-3 p-4 border rounded-xl bg-slate-50">
+            <h4 className="font-bold text-slate-700 text-base">{title}</h4>
+            {items.length === 0 && (
+                <p className="text-sm text-slate-400 text-center py-2">אין פריטים עדיין</p>
+            )}
             {items.map((item, index) => (
-                <div key={item.id || index} className="flex flex-col gap-2 p-3 border rounded-md bg-white">
-                    {Object.keys(itemStructure).map(key => (
-                         <div key={key} className="grid grid-cols-1 gap-1">
-                            <Label htmlFor={`${key}-${index}`} className="text-xs capitalize text-slate-500">{key.replace('_', ' ')}</Label>
-                            <Input
-                                id={`${key}-${index}`}
-                                value={item[key]}
-                                onChange={(e) => handleItemChange(index, key, e.target.value)}
-                                placeholder={placeholder[key]}
-                                type={key === 'target_value' ? 'number' : 'text'}
-                            />
-                        </div>
-                    ))}
-                    <Button variant="ghost" size="sm" onClick={() => handleRemoveItem(index)} className="self-end text-red-500 hover:text-red-600">
-                        <Trash2 className="w-4 h-4 mr-1" /> מחק
-                    </Button>
+                <div key={item.id || index} className="p-3 border rounded-lg bg-white shadow-sm space-y-2">
+                    <div className={`grid gap-2 ${keys.length > 1 ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1'}`}>
+                        {keys.map(key => (
+                            <div key={key} className="flex flex-col gap-1">
+                                <Label className="text-xs font-semibold text-slate-500">
+                                    {fieldLabels[key] || key.replace(/_/g, ' ')}
+                                </Label>
+                                <Input
+                                    value={item[key]}
+                                    onChange={(e) => handleItemChange(index, key, e.target.value)}
+                                    placeholder={placeholder[key]}
+                                    type={key === 'target_value' ? 'number' : 'text'}
+                                    className="h-9 text-sm"
+                                />
+                            </div>
+                        ))}
+                    </div>
+                    <div className="flex justify-end">
+                        <Button variant="ghost" size="sm" onClick={() => handleRemoveItem(index)} className="text-red-500 hover:text-red-600 hover:bg-red-50 h-8 px-3 text-xs">
+                            <Trash2 className="w-3 h-3 ml-1" /> הסר
+                        </Button>
+                    </div>
                 </div>
             ))}
-            <Button variant="outline" size="sm" onClick={handleAddItem} className="border-dashed">
-                <PlusCircle className="w-4 h-4 mr-2" /> הוסף
+            <Button variant="outline" size="sm" onClick={handleAddItem} className="w-full border-dashed border-slate-300 text-slate-600 hover:bg-slate-100 h-9">
+                <PlusCircle className="w-4 h-4 ml-2" /> הוסף פריט
             </Button>
         </div>
     );
