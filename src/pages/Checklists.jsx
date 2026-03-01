@@ -172,7 +172,15 @@ export default function ChecklistsPage() {
                         </TabsTrigger>
                     </TabsList>
 
-                    <TabsContent value="active" className="space-y-8">
+                    <TabsContent value="active" className="space-y-6">
+                        <div className="flex justify-end">
+                            <Button
+                                onClick={() => setEditingChecklist({})}
+                                className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                            >
+                                <Plus className="w-4 h-4 ml-1" /> צ'קליסט חדש
+                            </Button>
+                        </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                             {checklists.map((checklist, index) => (
                                 <div key={checklist.id} className="transform hover:scale-105 transition-all duration-500" style={{ animationDelay: `${index * 100}ms` }}>
