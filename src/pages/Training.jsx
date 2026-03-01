@@ -1110,6 +1110,8 @@ export default function TrainingPage() {
                                 ))}
                             </div>
                         )}
+                        </>
+                        )}
                     </>
                 ) : (
                     <CourseDetails 
