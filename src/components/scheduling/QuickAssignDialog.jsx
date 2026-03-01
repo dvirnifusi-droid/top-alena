@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -69,15 +68,17 @@ export default function QuickAssignDialog({ isOpen, onOpenChange, context, emplo
     }, [isOpen, context, isEditMode]);
 
     const handleSubmit = () => {
-        if (!selectedEmployeeId || !selectedPosition || !startTime || !endTime) {
-            alert('אנא מלא את כל השדות');
+        if (!selectedEmployeeId || !selectedPosition) {
+            alert('אנא בחר עובד ותפקיד');
             return;
         }
+        // אם זה "בלתם", לא תהיה שעה קבועה (תתעדכן כשנכנסים למשמרת)
+        const isUnassigned = selectedPosition === 'בלתם';
         onAction({
             employee_id: selectedEmployeeId,
             position: selectedPosition,
-            start_time: startTime,
-            end_time: endTime
+            start_time: isUnassigned ? '' : startTime,
+            end_time: isUnassigned ? '' : endTime
         }, 'save');
     };
 
