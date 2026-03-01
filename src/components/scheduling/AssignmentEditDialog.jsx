@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -16,10 +15,17 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 const EXCLUDED_LUNCH_POSITIONS = ['ברמן', 'מארחת', 'מנהל מטבח', 'מנהלת משמרת', 'מנהל פלור', 'ראנר', 'שוטף כלים'];
 const EXCLUDED_DINNER_POSITIONS = ['מנהל פלור', 'מנהל מטבח', 'קופה +אריזות'];
 
-const filterPositionsByShiftType = (positions, shiftType) => {
+const filterPositionsByShiftType = (positions, shiftType, currentPosition) => {
     if (!positions) return [];
     const excludedPositions = shiftType === 'lunch' ? EXCLUDED_LUNCH_POSITIONS : EXCLUDED_DINNER_POSITIONS;
-    return positions.filter(position => !excludedPositions.includes(position.position_name));
+    let filtered = positions.filter(position => !excludedPositions.includes(position.position_name));
+    
+    // תמיד הוסף את "בלתם" כאפשרות
+    if (!filtered.some(p => p.position_name === 'בלתם')) {
+        filtered.push({ position_name: 'בלתם', id: 'unassigned' });
+    }
+    
+    return filtered;
 };
 
 
