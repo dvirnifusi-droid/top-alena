@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { TrainingCourse, TrainingEnrollment, TrainingLesson, QuizQuestion, Quiz, ConversationScript, User } from '@/entities/all';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { TrainingCourse, TrainingEnrollment, TrainingLesson, QuizQuestion, ConversationScript, User } from '@/entities/all';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -945,6 +944,7 @@ export default function TrainingPage() {
     const [enrollments, setEnrollments] = useState({});
     const [selectedCourse, setSelectedCourse] = useState(null);
     const [showQuickPractice, setShowQuickPractice] = useState(false);
+    const [showQuizManager, setShowQuizManager] = useState(false);
     const [user, setUser] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
 
@@ -1002,11 +1002,11 @@ export default function TrainingPage() {
         setSelectedCourse(null);
     };
 
-    const isAdmin = user?.role === 'admin';
-
     if (isLoading) {
         return <div className="flex justify-center items-center h-screen"><Loader2 className="w-12 h-12 animate-spin text-orange-600" /></div>
     }
+
+    const isAdmin = user?.role === 'admin';
 
     return (
         <div className="p-4 sm:p-8 bg-gradient-to-br from-orange-50 to-red-50 min-h-screen" dir="rtl">
@@ -1039,48 +1039,86 @@ export default function TrainingPage() {
                             </CardContent>
                         </Card>
                     </div>
-                ) : selectedCourse ? (
-                    <CourseDetails course={selectedCourse} onBack={handleBack} user={user} />
-                ) : (
-                    <Tabs defaultValue="courses" className="w-full">
-                        <div className="flex items-center justify-between mb-6">
-                            <h1 className="text-4xl font-bold text-slate-900">הכשרות</h1>
-                            <TabsList>
-                                <TabsTrigger value="courses">📚 קורסים</TabsTrigger>
-                                {isAdmin && <TabsTrigger value="quizzes">📝 מבחנים</TabsTrigger>}
-                            </TabsList>
-                        </div>
-
-                        <TabsContent value="courses">
-                            <p className="text-lg text-slate-600 mb-6">אלו הקורסים המיועדים עבורך. בחר קורס כדי להתחיל.</p>
-                            <div className="mb-8 text-center">
-                                <Button onClick={handleQuickPractice} className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white text-lg px-8 py-4 rounded-xl shadow-lg">
-                                    <MessageSquare className="w-6 h-6 mr-3" />
-                                    🚀 תרגול מהיר עם לקוח AI
-                                </Button>
-                            </div>
-                            {courses.length === 0 ? (
-                                <div className="text-center py-12">
-                                    <GraduationCap className="w-16 h-16 mx-auto text-gray-400 mb-4" />
-                                    <h3 className="text-xl font-semibold text-gray-600 mb-2">אין קורסים זמינים כרגע</h3>
-                                    <p className="text-gray-500">קורסי ההדרכה יופיעו כאן ברגע שיהיו מוכנים</p>
-                                    <Button onClick={loadData} className="mt-4 bg-orange-600 hover:bg-orange-700">רענן</Button>
-                                </div>
-                            ) : (
-                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                                    {courses.map(course => (
-                                        <CourseCard key={course.id} course={course} onSelect={setSelectedCourse} enrollment={enrollments[course.course_code]} />
-                                    ))}
+                ) : !selectedCourse ? (
+                    <>
+                        <div className="flex items-center justify-between mb-2">
+                            <h1 className="text-4xl font-bold text-slate-900">מסלולי הכשרה</h1>
+                            {isAdmin && (
+                                <div className="flex gap-2 border rounded-xl p-1 bg-white shadow-sm">
+                                    <Button
+                                        variant={!showQuizManager ? 'default' : 'ghost'}
+                                        size="sm"
+                                        onClick={() => setShowQuizManager(false)}
+                                    >
+                                        📚 קורסים
+                                    </Button>
+                                    <Button
+                                        variant={showQuizManager ? 'default' : 'ghost'}
+                                        size="sm"
+                                        onClick={() => setShowQuizManager(true)}
+                                        className={showQuizManager ? 'bg-blue-600 hover:bg-blue-700' : ''}
+                                    >
+                                        🎓 מבחנים
+                                    </Button>
                                 </div>
                             )}
-                        </TabsContent>
+                        </div>
 
-                        {isAdmin && (
-                            <TabsContent value="quizzes">
+                        {isAdmin && showQuizManager ? (
+                            <div className="mt-4">
                                 <QuizManager />
-                            </TabsContent>
+                            </div>
+                        ) : (
+                        <div>
+                        <p className="text-lg text-slate-600 mb-6">אלו הקורסים המיועדים עבורך. בחר קורס כדי להתחיל.</p>
+                        
+                        {/* Quick Practice Button */}
+                        <div className="mb-8 text-center">
+                            <Button 
+                                onClick={handleQuickPractice}
+                                className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white text-lg px-8 py-4 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300"
+                            >
+                                <MessageSquare className="w-6 h-6 mr-3" />
+                                🚀 תרגול מהיר עם לקוח AI
+                                <span className="block text-sm font-normal opacity-90 mt-1">
+                                    דלג על התיאוריה - ישר לתרגול!
+                                </span>
+                            </Button>
+                        </div>
+                        
+                        {courses.length === 0 ? (
+                            <div className="text-center py-12">
+                                <GraduationCap className="w-16 h-16 mx-auto text-gray-400 mb-4" />
+                                <h3 className="text-xl font-semibold text-gray-600 mb-2">אין קורסים זמינים כרגע</h3>
+                                <p className="text-gray-500">קורסי ההדרכה יופיעו כאן ברגע שיהיו מוכנים</p>
+                                <Button 
+                                    onClick={loadData} 
+                                    className="mt-4 bg-orange-600 hover:bg-orange-700"
+                                >
+                                    רענן
+                                </Button>
+                            </div>
+                        ) : (
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                                {courses.map(course => (
+                                    <CourseCard 
+                                        key={course.id} 
+                                        course={course} 
+                                        onSelect={setSelectedCourse} 
+                                        enrollment={enrollments[course.course_code]} 
+                                    />
+                                ))}
+                            </div>
                         )}
-                    </Tabs>
+                        </div>
+                        )}
+                    </>
+                ) : (
+                    <CourseDetails 
+                        course={selectedCourse} 
+                        onBack={handleBack}
+                        user={user}
+                    />
                 )}
             </div>
         </div>
