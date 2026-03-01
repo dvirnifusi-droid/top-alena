@@ -119,6 +119,11 @@ export default function ChecklistCard({ checklist, onStart, executions, onEdit, 
                     </div>
                     <div className="flex flex-col items-end gap-2">
                         {getStatusBadge()}
+                        {shiftInfo && checklist.shift !== 'all' && (
+                            <Badge variant="outline" className="text-xs font-semibold">
+                                {shiftInfo.emoji} {shiftInfo.label}
+                            </Badge>
+                        )}
                     </div>
                 </div>
             </CardHeader>
