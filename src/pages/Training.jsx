@@ -1005,6 +1005,8 @@ export default function TrainingPage() {
         return <div className="flex justify-center items-center h-screen"><Loader2 className="w-12 h-12 animate-spin text-orange-600" /></div>
     }
 
+    const isAdmin = user?.role === 'admin';
+
     return (
         <div className="p-4 sm:p-8 bg-gradient-to-br from-orange-50 to-red-50 min-h-screen" dir="rtl">
             <div className="max-w-7xl mx-auto">
