@@ -14,7 +14,6 @@ import {
 import { Button } from "@/components/ui/button";
 
 import AiChatWidget from "./components/ai-assistant/AiChatWidget";
-import GeneralAiHelperWidget from "./components/ai-assistant/GeneralAiHelperWidget";
 
 // תפריט למנהלים - מחולק לקטגוריות
 const adminLinks = [
