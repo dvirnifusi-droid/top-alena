@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { TipReport } from '@/entities/TipReport';
+import PageGuard from '../components/shared/PageGuard';
 import { WorkShift } from '@/entities/WorkShift';
 import { Employee } from '@/entities/Employee';
 import { Button } from '@/components/ui/button';

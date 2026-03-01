@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Employee, PendingInvitation } from '@/entities/all';
+import PageGuard from '../components/shared/PageGuard';
 import { User } from '@/entities/User';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';

@@ -1,6 +1,6 @@
-
 import React, { useState, useEffect } from 'react';
 import { Incident } from '@/entities/all';
+import PageGuard from '../components/shared/PageGuard';
 import { User } from '@/entities/User';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';

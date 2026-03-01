@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Checklist, ChecklistExecution } from "@/entities/all";
+import PageGuard from "../components/shared/PageGuard";
 import { User } from "@/entities/User";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";

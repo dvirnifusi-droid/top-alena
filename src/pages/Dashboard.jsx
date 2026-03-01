@@ -288,7 +288,7 @@ function SmartToolsPanel() {
     );
 }
 
-export default function Dashboard() {
+function DashboardInner() {
     const [user, setUser] = React.useState(null);
 
     React.useEffect(() => {

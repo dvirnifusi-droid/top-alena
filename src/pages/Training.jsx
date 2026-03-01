@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { TrainingCourse, TrainingEnrollment, TrainingLesson, QuizQuestion, ConversationScript, User } from '@/entities/all';
+import PageGuard from '../components/shared/PageGuard';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
