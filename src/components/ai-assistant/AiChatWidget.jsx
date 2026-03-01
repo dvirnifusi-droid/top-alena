@@ -251,9 +251,9 @@ export default function AiChatWidget() {
                 />
                 <div className="flex-1 text-right min-w-0">
                     <div className="flex items-center gap-2 justify-end mb-0.5">
-                        <span className="font-bold text-base">כלי עבודה חכמים 🧠 ✨</span>
+                        <span className="font-bold text-base">דביר AI 🧠</span>
                     </div>
-                    <p className="text-purple-200 text-xs">כלים מבוססי AI לחיסכון בזמן ושיפור היעילות</p>
+                    <p className="text-amber-200 text-xs">שאל אותי הכל ואענה לך מהמוח הדיגיטלי שלי</p>
                 </div>
                 <div className="flex items-center gap-2 flex-shrink-0">
                     <span className="bg-white/20 text-white text-xs px-2 py-1 rounded-full whitespace-nowrap">4 כלים</span>
