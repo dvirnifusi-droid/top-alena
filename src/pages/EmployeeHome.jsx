@@ -14,6 +14,7 @@ import ManualSurveyTool from '../components/dashboard/ManualSurveyTool';
 import SeatingAiHelper from '../components/dashboard/SeatingAiHelper';
 import AiQuickAdd from '../components/dashboard/AiQuickAdd';
 import DailyBriefView from '../components/briefing/DailyBriefView';
+import ShiftClockWidget from '../components/shift/ShiftClockWidget';
 
 export default function EmployeeHome() {
     const [user, setUser] = useState(null);
