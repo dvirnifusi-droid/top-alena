@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { Checklist, ChecklistExecution } from "@/entities/all";
 import { User } from "@/entities/User";
@@ -159,31 +158,19 @@ export default function ChecklistsPage() {
                     </div>
                 </div>
 
-                <Tabs defaultValue="active" className="w-full space-y-8">
-                    {/* טאבים מעוצבים */}
-                    <TabsList className="grid w-full grid-cols-4 sm:max-w-2xl sm:mx-auto bg-white/80 backdrop-blur-xl p-2 h-16 rounded-3xl border border-white/30 shadow-xl">
-                        <TabsTrigger 
-                            value="active" 
-                            className="py-3 px-6 text-sm font-bold rounded-2xl data-[state=active]:bg-gradient-to-r data-[state=active]:from-emerald-500 data-[state=active]:to-cyan-500 data-[state=active]:text-white data-[state=active]:shadow-lg transition-all duration-300 hover:scale-105"
-                        >
-                            🎯 צ'קליסטים פעילים
+                <Tabs defaultValue="active" className="w-full space-y-6">
+                    {/* טאבים - גריד 2x2 במובייל, שורה אחת בדסקטופ */}
+                    <TabsList className="grid grid-cols-2 sm:grid-cols-4 bg-white/80 backdrop-blur-xl p-1.5 rounded-2xl border border-white/30 shadow-lg gap-1 h-auto">
+                        <TabsTrigger value="active" className="py-3 px-3 text-sm font-bold rounded-xl data-[state=active]:bg-emerald-500 data-[state=active]:text-white transition-all">
+                            🎯 פעילים
                         </TabsTrigger>
-                        <TabsTrigger 
-                            value="procedures" 
-                            className="py-3 px-6 text-sm font-bold rounded-2xl data-[state=active]:bg-gradient-to-r data-[state=active]:from-orange-500 data-[state=active]:to-red-500 data-[state=active]:text-white data-[state=active]:shadow-lg transition-all duration-300 hover:scale-105"
-                        >
+                        <TabsTrigger value="procedures" className="py-3 px-3 text-sm font-bold rounded-xl data-[state=active]:bg-orange-500 data-[state=active]:text-white transition-all">
                             📋 נהלים
                         </TabsTrigger>
-                        <TabsTrigger 
-                            value="archive" 
-                            className="py-3 px-6 text-sm font-bold rounded-2xl data-[state=active]:bg-gradient-to-r data-[state=active]:from-purple-500 data-[state=active]:to-pink-500 data-[state=active]:text-white data-[state=active]:shadow-lg transition-all duration-300 hover:scale-105"
-                        >
-                            🗂️ ארכיון מלא
+                        <TabsTrigger value="archive" className="py-3 px-3 text-sm font-bold rounded-xl data-[state=active]:bg-purple-500 data-[state=active]:text-white transition-all">
+                            🗂️ ארכיון
                         </TabsTrigger>
-                        <TabsTrigger 
-                            value="stats" 
-                            className="py-3 px-6 text-sm font-bold rounded-2xl data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-500 data-[state=active]:to-indigo-500 data-[state=active]:text-white data-[state=active]:shadow-lg transition-all duration-300 hover:scale-105"
-                        >
+                        <TabsTrigger value="stats" className="py-3 px-3 text-sm font-bold rounded-xl data-[state=active]:bg-blue-500 data-[state=active]:text-white transition-all">
                             📊 סטטיסטיקות
                         </TabsTrigger>
                     </TabsList>
