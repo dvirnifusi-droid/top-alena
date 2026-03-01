@@ -117,26 +117,32 @@ export default function ShiftClockWidget() {
         if (!window.confirm('לסיים את המשמרת?')) return;
         setActionLoading(true);
         const now = new Date().toISOString();
+        const today = format(new Date(), 'yyyy-MM-dd');
         const startMs = new Date(activeShift.shift_start).getTime();
         const totalHours = (new Date(now).getTime() - startMs) / 3600000;
-        const effectiveHours = totalHours - (activeShift.total_break_minutes || 0) / 60;
+        const effectiveHours = Math.max(0, totalHours - (activeShift.total_break_minutes || 0) / 60);
 
-        const updatedShift = await base44.entities.ShiftTracking.update(activeShift.id, {
+        // 1. עדכון ShiftTracking
+        await base44.entities.ShiftTracking.update(activeShift.id, {
             shift_end: now,
             status: 'completed',
             total_hours: Math.round(totalHours * 100) / 100,
             effective_hours: Math.round(effectiveHours * 100) / 100,
         });
 
-        // עדכון סידור עבודה אם קיים
-        const today = format(new Date(), 'yyyy-MM-dd');
+        // 2. מצא את רשומת העובד לפי אימייל (כמו WorkScheduling)
+        const employeeRecord = await findEmployeeRecord(user);
+        const employeeId = employeeRecord?.id || user.id;
+
+        // 3. עדכון WorkShift - מצא את כל משמרות היום ועדכן את השיבוץ
         const workShifts = await base44.entities.WorkShift.filter({ date: today });
         for (const ws of workShifts) {
             const staff = ws.assigned_staff || [];
-            const idx = staff.findIndex(s => s.employee_id === user.id);
+            const idx = staff.findIndex(s => s.employee_id === employeeId);
             if (idx !== -1) {
-                staff[idx] = {
-                    ...staff[idx],
+                const updatedStaff = [...staff];
+                updatedStaff[idx] = {
+                    ...updatedStaff[idx],
                     start_time: format(new Date(activeShift.shift_start), 'HH:mm'),
                     end_time: format(new Date(now), 'HH:mm'),
                     total_break_minutes: activeShift.total_break_minutes || 0,
@@ -144,18 +150,17 @@ export default function ShiftClockWidget() {
                     meal_details: activeShift.meal_details || '',
                     breaks: activeShift.breaks || [],
                 };
-                await base44.entities.WorkShift.update(ws.id, { assigned_staff: staff });
+                await base44.entities.WorkShift.update(ws.id, { assigned_staff: updatedStaff });
                 break;
             }
         }
 
-        // שמירה בטיפים (Shift entity)
-        const shiftHours = Math.round(effectiveHours * 100) / 100;
+        // 4. שמירה בטיפים (Shift entity)
         await base44.entities.Shift.create({
-            employee_id: user.id,
+            employee_id: employeeId,
             employee_name: user.full_name,
             date: today,
-            hours_worked: shiftHours,
+            hours_worked: Math.round(effectiveHours * 100) / 100,
             sales_amount: 0,
             area: '',
             notes: `כניסה: ${format(new Date(activeShift.shift_start), 'HH:mm')} | יציאה: ${format(new Date(now), 'HH:mm')} | הפסקות: ${activeShift.total_break_minutes || 0} דק'`,
