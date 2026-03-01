@@ -147,7 +147,7 @@ export default function Layout({ children, currentPageName }) {
 
       {/* AI Assistant - רק בדפי בית ולוח בקרה */}
       {(['EmployeeHome', 'Dashboard'].includes(currentPageName)) && (
-        <div className="fixed top-20 left-4 z-50 lg:top-auto lg:bottom-8 lg:left-8">
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 lg:left-[calc(50%-10rem)]" style={{width: 'min(600px, calc(100vw - 2rem))'}}>
           <AiChatWidget />
         </div>
       )}
