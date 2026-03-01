@@ -188,6 +188,45 @@ export default function ChecklistEditDialog({ isOpen, checklist, employees, onCl
                                     </Select>
                                 </div>
                             </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <Label>משמרת</Label>
+                                    <Select value={formData.shift} onValueChange={(v) => setFormData(prev => ({ ...prev, shift: v }))}>
+                                        <SelectTrigger><SelectValue /></SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="all">🔁 כל המשמרות</SelectItem>
+                                            <SelectItem value="morning">🌅 בוקר</SelectItem>
+                                            <SelectItem value="evening">🌆 ערב</SelectItem>
+                                            <SelectItem value="thursday">🎉 חמישי</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                <div>
+                                    <Label>צבע</Label>
+                                    <div className="flex flex-wrap gap-2 mt-1">
+                                        {[
+                                            { value: 'emerald', label: 'ירוק', bg: 'bg-emerald-500' },
+                                            { value: 'blue', label: 'כחול', bg: 'bg-blue-500' },
+                                            { value: 'orange', label: 'כתום', bg: 'bg-orange-500' },
+                                            { value: 'purple', label: 'סגול', bg: 'bg-purple-500' },
+                                            { value: 'pink', label: 'ורוד', bg: 'bg-pink-500' },
+                                            { value: 'yellow', label: 'צהוב', bg: 'bg-yellow-500' },
+                                            { value: 'red', label: 'אדום', bg: 'bg-red-500' },
+                                            { value: 'cyan', label: 'תכלת', bg: 'bg-cyan-500' },
+                                        ].map(c => (
+                                            <button
+                                                key={c.value}
+                                                type="button"
+                                                title={c.label}
+                                                onClick={() => setFormData(prev => ({ ...prev, color: c.value }))}
+                                                className={`w-8 h-8 rounded-full ${c.bg} transition-all ${formData.color === c.value ? 'ring-2 ring-offset-2 ring-gray-700 scale-110' : 'opacity-70 hover:opacity-100'}`}
+                                            />
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+
                             <Button onClick={() => setStep('items')} className="w-full mt-2" variant="outline">
                                 המשך לעריכת משימות <ChevronLeft className="w-4 h-4 mr-1" />
                             </Button>
