@@ -348,6 +348,7 @@ function DashboardInner() {
     // תצוגה למנהלים - מסודר לפי קטגוריות
     return (
         <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-6" dir="rtl">
+
             <div className="max-w-7xl mx-auto space-y-8">
                 {/* כותרת ראשית */}
                 <div className="mb-8">
