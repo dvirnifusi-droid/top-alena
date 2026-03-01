@@ -940,6 +940,14 @@ const CourseDetails = ({ course, user, onBack }) => {
 };
 
 // --- Main Page Component ---
+export default function TrainingPage() {
+    return (
+        <PageGuard pageName="Training" pageTitle="הכשרות ואימונים">
+            <TrainingInner />
+        </PageGuard>
+    );
+}
+
 function TrainingInner() {
     const [courses, setCourses] = useState([]);
     const [enrollments, setEnrollments] = useState({});
