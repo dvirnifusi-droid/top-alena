@@ -284,6 +284,20 @@ export default function EmployeeHome() {
                             </CardContent>
                         </Card>
                     </Link>
+
+                    <Link to={createPageUrl("EmployeeReports")}>
+                        <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full">
+                            <CardContent className="p-6">
+                                <div className="flex flex-col items-center text-center">
+                                    <div className="w-12 h-12 bg-gradient-to-br from-red-500 to-rose-600 rounded-lg flex items-center justify-center mb-3">
+                                        <FileText className="w-6 h-6 text-white" />
+                                    </div>
+                                    <h3 className="font-semibold text-lg mb-2">דוחות עובדים</h3>
+                                    <p className="text-sm text-gray-600">שעות, טיפים וביצועים</p>
+                                </div>
+                            </CardContent>
+                        </Card>
+                    </Link>
                 </div>
             </div>
 
