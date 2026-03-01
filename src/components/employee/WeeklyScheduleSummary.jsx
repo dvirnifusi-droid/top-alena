@@ -20,28 +20,29 @@ export default function WeeklyScheduleSummary({ userId }) {
             const today = new Date();
             const weekStart = startOfWeek(today, { weekStartsOn: 0 });
             
-            // טוען את כל משמרות השבוע
-            const workShifts = await base44.entities.WorkShift.list();
+            // טוען משמרות דינמית לכל יום בשבוע
             const weekShifts = [];
             
             for (let i = 0; i < 7; i++) {
                 const date = addDays(weekStart, i);
                 const dateStr = format(date, 'yyyy-MM-dd');
-                const shift = workShifts.find(ws => ws.date === dateStr);
                 
-                if (shift) {
+                // סנן משמרות לתאריך זה
+                const shifts = await base44.entities.WorkShift.filter({ date: dateStr });
+                
+                shifts.forEach(shift => {
                     const userAssignment = (shift.assigned_staff || []).find(a => a.employee_id === userId);
                     if (userAssignment) {
                         weekShifts.push({
                             date,
                             dateStr,
                             shift_type: shift.shift_type,
-                            start_time: userAssignment.start_time,
-                            end_time: userAssignment.end_time,
+                            start_time: userAssignment.start_time || shift.start_time,
+                            end_time: userAssignment.end_time || shift.end_time,
                             position: userAssignment.position
                         });
                     }
-                }
+                });
             }
             
             setShifts(weekShifts);
