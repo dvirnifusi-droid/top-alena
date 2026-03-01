@@ -5,44 +5,50 @@ import { Badge } from '@/components/ui/badge';
 import { Clock, Briefcase } from 'lucide-react';
 import { format, startOfWeek, addDays } from 'date-fns';
 import { he } from 'date-fns/locale';
+import { User } from '@/entities/User';
 
 export default function WeeklyScheduleSummary({ userId }) {
     const [shifts, setShifts] = useState([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        loadWeeklySchedule();
+        if (userId) {
+            loadWeeklySchedule();
+        }
     }, [userId]);
 
     const loadWeeklySchedule = async () => {
         setLoading(true);
         try {
             if (!userId) {
-                console.log('No userId provided');
                 setLoading(false);
                 return;
             }
 
+            // קבל את המשתמש הנוכחי לפי email
+            const currentUser = await User.me();
+            
             const today = new Date();
             const weekStart = startOfWeek(today, { weekStartsOn: 0 });
             const weekStartStr = format(weekStart, 'yyyy-MM-dd');
             const weekEndStr = format(addDays(weekStart, 6), 'yyyy-MM-dd');
             
-            console.log('Loading shifts for userId:', userId, 'week:', weekStartStr, '-', weekEndStr);
-            
             // טוען את כל המשמרות
             const allShifts = await base44.entities.WorkShift.list();
-            console.log('Total shifts in DB:', allShifts.length);
-            
             const weekShifts = [];
             
-            // סנן לפי שבוע נוכחי בהשוואה של strings
+            // סנן לפי שבוע נוכחי
             allShifts.forEach(shift => {
                 if (!shift.date) return;
                 
-                // השוואה של strings לא תאריך
+                // בדוק אם התאריך בתוך השבוע
                 if (shift.date >= weekStartStr && shift.date <= weekEndStr) {
-                    const userAssignment = (shift.assigned_staff || []).find(a => a.employee_id === userId);
+                    // חפש את השיבוץ של המשתמש הנוכחי לפי email
+                    const userAssignment = (shift.assigned_staff || []).find(
+                        a => a.employee_name && currentUser.email && 
+                        a.employee_name.toLowerCase() === currentUser.full_name?.toLowerCase()
+                    );
+                    
                     if (userAssignment) {
                         weekShifts.push({
                             date: new Date(shift.date),
@@ -56,7 +62,6 @@ export default function WeeklyScheduleSummary({ userId }) {
                 }
             });
             
-            console.log('Found shifts for user:', weekShifts.length);
             // מיין לפי תאריך
             weekShifts.sort((a, b) => a.date - b.date);
             setShifts(weekShifts);
@@ -77,7 +82,7 @@ export default function WeeklyScheduleSummary({ userId }) {
     if (loading) return <div className="text-center py-4">טוען סידור...</div>;
 
     return (
-        <Card className="border-2 border-blue-200">
+        <Card className="border-2 border-blue-200 mb-6">
             <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                     <Calendar className="w-5 h-5" />
