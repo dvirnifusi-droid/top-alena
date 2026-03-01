@@ -59,10 +59,20 @@ export default function MenuLearning({ onComplete, user }) {
         setIsEditDialogOpen(true);
     };
 
+    const [imageUploading, setImageUploading] = useState(false);
+
+    const handleImageUpload = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        setImageUploading(true);
+        const { file_url } = await base44.integrations.Core.UploadFile({ file });
+        setEditingItem(prev => ({ ...prev, image_url: file_url }));
+        setImageUploading(false);
+    };
+
     const handleUpdateItem = async () => {
         if (!editingItem) return;
         try {
-            // Ensure price is parsed to a float
             const itemToUpdate = {
                 ...editingItem,
                 price: parseFloat(editingItem.price)
