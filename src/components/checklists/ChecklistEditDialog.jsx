@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -101,7 +100,7 @@ export default function ChecklistEditDialog({ isOpen, checklist, employees, onCl
         <Dialog open={isOpen} onOpenChange={onClose}>
             <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto" dir="rtl">
                 <DialogHeader>
-                    <DialogTitle>עריכת צ'קליסט</DialogTitle>
+                    <DialogTitle>{checklist?.id ? "עריכת צ'קליסט" : "צ'קליסט חדש"}</DialogTitle>
                 </DialogHeader>
                 
                 <form onSubmit={handleSubmit} className="space-y-6">
