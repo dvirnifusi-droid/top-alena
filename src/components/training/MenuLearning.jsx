@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { MenuItem } from '@/entities/MenuItem';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,9 +9,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { base44 } from '@/api/base44Client';
 import { 
     Search, Clock, DollarSign, AlertTriangle, ChefHat, Trash2, Pencil,
-    Flame, Sparkles, Beef, Utensils, Leaf, CakeSlice, Martini 
+    Flame, Sparkles, Beef, Utensils, Leaf, CakeSlice, Martini, Image, X, Loader2 as Loader
 } from 'lucide-react';
 
 export default function MenuLearning({ onComplete, user }) {
