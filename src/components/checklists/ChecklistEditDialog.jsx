@@ -79,6 +79,16 @@ export default function ChecklistEditDialog({ isOpen, checklist, employees, onCl
         else if (selectedItemIndex === index) setSelectedItemIndex(null);
     };
 
+    const moveItem = (index, direction) => {
+        const newIndex = index + direction;
+        if (newIndex < 0 || newIndex >= formData.items.length) return;
+        const updated = [...formData.items];
+        [updated[index], updated[newIndex]] = [updated[newIndex], updated[index]];
+        const reordered = updated.map((item, i) => ({ ...item, order: i + 1 }));
+        setFormData(prev => ({ ...prev, items: reordered }));
+        setSelectedItemIndex(newIndex);
+    };
+
     const updateItem = (index, field, value) => {
         setFormData(prev => ({
             ...prev,
