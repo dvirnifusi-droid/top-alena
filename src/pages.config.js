@@ -60,6 +60,7 @@ import Dashboard from './pages/Dashboard';
 import EmployeeDetails from './pages/EmployeeDetails';
 import EmployeeFeedback from './pages/EmployeeFeedback';
 import EmployeeHome from './pages/EmployeeHome';
+import EmployeeReports from './pages/EmployeeReports';
 import Employees from './pages/Employees';
 import Incidents from './pages/Incidents';
 import InvoiceDetails from './pages/InvoiceDetails';
@@ -86,7 +87,6 @@ import Training from './pages/Training';
 import UploadChecklists from './pages/UploadChecklists';
 import WaiterTables from './pages/WaiterTables';
 import WorkScheduling from './pages/WorkScheduling';
-import EmployeeReports from './pages/EmployeeReports';
 import __Layout from './Layout.jsx';
 
 
@@ -104,6 +104,7 @@ export const PAGES = {
     "EmployeeDetails": EmployeeDetails,
     "EmployeeFeedback": EmployeeFeedback,
     "EmployeeHome": EmployeeHome,
+    "EmployeeReports": EmployeeReports,
     "Employees": Employees,
     "Incidents": Incidents,
     "InvoiceDetails": InvoiceDetails,
@@ -130,7 +131,6 @@ export const PAGES = {
     "UploadChecklists": UploadChecklists,
     "WaiterTables": WaiterTables,
     "WorkScheduling": WorkScheduling,
-    "EmployeeReports": EmployeeReports,
 }
 
 export const pagesConfig = {

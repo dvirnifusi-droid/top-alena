@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { User } from '@/entities/User';
 import { DailyBrief } from '@/entities/DailyBrief';
+import { base44 } from '@/api/base44Client';
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Star, GraduationCap, CheckSquare, AlertTriangle, Calendar, Utensils, Brain, Sparkles, FileText, Megaphone } from 'lucide-react';
+import { Star, GraduationCap, CheckSquare, AlertTriangle, Calendar, Utensils, Brain, Sparkles, FileText, Megaphone, Briefcase } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -22,6 +23,7 @@ export default function EmployeeHome() {
     const [showSmartTools, setShowSmartTools] = useState(false);
     const [todayBriefs, setTodayBriefs] = useState([]);
     const [selectedBrief, setSelectedBrief] = useState(null);
+    const [todayPosition, setTodayPosition] = useState(null);
 
     useEffect(() => {
         User.me().then(u => {
