@@ -15,6 +15,7 @@ import SeatingAiHelper from '../components/dashboard/SeatingAiHelper';
 import AiQuickAdd from '../components/dashboard/AiQuickAdd';
 import DailyBriefView from '../components/briefing/DailyBriefView';
 
+
 export default function EmployeeHome() {
     const [user, setUser] = useState(null);
     const [showSmartTools, setShowSmartTools] = useState(false);
