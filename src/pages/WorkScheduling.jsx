@@ -32,8 +32,8 @@ const DINNER_POSITIONS_ORDER = [
 // New constant for department definitions and their associated position names
 const DEPARTMENT_DEFINITIONS = {
     all: { name: 'כל המחלקות' },
-    floor: { name: 'סידור פלור', positionNames: ['מלצר', 'ברמן', 'מארח/ת', 'מנהל פלור', 'ראנר', 'קופה +אריזות', 'מנהלת משמרת'] },
-    kitchen: { name: 'סידור מטבח', positionNames: ['טבח', 'מנהל מטבח', 'שוטף כלים', 'קונדיטור', 'מתלמד מטבח', 'צאקר', 'גריל', 'פס בטטה', 'מקשר'] },
+    floor: { name: 'סידור פלור', positionNames: ['מלצר', 'ברמן', 'מארח/ת', 'מנהל פלור', 'ראנר', 'קופה +אריזות', 'מנהלת משמרת', 'בלתם'] },
+    kitchen: { name: 'סידור מטבח', positionNames: ['טבח', 'מנהל מטבח', 'שוטף כלים', 'קונדיטור', 'מתלמד מטבח', 'צאקר', 'גריל', 'פס בטטה', 'מקשר', 'בלתם'] },
 };
 
 // Helper function to get ordered and included positions for a specific shift
