@@ -241,7 +241,7 @@ export default function AiChatWidget() {
         return (
             <button
                 onClick={() => setIsOpen(true)}
-                className="w-full flex items-center gap-4 bg-gradient-to-l from-purple-700 to-purple-500 text-white rounded-2xl px-5 py-3 shadow-2xl hover:brightness-110 transition-all duration-300 cursor-pointer border-0"
+                className="w-full flex items-center gap-4 bg-gradient-to-l from-red-900 to-amber-800 text-white rounded-2xl px-5 py-3 shadow-2xl hover:brightness-110 transition-all duration-300 cursor-pointer border-0"
                 dir="rtl"
             >
                 <img 
