@@ -228,20 +228,50 @@ export default function AvailabilityForm() {
                      </div>
 
                      <div>
-                         <Label className="mb-3 block font-semibold">קוד גישה:</Label>
-                         <input
-                             type="password"
-                             placeholder="הכנס את קוד הגישה שלך"
-                             value={accessCode}
-                             onChange={(e) => setAccessCode(e.target.value)}
-                             onKeyPress={(e) => e.key === 'Enter' && loadCurrentEmployee()}
-                             className="w-full px-4 py-3 border border-gray-300 rounded-lg text-base text-center tracking-widest"
-                         />
+                         <div className="flex gap-2 mb-3">
+                             <button
+                                 onClick={() => { setUseCodeAuth(true); setAccessCode(''); setError(null); }}
+                                 className={`flex-1 px-3 py-2 rounded-lg font-semibold transition-all ${
+                                     useCodeAuth
+                                         ? 'bg-primary text-white'
+                                         : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                                 }`}
+                             >
+                                 קוד גישה
+                             </button>
+                             <button
+                                 onClick={() => { setUseCodeAuth(false); setAccessCode(''); setError(null); }}
+                                 className={`flex-1 px-3 py-2 rounded-lg font-semibold transition-all ${
+                                     !useCodeAuth
+                                         ? 'bg-primary text-white'
+                                         : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                                 }`}
+                             >
+                                 דרך מייל
+                             </button>
+                         </div>
+                         
+                         {useCodeAuth && (
+                             <input
+                                 type="password"
+                                 placeholder="הכנס את קוד הגישה שלך"
+                                 value={accessCode}
+                                 onChange={(e) => setAccessCode(e.target.value)}
+                                 onKeyPress={(e) => e.key === 'Enter' && loadCurrentEmployee()}
+                                 className="w-full px-4 py-3 border border-gray-300 rounded-lg text-base text-center tracking-widest"
+                             />
+                         )}
+                         
+                         {!useCodeAuth && (
+                             <p className="text-sm text-gray-600 text-center py-3">
+                                 אתה מאומת דרך כתובת המייל שלך
+                             </p>
+                         )}
                      </div>
 
                      <Button 
                          onClick={loadCurrentEmployee} 
-                         disabled={!employeeEmail || !accessCode || loading}
+                         disabled={!employeeEmail || (useCodeAuth && !accessCode) || loading}
                          size="lg"
                          className="w-full h-12 text-base"
                      >
