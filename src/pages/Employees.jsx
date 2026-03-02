@@ -504,6 +504,11 @@ function EmployeesInner() {
     setIsPermissionsOpen(true);
   };
 
+  const openAccessCodeDialog = (employee) => {
+    setAccessCodeEmployee(employee);
+    setIsAccessCodeOpen(true);
+  };
+
   return (
     <div className="min-h-screen p-4 md:p-8 bg-gradient-to-br from-gray-50 to-slate-100" dir="rtl">
       <div className="max-w-7xl mx-auto">
