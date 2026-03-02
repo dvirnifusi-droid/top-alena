@@ -60,6 +60,7 @@ export default function AvailabilityForm() {
      const AVAILABILITY_TYPES = settings ? Object.fromEntries(settings.availability_types.map(t => [t.key, { label: t.label, color: t.color }])) : DEFAULT_AVAILABILITY_TYPES;
      const SHIFT_OPTIONS = settings?.shift_options || DEFAULT_SHIFT_OPTIONS;
      const DEPARTMENTS = settings?.departments || [];
+     const POSITIONS = settings?.positions || [];
 
      useEffect(() => {
          loadData();
