@@ -51,12 +51,17 @@ export default function AvailabilityForm() {
      const [accessCode, setAccessCode] = useState('');
      const [useCodeAuth, setUseCodeAuth] = useState(true);
      const [allEmployees, setAllEmployees] = useState([]);
+     const [settings, setSettings] = useState(null);
      const [loading, setLoading] = useState(true);
      const [error, setError] = useState(null);
      const [saving, setSaving] = useState(false);
      const [submitted, setSubmitted] = useState(false);
      const [existingAvailabilities, setExistingAvailabilities] = useState([]);
      const [dayData, setDayData] = useState(initDayData);
+     
+     const POSITIONS = settings?.positions || DEFAULT_POSITIONS;
+     const AVAILABILITY_TYPES = settings ? Object.fromEntries(settings.availability_types.map(t => [t.key, { label: t.label, color: t.color }])) : DEFAULT_AVAILABILITY_TYPES;
+     const SHIFT_OPTIONS = settings?.shift_options || DEFAULT_SHIFT_OPTIONS;
 
      useEffect(() => {
          loadEmployees();
