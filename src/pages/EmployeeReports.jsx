@@ -165,14 +165,15 @@ function EmployeeReportsInner() {
         );
     }
 
-    const displayEmployeeId = selectedEmployeeId;
-    const selectedEmployee = employees.find(e => e.id === displayEmployeeId) || { full_name: user?.full_name };
+    const selectedEmployee = employees.find(e => e.id === selectedEmployeeId) || { full_name: user?.full_name };
 
     return (
         <div className="p-4 sm:p-8 bg-gradient-to-br from-slate-50 to-slate-100 min-h-screen" dir="rtl">
             <div className="max-w-7xl mx-auto">
                 <h1 className="text-4xl font-bold text-slate-900 mb-2">דוחות עובדים</h1>
-                <p className="text-slate-600 mb-8">מעקב שעות עבודה, טיפים וביצועים</p>
+                <p className="text-slate-600 mb-2">
+                    {isAdmin ? 'מעקב שעות עבודה, טיפים וביצועים לכל העובדים' : `הדוח האישי שלך - ${selectedEmployee?.full_name || ''}`}
+                </p>
 
                 {/* Filters */}
                 <Card className="mb-8 border-2">
@@ -243,13 +244,13 @@ function EmployeeReportsInner() {
                 </Card>
 
                 {/* Summary Cards */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
                     <Card className="border-2 border-blue-200">
                         <CardContent className="p-6">
                             <div className="flex items-center justify-between">
                                 <div>
-                                    <p className="text-sm text-gray-600">משמרות</p>
-                                    <p className="text-2xl font-bold text-blue-600">{calculations.totalShifts}</p>
+                                    <p className="text-sm text-gray-600">משמרות בטיפים</p>
+                                    <p className="text-2xl font-bold text-blue-600">{calculations.totalTipShifts}</p>
                                 </div>
                                 <BarChart3 className="w-8 h-8 text-blue-600 opacity-50" />
                             </div>
@@ -260,9 +261,8 @@ function EmployeeReportsInner() {
                         <CardContent className="p-6">
                             <div className="flex items-center justify-between">
                                 <div>
-                                    <p className="text-sm text-gray-600">שעות עבודה</p>
-                                    <p className="text-2xl font-bold text-green-600">{calculations.totalEffectiveHours}</p>
-                                    <p className="text-xs text-gray-500">(כולל {calculations.totalHours})</p>
+                                    <p className="text-sm text-gray-600">שעות (סגירת טיפים)</p>
+                                    <p className="text-2xl font-bold text-green-600">{calculations.totalTipHours}</p>
                                 </div>
                                 <Clock className="w-8 h-8 text-green-600 opacity-50" />
                             </div>
@@ -273,8 +273,8 @@ function EmployeeReportsInner() {
                         <CardContent className="p-6">
                             <div className="flex items-center justify-between">
                                 <div>
-                                    <p className="text-sm text-gray-600">טיפים כסף</p>
-                                    <p className="text-2xl font-bold text-orange-600">₪{calculations.totalTips}</p>
+                                    <p className="text-sm text-gray-600">סה"כ טיפים</p>
+                                    <p className="text-2xl font-bold text-orange-600">₪{calculations.totalTipEarnings}</p>
                                 </div>
                                 <DollarSign className="w-8 h-8 text-orange-600 opacity-50" />
                             </div>
@@ -294,52 +294,62 @@ function EmployeeReportsInner() {
                     </Card>
                 </div>
 
-                {/* Details Table */}
+                {/* Tips Details Table */}
                 <Card className="border-2">
                     <CardHeader>
-                        <CardTitle>פרטים מלאים</CardTitle>
+                        <CardTitle>פירוט טיפים לפי משמרת</CardTitle>
                     </CardHeader>
                     <CardContent>
                         {loading2 ? (
                             <div className="flex items-center justify-center py-8">
                                 <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
                             </div>
-                        ) : filteredData.shifts.length === 0 ? (
-                            <p className="text-center text-gray-500 py-8">אין נתונים לתקופה זו</p>
+                        ) : filteredData.tipEntries.length === 0 ? (
+                            <p className="text-center text-gray-500 py-8">אין נתוני טיפים לתקופה זו</p>
                         ) : (
                             <div className="overflow-x-auto">
                                 <table className="w-full text-sm">
-                                    <thead className="border-b-2 border-gray-300">
+                                    <thead className="border-b-2 border-gray-300 bg-slate-50">
                                         <tr>
                                             <th className="text-right py-3 px-4">תאריך</th>
                                             <th className="text-right py-3 px-4">משמרת</th>
+                                            <th className="text-right py-3 px-4">תפקיד</th>
                                             <th className="text-right py-3 px-4">שעות</th>
-                                            <th className="text-right py-3 px-4">טיפים</th>
-                                            <th className="text-right py-3 px-4">הערות</th>
+                                            <th className="text-right py-3 px-4">טיפ ברוטו</th>
+                                            <th className="text-right py-3 px-4">ארוחה</th>
+                                            <th className="text-right py-3 px-4">בונוס</th>
+                                            <th className="text-right py-3 px-4">השלמה לשכר</th>
+                                            <th className="text-right py-3 px-4 font-bold text-green-700">סה"כ</th>
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {filteredData.shifts.map((shift) => {
-                                            const relatedTips = filteredData.tips.filter(t => {
-                                                const tipsDate = format(new Date(t.date || t.created_date), 'yyyy-MM-dd');
-                                                return tipsDate === shift.date;
-                                            });
-                                            const dayTips = relatedTips.reduce((sum, t) => sum + (t.total_amount || 0), 0);
-
-                                            return (
-                                                <tr key={shift.id} className="border-b border-gray-200 hover:bg-slate-50">
-                                                    <td className="py-3 px-4">{format(new Date(shift.date), 'dd/MM/yyyy', { locale: he })}</td>
-                                                    <td className="py-3 px-4">
-                                                        <Badge variant={shift.shift_type === 'lunch' ? 'default' : 'secondary'}>
-                                                            {shift.shift_type === 'lunch' ? 'צהריים' : 'ערב'}
-                                                        </Badge>
-                                                    </td>
-                                                    <td className="py-3 px-4 font-semibold">{(shift.effective_hours || 0).toFixed(1)}</td>
-                                                    <td className="py-3 px-4 text-orange-600 font-semibold">₪{dayTips.toFixed(2)}</td>
-                                                    <td className="py-3 px-4 text-xs text-gray-600">{shift.personal_notes || '-'}</td>
-                                                </tr>
-                                            );
-                                        })}
+                                        {filteredData.tipEntries.map((entry, idx) => (
+                                            <tr key={idx} className="border-b border-gray-200 hover:bg-slate-50">
+                                                <td className="py-3 px-4">{format(new Date(entry.date), 'dd/MM/yyyy', { locale: he })}</td>
+                                                <td className="py-3 px-4">
+                                                    <Badge variant={entry.shift_type === 'lunch' ? 'default' : 'secondary'}>
+                                                        {entry.shift_type === 'lunch' ? 'צהריים' : 'ערב'}
+                                                    </Badge>
+                                                </td>
+                                                <td className="py-3 px-4 text-gray-600">{entry.position || '-'}</td>
+                                                <td className="py-3 px-4">{(entry.effectiveHours || 0).toFixed(2)}</td>
+                                                <td className="py-3 px-4 text-blue-600">₪{(entry.grossTip || 0).toFixed(2)}</td>
+                                                <td className="py-3 px-4 text-red-500">
+                                                    {entry.meal_cost > 0 ? `-₪${entry.meal_cost.toFixed(2)}` : '-'}
+                                                </td>
+                                                <td className="py-3 px-4 text-green-600">
+                                                    {entry.sales_bonus > 0 ? `+₪${entry.sales_bonus.toFixed(2)}` : '-'}
+                                                </td>
+                                                <td className="py-3 px-4 text-purple-600">
+                                                    {entry.supplement > 0 ? `+₪${entry.supplement.toFixed(2)}` : '-'}
+                                                </td>
+                                                <td className="py-3 px-4 font-bold text-green-700">₪{(entry.totalEarnings || 0).toFixed(2)}</td>
+                                            </tr>
+                                        ))}
+                                        <tr className="border-t-2 border-gray-400 bg-green-50">
+                                            <td colSpan={8} className="py-3 px-4 font-bold text-right text-green-800">סה"כ לתקופה:</td>
+                                            <td className="py-3 px-4 font-bold text-xl text-green-700">₪{calculations.totalTipEarnings}</td>
+                                        </tr>
                                     </tbody>
                                 </table>
                             </div>
