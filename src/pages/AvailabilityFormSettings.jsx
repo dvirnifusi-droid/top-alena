@@ -41,11 +41,12 @@ const DAYS_OF_WEEK_HE = ['ראשון', 'שני', 'שלישי', 'רביעי', 'ח
 
 export default function AvailabilityFormSettings() {
     const [user, setUser] = useState(null);
-    const [settings, setSettings] = useState(null);
-    const [loading, setLoading] = useState(true);
-    const [saving, setSaving] = useState(false);
-    const [newPosition, setNewPosition] = useState('');
-    const [activeTab, setActiveTab] = useState('positions');
+     const [settings, setSettings] = useState(null);
+     const [loading, setLoading] = useState(true);
+     const [saving, setSaving] = useState(false);
+     const [newPosition, setNewPosition] = useState('');
+     const [selectedDeptKey, setSelectedDeptKey] = useState('floor');
+     const [activeTab, setActiveTab] = useState('positions');
 
     useEffect(() => {
         loadData();
