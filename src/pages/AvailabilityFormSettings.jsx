@@ -239,51 +239,74 @@ export default function AvailabilityFormSettings() {
              )}
 
             {activeTab === 'positions' && (
-                <Card>
-                    <CardHeader>
-                        <CardTitle>ניהול תפקידים</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                        <div>
-                            <Label className="mb-2 block font-semibold">הוסף תפקיד חדש</Label>
-                            <div className="flex gap-2">
-                                <Input
-                                    placeholder="שם התפקיד"
-                                    value={newPosition}
-                                    onChange={(e) => setNewPosition(e.target.value)}
-                                    onKeyPress={(e) => e.key === 'Enter' && addPosition()}
-                                />
-                                <Button onClick={addPosition} className="gap-2">
-                                    <Plus className="w-4 h-4" />
-                                    הוסף
-                                </Button>
-                            </div>
-                        </div>
+                 <Card>
+                     <CardHeader>
+                         <CardTitle>ניהול תפקידים לכל חטיבה</CardTitle>
+                     </CardHeader>
+                     <CardContent className="space-y-4">
+                         <div>
+                             <Label className="mb-2 block font-semibold">בחר חטיבה</Label>
+                             <div className="flex gap-2 mb-4">
+                                 {settings.departments.map(dept => (
+                                     <button
+                                         key={dept.key}
+                                         onClick={() => setSelectedDeptKey(dept.key)}
+                                         className={`px-4 py-2 rounded-lg font-semibold transition-all ${
+                                             selectedDeptKey === dept.key
+                                                 ? 'bg-primary text-white'
+                                                 : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                                         }`}
+                                     >
+                                         {dept.label}
+                                     </button>
+                                 ))}
+                             </div>
+                         </div>
 
-                        <div>
-                            <Label className="mb-3 block font-semibold">התפקידים הקיימים</Label>
-                            <div className="space-y-2">
-                                {settings.positions.map((pos) => (
-                                    <div
-                                        key={pos}
-                                        className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200"
-                                    >
-                                        <span className="font-medium">{pos}</span>
-                                        <Button
-                                            variant="ghost"
-                                            size="sm"
-                                            onClick={() => removePosition(pos)}
-                                            className="text-red-600 hover:text-red-800"
-                                        >
-                                            <Trash2 className="w-4 h-4" />
-                                        </Button>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    </CardContent>
-                </Card>
-            )}
+                         {settings.departments.find(d => d.key === selectedDeptKey) && (
+                             <>
+                                 <div>
+                                     <Label className="mb-2 block font-semibold">הוסף תפקיד חדש</Label>
+                                     <div className="flex gap-2">
+                                         <Input
+                                             placeholder="שם התפקיד"
+                                             value={newPosition}
+                                             onChange={(e) => setNewPosition(e.target.value)}
+                                             onKeyPress={(e) => e.key === 'Enter' && addPosition()}
+                                         />
+                                         <Button onClick={addPosition} className="gap-2">
+                                             <Plus className="w-4 h-4" />
+                                             הוסף
+                                         </Button>
+                                     </div>
+                                 </div>
+
+                                 <div>
+                                     <Label className="mb-3 block font-semibold">התפקידים ל{settings.departments.find(d => d.key === selectedDeptKey)?.label}</Label>
+                                     <div className="space-y-2">
+                                         {settings.departments.find(d => d.key === selectedDeptKey)?.positions.map((pos) => (
+                                             <div
+                                                 key={pos}
+                                                 className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200"
+                                             >
+                                                 <span className="font-medium">{pos}</span>
+                                                 <Button
+                                                     variant="ghost"
+                                                     size="sm"
+                                                     onClick={() => removePosition(pos)}
+                                                     className="text-red-600 hover:text-red-800"
+                                                 >
+                                                     <Trash2 className="w-4 h-4" />
+                                                 </Button>
+                                             </div>
+                                         ))}
+                                     </div>
+                                 </div>
+                             </>
+                         )}
+                     </CardContent>
+                 </Card>
+             )}
 
             {activeTab === 'defaults' && (
                 <Card>
