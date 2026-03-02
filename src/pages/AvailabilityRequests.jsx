@@ -210,7 +210,7 @@ function AvailabilityRequestsInner() {
     const groupByDepartment = (dayAvail) => {
         const grouped = {};
         dayAvail.forEach(a => {
-            const dept = employees.find(e => e.id === a.employee_id)?.department || 'other';
+            const dept = a.department || 'other';
             if (!grouped[dept]) grouped[dept] = [];
             grouped[dept].push(a);
         });
