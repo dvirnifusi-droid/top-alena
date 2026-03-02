@@ -81,10 +81,17 @@ function EmployeeReportsInner() {
     const filteredData = useMemo(() => {
         if (!selectedEmployeeId) return { tipEntries: [], shifts: [] };
 
-        // חילוץ נתוני טיפים מתוך TipReport.staff_details לפי employee_id
+        const selectedEmp = employees.find(e => e.id === selectedEmployeeId);
+
+        // חילוץ נתוני טיפים מתוך TipReport.staff_details
+        // מחפש לפי employee_id OR לפי שם עובד (כי ייתכן אי-התאמת IDs)
         const allTipEntries = [];
         tipReports.forEach(report => {
-            const staffEntry = (report.staff_details || []).find(s => s.employee_id === selectedEmployeeId);
+            const staffEntry = (report.staff_details || []).find(s =>
+                s.employee_id === selectedEmployeeId ||
+                (selectedEmp?.full_name && s.employee_name && 
+                 s.employee_name.trim().toLowerCase() === selectedEmp.full_name.trim().toLowerCase())
+            );
             if (staffEntry) {
                 allTipEntries.push({
                     date: report.date,
