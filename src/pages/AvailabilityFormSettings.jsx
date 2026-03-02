@@ -191,42 +191,52 @@ export default function AvailabilityFormSettings() {
             </div>
 
             {activeTab === 'departments' && (
-                <Card>
-                    <CardHeader>
-                        <CardTitle>ניהול חטיבות</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                        <p className="text-gray-600 text-sm">הגדר את החטיבות ותפקיד הברירה המחדל לכל אחת</p>
-                        <div className="space-y-3">
-                            {settings.departments?.map((dept) => (
-                                <div key={dept.key} className="p-4 bg-gray-50 rounded-lg border border-gray-200">
-                                    <p className="font-semibold mb-2">{dept.label}</p>
-                                    <div>
-                                        <Label className="text-sm mb-1 block">תפקיד ברירת מחדל</Label>
-                                        <select
-                                            value={dept.default_position || ''}
-                                            onChange={(e) => {
-                                                setSettings({
-                                                    ...settings,
-                                                    departments: settings.departments.map(d => 
-                                                        d.key === dept.key ? { ...d, default_position: e.target.value } : d
-                                                    )
-                                                });
-                                            }}
-                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                                        >
-                                            <option value="">בחר תפקיד</option>
-                                            {settings.positions.map(pos => (
-                                                <option key={pos} value={pos}>{pos}</option>
-                                            ))}
-                                        </select>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    </CardContent>
-                </Card>
-            )}
+                 <Card>
+                     <CardHeader>
+                         <CardTitle>ניהול חטיבות</CardTitle>
+                     </CardHeader>
+                     <CardContent className="space-y-4">
+                         <p className="text-gray-600 text-sm">הגדר את החטיבות ותפקיד הברירה המחדל לכל אחת</p>
+                         <div className="space-y-3">
+                             {settings.departments?.map((dept) => (
+                                 <div key={dept.key} className="p-4 bg-gray-50 rounded-lg border border-gray-200">
+                                     <p className="font-semibold mb-3">{dept.label}</p>
+                                     <div className="space-y-3">
+                                         <div>
+                                             <Label className="text-sm mb-1 block">תפקיד ברירת מחדל</Label>
+                                             <select
+                                                 value={dept.default_position || ''}
+                                                 onChange={(e) => {
+                                                     setSettings({
+                                                         ...settings,
+                                                         departments: settings.departments.map(d => 
+                                                             d.key === dept.key ? { ...d, default_position: e.target.value } : d
+                                                         )
+                                                     });
+                                                 }}
+                                                 className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                                             >
+                                                 <option value="">בחר תפקיד</option>
+                                                 {dept.positions.map(pos => (
+                                                     <option key={pos} value={pos}>{pos}</option>
+                                                 ))}
+                                             </select>
+                                         </div>
+                                         <div>
+                                             <Label className="text-sm mb-2 block font-semibold">תפקידים זמינים</Label>
+                                             <div className="flex flex-wrap gap-2">
+                                                 {dept.positions.map(pos => (
+                                                     <Badge key={pos} variant="outline">{pos}</Badge>
+                                                 ))}
+                                             </div>
+                                         </div>
+                                     </div>
+                                 </div>
+                             ))}
+                         </div>
+                     </CardContent>
+                 </Card>
+             )}
 
             {activeTab === 'positions' && (
                 <Card>
