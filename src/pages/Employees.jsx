@@ -191,9 +191,103 @@ function InviteSuccessDialog({ isOpen, onClose, invitationDetails }) {
   );
 }
 
-function PermissionsDialog({ isOpen, onClose, employee, onRefresh }) {
+function AccessCodeDialog({ isOpen, onClose, employee, onRefresh }) {
+  const [accessCode, setAccessCode] = useState(employee?.access_code || '');
   const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState(null);
+  const [copied, setCopied] = useState(false);
+
+  const generateAccessCode = () => {
+    return Math.random().toString().substring(2, 8);
+  };
+
+  const handleSave = async () => {
+    setLoading(true);
+    try {
+      await base44.entities.Employee.update(employee.id, { access_code: accessCode });
+      setCopied(false);
+      setTimeout(() => {
+        onClose();
+        onRefresh();
+      }, 1500);
+    } catch (error) {
+      console.error('Error saving access code:', error);
+      alert('שגיאה בשמירת קוד הגישה');
+    }
+    setLoading(false);
+  };
+
+  const copyToClipboard = (text) => {
+    navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent dir="rtl">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Key className="w-5 h-5 text-purple-600" />
+            קוד גישה - {employee?.full_name}
+          </DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-4 py-4">
+          <div className="bg-purple-50 p-4 rounded-lg">
+            <p className="text-sm text-purple-800">
+              קוד זה נדרש לעובד כדי להגיש זמינות לדף עמוד הזמינות
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <Label>קוד גישה</Label>
+            <div className="flex gap-2">
+              <Input
+                value={accessCode}
+                onChange={(e) => setAccessCode(e.target.value.toUpperCase())}
+                placeholder="XXXXXX"
+                className="font-mono text-lg tracking-widest text-center"
+                maxLength="6"
+              />
+              <Button 
+                onClick={() => setAccessCode(generateAccessCode())}
+                variant="outline"
+                disabled={loading}
+              >
+                🎲 יצור אקראי
+              </Button>
+            </div>
+            <Button 
+              onClick={() => copyToClipboard(accessCode)}
+              variant="outline"
+              className="w-full"
+              disabled={!accessCode}
+            >
+              {copied ? '✓ הועתק!' : 'העתק קוד'}
+            </Button>
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={loading}>
+            סגור
+          </Button>
+          <Button 
+            onClick={handleSave}
+            disabled={loading || !accessCode}
+            className="bg-purple-600 hover:bg-purple-700"
+          >
+            {loading ? 'שומר...' : 'שמור קוד'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function PermissionsDialog({ isOpen, onClose, employee, onRefresh }) {
+   const [loading, setLoading] = useState(false);
+   const [result, setResult] = useState(null);
 
   const handleGrantAdmin = async () => {
     setLoading(true);
