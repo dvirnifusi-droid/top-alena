@@ -160,10 +160,7 @@ function AvailabilityRequestsInner() {
 
     const getFilteredAvailabilities = () => {
         if (!selectedDepartment) return availabilities;
-        return availabilities.filter(a => {
-            const emp = employees.find(e => e.id === a.employee_id);
-            return emp?.department === selectedDepartment;
-        });
+        return availabilities.filter(a => a.department === selectedDepartment);
     };
 
     if (loading) return (
