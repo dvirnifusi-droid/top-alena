@@ -10,19 +10,19 @@ import { format, addDays, startOfWeek, endOfWeek, eachDayOfInterval } from 'date
 import { he } from 'date-fns/locale';
 import { CheckCircle2, Loader2, CalendarDays, User } from 'lucide-react';
 
-const POSITIONS = [
+const DEFAULT_POSITIONS = [
     'מלצר', 'ברמן', 'ראנר', 'מארח/ת', 'טבח', 'מנהל משמרת',
     'קופה + אריזות', 'צאקר', 'גריל', 'פס בטטה', 'מקשר', 'שוטף כלים', 'מתלמד מטבח'
 ];
 
-const AVAILABILITY_TYPES = {
+const DEFAULT_AVAILABILITY_TYPES = {
     available: { label: '✅ פנוי/ה', color: 'bg-green-100 text-green-800 border-green-300' },
     unavailable: { label: '❌ לא פנוי/ה', color: 'bg-red-100 text-red-800 border-red-300' },
     partial: { label: '⏰ פנוי/ה חלקית', color: 'bg-yellow-100 text-yellow-800 border-yellow-300' },
     preferred_off: { label: '🙏 מעדיף/ה לא', color: 'bg-orange-100 text-orange-800 border-orange-300' },
 };
 
-const SHIFT_OPTIONS = [
+const DEFAULT_SHIFT_OPTIONS = [
     { value: 'lunch', label: 'צהריים' },
     { value: 'dinner', label: 'ערב' },
     { value: 'both', label: 'שתיהן' },
