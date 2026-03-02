@@ -625,18 +625,28 @@ function EmployeesInner() {
         />
 
         <PermissionsDialog
-          isOpen={isPermissionsOpen}
-          onClose={() => {
-            setIsPermissionsOpen(false);
-            setPermissionsEmployee(null);
-          }}
-          employee={permissionsEmployee}
-          onRefresh={loadEmployees}
-        />
-      </div>
-    </div>
-  );
-}
+           isOpen={isPermissionsOpen}
+           onClose={() => {
+             setIsPermissionsOpen(false);
+             setPermissionsEmployee(null);
+           }}
+           employee={permissionsEmployee}
+           onRefresh={loadEmployees}
+         />
+
+        <AccessCodeDialog
+           isOpen={isAccessCodeOpen}
+           onClose={() => {
+             setIsAccessCodeOpen(false);
+             setAccessCodeEmployee(null);
+           }}
+           employee={accessCodeEmployee}
+           onRefresh={loadEmployees}
+         />
+        </div>
+        </div>
+        );
+        }
 
 export default function EmployeesPage() {
   return (
