@@ -1,4 +1,3 @@
-
 import React, { useState, useRef } from "react";
 import { ChecklistExecution, ChecklistExecutionArchive } from "@/entities/all";
 // Assuming User entity is used for `user` prop
@@ -77,13 +76,23 @@ export default function ChecklistExecutionComponent({ checklist, user, onComplet
                 ...prev,
                 [currentItem.order]: {
                     ...prev[currentItem.order],
-                    photo_url: file_url
+                    photo_urls: [...(prev[currentItem.order]?.photo_urls || []), file_url]
                 }
             }));
         } catch (error) {
             console.error('שגיאה בהעלאת תמונה:', error);
         }
         setUploading(false);
+    };
+
+    const handleRemovePhoto = (photoIndex) => {
+        setResults(prev => ({
+            ...prev,
+            [currentItem.order]: {
+                ...prev[currentItem.order],
+                photo_urls: (prev[currentItem.order]?.photo_urls || []).filter((_, i) => i !== photoIndex)
+            }
+        }));
     };
 
     const nextItem = () => {
