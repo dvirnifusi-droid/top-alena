@@ -9,13 +9,18 @@ import { Loader2, Plus, Trash2, Settings } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 
 const DEFAULT_DEPARTMENTS = [
-    { key: 'floor', label: 'פלור (מלצרים)', default_position: 'מלצר' },
-    { key: 'kitchen', label: 'מטבח (טבחים)', default_position: 'טבח' },
-];
-
-const DEFAULT_POSITIONS = [
-    'מלצר', 'ברמן', 'ראנר', 'מארח/ת', 'טבח', 'מנהל משמרת',
-    'קופה + אריזות', 'צאקר', 'גריל', 'פס בטטה', 'מקשר', 'שוטף כלים', 'מתלמד מטבח'
+    { 
+        key: 'floor', 
+        label: 'פלור (מלצרים)', 
+        default_position: 'מלצר',
+        positions: ['מלצר', 'ברמן', 'ראנר', 'מארח/ת', 'מנהל משמרת']
+    },
+    { 
+        key: 'kitchen', 
+        label: 'מטבח (טבחים)', 
+        default_position: 'טבח',
+        positions: ['טבח', 'צאקר', 'גריל', 'פס בטטה', 'עוזר טבח', 'מתלמד מטבח']
+    },
 ];
 
 const DEFAULT_AVAILABILITY_TYPES = [
