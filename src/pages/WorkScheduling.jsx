@@ -681,7 +681,13 @@ export default function WorkScheduling() {
                             </span>
                             <Button variant="outline" onClick={handleNextWeek}>שבוע הבא <ChevronLeft className="w-4 h-4 mr-2" /></Button>
                         </div>
-                        <Button onClick={() => handleEditShift(null)}><Plus className="w-4 h-4 ml-2" />צור משמרת חדשה</Button>
+                        <div className="flex items-center gap-2">
+                            <Button variant="outline" onClick={handleCopyAvailabilityLink} className={copied ? "bg-green-50 border-green-400 text-green-700" : ""}>
+                                {copied ? <Check className="w-4 h-4 ml-2 text-green-600" /> : <Link className="w-4 h-4 ml-2" />}
+                                {copied ? "הועתק!" : "העתק לינק לזמינות"}
+                            </Button>
+                            <Button onClick={() => handleEditShift(null)}><Plus className="w-4 h-4 ml-2" />צור משמרת חדשה</Button>
+                        </div>
                     </div>
                 </CardHeader>
                 <CardContent className="overflow-x-auto">
