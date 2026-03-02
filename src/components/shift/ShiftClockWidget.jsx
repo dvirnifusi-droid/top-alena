@@ -238,7 +238,7 @@ export default function ShiftClockWidget() {
             employee_id: employeeId,
             employee_name: user.full_name,
             date: today,
-            hours_worked: Math.round(effectiveHours * 100) / 100,
+            hours_worked: Math.round(finalEffectiveHours * 100) / 100,
             sales_amount: 0,
             area: '',
             notes: `כניסה: ${format(new Date(activeShift.shift_start), 'HH:mm')} | יציאה: ${format(new Date(now), 'HH:mm')} | הפסקות: ${activeShift.total_break_minutes || 0} דק'`,
