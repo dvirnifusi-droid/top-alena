@@ -156,6 +156,7 @@ export default function AvailabilityForm() {
     const handleReset = () => {
         setSubmitted(false);
         setSelectedEmployee(null);
+        setEmployeeEmail('');
         setDayData(initDayData());
         setExistingAvailabilities([]);
     };
