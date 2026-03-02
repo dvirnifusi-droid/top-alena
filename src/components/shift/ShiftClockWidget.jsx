@@ -372,6 +372,72 @@ export default function ShiftClockWidget() {
                 </CardContent>
             </Card>
 
+            {/* דיאלוג סיום משמרת + שאלון משוב */}
+            <Dialog open={showEndShiftDialog} onOpenChange={setShowEndShiftDialog}>
+                <DialogContent dir="rtl" className="max-w-md">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2 text-xl">
+                            <Square className="w-5 h-5 text-red-500" />
+                            סיום משמרת - שאלון קצר
+                        </DialogTitle>
+                    </DialogHeader>
+                    <p className="text-sm text-gray-500 mb-4">לפני שאתה יוצא, איך הייתה המשמרת? (אופציונלי)</p>
+
+                    <div className="space-y-5">
+                        {[
+                            { key: 'atmosphere', label: '🏢 אווירה במשמרת' },
+                            { key: 'sales', label: '💰 תחושת מכירה' },
+                            { key: 'effort', label: '💪 מאמץ אישי' },
+                        ].map(({ key, label }) => (
+                            <div key={key}>
+                                <p className="text-sm font-medium mb-2">{label}</p>
+                                <div className="flex gap-2">
+                                    {[1, 2, 3, 4, 5].map(star => (
+                                        <button
+                                            key={star}
+                                            onClick={() => setFeedbackRatings(prev => ({ ...prev, [key]: star }))}
+                                            className={`w-10 h-10 rounded-full text-lg transition-all ${feedbackRatings[key] >= star ? 'bg-yellow-400 text-white scale-110' : 'bg-gray-100 text-gray-400 hover:bg-yellow-100'}`}
+                                        >
+                                            ★
+                                        </button>
+                                    ))}
+                                    {feedbackRatings[key] > 0 && (
+                                        <span className="text-sm text-gray-500 self-center mr-1">{feedbackRatings[key]}/5</span>
+                                    )}
+                                </div>
+                            </div>
+                        ))}
+
+                        <div>
+                            <p className="text-sm font-medium mb-2">📝 הערות נוספות (אופציונלי)</p>
+                            <Textarea
+                                value={feedbackNotes}
+                                onChange={e => setFeedbackNotes(e.target.value)}
+                                placeholder="משהו שרצית לשתף על המשמרת..."
+                                rows={3}
+                                className="text-right"
+                            />
+                        </div>
+                    </div>
+
+                    <div className="flex gap-2 mt-4">
+                        <button
+                            onClick={submitEndShift}
+                            className="flex-1 text-sm text-gray-400 hover:text-gray-600 py-2"
+                        >
+                            דלג ולסיים
+                        </button>
+                        <button
+                            onClick={submitEndShift}
+                            disabled={actionLoading}
+                            className="flex-1 bg-red-600 hover:bg-red-700 text-white py-2 rounded-lg font-semibold text-sm"
+                        >
+                            שלח ולסיים משמרת
+                        </button>
+                    </div>
+                </DialogContent>
+            </Dialog>
+
             {/* דיאלוג ארוחה */}
             <Dialog open={showMealDialog} onOpenChange={setShowMealDialog}>
                 <DialogContent dir="rtl">
