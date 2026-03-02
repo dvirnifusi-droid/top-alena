@@ -313,7 +313,7 @@ export default function WorkScheduling() {
     const [copied, setCopied] = useState(false);
 
     const handleCopyAvailabilityLink = () => {
-        const url = `${window.location.origin}${window.location.pathname.replace(/\/[^/]*$/, '')}/AvailabilityForm`;
+        const url = `${window.location.origin}/AvailabilityForm`;
         navigator.clipboard.writeText(url);
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
