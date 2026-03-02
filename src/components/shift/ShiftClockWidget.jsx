@@ -18,6 +18,9 @@ export default function ShiftClockWidget() {
     const [showMealDialog, setShowMealDialog] = useState(false);
     const [mealDetails, setMealDetails] = useState('');
     const [actionLoading, setActionLoading] = useState(false);
+    const [showEndShiftDialog, setShowEndShiftDialog] = useState(false);
+    const [feedbackRatings, setFeedbackRatings] = useState({ atmosphere: 0, sales: 0, effort: 0 });
+    const [feedbackNotes, setFeedbackNotes] = useState('');
     const timerRef = useRef(null);
 
     useEffect(() => {
