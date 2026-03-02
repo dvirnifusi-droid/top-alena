@@ -25,7 +25,6 @@ const adminLinks = [
   { title: "מרכז בקרת AI", url: createPageUrl("AiDashboard"), icon: Sparkles, isSubItem: true },
   { title: "חיזוי עומסים AI", url: createPageUrl("SmartPrediction"), icon: Brain, isSubItem: true },
   { title: "יועץ שיווק AI", url: createPageUrl("MarketingAI"), icon: Rocket, isSubItem: true },
-  { title: "תחזיות ותובנות AI", url: createPageUrl("RevenueForecasting"), icon: TrendingUp, isSubItem: true },
 
   // ניהול מסעדה
   { title: "ניהול מסעדה", url: "#", icon: Utensils, isCategory: true },
