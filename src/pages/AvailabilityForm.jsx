@@ -48,6 +48,7 @@ const initDayData = () => {
 export default function AvailabilityForm() {
      const [selectedEmployee, setSelectedEmployee] = useState(null);
      const [employeeEmail, setEmployeeEmail] = useState('');
+     const [accessCode, setAccessCode] = useState('');
      const [allEmployees, setAllEmployees] = useState([]);
      const [loading, setLoading] = useState(true);
      const [error, setError] = useState(null);
