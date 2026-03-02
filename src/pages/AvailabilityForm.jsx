@@ -173,39 +173,7 @@ export default function AvailabilityForm() {
         </div>
     );
 
-    // Step 1: Employee selection
-    if (!selectedEmployee) return (
-        <div className="flex items-center justify-center min-h-screen p-8 bg-gray-50" dir="rtl">
-            <Card className="max-w-md w-full p-8">
-                <div className="text-center mb-6">
-                    <CalendarDays className="w-16 h-16 text-primary mx-auto mb-3" />
-                    <h1 className="text-2xl font-bold">הגשת זמינות לסידור</h1>
-                    <p className="text-gray-500 mt-1">
-                        שבוע {format(nextWeekStart, 'dd/MM')} – {format(nextWeekEnd, 'dd/MM/yyyy')}
-                    </p>
-                </div>
-                <div className="space-y-4">
-                    <div>
-                        <Label className="mb-2 block text-base font-semibold">בחר/י את שמך מהרשימה</Label>
-                        <Select onValueChange={handleSelectEmployee}>
-                            <SelectTrigger className="h-12 text-base">
-                                <SelectValue placeholder="בחר/י עובד..." />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {employees.map(emp => (
-                                    <SelectItem key={emp.id} value={emp.id}>
-                                        {emp.full_name}
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    </div>
-                </div>
-            </Card>
-        </div>
-    );
-
-    // Step 2: Fill availability
+    // Fill availability
     return (
         <div className="p-4 sm:p-8 max-w-4xl mx-auto" dir="rtl">
             <div className="mb-6 flex items-center justify-between flex-wrap gap-3">
