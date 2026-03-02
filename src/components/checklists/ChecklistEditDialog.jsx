@@ -357,7 +357,7 @@ export default function ChecklistEditDialog({ isOpen, checklist, employees, onCl
                                             </Select>
                                         </div>
 
-                                        <div className="flex items-center gap-6 pt-1">
+                                        <div className="flex flex-wrap items-center gap-4 pt-1">
                                             <label className="flex items-center gap-2 cursor-pointer">
                                                 <input
                                                     type="checkbox"
@@ -376,6 +376,18 @@ export default function ChecklistEditDialog({ isOpen, checklist, employees, onCl
                                                 />
                                                 <span className="text-sm font-medium">צילום חובה</span>
                                             </label>
+                                            {currentItem.requires_photo_evidence && (
+                                                <div className="flex items-center gap-2">
+                                                    <Label className="text-sm">מינ׳ תמונות:</Label>
+                                                    <Input
+                                                        type="number"
+                                                        value={currentItem.min_photos || 1}
+                                                        onChange={(e) => updateItem(selectedItemIndex, 'min_photos', parseInt(e.target.value) || 1)}
+                                                        className="w-16 h-8"
+                                                        min="1" max="10"
+                                                    />
+                                                </div>
+                                            )}
                                             <div className="flex items-center gap-2 mr-auto">
                                                 <Label className="text-sm">נקודות:</Label>
                                                 <Input
