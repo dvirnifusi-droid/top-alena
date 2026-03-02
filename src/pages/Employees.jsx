@@ -394,13 +394,15 @@ function PermissionsDialog({ isOpen, onClose, employee, onRefresh }) {
 }
 
 function EmployeesInner() {
-  const [employees, setEmployees] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [editingEmployee, setEditingEmployee] = useState(null);
-  const [isFormOpen, setIsFormOpen] = useState(false);
-  const [invitationSuccess, setInvitationSuccess] = useState(null);
-  const [permissionsEmployee, setPermissionsEmployee] = useState(null);
-  const [isPermissionsOpen, setIsPermissionsOpen] = useState(false);
+   const [employees, setEmployees] = useState([]);
+   const [loading, setLoading] = useState(true);
+   const [editingEmployee, setEditingEmployee] = useState(null);
+   const [isFormOpen, setIsFormOpen] = useState(false);
+   const [invitationSuccess, setInvitationSuccess] = useState(null);
+   const [permissionsEmployee, setPermissionsEmployee] = useState(null);
+   const [isPermissionsOpen, setIsPermissionsOpen] = useState(false);
+   const [accessCodeEmployee, setAccessCodeEmployee] = useState(null);
+   const [isAccessCodeOpen, setIsAccessCodeOpen] = useState(false);
 
   useEffect(() => {
     loadEmployees();
