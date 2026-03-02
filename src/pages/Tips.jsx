@@ -373,12 +373,75 @@ function TipsInner() {
                         </>
                     )}
                 </CardContent>
-                <CardFooter className="flex justify-end gap-2">
-                    <Button variant="outline" disabled={isLoading}><Printer className="w-4 h-4 ml-2"/>הדפס דוח</Button>
-                    <Button onClick={handleSaveReport} disabled={isLoading || existingReport?.status === 'locked'}>
-                        {isLoading ? <Loader2 className="w-4 h-4 animate-spin ml-2"/> : <Save className="w-4 h-4 ml-2"/>}
-                        {existingReport ? 'עדכן דוח' : 'שמור דוח'}
-                    </Button>
+                <CardFooter className="flex justify-end gap-2 flex-wrap">
+                   <Button variant="outline" disabled={isLoading}><Printer className="w-4 h-4 ml-2"/>הדפס דוח</Button>
+                   <Button onClick={handleSaveReport} disabled={isLoading || existingReport?.status === 'locked'}>
+                       {isLoading ? <Loader2 className="w-4 h-4 animate-spin ml-2"/> : <Save className="w-4 h-4 ml-2"/>}
+                       {existingReport ? 'עדכן דוח' : 'שמור דוח'}
+                   </Button>
+                   {existingReport && existingReport.status !== 'locked' && (
+                       <Button
+                           variant="default"
+                           className="bg-green-600 hover:bg-green-700 text-white"
+                           disabled={isLoading}
+                           onClick={async () => {
+                               setIsLoading(true);
+                               try {
+                                   // שמור קודם עם הנתונים המחושבים, אז נעל
+                                   const reportData = {
+                                       date: format(date, 'yyyy-MM-dd'),
+                                       shift_type: shiftType,
+                                       total_tips_collected: parseFloat(totalTips) || 0,
+                                       runner_deduction: calculatedResults.totalRunnerDeduction,
+                                       restaurant_deduction: calculatedResults.totalRestaurantDeduction,
+                                       net_tips_for_distribution: calculatedResults.netTipsForDistribution,
+                                       tip_per_hour: calculatedResults.tipPerHour,
+                                       staff_details: calculatedResults.staffDetails,
+                                       status: 'locked',
+                                       locked_by: 'manager',
+                                       locked_at: new Date().toISOString(),
+                                   };
+                                   await TipReport.update(existingReport.id, reportData);
+                                   toast.success("דוח ננעל בהצלחה! הנתונים יופיעו בדוחות העובדים.");
+                                   fetchShiftData();
+                               } catch (e) {
+                                   toast.error("שגיאה בנעילת הדוח");
+                               } finally {
+                                   setIsLoading(false);
+                               }
+                           }}
+                       >
+                           <Lock className="w-4 h-4 ml-2"/>
+                           נעל דוח
+                       </Button>
+                   )}
+                   {existingReport?.status === 'locked' && (
+                       <div className="flex items-center gap-2">
+                           <span className="text-green-600 font-semibold text-sm flex items-center gap-1">
+                               <Lock className="w-4 h-4"/> דוח נעול
+                           </span>
+                           <Button
+                               variant="outline"
+                               size="sm"
+                               className="border-orange-400 text-orange-600"
+                               disabled={isLoading}
+                               onClick={async () => {
+                                   setIsLoading(true);
+                                   try {
+                                       await TipReport.update(existingReport.id, { status: 'draft', locked_by: null, locked_at: null });
+                                       toast.success("הדוח שוחרר לעריכה");
+                                       fetchShiftData();
+                                   } catch (e) {
+                                       toast.error("שגיאה");
+                                   } finally {
+                                       setIsLoading(false);
+                                   }
+                               }}
+                           >
+                               <Unlock className="w-4 h-4 ml-1"/> שחרר לעריכה
+                           </Button>
+                       </div>
+                   )}
                 </CardFooter>
             </Card>
         </div>
