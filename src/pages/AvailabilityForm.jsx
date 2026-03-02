@@ -46,34 +46,47 @@ const initDayData = () => {
 };
 
 export default function AvailabilityForm() {
-    const [selectedEmployee, setSelectedEmployee] = useState(null);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState(null);
-    const [saving, setSaving] = useState(false);
-    const [submitted, setSubmitted] = useState(false);
-    const [existingAvailabilities, setExistingAvailabilities] = useState([]);
-    const [dayData, setDayData] = useState(initDayData);
+     const [selectedEmployee, setSelectedEmployee] = useState(null);
+     const [employeeEmail, setEmployeeEmail] = useState('');
+     const [allEmployees, setAllEmployees] = useState([]);
+     const [loading, setLoading] = useState(true);
+     const [error, setError] = useState(null);
+     const [saving, setSaving] = useState(false);
+     const [submitted, setSubmitted] = useState(false);
+     const [existingAvailabilities, setExistingAvailabilities] = useState([]);
+     const [dayData, setDayData] = useState(initDayData);
 
-    useEffect(() => {
-        loadCurrentEmployee();
-    }, []);
+     useEffect(() => {
+         loadEmployees();
+     }, []);
 
-    const loadCurrentEmployee = async () => {
-        setLoading(true);
-        try {
-            const user = await base44.auth.me();
-            if (!user) {
-                base44.auth.redirectToLogin();
-                return;
-            }
-            const emps = await base44.entities.Employee.filter({ status: 'active' });
-            const emp = emps.find(e => e.email && user.email && e.email.toLowerCase() === user.email.toLowerCase());
-            if (!emp) {
-                setError('לא נמצא פרופיל עובד עבור המשתמש שלך. פנה למנהל.');
-                setLoading(false);
-                return;
-            }
-            setSelectedEmployee(emp);
+     const loadEmployees = async () => {
+         setLoading(true);
+         try {
+             const emps = await base44.entities.Employee.filter({ status: 'active' });
+             setAllEmployees(emps);
+         } catch (e) {
+             console.error(e);
+             setError('שגיאה בטעינת רשימת העובדים');
+         }
+         setLoading(false);
+     };
+
+     const loadCurrentEmployee = async () => {
+         if (!employeeEmail) {
+             setError('בחר עובד מהרשימה');
+             return;
+         }
+
+         setLoading(true);
+         try {
+             const emp = allEmployees.find(e => e.email && e.email.toLowerCase() === employeeEmail.toLowerCase());
+             if (!emp) {
+                 setError('לא נמצא עובד עם מייל זה. בדוק את ההקלדה.');
+                 setLoading(false);
+                 return;
+             }
+             setSelectedEmployee(emp);
 
             const existing = await base44.entities.EmployeeAvailability.filter({ employee_id: emp.id });
             setExistingAvailabilities(existing);
