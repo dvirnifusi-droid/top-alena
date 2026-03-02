@@ -310,6 +310,14 @@ export default function WorkScheduling() {
 
     // Filter states
     const [filters, setFilters] = useState({ shiftType: 'all', department: 'all', employee: 'all' });
+    const [copied, setCopied] = useState(false);
+
+    const handleCopyAvailabilityLink = () => {
+        const url = `${window.location.origin}${window.location.pathname.replace(/\/[^/]*$/, '')}/AvailabilityForm`;
+        navigator.clipboard.writeText(url);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+    };
 
     const weekInterval = {
         start: startOfWeek(currentDate, { weekStartsOn: 0 }),
