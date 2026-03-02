@@ -179,7 +179,11 @@ export default function ShiftClockWidget() {
     };
 
     const endShift = async () => {
-        if (!window.confirm('לסיים את המשמרת?')) return;
+        setShowEndShiftDialog(true);
+    };
+
+    const submitEndShift = async () => {
+        setShowEndShiftDialog(false);
         setActionLoading(true);
         const now = new Date().toISOString();
         const today = format(new Date(), 'yyyy-MM-dd');
