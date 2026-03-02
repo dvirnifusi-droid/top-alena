@@ -22,12 +22,13 @@ function EmployeeReportsInner() {
     const [isAdmin, setIsAdmin] = useState(false);
     const [employees, setEmployees] = useState([]);
     const [shifts, setShifts] = useState([]);
-    const [tipsData, setTipsData] = useState([]);
+    const [tipReports, setTipReports] = useState([]);
+    const [myEmployeeRecord, setMyEmployeeRecord] = useState(null);
     const [loading, setLoading] = useState(true);
     
     // Filters
-    const [selectedEmployeeId, setSelectedEmployeeId] = useState('');
-    const [filterPeriod, setFilterPeriod] = useState('month'); // week, month, custom
+    const [selectedEmployeeId, setSelectedEmployeeId] = useState(''); // Employee entity id
+    const [filterPeriod, setFilterPeriod] = useState('month');
     const [selectedMonth, setSelectedMonth] = useState(new Date());
     const [loading2, setLoading2] = useState(false);
 
@@ -40,16 +41,23 @@ function EmployeeReportsInner() {
         try {
             const currentUser = await base44.auth.me();
             setUser(currentUser);
-            setIsAdmin(currentUser?.role === 'admin');
-            setSelectedEmployeeId(currentUser?.id || '');
+            const admin = currentUser?.role === 'admin';
+            setIsAdmin(admin);
 
-            // טוען עובדים (רק אם מנהל)
-            if (currentUser?.role === 'admin') {
-                const emps = await base44.entities.Employee.list();
-                setEmployees(emps);
+            // טוען עובדים תמיד (כדי למצוא את רשומת העובד הנוכחי)
+            const emps = await base44.entities.Employee.list();
+            setEmployees(emps);
+
+            // מצא את רשומת העובד של המשתמש הנוכחי לפי אימייל
+            const myEmp = emps.find(e => e.email && currentUser?.email && e.email.toLowerCase() === currentUser.email.toLowerCase());
+            setMyEmployeeRecord(myEmp || null);
+
+            if (!admin) {
+                setSelectedEmployeeId(myEmp?.id || '');
+            } else {
+                setSelectedEmployeeId(myEmp?.id || (emps[0]?.id || ''));
             }
 
-            // טוען משמרות וטיפים
             await loadReportData();
         } catch (error) {
             console.error('Error loading data:', error);
@@ -61,83 +69,91 @@ function EmployeeReportsInner() {
         setLoading2(true);
         try {
             const allShifts = await base44.entities.ShiftTracking.list();
-            const allTips = await base44.entities.TipReport.list();
+            const allTipReports = await base44.entities.TipReport.list();
             setShifts(allShifts);
-            setTipsData(allTips);
+            setTipReports(allTipReports);
         } catch (error) {
             console.error('Error loading report data:', error);
         }
         setLoading2(false);
     };
 
-    // סנן נתונים לפי עובד ותאריך
-    const filteredData = useMemo(() => {
-        let filtered = { shifts: [], tips: [] };
-        const empId = selectedEmployeeId;
+    // חילוץ נתוני טיפים לעובד ספציפי מתוך כל ה-TipReports
+    // TipReport.staff_details[].employee_id = Employee entity id
+    const getEmployeeTipEntries = (employeeEntityId) => {
+        const entries = [];
+        tipReports.forEach(report => {
+            const staffEntry = (report.staff_details || []).find(s => s.employee_id === employeeEntityId);
+            if (staffEntry) {
+                entries.push({
+                    date: report.date,
+                    shift_type: report.shift_type,
+                    effectiveHours: staffEntry.effectiveHours || 0,
+                    totalHours: staffEntry.totalHours || 0,
+                    grossTip: staffEntry.grossTip || 0,
+                    finalTip: staffEntry.finalTip || 0,
+                    supplement: staffEntry.supplement || 0,
+                    totalEarnings: staffEntry.totalEarnings || 0,
+                    meal_cost: staffEntry.meal_cost || 0,
+                    sales_bonus: staffEntry.sales_bonus || 0,
+                    position: staffEntry.position || '',
+                });
+            }
+        });
+        return entries;
+    };
 
-        // סנן משמרות
-        const empShifts = shifts.filter(s => s.employee_id === empId);
-        
-        // סנן לפי תאריך
-        let dateFiltered = empShifts;
-        if (filterPeriod === 'week') {
-            const weekStart = startOfWeek(new Date(), { weekStartsOn: 0 });
-            const weekEnd = endOfWeek(new Date(), { weekStartsOn: 0 });
-            dateFiltered = empShifts.filter(s => {
-                const date = new Date(s.date);
-                return date >= weekStart && date <= weekEnd;
-            });
-        } else if (filterPeriod === 'month') {
-            const monthStart = startOfMonth(selectedMonth);
-            const monthEnd = endOfMonth(selectedMonth);
-            dateFiltered = empShifts.filter(s => {
-                const date = new Date(s.date);
-                return date >= monthStart && date <= monthEnd;
-            });
-        }
-        
-        filtered.shifts = dateFiltered;
-
-        // סנן טיפים לאותו עובד וזמן
-        const empTips = tipsData.filter(t => t.employee_id === empId);
-        filtered.tips = empTips.filter(t => {
-            const tipsDate = new Date(t.date || t.created_date);
+    // סנן לפי תקופה
+    const filterByPeriod = (items, dateField) => {
+        return items.filter(item => {
+            const d = new Date(item[dateField]);
             if (filterPeriod === 'week') {
                 const weekStart = startOfWeek(new Date(), { weekStartsOn: 0 });
                 const weekEnd = endOfWeek(new Date(), { weekStartsOn: 0 });
-                return tipsDate >= weekStart && tipsDate <= weekEnd;
+                return d >= weekStart && d <= weekEnd;
             } else if (filterPeriod === 'month') {
                 const monthStart = startOfMonth(selectedMonth);
                 const monthEnd = endOfMonth(selectedMonth);
-                return tipsDate >= monthStart && tipsDate <= monthEnd;
+                return d >= monthStart && d <= monthEnd;
             }
             return true;
         });
+    };
 
-        return filtered;
-    }, [shifts, tipsData, selectedEmployeeId, filterPeriod, selectedMonth]);
+    const filteredData = useMemo(() => {
+        if (!selectedEmployeeId) return { tipEntries: [], shifts: [] };
+
+        const tipEntries = filterByPeriod(getEmployeeTipEntries(selectedEmployeeId), 'date');
+
+        // משמרות ShiftTracking - לפי user.id (employee_id בשדה זה = user id)
+        // מצא את ה-user id של העובד הנבחר
+        const selectedEmp = employees.find(e => e.id === selectedEmployeeId);
+        const empShifts = shifts.filter(s => {
+            // נסה למצוא לפי employee_name כי ShiftTracking שומר employee_id = user.id
+            return s.employee_name && selectedEmp?.full_name &&
+                s.employee_name === selectedEmp.full_name;
+        });
+        const filteredShifts = filterByPeriod(empShifts, 'date');
+
+        return { tipEntries, shifts: filteredShifts };
+    }, [shifts, tipReports, selectedEmployeeId, filterPeriod, selectedMonth, employees]);
 
     // חישובים
     const calculations = useMemo(() => {
-        const { shifts: filteredShifts, tips: filteredTips } = filteredData;
+        const { tipEntries, shifts: filteredShifts } = filteredData;
 
-        let totalHours = 0;
-        let totalEffectiveHours = 0;
-        
-        filteredShifts.forEach(shift => {
-            totalHours += shift.total_hours || 0;
-            totalEffectiveHours += shift.effective_hours || 0;
-        });
-
-        const totalTips = filteredTips.reduce((sum, t) => sum + (t.total_amount || 0), 0);
-        const hourlyAverage = totalEffectiveHours > 0 ? totalTips / totalEffectiveHours : 0;
+        const totalTipEarnings = tipEntries.reduce((sum, e) => sum + (e.totalEarnings || 0), 0);
+        const totalTipHours = tipEntries.reduce((sum, e) => sum + (e.effectiveHours || 0), 0);
+        const totalShiftHours = filteredShifts.reduce((sum, s) => sum + (s.effective_hours || s.total_hours || 0), 0);
+        const hourlyAverage = totalTipHours > 0 ? totalTipEarnings / totalTipHours : 0;
 
         return {
-            totalShifts: filteredShifts.length,
-            totalHours: totalHours.toFixed(1),
-            totalEffectiveHours: totalEffectiveHours.toFixed(1),
-            totalTips: totalTips.toFixed(2),
-            hourlyAverage: hourlyAverage.toFixed(2)
+            totalTipShifts: tipEntries.length,
+            totalTrackedShifts: filteredShifts.length,
+            totalTipHours: totalTipHours.toFixed(1),
+            totalShiftHours: totalShiftHours.toFixed(1),
+            totalTipEarnings: totalTipEarnings.toFixed(2),
+            hourlyAverage: hourlyAverage.toFixed(2),
         };
     }, [filteredData]);
 
