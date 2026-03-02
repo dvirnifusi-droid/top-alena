@@ -3,10 +3,13 @@ import { base44 } from '@/api/base44Client';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
 import { format, addDays, startOfWeek, endOfWeek, eachDayOfInterval } from 'date-fns';
 import { he } from 'date-fns/locale';
-import { Loader2, Users, ChevronLeft, ChevronRight, CheckCircle2, Zap } from 'lucide-react';
+import { Loader2, Users, ChevronLeft, ChevronRight, CheckCircle2, Zap, Edit2, ChevronDown, ChevronUp } from 'lucide-react';
 import { toast } from 'sonner';
 import PageGuard from '../components/shared/PageGuard';
 
@@ -24,11 +27,15 @@ const SHIFT_PREF = {
 };
 
 function AvailabilityRequestsInner() {
-    const [availabilities, setAvailabilities] = useState([]);
-    const [employees, setEmployees] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [autoAssigning, setAutoAssigning] = useState(false);
-    const [weekOffset, setWeekOffset] = useState(1); // 1 = next week, 0 = this week
+     const [availabilities, setAvailabilities] = useState([]);
+     const [employees, setEmployees] = useState([]);
+     const [settings, setSettings] = useState(null);
+     const [loading, setLoading] = useState(true);
+     const [autoAssigning, setAutoAssigning] = useState(false);
+     const [weekOffset, setWeekOffset] = useState(1); // 1 = next week, 0 = this week
+     const [editingAvail, setEditingAvail] = useState(null);
+     const [editData, setEditData] = useState(null);
+     const [expandedUnavailable, setExpandedUnavailable] = useState(false);
 
     const weekStart = startOfWeek(addDays(new Date(), weekOffset * 7), { weekStartsOn: 0 });
     const weekEnd = endOfWeek(weekStart, { weekStartsOn: 0 });
@@ -41,12 +48,14 @@ function AvailabilityRequestsInner() {
     const loadData = async () => {
         setLoading(true);
         try {
-            const [allAvail, allEmps] = await Promise.all([
+            const [allAvail, allEmps, sett] = await Promise.all([
                 base44.entities.EmployeeAvailability.list(),
                 base44.entities.Employee.filter({ status: 'active' }),
+                base44.entities.AvailabilityFormSettings.list(),
             ]);
             setAvailabilities(allAvail);
             setEmployees(allEmps);
+            setSettings(sett[0] || null);
         } catch (e) {
             console.error(e);
         }
@@ -55,6 +64,27 @@ function AvailabilityRequestsInner() {
 
     const getAvailForDay = (dateStr) => {
         return availabilities.filter(a => a.date === dateStr);
+    };
+
+    const getDepartmentLabel = (dept) => {
+        return settings?.departments?.find(d => d.key === dept)?.label || dept;
+    };
+
+    const handleEditAvail = (avail) => {
+        setEditingAvail(avail);
+        setEditData({ ...avail });
+    };
+
+    const handleSaveEdit = async () => {
+        try {
+            await base44.entities.EmployeeAvailability.update(editingAvail.id, editData);
+            setAvailabilities(prev => prev.map(a => a.id === editingAvail.id ? editData : a));
+            setEditingAvail(null);
+            toast.success('זמינות עודכנה');
+        } catch (e) {
+            console.error(e);
+            toast.error('שגיאה בעדכון זמינות');
+        }
     };
 
     const handleAutoAssign = async () => {
@@ -139,6 +169,16 @@ function AvailabilityRequestsInner() {
 
     const uniqueEmployeesSubmitted = new Set(weekAvailabilities.map(a => a.employee_id)).size;
 
+    const groupByDepartment = (dayAvail) => {
+        const grouped = {};
+        dayAvail.forEach(a => {
+            const dept = employees.find(e => e.id === a.employee_id)?.department || 'other';
+            if (!grouped[dept]) grouped[dept] = [];
+            grouped[dept].push(a);
+        });
+        return grouped;
+    };
+
     return (
         <div className="p-4 sm:p-8 max-w-7xl mx-auto" dir="rtl">
             <div className="flex items-center justify-between mb-6 flex-wrap gap-4">
@@ -183,54 +223,140 @@ function AvailabilityRequestsInner() {
                     {weekDays.map(day => {
                         const dateStr = format(day, 'yyyy-MM-dd');
                         const dayAvail = getAvailForDay(dateStr);
+                        const unavailableCount = dayAvail.filter(a => a.availability_type === 'unavailable').length;
+                        const availableCount = dayAvail.filter(a => a.availability_type !== 'unavailable').length;
+
                         if (dayAvail.length === 0) return null;
 
                         return (
-                            <Card key={dateStr}>
-                                <CardHeader className="pb-3">
-                                    <CardTitle className="text-lg">
-                                        {format(day, 'EEEE', { locale: he })}{' '}
-                                        <span className="text-gray-500 font-normal">{format(day, 'dd/MM')}</span>
-                                        <span className="text-sm text-gray-400 font-normal mr-2">
-                                            ({dayAvail.length} בקשות)
-                                        </span>
-                                    </CardTitle>
-                                </CardHeader>
-                                <CardContent>
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                                        {dayAvail.map(avail => {
-                                            const typeConfig = AVAILABILITY_TYPES[avail.availability_type] || AVAILABILITY_TYPES.available;
-                                            return (
-                                                <div key={avail.id} className={`p-3 rounded-lg border ${typeConfig.color.replace('text-', 'border-').replace('-800', '-300').replace('-100', '-50')}`}>
-                                                    <div className="flex items-center justify-between mb-2">
-                                                        <span className="font-bold">{avail.employee_name}</span>
-                                                        <Badge className={typeConfig.color}>{typeConfig.label}</Badge>
-                                                    </div>
-                                                    {avail.shift_preference && avail.availability_type !== 'unavailable' && (
-                                                        <p className="text-sm text-gray-600">
-                                                            משמרת: <strong>{SHIFT_PREF[avail.shift_preference] || avail.shift_preference}</strong>
-                                                        </p>
-                                                    )}
-                                                    {avail.positions?.length > 0 && (
-                                                        <div className="flex flex-wrap gap-1 mt-2">
-                                                            {avail.positions.map(p => (
-                                                                <Badge key={p} variant="outline" className="text-xs">{p}</Badge>
-                                                            ))}
-                                                        </div>
-                                                    )}
-                                                    {avail.reason && (
-                                                        <p className="text-xs text-gray-500 mt-2 italic">"{avail.reason}"</p>
-                                                    )}
+                            <div key={dateStr} className="space-y-3">
+                                <Card>
+                                    <CardHeader className="pb-3">
+                                        <CardTitle className="text-lg">
+                                            {format(day, 'EEEE', { locale: he })}{' '}
+                                            <span className="text-gray-500 font-normal">{format(day, 'dd/MM')}</span>
+                                            <span className="text-sm text-gray-400 font-normal mr-2">
+                                                ({availableCount} פנויים)
+                                            </span>
+                                        </CardTitle>
+                                    </CardHeader>
+                                    <CardContent className="space-y-4">
+                                        {Object.entries(groupByDepartment(dayAvail.filter(a => a.availability_type !== 'unavailable'))).map(([dept, deptAvails]) => (
+                                            <div key={dept}>
+                                                <h3 className="font-semibold text-sm text-gray-700 mb-2">{getDepartmentLabel(dept)}</h3>
+                                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                                                    {deptAvails.map(avail => {
+                                                        const typeConfig = AVAILABILITY_TYPES[avail.availability_type] || AVAILABILITY_TYPES.available;
+                                                        return (
+                                                            <div key={avail.id} className={`p-3 rounded-lg border ${typeConfig.color.replace('text-', 'border-').replace('-800', '-300').replace('-100', '-50')}`}>
+                                                                <div className="flex items-center justify-between mb-2">
+                                                                    <span className="font-bold">{avail.employee_name}</span>
+                                                                    <div className="flex gap-1">
+                                                                        <Badge className={typeConfig.color} className="text-xs">{typeConfig.label}</Badge>
+                                                                        <Button size="sm" variant="ghost" onClick={() => handleEditAvail(avail)}>
+                                                                            <Edit2 className="w-3 h-3" />
+                                                                        </Button>
+                                                                    </div>
+                                                                </div>
+                                                                {avail.shift_preference && avail.availability_type !== 'unavailable' && (
+                                                                    <p className="text-sm text-gray-600">
+                                                                        משמרת: <strong>{SHIFT_PREF[avail.shift_preference] || avail.shift_preference}</strong>
+                                                                    </p>
+                                                                )}
+                                                                {avail.positions?.length > 0 && (
+                                                                    <div className="flex flex-wrap gap-1 mt-2">
+                                                                        {avail.positions.map(p => (
+                                                                            <Badge key={p} variant="outline" className="text-xs">{p}</Badge>
+                                                                        ))}
+                                                                    </div>
+                                                                )}
+                                                                {avail.reason && (
+                                                                    <p className="text-xs text-gray-500 mt-2 italic">"{avail.reason}"</p>
+                                                                )}
+                                                            </div>
+                                                        );
+                                                    })}
                                                 </div>
-                                            );
-                                        })}
-                                    </div>
-                                </CardContent>
-                            </Card>
+                                            </div>
+                                        ))}
+                                    </CardContent>
+                                </Card>
+
+                                {unavailableCount > 0 && (
+                                    <Card className="bg-red-50 border-red-200">
+                                        <button
+                                            onClick={() => setExpandedUnavailable(expandedUnavailable === dateStr ? null : dateStr)}
+                                            className="w-full p-4 flex items-center justify-between hover:bg-red-100 transition-colors"
+                                        >
+                                            <div className="flex items-center gap-2">
+                                                <span className="font-semibold text-red-800">❌ לא פנויים ({unavailableCount})</span>
+                                            </div>
+                                            {expandedUnavailable === dateStr ? <ChevronUp className="w-4 h-4 text-red-800" /> : <ChevronDown className="w-4 h-4 text-red-800" />}
+                                        </button>
+                                        {expandedUnavailable === dateStr && (
+                                            <CardContent className="pt-0">
+                                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                                                    {dayAvail.filter(a => a.availability_type === 'unavailable').map(avail => (
+                                                        <div key={avail.id} className="p-3 rounded-lg bg-white border border-red-300">
+                                                            <div className="flex items-center justify-between mb-2">
+                                                                <span className="font-bold">{avail.employee_name}</span>
+                                                                <Button size="sm" variant="ghost" onClick={() => handleEditAvail(avail)}>
+                                                                    <Edit2 className="w-3 h-3" />
+                                                                </Button>
+                                                            </div>
+                                                            {avail.reason && (
+                                                                <p className="text-xs text-gray-500 italic">"{avail.reason}"</p>
+                                                            )}
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </CardContent>
+                                        )}
+                                    </Card>
+                                )}
+                            </div>
                         );
                     })}
                 </div>
             )}
+
+            <Dialog open={!!editingAvail} onOpenChange={(open) => !open && setEditingAvail(null)}>
+                <DialogContent dir="rtl" className="sm:max-w-[425px]">
+                    <DialogHeader>
+                        <DialogTitle>עריכת זמינות - {editingAvail?.employee_name}</DialogTitle>
+                    </DialogHeader>
+                    {editData && (
+                        <div className="space-y-4 py-4">
+                            <div>
+                                <Label className="font-semibold">סטטוס</Label>
+                                <Select value={editData.availability_type} onValueChange={(val) => setEditData({...editData, availability_type: val})}>
+                                    <SelectTrigger>
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {Object.entries(AVAILABILITY_TYPES).map(([key, cfg]) => (
+                                            <SelectItem key={key} value={key}>{cfg.label}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            <div>
+                                <Label className="font-semibold">הערות מנהל</Label>
+                                <Textarea
+                                    placeholder="הוסף הערות או שינויים..."
+                                    value={editData.admin_notes || ''}
+                                    onChange={(e) => setEditData({...editData, admin_notes: e.target.value})}
+                                    className="h-20"
+                                />
+                            </div>
+                        </div>
+                    )}
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setEditingAvail(null)}>ביטול</Button>
+                        <Button onClick={handleSaveEdit} className="bg-primary">שמור שינויים</Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }
