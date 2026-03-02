@@ -384,6 +384,42 @@ export default function ShiftClockWidget() {
                     <p className="text-sm text-gray-500 mb-4">לפני שאתה יוצא, איך הייתה המשמרת? (אופציונלי)</p>
 
                     <div className="space-y-5">
+                        {/* מידע אוטומטי מהמשמרת */}
+                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm space-y-1">
+                            <p className="font-semibold text-blue-800 mb-2">📋 נתוני המשמרת שלך:</p>
+                            {activeShift?.had_meal ? (
+                                <p className="text-blue-700">🍽️ אכלת: {activeShift.meal_details || 'כן'}</p>
+                            ) : (
+                                <p className="text-orange-600">🍽️ לא נרשמה ארוחה</p>
+                            )}
+                            {activeShift?.total_break_minutes > 0 ? (
+                                <p className="text-blue-700">☕ הפסקות: {activeShift.total_break_minutes} דקות</p>
+                            ) : (
+                                <p className="text-orange-600">☕ לא נרשמה הפסקה</p>
+                            )}
+                        </div>
+
+                        {/* שאלה: האם שתית */}
+                        <div>
+                            <p className="text-sm font-medium mb-2">💧 האם שתית מספיק?</p>
+                            <div className="flex gap-2 items-center">
+                                {['כן', 'לא'].map(opt => (
+                                    <button key={opt}
+                                        onClick={() => setFeedbackRatings(prev => ({ ...prev, drank: opt }))}
+                                        className={`px-4 py-2 rounded-lg text-sm font-medium border transition-all ${feedbackRatings.drank === opt ? 'bg-blue-500 text-white border-blue-500' : 'bg-white border-gray-300 text-gray-600 hover:border-blue-300'}`}
+                                    >{opt}</button>
+                                ))}
+                                {feedbackRatings.drank === 'כן' && (
+                                    <input
+                                        className="flex-1 border rounded-lg px-3 py-2 text-sm text-right"
+                                        placeholder="מה שתית?"
+                                        value={feedbackRatings.drankDetails || ''}
+                                        onChange={e => setFeedbackRatings(prev => ({ ...prev, drankDetails: e.target.value }))}
+                                    />
+                                )}
+                            </div>
+                        </div>
+
                         {[
                             { key: 'atmosphere', label: '🏢 אווירה במשמרת' },
                             { key: 'sales', label: '💰 תחושת מכירה' },
