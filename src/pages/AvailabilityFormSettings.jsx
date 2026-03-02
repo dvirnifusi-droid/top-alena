@@ -64,20 +64,19 @@ export default function AvailabilityFormSettings() {
             setUser(currentUser);
 
             const existingSettings = await base44.entities.AvailabilityFormSettings.list();
-            if (existingSettings.length > 0) {
-                setSettings(existingSettings[0]);
-            } else {
-                const newSettings = {
-                    departments: DEFAULT_DEPARTMENTS,
-                    positions: DEFAULT_POSITIONS,
-                    availability_types: DEFAULT_AVAILABILITY_TYPES,
-                    shift_options: DEFAULT_SHIFT_OPTIONS,
-                    default_days_unavailable: [],
-                    week_starts_offset: 7,
-                };
-                const created = await base44.entities.AvailabilityFormSettings.create(newSettings);
-                setSettings(created);
-            }
+             if (existingSettings.length > 0) {
+                 setSettings(existingSettings[0]);
+             } else {
+                 const newSettings = {
+                     departments: DEFAULT_DEPARTMENTS,
+                     availability_types: DEFAULT_AVAILABILITY_TYPES,
+                     shift_options: DEFAULT_SHIFT_OPTIONS,
+                     default_days_unavailable: [],
+                     week_starts_offset: 7,
+                 };
+                 const created = await base44.entities.AvailabilityFormSettings.create(newSettings);
+                 setSettings(created);
+             }
         } catch (error) {
             console.error('Error loading settings:', error);
         }
