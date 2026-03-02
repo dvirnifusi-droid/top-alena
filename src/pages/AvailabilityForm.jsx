@@ -210,6 +210,7 @@ export default function AvailabilityForm() {
                     positions: data.positions,
                     available_from: data.availability_type === 'partial' ? data.available_from || '' : '',
                     available_until: data.availability_type === 'partial' ? data.available_until || '' : '',
+                    department: selectedDepartment,
                 };
                 if (existing) {
                     await base44.entities.EmployeeAvailability.update(existing.id, record);
