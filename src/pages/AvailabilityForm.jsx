@@ -78,15 +78,28 @@ export default function AvailabilityForm() {
              setError('בחר עובד מהרשימה');
              return;
          }
+         
+         if (!accessCode) {
+             setError('הכנס את קוד הגישה שלך');
+             return;
+         }
 
          setLoading(true);
          try {
              const emp = allEmployees.find(e => e.email && e.email.toLowerCase() === employeeEmail.toLowerCase());
              if (!emp) {
-                 setError('לא נמצא עובד עם מייל זה. בדוק את ההקלדה.');
+                 setError('לא נמצא עובד עם מייל זה.');
                  setLoading(false);
                  return;
              }
+             
+             if (emp.access_code !== accessCode) {
+                 setError('קוד הגישה אינו נכון. בדוק את ההקלדה.');
+                 setAccessCode('');
+                 setLoading(false);
+                 return;
+             }
+             
              setSelectedEmployee(emp);
 
             const existing = await base44.entities.EmployeeAvailability.filter({ employee_id: emp.id });
