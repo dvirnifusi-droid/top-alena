@@ -240,7 +240,7 @@ export default function ShiftClockWidget() {
             await base44.entities.Incident.create({
                 incident_number: `FEEDBACK-${Date.now()}`,
                 title: `משוב עובד: ${user.full_name} - ${today}`,
-                description: `🏢 **אווירה:** ${feedbackRatings.atmosphere}/5\n💰 **תחושת מכירה:** ${feedbackRatings.sales}/5\n💪 **מאמץ אישי:** ${feedbackRatings.effort}/5${feedbackNotes ? `\n\n📝 **הערות:**\n${feedbackNotes}` : ''}`,
+                description: `🍽️ **אכל:** ${activeShift?.had_meal ? `כן - ${activeShift.meal_details || ''}` : 'לא'}\n💧 **שתה:** ${feedbackRatings.drank || 'לא צוין'}${feedbackRatings.drank === 'כן' && feedbackRatings.drankDetails ? ` - ${feedbackRatings.drankDetails}` : ''}\n☕ **הפסקה:** ${activeShift?.total_break_minutes > 0 ? `${activeShift.total_break_minutes} דקות` : 'לא'}\n\n🏢 **אווירה:** ${feedbackRatings.atmosphere}/5\n💰 **תחושת מכירה:** ${feedbackRatings.sales}/5\n💪 **מאמץ אישי:** ${feedbackRatings.effort}/5${feedbackNotes ? `\n\n📝 **הערות:**\n${feedbackNotes}` : ''}`,
                 category: 'staff',
                 severity: 'low',
                 status: 'closed',
