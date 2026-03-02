@@ -423,7 +423,14 @@ export default function AvailabilityForm() {
                 })}
             </div>
 
-            <div className="mt-8 flex justify-end">
+            <div className="mt-8 flex justify-end gap-3">
+                <Button
+                    variant="outline"
+                    onClick={() => setSelectedEmployee(null)}
+                    className="text-lg px-10"
+                >
+                    חזור
+                </Button>
                 <Button
                     size="lg"
                     onClick={handleSubmit}
@@ -431,7 +438,7 @@ export default function AvailabilityForm() {
                     className="text-lg px-10"
                 >
                     {saving ? <Loader2 className="w-5 h-5 animate-spin ml-2" /> : <CheckCircle2 className="w-5 h-5 ml-2" />}
-                    שלח זמינות
+                    {existingAvailabilities.length > 0 ? 'עדכן זמינות' : 'שלח זמינות'}
                 </Button>
             </div>
         </div>
