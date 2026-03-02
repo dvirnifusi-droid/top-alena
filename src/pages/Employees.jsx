@@ -578,6 +578,10 @@ function EmployeesInner() {
                             <DropdownMenuItem onClick={() => openEditForm(employee)}>
                               ערוך פרטים
                             </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => openAccessCodeDialog(employee)}>
+                              <Key className="w-4 h-4 ml-2" />
+                              קוד גישה
+                            </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => openPermissionsDialog(employee)}>
                               <Shield className="w-4 h-4 ml-2" />
                               ניהול הרשאות
