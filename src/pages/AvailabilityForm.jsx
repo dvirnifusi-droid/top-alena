@@ -114,7 +114,6 @@ export default function AvailabilityForm() {
      };
 
      const loadEmployees = async () => {
-         setLoading(true);
          try {
              const emps = await base44.entities.Employee.filter({ status: 'active' });
              setAllEmployees(emps);
@@ -122,7 +121,6 @@ export default function AvailabilityForm() {
              console.error(e);
              setError('שגיאה בטעינת רשימת העובדים');
          }
-         setLoading(false);
      };
 
      const loadCurrentEmployee = async () => {
