@@ -64,8 +64,54 @@ export default function AvailabilityForm() {
      const SHIFT_OPTIONS = settings?.shift_options || DEFAULT_SHIFT_OPTIONS;
 
      useEffect(() => {
-         loadEmployees();
+         loadData();
      }, []);
+
+     const loadData = async () => {
+         setLoading(true);
+         try {
+             await Promise.all([loadEmployees(), loadSettings()]);
+         } catch (e) {
+             console.error(e);
+         }
+         setLoading(false);
+     };
+
+     const loadSettings = async () => {
+         try {
+             const existingSettings = await base44.entities.AvailabilityFormSettings.list();
+             if (existingSettings.length > 0) {
+                 setSettings(existingSettings[0]);
+             } else {
+                 const defaultSettings = {
+                     positions: DEFAULT_POSITIONS,
+                     availability_types: Object.values(DEFAULT_AVAILABILITY_TYPES).map((v, i) => ({
+                         key: Object.keys(DEFAULT_AVAILABILITY_TYPES)[i],
+                         label: v.label,
+                         color: v.color
+                     })),
+                     shift_options: DEFAULT_SHIFT_OPTIONS,
+                     default_days_unavailable: [],
+                     week_starts_offset: 7,
+                 };
+                 const created = await base44.entities.AvailabilityFormSettings.create(defaultSettings);
+                 setSettings(created);
+             }
+         } catch (e) {
+             console.error('Error loading settings:', e);
+             setSettings({
+                 positions: DEFAULT_POSITIONS,
+                 availability_types: Object.values(DEFAULT_AVAILABILITY_TYPES).map((v, i) => ({
+                     key: Object.keys(DEFAULT_AVAILABILITY_TYPES)[i],
+                     label: v.label,
+                     color: v.color
+                 })),
+                 shift_options: DEFAULT_SHIFT_OPTIONS,
+                 default_days_unavailable: [],
+                 week_starts_offset: 7,
+             });
+         }
+     };
 
      const loadEmployees = async () => {
          setLoading(true);
