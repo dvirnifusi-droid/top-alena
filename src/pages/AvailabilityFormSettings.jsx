@@ -8,6 +8,11 @@ import { Label } from '@/components/ui/label';
 import { Loader2, Plus, Trash2, Settings } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 
+const DEFAULT_DEPARTMENTS = [
+    { key: 'floor', label: 'פלור (מלצרים)', default_position: 'מלצר' },
+    { key: 'kitchen', label: 'מטבח (טבחים)', default_position: 'טבח' },
+];
+
 const DEFAULT_POSITIONS = [
     'מלצר', 'ברמן', 'ראנר', 'מארח/ת', 'טבח', 'מנהל משמרת',
     'קופה + אריזות', 'צאקר', 'גריל', 'פס בטטה', 'מקשר', 'שוטף כלים', 'מתלמד מטבח'
@@ -57,6 +62,7 @@ export default function AvailabilityFormSettings() {
                 setSettings(existingSettings[0]);
             } else {
                 const newSettings = {
+                    departments: DEFAULT_DEPARTMENTS,
                     positions: DEFAULT_POSITIONS,
                     availability_types: DEFAULT_AVAILABILITY_TYPES,
                     shift_options: DEFAULT_SHIFT_OPTIONS,
@@ -139,6 +145,16 @@ export default function AvailabilityFormSettings() {
 
             <div className="flex gap-2 mb-6 border-b border-gray-200">
                 <button
+                    onClick={() => setActiveTab('departments')}
+                    className={`px-4 py-2 font-semibold border-b-2 transition-colors ${
+                        activeTab === 'departments'
+                            ? 'border-primary text-primary'
+                            : 'border-transparent text-gray-600 hover:text-gray-900'
+                    }`}
+                >
+                    חטיבות
+                </button>
+                <button
                     onClick={() => setActiveTab('positions')}
                     className={`px-4 py-2 font-semibold border-b-2 transition-colors ${
                         activeTab === 'positions'
@@ -159,6 +175,44 @@ export default function AvailabilityFormSettings() {
                     ימים קבועים
                 </button>
             </div>
+
+            {activeTab === 'departments' && (
+                <Card>
+                    <CardHeader>
+                        <CardTitle>ניהול חטיבות</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                        <p className="text-gray-600 text-sm">הגדר את החטיבות ותפקיד הברירה המחדל לכל אחת</p>
+                        <div className="space-y-3">
+                            {settings.departments?.map((dept) => (
+                                <div key={dept.key} className="p-4 bg-gray-50 rounded-lg border border-gray-200">
+                                    <p className="font-semibold mb-2">{dept.label}</p>
+                                    <div>
+                                        <Label className="text-sm mb-1 block">תפקיד ברירת מחדל</Label>
+                                        <select
+                                            value={dept.default_position || ''}
+                                            onChange={(e) => {
+                                                setSettings({
+                                                    ...settings,
+                                                    departments: settings.departments.map(d => 
+                                                        d.key === dept.key ? { ...d, default_position: e.target.value } : d
+                                                    )
+                                                });
+                                            }}
+                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                                        >
+                                            <option value="">בחר תפקיד</option>
+                                            {settings.positions.map(pos => (
+                                                <option key={pos} value={pos}>{pos}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </CardContent>
+                </Card>
+            )}
 
             {activeTab === 'positions' && (
                 <Card>

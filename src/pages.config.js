@@ -49,7 +49,6 @@
  */
 import AccountantExportView from './pages/AccountantExportView';
 import AiDashboard from './pages/AiDashboard';
-import AvailabilityForm from './pages/AvailabilityForm';
 import AvailabilityRequests from './pages/AvailabilityRequests';
 import BeecommIntegration from './pages/BeecommIntegration';
 import BriefingManagement from './pages/BriefingManagement';
@@ -89,6 +88,7 @@ import Training from './pages/Training';
 import UploadChecklists from './pages/UploadChecklists';
 import WaiterTables from './pages/WaiterTables';
 import WorkScheduling from './pages/WorkScheduling';
+import AvailabilityForm from './pages/AvailabilityForm';
 import AvailabilityFormSettings from './pages/AvailabilityFormSettings';
 import __Layout from './Layout.jsx';
 
@@ -96,7 +96,6 @@ import __Layout from './Layout.jsx';
 export const PAGES = {
     "AccountantExportView": AccountantExportView,
     "AiDashboard": AiDashboard,
-    "AvailabilityForm": AvailabilityForm,
     "AvailabilityRequests": AvailabilityRequests,
     "BeecommIntegration": BeecommIntegration,
     "BriefingManagement": BriefingManagement,
@@ -136,6 +135,7 @@ export const PAGES = {
     "UploadChecklists": UploadChecklists,
     "WaiterTables": WaiterTables,
     "WorkScheduling": WorkScheduling,
+    "AvailabilityForm": AvailabilityForm,
     "AvailabilityFormSettings": AvailabilityFormSettings,
 }
 
