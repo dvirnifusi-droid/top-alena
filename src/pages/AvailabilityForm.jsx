@@ -6,10 +6,9 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { Calendar } from '@/components/ui/calendar';
 import { format, addDays, startOfWeek, endOfWeek, eachDayOfInterval } from 'date-fns';
 import { he } from 'date-fns/locale';
-import { CheckCircle2, Loader2, CalendarDays, Trash2 } from 'lucide-react';
+import { CheckCircle2, Loader2, CalendarDays, User } from 'lucide-react';
 
 const POSITIONS = [
     'מלצר', 'ברמן', 'ראנר', 'מארח/ת', 'טבח', 'מנהל משמרת',
@@ -29,57 +28,71 @@ const SHIFT_OPTIONS = [
     { value: 'both', label: 'שתיהן' },
 ];
 
+const nextWeekStart = startOfWeek(addDays(new Date(), 7), { weekStartsOn: 0 });
+const nextWeekEnd = endOfWeek(nextWeekStart, { weekStartsOn: 0 });
+const weekDays = eachDayOfInterval({ start: nextWeekStart, end: nextWeekEnd });
+
+const initDayData = () => {
+    const init = {};
+    weekDays.forEach(day => {
+        init[format(day, 'yyyy-MM-dd')] = {
+            availability_type: 'available',
+            shift_preference: 'both',
+            reason: '',
+            positions: [],
+        };
+    });
+    return init;
+};
+
 export default function AvailabilityForm() {
-    const [user, setUser] = useState(null);
-    const [employee, setEmployee] = useState(null);
-    const [loading, setLoading] = useState(true);
+    const [employees, setEmployees] = useState([]);
+    const [selectedEmployee, setSelectedEmployee] = useState(null);
+    const [loadingEmployees, setLoadingEmployees] = useState(true);
     const [saving, setSaving] = useState(false);
     const [submitted, setSubmitted] = useState(false);
     const [existingAvailabilities, setExistingAvailabilities] = useState([]);
-
-    // next week by default
-    const nextWeekStart = startOfWeek(addDays(new Date(), 7), { weekStartsOn: 0 });
-    const nextWeekEnd = endOfWeek(nextWeekStart, { weekStartsOn: 0 });
-    const weekDays = eachDayOfInterval({ start: nextWeekStart, end: nextWeekEnd });
-
-    // Per-day form state: { [dateStr]: { availability_type, shift_preference, reason, positions } }
-    const [dayData, setDayData] = useState(() => {
-        const init = {};
-        eachDayOfInterval({
-            start: startOfWeek(addDays(new Date(), 7), { weekStartsOn: 0 }),
-            end: endOfWeek(startOfWeek(addDays(new Date(), 7), { weekStartsOn: 0 }), { weekStartsOn: 0 })
-        }).forEach(day => {
-            init[format(day, 'yyyy-MM-dd')] = {
-                availability_type: 'available',
-                shift_preference: 'both',
-                reason: '',
-                positions: [],
-            };
-        });
-        return init;
-    });
+    const [dayData, setDayData] = useState(initDayData);
 
     useEffect(() => {
-        loadData();
+        loadEmployees();
     }, []);
 
-    const loadData = async () => {
-        setLoading(true);
+    const loadEmployees = async () => {
+        setLoadingEmployees(true);
         try {
-            const currentUser = await base44.auth.me();
-            setUser(currentUser);
-            const emps = await base44.entities.Employee.list();
-            const myEmp = emps.find(e => e.email?.toLowerCase() === currentUser?.email?.toLowerCase());
-            setEmployee(myEmp || null);
-
-            if (myEmp) {
-                const existing = await base44.entities.EmployeeAvailability.filter({ employee_id: myEmp.id });
-                setExistingAvailabilities(existing);
-            }
+            const emps = await base44.entities.Employee.filter({ status: 'active' });
+            setEmployees(emps.sort((a, b) => a.full_name.localeCompare(b.full_name, 'he')));
         } catch (e) {
             console.error(e);
         }
-        setLoading(false);
+        setLoadingEmployees(false);
+    };
+
+    const handleSelectEmployee = async (empId) => {
+        const emp = employees.find(e => e.id === empId);
+        setSelectedEmployee(emp);
+        // Load existing availabilities for this employee for next week
+        try {
+            const existing = await base44.entities.EmployeeAvailability.filter({ employee_id: empId });
+            setExistingAvailabilities(existing);
+
+            // Pre-fill form with existing data if available
+            const newDayData = initDayData();
+            existing.forEach(a => {
+                if (newDayData[a.date]) {
+                    newDayData[a.date] = {
+                        availability_type: a.availability_type || 'available',
+                        shift_preference: a.shift_preference || 'both',
+                        reason: a.reason || '',
+                        positions: a.positions || [],
+                    };
+                }
+            });
+            setDayData(newDayData);
+        } catch (e) {
+            console.error(e);
+        }
     };
 
     const updateDay = (dateStr, field, value) => {
@@ -96,15 +109,14 @@ export default function AvailabilityForm() {
     };
 
     const handleSubmit = async () => {
-        if (!employee) return;
+        if (!selectedEmployee) return;
         setSaving(true);
         try {
             for (const [dateStr, data] of Object.entries(dayData)) {
-                // Check for existing record for this date
                 const existing = existingAvailabilities.find(a => a.date === dateStr);
                 const record = {
-                    employee_id: employee.id,
-                    employee_name: employee.full_name,
+                    employee_id: selectedEmployee.id,
+                    employee_name: selectedEmployee.full_name,
                     date: dateStr,
                     availability_type: data.availability_type,
                     shift_preference: data.shift_preference,
@@ -127,18 +139,16 @@ export default function AvailabilityForm() {
         setSaving(false);
     };
 
-    if (loading) return (
+    const handleReset = () => {
+        setSubmitted(false);
+        setSelectedEmployee(null);
+        setDayData(initDayData());
+        setExistingAvailabilities([]);
+    };
+
+    if (loadingEmployees) return (
         <div className="flex items-center justify-center h-screen">
             <Loader2 className="w-10 h-10 animate-spin text-primary" />
-        </div>
-    );
-
-    if (!employee) return (
-        <div className="flex items-center justify-center h-screen p-8" dir="rtl">
-            <Card className="max-w-md w-full text-center p-8">
-                <p className="text-xl font-bold mb-2">לא נמצא פרופיל עובד</p>
-                <p className="text-gray-500">יש לפנות למנהל כדי לקשר את החשבון שלך לפרופיל עובד.</p>
-            </Card>
         </div>
     );
 
@@ -147,23 +157,63 @@ export default function AvailabilityForm() {
             <Card className="max-w-md w-full text-center p-10">
                 <CheckCircle2 className="w-20 h-20 text-green-500 mx-auto mb-4" />
                 <h2 className="text-2xl font-bold mb-2">הבקשה נשלחה בהצלחה!</h2>
+                <p className="text-gray-500 mb-2">שלום {selectedEmployee?.full_name}!</p>
                 <p className="text-gray-500 mb-6">המנהל יראה את הזמינות שלך ויוכל לשבץ אותך בסידור.</p>
-                <Button onClick={() => { setSubmitted(false); loadData(); }}>עדכן שוב</Button>
+                <Button onClick={handleReset}>שלח עובד אחר / עדכן שוב</Button>
             </Card>
         </div>
     );
 
+    // Step 1: Employee selection
+    if (!selectedEmployee) return (
+        <div className="flex items-center justify-center min-h-screen p-8 bg-gray-50" dir="rtl">
+            <Card className="max-w-md w-full p-8">
+                <div className="text-center mb-6">
+                    <CalendarDays className="w-16 h-16 text-primary mx-auto mb-3" />
+                    <h1 className="text-2xl font-bold">הגשת זמינות לסידור</h1>
+                    <p className="text-gray-500 mt-1">
+                        שבוע {format(nextWeekStart, 'dd/MM')} – {format(nextWeekEnd, 'dd/MM/yyyy')}
+                    </p>
+                </div>
+                <div className="space-y-4">
+                    <div>
+                        <Label className="mb-2 block text-base font-semibold">בחר/י את שמך מהרשימה</Label>
+                        <Select onValueChange={handleSelectEmployee}>
+                            <SelectTrigger className="h-12 text-base">
+                                <SelectValue placeholder="בחר/י עובד..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {employees.map(emp => (
+                                    <SelectItem key={emp.id} value={emp.id}>
+                                        {emp.full_name}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                </div>
+            </Card>
+        </div>
+    );
+
+    // Step 2: Fill availability
     return (
         <div className="p-4 sm:p-8 max-w-4xl mx-auto" dir="rtl">
-            <div className="mb-6">
-                <h1 className="text-3xl font-bold flex items-center gap-2">
-                    <CalendarDays className="w-8 h-8 text-primary" />
-                    הגשת זמינות לסידור
-                </h1>
-                <p className="text-gray-500 mt-1">
-                    שלום {employee.full_name}! מלא/י את הזמינות שלך לשבוע{' '}
-                    <strong>{format(nextWeekStart, 'dd/MM')} – {format(nextWeekEnd, 'dd/MM/yyyy')}</strong>
-                </p>
+            <div className="mb-6 flex items-center justify-between flex-wrap gap-3">
+                <div>
+                    <h1 className="text-3xl font-bold flex items-center gap-2">
+                        <CalendarDays className="w-8 h-8 text-primary" />
+                        הגשת זמינות לסידור
+                    </h1>
+                    <p className="text-gray-500 mt-1">
+                        שלום <strong>{selectedEmployee.full_name}</strong>! שבוע{' '}
+                        <strong>{format(nextWeekStart, 'dd/MM')} – {format(nextWeekEnd, 'dd/MM/yyyy')}</strong>
+                    </p>
+                </div>
+                <Button variant="outline" size="sm" onClick={handleReset}>
+                    <User className="w-4 h-4 ml-1" />
+                    החלף עובד
+                </Button>
             </div>
 
             <div className="space-y-4">
@@ -186,7 +236,6 @@ export default function AvailabilityForm() {
                                 </div>
                             </CardHeader>
                             <CardContent className="space-y-4">
-                                {/* Availability type */}
                                 <div>
                                     <Label className="mb-2 block">סטטוס זמינות</Label>
                                     <div className="flex flex-wrap gap-2">
@@ -208,7 +257,6 @@ export default function AvailabilityForm() {
 
                                 {data.availability_type !== 'unavailable' && (
                                     <>
-                                        {/* Shift preference */}
                                         <div>
                                             <Label className="mb-2 block">העדפת משמרת</Label>
                                             <div className="flex gap-2 flex-wrap">
@@ -228,7 +276,6 @@ export default function AvailabilityForm() {
                                             </div>
                                         </div>
 
-                                        {/* Positions */}
                                         <div>
                                             <Label className="mb-2 block">תפקידים שאני יכול/ה למלא (אופציונלי)</Label>
                                             <div className="flex flex-wrap gap-2">
@@ -250,7 +297,6 @@ export default function AvailabilityForm() {
                                     </>
                                 )}
 
-                                {/* Reason */}
                                 <div>
                                     <Label className="mb-2 block">הערה / סיבה (אופציונלי)</Label>
                                     <Textarea
