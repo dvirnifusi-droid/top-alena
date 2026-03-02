@@ -466,8 +466,8 @@ export default function ShiftClockWidget() {
 
                         {/* שאלה: האם שתית */}
                         <div>
-                            <p className="text-sm font-medium mb-2">💧 האם שתית מספיק?</p>
-                            <div className="flex gap-2 items-center">
+                            <p className="text-sm font-medium mb-2">💧 האם שתית?</p>
+                            <div className="flex gap-2 items-center flex-wrap">
                                 {['כן', 'לא'].map(opt => (
                                     <button key={opt}
                                         onClick={() => setFeedbackRatings(prev => ({ ...prev, drank: opt }))}
@@ -476,7 +476,7 @@ export default function ShiftClockWidget() {
                                 ))}
                                 {feedbackRatings.drank === 'כן' && (
                                     <input
-                                        className="flex-1 border rounded-lg px-3 py-2 text-sm text-right"
+                                        className="flex-1 border rounded-lg px-3 py-2 text-sm text-right min-w-[120px]"
                                         placeholder="מה שתית?"
                                         value={feedbackRatings.drankDetails || ''}
                                         onChange={e => setFeedbackRatings(prev => ({ ...prev, drankDetails: e.target.value }))}
