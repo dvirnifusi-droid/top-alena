@@ -21,6 +21,11 @@ export default function ShiftClockWidget() {
     const [showEndShiftDialog, setShowEndShiftDialog] = useState(false);
     const [feedbackRatings, setFeedbackRatings] = useState({ atmosphere: 0, sales: 0, effort: 0 });
     const [feedbackNotes, setFeedbackNotes] = useState('');
+    const [editBreakMinutes, setEditBreakMinutes] = useState('');
+    const [editBreakByManager, setEditBreakByManager] = useState(false);
+    const [managerPassword, setManagerPassword] = useState('');
+    const [breakEditUnlocked, setBreakEditUnlocked] = useState(false);
+    const MANAGER_CODE = '1234'; // קוד מנהל - ניתן לשנות
     const timerRef = useRef(null);
 
     useEffect(() => {
