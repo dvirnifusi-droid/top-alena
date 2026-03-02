@@ -398,18 +398,25 @@ export default function AvailabilityForm() {
                                                 ))}
                                             </div>
                                         </div>
-                                    </>
-                                )}
+                                        </>
+                                        )}
 
-                                <div>
-                                    <Label className="mb-2 block">הערה / סיבה (אופציונלי)</Label>
-                                    <Textarea
-                                        placeholder="לדוגמה: יש לי טיסה, מועדף לסיים עד 22:00..."
-                                        value={data.reason}
-                                        onChange={e => updateDay(dateStr, 'reason', e.target.value)}
-                                        className="h-20"
-                                    />
-                                </div>
+                                        <div>
+                                            <Label className="mb-2 block">הערה / סיבה (אופציונלי)</Label>
+                                            <Textarea
+                                                placeholder="לדוגמה: יש לי טיסה, מועדף לסיים עד 22:00..."
+                                                value={data.reason}
+                                                onChange={e => updateDay(dateStr, 'reason', e.target.value)}
+                                                className="h-20"
+                                            />
+                                        </div>
+
+                                        <button
+                                            onClick={() => updateDay(dateStr, 'availability_type', 'available') || updateDay(dateStr, 'shift_preference', 'both') || updateDay(dateStr, 'reason', '') || updateDay(dateStr, 'positions', [])}
+                                            className="text-sm text-red-600 hover:text-red-800 font-semibold mt-2"
+                                        >
+                                            נקה יום זה
+                                        </button>
                             </CardContent>
                         </Card>
                     );
