@@ -93,17 +93,23 @@ function EmployeeReportsInner() {
                  s.employee_name.trim().toLowerCase() === selectedEmp.full_name.trim().toLowerCase())
             );
             if (staffEntry) {
+                const grossTip = staffEntry.gross_tip ?? staffEntry.grossTip ?? 0;
+                const finalTip = staffEntry.final_tip ?? staffEntry.finalTip ?? grossTip;
+                const mealCost = staffEntry.meal_cost ?? 0;
+                const salesBonus = staffEntry.sales_bonus ?? 0;
+                const supplement = staffEntry.supplement ?? 0;
+                const totalEarnings = staffEntry.total_earnings ?? staffEntry.totalEarnings ?? (finalTip + supplement);
                 allTipEntries.push({
                     date: report.date,
                     shift_type: report.shift_type,
-                    effectiveHours: staffEntry.effectiveHours || 0,
-                    totalHours: staffEntry.totalHours || 0,
-                    grossTip: staffEntry.grossTip || 0,
-                    finalTip: staffEntry.finalTip || 0,
-                    supplement: staffEntry.supplement || 0,
-                    totalEarnings: staffEntry.totalEarnings || 0,
-                    meal_cost: staffEntry.meal_cost || 0,
-                    sales_bonus: staffEntry.sales_bonus || 0,
+                    effectiveHours: staffEntry.effective_hours ?? staffEntry.effectiveHours ?? 0,
+                    totalHours: staffEntry.total_hours ?? staffEntry.totalHours ?? 0,
+                    grossTip,
+                    finalTip,
+                    supplement,
+                    totalEarnings,
+                    meal_cost: mealCost,
+                    sales_bonus: salesBonus,
                     position: staffEntry.position || '',
                 });
             }
