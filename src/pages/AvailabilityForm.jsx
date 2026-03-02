@@ -181,6 +181,7 @@ export default function AvailabilityForm() {
         setSelectedEmployee(null);
         setEmployeeEmail('');
         setAccessCode('');
+        setUseCodeAuth(true);
         setDayData(initDayData());
         setExistingAvailabilities([]);
     };
