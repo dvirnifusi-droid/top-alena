@@ -10,10 +10,7 @@ import { format, addDays, startOfWeek, endOfWeek, eachDayOfInterval } from 'date
 import { he } from 'date-fns/locale';
 import { CheckCircle2, Loader2, CalendarDays, User } from 'lucide-react';
 
-const DEFAULT_POSITIONS = [
-    'מלצר', 'ברמן', 'ראנר', 'מארח/ת', 'טבח', 'מנהל משמרת',
-    'קופה + אריזות', 'צאקר', 'גריל', 'פס בטטה', 'מקשר', 'שוטף כלים', 'מתלמד מטבח'
-];
+
 
 const DEFAULT_AVAILABILITY_TYPES = {
     available: { label: '✅ פנוי/ה', color: 'bg-green-100 text-green-800 border-green-300' },
@@ -58,10 +55,11 @@ export default function AvailabilityForm() {
      const [submitted, setSubmitted] = useState(false);
      const [existingAvailabilities, setExistingAvailabilities] = useState([]);
      const [dayData, setDayData] = useState(initDayData);
+     const [selectedDepartment, setSelectedDepartment] = useState(null);
      
-     const POSITIONS = settings?.positions || DEFAULT_POSITIONS;
      const AVAILABILITY_TYPES = settings ? Object.fromEntries(settings.availability_types.map(t => [t.key, { label: t.label, color: t.color }])) : DEFAULT_AVAILABILITY_TYPES;
      const SHIFT_OPTIONS = settings?.shift_options || DEFAULT_SHIFT_OPTIONS;
+     const DEPARTMENTS = settings?.departments || [];
 
      useEffect(() => {
          loadData();
@@ -159,6 +157,7 @@ export default function AvailabilityForm() {
              }
              
              setSelectedEmployee(emp);
+             setSelectedDepartment(emp.department || DEPARTMENTS[0]?.key || null);
 
             const existing = await base44.entities.EmployeeAvailability.filter({ employee_id: emp.id });
             setExistingAvailabilities(existing);
@@ -233,6 +232,7 @@ export default function AvailabilityForm() {
         setUseCodeAuth(true);
         setDayData(initDayData());
         setExistingAvailabilities([]);
+        setSelectedDepartment(null);
     };
 
     if (loading) return (
@@ -333,6 +333,40 @@ export default function AvailabilityForm() {
          </div>
      );
 
+     // Department Selection
+     if (!selectedDepartment) return (
+        <div className="p-4 sm:p-8 max-w-2xl mx-auto" dir="rtl">
+            <Card className="p-8">
+                <CardHeader>
+                    <CardTitle className="text-2xl">בחר את החטיבה שלך</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                    <p className="text-gray-600">
+                        שלום {selectedEmployee.full_name}! בחר את החטיבה שלך:
+                    </p>
+                    <div className="grid grid-cols-1 gap-3">
+                        {DEPARTMENTS.map(dept => (
+                            <button
+                                key={dept.key}
+                                onClick={() => setSelectedDepartment(dept.key)}
+                                className="p-4 border-2 border-gray-300 rounded-lg hover:border-primary hover:bg-primary/5 transition-all text-lg font-semibold"
+                            >
+                                {dept.label}
+                            </button>
+                        ))}
+                    </div>
+                    <Button
+                        variant="outline"
+                        onClick={() => setSelectedEmployee(null)}
+                        className="w-full mt-4"
+                    >
+                        חזור
+                    </Button>
+                </CardContent>
+            </Card>
+        </div>
+    );
+
      if (submitted) return (
         <div className="flex items-center justify-center h-screen p-8" dir="rtl">
             <Card className="max-w-md w-full text-center p-10">
@@ -353,6 +387,8 @@ export default function AvailabilityForm() {
     );
 
     // Fill availability
+    const currentDept = DEPARTMENTS.find(d => d.key === selectedDepartment);
+
     return (
         <div className="p-4 sm:p-8 max-w-4xl mx-auto" dir="rtl">
             <div className="mb-6 flex items-center justify-between flex-wrap gap-3">
@@ -362,7 +398,7 @@ export default function AvailabilityForm() {
                         הגשת זמינות לסידור
                     </h1>
                     <p className="text-gray-500 mt-1">
-                        שלום <strong>{selectedEmployee.full_name}</strong>! שבוע{' '}
+                        שלום <strong>{selectedEmployee.full_name}</strong>! ({currentDept?.label}) - שבוע{' '}
                         <strong>{format(nextWeekStart, 'dd/MM')} – {format(nextWeekEnd, 'dd/MM/yyyy')}</strong>
                     </p>
                 </div>
@@ -475,7 +511,7 @@ export default function AvailabilityForm() {
             <div className="mt-8 flex justify-end gap-3">
                 <Button
                     variant="outline"
-                    onClick={() => setSelectedEmployee(null)}
+                    onClick={() => setSelectedDepartment(null)}
                     className="text-lg px-10"
                 >
                     חזור
