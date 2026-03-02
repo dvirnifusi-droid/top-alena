@@ -489,7 +489,6 @@ const SidebarMenuButton = React.forwardRef(function SidebarMenuButtonInner(
 })
 SidebarMenuButton.displayName = "SidebarMenuButton"
 
-
 const SidebarMenuAction = React.forwardRef(({ className, asChild = false, showOnHover = false, ...props }, ref) => {
   const Comp = asChild ? Slot : "button"
 
