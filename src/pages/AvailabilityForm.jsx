@@ -80,7 +80,7 @@ export default function AvailabilityForm() {
              return;
          }
          
-         if (!accessCode) {
+         if (useCodeAuth && !accessCode) {
              setError('הכנס את קוד הגישה שלך');
              return;
          }
@@ -94,11 +94,19 @@ export default function AvailabilityForm() {
                  return;
              }
              
-             if (emp.access_code !== accessCode) {
-                 setError('קוד הגישה אינו נכון. בדוק את ההקלדה.');
-                 setAccessCode('');
-                 setLoading(false);
-                 return;
+             if (useCodeAuth) {
+                 if (emp.access_code !== accessCode) {
+                     setError('קוד הגישה אינו נכון. בדוק את ההקלדה.');
+                     setAccessCode('');
+                     setLoading(false);
+                     return;
+                 }
+             } else {
+                 if (emp.access_code) {
+                     setError('עובד זה דורש קוד גישה. בחר בהתחברות באמצעות קוד.');
+                     setLoading(false);
+                     return;
+                 }
              }
              
              setSelectedEmployee(emp);
