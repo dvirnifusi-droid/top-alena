@@ -312,12 +312,12 @@ export default function ChecklistExecutionComponent({ checklist, user, onComplet
                             />
                         </div>
 
-                        {/* Photo upload is now always visible */}
+                        {/* Photo upload - multiple photos */}
                         <div className="space-y-4 p-4 bg-gray-50 border rounded-lg">
                             <div className="flex items-center justify-between">
                                 <h4 className="font-semibold flex items-center gap-2">
                                     <Camera className="w-5 h-5 text-gray-600"/>
-                                    צילום נדרש
+                                    תמונות ({(results[currentItem.order]?.photo_urls || []).length})
                                 </h4>
                                 <Button
                                     variant="outline"
@@ -325,7 +325,7 @@ export default function ChecklistExecutionComponent({ checklist, user, onComplet
                                     disabled={uploading}
                                 >
                                     <Upload className="w-4 h-4 mr-2" />
-                                    {uploading ? 'מעלה...' : 'העלה תמונה'}
+                                    {uploading ? 'מעלה...' : 'הוסף תמונה'}
                                 </Button>
                             </div>
                             <input
@@ -333,12 +333,22 @@ export default function ChecklistExecutionComponent({ checklist, user, onComplet
                                 type="file"
                                 accept="image/*"
                                 capture="environment"
-                                onChange={(e) => handlePhotoUpload(e.target.files?.[0])}
+                                onChange={(e) => { handlePhotoUpload(e.target.files?.[0]); e.target.value = ''; }}
                                 className="hidden"
                             />
-                            {results[currentItem.order]?.photo_url && (
-                                <div className="p-2 bg-green-100 border border-green-200 rounded text-center">
-                                    <p className="text-sm text-green-800 font-medium">✓ תמונה הועלתה בהצלחה</p>
+                            {(results[currentItem.order]?.photo_urls || []).length > 0 && (
+                                <div className="grid grid-cols-3 gap-2">
+                                    {(results[currentItem.order]?.photo_urls || []).map((url, i) => (
+                                        <div key={i} className="relative group">
+                                            <img src={url} alt={`תמונה ${i + 1}`} className="w-full h-20 object-cover rounded-lg border" />
+                                            <button
+                                                onClick={() => handleRemovePhoto(i)}
+                                                className="absolute top-1 left-1 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition-opacity"
+                                            >
+                                                ×
+                                            </button>
+                                        </div>
+                                    ))}
                                 </div>
                             )}
                         </div>
