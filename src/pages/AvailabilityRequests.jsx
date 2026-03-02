@@ -36,6 +36,7 @@ function AvailabilityRequestsInner() {
      const [editingAvail, setEditingAvail] = useState(null);
      const [editData, setEditData] = useState(null);
      const [expandedUnavailable, setExpandedUnavailable] = useState(false);
+     const [selectedDepartment, setSelectedDepartment] = useState(null);
 
     const weekStart = startOfWeek(addDays(new Date(), weekOffset * 7), { weekStartsOn: 0 });
     const weekEnd = endOfWeek(weekStart, { weekStartsOn: 0 });
@@ -163,11 +164,43 @@ function AvailabilityRequestsInner() {
         </div>
     );
 
-    const weekAvailabilities = availabilities.filter(a =>
+    if (!selectedDepartment) {
+        return (
+            <div className="flex items-center justify-center min-h-screen p-4">
+                <Card className="max-w-md w-full">
+                    <CardHeader className="text-center">
+                        <CardTitle className="text-2xl">בחר חטיבה לעדכון הזמינות</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                        <p className="text-center text-gray-600 text-sm">
+                            בחר איזו חטיבה אתה רוצה לעבוד איתה:
+                        </p>
+                        {settings?.departments?.map(dept => (
+                            <Button
+                                key={dept.key}
+                                onClick={() => setSelectedDepartment(dept.key)}
+                                className="w-full h-12 text-base font-semibold"
+                                variant="outline"
+                            >
+                                {dept.label}
+                            </Button>
+                        ))}
+                        {!settings?.departments || settings.departments.length === 0 && (
+                            <p className="text-center text-red-600 text-sm">לא נמצאו חטיבות בהגדרות</p>
+                        )}
+                    </CardContent>
+                </Card>
+            </div>
+        );
+    }
+
+    const filteredAvails = getFilteredAvailabilities();
+    const weekAvailabilities = filteredAvails.filter(a =>
         a.date >= format(weekStart, 'yyyy-MM-dd') && a.date <= format(weekEnd, 'yyyy-MM-dd')
     );
 
     const uniqueEmployeesSubmitted = new Set(weekAvailabilities.map(a => a.employee_id)).size;
+    const currentDeptLabel = settings?.departments?.find(d => d.key === selectedDepartment)?.label;
 
     const groupByDepartment = (dayAvail) => {
         const grouped = {};
@@ -179,20 +212,31 @@ function AvailabilityRequestsInner() {
         return grouped;
     };
 
+    const getFilteredAvailabilities = () => {
+        if (!selectedDepartment) return availabilities;
+        return availabilities.filter(a => {
+            const emp = employees.find(e => e.id === a.employee_id);
+            return emp?.department === selectedDepartment;
+        });
+    };
+
     return (
         <div className="p-4 sm:p-8 max-w-7xl mx-auto" dir="rtl">
             <div className="flex items-center justify-between mb-6 flex-wrap gap-4">
                 <div>
                     <h1 className="text-3xl font-bold flex items-center gap-2">
                         <Users className="w-8 h-8 text-primary" />
-                        בקשות זמינות עובדים
+                        בקשות זמינות - {currentDeptLabel}
                     </h1>
                     <p className="text-gray-500 mt-1">
                         שבוע {format(weekStart, 'dd/MM')} – {format(weekEnd, 'dd/MM/yyyy')} ·{' '}
                         <span className="font-semibold text-primary">{uniqueEmployeesSubmitted}</span> עובדים הגישו זמינות
                     </p>
                 </div>
-                <div className="flex gap-2 items-center">
+                <div className="flex gap-2 items-center flex-wrap">
+                    <Button variant="outline" size="sm" onClick={() => setSelectedDepartment(null)}>
+                        חזור לבחירה
+                    </Button>
                     <Button variant="outline" onClick={() => setWeekOffset(w => w - 1)}>
                         <ChevronRight className="w-4 h-4" />
                     </Button>
