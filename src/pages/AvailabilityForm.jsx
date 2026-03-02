@@ -10,9 +10,9 @@ import { format, addDays, startOfWeek, endOfWeek, eachDayOfInterval } from 'date
 import { he } from 'date-fns/locale';
 import { CheckCircle2, Loader2, CalendarDays, User } from 'lucide-react';
 
-const DEFAULT_POSITIONS = [
-    'מלצר', 'ברמן', 'ראנר', 'מארח/ת', 'טבח', 'מנהל משמרת',
-    'קופה + אריזות', 'צאקר', 'גריל', 'פס בטטה', 'מקשר', 'שוטף כלים', 'מתלמד מטבח'
+const DEFAULT_DEPARTMENTS = [
+    { key: 'floor', label: 'פלור', default_position: 'מלצר' },
+    { key: 'kitchen', label: 'מטבח', default_position: 'טבח' }
 ];
 
 const DEFAULT_AVAILABILITY_TYPES = {
@@ -32,144 +32,147 @@ const nextWeekStart = startOfWeek(addDays(new Date(), 7), { weekStartsOn: 0 });
 const nextWeekEnd = endOfWeek(nextWeekStart, { weekStartsOn: 0 });
 const weekDays = eachDayOfInterval({ start: nextWeekStart, end: nextWeekEnd });
 
-const initDayData = () => {
+const initDayData = (defaultDaysUnavailable = []) => {
     const init = {};
     weekDays.forEach(day => {
+        const dayName = format(day, 'EEEE');
+        const isDefaultUnavailable = defaultDaysUnavailable.includes(dayName);
         init[format(day, 'yyyy-MM-dd')] = {
-            availability_type: 'available',
+            availability_type: isDefaultUnavailable ? 'unavailable' : 'available',
             shift_preference: 'both',
             reason: '',
-            positions: [],
+            department: '',
         };
     });
     return init;
 };
 
 export default function AvailabilityForm() {
-     const [selectedEmployee, setSelectedEmployee] = useState(null);
-     const [employeeEmail, setEmployeeEmail] = useState('');
-     const [accessCode, setAccessCode] = useState('');
-     const [useCodeAuth, setUseCodeAuth] = useState(true);
-     const [allEmployees, setAllEmployees] = useState([]);
-     const [settings, setSettings] = useState(null);
-     const [loading, setLoading] = useState(true);
-     const [error, setError] = useState(null);
-     const [saving, setSaving] = useState(false);
-     const [submitted, setSubmitted] = useState(false);
-     const [existingAvailabilities, setExistingAvailabilities] = useState([]);
-     const [dayData, setDayData] = useState(initDayData);
-     
-     const POSITIONS = settings?.positions || DEFAULT_POSITIONS;
-     const AVAILABILITY_TYPES = settings ? Object.fromEntries(settings.availability_types.map(t => [t.key, { label: t.label, color: t.color }])) : DEFAULT_AVAILABILITY_TYPES;
-     const SHIFT_OPTIONS = settings?.shift_options || DEFAULT_SHIFT_OPTIONS;
+    const [selectedEmployee, setSelectedEmployee] = useState(null);
+    const [employeeEmail, setEmployeeEmail] = useState('');
+    const [accessCode, setAccessCode] = useState('');
+    const [useCodeAuth, setUseCodeAuth] = useState(true);
+    const [allEmployees, setAllEmployees] = useState([]);
+    const [settings, setSettings] = useState(null);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
+    const [saving, setSaving] = useState(false);
+    const [submitted, setSubmitted] = useState(false);
+    const [existingAvailabilities, setExistingAvailabilities] = useState([]);
+    const [dayData, setDayData] = useState(initDayData());
+    
+    const DEPARTMENTS = settings?.departments || DEFAULT_DEPARTMENTS;
+    const AVAILABILITY_TYPES = settings ? Object.fromEntries(settings.availability_types.map(t => [t.key, { label: t.label, color: t.color }])) : DEFAULT_AVAILABILITY_TYPES;
+    const SHIFT_OPTIONS = settings?.shift_options || DEFAULT_SHIFT_OPTIONS;
 
-     useEffect(() => {
-         loadData();
-     }, []);
+    useEffect(() => {
+        loadData();
+    }, []);
 
-     const loadData = async () => {
-         setLoading(true);
-         try {
-             await Promise.all([loadEmployees(), loadSettings()]);
-         } catch (e) {
-             console.error(e);
-         }
-         setLoading(false);
-     };
+    const loadData = async () => {
+        setLoading(true);
+        try {
+            await Promise.all([loadEmployees(), loadSettings()]);
+        } catch (e) {
+            console.error(e);
+        }
+        setLoading(false);
+    };
 
-     const loadSettings = async () => {
-         try {
-             const existingSettings = await base44.entities.AvailabilityFormSettings.list();
-             if (existingSettings.length > 0) {
-                 setSettings(existingSettings[0]);
-             } else {
-                 const defaultSettings = {
-                     positions: DEFAULT_POSITIONS,
-                     availability_types: Object.values(DEFAULT_AVAILABILITY_TYPES).map((v, i) => ({
-                         key: Object.keys(DEFAULT_AVAILABILITY_TYPES)[i],
-                         label: v.label,
-                         color: v.color
-                     })),
-                     shift_options: DEFAULT_SHIFT_OPTIONS,
-                     default_days_unavailable: [],
-                     week_starts_offset: 7,
-                 };
-                 const created = await base44.entities.AvailabilityFormSettings.create(defaultSettings);
-                 setSettings(created);
-             }
-         } catch (e) {
-             console.error('Error loading settings:', e);
-             setSettings({
-                 positions: DEFAULT_POSITIONS,
-                 availability_types: Object.values(DEFAULT_AVAILABILITY_TYPES).map((v, i) => ({
-                     key: Object.keys(DEFAULT_AVAILABILITY_TYPES)[i],
-                     label: v.label,
-                     color: v.color
-                 })),
-                 shift_options: DEFAULT_SHIFT_OPTIONS,
-                 default_days_unavailable: [],
-                 week_starts_offset: 7,
-             });
-         }
-     };
+    const loadSettings = async () => {
+        try {
+            const existingSettings = await base44.entities.AvailabilityFormSettings.list();
+            if (existingSettings.length > 0) {
+                setSettings(existingSettings[0]);
+                setDayData(initDayData(existingSettings[0].default_days_unavailable || []));
+            } else {
+                const defaultSettings = {
+                    departments: DEFAULT_DEPARTMENTS,
+                    availability_types: Object.values(DEFAULT_AVAILABILITY_TYPES).map((v, i) => ({
+                        key: Object.keys(DEFAULT_AVAILABILITY_TYPES)[i],
+                        label: v.label,
+                        color: v.color
+                    })),
+                    shift_options: DEFAULT_SHIFT_OPTIONS,
+                    default_days_unavailable: [],
+                    week_starts_offset: 7,
+                };
+                const created = await base44.entities.AvailabilityFormSettings.create(defaultSettings);
+                setSettings(created);
+            }
+        } catch (e) {
+            console.error('Error loading settings:', e);
+            setSettings({
+                departments: DEFAULT_DEPARTMENTS,
+                availability_types: Object.values(DEFAULT_AVAILABILITY_TYPES).map((v, i) => ({
+                    key: Object.keys(DEFAULT_AVAILABILITY_TYPES)[i],
+                    label: v.label,
+                    color: v.color
+                })),
+                shift_options: DEFAULT_SHIFT_OPTIONS,
+                default_days_unavailable: [],
+                week_starts_offset: 7,
+            });
+        }
+    };
 
-     const loadEmployees = async () => {
-         try {
-             const emps = await base44.entities.Employee.filter({ status: 'active' });
-             setAllEmployees(emps);
-         } catch (e) {
-             console.error(e);
-             setError('שגיאה בטעינת רשימת העובדים');
-         }
-     };
+    const loadEmployees = async () => {
+        try {
+            const emps = await base44.entities.Employee.filter({ status: 'active' });
+            setAllEmployees(emps);
+        } catch (e) {
+            console.error(e);
+            setError('שגיאה בטעינת רשימת העובדים');
+        }
+    };
 
-     const loadCurrentEmployee = async () => {
-         if (!employeeEmail) {
-             setError('בחר עובד מהרשימה');
-             return;
-         }
-         
-         if (useCodeAuth && !accessCode) {
-             setError('הכנס את קוד הגישה שלך');
-             return;
-         }
+    const loadCurrentEmployee = async () => {
+        if (!employeeEmail) {
+            setError('בחר עובד מהרשימה');
+            return;
+        }
+        
+        if (useCodeAuth && !accessCode) {
+            setError('הכנס את קוד הגישה שלך');
+            return;
+        }
 
-         setLoading(true);
-         try {
-             const emp = allEmployees.find(e => e.email && e.email.toLowerCase() === employeeEmail.toLowerCase());
-             if (!emp) {
-                 setError('לא נמצא עובד עם מייל זה.');
-                 setLoading(false);
-                 return;
-             }
-             
-             if (useCodeAuth) {
-                 if (emp.access_code !== accessCode) {
-                     setError('קוד הגישה אינו נכון. בדוק את ההקלדה.');
-                     setAccessCode('');
-                     setLoading(false);
-                     return;
-                 }
-             } else {
-                 if (emp.access_code) {
-                     setError('עובד זה דורש קוד גישה. בחר בהתחברות באמצעות קוד.');
-                     setLoading(false);
-                     return;
-                 }
-             }
-             
-             setSelectedEmployee(emp);
+        setLoading(true);
+        try {
+            const emp = allEmployees.find(e => e.email && e.email.toLowerCase() === employeeEmail.toLowerCase());
+            if (!emp) {
+                setError('לא נמצא עובד עם מייל זה.');
+                setLoading(false);
+                return;
+            }
+            
+            if (useCodeAuth) {
+                if (emp.access_code !== accessCode) {
+                    setError('קוד הגישה אינו נכון. בדוק את ההקלדה.');
+                    setAccessCode('');
+                    setLoading(false);
+                    return;
+                }
+            } else {
+                if (emp.access_code) {
+                    setError('עובד זה דורש קוד גישה. בחר בהתחברות באמצעות קוד.');
+                    setLoading(false);
+                    return;
+                }
+            }
+            
+            setSelectedEmployee(emp);
 
             const existing = await base44.entities.EmployeeAvailability.filter({ employee_id: emp.id });
             setExistingAvailabilities(existing);
-            const newDayData = initDayData();
+            const newDayData = initDayData(settings?.default_days_unavailable || []);
             existing.forEach(a => {
                 if (newDayData[a.date]) {
                     newDayData[a.date] = {
                         availability_type: a.availability_type || 'available',
                         shift_preference: a.shift_preference || 'both',
                         reason: a.reason || '',
-                        positions: a.positions || [],
+                        department: a.department || '',
                     };
                 }
             });
@@ -188,12 +191,6 @@ export default function AvailabilityForm() {
         }));
     };
 
-    const togglePosition = (dateStr, pos) => {
-        const curr = dayData[dateStr]?.positions || [];
-        const updated = curr.includes(pos) ? curr.filter(p => p !== pos) : [...curr, pos];
-        updateDay(dateStr, 'positions', updated);
-    };
-
     const handleSubmit = async () => {
         if (!selectedEmployee) return;
         setSaving(true);
@@ -205,9 +202,9 @@ export default function AvailabilityForm() {
                     employee_name: selectedEmployee.full_name,
                     date: dateStr,
                     availability_type: data.availability_type,
-                    shift_preference: data.shift_preference,
+                    shift_preference: data.availability_type === 'unavailable' ? 'both' : data.shift_preference,
                     reason: data.reason,
-                    positions: data.positions,
+                    department: data.department,
                     available_from: data.availability_type === 'partial' ? data.available_from || '' : '',
                     available_until: data.availability_type === 'partial' ? data.available_until || '' : '',
                 };
@@ -231,7 +228,7 @@ export default function AvailabilityForm() {
         setEmployeeEmail('');
         setAccessCode('');
         setUseCodeAuth(true);
-        setDayData(initDayData());
+        setDayData(initDayData(settings?.default_days_unavailable || []));
         setExistingAvailabilities([]);
     };
 
@@ -355,18 +352,15 @@ export default function AvailabilityForm() {
     // Fill availability
     return (
         <div className="p-4 sm:p-8 max-w-4xl mx-auto" dir="rtl">
-            <div className="mb-6 flex items-center justify-between flex-wrap gap-3">
-                <div>
-                    <h1 className="text-3xl font-bold flex items-center gap-2">
-                        <CalendarDays className="w-8 h-8 text-primary" />
-                        הגשת זמינות לסידור
-                    </h1>
-                    <p className="text-gray-500 mt-1">
-                        שלום <strong>{selectedEmployee.full_name}</strong>! שבוע{' '}
-                        <strong>{format(nextWeekStart, 'dd/MM')} – {format(nextWeekEnd, 'dd/MM/yyyy')}</strong>
-                    </p>
-                </div>
-
+            <div className="mb-6">
+                <h1 className="text-3xl font-bold flex items-center gap-2">
+                    <CalendarDays className="w-8 h-8 text-primary" />
+                    הגשת זמינות לסידור
+                </h1>
+                <p className="text-gray-500 mt-1">
+                    שלום <strong>{selectedEmployee.full_name}</strong>! שבוע{' '}
+                    <strong>{format(nextWeekStart, 'dd/MM')} – {format(nextWeekEnd, 'dd/MM/yyyy')}</strong>
+                </p>
             </div>
 
             <div className="space-y-4">
@@ -411,6 +405,25 @@ export default function AvailabilityForm() {
                                 {data.availability_type !== 'unavailable' && (
                                     <>
                                         <div>
+                                            <Label className="mb-2 block">קטגוריה (פלור / מטבח)</Label>
+                                            <div className="flex gap-2">
+                                                {DEPARTMENTS.map(dept => (
+                                                    <button
+                                                        key={dept.key}
+                                                        onClick={() => updateDay(dateStr, 'department', dept.key)}
+                                                        className={`px-4 py-2 rounded-lg border font-medium transition-all ${
+                                                            data.department === dept.key
+                                                                ? 'bg-primary text-primary-foreground border-primary'
+                                                                : 'bg-white border-gray-300 text-gray-700 hover:border-gray-400'
+                                                        }`}
+                                                    >
+                                                        {dept.label}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+
+                                        <div>
                                             <Label className="mb-2 block">העדפת משמרת</Label>
                                             <div className="flex gap-2 flex-wrap">
                                                 {SHIFT_OPTIONS.map(s => (
@@ -428,44 +441,30 @@ export default function AvailabilityForm() {
                                                 ))}
                                             </div>
                                         </div>
+                                    </>
+                                )}
 
-                                        <div>
-                                            <Label className="mb-2 block">תפקידים שאני יכול/ה למלא (אופציונלי)</Label>
-                                            <div className="flex flex-wrap gap-2">
-                                                {POSITIONS.map(pos => (
-                                                    <button
-                                                        key={pos}
-                                                        onClick={() => togglePosition(dateStr, pos)}
-                                                        className={`px-3 py-1 rounded-full border text-sm transition-all ${
-                                                            data.positions.includes(pos)
-                                                                ? 'bg-blue-600 text-white border-blue-600'
-                                                                : 'bg-white border-gray-300 text-gray-600 hover:border-blue-400'
-                                                        }`}
-                                                    >
-                                                        {pos}
-                                                    </button>
-                                                ))}
-                                            </div>
-                                        </div>
-                                        </>
-                                        )}
+                                <div>
+                                    <Label className="mb-2 block">הערה / סיבה (אופציונלי)</Label>
+                                    <Textarea
+                                        placeholder="לדוגמה: יש לי טיסה, מועדף לסיים עד 22:00..."
+                                        value={data.reason}
+                                        onChange={e => updateDay(dateStr, 'reason', e.target.value)}
+                                        className="h-20"
+                                    />
+                                </div>
 
-                                        <div>
-                                            <Label className="mb-2 block">הערה / סיבה (אופציונלי)</Label>
-                                            <Textarea
-                                                placeholder="לדוגמה: יש לי טיסה, מועדף לסיים עד 22:00..."
-                                                value={data.reason}
-                                                onChange={e => updateDay(dateStr, 'reason', e.target.value)}
-                                                className="h-20"
-                                            />
-                                        </div>
-
-                                        <button
-                                            onClick={() => updateDay(dateStr, 'availability_type', 'available') || updateDay(dateStr, 'shift_preference', 'both') || updateDay(dateStr, 'reason', '') || updateDay(dateStr, 'positions', [])}
-                                            className="text-sm text-red-600 hover:text-red-800 font-semibold mt-2"
-                                        >
-                                            נקה יום זה
-                                        </button>
+                                <button
+                                    onClick={() => {
+                                        updateDay(dateStr, 'availability_type', 'available');
+                                        updateDay(dateStr, 'department', '');
+                                        updateDay(dateStr, 'shift_preference', 'both');
+                                        updateDay(dateStr, 'reason', '');
+                                    }}
+                                    className="text-sm text-red-600 hover:text-red-800 font-semibold"
+                                >
+                                    נקה יום זה
+                                </button>
                             </CardContent>
                         </Card>
                     );
