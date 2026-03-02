@@ -13,7 +13,7 @@ import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { format, parseISO } from 'date-fns';
 import { he } from 'date-fns/locale';
-import { Loader2, CalendarIcon, Save, Printer, UserPlus, Trash2 } from 'lucide-react';
+import { Loader2, CalendarIcon, Save, Printer, UserPlus, Trash2, Lock, Unlock } from 'lucide-react';
 import { toast } from 'sonner';
 
 const MINIMUM_WAGE = 32; // שכר מינימום לשעה
