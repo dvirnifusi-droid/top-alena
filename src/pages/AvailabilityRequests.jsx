@@ -64,7 +64,7 @@ function AvailabilityRequestsInner() {
     };
 
     const getAvailForDay = (dateStr) => {
-        return availabilities.filter(a => a.date === dateStr);
+        return filteredAvails.filter(a => a.date === dateStr);
     };
 
     const getDepartmentLabel = (dept) => {
