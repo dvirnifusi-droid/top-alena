@@ -127,7 +127,6 @@ function EmployeeReportsInner() {
         const tipEntries = allTipEntries.filter(e => inPeriod(e.date));
 
         // משמרות ShiftTracking לפי שם עובד
-        const selectedEmp = employees.find(e => e.id === selectedEmployeeId);
         const empShifts = shifts.filter(s =>
             s.employee_name && selectedEmp?.full_name &&
             s.employee_name === selectedEmp.full_name &&
