@@ -223,7 +223,7 @@ export default function ShiftClockWidget() {
                     ...updatedStaff[idx],
                     start_time: format(new Date(activeShift.shift_start), 'HH:mm'),
                     end_time: format(new Date(now), 'HH:mm'),
-                    total_break_minutes: activeShift.total_break_minutes || 0,
+                    total_break_minutes: finalBreakMinutes,
                     had_meal: activeShift.had_meal || false,
                     meal_details: activeShift.meal_details || '',
                     breaks: activeShift.breaks || [],
