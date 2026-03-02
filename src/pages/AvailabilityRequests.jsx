@@ -158,6 +158,14 @@ function AvailabilityRequestsInner() {
         setAutoAssigning(false);
     };
 
+    const getFilteredAvailabilities = () => {
+        if (!selectedDepartment) return availabilities;
+        return availabilities.filter(a => {
+            const emp = employees.find(e => e.id === a.employee_id);
+            return emp?.department === selectedDepartment;
+        });
+    };
+
     if (loading) return (
         <div className="flex items-center justify-center h-64">
             <Loader2 className="w-10 h-10 animate-spin" />
@@ -210,14 +218,6 @@ function AvailabilityRequestsInner() {
             grouped[dept].push(a);
         });
         return grouped;
-    };
-
-    const getFilteredAvailabilities = () => {
-        if (!selectedDepartment) return availabilities;
-        return availabilities.filter(a => {
-            const emp = employees.find(e => e.id === a.employee_id);
-            return emp?.department === selectedDepartment;
-        });
     };
 
     return (
