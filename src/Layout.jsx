@@ -48,6 +48,7 @@ const adminLinks = [
   { title: "רשימת עובדים", url: createPageUrl("Employees"), icon: Users, isSubItem: true },
   { title: "ניהול תפקידים", url: createPageUrl("PositionsManagement"), icon: Briefcase, isSubItem: true },
   { title: "סידור עבודה", url: createPageUrl("WorkScheduling"), icon: Calendar, isSubItem: true },
+  { title: "בקשות זמינות", url: createPageUrl("AvailabilityRequests"), icon: Calendar, isSubItem: true },
   { title: "משוב עובדים", url: createPageUrl("EmployeeFeedback"), icon: MessageSquare, isSubItem: true },
 
   // הכשרות ואיכות
