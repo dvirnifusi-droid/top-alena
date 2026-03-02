@@ -291,7 +291,14 @@ export default function AvailabilityForm() {
                 <h2 className="text-2xl font-bold mb-2">הבקשה נשלחה בהצלחה!</h2>
                 <p className="text-gray-500 mb-2">שלום {selectedEmployee?.full_name}!</p>
                 <p className="text-gray-500 mb-6">המנהל יראה את הזמינות שלך ויוכל לשבץ אותך בסידור.</p>
-                <Button onClick={handleReset}>שלח עובד אחר / עדכן שוב</Button>
+                <div className="flex gap-2 flex-col">
+                    <Button onClick={() => setSubmitted(false)} className="bg-blue-600 hover:bg-blue-700">
+                        עדכן שוב
+                    </Button>
+                    <Button onClick={handleReset} variant="outline">
+                        עובד אחר
+                    </Button>
+                </div>
             </Card>
         </div>
     );
