@@ -147,9 +147,17 @@ export default function AvailabilityForm() {
         setExistingAvailabilities([]);
     };
 
-    if (loadingEmployees) return (
+    if (loading) return (
         <div className="flex items-center justify-center h-screen">
             <Loader2 className="w-10 h-10 animate-spin text-primary" />
+        </div>
+    );
+
+    if (error) return (
+        <div className="flex items-center justify-center h-screen p-8" dir="rtl">
+            <Card className="max-w-md w-full text-center p-10">
+                <p className="text-xl text-red-500">{error}</p>
+            </Card>
         </div>
     );
 
