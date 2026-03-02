@@ -187,10 +187,7 @@ export default function AvailabilityForm() {
                         <strong>{format(nextWeekStart, 'dd/MM')} – {format(nextWeekEnd, 'dd/MM/yyyy')}</strong>
                     </p>
                 </div>
-                <Button variant="outline" size="sm" onClick={handleReset}>
-                    <User className="w-4 h-4 ml-1" />
-                    החלף עובד
-                </Button>
+
             </div>
 
             <div className="space-y-4">
