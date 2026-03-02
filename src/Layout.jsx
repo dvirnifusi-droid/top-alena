@@ -83,6 +83,7 @@ const employeeLinks = [
   { title: "הביצועים שלי", url: createPageUrl("MyPerformance"), icon: BarChart3, isSubItem: true },
   { title: "ניהול טיפים", url: createPageUrl("Tips"), icon: Banknote, isSubItem: true },
   { title: "סידור עבודה", url: createPageUrl("WorkScheduling"), icon: Calendar, isSubItem: true },
+  { title: "הגשת זמינות", url: createPageUrl("AvailabilityForm"), icon: Calendar, isSubItem: true },
 
   // פיתוח מקצועי
   { title: "פיתוח מקצועי", url: "#", icon: GraduationCap, isCategory: true },
