@@ -261,6 +261,9 @@ export default function ShiftClockWidget() {
 
         setFeedbackRatings({ atmosphere: 0, sales: 0, effort: 0 });
         setFeedbackNotes('');
+        setEditBreakMinutes('');
+        setBreakEditUnlocked(false);
+        setEditBreakByManager(false);
         setActiveShift(null);
         setActionLoading(false);
     };
