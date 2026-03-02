@@ -235,6 +235,23 @@ export default function ShiftClockWidget() {
             notes: `כניסה: ${format(new Date(activeShift.shift_start), 'HH:mm')} | יציאה: ${format(new Date(now), 'HH:mm')} | הפסקות: ${activeShift.total_break_minutes || 0} דק'`,
         });
 
+        // 5. שמירת משוב עובד
+        if (feedbackRatings.atmosphere > 0 || feedbackRatings.sales > 0 || feedbackRatings.effort > 0) {
+            await base44.entities.Incident.create({
+                incident_number: `FEEDBACK-${Date.now()}`,
+                title: `משוב עובד: ${user.full_name} - ${today}`,
+                description: `🏢 **אווירה:** ${feedbackRatings.atmosphere}/5\n💰 **תחושת מכירה:** ${feedbackRatings.sales}/5\n💪 **מאמץ אישי:** ${feedbackRatings.effort}/5${feedbackNotes ? `\n\n📝 **הערות:**\n${feedbackNotes}` : ''}`,
+                category: 'staff',
+                severity: 'low',
+                status: 'closed',
+                visibility_level: 'managers_only',
+                reported_by: user.full_name,
+                incident_date: now,
+            });
+        }
+
+        setFeedbackRatings({ atmosphere: 0, sales: 0, effort: 0 });
+        setFeedbackNotes('');
         setActiveShift(null);
         setActionLoading(false);
     };
