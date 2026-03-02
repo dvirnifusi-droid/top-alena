@@ -180,7 +180,7 @@ export default function ChecklistExecutionComponent({ checklist, user, onComplet
                     task: item.task,
                     completed: itemResult.checked || false,
                     notes: itemResult.notes || '',
-                    photo_url: itemResult.photo_url || null,
+                    photo_urls: itemResult.photo_urls || [],
                     performed_by: itemResult.performed_by || '', // שם המבצע של המשימה הספציפית
                     timestamp: new Date().toISOString() // Timestamp for when this item result was recorded/archived
                 };
