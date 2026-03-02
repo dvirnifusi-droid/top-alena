@@ -161,20 +161,62 @@ export default function AvailabilityForm() {
     };
 
     if (loading) return (
-        <div className="flex items-center justify-center h-screen">
-            <Loader2 className="w-10 h-10 animate-spin text-primary" />
-        </div>
-    );
+         <div className="flex items-center justify-center h-screen">
+             <Loader2 className="w-10 h-10 animate-spin text-primary" />
+         </div>
+     );
 
-    if (error) return (
-        <div className="flex items-center justify-center h-screen p-8" dir="rtl">
-            <Card className="max-w-md w-full text-center p-10">
-                <p className="text-xl text-red-500">{error}</p>
-            </Card>
-        </div>
-    );
+     if (!selectedEmployee) return (
+         <div className="p-4 sm:p-8 max-w-2xl mx-auto" dir="rtl">
+             <Card className="p-8">
+                 <CardHeader>
+                     <CardTitle className="flex items-center gap-2 text-2xl">
+                         <CalendarDays className="w-8 h-8 text-primary" />
+                         הגשת זמינות לסידור
+                     </CardTitle>
+                 </CardHeader>
+                 <CardContent className="space-y-6">
+                     <p className="text-gray-600">
+                         בחר את שמך מהרשימה להמשך להגשת הזמינות שלך:
+                     </p>
 
-    if (submitted) return (
+                     {error && (
+                         <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-red-600">
+                             {error}
+                         </div>
+                     )}
+
+                     <div>
+                         <Label className="mb-3 block font-semibold">בחר עובד:</Label>
+                         <Select value={employeeEmail} onValueChange={setEmployeeEmail}>
+                             <SelectTrigger className="h-12 text-base">
+                                 <SelectValue placeholder="בחר את שמך..." />
+                             </SelectTrigger>
+                             <SelectContent>
+                                 {allEmployees.map(emp => (
+                                     <SelectItem key={emp.id} value={emp.email}>
+                                         {emp.full_name}
+                                     </SelectItem>
+                                 ))}
+                             </SelectContent>
+                         </Select>
+                     </div>
+
+                     <Button 
+                         onClick={loadCurrentEmployee} 
+                         disabled={!employeeEmail || loading}
+                         size="lg"
+                         className="w-full h-12 text-base"
+                     >
+                         {loading ? <Loader2 className="w-5 h-5 animate-spin ml-2" /> : <User className="w-5 h-5 ml-2" />}
+                         המשך
+                     </Button>
+                 </CardContent>
+             </Card>
+         </div>
+     );
+
+     if (submitted) return (
         <div className="flex items-center justify-center h-screen p-8" dir="rtl">
             <Card className="max-w-md w-full text-center p-10">
                 <CheckCircle2 className="w-20 h-20 text-green-500 mx-auto mb-4" />
