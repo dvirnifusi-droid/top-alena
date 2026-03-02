@@ -390,17 +390,70 @@ export default function ShiftClockWidget() {
 
                     <div className="space-y-5">
                         {/* מידע אוטומטי מהמשמרת */}
-                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm space-y-1">
-                            <p className="font-semibold text-blue-800 mb-2">📋 נתוני המשמרת שלך:</p>
+                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm space-y-2">
+                            <p className="font-semibold text-blue-800 mb-1">📋 נתוני המשמרת שלך:</p>
                             {activeShift?.had_meal ? (
                                 <p className="text-blue-700">🍽️ אכלת: {activeShift.meal_details || 'כן'}</p>
                             ) : (
                                 <p className="text-orange-600">🍽️ לא נרשמה ארוחה</p>
                             )}
-                            {activeShift?.total_break_minutes > 0 ? (
-                                <p className="text-blue-700">☕ הפסקות: {activeShift.total_break_minutes} דקות</p>
-                            ) : (
-                                <p className="text-orange-600">☕ לא נרשמה הפסקה</p>
+                            <div className="flex items-center justify-between flex-wrap gap-2">
+                                {activeShift?.total_break_minutes > 0 ? (
+                                    <p className="text-blue-700">☕ הפסקות: {editBreakMinutes !== '' ? editBreakMinutes : activeShift.total_break_minutes} דקות</p>
+                                ) : (
+                                    <p className="text-orange-600">☕ לא נרשמה הפסקה</p>
+                                )}
+                                {!breakEditUnlocked ? (
+                                    <button
+                                        onClick={() => setEditBreakByManager(true)}
+                                        className="text-xs text-blue-600 underline hover:text-blue-800"
+                                    >
+                                        ✏️ עריכת מנהל
+                                    </button>
+                                ) : (
+                                    <div className="flex items-center gap-2">
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            value={editBreakMinutes}
+                                            onChange={e => setEditBreakMinutes(e.target.value)}
+                                            placeholder={String(activeShift?.total_break_minutes || 0)}
+                                            className="w-16 border rounded px-2 py-1 text-sm text-center"
+                                        />
+                                        <span className="text-xs text-gray-500">דק'</span>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* דיאלוג קוד מנהל */}
+                            {editBreakByManager && !breakEditUnlocked && (
+                                <div className="mt-2 bg-white border border-gray-300 rounded-lg p-3 space-y-2">
+                                    <p className="text-xs font-medium text-gray-700">🔒 הכנס קוד מנהל לעריכה:</p>
+                                    <div className="flex gap-2">
+                                        <input
+                                            type="password"
+                                            value={managerPassword}
+                                            onChange={e => setManagerPassword(e.target.value)}
+                                            placeholder="קוד מנהל"
+                                            className="flex-1 border rounded px-2 py-1 text-sm text-center"
+                                        />
+                                        <button
+                                            onClick={() => {
+                                                if (managerPassword === MANAGER_CODE) {
+                                                    setBreakEditUnlocked(true);
+                                                    setEditBreakMinutes(String(activeShift?.total_break_minutes || 0));
+                                                    setEditBreakByManager(false);
+                                                    setManagerPassword('');
+                                                } else {
+                                                    alert('קוד שגוי');
+                                                    setManagerPassword('');
+                                                }
+                                            }}
+                                            className="bg-blue-600 text-white text-xs px-3 py-1 rounded"
+                                        >אשר</button>
+                                        <button onClick={() => { setEditBreakByManager(false); setManagerPassword(''); }} className="text-xs text-gray-400">ביטול</button>
+                                    </div>
+                                </div>
                             )}
                         </div>
 
