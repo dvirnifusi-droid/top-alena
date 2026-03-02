@@ -196,12 +196,16 @@ export default function ShiftClockWidget() {
         const totalHours = (new Date(now).getTime() - startMs) / 3600000;
         const effectiveHours = Math.max(0, totalHours - (activeShift.total_break_minutes || 0) / 60);
 
+        const finalBreakMinutes = breakEditUnlocked && editBreakMinutes !== '' ? parseInt(editBreakMinutes) : (activeShift.total_break_minutes || 0);
+        const finalEffectiveHours = Math.max(0, totalHours - finalBreakMinutes / 60);
+
         // 1. עדכון ShiftTracking
         await base44.entities.ShiftTracking.update(activeShift.id, {
             shift_end: now,
             status: 'completed',
             total_hours: Math.round(totalHours * 100) / 100,
-            effective_hours: Math.round(effectiveHours * 100) / 100,
+            effective_hours: Math.round(finalEffectiveHours * 100) / 100,
+            total_break_minutes: finalBreakMinutes,
         });
 
         // 2. מצא את רשומת העובד לפי אימייל (כמו WorkScheduling)
