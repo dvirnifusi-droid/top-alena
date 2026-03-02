@@ -46,38 +46,37 @@ const initDayData = () => {
 };
 
 export default function AvailabilityForm() {
-    const [employees, setEmployees] = useState([]);
     const [selectedEmployee, setSelectedEmployee] = useState(null);
-    const [loadingEmployees, setLoadingEmployees] = useState(true);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
     const [saving, setSaving] = useState(false);
     const [submitted, setSubmitted] = useState(false);
     const [existingAvailabilities, setExistingAvailabilities] = useState([]);
     const [dayData, setDayData] = useState(initDayData);
 
     useEffect(() => {
-        loadEmployees();
+        loadCurrentEmployee();
     }, []);
 
-    const loadEmployees = async () => {
-        setLoadingEmployees(true);
+    const loadCurrentEmployee = async () => {
+        setLoading(true);
         try {
+            const user = await base44.auth.me();
+            if (!user) {
+                base44.auth.redirectToLogin();
+                return;
+            }
             const emps = await base44.entities.Employee.filter({ status: 'active' });
-            setEmployees(emps.sort((a, b) => a.full_name.localeCompare(b.full_name, 'he')));
-        } catch (e) {
-            console.error(e);
-        }
-        setLoadingEmployees(false);
-    };
+            const emp = emps.find(e => e.email && user.email && e.email.toLowerCase() === user.email.toLowerCase());
+            if (!emp) {
+                setError('לא נמצא פרופיל עובד עבור המשתמש שלך. פנה למנהל.');
+                setLoading(false);
+                return;
+            }
+            setSelectedEmployee(emp);
 
-    const handleSelectEmployee = async (empId) => {
-        const emp = employees.find(e => e.id === empId);
-        setSelectedEmployee(emp);
-        // Load existing availabilities for this employee for next week
-        try {
-            const existing = await base44.entities.EmployeeAvailability.filter({ employee_id: empId });
+            const existing = await base44.entities.EmployeeAvailability.filter({ employee_id: emp.id });
             setExistingAvailabilities(existing);
-
-            // Pre-fill form with existing data if available
             const newDayData = initDayData();
             existing.forEach(a => {
                 if (newDayData[a.date]) {
@@ -92,7 +91,9 @@ export default function AvailabilityForm() {
             setDayData(newDayData);
         } catch (e) {
             console.error(e);
+            setError('שגיאה בטעינת הנתונים');
         }
+        setLoading(false);
     };
 
     const updateDay = (dateStr, field, value) => {
