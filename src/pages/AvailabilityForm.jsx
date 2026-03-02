@@ -192,7 +192,7 @@ export default function AvailabilityForm() {
                  </CardHeader>
                  <CardContent className="space-y-6">
                      <p className="text-gray-600">
-                         בחר את שמך מהרשימה להמשך להגשת הזמינות שלך:
+                         בחר את שמך והכנס את קוד הגישה שלך:
                      </p>
 
                      {error && (
@@ -202,7 +202,7 @@ export default function AvailabilityForm() {
                      )}
 
                      <div>
-                         <Label className="mb-3 block font-semibold">בחר עובד:</Label>
+                         <Label className="mb-3 block font-semibold">בחר את שמך:</Label>
                          <Select value={employeeEmail} onValueChange={setEmployeeEmail}>
                              <SelectTrigger className="h-12 text-base">
                                  <SelectValue placeholder="בחר את שמך..." />
@@ -217,14 +217,26 @@ export default function AvailabilityForm() {
                          </Select>
                      </div>
 
+                     <div>
+                         <Label className="mb-3 block font-semibold">קוד גישה:</Label>
+                         <input
+                             type="password"
+                             placeholder="הכנס את קוד הגישה שלך"
+                             value={accessCode}
+                             onChange={(e) => setAccessCode(e.target.value)}
+                             onKeyPress={(e) => e.key === 'Enter' && loadCurrentEmployee()}
+                             className="w-full px-4 py-3 border border-gray-300 rounded-lg text-base text-center tracking-widest"
+                         />
+                     </div>
+
                      <Button 
                          onClick={loadCurrentEmployee} 
-                         disabled={!employeeEmail || loading}
+                         disabled={!employeeEmail || !accessCode || loading}
                          size="lg"
                          className="w-full h-12 text-base"
                      >
                          {loading ? <Loader2 className="w-5 h-5 animate-spin ml-2" /> : <User className="w-5 h-5 ml-2" />}
-                         המשך
+                         התחבר
                      </Button>
                  </CardContent>
              </Card>
