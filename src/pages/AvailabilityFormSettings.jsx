@@ -96,21 +96,30 @@ export default function AvailabilityFormSettings() {
     };
 
     const addPosition = () => {
-        if (newPosition.trim() && !settings.positions.includes(newPosition.trim())) {
-            setSettings({
-                ...settings,
-                positions: [...settings.positions, newPosition.trim()]
-            });
-            setNewPosition('');
-        }
-    };
+         const dept = settings.departments.find(d => d.key === selectedDeptKey);
+         if (newPosition.trim() && !dept.positions.includes(newPosition.trim())) {
+             setSettings({
+                 ...settings,
+                 departments: settings.departments.map(d => 
+                     d.key === selectedDeptKey 
+                         ? { ...d, positions: [...d.positions, newPosition.trim()] }
+                         : d
+                 )
+             });
+             setNewPosition('');
+         }
+     };
 
-    const removePosition = (pos) => {
-        setSettings({
-            ...settings,
-            positions: settings.positions.filter(p => p !== pos)
-        });
-    };
+     const removePosition = (pos) => {
+         setSettings({
+             ...settings,
+             departments: settings.departments.map(d => 
+                 d.key === selectedDeptKey 
+                     ? { ...d, positions: d.positions.filter(p => p !== pos) }
+                     : d
+             )
+         });
+     };
 
     const toggleDefaultDay = (day) => {
         const updated = settings.default_days_unavailable.includes(day)
