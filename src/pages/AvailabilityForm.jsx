@@ -166,11 +166,13 @@ export default function AvailabilityForm() {
              setExistingAvailabilities(existing);
              const newDayData = initDayData();
 
-             // For kitchen department, auto-set the default position for all days
+             // Auto-set default position based on department config
              const deptConfig = settings?.departments?.find(d => d.key === dept);
-             const defaultPosition = dept === 'kitchen' && deptConfig?.positions?.length > 0
-                ? [deptConfig.positions[0]]
-                : [];
+             const defaultPosition = deptConfig?.default_position
+                 ? [deptConfig.default_position]
+                 : deptConfig?.positions?.length > 0
+                     ? [deptConfig.positions[0]]
+                     : [];
 
              existing.forEach(a => {
                 if (newDayData[a.date]) {
