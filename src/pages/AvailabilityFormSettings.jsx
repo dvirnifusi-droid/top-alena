@@ -322,7 +322,7 @@ export default function AvailabilityFormSettings() {
                                     key={day}
                                     onClick={() => toggleDefaultDay(day)}
                                     className={`p-3 rounded-lg border-2 font-semibold transition-all ${
-                                        settings.default_days_unavailable.includes(day)
+                                        (settings.default_days_unavailable || []).includes(day)
                                             ? 'bg-red-100 border-red-400 text-red-800'
                                             : 'bg-white border-gray-300 text-gray-700 hover:border-gray-400'
                                     }`}
