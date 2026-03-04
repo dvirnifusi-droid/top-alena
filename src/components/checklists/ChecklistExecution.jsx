@@ -181,6 +181,7 @@ export default function ChecklistExecutionComponent({ checklist, user, onComplet
                     completed: itemResult.checked || false,
                     notes: itemResult.notes || '',
                     photo_urls: itemResult.photo_urls || [],
+                    photo_url: (itemResult.photo_urls || [])[0] || null,
                     performed_by: itemResult.performed_by || '', // שם המבצע של המשימה הספציפית
                     timestamp: new Date().toISOString() // Timestamp for when this item result was recorded/archived
                 };
