@@ -1083,19 +1083,27 @@ function TrainingInner() {
                             {isAdmin && (
                                 <div className="flex gap-2 border rounded-xl p-1 bg-white shadow-sm">
                                     <Button
-                                        variant={!showQuizManager ? 'default' : 'ghost'}
+                                        variant={!showQuizManager && !editingSimulationScript ? 'default' : 'ghost'}
                                         size="sm"
-                                        onClick={() => setShowQuizManager(false)}
+                                        onClick={() => { setShowQuizManager(false); setEditingSimulationScript(null); }}
                                     >
                                         📚 קורסים
                                     </Button>
                                     <Button
                                         variant={showQuizManager ? 'default' : 'ghost'}
                                         size="sm"
-                                        onClick={() => setShowQuizManager(true)}
+                                        onClick={() => { setShowQuizManager(true); setEditingSimulationScript(null); }}
                                         className={showQuizManager ? 'bg-blue-600 hover:bg-blue-700 text-white' : ''}
                                     >
                                         📝 מבחנים
+                                    </Button>
+                                    <Button
+                                        variant={!!editingSimulationScript ? 'default' : 'ghost'}
+                                        size="sm"
+                                        onClick={() => { setShowQuizManager(false); setEditingSimulationScript(editingSimulationScript || 'perfect_order_script'); }}
+                                        className={editingSimulationScript ? 'bg-orange-600 hover:bg-orange-700 text-white' : ''}
+                                    >
+                                        🎭 סימולציה
                                     </Button>
                                 </div>
                             )}
