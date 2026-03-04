@@ -400,15 +400,9 @@ function AvailabilityRequestsInner() {
                                         <SelectValue placeholder="בחר תפקיד" />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        {(() => {
-                                            const dept = settings?.departments?.find(d => d.key === (editData.department || selectedDepartment));
-                                            const positions = dept?.positions?.length > 0
-                                                ? dept.positions
-                                                : settings?.departments?.flatMap(d => d.positions || []);
-                                            return (positions || []).map(pos => (
-                                                <SelectItem key={pos} value={pos}>{pos}</SelectItem>
-                                            ));
-                                        })()}
+                                        {getAvailablePositions(editData).map(pos => (
+                                            <SelectItem key={pos} value={pos}>{pos}</SelectItem>
+                                        ))}
                                     </SelectContent>
                                 </Select>
                             </div>
