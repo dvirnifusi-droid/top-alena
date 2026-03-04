@@ -282,6 +282,27 @@ export default function AvailabilityForm() {
                          </Select>
                      </div>
 
+                     {DEPARTMENTS.length > 0 && (
+                         <div>
+                             <Label className="mb-3 block font-semibold">בחר חטיבה:</Label>
+                             <div className="flex gap-2">
+                                 {DEPARTMENTS.map(dept => (
+                                     <button
+                                         key={dept.key}
+                                         onClick={() => setLoginDepartment(dept.key)}
+                                         className={`flex-1 py-3 rounded-lg font-semibold text-sm transition-all border-2 ${
+                                             loginDepartment === dept.key
+                                                 ? 'bg-primary text-white border-primary'
+                                                 : 'bg-white text-gray-700 border-gray-300 hover:border-primary/50'
+                                         }`}
+                                     >
+                                         {dept.label}
+                                     </button>
+                                 ))}
+                             </div>
+                         </div>
+                     )}
+
                      <div>
                          <div className="flex gap-2 mb-3">
                              <button
