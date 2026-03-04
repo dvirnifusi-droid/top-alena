@@ -525,13 +525,15 @@ export default function ChecklistArchive() {
                                                                 )
                                                             )}
                                                             {result.photo_url && (
-                                                                <Button
-                                                                    size="sm"
-                                                                    variant="outline"
-                                                                    onClick={() => window.open(result.photo_url, '_blank')}
-                                                                >
-                                                                    צפה בתמונה
-                                                                </Button>
+                                                               <Button
+                                                                   size="sm"
+                                                                   variant="outline"
+                                                                   onClick={() => setViewingPhoto(result.photo_url)}
+                                                                   className="flex items-center gap-1"
+                                                               >
+                                                                   <Image className="w-3 h-3" />
+                                                                   צפה בתמונה
+                                                               </Button>
                                                             )}
                                                         </div>
                                                     </div>
