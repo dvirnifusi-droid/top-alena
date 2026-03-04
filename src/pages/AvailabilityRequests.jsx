@@ -396,7 +396,7 @@ function AvailabilityRequestsInner() {
                                         <SelectValue placeholder="בחר תפקיד" />
                                     </SelectTrigger>
                                     <SelectContent position="popper" side="bottom" align="start" className="z-[9999]">
-                                        {getAvailablePositions(editData).map(pos => (
+                                        {getAvailablePositions().map(pos => (
                                             <SelectItem key={pos} value={pos}>{pos}</SelectItem>
                                         ))}
                                     </SelectContent>
