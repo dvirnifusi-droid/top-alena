@@ -237,6 +237,7 @@ export default function AvailabilityForm() {
         setDayData(initDayData());
         setExistingAvailabilities([]);
         setSelectedDepartment(null);
+        setLoginDepartment(null);
     };
 
     if (loading) return (
