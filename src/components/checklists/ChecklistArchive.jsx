@@ -44,6 +44,7 @@ export default function ChecklistArchive() {
     const [editedShiftType, setEditedShiftType] = useState('');
     const [isSaving, setIsSaving] = useState(false);
     const [deletingId, setDeletingId] = useState(null);
+    const [viewingPhoto, setViewingPhoto] = useState(null);
 
     useEffect(() => {
         loadArchives();
