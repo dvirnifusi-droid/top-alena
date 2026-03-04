@@ -23,7 +23,7 @@ import QuizManager from "../components/training/QuizManager";
 
 // --- Components ---
 
-const CourseCard = ({ course, enrollment, onSelect }) => {
+const CourseCard = ({ course, enrollment, onSelect, onDelete, isAdmin }) => {
     const progress = useMemo(() => {
         if (!enrollment || !course.total_lessons) return 0;
         // Fix: Ensure completed_lessons is always an array
