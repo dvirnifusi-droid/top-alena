@@ -961,6 +961,7 @@ function TrainingInner() {
     const [showQuizManager, setShowQuizManager] = useState(false);
     const [user, setUser] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
+    const [deletingCourse, setDeletingCourse] = useState(null);
 
     const loadData = async () => {
         setIsLoading(true);
