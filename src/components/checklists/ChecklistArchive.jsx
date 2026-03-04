@@ -547,27 +547,26 @@ export default function ChecklistArchive() {
                     )}
                 </DialogContent>
             </Dialog>
+            {/* דיאלוג תמונה */}
+            <Dialog open={!!viewingPhoto} onOpenChange={() => setViewingPhoto(null)}>
+                <DialogContent className="max-w-2xl" dir="rtl">
+                    <DialogHeader>
+                        <DialogTitle>תמונת ראיה</DialogTitle>
+                    </DialogHeader>
+                    {viewingPhoto && (
+                        <div className="flex flex-col items-center gap-4">
+                            <img
+                                src={viewingPhoto}
+                                alt="תמונת ראיה"
+                                className="max-w-full max-h-[70vh] rounded-lg object-contain"
+                            />
+                            <Button variant="outline" onClick={() => window.open(viewingPhoto, '_blank')}>
+                                פתח בחלון חדש
+                            </Button>
+                        </div>
+                    )}
+                </DialogContent>
+            </Dialog>
         </div>
-
-        {/* דיאלוג תמונה */}
-        <Dialog open={!!viewingPhoto} onOpenChange={() => setViewingPhoto(null)}>
-            <DialogContent className="max-w-2xl" dir="rtl">
-                <DialogHeader>
-                    <DialogTitle>תמונת ראיה</DialogTitle>
-                </DialogHeader>
-                {viewingPhoto && (
-                    <div className="flex flex-col items-center gap-4">
-                        <img
-                            src={viewingPhoto}
-                            alt="תמונת ראיה"
-                            className="max-w-full max-h-[70vh] rounded-lg object-contain"
-                        />
-                        <Button variant="outline" onClick={() => window.open(viewingPhoto, '_blank')}>
-                            פתח בחלון חדש
-                        </Button>
-                    </div>
-                )}
-            </DialogContent>
-        </Dialog>
     );
 }
