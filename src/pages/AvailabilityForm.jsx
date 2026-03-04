@@ -56,6 +56,7 @@ export default function AvailabilityForm() {
      const [existingAvailabilities, setExistingAvailabilities] = useState([]);
      const [dayData, setDayData] = useState(initDayData);
      const [selectedDepartment, setSelectedDepartment] = useState(null);
+     const [loginDepartment, setLoginDepartment] = useState(null);
      
      const AVAILABILITY_TYPES = settings ? Object.fromEntries(settings.availability_types.map(t => [t.key, { label: t.label, color: t.color }])) : DEFAULT_AVAILABILITY_TYPES;
      const SHIFT_OPTIONS = settings?.shift_options || DEFAULT_SHIFT_OPTIONS;
