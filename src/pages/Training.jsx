@@ -1130,7 +1130,9 @@ function TrainingInner() {
                                                 key={course.id} 
                                                 course={course} 
                                                 onSelect={setSelectedCourse} 
-                                                enrollment={enrollments[course.course_code]} 
+                                                enrollment={enrollments[course.course_code]}
+                                                isAdmin={isAdmin}
+                                                onDelete={handleDeleteCourse}
                                             />
                                         ))}
                                     </div>
