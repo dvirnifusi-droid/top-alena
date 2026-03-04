@@ -347,7 +347,7 @@ export default function AvailabilityForm() {
 
                      <Button 
                          onClick={loadCurrentEmployee} 
-                         disabled={!employeeEmail || (useCodeAuth && !accessCode) || loading}
+                         disabled={!employeeEmail || (useCodeAuth && !accessCode) || loading || (DEPARTMENTS.length > 0 && !loginDepartment)}
                          size="lg"
                          className="w-full h-12 text-base"
                      >
