@@ -918,7 +918,7 @@ const CourseDetails = ({ course, user, onBack }) => {
                             {activeLesson.content_type === 'simulation' && <SimulationView scriptId={activeLesson.content} onComplete={(didPass) => handleSimulationComplete(activeLesson.id, didPass)} />}
                             {activeLesson.content_type === 'game' && <SpeedGame gameId={activeLesson.content} onComplete={() => handleLessonComplete(activeLesson.id)} />}
                             {activeLesson.content_type === 'menu' && <MenuLearning user={user} onComplete={() => handleLessonComplete(activeLesson.id)} />}
-                            {activeLesson.content_type === 'tone_training' && <ToneTraining onComplete={() => handleLessonComplete(activeLesson.id)} />}
+                            {activeLesson.content_type === 'tone_training' && <ToneTraining onComplete={() => handleLessonComplete(activeLesson.id)} isAdmin={user?.role === 'admin'} />}
 
                             <div className="mt-8 flex justify-between items-center">
                                 <Button variant="outline" onClick={() => changeLesson(-1)} disabled={sortedLessons.findIndex(l => l.id === activeLesson.id) === 0}>
