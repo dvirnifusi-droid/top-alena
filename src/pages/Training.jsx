@@ -1109,7 +1109,23 @@ function TrainingInner() {
                             )}
                         </div>
 
-                        {isAdmin && showQuizManager ? (
+                        {isAdmin && editingSimulationScript ? (
+                            <div className="space-y-4">
+                                <div className="flex items-center gap-3">
+                                    <Input
+                                        value={editingSimulationScript}
+                                        onChange={e => setEditingSimulationScript(e.target.value)}
+                                        className="max-w-xs text-sm"
+                                        placeholder="מזהה הסימולציה (script_id)"
+                                    />
+                                    <span className="text-sm text-gray-500">שנה מזהה כדי לערוך סימולציה אחרת</span>
+                                </div>
+                                <SimulationScriptEditor
+                                    scriptId={editingSimulationScript}
+                                    onBack={() => setEditingSimulationScript(null)}
+                                />
+                            </div>
+                        ) : isAdmin && showQuizManager ? (
                             <QuizManager />
                         ) : (
                             <>
