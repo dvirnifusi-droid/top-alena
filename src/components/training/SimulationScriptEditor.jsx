@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 
 const emptyStep = {
     situation_name: '',
+    role: 'מלצר',
     customer_prompt: '',
     correct_response: '',
     incorrect_response: '',
