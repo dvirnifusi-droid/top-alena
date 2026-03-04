@@ -20,6 +20,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import LiveSimulation from "../components/training/LiveSimulation";
 import ToneTraining from "../components/training/ToneTraining";
 import QuizManager from "../components/training/QuizManager";
+import SimulationScriptEditor from "../components/training/SimulationScriptEditor";
 
 // --- Components ---
 
