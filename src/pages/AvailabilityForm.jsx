@@ -159,7 +159,8 @@ export default function AvailabilityForm() {
              }
              
              setSelectedEmployee(emp);
-             setSelectedDepartment(emp.department || DEPARTMENTS[0]?.key || null);
+             const dept = loginDepartment || emp.department || DEPARTMENTS[0]?.key || null;
+             setSelectedDepartment(dept);
 
             const existing = await base44.entities.EmployeeAvailability.filter({ employee_id: emp.id });
             setExistingAvailabilities(existing);
