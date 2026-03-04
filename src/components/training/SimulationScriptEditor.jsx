@@ -127,6 +127,10 @@ export default function SimulationScriptEditor({ scriptId, onBack }) {
                             <Input value={form.situation_name} onChange={e => setForm({...form, situation_name: e.target.value})} placeholder="לדוגמה: פתיחת שולחן" />
                         </div>
                         <div>
+                            <label className="text-sm font-medium">תפקיד מתרגל</label>
+                            <Input value={form.role} onChange={e => setForm({...form, role: e.target.value})} placeholder="לדוגמה: מלצר" />
+                        </div>
+                        <div>
                             <label className="text-sm font-medium">מה הלקוח אומר</label>
                             <Textarea value={form.customer_prompt} onChange={e => setForm({...form, customer_prompt: e.target.value})} className="h-20" placeholder="משפט הלקוח..." />
                         </div>
