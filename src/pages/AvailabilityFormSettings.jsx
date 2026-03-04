@@ -122,9 +122,10 @@ export default function AvailabilityFormSettings() {
      };
 
     const toggleDefaultDay = (day) => {
-        const updated = settings.default_days_unavailable.includes(day)
-            ? settings.default_days_unavailable.filter(d => d !== day)
-            : [...settings.default_days_unavailable, day];
+        const current = settings.default_days_unavailable || [];
+        const updated = current.includes(day)
+            ? current.filter(d => d !== day)
+            : [...current, day];
         setSettings({ ...settings, default_days_unavailable: updated });
     };
 
