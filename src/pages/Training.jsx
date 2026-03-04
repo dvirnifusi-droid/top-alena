@@ -960,6 +960,7 @@ function TrainingInner() {
     const [selectedCourse, setSelectedCourse] = useState(null);
     const [showQuickPractice, setShowQuickPractice] = useState(false);
     const [showQuizManager, setShowQuizManager] = useState(false);
+    const [editingSimulationScript, setEditingSimulationScript] = useState(null);
     const [user, setUser] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
     const [deletingCourse, setDeletingCourse] = useState(null);
