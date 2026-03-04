@@ -74,6 +74,15 @@ function AvailabilityRequestsInner() {
     const handleEditAvail = (avail) => {
         setEditingAvail(avail);
         setEditData({ ...avail });
+        console.log('editing avail:', avail, 'settings:', settings);
+    };
+
+    const getAvailablePositions = (avail) => {
+        const deptKey = avail?.department || selectedDepartment;
+        const dept = settings?.departments?.find(d => d.key === deptKey);
+        if (dept?.positions?.length > 0) return dept.positions;
+        // fallback: all positions from all departments
+        return settings?.departments?.flatMap(d => d.positions || []) || [];
     };
 
     const handleSaveEdit = async () => {
