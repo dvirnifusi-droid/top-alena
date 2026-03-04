@@ -35,6 +35,7 @@ export default function SimulationScriptEditor({ scriptId, onBack }) {
         setEditingStep(step);
         setForm({
             situation_name: step.situation_name,
+            role: step.role || 'מלצר',
             customer_prompt: step.customer_prompt,
             correct_response: step.correct_response,
             incorrect_response: step.incorrect_response,
