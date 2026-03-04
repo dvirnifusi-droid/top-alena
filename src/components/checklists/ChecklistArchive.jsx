@@ -524,16 +524,21 @@ export default function ChecklistArchive() {
                                                                     <AlertTriangle className="w-5 h-5 text-red-600" />
                                                                 )
                                                             )}
-                                                            {result.photo_url && (
-                                                               <Button
-                                                                   size="sm"
-                                                                   variant="outline"
-                                                                   onClick={() => setViewingPhoto(result.photo_url)}
-                                                                   className="flex items-center gap-1"
-                                                               >
-                                                                   <Image className="w-3 h-3" />
-                                                                   צפה בתמונה
-                                                               </Button>
+                                                            {(result.photo_urls?.length > 0 || result.photo_url) && (
+                                                                <div className="flex flex-wrap gap-1">
+                                                                    {(result.photo_urls || (result.photo_url ? [result.photo_url] : [])).map((url, i) => (
+                                                                        <Button
+                                                                            key={i}
+                                                                            size="sm"
+                                                                            variant="outline"
+                                                                            onClick={() => setViewingPhoto(url)}
+                                                                            className="flex items-center gap-1"
+                                                                        >
+                                                                            <Image className="w-3 h-3" />
+                                                                            תמונה {result.photo_urls?.length > 1 ? i + 1 : ''}
+                                                                        </Button>
+                                                                    ))}
+                                                                </div>
                                                             )}
                                                         </div>
                                                     </div>
