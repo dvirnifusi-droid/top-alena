@@ -74,7 +74,6 @@ function AvailabilityRequestsInner() {
     const handleEditAvail = (avail) => {
         setEditingAvail(avail);
         setEditData({ ...avail });
-        console.log('editing avail:', avail, 'settings:', settings);
     };
 
     const getAvailablePositions = () => {
