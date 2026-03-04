@@ -1012,6 +1012,18 @@ function TrainingInner() {
         loadData();
     };
 
+    const handleDeleteCourse = async (course) => {
+        if (!window.confirm(`האם אתה בטוח שברצונך למחוק את הקורס "${course.title}"?`)) return;
+        setDeletingCourse(course.id);
+        const lessons = await TrainingLesson.filter({ course_code: course.course_code });
+        for (const lesson of lessons) {
+            await TrainingLesson.delete(lesson.id);
+        }
+        await TrainingCourse.delete(course.id);
+        setDeletingCourse(null);
+        loadData();
+    };
+
     const handleQuickPractice = () => {
         setShowQuickPractice(true);
         setSelectedCourse(null);
