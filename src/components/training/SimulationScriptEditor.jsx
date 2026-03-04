@@ -149,7 +149,7 @@ export default function SimulationScriptEditor({ scriptId, onBack }) {
                     </div>
                     <div className="flex justify-end gap-3 pt-2">
                         <Button variant="outline" onClick={close}><X className="w-4 h-4 ml-2" />ביטול</Button>
-                        <Button onClick={save} disabled={!form.situation_name || !form.customer_prompt || !form.correct_response || !form.incorrect_response}>
+                        <Button onClick={save} disabled={!form.situation_name || !form.role || !form.customer_prompt || !form.correct_response}>
                             <Save className="w-4 h-4 ml-2" />שמור
                         </Button>
                     </div>
