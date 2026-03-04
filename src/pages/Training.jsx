@@ -32,8 +32,8 @@ const CourseCard = ({ course, enrollment, onSelect, onDelete, isAdmin }) => {
     }, [enrollment, course]);
 
     return (
-        <Card onClick={() => onSelect(course)} className="cursor-pointer transition-all duration-300 hover:shadow-xl hover:-translate-y-1 bg-white flex flex-col">
-            <CardHeader>
+        <Card className="transition-all duration-300 hover:shadow-xl hover:-translate-y-1 bg-white flex flex-col">
+            <CardHeader className="cursor-pointer" onClick={() => onSelect(course)}>
                 <div className="flex justify-between items-start">
                     <Badge variant="outline" className="font-semibold">{course.assigned_role}</Badge>
                     <GraduationCap className="w-8 h-8 p-2 bg-gradient-to-br from-blue-500 to-indigo-600 text-white rounded-lg shadow-md" />
@@ -41,12 +41,17 @@ const CourseCard = ({ course, enrollment, onSelect, onDelete, isAdmin }) => {
                 <CardTitle className="pt-4 text-slate-800">{course.title}</CardTitle>
                 <CardDescription className="text-slate-600 h-10">{course.description}</CardDescription>
             </CardHeader>
-            <CardContent className="flex-grow">
+            <CardContent className="flex-grow cursor-pointer" onClick={() => onSelect(course)}>
                  <Progress value={progress} className="w-full h-2" />
                  <p className="text-xs text-slate-500 mt-2">התקדמות: {Math.round(progress)}%</p>
             </CardContent>
-            <CardFooter>
-                <Button className="w-full bg-orange-600 hover:bg-orange-700">{progress > 0 && progress < 100 ? "המשך קורס" : "התחל קורס"}</Button>
+            <CardFooter className="flex gap-2">
+                <Button className="flex-1 bg-orange-600 hover:bg-orange-700" onClick={() => onSelect(course)}>{progress > 0 && progress < 100 ? "המשך קורס" : "התחל קורס"}</Button>
+                {isAdmin && (
+                    <Button variant="outline" size="icon" className="border-red-200 hover:bg-red-50 text-red-500" onClick={(e) => { e.stopPropagation(); onDelete(course); }}>
+                        <Trash2 className="w-4 h-4" />
+                    </Button>
+                )}
             </CardFooter>
         </Card>
     );
