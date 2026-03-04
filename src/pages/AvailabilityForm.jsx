@@ -162,20 +162,37 @@ export default function AvailabilityForm() {
              const dept = loginDepartment || emp.department || DEPARTMENTS[0]?.key || null;
              setSelectedDepartment(dept);
 
-            const existing = await base44.entities.EmployeeAvailability.filter({ employee_id: emp.id });
-            setExistingAvailabilities(existing);
-            const newDayData = initDayData();
-            existing.forEach(a => {
+             const existing = await base44.entities.EmployeeAvailability.filter({ employee_id: emp.id });
+             setExistingAvailabilities(existing);
+             const newDayData = initDayData();
+
+             // For kitchen department, auto-set the default position for all days
+             const deptConfig = settings?.departments?.find(d => d.key === dept);
+             const defaultPosition = dept === 'kitchen' && deptConfig?.positions?.length > 0
+                ? [deptConfig.positions[0]]
+                : [];
+
+             existing.forEach(a => {
                 if (newDayData[a.date]) {
                     newDayData[a.date] = {
                         availability_type: a.availability_type || 'available',
                         shift_preference: a.shift_preference || 'both',
                         reason: a.reason || '',
-                        positions: a.positions || [],
+                        positions: a.positions?.length > 0 ? a.positions : defaultPosition,
                     };
                 }
-            });
-            setDayData(newDayData);
+             });
+
+             // For days without existing data, set default position if kitchen
+             if (defaultPosition.length > 0) {
+                Object.keys(newDayData).forEach(dateStr => {
+                    if (!existing.find(a => a.date === dateStr)) {
+                        newDayData[dateStr].positions = defaultPosition;
+                    }
+                });
+             }
+
+             setDayData(newDayData);
         } catch (e) {
             console.error(e);
             setError('שגיאה בטעינת הנתונים');
