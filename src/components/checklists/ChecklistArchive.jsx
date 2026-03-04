@@ -188,7 +188,7 @@ export default function ChecklistArchive() {
     }
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-6" dir="rtl">
             <Card>
                 <CardHeader>
                     <CardTitle>ארכיון ביצועי צ'קליסטים</CardTitle>
