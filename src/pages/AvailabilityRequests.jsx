@@ -382,6 +382,24 @@ function AvailabilityRequestsInner() {
                                 </Select>
                             </div>
                             <div>
+                                <Label className="font-semibold">תפקיד</Label>
+                                <Select
+                                    value={editData.positions?.[0] || ''}
+                                    onValueChange={(val) => setEditData({...editData, positions: val ? [val] : []})}
+                                >
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="בחר תפקיד" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {settings?.departments
+                                            ?.find(d => d.key === (editData.department || selectedDepartment))
+                                            ?.positions?.map(pos => (
+                                                <SelectItem key={pos} value={pos}>{pos}</SelectItem>
+                                            ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            <div>
                                 <Label className="font-semibold">הערות מנהל</Label>
                                 <Textarea
                                     placeholder="הוסף הערות או שינויים..."
