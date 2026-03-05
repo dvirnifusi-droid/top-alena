@@ -151,13 +151,14 @@ export default function CustomerClubPage() {
         let sent = 0;
         let failed = 0;
         const targets = customers.filter(c => selectedCustomers.includes(c.id) && c.phone);
-        for (const c of targets) {
-            try {
-                await sendSms({ to: c.phone, message: smsMessage.replace('{שם}', c.name) });
-                sent++;
-            } catch {
-                failed++;
-            }
+        // Send in parallel batches of 5
+        const batchSize = 5;
+        for (let i = 0; i < targets.length; i += batchSize) {
+            const batch = targets.slice(i, i + batchSize);
+            const results = await Promise.allSettled(batch.map(c =>
+                sendSms({ to: c.phone, message: smsMessage.replace('{שם}', c.name) })
+            ));
+            results.forEach(r => r.status === 'fulfilled' ? sent++ : failed++);
         }
         setSmsResult({ success: true, sent, failed });
         setSendingSms(false);
