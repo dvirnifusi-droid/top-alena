@@ -27,7 +27,7 @@ Deno.serve(async (req) => {
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-                from: 'TOP ALENA <noreply@alenabepita.co.il>',
+                from: 'onboarding@resend.dev',
                 to: [to],
                 subject: subject,
                 html: `<div dir="rtl" style="font-family: Arial, sans-serif; font-size: 15px; line-height: 1.6;">${htmlBody}</div>`,
