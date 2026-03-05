@@ -77,6 +77,92 @@ export default function CustomerClubPage() {
         }
     };
 
+    const handleImportExcel = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        setImporting(true);
+        setImportResult(null);
+        try {
+            const { file_url } = await base44.integrations.Core.UploadFile({ file });
+            const result = await base44.integrations.Core.ExtractDataFromUploadedFile({
+                file_url,
+                json_schema: {
+                    type: "object",
+                    properties: {
+                        customers: {
+                            type: "array",
+                            items: {
+                                type: "object",
+                                properties: {
+                                    name: { type: "string" },
+                                    phone: { type: "string" },
+                                    email: { type: "string" },
+                                    birthday: { type: "string" },
+                                    notes: { type: "string" }
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+            const rows = result.output?.customers || [];
+            let imported = 0;
+            for (const row of rows) {
+                if (row.name && row.phone) {
+                    await Customer.create({ ...row, satisfaction_status: 'neutral', total_visits: 0, total_spent: 0 });
+                    imported++;
+                }
+            }
+            setImportResult({ success: true, count: imported });
+            loadCustomers();
+        } catch (err) {
+            setImportResult({ success: false, error: err.message });
+        } finally {
+            setImporting(false);
+            fileInputRef.current.value = '';
+        }
+    };
+
+    const toggleSelectCustomer = (id) => {
+        setSelectedCustomers(prev =>
+            prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+        );
+    };
+
+    const toggleSelectAll = () => {
+        if (selectedCustomers.length === filteredCustomers.filter(c => c.email).length) {
+            setSelectedCustomers([]);
+        } else {
+            setSelectedCustomers(filteredCustomers.filter(c => c.email).map(c => c.id));
+        }
+    };
+
+    const handleSendEmail = async () => {
+        if (!emailSubject || !emailBody || selectedCustomers.length === 0) return;
+        setSendingEmail(true);
+        setEmailResult(null);
+        try {
+            const targets = customers.filter(c => selectedCustomers.includes(c.id) && c.email);
+            let sent = 0;
+            for (const c of targets) {
+                await base44.integrations.Core.SendEmail({
+                    to: c.email,
+                    subject: emailSubject,
+                    body: emailBody.replace('{שם}', c.name)
+                });
+                sent++;
+            }
+            setEmailResult({ success: true, count: sent });
+            setEmailSubject('');
+            setEmailBody('');
+            setSelectedCustomers([]);
+        } catch (err) {
+            setEmailResult({ success: false, error: err.message });
+        } finally {
+            setSendingEmail(false);
+        }
+    };
+
     const updateCustomerStatus = async (customerId, newStatus) => {
         try {
             await Customer.update(customerId, { satisfaction_status: newStatus });
