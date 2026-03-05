@@ -66,7 +66,14 @@ export default function CustomerClubPage() {
 
     useEffect(() => {
         loadCustomers();
+        loadTemplates();
     }, []);
+
+    const loadTemplates = async () => {
+        const data = await base44.entities.MessageTemplate.list('-created_date');
+        setEmailTemplates(data.filter(t => t.type === 'email'));
+        setSmsTemplates(data.filter(t => t.type === 'sms'));
+    };
 
     useEffect(() => {
         const lowercasedFilter = searchTerm.toLowerCase();
