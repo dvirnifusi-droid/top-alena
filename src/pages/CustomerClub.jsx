@@ -52,29 +52,22 @@ export default function CustomerClubPage() {
         loadCustomers();
     }, []);
 
-    // Memoize filterCustomers to ensure its reference stability for useEffect dependencies
-    const filterCustomers = useCallback(() => {
+    useEffect(() => {
         const lowercasedFilter = searchTerm.toLowerCase();
-        let filteredData = customers.filter(item => {
-            return (
+        let filteredData = customers;
+        if (lowercasedFilter) {
+            filteredData = filteredData.filter(item =>
                 item.name?.toLowerCase().includes(lowercasedFilter) ||
                 item.phone?.toLowerCase().includes(lowercasedFilter) ||
                 item.email?.toLowerCase().includes(lowercasedFilter)
             );
-        });
-
-        if (statusFilter !== 'all') {
-            filteredData = filteredData.filter(customer =>
-                customer.satisfaction_status === statusFilter
-            );
         }
-
+        if (statusFilter !== 'all') {
+            filteredData = filteredData.filter(c => c.satisfaction_status === statusFilter);
+        }
         setFilteredCustomers(filteredData);
-    }, [searchTerm, customers, statusFilter]); // Dependencies for useCallback
-
-    useEffect(() => {
-        filterCustomers();
-    }, [searchTerm, customers, statusFilter, filterCustomers]); // Added filterCustomers to dependency array
+        setCurrentPage(1);
+    }, [searchTerm, customers, statusFilter]);
 
     const loadCustomers = async () => {
         try {
