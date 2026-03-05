@@ -292,6 +292,14 @@ export default function CustomerClubPage() {
                                 {filteredCustomers.length > 0 ? (
                                     filteredCustomers.map(customer => (
                                         <TableRow key={customer.id}>
+                                            <TableCell>
+                                                {customer.email && (
+                                                    <Checkbox
+                                                        checked={selectedCustomers.includes(customer.id)}
+                                                        onCheckedChange={() => toggleSelectCustomer(customer.id)}
+                                                    />
+                                                )}
+                                            </TableCell>
                                             <TableCell className="font-medium">
                                                 <Link to={createPageUrl(`CustomerDetails?id=${customer.id}`)} className="text-blue-600 hover:underline font-semibold">
                                                     {customer.name}
