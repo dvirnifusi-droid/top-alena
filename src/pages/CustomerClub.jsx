@@ -324,8 +324,8 @@ export default function CustomerClubPage() {
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {filteredCustomers.length > 0 ? (
-                                    filteredCustomers.map(customer => (
+                                {pagedCustomers.length > 0 ? (
+                                    pagedCustomers.map(customer => (
                                         <TableRow key={customer.id}>
                                             <TableCell>
                                                 {customer.email && (
