@@ -174,6 +174,16 @@ export default function CustomerClubPage() {
         setSendingSms(false);
     };
 
+    const handleAddCustomer = async () => {
+        if (!newCustomer.name || !newCustomer.phone) return;
+        setSavingCustomer(true);
+        await base44.entities.Customer.create({ ...newCustomer, satisfaction_status: 'neutral', total_visits: 0, total_spent: 0 });
+        setSavingCustomer(false);
+        setNewCustomer({ name: '', phone: '', email: '', birthday: '', notes: '' });
+        setShowAddCustomer(false);
+        loadCustomers();
+    };
+
     const handleSendEmail = async () => {
         if (!emailSubject || !emailBody || selectedCustomers.length === 0) return;
         setSendingEmail(true);
