@@ -298,6 +298,10 @@ export default function CustomerClubPage() {
                                     className="pl-10 w-60"
                                 />
                             </div>
+                            <Button onClick={() => setShowAddCustomer(true)} className="bg-purple-600 hover:bg-purple-700 text-white">
+                                <UserPlus className="w-4 h-4 ml-1" />
+                                הוסף לקוח
+                            </Button>
                             <Button variant="outline" onClick={() => { setShowImport(true); setImportResult(null); }}>
                                 <Upload className="w-4 h-4 ml-1" />
                                 ייבוא מאקסל
