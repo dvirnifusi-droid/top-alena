@@ -411,6 +411,46 @@ export default function CustomerClubPage() {
                 </DialogContent>
             </Dialog>
 
+            {/* SMS Campaign Dialog */}
+            <Dialog open={showSms} onOpenChange={setShowSms}>
+                <DialogContent dir="rtl" className="max-w-lg">
+                    <DialogHeader>
+                        <DialogTitle>שליחת SMS ללקוחות</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4">
+                        <p className="text-sm text-gray-500">
+                            {selectedCustomers.length === 0
+                                ? 'לא נבחרו לקוחות. סגור וסמן לקוחות בטבלה.'
+                                : `נבחרו ${selectedCustomers.length} לקוחות לשליחה.`}
+                        </p>
+                        <div>
+                            <Label>תוכן ההודעה</Label>
+                            <p className="text-xs text-gray-400 mb-1">ניתן להשתמש ב-&#123;שם&#125; לשם הלקוח (עד 160 תווים)</p>
+                            <Textarea
+                                value={smsMessage}
+                                onChange={e => setSmsMessage(e.target.value.slice(0, 160))}
+                                rows={4}
+                                placeholder="שלום {שם}, יש לנו מבצע מיוחד עבורך!"
+                                className="mt-1"
+                            />
+                            <p className="text-xs text-gray-400 text-left">{smsMessage.length}/160</p>
+                        </div>
+                        {smsResult && (
+                            <div className={`p-3 rounded text-sm ${smsResult.success ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
+                                {smsResult.success ? `✅ נשלחו ${smsResult.sent} הודעות${smsResult.failed > 0 ? ` (${smsResult.failed} נכשלו)` : ''}` : `❌ שגיאה`}
+                            </div>
+                        )}
+                        <Button
+                            onClick={handleSendSms}
+                            disabled={sendingSms || selectedCustomers.length === 0 || !smsMessage}
+                            className="w-full bg-green-600 hover:bg-green-700"
+                        >
+                            {sendingSms ? <><Loader2 className="w-4 h-4 animate-spin ml-2" /> שולח...</> : <><MessageSquare className="w-4 h-4 ml-2" /> שלח SMS לכל הנבחרים</>}
+                        </Button>
+                    </div>
+                </DialogContent>
+            </Dialog>
+
             {/* Email Campaign Dialog */}
             <Dialog open={showEmail} onOpenChange={setShowEmail}>
                 <DialogContent dir="rtl" className="max-w-lg">
