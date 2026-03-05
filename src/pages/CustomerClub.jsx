@@ -568,6 +568,24 @@ export default function CustomerClubPage() {
                                 ? 'לא נבחרו לקוחות. סגור וסמן לקוחות בטבלה.'
                                 : `נבחרו ${selectedCustomers.length} לקוחות לשליחה.`}
                         </p>
+                        {smsTemplates.length > 0 && (
+                            <div>
+                                <Label>טען מתבנית</Label>
+                                <Select onValueChange={(id) => {
+                                    const t = smsTemplates.find(t => t.id === id);
+                                    if (t) setSmsMessage(t.body.slice(0, 160));
+                                }}>
+                                    <SelectTrigger className="mt-1">
+                                        <SelectValue placeholder="בחר תבנית..." />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {smsTemplates.map(t => (
+                                            <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        )}
                         <div>
                             <Label>תוכן ההודעה</Label>
                             <p className="text-xs text-gray-400 mb-1">ניתן להשתמש ב-&#123;שם&#125; לשם הלקוח (עד 160 תווים)</p>
