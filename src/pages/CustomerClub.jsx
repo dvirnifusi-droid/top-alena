@@ -75,7 +75,7 @@ export default function CustomerClubPage() {
 
     const loadCustomers = async () => {
         try {
-            const allCustomers = await base44.entities.Customer.list('-last_visit');
+            const allCustomers = await base44.entities.Customer.list('-last_visit', 500);
             setCustomers(allCustomers);
         } catch (error) {
             console.error("Failed to load customers:", error);
