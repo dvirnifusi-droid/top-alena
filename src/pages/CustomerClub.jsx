@@ -39,6 +39,12 @@ export default function CustomerClubPage() {
     const [sendingEmail, setSendingEmail] = useState(false);
     const [emailResult, setEmailResult] = useState(null);
 
+    // SMS campaign
+    const [showSms, setShowSms] = useState(false);
+    const [smsMessage, setSmsMessage] = useState('');
+    const [sendingSms, setSendingSms] = useState(false);
+    const [smsResult, setSmsResult] = useState(null);
+
     useEffect(() => {
         loadCustomers();
     }, []);
