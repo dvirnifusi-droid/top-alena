@@ -700,9 +700,12 @@ export default function CustomerClubPage() {
                                 {emailResult.success ? `✅ נשלחו ${emailResult.count} מיילים בהצלחה!` : `❌ שגיאה: ${emailResult.error}`}
                             </div>
                         )}
+                        {selectedCustomers.length > 0 && customers.filter(c => selectedCustomers.includes(c.id) && c.email).length === 0 && (
+                            <p className="text-xs text-amber-600 bg-amber-50 p-2 rounded">⚠️ ללקוחות הנבחרים אין כתובת מייל. סמן לקוחות עם מייל.</p>
+                        )}
                         <Button
                             onClick={handleSendEmail}
-                            disabled={sendingEmail || selectedCustomers.length === 0 || !emailSubject || !emailBody}
+                            disabled={sendingEmail || customers.filter(c => selectedCustomers.includes(c.id) && c.email).length === 0 || !emailSubject || !emailBody}
                             className="w-full"
                         >
                             {sendingEmail ? <><Loader2 className="w-4 h-4 animate-spin ml-2" /> שולח...</> : <><Mail className="w-4 h-4 ml-2" /> שלח לכל הנבחרים</>}
