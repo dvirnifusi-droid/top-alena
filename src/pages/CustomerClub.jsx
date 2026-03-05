@@ -211,7 +211,7 @@ export default function CustomerClubPage() {
                     const bodyWithImage = emailImageUrl
                         ? `${emailBody.replace('{שם}', c.name)}\n\n<img src="${emailImageUrl}" style="max-width:100%;border-radius:8px;" />`
                         : emailBody.replace('{שם}', c.name);
-                    return base44.integrations.Core.SendEmail({
+                    return sendCustomerEmail({
                         to: c.email,
                         subject: emailSubject,
                         body: bodyWithImage
