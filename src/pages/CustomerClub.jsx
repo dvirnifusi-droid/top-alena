@@ -77,6 +77,15 @@ export default function CustomerClubPage() {
         if (statusFilter !== 'all') {
             filteredData = filteredData.filter(c => c.satisfaction_status === statusFilter);
         }
+        if (vipFilter !== 'all') {
+            filteredData = filteredData.filter(c => c.vip_level === vipFilter);
+        }
+        if (joinDateFrom) {
+            filteredData = filteredData.filter(c => c.created_date && new Date(c.created_date) >= new Date(joinDateFrom));
+        }
+        if (joinDateTo) {
+            filteredData = filteredData.filter(c => c.created_date && new Date(c.created_date) <= new Date(joinDateTo + 'T23:59:59'));
+        }
         setFilteredCustomers(filteredData);
         setCurrentPage(1);
     }, [searchTerm, customers, statusFilter]);
