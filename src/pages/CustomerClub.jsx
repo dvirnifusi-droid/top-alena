@@ -421,6 +421,40 @@ export default function CustomerClubPage() {
                 </CardContent>
             </Card>
 
+            {/* Add Customer Dialog */}
+            <Dialog open={showAddCustomer} onOpenChange={setShowAddCustomer}>
+                <DialogContent dir="rtl">
+                    <DialogHeader>
+                        <DialogTitle>הוספת לקוח חדש</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-3">
+                        <div>
+                            <Label>שם מלא *</Label>
+                            <Input value={newCustomer.name} onChange={e => setNewCustomer(p => ({ ...p, name: e.target.value }))} placeholder="שם הלקוח" className="mt-1" />
+                        </div>
+                        <div>
+                            <Label>טלפון *</Label>
+                            <Input value={newCustomer.phone} onChange={e => setNewCustomer(p => ({ ...p, phone: e.target.value }))} placeholder="050-0000000" className="mt-1" />
+                        </div>
+                        <div>
+                            <Label>מייל</Label>
+                            <Input value={newCustomer.email} onChange={e => setNewCustomer(p => ({ ...p, email: e.target.value }))} placeholder="email@example.com" className="mt-1" />
+                        </div>
+                        <div>
+                            <Label>תאריך לידה</Label>
+                            <Input type="date" value={newCustomer.birthday} onChange={e => setNewCustomer(p => ({ ...p, birthday: e.target.value }))} className="mt-1" />
+                        </div>
+                        <div>
+                            <Label>הערות</Label>
+                            <Textarea value={newCustomer.notes} onChange={e => setNewCustomer(p => ({ ...p, notes: e.target.value }))} placeholder="הערות על הלקוח..." rows={2} className="mt-1" />
+                        </div>
+                        <Button onClick={handleAddCustomer} disabled={savingCustomer || !newCustomer.name || !newCustomer.phone} className="w-full bg-purple-600 hover:bg-purple-700">
+                            {savingCustomer ? <><Loader2 className="w-4 h-4 animate-spin ml-2" />שומר...</> : <><UserPlus className="w-4 h-4 ml-2" />הוסף לקוח</>}
+                        </Button>
+                    </div>
+                </DialogContent>
+            </Dialog>
+
             {/* Import Excel Dialog */}
             <Dialog open={showImport} onOpenChange={setShowImport}>
                 <DialogContent dir="rtl">
