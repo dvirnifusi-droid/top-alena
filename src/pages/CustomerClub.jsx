@@ -232,6 +232,9 @@ export default function CustomerClubPage() {
         );
     };
 
+    const totalPages = Math.ceil(filteredCustomers.length / PAGE_SIZE);
+    const pagedCustomers = filteredCustomers.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+
     const unsatisfiedCount = customers.filter(c => c.satisfaction_status === 'unsatisfied').length;
     const satisfiedCount = customers.filter(c => c.satisfaction_status === 'satisfied').length;
     const recoveringCount = customers.filter(c => c.satisfaction_status === 'recovering').length;
