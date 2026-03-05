@@ -169,14 +169,19 @@ export default function CustomerClubPage() {
         setEmailResult(null);
         try {
             const targets = customers.filter(c => selectedCustomers.includes(c.id) && c.email);
+            // Send in parallel batches of 5 to avoid blocking
+            const batchSize = 5;
             let sent = 0;
-            for (const c of targets) {
-                await base44.integrations.Core.SendEmail({
-                    to: c.email,
-                    subject: emailSubject,
-                    body: emailBody.replace('{שם}', c.name)
-                });
-                sent++;
+            for (let i = 0; i < targets.length; i += batchSize) {
+                const batch = targets.slice(i, i + batchSize);
+                await Promise.all(batch.map(c =>
+                    base44.integrations.Core.SendEmail({
+                        to: c.email,
+                        subject: emailSubject,
+                        body: emailBody.replace('{שם}', c.name)
+                    })
+                ));
+                sent += batch.length;
             }
             setEmailResult({ success: true, count: sent });
             setEmailSubject('');
