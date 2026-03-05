@@ -233,14 +233,24 @@ export default function CustomerClubPage() {
                                 </Badge>
                             </div>
                         </div>
-                        <div className="relative w-1/3">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
-                            <Input
-                                placeholder="חפש לפי שם, טלפון או מייל..."
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                                className="pl-10"
-                            />
+                        <div className="flex items-center gap-2 flex-wrap">
+                            <div className="relative">
+                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+                                <Input
+                                    placeholder="חפש לפי שם, טלפון או מייל..."
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                    className="pl-10 w-60"
+                                />
+                            </div>
+                            <Button variant="outline" onClick={() => { setShowImport(true); setImportResult(null); }}>
+                                <Upload className="w-4 h-4 ml-1" />
+                                ייבוא מאקסל
+                            </Button>
+                            <Button variant="outline" onClick={() => { setShowEmail(true); setEmailResult(null); }} className="bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100">
+                                <Mail className="w-4 h-4 ml-1" />
+                                שלח דיוור ({selectedCustomers.length})
+                            </Button>
                         </div>
                     </div>
                 </CardHeader>
