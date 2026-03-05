@@ -561,7 +561,30 @@ export default function CustomerClubPage() {
                         <div>
                             <Label>תוכן ההודעה</Label>
                             <p className="text-xs text-gray-400 mb-1">ניתן להשתמש ב-&#123;שם&#125; לשם הלקוח</p>
-                            <Textarea value={emailBody} onChange={e => setEmailBody(e.target.value)} rows={6} placeholder="שלום {שם}, אנחנו שמחים להודיע..." className="mt-1" />
+                            <Textarea value={emailBody} onChange={e => setEmailBody(e.target.value)} rows={5} placeholder="שלום {שם}, אנחנו שמחים להודיע..." className="mt-1" />
+                        </div>
+                        <div>
+                            <Label>תמונה למייל (אופציונלי)</Label>
+                            <div className="mt-1">
+                                {emailImageUrl ? (
+                                    <div className="relative inline-block">
+                                        <img src={emailImageUrl} alt="preview" className="max-h-40 rounded-lg border object-cover" />
+                                        <button onClick={() => setEmailImageUrl('')} className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center">
+                                            <X className="w-3 h-3" />
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <button
+                                        onClick={() => emailImageRef.current?.click()}
+                                        disabled={uploadingImage}
+                                        className="flex items-center gap-2 px-4 py-2 border-2 border-dashed border-gray-300 rounded-lg text-sm text-gray-500 hover:border-blue-400 hover:text-blue-500 transition-colors"
+                                    >
+                                        {uploadingImage ? <Loader2 className="w-4 h-4 animate-spin" /> : <ImagePlus className="w-4 h-4" />}
+                                        {uploadingImage ? 'מעלה...' : 'העלה תמונה'}
+                                    </button>
+                                )}
+                                <input ref={emailImageRef} type="file" accept="image/*" onChange={handleUploadEmailImage} className="hidden" />
+                            </div>
                         </div>
                         {emailResult && (
                             <div className={`p-3 rounded text-sm ${emailResult.success ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
