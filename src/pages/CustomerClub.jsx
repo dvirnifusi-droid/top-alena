@@ -71,8 +71,17 @@ export default function CustomerClubPage() {
 
     const loadCustomers = async () => {
         try {
-            const batch = await base44.entities.Customer.list('-created_date', 500, 0);
-            setCustomers(batch);
+            setLoading(true);
+            const BATCH = 500;
+            let all = [];
+            let skip = 0;
+            while (true) {
+                const batch = await base44.entities.Customer.list('-created_date', BATCH, skip);
+                all = all.concat(batch);
+                if (batch.length < BATCH) break;
+                skip += BATCH;
+            }
+            setCustomers(all);
         } catch (error) {
             console.error("Failed to load customers:", error);
         } finally {
