@@ -144,6 +144,25 @@ export default function CustomerClubPage() {
         }
     };
 
+    const handleSendSms = async () => {
+        if (!smsMessage || selectedCustomers.length === 0) return;
+        setSendingSms(true);
+        setSmsResult(null);
+        let sent = 0;
+        let failed = 0;
+        const targets = customers.filter(c => selectedCustomers.includes(c.id) && c.phone);
+        for (const c of targets) {
+            try {
+                await sendSms({ to: c.phone, message: smsMessage.replace('{שם}', c.name) });
+                sent++;
+            } catch {
+                failed++;
+            }
+        }
+        setSmsResult({ success: true, sent, failed });
+        setSendingSms(false);
+    };
+
     const handleSendEmail = async () => {
         if (!emailSubject || !emailBody || selectedCustomers.length === 0) return;
         setSendingEmail(true);
