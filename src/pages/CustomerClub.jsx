@@ -277,6 +277,10 @@ export default function CustomerClubPage() {
                                 <Mail className="w-4 h-4 ml-1" />
                                 שלח דיוור ({selectedCustomers.length})
                             </Button>
+                            <Button variant="outline" onClick={() => { setShowSms(true); setSmsResult(null); }} className="bg-green-50 border-green-200 text-green-700 hover:bg-green-100">
+                                <MessageSquare className="w-4 h-4 ml-1" />
+                                שלח SMS ({selectedCustomers.length})
+                            </Button>
                         </div>
                     </div>
                 </CardHeader>
