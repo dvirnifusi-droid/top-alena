@@ -14,6 +14,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Users, Search, Loader2, AlertTriangle, Heart, Frown, RefreshCw, Upload, Mail, CheckSquare, Square, MessageSquare, UserPlus, ImagePlus, X } from 'lucide-react';
 import { sendSms } from '@/functions/sendSms';
+import { sendCustomerEmail } from '@/functions/sendCustomerEmail';
 import { format } from 'date-fns';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
