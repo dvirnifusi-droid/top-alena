@@ -44,8 +44,11 @@ export default function CustomerClubPage() {
     const [selectedCustomers, setSelectedCustomers] = useState([]);
     const [emailSubject, setEmailSubject] = useState('');
     const [emailBody, setEmailBody] = useState('');
+    const [emailImageUrl, setEmailImageUrl] = useState('');
+    const [uploadingImage, setUploadingImage] = useState(false);
     const [sendingEmail, setSendingEmail] = useState(false);
     const [emailResult, setEmailResult] = useState(null);
+    const emailImageRef = useRef(null);
 
     // SMS campaign
     const [showSms, setShowSms] = useState(false);
