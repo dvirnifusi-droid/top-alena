@@ -608,6 +608,24 @@ export default function CustomerClubPage() {
                                 ? 'לא נבחרו לקוחות. סגור וסמן לקוחות עם מייל בטבלה.'
                                 : `נבחרו ${selectedCustomers.length} לקוחות לשליחה.`}
                         </p>
+                        {emailTemplates.length > 0 && (
+                            <div>
+                                <Label>טען מתבנית</Label>
+                                <Select onValueChange={(id) => {
+                                    const t = emailTemplates.find(t => t.id === id);
+                                    if (t) { setEmailSubject(t.subject || ''); setEmailBody(t.body); }
+                                }}>
+                                    <SelectTrigger className="mt-1">
+                                        <SelectValue placeholder="בחר תבנית..." />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {emailTemplates.map(t => (
+                                            <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        )}
                         <div>
                             <Label>נושא המייל</Label>
                             <Input value={emailSubject} onChange={e => setEmailSubject(e.target.value)} placeholder="נושא..." className="mt-1" />
