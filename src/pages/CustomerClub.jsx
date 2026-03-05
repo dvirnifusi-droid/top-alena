@@ -88,7 +88,7 @@ export default function CustomerClubPage() {
         }
         setFilteredCustomers(filteredData);
         setCurrentPage(1);
-    }, [searchTerm, customers, statusFilter]);
+    }, [searchTerm, customers, statusFilter, vipFilter, joinDateFrom, joinDateTo]);
 
     const loadCustomers = async () => {
         try {
