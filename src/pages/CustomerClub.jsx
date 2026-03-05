@@ -28,6 +28,11 @@ export default function CustomerClubPage() {
     const [statusFilter, setStatusFilter] = useState('all');
     const [currentPage, setCurrentPage] = useState(1);
 
+    // Add Customer
+    const [showAddCustomer, setShowAddCustomer] = useState(false);
+    const [newCustomer, setNewCustomer] = useState({ name: '', phone: '', email: '', birthday: '', notes: '' });
+    const [savingCustomer, setSavingCustomer] = useState(false);
+
     // Import Excel
     const [showImport, setShowImport] = useState(false);
     const [importing, setImporting] = useState(false);
