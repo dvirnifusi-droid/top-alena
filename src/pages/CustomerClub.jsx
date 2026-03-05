@@ -27,6 +27,9 @@ export default function CustomerClubPage() {
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
     const [statusFilter, setStatusFilter] = useState('all');
+    const [vipFilter, setVipFilter] = useState('all');
+    const [joinDateFrom, setJoinDateFrom] = useState('');
+    const [joinDateTo, setJoinDateTo] = useState('');
     const [currentPage, setCurrentPage] = useState(1);
 
     // Add Customer
