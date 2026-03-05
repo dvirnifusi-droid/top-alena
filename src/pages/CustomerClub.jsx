@@ -116,7 +116,7 @@ export default function CustomerClubPage() {
             let imported = 0;
             for (const row of rows) {
                 if (row.name && row.phone) {
-                    await Customer.create({ ...row, satisfaction_status: 'neutral', total_visits: 0, total_spent: 0 });
+                    await base44.entities.Customer.create({ ...row, satisfaction_status: 'neutral', total_visits: 0, total_spent: 0 });
                     imported++;
                 }
             }
