@@ -243,6 +243,16 @@ export default function CustomerClubPage() {
                 sent += batch.length;
             }
             setEmailResult({ success: true, count: sent });
+            // רשום לוג קמפיין
+            await base44.entities.CampaignLog.create({
+                type: 'email',
+                subject: emailSubject,
+                body_preview: emailBody.slice(0, 100),
+                recipients_count: targets.length,
+                sent_count: sent,
+                failed_count: 0,
+                sent_at: new Date().toISOString()
+            });
             setEmailSubject('');
             setEmailBody('');
             setEmailImageUrl('');
