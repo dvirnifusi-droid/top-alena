@@ -305,6 +305,7 @@ export default function CustomerClubPage() {
                             <Loader2 className="w-8 h-8 animate-spin text-purple-600" />
                         </div>
                     ) : (
+                        <>
                         <Table>
                             <TableHeader>
                                 <TableRow>
@@ -380,14 +381,16 @@ export default function CustomerClubPage() {
                                 )}
                             </TableBody>
                         </Table>
-                    {!loading && totalPages > 1 && (
-                        <div className="flex items-center justify-center gap-2 mt-4">
-                            <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}>הקודם</Button>
-                            <span className="text-sm text-gray-600">{currentPage} / {totalPages} ({filteredCustomers.length} לקוחות)</span>
-                            <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}>הבא</Button>
-                        </div>
+                        {totalPages > 1 && (
+                            <div className="flex items-center justify-center gap-2 mt-4">
+                                <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}>הקודם</Button>
+                                <span className="text-sm text-gray-600">{currentPage} / {totalPages} ({filteredCustomers.length} לקוחות)</span>
+                                <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}>הבא</Button>
+                            </div>
+                        )}
+                        </>
                     )}
-                    </CardContent>
+                </CardContent>
             </Card>
 
             {/* Import Excel Dialog */}
