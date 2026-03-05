@@ -10,12 +10,15 @@ Deno.serve(async (req) => {
 
         const { to, subject, body } = await req.json();
 
-        const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY');
+        const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
 
-        // Build HTML body - if body contains an img tag, wrap in HTML
-        const htmlBody = body.includes('<img') 
-            ? `<div style="font-family:sans-serif;direction:rtl;text-align:right;">${body.replace(/\n/g, '<br/>')}</div>`
-            : `<div style="font-family:sans-serif;direction:rtl;text-align:right;">${body.replace(/\n/g, '<br/>')}</div>`;
+        // Build HTML body with image support
+        const htmlBody = body
+            .replace(/\n/g, '<br>')
+            .replace(
+                /(<img[^>]+>)/g,
+                '$1'
+            );
 
         const res = await fetch('https://api.resend.com/emails', {
             method: 'POST',
@@ -27,14 +30,14 @@ Deno.serve(async (req) => {
                 from: 'TOP ALENA <onboarding@resend.dev>',
                 to: [to],
                 subject: subject,
-                html: htmlBody,
+                html: `<div dir="rtl" style="font-family: Arial, sans-serif; font-size: 15px; line-height: 1.6;">${htmlBody}</div>`,
             }),
         });
 
         const data = await res.json();
 
         if (!res.ok) {
-            return Response.json({ error: data.message || 'Failed to send email' }, { status: 500 });
+            return Response.json({ error: data.message || 'Resend error' }, { status: 500 });
         }
 
         return Response.json({ success: true, id: data.id });
