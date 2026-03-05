@@ -24,6 +24,20 @@ export default function CustomerClubPage() {
     const [searchTerm, setSearchTerm] = useState('');
     const [statusFilter, setStatusFilter] = useState('all');
 
+    // Import Excel
+    const [showImport, setShowImport] = useState(false);
+    const [importing, setImporting] = useState(false);
+    const [importResult, setImportResult] = useState(null);
+    const fileInputRef = useRef(null);
+
+    // Email campaign
+    const [showEmail, setShowEmail] = useState(false);
+    const [selectedCustomers, setSelectedCustomers] = useState([]);
+    const [emailSubject, setEmailSubject] = useState('');
+    const [emailBody, setEmailBody] = useState('');
+    const [sendingEmail, setSendingEmail] = useState(false);
+    const [emailResult, setEmailResult] = useState(null);
+
     useEffect(() => {
         loadCustomers();
     }, []);
