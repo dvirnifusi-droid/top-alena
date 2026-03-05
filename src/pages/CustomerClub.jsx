@@ -187,29 +187,41 @@ export default function CustomerClubPage() {
         loadCustomers();
     };
 
+    const handleUploadEmailImage = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        setUploadingImage(true);
+        const { file_url } = await base44.integrations.Core.UploadFile({ file });
+        setEmailImageUrl(file_url);
+        setUploadingImage(false);
+    };
+
     const handleSendEmail = async () => {
         if (!emailSubject || !emailBody || selectedCustomers.length === 0) return;
         setSendingEmail(true);
         setEmailResult(null);
         try {
             const targets = customers.filter(c => selectedCustomers.includes(c.id) && c.email);
-            // Send in parallel batches of 5 to avoid blocking
             const batchSize = 5;
             let sent = 0;
             for (let i = 0; i < targets.length; i += batchSize) {
                 const batch = targets.slice(i, i + batchSize);
-                await Promise.all(batch.map(c =>
-                    base44.integrations.Core.SendEmail({
+                await Promise.all(batch.map(c => {
+                    const bodyWithImage = emailImageUrl
+                        ? `${emailBody.replace('{שם}', c.name)}\n\n<img src="${emailImageUrl}" style="max-width:100%;border-radius:8px;" />`
+                        : emailBody.replace('{שם}', c.name);
+                    return base44.integrations.Core.SendEmail({
                         to: c.email,
                         subject: emailSubject,
-                        body: emailBody.replace('{שם}', c.name)
-                    })
-                ));
+                        body: bodyWithImage
+                    });
+                }));
                 sent += batch.length;
             }
             setEmailResult({ success: true, count: sent });
             setEmailSubject('');
             setEmailBody('');
+            setEmailImageUrl('');
             setSelectedCustomers([]);
         } catch (err) {
             setEmailResult({ success: false, error: err.message });
