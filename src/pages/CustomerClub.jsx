@@ -12,7 +12,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Users, Search, Loader2, AlertTriangle, Heart, Frown, RefreshCw, Upload, Mail, CheckSquare, Square, MessageSquare, UserPlus } from 'lucide-react';
+import { Users, Search, Loader2, AlertTriangle, Heart, Frown, RefreshCw, Upload, Mail, CheckSquare, Square, MessageSquare, UserPlus, ImagePlus, X } from 'lucide-react';
 import { sendSms } from '@/functions/sendSms';
 import { format } from 'date-fns';
 import { Link } from 'react-router-dom';
