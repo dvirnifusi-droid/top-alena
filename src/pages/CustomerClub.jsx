@@ -273,6 +273,13 @@ export default function CustomerClubPage() {
                         <Table>
                             <TableHeader>
                                 <TableRow>
+                                    <TableHead>
+                                        <button onClick={toggleSelectAll} className="flex items-center gap-1 text-xs text-gray-500">
+                                            {selectedCustomers.length === filteredCustomers.filter(c => c.email).length && filteredCustomers.filter(c => c.email).length > 0
+                                                ? <CheckSquare className="w-4 h-4" /> : <Square className="w-4 h-4" />}
+                                            בחר הכל
+                                        </button>
+                                    </TableHead>
                                     <TableHead>שם מלא</TableHead>
                                     <TableHead>טלפון</TableHead>
                                     <TableHead>מייל</TableHead>
