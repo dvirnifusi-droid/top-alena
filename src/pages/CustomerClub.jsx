@@ -60,6 +60,10 @@ export default function CustomerClubPage() {
     const [sendingSms, setSendingSms] = useState(false);
     const [smsResult, setSmsResult] = useState(null);
 
+    // Templates
+    const [emailTemplates, setEmailTemplates] = useState([]);
+    const [smsTemplates, setSmsTemplates] = useState([]);
+
     useEffect(() => {
         loadCustomers();
     }, []);
