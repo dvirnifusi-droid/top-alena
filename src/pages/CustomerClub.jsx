@@ -197,6 +197,15 @@ export default function CustomerClubPage() {
             ));
             results.forEach(r => r.status === 'fulfilled' ? sent++ : failed++);
         }
+        // רשום לוג קמפיין
+        await base44.entities.CampaignLog.create({
+            type: 'sms',
+            body_preview: smsMessage.slice(0, 100),
+            recipients_count: targets.length,
+            sent_count: sent,
+            failed_count: failed,
+            sent_at: new Date().toISOString()
+        });
         setSmsResult({ success: true, sent, failed });
         setSendingSms(false);
     };
