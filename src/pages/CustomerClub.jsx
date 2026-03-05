@@ -346,15 +346,45 @@ export default function CustomerClubPage() {
                     </div>
                 </CardHeader>
                 <CardContent>
-                    <Tabs value={statusFilter} onValueChange={setStatusFilter} className="mb-4">
-                        <TabsList>
-                            <TabsTrigger value="all">הכל</TabsTrigger>
-                            <TabsTrigger value="satisfied">מרוצים</TabsTrigger>
-                            <TabsTrigger value="unsatisfied">לא מרוצים</TabsTrigger>
-                            <TabsTrigger value="recovering">בטיפול</TabsTrigger>
-                            <TabsTrigger value="neutral">ניטרליים</TabsTrigger>
-                        </TabsList>
-                    </Tabs>
+                    <div className="flex flex-wrap gap-3 mb-4 items-end">
+                        <Tabs value={statusFilter} onValueChange={setStatusFilter}>
+                            <TabsList>
+                                <TabsTrigger value="all">הכל</TabsTrigger>
+                                <TabsTrigger value="satisfied">מרוצים</TabsTrigger>
+                                <TabsTrigger value="unsatisfied">לא מרוצים</TabsTrigger>
+                                <TabsTrigger value="recovering">בטיפול</TabsTrigger>
+                                <TabsTrigger value="neutral">ניטרליים</TabsTrigger>
+                            </TabsList>
+                        </Tabs>
+
+                        <Select value={vipFilter} onValueChange={setVipFilter}>
+                            <SelectTrigger className="w-36">
+                                <SelectValue placeholder="רמת VIP" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">כל הרמות</SelectItem>
+                                <SelectItem value="regular">רגיל</SelectItem>
+                                <SelectItem value="silver">כסף</SelectItem>
+                                <SelectItem value="gold">זהב</SelectItem>
+                                <SelectItem value="platinum">פלטינום</SelectItem>
+                            </SelectContent>
+                        </Select>
+
+                        <div className="flex items-center gap-2">
+                            <span className="text-sm text-gray-500">הצטרפות:</span>
+                            <Input type="date" value={joinDateFrom} onChange={e => setJoinDateFrom(e.target.value)} className="w-36" placeholder="מתאריך" />
+                            <span className="text-sm text-gray-400">—</span>
+                            <Input type="date" value={joinDateTo} onChange={e => setJoinDateTo(e.target.value)} className="w-36" placeholder="עד תאריך" />
+                        </div>
+
+                        {(vipFilter !== 'all' || joinDateFrom || joinDateTo) && (
+                            <Button variant="ghost" size="sm" onClick={() => { setVipFilter('all'); setJoinDateFrom(''); setJoinDateTo(''); }} className="text-gray-500">
+                                נקה סינון ✕
+                            </Button>
+                        )}
+
+                        <span className="text-sm text-gray-500 mr-auto">{filteredCustomers.length} לקוחות</span>
+                    </div>
 
                     {loading ? (
                         <div className="flex justify-center items-center h-64">
