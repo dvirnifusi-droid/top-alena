@@ -91,6 +91,7 @@ import UploadChecklists from './pages/UploadChecklists';
 import WaiterTables from './pages/WaiterTables';
 import WorkScheduling from './pages/WorkScheduling';
 import MessageTemplates from './pages/MessageTemplates';
+import MarketingDashboard from './pages/MarketingDashboard';
 import __Layout from './Layout.jsx';
 
 
@@ -139,6 +140,7 @@ export const PAGES = {
     "WaiterTables": WaiterTables,
     "WorkScheduling": WorkScheduling,
     "MessageTemplates": MessageTemplates,
+    "MarketingDashboard": MarketingDashboard,
 }
 
 export const pagesConfig = {
