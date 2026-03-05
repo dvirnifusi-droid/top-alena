@@ -348,6 +348,75 @@ export default function CustomerClubPage() {
                     )}
                 </CardContent>
             </Card>
+
+            {/* Import Excel Dialog */}
+            <Dialog open={showImport} onOpenChange={setShowImport}>
+                <DialogContent dir="rtl">
+                    <DialogHeader>
+                        <DialogTitle>ייבוא לקוחות מאקסל</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4">
+                        <p className="text-sm text-gray-600">
+                            העלה קובץ אקסל (.xlsx) עם עמודות: <strong>name, phone, email, birthday, notes</strong>
+                        </p>
+                        <input
+                            ref={fileInputRef}
+                            type="file"
+                            accept=".xlsx,.xls,.csv"
+                            onChange={handleImportExcel}
+                            className="block w-full text-sm border rounded p-2"
+                        />
+                        {importing && (
+                            <div className="flex items-center gap-2 text-blue-600">
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                                מייבא...
+                            </div>
+                        )}
+                        {importResult && (
+                            <div className={`p-3 rounded text-sm ${importResult.success ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
+                                {importResult.success ? `✅ יובאו ${importResult.count} לקוחות בהצלחה!` : `❌ שגיאה: ${importResult.error}`}
+                            </div>
+                        )}
+                    </div>
+                </DialogContent>
+            </Dialog>
+
+            {/* Email Campaign Dialog */}
+            <Dialog open={showEmail} onOpenChange={setShowEmail}>
+                <DialogContent dir="rtl" className="max-w-lg">
+                    <DialogHeader>
+                        <DialogTitle>שליחת דיוור ללקוחות</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4">
+                        <p className="text-sm text-gray-500">
+                            {selectedCustomers.length === 0
+                                ? 'לא נבחרו לקוחות. סגור וסמן לקוחות עם מייל בטבלה.'
+                                : `נבחרו ${selectedCustomers.length} לקוחות לשליחה.`}
+                        </p>
+                        <div>
+                            <Label>נושא המייל</Label>
+                            <Input value={emailSubject} onChange={e => setEmailSubject(e.target.value)} placeholder="נושא..." className="mt-1" />
+                        </div>
+                        <div>
+                            <Label>תוכן ההודעה</Label>
+                            <p className="text-xs text-gray-400 mb-1">ניתן להשתמש ב-&#123;שם&#125; לשם הלקוח</p>
+                            <Textarea value={emailBody} onChange={e => setEmailBody(e.target.value)} rows={6} placeholder="שלום {שם}, אנחנו שמחים להודיע..." className="mt-1" />
+                        </div>
+                        {emailResult && (
+                            <div className={`p-3 rounded text-sm ${emailResult.success ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
+                                {emailResult.success ? `✅ נשלחו ${emailResult.count} מיילים בהצלחה!` : `❌ שגיאה: ${emailResult.error}`}
+                            </div>
+                        )}
+                        <Button
+                            onClick={handleSendEmail}
+                            disabled={sendingEmail || selectedCustomers.length === 0 || !emailSubject || !emailBody}
+                            className="w-full"
+                        >
+                            {sendingEmail ? <><Loader2 className="w-4 h-4 animate-spin ml-2" /> שולח...</> : <><Mail className="w-4 h-4 ml-2" /> שלח לכל הנבחרים</>}
+                        </Button>
+                    </div>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }
