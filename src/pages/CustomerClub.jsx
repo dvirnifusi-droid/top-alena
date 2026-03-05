@@ -191,7 +191,7 @@ export default function CustomerClubPage() {
 
     const updateCustomerStatus = async (customerId, newStatus) => {
         try {
-            await Customer.update(customerId, { satisfaction_status: newStatus });
+            await base44.entities.Customer.update(customerId, { satisfaction_status: newStatus });
             loadCustomers(); // Refresh the data
         } catch (error) {
             console.error("Failed to update customer status:", error);
