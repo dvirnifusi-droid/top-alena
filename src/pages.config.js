@@ -70,6 +70,8 @@ import InvoiceDetails from './pages/InvoiceDetails';
 import Invoices from './pages/Invoices';
 import Leaderboard from './pages/Leaderboard';
 import MarketingAI from './pages/MarketingAI';
+import MarketingDashboard from './pages/MarketingDashboard';
+import MessageTemplates from './pages/MessageTemplates';
 import MyPerformance from './pages/MyPerformance';
 import PositionsManagement from './pages/PositionsManagement';
 import PublicReservation from './pages/PublicReservation';
@@ -90,8 +92,6 @@ import Training from './pages/Training';
 import UploadChecklists from './pages/UploadChecklists';
 import WaiterTables from './pages/WaiterTables';
 import WorkScheduling from './pages/WorkScheduling';
-import MessageTemplates from './pages/MessageTemplates';
-import MarketingDashboard from './pages/MarketingDashboard';
 import __Layout from './Layout.jsx';
 
 
@@ -119,6 +119,8 @@ export const PAGES = {
     "Invoices": Invoices,
     "Leaderboard": Leaderboard,
     "MarketingAI": MarketingAI,
+    "MarketingDashboard": MarketingDashboard,
+    "MessageTemplates": MessageTemplates,
     "MyPerformance": MyPerformance,
     "PositionsManagement": PositionsManagement,
     "PublicReservation": PublicReservation,
@@ -139,8 +141,6 @@ export const PAGES = {
     "UploadChecklists": UploadChecklists,
     "WaiterTables": WaiterTables,
     "WorkScheduling": WorkScheduling,
-    "MessageTemplates": MessageTemplates,
-    "MarketingDashboard": MarketingDashboard,
 }
 
 export const pagesConfig = {

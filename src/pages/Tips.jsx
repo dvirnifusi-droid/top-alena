@@ -387,69 +387,16 @@ function TipsInner() {
                            onClick={async () => {
                                setIsLoading(true);
                                try {
-                                   // חשב מחדש עם הנתונים העדכניים לפני נעילה
-                                   const numericTotalTips = parseFloat(totalTips) || 0;
-                                   let distributableTips = numericTotalTips;
-                                   let totalRestaurantDeduction = 0;
-                                   let totalRunnerDeduction = 0;
-                                   let totalTipEligibleHours = 0;
-
-                                   const processedStaff = staffDetails.map(staff => {
-                                       const start = staff.start_time ? parseISO(`1970-01-01T${staff.start_time}:00`) : null;
-                                       const end = staff.end_time ? parseISO(`1970-01-01T${staff.end_time}:00`) : null;
-                                       let totalHours = 0;
-                                       if (start && end) {
-                                           let diff = (end - start) / (1000 * 60 * 60);
-                                           if (diff < 0) diff += 24;
-                                           totalHours = diff;
-                                       }
-                                       const breakHours = (parseFloat(staff.break_minutes) || 0) / 60;
-                                       const effectiveHours = Math.max(0, totalHours - breakHours);
-                                       if (staff.position === 'ראנר') {
-                                           const runnerPay = effectiveHours * RUNNER_HOURLY_PAY;
-                                           totalRunnerDeduction += runnerPay;
-                                           distributableTips -= runnerPay;
-                                       }
-                                       if (TIP_ELIGIBLE_POSITIONS.includes(staff.position) || staff.position === 'ראנר') {
-                                           totalRestaurantDeduction += effectiveHours * RESTAURANT_HOURLY_DEDUCTION;
-                                           if (TIP_ELIGIBLE_POSITIONS.includes(staff.position)) {
-                                               totalTipEligibleHours += effectiveHours;
-                                           }
-                                       }
-                                       return { ...staff, totalHours, effectiveHours };
-                                   });
-
-                                   distributableTips -= totalRestaurantDeduction;
-                                   const tipPerHour = totalTipEligibleHours > 0 ? Math.max(0, distributableTips) / totalTipEligibleHours : 0;
-
-                                   const finalStaffDetails = processedStaff.map(staff => {
-                                       let grossTip = 0;
-                                       let supplement = 0;
-                                       if (staff.position === 'ראנר') {
-                                           grossTip = staff.effectiveHours * RUNNER_HOURLY_PAY;
-                                       } else if (TIP_ELIGIBLE_POSITIONS.includes(staff.position)) {
-                                           grossTip = staff.effectiveHours * tipPerHour;
-                                       }
-                                       const mealCost = parseFloat(staff.meal_cost) || 0;
-                                       const salesBonus = parseFloat(staff.sales_bonus) || 0;
-                                       const finalTip = grossTip - mealCost + salesBonus;
-                                       const hourlyRateFromTips = staff.effectiveHours > 0 ? finalTip / staff.effectiveHours : 0;
-                                       if (TIP_ELIGIBLE_POSITIONS.includes(staff.position) && hourlyRateFromTips < MINIMUM_WAGE) {
-                                           supplement = (MINIMUM_WAGE - hourlyRateFromTips) * staff.effectiveHours;
-                                       }
-                                       const totalEarnings = finalTip + supplement;
-                                       return { ...staff, grossTip, finalTip, supplement, totalEarnings };
-                                   });
-
+                                   // שמור + נעל בבת אחת תוך שימוש ב-calculatedResults הקיים
                                    const reportData = {
                                        date: format(date, 'yyyy-MM-dd'),
                                        shift_type: shiftType,
-                                       total_tips_collected: numericTotalTips,
-                                       runner_deduction: totalRunnerDeduction,
-                                       restaurant_deduction: totalRestaurantDeduction,
-                                       net_tips_for_distribution: Math.max(0, distributableTips),
-                                       tip_per_hour: tipPerHour,
-                                       staff_details: finalStaffDetails,
+                                       total_tips_collected: parseFloat(totalTips) || 0,
+                                       runner_deduction: calculatedResults.totalRunnerDeduction,
+                                       restaurant_deduction: calculatedResults.totalRestaurantDeduction,
+                                       net_tips_for_distribution: calculatedResults.netTipsForDistribution,
+                                       tip_per_hour: calculatedResults.tipPerHour,
+                                       staff_details: calculatedResults.staffDetails,
                                        status: 'locked',
                                        locked_by: 'manager',
                                        locked_at: new Date().toISOString(),
