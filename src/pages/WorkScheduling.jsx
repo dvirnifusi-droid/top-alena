@@ -470,7 +470,7 @@ export default function WorkScheduling() {
                 return;
             }
 
-            await WorkShift.update(shift.id, { assigned_staff: updatedStaff });
+            await base44.entities.WorkShift.update(shift.id, { assigned_staff: updatedStaff });
 
             setIsQuickAssignOpen(false);
             setDialogContext(null);
