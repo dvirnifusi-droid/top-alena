@@ -19,10 +19,23 @@ async function loadShiftsForWeek(weekStart) {
     const weekStartStr = format(weekStart, 'yyyy-MM-dd');
     const weekEndStr = format(addDays(weekStart, 6), 'yyyy-MM-dd');
     const currentUser = await base44.auth.me();
+    
+    // נסה למצוא שם עובד מסונכרן מהבסיס
+    let userFullName = currentUser.full_name;
+    try {
+        const employees = await Employee.filter({ email: currentUser.email });
+        if (employees.length > 0 && employees[0].full_name) {
+            userFullName = employees[0].full_name;
+            console.log('Updated user name from Employee record:', userFullName);
+        }
+    } catch (err) {
+        console.log('Could not sync employee name, using:', userFullName);
+    }
+    
     const allShifts = await base44.entities.WorkShift.list();
     const weekShifts = [];
 
-    console.log('Loading shifts for:', weekStartStr, '-', weekEndStr, 'User:', currentUser.full_name);
+    console.log('Loading shifts for:', weekStartStr, '-', weekEndStr, 'User:', userFullName);
 
     allShifts.forEach(shift => {
         if (!shift.date) return;
@@ -31,8 +44,8 @@ async function loadShiftsForWeek(weekStart) {
                 console.log('Shift on', shift.date, 'has staff:', shift.assigned_staff.map(a => a.employee_name));
             }
             const userAssignment = (shift.assigned_staff || []).find(
-                a => a.employee_name && currentUser.full_name &&
-                    a.employee_name.toLowerCase() === currentUser.full_name.toLowerCase()
+                a => a.employee_name && userFullName &&
+                    a.employee_name.toLowerCase() === userFullName.toLowerCase()
             );
             if (userAssignment) {
                 console.log('Found assignment:', userAssignment.employee_name, 'on', shift.date);
