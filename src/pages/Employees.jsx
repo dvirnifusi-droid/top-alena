@@ -522,6 +522,32 @@ function EmployeesInner() {
     setIsAccessCodeOpen(true);
   };
 
+  const syncAllEmails = async () => {
+    if (!window.confirm('האם אתה בטוח? זה יעדכן את המייל של כל העובדים לפי המשתמשים רשומים במערכת')) return;
+    
+    setLoading(true);
+    try {
+      const allUsers = await User.list();
+      const updates = [];
+
+      for (const employee of employees) {
+        const matchingUser = allUsers.find(u => u.full_name && u.full_name.trim().toLowerCase() === employee.full_name.trim().toLowerCase());
+        
+        if (matchingUser && matchingUser.email !== employee.email) {
+          await Employee.update(employee.id, { email: matchingUser.email });
+          updates.push(`${employee.full_name}: ${employee.email} → ${matchingUser.email}`);
+        }
+      }
+
+      alert(`סונכרנו ${updates.length} עובדים:\n\n${updates.join('\n')}`);
+      loadEmployees();
+    } catch (error) {
+      console.error('Error syncing emails:', error);
+      alert('שגיאה בסנכרון המיילים');
+    }
+    setLoading(false);
+  };
+
   return (
     <div className="min-h-screen p-4 md:p-8 bg-gradient-to-br from-gray-50 to-slate-100" dir="rtl">
       <div className="max-w-7xl mx-auto">
