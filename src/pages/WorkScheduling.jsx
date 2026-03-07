@@ -991,12 +991,12 @@ export default function WorkScheduling() {
                         const movedAssignment = { ...assignment, date: newDate };
                         delete movedAssignment.shift_type; // don't double-store
                         try {
-                            await WorkShift.update(sourceShift.id, { assigned_staff: newSourceStaff });
+                            await base44.entities.WorkShift.update(sourceShift.id, { assigned_staff: newSourceStaff });
                             if (targetShift) {
                                 const newTargetStaff = [...(targetShift.assigned_staff || []), { ...assignment }];
-                                await WorkShift.update(targetShift.id, { assigned_staff: newTargetStaff });
+                                await base44.entities.WorkShift.update(targetShift.id, { assigned_staff: newTargetStaff });
                             } else {
-                                await WorkShift.create({
+                                await base44.entities.WorkShift.create({
                                     date: newDate,
                                     shift_type: assignment.shift_type,
                                     start_time: sourceShift.start_time,
