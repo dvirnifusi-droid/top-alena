@@ -19,6 +19,7 @@ import ShiftEditDialog from '../components/scheduling/ShiftEditDialog';
 import AssignmentEditDialog from '../components/scheduling/AssignmentEditDialog';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import ShiftNotificationBell from '../components/shared/ShiftNotificationBell';
+import { RestaurantProfile } from '@/entities/RestaurantProfile';
 
 const shiftTypesConfig = {
     lunch: { label: 'צהריים', color: 'bg-blue-100 border-blue-300' },
