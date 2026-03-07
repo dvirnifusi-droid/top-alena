@@ -599,6 +599,13 @@ function EmployeesInner() {
                               <Shield className="w-4 h-4 ml-2" />
                               ניהול הרשאות
                             </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => {
+                              createInvitation(employee).then(inv => {
+                                if (inv) setInvitationSuccess(inv);
+                              });
+                            }}>
+                              📧 שלח הזמנה מחדש
+                            </DropdownMenuItem>
                             <DropdownMenuItem
                               className="text-red-600"
                               onClick={() => handleDeleteEmployee(employee.id)}
