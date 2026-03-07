@@ -554,14 +554,15 @@ function EmployeeReportsInner() {
                                         <table className="w-full text-sm">
                                             <thead className="border-b-2 border-gray-300 bg-slate-50">
                                                 <tr>
-                                                    <th className="text-right py-3 px-4">תאריך</th>
-                                                    <th className="text-right py-3 px-4">משמרת</th>
-                                                    <th className="text-right py-3 px-4">תפקיד</th>
-                                                    <th className="text-right py-3 px-4">כניסה</th>
-                                                    <th className="text-right py-3 px-4">יציאה</th>
-                                                    <th className="text-right py-3 px-4">הפסקה (דק')</th>
-                                                    <th className="text-right py-3 px-4 font-bold text-blue-700">שעות נטו</th>
-                                                </tr>
+                                                            <th className="text-right py-3 px-4">תאריך</th>
+                                                            <th className="text-right py-3 px-4">משמרת</th>
+                                                            <th className="text-right py-3 px-4">תפקיד</th>
+                                                            <th className="text-right py-3 px-4">כניסה</th>
+                                                            <th className="text-right py-3 px-4">יציאה</th>
+                                                            <th className="text-right py-3 px-4">הפסקה (דק')</th>
+                                                            <th className="text-right py-3 px-4 font-bold text-blue-700">שעות נטו</th>
+                                                            {isAdmin && <th className="py-3 px-4"></th>}
+                                                        </tr>
                                             </thead>
                                             <tbody>
                                                 {filteredData.hourlyShiftEntries
