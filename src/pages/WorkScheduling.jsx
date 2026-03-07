@@ -781,7 +781,16 @@ export default function WorkScheduling() {
                                                     }
 
                                                     return (
-                                                        <div key={day.toISOString()} className="p-2 border-b border-r min-h-[60px] space-y-1">
+                                                        <div key={day.toISOString()} className="p-2 border-b border-r min-h-[60px] space-y-1 group relative">
+                                                            {shift && position === finalFilteredPositions[0] && (
+                                                                <button
+                                                                    title="העבר משמרת לתאריך אחר"
+                                                                    className="absolute top-1 left-1 opacity-0 group-hover:opacity-100 transition-opacity bg-white border rounded p-0.5 text-gray-500 hover:text-blue-600 z-10"
+                                                                    onClick={(e) => { e.stopPropagation(); setMoveShiftDialog({ shift }); setMoveShiftDate(shift.date); }}
+                                                                >
+                                                                    <MoveRight className="w-3 h-3" />
+                                                                </button>
+                                                            )}
                                                             {assignments.map(assignment => (
                                                                 <div
                                                                     key={assignment.employee_id}
