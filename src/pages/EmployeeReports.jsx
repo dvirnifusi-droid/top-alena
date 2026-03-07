@@ -5,12 +5,24 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { Loader2, TrendingUp, Clock, DollarSign, BarChart3, Briefcase } from 'lucide-react';
-import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, subMonths, parseISO } from 'date-fns';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Loader2, TrendingUp, Clock, DollarSign, BarChart3, Calendar } from 'lucide-react';
+import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, subMonths } from 'date-fns';
 import { he } from 'date-fns/locale';
 
+// TIP-based positions (excluded from hourly salary report)
 const TIP_POSITIONS = ['מלצר', 'ברמן', 'ראנר'];
+
+// Calculate hours between two time strings (handles overnight)
+function calcHours(startTime, endTime) {
+    if (!startTime || !endTime) return 0;
+    const [sh, sm] = startTime.split(':').map(Number);
+    const [eh, em] = endTime.split(':').map(Number);
+    let start = sh * 60 + sm;
+    let end = eh * 60 + em;
+    if (end < start) end += 24 * 60; // overnight
+    return (end - start) / 60;
+}
 
 export default function EmployeeReportsPage() {
     return (
@@ -25,7 +37,6 @@ function EmployeeReportsInner() {
     const [isAdmin, setIsAdmin] = useState(false);
     const [employees, setEmployees] = useState([]);
     const [shifts, setShifts] = useState([]);
-    const [workShifts, setWorkShifts] = useState([]);
     const [tipReports, setTipReports] = useState([]);
     const [myEmployeeRecord, setMyEmployeeRecord] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -35,6 +46,7 @@ function EmployeeReportsInner() {
     const [filterPeriod, setFilterPeriod] = useState('month');
     const [selectedMonth, setSelectedMonth] = useState(new Date());
     const [loading2, setLoading2] = useState(false);
+    const [workShifts, setWorkShifts] = useState([]);
 
     useEffect(() => {
         loadInitialData();
@@ -75,7 +87,7 @@ function EmployeeReportsInner() {
             const [allShifts, allTipReports, allWorkShifts] = await Promise.all([
                 base44.entities.ShiftTracking.list(),
                 base44.entities.TipReport.list(),
-                base44.entities.WorkShift.list(),
+                base44.entities.WorkShift.list('-date', 500),
             ]);
             setShifts(allShifts);
             setTipReports(allTipReports);
@@ -147,48 +159,40 @@ function EmployeeReportsInner() {
             inPeriod(s.date)
         );
 
-        // שעות שכר מ-WorkShift לעובדים שאינם על טיפים
-        const hourlyEntries = [];
+        // משמרות מסידור העבודה לעובדים שאינם על טיפים
+        const hourlyShiftEntries = [];
         workShifts.forEach(ws => {
-            (ws.assigned_staff || []).forEach(staff => {
-                if (
-                    (staff.employee_id === selectedEmployeeId ||
-                     (selectedEmp?.full_name && staff.employee_name?.trim().toLowerCase() === selectedEmp.full_name.trim().toLowerCase())) &&
-                    !TIP_POSITIONS.includes(staff.position) &&
-                    staff.start_time && staff.end_time &&
-                    inPeriod(ws.date)
-                ) {
-                    const start = parseISO(`1970-01-01T${staff.start_time}:00`);
-                    const end = parseISO(`1970-01-01T${staff.end_time}:00`);
-                    let hours = (end - start) / (1000 * 60 * 60);
-                    if (hours < 0) hours += 24;
-                    const breakHours = (parseFloat(staff.total_break_minutes) || 0) / 60;
-                    const effectiveHours = Math.max(0, hours - breakHours);
-                    hourlyEntries.push({
-                        date: ws.date,
-                        shift_type: ws.shift_type,
-                        position: staff.position,
-                        start_time: staff.start_time,
-                        end_time: staff.end_time,
-                        break_minutes: staff.total_break_minutes || 0,
-                        effectiveHours,
-                    });
-                }
+            if (!inPeriod(ws.date)) return;
+            (ws.assigned_staff || []).forEach(a => {
+                if (a.employee_id !== selectedEmployeeId) return;
+                if (TIP_POSITIONS.includes(a.position)) return; // טיפ-based - לא כאן
+                const hours = calcHours(a.start_time, a.end_time);
+                if (hours <= 0) return;
+                hourlyShiftEntries.push({
+                    date: ws.date,
+                    shift_type: ws.shift_type,
+                    position: a.position,
+                    start_time: a.start_time,
+                    end_time: a.end_time,
+                    hours,
+                    break_minutes: a.total_break_minutes || 0,
+                    net_hours: hours - (a.total_break_minutes || 0) / 60,
+                });
             });
         });
 
-        return { tipEntries, shifts: empShifts, hourlyEntries };
+        return { tipEntries, shifts: empShifts, hourlyShiftEntries };
     }, [shifts, tipReports, workShifts, selectedEmployeeId, filterPeriod, selectedMonth, employees]);
 
     // חישובים
     const calculations = useMemo(() => {
-        const { tipEntries, shifts: filteredShifts, hourlyEntries } = filteredData;
+        const { tipEntries, shifts: filteredShifts, hourlyShiftEntries } = filteredData;
 
         const totalTipEarnings = tipEntries.reduce((sum, e) => sum + (e.totalEarnings || 0), 0);
         const totalTipHours = tipEntries.reduce((sum, e) => sum + (e.effectiveHours || 0), 0);
         const totalShiftHours = filteredShifts.reduce((sum, s) => sum + (s.effective_hours || s.total_hours || 0), 0);
-        const totalHourlyHours = (hourlyEntries || []).reduce((sum, e) => sum + (e.effectiveHours || 0), 0);
         const hourlyAverage = totalTipHours > 0 ? totalTipEarnings / totalTipHours : 0;
+        const totalHourlyHours = hourlyShiftEntries.reduce((sum, e) => sum + e.net_hours, 0);
 
         return {
             totalTipShifts: tipEntries.length,
@@ -197,8 +201,8 @@ function EmployeeReportsInner() {
             totalShiftHours: totalShiftHours.toFixed(1),
             totalTipEarnings: totalTipEarnings.toFixed(2),
             hourlyAverage: hourlyAverage.toFixed(2),
-            totalHourlyShifts: (hourlyEntries || []).length,
-            totalHourlyHours: totalHourlyHours.toFixed(1),
+            totalHourlyShifts: hourlyShiftEntries.length,
+            totalHourlyHours: totalHourlyHours.toFixed(2),
         };
     }, [filteredData]);
 
@@ -288,65 +292,156 @@ function EmployeeReportsInner() {
                     </CardContent>
                 </Card>
 
-                {/* Summary Cards */}
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-                    <Card className="border-2 border-blue-200">
-                        <CardContent className="p-6">
-                            <div className="flex items-center justify-between">
-                                <div>
-                                    <p className="text-sm text-gray-600">משמרות בטיפים</p>
-                                    <p className="text-2xl font-bold text-blue-600">{calculations.totalTipShifts}</p>
-                                </div>
-                                <BarChart3 className="w-8 h-8 text-blue-600 opacity-50" />
-                            </div>
-                        </CardContent>
-                    </Card>
-
-                    <Card className="border-2 border-green-200">
-                        <CardContent className="p-6">
-                            <div className="flex items-center justify-between">
-                                <div>
-                                    <p className="text-sm text-gray-600">שעות (סגירת טיפים)</p>
-                                    <p className="text-2xl font-bold text-green-600">{calculations.totalTipHours}</p>
-                                </div>
-                                <Clock className="w-8 h-8 text-green-600 opacity-50" />
-                            </div>
-                        </CardContent>
-                    </Card>
-
-                    <Card className="border-2 border-orange-200">
-                        <CardContent className="p-6">
-                            <div className="flex items-center justify-between">
-                                <div>
-                                    <p className="text-sm text-gray-600">סה"כ טיפים</p>
-                                    <p className="text-2xl font-bold text-orange-600">₪{calculations.totalTipEarnings}</p>
-                                </div>
-                                <DollarSign className="w-8 h-8 text-orange-600 opacity-50" />
-                            </div>
-                        </CardContent>
-                    </Card>
-
-                    <Card className="border-2 border-purple-200">
-                        <CardContent className="p-6">
-                            <div className="flex items-center justify-between">
-                                <div>
-                                    <p className="text-sm text-gray-600">ממוצע לשעה</p>
-                                    <p className="text-2xl font-bold text-purple-600">₪{calculations.hourlyAverage}</p>
-                                </div>
-                                <TrendingUp className="w-8 h-8 text-purple-600 opacity-50" />
-                            </div>
-                        </CardContent>
-                    </Card>
-                </div>
-
-                {/* Tabs: טיפים / שעות שכר */}
-                <Tabs defaultValue="tips">
-                    <TabsList className="mb-4">
-                        <TabsTrigger value="tips">טיפים (מלצרים/ברמנים/ראנרים)</TabsTrigger>
-                        <TabsTrigger value="hourly">שעות שכר (שאר עובדים)</TabsTrigger>
+                <Tabs defaultValue="hourly" className="w-full">
+                    <TabsList className="mb-6">
+                        <TabsTrigger value="hourly" className="flex items-center gap-2">
+                            <Calendar className="w-4 h-4" />
+                            שעות עבודה (סידור)
+                            {calculations.totalHourlyShifts > 0 && (
+                                <Badge className="mr-1 bg-blue-600 text-white text-xs">{calculations.totalHourlyShifts}</Badge>
+                            )}
+                        </TabsTrigger>
+                        <TabsTrigger value="tips" className="flex items-center gap-2">
+                            <DollarSign className="w-4 h-4" />
+                            טיפים
+                            {calculations.totalTipShifts > 0 && (
+                                <Badge className="mr-1 bg-green-600 text-white text-xs">{calculations.totalTipShifts}</Badge>
+                            )}
+                        </TabsTrigger>
                     </TabsList>
 
+                    {/* TAB: שעות עבודה */}
+                    <TabsContent value="hourly">
+                        <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+                            <Card className="border-2 border-blue-200">
+                                <CardContent className="p-6">
+                                    <div className="flex items-center justify-between">
+                                        <div>
+                                            <p className="text-sm text-gray-600">משמרות מהסידור</p>
+                                            <p className="text-2xl font-bold text-blue-600">{calculations.totalHourlyShifts}</p>
+                                        </div>
+                                        <BarChart3 className="w-8 h-8 text-blue-600 opacity-50" />
+                                    </div>
+                                </CardContent>
+                            </Card>
+                            <Card className="border-2 border-green-200">
+                                <CardContent className="p-6">
+                                    <div className="flex items-center justify-between">
+                                        <div>
+                                            <p className="text-sm text-gray-600">סה"כ שעות נטו</p>
+                                            <p className="text-2xl font-bold text-green-600">{calculations.totalHourlyHours}</p>
+                                        </div>
+                                        <Clock className="w-8 h-8 text-green-600 opacity-50" />
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        </div>
+
+                        <Card className="border-2">
+                            <CardHeader>
+                                <CardTitle>פירוט משמרות לפי סידור עבודה</CardTitle>
+                                <p className="text-sm text-gray-500">תפקידים שאינם מלצר/ברמן/ראנר (אלו נמצאים בטאב הטיפים)</p>
+                            </CardHeader>
+                            <CardContent>
+                                {loading2 ? (
+                                    <div className="flex items-center justify-center py-8">
+                                        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+                                    </div>
+                                ) : filteredData.hourlyShiftEntries.length === 0 ? (
+                                    <p className="text-center text-gray-500 py-8">אין משמרות בסידור העבודה לתקופה זו לעובד זה</p>
+                                ) : (
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full text-sm">
+                                            <thead className="border-b-2 border-gray-300 bg-slate-50">
+                                                <tr>
+                                                    <th className="text-right py-3 px-4">תאריך</th>
+                                                    <th className="text-right py-3 px-4">משמרת</th>
+                                                    <th className="text-right py-3 px-4">תפקיד</th>
+                                                    <th className="text-right py-3 px-4">כניסה</th>
+                                                    <th className="text-right py-3 px-4">יציאה</th>
+                                                    <th className="text-right py-3 px-4">הפסקה (דק')</th>
+                                                    <th className="text-right py-3 px-4 font-bold text-blue-700">שעות נטו</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {filteredData.hourlyShiftEntries
+                                                    .sort((a, b) => a.date.localeCompare(b.date))
+                                                    .map((entry, idx) => (
+                                                    <tr key={idx} className="border-b border-gray-200 hover:bg-slate-50">
+                                                        <td className="py-3 px-4">{format(new Date(entry.date), 'dd/MM/yyyy', { locale: he })}</td>
+                                                        <td className="py-3 px-4">
+                                                            <Badge variant={entry.shift_type === 'lunch' ? 'default' : 'secondary'}>
+                                                                {entry.shift_type === 'lunch' ? 'צהריים' : 'ערב'}
+                                                            </Badge>
+                                                        </td>
+                                                        <td className="py-3 px-4 text-gray-700 font-medium">{entry.position}</td>
+                                                        <td className="py-3 px-4">{entry.start_time}</td>
+                                                        <td className="py-3 px-4">{entry.end_time}</td>
+                                                        <td className="py-3 px-4 text-gray-500">{entry.break_minutes > 0 ? entry.break_minutes : '-'}</td>
+                                                        <td className="py-3 px-4 font-bold text-blue-700">{entry.net_hours.toFixed(2)}</td>
+                                                    </tr>
+                                                ))}
+                                                <tr className="border-t-2 border-gray-400 bg-blue-50">
+                                                    <td colSpan={6} className="py-3 px-4 font-bold text-right text-blue-800">סה"כ שעות לתקופה:</td>
+                                                    <td className="py-3 px-4 font-bold text-xl text-blue-700">{calculations.totalHourlyHours}</td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                )}
+                            </CardContent>
+                        </Card>
+                    </TabsContent>
+
+                    {/* TAB: טיפים */}
                     <TabsContent value="tips">
+                        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                            <Card className="border-2 border-blue-200">
+                                <CardContent className="p-6">
+                                    <div className="flex items-center justify-between">
+                                        <div>
+                                            <p className="text-sm text-gray-600">משמרות בטיפים</p>
+                                            <p className="text-2xl font-bold text-blue-600">{calculations.totalTipShifts}</p>
+                                        </div>
+                                        <BarChart3 className="w-8 h-8 text-blue-600 opacity-50" />
+                                    </div>
+                                </CardContent>
+                            </Card>
+                            <Card className="border-2 border-green-200">
+                                <CardContent className="p-6">
+                                    <div className="flex items-center justify-between">
+                                        <div>
+                                            <p className="text-sm text-gray-600">שעות (סגירת טיפים)</p>
+                                            <p className="text-2xl font-bold text-green-600">{calculations.totalTipHours}</p>
+                                        </div>
+                                        <Clock className="w-8 h-8 text-green-600 opacity-50" />
+                                    </div>
+                                </CardContent>
+                            </Card>
+                            <Card className="border-2 border-orange-200">
+                                <CardContent className="p-6">
+                                    <div className="flex items-center justify-between">
+                                        <div>
+                                            <p className="text-sm text-gray-600">סה"כ טיפים</p>
+                                            <p className="text-2xl font-bold text-orange-600">₪{calculations.totalTipEarnings}</p>
+                                        </div>
+                                        <DollarSign className="w-8 h-8 text-orange-600 opacity-50" />
+                                    </div>
+                                </CardContent>
+                            </Card>
+                            <Card className="border-2 border-purple-200">
+                                <CardContent className="p-6">
+                                    <div className="flex items-center justify-between">
+                                        <div>
+                                            <p className="text-sm text-gray-600">ממוצע לשעה</p>
+                                            <p className="text-2xl font-bold text-purple-600">₪{calculations.hourlyAverage}</p>
+                                        </div>
+                                        <TrendingUp className="w-8 h-8 text-purple-600 opacity-50" />
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        </div>
+
                         <Card className="border-2">
                             <CardHeader>
                                 <CardTitle>פירוט טיפים לפי משמרת</CardTitle>
@@ -386,75 +481,21 @@ function EmployeeReportsInner() {
                                                         <td className="py-3 px-4 text-gray-600">{entry.position || '-'}</td>
                                                         <td className="py-3 px-4">{(entry.effectiveHours || 0).toFixed(2)}</td>
                                                         <td className="py-3 px-4 text-blue-600">₪{(entry.grossTip || 0).toFixed(2)}</td>
-                                                        <td className="py-3 px-4 text-red-500">{entry.meal_cost > 0 ? `-₪${entry.meal_cost.toFixed(2)}` : '-'}</td>
-                                                        <td className="py-3 px-4 text-green-600">{entry.sales_bonus > 0 ? `+₪${entry.sales_bonus.toFixed(2)}` : '-'}</td>
-                                                        <td className="py-3 px-4 text-purple-600">{entry.supplement > 0 ? `+₪${entry.supplement.toFixed(2)}` : '-'}</td>
+                                                        <td className="py-3 px-4 text-red-500">
+                                                            {entry.meal_cost > 0 ? `-₪${entry.meal_cost.toFixed(2)}` : '-'}
+                                                        </td>
+                                                        <td className="py-3 px-4 text-green-600">
+                                                            {entry.sales_bonus > 0 ? `+₪${entry.sales_bonus.toFixed(2)}` : '-'}
+                                                        </td>
+                                                        <td className="py-3 px-4 text-purple-600">
+                                                            {entry.supplement > 0 ? `+₪${entry.supplement.toFixed(2)}` : '-'}
+                                                        </td>
                                                         <td className="py-3 px-4 font-bold text-green-700">₪{(entry.totalEarnings || 0).toFixed(2)}</td>
                                                     </tr>
                                                 ))}
                                                 <tr className="border-t-2 border-gray-400 bg-green-50">
                                                     <td colSpan={8} className="py-3 px-4 font-bold text-right text-green-800">סה"כ לתקופה:</td>
                                                     <td className="py-3 px-4 font-bold text-xl text-green-700">₪{calculations.totalTipEarnings}</td>
-                                                </tr>
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                )}
-                            </CardContent>
-                        </Card>
-                    </TabsContent>
-
-                    <TabsContent value="hourly">
-                        <Card className="border-2">
-                            <CardHeader>
-                                <CardTitle className="flex items-center gap-2">
-                                    <Briefcase className="w-5 h-5" />
-                                    פירוט שעות שכר לפי משמרת
-                                    <Badge className="bg-blue-100 text-blue-800 mr-2">
-                                        סה"כ: {calculations.totalHourlyHours} שעות ב-{calculations.totalHourlyShifts} משמרות
-                                    </Badge>
-                                </CardTitle>
-                            </CardHeader>
-                            <CardContent>
-                                {loading2 ? (
-                                    <div className="flex items-center justify-center py-8">
-                                        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
-                                    </div>
-                                ) : (filteredData.hourlyEntries || []).length === 0 ? (
-                                    <p className="text-center text-gray-500 py-8">אין נתוני שעות לתקופה זו (רק לתפקידים שאינם מלצר/ברמן/ראנר)</p>
-                                ) : (
-                                    <div className="overflow-x-auto">
-                                        <table className="w-full text-sm">
-                                            <thead className="border-b-2 border-gray-300 bg-slate-50">
-                                                <tr>
-                                                    <th className="text-right py-3 px-4">תאריך</th>
-                                                    <th className="text-right py-3 px-4">משמרת</th>
-                                                    <th className="text-right py-3 px-4">תפקיד</th>
-                                                    <th className="text-right py-3 px-4">כניסה</th>
-                                                    <th className="text-right py-3 px-4">יציאה</th>
-                                                    <th className="text-right py-3 px-4">הפסקה (דק')</th>
-                                                    <th className="text-right py-3 px-4 font-bold text-blue-700">שעות אפקטיביות</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                {(filteredData.hourlyEntries || []).map((entry, idx) => (
-                                                    <tr key={idx} className="border-b border-gray-200 hover:bg-slate-50">
-                                                        <td className="py-3 px-4">{format(new Date(entry.date), 'dd/MM/yyyy', { locale: he })}</td>
-                                                        <td className="py-3 px-4">
-                                                            <Badge variant={entry.shift_type === 'lunch' ? 'default' : 'secondary'}>
-                                                                {entry.shift_type === 'lunch' ? 'צהריים' : 'ערב'}
-                                                            </Badge>
-                                                        </td>
-                                                        <td className="py-3 px-4 text-gray-600">{entry.position || '-'}</td>
-                                                        <td className="py-3 px-4">{entry.start_time}</td>
-                                                        <td className="py-3 px-4">{entry.end_time}</td>
-                                                        <td className="py-3 px-4">{entry.break_minutes || 0}</td>
-                                                        <td className="py-3 px-4 font-bold text-blue-700">{entry.effectiveHours.toFixed(2)}</td>
-                                                    </tr>
-                                                ))}
-                                                <tr className="border-t-2 border-gray-400 bg-blue-50">
-                                                    <td colSpan={6} className="py-3 px-4 font-bold text-right text-blue-800">סה"כ שעות לתקופה:</td>
-                                                    <td className="py-3 px-4 font-bold text-xl text-blue-700">{calculations.totalHourlyHours}</td>
                                                 </tr>
                                             </tbody>
                                         </table>
