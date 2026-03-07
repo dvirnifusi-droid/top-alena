@@ -128,9 +128,15 @@ export default function WeeklyScheduleSummary({ userId, currentEmployee }) {
     const [loadingNext, setLoadingNext] = useState(false);
     const [nextLoaded, setNextLoaded] = useState(false);
     const [allEmployees, setAllEmployees] = useState([]);
+    const [managerPhone, setManagerPhone] = useState('');
 
     useEffect(() => {
         Employee.filter({ status: 'active' }).then(setAllEmployees);
+        RestaurantInfo.list().then(list => {
+            if (list.length > 0 && list[0].manager_whatsapp_phone) {
+                setManagerPhone(list[0].manager_whatsapp_phone);
+            }
+        }).catch(() => {});
     }, []);
 
     const today = new Date();
