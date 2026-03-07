@@ -48,7 +48,6 @@ export default function ShiftChat() {
             // Check for new messages not from current user
             if (event.type === 'create' && event.data.shift_date === today && event.data.sender_id !== user?.id) {
                 setHasNewMessages(true);
-                if (onUnreadChange) onUnreadChange(true);
             }
         });
         return unsub;
