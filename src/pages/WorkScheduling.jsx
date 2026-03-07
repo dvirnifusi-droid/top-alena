@@ -929,6 +929,7 @@ export default function WorkScheduling() {
                     positions={positions}
                     onSave={handleAssignmentSave}
                     onDelete={handleAssignmentDelete}
+                    weekDays={days}
                     onMoveShift={async (assignment, newDate) => {
                         const dateString = format(new Date(assignment.date), 'yyyy-MM-dd');
                         const sourceShift = week.find(s => s.date === dateString && s.shift_type === assignment.shift_type);
