@@ -363,6 +363,116 @@ function EmployeeReportsInner() {
                         </TabsTrigger>
                     </TabsList>
 
+                    {/* TAB: סיכום חודשי */}
+                    <TabsContent value="monthly">
+                        {/* כרטיסי סיכום */}
+                        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                            <Card className="border-2 border-blue-200">
+                                <CardContent className="p-5">
+                                    <p className="text-sm text-gray-500 mb-1">סה"כ שעות בחודש</p>
+                                    <p className="text-3xl font-bold text-blue-600">{monthlyBreakdown.totalHours}</p>
+                                    <p className="text-xs text-gray-400 mt-1">שעות</p>
+                                </CardContent>
+                            </Card>
+                            <Card className="border-2 border-green-200">
+                                <CardContent className="p-5">
+                                    <p className="text-sm text-gray-500 mb-1">שעות רגילות</p>
+                                    <p className="text-3xl font-bold text-green-600">{monthlyBreakdown.totalRegular}</p>
+                                    <p className="text-xs text-gray-400 mt-1">עד {WEEKLY_GOAL_HOURS} שעות/שבוע</p>
+                                </CardContent>
+                            </Card>
+                            <Card className="border-2 border-orange-200">
+                                <CardContent className="p-5">
+                                    <p className="text-sm text-gray-500 mb-1">שעות נוספות</p>
+                                    <p className="text-3xl font-bold text-orange-600">{monthlyBreakdown.totalOvertime}</p>
+                                    <p className="text-xs text-gray-400 mt-1">מעל {WEEKLY_GOAL_HOURS} שעות/שבוע</p>
+                                </CardContent>
+                            </Card>
+                            <Card className={`border-2 ${parseFloat(monthlyBreakdown.totalHours) >= WEEKLY_GOAL_HOURS * 4 ? 'border-green-300 bg-green-50' : 'border-red-200 bg-red-50'}`}>
+                                <CardContent className="p-5">
+                                    <p className="text-sm text-gray-500 mb-1">עמידה ביעד חודשי</p>
+                                    <p className={`text-3xl font-bold ${parseFloat(monthlyBreakdown.totalHours) >= WEEKLY_GOAL_HOURS * 4 ? 'text-green-600' : 'text-red-500'}`}>
+                                        {Math.round((parseFloat(monthlyBreakdown.totalHours) / (WEEKLY_GOAL_HOURS * 4)) * 100)}%
+                                    </p>
+                                    <p className="text-xs text-gray-400 mt-1">יעד: {WEEKLY_GOAL_HOURS * 4} שעות</p>
+                                </CardContent>
+                            </Card>
+                        </div>
+
+                        {/* גרף שעות שבועי */}
+                        <Card className="border-2 mb-6">
+                            <CardHeader>
+                                <CardTitle className="flex items-center gap-2">
+                                    <BarChart3 className="w-5 h-5" />
+                                    פילוח שעות שבועי - {format(selectedMonth, 'MMMM yyyy', { locale: he })}
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                                {monthlyBreakdown.weeks.length === 0 ? (
+                                    <p className="text-center text-gray-500 py-8">אין נתונים לחודש זה</p>
+                                ) : (
+                                    <ResponsiveContainer width="100%" height={280}>
+                                        <BarChart data={monthlyBreakdown.weeks} margin={{ top: 10, right: 10, left: -10, bottom: 5 }}>
+                                            <CartesianGrid strokeDasharray="3 3" />
+                                            <XAxis dataKey="label" tick={{ fontSize: 11 }} />
+                                            <YAxis tick={{ fontSize: 11 }} />
+                                            <Tooltip
+                                                formatter={(value, name) => [`${value} שעות`, name === 'regular' ? 'שעות רגילות' : 'שעות נוספות']}
+                                                labelFormatter={(label) => `שבוע: ${label}`}
+                                            />
+                                            <ReferenceLine y={WEEKLY_GOAL_HOURS} stroke="#f97316" strokeDasharray="5 5" label={{ value: `יעד ${WEEKLY_GOAL_HOURS}ש׳`, position: 'right', fontSize: 11, fill: '#f97316' }} />
+                                            <Bar dataKey="regular" stackId="a" fill="#3b82f6" name="regular" radius={[0, 0, 0, 0]} />
+                                            <Bar dataKey="overtime" stackId="a" fill="#f97316" name="overtime" radius={[4, 4, 0, 0]} />
+                                        </BarChart>
+                                    </ResponsiveContainer>
+                                )}
+                            </CardContent>
+                        </Card>
+
+                        {/* טבלת פירוט שבועות */}
+                        <Card className="border-2">
+                            <CardHeader>
+                                <CardTitle>השוואת שעות ליעד שבועי</CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                                <div className="space-y-3">
+                                    {monthlyBreakdown.weeks.map((week, idx) => {
+                                        const pct = Math.min(100, Math.round((week.hours / WEEKLY_GOAL_HOURS) * 100));
+                                        const overGoal = week.hours >= WEEKLY_GOAL_HOURS;
+                                        return (
+                                            <div key={idx} className="p-3 rounded-lg border bg-slate-50">
+                                                <div className="flex items-center justify-between mb-2">
+                                                    <span className="font-medium text-sm">{week.label}</span>
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="text-sm font-bold">{week.hours} שעות</span>
+                                                        {week.overtime > 0 && (
+                                                            <Badge className="bg-orange-100 text-orange-700 text-xs">+{week.overtime} נוספות</Badge>
+                                                        )}
+                                                        {overGoal ? (
+                                                            <Badge className="bg-green-100 text-green-700 text-xs">✅ יעד הושג</Badge>
+                                                        ) : (
+                                                            <Badge className="bg-red-100 text-red-600 text-xs flex items-center gap-1">
+                                                                <AlertCircle className="w-3 h-3" />
+                                                                חסר {(WEEKLY_GOAL_HOURS - week.hours).toFixed(1)} ש׳
+                                                            </Badge>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                                <div className="w-full bg-gray-200 rounded-full h-2">
+                                                    <div
+                                                        className={`h-2 rounded-full transition-all ${overGoal ? 'bg-green-500' : 'bg-blue-500'}`}
+                                                        style={{ width: `${pct}%` }}
+                                                    />
+                                                </div>
+                                                <p className="text-xs text-gray-400 mt-1">{pct}% מהיעד ({WEEKLY_GOAL_HOURS} שעות)</p>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </CardContent>
+                        </Card>
+                    </TabsContent>
+
                     {/* TAB: שעות עבודה */}
                     <TabsContent value="hourly">
                         <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
