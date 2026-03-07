@@ -374,7 +374,25 @@ export default function WorkScheduling() {
 
     useEffect(() => {
         loadScheduleData();
+        RestaurantProfile.list().then(list => {
+            if (list.length > 0) {
+                setManagerPhone(list[0].manager_whatsapp_phone || '');
+                setManagerPhoneInput(list[0].manager_whatsapp_phone || '');
+                setRestaurantProfileId(list[0].id);
+            }
+        }).catch(() => {});
     }, [loadScheduleData]);
+
+    const handleSaveManagerPhone = async () => {
+        if (restaurantProfileId) {
+            await RestaurantProfile.update(restaurantProfileId, { manager_whatsapp_phone: managerPhoneInput });
+        } else {
+            const created = await RestaurantProfile.create({ restaurant_name: 'TOP ALENA', manager_whatsapp_phone: managerPhoneInput });
+            setRestaurantProfileId(created.id);
+        }
+        setManagerPhone(managerPhoneInput);
+        setPhoneSettingOpen(false);
+    };
 
     const getShiftFor = (date, type) => {
         const dateString = format(date, 'yyyy-MM-dd');
