@@ -340,11 +340,11 @@ export default function WorkScheduling() {
         setLoading(true);
         try {
             // Load current user
-            const user = await User.me();
+            const user = await base44.auth.me();
             setCurrentUser(user);
 
             // Find employee by email
-            const allEmployees = await Employee.filter({ status: 'active' });
+            const allEmployees = await base44.entities.Employee.filter({});
             
             // Safe email comparison with null checks
             const myEmployee = allEmployees.find(emp => {
@@ -355,8 +355,8 @@ export default function WorkScheduling() {
             setCurrentEmployee(myEmployee);
 
             const [shifts, allPositions] = await Promise.all([
-                WorkShift.list('-date', 100),
-                WorkPosition.filter({ is_active: true })
+                base44.entities.WorkShift.list('-date', 100),
+                base44.entities.WorkPosition.filter({ is_active: true })
             ]);
 
             // סנכרן שמות עובדים בשיבוצים עם הנתונים הנוכחיים
