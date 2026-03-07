@@ -110,12 +110,23 @@ export default function ShiftSwapRequestDialog({ open, onClose, myShift, employe
                     </div>
                 )}
                 {!sent && (
-                    <DialogFooter className="gap-2">
-                        <Button variant="outline" onClick={onClose}>ביטול</Button>
-                        <Button onClick={handleSubmit} disabled={!targetEmployeeId || loading}>
-                            {loading ? <Loader2 className="w-4 h-4 animate-spin ml-2" /> : <ArrowLeftRight className="w-4 h-4 ml-2" />}
-                            שלח בקשה למנהל
+                    <DialogFooter className="flex-col gap-2 sm:flex-col">
+                        <Button
+                            variant="outline"
+                            className="w-full border-green-500 text-green-700 hover:bg-green-50"
+                            disabled={!targetEmployeeId}
+                            onClick={openWhatsApp}
+                        >
+                            <span className="mr-1">💬</span>
+                            פתח WhatsApp לעובד ישירות
                         </Button>
+                        <div className="flex gap-2 w-full">
+                            <Button variant="outline" onClick={onClose} className="flex-1">ביטול</Button>
+                            <Button onClick={handleSubmit} disabled={!targetEmployeeId || loading} className="flex-1">
+                                {loading ? <Loader2 className="w-4 h-4 animate-spin ml-2" /> : <ArrowLeftRight className="w-4 h-4 ml-2" />}
+                                שלח למנהל
+                            </Button>
+                        </div>
                     </DialogFooter>
                 )}
             </DialogContent>
