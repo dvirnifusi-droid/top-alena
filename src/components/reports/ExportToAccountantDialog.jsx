@@ -80,7 +80,7 @@ export default function ExportToAccountantDialog({ open, onClose, employees, sel
     const toggleEmp = (id) => setSelectedEmps(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id]);
 
     const handleDownload = () => {
-        const empsToExport = employees.filter(e => selectedEmployees.includes(e.id));
+        const empsToExport = employees.filter(e => selectedEmps.includes(e.id));
         const csv = generateCSV(empsToExport, hourlyData, tipData, monthLabel);
         const BOM = '\uFEFF';
         const blob = new Blob([BOM + csv], { type: 'text/csv;charset=utf-8;' });
