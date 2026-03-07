@@ -929,6 +929,40 @@ export default function WorkScheduling() {
                     positions={positions}
                     onSave={handleAssignmentSave}
                     onDelete={handleAssignmentDelete}
+                    onMoveShift={async (assignment, newDate) => {
+                        const dateString = format(new Date(assignment.date), 'yyyy-MM-dd');
+                        const sourceShift = week.find(s => s.date === dateString && s.shift_type === assignment.shift_type);
+                        if (!sourceShift) return;
+                        // Remove from source shift
+                        const newSourceStaff = sourceShift.assigned_staff.filter(
+                            a => !(a.employee_id === assignment.employee_id && a.position === assignment.position)
+                        );
+                        // Find or will-create target shift
+                        let targetShift = week.find(s => s.date === newDate && s.shift_type === assignment.shift_type);
+                        const movedAssignment = { ...assignment, date: newDate };
+                        delete movedAssignment.shift_type; // don't double-store
+                        try {
+                            await WorkShift.update(sourceShift.id, { assigned_staff: newSourceStaff });
+                            if (targetShift) {
+                                const newTargetStaff = [...(targetShift.assigned_staff || []), { ...assignment }];
+                                await WorkShift.update(targetShift.id, { assigned_staff: newTargetStaff });
+                            } else {
+                                await WorkShift.create({
+                                    date: newDate,
+                                    shift_type: assignment.shift_type,
+                                    start_time: sourceShift.start_time,
+                                    end_time: sourceShift.end_time,
+                                    assigned_staff: [{ ...assignment }],
+                                    positions_needed: {}
+                                });
+                            }
+                            setIsAssignmentEditorOpen(false);
+                            setSelectedAssignment(null);
+                            await loadScheduleData();
+                        } catch (e) {
+                            alert('שגיאה בהעברת השיבוץ');
+                        }
+                    }}
                 />
             )}
 
