@@ -68,11 +68,16 @@ function generateCSV(employees, hourlyData, tipData, monthLabel) {
     return rows.map(r => r.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',')).join('\n');
 }
 
-export default function ExportToAccountantDialog({ open, onClose, employees, selectedEmployees, hourlyData, tipData, monthLabel }) {
+export default function ExportToAccountantDialog({ open, onClose, employees, selectedEmployees: initSelected, hourlyData, tipData, monthLabel }) {
+    const [selectedEmps, setSelectedEmps] = useState(initSelected || []);
     const [sendEmail, setSendEmail] = useState(false);
     const [accountantEmail, setAccountantEmail] = useState('');
     const [sending, setSending] = useState(false);
     const [sent, setSent] = useState(false);
+
+    React.useEffect(() => { setSelectedEmps(initSelected || []); }, [open]);
+
+    const toggleEmp = (id) => setSelectedEmps(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id]);
 
     const handleDownload = () => {
         const empsToExport = employees.filter(e => selectedEmployees.includes(e.id));
