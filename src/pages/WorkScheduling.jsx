@@ -614,7 +614,7 @@ export default function WorkScheduling() {
     const handleMoveShift = async () => {
         if (!moveShiftDialog || !moveShiftDate) return;
         try {
-            await WorkShift.update(moveShiftDialog.shift.id, { date: moveShiftDate });
+            await base44.entities.WorkShift.update(moveShiftDialog.shift.id, { date: moveShiftDate });
             setMoveShiftDialog(null);
             setMoveShiftDate('');
             await loadScheduleData();
