@@ -524,8 +524,23 @@ function EmployeeReportsInner() {
 
                         <Card className="border-2">
                             <CardHeader>
-                                <CardTitle>פירוט משמרות לפי סידור עבודה</CardTitle>
-                                <p className="text-sm text-gray-500">תפקידים שאינם מלצר/ברמן/ראנר (אלו נמצאים בטאב הטיפים)</p>
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <CardTitle>פירוט משמרות לפי סידור עבודה</CardTitle>
+                                        <p className="text-sm text-gray-500 mt-1">תפקידים שאינם מלצר/ברמן/ראנר (אלו נמצאים בטאב הטיפים)</p>
+                                    </div>
+                                    {isAdmin && filteredData.hourlyShiftEntries.length > 0 && (
+                                        <Button
+                                            size="sm"
+                                            variant="outline"
+                                            onClick={() => { setExportSelectedEmps([selectedEmployeeId]); setShowExport(true); }}
+                                            className="flex items-center gap-2"
+                                        >
+                                            <FileDown className="w-4 h-4" />
+                                            ייצא עובד זה
+                                        </Button>
+                                    )}
+                                </div>
                             </CardHeader>
                             <CardContent>
                                 {loading2 ? (
