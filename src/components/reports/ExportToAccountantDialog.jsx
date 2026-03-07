@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
-import { Download, Mail, Loader2, CheckCircle } from 'lucide-react';
+import { Download, Mail, Loader2, CheckCircle, Search, X } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import { format } from 'date-fns';
 import { he } from 'date-fns/locale';
