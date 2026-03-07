@@ -341,6 +341,20 @@ export default function EmployeeHome() {
                             </CardContent>
                         </Card>
                     </Link>
+
+                    <Link to={createPageUrl("LeaveRequests")}>
+                        <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full">
+                            <CardContent className="p-6">
+                                <div className="flex flex-col items-center text-center">
+                                    <div className="w-12 h-12 bg-gradient-to-br from-blue-400 to-blue-600 rounded-lg flex items-center justify-center mb-3">
+                                        <CalendarDays className="w-6 h-6 text-white" />
+                                    </div>
+                                    <h3 className="font-semibold text-lg mb-2">בקשות חופשה</h3>
+                                    <p className="text-sm text-gray-600">הגש בקשת חופשה או מחלה</p>
+                                </div>
+                            </CardContent>
+                        </Card>
+                    </Link>
                 </div>
             </div>
 
