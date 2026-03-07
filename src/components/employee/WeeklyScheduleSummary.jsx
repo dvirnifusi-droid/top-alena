@@ -22,6 +22,8 @@ async function loadShiftsForWeek(weekStart) {
     const allShifts = await base44.entities.WorkShift.list();
     const weekShifts = [];
 
+    console.log('Loading shifts for:', weekStartStr, '-', weekEndStr, 'User:', currentUser.full_name);
+
     allShifts.forEach(shift => {
         if (!shift.date) return;
         if (shift.date >= weekStartStr && shift.date <= weekEndStr) {
@@ -30,6 +32,7 @@ async function loadShiftsForWeek(weekStart) {
                     a.employee_name.toLowerCase() === currentUser.full_name.toLowerCase()
             );
             if (userAssignment) {
+                console.log('Found assignment:', userAssignment.employee_name, 'on', shift.date);
                 weekShifts.push({
                     date: new Date(shift.date + 'T00:00:00'),
                     dateStr: shift.date,
@@ -42,6 +45,7 @@ async function loadShiftsForWeek(weekStart) {
         }
     });
 
+    console.log('Total shifts found:', weekShifts.length);
     weekShifts.sort((a, b) => a.date - b.date);
     return weekShifts;
 }
