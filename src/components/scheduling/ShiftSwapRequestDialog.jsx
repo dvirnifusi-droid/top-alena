@@ -81,7 +81,31 @@ export default function ShiftSwapRequestDialog({ open, onClose, myShift, employe
                     </DialogTitle>
                 </DialogHeader>
                 {sent ? (
-                    <div className="py-8 text-center text-green-600 font-bold text-lg">✅ הבקשה נשלחה למנהל!</div>
+                    <div className="py-6 space-y-4">
+                        <div className="text-center text-green-600 font-bold text-lg">✅ הבקשה נשלחה למנהל!</div>
+                        <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-sm text-green-800 text-center">
+                            הבקשה נרשמה במערכת ותופיע בפעמון ההתראות של המנהל
+                        </div>
+                        {managerPhone && (
+                            <Button
+                                className="w-full bg-green-600 hover:bg-green-700 text-white"
+                                onClick={() => {
+                                    const target = employees.find(e => e.id === targetEmployeeId);
+                                    const shiftDateFormatted = format(new Date(myShift.date), 'EEEE dd/MM/yyyy', { locale: he });
+                                    const shiftTypeHe = myShift.shift_type === 'lunch' ? 'צהריים' : 'ערב';
+                                    const msgText = `היי 👋\nדיברתי עם העובד ${target?.full_name || ''} והוא/היא הסכים/מה לבצע איתי החלפה למשמרת ${shiftTypeHe} - ${shiftDateFormatted} (${myShift.position}).\nאשמח שתאשר את בקשת ההחלפה בסידור 🙏`;
+                                    const phone = managerPhone.replace(/\D/g, '');
+                                    window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msgText)}`, '_blank');
+                                }}
+                            >
+                                <span className="ml-2">💬</span>
+                                שלח הודעה למנהל בוואטסאפ
+                            </Button>
+                        )}
+                        <Button variant="outline" className="w-full" onClick={() => { setSent(false); setTargetEmployeeId(''); setMessage(''); onClose(); }}>
+                            סגור
+                        </Button>
+                    </div>
                 ) : (
                     <div className="space-y-4">
                         <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-800">
