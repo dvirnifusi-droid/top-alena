@@ -130,9 +130,14 @@ export default function QuickAssignDialog({ isOpen, onOpenChange, context, emplo
                                 <SelectValue placeholder="בחר עובד" />
                             </SelectTrigger>
                             <SelectContent>
-                                {employees.map(employee => (
-                                    <SelectItem key={employee.id} value={employee.id}>{employee.full_name}</SelectItem>
-                                ))}
+                               {employees.map(employee => {
+                                   const isOnLeave = onLeaveEmployeeIds.has(employee.id);
+                                   return (
+                                       <SelectItem key={employee.id} value={employee.id} disabled={isOnLeave}>
+                                           {isOnLeave ? `🚫 ${employee.full_name} (בחופשה)` : employee.full_name}
+                                       </SelectItem>
+                                   );
+                               })}
                             </SelectContent>
                         </Select>
                     </div>
