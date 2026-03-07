@@ -4,7 +4,7 @@ import { DailyBrief } from '@/entities/DailyBrief';
 import { base44 } from '@/api/base44Client';
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Star, GraduationCap, CheckSquare, AlertTriangle, Calendar, CalendarDays, Utensils, Brain, Sparkles, FileText, Megaphone, Briefcase } from 'lucide-react';
+import { Star, GraduationCap, CheckSquare, AlertTriangle, Calendar, CalendarDays, Utensils, Brain, Sparkles, FileText, Megaphone, Briefcase, MessageCircle } from 'lucide-react';
 import ShiftNotificationBell from '../components/shared/ShiftNotificationBell';
 import { Employee } from '@/entities/Employee';
 import { Link } from 'react-router-dom';
