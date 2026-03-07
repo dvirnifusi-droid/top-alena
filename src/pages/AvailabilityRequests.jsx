@@ -435,59 +435,81 @@ function AvailabilityRequestsInner() {
             )}
 
             <Dialog open={!!editingAvail} onOpenChange={(open) => !open && setEditingAvail(null)}>
-                <DialogContent dir="rtl" className="sm:max-w-[425px]">
-                    <DialogHeader>
-                        <DialogTitle>עריכת זמינות - {editingAvail?.employee_name}</DialogTitle>
-                    </DialogHeader>
-                    {editData && (
-                        <div className="space-y-4 py-4">
-                            <div>
-                                <Label className="font-semibold">סטטוס</Label>
-                                <Select value={editData.availability_type} onValueChange={(val) => setEditData({...editData, availability_type: val})}>
-                                    <SelectTrigger>
-                                        <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {Object.entries(AVAILABILITY_TYPES).map(([key, cfg]) => (
-                                            <SelectItem key={key} value={key}>{cfg.label}</SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                            <div>
-                                <Label className="font-semibold">תפקיד</Label>
-                                <Select
-                                    value={editData.positions?.[0] || ''}
-                                    onValueChange={(val) => setEditData({...editData, positions: val ? [val] : []})}
-                                >
-                                    <SelectTrigger>
-                                        <SelectValue placeholder="בחר תפקיד" />
-                                    </SelectTrigger>
-                                    <SelectContent position="popper" side="bottom" align="start" className="z-[9999]">
-                                        {getAvailablePositions().map(pos => (
-                                            <SelectItem key={pos} value={pos}>{pos}</SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                            <div>
-                                <Label className="font-semibold">הערות מנהל</Label>
-                                <Textarea
-                                    placeholder="הוסף הערות או שינויים..."
-                                    value={editData.admin_notes || ''}
-                                    onChange={(e) => setEditData({...editData, admin_notes: e.target.value})}
-                                    className="h-20"
-                                />
-                            </div>
-                        </div>
-                    )}
-                    <DialogFooter>
-                        <Button variant="outline" onClick={() => setEditingAvail(null)}>ביטול</Button>
-                        <Button onClick={handleSaveEdit} className="bg-primary">שמור שינויים</Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
-        </div>
+                 <DialogContent dir="rtl" className="sm:max-w-[425px]">
+                     <DialogHeader>
+                         <DialogTitle>עריכת זמינות - {editingAvail?.employee_name}</DialogTitle>
+                     </DialogHeader>
+                     {editData && (
+                         <div className="space-y-4 py-4">
+                             <div>
+                                 <Label className="font-semibold">סטטוס</Label>
+                                 <Select value={editData.availability_type} onValueChange={(val) => setEditData({...editData, availability_type: val})}>
+                                     <SelectTrigger>
+                                         <SelectValue />
+                                     </SelectTrigger>
+                                     <SelectContent>
+                                         {Object.entries(AVAILABILITY_TYPES).map(([key, cfg]) => (
+                                             <SelectItem key={key} value={key}>{cfg.label}</SelectItem>
+                                         ))}
+                                     </SelectContent>
+                                 </Select>
+                             </div>
+                             <div>
+                                 <Label className="font-semibold">תפקיד</Label>
+                                 <Select
+                                     value={editData.positions?.[0] || ''}
+                                     onValueChange={(val) => setEditData({...editData, positions: val ? [val] : []})}
+                                 >
+                                     <SelectTrigger>
+                                         <SelectValue placeholder="בחר תפקיד" />
+                                     </SelectTrigger>
+                                     <SelectContent position="popper" side="bottom" align="start" className="z-[9999]">
+                                         {getAvailablePositions().map(pos => (
+                                             <SelectItem key={pos} value={pos}>{pos}</SelectItem>
+                                         ))}
+                                     </SelectContent>
+                                 </Select>
+                             </div>
+                             <div>
+                                 <Label className="font-semibold">הערות מנהל</Label>
+                                 <Textarea
+                                     placeholder="הוסף הערות או שינויים..."
+                                     value={editData.admin_notes || ''}
+                                     onChange={(e) => setEditData({...editData, admin_notes: e.target.value})}
+                                     className="h-20"
+                                 />
+                             </div>
+                         </div>
+                     )}
+                     <DialogFooter>
+                         <Button variant="outline" onClick={() => setEditingAvail(null)}>ביטול</Button>
+                         <Button onClick={handleSaveEdit} className="bg-primary">שמור שינויים</Button>
+                     </DialogFooter>
+                 </DialogContent>
+             </Dialog>
+
+             <Dialog open={!!singleAssignModal} onOpenChange={(open) => !open && setSingleAssignModal(null)}>
+                 <DialogContent dir="rtl" className="sm:max-w-[300px]">
+                     <DialogHeader>
+                         <DialogTitle>שבוץ עובד - {singleAssignModal?.avail?.employee_name}</DialogTitle>
+                     </DialogHeader>
+                     <p className="text-sm text-gray-600 mb-4">
+                         בטוח שברצונך לשבץ את {singleAssignModal?.avail?.employee_name} למשמרת {singleAssignModal?.shiftType === 'lunch' ? 'צהריים' : 'ערב'}?
+                     </p>
+                     <DialogFooter className="gap-2">
+                         <Button variant="outline" onClick={() => setSingleAssignModal(null)}>ביטול</Button>
+                         <Button 
+                             onClick={() => handleSingleAssign(singleAssignModal.avail, singleAssignModal.shiftType)}
+                             disabled={singleAssignLoading}
+                             className="bg-green-600 hover:bg-green-700"
+                         >
+                             {singleAssignLoading ? <Loader2 className="w-3 h-3 animate-spin ml-2" /> : null}
+                             אישור שיבוץ
+                         </Button>
+                     </DialogFooter>
+                 </DialogContent>
+             </Dialog>
+            </div>
     );
 }
 
