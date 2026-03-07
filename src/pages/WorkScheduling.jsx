@@ -537,6 +537,20 @@ export default function WorkScheduling() {
         }
 
         try {
+            // שמור היסטוריה לundo
+            setEditHistory([...editHistory, {
+                shiftId: targetShift.id,
+                oldStaff: targetShift.assigned_staff,
+                newStaff: updatedStaff,
+                timestamp: Date.now()
+            }]);
+            setLastEditedShift({
+                shiftId: targetShift.id,
+                employeeName: originalAssignment.employee_name,
+                oldPosition: originalAssignment.position,
+                newPosition: updatedAssignmentData.position
+            });
+
             await base44.entities.WorkShift.update(targetShift.id, { assigned_staff: updatedStaff });
             await loadScheduleData();
         } catch (error) {
@@ -544,6 +558,21 @@ export default function WorkScheduling() {
             alert("שגיאה בשמירת השינויים.");
         } finally {
             setSelectedAssignment(null);
+        }
+    };
+
+    const handleUndoLastEdit = async () => {
+        if (editHistory.length === 0) return;
+        
+        const lastEdit = editHistory[editHistory.length - 1];
+        try {
+            await base44.entities.WorkShift.update(lastEdit.shiftId, { assigned_staff: lastEdit.oldStaff });
+            setEditHistory(editHistory.slice(0, -1));
+            setLastEditedShift(null);
+            await loadScheduleData();
+        } catch (error) {
+            console.error("Error undoing edit:", error);
+            alert("שגיאה בשחזור השינוי");
         }
     };
 
