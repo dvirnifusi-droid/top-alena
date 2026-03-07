@@ -337,7 +337,7 @@ function LeaveRequestsInner() {
             </div>
 
             {currentEmployee && (
-                <NewLeaveRequestDialog open={newOpen} onClose={() => setNewOpen(false)} currentEmployee={currentEmployee} onSaved={loadData} />
+                <NewLeaveRequestDialog open={newOpen} onClose={() => setNewOpen(false)} currentEmployee={currentEmployee || currentUser} onSaved={loadData} />
             )}
 
             <RejectDialog open={!!rejectTarget} onClose={() => setRejectTarget(null)} onConfirm={handleReject} loading={actionLoading === rejectTarget?.id + '_r'} />
