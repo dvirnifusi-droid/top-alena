@@ -109,7 +109,7 @@ export default function ShiftNotificationBell({ currentEmployee, isManager = fal
             </button>
 
             {open && (
-                <div className="absolute left-0 top-12 z-50 w-80 bg-white border rounded-xl shadow-xl" dir="rtl">
+                <div className="absolute left-0 top-12 z-50 w-80 max-w-[calc(100vw-2rem)] bg-white border rounded-xl shadow-xl sm:left-auto sm:right-0" dir="rtl">
                     <div className="flex items-center justify-between px-4 py-3 border-b">
                         <span className="font-bold text-sm">{isManager ? 'בקשות החלפת משמרת' : 'התראות'}</span>
                         <button onClick={() => setOpen(false)}><X className="w-4 h-4 text-gray-400" /></button>
