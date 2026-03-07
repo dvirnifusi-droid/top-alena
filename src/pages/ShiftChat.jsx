@@ -94,7 +94,6 @@ export default function ShiftChat() {
         setNewMessage('');
         setMessageType('text');
         setHasNewMessages(false);
-        if (window.__setUnreadChat) window.__setUnreadChat(false);
     };
 
     const handleKeyDown = (e) => {
