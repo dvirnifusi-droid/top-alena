@@ -97,7 +97,7 @@ export default function ExportToAccountantDialog({ open, onClose, employees, sel
     const handleSendEmail = async () => {
         if (!accountantEmail) return;
         setSending(true);
-        const empsToExport = employees.filter(e => selectedEmployees.includes(e.id));
+        const empsToExport = employees.filter(e => selectedEmps.includes(e.id));
         const csv = generateCSV(empsToExport, hourlyData, tipData, monthLabel);
         const empNames = empsToExport.map(e => e.full_name).join(', ');
 
