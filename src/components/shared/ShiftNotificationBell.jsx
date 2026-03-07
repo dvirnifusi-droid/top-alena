@@ -1,10 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
-import { Bell, X, ArrowLeftRight, Calendar, Check, XCircle } from 'lucide-react';
+import { WorkShift } from '@/entities/WorkShift';
+import { Employee } from '@/entities/Employee';
+import { Bell, X, ArrowLeftRight, Calendar, Check, XCircle, Loader2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { format } from 'date-fns';
 import { he } from 'date-fns/locale';
+import { sendWhatsApp } from '@/functions/sendWhatsApp';
 
 // For employees: shows schedule-change notifications + incoming swap requests
 // For managers (isManager=true): shows pending swap requests to approve
