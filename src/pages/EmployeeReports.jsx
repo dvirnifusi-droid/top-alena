@@ -187,6 +187,52 @@ function EmployeeReportsInner() {
         return { tipEntries, shifts: empShifts, hourlyShiftEntries };
     }, [shifts, tipReports, workShifts, selectedEmployeeId, filterPeriod, selectedMonth, employees]);
 
+    // חישוב פילוח שבועי לחודש הנוכחי (לטאב החדש)
+    const monthlyBreakdown = useMemo(() => {
+        if (!selectedEmployeeId) return { weeks: [], totalRegular: 0, totalOvertime: 0, totalHours: 0 };
+
+        const monthStart = startOfMonth(selectedMonth);
+        const monthEnd = endOfMonth(selectedMonth);
+
+        // כל משמרות העובד בחודש
+        const monthEntries = [];
+        workShifts.forEach(ws => {
+            if (!ws.date || ws.date < format(monthStart, 'yyyy-MM-dd') || ws.date > format(monthEnd, 'yyyy-MM-dd')) return;
+            (ws.assigned_staff || []).forEach(a => {
+                if (a.employee_id !== selectedEmployeeId) return;
+                const hours = calcHours(a.start_time, a.end_time) - (a.total_break_minutes || 0) / 60;
+                if (hours <= 0) return;
+                monthEntries.push({ date: ws.date, hours });
+            });
+        });
+
+        // קיבוץ לשבועות
+        const weekStarts = eachWeekOfInterval({ start: monthStart, end: monthEnd }, { weekStartsOn: 0 });
+        const weeks = weekStarts.map((ws) => {
+            const we = addDays(ws, 6);
+            const wsStr = format(ws, 'yyyy-MM-dd');
+            const weStr = format(we, 'yyyy-MM-dd');
+            const weekHours = monthEntries
+                .filter(e => e.date >= wsStr && e.date <= weStr)
+                .reduce((s, e) => s + e.hours, 0);
+            const overtime = Math.max(0, weekHours - WEEKLY_GOAL_HOURS);
+            const regular = weekHours - overtime;
+            return {
+                label: `${format(ws, 'dd/MM')} - ${format(we, 'dd/MM')}`,
+                hours: parseFloat(weekHours.toFixed(1)),
+                regular: parseFloat(regular.toFixed(1)),
+                overtime: parseFloat(overtime.toFixed(1)),
+                goal: WEEKLY_GOAL_HOURS,
+            };
+        });
+
+        const totalHours = weeks.reduce((s, w) => s + w.hours, 0);
+        const totalOvertime = weeks.reduce((s, w) => s + w.overtime, 0);
+        const totalRegular = totalHours - totalOvertime;
+
+        return { weeks, totalRegular: totalRegular.toFixed(1), totalOvertime: totalOvertime.toFixed(1), totalHours: totalHours.toFixed(1) };
+    }, [workShifts, selectedEmployeeId, selectedMonth]);
+
     // חישובים
     const calculations = useMemo(() => {
         const { tipEntries, shifts: filteredShifts, hourlyShiftEntries } = filteredData;
