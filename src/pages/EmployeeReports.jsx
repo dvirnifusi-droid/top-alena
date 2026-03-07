@@ -341,8 +341,12 @@ function EmployeeReportsInner() {
                     </CardContent>
                 </Card>
 
-                <Tabs defaultValue="hourly" className="w-full">
+                <Tabs defaultValue="monthly" className="w-full">
                     <TabsList className="mb-6">
+                        <TabsTrigger value="monthly" className="flex items-center gap-2">
+                            <Target className="w-4 h-4" />
+                            סיכום חודשי
+                        </TabsTrigger>
                         <TabsTrigger value="hourly" className="flex items-center gap-2">
                             <Calendar className="w-4 h-4" />
                             שעות עבודה (סידור)
