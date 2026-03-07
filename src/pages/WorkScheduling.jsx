@@ -716,7 +716,24 @@ export default function WorkScheduling() {
                 </Alert>
             )}
 
-            {/* Undo banner */}
+            {/* Undo banners */}
+            {lastEditedShift && (
+                <div className="mb-4 flex items-center justify-between bg-blue-50 border border-blue-300 rounded-lg px-4 py-3">
+                    <span className="text-blue-800 font-medium text-sm">
+                        🔄 שינוי אחרון: {lastEditedShift.employeeName} - מ"{lastEditedShift.oldPosition}" ל"{lastEditedShift.newPosition}"
+                    </span>
+                    <div className="flex gap-2">
+                        <Button size="sm" variant="outline" className="border-blue-400 text-blue-700 hover:bg-blue-100" onClick={handleUndoLastEdit}>
+                            <RotateCcw className="w-4 h-4 ml-1" />
+                            ביטול שינוי אחרון
+                        </Button>
+                        <Button size="sm" variant="ghost" className="text-blue-600" onClick={() => setLastEditedShift(null)}>
+                            <X className="w-4 h-4" />
+                        </Button>
+                    </div>
+                </div>
+            )}
+
             {undoSnapshot && (
                 <div className="mb-4 flex items-center justify-between bg-amber-50 border border-amber-300 rounded-lg px-4 py-3">
                     <span className="text-amber-800 font-medium text-sm">השיבוצים נמחקו. ניתן לשחזר תוך כמה שניות.</span>
