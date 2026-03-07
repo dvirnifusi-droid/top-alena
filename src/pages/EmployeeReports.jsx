@@ -719,6 +719,77 @@ function EmployeeReportsInner() {
                     </TabsContent>
                 </Tabs>
             </div>
+
+            {/* דיאלוג ייצוא */}
+            {showExport && (
+                <ExportToAccountantDialog
+                    open={showExport}
+                    onClose={() => setShowExport(false)}
+                    employees={employees}
+                    selectedEmployees={exportSelectedEmps}
+                    hourlyData={(() => {
+                        const map = {};
+                        workShifts.forEach(ws => {
+                            const monthStart = format(startOfMonth(selectedMonth), 'yyyy-MM-dd');
+                            const monthEnd = format(endOfMonth(selectedMonth), 'yyyy-MM-dd');
+                            if (!ws.date || ws.date < monthStart || ws.date > monthEnd) return;
+                            (ws.assigned_staff || []).forEach(a => {
+                                if (!exportSelectedEmps.includes(a.employee_id)) return;
+                                const hours = calcHours(a.start_time, a.end_time);
+                                if (hours <= 0) return;
+                                if (!map[a.employee_id]) map[a.employee_id] = [];
+                                map[a.employee_id].push({
+                                    date: ws.date,
+                                    shift_type: ws.shift_type,
+                                    position: a.position,
+                                    start_time: a.start_time,
+                                    end_time: a.end_time,
+                                    break_minutes: a.total_break_minutes || 0,
+                                    net_hours: hours - (a.total_break_minutes || 0) / 60,
+                                });
+                            });
+                        });
+                        return map;
+                    })()}
+                    tipData={(() => {
+                        const map = {};
+                        tipReports.forEach(report => {
+                            const monthStart = format(startOfMonth(selectedMonth), 'yyyy-MM-dd');
+                            const monthEnd = format(endOfMonth(selectedMonth), 'yyyy-MM-dd');
+                            if (!report.date || report.date < monthStart || report.date > monthEnd) return;
+                            (report.staff_details || []).forEach(s => {
+                                const emp = employees.find(e =>
+                                    e.id === s.employee_id ||
+                                    (e.full_name && s.employee_name && e.full_name.toLowerCase() === s.employee_name.toLowerCase())
+                                );
+                                if (!emp || !exportSelectedEmps.includes(emp.id)) return;
+                                if (!map[emp.id]) map[emp.id] = [];
+                                map[emp.id].push({
+                                    date: report.date,
+                                    shift_type: report.shift_type,
+                                    position: s.position,
+                                    effectiveHours: s.effective_hours || 0,
+                                    totalEarnings: s.total_earnings || s.final_tip || 0,
+                                });
+                            });
+                        });
+                        return map;
+                    })()}
+                    monthLabel={format(selectedMonth, 'MMMM yyyy', { locale: he })}
+                />
+            )}
+
+            {/* דיאלוג עריכת משמרת */}
+            {editShift && (
+                <ShiftEditInlineDialog
+                    open={!!editShift}
+                    onClose={() => setEditShift(null)}
+                    shiftEntry={editShift.entry}
+                    workShiftId={editShift.workShiftId}
+                    employeeId={selectedEmployeeId}
+                    onSaved={loadReportData}
+                />
+            )}
         </div>
     );
 }
