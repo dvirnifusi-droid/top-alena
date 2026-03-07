@@ -292,7 +292,7 @@ function LeaveRequestsInner() {
                     </h1>
                     <p className="text-gray-500 text-sm mt-1">{isAdmin ? 'אשר או דחה בקשות חופשה ומחלה של עובדים' : 'הגש בקשת חופשה, מחלה או היעדרות'}</p>
                 </div>
-                {currentEmployee && (
+                {(currentEmployee || currentUser) && (
                     <Button onClick={() => setNewOpen(true)}>
                         <Plus className="w-4 h-4 ml-2" />
                         בקשה חדשה
