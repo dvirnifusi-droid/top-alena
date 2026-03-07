@@ -192,12 +192,10 @@ export default function AssignmentEditDialog({ isOpen, onOpenChange, assignment,
           </div>
         </div>
         {showMoveDate && (() => {
-          const baseDate = new Date(editData.date);
-          const options = Array.from({ length: 14 }, (_, i) => {
-            const d = new Date(baseDate);
-            d.setDate(d.getDate() + i + 1);
-            return { value: format(d, 'yyyy-MM-dd'), label: format(d, 'EEEE, dd/MM', { locale: he }) };
-          });
+          const currentDateStr = format(new Date(editData.date), 'yyyy-MM-dd');
+          const options = (weekDays || [])
+            .filter(d => format(d, 'yyyy-MM-dd') !== currentDateStr)
+            .map(d => ({ value: format(d, 'yyyy-MM-dd'), label: format(d, 'EEEE, dd/MM', { locale: he }) }));
           return (
             <div className="border rounded-lg p-3 bg-blue-50 space-y-2 mx-1 mb-2">
               <label className="text-sm font-medium block">בחר תאריך חדש למשמרת</label>
