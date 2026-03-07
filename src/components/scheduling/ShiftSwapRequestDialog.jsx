@@ -65,7 +65,10 @@ export default function ShiftSwapRequestDialog({ open, onClose, myShift, employe
         const targetName = target?.full_name || 'עובד';
         const msgText = `היי ${targetName} 👋\nאני ${currentEmployee?.full_name}, רציתי לשאול אם תוכל/י להחליף איתי משמרת?\n📅 ${shiftDateFormatted} - ${shiftTypeHe}\n💼 תפקיד: ${myShift.position}${message ? `\n💬 ${message}` : ''}\nתודה! 🙏`;
         const phoneNumber = target?.phone ? target.phone.replace(/\D/g, '') : '';
-        const waUrl = `https://wa.me/${phoneNumber}?text=${encodeURIComponent(msgText)}`;
+        // If no phone - open WhatsApp with just the message text (user can pick contact manually)
+        const waUrl = phoneNumber
+            ? `https://wa.me/${phoneNumber}?text=${encodeURIComponent(msgText)}`
+            : `https://wa.me/?text=${encodeURIComponent(msgText)}`;
         window.open(waUrl, '_blank');
     };
 
