@@ -137,7 +137,7 @@ export default function EmployeeHome() {
                 <ShiftClockWidget />
 
                 {/* סידור עבודה שבועי */}
-                {user && <WeeklyScheduleSummary userId={user.id} />}
+                {user && <WeeklyScheduleSummary userId={user.id} currentEmployee={currentEmployee} />}
 
                 {/* תדריכי היום */}
                 {todayBriefs.length > 0 && (
