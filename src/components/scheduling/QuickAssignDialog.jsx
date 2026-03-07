@@ -175,6 +175,12 @@ export default function QuickAssignDialog({ isOpen, onOpenChange, context, emplo
                             🔄 השעות יתעדכנו אוטומטית כשהעובד נכנס למשמרת
                         </div>
                     )}
+                    {selectedEmployeeId && onLeaveEmployeeIds.has(selectedEmployeeId) && (
+                        <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700 flex items-center gap-2">
+                            <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+                            עובד זה בחופשה מאושרת בתאריך זה!
+                        </div>
+                    )}
                 </div>
                 <DialogFooter className="justify-between">
                     <div>
