@@ -106,6 +106,11 @@ export default function Layout({ children, currentPageName }) {
   React.useEffect(() => {
     const loadUser = async () => {
       try {
+        const isAuthenticated = await base44.auth.isAuthenticated();
+        if (!isAuthenticated) {
+          return;
+        }
+        
         const currentUser = await base44.auth.me();
         setUser(currentUser);
         setOriginalUserRole(currentUser?.role);
