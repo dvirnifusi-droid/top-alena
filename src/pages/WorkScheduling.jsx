@@ -583,7 +583,7 @@ export default function WorkScheduling() {
     const handleShiftEditorSave = async (updatedShiftData) => {
         if (!dialogContext || !dialogContext.shift) return;
         try {
-            await WorkShift.update(dialogContext.shift.id, updatedShiftData);
+            await base44.entities.WorkShift.update(dialogContext.shift.id, updatedShiftData);
             setIsShiftEditorOpen(false);
             setDialogContext(null);
             await loadScheduleData();
