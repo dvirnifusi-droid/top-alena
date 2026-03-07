@@ -132,7 +132,7 @@ export default function WeeklyScheduleSummary({ userId, currentEmployee }) {
 
     useEffect(() => {
         Employee.filter({ status: 'active' }).then(setAllEmployees);
-        RestaurantInfo.list().then(list => {
+        RestaurantProfile.list().then(list => {
             if (list.length > 0 && list[0].manager_whatsapp_phone) {
                 setManagerPhone(list[0].manager_whatsapp_phone);
             }
