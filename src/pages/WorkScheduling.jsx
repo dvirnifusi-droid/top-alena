@@ -317,6 +317,8 @@ export default function WorkScheduling() {
     const [moveShiftDate, setMoveShiftDate] = useState('');
     const [clearDialog, setClearDialog] = useState(false);
     const [clearDepartment, setClearDepartment] = useState('all');
+    const [clearScope, setClearScope] = useState('week'); // 'week' | specific date string
+    const [undoSnapshot, setUndoSnapshot] = useState(null); // { shiftsBackup: [{id, assigned_staff}] }
 
     const handleCopyAvailabilityLink = () => {
         const url = `${window.location.origin}/AvailabilityForm`;
