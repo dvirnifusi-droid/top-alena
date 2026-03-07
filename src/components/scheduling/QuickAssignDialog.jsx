@@ -47,8 +47,21 @@ export default function QuickAssignDialog({ isOpen, onOpenChange, context, emplo
     const [selectedPosition, setSelectedPosition] = useState('');
     const [startTime, setStartTime] = useState('');
     const [endTime, setEndTime] = useState('');
+    const [onLeaveEmployeeIds, setOnLeaveEmployeeIds] = useState(new Set());
 
     const isEditMode = !!context?.existingAssignment;
+
+    // Load approved leave requests for the shift date
+    useEffect(() => {
+        if (!isOpen || !context?.date) return;
+        const dateStr = format(context.date, 'yyyy-MM-dd');
+        base44.entities.LeaveRequest.filter({ status: 'approved' }).then(reqs => {
+            const onLeave = new Set(
+                reqs.filter(r => r.start_date <= dateStr && r.end_date >= dateStr).map(r => r.employee_id)
+            );
+            setOnLeaveEmployeeIds(onLeave);
+        }).catch(() => {});
+    }, [isOpen, context?.date]);
 
     useEffect(() => {
         if (isOpen && context) {
