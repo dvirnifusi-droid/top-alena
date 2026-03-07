@@ -5,24 +5,12 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Loader2, TrendingUp, Clock, DollarSign, BarChart3, Calendar } from 'lucide-react';
-import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, subMonths } from 'date-fns';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { Loader2, TrendingUp, Clock, DollarSign, BarChart3, Briefcase } from 'lucide-react';
+import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, subMonths, parseISO } from 'date-fns';
 import { he } from 'date-fns/locale';
 
-// TIP-based positions (excluded from hourly salary report)
 const TIP_POSITIONS = ['מלצר', 'ברמן', 'ראנר'];
-
-// Calculate hours between two time strings (handles overnight)
-function calcHours(startTime, endTime) {
-    if (!startTime || !endTime) return 0;
-    const [sh, sm] = startTime.split(':').map(Number);
-    const [eh, em] = endTime.split(':').map(Number);
-    let start = sh * 60 + sm;
-    let end = eh * 60 + em;
-    if (end < start) end += 24 * 60; // overnight
-    return (end - start) / 60;
-}
 
 export default function EmployeeReportsPage() {
     return (
@@ -37,6 +25,7 @@ function EmployeeReportsInner() {
     const [isAdmin, setIsAdmin] = useState(false);
     const [employees, setEmployees] = useState([]);
     const [shifts, setShifts] = useState([]);
+    const [workShifts, setWorkShifts] = useState([]);
     const [tipReports, setTipReports] = useState([]);
     const [myEmployeeRecord, setMyEmployeeRecord] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -46,7 +35,6 @@ function EmployeeReportsInner() {
     const [filterPeriod, setFilterPeriod] = useState('month');
     const [selectedMonth, setSelectedMonth] = useState(new Date());
     const [loading2, setLoading2] = useState(false);
-    const [workShifts, setWorkShifts] = useState([]);
 
     useEffect(() => {
         loadInitialData();
@@ -84,10 +72,14 @@ function EmployeeReportsInner() {
     const loadReportData = async () => {
         setLoading2(true);
         try {
-            const allShifts = await base44.entities.ShiftTracking.list();
-            const allTipReports = await base44.entities.TipReport.list();
+            const [allShifts, allTipReports, allWorkShifts] = await Promise.all([
+                base44.entities.ShiftTracking.list(),
+                base44.entities.TipReport.list(),
+                base44.entities.WorkShift.list(),
+            ]);
             setShifts(allShifts);
             setTipReports(allTipReports);
+            setWorkShifts(allWorkShifts);
         } catch (error) {
             console.error('Error loading report data:', error);
         }
