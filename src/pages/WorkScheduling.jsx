@@ -1035,6 +1035,32 @@ export default function WorkScheduling() {
                 </DialogContent>
             </Dialog>
 
+            {/* Manager Phone Dialog */}
+            <Dialog open={phoneSettingOpen} onOpenChange={setPhoneSettingOpen}>
+                <DialogContent dir="rtl">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2">
+                            💬 הגדר מספר WhatsApp למנהל
+                        </DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-3 py-2">
+                        <p className="text-sm text-gray-600">הכנס מספר טלפון של המנהל לקבלת התראות WhatsApp על בקשות החלפת משמרת.</p>
+                        <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded p-2">⚠️ יש לכלול קידומת מדינה, לדוגמה: <span className="font-bold">+972501234567</span></p>
+                        <Input
+                            placeholder="+972501234567"
+                            value={managerPhoneInput}
+                            onChange={e => setManagerPhoneInput(e.target.value)}
+                            dir="ltr"
+                        />
+                        {managerPhone && <p className="text-xs text-green-700">מספר נוכחי: {managerPhone}</p>}
+                    </div>
+                    <DialogFooter className="flex gap-2">
+                        <Button variant="outline" onClick={() => setPhoneSettingOpen(false)}>ביטול</Button>
+                        <Button onClick={handleSaveManagerPhone} disabled={!managerPhoneInput}>שמור</Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
             {/* Clear Assignments Dialog */}
             <Dialog open={clearDialog} onOpenChange={(o) => { setClearDialog(o); if (!o) { setClearScope('week'); setClearDepartment('all'); } }}>
                 <DialogContent dir="rtl">
