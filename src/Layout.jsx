@@ -101,6 +101,7 @@ export default function Layout({ children, currentPageName }) {
   const location = useLocation();
   const [user, setUser] = React.useState(null);
   const [originalUserRole, setOriginalUserRole] = React.useState(null);
+  const [hasUnreadChat, setHasUnreadChat] = React.useState(false);
 
   React.useEffect(() => {
     const loadUser = async () => {
