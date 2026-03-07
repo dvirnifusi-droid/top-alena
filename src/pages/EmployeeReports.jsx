@@ -580,10 +580,22 @@ function EmployeeReportsInner() {
                                                         <td className="py-3 px-4">{entry.end_time}</td>
                                                         <td className="py-3 px-4 text-gray-500">{entry.break_minutes > 0 ? entry.break_minutes : '-'}</td>
                                                         <td className="py-3 px-4 font-bold text-blue-700">{entry.net_hours.toFixed(2)}</td>
-                                                    </tr>
-                                                ))}
-                                                <tr className="border-t-2 border-gray-400 bg-blue-50">
-                                                    <td colSpan={6} className="py-3 px-4 font-bold text-right text-blue-800">סה"כ שעות לתקופה:</td>
+                                                        {isAdmin && (
+                                                            <td className="py-3 px-4">
+                                                                <Button
+                                                                    size="sm"
+                                                                    variant="ghost"
+                                                                    onClick={() => setEditShift({ entry, workShiftId: entry.workShiftId })}
+                                                                    className="text-gray-500 hover:text-blue-600 p-1 h-7"
+                                                                >
+                                                                    <Pencil className="w-3.5 h-3.5" />
+                                                                </Button>
+                                                            </td>
+                                                        )}
+                                                        </tr>
+                                                        ))}
+                                                        <tr className="border-t-2 border-gray-400 bg-blue-50">
+                                                        <td colSpan={isAdmin ? 7 : 6} className="py-3 px-4 font-bold text-right text-blue-800">סה"כ שעות לתקופה:</td>
                                                     <td className="py-3 px-4 font-bold text-xl text-blue-700">{calculations.totalHourlyHours}</td>
                                                 </tr>
                                             </tbody>
