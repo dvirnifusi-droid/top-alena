@@ -16,6 +16,7 @@ export default function ShiftNotificationBell({ currentEmployee, isManager = fal
     const [notifications, setNotifications] = useState([]);
     const [swapRequests, setSwapRequests] = useState([]);
     const [loading, setLoading] = useState(false);
+    const [actionLoading, setActionLoading] = useState(null); // req.id
 
     const loadData = async () => {
         setLoading(true);
