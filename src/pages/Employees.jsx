@@ -526,18 +526,23 @@ function EmployeesInner() {
     <div className="min-h-screen p-4 md:p-8 bg-gradient-to-br from-gray-50 to-slate-100" dir="rtl">
       <div className="max-w-7xl mx-auto">
         <div className="flex justify-between items-center mb-8">
-          <div>
-            <h1 className="text-4xl font-bold text-gray-900 flex items-center gap-3">
-              <Users className="w-10 h-10 text-blue-600" />
-              ניהול עובדים
-            </h1>
-            <p className="text-gray-600 mt-2">הוספה, עריכה וניהול של צוות המסעדה</p>
-          </div>
-          <Button onClick={openAddForm} className="bg-blue-600 hover:bg-blue-700">
-            <Plus className="w-5 h-5 ml-2" />
-            הוסף עובד חדש
-          </Button>
-        </div>
+           <div>
+             <h1 className="text-4xl font-bold text-gray-900 flex items-center gap-3">
+               <Users className="w-10 h-10 text-blue-600" />
+               ניהול עובדים
+             </h1>
+             <p className="text-gray-600 mt-2">הוספה, עריכה וניהול של צוות המסעדה</p>
+           </div>
+           <div className="flex gap-2">
+             <Button onClick={syncAllEmails} variant="outline" className="border-purple-300 text-purple-700 hover:bg-purple-50">
+               🔄 סנכרן מיילים
+             </Button>
+             <Button onClick={openAddForm} className="bg-blue-600 hover:bg-blue-700">
+               <Plus className="w-5 h-5 ml-2" />
+               הוסף עובד חדש
+             </Button>
+           </div>
+         </div>
 
         {loading ? (
           <p>טוען עובדים...</p>
