@@ -125,13 +125,21 @@ export default function ExportToAccountantDialog({ open, onClose, employees, sel
                 </DialogHeader>
 
                 <div className="space-y-4">
-                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                        <p className="text-sm text-blue-800 font-medium">
-                            חודש: {monthLabel} | {employees.filter(e => selectedEmployees.includes(e.id)).length} עובדים
-                        </p>
-                        <div className="flex flex-wrap gap-1 mt-2">
-                            {employees.filter(e => selectedEmployees.includes(e.id)).map(e => (
-                                <Badge key={e.id} className="text-xs bg-blue-100 text-blue-700">{e.full_name}</Badge>
+                    <div className="border rounded-lg p-3 bg-slate-50 max-h-48 overflow-y-auto">
+                        <div className="flex items-center justify-between mb-2">
+                            <p className="text-sm font-medium text-slate-700">בחר עובדים לייצוא - {monthLabel}</p>
+                            <button className="text-xs text-blue-600 underline" onClick={() => setSelectedEmps(employees.map(e => e.id))}>בחר הכל</button>
+                        </div>
+                        <div className="space-y-1.5">
+                            {employees.map(emp => (
+                                <div key={emp.id} className="flex items-center gap-2">
+                                    <Checkbox
+                                        id={`emp-${emp.id}`}
+                                        checked={selectedEmps.includes(emp.id)}
+                                        onCheckedChange={() => toggleEmp(emp.id)}
+                                    />
+                                    <label htmlFor={`emp-${emp.id}`} className="text-sm cursor-pointer">{emp.full_name}</label>
+                                </div>
                             ))}
                         </div>
                     </div>
