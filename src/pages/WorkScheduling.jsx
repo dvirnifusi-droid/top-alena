@@ -654,6 +654,22 @@ export default function WorkScheduling() {
                 </Alert>
             )}
 
+            {/* Undo banner */}
+            {undoSnapshot && (
+                <div className="mb-4 flex items-center justify-between bg-amber-50 border border-amber-300 rounded-lg px-4 py-3">
+                    <span className="text-amber-800 font-medium text-sm">השיבוצים נמחקו. ניתן לשחזר תוך כמה שניות.</span>
+                    <div className="flex gap-2">
+                        <Button size="sm" variant="outline" className="border-amber-400 text-amber-700 hover:bg-amber-100" onClick={handleUndoClear}>
+                            <RotateCcw className="w-4 h-4 ml-1" />
+                            שחזור
+                        </Button>
+                        <Button size="sm" variant="ghost" className="text-amber-600" onClick={() => setUndoSnapshot(null)}>
+                            <X className="w-4 h-4" />
+                        </Button>
+                    </div>
+                </div>
+            )}
+
             {/* Filters - for desktop */}
             <div className="hidden lg:block">
                 <Card className="mb-6">
