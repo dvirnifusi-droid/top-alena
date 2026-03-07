@@ -355,6 +355,20 @@ export default function EmployeeHome() {
                             </CardContent>
                         </Card>
                     </Link>
+
+                    <Link to={createPageUrl("ShiftChat")}>
+                        <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full">
+                            <CardContent className="p-6">
+                                <div className="flex flex-col items-center text-center">
+                                    <div className="w-12 h-12 bg-gradient-to-br from-indigo-500 to-violet-600 rounded-lg flex items-center justify-center mb-3">
+                                        <MessageCircle className="w-6 h-6 text-white" />
+                                    </div>
+                                    <h3 className="font-semibold text-lg mb-2">צ'אט משמרת</h3>
+                                    <p className="text-sm text-gray-600">תקשורת פנימית לצוות</p>
+                                </div>
+                            </CardContent>
+                        </Card>
+                    </Link>
                 </div>
             </div>
 
