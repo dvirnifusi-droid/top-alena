@@ -5,6 +5,8 @@ import { base44 } from '@/api/base44Client';
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Star, GraduationCap, CheckSquare, AlertTriangle, Calendar, Utensils, Brain, Sparkles, FileText, Megaphone, Briefcase } from 'lucide-react';
+import ShiftNotificationBell from '../components/shared/ShiftNotificationBell';
+import { Employee } from '@/entities/Employee';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
