@@ -392,9 +392,9 @@ export default function WorkScheduling() {
 
     const handleSaveManagerPhone = async () => {
         if (restaurantProfileId) {
-            await RestaurantProfile.update(restaurantProfileId, { manager_whatsapp_phone: managerPhoneInput });
+            await base44.entities.RestaurantProfile.update(restaurantProfileId, { manager_whatsapp_phone: managerPhoneInput });
         } else {
-            const created = await RestaurantProfile.create({ restaurant_name: 'TOP ALENA', manager_whatsapp_phone: managerPhoneInput });
+            const created = await base44.entities.RestaurantProfile.create({ restaurant_name: 'TOP ALENA', manager_whatsapp_phone: managerPhoneInput });
             setRestaurantProfileId(created.id);
         }
         setManagerPhone(managerPhoneInput);
