@@ -135,11 +135,13 @@ export default function ShiftNotificationBell({ currentEmployee, isManager = fal
                                                 {req.message && <p className="text-xs text-gray-600 mt-1 italic">"{req.message}"</p>}
                                                 {isManager && (
                                                     <div className="flex gap-2 mt-2">
-                                                        <Button size="sm" className="h-7 text-xs bg-green-600 hover:bg-green-700" onClick={() => handleApprove(req)}>
-                                                            <Check className="w-3 h-3 ml-1" />אשר
+                                                        <Button size="sm" className="h-7 text-xs bg-green-600 hover:bg-green-700" onClick={() => handleApprove(req)} disabled={!!actionLoading}>
+                                                            {actionLoading === req.id ? <Loader2 className="w-3 h-3 animate-spin ml-1" /> : <Check className="w-3 h-3 ml-1" />}
+                                                            אשר
                                                         </Button>
-                                                        <Button size="sm" variant="outline" className="h-7 text-xs border-red-300 text-red-600" onClick={() => handleReject(req)}>
-                                                            <XCircle className="w-3 h-3 ml-1" />דחה
+                                                        <Button size="sm" variant="outline" className="h-7 text-xs border-red-300 text-red-600" onClick={() => handleReject(req)} disabled={!!actionLoading}>
+                                                            {actionLoading === req.id + '_reject' ? <Loader2 className="w-3 h-3 animate-spin ml-1" /> : <XCircle className="w-3 h-3 ml-1" />}
+                                                            דחה
                                                         </Button>
                                                     </div>
                                                 )}
