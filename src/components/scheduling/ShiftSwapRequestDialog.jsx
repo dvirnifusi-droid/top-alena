@@ -123,6 +123,9 @@ export default function ShiftSwapRequestDialog({ open, onClose, myShift, employe
                             <span className="mr-1">💬</span>
                             פתח WhatsApp לעובד ישירות
                         </Button>
+                        {targetEmployeeId && !employees.find(e => e.id === targetEmployeeId)?.phone && (
+                            <p className="text-xs text-amber-600 text-center -mt-1">⚠️ לעובד זה אין מספר טלפון שמור - תצטרך לבחור איש קשר ידנית</p>
+                        )}
                         <div className="flex gap-2 w-full">
                             <Button variant="outline" onClick={onClose} className="flex-1">ביטול</Button>
                             <Button onClick={handleSubmit} disabled={!targetEmployeeId || loading} className="flex-1">
