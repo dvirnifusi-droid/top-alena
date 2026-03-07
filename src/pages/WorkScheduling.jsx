@@ -721,6 +721,10 @@ export default function WorkScheduling() {
                                 {copied ? <Check className="w-4 h-4 ml-2 text-green-600" /> : <Link className="w-4 h-4 ml-2" />}
                                 {copied ? "הועתק!" : "העתק לינק לזמינות"}
                             </Button>
+                            <Button variant="outline" className="border-red-300 text-red-600 hover:bg-red-50" onClick={() => setClearDialog(true)}>
+                                <Trash2 className="w-4 h-4 ml-2" />
+                                נקה שיבוצים
+                            </Button>
                             <Button onClick={() => handleEditShift(null)}><Plus className="w-4 h-4 ml-2" />צור משמרת חדשה</Button>
                         </div>
                     </div>
