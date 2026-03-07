@@ -144,12 +144,11 @@ export default function WeeklyScheduleSummary({ userId, currentEmployee }) {
     const nextWeekStart = addDays(currentWeekStart, 7);
 
     useEffect(() => {
-        if (!userId) return;
         setLoadingCurrent(true);
         loadShiftsForWeek(currentWeekStart)
             .then(setCurrentShifts)
             .finally(() => setLoadingCurrent(false));
-    }, [userId]);
+    }, []);
 
     const handleTabChange = (tab) => {
         setActiveTab(tab);
