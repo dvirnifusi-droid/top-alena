@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -6,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
-import { Clock, Utensils, Coffee, Plus, Trash2, Save, X, Briefcase } from 'lucide-react';
+import { Clock, Utensils, Coffee, Plus, Trash2, Save, X, Briefcase, MoveRight } from 'lucide-react';
 import TimePicker from '../shared/TimePicker';
 import { format } from 'date-fns';
 import { he } from 'date-fns/locale';
