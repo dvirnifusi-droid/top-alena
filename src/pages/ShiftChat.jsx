@@ -28,13 +28,16 @@ export default function ShiftChat() {
     useEffect(() => {
         // subscribe to real-time updates
         const unsub = base44.entities.ShiftMessage.subscribe((event) => {
-            if (event.type === 'create') {
+            if (event.type === 'create' && event.data.shift_date === today && event.data.shift_type === selectedShift) {
                 setMessages(prev => [...prev, event.data]);
                 markAsRead(event.data, user?.id);
             }
+            if (event.type === 'update' && event.data.shift_date === today && event.data.shift_type === selectedShift) {
+                setMessages(prev => prev.map(msg => msg.id === event.id ? event.data : msg));
+            }
         });
         return unsub;
-    }, [user]);
+    }, [user, selectedShift, today]);
 
     useEffect(() => {
         bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
