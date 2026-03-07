@@ -751,7 +751,7 @@ export default function WorkScheduling() {
                                             {config.label}
                                         </div>
 
-                                        {finalFilteredPositions.map((position) => (
+                                        {finalFilteredPositions.map((position, positionIdx) => (
                                             <React.Fragment key={position.id}>
                                                 <div className="flex items-center justify-between p-2 border-r border-b font-semibold bg-gray-50 sticky left-0 z-10">
                                                     <span className="truncate">{position.position_name}</span>
