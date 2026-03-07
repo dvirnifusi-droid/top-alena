@@ -83,10 +83,31 @@ function ShiftsList({ shifts, loading, currentEmployee, allEmployees }) {
                                     : 'שעות לא קבועות'}
                             </p>
                             <p className="text-xs text-blue-600 font-medium">{shift.position}</p>
+                            {currentEmployee && (
+                                <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="mt-1 h-6 text-xs border-orange-300 text-orange-600 hover:bg-orange-50"
+                                    onClick={() => setSwapShift({ ...shift, date: shift.dateStr })}
+                                >
+                                    <ArrowLeftRight className="w-3 h-3 ml-1" />
+                                    בקש החלפה
+                                </Button>
+                            )}
                         </div>
                     </div>
                 ))}
             </div>
+
+            {swapShift && currentEmployee && (
+                <ShiftSwapRequestDialog
+                    open={!!swapShift}
+                    onClose={() => setSwapShift(null)}
+                    myShift={swapShift}
+                    employees={allEmployees}
+                    currentEmployee={currentEmployee}
+                />
+            )}
             <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
                 <div className="flex items-center justify-between">
                     <span className="font-semibold text-blue-900">סה"כ שעות בשבוע:</span>
