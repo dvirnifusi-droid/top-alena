@@ -116,6 +116,12 @@ export default function Layout({ children, currentPageName }) {
     loadUser();
   }, []);
 
+  React.useEffect(() => {
+    // Setup global callback for chat unread status
+    window.__setUnreadChat = setHasUnreadChat;
+    return () => delete window.__setUnreadChat;
+  }, []);
+
   const isCurrentViewAdmin = user?.role === 'admin';
   const isOriginalAdmin = originalUserRole === 'admin';
 
