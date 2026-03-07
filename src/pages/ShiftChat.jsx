@@ -61,6 +61,8 @@ export default function ShiftChat() {
             100
         );
         setMessages(msgs);
+        setHasNewMessages(false);
+        if (onUnreadChange) onUnreadChange(false);
         setLoading(false);
     };
 
