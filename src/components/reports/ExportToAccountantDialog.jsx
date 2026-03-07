@@ -74,10 +74,18 @@ export default function ExportToAccountantDialog({ open, onClose, employees, sel
     const [accountantEmail, setAccountantEmail] = useState('');
     const [sending, setSending] = useState(false);
     const [sent, setSent] = useState(false);
+    const [search, setSearch] = useState('');
+    const [deptFilter, setDeptFilter] = useState('all');
 
-    React.useEffect(() => { setSelectedEmps(initSelected || []); }, [open]);
+    React.useEffect(() => { setSelectedEmps(initSelected || []); setSearch(''); setDeptFilter('all'); }, [open]);
 
     const toggleEmp = (id) => setSelectedEmps(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id]);
+
+    const filteredEmployees = employees.filter(emp => {
+        const matchSearch = !search || emp.full_name?.toLowerCase().includes(search.toLowerCase());
+        const matchDept = deptFilter === 'all' || emp.department === deptFilter;
+        return matchSearch && matchDept;
+    });
 
     const handleDownload = () => {
         const empsToExport = employees.filter(e => selectedEmps.includes(e.id));
