@@ -21,6 +21,7 @@ export default function ShiftChat() {
     const [loading, setLoading] = useState(true);
     const bottomRef = useRef(null);
     const today = format(new Date(), 'yyyy-MM-dd');
+    const [hasNewMessages, setHasNewMessages] = useState(false);
 
     useEffect(() => {
         User.me().then(u => {
