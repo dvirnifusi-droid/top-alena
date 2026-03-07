@@ -58,13 +58,39 @@ export default function ShiftNotificationBell({ currentEmployee, isManager = fal
     const totalCount = swapRequests.length + (isManager ? 0 : notifications.length);
 
     const handleApprove = async (req) => {
-        await base44.entities.ShiftSwapRequest.update(req.id, { status: 'approved_by_manager' });
-        loadData();
+        setActionLoading(req.id);
+        try {
+            // 1. Update swap request status
+            await base44.entities.ShiftSwapRequest.update(req.id, { status: 'approved_by_manager' });
+
+            // 2. Update the WorkShift - swap requester with target employee
+            if (req.requester_employee_id && req.target_employee_id && req.shift_date && req.shift_type) {
+                const shifts = await WorkShift.filter({ date: req.shift_date, shift_type: req.shift_type });
+                if (shifts.length > 0) {
+                    const shift = shifts[0];
+                    const updatedStaff = (shift.assigned_staff || []).map(a => {
+                        if (a.employee_id === req.requester_employee_id) {
+                            return { ...a, employee_id: req.target_employee_id, employee_name: req.target_name };
+                        }
+                        return a;
+                    });
+                    await WorkShift.update(shift.id, { assigned_staff: updatedStaff });
+                }
+            }
+        } finally {
+            setActionLoading(null);
+            loadData();
+        }
     };
 
     const handleReject = async (req) => {
-        await base44.entities.ShiftSwapRequest.update(req.id, { status: 'rejected_by_manager' });
-        loadData();
+        setActionLoading(req.id + '_reject');
+        try {
+            await base44.entities.ShiftSwapRequest.update(req.id, { status: 'rejected_by_manager' });
+        } finally {
+            setActionLoading(null);
+            loadData();
+        }
     };
 
     return (
