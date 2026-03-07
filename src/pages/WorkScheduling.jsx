@@ -934,6 +934,11 @@ export default function WorkScheduling() {
                         </div>
                     </SheetContent>
                 </Sheet>
+                {currentUser?.role === 'admin' && (
+                    <div className="fixed bottom-4 right-4 z-20">
+                        <ShiftNotificationBell currentEmployee={currentEmployee} isManager={true} />
+                    </div>
+                )}
             </div>
 
             {isQuickAssignOpen && (
