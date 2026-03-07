@@ -206,6 +206,9 @@ const DesktopSidebar = ({ userName, isCurrentViewAdmin, isOriginalAdmin, navigat
             >
               <item.icon className="w-6 h-6 flex-shrink-0" />
               <span className="text-base font-semibold">{item.title}</span>
+              {item.title === 'צ\'אט משמרת' && hasUnreadChat && (
+                <div className="absolute right-6 w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse" />
+              )}
             </Link>
           )
         ))}
