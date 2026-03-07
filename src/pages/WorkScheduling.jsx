@@ -381,7 +381,7 @@ export default function WorkScheduling() {
 
     useEffect(() => {
         loadScheduleData();
-        RestaurantProfile.list().then(list => {
+        base44.entities.RestaurantProfile.list().then(list => {
             if (list.length > 0) {
                 setManagerPhone(list[0].manager_whatsapp_phone || '');
                 setManagerPhoneInput(list[0].manager_whatsapp_phone || '');
