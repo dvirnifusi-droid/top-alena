@@ -48,6 +48,8 @@ function EmployeeReportsInner() {
     const [selectedMonth, setSelectedMonth] = useState(new Date());
     const [loading2, setLoading2] = useState(false);
     const [workShifts, setWorkShifts] = useState([]);
+    const WEEKLY_GOAL_HOURS = 40; // יעד שעות שבועי ברירת מחדל
+    const OVERTIME_THRESHOLD = 8; // שעות נוספות מעל X שעות ביום
 
     useEffect(() => {
         loadInitialData();
