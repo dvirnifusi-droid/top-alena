@@ -114,17 +114,22 @@ export default function EmployeeHome() {
             <div className="max-w-7xl mx-auto">
                 {/* כותרת */}
                 <div className="mb-8">
-                    <h1 className="text-3xl font-bold text-slate-900 mb-2">
-                        שלום {user?.full_name?.split(' ')[0] || 'עובד'}! 👋
-                    </h1>
-                    <div className="flex items-center gap-3">
-                        <p className="text-slate-600">הכלים שלך למשמרת היום</p>
-                        {todayPosition && (
-                            <Badge className="bg-indigo-600 text-white flex items-center gap-1">
-                                <Briefcase className="w-4 h-4" />
-                                {todayPosition}
-                            </Badge>
-                        )}
+                    <div className="flex items-start justify-between">
+                        <div>
+                            <h1 className="text-3xl font-bold text-slate-900 mb-2">
+                                שלום {user?.full_name?.split(' ')[0] || 'עובד'}! 👋
+                            </h1>
+                            <div className="flex items-center gap-3">
+                                <p className="text-slate-600">הכלים שלך למשמרת היום</p>
+                                {todayPosition && (
+                                    <Badge className="bg-indigo-600 text-white flex items-center gap-1">
+                                        <Briefcase className="w-4 h-4" />
+                                        {todayPosition}
+                                    </Badge>
+                                )}
+                            </div>
+                        </div>
+                        <ShiftNotificationBell currentEmployee={currentEmployee} isManager={false} />
                     </div>
                 </div>
 
