@@ -40,6 +40,11 @@ export default function ShiftChat() {
             if (event.type === 'update' && event.data.shift_date === today && event.data.shift_type === selectedShift) {
                 setMessages(prev => prev.map(msg => msg.id === event.id ? event.data : msg));
             }
+            // Check for new messages not from current user
+            if (event.type === 'create' && event.data.shift_date === today && event.data.sender_id !== user?.id) {
+                setHasNewMessages(true);
+                if (onUnreadChange) onUnreadChange(true);
+            }
         });
         return unsub;
     }, [user, selectedShift, today]);
