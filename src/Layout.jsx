@@ -173,7 +173,7 @@ export default function Layout({ children, currentPageName }) {
 
 // --- Sub-components for cleaner structure ---
 
-const DesktopSidebar = ({ userName, isCurrentViewAdmin, isOriginalAdmin, navigationItems, location, user, setUser }) => (
+const DesktopSidebar = ({ userName, isCurrentViewAdmin, isOriginalAdmin, navigationItems, location, user, setUser, hasUnreadChat }) => (
   <div className="fixed top-0 bottom-0 right-0 w-80 bg-card border-l border-border z-40">
     <div className="border-b border-border p-8">
       <div className="flex items-center gap-5">
