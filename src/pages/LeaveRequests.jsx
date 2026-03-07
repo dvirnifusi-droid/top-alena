@@ -30,51 +30,51 @@ const STATUS_CONFIG = {
 };
 
 function LeaveRequestCard({ req, isManager, onApprove, onReject, actionLoading }) {
-    const leaveType = LEAVE_TYPES[req.leave_type] || LEAVE_TYPES.other;
-    const statusCfg = STATUS_CONFIG[req.status] || STATUS_CONFIG.pending;
-    const StatusIcon = statusCfg.icon;
+     const leaveType = LEAVE_TYPES[req.leave_type] || LEAVE_TYPES.other;
+     const statusCfg = STATUS_CONFIG[req.status] || STATUS_CONFIG.pending;
+     const StatusIcon = statusCfg.icon;
 
-    const days = req.start_date && req.end_date
-        ? eachDayOfInterval({ start: parseISO(req.start_date), end: parseISO(req.end_date) }).length
-        : 0;
+     const days = req.start_date && req.end_date
+         ? eachDayOfInterval({ start: parseISO(req.start_date), end: parseISO(req.end_date) }).length
+         : 0;
 
-    return (
-        <Card className={`border-r-4 ${req.status === 'approved' ? 'border-r-green-400' : req.status === 'rejected' ? 'border-r-red-400' : 'border-r-yellow-400'}`}>
-            <CardContent className="p-4">
-                <div className="flex items-start justify-between gap-3">
-                    <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap mb-1">
-                            <span className="text-lg">{leaveType.emoji}</span>
-                            <span className="font-bold text-gray-900">{isManager ? req.employee_name : leaveType.label}</span>
-                            {isManager && <Badge className={leaveType.color}>{leaveType.label}</Badge>}
-                            <Badge className={statusCfg.color}>
-                                <StatusIcon className="w-3 h-3 ml-1" />
-                                {statusCfg.label}
-                            </Badge>
-                        </div>
-                        <p className="text-sm text-gray-600">
-                            📅 {req.start_date && format(parseISO(req.start_date), 'dd/MM/yyyy')}
-                            {req.end_date !== req.start_date && ` - ${format(parseISO(req.end_date), 'dd/MM/yyyy')}`}
-                            <span className="mr-2 text-gray-500">({days} {days === 1 ? 'יום' : 'ימים'})</span>
-                        </p>
-                        {req.reason && <p className="text-sm text-gray-500 mt-1 italic">"{req.reason}"</p>}
-                        {req.manager_notes && <p className="text-sm text-amber-700 mt-1 bg-amber-50 rounded px-2 py-1">📝 {req.manager_notes}</p>}
-                    </div>
-                    {isManager && req.status === 'pending' && (
-                        <div className="flex gap-2 flex-shrink-0">
-                            <Button size="sm" className="bg-green-600 hover:bg-green-700 h-8" onClick={() => onApprove(req)} disabled={!!actionLoading}>
-                                {actionLoading === req.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
-                            </Button>
-                            <Button size="sm" variant="outline" className="border-red-300 text-red-600 h-8" onClick={() => onReject(req)} disabled={!!actionLoading}>
-                                {actionLoading === req.id + '_r' ? <Loader2 className="w-3 h-3 animate-spin" /> : <X className="w-3 h-3" />}
-                            </Button>
-                        </div>
-                    )}
-                </div>
-            </CardContent>
-        </Card>
-    );
-}
+     return (
+         <Card className={`border-r-4 ${req.status === 'approved' ? 'border-r-green-400' : req.status === 'rejected' ? 'border-r-red-400' : 'border-r-yellow-400'}`}>
+             <CardContent className="p-3 md:p-4">
+                 <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+                     <div className="flex-1 min-w-0">
+                         <div className="flex items-center gap-2 flex-wrap mb-1">
+                             <span className="text-lg">{leaveType.emoji}</span>
+                             <span className="font-bold text-gray-900 text-sm sm:text-base">{isManager ? req.employee_name : leaveType.label}</span>
+                             {isManager && <Badge className={`${leaveType.color} text-xs`}>{leaveType.label}</Badge>}
+                             <Badge className={`${statusCfg.color} text-xs`}>
+                                 <StatusIcon className="w-3 h-3 ml-1" />
+                                 {statusCfg.label}
+                             </Badge>
+                         </div>
+                         <p className="text-xs sm:text-sm text-gray-600">
+                             📅 {req.start_date && format(parseISO(req.start_date), 'dd/MM/yyyy')}
+                             {req.end_date !== req.start_date && ` - ${format(parseISO(req.end_date), 'dd/MM/yyyy')}`}
+                             <span className="mr-2 text-gray-500">({days} {days === 1 ? 'יום' : 'ימים'})</span>
+                         </p>
+                         {req.reason && <p className="text-xs sm:text-sm text-gray-500 mt-1 italic">"{req.reason}"</p>}
+                         {req.manager_notes && <p className="text-xs sm:text-sm text-amber-700 mt-1 bg-amber-50 rounded px-2 py-1">📝 {req.manager_notes}</p>}
+                     </div>
+                     {isManager && req.status === 'pending' && (
+                         <div className="flex gap-1 sm:gap-2 flex-shrink-0 w-full sm:w-auto">
+                             <Button size="sm" className="bg-green-600 hover:bg-green-700 h-8 flex-1 sm:flex-none" onClick={() => onApprove(req)} disabled={!!actionLoading}>
+                                 {actionLoading === req.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
+                             </Button>
+                             <Button size="sm" variant="outline" className="border-red-300 text-red-600 h-8 flex-1 sm:flex-none" onClick={() => onReject(req)} disabled={!!actionLoading}>
+                                 {actionLoading === req.id + '_r' ? <Loader2 className="w-3 h-3 animate-spin" /> : <X className="w-3 h-3" />}
+                             </Button>
+                         </div>
+                     )}
+                 </div>
+             </CardContent>
+         </Card>
+     );
+ }
 
 function NewLeaveRequestDialog({ open, onClose, currentEmployee, onSaved }) {
     const [form, setForm] = useState({ leave_type: 'vacation', start_date: '', end_date: '', reason: '' });
