@@ -747,7 +747,9 @@ export default function WorkScheduling() {
 
                                 return (
                                     <React.Fragment key={type}>
-                                        <div className={`col-span-8 p-2 font-bold text-center text-lg ${config.color}`}>{config.label}</div>
+                                        <div className={`col-span-8 p-2 font-bold text-center text-lg ${config.color} flex items-center justify-center gap-2`}>
+                                            {config.label}
+                                        </div>
 
                                         {finalFilteredPositions.map((position) => (
                                             <React.Fragment key={position.id}>
