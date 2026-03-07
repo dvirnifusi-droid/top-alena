@@ -27,6 +27,9 @@ async function loadShiftsForWeek(weekStart) {
     allShifts.forEach(shift => {
         if (!shift.date) return;
         if (shift.date >= weekStartStr && shift.date <= weekEndStr) {
+            if (shift.assigned_staff && shift.assigned_staff.length > 0) {
+                console.log('Shift on', shift.date, 'has staff:', shift.assigned_staff.map(a => a.employee_name));
+            }
             const userAssignment = (shift.assigned_staff || []).find(
                 a => a.employee_name && currentUser.full_name &&
                     a.employee_name.toLowerCase() === currentUser.full_name.toLowerCase()
