@@ -107,6 +107,14 @@ export default function Layout({ children, currentPageName }) {
     const loadUser = async () => {
       try {
         const currentUser = await User.me();
+        // סנכרן שם מ-Employee אם קיים
+        if (currentUser?.email) {
+          const { Employee } = await import('@/entities/Employee');
+          const employees = await Employee.filter({ email: currentUser.email, status: 'active' });
+          if (employees.length > 0) {
+            currentUser.full_name = employees[0].full_name;
+          }
+        }
         setUser(currentUser);
         setOriginalUserRole(currentUser?.role);
       } catch (error) {
