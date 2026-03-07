@@ -52,7 +52,6 @@ export default function ShiftSwapRequestDialog({ open, onClose, myShift, employe
 
         setLoading(false);
         setSent(true);
-        setTimeout(() => { setSent(false); setTargetEmployeeId(''); setMessage(''); onClose(); }, 1800);
     };
 
     const shiftLabel = myShift ? `${format(new Date(myShift.date), 'EEEE dd/MM', { locale: he })} - ${myShift.shift_type === 'lunch' ? 'צהריים' : 'ערב'} (${myShift.position})` : '';
