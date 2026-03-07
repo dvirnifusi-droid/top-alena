@@ -578,6 +578,35 @@ export default function WorkScheduling() {
 
     const isFilterActive = filters.shiftType !== 'all' || filters.department !== 'all' || filters.employee !== 'all';
 
+    const handleMoveShift = async () => {
+        if (!moveShiftDialog || !moveShiftDate) return;
+        try {
+            await WorkShift.update(moveShiftDialog.shift.id, { date: moveShiftDate });
+            setMoveShiftDialog(null);
+            setMoveShiftDate('');
+            await loadScheduleData();
+        } catch (e) {
+            alert('שגיאה בהעברת המשמרת');
+        }
+    };
+
+    const handleClearAssignments = async () => {
+        const positionsToClear = clearDepartment === 'all' ? null : DEPARTMENT_DEFINITIONS[clearDepartment]?.positionNames;
+        try {
+            const updates = week.map(shift => {
+                const newStaff = positionsToClear
+                    ? (shift.assigned_staff || []).filter(a => !positionsToClear.includes(a.position))
+                    : [];
+                return WorkShift.update(shift.id, { assigned_staff: newStaff });
+            });
+            await Promise.all(updates);
+            setClearDialog(false);
+            await loadScheduleData();
+        } catch (e) {
+            alert('שגיאה בניקוי השיבוצים');
+        }
+    };
+
     const isMyAssignment = (assignment) => {
         return currentEmployee && assignment.employee_id === currentEmployee.id;
     };
