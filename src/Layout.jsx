@@ -277,9 +277,12 @@ const MobileSidebar = ({ userName, isCurrentViewAdmin, isOriginalAdmin, navigati
                   item.isSubItem ? 'mr-3' : ''
                 } ${location.pathname === item.url ? 'bg-muted text-primary font-semibold' : 'text-foreground/70 hover:text-foreground'}`}
               >
-                <Link to={item.url} className="flex items-center gap-3 px-3 py-2.5 w-full min-w-0">
+                <Link to={item.url} className="flex items-center gap-3 px-3 py-2.5 w-full min-w-0 relative">
                   <item.icon className="w-4 h-4 flex-shrink-0" />
                   <span className="text-sm font-medium truncate">{item.title}</span>
+                  {item.title === 'צ\'אט משמרת' && hasUnreadChat && (
+                    <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse absolute left-1" />
+                  )}
                 </Link>
               </SidebarMenuButton>
             </SidebarMenuItem>
