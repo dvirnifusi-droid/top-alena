@@ -51,6 +51,11 @@ function EmployeeReportsInner() {
     const [selectedMonth, setSelectedMonth] = useState(new Date());
     const [loading2, setLoading2] = useState(false);
     const [workShifts, setWorkShifts] = useState([]);
+    // Export dialog
+    const [showExport, setShowExport] = useState(false);
+    const [exportSelectedEmps, setExportSelectedEmps] = useState([]);
+    // Edit shift inline
+    const [editShift, setEditShift] = useState(null); // { entry, workShiftId }
     const WEEKLY_GOAL_HOURS = 40; // יעד שעות שבועי ברירת מחדל
     const OVERTIME_THRESHOLD = 8; // שעות נוספות מעל X שעות ביום
 
