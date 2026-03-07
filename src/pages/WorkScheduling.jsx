@@ -315,6 +315,10 @@ export default function WorkScheduling() {
     // Filter states
     const [filters, setFilters] = useState({ shiftType: 'all', department: 'all', employee: 'all' });
     const [copied, setCopied] = useState(false);
+    const [managerPhone, setManagerPhone] = useState('');
+    const [managerPhoneInput, setManagerPhoneInput] = useState('');
+    const [phoneSettingOpen, setPhoneSettingOpen] = useState(false);
+    const [restaurantProfileId, setRestaurantProfileId] = useState(null);
     const [moveShiftDialog, setMoveShiftDialog] = useState(null); // { shift }
     const [moveShiftDate, setMoveShiftDate] = useState('');
     const [clearDialog, setClearDialog] = useState(false);
