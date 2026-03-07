@@ -11,7 +11,7 @@ import { format } from 'date-fns';
 import { he } from 'date-fns/locale';
 import { sendWhatsApp } from '@/functions/sendWhatsApp';
 
-export default function ShiftSwapRequestDialog({ open, onClose, myShift, employees, currentEmployee }) {
+export default function ShiftSwapRequestDialog({ open, onClose, myShift, employees, currentEmployee, managerPhone }) {
     const [targetEmployeeId, setTargetEmployeeId] = useState('');
     const [message, setMessage] = useState('');
     const [loading, setLoading] = useState(false);
@@ -23,6 +23,7 @@ export default function ShiftSwapRequestDialog({ open, onClose, myShift, employe
         if (!targetEmployeeId || !myShift) return;
         setLoading(true);
         const target = employees.find(e => e.id === targetEmployeeId);
+
         await base44.entities.ShiftSwapRequest.create({
             requester_employee_id: currentEmployee.id,
             requester_name: currentEmployee.full_name,
@@ -36,6 +37,19 @@ export default function ShiftSwapRequestDialog({ open, onClose, myShift, employe
             message,
             status: 'pending'
         });
+
+        // Send WhatsApp to manager if phone configured
+        if (managerPhone) {
+            const shiftDateFormatted = format(new Date(myShift.date), 'EEEE dd/MM/yyyy', { locale: he });
+            const shiftTypeHe = myShift.shift_type === 'lunch' ? 'צהריים' : 'ערב';
+            const msgText = `🔄 *בקשת החלפת משמרת*\n\n👤 ${currentEmployee.full_name} מבקש להחליף עם ${target?.full_name || ''}\n📅 ${shiftDateFormatted} - ${shiftTypeHe}\n💼 תפקיד: ${myShift.position}${message ? `\n💬 הערה: "${message}"` : ''}\n\nאנא אשר או דחה את הבקשה במערכת.`;
+            try {
+                await sendWhatsApp({ to: managerPhone, message: msgText });
+            } catch (e) {
+                console.warn('WhatsApp send failed:', e.message);
+            }
+        }
+
         setLoading(false);
         setSent(true);
         setTimeout(() => { setSent(false); setTargetEmployeeId(''); setMessage(''); onClose(); }, 1800);
