@@ -22,8 +22,10 @@ const filterPositionsByShiftType = (positions, shiftType) => {
 };
 
 
-export default function AssignmentEditDialog({ isOpen, onOpenChange, assignment, onSave, onDelete, positions }) {
+export default function AssignmentEditDialog({ isOpen, onOpenChange, assignment, onSave, onDelete, positions, onMoveShift }) {
   const [editData, setEditData] = useState(null);
+  const [showMoveDate, setShowMoveDate] = useState(false);
+  const [moveDate, setMoveDate] = useState('');
 
   useEffect(() => {
     if (assignment) {
