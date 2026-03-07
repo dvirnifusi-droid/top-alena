@@ -656,7 +656,7 @@ export default function WorkScheduling() {
     const handleUndoClear = async () => {
         if (!undoSnapshot) return;
         try {
-            await Promise.all(undoSnapshot.map(s => WorkShift.update(s.id, { assigned_staff: s.assigned_staff })));
+            await Promise.all(undoSnapshot.map(s => base44.entities.WorkShift.update(s.id, { assigned_staff: s.assigned_staff })));
             setUndoSnapshot(null);
             await loadScheduleData();
         } catch (e) {
