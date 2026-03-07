@@ -133,13 +133,41 @@ export default function ExportToAccountantDialog({ open, onClose, employees, sel
                 </DialogHeader>
 
                 <div className="space-y-4">
-                    <div className="border rounded-lg p-3 bg-slate-50 max-h-48 overflow-y-auto">
-                        <div className="flex items-center justify-between mb-2">
-                            <p className="text-sm font-medium text-slate-700">בחר עובדים לייצוא - {monthLabel}</p>
-                            <button className="text-xs text-blue-600 underline" onClick={() => setSelectedEmps(employees.map(e => e.id))}>בחר הכל</button>
+                    <div className="border rounded-lg p-3 bg-slate-50">
+                        <p className="text-sm font-medium text-slate-700 mb-2">בחר עובדים לייצוא - {monthLabel}</p>
+
+                        {/* פילטרים */}
+                        <div className="flex gap-2 mb-2">
+                            <div className="relative flex-1">
+                                <Search className="absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+                                <input
+                                    type="text"
+                                    placeholder="חיפוש לפי שם..."
+                                    value={search}
+                                    onChange={e => setSearch(e.target.value)}
+                                    className="w-full pr-7 pl-2 py-1 text-xs border rounded bg-white focus:outline-none focus:ring-1 focus:ring-blue-300"
+                                />
+                                {search && <button onClick={() => setSearch('')} className="absolute left-1 top-1/2 -translate-y-1/2"><X className="w-3 h-3 text-slate-400" /></button>}
+                            </div>
+                            <select
+                                value={deptFilter}
+                                onChange={e => setDeptFilter(e.target.value)}
+                                className="text-xs border rounded px-2 py-1 bg-white focus:outline-none"
+                            >
+                                <option value="all">כל המחלקות</option>
+                                <option value="floor">פלור</option>
+                                <option value="kitchen">מטבח</option>
+                            </select>
                         </div>
-                        <div className="space-y-1.5">
-                            {employees.map(emp => (
+
+                        {/* בחר הכל / נקה הכל */}
+                        <div className="flex gap-3 mb-2">
+                            <button className="text-xs text-blue-600 underline" onClick={() => setSelectedEmps(filteredEmployees.map(e => e.id))}>בחר הכל</button>
+                            <button className="text-xs text-slate-500 underline" onClick={() => setSelectedEmps([])}>נקה הכל</button>
+                        </div>
+
+                        <div className="space-y-1.5 max-h-36 overflow-y-auto">
+                            {filteredEmployees.map(emp => (
                                 <div key={emp.id} className="flex items-center gap-2">
                                     <Checkbox
                                         id={`emp-${emp.id}`}
@@ -149,6 +177,7 @@ export default function ExportToAccountantDialog({ open, onClose, employees, sel
                                     <label htmlFor={`emp-${emp.id}`} className="text-sm cursor-pointer">{emp.full_name}</label>
                                 </div>
                             ))}
+                            {filteredEmployees.length === 0 && <p className="text-xs text-slate-400 text-center py-2">לא נמצאו עובדים</p>}
                         </div>
                     </div>
 
