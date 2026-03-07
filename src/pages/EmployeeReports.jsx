@@ -5,24 +5,12 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Loader2, TrendingUp, Clock, DollarSign, BarChart3, Calendar } from 'lucide-react';
-import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, subMonths } from 'date-fns';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { Loader2, TrendingUp, Clock, DollarSign, BarChart3, Briefcase } from 'lucide-react';
+import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, subMonths, parseISO } from 'date-fns';
 import { he } from 'date-fns/locale';
 
-// TIP-based positions (excluded from hourly salary report)
 const TIP_POSITIONS = ['מלצר', 'ברמן', 'ראנר'];
-
-// Calculate hours between two time strings (handles overnight)
-function calcHours(startTime, endTime) {
-    if (!startTime || !endTime) return 0;
-    const [sh, sm] = startTime.split(':').map(Number);
-    const [eh, em] = endTime.split(':').map(Number);
-    let start = sh * 60 + sm;
-    let end = eh * 60 + em;
-    if (end < start) end += 24 * 60; // overnight
-    return (end - start) / 60;
-}
 
 export default function EmployeeReportsPage() {
     return (
@@ -37,6 +25,7 @@ function EmployeeReportsInner() {
     const [isAdmin, setIsAdmin] = useState(false);
     const [employees, setEmployees] = useState([]);
     const [shifts, setShifts] = useState([]);
+    const [workShifts, setWorkShifts] = useState([]);
     const [tipReports, setTipReports] = useState([]);
     const [myEmployeeRecord, setMyEmployeeRecord] = useState(null);
     const [loading, setLoading] = useState(true);
