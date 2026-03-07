@@ -643,7 +643,7 @@ export default function WorkScheduling() {
                 const newStaff = positionsToClear
                     ? (shift.assigned_staff || []).filter(a => !positionsToClear.includes(a.position))
                     : [];
-                return WorkShift.update(shift.id, { assigned_staff: newStaff });
+                return base44.entities.WorkShift.update(shift.id, { assigned_staff: newStaff });
             });
             await Promise.all(updates);
             setClearDialog(false);
