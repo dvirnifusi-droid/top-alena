@@ -1,8 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { WorkShift } from '@/entities/WorkShift';
-import { WorkPosition } from '@/entities/WorkPosition';
-import { Employee } from '@/entities/Employee';
-import { User } from '@/entities/User';
+import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Loader2, Plus, Calendar as CalendarIcon, ChevronLeft, ChevronRight, Filter, RotateCcw, X, Crown, Link, Check, Trash2, MoveRight, Phone } from 'lucide-react';
