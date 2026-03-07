@@ -1,13 +1,15 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Input } from '@/components/ui/input';
 import { base44 } from '@/api/base44Client';
-import { ArrowLeftRight, Loader2 } from 'lucide-react';
+import { ArrowLeftRight, Loader2, Phone } from 'lucide-react';
 import { format } from 'date-fns';
 import { he } from 'date-fns/locale';
+import { sendWhatsApp } from '@/functions/sendWhatsApp';
 
 export default function ShiftSwapRequestDialog({ open, onClose, myShift, employees, currentEmployee }) {
     const [targetEmployeeId, setTargetEmployeeId] = useState('');
