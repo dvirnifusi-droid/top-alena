@@ -438,7 +438,7 @@ export default function WorkScheduling() {
                     assigned_staff: [],
                     positions_needed: {}
                 };
-                shift = await WorkShift.create(newShiftData);
+                shift = await base44.entities.WorkShift.create(newShiftData);
             }
 
             let updatedStaff = [...(shift.assigned_staff || [])];
