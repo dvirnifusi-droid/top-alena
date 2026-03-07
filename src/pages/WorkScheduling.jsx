@@ -965,7 +965,7 @@ export default function WorkScheduling() {
             </Dialog>
 
             {/* Clear Assignments Dialog */}
-            <Dialog open={clearDialog} onOpenChange={setClearDialog}>
+            <Dialog open={clearDialog} onOpenChange={(o) => { setClearDialog(o); if (!o) { setClearScope('week'); setClearDepartment('all'); } }}>
                 <DialogContent dir="rtl">
                     <DialogHeader>
                         <DialogTitle className="flex items-center gap-2 text-red-600">
@@ -974,18 +974,36 @@ export default function WorkScheduling() {
                         </DialogTitle>
                     </DialogHeader>
                     <div className="space-y-4 py-2">
-                        <p className="text-sm text-gray-600">בחר מאיזו חטיבה לנקות את כל השיבוצים בסידור הנוכחי:</p>
-                        <Select value={clearDepartment} onValueChange={setClearDepartment}>
-                            <SelectTrigger>
-                                <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="all">כל החטיבות</SelectItem>
-                                <SelectItem value="floor">🍽️ פלור בלבד</SelectItem>
-                                <SelectItem value="kitchen">👨‍🍳 מטבח בלבד</SelectItem>
-                            </SelectContent>
-                        </Select>
-                        <p className="text-xs text-red-500 font-medium">פעולה זו תמחק את כל השיבוצים הרלוונטיים ולא ניתן לשחזרם.</p>
+                        <div>
+                            <label className="text-sm font-medium mb-1 block">טווח מחיקה</label>
+                            <Select value={clearScope} onValueChange={setClearScope}>
+                                <SelectTrigger>
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="week">כל השבוע ({format(weekInterval.start, 'dd/MM')} - {format(weekInterval.end, 'dd/MM')})</SelectItem>
+                                    {days.map(d => (
+                                        <SelectItem key={format(d, 'yyyy-MM-dd')} value={format(d, 'yyyy-MM-dd')}>
+                                            יום ספציפי: {format(d, 'EEEE dd/MM', { locale: he })}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <div>
+                            <label className="text-sm font-medium mb-1 block">מחלקה</label>
+                            <Select value={clearDepartment} onValueChange={setClearDepartment}>
+                                <SelectTrigger>
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="all">כל החטיבות</SelectItem>
+                                    <SelectItem value="floor">🍽️ פלור בלבד</SelectItem>
+                                    <SelectItem value="kitchen">👨‍🍳 מטבח בלבד</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded p-2">💡 לאחר המחיקה תופיע אפשרות שחזור מיידית.</p>
                     </div>
                     <DialogFooter className="flex gap-2">
                         <Button variant="outline" onClick={() => setClearDialog(false)}>ביטול</Button>
