@@ -362,7 +362,17 @@ export default function WorkScheduling() {
                 WorkPosition.filter({ is_active: true })
             ]);
 
-            setWeek(shifts);
+            // סנכרן שמות עובדים בשיבוצים עם הנתונים הנוכחיים
+            const employeeMap = Object.fromEntries(allEmployees.map(e => [e.id, e.full_name]));
+            const syncedShifts = shifts.map(shift => ({
+                ...shift,
+                assigned_staff: (shift.assigned_staff || []).map(assignment => ({
+                    ...assignment,
+                    employee_name: employeeMap[assignment.employee_id] || assignment.employee_name
+                }))
+            }));
+
+            setWeek(syncedShifts);
             setPositions(allPositions);
             setEmployees(allEmployees);
         } catch (error) {

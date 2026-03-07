@@ -80,6 +80,7 @@ import PublicReservationSettings from './pages/PublicReservationSettings';
 import Reports from './pages/Reports';
 import RevenueForecasting from './pages/RevenueForecasting';
 import SeatingSetup from './pages/SeatingSetup';
+import ShiftChat from './pages/ShiftChat';
 import ShiftEndReport from './pages/ShiftEndReport';
 import ShiftEndReportDetails from './pages/ShiftEndReportDetails';
 import SmartPrediction from './pages/SmartPrediction';
@@ -93,7 +94,6 @@ import Training from './pages/Training';
 import UploadChecklists from './pages/UploadChecklists';
 import WaiterTables from './pages/WaiterTables';
 import WorkScheduling from './pages/WorkScheduling';
-import ShiftChat from './pages/ShiftChat';
 import __Layout from './Layout.jsx';
 
 
@@ -131,6 +131,7 @@ export const PAGES = {
     "Reports": Reports,
     "RevenueForecasting": RevenueForecasting,
     "SeatingSetup": SeatingSetup,
+    "ShiftChat": ShiftChat,
     "ShiftEndReport": ShiftEndReport,
     "ShiftEndReportDetails": ShiftEndReportDetails,
     "SmartPrediction": SmartPrediction,
@@ -144,7 +145,6 @@ export const PAGES = {
     "UploadChecklists": UploadChecklists,
     "WaiterTables": WaiterTables,
     "WorkScheduling": WorkScheduling,
-    "ShiftChat": ShiftChat,
 }
 
 export const pagesConfig = {
