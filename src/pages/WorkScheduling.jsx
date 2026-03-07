@@ -313,6 +313,10 @@ export default function WorkScheduling() {
     // Filter states
     const [filters, setFilters] = useState({ shiftType: 'all', department: 'all', employee: 'all' });
     const [copied, setCopied] = useState(false);
+    const [moveShiftDialog, setMoveShiftDialog] = useState(null); // { shift }
+    const [moveShiftDate, setMoveShiftDate] = useState('');
+    const [clearDialog, setClearDialog] = useState(false);
+    const [clearDepartment, setClearDepartment] = useState('all');
 
     const handleCopyAvailabilityLink = () => {
         const url = `${window.location.origin}/AvailabilityForm`;
