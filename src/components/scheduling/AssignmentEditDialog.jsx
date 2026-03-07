@@ -191,9 +191,28 @@ export default function AssignmentEditDialog({ isOpen, onOpenChange, assignment,
             <Textarea value={editData.notes} onChange={e => setEditData({...editData, notes: e.target.value})} placeholder="הערות למשמרת..." />
           </div>
         </div>
+        {showMoveDate && (
+          <div className="border rounded-lg p-3 bg-blue-50 space-y-2 mx-1 mb-2">
+            <label className="text-sm font-medium block">בחר תאריך חדש למשמרת</label>
+            <div className="flex gap-2 items-center">
+              <Input type="date" value={moveDate} onChange={e => setMoveDate(e.target.value)} className="flex-1" />
+              <Button size="sm" disabled={!moveDate} onClick={() => { onMoveShift && onMoveShift(editData, moveDate); setShowMoveDate(false); setMoveDate(''); onOpenChange(false); }}>
+                אישור
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => { setShowMoveDate(false); setMoveDate(''); }}>
+                <X className="w-4 h-4" />
+              </Button>
+            </div>
+          </div>
+        )}
         <DialogFooter className="justify-between">
             <Button variant="destructive" onClick={handleDeleteConfirm}><Trash2 className="w-4 h-4 ml-2"/>מחק שיבוץ</Button>
             <div className="flex gap-2">
+                {onMoveShift && (
+                  <Button variant="outline" className="border-blue-300 text-blue-600 hover:bg-blue-50" onClick={() => setShowMoveDate(v => !v)}>
+                    <MoveRight className="w-4 h-4 ml-2"/>העבר תאריך
+                  </Button>
+                )}
                 <Button variant="outline" onClick={() => onOpenChange(false)}><X className="w-4 h-4 ml-2"/>ביטול</Button>
                 <Button onClick={handleSave}><Save className="w-4 h-4 ml-2"/>שמור שינויים</Button>
             </div>
