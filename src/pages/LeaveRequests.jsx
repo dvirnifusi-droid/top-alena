@@ -84,8 +84,8 @@ function NewLeaveRequestDialog({ open, onClose, currentEmployee, onSaved }) {
         if (!form.start_date || !form.end_date) return;
         setLoading(true);
         await base44.entities.LeaveRequest.create({
-            employee_id: currentEmployee.id,
-            employee_name: currentEmployee.full_name,
+            employee_id: currentEmployee?.id || currentUser?.id,
+            employee_name: currentEmployee?.full_name || currentUser?.full_name,
             leave_type: form.leave_type,
             start_date: form.start_date,
             end_date: form.end_date,
