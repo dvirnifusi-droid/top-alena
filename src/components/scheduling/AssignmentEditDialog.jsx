@@ -205,16 +205,16 @@ export default function AssignmentEditDialog({ isOpen, onOpenChange, assignment,
             </div>
           </div>
         )}
-        <DialogFooter className="justify-between">
-            <Button variant="destructive" onClick={handleDeleteConfirm}><Trash2 className="w-4 h-4 ml-2"/>מחק שיבוץ</Button>
-            <div className="flex gap-2">
+        <DialogFooter className="justify-between flex-row gap-1">
+            <Button size="sm" variant="destructive" onClick={handleDeleteConfirm}><Trash2 className="w-3.5 h-3.5 ml-1"/>מחק שיבוץ</Button>
+            <div className="flex gap-1">
                 {onMoveShift && (
-                  <Button variant="outline" className="border-blue-300 text-blue-600 hover:bg-blue-50" onClick={() => setShowMoveDate(v => !v)}>
-                    <MoveRight className="w-4 h-4 ml-2"/>העבר תאריך
+                  <Button size="sm" variant="outline" className="border-blue-300 text-blue-600 hover:bg-blue-50 px-2" onClick={() => setShowMoveDate(v => !v)}>
+                    <MoveRight className="w-3.5 h-3.5 ml-1"/>העבר תאריך
                   </Button>
                 )}
-                <Button variant="outline" onClick={() => onOpenChange(false)}><X className="w-4 h-4 ml-2"/>ביטול</Button>
-                <Button onClick={handleSave}><Save className="w-4 h-4 ml-2"/>שמור שינויים</Button>
+                <Button size="sm" variant="outline" onClick={() => onOpenChange(false)}><X className="w-3.5 h-3.5 ml-1"/>ביטול</Button>
+                <Button size="sm" onClick={handleSave}><Save className="w-3.5 h-3.5 ml-1"/>שמור</Button>
             </div>
         </DialogFooter>
       </DialogContent>
