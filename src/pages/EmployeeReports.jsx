@@ -5,24 +5,12 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Loader2, TrendingUp, Clock, DollarSign, BarChart3, Calendar } from 'lucide-react';
-import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, subMonths } from 'date-fns';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { Loader2, TrendingUp, Clock, DollarSign, BarChart3, Briefcase } from 'lucide-react';
+import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, subMonths, parseISO } from 'date-fns';
 import { he } from 'date-fns/locale';
 
-// TIP-based positions (excluded from hourly salary report)
 const TIP_POSITIONS = ['מלצר', 'ברמן', 'ראנר'];
-
-// Calculate hours between two time strings (handles overnight)
-function calcHours(startTime, endTime) {
-    if (!startTime || !endTime) return 0;
-    const [sh, sm] = startTime.split(':').map(Number);
-    const [eh, em] = endTime.split(':').map(Number);
-    let start = sh * 60 + sm;
-    let end = eh * 60 + em;
-    if (end < start) end += 24 * 60; // overnight
-    return (end - start) / 60;
-}
 
 export default function EmployeeReportsPage() {
     return (
@@ -37,6 +25,7 @@ function EmployeeReportsInner() {
     const [isAdmin, setIsAdmin] = useState(false);
     const [employees, setEmployees] = useState([]);
     const [shifts, setShifts] = useState([]);
+    const [workShifts, setWorkShifts] = useState([]);
     const [tipReports, setTipReports] = useState([]);
     const [myEmployeeRecord, setMyEmployeeRecord] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -46,7 +35,6 @@ function EmployeeReportsInner() {
     const [filterPeriod, setFilterPeriod] = useState('month');
     const [selectedMonth, setSelectedMonth] = useState(new Date());
     const [loading2, setLoading2] = useState(false);
-    const [workShifts, setWorkShifts] = useState([]);
 
     useEffect(() => {
         loadInitialData();
@@ -87,7 +75,7 @@ function EmployeeReportsInner() {
             const [allShifts, allTipReports, allWorkShifts] = await Promise.all([
                 base44.entities.ShiftTracking.list(),
                 base44.entities.TipReport.list(),
-                base44.entities.WorkShift.list('-date', 500),
+                base44.entities.WorkShift.list(),
             ]);
             setShifts(allShifts);
             setTipReports(allTipReports);
@@ -159,38 +147,47 @@ function EmployeeReportsInner() {
             inPeriod(s.date)
         );
 
-        // משמרות מסידור העבודה לעובדים שאינם על טיפים
-        const hourlyShiftEntries = [];
+        // שעות שכר מ-WorkShift לעובדים שאינם על טיפים
+        const hourlyEntries = [];
         workShifts.forEach(ws => {
-            if (!inPeriod(ws.date)) return;
-            (ws.assigned_staff || []).forEach(a => {
-                if (a.employee_id !== selectedEmployeeId) return;
-                if (TIP_POSITIONS.includes(a.position)) return; // טיפ-based - לא כאן
-                const hours = calcHours(a.start_time, a.end_time);
-                if (hours <= 0) return;
-                hourlyShiftEntries.push({
-                    date: ws.date,
-                    shift_type: ws.shift_type,
-                    position: a.position,
-                    start_time: a.start_time,
-                    end_time: a.end_time,
-                    hours,
-                    break_minutes: a.total_break_minutes || 0,
-                    net_hours: hours - (a.total_break_minutes || 0) / 60,
-                });
+            (ws.assigned_staff || []).forEach(staff => {
+                if (
+                    (staff.employee_id === selectedEmployeeId ||
+                     (selectedEmp?.full_name && staff.employee_name?.trim().toLowerCase() === selectedEmp.full_name.trim().toLowerCase())) &&
+                    !TIP_POSITIONS.includes(staff.position) &&
+                    staff.start_time && staff.end_time &&
+                    inPeriod(ws.date)
+                ) {
+                    const start = parseISO(`1970-01-01T${staff.start_time}:00`);
+                    const end = parseISO(`1970-01-01T${staff.end_time}:00`);
+                    let hours = (end - start) / (1000 * 60 * 60);
+                    if (hours < 0) hours += 24;
+                    const breakHours = (parseFloat(staff.total_break_minutes) || 0) / 60;
+                    const effectiveHours = Math.max(0, hours - breakHours);
+                    hourlyEntries.push({
+                        date: ws.date,
+                        shift_type: ws.shift_type,
+                        position: staff.position,
+                        start_time: staff.start_time,
+                        end_time: staff.end_time,
+                        break_minutes: staff.total_break_minutes || 0,
+                        effectiveHours,
+                    });
+                }
             });
         });
 
-        return { tipEntries, shifts: empShifts, hourlyShiftEntries };
+        return { tipEntries, shifts: empShifts, hourlyEntries };
     }, [shifts, tipReports, workShifts, selectedEmployeeId, filterPeriod, selectedMonth, employees]);
 
     // חישובים
     const calculations = useMemo(() => {
-        const { tipEntries, shifts: filteredShifts } = filteredData;
+        const { tipEntries, shifts: filteredShifts, hourlyEntries } = filteredData;
 
         const totalTipEarnings = tipEntries.reduce((sum, e) => sum + (e.totalEarnings || 0), 0);
         const totalTipHours = tipEntries.reduce((sum, e) => sum + (e.effectiveHours || 0), 0);
         const totalShiftHours = filteredShifts.reduce((sum, s) => sum + (s.effective_hours || s.total_hours || 0), 0);
+        const totalHourlyHours = (hourlyEntries || []).reduce((sum, e) => sum + (e.effectiveHours || 0), 0);
         const hourlyAverage = totalTipHours > 0 ? totalTipEarnings / totalTipHours : 0;
 
         return {
@@ -200,6 +197,8 @@ function EmployeeReportsInner() {
             totalShiftHours: totalShiftHours.toFixed(1),
             totalTipEarnings: totalTipEarnings.toFixed(2),
             hourlyAverage: hourlyAverage.toFixed(2),
+            totalHourlyShifts: (hourlyEntries || []).length,
+            totalHourlyHours: totalHourlyHours.toFixed(1),
         };
     }, [filteredData]);
 
