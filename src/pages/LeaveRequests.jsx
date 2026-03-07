@@ -283,17 +283,17 @@ function LeaveRequestsInner() {
     if (loading) return <div className="flex justify-center p-10"><Loader2 className="w-6 h-6 animate-spin" /></div>;
 
     return (
-        <div className="p-4 md:p-8 max-w-5xl mx-auto" dir="rtl">
-            <div className="flex items-center justify-between mb-6">
-                <div>
-                    <h1 className="text-2xl font-bold flex items-center gap-2">
-                        <CalendarDays className="w-7 h-7 text-blue-600" />
+         <div className="p-4 md:p-8 max-w-5xl mx-auto" dir="rtl">
+            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-6">
+                <div className="flex-1 min-w-0">
+                    <h1 className="text-xl md:text-2xl font-bold flex items-center gap-2 flex-wrap">
+                        <CalendarDays className="w-6 h-6 md:w-7 md:h-7 text-blue-600 flex-shrink-0" />
                         {isAdmin ? 'ניהול בקשות חופשה' : 'הבקשות שלי'}
                     </h1>
-                    <p className="text-gray-500 text-sm mt-1">{isAdmin ? 'אשר או דחה בקשות חופשה ומחלה של עובדים' : 'הגש בקשת חופשה, מחלה או היעדרות'}</p>
+                    <p className="text-gray-500 text-xs md:text-sm mt-1">{isAdmin ? 'אשר או דחה בקשות חופשה ומחלה של עובדים' : 'הגש בקשת חופשה, מחלה או היעדרות'}</p>
                 </div>
                 {(currentEmployee || currentUser) && (
-                    <Button onClick={() => setNewOpen(true)}>
+                    <Button onClick={() => setNewOpen(true)} className="w-full md:w-auto">
                         <Plus className="w-4 h-4 ml-2" />
                         בקשה חדשה
                     </Button>
