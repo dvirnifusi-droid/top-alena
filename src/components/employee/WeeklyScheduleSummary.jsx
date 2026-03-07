@@ -45,7 +45,8 @@ async function loadShiftsForWeek(weekStart) {
     return weekShifts;
 }
 
-function ShiftsList({ shifts, loading }) {
+function ShiftsList({ shifts, loading, currentEmployee, allEmployees }) {
+    const [swapShift, setSwapShift] = useState(null);
     const totalHours = shifts.reduce((acc, shift) => {
         if (!shift.start_time || !shift.end_time) return acc;
         const [startH, startM] = shift.start_time.split(':').map(Number);
