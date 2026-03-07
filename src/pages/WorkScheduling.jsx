@@ -570,7 +570,7 @@ export default function WorkScheduling() {
         );
 
         try {
-            await WorkShift.update(targetShift.id, { assigned_staff: updatedStaff });
+            await base44.entities.WorkShift.update(targetShift.id, { assigned_staff: updatedStaff });
             await loadScheduleData();
         } catch (error) {
             console.error("Error deleting assignment:", error);
