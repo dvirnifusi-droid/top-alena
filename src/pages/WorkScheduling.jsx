@@ -775,7 +775,16 @@ export default function WorkScheduling() {
                             <CalendarIcon className="w-6 h-6" />
                             סידור עבודה
                             {currentUser?.role === 'admin' && (
-                                <ShiftNotificationBell currentEmployee={currentEmployee} isManager={true} />
+                                <>
+                                    <ShiftNotificationBell currentEmployee={currentEmployee} isManager={true} />
+                                    <button
+                                        onClick={() => setPhoneSettingOpen(true)}
+                                        title="הגדר מספר WhatsApp לקבלת התראות"
+                                        className="p-1.5 rounded-full hover:bg-gray-100 transition-colors"
+                                    >
+                                        <span className="text-lg">💬</span>
+                                    </button>
+                                </>
                             )}
                         </CardTitle>
                         <div className="flex items-center gap-4">
