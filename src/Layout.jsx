@@ -135,7 +135,8 @@ export default function Layout({ children, currentPageName }) {
     isOriginalAdmin,
     navigationItems,
     location,
-    setUser
+    setUser,
+    hasUnreadChat
   };
 
   return (
