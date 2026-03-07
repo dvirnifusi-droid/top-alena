@@ -95,74 +95,128 @@ function AvailabilityRequestsInner() {
     };
 
     const handleAutoAssign = async () => {
-        setAutoAssigning(true);
-        try {
-            let assigned = 0;
+         setAutoAssigning(true);
+         try {
+             let assigned = 0;
 
-            for (const day of weekDays) {
-                const dateStr = format(day, 'yyyy-MM-dd');
-                const dayAvail = getAvailForDay(dateStr).filter(a =>
-                    a.availability_type === 'available' || a.availability_type === 'partial'
-                );
+             for (const day of weekDays) {
+                 const dateStr = format(day, 'yyyy-MM-dd');
+                 const dayAvail = getAvailForDay(dateStr).filter(a =>
+                     a.availability_type === 'available' || a.availability_type === 'partial'
+                 );
 
-                for (const shiftType of ['lunch', 'dinner']) {
-                    const eligible = dayAvail.filter(a =>
-                        !a.shift_preference || a.shift_preference === 'both' || a.shift_preference === shiftType
-                    );
+                 for (const shiftType of ['lunch', 'dinner']) {
+                     const eligible = dayAvail.filter(a =>
+                         !a.shift_preference || a.shift_preference === 'both' || a.shift_preference === shiftType
+                     );
 
-                    if (eligible.length === 0) continue;
+                     if (eligible.length === 0) continue;
 
-                    // Find or create WorkShift
-                    const existingShifts = await base44.entities.WorkShift.filter({ date: dateStr, shift_type: shiftType });
-                    let shift = existingShifts[0];
+                     // Find or create WorkShift
+                     const existingShifts = await base44.entities.WorkShift.filter({ date: dateStr, shift_type: shiftType });
+                     let shift = existingShifts[0];
 
-                    if (!shift) {
-                        shift = await base44.entities.WorkShift.create({
-                            date: dateStr,
-                            shift_type: shiftType,
-                            start_time: shiftType === 'lunch' ? '12:00' : '17:00',
-                            end_time: shiftType === 'lunch' ? '17:00' : '23:00',
-                            assigned_staff: [],
-                        });
-                    }
+                     if (!shift) {
+                         shift = await base44.entities.WorkShift.create({
+                             date: dateStr,
+                             shift_type: shiftType,
+                             start_time: shiftType === 'lunch' ? '12:00' : '17:00',
+                             end_time: shiftType === 'lunch' ? '17:00' : '23:00',
+                             assigned_staff: [],
+                         });
+                     }
 
-                    const currentStaff = shift.assigned_staff || [];
-                    const newStaff = [...currentStaff];
+                     const currentStaff = shift.assigned_staff || [];
+                     const newStaff = [...currentStaff];
 
-                    for (const avail of eligible) {
-                        // Skip if already assigned
-                        const alreadyIn = currentStaff.some(s => s.employee_id === avail.employee_id);
-                        if (alreadyIn) continue;
+                     for (const avail of eligible) {
+                         // Skip if already assigned
+                         const alreadyIn = currentStaff.some(s => s.employee_id === avail.employee_id);
+                         if (alreadyIn) continue;
 
-                        const emp = employees.find(e => e.id === avail.employee_id);
-                        if (!emp) continue;
+                         const emp = employees.find(e => e.id === avail.employee_id);
+                         if (!emp) continue;
 
-                        // Determine position
-                        const position = avail.positions?.length > 0 ? avail.positions[0] : (emp.positions?.[0]?.position_name || 'מלצר');
+                         // Determine position
+                         const position = avail.positions?.length > 0 ? avail.positions[0] : (emp.positions?.[0]?.position_name || 'מלצר');
 
-                        newStaff.push({
-                            employee_id: avail.employee_id,
-                            employee_name: avail.employee_name || emp.full_name,
-                            position,
-                            start_time: shiftType === 'lunch' ? '12:00' : '17:00',
-                            end_time: shiftType === 'lunch' ? '17:00' : '23:00',
-                        });
-                        assigned++;
-                    }
+                         newStaff.push({
+                             employee_id: avail.employee_id,
+                             employee_name: avail.employee_name || emp.full_name,
+                             position,
+                             start_time: shiftType === 'lunch' ? '12:00' : '17:00',
+                             end_time: shiftType === 'lunch' ? '17:00' : '23:00',
+                         });
+                         assigned++;
+                     }
 
-                    if (newStaff.length !== currentStaff.length) {
-                        await base44.entities.WorkShift.update(shift.id, { assigned_staff: newStaff });
-                    }
-                }
-            }
+                     if (newStaff.length !== currentStaff.length) {
+                         await base44.entities.WorkShift.update(shift.id, { assigned_staff: newStaff });
+                     }
+                 }
+             }
 
-            toast.success(`שובצו ${assigned} עובדים לסידור העבודה!`);
-        } catch (e) {
-            console.error(e);
-            toast.error('שגיאה בשיבוץ האוטומטי');
-        }
-        setAutoAssigning(false);
-    };
+             toast.success(`שובצו ${assigned} עובדים לסידור העבודה!`);
+         } catch (e) {
+             console.error(e);
+             toast.error('שגיאה בשיבוץ האוטומטי');
+         }
+         setAutoAssigning(false);
+     };
+
+     const handleSingleAssign = async (avail, shiftType) => {
+         setSingleAssignLoading(true);
+         try {
+             const dateStr = avail.date;
+             const existingShifts = await base44.entities.WorkShift.filter({ date: dateStr, shift_type: shiftType });
+             let shift = existingShifts[0];
+
+             if (!shift) {
+                 shift = await base44.entities.WorkShift.create({
+                     date: dateStr,
+                     shift_type: shiftType,
+                     start_time: shiftType === 'lunch' ? '12:00' : '17:00',
+                     end_time: shiftType === 'lunch' ? '17:00' : '23:00',
+                     assigned_staff: [],
+                 });
+             }
+
+             const currentStaff = shift.assigned_staff || [];
+             const alreadyIn = currentStaff.some(s => s.employee_id === avail.employee_id);
+
+             if (alreadyIn) {
+                 toast.info('העובד כבר שובץ למשמרת זו');
+                 setSingleAssignModal(null);
+                 setSingleAssignLoading(false);
+                 return;
+             }
+
+             const emp = employees.find(e => e.id === avail.employee_id);
+             if (!emp) {
+                 toast.error('לא נמצא עובד');
+                 setSingleAssignLoading(false);
+                 return;
+             }
+
+             const position = avail.positions?.length > 0 ? avail.positions[0] : (emp.positions?.[0]?.position_name || 'מלצר');
+
+             const newStaff = [...currentStaff, {
+                 employee_id: avail.employee_id,
+                 employee_name: avail.employee_name || emp.full_name,
+                 position,
+                 start_time: shiftType === 'lunch' ? '12:00' : '17:00',
+                 end_time: shiftType === 'lunch' ? '17:00' : '23:00',
+             }];
+
+             await base44.entities.WorkShift.update(shift.id, { assigned_staff: newStaff });
+             toast.success(`${avail.employee_name} שובץ בהצלחה!`);
+             setSingleAssignModal(null);
+         } catch (e) {
+             console.error(e);
+             toast.error('שגיאה בשיבוץ');
+         }
+         setSingleAssignLoading(false);
+     };
 
     const getFilteredAvailabilities = () => {
         if (!selectedDepartment) return availabilities;
