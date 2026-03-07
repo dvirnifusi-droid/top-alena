@@ -50,8 +50,11 @@ export default function ShiftChat() {
     }, [user, selectedShift, today]);
 
     useEffect(() => {
-        bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }, [messages]);
+        // Mark as read when component loads or messages change
+        if (!hasNewMessages) {
+            bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+        }
+    }, [messages, hasNewMessages]);
 
     const loadMessages = async () => {
         setLoading(true);
