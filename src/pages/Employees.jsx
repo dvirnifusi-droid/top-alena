@@ -70,6 +70,18 @@ function EmployeeForm({ employee, onSave, onCancel }) {
         )}
       </div>
       <div>
+        <Label htmlFor="phone">מספר טלפון (WhatsApp)</Label>
+        <Input
+          id="phone"
+          type="tel"
+          value={formData.phone}
+          onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+          placeholder="+972501234567"
+          dir="ltr"
+        />
+        <p className="text-xs text-gray-500 mt-1">לפתיחת WhatsApp ישירה בבקשות החלפת משמרת</p>
+      </div>
+      <div>
         <Label htmlFor="role">תפקיד</Label>
         <Input
           id="role"
