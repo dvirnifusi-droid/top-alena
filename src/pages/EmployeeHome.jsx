@@ -22,16 +22,20 @@ import WeeklyScheduleSummary from '../components/employee/WeeklyScheduleSummary'
 
 export default function EmployeeHome() {
     const [user, setUser] = useState(null);
+    const [currentEmployee, setCurrentEmployee] = useState(null);
     const [showSmartTools, setShowSmartTools] = useState(false);
     const [todayBriefs, setTodayBriefs] = useState([]);
     const [selectedBrief, setSelectedBrief] = useState(null);
     const [todayPosition, setTodayPosition] = useState(null);
 
     useEffect(() => {
-        User.me().then(u => {
+        User.me().then(async u => {
             setUser(u);
             loadTodayBriefs();
             loadTodayPosition();
+            const emps = await Employee.filter({ status: 'active' });
+            const me = emps.find(e => e.email?.toLowerCase() === u.email?.toLowerCase());
+            setCurrentEmployee(me || null);
         }).catch(() => setUser(null));
     }, []);
 
