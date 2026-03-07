@@ -374,12 +374,25 @@ function AvailabilityRequestsInner() {
                                                                 {avail.reason && (
                                                                     <p className="text-xs text-gray-500 mt-2 italic">"{avail.reason}"</p>
                                                                 )}
-                                                            </div>
-                                                        );
-                                                    })}
-                                                </div>
-                                            </div>
-                                        ))}
+                                                                <div className="flex gap-1 mt-2 flex-wrap">
+                                                                    {['lunch', 'dinner'].map(st => (
+                                                                        <Button
+                                                                            key={st}
+                                                                            size="sm"
+                                                                            variant="outline"
+                                                                            className="text-xs h-7"
+                                                                            onClick={() => setSingleAssignModal({ avail, shiftType: st })}
+                                                                        >
+                                                                            שבץ {st === 'lunch' ? 'צהריים' : 'ערב'}
+                                                                        </Button>
+                                                                    ))}
+                                                                </div>
+                                                                </div>
+                                                                );
+                                                                })}
+                                                                </div>
+                                                                </div>
+                                                                ))}
                                     </CardContent>
                                 </Card>
 
