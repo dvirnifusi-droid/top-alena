@@ -197,10 +197,10 @@ export default function WeeklyScheduleSummary({ userId, currentEmployee }) {
             </CardHeader>
             <CardContent>
                 {activeTab === 'current' && (
-                    <ShiftsList shifts={currentShifts} loading={loadingCurrent} currentEmployee={currentEmployee} allEmployees={allEmployees} />
+                    <ShiftsList shifts={currentShifts} loading={loadingCurrent} currentEmployee={currentEmployee} allEmployees={allEmployees} managerPhone={managerPhone} />
                 )}
                 {activeTab === 'next' && (
-                    <ShiftsList shifts={nextShifts} loading={loadingNext} currentEmployee={currentEmployee} allEmployees={allEmployees} />
+                    <ShiftsList shifts={nextShifts} loading={loadingNext} currentEmployee={currentEmployee} allEmployees={allEmployees} managerPhone={managerPhone} />
                 )}
             </CardContent>
         </Card>
