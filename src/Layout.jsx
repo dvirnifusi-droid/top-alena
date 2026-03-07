@@ -106,13 +106,13 @@ export default function Layout({ children, currentPageName }) {
   React.useEffect(() => {
     const loadUser = async () => {
       try {
-        const currentUser = await User.me();
+        const currentUser = await base44.auth.me();
         setUser(currentUser);
         setOriginalUserRole(currentUser?.role);
         
         // סנכרן שם מ-Employee אם קיים
         if (currentUser?.email) {
-          const employees = await Employee.filter({ email: currentUser.email });
+          const employees = await base44.entities.Employee.filter({ email: currentUser.email });
           const activeEmployee = employees.find(emp => emp.status === 'active' && emp.full_name);
           if (activeEmployee) {
             setUser(prev => prev ? { ...prev, full_name: activeEmployee.full_name } : null);
