@@ -8,6 +8,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
+// Global state for unread chat messages
+let unreadChatCount = 0;
+let onUnreadChange = null;
+
 export default function ShiftChat() {
     const [user, setUser] = useState(null);
     const [messages, setMessages] = useState([]);
