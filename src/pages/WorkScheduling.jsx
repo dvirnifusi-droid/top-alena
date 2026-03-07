@@ -594,8 +594,21 @@ export default function WorkScheduling() {
 
     const handleClearAssignments = async () => {
         const positionsToClear = clearDepartment === 'all' ? null : DEPARTMENT_DEFINITIONS[clearDepartment]?.positionNames;
+
+        // Determine which shifts to clear: only the currently displayed week (days array), and optionally a specific day
+        const currentWeekDates = days.map(d => format(d, 'yyyy-MM-dd'));
+        const shiftsToProcess = week.filter(s => {
+            if (!currentWeekDates.includes(s.date)) return false;
+            if (clearScope !== 'week' && s.date !== clearScope) return false;
+            return true;
+        });
+
+        // Save snapshot for undo
+        const snapshot = shiftsToProcess.map(s => ({ id: s.id, date: s.date, assigned_staff: s.assigned_staff || [] }));
+        setUndoSnapshot(snapshot);
+
         try {
-            const updates = week.map(shift => {
+            const updates = shiftsToProcess.map(shift => {
                 const newStaff = positionsToClear
                     ? (shift.assigned_staff || []).filter(a => !positionsToClear.includes(a.position))
                     : [];
@@ -606,6 +619,17 @@ export default function WorkScheduling() {
             await loadScheduleData();
         } catch (e) {
             alert('שגיאה בניקוי השיבוצים');
+        }
+    };
+
+    const handleUndoClear = async () => {
+        if (!undoSnapshot) return;
+        try {
+            await Promise.all(undoSnapshot.map(s => WorkShift.update(s.id, { assigned_staff: s.assigned_staff })));
+            setUndoSnapshot(null);
+            await loadScheduleData();
+        } catch (e) {
+            alert('שגיאה בשחזור השיבוצים');
         }
     };
 
