@@ -118,13 +118,18 @@ function ShiftsList({ shifts, loading, currentEmployee, allEmployees }) {
     );
 }
 
-export default function WeeklyScheduleSummary({ userId }) {
+export default function WeeklyScheduleSummary({ userId, currentEmployee }) {
     const [activeTab, setActiveTab] = useState('current');
     const [currentShifts, setCurrentShifts] = useState([]);
     const [nextShifts, setNextShifts] = useState([]);
     const [loadingCurrent, setLoadingCurrent] = useState(true);
     const [loadingNext, setLoadingNext] = useState(false);
     const [nextLoaded, setNextLoaded] = useState(false);
+    const [allEmployees, setAllEmployees] = useState([]);
+
+    useEffect(() => {
+        Employee.filter({ status: 'active' }).then(setAllEmployees);
+    }, []);
 
     const today = new Date();
     const currentWeekStart = startOfWeek(today, { weekStartsOn: 0 });
