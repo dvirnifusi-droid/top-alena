@@ -69,6 +69,7 @@ import Incidents from './pages/Incidents';
 import InvoiceDetails from './pages/InvoiceDetails';
 import Invoices from './pages/Invoices';
 import Leaderboard from './pages/Leaderboard';
+import LeaveRequests from './pages/LeaveRequests';
 import MarketingAI from './pages/MarketingAI';
 import MarketingDashboard from './pages/MarketingDashboard';
 import MessageTemplates from './pages/MessageTemplates';
@@ -92,7 +93,6 @@ import Training from './pages/Training';
 import UploadChecklists from './pages/UploadChecklists';
 import WaiterTables from './pages/WaiterTables';
 import WorkScheduling from './pages/WorkScheduling';
-import LeaveRequests from './pages/LeaveRequests';
 import __Layout from './Layout.jsx';
 
 
@@ -119,6 +119,7 @@ export const PAGES = {
     "InvoiceDetails": InvoiceDetails,
     "Invoices": Invoices,
     "Leaderboard": Leaderboard,
+    "LeaveRequests": LeaveRequests,
     "MarketingAI": MarketingAI,
     "MarketingDashboard": MarketingDashboard,
     "MessageTemplates": MessageTemplates,
@@ -142,7 +143,6 @@ export const PAGES = {
     "UploadChecklists": UploadChecklists,
     "WaiterTables": WaiterTables,
     "WorkScheduling": WorkScheduling,
-    "LeaveRequests": LeaveRequests,
 }
 
 export const pagesConfig = {
