@@ -889,6 +889,71 @@ export default function WorkScheduling() {
                     onDelete={handleAssignmentDelete}
                 />
             )}
+
+            {/* Move Shift Dialog */}
+            <Dialog open={!!moveShiftDialog} onOpenChange={(o) => { if (!o) setMoveShiftDialog(null); }}>
+                <DialogContent dir="rtl">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2">
+                            <MoveRight className="w-5 h-5" />
+                            העבר משמרת לתאריך אחר
+                        </DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4 py-2">
+                        <p className="text-sm text-gray-600">
+                            {moveShiftDialog && `משמרת ${shiftTypesConfig[moveShiftDialog.shift.shift_type]?.label} מתאריך ${moveShiftDialog.shift.date}`}
+                        </p>
+                        <div>
+                            <label className="text-sm font-medium mb-1 block">תאריך חדש</label>
+                            <Input
+                                type="date"
+                                value={moveShiftDate}
+                                onChange={(e) => setMoveShiftDate(e.target.value)}
+                            />
+                        </div>
+                    </div>
+                    <DialogFooter className="flex gap-2">
+                        <Button variant="outline" onClick={() => setMoveShiftDialog(null)}>ביטול</Button>
+                        <Button onClick={handleMoveShift} disabled={!moveShiftDate}>
+                            <MoveRight className="w-4 h-4 ml-2" />
+                            העבר משמרת
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* Clear Assignments Dialog */}
+            <Dialog open={clearDialog} onOpenChange={setClearDialog}>
+                <DialogContent dir="rtl">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2 text-red-600">
+                            <Trash2 className="w-5 h-5" />
+                            נקה שיבוצים
+                        </DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4 py-2">
+                        <p className="text-sm text-gray-600">בחר מאיזו חטיבה לנקות את כל השיבוצים בסידור הנוכחי:</p>
+                        <Select value={clearDepartment} onValueChange={setClearDepartment}>
+                            <SelectTrigger>
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">כל החטיבות</SelectItem>
+                                <SelectItem value="floor">🍽️ פלור בלבד</SelectItem>
+                                <SelectItem value="kitchen">👨‍🍳 מטבח בלבד</SelectItem>
+                            </SelectContent>
+                        </Select>
+                        <p className="text-xs text-red-500 font-medium">פעולה זו תמחק את כל השיבוצים הרלוונטיים ולא ניתן לשחזרם.</p>
+                    </div>
+                    <DialogFooter className="flex gap-2">
+                        <Button variant="outline" onClick={() => setClearDialog(false)}>ביטול</Button>
+                        <Button variant="destructive" onClick={handleClearAssignments}>
+                            <Trash2 className="w-4 h-4 ml-2" />
+                            נקה שיבוצים
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }
