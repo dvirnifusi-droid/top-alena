@@ -107,6 +107,7 @@ function ShiftsList({ shifts, loading, currentEmployee, allEmployees, managerPho
                     myShift={swapShift}
                     employees={allEmployees}
                     currentEmployee={currentEmployee}
+                    managerPhone={managerPhone}
                 />
             )}
             <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
