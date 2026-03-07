@@ -3,10 +3,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Trash2 } from 'lucide-react';
+import { Trash2, AlertTriangle } from 'lucide-react';
 import { he } from 'date-fns/locale';
 import { format } from 'date-fns';
 import TimePicker from '../shared/TimePicker';
+import { base44 } from '@/api/base44Client';
 
 const shiftTypesConfig = {
     lunch: { label: 'צהריים' },
