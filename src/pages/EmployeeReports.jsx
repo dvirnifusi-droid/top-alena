@@ -188,6 +188,7 @@ function EmployeeReportsInner() {
                     hours,
                     break_minutes: a.total_break_minutes || 0,
                     net_hours: hours - (a.total_break_minutes || 0) / 60,
+                    workShiftId: ws.id,
                 });
             });
         });
