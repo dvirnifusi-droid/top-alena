@@ -57,6 +57,18 @@ export default function ShiftSwapRequestDialog({ open, onClose, myShift, employe
 
     const shiftLabel = myShift ? `${format(new Date(myShift.date), 'EEEE dd/MM', { locale: he })} - ${myShift.shift_type === 'lunch' ? 'צהריים' : 'ערב'} (${myShift.position})` : '';
 
+    const openWhatsApp = () => {
+        if (!myShift) return;
+        const target = employees.find(e => e.id === targetEmployeeId);
+        const shiftDateFormatted = format(new Date(myShift.date), 'EEEE dd/MM/yyyy', { locale: he });
+        const shiftTypeHe = myShift.shift_type === 'lunch' ? 'צהריים' : 'ערב';
+        const targetName = target?.full_name || 'עובד';
+        const msgText = `היי ${targetName} 👋\nאני ${currentEmployee?.full_name}, רציתי לשאול אם תוכל/י להחליף איתי משמרת?\n📅 ${shiftDateFormatted} - ${shiftTypeHe}\n💼 תפקיד: ${myShift.position}${message ? `\n💬 ${message}` : ''}\nתודה! 🙏`;
+        const phoneNumber = target?.phone ? target.phone.replace(/\D/g, '') : '';
+        const waUrl = `https://wa.me/${phoneNumber}?text=${encodeURIComponent(msgText)}`;
+        window.open(waUrl, '_blank');
+    };
+
     return (
         <Dialog open={open} onOpenChange={onClose}>
             <DialogContent dir="rtl" className="max-w-md">
