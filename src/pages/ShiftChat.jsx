@@ -28,9 +28,12 @@ export default function ShiftChat() {
             setUser(u);
             loadMessages();
         });
-        // Register callback for parent component
-        onUnreadChange = setHasNewMessages;
     }, [selectedShift]);
+
+    useEffect(() => {
+        // Register callback for parent component
+        if (window.__setUnreadChat) window.__setUnreadChat(hasNewMessages);
+    }, [hasNewMessages]);
 
     useEffect(() => {
         // subscribe to real-time updates
