@@ -24,6 +24,7 @@ function EmployeeForm({ employee, onSave, onCancel }) {
   const [formData, setFormData] = useState({
     full_name: employee ? employee.full_name : '',
     email: employee ? employee.email : '',
+    phone: employee ? (employee.phone || '') : '',
     role: employee ? employee.role : '',
     status: employee ? employee.status : 'active',
     base_hourly_wage: employee ? (employee.base_hourly_wage || '') : '',
