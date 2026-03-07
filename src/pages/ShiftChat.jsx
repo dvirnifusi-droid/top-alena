@@ -28,6 +28,8 @@ export default function ShiftChat() {
             setUser(u);
             loadMessages();
         });
+        // Register callback for parent component
+        onUnreadChange = setHasNewMessages;
     }, [selectedShift]);
 
     useEffect(() => {
