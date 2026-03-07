@@ -191,20 +191,37 @@ export default function AssignmentEditDialog({ isOpen, onOpenChange, assignment,
             <Textarea value={editData.notes} onChange={e => setEditData({...editData, notes: e.target.value})} placeholder="הערות למשמרת..." />
           </div>
         </div>
-        {showMoveDate && (
-          <div className="border rounded-lg p-3 bg-blue-50 space-y-2 mx-1 mb-2">
-            <label className="text-sm font-medium block">בחר תאריך חדש למשמרת</label>
-            <div className="flex gap-2 items-center">
-              <Input type="date" value={moveDate} onChange={e => setMoveDate(e.target.value)} className="flex-1" />
-              <Button size="sm" disabled={!moveDate} onClick={() => { onMoveShift && onMoveShift(editData, moveDate); setShowMoveDate(false); setMoveDate(''); onOpenChange(false); }}>
-                אישור
-              </Button>
-              <Button size="sm" variant="ghost" onClick={() => { setShowMoveDate(false); setMoveDate(''); }}>
-                <X className="w-4 h-4" />
-              </Button>
+        {showMoveDate && (() => {
+          const baseDate = new Date(editData.date);
+          const options = Array.from({ length: 14 }, (_, i) => {
+            const d = new Date(baseDate);
+            d.setDate(d.getDate() + i + 1);
+            return { value: format(d, 'yyyy-MM-dd'), label: format(d, 'EEEE, dd/MM', { locale: he }) };
+          });
+          return (
+            <div className="border rounded-lg p-3 bg-blue-50 space-y-2 mx-1 mb-2">
+              <label className="text-sm font-medium block">בחר תאריך חדש למשמרת</label>
+              <div className="flex gap-2 items-center">
+                <Select value={moveDate} onValueChange={setMoveDate}>
+                  <SelectTrigger className="flex-1 bg-white">
+                    <SelectValue placeholder="בחר יום..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {options.map(o => (
+                      <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button size="sm" disabled={!moveDate} onClick={() => { onMoveShift && onMoveShift(editData, moveDate); setShowMoveDate(false); setMoveDate(''); onOpenChange(false); }}>
+                  אישור
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => { setShowMoveDate(false); setMoveDate(''); }}>
+                  <X className="w-4 h-4" />
+                </Button>
+              </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
         <DialogFooter className="justify-between flex-row gap-1">
             <Button size="sm" variant="destructive" onClick={handleDeleteConfirm}><Trash2 className="w-3.5 h-3.5 ml-1"/>מחק שיבוץ</Button>
             <div className="flex gap-1">
