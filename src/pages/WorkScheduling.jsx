@@ -751,6 +751,9 @@ export default function WorkScheduling() {
                         <CardTitle className="flex items-center gap-2">
                             <CalendarIcon className="w-6 h-6" />
                             סידור עבודה
+                            {currentUser?.role === 'admin' && (
+                                <ShiftNotificationBell currentEmployee={currentEmployee} isManager={true} />
+                            )}
                         </CardTitle>
                         <div className="flex items-center gap-4">
                             <Button variant="outline" onClick={handlePrevWeek}><ChevronRight className="w-4 h-4 ml-2" /> שבוע קודם</Button>
