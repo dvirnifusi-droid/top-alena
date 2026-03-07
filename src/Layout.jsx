@@ -113,9 +113,10 @@ export default function Layout({ children, currentPageName }) {
         
         // סנכרן שם מ-Employee אם קיים
         if (currentUser?.email) {
-          const employees = await Employee.filter({ email: currentUser.email, status: 'active' });
-          if (employees.length > 0 && employees[0].full_name) {
-            setUser(prev => prev ? { ...prev, full_name: employees[0].full_name } : null);
+          const employees = await Employee.filter({ email: currentUser.email });
+          const activeEmployee = employees.find(emp => emp.status === 'active' && emp.full_name);
+          if (activeEmployee) {
+            setUser(prev => prev ? { ...prev, full_name: activeEmployee.full_name } : null);
           }
         }
       } catch (error) {
