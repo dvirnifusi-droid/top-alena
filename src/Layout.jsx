@@ -2,6 +2,7 @@ import React from "react";
 import { Link, useLocation } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { User } from "@/entities/User";
+import { Employee } from "@/entities/Employee";
 import {
   Users, GraduationCap, AlertTriangle, CheckSquare, Building, BarChart3,
   LayoutGrid, Trophy, Menu, FileText, Utensils, Sparkles, Crown, Rocket, Map, Brain, Calendar, CalendarDays, Banknote, MessageSquare, Briefcase, QrCode, ClipboardCheck, Settings, TrendingUp, Zap, Megaphone
@@ -107,16 +108,16 @@ export default function Layout({ children, currentPageName }) {
     const loadUser = async () => {
       try {
         const currentUser = await User.me();
-        // סנכרן שם מ-Employee אם קיים
-        if (currentUser?.email) {
-          const { Employee } = await import('@/entities/Employee');
-          const employees = await Employee.filter({ email: currentUser.email, status: 'active' });
-          if (employees.length > 0) {
-            currentUser.full_name = employees[0].full_name;
-          }
-        }
         setUser(currentUser);
         setOriginalUserRole(currentUser?.role);
+        
+        // סנכרן שם מ-Employee אם קיים
+        if (currentUser?.email) {
+          const employees = await Employee.filter({ email: currentUser.email, status: 'active' });
+          if (employees.length > 0 && employees[0].full_name) {
+            setUser(prev => prev ? { ...prev, full_name: employees[0].full_name } : null);
+          }
+        }
       } catch (error) {
         console.error("Failed to load user:", error);
       }
