@@ -37,6 +37,8 @@ function AvailabilityRequestsInner() {
      const [editData, setEditData] = useState(null);
      const [expandedUnavailable, setExpandedUnavailable] = useState(false);
      const [selectedDepartment, setSelectedDepartment] = useState(null);
+     const [singleAssignModal, setSingleAssignModal] = useState(null);
+     const [singleAssignLoading, setSingleAssignLoading] = useState(false);
 
     const weekStart = startOfWeek(addDays(new Date(), weekOffset * 7), { weekStartsOn: 0 });
     const weekEnd = endOfWeek(weekStart, { weekStartsOn: 0 });
