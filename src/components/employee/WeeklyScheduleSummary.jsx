@@ -18,7 +18,7 @@ function CalendarIcon({ className }) {
 async function loadShiftsForWeek(weekStart) {
     const weekStartStr = format(weekStart, 'yyyy-MM-dd');
     const weekEndStr = format(addDays(weekStart, 6), 'yyyy-MM-dd');
-    const currentUser = await User.me();
+    const currentUser = await base44.auth.me();
     const allShifts = await base44.entities.WorkShift.list();
     const weekShifts = [];
 
