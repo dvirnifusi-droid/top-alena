@@ -24,7 +24,7 @@ const shiftTypesConfig = {
 };
 
 // New Fixed Order Definitions
-const LUNCH_POSITIONS_ORDER = ['קופה + אריזות', 'מלצר', 'טבח', 'בלתם'];
+const LUNCH_POSITIONS_ORDER = ['קופה + אריזות', 'מלצר', 'טבח', 'מתלמד פלור', 'בלתם'];
 const DINNER_POSITIONS_ORDER = [
     'מנהל משמרת', 'ברמן', 'מלצר', 'ראנר', 'מארח/ת',
     'טבח', 'צאקר', 'גריל', 'פס בטטה', 'מקשר', 'מתלמד מטבח', 'שוטף כלים', 'בלתם'
@@ -33,7 +33,7 @@ const DINNER_POSITIONS_ORDER = [
 // New constant for department definitions and their associated position names
 const DEPARTMENT_DEFINITIONS = {
     all: { name: 'כל המחלקות' },
-    floor: { name: 'סידור פלור', positionNames: ['מלצר', 'ברמן', 'מארח/ת', 'מנהל פלור', 'ראנר', 'קופה +אריזות', 'מנהלת משמרת', 'בלתם'] },
+    floor: { name: 'סידור פלור', positionNames: ['מלצר', 'ברמן', 'מארח/ת', 'מנהל פלור', 'ראנר', 'קופה +אריזות', 'מנהלת משמרת', 'מתלמד פלור', 'בלתם'] },
     kitchen: { name: 'סידור מטבח', positionNames: ['טבח', 'מנהל מטבח', 'שוטף כלים', 'קונדיטור', 'מתלמד מטבח', 'צאקר', 'גריל', 'פס בטטה', 'מקשר', 'בלתם'] },
 };
 
