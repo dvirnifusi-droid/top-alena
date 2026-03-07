@@ -277,10 +277,23 @@ function EmployeeReportsInner() {
     return (
         <div className="p-4 sm:p-8 bg-gradient-to-br from-slate-50 to-slate-100 min-h-screen" dir="rtl">
             <div className="max-w-7xl mx-auto">
-                <h1 className="text-4xl font-bold text-slate-900 mb-2">דוחות עובדים</h1>
-                <p className="text-slate-600 mb-2">
-                    {isAdmin ? 'מעקב שעות עבודה, טיפים וביצועים לכל העובדים' : `הדוח האישי שלך - ${selectedEmployee?.full_name || ''}`}
-                </p>
+                <div className="flex items-center justify-between mb-2">
+                    <div>
+                        <h1 className="text-4xl font-bold text-slate-900">דוחות עובדים</h1>
+                        <p className="text-slate-600 mt-1">
+                            {isAdmin ? 'מעקב שעות עבודה, טיפים וביצועים לכל העובדים' : `הדוח האישי שלך - ${selectedEmployee?.full_name || ''}`}
+                        </p>
+                    </div>
+                    {isAdmin && (
+                        <Button
+                            onClick={() => { setExportSelectedEmps(employees.map(e => e.id)); setShowExport(true); }}
+                            className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700"
+                        >
+                            <FileDown className="w-4 h-4" />
+                            ייצוא לרואה חשבון
+                        </Button>
+                    )}
+                </div>
 
                 {/* Filters */}
                 <Card className="mb-8 border-2">
