@@ -99,7 +99,7 @@ function EmployeeReportsInner() {
     };
 
     const filteredData = useMemo(() => {
-        if (!selectedEmployeeId) return { tipEntries: [], shifts: [] };
+        if (!selectedEmployeeId) return { tipEntries: [], shifts: [], hourlyShiftEntries: [] };
 
         const selectedEmp = employees.find(e => e.id === selectedEmployeeId);
 
