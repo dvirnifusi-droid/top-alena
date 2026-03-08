@@ -17,28 +17,46 @@ const closingLines = [
     "אנרגיה גבוהה, טיפים גבוהים. קדימה!",
 ];
 
-export default function DailyBriefView({ brief, employeeId, onReady }) {
-    // Moved hook to the top level before any conditional returns
-    const randomLine = React.useMemo(() => closingLines[Math.floor(Math.random() * closingLines.length)], []);
+export default function DailyBriefView({ brief, employeeId, onReady, employeeName }) {
+     // Moved hook to the top level before any conditional returns
+     const randomLine = React.useMemo(() => closingLines[Math.floor(Math.random() * closingLines.length)], []);
 
-    if (!brief) {
-        return (
-            <Card>
-                <CardHeader>
-                    <CardTitle>אין תדריך להיום</CardTitle>
-                </CardHeader>
-                <CardContent>
-                    <p>לא פורסם תדריך למשמרת זו עדיין.</p>
-                </CardContent>
-            </Card>
-        );
-    }
-    
-    const isReady = brief.read_by?.includes(employeeId);
+     if (!brief) {
+         return (
+             <Card>
+                 <CardHeader>
+                     <CardTitle>אין תדריך להיום</CardTitle>
+                 </CardHeader>
+                 <CardContent>
+                     <p>לא פורסם תדריך למשמרת זו עדיין.</p>
+                 </CardContent>
+             </Card>
+         );
+     }
 
-    const handleReadyClick = () => {
-        if(onReady) onReady(brief.id);
-    };
+     const isReady = brief.read_by?.includes(employeeId);
+
+     const handleReadyClick = async () => {
+         if(onReady) onReady(brief.id);
+
+         // שלח הודעה לשיח המשמרת
+         try {
+             const today = format(new Date(), 'yyyy-MM-dd');
+             const shiftType = brief.shift_type || 'general';
+
+             await base44.entities.ShiftMessage.create({
+                 sender_id: employeeId,
+                 sender_name: employeeName || 'עובד',
+                 sender_role: 'employee',
+                 message: `✅ קראתי את הבריף ואני מוכן/ה למשמרת`,
+                 shift_date: today,
+                 shift_type: shiftType,
+                 message_type: 'announcement'
+             });
+         } catch (error) {
+             console.error('Error sending brief confirmation:', error);
+         }
+     };
 
     const Section = ({ icon, title, children }) => (
         <div className="space-y-3">
