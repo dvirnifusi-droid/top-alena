@@ -124,11 +124,8 @@ export default function GamificationCenter() {
   const challengesDone = transactions.filter(t => t.trigger === 'daily_challenge').length;
   const shiftsCompleted = transactions.filter(t => t.trigger === 'shift_completed').length;
 
-  const currentTheme = THEMES.find(t => t.id === theme) || THEMES[0];
-  const isDark = currentTheme.card === 'dark';
-
   return (
-    <div className={`min-h-screen ${currentTheme.bg} p-4 pb-20 transition-colors duration-300`} dir="rtl">
+    <div className="min-h-screen p-4 pb-20" dir="rtl">
       <ConfettiEffect trigger={showConfetti} message={confettiMsg} emoji="🏆" onDone={() => setShowConfetti(false)} />
 
       <div className="max-w-2xl mx-auto space-y-5">
