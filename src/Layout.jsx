@@ -177,8 +177,11 @@ export default function Layout({ children, currentPageName }) {
     hasUnreadChat
   };
 
+  const themeVars = THEME_VARS[appTheme] || '';
+
   return (
-    <div className="relative h-screen bg-background text-foreground" dir="rtl">
+    <div className="relative h-screen bg-background text-foreground" dir="rtl" style={themeVars ? Object.fromEntries(themeVars.split(';').filter(Boolean).map(v => { const [k, val] = v.split(':'); return [`--${k.replace('--','')}`, val]; })) : {}}>
+      {themeVars && <style>{`:root { ${themeVars.split(';').filter(Boolean).map(v => v.trim()).join(';')} }`}</style>}
       <GlobalMobileStyles />
 
       {/* תפריט דסקטופ - fixed */}
