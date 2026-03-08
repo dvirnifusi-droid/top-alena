@@ -142,37 +142,14 @@ export default function CharacterLounge() {
 }
 
 function CharacterCard({ employee, apparel, coins, isCurrentUser, onSelect }) {
-  const [avatarUrl, setAvatarUrl] = React.useState(null);
-  const [loadingAvatar, setLoadingAvatar] = React.useState(true);
-
-  React.useEffect(() => {
-    const generateAvatar = async () => {
-      try {
-        if (apparel?.wearingDescription) {
-          const prompt = `Full body 3D stylized character avatar, Pixar/Fortnite style, standing in a neutral T-pose. Character ${apparel.wearingDescription}. High-quality 3D render, studio lighting, solid white background. Professional 3D game character design.`;
-          const { url } = await base44.integrations.Core.GenerateImage({ prompt });
-          setAvatarUrl(url);
-        }
-      } catch (error) {
-        console.error('Error generating avatar:', error);
-      } finally {
-        setLoadingAvatar(false);
-      }
-    };
-
-    generateAvatar();
-  }, [apparel?.wearingDescription]);
-
   return (
     <div className="flex flex-col items-center cursor-pointer group" onClick={onSelect}>
       {/* Avatar container */}
       <div className="relative mb-3">
         <div className="w-24 h-32 rounded-xl bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center overflow-hidden border-4 border-white shadow-lg hover:shadow-2xl transition-all duration-300 group-hover:scale-110">
-          {loadingAvatar ? (
-            <div className="text-2xl animate-spin">⏳</div>
-          ) : avatarUrl ? (
+          {apparel?.avatar_url ? (
             <img 
-              src={avatarUrl} 
+              src={apparel.avatar_url} 
               alt={employee.full_name}
               className="w-full h-full object-cover"
             />
