@@ -39,8 +39,15 @@ export default function DailyBriefView({ brief, employeeId, onReady, employeeNam
      const handleReadyClick = async () => {
          if(onReady) onReady(brief.id);
 
-         // שלח הודעה לשיח המשמרת
+         // עדכן את read_by בבסיס הנתונים
          try {
+             const alreadyRead = brief.read_by?.includes(employeeId);
+             if (!alreadyRead) {
+                 const updatedReadBy = [...(brief.read_by || []), employeeId];
+                 await base44.entities.DailyBrief.update(brief.id, { read_by: updatedReadBy });
+             }
+
+             // שלח הודעה לשיח המשמרת
              const today = format(new Date(), 'yyyy-MM-dd');
              const shiftType = brief.shift_type || 'general';
 
@@ -54,7 +61,7 @@ export default function DailyBriefView({ brief, employeeId, onReady, employeeNam
                  message_type: 'announcement'
              });
          } catch (error) {
-             console.error('Error sending brief confirmation:', error);
+             console.error('Error updating brief status:', error);
          }
      };
 
