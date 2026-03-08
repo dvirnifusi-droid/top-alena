@@ -353,6 +353,57 @@ function SmartToolsPanel() {
                     </div>
                 </DialogContent>
             </Dialog>
+
+            <Dialog open={showShop} onOpenChange={setShowShop}>
+                <DialogContent dir="rtl" className="max-w-2xl max-h-[80vh] overflow-y-auto">
+                    <DialogHeader>
+                        <DialogTitle className="text-center">👗 חנות בגדים - התחפשות לדמות</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4">
+                        {employee ? (
+                            <>
+                                <ApparelShop 
+                                    employeeId={employee.id}
+                                    balance={balance}
+                                    onPurchase={async (item) => {
+                                        await base44.entities.CoinTransaction.create({
+                                            employee_id: employee.id,
+                                            employee_name: employee.full_name,
+                                            amount: -item.cost,
+                                            reason: `קנייה: ${item.name}`,
+                                            type: 'redeemed',
+                                            trigger: 'redemption',
+                                            status: 'approved'
+                                        });
+                                        setBalance(b => b - item.cost);
+                                    }}
+                                />
+                                <div className="border-t pt-4">
+                                    <p className="font-bold text-sm mb-3">🎨 עדכן את פוזת הדמות:</p>
+                                    <ApparelCustomizer 
+                                        employeeId={employee.id}
+                                        balance={balance}
+                                        onSpendCoins={async (cost, reason) => {
+                                            await base44.entities.CoinTransaction.create({
+                                                employee_id: employee.id,
+                                                employee_name: employee.full_name,
+                                                amount: -cost,
+                                                reason,
+                                                type: 'redeemed',
+                                                trigger: 'redemption',
+                                                status: 'approved'
+                                            });
+                                            setBalance(b => b - cost);
+                                        }}
+                                    />
+                                </div>
+                            </>
+                        ) : (
+                            <p className="text-center text-gray-600">טוען נתונים...</p>
+                        )}
+                    </div>
+                </DialogContent>
+            </Dialog>
         </>
     );
 }
