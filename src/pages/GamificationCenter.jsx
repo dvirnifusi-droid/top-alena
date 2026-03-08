@@ -291,7 +291,7 @@ export default function GamificationCenter() {
                 </div>
               ))}
               {transactions.length === 0 && (
-                <p className={`text-center py-8 ${isDark ? 'text-white/50' : 'text-gray-500'}`}>עדיין אין מטבעות - התחל להרוויח! 💪</p>
+                <p className="text-center py-8 text-muted-foreground">עדיין אין מטבעות - התחל להרוויח! 💪</p>
               )}
             </div>
           </TabsContent>
