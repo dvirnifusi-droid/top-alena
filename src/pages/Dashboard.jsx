@@ -280,29 +280,7 @@ function SmartToolsPanel() {
                     </CardContent>
                 </Card>
 
-                <Card 
-                    className="bg-gradient-to-r from-pink-600 to-rose-600 text-white cursor-pointer hover:shadow-xl transition-all duration-300 transform hover:scale-105"
-                    onClick={() => setShowShop(true)}
-                >
-                    <CardContent className="p-6">
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <h3 className="text-xl font-bold mb-2">💰 טיפים</h3>
-                                <p className="text-rose-100 mb-4">
-                                    ניהול וחלוקת טיפים בקלות
-                                </p>
-                                <Link to={createPageUrl('Tips')} className="text-white hover:underline text-sm font-semibold">
-                                    עבור לדף →
-                                </Link>
-                            </div>
-                            <div className="flex flex-col items-center">
-                                <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center">
-                                    <span className="text-3xl">💵</span>
-                                </div>
-                            </div>
-                        </div>
-                    </CardContent>
-                </Card>
+
 
                 <Card 
                     className="bg-gradient-to-r from-orange-600 to-amber-600 text-white cursor-pointer hover:shadow-xl transition-all duration-300 transform hover:scale-105"
