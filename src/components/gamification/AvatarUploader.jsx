@@ -1,21 +1,33 @@
 import React, { useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
+import AvatarClothingShop from './AvatarClothingShop';
 
-const AI_FACE_COST = 50; // עלות הפיכת תמונה לאווטר AI
+const AI_AVATAR_COST = 50;
 
 export default function AvatarUploader({
   employeeId,
   employeeName,
   balance,
-  onFaceGenerated,
   onSpendCoins,
 }) {
   const fileRef = React.useRef();
   const [uploading, setUploading] = React.useState(false);
   const [generating, setGenerating] = React.useState(false);
   const [uploadedOriginal, setUploadedOriginal] = React.useState(null);
-  const [generatedFace, setGeneratedFace] = React.useState(null);
+  const [avatarImage, setAvatarImage] = React.useState(() => {
+    try {
+      return localStorage.getItem(`avatar_image_${employeeId}`) || null;
+    } catch {
+      return null;
+    }
+  });
+
+  React.useEffect(() => {
+    if (avatarImage) {
+      localStorage.setItem(`avatar_image_${employeeId}`, avatarImage);
+    }
+  }, [avatarImage, employeeId]);
 
   const handleFileUpload = async (e) => {
     const file = e.target.files?.[0];
@@ -28,115 +40,90 @@ export default function AvatarUploader({
 
   const handleGenerateAI = async () => {
     if (!uploadedOriginal) return;
-    if (balance < AI_FACE_COST) {
-      alert(`נדרשים ${AI_FACE_COST} 🪙, יש לך ${balance} 🪙`);
+    if (balance < AI_AVATAR_COST) {
+      alert(`נדרשים ${AI_AVATAR_COST} 🪙`);
       return;
     }
     setGenerating(true);
-    try {
-      const { url } = await base44.integrations.Core.GenerateImage({
-        prompt: `Create a full-body 3D stylized character in the style of Apple Memoji and Fortnite. The character must maintain the exact facial features, hair style, and hair color of the person in the uploaded photo. Show the full character from head to toe, wearing simple neutral clothing (plain t-shirt and jeans), with a friendly smile looking directly at the camera. Use soft studio lighting with realistic 3D textures. Include a white or transparent background. High-quality Pixar-style render finish. The character should be standing in a relaxed pose, full-body view.`,
-        existing_image_urls: [uploadedOriginal],
-      });
-      setGeneratedFace(url);
-    } catch (err) {
-      alert('❌ שגיאה בהפקת AI: ' + err.message);
-    }
+    const { url } = await base44.integrations.Core.GenerateImage({
+      prompt: `Create a full-body 3D stylized character (Apple Memoji + Fortnite style) from the person in this photo. Show head to toe, wearing a simple blue shirt and black pants, standing facing camera with friendly smile. Clean white background, professional render.`,
+      existing_image_urls: [uploadedOriginal],
+    });
+    await onSpendCoins(AI_AVATAR_COST, 'יצירת אווטר');
+    setAvatarImage(url);
+    setUploadedOriginal(null);
     setGenerating(false);
   };
 
-  const handleSaveFace = async () => {
-    if (!generatedFace) return;
-    await onSpendCoins(AI_FACE_COST, 'שיפור פנים AI לאווטר');
-    onFaceGenerated(generatedFace);
-    setUploadedOriginal(null);
-    setGeneratedFace(null);
-  };
+  if (!avatarImage) {
+    return (
+      <div className="space-y-4 p-4 border rounded-lg bg-blue-50" dir="rtl">
+        <p className="text-sm font-bold text-center">📷 העלה תמונה וצור אווטר</p>
 
-  const handleUseDirect = () => {
-    if (!uploadedOriginal) return;
-    onFaceGenerated(uploadedOriginal);
-    setUploadedOriginal(null);
-    setGeneratedFace(null);
-  };
+        <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFileUpload} />
+
+        {!uploadedOriginal ? (
+          <Button
+            onClick={() => fileRef.current?.click()}
+            variant="outline"
+            className="w-full h-20 border-dashed border-2 border-blue-300 flex flex-col gap-1 hover:bg-blue-100"
+            disabled={uploading}
+          >
+            {uploading ? (
+              <span className="animate-pulse text-lg">⏳ מעלה...</span>
+            ) : (
+              <>
+                <span className="text-2xl">📷</span>
+                <span className="text-xs">לחץ להעלאת תמונה</span>
+              </>
+            )}
+          </Button>
+        ) : (
+          <div className="space-y-3">
+            <img src={uploadedOriginal} alt="preview" className="w-full rounded-lg border" />
+            <Button
+              onClick={handleGenerateAI}
+              disabled={balance < AI_AVATAR_COST || generating}
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+            >
+              {generating ? '🎨 AI מייצר...' : `✨ צור אווטר (${AI_AVATAR_COST}🪙)`}
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => setUploadedOriginal(null)}
+              className="w-full text-xs"
+            >
+              🔄 תמונה אחרת
+            </Button>
+          </div>
+        )}
+
+        <p className="text-center text-xs text-gray-500">
+          💰 יתרה: <span className="font-bold text-yellow-600">{balance}🪙</span>
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4" dir="rtl">
-      <p className="text-sm font-bold text-center">📷 העלה סלפי והפוך לפנים אווטר</p>
+      {/* האווטר */}
+      <div className="rounded-lg overflow-hidden border-2 border-gray-200 shadow-lg bg-white">
+        <img src={avatarImage} alt={employeeName} className="w-full" />
+      </div>
 
-      {/* בוחר תמונה */}
-      <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFileUpload} />
+      <p className="text-center font-bold text-lg">{employeeName}</p>
+
+      {/* חנות בגדים */}
+      <AvatarClothingShop balance={balance} onBuyItem={async () => {}} />
+
       <Button
-        onClick={() => fileRef.current?.click()}
         variant="outline"
-        className="w-full h-20 border-dashed border-2 border-purple-300 flex flex-col gap-1 hover:bg-purple-50"
-        disabled={uploading}
+        onClick={() => setAvatarImage(null)}
+        className="w-full text-xs"
       >
-        {uploading ? (
-          <span className="animate-pulse text-lg">⏳ מעלה...</span>
-        ) : uploadedOriginal ? (
-          <div className="flex flex-col items-center gap-1">
-            <img src={uploadedOriginal} alt="original" className="w-12 h-12 rounded-full object-cover" />
-            <span className="text-xs">שנה תמונה</span>
-          </div>
-        ) : (
-          <>
-            <span className="text-2xl">📷</span>
-            <span className="text-xs font-medium">לחץ להעלאת סלפי</span>
-          </>
-        )}
+        🔄 אווטר חדש
       </Button>
-
-      {/* אפשרויות עם תמונה */}
-      {uploadedOriginal && !generatedFace && (
-        <div className="space-y-2">
-          <p className="text-xs text-gray-600 text-center">בחר אפשרות:</p>
-          <Button
-            onClick={handleUseDirect}
-            variant="outline"
-            className="w-full h-10 text-xs bg-blue-50 border-blue-300 text-blue-700 hover:bg-blue-100"
-          >
-            ✓ השתמש בתמונה כמו שהיא
-          </Button>
-          <Button
-            onClick={handleGenerateAI}
-            disabled={balance < AI_FACE_COST || generating}
-            className="w-full h-10 text-xs bg-purple-600 hover:bg-purple-700 text-white font-bold"
-          >
-            {generating ? '🎨 AI מייצר...' : `🤖 הפוך ל-AI אווטר (${AI_FACE_COST}🪙)`}
-          </Button>
-        </div>
-      )}
-
-      {/* תצוגה של AI שנוצר */}
-      {generatedFace && (
-        <div className="space-y-3 p-4 bg-green-50 rounded-xl border-2 border-green-300">
-          <p className="text-xs font-bold text-green-700 text-center">✨ אווטר AI שנוצר:</p>
-          <img src={generatedFace} alt="generated" className="w-full aspect-square rounded-xl object-cover" />
-          <div className="grid grid-cols-2 gap-2">
-            <Button
-              onClick={() => {
-                setGeneratedFace(null);
-                setUploadedOriginal(null);
-              }}
-              variant="outline"
-              className="text-xs h-9"
-            >
-              ❌ בטל
-            </Button>
-            <Button
-              onClick={handleSaveFace}
-              className="text-xs h-9 bg-green-600 hover:bg-green-700 text-white font-bold"
-            >
-              ✅ שמור פנים
-            </Button>
-          </div>
-        </div>
-      )}
-
-      <p className="text-center text-xs text-gray-500">
-        💰 יתרה: <span className="font-bold text-yellow-600">{balance}🪙</span>
-      </p>
     </div>
   );
 }
