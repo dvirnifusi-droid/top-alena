@@ -21,9 +21,7 @@ import InvoiceScanner from '../components/dashboard/InvoiceScanner';
 import ManualSurveyTool from '../components/dashboard/ManualSurveyTool';
 import InventoryScanner from '../components/dashboard/InventoryScanner';
 import SurveyQRGenerator from '../components/dashboard/SurveyQRGenerator';
-import ActiveEmployeesWidget from '../components/dashboard/ActiveEmployeesWidget';
-import BriefReadersWidget from '../components/dashboard/BriefReadersWidget';
-import DashboardViewersWidget from '../components/dashboard/DashboardViewersWidget';
+
 
 
 // רכיב סטטיסטיקות מהירות מעודכן
@@ -510,24 +508,7 @@ function DashboardInner() {
                     <QuickStats />
                 </section>
 
-                {/* 📈 מכירות וממשקים */}
-                 <section>
-                     <h2 className="text-2xl font-bold text-slate-900 mb-4 flex items-center gap-2">
-                         📈 מכירות וביצועים
-                     </h2>
-                     <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-                              <div>
-                                  <ActiveEmployeesWidget />
-                              </div>
-                              <div>
-                                  <BriefReadersWidget />
-                              </div>
-                              <div>
-                                  <DashboardViewersWidget />
-                              </div>
 
-                          </div>
-                 </section>
 
 
             </div>
