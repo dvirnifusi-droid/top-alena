@@ -62,45 +62,93 @@ function playSound(type) {
       });
 
     } else if (type === 'reveal') {
-      // חשיפה — מחיאות כפיים!
-      const clapCount = 6;
-      for (let c = 0; c < clapCount; c++) {
+      // שלב 1: מחיאות כפיים מואצות — חפלה ערבית 🎉
+      const claps = [0, 120, 230, 330, 420, 500, 570, 630, 680, 720, 760, 800];
+      claps.forEach(delay => {
         setTimeout(() => {
-          const buf = ctx.createBuffer(1, ctx.sampleRate * 0.12, ctx.sampleRate);
-          const data = buf.getChannelData(0);
-          for (let i = 0; i < data.length; i++) {
-            const env = Math.exp(-i / (data.length * 0.25));
-            data[i] = (Math.random() * 2 - 1) * env * 0.7;
+          const buf = ctx.createBuffer(2, ctx.sampleRate * 0.15, ctx.sampleRate);
+          for (let ch = 0; ch < 2; ch++) {
+            const data = buf.getChannelData(ch);
+            for (let i = 0; i < data.length; i++) {
+              const env = Math.exp(-i / (data.length * 0.2));
+              data[i] = (Math.random() * 2 - 1) * env * (0.7 + Math.random() * 0.3);
+            }
           }
           const src = ctx.createBufferSource();
-          const filter = ctx.createBiquadFilter();
-          filter.type = 'highpass';
-          filter.frequency.value = 800;
-          const g = ctx.createGain();
-          g.gain.value = 0.9;
           src.buffer = buf;
-          src.connect(filter);
-          filter.connect(g);
-          g.connect(ctx.destination);
+          const hp = ctx.createBiquadFilter();
+          hp.type = 'highpass';
+          hp.frequency.value = 1000;
+          const bp = ctx.createBiquadFilter();
+          bp.type = 'bandpass';
+          bp.frequency.value = 2500;
+          bp.Q.value = 1.5;
+          const g = ctx.createGain();
+          g.gain.value = 1.0;
+          src.connect(hp); hp.connect(bp); bp.connect(g); g.connect(ctx.destination);
           src.start();
-        }, c * 140 + Math.random() * 30);
-      }
-      // אחרי הכפיים — פנפרה קצרה
+        }, delay);
+      });
+
+      // שלב 2: ריר "וואו" — סוויפ עולה
       setTimeout(() => {
-        const notes = [523, 659, 784, 1047];
-        notes.forEach((freq, i) => {
+        const o = ctx.createOscillator();
+        const g = ctx.createGain();
+        o.type = 'sawtooth';
+        o.frequency.setValueAtTime(200, ctx.currentTime);
+        o.frequency.exponentialRampToValueAtTime(1800, ctx.currentTime + 0.5);
+        g.gain.setValueAtTime(0.0, ctx.currentTime);
+        g.gain.linearRampToValueAtTime(0.35, ctx.currentTime + 0.15);
+        g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5);
+        const lp = ctx.createBiquadFilter();
+        lp.type = 'lowpass'; lp.frequency.value = 1200;
+        o.connect(lp); lp.connect(g); g.connect(ctx.destination);
+        o.start(); o.stop(ctx.currentTime + 0.5);
+      }, 900);
+
+      // שלב 3: פנפרה חגיגית מלאה
+      const fanfare = [
+        { freq: 523, t: 0, dur: 0.15 },
+        { freq: 659, t: 0.14, dur: 0.15 },
+        { freq: 784, t: 0.28, dur: 0.15 },
+        { freq: 1047, t: 0.42, dur: 0.35 },
+        { freq: 1047, t: 0.42, dur: 0.35, type: 'square', gain: 0.12 },
+        { freq: 784, t: 0.58, dur: 0.15 },
+        { freq: 1047, t: 0.72, dur: 0.5 },
+      ];
+      setTimeout(() => {
+        fanfare.forEach(({ freq, t, dur, type = 'triangle', gain = 0.28 }) => {
           setTimeout(() => {
             const o = ctx.createOscillator();
             const g = ctx.createGain();
-            o.type = 'triangle';
+            o.type = type;
             o.frequency.value = freq;
-            g.gain.setValueAtTime(0.3, ctx.currentTime);
-            g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
+            g.gain.setValueAtTime(gain, ctx.currentTime);
+            g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + dur);
             o.connect(g); g.connect(ctx.destination);
-            o.start(); o.stop(ctx.currentTime + 0.3);
-          }, i * 110);
+            o.start(); o.stop(ctx.currentTime + dur);
+          }, t * 1000);
         });
-      }, clapCount * 140 + 100);
+      }, 1050);
+
+      // שלב 4: עוד גל כפיים בסוף — קהל מריע
+      const finalClaps = [1950, 2060, 2160, 2250, 2330, 2400, 2460, 2510];
+      finalClaps.forEach(delay => {
+        setTimeout(() => {
+          const buf = ctx.createBuffer(1, ctx.sampleRate * 0.1, ctx.sampleRate);
+          const data = buf.getChannelData(0);
+          for (let i = 0; i < data.length; i++) {
+            data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (data.length * 0.18)) * 0.6;
+          }
+          const src = ctx.createBufferSource();
+          const hp = ctx.createBiquadFilter();
+          hp.type = 'highpass'; hp.frequency.value = 900;
+          const g = ctx.createGain(); g.gain.value = 0.8;
+          src.buffer = buf;
+          src.connect(hp); hp.connect(g); g.connect(ctx.destination);
+          src.start();
+        }, delay);
+      });
     }
   } catch (e) {}
 }
