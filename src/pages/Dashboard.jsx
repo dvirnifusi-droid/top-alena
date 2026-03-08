@@ -13,7 +13,7 @@ import ApparelCustomizer from '../components/gamification/ApparelCustomizer';
 
 import RecentIncidents from '../components/dashboard/RecentIncidents';
 import ChecklistStatus from '../components/dashboard/ChecklistStatus';
-import SalesChart from '../components/dashboard/SalesChart';
+
 
 import AiQuickAdd from '../components/dashboard/AiQuickAdd';
 import SeatingAiHelper from '../components/dashboard/SeatingAiHelper';
