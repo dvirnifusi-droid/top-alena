@@ -2,6 +2,7 @@ import React from 'react';
 import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
 import AvatarUploader from './AvatarUploader';
+import Avatar3D from './Avatar3D';
 
 // SVG Avatar בסגנון Pixar/Fortnite עם Layers
 export function AvatarRenderer({ faceUrl, body = {}, accessories = [] }) {
@@ -270,11 +271,14 @@ export default function WhatsAppAvatar({
 
   return (
     <div className="space-y-4" dir="rtl">
-      {/* תצוגת האווטר */}
-      <div className="flex justify-center p-6 bg-gradient-to-br from-gray-100 to-gray-200 rounded-3xl">
-        <div className="w-48">
-          <AvatarRenderer faceUrl={faceUrl} skin={skin} hair={hair} eyes={eyes} body={body} accessories={accessories} />
-        </div>
+      {/* תצוגת האווטר 3D */}
+      <div className="rounded-3xl overflow-hidden shadow-lg border-2 border-gray-200">
+        <Avatar3D 
+          faceUrl={faceUrl} 
+          gender={body.gender} 
+          shirtColor={body.shirtColor} 
+          pantsColor={body.pantsColor} 
+        />
       </div>
 
       {/* שם */}
