@@ -120,13 +120,7 @@ export default function AvatarUploader({
 
 
 
-          <Button
-            variant="outline"
-            onClick={() => setAvatarImage(null)}
-            className="w-full text-xs"
-          >
-            🔄 אווטר חדש
-          </Button>
+
         </>
       )}
     </div>
