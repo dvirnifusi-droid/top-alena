@@ -132,13 +132,15 @@ export default function Avatar3D({ faceUrl, gender = 'woman', shirtColor = '#3b8
     if (faceUrl) {
       const textureLoader = new THREE.TextureLoader();
       textureLoader.load(faceUrl, (texture) => {
-        const canvasMaterial = new THREE.CanvasTexture(
-          createFaceCanvas(texture, gender)
-        );
-        const faceGeometry = new THREE.SphereGeometry(0.34, 32, 32);
-        const faceMesh = new THREE.Mesh(faceGeometry, new THREE.MeshStandardMaterial({ map: canvasMaterial }));
+        const faceGeometry = new THREE.SphereGeometry(0.29, 32, 32);
+        const faceMaterial = new THREE.MeshStandardMaterial({ 
+          map: texture,
+          roughness: 0.6,
+          metalness: 0,
+        });
+        const faceMesh = new THREE.Mesh(faceGeometry, faceMaterial);
         faceMesh.position.copy(head.position);
-        faceMesh.position.z += 0.05;
+        faceMesh.position.z += 0.03;
         faceMesh.castShadow = true;
         avatarGroup.add(faceMesh);
       });
@@ -173,36 +175,4 @@ export default function Avatar3D({ faceUrl, gender = 'woman', shirtColor = '#3b8
   }, [faceUrl, gender, shirtColor, pantsColor]);
 
   return <div ref={containerRef} style={{ width: '100%', height: '400px', borderRadius: '12px', overflow: 'hidden' }} />;
-}
-
-// Helper function to create face canvas texture
-function createFaceCanvas(texture, gender) {
-  const canvas = document.createElement('canvas');
-  canvas.width = 512;
-  canvas.height = 512;
-  const ctx = canvas.getContext('2d');
-
-  // Draw face
-  ctx.fillStyle = '#d4a574';
-  ctx.beginPath();
-  ctx.arc(256, 256, 256, 0, Math.PI * 2);
-  ctx.fill();
-
-  // Draw face image
-  const img = new Image();
-  img.onload = () => {
-    ctx.drawImage(img, 100, 100, 312, 312);
-  };
-  img.src = texture.source.data.src || '';
-
-  // Simple eyes
-  ctx.fillStyle = '#000';
-  ctx.beginPath();
-  ctx.arc(210, 220, 15, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.beginPath();
-  ctx.arc(310, 220, 15, 0, Math.PI * 2);
-  ctx.fill();
-
-  return canvas;
 }
