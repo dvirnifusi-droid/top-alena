@@ -100,6 +100,7 @@ const employeeLinks = [
   { title: "פיתוח מקצועי", url: "#", icon: GraduationCap, isCategory: true },
   { title: "הכשרות ואימונים", url: createPageUrl("Training"), icon: GraduationCap, isSubItem: true },
   { title: "לוח המובילים", url: createPageUrl("Leaderboard"), icon: Trophy, isSubItem: true },
+  { title: "סלון דמויות", url: createPageUrl("CharacterLounge"), icon: Trophy, isSubItem: true },
   { title: "🪙 המטבעות שלי", url: createPageUrl("GamificationCenter"), icon: Trophy, isSubItem: true },
 ];
 
