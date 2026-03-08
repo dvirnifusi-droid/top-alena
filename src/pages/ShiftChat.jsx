@@ -250,10 +250,10 @@ export default function ShiftChat() {
                         <Send className="w-4 h-4" />
                     </Button>
                 </div>
-                </div>
+            </div>
 
-                {/* צד ימין - בחר הלבוש */}
-                <div className="lg:col-span-1 bg-white rounded-xl border border-slate-200 p-4">
+            {/* צד ימין - בחר הלבוש */}
+            <div className="lg:col-span-1 bg-white rounded-xl border border-slate-200 p-4">
                     <h2 className="text-lg font-bold text-slate-800 mb-4">🎨 הדמות שלי</h2>
                     {currentEmployee ? (
                         <ApparelCustomizer 
