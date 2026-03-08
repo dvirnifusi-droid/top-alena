@@ -173,18 +173,29 @@ export default function GamificationCenter() {
             <div className="flex items-center gap-4 mb-4">
               {/* אווטאר */}
               <div className="flex flex-col items-center gap-1 flex-shrink-0">
-                <button
-                  onClick={() => setShowAvatarPicker(true)}
-                  className="w-20 h-20 rounded-full bg-white/20 flex items-center justify-center hover:bg-white/30 transition-all shadow-lg border-2 border-white/40 overflow-hidden"
-                  title="שנה אווטאר"
-                >
-                  {avatarIsImage
-                    ? <img src={avatar} alt="avatar" className="w-full h-full object-cover" />
-                    : <span className="text-4xl">{avatar}</span>
-                  }
-                </button>
-                <span className="text-white/60 text-xs">✏️ שנה</span>
-              </div>
+                 <div className="relative">
+                   <button
+                     onClick={() => setShowAvatarPicker(true)}
+                     className="w-20 h-20 rounded-full bg-white/20 flex items-center justify-center hover:bg-white/30 transition-all shadow-lg border-2 border-white/40 overflow-hidden"
+                     title="שנה אווטאר"
+                   >
+                     {avatarIsImage
+                       ? <img src={avatar} alt="avatar" className="w-full h-full object-cover" />
+                       : <span className="text-4xl">{avatar}</span>
+                     }
+                   </button>
+                   {employee && avatarImageUrl && (
+                     <button
+                       onClick={() => setShowShop(true)}
+                       className="absolute -bottom-1 -left-1 bg-purple-600 hover:bg-purple-700 text-white rounded-full w-7 h-7 flex items-center justify-center text-sm shadow-lg border border-white/40 transition-all"
+                       title="חנות בגדים"
+                     >
+                       👗
+                     </button>
+                   )}
+                 </div>
+                 <span className="text-white/60 text-xs">✏️ שנה</span>
+               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-white/80 text-sm">שלום,</p>
                 <h2 className="text-2xl font-black leading-tight truncate">{user?.full_name}</h2>
