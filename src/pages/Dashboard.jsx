@@ -393,6 +393,7 @@ function SmartToolsPanel() {
                                 <div className="border-t pt-4">
                                     <p className="font-bold text-sm mb-3">🎨 עדכן את הלבוש:</p>
                                     <ApparelCustomizer 
+                                        key={showShop}
                                         employeeId={employee.id}
                                         employeeAvatar={employeeAvatar}
                                         balance={balance}
