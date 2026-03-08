@@ -14,12 +14,13 @@ import WhatsAppAvatar, { AvatarRenderer } from '../components/gamification/Whats
 
 // תצוגה מיני של האווטר בכרטיס הפרופיל
 function AvatarPreview({ employeeId }) {
+  const faceUrl = localStorage.getItem(`avatar_face_${employeeId}`) || null;
   const skin = (() => { try { return JSON.parse(localStorage.getItem(`avatar_skin_${employeeId}`) || 'null') || { color: '#d4a574' }; } catch { return { color: '#d4a574' }; } })();
   const hair = (() => { try { return JSON.parse(localStorage.getItem(`avatar_hair_${employeeId}`) || 'null') || { type: 'long', color: '#3f2817' }; } catch { return { type: 'long', color: '#3f2817' }; } })();
   const eyes = (() => { try { return JSON.parse(localStorage.getItem(`avatar_eyes_${employeeId}`) || 'null') || { color: '#6b4226', direction: 0 }; } catch { return { color: '#6b4226', direction: 0 }; } })();
   const body = (() => { try { return JSON.parse(localStorage.getItem(`avatar_body_${employeeId}`) || 'null') || { type: 'shirt', color: '#3b82f6', accent: '#fbbf24' }; } catch { return { type: 'shirt', color: '#3b82f6', accent: '#fbbf24' }; } })();
   const accessories = (() => { try { return JSON.parse(localStorage.getItem(`avatar_accessories_${employeeId}`) || 'null') || []; } catch { return []; } })();
-  return <AvatarRenderer skin={skin} hair={hair} eyes={eyes} body={body} accessories={accessories} />;
+  return <AvatarRenderer faceUrl={faceUrl} skin={skin} hair={hair} eyes={eyes} body={body} accessories={accessories} />;
 }
 import { Sun, Palette } from 'lucide-react';
 
