@@ -494,9 +494,6 @@ function DashboardInner() {
                              <div>
                                  <ActiveEmployeesWidget />
                              </div>
-                             <div>
-                                 <BriefReadersWidget />
-                             </div>
 
                          </div>
                  </section>
