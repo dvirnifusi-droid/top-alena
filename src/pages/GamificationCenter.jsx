@@ -10,6 +10,8 @@ import ShoutOutFeed from '../components/gamification/ShoutOutFeed';
 import DailyChallengeCard from '../components/gamification/DailyChallengeCard';
 import BadgesDisplay, { computeBadges } from '../components/gamification/BadgesDisplay';
 import AvatarUploader from '../components/gamification/AvatarUploader';
+import ApparelShop from '../components/gamification/ApparelShop';
+import ApparelCustomizer from '../components/gamification/ApparelCustomizer';
 import { Sun, Palette } from 'lucide-react';
 
 const RANKS = [
