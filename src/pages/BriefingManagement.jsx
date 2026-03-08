@@ -297,6 +297,7 @@ export default function BriefingManagement() {
                                         isLoading={isLoading}
                                         isAiLoading={isAiLoading}
                                         onGenerateWithAI={handleGenerateWithAI}
+                                        onMarkAsRead={handleMarkAsRead}
                                     />
                                 ) : (
                                     <div className="flex flex-col items-center justify-center min-h-[400px] text-center p-8 bg-white rounded-2xl border-2 border-dashed border-gray-200 shadow-sm">
