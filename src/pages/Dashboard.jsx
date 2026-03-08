@@ -195,7 +195,10 @@ function QuickStats() {
 
 // רכיב כלים חכמים
 function SmartToolsPanel() {
-    const [isOpen, setIsOpen] = React.useState(false);
+    const [isOpen, setIsOpen] = useState(false);
+    const [showShop, setShowShop] = useState(false);
+    const [employee, setEmployee] = useState(null);
+    const [balance, setBalance] = useState(0);
 
     const tools = [
         {
