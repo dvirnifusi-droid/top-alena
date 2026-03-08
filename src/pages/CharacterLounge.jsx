@@ -182,6 +182,12 @@ export default function CharacterLounge() {
 }
 
 function CharacterCard({ employee, apparel, coins, isCurrentUser, onSelect }) {
+  useEffect(() => {
+    if (apparel?.employee_id) {
+      console.log(`Employee: ${employee.full_name}, Apparel exists: ${!!apparel}, Has avatar_url: ${!!apparel?.avatar_url}, URL: ${apparel?.avatar_url}`);
+    }
+  }, [apparel, employee.full_name]);
+
   return (
     <div className="flex flex-col items-center cursor-pointer group" onClick={onSelect}>
       {/* Avatar container */}
