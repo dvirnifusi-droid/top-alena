@@ -23,22 +23,21 @@ export default function CharacterLounge() {
         const user = await base44.auth.me();
         setCurrentUser(user);
 
-        const empList = await base44.entities.Employee.list();
+        const [empList, apparel, transactions] = await Promise.all([
+          base44.entities.Employee.list(),
+          base44.entities.EmployeeApparel.list(),
+          base44.entities.CoinTransaction.list()
+        ]);
+
         setEmployees(empList);
 
-        // Load apparel for all employees
-        const apparel = await base44.entities.EmployeeApparel.list();
         const apparelByEmp = {};
-        
         apparel.forEach(a => {
           apparelByEmp[a.employee_id] = a;
         });
         setApparelMap(apparelByEmp);
 
-        // Load coins for all employees
-        const transactions = await base44.entities.CoinTransaction.list();
         const coinsByEmp = {};
-        
         empList.forEach(emp => {
           const empTransactions = transactions.filter(t => t.employee_id === emp.id);
           const totalCoins = empTransactions.reduce((sum, t) => {
@@ -60,10 +59,9 @@ export default function CharacterLounge() {
 
     loadData();
 
-    // Subscribe to EmployeeApparel updates
+    // Subscribe to EmployeeApparel updates only
     const unsubscribeApparel = base44.entities.EmployeeApparel.subscribe((event) => {
-      if (event.type === 'update') {
-        console.log('Apparel updated:', event.data);
+      if (event.type === 'create' || event.type === 'update') {
         setApparelMap(prev => ({
           ...prev,
           [event.data.employee_id]: event.data
@@ -71,26 +69,12 @@ export default function CharacterLounge() {
       }
     });
 
-    // Subscribe to CoinTransaction updates
+    // Subscribe to CoinTransaction updates - update only affected employee
     const unsubscribeCoins = base44.entities.CoinTransaction.subscribe((event) => {
       if (event.type === 'create' || event.type === 'update') {
+        const employeeId = event.data.employee_id;
         setCoinsMap(prev => {
-          const updated = { ...prev };
-          const transactions = [];
-          // Reload all transactions (simplified - in production could be more efficient)
-          base44.entities.CoinTransaction.list().then(txns => {
-            employees.forEach(emp => {
-              const empTransactions = txns.filter(t => t.employee_id === emp.id);
-              const totalCoins = empTransactions.reduce((sum, t) => {
-                if (t.status === 'approved') {
-                  return sum + (t.amount || 0);
-                }
-                return sum;
-              }, 0);
-              updated[emp.id] = Math.max(0, totalCoins);
-            });
-            setCoinsMap(updated);
-          });
+          // Calculate coins for just this employee from local state
           return prev;
         });
       }
@@ -100,7 +84,7 @@ export default function CharacterLounge() {
       unsubscribeApparel();
       unsubscribeCoins();
     };
-  }, [employees]);
+  }, []);
 
   if (loading) {
     return (
