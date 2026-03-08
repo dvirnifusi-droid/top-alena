@@ -21,8 +21,18 @@ export default function AvatarUploader({ currentAvatar, balance, onSave, onSpend
     // אוטומטית להפיק 3D avatar
     setGenerating(true);
     setAiResult(null);
+    
+    // בנייה של prompt דינמי לפי אביזרים שקנה
+    let apparelText = 'wearing a basic grey t-shirt and blue jeans';
+    if (window.__employeeApparel) {
+      const items = window.__employeeApparel.map(a => a.wearing_text).filter(Boolean);
+      if (items.length > 0) apparelText = 'wearing ' + items.join(', ');
+    }
+    
+    const prompt = `Full body 3D stylized character avatar, Pixar/Fortnite style, standing in a neutral T-pose. Character ${apparelText}. High-quality 3D render, studio lighting, solid white background. Maintain facial features from the uploaded photo. Professional 3D game character design.`;
+    
     const { url } = await base44.integrations.Core.GenerateImage({
-      prompt: 'Convert this photo into a professional 3D avatar with full body and face, wearing casual clothes, character design with clean white background, showing head and torso, friendly expression, high quality 3D illustration',
+      prompt,
       existing_image_urls: [file_url]
     });
     setAiResult(url);
