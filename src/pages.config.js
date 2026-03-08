@@ -49,6 +49,7 @@
  */
 import AccountantExportView from './pages/AccountantExportView';
 import AiDashboard from './pages/AiDashboard';
+import ApparelManagement from './pages/ApparelManagement';
 import AvailabilityForm from './pages/AvailabilityForm';
 import AvailabilityFormSettings from './pages/AvailabilityFormSettings';
 import AvailabilityRequests from './pages/AvailabilityRequests';
@@ -96,13 +97,13 @@ import Training from './pages/Training';
 import UploadChecklists from './pages/UploadChecklists';
 import WaiterTables from './pages/WaiterTables';
 import WorkScheduling from './pages/WorkScheduling';
-import ApparelManagement from './pages/ApparelManagement';
 import __Layout from './Layout.jsx';
 
 
 export const PAGES = {
     "AccountantExportView": AccountantExportView,
     "AiDashboard": AiDashboard,
+    "ApparelManagement": ApparelManagement,
     "AvailabilityForm": AvailabilityForm,
     "AvailabilityFormSettings": AvailabilityFormSettings,
     "AvailabilityRequests": AvailabilityRequests,
@@ -150,7 +151,6 @@ export const PAGES = {
     "UploadChecklists": UploadChecklists,
     "WaiterTables": WaiterTables,
     "WorkScheduling": WorkScheduling,
-    "ApparelManagement": ApparelManagement,
 }
 
 export const pagesConfig = {
