@@ -301,37 +301,16 @@ export default function GamificationCenter() {
 
       {/* דיאלוג בחירת אווטאר */}
       <Dialog open={showAvatarPicker} onOpenChange={setShowAvatarPicker}>
-        <DialogContent dir="rtl" className="max-w-sm w-[95vw] max-h-[85vh] overflow-y-auto">
+        <DialogContent dir="rtl" className="max-w-sm w-[95vw] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="text-center">🖼️ האווטר שלי</DialogTitle>
+            <DialogTitle className="text-center">🧑‍🎤 בנה את האווטר שלך</DialogTitle>
           </DialogHeader>
-          <div className="space-y-3">
-            {/* אמוג'ים מהירים */}
-            <div>
-              <p className="text-xs text-gray-500 mb-1.5 font-medium">אמוג'י מהיר:</p>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(8, 1fr)', gap: '4px' }}>
-                {AVATAR_OPTIONS.map(a => (
-                  <button
-                    key={a}
-                    onClick={() => setAndSaveAvatar(a, false)}
-                    className={`text-2xl rounded p-1 hover:bg-yellow-100 transition-all aspect-square flex items-center justify-center ${!avatarIsImage && avatar === a ? 'bg-yellow-200 ring-2 ring-yellow-500' : ''}`}
-                  >
-                    {a}
-                  </button>
-                ))}
-              </div>
-            </div>
-            {/* קו הפרדה */}
-            <div className="border-t pt-3">
-              <p className="text-xs text-gray-500 mb-2 font-medium">📷 תמונה אישית / 🤖 AI:</p>
-              <AvatarUploader
-                currentAvatar={avatarIsImage ? avatar : null}
-                balance={balance}
-                onSave={(url) => setAndSaveAvatar(url, true)}
-                onSpendCoins={handleSpendCoins}
-              />
-            </div>
-          </div>
+          <AvatarBuilder
+            balance={balance}
+            employeeId={employee?.id || 'guest'}
+            employeeName={employee?.full_name || user?.full_name || ''}
+            onSpendCoins={handleSpendCoins}
+          />
         </DialogContent>
       </Dialog>
 
