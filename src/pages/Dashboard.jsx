@@ -379,10 +379,11 @@ function SmartToolsPanel() {
                                     }}
                                 />
                                 <div className="border-t pt-4">
-                                    <p className="font-bold text-sm mb-3">🎨 עדכן את פוזת הדמות:</p>
+                                    <p className="font-bold text-sm mb-3">🎨 עדכן את הלבוש:</p>
                                     <ApparelCustomizer 
                                         employeeId={employee.id}
                                         balance={balance}
+                                        onAvatarUpdate={() => {}}
                                         onSpendCoins={async (cost, reason) => {
                                             await base44.entities.CoinTransaction.create({
                                                 employee_id: employee.id,
