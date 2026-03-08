@@ -1,6 +1,7 @@
 import React from 'react';
 import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
+import AvatarUploader from './AvatarUploader';
 
 // SVG Avatar בסגנון Pixar/Fortnite עם Layers
 export function AvatarRenderer({ faceUrl, body = {}, accessories = [] }) {
@@ -298,60 +299,22 @@ export default function WhatsAppAvatar({
 
       {/* תוכן טאבים */}
       {tab === 'face' && (
-        <div className="space-y-3">
-          <p className="text-sm font-bold">העלה תמונה והמיר ל-AI אווטר:</p>
-          <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFileUpload} />
-          <Button
-            onClick={() => fileRef.current?.click()}
-            variant="outline"
-            className="w-full h-16 border-dashed border-2 flex flex-col gap-1"
-            disabled={uploading}
-          >
-            {uploading ? <span className="animate-pulse">⏳ מעלה...</span>
-              : uploadedOriginal ? (
-                <div className="flex items-center gap-2 text-xs">
-                  <img src={uploadedOriginal} alt="orig" className="w-8 h-8 rounded-full object-cover" />
-                  <span>שנה תמונה</span>
-                </div>
-              ) : (
-                <>
-                  <span className="text-xl">📷</span>
-                  <span className="text-xs font-medium">בחר תמונה</span>
-                </>
-              )}
-          </Button>
+        <AvatarUploader
+          employeeId={employeeId}
+          employeeName={employeeName}
+          balance={balance}
+          onFaceGenerated={(url) => setFaceUrl(url)}
+          onSpendCoins={onSpendCoins}
+        />
+      )}
 
-          {uploadedOriginal && !generating && (
-            <div className="grid grid-cols-2 gap-2">
-              <Button onClick={handleUseDirect} variant="outline" className="text-xs h-10">
-                ✓ השתמש ישירות
-              </Button>
-              <Button
-                onClick={handleGenerateAI}
-                disabled={balance < AI_FACE_COST}
-                className="text-xs h-10 bg-purple-600 hover:bg-purple-700 text-white"
-              >
-                🤖 AI ({AI_FACE_COST}🪙)
-              </Button>
-            </div>
-          )}
-
-          {generating && (
-            <div className="text-center py-6 space-y-2">
-              <div className="text-3xl animate-spin inline-block">🎨</div>
-              <p className="text-xs font-medium">AI מייצר אווטר...</p>
-            </div>
-          )}
-
-          {faceUrl && (
-            <div className="flex items-center gap-3 p-2 bg-green-50 rounded-lg border border-green-200">
-              <img src={faceUrl} alt="face" className="w-10 h-10 rounded-full object-cover" />
-              <div className="flex-1">
-                <p className="text-xs font-bold text-green-700">✅ פנים מוגדרות</p>
-                <button onClick={() => { setFaceUrl(null); save(); }} className="text-xs text-red-500 underline">הסר</button>
-              </div>
-            </div>
-          )}
+      {faceUrl && (
+        <div className="flex items-center gap-3 p-2 bg-green-50 rounded-lg border border-green-200">
+          <img src={faceUrl} alt="face" className="w-10 h-10 rounded-full object-cover" />
+          <div className="flex-1">
+            <p className="text-xs font-bold text-green-700">✅ פנים מוגדרות</p>
+            <button onClick={() => { setFaceUrl(null); save(); }} className="text-xs text-red-500 underline">הסר</button>
+          </div>
         </div>
       )}
 
