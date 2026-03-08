@@ -55,75 +55,81 @@ export default function AvatarUploader({
     setGenerating(false);
   };
 
-  if (!avatarImage) {
-    return (
-      <div className="space-y-4 p-4 border rounded-lg bg-blue-50" dir="rtl">
-        <p className="text-sm font-bold text-center">📷 העלה תמונה וצור אווטר</p>
-
-        <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFileUpload} />
-
-        {!uploadedOriginal ? (
-          <Button
-            onClick={() => fileRef.current?.click()}
-            variant="outline"
-            className="w-full h-20 border-dashed border-2 border-blue-300 flex flex-col gap-1 hover:bg-blue-100"
-            disabled={uploading}
-          >
-            {uploading ? (
-              <span className="animate-pulse text-lg">⏳ מעלה...</span>
-            ) : (
-              <>
-                <span className="text-2xl">📷</span>
-                <span className="text-xs">לחץ להעלאת תמונה</span>
-              </>
-            )}
-          </Button>
-        ) : (
-          <div className="space-y-3">
-            <img src={uploadedOriginal} alt="preview" className="w-full rounded-lg border" />
-            <Button
-              onClick={handleGenerateAI}
-              disabled={balance < AI_AVATAR_COST || generating}
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white"
-            >
-              {generating ? '🎨 AI מייצר...' : `✨ צור אווטר (${AI_AVATAR_COST}🪙)`}
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => setUploadedOriginal(null)}
-              className="w-full text-xs"
-            >
-              🔄 תמונה אחרת
-            </Button>
-          </div>
-        )}
-
-        <p className="text-center text-xs text-gray-500">
-          💰 יתרה: <span className="font-bold text-yellow-600">{balance}🪙</span>
-        </p>
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-4" dir="rtl">
-      {/* האווטר */}
-      <div className="rounded-lg overflow-hidden border-2 border-gray-200 shadow-lg bg-white">
-        <img src={avatarImage} alt={employeeName} className="w-full" />
-      </div>
+      {!avatarImage ? (
+        <>
+          {/* העלאת תמונה */}
+          <div className="space-y-4 p-4 border rounded-lg bg-blue-50">
+            <p className="text-sm font-bold text-center">📷 העלה תמונה וצור אווטר</p>
 
-      <p className="text-center font-bold text-lg">{employeeName}</p>
+            <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFileUpload} />
 
-      {/* חנות בגדים */}
-      <AvatarClothingShop balance={balance} onBuyItem={async () => {}} />
+            {!uploadedOriginal ? (
+              <Button
+                onClick={() => fileRef.current?.click()}
+                variant="outline"
+                className="w-full h-20 border-dashed border-2 border-blue-300 flex flex-col gap-1 hover:bg-blue-100"
+                disabled={uploading}
+              >
+                {uploading ? (
+                  <span className="animate-pulse text-lg">⏳ מעלה...</span>
+                ) : (
+                  <>
+                    <span className="text-2xl">📷</span>
+                    <span className="text-xs">לחץ להעלאת תמונה</span>
+                  </>
+                )}
+              </Button>
+            ) : (
+              <div className="space-y-3">
+                <img src={uploadedOriginal} alt="preview" className="w-full rounded-lg border" />
+                <Button
+                  onClick={handleGenerateAI}
+                  disabled={balance < AI_AVATAR_COST || generating}
+                  className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+                >
+                  {generating ? '🎨 AI מייצר...' : `✨ צור אווטר (${AI_AVATAR_COST}🪙)`}
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => setUploadedOriginal(null)}
+                  className="w-full text-xs"
+                >
+                  🔄 תמונה אחרת
+                </Button>
+              </div>
+            )}
 
-      <Button
-        variant="outline"
-        onClick={() => setAvatarImage(null)}
-        className="w-full text-xs"
-      >
-        🔄 אווטר חדש
-      </Button>
+            <p className="text-center text-xs text-gray-500">
+              💰 יתרה: <span className="font-bold text-yellow-600">{balance}🪙</span>
+            </p>
+          </div>
+        </>
+      ) : (
+        <>
+          {/* האווטר גדול */}
+          <div className="rounded-xl overflow-hidden border-2 border-gray-200 shadow-xl bg-white">
+            <img src={avatarImage} alt={employeeName} className="w-full" />
+          </div>
+
+          <div className="text-center space-y-1">
+            <p className="font-bold text-xl">{employeeName}</p>
+            <p className="text-xs text-gray-500">💫 מתנה בזמן עבודה</p>
+          </div>
+
+          {/* חנות בגדים */}
+          <AvatarClothingShop balance={balance} onBuyItem={async () => {}} />
+
+          <Button
+            variant="outline"
+            onClick={() => setAvatarImage(null)}
+            className="w-full text-xs"
+          >
+            🔄 אווטר חדש
+          </Button>
+        </>
+      )}
     </div>
   );
 }
