@@ -54,14 +54,24 @@ export default function GamificationCenter() {
   useEffect(() => { init(); }, []);
 
   const init = async () => {
-    const u = await base44.auth.me();
-    setUser(u);
-    const emps = await base44.entities.Employee.filter({ status: 'active' });
-    const me = emps.find(e => e.email?.toLowerCase() === u.email?.toLowerCase());
-    setEmployee(me || null);
-    if (me) loadTransactions(me.id);
-    const rws = await base44.entities.Reward.filter({ is_active: true });
-    setRewards(rws);
+    try {
+      const u = await base44.auth.me();
+      setUser(u);
+      
+      // Parallel requests instead of sequential
+      const [emps, rws] = await Promise.all([
+        base44.entities.Employee.filter({ status: 'active' }),
+        base44.entities.Reward.filter({ is_active: true })
+      ]);
+      
+      const me = emps.find(e => e.email?.toLowerCase() === u.email?.toLowerCase());
+      setEmployee(me || null);
+      setRewards(rws);
+      
+      if (me) loadTransactions(me.id);
+    } catch (error) {
+      console.error('Error initializing:', error);
+    }
   };
 
   const loadTransactions = async (empId) => {
