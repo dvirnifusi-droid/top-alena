@@ -21,8 +21,8 @@ import InvoiceScanner from '../components/dashboard/InvoiceScanner';
 import ManualSurveyTool from '../components/dashboard/ManualSurveyTool';
 import InventoryScanner from '../components/dashboard/InventoryScanner';
 import SurveyQRGenerator from '../components/dashboard/SurveyQRGenerator';
-
-
+import ActiveEmployeesWidget from '../components/dashboard/ActiveEmployeesWidget';
+import BriefReadersWidget from '../components/dashboard/BriefReadersWidget';
 
 // רכיב סטטיסטיקות מהירות מעודכן
 function QuickStats() {
@@ -399,33 +399,11 @@ function SmartToolsPanel() {
 }
 
 function DashboardInner() {
-     const [user, setUser] = React.useState(null);
+    const [user, setUser] = React.useState(null);
 
-     React.useEffect(() => {
-         User.me().then(setUser).catch(() => setUser(null));
-     }, []);
-
-     // Track dashboard view
-     React.useEffect(() => {
-         const trackDashboardView = async () => {
-             try {
-                 const currentUser = await base44.auth.me();
-                 if (currentUser) {
-                     const today = new Date().toISOString().split('T')[0];
-                     await base44.entities.DashboardView.create({
-                         user_email: currentUser.email,
-                         user_name: currentUser.full_name || currentUser.email,
-                         view_date: today,
-                         view_time: new Date().toISOString(),
-                         user_role: currentUser.role
-                     });
-                 }
-             } catch (error) {
-                 console.error('Failed to track dashboard view:', error);
-             }
-         };
-         trackDashboardView();
-     }, []);
+    React.useEffect(() => {
+        User.me().then(setUser).catch(() => setUser(null));
+    }, []);
 
     // תצוגה לעובדים רגילים
     if (user && user.role !== 'admin') {
@@ -508,7 +486,21 @@ function DashboardInner() {
                     <QuickStats />
                 </section>
 
+                {/* 📈 מכירות וממשקים */}
+                 <section>
+                     <h2 className="text-2xl font-bold text-slate-900 mb-4 flex items-center gap-2">
+                         📈 מכירות וביצועים
+                     </h2>
+                     <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+                             <div>
+                                 <ActiveEmployeesWidget />
+                             </div>
+                             <div>
+                                 <BriefReadersWidget />
+                             </div>
 
+                         </div>
+                 </section>
 
 
             </div>

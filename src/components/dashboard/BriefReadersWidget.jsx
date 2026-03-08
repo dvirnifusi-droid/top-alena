@@ -14,8 +14,7 @@ export default function BriefReadersWidget() {
     setLoading(true);
     try {
       const today = format(new Date(), 'yyyy-MM-dd');
-      const briefs = await base44.entities.DailyBrief.filter({ date: today, status: 'published' });
-      const employees = await base44.entities.Employee.list();
+      const briefs = await base44.entities.DailyBrief.filter({ date: today });
 
       const result = { lunch: [], dinner: [] };
 
@@ -25,6 +24,7 @@ export default function BriefReadersWidget() {
 
         // רשימת עובדים שקראו
         if (brief.read_by && brief.read_by.length > 0) {
+          const employees = await base44.entities.Employee.list();
           const readers = brief.read_by
             .map(id => employees.find(e => e.id === id)?.full_name)
             .filter(Boolean);
@@ -44,42 +44,26 @@ export default function BriefReadersWidget() {
   useEffect(() => {
     loadBriefReaders();
     const interval = setInterval(loadBriefReaders, 30000); // Refresh every 30 seconds
-    
-    // Subscribe to DailyBrief changes for real-time updates
-    const unsubscribe = base44.entities.DailyBrief.subscribe((event) => {
-      console.log('📡 DailyBrief update event:', event);
-      if (event.type === 'update') {
-        console.log('🔄 Refreshing brief readers data...');
-        loadBriefReaders();
-      }
-    });
-
-    return () => {
-      clearInterval(interval);
-      unsubscribe();
-    };
+    return () => clearInterval(interval);
   }, []);
 
   const ShiftSection = ({ type, label, readers }) => (
-    <div className="space-y-3">
-      <div className="flex items-center gap-2 pb-2 border-b">
+    <div className="space-y-2">
+      <div className="flex items-center gap-2">
         <h3 className="font-semibold text-gray-800">{label}</h3>
-        <span className="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded-full">{readers.length} קראו</span>
+        <Badge variant="outline">{readers.length} קראו</Badge>
       </div>
       {readers.length > 0 ? (
-        <div className="space-y-2">
+        <div className="space-y-1">
           {readers.map((name, idx) => (
-            <div key={idx} className="flex items-center gap-2 p-2 bg-green-50 rounded-lg border border-green-100">
+            <div key={idx} className="flex items-center gap-2 text-sm text-gray-700 bg-green-50 p-2 rounded-lg">
               <CheckCircle2 className="w-4 h-4 text-green-600 flex-shrink-0" />
-              <span className="text-sm text-gray-700">{name}</span>
+              <span>{name}</span>
             </div>
           ))}
         </div>
       ) : (
-        <div className="flex items-center gap-2 p-3 bg-gray-50 rounded-lg border border-gray-200">
-          <AlertCircle className="w-4 h-4 text-gray-400 flex-shrink-0" />
-          <span className="text-sm text-gray-600">עדיין לא קראו</span>
-        </div>
+        <p className="text-sm text-gray-500 bg-gray-50 p-2 rounded-lg">לא בדקו עדיין</p>
       )}
     </div>
   );

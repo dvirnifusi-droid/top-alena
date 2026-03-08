@@ -166,34 +166,6 @@ export default function BriefingManagement() {
         }
     };
 
-    const handleMarkAsRead = async () => {
-        if (!currentBriefData || !currentBriefData.id || !user) {
-            console.log('Missing data:', { briefId: currentBriefData?.id, userId: user?.id });
-            return;
-        }
-        try {
-            console.log('Marking brief as read:', { briefId: currentBriefData.id, userId: user.id });
-            const updatedReadBy = [...(currentBriefData.read_by || [])];
-            if (!updatedReadBy.includes(user.id)) {
-                updatedReadBy.push(user.id);
-            } else {
-                console.log('User already read this brief');
-                return;
-            }
-            
-            console.log('Updated read_by:', updatedReadBy);
-            await DailyBrief.update(currentBriefData.id, { read_by: updatedReadBy });
-            const refreshedBrief = await DailyBrief.list();
-            const latestBrief = refreshedBrief.find(b => b.id === currentBriefData.id);
-            setCurrentBriefData(latestBrief);
-            await loadBriefs(date);
-            toast.success('סומן כקרא בהצלחה!');
-        } catch (error) {
-            console.error('Mark as read error:', error);
-            toast.error('שגיאה בסימון קריאה: ' + (error.message || 'נסה שוב'));
-        }
-    };
-
     return (
         <div className="min-h-screen bg-gray-50 p-3 sm:p-6" dir="rtl">
             <div className="max-w-7xl mx-auto space-y-6">
@@ -308,7 +280,6 @@ export default function BriefingManagement() {
                                         isLoading={isLoading}
                                         isAiLoading={isAiLoading}
                                         onGenerateWithAI={handleGenerateWithAI}
-                                        onMarkAsRead={handleMarkAsRead}
                                     />
                                 ) : (
                                     <div className="flex flex-col items-center justify-center min-h-[400px] text-center p-8 bg-white rounded-2xl border-2 border-dashed border-gray-200 shadow-sm">

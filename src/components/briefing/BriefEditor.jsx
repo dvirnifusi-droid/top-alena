@@ -112,7 +112,7 @@ const FieldWithAI = ({ label, fieldId, value, onChange, placeholder, fieldName, 
     </div>
 );
 
-export default function BriefEditor({ briefData, onChange, onSave, onCancel, isLoading, isAiLoading, onGenerateWithAI, onMarkAsRead }) {
+export default function BriefEditor({ briefData, onChange, onSave, onCancel, isLoading, isAiLoading, onGenerateWithAI }) {
     const shiftType = briefData.shift_type;
 
     return (
@@ -129,7 +129,7 @@ export default function BriefEditor({ briefData, onChange, onSave, onCancel, isL
                     {briefData.id ? 'עריכת' : 'יצירת'} תדריך {shiftType === 'lunch' ? '☀️ צהריים' : '🌙 ערב'}
                 </CardTitle>
                 <CardDescription>
-                    תאריך: {briefData.date && !isNaN(new Date(briefData.date)) ? format(new Date(briefData.date), 'PPP', { locale: he }) : 'תאריך לא תקין'}
+                    תאריך: {format(new Date(briefData.date), 'PPP', { locale: he })}
                 </CardDescription>
             </CardHeader>
 
@@ -244,22 +244,9 @@ export default function BriefEditor({ briefData, onChange, onSave, onCancel, isL
                 </Tabs>
 
                 <div className="flex flex-col sm:flex-row justify-between gap-3 mt-6 pt-4 border-t">
-                    <div className="flex gap-2 sm:flex-row flex-col">
-                        <Button variant="outline" onClick={onCancel} className="sm:w-auto w-full">
-                            ביטול
-                        </Button>
-                        {briefData.id && (
-                            <Button
-                                onClick={onMarkAsRead}
-                                disabled={isLoading}
-                                variant="outline"
-                                className="border-green-300 text-green-700 hover:bg-green-50"
-                            >
-                                {isLoading ? <Loader2 className="w-4 h-4 ml-2 animate-spin" /> : '✓'}
-                                סימון כקרא
-                            </Button>
-                        )}
-                    </div>
+                    <Button variant="outline" onClick={onCancel} className="sm:w-auto w-full">
+                        ביטול
+                    </Button>
                     <div className="flex gap-2 sm:flex-row flex-col">
                         <Button
                             onClick={() => onSave(false)}

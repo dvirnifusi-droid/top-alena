@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Check, Star, Zap, Info, ChefHat, GlassWater, Trophy, Users, Edit } from 'lucide-react';
@@ -19,9 +19,7 @@ const closingLines = [
 
 export default function DailyBriefView({ brief, employeeId, onReady, employeeName }) {
      // Moved hook to the top level before any conditional returns
-     const randomLine = useMemo(() => closingLines[Math.floor(Math.random() * closingLines.length)], []);
-
-
+     const randomLine = React.useMemo(() => closingLines[Math.floor(Math.random() * closingLines.length)], []);
 
      if (!brief) {
          return (
@@ -39,22 +37,10 @@ export default function DailyBriefView({ brief, employeeId, onReady, employeeNam
      const isReady = brief.read_by?.includes(employeeId);
 
      const handleReadyClick = async () => {
-         console.log('👆 Clicked ready button for brief:', brief.id, 'Employee:', employeeId);
          if(onReady) onReady(brief.id);
 
-         // עדכן את read_by בבסיס הנתונים
+         // שלח הודעה לשיח המשמרת
          try {
-             const alreadyRead = brief.read_by?.includes(employeeId);
-             console.log('📋 Already read?', alreadyRead, 'Current read_by:', brief.read_by);
-
-             if (!alreadyRead) {
-                 const updatedReadBy = [...(brief.read_by || []), employeeId];
-                 console.log('💾 Saving to DB, new read_by:', updatedReadBy);
-                 await base44.entities.DailyBrief.update(brief.id, { read_by: updatedReadBy });
-                 console.log('✅ Database updated successfully');
-             }
-
-             // שלח הודעה לשיח המשמרת
              const today = format(new Date(), 'yyyy-MM-dd');
              const shiftType = brief.shift_type || 'general';
 
@@ -68,7 +54,7 @@ export default function DailyBriefView({ brief, employeeId, onReady, employeeNam
                  message_type: 'announcement'
              });
          } catch (error) {
-             console.error('❌ Error updating brief status:', error);
+             console.error('Error sending brief confirmation:', error);
          }
      };
 
