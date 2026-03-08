@@ -27,13 +27,15 @@ export default function ApparelCustomizer({ employeeId, employeeAvatar, onAvatar
       // טען את הביגדים של העובד הנוכחי
       const employeeApparel = await base44.entities.EmployeeApparel.filter({ employee_id: employeeId });
       if (employeeApparel.length > 0) {
+        const owned = employeeApparel[0].owned_apparel || [];
         setEquipped({
           shirt: employeeApparel[0].shirt_id,
           pants: employeeApparel[0].pants_id,
           shoes: employeeApparel[0].shoes_id,
           hat: employeeApparel[0].hat_id,
           accessories: employeeApparel[0].accessories || [],
-          outerwear: employeeApparel[0].outerwear_id
+          outerwear: employeeApparel[0].outerwear_id,
+          owned: owned
         });
       } else {
         // הגדר ברירות מחדל
@@ -43,7 +45,8 @@ export default function ApparelCustomizer({ employeeId, employeeAvatar, onAvatar
           shoes: null,
           hat: null,
           accessories: [],
-          outerwear: null
+          outerwear: null,
+          owned: []
         };
         setEquipped(defaults);
       }
