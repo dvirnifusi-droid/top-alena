@@ -204,27 +204,28 @@ export default function ApparelCustomizer({ employeeId, employeeAvatar, onAvatar
       return;
     }
     
+    setPublishing(true);
     try {
       if (employeeApparelId) {
-        // Update existing
         await base44.entities.EmployeeApparel.update(employeeApparelId, { avatar_url: currentAvatarUrl });
       } else {
-        // Create new EmployeeApparel if it doesn't exist
         const employees = await base44.entities.Employee.list();
         const currentEmp = employees.find(e => e.id === employeeId);
         if (currentEmp) {
-          await base44.entities.EmployeeApparel.create({
+          const newApparel = await base44.entities.EmployeeApparel.create({
             employee_id: employeeId,
             employee_name: currentEmp.full_name,
             avatar_url: currentAvatarUrl
           });
+          setEmployeeApparelId(newApparel.id);
         }
       }
       alert('✅ הדמות שלך פורסמה בסלון הדמויות!');
     } catch (error) {
       console.error('Error publishing avatar:', error);
-      alert('שגיאה בפרסום הדמות');
+      alert('שגיאה בפרסום הדמות: ' + error.message);
     }
+    setPublishing(false);
   };
 
 
