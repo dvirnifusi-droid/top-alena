@@ -48,6 +48,8 @@ export default function GamificationCenter() {
   const [avatarIsImage, setAvatarIsImage] = useState(() => localStorage.getItem('gc_avatar_is_image') === 'true');
   const [showAvatarPicker, setShowAvatarPicker] = useState(false);
   const [showThemePicker, setShowThemePicker] = useState(false);
+  const [showShop, setShowShop] = useState(false);
+  const [avatarImageUrl, setAvatarImageUrl] = useState(() => avatarIsImage ? localStorage.getItem('gc_avatar') : null);
 
   useEffect(() => { init(); }, []);
 
