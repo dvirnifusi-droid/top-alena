@@ -240,24 +240,28 @@ function LeaderboardInner() {
                             performanceData.map((player, index) => (
                                 <Card key={player.id} className="shadow-md hover:shadow-lg transition-shadow duration-300">
                                     <CardContent className="p-4 flex items-center justify-between gap-4">
-                                        <div className="flex items-center gap-4">
-                                            <div className="w-12 text-center">{getRankIcon(index)}</div>
-                                            <div>
-                                                <p className="text-xl font-semibold text-gray-800">{player.employee_name}</p>
-                                                <div className="flex items-center gap-4 text-sm text-gray-500 mt-1">
-                                                    <span>מכירות: ₪{player.totalSales.toLocaleString()}</span>
-                                                    <span>דירוג מנהל: {player.avgManagerRating.toFixed(1)}</span>
-                                                </div>
-                                            </div>
+                                        <div className="flex items-center gap-3 flex-1 min-w-0">
+                                           <div className="w-10 text-center flex-shrink-0">{getRankIcon(index)}</div>
+                                           <div className="min-w-0">
+                                               <p className="text-base sm:text-lg font-bold text-gray-800">{player.employee_name}</p>
+                                               <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-500 mt-1">
+                                                   <span className="flex items-center gap-1"><CheckSquare className="w-3 h-3 text-blue-400"/>{player.shifts} משמרות</span>
+                                                   <span className="flex items-center gap-1"><Clock className="w-3 h-3 text-indigo-400"/>{player.totalHours.toFixed(0)} שעות</span>
+                                                   <span className="flex items-center gap-1"><Banknote className="w-3 h-3 text-green-400"/>₪{player.avgTipPerHour.toFixed(0)}/שעה</span>
+                                                   <span className="flex items-center gap-1"><Star className="w-3 h-3 text-yellow-400"/>{player.avgManagerRating.toFixed(1)}/5</span>
+                                                   {player.compliments > 0 && <span className="flex items-center gap-1"><Heart className="w-3 h-3 text-pink-400"/>{player.compliments} מחמאות</span>}
+                                                   {player.trainingCompleted > 0 && <span className="flex items-center gap-1"><GraduationCap className="w-3 h-3 text-purple-400"/>{player.trainingCompleted} קורסים</span>}
+                                               </div>
+                                           </div>
                                         </div>
-                                        <div className="flex items-center gap-3">
-                                             <Button variant="outline" size="sm" onClick={() => handleGetAnalysis(player)}>
-                                                <BrainCircuit className="w-4 h-4 ml-2" />
-                                                ניתוח AI
-                                            </Button>
-                                            <div className="text-2xl font-bold text-orange-600">
-                                                {player.totalScore.toLocaleString()} נק'
-                                            </div>
+                                        <div className="flex flex-col items-end gap-2 flex-shrink-0">
+                                           <div className="text-xl sm:text-2xl font-bold text-orange-600">
+                                               {player.totalScore.toLocaleString()} נק'
+                                           </div>
+                                           <Button variant="outline" size="sm" className="text-xs h-7" onClick={() => handleGetAnalysis(player)}>
+                                               <BrainCircuit className="w-3 h-3 ml-1" />
+                                               ניתוח AI
+                                           </Button>
                                         </div>
                                     </CardContent>
                                 </Card>
