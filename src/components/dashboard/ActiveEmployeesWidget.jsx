@@ -23,18 +23,8 @@ export default function ActiveEmployeesWidget() {
         for (const shift of shifts) {
           if (shift.assigned_staff && Array.isArray(shift.assigned_staff)) {
             for (const staff of shift.assigned_staff) {
-              // בדיקה אם העובד אכן בעבודה (נמצא בתוך שעות המשמרת)
-              const now = new Date();
-              const [startHour, startMin] = shift.start_time.split(':').map(Number);
-              const [endHour, endMin] = shift.end_time.split(':').map(Number);
-              
-              const shiftStart = new Date();
-              shiftStart.setHours(startHour, startMin, 0);
-              
-              const shiftEnd = new Date();
-              shiftEnd.setHours(endHour, endMin, 0);
-
-              if (now >= shiftStart && now <= shiftEnd && staff.status === 'confirmed') {
+              // בדיקה אם העובד מוקצה ולא בעל סטטוס "declined" או "absent"
+              if (staff.status && ['scheduled', 'confirmed'].includes(staff.status)) {
                 active.push({
                   name: staff.employee_name,
                   position: staff.position,
@@ -57,8 +47,8 @@ export default function ActiveEmployeesWidget() {
 
     loadActiveEmployees();
     
-    // רענון כל דקה
-    const interval = setInterval(loadActiveEmployees, 60000);
+    // רענון כל 30 שניות
+    const interval = setInterval(loadActiveEmployees, 30000);
     
     return () => clearInterval(interval);
   }, []);
