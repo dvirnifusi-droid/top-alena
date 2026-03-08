@@ -208,9 +208,9 @@ export default function GamificationCenter() {
         </Card>
 
         {/* סטטיסטיקות אישיות — "השיא שלי" */}
-        <Card className={isDark ? 'bg-white/10 border-white/20 text-white' : ''}>
+        <Card>
           <CardHeader className="pb-2">
-            <CardTitle className={`text-base ${isDark ? 'text-white' : ''}`}>📊 השיא שלי</CardTitle>
+            <CardTitle className="text-base">📊 השיא שלי</CardTitle>
           </CardHeader>
           <CardContent className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             {[
@@ -219,9 +219,9 @@ export default function GamificationCenter() {
               { label: 'אתגרים שסיימתי', value: challengesDone, sub: 'אתגרים' },
               { label: 'פרסים שפדיתי', value: totalRedeemed, sub: 'פרסים' },
             ].map(({ label, value, sub }) => (
-              <div key={label} className={`rounded-2xl p-3 text-center ${isDark ? 'bg-white/10' : 'bg-gray-50'}`}>
-                <p className={`text-xl font-black ${isDark ? 'text-white' : 'text-gray-800'}`}>{value}</p>
-                <p className={`text-xs font-medium mt-0.5 ${isDark ? 'text-white/60' : 'text-gray-500'}`}>{label}</p>
+              <div key={label} className="rounded-2xl p-3 text-center bg-muted/50">
+                <p className="text-xl font-black text-foreground">{value}</p>
+                <p className="text-xs font-medium mt-0.5 text-muted-foreground">{label}</p>
               </div>
             ))}
           </CardContent>
