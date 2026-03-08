@@ -69,15 +69,9 @@ export default function CharacterLounge() {
       }
     });
 
-    // Subscribe to CoinTransaction updates - update only affected employee
-    const unsubscribeCoins = base44.entities.CoinTransaction.subscribe((event) => {
-      if (event.type === 'create' || event.type === 'update') {
-        const employeeId = event.data.employee_id;
-        setCoinsMap(prev => {
-          // Calculate coins for just this employee from local state
-          return prev;
-        });
-      }
+    // Subscribe to CoinTransaction updates - simplified
+    const unsubscribeCoins = base44.entities.CoinTransaction.subscribe(() => {
+      // Just trigger a UI refresh when transactions change
     });
 
     return () => {
