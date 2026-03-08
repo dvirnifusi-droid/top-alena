@@ -19,6 +19,9 @@ import AiQuickAdd from '../components/dashboard/AiQuickAdd';
 import DailyBriefView from '../components/briefing/DailyBriefView';
 import ShiftClockWidget from '../components/shift/ShiftClockWidget';
 import WeeklyScheduleSummary from '../components/employee/WeeklyScheduleSummary';
+import CoinWidget from '../components/gamification/CoinWidget';
+import DailyChallengeCard from '../components/gamification/DailyChallengeCard';
+import ConfettiEffect from '../components/gamification/ConfettiEffect';
 
 export default function EmployeeHome() {
     const [user, setUser] = useState(null);
@@ -27,6 +30,8 @@ export default function EmployeeHome() {
     const [todayBriefs, setTodayBriefs] = useState([]);
     const [selectedBrief, setSelectedBrief] = useState(null);
     const [todayPosition, setTodayPosition] = useState(null);
+    const [showConfetti, setShowConfetti] = useState(false);
+    const [confettiMsg, setConfettiMsg] = useState('');
 
     useEffect(() => {
         User.me().then(async u => {
@@ -129,9 +134,25 @@ export default function EmployeeHome() {
                                 )}
                             </div>
                         </div>
-                        <ShiftNotificationBell currentEmployee={currentEmployee} isManager={false} />
+                        <div className="flex items-center gap-3">
+                            {currentEmployee && <CoinWidget employeeId={currentEmployee.id} employeeName={currentEmployee.full_name} />}
+                            <ShiftNotificationBell currentEmployee={currentEmployee} isManager={false} />
+                        </div>
                     </div>
                 </div>
+
+                <ConfettiEffect trigger={showConfetti} message={confettiMsg} emoji="🎉" onDone={() => setShowConfetti(false)} />
+
+                {/* אתגר יומי */}
+                {currentEmployee && (
+                    <div className="mb-4">
+                        <DailyChallengeCard
+                            employeeId={currentEmployee.id}
+                            employeeName={currentEmployee.full_name}
+                            onCoinsEarned={(amount, msg) => { setConfettiMsg(msg); setShowConfetti(true); }}
+                        />
+                    </div>
+                )}
 
                 {/* שעון משמרת */}
                 <ShiftClockWidget />
