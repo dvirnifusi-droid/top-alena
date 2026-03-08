@@ -108,6 +108,7 @@ export default function ApparelCustomizer({ employeeId, employeeAvatar, onAvatar
       );
 
       // עדכן את האווטר
+      setCurrentAvatarUrl(url);
       onAvatarUpdate(url);
 
       // אפקט חגיגי
