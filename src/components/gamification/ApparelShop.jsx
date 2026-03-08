@@ -72,14 +72,14 @@ export default function ApparelShop({ employeeId, balance, onPurchase, onApparel
 
   return (
     <div className="space-y-4" dir="rtl">
-      <Tabs defaultValue="all" onValueChange={setSelectedFilter}>
-        <TabsList className="grid grid-cols-6 w-full">
-          <TabsTrigger value="all">הכל</TabsTrigger>
-          <TabsTrigger value="shirt">👕 חולצות</TabsTrigger>
-          <TabsTrigger value="pants">👖 מכנס</TabsTrigger>
-          <TabsTrigger value="shoes">👟 נעליים</TabsTrigger>
-          <TabsTrigger value="hat">🎩 כובעים</TabsTrigger>
-          <TabsTrigger value="accessory">✨ אביזרים</TabsTrigger>
+      <Tabs defaultValue="all" value={selectedFilter} onValueChange={setSelectedFilter}>
+        <TabsList className="grid grid-cols-3 sm:grid-cols-6 w-full">
+          <TabsTrigger value="all" className="text-xs sm:text-sm">הכל</TabsTrigger>
+          <TabsTrigger value="shirt" className="text-xs sm:text-sm">👕</TabsTrigger>
+          <TabsTrigger value="pants" className="text-xs sm:text-sm">👖</TabsTrigger>
+          <TabsTrigger value="shoes" className="text-xs sm:text-sm">👟</TabsTrigger>
+          <TabsTrigger value="hat" className="text-xs sm:text-sm">🎩</TabsTrigger>
+          <TabsTrigger value="accessory" className="text-xs sm:text-sm">✨</TabsTrigger>
         </TabsList>
       </Tabs>
 
