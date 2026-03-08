@@ -13,6 +13,7 @@ export default function ApparelCustomizer({ employeeId, employeeAvatar, onAvatar
   const [ownedApparel, setOwnedApparel] = useState([]);
   const [loading, setLoading] = useState(true);
   const [regenerating, setRegenerating] = useState(false);
+  const [originalAvatarUrl, setOriginalAvatarUrl] = useState(employeeAvatar);
   const [currentAvatarUrl, setCurrentAvatarUrl] = useState(employeeAvatar);
   const [employeeApparelId, setEmployeeApparelId] = useState(null);
 
