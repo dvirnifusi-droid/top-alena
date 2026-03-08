@@ -281,9 +281,10 @@ export default function ApparelCustomizer({ employeeId, employeeAvatar, onAvatar
         </Button>
         <Button
           onClick={handlePublishAvatar}
+          disabled={publishing || !currentAvatarUrl}
           className="w-full bg-green-600 hover:bg-green-700"
         >
-          📢 פרסום דמות לסלון
+          {publishing ? '⏳ משדרג...' : '📢 פרסום דמות לסלון'}
         </Button>
       </div>
 
