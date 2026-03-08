@@ -118,8 +118,7 @@ export default function AvatarUploader({
             <p className="text-xs text-gray-500">💫 מתנה בזמן עבודה</p>
           </div>
 
-          {/* חנות בגדים */}
-          <AvatarClothingShop balance={balance} onBuyItem={async () => {}} />
+
 
           <Button
             variant="outline"
