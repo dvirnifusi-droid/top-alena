@@ -32,8 +32,17 @@ export default function CoinTransferDialog({
 
   const loadCurrentUserCoins = async () => {
     try {
+      // Find current user's employee record
+      const employees = await base44.entities.Employee.list();
+      const currentUserEmp = employees.find(e => e.email === currentUser.email);
+      
+      if (!currentUserEmp) {
+        console.error('Current user not found in employees');
+        return;
+      }
+
       const transactions = await base44.entities.CoinTransaction.filter({
-        employee_id: currentUser.id,
+        employee_id: currentUserEmp.id,
       });
       const total = transactions.reduce((sum, t) => {
         if (t.status === 'approved') {
@@ -42,6 +51,7 @@ export default function CoinTransferDialog({
         return sum;
       }, 0);
       setCurrentUserCoins(Math.max(0, total));
+      console.log(`Current user (${currentUser.email}) coins: ${Math.max(0, total)}`);
     } catch (err) {
       console.error('Failed to load coins:', err);
     }
