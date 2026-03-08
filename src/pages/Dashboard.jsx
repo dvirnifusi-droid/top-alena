@@ -377,6 +377,18 @@ function SmartToolsPanel() {
                                         });
                                         setBalance(b => b - item.cost);
                                     }}
+                                    onApparelUpdate={async (item) => {
+                                        // עדכן את הדמות להציג את הפריט החדש
+                                        const apparelItems = [item.wearing_text];
+                                        const prompt = `Full body 3D stylized character avatar, Pixar/Fortnite style, standing in a neutral T-pose. Character ${apparelItems.join(', ')}. High-quality 3D render, studio lighting, solid white background. Professional 3D game character design.`;
+                                        
+                                        try {
+                                          const { url } = await base44.integrations.Core.GenerateImage({ prompt });
+                                          setEmployeeAvatar(url);
+                                        } catch (error) {
+                                          console.error('Error generating avatar:', error);
+                                        }
+                                    }}
                                 />
                                 <div className="border-t pt-4">
                                     <p className="font-bold text-sm mb-3">🎨 עדכן את הלבוש:</p>
