@@ -125,8 +125,11 @@ export default function ShiftChat() {
     };
 
     return (
-        <div className="flex flex-col h-[calc(100vh-8rem)] max-w-3xl mx-auto" dir="rtl">
+        <div className="flex flex-col h-[calc(100vh-8rem)] max-w-4xl mx-auto gap-4" dir="rtl">
 
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                {/* צד שמאל - צ'אט */}
+                <div className="lg:col-span-2 flex flex-col">
             {/* כותרת */}
             <div className="mb-4">
                 <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
