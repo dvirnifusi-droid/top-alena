@@ -38,6 +38,10 @@ export default function GamificationAdmin() {
     ]);
     setRewards(rws);
 
+    // טעינת הגדרות קופסת הפתעה מ-localStorage
+    const saved = localStorage.getItem('lootbox_settings');
+    if (saved) setLootSettings(JSON.parse(saved));
+
     setPendingRedemptions(txns);
     setTodayChallenge(challenges[0] || null);
     setEmployees(emps);
