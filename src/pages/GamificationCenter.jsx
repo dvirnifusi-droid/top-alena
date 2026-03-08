@@ -278,10 +278,10 @@ export default function GamificationCenter() {
           <TabsContent value="history" className="mt-3">
             <div className="space-y-2">
               {transactions.slice(0, 20).map(t => (
-                <div key={t.id} className={`flex items-center justify-between rounded-xl p-3 shadow-sm border ${isDark ? 'bg-white/10 border-white/20 text-white' : 'bg-white'}`}>
+                <div key={t.id} className="flex items-center justify-between rounded-xl p-3 shadow-sm border bg-card">
                   <div>
-                    <p className={`font-medium text-sm ${isDark ? 'text-white' : 'text-gray-800'}`}>{t.reason}</p>
-                    <p className={`text-xs ${isDark ? 'text-white/50' : 'text-gray-400'}`}>{new Date(t.created_date).toLocaleDateString('he-IL')}</p>
+                    <p className="font-medium text-sm text-foreground">{t.reason}</p>
+                    <p className="text-xs text-muted-foreground">{new Date(t.created_date).toLocaleDateString('he-IL')}</p>
                     {t.status === 'pending_approval' && <Badge className="text-xs bg-orange-100 text-orange-700">ממתין לאישור</Badge>}
                     {t.status === 'rejected' && <Badge className="text-xs bg-red-100 text-red-700">נדחה</Badge>}
                   </div>
