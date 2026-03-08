@@ -87,8 +87,19 @@ export default function LootBox({ employeeId, employeeName, onDone }) {
       let result;
 
       if (realRewardChance < settings.realRewardChance && rewards.length > 0) {
-        const pool = rewards.filter(r => r.in_lootbox);
-        const picked = pool[Math.floor(Math.random() * pool.length)];
+        const lootPool = rewards.filter(r => r.in_lootbox);
+        if (lootPool.length === 0) {
+          // אין פרסים בקופסה — תן מטבעות
+          const coins = pickCoinPrize(settings.coinPrizes);
+          result = { type: 'coins', coins };
+          await base44.entities.CoinTransaction.create({
+            employee_id: employeeId, employee_name: employeeName,
+            amount: coins, reason: `🎲 הפתעה עלינא - יציאה ממשמרת`,
+            type: 'earned', trigger: 'manager_bonus', status: 'approved'
+          });
+          playSound('reveal'); setPrize(result); setPhase('reveal'); return;
+        }
+        const picked = lootPool[Math.floor(Math.random() * lootPool.length)];
         result = { type: 'reward', reward: picked };
         await base44.entities.CoinTransaction.create({
           employee_id: employeeId,
