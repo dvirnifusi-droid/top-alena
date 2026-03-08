@@ -44,7 +44,18 @@ export default function BriefReadersWidget() {
   useEffect(() => {
     loadBriefReaders();
     const interval = setInterval(loadBriefReaders, 30000); // Refresh every 30 seconds
-    return () => clearInterval(interval);
+    
+    // Subscribe to DailyBrief changes for real-time updates
+    const unsubscribe = base44.entities.DailyBrief.subscribe((event) => {
+      if (event.type === 'update') {
+        loadBriefReaders();
+      }
+    });
+
+    return () => {
+      clearInterval(interval);
+      unsubscribe();
+    };
   }, []);
 
   const ShiftSection = ({ type, label, readers }) => (
