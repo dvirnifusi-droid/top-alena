@@ -73,7 +73,16 @@ export default function CharacterLounge() {
   return (
     <PageGuard title="סלון דמויות">
       <div className="space-y-6">
-        {/* Header */}
+        {/* Header with back button */}
+        <div className="flex items-center justify-between mb-4">
+          <Link to={createPageUrl('Dashboard')}>
+            <Button variant="outline" size="sm" className="gap-2">
+              <ChevronRight className="w-4 h-4 rotate-180" />
+              חזור
+            </Button>
+          </Link>
+        </div>
+        
         <div className="text-center">
           <h1 className="text-4xl font-bold text-foreground mb-2">✨ סלון הדמויות</h1>
           <p className="text-muted-foreground">בואו להכיר את הצוות שלנו ולשתף מטבעות</p>
