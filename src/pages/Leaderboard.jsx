@@ -273,10 +273,12 @@ function LeaderboardInner() {
                                            <div className="text-xl sm:text-2xl font-bold text-orange-600">
                                                {player.totalScore.toLocaleString()} נק'
                                            </div>
-                                           <Button variant="outline" size="sm" className="text-xs h-7" onClick={() => handleGetAnalysis(player)}>
-                                               <BrainCircuit className="w-3 h-3 ml-1" />
-                                               ניתוח AI
-                                           </Button>
+                                           <div className="flex gap-2">
+                                             <Button variant="outline" size="sm" className="text-xs h-7" onClick={() => handleGetAnalysis(player)}>
+                                                 <BrainCircuit className="w-3 h-3 ml-1" />
+                                                 ניתוח AI
+                                             </Button>
+                                           </div>
                                         </div>
                                     </CardContent>
                                 </Card>
