@@ -8,16 +8,25 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import ConfettiEffect from '../components/gamification/ConfettiEffect';
 import ShoutOutFeed from '../components/gamification/ShoutOutFeed';
 import DailyChallengeCard from '../components/gamification/DailyChallengeCard';
-
-
+import BadgesDisplay, { computeBadges } from '../components/gamification/BadgesDisplay';
+import { Sun, Moon, Palette } from 'lucide-react';
 
 const RANKS = [
-  { min: 0, max: 499, title: 'מתחיל', emoji: '🥉', color: 'text-amber-600' },
-  { min: 500, max: 1999, title: 'מלצר מקצוען', emoji: '🥈', color: 'text-gray-500' },
-  { min: 2000, max: 4999, title: 'כוכב המשמרת', emoji: '⭐', color: 'text-yellow-500' },
-  { min: 5000, max: 9999, title: 'Ninja Waiter', emoji: '🥷', color: 'text-indigo-600' },
-  { min: 10000, max: Infinity, title: 'אלוף המסעדה', emoji: '👑', color: 'text-purple-600' },
+  { min: 0,     max: 499,      title: 'מתחיל',         emoji: '🥉', color: 'from-amber-400 to-orange-500' },
+  { min: 500,   max: 1999,     title: 'מלצר מקצוען',   emoji: '🥈', color: 'from-gray-400 to-slate-500' },
+  { min: 2000,  max: 4999,     title: 'כוכב המשמרת',   emoji: '⭐', color: 'from-yellow-400 to-amber-500' },
+  { min: 5000,  max: 9999,     title: 'Ninja Waiter',   emoji: '🥷', color: 'from-indigo-500 to-purple-600' },
+  { min: 10000, max: Infinity, title: 'אלוף המסעדה',   emoji: '👑', color: 'from-yellow-500 to-orange-600' },
 ];
+
+const THEMES = [
+  { id: 'light',  label: 'בהיר',   icon: Sun,     bg: 'bg-gradient-to-br from-yellow-50 to-orange-50', card: '' },
+  { id: 'dark',   label: 'כהה',    icon: Moon,    bg: 'bg-gray-950', card: 'dark' },
+  { id: 'purple', label: 'סגול',   icon: Palette, bg: 'bg-gradient-to-br from-purple-950 to-indigo-950', card: 'dark' },
+  { id: 'green',  label: 'ירוק',   icon: Palette, bg: 'bg-gradient-to-br from-emerald-900 to-teal-900', card: 'dark' },
+];
+
+const AVATAR_OPTIONS = ['😎', '🤩', '🥷', '👨‍🍳', '👩‍🍳', '🦁', '🐯', '🔥', '⭐', '💎', '🎯', '🏆'];
 
 export default function GamificationCenter() {
   const [user, setUser] = useState(null);
@@ -30,10 +39,12 @@ export default function GamificationCenter() {
   const [confettiMsg, setConfettiMsg] = useState('');
   const [pendingRedemptions, setPendingRedemptions] = useState([]);
   const [rewards, setRewards] = useState([]);
+  const [theme, setTheme] = useState(() => localStorage.getItem('gc_theme') || 'light');
+  const [avatar, setAvatar] = useState(() => localStorage.getItem('gc_avatar') || '😎');
+  const [showAvatarPicker, setShowAvatarPicker] = useState(false);
+  const [showThemePicker, setShowThemePicker] = useState(false);
 
-  useEffect(() => {
-    init();
-  }, []);
+  useEffect(() => { init(); }, []);
 
   const init = async () => {
     const u = await base44.auth.me();
@@ -41,39 +52,43 @@ export default function GamificationCenter() {
     const emps = await base44.entities.Employee.filter({ status: 'active' });
     const me = emps.find(e => e.email?.toLowerCase() === u.email?.toLowerCase());
     setEmployee(me || null);
-    if (me) {
-      loadTransactions(me.id);
-    }
+    if (me) loadTransactions(me.id);
     const rws = await base44.entities.Reward.filter({ is_active: true });
     setRewards(rws);
   };
 
   const loadTransactions = async (empId) => {
     const txns = await base44.entities.CoinTransaction.filter({ employee_id: empId });
-    setTransactions(txns.sort((a, b) => new Date(b.created_date) - new Date(a.created_date)));
-    const approved = txns.filter(t => t.status === 'approved');
+    const sorted = txns.sort((a, b) => new Date(b.created_date) - new Date(a.created_date));
+    setTransactions(sorted);
+    const approved = sorted.filter(t => t.status === 'approved');
     setBalance(approved.reduce((sum, t) => sum + (t.amount || 0), 0));
-    const pending = txns.filter(t => t.status === 'pending_approval');
-    setPendingRedemptions(pending);
+    setPendingRedemptions(sorted.filter(t => t.status === 'pending_approval'));
   };
 
   const handleRedeemRequest = async (reward) => {
     if (!employee || balance < reward.cost) return;
     await base44.entities.CoinTransaction.create({
-      employee_id: employee.id,
-      employee_name: employee.full_name,
-      amount: -reward.cost,
-      reason: `בקשת פדיון: ${reward.title}`,
-      type: 'redeemed',
-      trigger: 'redemption',
-      status: 'pending_approval',
+      employee_id: employee.id, employee_name: employee.full_name,
+      amount: -reward.cost, reason: `בקשת פדיון: ${reward.title}`,
+      type: 'redeemed', trigger: 'redemption', status: 'pending_approval',
       redemption_reward: reward.id || reward.title
     });
-    setShowRedeem(false);
-    setSelectedReward(null);
-    setConfettiMsg(`בקשת הפדיון נשלחה למנהל! 🙌`);
+    setShowRedeem(false); setSelectedReward(null);
+    setConfettiMsg('בקשת הפדיון נשלחה למנהל! 🙌');
     setShowConfetti(true);
     loadTransactions(employee.id);
+  };
+
+  const setAndSaveTheme = (id) => {
+    setTheme(id);
+    localStorage.setItem('gc_theme', id);
+    setShowThemePicker(false);
+  };
+  const setAndSaveAvatar = (a) => {
+    setAvatar(a);
+    localStorage.setItem('gc_avatar', a);
+    setShowAvatarPicker(false);
   };
 
   const getRank = (bal) => RANKS.find(r => bal >= r.min && bal <= r.max) || RANKS[0];
@@ -81,34 +96,74 @@ export default function GamificationCenter() {
   const nextRank = RANKS[RANKS.indexOf(rank) + 1];
   const progressToNext = nextRank ? Math.min(100, ((balance - rank.min) / (nextRank.min - rank.min)) * 100) : 100;
 
+  const badges = computeBadges({ balance, transactions });
+  const earnedBadges = badges.filter(b => b.earned);
+
+  // Stats
+  const totalEarned = transactions.filter(t => t.amount > 0 && t.status === 'approved').reduce((s, t) => s + t.amount, 0);
+  const totalRedeemed = transactions.filter(t => t.type === 'redeemed').length;
+  const challengesDone = transactions.filter(t => t.trigger === 'daily_challenge').length;
+  const shiftsCompleted = transactions.filter(t => t.trigger === 'shift_completed').length;
+
+  const currentTheme = THEMES.find(t => t.id === theme) || THEMES[0];
+  const isDark = currentTheme.card === 'dark';
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-yellow-50 to-orange-50 p-4 pb-20" dir="rtl">
+    <div className={`min-h-screen ${currentTheme.bg} p-4 pb-20 transition-colors duration-300`} dir="rtl">
       <ConfettiEffect trigger={showConfetti} message={confettiMsg} emoji="🏆" onDone={() => setShowConfetti(false)} />
 
       <div className="max-w-2xl mx-auto space-y-5">
-        {/* כרטיס מעמד */}
-        <Card className="bg-gradient-to-br from-yellow-400 to-orange-500 text-white border-0 shadow-xl overflow-hidden">
+
+        {/* כפתור ערכת נושא */}
+        <div className="flex justify-end">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowThemePicker(true)}
+            className={`gap-2 ${isDark ? 'border-white/20 text-white bg-white/10 hover:bg-white/20' : ''}`}
+          >
+            <Palette className="w-4 h-4" />
+            ערכת נושא
+          </Button>
+        </div>
+
+        {/* כרטיס פרופיל + דרגה */}
+        <Card className={`bg-gradient-to-br ${rank.color} text-white border-0 shadow-xl overflow-hidden`}>
           <CardContent className="p-6">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <p className="text-yellow-100 text-sm font-medium">הדרגה שלך</p>
-                <h2 className="text-3xl font-black flex items-center gap-2">{rank.emoji} {rank.title}</h2>
-                <p className="text-yellow-100 text-sm">{user?.full_name}</p>
+            <div className="flex items-center gap-4 mb-4">
+              {/* אווטאר */}
+              <button
+                onClick={() => setShowAvatarPicker(true)}
+                className="w-20 h-20 rounded-full bg-white/20 flex items-center justify-center text-4xl hover:bg-white/30 transition-all shadow-lg border-2 border-white/40 flex-shrink-0"
+                title="שנה אווטאר"
+              >
+                {avatar}
+              </button>
+              <div className="flex-1 min-w-0">
+                <p className="text-white/80 text-sm">שלום,</p>
+                <h2 className="text-2xl font-black leading-tight truncate">{user?.full_name}</h2>
+                <div className="flex items-center gap-2 mt-1 flex-wrap">
+                  <span className="text-lg">{rank.emoji}</span>
+                  <span className="font-bold text-white/90">{rank.title}</span>
+                  {earnedBadges.length > 0 && (
+                    <span className="text-xs bg-white/20 px-2 py-0.5 rounded-full">{earnedBadges.length} תגים</span>
+                  )}
+                </div>
               </div>
-              <div className="text-center">
+              <div className="text-center flex-shrink-0">
                 <div className="text-5xl font-black">{balance.toLocaleString()}</div>
-                <div className="text-yellow-100 text-sm">מטבעות</div>
+                <div className="text-white/80 text-sm">מטבעות</div>
               </div>
             </div>
 
             {nextRank && (
               <div>
-                <div className="flex justify-between text-xs text-yellow-100 mb-1">
+                <div className="flex justify-between text-xs text-white/80 mb-1">
                   <span>לדרגה הבאה: {nextRank.emoji} {nextRank.title}</span>
-                  <span>{(nextRank.min - balance).toLocaleString()} מטבעות נוספים</span>
+                  <span>{(nextRank.min - balance).toLocaleString()} נוספים</span>
                 </div>
                 <div className="w-full bg-white/30 rounded-full h-3">
-                  <div className="bg-white h-3 rounded-full transition-all" style={{ width: `${progressToNext}%` }} />
+                  <div className="bg-white h-3 rounded-full transition-all duration-500" style={{ width: `${progressToNext}%` }} />
                 </div>
               </div>
             )}
@@ -119,6 +174,26 @@ export default function GamificationCenter() {
             >
               🎁 פדה פרס עם המטבעות שלך
             </Button>
+          </CardContent>
+        </Card>
+
+        {/* סטטיסטיקות אישיות — "השיא שלי" */}
+        <Card className={isDark ? 'bg-white/10 border-white/20 text-white' : ''}>
+          <CardHeader className="pb-2">
+            <CardTitle className={`text-base ${isDark ? 'text-white' : ''}`}>📊 השיא שלי</CardTitle>
+          </CardHeader>
+          <CardContent className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {[
+              { label: 'סה״כ הרווחתי', value: `${totalEarned.toLocaleString()} 🪙`, sub: 'מטבעות' },
+              { label: 'משמרות עם מטבעות', value: shiftsCompleted, sub: 'משמרות' },
+              { label: 'אתגרים שסיימתי', value: challengesDone, sub: 'אתגרים' },
+              { label: 'פרסים שפדיתי', value: totalRedeemed, sub: 'פרסים' },
+            ].map(({ label, value, sub }) => (
+              <div key={label} className={`rounded-2xl p-3 text-center ${isDark ? 'bg-white/10' : 'bg-gray-50'}`}>
+                <p className={`text-xl font-black ${isDark ? 'text-white' : 'text-gray-800'}`}>{value}</p>
+                <p className={`text-xs font-medium mt-0.5 ${isDark ? 'text-white/60' : 'text-gray-500'}`}>{label}</p>
+              </div>
+            ))}
           </CardContent>
         </Card>
 
@@ -139,48 +214,105 @@ export default function GamificationCenter() {
         {pendingRedemptions.length > 0 && (
           <Card className="border-2 border-blue-200 bg-blue-50">
             <CardContent className="p-4">
-              <p className="font-bold text-blue-700 flex items-center gap-2">⏳ בקשות פדיון ממתינות לאישור מנהל</p>
+              <p className="font-bold text-blue-700">⏳ בקשות פדיון ממתינות לאישור מנהל</p>
               {pendingRedemptions.map(r => (
                 <div key={r.id} className="text-sm text-blue-600 mt-1 flex items-center gap-2">
                   <Badge className="bg-blue-200 text-blue-800">ממתין</Badge>
-                  {r.reason} ({Math.abs(r.amount)} 🪙)
+                  {r.reason}
                 </div>
               ))}
             </CardContent>
           </Card>
         )}
 
-        {/* קיר תהילה + היסטוריה */}
-        <Tabs defaultValue="shoutouts">
-          <TabsList className="w-full">
+        {/* טאבים */}
+        <Tabs defaultValue="badges">
+          <TabsList className={`w-full ${isDark ? 'bg-white/10' : ''}`}>
+            <TabsTrigger value="badges" className="flex-1">🏅 תגים</TabsTrigger>
             <TabsTrigger value="shoutouts" className="flex-1">🏆 קיר תהילה</TabsTrigger>
-            <TabsTrigger value="history" className="flex-1">📜 היסטוריית מטבעות</TabsTrigger>
+            <TabsTrigger value="history" className="flex-1">📜 היסטוריה</TabsTrigger>
           </TabsList>
+
+          <TabsContent value="badges" className="mt-3">
+            <Card className={isDark ? 'bg-white/10 border-white/20' : ''}>
+              <CardContent className="p-4">
+                <BadgesDisplay balance={balance} transactions={transactions} />
+              </CardContent>
+            </Card>
+          </TabsContent>
+
           <TabsContent value="shoutouts" className="mt-3">
             <ShoutOutFeed currentEmployeeId={employee?.id} limit={8} />
           </TabsContent>
+
           <TabsContent value="history" className="mt-3">
             <div className="space-y-2">
               {transactions.slice(0, 20).map(t => (
-                <div key={t.id} className="flex items-center justify-between bg-white rounded-xl p-3 shadow-sm border">
+                <div key={t.id} className={`flex items-center justify-between rounded-xl p-3 shadow-sm border ${isDark ? 'bg-white/10 border-white/20 text-white' : 'bg-white'}`}>
                   <div>
-                    <p className="font-medium text-sm text-gray-800">{t.reason}</p>
-                    <p className="text-xs text-gray-400">{new Date(t.created_date).toLocaleDateString('he-IL')}</p>
+                    <p className={`font-medium text-sm ${isDark ? 'text-white' : 'text-gray-800'}`}>{t.reason}</p>
+                    <p className={`text-xs ${isDark ? 'text-white/50' : 'text-gray-400'}`}>{new Date(t.created_date).toLocaleDateString('he-IL')}</p>
                     {t.status === 'pending_approval' && <Badge className="text-xs bg-orange-100 text-orange-700">ממתין לאישור</Badge>}
                     {t.status === 'rejected' && <Badge className="text-xs bg-red-100 text-red-700">נדחה</Badge>}
                   </div>
-                  <span className={`text-lg font-black ${t.amount > 0 ? 'text-green-600' : 'text-red-500'}`}>
+                  <span className={`text-lg font-black ${t.amount > 0 ? 'text-green-400' : 'text-red-400'}`}>
                     {t.amount > 0 ? '+' : ''}{t.amount} 🪙
                   </span>
                 </div>
               ))}
               {transactions.length === 0 && (
-                <p className="text-center text-gray-500 py-8">עדיין אין מטבעות - התחל להרוויח! 💪</p>
+                <p className={`text-center py-8 ${isDark ? 'text-white/50' : 'text-gray-500'}`}>עדיין אין מטבעות - התחל להרוויח! 💪</p>
               )}
             </div>
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* דיאלוג בחירת אווטאר */}
+      <Dialog open={showAvatarPicker} onOpenChange={setShowAvatarPicker}>
+        <DialogContent dir="rtl" className="max-w-xs">
+          <DialogHeader>
+            <DialogTitle className="text-center">בחר אווטאר</DialogTitle>
+          </DialogHeader>
+          <div className="grid grid-cols-4 gap-3 p-2">
+            {AVATAR_OPTIONS.map(a => (
+              <button
+                key={a}
+                onClick={() => setAndSaveAvatar(a)}
+                className={`text-4xl rounded-2xl p-3 hover:bg-yellow-100 transition-all ${avatar === a ? 'bg-yellow-200 ring-2 ring-yellow-500 scale-110' : 'bg-gray-50'}`}
+              >
+                {a}
+              </button>
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* דיאלוג ערכת נושא */}
+      <Dialog open={showThemePicker} onOpenChange={setShowThemePicker}>
+        <DialogContent dir="rtl" className="max-w-xs">
+          <DialogHeader>
+            <DialogTitle className="text-center">🎨 ערכת נושא</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-2 p-2">
+            {THEMES.map(t => {
+              const Icon = t.icon;
+              return (
+                <button
+                  key={t.id}
+                  onClick={() => setAndSaveTheme(t.id)}
+                  className={`w-full flex items-center gap-3 p-3 rounded-xl border-2 transition-all ${theme === t.id ? 'border-primary bg-primary/10' : 'border-gray-200 hover:border-gray-300'}`}
+                >
+                  <div className={`w-8 h-8 rounded-lg ${t.bg} border border-gray-200`} />
+                  <Icon className="w-4 h-4" />
+                  <span className="font-medium">{t.label}</span>
+                  {theme === t.id && <span className="mr-auto text-primary font-bold">✓</span>}
+                </button>
+              );
+            })}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* דיאלוג פדיון */}
       <Dialog open={showRedeem} onOpenChange={setShowRedeem}>
