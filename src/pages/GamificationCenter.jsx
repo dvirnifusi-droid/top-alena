@@ -114,6 +114,18 @@ export default function GamificationCenter() {
     loadTransactions(employee.id);
   };
 
+  const handleAvatarImageSave = (url) => {
+    setAvatarImageUrl(url);
+    setAndSaveAvatar(url, true);
+    localStorage.setItem('gc_avatar', url);
+  };
+
+  const handleApparelPurchase = async (item) => {
+    await handleSpendCoins(item.cost, `קנייה: ${item.name}`);
+    setConfettiMsg(`קניתה ${item.name}! 🎉`);
+    setShowConfetti(true);
+  };
+
   const getRank = (bal) => RANKS.find(r => bal >= r.min && bal <= r.max) || RANKS[0];
   const rank = getRank(balance);
   const nextRank = RANKS[RANKS.indexOf(rank) + 1];
