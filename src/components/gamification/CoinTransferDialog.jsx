@@ -11,7 +11,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Coins, AlertCircle } from 'lucide-react';
-import { useState as useReactState } from 'react';
 
 export default function CoinTransferDialog({
   open,
