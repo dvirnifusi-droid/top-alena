@@ -19,7 +19,7 @@ const closingLines = [
 
 export default function DailyBriefView({ brief, employeeId, onReady, employeeName }) {
      // Moved hook to the top level before any conditional returns
-     const randomLine = React.useMemo(() => closingLines[Math.floor(Math.random() * closingLines.length)], []);
+     const randomLine = useMemo(() => closingLines[Math.floor(Math.random() * closingLines.length)], []);
 
      // סימון אוטומטי כקרא כשהתדריך נקרא
      React.useEffect(() => {
