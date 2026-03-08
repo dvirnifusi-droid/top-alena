@@ -231,9 +231,11 @@ export default function ApparelCustomizer({ employeeId, employeeAvatar, onAvatar
       </Button>
 
       <Dialog open={showDialog} onOpenChange={setShowDialog}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" dir="rtl">
           <DialogTitle>בחר הלבוש לדמות</DialogTitle>
-          <div className="space-y-4" dir="rtl">
+          
+          {/* תצוגה ל-Desktop: grid פשוט */}
+          <div className="hidden sm:block space-y-4">
             {currentAvatarUrl && (
               <div className="flex justify-center mb-4 p-4 bg-gray-50 rounded-lg">
                 <img src={currentAvatarUrl} alt="avatar preview" className="h-32 object-contain" />
@@ -287,17 +289,85 @@ export default function ApparelCustomizer({ employeeId, employeeAvatar, onAvatar
                  </div>
                );
              })}
+          </div>
 
-             </div>
-             <Button 
-             onClick={handleUpdateAvatarWithApparel}
-             disabled={regenerating}
-             className="w-full mt-4 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700"
-             >
-             {regenerating ? '⏳ מעדכן דמות...' : '✨ שמור וחדש בגדים'}
-             </Button>
-             </DialogContent>
-             </Dialog>
+          {/* תצוגה ל-Mobile: tabs */}
+          <div className="sm:hidden">
+            {currentAvatarUrl && (
+              <div className="flex justify-center mb-3 p-3 bg-gray-50 rounded-lg">
+                <img src={currentAvatarUrl} alt="avatar preview" className="h-24 object-contain" />
+              </div>
+            )}
+            <Tabs defaultValue="shirt" className="w-full">
+              <TabsList className="grid grid-cols-5 w-full mb-4">
+                {categories.map(cat => (
+                  <TabsTrigger key={cat.key} value={cat.key} className="text-xs p-1">
+                    {cat.label.split(' ')[0]}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+
+              {categories.map(cat => {
+                const currentItem = apparel.find(a => a.id === cat.value);
+                const categoryItems = apparel.filter(a => a.category === cat.key);
+
+                return (
+                  <TabsContent key={cat.key} value={cat.key} className="space-y-3">
+                    {currentItem && (
+                      <div className="text-sm text-gray-600 text-center">
+                        נבחר כרגע: <strong>{currentItem.name}</strong>
+                      </div>
+                    )}
+                    <div className="grid grid-cols-3 gap-2">
+                      {categoryItems.map(item => {
+                        const isOwned = ownedApparel.includes(item.id);
+                        const isEquipped = cat.value === item.id;
+
+                        return (
+                          <div key={item.id} className={`p-2 rounded-lg border-2 text-sm transition-all flex flex-col ${
+                            isEquipped && isOwned
+                              ? 'border-green-500 bg-green-50'
+                              : isOwned
+                              ? 'border-blue-300 bg-blue-50'
+                              : 'border-gray-300 bg-gray-100'
+                          }`}>
+                            <div className="text-2xl mb-1 text-center">{item.emoji}</div>
+                            <div className="text-xs font-semibold text-center mb-1">{item.name}</div>
+                            {isOwned ? (
+                              <button
+                                onClick={() => handleEquip(item.id, cat.key)}
+                                className="text-xs bg-green-500 hover:bg-green-600 text-white py-1 rounded"
+                              >
+                                ✅ בחר
+                              </button>
+                            ) : (
+                              <button
+                                onClick={() => handleBuyAndEquip(item)}
+                                disabled={balance < item.cost}
+                                className="text-xs bg-blue-500 hover:bg-blue-600 disabled:bg-gray-400 disabled:cursor-not-allowed text-white py-1 rounded"
+                              >
+                                {item.cost} 🪙
+                              </button>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </TabsContent>
+                );
+              })}
+            </Tabs>
+          </div>
+
+          <Button 
+            onClick={handleUpdateAvatarWithApparel}
+            disabled={regenerating}
+            className="w-full mt-4 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700"
+          >
+            {regenerating ? '⏳ מעדכן דמות...' : '✨ שמור וחדש בגדים'}
+          </Button>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={showPreview} onOpenChange={setShowPreview}>
         <DialogContent className="max-w-3xl p-0 border-0 bg-gradient-to-b from-purple-50 to-white">
