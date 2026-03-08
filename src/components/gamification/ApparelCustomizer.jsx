@@ -98,6 +98,53 @@ export default function ApparelCustomizer({ employeeId, employeeAvatar, onAvatar
     await handleEquip(item.id, item.category);
   };
 
+  const handleUpdateAvatarWithApparel = async () => {
+    if (regenerating) return;
+    setRegenerating(true);
+
+    try {
+      const apparelItems = [];
+      
+      if (equipped.shirt) {
+        const item = apparel.find(a => a.id === equipped.shirt);
+        if (item) apparelItems.push(item.wearing_text);
+      }
+      if (equipped.pants) {
+        const item = apparel.find(a => a.id === equipped.pants);
+        if (item) apparelItems.push(item.wearing_text);
+      }
+      if (equipped.shoes) {
+        const item = apparel.find(a => a.id === equipped.shoes);
+        if (item) apparelItems.push(item.wearing_text);
+      }
+      if (equipped.hat) {
+        const item = apparel.find(a => a.id === equipped.hat);
+        if (item) apparelItems.push(item.wearing_text);
+      }
+      if (equipped.outerwear) {
+        const item = apparel.find(a => a.id === equipped.outerwear);
+        if (item) apparelItems.push(item.wearing_text);
+      }
+
+      const wearingText = apparelItems.join(', ') || 'wearing casual clothes';
+      const prompt = `Take this 3D character and update their clothing: ${wearingText}. Keep the same person, same pose, same style, just update the clothes to match the description. High-quality 3D render, studio lighting, solid white background.`;
+
+      const { url } = await base44.integrations.Core.GenerateImage({
+        prompt,
+        existing_image_urls: [currentAvatarUrl]
+      });
+
+      setCurrentAvatarUrl(url);
+      if (onAvatarUpdate) {
+        onAvatarUpdate(url);
+      }
+    } catch (error) {
+      console.error('Error updating avatar:', error);
+      alert('שגיאה בעדכון הדמות');
+    }
+    setRegenerating(false);
+  };
+
 
 
   if (loading) return <div>טוען...</div>;
