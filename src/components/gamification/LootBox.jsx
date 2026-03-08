@@ -56,7 +56,7 @@ export default function LootBox({ employeeId, employeeName, onDone }) {
         });
       } else {
         // מטבעות
-        const coins = pickCoinPrize();
+        const coins = pickCoinPrize(settings.coinPrizes);
         result = { type: 'coins', coins };
 
         await base44.entities.CoinTransaction.create({
