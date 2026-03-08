@@ -133,7 +133,7 @@ export default function ApparelCustomizer({ employeeId, employeeAvatar, onAvatar
 
       const { url } = await base44.integrations.Core.GenerateImage({
         prompt,
-        existing_image_urls: [currentAvatarUrl]
+        existing_image_urls: [originalAvatarUrl]
       });
 
       setCurrentAvatarUrl(url);
