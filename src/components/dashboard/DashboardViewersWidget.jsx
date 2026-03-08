@@ -13,11 +13,11 @@ export default function DashboardViewersWidget() {
                 const today = new Date().toISOString().split('T')[0];
                 const briefs = await base44.entities.DailyBrief.filter({ date: today });
                 
-                // Get all employees mapped by email
+                // Get all employees
                 const employees = await base44.entities.Employee.list();
                 const employeeMap = {};
                 employees.forEach(emp => {
-                    employeeMap[emp.email] = emp;
+                    employeeMap[emp.id] = emp;
                 });
                 
                 // Aggregate readers with their brief types
@@ -26,18 +26,19 @@ export default function DashboardViewersWidget() {
                     const readBy = brief.read_by || [];
                     const shiftType = brief.shift_type === 'lunch' ? 'צהריים' : brief.shift_type === 'dinner' ? 'ערב' : 'unknown';
                     
-                    readBy.forEach(empEmail => {
-                        const emp = employeeMap[empEmail];
+                    readBy.forEach(empId => {
+                        const emp = employeeMap[empId];
                         if (emp) {
-                            if (!readers[empEmail]) {
-                                readers[empEmail] = {
-                                    email: empEmail,
+                            if (!readers[empId]) {
+                                readers[empId] = {
+                                    id: empId,
+                                    email: emp.email,
                                     name: emp.full_name,
                                     shifts: []
                                 };
                             }
-                            if (!readers[empEmail].shifts.includes(shiftType)) {
-                                readers[empEmail].shifts.push(shiftType);
+                            if (!readers[empId].shifts.includes(shiftType)) {
+                                readers[empId].shifts.push(shiftType);
                             }
                         }
                     });
