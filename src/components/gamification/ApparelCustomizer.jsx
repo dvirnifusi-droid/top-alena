@@ -170,6 +170,15 @@ export default function ApparelCustomizer({ employeeId, employeeAvatar, onAvatar
       if (onAvatarUpdate) {
         onAvatarUpdate(file_url);
       }
+      
+      // שמור את התמונה החדשה ל-DB
+      if (employeeApparelId) {
+        try {
+          await base44.entities.EmployeeApparel.update(employeeApparelId, { avatar_url: file_url });
+        } catch (error) {
+          console.error('Error saving avatar URL:', error);
+        }
+      }
       setShowUploadDialog(false);
     } catch (error) {
       console.error('Error uploading avatar:', error);
