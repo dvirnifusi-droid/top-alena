@@ -12,11 +12,8 @@ import ApparelShop from '../components/gamification/ApparelShop';
 import ApparelCustomizer from '../components/gamification/ApparelCustomizer';
 
 import RecentIncidents from '../components/dashboard/RecentIncidents';
-import TrainingOverview from '../components/dashboard/TrainingOverview';
 import ChecklistStatus from '../components/dashboard/ChecklistStatus';
 import SalesChart from '../components/dashboard/SalesChart';
-import TableStatus from '../components/dashboard/TableStatus';
-import TodayReservations from '../components/dashboard/TodayReservations';
 import AiQuickAdd from '../components/dashboard/AiQuickAdd';
 import SeatingAiHelper from '../components/dashboard/SeatingAiHelper';
 import InvoiceScanner from '../components/dashboard/InvoiceScanner';
