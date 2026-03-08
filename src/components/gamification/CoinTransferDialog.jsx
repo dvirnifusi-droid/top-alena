@@ -74,10 +74,20 @@ export default function CoinTransferDialog({
 
     setLoading(true);
     try {
+      // Find current user's employee record
+      const employees = await base44.entities.Employee.list();
+      const currentUserEmp = employees.find(e => e.email === currentUser.email);
+      
+      if (!currentUserEmp) {
+        setError('לא הצלחנו למצוא את פרטיך במערכת');
+        setLoading(false);
+        return;
+      }
+
       // Create transaction for sender (debit)
       await base44.entities.CoinTransaction.create({
-        employee_id: currentUser.id,
-        employee_name: currentUser.full_name || currentUser.email,
+        employee_id: currentUserEmp.id,
+        employee_name: currentUserEmp.full_name,
         amount: -numAmount,
         reason: `העברה ל${recipientEmployee.full_name}`,
         type: 'earned',
@@ -90,7 +100,7 @@ export default function CoinTransferDialog({
         employee_id: recipientEmployee.id,
         employee_name: recipientEmployee.full_name,
         amount: numAmount,
-        reason: `קיבל מ${currentUser.full_name || currentUser.email}`,
+        reason: `קיבל מ${currentUserEmp.full_name}`,
         type: 'earned',
         trigger: 'manager_bonus',
         status: 'approved',
