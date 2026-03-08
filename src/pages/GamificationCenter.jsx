@@ -300,20 +300,20 @@ export default function GamificationCenter() {
 
       {/* דיאלוג בחירת אווטאר */}
       <Dialog open={showAvatarPicker} onOpenChange={setShowAvatarPicker}>
-        <DialogContent dir="rtl" className="max-w-sm">
+        <DialogContent dir="rtl" className="max-w-sm w-[95vw] max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-center">🖼️ האווטר שלי</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4">
+          <div className="space-y-3">
             {/* אמוג'ים מהירים */}
             <div>
-              <p className="text-xs text-gray-500 mb-2 font-medium">אמוג'י מהיר:</p>
-              <div className="grid grid-cols-6 gap-2">
+              <p className="text-xs text-gray-500 mb-1.5 font-medium">אמוג'י מהיר:</p>
+              <div className="grid grid-cols-6 gap-1.5">
                 {AVATAR_OPTIONS.map(a => (
                   <button
                     key={a}
                     onClick={() => setAndSaveAvatar(a, false)}
-                    className={`text-2xl rounded-xl p-2 hover:bg-yellow-100 transition-all ${!avatarIsImage && avatar === a ? 'bg-yellow-200 ring-2 ring-yellow-500 scale-110' : 'bg-gray-50'}`}
+                    className={`text-xl rounded-lg p-1.5 hover:bg-yellow-100 transition-all aspect-square flex items-center justify-center ${!avatarIsImage && avatar === a ? 'bg-yellow-200 ring-2 ring-yellow-500' : 'bg-gray-50'}`}
                   >
                     {a}
                   </button>
