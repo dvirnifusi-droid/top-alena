@@ -292,6 +292,42 @@ export default function GamificationAdmin() {
                 </CardContent>
               </Card>
 
+              {/* הגדרות קופסת הפתעה */}
+              <Card className="border-2 border-purple-200 bg-purple-50">
+                <CardHeader><CardTitle>🎲 הגדרות קופסת הפתעה</CardTitle></CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <label className="text-sm font-medium whitespace-nowrap">% סיכוי לפרס אמיתי:</label>
+                    <Input
+                      type="number" min="0" max="100"
+                      value={lootSettings.realRewardChance}
+                      onChange={e => setLootSettings(p => ({ ...p, realRewardChance: Number(e.target.value) }))}
+                      className="w-20"
+                    />
+                    <span className="text-sm text-gray-500">(שאר הסיכוי = מטבעות)</span>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-sm font-medium">אפשרויות מטבעות (מופרדות בפסיק):</label>
+                    <Input
+                      placeholder="10,25,50,100,200"
+                      value={lootSettings.coinPrizes}
+                      onChange={e => setLootSettings(p => ({ ...p, coinPrizes: e.target.value }))}
+                    />
+                    <p className="text-xs text-gray-500">כל ערך = כמות שווה. לדוגמה: 10,25,50,100,200</p>
+                  </div>
+                  <Button
+                    onClick={() => {
+                      localStorage.setItem('lootbox_settings', JSON.stringify(lootSettings));
+                      setLootSettingsSaved(true);
+                      setTimeout(() => setLootSettingsSaved(false), 2000);
+                    }}
+                    className="bg-purple-600 hover:bg-purple-700 text-white font-bold"
+                  >
+                    {lootSettingsSaved ? '✅ נשמר!' : '💾 שמור הגדרות'}
+                  </Button>
+                </CardContent>
+              </Card>
+
               {/* רשימת פרסים קיימים */}
               {rewards.length === 0 && (
                 <Card><CardContent className="p-6 text-center text-gray-500">אין פרסים עדיין — הוסף את הראשון!</CardContent></Card>
