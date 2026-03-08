@@ -76,13 +76,12 @@ const employeeLinks = [
 
   // כלי עבודה יומיים
   { title: "כלי עבודה יומיים", url: "#", icon: Zap, isCategory: true },
-  { title: "תדריכים", url: createPageUrl("BriefingManagement"), icon: Megaphone, isSubItem: true },
+  { title: "תדריכים", url: createPageUrl("BriefingManagement"), icon: Megaphone, isSubItem: true }, // Added for employees
   { title: "השולחנות שלי", url: createPageUrl("WaiterTables"), icon: Utensils, isSubItem: true },
   { title: "ניהול הושבה", url: createPageUrl("SeatingSetup"), icon: Map, isSubItem: true },
   { title: "צ'קליסטים", url: createPageUrl("Checklists"), icon: CheckSquare, isSubItem: true },
   { title: "דיווח תקרית", url: createPageUrl("Incidents"), icon: AlertTriangle, isSubItem: true },
   { title: "דוח סיום משמרת", url: createPageUrl("ShiftEndReport"), icon: ClipboardCheck, isSubItem: true },
-  { title: "🛍️ חנות אוואטר", url: createPageUrl("AvatarShop"), icon: Sparkles, isSubItem: true },
 
   // מעקב אישי
   { title: "מעקב אישי", url: "#", icon: BarChart3, isCategory: true },

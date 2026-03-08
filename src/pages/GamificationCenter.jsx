@@ -10,18 +10,6 @@ import ShoutOutFeed from '../components/gamification/ShoutOutFeed';
 import DailyChallengeCard from '../components/gamification/DailyChallengeCard';
 import BadgesDisplay, { computeBadges } from '../components/gamification/BadgesDisplay';
 import AvatarUploader from '../components/gamification/AvatarUploader';
-import WhatsAppAvatar, { AvatarRenderer } from '../components/gamification/WhatsAppAvatar';
-
-// תצוגה מיני של האווטר בכרטיס הפרופיל
-function AvatarPreview({ employeeId }) {
-  const faceUrl = localStorage.getItem(`avatar_face_${employeeId}`) || null;
-  const skin = (() => { try { return JSON.parse(localStorage.getItem(`avatar_skin_${employeeId}`) || 'null') || { color: '#d4a574' }; } catch { return { color: '#d4a574' }; } })();
-  const hair = (() => { try { return JSON.parse(localStorage.getItem(`avatar_hair_${employeeId}`) || 'null') || { type: 'long', color: '#3f2817' }; } catch { return { type: 'long', color: '#3f2817' }; } })();
-  const eyes = (() => { try { return JSON.parse(localStorage.getItem(`avatar_eyes_${employeeId}`) || 'null') || { color: '#6b4226', direction: 0 }; } catch { return { color: '#6b4226', direction: 0 }; } })();
-  const body = (() => { try { return JSON.parse(localStorage.getItem(`avatar_body_${employeeId}`) || 'null') || { type: 'shirt', color: '#3b82f6', accent: '#fbbf24' }; } catch { return { type: 'shirt', color: '#3b82f6', accent: '#fbbf24' }; } })();
-  const accessories = (() => { try { return JSON.parse(localStorage.getItem(`avatar_accessories_${employeeId}`) || 'null') || []; } catch { return []; } })();
-  return <AvatarRenderer faceUrl={faceUrl} skin={skin} hair={hair} eyes={eyes} body={body} accessories={accessories} />;
-}
 import { Sun, Palette } from 'lucide-react';
 
 const RANKS = [
@@ -171,12 +159,15 @@ export default function GamificationCenter() {
               <div className="flex flex-col items-center gap-1 flex-shrink-0">
                 <button
                   onClick={() => setShowAvatarPicker(true)}
-                  className="w-20 h-20 rounded-2xl bg-white/20 hover:bg-white/30 transition-all shadow-lg border-2 border-white/40 overflow-hidden flex items-center justify-center"
-                  title="פתח בונה אווטר"
+                  className="w-20 h-20 rounded-full bg-white/20 flex items-center justify-center hover:bg-white/30 transition-all shadow-lg border-2 border-white/40 overflow-hidden"
+                  title="שנה אווטאר"
                 >
-                  <AvatarPreview employeeId={employee?.id || 'guest'} />
+                  {avatarIsImage
+                    ? <img src={avatar} alt="avatar" className="w-full h-full object-cover" />
+                    : <span className="text-4xl">{avatar}</span>
+                  }
                 </button>
-                <span className="text-white/60 text-xs">✏️ עצב</span>
+                <span className="text-white/60 text-xs">✏️ שנה</span>
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-white/80 text-sm">שלום,</p>
@@ -309,16 +300,37 @@ export default function GamificationCenter() {
 
       {/* דיאלוג בחירת אווטאר */}
       <Dialog open={showAvatarPicker} onOpenChange={setShowAvatarPicker}>
-        <DialogContent dir="rtl" className="max-w-sm w-[95vw] max-h-[90vh] overflow-y-auto">
+        <DialogContent dir="rtl" className="max-w-sm w-[95vw] max-h-[85vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="text-center">🧑‍🎤 בנה את האווטר שלך</DialogTitle>
+            <DialogTitle className="text-center">🖼️ האווטר שלי</DialogTitle>
           </DialogHeader>
-          <WhatsAppAvatar
-           balance={balance}
-           employeeId={employee?.id || 'guest'}
-           employeeName={employee?.full_name || user?.full_name || ''}
-           onSpendCoins={handleSpendCoins}
-          />
+          <div className="space-y-3">
+            {/* אמוג'ים מהירים */}
+            <div>
+              <p className="text-xs text-gray-500 mb-1.5 font-medium">אמוג'י מהיר:</p>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(8, 1fr)', gap: '4px' }}>
+                {AVATAR_OPTIONS.map(a => (
+                  <button
+                    key={a}
+                    onClick={() => setAndSaveAvatar(a, false)}
+                    className={`text-2xl rounded p-1 hover:bg-yellow-100 transition-all aspect-square flex items-center justify-center ${!avatarIsImage && avatar === a ? 'bg-yellow-200 ring-2 ring-yellow-500' : ''}`}
+                  >
+                    {a}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {/* קו הפרדה */}
+            <div className="border-t pt-3">
+              <p className="text-xs text-gray-500 mb-2 font-medium">📷 תמונה אישית / 🤖 AI:</p>
+              <AvatarUploader
+                currentAvatar={avatarIsImage ? avatar : null}
+                balance={balance}
+                onSave={(url) => setAndSaveAvatar(url, true)}
+                onSpendCoins={handleSpendCoins}
+              />
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
 
