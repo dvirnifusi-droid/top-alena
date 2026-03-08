@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Clock, Coffee, Play, Square, UtensilsCrossed, CheckCircle } from 'lucide-react';
+import LootBox from '../gamification/LootBox';
 import { format } from 'date-fns';
 
 export default function ShiftClockWidget() {
@@ -23,6 +24,8 @@ export default function ShiftClockWidget() {
     const [feedbackNotes, setFeedbackNotes] = useState('');
     const [editBreakMinutes, setEditBreakMinutes] = useState('');
     const [editBreakByManager, setEditBreakByManager] = useState(false);
+    const [showLootBox, setShowLootBox] = useState(false);
+    const [lootBoxEmployee, setLootBoxEmployee] = useState(null);
     const [managerPassword, setManagerPassword] = useState('');
     const [breakEditUnlocked, setBreakEditUnlocked] = useState(false);
     const MANAGER_CODE = '1234'; // קוד מנהל - ניתן לשנות
@@ -264,8 +267,13 @@ export default function ShiftClockWidget() {
         setEditBreakMinutes('');
         setBreakEditUnlocked(false);
         setEditBreakByManager(false);
+
+        // שמור פרטי עובד לקופסת הפתעה
+        const empRecord = await findEmployeeRecord(user);
+        setLootBoxEmployee({ id: empRecord?.id || user.id, name: user.full_name });
         setActiveShift(null);
         setActionLoading(false);
+        setShowLootBox(true);
     };
 
     const getElapsedDisplay = (startTime) => {
@@ -538,6 +546,15 @@ export default function ShiftClockWidget() {
                     </div>
                 </DialogContent>
             </Dialog>
+
+            {/* קופסת הפתעה */}
+            {showLootBox && lootBoxEmployee && (
+                <LootBox
+                    employeeId={lootBoxEmployee.id}
+                    employeeName={lootBoxEmployee.name}
+                    onDone={() => setShowLootBox(false)}
+                />
+            )}
 
             {/* דיאלוג ארוחה */}
             <Dialog open={showMealDialog} onOpenChange={setShowMealDialog}>
