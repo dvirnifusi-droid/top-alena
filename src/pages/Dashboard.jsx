@@ -200,6 +200,24 @@ function SmartToolsPanel() {
     const [employee, setEmployee] = useState(null);
     const [balance, setBalance] = useState(0);
 
+    useEffect(() => {
+        const loadData = async () => {
+            try {
+                const user = await base44.auth.me();
+                const emps = await base44.entities.Employee.filter({ email: user.email });
+                if (emps.length > 0) {
+                    setEmployee(emps[0]);
+                    const trans = await base44.entities.CoinTransaction.filter({ employee_id: emps[0].id });
+                    const sum = trans.reduce((acc, t) => acc + (t.amount || 0), 0);
+                    setBalance(sum);
+                }
+            } catch (e) {
+                console.error('Failed to load employee data:', e);
+            }
+        };
+        loadData();
+    }, []);
+
     const tools = [
         {
             component: AiQuickAdd,
