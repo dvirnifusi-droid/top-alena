@@ -182,17 +182,47 @@ export default function CharacterLounge() {
 }
 
 function CharacterCard({ employee, apparel, coins, isCurrentUser, onSelect }) {
+  const [avatarUrl, setAvatarUrl] = React.useState(apparel?.avatar_url);
+  const [isGenerating, setIsGenerating] = React.useState(!apparel?.avatar_url);
+
+  React.useEffect(() => {
+    if (!apparel?.avatar_url && apparel?.employee_id && isGenerating) {
+      // Generate default avatar if missing
+      const generateDefault = async () => {
+        try {
+          const prompt = `Create a 3D character avatar portrait of a happy restaurant staff member named ${employee.full_name}. Pixar/Fortnite animation style, smiling face, professional appearance. Solid white background, studio lighting, high quality 3D render. Just show the character, no background.`;
+          const { url } = await base44.integrations.Core.GenerateImage({ prompt });
+          setAvatarUrl(url);
+          
+          // Save to DB
+          try {
+            await base44.entities.EmployeeApparel.update(apparel.id, { avatar_url: url });
+          } catch (e) {
+            console.error('Error saving generated avatar:', e);
+          }
+        } catch (error) {
+          console.error('Error generating avatar:', error);
+        }
+        setIsGenerating(false);
+      };
+      
+      generateDefault();
+    }
+  }, [apparel?.id, apparel?.employee_id, apparel?.avatar_url, employee.full_name, isGenerating]);
+
   return (
     <div className="flex flex-col items-center cursor-pointer group" onClick={onSelect}>
       {/* Avatar container */}
       <div className="relative mb-3">
         <div className="w-24 h-32 rounded-xl bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center overflow-hidden border-4 border-white shadow-lg hover:shadow-2xl transition-all duration-300 group-hover:scale-110">
-          {apparel?.avatar_url ? (
+          {avatarUrl ? (
             <img 
-              src={apparel.avatar_url} 
+              src={avatarUrl} 
               alt={employee.full_name}
               className="w-full h-full object-cover"
             />
+          ) : isGenerating ? (
+            <div className="text-3xl animate-spin">⏳</div>
           ) : (
             <div className="text-5xl">{employee.full_name.charAt(0)}</div>
           )}
