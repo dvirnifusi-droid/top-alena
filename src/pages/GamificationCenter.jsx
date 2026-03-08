@@ -264,7 +264,7 @@ export default function GamificationCenter() {
           </TabsList>
 
           <TabsContent value="badges" className="mt-3">
-            <Card className={isDark ? 'bg-white/10 border-white/20' : ''}>
+            <Card>
               <CardContent className="p-4">
                 <BadgesDisplay balance={balance} transactions={transactions} />
               </CardContent>
