@@ -102,9 +102,10 @@ const employeeLinks = [
 // CSS Variables per theme - applied globally
 const THEME_VARS = {
   light:  '',
-  dark:   `--background:222 47% 8%;--foreground:210 40% 98%;--card:222 47% 11%;--card-foreground:210 40% 98%;--muted:217 33% 17%;--muted-foreground:215 20% 65%;--border:217 33% 20%;--primary:152 53% 35%;--primary-foreground:0 0% 100%;--accent:33 95% 44%;`,
-  purple: `--background:265 50% 8%;--foreground:270 40% 98%;--card:265 50% 12%;--card-foreground:270 40% 98%;--muted:265 30% 18%;--muted-foreground:270 20% 65%;--border:265 30% 22%;--primary:270 70% 60%;--primary-foreground:0 0% 100%;--accent:33 95% 44%;`,
-  green:  `--background:160 40% 7%;--foreground:150 40% 96%;--card:160 40% 11%;--card-foreground:150 40% 96%;--muted:160 25% 17%;--muted-foreground:150 20% 62%;--border:160 25% 21%;--primary:152 53% 40%;--primary-foreground:0 0% 100%;--accent:33 95% 44%;`,
+  purple: `--background:270 60% 97%;--foreground:270 30% 20%;--card:0 0% 100%;--card-foreground:270 30% 20%;--muted:270 40% 93%;--muted-foreground:270 15% 50%;--border:270 30% 85%;--input:270 30% 85%;--primary:270 65% 55%;--primary-foreground:0 0% 100%;--accent:270 65% 55%;--ring:270 65% 55%;`,
+  green:  `--background:145 50% 96%;--foreground:145 30% 18%;--card:0 0% 100%;--card-foreground:145 30% 18%;--muted:145 35% 91%;--muted-foreground:145 15% 48%;--border:145 25% 83%;--input:145 25% 83%;--primary:152 55% 38%;--primary-foreground:0 0% 100%;--accent:152 55% 38%;--ring:152 55% 38%;`,
+  pink:   `--background:340 60% 97%;--foreground:340 30% 20%;--card:0 0% 100%;--card-foreground:340 30% 20%;--muted:340 40% 93%;--muted-foreground:340 15% 50%;--border:340 30% 85%;--input:340 30% 85%;--primary:340 70% 55%;--primary-foreground:0 0% 100%;--accent:340 70% 55%;--ring:340 70% 55%;`,
+  blue:   `--background:215 60% 97%;--foreground:215 30% 18%;--card:0 0% 100%;--card-foreground:215 30% 18%;--muted:215 40% 92%;--muted-foreground:215 15% 48%;--border:215 30% 84%;--input:215 30% 84%;--primary:215 70% 50%;--primary-foreground:0 0% 100%;--accent:215 70% 50%;--ring:215 70% 50%;`,
 };
 
 export default function Layout({ children, currentPageName }) {
