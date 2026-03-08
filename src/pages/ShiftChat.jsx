@@ -252,23 +252,24 @@ export default function ShiftChat() {
                 </div>
             </div>
 
-            {/* צד ימין - בחר הלבוש */}
-            <div className="lg:col-span-1 bg-white rounded-xl border border-slate-200 p-4">
-                <h2 className="text-lg font-bold text-slate-800 mb-4">🎨 הדמות שלי</h2>
-                {currentEmployee ? (
-                    <ApparelCustomizer 
-                        employeeId={currentEmployee.id}
-                        employeeAvatar={currentEmployee.avatar_url}
-                        onAvatarUpdate={async (newUrl) => {
-                            await base44.entities.Employee.update(currentEmployee.id, { avatar_url: newUrl });
-                        }}
-                        balance={0}
-                    />
-                ) : (
-                    <div className="text-sm text-slate-500 text-center py-4">
-                        טוען פרטים...
-                    </div>
-                )}
+                {/* צד ימין - בחר הלבוש */}
+                <div className="lg:col-span-1 bg-white rounded-xl border border-slate-200 p-4">
+                    <h2 className="text-lg font-bold text-slate-800 mb-4">🎨 הדמות שלי</h2>
+                    {currentEmployee ? (
+                        <ApparelCustomizer 
+                            employeeId={currentEmployee.id}
+                            employeeAvatar={currentEmployee.avatar_url}
+                            onAvatarUpdate={async (newUrl) => {
+                                await base44.entities.Employee.update(currentEmployee.id, { avatar_url: newUrl });
+                            }}
+                            balance={0}
+                        />
+                    ) : (
+                        <div className="text-sm text-slate-500 text-center py-4">
+                            טוען פרטים...
+                        </div>
+                    )}
+                </div>
             </div>
         </div>
     );
