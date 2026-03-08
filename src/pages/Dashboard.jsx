@@ -507,39 +507,46 @@ function DashboardInner() {
                     <QuickStats />
                 </section>
 
-                {/* 📈 מידע בזמן אמת */}
-                <section>
-                    <h2 className="text-2xl font-bold text-slate-900 mb-4 flex items-center gap-2">
-                        📈 מידע בזמן אמת
-                    </h2>
-                    <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-                        <div className="xl:col-span-2">
-                            <SalesChart />
-                        </div>
-                        <div>
-                            <TableStatus />
-                        </div>
-                        <TodayReservations />
+                {/* 📈 מכירות וממשקים */}
+                 <section>
+                     <h2 className="text-2xl font-bold text-slate-900 mb-4 flex items-center gap-2">
+                         📈 מכירות וביצועים
+                     </h2>
+                     <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+                         <div className="xl:col-span-2">
+                             <SalesChart />
+                         </div>
                          <div>
                              <ActiveEmployeesWidget />
                          </div>
                          <div>
                              <BriefReadersWidget />
                          </div>
-                    </div>
-                </section>
+                         <Link to={createPageUrl('Tips')} className="block">
+                             <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full">
+                                 <CardHeader>
+                                     <CardTitle className="flex items-center gap-2 text-lg">
+                                         💰 ניהול טיפים
+                                     </CardTitle>
+                                 </CardHeader>
+                                 <CardContent>
+                                     <p className="text-sm text-gray-600">עקוב וחלק טיפים בקלות</p>
+                                 </CardContent>
+                             </Card>
+                         </Link>
+                     </div>
+                 </section>
 
-                {/* 🔍 מעקב ובקרה */}
-                <section>
-                    <h2 className="text-2xl font-bold text-slate-900 mb-4 flex items-center gap-2">
-                        🔍 מעקב ובקרה
-                    </h2>
-                    <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-                        <RecentIncidents />
-                        <TrainingOverview />
-                        <ChecklistStatus />
-                    </div>
-                </section>
+                 {/* 🔍 מעקב ובקרה */}
+                 <section>
+                     <h2 className="text-2xl font-bold text-slate-900 mb-4 flex items-center gap-2">
+                         🔍 מעקב ובקרה
+                     </h2>
+                     <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+                         <RecentIncidents />
+                         <ChecklistStatus />
+                     </div>
+                 </section>
             </div>
         </div>
     );
