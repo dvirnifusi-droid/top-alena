@@ -64,30 +64,40 @@ export default function ApparelCustomizer({ employeeId, employeeAvatar, onAvatar
   }, [employeeAvatar]);
 
   const handleEquip = async (itemId, category) => {
-    if (regenerating) return;
+    // עדכן את הביגדים בלי ליצור אוואטר חדש
+    const updated = { ...equipped, [category]: itemId };
+    setEquipped(updated);
 
+    // עדכן ב-DB
+    if (employeeApparelId) {
+      await base44.entities.EmployeeApparel.update(employeeApparelId, updated);
+    }
+  };
+
+  const handleUpdateAvatar = async () => {
+    if (regenerating) return;
     setRegenerating(true);
+
     try {
-      // בנה את ה-wearing text מהביגדים החדשים
       const apparelItems = [];
-      if (category === 'shirt' || equipped.shirt) {
-        const shirt = apparel.find(a => a.id === (category === 'shirt' ? itemId : equipped.shirt));
+      if (equipped.shirt) {
+        const shirt = apparel.find(a => a.id === equipped.shirt);
         if (shirt) apparelItems.push(shirt.wearing_text);
       }
-      if (category === 'pants' || equipped.pants) {
-        const pants = apparel.find(a => a.id === (category === 'pants' ? itemId : equipped.pants));
+      if (equipped.pants) {
+        const pants = apparel.find(a => a.id === equipped.pants);
         if (pants) apparelItems.push(pants.wearing_text);
       }
-      if (category === 'shoes' || equipped.shoes) {
-        const shoes = apparel.find(a => a.id === (category === 'shoes' ? itemId : equipped.shoes));
+      if (equipped.shoes) {
+        const shoes = apparel.find(a => a.id === equipped.shoes);
         if (shoes) apparelItems.push(shoes.wearing_text);
       }
-      if (category === 'hat' || equipped.hat) {
-        const hat = apparel.find(a => a.id === (category === 'hat' ? itemId : equipped.hat));
+      if (equipped.hat) {
+        const hat = apparel.find(a => a.id === equipped.hat);
         if (hat) apparelItems.push(hat.wearing_text);
       }
-      if (category === 'outerwear' || equipped.outerwear) {
-        const outerwear = apparel.find(a => a.id === (category === 'outerwear' ? itemId : equipped.outerwear));
+      if (equipped.outerwear) {
+        const outerwear = apparel.find(a => a.id === equipped.outerwear);
         if (outerwear) apparelItems.push(outerwear.wearing_text);
       }
       equipped.accessories?.forEach(accId => {
@@ -98,28 +108,16 @@ export default function ApparelCustomizer({ employeeId, employeeAvatar, onAvatar
       const wearingText = apparelItems.join(', ');
       const prompt = `Full body 3D stylized character avatar, Pixar/Fortnite style, standing in a neutral T-pose. Character ${wearingText || 'wearing a basic grey t-shirt and blue jeans'}. High-quality 3D render, studio lighting, solid white background. Professional 3D game character design.`;
 
-      // טען את התמונה הנוכחית (נדרוש שתשמרו את URL בשדה)
       const { url } = await base44.integrations.Core.GenerateImage({
         prompt
       });
 
-      // עדכן את הביגדים בעובד
-      const updated = { ...equipped, [category]: itemId };
-      setEquipped(updated);
-
-      // עדכן ב-DB
-      if (employeeApparelId) {
-        await base44.entities.EmployeeApparel.update(employeeApparelId, updated);
-      }
-
-      // עדכן את האווטר
       setCurrentAvatarUrl(url);
       onAvatarUpdate(url);
 
-      // אפקט חגיגי
       if (window.triggerConfetti) window.triggerConfetti();
     } catch (error) {
-      console.error('Error updating apparel:', error);
+      console.error('Error updating avatar:', error);
     }
     setRegenerating(false);
   };
