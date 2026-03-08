@@ -3,15 +3,16 @@ import { Button } from '@/components/ui/button';
 import { base44 } from '@/api/base44Client';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
-export default function ApparelShop({ employeeId, balance, onPurchase, currentApparel }) {
+export default function ApparelShop({ employeeId, balance, onPurchase, onApparelUpdate, currentApparel }) {
   const [apparel, setApparel] = useState([]);
   const [ownedApparel, setOwnedApparel] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedFilter, setSelectedFilter] = useState('all');
+  const [employeeApparelId, setEmployeeApparelId] = useState(null);
 
   useEffect(() => {
     loadApparel();
-  }, []);
+  }, [employeeId]);
 
   const loadApparel = async () => {
     const items = await base44.entities.Apparel.list();
@@ -19,6 +20,7 @@ export default function ApparelShop({ employeeId, balance, onPurchase, currentAp
     
     const employed = await base44.entities.EmployeeApparel.filter({ employee_id: employeeId });
     if (employed.length > 0) {
+      setEmployeeApparelId(employed[0].id);
       setOwnedApparel(employed[0].owned_apparel || []);
     }
     setLoading(false);
@@ -29,8 +31,22 @@ export default function ApparelShop({ employeeId, balance, onPurchase, currentAp
       alert(`אין מספיק מטבעות! נדרשים ${item.cost} 🪙`);
       return;
     }
+
+    const newOwned = [...ownedApparel, item.id];
+    setOwnedApparel(newOwned);
+
+    // עדכן ב-DB
+    if (employeeApparelId) {
+      await base44.entities.EmployeeApparel.update(employeeApparelId, { owned_apparel: newOwned });
+    }
+
+    // קרא ל-callback של ההוצאה
     await onPurchase(item);
-    setOwnedApparel(prev => [...prev, item.id]);
+    
+    // עדכן את הדמות להציג את הפריט החדש אוטומטית
+    if (onApparelUpdate) {
+      onApparelUpdate(item);
+    }
   };
 
   const isOwned = (id) => ownedApparel.includes(id);
