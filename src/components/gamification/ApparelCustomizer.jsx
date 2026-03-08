@@ -152,13 +152,7 @@ export default function ApparelCustomizer({ employeeId, employeeAvatar, onAvatar
                  </div>
                );
              })}
-            <Button 
-              onClick={handleUpdateAvatar} 
-              disabled={regenerating}
-              className="w-full mt-4 bg-green-500 hover:bg-green-600"
-            >
-              {regenerating ? 'מעדכן דמות...' : '✨ עדכן דמות עם הלבוש החדש'}
-            </Button>
+
            </div>
          </DialogContent>
        </Dialog>
