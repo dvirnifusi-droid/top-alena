@@ -5,21 +5,11 @@ import { base44 } from '@/api/base44Client';
 const UPGRADE_COST = 50; // מטבעות לשיפור AI
 
 export default function AvatarUploader({ currentAvatar, balance, onSave, onSpendCoins }) {
-  const [tab, setTab] = useState('upload'); // 'upload' | 'ai'
   const [uploading, setUploading] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [uploadedUrl, setUploadedUrl] = useState(null);
   const [aiResult, setAiResult] = useState(null);
-  const [aiStyle, setAiStyle] = useState('cartoon');
   const fileRef = useRef();
-
-  const AI_STYLES = [
-    { id: 'cartoon',    label: '🎨 קריקטורה',         cost: UPGRADE_COST,      prompt: 'Convert this photo into a fun cartoon avatar character, vibrant colors, anime-inspired style' },
-    { id: 'pixel',      label: '👾 פיקסל ארט',        cost: UPGRADE_COST,      prompt: 'Convert this photo into a retro pixel art avatar, 8-bit style, colorful' },
-    { id: '3d_avatar',  label: '🧑‍🤝‍🧑 3D אווטר',        cost: UPGRADE_COST * 2,  prompt: 'Convert this photo into a 3D avatar with full body and face, wearing casual clothes, professional 3D character design, clean white background, portrait-style pose showing head and torso' },
-    { id: 'hero',       label: '🦸 גיבור על',         cost: UPGRADE_COST * 2,  prompt: 'Convert this photo into a superhero comic book avatar, bold lines, dynamic pose' },
-    { id: 'gold',       label: '👑 אלוף זהב',         cost: UPGRADE_COST * 3,  prompt: 'Convert this photo into a golden royal portrait avatar, majestic, glowing golden crown' },
-  ];
 
   const handleFileChange = async (e) => {
     const file = e.target.files?.[0];
@@ -27,6 +17,16 @@ export default function AvatarUploader({ currentAvatar, balance, onSave, onSpend
     setUploading(true);
     const { file_url } = await base44.integrations.Core.UploadFile({ file });
     setUploadedUrl(file_url);
+    
+    // אוטומטית להפיק 3D avatar
+    setGenerating(true);
+    setAiResult(null);
+    const { url } = await base44.integrations.Core.GenerateImage({
+      prompt: 'Convert this photo into a professional 3D avatar with full body and face, wearing casual clothes, character design with clean white background, showing head and torso, friendly expression, high quality 3D illustration',
+      existing_image_urls: [file_url]
+    });
+    setAiResult(url);
+    setGenerating(false);
     setUploading(false);
   };
 
