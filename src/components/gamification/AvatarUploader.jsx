@@ -83,12 +83,34 @@ export default function AvatarUploader({ currentAvatar, balance, onSave, onSpend
       {aiResult && (
         <div className="space-y-3 text-center p-4 bg-green-50 rounded-xl border-2 border-green-300">
           <p className="font-bold text-green-700">🎉 האווטר שלך מוכן!</p>
-          <img src={aiResult} alt="ai avatar" className="w-20 h-20 rounded-full object-cover mx-auto border-4 border-green-500 shadow-lg" />
-          <Button onClick={() => handleSave(aiResult)} className="w-full bg-green-600 hover:bg-green-700 text-white font-bold">
-            ✨ שמור כאווטר שלי
-          </Button>
+          <img src={aiResult} alt="ai avatar" className="w-20 h-20 rounded-full object-cover mx-auto border-4 border-green-500 shadow-lg cursor-pointer hover:opacity-80" onClick={() => setShowPreview(true)} />
+          <div className="flex gap-2">
+            <Button onClick={() => handleSave(aiResult)} className="flex-1 bg-green-600 hover:bg-green-700 text-white font-bold">
+              ✨ שמור כאווטר שלי
+            </Button>
+            <Button onClick={() => setShowPreview(true)} variant="outline" className="flex-1">
+              👁️ צפה בהגדלה
+            </Button>
+          </div>
         </div>
       )}
+
+      <Dialog open={showPreview} onOpenChange={setShowPreview}>
+        <DialogContent className="max-w-2xl p-0 border-0">
+          <DialogTitle className="sr-only">תצוגה מקדימה של האווטר</DialogTitle>
+          <div className="relative bg-gradient-to-b from-blue-50 to-white p-8 rounded-xl flex flex-col items-center gap-4">
+            <img src={aiResult} alt="avatar fullscreen" className="w-full max-h-[70vh] object-contain" />
+            <div className="flex gap-2 w-full">
+              <Button onClick={() => handleSave(aiResult)} className="flex-1 bg-green-600 hover:bg-green-700 text-white font-bold">
+                ✨ שמור כאווטר שלי
+              </Button>
+              <Button onClick={() => setShowPreview(false)} variant="outline" className="flex-1">
+                סגור
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
