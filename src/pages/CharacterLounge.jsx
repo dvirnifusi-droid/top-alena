@@ -26,7 +26,7 @@ export default function CharacterLounge() {
         const empList = await base44.entities.Employee.list();
         setEmployees(empList);
 
-        // Load apparel for all employees - just need avatar_url if stored
+        // Load apparel for all employees
         const apparel = await base44.entities.EmployeeApparel.list();
         const apparelByEmp = {};
         
@@ -35,7 +35,7 @@ export default function CharacterLounge() {
         });
         setApparelMap(apparelByEmp);
 
-        // Load coins for all employees from latest transactions
+        // Load coins for all employees
         const transactions = await base44.entities.CoinTransaction.list();
         const coinsByEmp = {};
         
@@ -59,7 +59,47 @@ export default function CharacterLounge() {
     };
 
     loadData();
-  }, []);
+
+    // Subscribe to EmployeeApparel updates
+    const unsubscribeApparel = base44.entities.EmployeeApparel.subscribe((event) => {
+      if (event.type === 'update') {
+        setApparelMap(prev => ({
+          ...prev,
+          [event.data.employee_id]: event.data
+        }));
+      }
+    });
+
+    // Subscribe to CoinTransaction updates
+    const unsubscribeCoins = base44.entities.CoinTransaction.subscribe((event) => {
+      if (event.type === 'create' || event.type === 'update') {
+        setCoinsMap(prev => {
+          const updated = { ...prev };
+          const transactions = [];
+          // Reload all transactions (simplified - in production could be more efficient)
+          base44.entities.CoinTransaction.list().then(txns => {
+            employees.forEach(emp => {
+              const empTransactions = txns.filter(t => t.employee_id === emp.id);
+              const totalCoins = empTransactions.reduce((sum, t) => {
+                if (t.status === 'approved') {
+                  return sum + (t.amount || 0);
+                }
+                return sum;
+              }, 0);
+              updated[emp.id] = Math.max(0, totalCoins);
+            });
+            setCoinsMap(updated);
+          });
+          return prev;
+        });
+      }
+    });
+
+    return () => {
+      unsubscribeApparel();
+      unsubscribeCoins();
+    };
+  }, [employees]);
 
   if (loading) {
     return (
