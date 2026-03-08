@@ -197,6 +197,23 @@ export default function ApparelCustomizer({ employeeId, employeeAvatar, onAvatar
     setShowUploadDialog(false);
   };
 
+  const handlePublishAvatar = async () => {
+    if (!currentAvatarUrl) {
+      alert('אין דמות להצגה. אנא הגדר דמות תחילה.');
+      return;
+    }
+    
+    if (employeeApparelId) {
+      try {
+        await base44.entities.EmployeeApparel.update(employeeApparelId, { avatar_url: currentAvatarUrl });
+        alert('✅ הדמות שלך פורסמה בסלון הדמויות!');
+      } catch (error) {
+        console.error('Error publishing avatar:', error);
+        alert('שגיאה בפרסום הדמות');
+      }
+    }
+  };
+
 
 
   if (loading) return <div>טוען...</div>;
