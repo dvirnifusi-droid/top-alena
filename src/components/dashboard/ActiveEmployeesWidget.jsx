@@ -14,18 +14,17 @@ export default function ActiveEmployeesWidget() {
         // חיפוש עובדים שנכנסו בפועל היום
         const today = new Date().toISOString().split('T')[0];
         
-        // ספיקת עובדים שנכנסו למשמרת (בעל check_in_time היום)
-        const shiftTracking = await base44.entities.ShiftTracking.filter({});
+        // ספיקת עובדים שנכנסו למשמרת (status: active או on_break)
+        const shiftTracking = await base44.entities.ShiftTracking.filter({
+          date: today,
+        });
         
         const active = [];
-        const seen = new Set();
         
         for (const tracking of shiftTracking) {
-          if (tracking.check_in_time && tracking.check_in_time.startsWith(today) && !seen.has(tracking.employee_id)) {
-            seen.add(tracking.employee_id);
-            
-            // קבל את זמן הכניסה
-            const checkInDateTime = new Date(tracking.check_in_time);
+          // בדוק אם העובד בעבודה כעת (active או on_break)
+          if (tracking.status === 'active' || tracking.status === 'on_break') {
+            const checkInDateTime = new Date(tracking.shift_start);
             const checkInTime = checkInDateTime.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
             
             active.push({
