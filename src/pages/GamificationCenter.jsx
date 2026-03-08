@@ -9,13 +9,7 @@ import ConfettiEffect from '../components/gamification/ConfettiEffect';
 import ShoutOutFeed from '../components/gamification/ShoutOutFeed';
 import DailyChallengeCard from '../components/gamification/DailyChallengeCard';
 
-const REWARDS = [
-  { id: 'meal', title: 'ארוחה חינם במשמרת 🍽️', cost: 500, emoji: '🍽️', description: 'ארוחת עובד על הבית' },
-  { id: 'early_exit', title: 'יציאה מוקדמת ⏰', cost: 2000, emoji: '⏰', description: 'יציאה מוקדמת ביום לבחירתך' },
-  { id: 'bonus', title: 'בונוס כספי 200₪ 💵', cost: 5000, emoji: '💵', description: 'בונוס כספי אמיתי' },
-  { id: 'day_off', title: 'יום חופש 🏖️', cost: 8000, emoji: '🏖️', description: 'יום חופש מיוחד' },
-  { id: 'gift', title: 'כרטיס מתנה 50₪ 🎁', cost: 1500, emoji: '🎁', description: 'כרטיס מתנה לרשת לבחירתך' },
-];
+
 
 const RANKS = [
   { min: 0, max: 499, title: 'מתחיל', emoji: '🥉', color: 'text-amber-600' },
@@ -35,6 +29,7 @@ export default function GamificationCenter() {
   const [showConfetti, setShowConfetti] = useState(false);
   const [confettiMsg, setConfettiMsg] = useState('');
   const [pendingRedemptions, setPendingRedemptions] = useState([]);
+  const [rewards, setRewards] = useState([]);
 
   useEffect(() => {
     init();
@@ -49,6 +44,8 @@ export default function GamificationCenter() {
     if (me) {
       loadTransactions(me.id);
     }
+    const rws = await base44.entities.Reward.filter({ is_active: true });
+    setRewards(rws);
   };
 
   const loadTransactions = async (empId) => {
@@ -70,7 +67,7 @@ export default function GamificationCenter() {
       type: 'redeemed',
       trigger: 'redemption',
       status: 'pending_approval',
-      redemption_reward: reward.id
+      redemption_reward: reward.id || reward.title
     });
     setShowRedeem(false);
     setSelectedReward(null);
@@ -193,7 +190,7 @@ export default function GamificationCenter() {
           </DialogHeader>
           <p className="text-center text-2xl font-black text-yellow-600 mb-4">{balance.toLocaleString()} 🪙 זמינים</p>
           <div className="space-y-3">
-            {REWARDS.map(reward => {
+            {rewards.map(reward => {
               const canAfford = balance >= reward.cost;
               return (
                 <button
