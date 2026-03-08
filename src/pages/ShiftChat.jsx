@@ -132,11 +132,22 @@ export default function ShiftChat() {
                 <div className="lg:col-span-2 flex flex-col">
             {/* כותרת */}
             <div className="mb-4">
-                <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
-                    <MessageCircle className="w-6 h-6 text-indigo-600" />
-                    צ'אט משמרת
-                </h1>
-                <p className="text-slate-500 text-sm mt-1">תקשורת פנימית לצוות המשמרת</p>
+                <div className="flex items-center gap-3">
+                    {currentEmployee?.avatar_url && (
+                        <img 
+                            src={currentEmployee.avatar_url} 
+                            alt="avatar" 
+                            className="w-12 h-12 rounded-full object-cover border-2 border-indigo-500 shadow-md flex-shrink-0"
+                        />
+                    )}
+                    <div>
+                        <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
+                            <MessageCircle className="w-6 h-6 text-indigo-600" />
+                            צ'אט משמרת
+                        </h1>
+                        <p className="text-slate-500 text-sm mt-1">תקשורת פנימית לצוות המשמרת</p>
+                    </div>
+                </div>
             </div>
 
             {/* בחירת ערוץ */}
