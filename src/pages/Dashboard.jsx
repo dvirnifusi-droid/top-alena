@@ -14,6 +14,7 @@ import ApparelCustomizer from '../components/gamification/ApparelCustomizer';
 import RecentIncidents from '../components/dashboard/RecentIncidents';
 import ChecklistStatus from '../components/dashboard/ChecklistStatus';
 import SalesChart from '../components/dashboard/SalesChart';
+import { useQuery } from '@tanstack/react-query';
 import AiQuickAdd from '../components/dashboard/AiQuickAdd';
 import SeatingAiHelper from '../components/dashboard/SeatingAiHelper';
 import InvoiceScanner from '../components/dashboard/InvoiceScanner';
