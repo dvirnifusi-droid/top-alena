@@ -750,6 +750,21 @@ export default function WorkScheduling() {
                 </div>
             )}
 
+            {/* בחר הלבוש - מודגש וזעיר */}
+            {currentEmployee && (
+                <div className="mb-4 p-3 bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg border-2 border-purple-200">
+                    <h3 className="text-sm font-bold text-slate-800 mb-2">🎨 התאימו את הדמות שלכם</h3>
+                    <ApparelCustomizer 
+                        employeeId={currentEmployee.id}
+                        employeeAvatar={currentEmployee.avatar_url}
+                        onAvatarUpdate={async (newUrl) => {
+                            await base44.entities.Employee.update(currentEmployee.id, { avatar_url: newUrl });
+                        }}
+                        balance={0}
+                    />
+                </div>
+            )}
+
             {/* Filters - for desktop */}
             <div className="hidden lg:block">
                 <Card className="mb-6">
