@@ -124,14 +124,6 @@ function QuickStats() {
 
     const statsData = [
         {
-            title: "הזמנות היום",
-            value: loading ? "טוען..." : realTimeData.todayReservations.toString(),
-            icon: Users,
-            color: "blue",
-            trend: "מניהול הושבה",
-            clickUrl: createPageUrl("TablesManagement")
-        },
-        {
             title: "מכירות היום",
             value: loading ? "טוען..." : `₪${realTimeData.todaySales.toLocaleString()}`,
             icon: TrendingUp,
