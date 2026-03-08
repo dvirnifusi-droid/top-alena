@@ -193,18 +193,42 @@ export default function ApparelCustomizer({ employeeId, employeeAvatar, onAvatar
 
   return (
     <div>
+      {/* תצוגת האוואטר המקורי */}
+      <div className="mb-4">
+        {currentAvatarUrl ? (
+          <div className="flex flex-col items-center gap-3">
+            <img src={currentAvatarUrl} alt="avatar" className="w-24 h-24 rounded-full object-cover border-4 border-purple-400 shadow-lg cursor-pointer hover:scale-110 transition-transform" onClick={() => setShowPreview(true)} title="לחץ להגדלה" />
+            <Button
+              onClick={() => setShowUploadDialog(true)}
+              variant="outline"
+              size="sm"
+              className="text-xs"
+            >
+              <Upload className="w-3 h-3 mr-1" /> החלף תמונה
+            </Button>
+          </div>
+        ) : (
+          <div className="flex flex-col items-center gap-3">
+            <div className="w-24 h-24 rounded-full bg-gray-200 border-4 border-gray-300 flex items-center justify-center text-gray-400 text-xs">
+              אין תמונה
+            </div>
+            <Button
+              onClick={() => setShowUploadDialog(true)}
+              size="sm"
+              className="bg-blue-600 hover:bg-blue-700 text-xs"
+            >
+              <Upload className="w-3 h-3 mr-1" /> העלה תמונה
+            </Button>
+          </div>
+        )}
+      </div>
+
       <Button
         onClick={() => setShowDialog(true)}
         className="w-full bg-purple-600 hover:bg-purple-700"
       >
         🎨 עדכן הלבוש
       </Button>
-
-      {currentAvatarUrl && (
-        <div className="mt-3 flex justify-center">
-          <img src={currentAvatarUrl} alt="avatar" className="w-24 h-24 rounded-full object-cover border-4 border-purple-400 shadow-lg cursor-pointer hover:scale-110 transition-transform" onClick={() => setShowPreview(true)} title="לחץ להגדלה" />
-        </div>
-      )}
 
       <Dialog open={showDialog} onOpenChange={setShowDialog}>
         <DialogContent className="max-w-2xl">
