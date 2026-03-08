@@ -142,6 +142,15 @@ export default function ApparelCustomizer({ employeeId, employeeAvatar, onAvatar
       if (onAvatarUpdate) {
         onAvatarUpdate(url);
       }
+      
+      // שמור את התמונה החדשה ל-DB
+      if (employeeApparelId) {
+        try {
+          await base44.entities.EmployeeApparel.update(employeeApparelId, { avatar_url: url });
+        } catch (error) {
+          console.error('Error saving avatar URL:', error);
+        }
+      }
     } catch (error) {
       console.error('Error updating avatar:', error);
       alert('שגיאה בעדכון הדמות');
