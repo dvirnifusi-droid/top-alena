@@ -87,8 +87,7 @@ export default function LootBox({ employeeId, employeeName, onDone }) {
       let result;
 
       if (realRewardChance < settings.realRewardChance && rewards.length > 0) {
-        const cheapRewards = rewards.filter(r => r.cost <= 1000);
-        const pool = cheapRewards.length > 0 ? cheapRewards : rewards;
+        const pool = rewards.filter(r => r.in_lootbox);
         const picked = pool[Math.floor(Math.random() * pool.length)];
         result = { type: 'reward', reward: picked };
         await base44.entities.CoinTransaction.create({
