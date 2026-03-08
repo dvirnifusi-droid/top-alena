@@ -3,23 +3,19 @@ import { base44 } from '@/api/base44Client';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 
-// פרסים ממטבעות: רנדומלי בין min ל-max
-const COIN_PRIZES = [
-  { weight: 50, coins: 10 },
-  { weight: 30, coins: 25 },
-  { weight: 15, coins: 50 },
-  { weight: 4,  coins: 100 },
-  { weight: 1,  coins: 200 },
-];
+function getLootSettings() {
+  try {
+    const saved = localStorage.getItem('lootbox_settings');
+    if (saved) return JSON.parse(saved);
+  } catch {}
+  return { realRewardChance: 15, coinPrizes: '10,25,50,100,200' };
+}
 
-function pickCoinPrize() {
-  const total = COIN_PRIZES.reduce((s, p) => s + p.weight, 0);
-  let r = Math.random() * total;
-  for (const p of COIN_PRIZES) {
-    r -= p.weight;
-    if (r <= 0) return p.coins;
-  }
-  return 10;
+function pickCoinPrize(coinPrizesStr) {
+  const prizes = (coinPrizesStr || '10,25,50,100,200')
+    .split(',').map(s => parseInt(s.trim())).filter(n => !isNaN(n) && n > 0);
+  if (prizes.length === 0) return 10;
+  return prizes[Math.floor(Math.random() * prizes.length)];
 }
 
 export default function LootBox({ employeeId, employeeName, onDone }) {
