@@ -399,11 +399,33 @@ function SmartToolsPanel() {
 }
 
 function DashboardInner() {
-    const [user, setUser] = React.useState(null);
+     const [user, setUser] = React.useState(null);
 
-    React.useEffect(() => {
-        User.me().then(setUser).catch(() => setUser(null));
-    }, []);
+     React.useEffect(() => {
+         User.me().then(setUser).catch(() => setUser(null));
+     }, []);
+
+     // Track dashboard view
+     React.useEffect(() => {
+         const trackDashboardView = async () => {
+             try {
+                 const currentUser = await base44.auth.me();
+                 if (currentUser) {
+                     const today = new Date().toISOString().split('T')[0];
+                     await base44.entities.DashboardView.create({
+                         user_email: currentUser.email,
+                         user_name: currentUser.full_name || currentUser.email,
+                         view_date: today,
+                         view_time: new Date().toISOString(),
+                         user_role: currentUser.role
+                     });
+                 }
+             } catch (error) {
+                 console.error('Failed to track dashboard view:', error);
+             }
+         };
+         trackDashboardView();
+     }, []);
 
     // תצוגה לעובדים רגילים
     if (user && user.role !== 'admin') {
