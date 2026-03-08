@@ -44,8 +44,18 @@ export default function AvatarUploader({ currentAvatar, balance, onSave, onSpend
 
 
 
-  const handleSave = (url) => {
+  const handleSave = async (url) => {
     setShowPreview(false);
+    
+    // שמור בחנות הביגדים את הבגדים הנוכחיים כברירת מחדל
+    const defaultApparel = [
+      { category: 'shirt', name: 'חולצה אפורה', wearing_text: 'wearing a basic grey t-shirt' },
+      { category: 'pants', name: 'ג\'ינס כחול', wearing_text: 'wearing blue jeans' }
+    ];
+    
+    // שמור לגלובל כדי שה-prompt הבא יוכל לגשת
+    window.__employeeApparel = defaultApparel;
+    
     onSave(url);
   };
 
