@@ -87,7 +87,7 @@ const BODY_FEMALE = (
   </svg>
 );
 
-// תצוגה ויזואלית של האווטר
+// תצוגה ויזואלית של האווטר - סגנון עיגול מעוצב
 export function AvatarDisplay({ faceUrl, gender, equipped, size = 'md', employeeName = '' }) {
   const getItem = (id) => id ? SHOP_ITEMS.find(i => i.id === id) : null;
   const hatItem  = getItem(equipped?.hat);
@@ -95,50 +95,53 @@ export function AvatarDisplay({ faceUrl, gender, equipped, size = 'md', employee
   const accItem  = getItem(equipped?.acc);
   const bgItem   = getItem(equipped?.bg);
 
-  const sizeClasses = {
-    sm:  'w-20 h-24',
-    md:  'w-36 h-44',
-    lg:  'w-56 h-72',
-    xl:  'w-72 h-96',
+  const sizeConfig = {
+    sm:  { container: 'w-20 h-24', circle: 'w-20 h-20', face: 'w-10 h-10', hat: 'text-lg -top-3', acc: 'text-sm' },
+    md:  { container: 'w-36 h-44', circle: 'w-36 h-36', face: 'w-16 h-16', hat: 'text-3xl -top-6', acc: 'text-xl' },
+    lg:  { container: 'w-56 h-72', circle: 'w-56 h-56', face: 'w-24 h-24', hat: 'text-5xl -top-10', acc: 'text-3xl' },
+    xl:  { container: 'w-80 h-96', circle: 'w-80 h-80', face: 'w-32 h-32', hat: 'text-7xl -top-14', acc: 'text-5xl' },
   };
 
-  const faceSizes = { sm: 'w-10 h-10 -top-5', md: 'w-16 h-16 -top-8', lg: 'w-24 h-24 -top-12', xl: 'w-32 h-32 -top-16' };
-  const hatSizes  = { sm: 'text-xl -top-8',    md: 'text-3xl -top-14',  lg: 'text-5xl -top-20',   xl: 'text-6xl -top-28' };
-  const accSizes  = { sm: 'text-lg',            md: 'text-2xl',          lg: 'text-4xl',            xl: 'text-5xl' };
-
-  // רקע צבע לפי מגדר
-  const bgColor = (equipped?.suit?.includes('suit')) ? '' :
-    gender === 'female' ? 'bg-gradient-to-b from-pink-50 to-pink-100' : 'bg-gradient-to-b from-indigo-50 to-indigo-100';
+  const cfg = sizeConfig[size];
+  const bgColor = bgItem ? 
+    bgItem.id === 'bg_rainbow' ? 'from-pink-400 to-indigo-400' :
+    bgItem.id === 'bg_fire' ? 'from-orange-400 to-red-500' :
+    bgItem.id === 'bg_lightning' ? 'from-purple-400 to-blue-500' :
+    bgItem.id === 'bg_stars' ? 'from-indigo-400 to-blue-500' :
+    bgItem.id === 'bg_flowers' ? 'from-pink-300 to-purple-400' :
+    bgItem.id === 'bg_crown' ? 'from-yellow-400 to-orange-500' :
+    'from-blue-400 to-indigo-500'
+    : gender === 'female' ? 'from-pink-400 to-rose-500' : 'from-blue-400 to-indigo-500';
 
   return (
-    <div className={`relative ${sizeClasses[size]} flex-shrink-0`}>
-      {/* רקע אווירה */}
-      {bgItem && (
-        <div className="absolute inset-0 rounded-2xl overflow-hidden flex items-center justify-center opacity-20 text-7xl pointer-events-none">
-          {bgItem.emoji}{bgItem.emoji}{bgItem.emoji}
-        </div>
-      )}
+    <div className={`relative ${cfg.container} flex-shrink-0 flex items-center justify-center`}>
+      {/* עיגול רקע גדול */}
+      <div className={`absolute inset-0 rounded-full bg-gradient-to-br ${bgColor} shadow-xl z-0`} />
 
-      {/* גוף */}
-      <div className={`absolute bottom-0 left-0 right-0 rounded-b-2xl overflow-hidden ${bgColor}`}
-           style={{ top: size === 'sm' ? '30%' : '35%' }}>
-        {gender === 'female' ? BODY_FEMALE : BODY_MALE}
+      {/* כתפיים + גוף - SVG בחלק התחתון של העיגול */}
+      <div className="absolute -bottom-1 w-full flex justify-center z-10">
+        <div style={{ width: cfg.container.split(' ')[0], height: '30%' }}>
+          {suitItem ? (
+            <div className="flex justify-center items-start text-3xl">{suitItem.emoji}</div>
+          ) : (
+            <svg viewBox="0 0 120 60" xmlns="http://www.w3.org/2000/svg" className="w-full h-full opacity-80">
+              {/* כתפיים */}
+              <ellipse cx="30" cy="20" rx="18" ry="22" fill="#4f46e5" opacity="0.8" />
+              <ellipse cx="90" cy="20" rx="18" ry="22" fill="#4f46e5" opacity="0.8" />
+              {/* דקורציה */}
+              <circle cx="20" cy="35" r="3" fill="#ffffff" opacity="0.4" />
+              <circle cx="100" cy="35" r="3" fill="#ffffff" opacity="0.4" />
+            </svg>
+          )}
+        </div>
       </div>
 
-      {/* ביגוד overlay */}
-      {suitItem && (
-        <div className="absolute bottom-0 left-0 right-0 flex justify-center"
-             style={{ bottom: size === 'sm' ? '-4px' : '-6px', fontSize: accSizes[size].split(' ')[0].replace('text-','') + 'px' }}>
-          <span className={accSizes[size]}>{suitItem.emoji}</span>
-        </div>
-      )}
-
-      {/* פנים - עיגול עם תמונה או אימוג'י */}
-      <div className={`absolute left-1/2 -translate-x-1/2 ${faceSizes[size]} rounded-full border-4 border-white shadow-lg z-20 overflow-hidden bg-yellow-100 flex items-center justify-center`}>
+      {/* פנים - עיגול גדול בחלק העליון */}
+      <div className={`${cfg.face} rounded-full border-4 border-white shadow-xl z-20 overflow-hidden bg-gradient-to-br from-yellow-50 to-amber-100 flex items-center justify-center flex-shrink-0 absolute -top-2`}>
         {faceUrl ? (
           <img src={faceUrl} alt="face" className="w-full h-full object-cover" />
         ) : (
-          <span style={{ fontSize: size === 'sm' ? '1.5rem' : size === 'md' ? '2.2rem' : size === 'lg' ? '3.5rem' : '4.5rem' }}>
+          <span style={{ fontSize: cfg.container === 'w-20 h-24' ? '1.5rem' : cfg.container === 'w-36 h-44' ? '2.2rem' : cfg.container === 'w-56 h-72' ? '3.5rem' : '4.5rem' }}>
             {gender === 'female' ? '👧' : '👦'}
           </span>
         )}
@@ -146,14 +149,14 @@ export function AvatarDisplay({ faceUrl, gender, equipped, size = 'md', employee
 
       {/* כובע */}
       {hatItem && (
-        <div className={`absolute left-1/2 -translate-x-1/2 ${hatSizes[size]} z-30 pointer-events-none`}>
+        <div className={`absolute left-1/2 -translate-x-1/2 ${cfg.hat} z-30 pointer-events-none select-none`}>
           {hatItem.emoji}
         </div>
       )}
 
       {/* אביזר */}
       {accItem && (
-        <div className={`absolute bottom-1 right-0 ${accSizes[size]} z-30`}>
+        <div className={`absolute bottom-8 right-1 ${cfg.acc} z-30 select-none`}>
           {accItem.emoji}
         </div>
       )}
