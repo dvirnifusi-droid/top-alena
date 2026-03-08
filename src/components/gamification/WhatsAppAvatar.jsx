@@ -2,140 +2,61 @@ import React from 'react';
 import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
 
-// SVG Avatar עם ראש מתמונה אמיתית המחוברת לגוף
-export function AvatarRenderer({ faceUrl, skin, hair, eyes, body, accessories = [] }) {
-  const sizeW = 200;
-  const sizeH = 280;
-
+// Avatar Renderer - Layers-based עם ראש גדול וPNG layers
+export function AvatarRenderer({ faceUrl, body = {}, accessories = [] }) {
   return (
-    <svg viewBox={`0 0 ${sizeW} ${sizeH}`} xmlns="http://www.w3.org/2000/svg" className="w-full h-full" style={{ backgroundColor: '#f5f0eb' }}>
-      {/* הגדרת Clip Path להראש עגול */}
-      <defs>
-        <clipPath id="headMask">
-          <circle cx="100" cy="75" r="45" />
-        </clipPath>
-        <filter id="shadow" x="-50%" y="-50%" width="200%" height="200%">
-          <feDropShadow dx="0" dy="2" stdDeviation="3" floodOpacity="0.3" />
-        </filter>
-      </defs>
+    <div className="relative w-full aspect-square bg-gradient-to-b from-gray-100 to-gray-200 rounded-2xl overflow-hidden flex items-center justify-center">
+      {/* גוף בסיס - תמונה או placeholder */}
+      <div className="absolute inset-0 flex flex-col items-center justify-end">
+        {/* גוף */}
+        <div className="w-32 h-40 rounded-t-3xl flex items-end justify-center relative"
+          style={{ backgroundColor: body.color || '#3b82f6' }}>
+          {/* שרוולים */}
+          <div className="absolute top-4 left-0 w-12 h-20 rounded-full"
+            style={{ backgroundColor: body.color || '#3b82f6', marginLeft: '-24px' }} />
+          <div className="absolute top-4 right-0 w-12 h-20 rounded-full"
+            style={{ backgroundColor: body.color || '#3b82f6', marginRight: '-24px' }} />
+        </div>
+        {/* רגליים */}
+        <div className="flex gap-6">
+          <div className="w-4 h-20 bg-amber-100 rounded" />
+          <div className="w-4 h-20 bg-amber-100 rounded" />
+        </div>
+      </div>
 
-      {/* רגליים */}
-      <rect x="75" y="200" width="15" height="70" rx="7" fill={skin.color} />
-      <rect x="110" y="200" width="15" height="70" rx="7" fill={skin.color} />
-      {/* נעליים */}
-      <ellipse cx="82.5" cy="270" rx="10" ry="5" fill="#333" />
-      <ellipse cx="117.5" cy="270" rx="10" ry="5" fill="#333" />
-
-      {/* צוואר - מחבר בין ראש לגוף */}
-      <ellipse cx="100" cy="122" rx="22" ry="10" fill={skin.color} />
-
-      {/* גוף - חולצה/שמלה */}
-      <g>
-        {body.type === 'shirt' && (
-          <>
-            <path d="M 60 135 L 75 125 L 75 200 Q 100 210 125 200 L 125 125 L 140 135 Q 100 120 60 135" fill={body.color} filter="url(#shadow)" />
-            {/* שרוולים */}
-            <ellipse cx="50" cy="155" rx="14" ry="30" fill={body.color} />
-            <ellipse cx="150" cy="155" rx="14" ry="30" fill={body.color} />
-            {/* כפתורים */}
-            <circle cx="100" cy="150" r="2" fill="white" opacity="0.6" />
-            <circle cx="100" cy="165" r="2" fill="white" opacity="0.6" />
-            <circle cx="100" cy="180" r="2" fill="white" opacity="0.6" />
-          </>
+      {/* ראש - Layer ראשון (הראש הגדול) */}
+      <div className="absolute top-8 w-56 h-56 rounded-full overflow-hidden border-4 border-amber-100 shadow-lg"
+        style={{ left: '50%', transform: 'translateX(-50%)' }}>
+        {faceUrl ? (
+          <img src={faceUrl} alt="avatar-head" className="w-full h-full object-cover" />
+        ) : (
+          <div className="w-full h-full bg-gradient-to-b from-amber-200 to-amber-100 flex items-center justify-center text-4xl">
+            😊
+          </div>
         )}
-        {body.type === 'dress' && (
-          <>
-            <path d="M 75 125 L 125 125 L 140 200 L 60 200 Z" fill={body.color} filter="url(#shadow)" />
-            {/* שרוולים */}
-            <ellipse cx="48" cy="150" rx="12" ry="25" fill={body.color} />
-            <ellipse cx="152" cy="150" rx="12" ry="25" fill={body.color} />
-            {/* דקוריות */}
-            <circle cx="75" cy="160" r="2.5" fill={body.accent} opacity="0.7" />
-            <circle cx="125" cy="160" r="2.5" fill={body.accent} opacity="0.7" />
-            <circle cx="75" cy="175" r="2.5" fill={body.accent} opacity="0.7" />
-            <circle cx="125" cy="175" r="2.5" fill={body.accent} opacity="0.7" />
-          </>
-        )}
-      </g>
+      </div>
 
-      {/* ראש - תמונה או צבע */}
-      {faceUrl ? (
-        <>
-          {/* תמונה אמיתית כראש */}
-          <image href={faceUrl} x="55" y="30" width="90" height="90" clipPath="url(#headMask)" preserveAspectRatio="xMidYMid slice" />
-          {/* גבול עדין */}
-          <circle cx="100" cy="75" r="45" fill="none" stroke={skin.color} strokeWidth="1" opacity="0.3" />
-        </>
-      ) : (
-        <>
-          {/* ראש בצבע כברירת מחדל */}
-          <circle cx="100" cy="75" r="45" fill={skin.color} filter="url(#shadow)" />
-          {/* עיניים */}
-          <circle cx="85" cy="70" r="5" fill="white" />
-          <circle cx="115" cy="70" r="5" fill="white" />
-          <circle cx={85 + eyes.direction} cy="71" r="2.5" fill={eyes.color} />
-          <circle cx={115 + eyes.direction} cy="71" r="2.5" fill={eyes.color} />
-          {/* ריסים */}
-          <path d="M 80 66 Q 85 64 90 66" stroke={hair.color} strokeWidth="1" fill="none" />
-          <path d="M 110 66 Q 115 64 120 66" stroke={hair.color} strokeWidth="1" fill="none" />
-          {/* פה */}
-          <path d="M 90 95 Q 100 105 110 95" fill="none" stroke="#d97706" strokeWidth="2" strokeLinecap="round" />
-        </>
-      )}
-
-      {/* שיער */}
-      {hair.type === 'long' && (
-        <>
-          <path d="M 55 75 Q 50 50 100 38 Q 150 50 145 75" fill={hair.color} />
-          <ellipse cx="58" cy="95" rx="16" ry="32" fill={hair.color} />
-          <ellipse cx="142" cy="95" rx="16" ry="32" fill={hair.color} />
-        </>
-      )}
-      {hair.type === 'short' && (
-        <path d="M 55 70 Q 50 50 100 40 Q 150 50 145 70 Q 145 80 100 85 Q 55 80 55 70" fill={hair.color} />
-      )}
-      {hair.type === 'curly' && (
-        <>
-          <circle cx="65" cy="55" r="12" fill={hair.color} />
-          <circle cx="85" cy="42" r="14" fill={hair.color} />
-          <circle cx="100" cy="36" r="15" fill={hair.color} />
-          <circle cx="115" cy="42" r="14" fill={hair.color} />
-          <circle cx="135" cy="55" r="12" fill={hair.color} />
-          <circle cx="55" cy="78" r="11" fill={hair.color} />
-          <circle cx="145" cy="78" r="11" fill={hair.color} />
-        </>
-      )}
-
-      {/* משקפיים */}
-      {accessories.includes('glasses') && (
-        <>
-          <rect x="77" y="63" width="16" height="14" rx="2" fill="none" stroke="#1f2937" strokeWidth="1.5" />
-          <rect x="107" y="63" width="16" height="14" rx="2" fill="none" stroke="#1f2937" strokeWidth="1.5" />
-          <line x1="93" y1="70" x2="107" y2="70" stroke="#1f2937" strokeWidth="1" />
-        </>
-      )}
-
-      {/* כובע */}
-      {accessories.includes('hat') && (
-        <>
-          <ellipse cx="100" cy="32" rx="48" ry="12" fill={accessories.includes('hat_red') ? '#ef4444' : '#333'} />
-          <path d="M 70 30 Q 70 15 100 12 Q 130 15 130 30" fill={accessories.includes('hat_red') ? '#ef4444' : '#333'} />
-        </>
-      )}
-
-      {/* עגיל */}
-      {accessories.includes('earring') && (
-        <>
-          <circle cx="50" cy="80" r="4" fill="#fbbf24" />
-          <circle cx="150" cy="80" r="4" fill="#fbbf24" />
-        </>
-      )}
-
-      {/* שרשרת */}
-      {accessories.includes('necklace') && (
-        <ellipse cx="100" cy="130" rx="32" ry="7" fill="none" stroke="#fbbf24" strokeWidth="1.5" />
-      )}
-    </svg>
+      {/* Layers - בגדים ואביזרים (PNGs) */}
+      {accessories.map((acc, idx) => {
+        const layerMap = {
+          'hat': { top: '-10%', width: '140%', left: '50%', transform: 'translateX(-50%)' },
+          'glasses': { top: '35%', width: '90%', left: '50%', transform: 'translateX(-50%)' },
+          'earring': { top: '40%', width: '100%', left: '50%', transform: 'translateX(-50%)' },
+          'necklace': { top: '65%', width: '100%', left: '50%', transform: 'translateX(-50%)' },
+        };
+        const pos = layerMap[acc] || {};
+        return (
+          <div key={`${acc}-${idx}`} className="absolute" style={pos}>
+            <div className="text-4xl text-center opacity-80">
+              {acc === 'hat' && '👒'}
+              {acc === 'glasses' && '👓'}
+              {acc === 'earring' && '💍'}
+              {acc === 'necklace' && '📿'}
+            </div>
+          </div>
+        );
+      })}
+    </div>
   );
 }
 
