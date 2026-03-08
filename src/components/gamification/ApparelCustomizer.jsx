@@ -230,9 +230,16 @@ export default function ApparelCustomizer({ employeeId, employeeAvatar, onAvatar
                );
              })}
 
-           </div>
-         </DialogContent>
-       </Dialog>
+             </div>
+             <Button 
+             onClick={handleUpdateAvatarWithApparel}
+             disabled={regenerating}
+             className="w-full mt-4 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700"
+             >
+             {regenerating ? '⏳ מעדכן דמות...' : '✨ שמור וחדש בגדים'}
+             </Button>
+             </DialogContent>
+             </Dialog>
 
       <Dialog open={showPreview} onOpenChange={setShowPreview}>
         <DialogContent className="max-w-3xl p-0 border-0 bg-gradient-to-b from-purple-50 to-white">
