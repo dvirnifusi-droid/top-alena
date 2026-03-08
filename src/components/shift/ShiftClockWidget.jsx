@@ -268,12 +268,15 @@ export default function ShiftClockWidget() {
         setBreakEditUnlocked(false);
         setEditBreakByManager(false);
 
-        // שמור פרטי עובד לקופסת הפתעה
-        const empRecord = await findEmployeeRecord(user);
-        setLootBoxEmployee({ id: empRecord?.id || user.id, name: user.full_name });
+        // הפתעה עלינא — רק אם מילא לפחות שאלה אחת בשאלון
+        const filledSurvey = feedbackRatings.atmosphere > 0 || feedbackRatings.sales > 0 || feedbackRatings.effort > 0 || feedbackRatings.drank;
         setActiveShift(null);
         setActionLoading(false);
-        setShowLootBox(true);
+        if (filledSurvey) {
+          const empRecord = await findEmployeeRecord(user);
+          setLootBoxEmployee({ id: empRecord?.id || user.id, name: user.full_name });
+          setShowLootBox(true);
+        }
     };
 
     const getElapsedDisplay = (startTime) => {
