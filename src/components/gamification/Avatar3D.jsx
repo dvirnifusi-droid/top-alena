@@ -146,10 +146,9 @@ export default function Avatar3D({ faceUrl, gender = 'woman', shirtColor = '#3b8
       });
     }
 
-    // Animation loop
+    // Animation loop - סטטי, ללא רוטציה
     const animate = () => {
       requestAnimationFrame(animate);
-      avatarGroup.rotation.y += 0.005;
       renderer.render(scene, camera);
     };
     animate();
