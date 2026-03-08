@@ -12,8 +12,7 @@ export default function ApparelCustomizer({ employeeId, employeeAvatar, onAvatar
   const [equipped, setEquipped] = useState({});
   const [ownedApparel, setOwnedApparel] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [avatarLocked, setAvatarLocked] = useState(false);
-  const [baseAvatarUrl, setBaseAvatarUrl] = useState(employeeAvatar);
+  const [regenerating, setRegenerating] = useState(false);
   const [currentAvatarUrl, setCurrentAvatarUrl] = useState(employeeAvatar);
   const [employeeApparelId, setEmployeeApparelId] = useState(null);
 
@@ -62,75 +61,16 @@ export default function ApparelCustomizer({ employeeId, employeeAvatar, onAvatar
 
   useEffect(() => {
     setCurrentAvatarUrl(employeeAvatar);
-    setBaseAvatarUrl(employeeAvatar);
-    setAvatarLocked(false);
   }, [employeeAvatar]);
 
   const handleEquip = async (itemId, category) => {
-    // עדכן את הביגדים
+    // עדכן את הביגדים בלי ליצור אוואטר חדש
     const updated = { ...equipped, [category]: itemId };
     setEquipped(updated);
 
-    // עדכן ב-DB בלבד
+    // עדכן ב-DB
     if (employeeApparelId) {
       await base44.entities.EmployeeApparel.update(employeeApparelId, updated);
-    }
-
-    // אם האווטר נעול, עדכן אותו עם הבגדים החדשים
-    if (avatarLocked) {
-      applyApparelOverlay(updated);
-    }
-  };
-
-  const applyApparelOverlay = (currentEquipped) => {
-    // יצור תיאור של הביגדים הנוכחיים
-    const apparelItems = [];
-    if (currentEquipped.shirt) {
-      const shirt = apparel.find(a => a.id === currentEquipped.shirt);
-      if (shirt) apparelItems.push(shirt.wearing_text);
-    }
-    if (currentEquipped.pants) {
-      const pants = apparel.find(a => a.id === currentEquipped.pants);
-      if (pants) apparelItems.push(pants.wearing_text);
-    }
-    if (currentEquipped.shoes) {
-      const shoes = apparel.find(a => a.id === currentEquipped.shoes);
-      if (shoes) apparelItems.push(shoes.wearing_text);
-    }
-    if (currentEquipped.hat) {
-      const hat = apparel.find(a => a.id === currentEquipped.hat);
-      if (hat) apparelItems.push(hat.wearing_text);
-    }
-    if (currentEquipped.outerwear) {
-      const outerwear = apparel.find(a => a.id === currentEquipped.outerwear);
-      if (outerwear) apparelItems.push(outerwear.wearing_text);
-    }
-    if (currentEquipped.accessories?.length > 0) {
-      currentEquipped.accessories.forEach(accId => {
-        const acc = apparel.find(a => a.id === accId);
-        if (acc) apparelItems.push(acc.wearing_text);
-      });
-    }
-
-    const wearingText = apparelItems.join(', ');
-    const prompt = `Full body 3D stylized character avatar, Pixar/Fortnite style, standing in a neutral T-pose. Same character as before, ${wearingText || 'wearing a basic grey t-shirt and blue jeans'}. High-quality 3D render, studio lighting, solid white background. Professional 3D game character design.`;
-
-    base44.integrations.Core.GenerateImage({
-      prompt,
-      existing_image_urls: [baseAvatarUrl]
-    }).then(({ url }) => {
-      setCurrentAvatarUrl(url);
-      onAvatarUpdate(url);
-    }).catch(error => {
-      console.error('Error applying apparel:', error);
-    });
-  };
-
-  const handleLockAvatar = () => {
-    if (!avatarLocked) {
-      setAvatarLocked(true);
-    } else {
-      setAvatarLocked(false);
     }
   };
 
@@ -147,18 +87,10 @@ export default function ApparelCustomizer({ employeeId, employeeAvatar, onAvatar
   ];
 
   return (
-    <div className="space-y-2">
-      <Button
-        onClick={handleLockAvatar}
-        className={`w-full ${avatarLocked ? 'bg-red-600 hover:bg-red-700' : 'bg-blue-600 hover:bg-blue-700'}`}
-      >
-        {avatarLocked ? '🔒 בטל נעילה' : '🔓 נעול את האווטר'}
-      </Button>
-
+    <div>
       <Button
         onClick={() => setShowDialog(true)}
         className="w-full bg-purple-600 hover:bg-purple-700"
-        disabled={!avatarLocked}
       >
         🎨 עדכן הלבוש
       </Button>
