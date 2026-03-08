@@ -22,7 +22,6 @@ import WeeklyScheduleSummary from '../components/employee/WeeklyScheduleSummary'
 import CoinWidget from '../components/gamification/CoinWidget';
 import DailyChallengeCard from '../components/gamification/DailyChallengeCard';
 import ConfettiEffect from '../components/gamification/ConfettiEffect';
-import ApparelCustomizer from '../components/gamification/ApparelCustomizer';
 
 export default function EmployeeHome() {
     const [user, setUser] = useState(null);
