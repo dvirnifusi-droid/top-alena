@@ -20,6 +20,8 @@ export default function GamificationAdmin() {
   const [rewards, setRewards] = useState([]);
   const [editingReward, setEditingReward] = useState(null);
   const [newReward, setNewReward] = useState({ title: '', description: '', emoji: '🎁', cost: 500, is_active: true });
+  const [lootSettings, setLootSettings] = useState({ realRewardChance: 15, coinPrizes: '10,25,50,100,200' });
+  const [lootSettingsSaved, setLootSettingsSaved] = useState(false);
 
   useEffect(() => {
     loadAll();
