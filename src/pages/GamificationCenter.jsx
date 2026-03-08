@@ -228,9 +228,9 @@ export default function GamificationCenter() {
         {/* טאבים */}
         <Tabs defaultValue="badges">
           <TabsList className={`w-full ${isDark ? 'bg-white/10' : ''}`}>
-            <TabsTrigger value="badges" className="flex-1">🏅 תגים</TabsTrigger>
-            <TabsTrigger value="shoutouts" className="flex-1">🏆 קיר תהילה</TabsTrigger>
-            <TabsTrigger value="history" className="flex-1">📜 היסטוריה</TabsTrigger>
+            <TabsTrigger value="badges" className="flex-1 text-xs sm:text-sm px-1">🏅 תגים</TabsTrigger>
+            <TabsTrigger value="shoutouts" className="flex-1 text-xs sm:text-sm px-1">🏆 תהילה</TabsTrigger>
+            <TabsTrigger value="history" className="flex-1 text-xs sm:text-sm px-1">📜 היסטוריה</TabsTrigger>
           </TabsList>
 
           <TabsContent value="badges" className="mt-3">

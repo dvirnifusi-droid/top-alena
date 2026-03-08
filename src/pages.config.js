@@ -65,6 +65,8 @@ import EmployeeFeedback from './pages/EmployeeFeedback';
 import EmployeeHome from './pages/EmployeeHome';
 import EmployeeReports from './pages/EmployeeReports';
 import Employees from './pages/Employees';
+import GamificationAdmin from './pages/GamificationAdmin';
+import GamificationCenter from './pages/GamificationCenter';
 import Incidents from './pages/Incidents';
 import InvoiceDetails from './pages/InvoiceDetails';
 import Invoices from './pages/Invoices';
@@ -94,8 +96,6 @@ import Training from './pages/Training';
 import UploadChecklists from './pages/UploadChecklists';
 import WaiterTables from './pages/WaiterTables';
 import WorkScheduling from './pages/WorkScheduling';
-import GamificationCenter from './pages/GamificationCenter';
-import GamificationAdmin from './pages/GamificationAdmin';
 import __Layout from './Layout.jsx';
 
 
@@ -118,6 +118,8 @@ export const PAGES = {
     "EmployeeHome": EmployeeHome,
     "EmployeeReports": EmployeeReports,
     "Employees": Employees,
+    "GamificationAdmin": GamificationAdmin,
+    "GamificationCenter": GamificationCenter,
     "Incidents": Incidents,
     "InvoiceDetails": InvoiceDetails,
     "Invoices": Invoices,
@@ -147,8 +149,6 @@ export const PAGES = {
     "UploadChecklists": UploadChecklists,
     "WaiterTables": WaiterTables,
     "WorkScheduling": WorkScheduling,
-    "GamificationCenter": GamificationCenter,
-    "GamificationAdmin": GamificationAdmin,
 }
 
 export const pagesConfig = {
