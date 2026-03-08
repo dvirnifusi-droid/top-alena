@@ -204,33 +204,43 @@ function LeaveCalendar({ requests }) {
                     </div>
                 </div>
             </CardHeader>
-            <CardContent className="px-2 sm:px-6">
-                <div className="grid grid-cols-7 gap-0.5 text-center mb-1">
-                    {DAYS_HE.map(d => <div key={d} className="text-xs font-bold text-gray-500 py-1">{d}</div>)}
-                </div>
-                <div className="grid grid-cols-7 gap-0.5">
-                    {days.map((date, i) => {
-                        const onLeave = date ? getEmployeesOnLeave(date) : [];
-                        const isToday = date && format(date, 'yyyy-MM-dd') === format(today, 'yyyy-MM-dd');
-                        return (
-                            <div key={i} className={`min-h-[40px] sm:min-h-[52px] rounded p-0.5 sm:p-1 text-xs border ${!date ? 'border-transparent' : isToday ? 'border-blue-400 bg-blue-50' : 'border-gray-100'}`}>
-                                {date && (
-                                    <>
-                                        <div className={`font-bold text-xs ${isToday ? 'text-blue-700' : 'text-gray-700'}`}>{date.getDate()}</div>
-                                        {onLeave.slice(0, 2).map((r, j) => (
-                                            <div key={j} className={`rounded px-0.5 truncate mt-0.5 text-[9px] sm:text-[10px] ${LEAVE_TYPES[r.leave_type]?.color || 'bg-gray-100'}`}>
-                                                {r.employee_name.split(' ')[0]}
-                                            </div>
-                                        ))}
-                                        {onLeave.length > 2 && (
-                                            <div className="text-[9px] text-gray-400">+{onLeave.length - 2}</div>
-                                        )}
-                                    </>
-                                )}
-                            </div>
-                        );
-                    })}
-                </div>
+            <CardContent className="px-1 sm:px-6">
+                <table className="w-full table-fixed border-collapse">
+                    <thead>
+                        <tr>
+                            {DAYS_HE.map(d => (
+                                <th key={d} className="text-center text-xs font-bold text-gray-500 py-1 w-[14.28%]">{d}</th>
+                            ))}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {Array.from({ length: days.length / 7 }, (_, wi) => (
+                            <tr key={wi}>
+                                {days.slice(wi * 7, wi * 7 + 7).map((date, ci) => {
+                                    const onLeave = date ? getEmployeesOnLeave(date) : [];
+                                    const isToday = date && format(date, 'yyyy-MM-dd') === format(today, 'yyyy-MM-dd');
+                                    return (
+                                        <td key={ci} className={`align-top p-0.5 border text-xs ${!date ? 'border-transparent' : isToday ? 'border-blue-400 bg-blue-50' : 'border-gray-100'}`} style={{height: '44px'}}>
+                                            {date && (
+                                                <>
+                                                    <div className={`font-bold text-xs leading-none mb-0.5 ${isToday ? 'text-blue-700' : 'text-gray-700'}`}>{date.getDate()}</div>
+                                                    {onLeave.slice(0, 1).map((r, j) => (
+                                                        <div key={j} className={`rounded px-0.5 truncate text-[9px] leading-tight ${LEAVE_TYPES[r.leave_type]?.color || 'bg-gray-100'}`}>
+                                                            {r.employee_name.split(' ')[0]}
+                                                        </div>
+                                                    ))}
+                                                    {onLeave.length > 1 && (
+                                                        <div className="text-[9px] text-gray-400">+{onLeave.length - 1}</div>
+                                                    )}
+                                                </>
+                                            )}
+                                        </td>
+                                    );
+                                })}
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
             </CardContent>
         </Card>
     );
