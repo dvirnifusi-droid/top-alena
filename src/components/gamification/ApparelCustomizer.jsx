@@ -16,7 +16,7 @@ export default function ApparelCustomizer({ employeeId, employeeAvatar, onAvatar
 
   useEffect(() => {
     loadData();
-  }, [employeeId]);
+  }, [employeeId, balance]);
 
   const loadData = async () => {
     try {
