@@ -167,15 +167,21 @@ export default function BriefingManagement() {
     };
 
     const handleMarkAsRead = async () => {
-        if (!currentBriefData || !currentBriefData.id || !user) return;
+        if (!currentBriefData || !currentBriefData.id || !user) {
+            console.log('Missing data:', { briefId: currentBriefData?.id, userId: user?.id });
+            return;
+        }
         try {
+            console.log('Marking brief as read:', { briefId: currentBriefData.id, userId: user.id });
             const updatedReadBy = [...(currentBriefData.read_by || [])];
             if (!updatedReadBy.includes(user.id)) {
                 updatedReadBy.push(user.id);
             } else {
-                return; // כבר קראת את הבריף
+                console.log('User already read this brief');
+                return;
             }
             
+            console.log('Updated read_by:', updatedReadBy);
             await DailyBrief.update(currentBriefData.id, { read_by: updatedReadBy });
             const refreshedBrief = await DailyBrief.list();
             const latestBrief = refreshedBrief.find(b => b.id === currentBriefData.id);
@@ -183,6 +189,7 @@ export default function BriefingManagement() {
             await loadBriefs(date);
             toast.success('סומן כקרא בהצלחה!');
         } catch (error) {
+            console.error('Mark as read error:', error);
             toast.error('שגיאה בסימון קריאה: ' + (error.message || 'נסה שוב'));
         }
     };
