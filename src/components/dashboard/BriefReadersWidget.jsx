@@ -14,7 +14,8 @@ export default function BriefReadersWidget() {
     setLoading(true);
     try {
       const today = format(new Date(), 'yyyy-MM-dd');
-      const briefs = await base44.entities.DailyBrief.filter({ date: today });
+      const briefs = await base44.entities.DailyBrief.filter({ date: today, status: 'published' });
+      const employees = await base44.entities.Employee.list();
 
       const result = { lunch: [], dinner: [] };
 
@@ -24,7 +25,6 @@ export default function BriefReadersWidget() {
 
         // רשימת עובדים שקראו
         if (brief.read_by && brief.read_by.length > 0) {
-          const employees = await base44.entities.Employee.list();
           const readers = brief.read_by
             .map(id => employees.find(e => e.id === id)?.full_name)
             .filter(Boolean);
