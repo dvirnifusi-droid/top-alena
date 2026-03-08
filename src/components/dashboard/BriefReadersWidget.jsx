@@ -59,19 +59,24 @@ export default function BriefReadersWidget() {
   }, []);
 
   const ShiftSection = ({ type, label, readers }) => (
-    <div className="space-y-2">
-      <div className="flex items-center gap-2">
+    <div className="space-y-3">
+      <div className="flex items-center gap-2 pb-2 border-b">
         <h3 className="font-semibold text-gray-800">{label}</h3>
+        <span className="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded-full">{readers.length} קראו</span>
       </div>
       {readers.length > 0 ? (
-        <div className="flex items-center gap-2 p-3 bg-green-50 rounded-lg border border-green-200">
-          <CheckCircle2 className="w-5 h-5 text-green-600 flex-shrink-0" />
-          <span className="font-semibold text-green-800">{readers.length} עובדים קראו את הבריף</span>
+        <div className="space-y-2">
+          {readers.map((name, idx) => (
+            <div key={idx} className="flex items-center gap-2 p-2 bg-green-50 rounded-lg border border-green-100">
+              <CheckCircle2 className="w-4 h-4 text-green-600 flex-shrink-0" />
+              <span className="text-sm text-gray-700">{name}</span>
+            </div>
+          ))}
         </div>
       ) : (
         <div className="flex items-center gap-2 p-3 bg-gray-50 rounded-lg border border-gray-200">
-          <AlertCircle className="w-5 h-5 text-gray-400 flex-shrink-0" />
-          <span className="text-gray-600">לא פתחו בדקים בעדיין</span>
+          <AlertCircle className="w-4 h-4 text-gray-400 flex-shrink-0" />
+          <span className="text-sm text-gray-600">עדיין לא קראו</span>
         </div>
       )}
     </div>
