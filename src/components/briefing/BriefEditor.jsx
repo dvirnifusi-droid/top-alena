@@ -112,7 +112,7 @@ const FieldWithAI = ({ label, fieldId, value, onChange, placeholder, fieldName, 
     </div>
 );
 
-export default function BriefEditor({ briefData, onChange, onSave, onCancel, isLoading, isAiLoading, onGenerateWithAI }) {
+export default function BriefEditor({ briefData, onChange, onSave, onCancel, isLoading, isAiLoading, onGenerateWithAI, onMarkAsRead }) {
     const shiftType = briefData.shift_type;
 
     return (
