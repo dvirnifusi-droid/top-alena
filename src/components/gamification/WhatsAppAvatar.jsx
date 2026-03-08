@@ -2,18 +2,23 @@ import React from 'react';
 import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
 
-// SVG Avatar בסגנון WhatsApp עם גוף ריאליסטי יותר
+// SVG Avatar עם ראש מתמונה אמיתית המחוברת לגוף
 export function AvatarRenderer({ faceUrl, skin, hair, eyes, body, accessories = [] }) {
   const sizeW = 200;
   const sizeH = 280;
 
   return (
-    <svg viewBox={`0 0 ${sizeW} ${sizeH}`} xmlns="http://www.w3.org/2000/svg" className="w-full h-full">
-      {/* רקע */}
-      <rect width={sizeW} height={sizeH} fill="#f5f0eb" />
+    <svg viewBox={`0 0 ${sizeW} ${sizeH}`} xmlns="http://www.w3.org/2000/svg" className="w-full h-full" style={{ backgroundColor: '#f5f0eb' }}>
+      {/* הגדרת Clip Path להראש עגול */}
+      <defs>
+        <clipPath id="headMask">
+          <circle cx="100" cy="75" r="45" />
+        </clipPath>
+        <filter id="shadow" x="-50%" y="-50%" width="200%" height="200%">
+          <feDropShadow dx="0" dy="2" stdDeviation="3" floodOpacity="0.3" />
+        </filter>
+      </defs>
 
-      {/* שכבות גוף - מלמטה למעלה */}
-      
       {/* רגליים */}
       <rect x="75" y="200" width="15" height="70" rx="7" fill={skin.color} />
       <rect x="110" y="200" width="15" height="70" rx="7" fill={skin.color} />
@@ -21,11 +26,14 @@ export function AvatarRenderer({ faceUrl, skin, hair, eyes, body, accessories = 
       <ellipse cx="82.5" cy="270" rx="10" ry="5" fill="#333" />
       <ellipse cx="117.5" cy="270" rx="10" ry="5" fill="#333" />
 
+      {/* צוואר - מחבר בין ראש לגוף */}
+      <ellipse cx="100" cy="122" rx="22" ry="10" fill={skin.color} />
+
       {/* גוף - חולצה/שמלה */}
       <g>
         {body.type === 'shirt' && (
           <>
-            <path d="M 60 130 L 65 140 L 65 200 Q 100 210 135 200 L 135 140 L 140 130 Q 100 120 60 130" fill={body.color} />
+            <path d="M 60 135 L 75 125 L 75 200 Q 100 210 125 200 L 125 125 L 140 135 Q 100 120 60 135" fill={body.color} filter="url(#shadow)" />
             {/* שרוולים */}
             <ellipse cx="50" cy="155" rx="14" ry="30" fill={body.color} />
             <ellipse cx="150" cy="155" rx="14" ry="30" fill={body.color} />
@@ -37,7 +45,7 @@ export function AvatarRenderer({ faceUrl, skin, hair, eyes, body, accessories = 
         )}
         {body.type === 'dress' && (
           <>
-            <path d="M 65 140 L 135 140 L 150 200 L 50 200 Z" fill={body.color} />
+            <path d="M 75 125 L 125 125 L 140 200 L 60 200 Z" fill={body.color} filter="url(#shadow)" />
             {/* שרוולים */}
             <ellipse cx="48" cy="150" rx="12" ry="25" fill={body.color} />
             <ellipse cx="152" cy="150" rx="12" ry="25" fill={body.color} />
@@ -50,11 +58,30 @@ export function AvatarRenderer({ faceUrl, skin, hair, eyes, body, accessories = 
         )}
       </g>
 
-      {/* צוואר */}
-      <rect x="92" y="125" width="16" height="12" rx="3" fill={skin.color} />
-
-      {/* ראש */}
-      <circle cx="100" cy="75" r="45" fill={skin.color} />
+      {/* ראש - תמונה או צבע */}
+      {faceUrl ? (
+        <>
+          {/* תמונה אמיתית כראש */}
+          <image href={faceUrl} x="55" y="30" width="90" height="90" clipPath="url(#headMask)" preserveAspectRatio="xMidYMid slice" />
+          {/* גבול עדין */}
+          <circle cx="100" cy="75" r="45" fill="none" stroke={skin.color} strokeWidth="1" opacity="0.3" />
+        </>
+      ) : (
+        <>
+          {/* ראש בצבע כברירת מחדל */}
+          <circle cx="100" cy="75" r="45" fill={skin.color} filter="url(#shadow)" />
+          {/* עיניים */}
+          <circle cx="85" cy="70" r="5" fill="white" />
+          <circle cx="115" cy="70" r="5" fill="white" />
+          <circle cx={85 + eyes.direction} cy="71" r="2.5" fill={eyes.color} />
+          <circle cx={115 + eyes.direction} cy="71" r="2.5" fill={eyes.color} />
+          {/* ריסים */}
+          <path d="M 80 66 Q 85 64 90 66" stroke={hair.color} strokeWidth="1" fill="none" />
+          <path d="M 110 66 Q 115 64 120 66" stroke={hair.color} strokeWidth="1" fill="none" />
+          {/* פה */}
+          <path d="M 90 95 Q 100 105 110 95" fill="none" stroke="#d97706" strokeWidth="2" strokeLinecap="round" />
+        </>
+      )}
 
       {/* שיער */}
       {hair.type === 'long' && (
@@ -77,23 +104,6 @@ export function AvatarRenderer({ faceUrl, skin, hair, eyes, body, accessories = 
           <circle cx="55" cy="78" r="11" fill={hair.color} />
           <circle cx="145" cy="78" r="11" fill={hair.color} />
         </>
-      )}
-
-      {/* עיניים */}
-      <circle cx="85" cy="70" r="5" fill="white" />
-      <circle cx="115" cy="70" r="5" fill="white" />
-      <circle cx={85 + eyes.direction} cy="71" r="2.5" fill={eyes.color} />
-      <circle cx={115 + eyes.direction} cy="71" r="2.5" fill={eyes.color} />
-      {/* ריסים */}
-      <path d="M 80 66 Q 85 64 90 66" stroke={hair.color} strokeWidth="1" fill="none" />
-      <path d="M 110 66 Q 115 64 120 66" stroke={hair.color} strokeWidth="1" fill="none" />
-
-      {/* פה */}
-      <path d="M 90 95 Q 100 105 110 95" fill="none" stroke="#d97706" strokeWidth="2" strokeLinecap="round" />
-
-      {/* פנים מתמונה - overlay */}
-      {faceUrl && (
-        <image href={faceUrl} x="60" y="35" width="80" height="80" clipPath="url(#circleMask)" />
       )}
 
       {/* משקפיים */}
@@ -125,13 +135,6 @@ export function AvatarRenderer({ faceUrl, skin, hair, eyes, body, accessories = 
       {accessories.includes('necklace') && (
         <ellipse cx="100" cy="130" rx="32" ry="7" fill="none" stroke="#fbbf24" strokeWidth="1.5" />
       )}
-
-      {/* Clip path for circular face */}
-      <defs>
-        <clipPath id="circleMask">
-          <circle cx="100" cy="75" r="40" />
-        </clipPath>
-      </defs>
     </svg>
   );
 }
