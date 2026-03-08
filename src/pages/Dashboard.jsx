@@ -531,9 +531,12 @@ function DashboardInner() {
                             <TableStatus />
                         </div>
                         <TodayReservations />
-                        <div>
-                            <ActiveEmployeesWidget />
-                        </div>
+                         <div>
+                             <ActiveEmployeesWidget />
+                         </div>
+                         <div>
+                             <BriefReadersWidget />
+                         </div>
                     </div>
                 </section>
 
