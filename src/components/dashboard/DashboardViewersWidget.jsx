@@ -13,11 +13,11 @@ export default function DashboardViewersWidget() {
                 const today = new Date().toISOString().split('T')[0];
                 const briefs = await base44.entities.DailyBrief.filter({ date: today });
                 
-                // Get all employees
+                // Get all employees mapped by email
                 const employees = await base44.entities.Employee.list();
                 const employeeMap = {};
                 employees.forEach(emp => {
-                    employeeMap[emp.id] = emp;
+                    employeeMap[emp.email] = emp;
                 });
                 
                 // Aggregate readers with their brief types
@@ -26,17 +26,20 @@ export default function DashboardViewersWidget() {
                     const readBy = brief.read_by || [];
                     const shiftType = brief.shift_type === 'lunch' ? 'צהריים' : brief.shift_type === 'dinner' ? 'ערב' : 'unknown';
                     
-                    readBy.forEach(empId => {
-                        if (!readers[empId]) {
-                            const emp = employeeMap[empId];
-                            readers[empId] = {
-                                id: empId,
-                                name: emp?.full_name || 'Unknown',
-                                email: emp?.email || 'unknown@email.com',
-                                shifts: []
-                            };
+                    readBy.forEach(empEmail => {
+                        const emp = employeeMap[empEmail];
+                        if (emp) {
+                            if (!readers[empEmail]) {
+                                readers[empEmail] = {
+                                    email: empEmail,
+                                    name: emp.full_name,
+                                    shifts: []
+                                };
+                            }
+                            if (!readers[empEmail].shifts.includes(shiftType)) {
+                                readers[empEmail].shifts.push(shiftType);
+                            }
                         }
-                        readers[empId].shifts.push(shiftType);
                     });
                 });
                 
