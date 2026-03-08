@@ -63,6 +63,7 @@ export default function CharacterLounge() {
     // Subscribe to EmployeeApparel updates
     const unsubscribeApparel = base44.entities.EmployeeApparel.subscribe((event) => {
       if (event.type === 'update') {
+        console.log('Apparel updated:', event.data);
         setApparelMap(prev => ({
           ...prev,
           [event.data.employee_id]: event.data
