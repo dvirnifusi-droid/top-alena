@@ -11,6 +11,7 @@ import ApparelCustomizer from '../components/gamification/ApparelCustomizer';
 
 export default function ShiftChat() {
     const [user, setUser] = useState(null);
+    const [currentEmployee, setCurrentEmployee] = useState(null);
     const [messages, setMessages] = useState([]);
     const [newMessage, setNewMessage] = useState('');
     const [selectedShift, setSelectedShift] = useState('general');
