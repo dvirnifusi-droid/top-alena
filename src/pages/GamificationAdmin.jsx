@@ -292,6 +292,35 @@ export default function GamificationAdmin() {
                 </CardContent>
               </Card>
 
+              {/* פרסים כשירים לקופסה */}
+              <Card className="border-2 border-orange-200 bg-orange-50">
+                <CardHeader><CardTitle>🎁 פרסים אמיתיים בקופסת ההפתעה</CardTitle></CardHeader>
+                <CardContent>
+                  <p className="text-sm text-gray-600 mb-3">הפרסים הבאים (פעילים, עלות ≤ 1000 🪙) עשויים לצאת בקופסה:</p>
+                  {rewards.filter(r => r.is_active && r.cost <= 1000).length === 0 ? (
+                    <p className="text-orange-600 text-sm font-medium">⚠️ אין פרסים כשירים — הוסף פרסים עם עלות עד 1000 מטבעות</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {rewards.filter(r => r.is_active && r.cost <= 1000).map(r => (
+                        <div key={r.id} className="flex items-center gap-3 p-3 bg-white rounded-xl border border-orange-200">
+                          <span className="text-2xl">{r.emoji}</span>
+                          <div className="flex-1">
+                            <p className="font-bold text-sm">{r.title}</p>
+                            {r.description && <p className="text-xs text-gray-500">{r.description}</p>}
+                          </div>
+                          <span className="font-black text-yellow-600 text-sm">{r.cost?.toLocaleString()} 🪙</span>
+                          <Button
+                            size="sm" variant="outline"
+                            onClick={() => { setEditingReward(r); setNewReward({ title: r.title, description: r.description || '', emoji: r.emoji, cost: r.cost, is_active: r.is_active }); window.scrollTo(0,0); }}
+                            className="text-xs"
+                          >✏️ ערוך</Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
               {/* הגדרות קופסת הפתעה */}
               <Card className="border-2 border-purple-200 bg-purple-50">
                 <CardHeader><CardTitle>🎲 הגדרות קופסת הפתעה</CardTitle></CardHeader>
