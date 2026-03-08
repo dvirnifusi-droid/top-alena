@@ -159,16 +159,19 @@ function LeaderboardInner() {
         setAnalysisResult(null);
 
         const prompt = `
-            אתה יועץ ניהול מסעדות מומחה. נתח את ביצועי המלצר/ית הבאים לתקופה ה${timeFrame === 'daily' ? 'יומית' : timeFrame === 'weekly' ? 'שבועית' : 'חודשית'}:
+            אתה יועץ ניהול מסעדות מומחה. נתח את ביצועי העובד/ת הבאים לתקופה ה${timeFrame === 'daily' ? 'יומית' : timeFrame === 'weekly' ? 'שבועית' : 'חודשית'}:
 
             **שם:** ${employee.employee_name}
 
             **נתונים:**
-            - **סך מכירות:** ${employee.totalSales.toLocaleString()} ₪
-            - **מספר משמרות:** ${employee.shifts}
-            - **דירוג מנהל ממוצע:** ${employee.avgManagerRating.toFixed(1)} / 5
-            - **דירוג שירות לקוחות ממוצע:** ${employee.avgCustomerServiceRating.toFixed(1)}%
-            - **אחוז עמידה ביעדים:** ${((employee.targetMetCount / employee.shifts) * 100).toFixed(0)}%
+            - **מספר משמרות:** ${employee.shifts} (${employee.shiftsScore} נק')
+            - **סך שעות עבודה:** ${employee.totalHours.toFixed(1)} שעות (${employee.hoursScore} נק')
+            - **ממוצע טיפ לשעה:** ₪${employee.avgTipPerHour.toFixed(1)} (${employee.tipScore} נק')
+            - **דירוג מנהל ממוצע:** ${employee.avgManagerRating.toFixed(1)} / 5 (${employee.managerScore} נק')
+            - **מחמאות לקוחות:** ${employee.compliments} (${employee.complimentsScore} נק')
+            - **קורסי הכשרה שהושלמו:** ${employee.trainingCompleted} (${employee.trainingScore} נק')
+            - **צ'קליסטים שהושלמו:** ${employee.checklistsDone} (${employee.checklistScore} נק')
+            - **סך נקודות:** ${employee.totalScore}
 
             **המשימה שלך:**
             1.  **ניתוח קצר:** סכם את הביצועים, תוך הדגשת נקודות חוזק וחולשה.
