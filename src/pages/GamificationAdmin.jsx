@@ -126,20 +126,20 @@ export default function GamificationAdmin() {
         </h1>
 
         <Tabs defaultValue="redemptions">
-          <TabsList className="w-full mb-6">
-            <TabsTrigger value="redemptions" className="flex-1 relative">
-              🎁 פדיונות
+          <TabsList className="w-full mb-6 flex-wrap h-auto gap-1 p-1">
+            <TabsTrigger value="redemptions" className="flex-1 min-w-[80px] relative text-xs sm:text-sm px-1 py-2">
+              🎁 <span className="hidden sm:inline">פדיונות</span><span className="sm:hidden">פדיון</span>
               {pendingRedemptions.length > 0 && (
-                <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white rounded-full text-xs flex items-center justify-center">
+                <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white rounded-full text-xs flex items-center justify-center">
                   {pendingRedemptions.length}
                 </span>
               )}
             </TabsTrigger>
-            <TabsTrigger value="challenge" className="flex-1">🎯 אתגר יומי</TabsTrigger>
-            <TabsTrigger value="bonus" className="flex-1">🪙 בונוס ידני</TabsTrigger>
-            <TabsTrigger value="shoutout" className="flex-1">🔥 שאאוט</TabsTrigger>
-            <TabsTrigger value="leaderboard" className="flex-1">🏆 לוח מובילים</TabsTrigger>
-            <TabsTrigger value="rewards" className="flex-1">🎁 פרסים</TabsTrigger>
+            <TabsTrigger value="challenge" className="flex-1 min-w-[80px] text-xs sm:text-sm px-1 py-2">🎯 <span className="hidden sm:inline">אתגר יומי</span><span className="sm:hidden">אתגר</span></TabsTrigger>
+            <TabsTrigger value="bonus" className="flex-1 min-w-[80px] text-xs sm:text-sm px-1 py-2">🪙 <span className="hidden sm:inline">בונוס ידני</span><span className="sm:hidden">בונוס</span></TabsTrigger>
+            <TabsTrigger value="shoutout" className="flex-1 min-w-[80px] text-xs sm:text-sm px-1 py-2">🔥 <span className="hidden sm:inline">שאאוט</span><span className="sm:hidden">שאאוט</span></TabsTrigger>
+            <TabsTrigger value="leaderboard" className="flex-1 min-w-[80px] text-xs sm:text-sm px-1 py-2">🏆 <span className="hidden sm:inline">לוח מובילים</span><span className="sm:hidden">מובילים</span></TabsTrigger>
+            <TabsTrigger value="rewards" className="flex-1 min-w-[80px] text-xs sm:text-sm px-1 py-2">🎁 <span className="hidden sm:inline">פרסים</span><span className="sm:hidden">פרסים</span></TabsTrigger>
           </TabsList>
 
           {/* פדיונות */}
