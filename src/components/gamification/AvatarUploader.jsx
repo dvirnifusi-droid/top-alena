@@ -35,7 +35,7 @@ export default function AvatarUploader({
     setGenerating(true);
     try {
       const { url } = await base44.integrations.Core.GenerateImage({
-        prompt: `A high-end 3D stylized character portrait in the style of Apple Memoji and Fortnite. The character must have a large head, expressive eyes, and maintain the exact facial features, hair style, and hair color of the person in the uploaded photo. Use soft studio lighting, realistic 3D textures (skin and hair), and a clean, solid white background (or transparent). The character should have a friendly smile, look directly at the camera, and have a high-quality Pixar-style render finish. Aspect ratio 1:1 (Square). High quality professional render.`,
+        prompt: `Create a full-body 3D stylized character in the style of Apple Memoji and Fortnite. The character must maintain the exact facial features, hair style, and hair color of the person in the uploaded photo. Show the full character from head to toe, wearing simple neutral clothing (plain t-shirt and jeans), with a friendly smile looking directly at the camera. Use soft studio lighting with realistic 3D textures. Include a white or transparent background. High-quality Pixar-style render finish. The character should be standing in a relaxed pose, full-body view.`,
         existing_image_urls: [uploadedOriginal],
       });
       setGeneratedFace(url);
