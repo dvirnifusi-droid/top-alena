@@ -69,9 +69,10 @@ const adminLinks = [
   { title: "סקרי לקוחות", url: createPageUrl("CustomerSurveys"), icon: MessageSquare, isSubItem: true },
   { title: "ברקודי סקרים", url: createPageUrl("SurveyQRCodes"), icon: QrCode, isSubItem: true },
 
-  // חנות בגדים
+  // חנות בגדים וגמיפיקציה
   { title: "ניהול חנות בגדים", url: createPageUrl("ApparelManagement"), icon: Trophy },
-];
+  { title: "סלון דמויות", url: createPageUrl("CharacterLounge"), icon: Trophy },
+  ];
 
 // תפריט לעובדים רגילים - מחולק לקטגוריות
 const employeeLinks = [
