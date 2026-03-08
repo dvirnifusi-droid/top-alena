@@ -21,10 +21,10 @@ const RANKS = [
 ];
 
 const THEMES = [
-  { id: 'light',  label: 'בהיר',   icon: Sun,     bg: 'bg-gradient-to-br from-yellow-50 to-orange-50', card: '' },
-  { id: 'dark',   label: 'כהה',    icon: Moon,    bg: 'bg-gray-950', card: 'dark' },
-  { id: 'purple', label: 'סגול',   icon: Palette, bg: 'bg-gradient-to-br from-purple-950 to-indigo-950', card: 'dark' },
-  { id: 'green',  label: 'ירוק',   icon: Palette, bg: 'bg-gradient-to-br from-emerald-900 to-teal-900', card: 'dark' },
+  { id: 'light',  label: 'בהיר',      icon: Sun,     preview: 'bg-gradient-to-br from-white to-gray-100 border border-gray-200',     card: '' },
+  { id: 'dark',   label: 'כהה',       icon: Moon,    preview: 'bg-gradient-to-br from-gray-900 to-gray-800',                          card: 'dark' },
+  { id: 'purple', label: 'סגול',      icon: Palette, preview: 'bg-gradient-to-br from-purple-900 to-indigo-900',                      card: 'dark' },
+  { id: 'green',  label: 'ירוק כהה',  icon: Palette, preview: 'bg-gradient-to-br from-emerald-900 to-teal-900',                      card: 'dark' },
 ];
 
 const AVATAR_OPTIONS = ['😎', '🤩', '🥷', '👨‍🍳', '👩‍🍳', '🦁', '🐯', '🔥', '⭐', '💎', '🎯', '🏆'];
