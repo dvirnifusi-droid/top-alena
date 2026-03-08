@@ -299,9 +299,9 @@ export default function ApparelCustomizer({ employeeId, employeeAvatar, onAvatar
               </div>
             )}
             <Tabs defaultValue="shirt" className="w-full">
-              <TabsList className="grid grid-cols-5 w-full mb-4">
+              <TabsList className="flex overflow-x-auto gap-1 w-full bg-transparent p-0 border-b border-gray-200 mb-4">
                 {categories.map(cat => (
-                  <TabsTrigger key={cat.key} value={cat.key} className="text-xs p-1">
+                  <TabsTrigger key={cat.key} value={cat.key} className="text-xs px-2.5 py-2 whitespace-nowrap flex-shrink-0">
                     {cat.label.split(' ')[0]}
                   </TabsTrigger>
                 ))}
