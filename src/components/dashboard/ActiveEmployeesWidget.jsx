@@ -11,29 +11,30 @@ export default function ActiveEmployeesWidget() {
   useEffect(() => {
     const loadActiveEmployees = async () => {
       try {
-        // טעינת כל משמרות היום
+        // חיפוש עובדים שנכנסו בפועל היום
         const today = new Date().toISOString().split('T')[0];
-        const shifts = await base44.entities.WorkShift.filter({
-          date: today
-        });
-
-        const active = [];
         
-        // עברור כל משמרת
-        for (const shift of shifts) {
-          if (shift.assigned_staff && Array.isArray(shift.assigned_staff)) {
-            for (const staff of shift.assigned_staff) {
-              // בדיקה אם העובד מוקצה ולא בעל סטטוס "declined" או "absent"
-              if (staff.status && ['scheduled', 'confirmed'].includes(staff.status)) {
-                active.push({
-                  name: staff.employee_name,
-                  position: staff.position,
-                  checkInTime: staff.start_time,
-                  shiftType: shift.shift_type,
-                  status: staff.status
-                });
-              }
-            }
+        // ספיקת עובדים שנכנסו למשמרת (בעל check_in_time היום)
+        const shiftTracking = await base44.entities.ShiftTracking.filter({});
+        
+        const active = [];
+        const seen = new Set();
+        
+        for (const tracking of shiftTracking) {
+          if (tracking.check_in_time && tracking.check_in_time.startsWith(today) && !seen.has(tracking.employee_id)) {
+            seen.add(tracking.employee_id);
+            
+            // קבל את זמן הכניסה
+            const checkInDateTime = new Date(tracking.check_in_time);
+            const checkInTime = checkInDateTime.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
+            
+            active.push({
+              name: tracking.employee_name || 'לא ידוע',
+              position: tracking.position || 'לא מוגדר',
+              checkInTime: checkInTime,
+              shiftType: tracking.shift_type || 'general',
+              status: 'active'
+            });
           }
         }
 
@@ -47,8 +48,8 @@ export default function ActiveEmployeesWidget() {
 
     loadActiveEmployees();
     
-    // רענון כל 30 שניות
-    const interval = setInterval(loadActiveEmployees, 30000);
+    // רענון כל 15 שניות לעדכון בזמן אמת
+    const interval = setInterval(loadActiveEmployees, 15000);
     
     return () => clearInterval(interval);
   }, []);
