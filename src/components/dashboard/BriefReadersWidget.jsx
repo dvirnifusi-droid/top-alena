@@ -51,19 +51,17 @@ export default function BriefReadersWidget() {
     <div className="space-y-2">
       <div className="flex items-center gap-2">
         <h3 className="font-semibold text-gray-800">{label}</h3>
-        <Badge variant="outline">{readers.length} קראו</Badge>
       </div>
       {readers.length > 0 ? (
-        <div className="space-y-1">
-          {readers.map((name, idx) => (
-            <div key={idx} className="flex items-center gap-2 text-sm text-gray-700 bg-green-50 p-2 rounded-lg">
-              <CheckCircle2 className="w-4 h-4 text-green-600 flex-shrink-0" />
-              <span>{name}</span>
-            </div>
-          ))}
+        <div className="flex items-center gap-2 p-3 bg-green-50 rounded-lg border border-green-200">
+          <CheckCircle2 className="w-5 h-5 text-green-600 flex-shrink-0" />
+          <span className="font-semibold text-green-800">{readers.length} עובדים קראו את הבריף</span>
         </div>
       ) : (
-        <p className="text-sm text-gray-500 bg-gray-50 p-2 rounded-lg">לא בדקו עדיין</p>
+        <div className="flex items-center gap-2 p-3 bg-gray-50 rounded-lg border border-gray-200">
+          <AlertCircle className="w-5 h-5 text-gray-400 flex-shrink-0" />
+          <span className="text-gray-600">לא פתחו בדקים בעדיין</span>
+        </div>
       )}
     </div>
   );
