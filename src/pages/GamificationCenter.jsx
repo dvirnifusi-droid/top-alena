@@ -87,10 +87,26 @@ export default function GamificationCenter() {
     localStorage.setItem('gc_theme', id);
     setShowThemePicker(false);
   };
-  const setAndSaveAvatar = (a) => {
+  const setAndSaveAvatar = (a, isImage = false) => {
     setAvatar(a);
+    setAvatarIsImage(isImage);
     localStorage.setItem('gc_avatar', a);
+    localStorage.setItem('gc_avatar_is_image', isImage ? 'true' : 'false');
     setShowAvatarPicker(false);
+  };
+
+  const handleSpendCoins = async (cost, reason) => {
+    if (!employee) return;
+    await base44.entities.CoinTransaction.create({
+      employee_id: employee.id,
+      employee_name: employee.full_name,
+      amount: -cost,
+      reason,
+      type: 'redeemed',
+      trigger: 'redemption',
+      status: 'approved'
+    });
+    loadTransactions(employee.id);
   };
 
   const getRank = (bal) => RANKS.find(r => bal >= r.min && bal <= r.max) || RANKS[0];
