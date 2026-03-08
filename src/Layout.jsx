@@ -57,6 +57,7 @@ const adminLinks = [
   { title: "הכשרות ואיכות", url: "#", icon: GraduationCap, isCategory: true },
   { title: "הכשרות ואימונים", url: createPageUrl("Training"), icon: GraduationCap, isSubItem: true },
   { title: "לוח המובילים", url: createPageUrl("Leaderboard"), icon: Trophy, isSubItem: true },
+  { title: "מרכז גמיפיקציה", url: createPageUrl("GamificationAdmin"), icon: Trophy, isSubItem: true },
   { title: "צ'קליסטים", url: createPageUrl("Checklists"), icon: CheckSquare, isSubItem: true },
   { title: "תקריות", url: createPageUrl("Incidents"), icon: AlertTriangle, isSubItem: true },
 
