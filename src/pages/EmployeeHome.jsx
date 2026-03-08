@@ -157,6 +157,23 @@ export default function EmployeeHome() {
                 {/* שעון משמרת */}
                 <ShiftClockWidget />
 
+                {/* בחר הלבוש */}
+                {currentEmployee && (
+                    <div className="mb-8">
+                        <h2 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
+                            🎨 התאימו את הדמות שלכם
+                        </h2>
+                        <ApparelCustomizer 
+                            employeeId={currentEmployee.id}
+                            employeeAvatar={currentEmployee.avatar_url}
+                            onAvatarUpdate={async (newUrl) => {
+                                await base44.entities.Employee.update(currentEmployee.id, { avatar_url: newUrl });
+                            }}
+                            balance={0}
+                        />
+                    </div>
+                )}
+
                 {/* סידור עבודה שבועי */}
                 {user && <WeeklyScheduleSummary userId={user.id} currentEmployee={currentEmployee} />}
 
