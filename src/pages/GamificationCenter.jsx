@@ -308,7 +308,7 @@ export default function GamificationCenter() {
             {/* אמוג'ים מהירים */}
             <div>
               <p className="text-xs text-gray-500 mb-1.5 font-medium">אמוג'י מהיר:</p>
-              <div className="grid grid-cols-8 gap-1">
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(8, 1fr)', gap: '4px' }}>
                 {AVATAR_OPTIONS.map(a => (
                   <button
                     key={a}
