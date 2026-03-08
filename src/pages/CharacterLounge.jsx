@@ -240,11 +240,11 @@ function CharacterCard({ employee, apparel, coins, isCurrentUser, onSelect }) {
 function CharacterDetailModal({ employee, apparel, coins, isCurrentUser, onClose, onTransfer, currentUser }) {
   return (
     <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full">
+      <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full relative">
         {/* Close button */}
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 bg-gray-200 hover:bg-gray-300 rounded-full p-2 transition"
+          className="absolute top-4 right-4 z-10 bg-gray-200 hover:bg-gray-300 rounded-full p-2 transition"
         >
           <X className="w-5 h-5" />
         </button>

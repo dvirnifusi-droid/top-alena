@@ -55,6 +55,7 @@ import AvailabilityFormSettings from './pages/AvailabilityFormSettings';
 import AvailabilityRequests from './pages/AvailabilityRequests';
 import BeecommIntegration from './pages/BeecommIntegration';
 import BriefingManagement from './pages/BriefingManagement';
+import CharacterLounge from './pages/CharacterLounge';
 import Checklists from './pages/Checklists';
 import CustomerClub from './pages/CustomerClub';
 import CustomerDetails from './pages/CustomerDetails';
@@ -97,7 +98,6 @@ import Training from './pages/Training';
 import UploadChecklists from './pages/UploadChecklists';
 import WaiterTables from './pages/WaiterTables';
 import WorkScheduling from './pages/WorkScheduling';
-import CharacterLounge from './pages/CharacterLounge';
 import __Layout from './Layout.jsx';
 
 
@@ -110,6 +110,7 @@ export const PAGES = {
     "AvailabilityRequests": AvailabilityRequests,
     "BeecommIntegration": BeecommIntegration,
     "BriefingManagement": BriefingManagement,
+    "CharacterLounge": CharacterLounge,
     "Checklists": Checklists,
     "CustomerClub": CustomerClub,
     "CustomerDetails": CustomerDetails,
@@ -152,7 +153,6 @@ export const PAGES = {
     "UploadChecklists": UploadChecklists,
     "WaiterTables": WaiterTables,
     "WorkScheduling": WorkScheduling,
-    "CharacterLounge": CharacterLounge,
 }
 
 export const pagesConfig = {
