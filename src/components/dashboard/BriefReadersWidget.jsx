@@ -47,7 +47,9 @@ export default function BriefReadersWidget() {
     
     // Subscribe to DailyBrief changes for real-time updates
     const unsubscribe = base44.entities.DailyBrief.subscribe((event) => {
+      console.log('📡 DailyBrief update event:', event);
       if (event.type === 'update') {
+        console.log('🔄 Refreshing brief readers data...');
         loadBriefReaders();
       }
     });
