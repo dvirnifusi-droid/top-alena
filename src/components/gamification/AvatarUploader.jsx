@@ -30,24 +30,7 @@ export default function AvatarUploader({ currentAvatar, balance, onSave, onSpend
     setUploading(false);
   };
 
-  const handleGenerateAI = async (style) => {
-    if (!uploadedUrl) return;
-    const styleDef = AI_STYLES.find(s => s.id === style);
-    if (!styleDef) return;
-    if (balance < styleDef.cost) {
-      alert(`אין מספיק מטבעות! נדרשים ${styleDef.cost} 🪙`);
-      return;
-    }
-    setGenerating(true);
-    setAiResult(null);
-    const { url } = await base44.integrations.Core.GenerateImage({
-      prompt: styleDef.prompt + ', profile picture, square format, high quality',
-      existing_image_urls: [uploadedUrl]
-    });
-    await onSpendCoins(styleDef.cost, `שיפור אווטר AI - ${styleDef.label}`);
-    setAiResult(url);
-    setGenerating(false);
-  };
+
 
   const handleSave = (url) => {
     onSave(url);
