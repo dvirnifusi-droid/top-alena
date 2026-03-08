@@ -271,6 +271,6 @@ export default function ShiftChat() {
                 )}
             </div>
             </div>
-        </div>
+            </div>
     );
 }
