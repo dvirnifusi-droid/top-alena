@@ -1,10 +1,10 @@
-
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Check, Star, Zap, Info, ChefHat, GlassWater, Trophy, Users, Edit } from 'lucide-react';
 import { format } from 'date-fns';
 import { he } from 'date-fns/locale';
+import { base44 } from '@/api/base44Client';
 
 // משפטי סיום אקראיים וכיפיים
 const closingLines = [
