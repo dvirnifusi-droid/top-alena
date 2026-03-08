@@ -14,10 +14,11 @@ export default function AvatarUploader({ currentAvatar, balance, onSave, onSpend
   const fileRef = useRef();
 
   const AI_STYLES = [
-    { id: 'cartoon',    label: '🎨 קריקטורה',    cost: UPGRADE_COST,      prompt: 'Convert this photo into a fun cartoon avatar character, vibrant colors, anime-inspired style' },
-    { id: 'pixel',      label: '👾 פיקסל ארט',   cost: UPGRADE_COST,      prompt: 'Convert this photo into a retro pixel art avatar, 8-bit style, colorful' },
-    { id: 'hero',       label: '🦸 גיבור על',    cost: UPGRADE_COST * 2,  prompt: 'Convert this photo into a superhero comic book avatar, bold lines, dynamic pose' },
-    { id: 'gold',       label: '👑 אלוף זהב',    cost: UPGRADE_COST * 3,  prompt: 'Convert this photo into a golden royal portrait avatar, majestic, glowing golden crown' },
+    { id: 'cartoon',    label: '🎨 קריקטורה',         cost: UPGRADE_COST,      prompt: 'Convert this photo into a fun cartoon avatar character, vibrant colors, anime-inspired style' },
+    { id: 'pixel',      label: '👾 פיקסל ארט',        cost: UPGRADE_COST,      prompt: 'Convert this photo into a retro pixel art avatar, 8-bit style, colorful' },
+    { id: '3d_avatar',  label: '🧑‍🤝‍🧑 3D אווטר',        cost: UPGRADE_COST * 2,  prompt: 'Convert this photo into a 3D avatar with full body and face, wearing casual clothes, professional 3D character design, clean white background, portrait-style pose showing head and torso' },
+    { id: 'hero',       label: '🦸 גיבור על',         cost: UPGRADE_COST * 2,  prompt: 'Convert this photo into a superhero comic book avatar, bold lines, dynamic pose' },
+    { id: 'gold',       label: '👑 אלוף זהב',         cost: UPGRADE_COST * 3,  prompt: 'Convert this photo into a golden royal portrait avatar, majestic, glowing golden crown' },
   ];
 
   const handleFileChange = async (e) => {
