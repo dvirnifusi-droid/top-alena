@@ -54,16 +54,13 @@ import AvailabilityForm from './pages/AvailabilityForm';
 import AvailabilityFormSettings from './pages/AvailabilityFormSettings';
 import AvailabilityRequests from './pages/AvailabilityRequests';
 import BeecommIntegration from './pages/BeecommIntegration';
-import BriefingManagement from './pages/BriefingManagement';
 import Checklists from './pages/Checklists';
 import CustomerClub from './pages/CustomerClub';
 import CustomerDetails from './pages/CustomerDetails';
 import CustomerSurvey from './pages/CustomerSurvey';
 import CustomerSurveys from './pages/CustomerSurveys';
-import Dashboard from './pages/Dashboard';
 import EmployeeDetails from './pages/EmployeeDetails';
 import EmployeeFeedback from './pages/EmployeeFeedback';
-import EmployeeHome from './pages/EmployeeHome';
 import EmployeeReports from './pages/EmployeeReports';
 import Employees from './pages/Employees';
 import GamificationAdmin from './pages/GamificationAdmin';
@@ -97,6 +94,9 @@ import Training from './pages/Training';
 import UploadChecklists from './pages/UploadChecklists';
 import WaiterTables from './pages/WaiterTables';
 import WorkScheduling from './pages/WorkScheduling';
+import Dashboard from './pages/Dashboard';
+import EmployeeHome from './pages/EmployeeHome';
+import BriefingManagement from './pages/BriefingManagement';
 import __Layout from './Layout.jsx';
 
 
@@ -108,16 +108,13 @@ export const PAGES = {
     "AvailabilityFormSettings": AvailabilityFormSettings,
     "AvailabilityRequests": AvailabilityRequests,
     "BeecommIntegration": BeecommIntegration,
-    "BriefingManagement": BriefingManagement,
     "Checklists": Checklists,
     "CustomerClub": CustomerClub,
     "CustomerDetails": CustomerDetails,
     "CustomerSurvey": CustomerSurvey,
     "CustomerSurveys": CustomerSurveys,
-    "Dashboard": Dashboard,
     "EmployeeDetails": EmployeeDetails,
     "EmployeeFeedback": EmployeeFeedback,
-    "EmployeeHome": EmployeeHome,
     "EmployeeReports": EmployeeReports,
     "Employees": Employees,
     "GamificationAdmin": GamificationAdmin,
@@ -151,6 +148,9 @@ export const PAGES = {
     "UploadChecklists": UploadChecklists,
     "WaiterTables": WaiterTables,
     "WorkScheduling": WorkScheduling,
+    "Dashboard": Dashboard,
+    "EmployeeHome": EmployeeHome,
+    "BriefingManagement": BriefingManagement,
 }
 
 export const pagesConfig = {
