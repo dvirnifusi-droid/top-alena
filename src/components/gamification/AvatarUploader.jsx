@@ -45,6 +45,7 @@ export default function AvatarUploader({ currentAvatar, balance, onSave, onSpend
 
 
   const handleSave = (url) => {
+    setShowPreview(false);
     onSave(url);
   };
 
