@@ -108,10 +108,9 @@ export default function ApparelCustomizer({ employeeId, employeeAvatar, onAvatar
       setEquipped(updated);
 
       // עדכן ב-DB
-      await base44.entities.EmployeeApparel.update(
-        (await base44.entities.EmployeeApparel.filter({ employee_id: employeeId }))[0]?.id,
-        updated
-      );
+      if (employeeApparelId) {
+        await base44.entities.EmployeeApparel.update(employeeApparelId, updated);
+      }
 
       // עדכן את האווטר
       setCurrentAvatarUrl(url);
