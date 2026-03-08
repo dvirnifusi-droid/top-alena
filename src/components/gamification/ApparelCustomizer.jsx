@@ -157,50 +157,57 @@ export default function ApparelCustomizer({ employeeId, employeeAvatar, onAvatar
               </div>
             )}
             {categories.map(cat => {
-              const currentItem = apparel.find(a => a.id === cat.value);
-              const categoryItems = apparel.filter(a => a.category === cat.key);
-              
-              return (
-                <div key={cat.key} className="space-y-2">
-                  <p className="font-bold text-sm">
-                    {cat.label}
-                    {currentItem && <span className="text-xs text-gray-500 mr-2">({currentItem.name})</span>}
-                  </p>
-                  <div className="grid grid-cols-3 gap-2">
-                   {categoryItems.map(item => {
-                     const isOwned = ownedApparel.includes(item.id);
-                     const isEquipped = cat.value === item.id;
+               const currentItem = apparel.find(a => a.id === cat.value);
+               const categoryItems = apparel.filter(a => a.category === cat.key);
 
-                     return (
-                       <button
-                         key={item.id}
-                         onClick={() => handleEquip(item.id, cat.key)}
-                         disabled={regenerating || !isOwned}
-                         className={`p-2 rounded-lg border-2 text-sm transition-all ${
-                           !isOwned ? 'opacity-50 cursor-not-allowed' : ''
-                         } ${
-                           isEquipped
-                             ? 'border-green-500 bg-green-50'
-                             : isOwned
-                             ? 'border-blue-300 bg-blue-50 hover:border-blue-400'
-                             : 'border-gray-300 bg-gray-100'
-                         }`}
-                       >
-                         <div className="text-2xl mb-1">{item.emoji}</div>
-                         <div className="text-xs font-semibold">{item.name}</div>
-                         <div className="text-xs text-gray-500">
-                           {isOwned ? '✅ בבעלותך' : `${item.cost} 🪙`}
-                         </div>
-                       </button>
-                     );
-                   })}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </DialogContent>
-      </Dialog>
+               return (
+                 <div key={cat.key} className="space-y-2">
+                   <p className="font-bold text-sm">
+                     {cat.label}
+                     {currentItem && <span className="text-xs text-gray-500 mr-2">({currentItem.name})</span>}
+                   </p>
+                   <div className="grid grid-cols-3 gap-2">
+                    {categoryItems.map(item => {
+                      const isOwned = ownedApparel.includes(item.id);
+                      const isEquipped = cat.value === item.id;
+
+                      return (
+                        <button
+                          key={item.id}
+                          onClick={() => handleEquip(item.id, cat.key)}
+                          disabled={!isOwned}
+                          className={`p-2 rounded-lg border-2 text-sm transition-all ${
+                            !isOwned ? 'opacity-50 cursor-not-allowed' : ''
+                          } ${
+                            isEquipped
+                              ? 'border-green-500 bg-green-50'
+                              : isOwned
+                              ? 'border-blue-300 bg-blue-50 hover:border-blue-400'
+                              : 'border-gray-300 bg-gray-100'
+                          }`}
+                        >
+                          <div className="text-2xl mb-1">{item.emoji}</div>
+                          <div className="text-xs font-semibold">{item.name}</div>
+                          <div className="text-xs text-gray-500">
+                            {isOwned ? '✅ בבעלותך' : `${item.cost} 🪙`}
+                          </div>
+                        </button>
+                      );
+                    })}
+                   </div>
+                 </div>
+               );
+             })}
+            <Button 
+              onClick={handleUpdateAvatar} 
+              disabled={regenerating}
+              className="w-full mt-4 bg-green-500 hover:bg-green-600"
+            >
+              {regenerating ? 'מעדכן דמות...' : '✨ עדכן דמות עם הלבוש החדש'}
+            </Button>
+           </div>
+         </DialogContent>
+       </Dialog>
 
       <Dialog open={showPreview} onOpenChange={setShowPreview}>
         <DialogContent className="max-w-3xl p-0 border-0 bg-gradient-to-b from-purple-50 to-white">
