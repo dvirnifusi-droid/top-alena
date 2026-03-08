@@ -22,9 +22,14 @@ export default function ShiftChat() {
     const [hasNewMessages, setHasNewMessages] = useState(false);
 
     useEffect(() => {
-        User.me().then(u => {
+        User.me().then(async u => {
             setUser(u);
             loadMessages();
+            // טען את פרטי העובד
+            const employees = await base44.entities.Employee.filter({ email: u.email });
+            if (employees.length > 0) {
+                setCurrentEmployee(employees[0]);
+            }
         });
     }, [selectedShift]);
 
