@@ -170,7 +170,7 @@ export default function ApparelCustomizer({ employeeId, employeeAvatar, onAvatar
                   </p>
                   <div className="grid grid-cols-3 gap-2">
                    {categoryItems.map(item => {
-                     const isOwned = equipped.owned?.includes(item.id);
+                     const isOwned = ownedApparel.includes(item.id);
                      const isEquipped = cat.value === item.id;
 
                      return (
@@ -178,7 +178,9 @@ export default function ApparelCustomizer({ employeeId, employeeAvatar, onAvatar
                          key={item.id}
                          onClick={() => handleEquip(item.id, cat.key)}
                          disabled={regenerating || !isOwned}
-                         className={`p-2 rounded-lg border-2 text-sm transition-all opacity-${isOwned ? '100' : '50'} cursor-${isOwned ? 'pointer' : 'not-allowed'} ${
+                         className={`p-2 rounded-lg border-2 text-sm transition-all ${
+                           !isOwned ? 'opacity-50 cursor-not-allowed' : ''
+                         } ${
                            isEquipped
                              ? 'border-green-500 bg-green-50'
                              : isOwned
