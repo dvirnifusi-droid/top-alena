@@ -53,6 +53,10 @@ export default function ApparelCustomizer({ employeeId, employeeAvatar, onAvatar
     setLoading(false);
   };
 
+  useEffect(() => {
+    setCurrentAvatarUrl(employeeAvatar);
+  }, [employeeAvatar]);
+
   const handleEquip = async (itemId, category) => {
     if (regenerating) return;
 
