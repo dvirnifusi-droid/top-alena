@@ -10,7 +10,7 @@ import ShoutOutFeed from '../components/gamification/ShoutOutFeed';
 import DailyChallengeCard from '../components/gamification/DailyChallengeCard';
 import BadgesDisplay, { computeBadges } from '../components/gamification/BadgesDisplay';
 import AvatarUploader from '../components/gamification/AvatarUploader';
-import { Sun, Moon, Palette } from 'lucide-react';
+import { Sun, Palette } from 'lucide-react';
 
 const RANKS = [
   { min: 0,     max: 499,      title: 'מתחיל',         emoji: '🥉', color: 'from-amber-400 to-orange-500' },
