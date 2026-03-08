@@ -142,10 +142,10 @@ export default function CharacterLounge() {
 
 function CharacterCard({ employee, apparel, coins, isCurrentUser, onSelect }) {
   return (
-    <div className="flex flex-col items-center">
+    <div className="flex flex-col items-center cursor-pointer group" onClick={onSelect}>
       {/* Avatar container */}
       <div className="relative mb-3">
-        <div className="w-24 h-32 rounded-xl bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center overflow-hidden border-4 border-white shadow-lg hover:shadow-2xl transition-all duration-300 cursor-pointer hover:scale-105">
+        <div className="w-24 h-32 rounded-xl bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center overflow-hidden border-4 border-white shadow-lg hover:shadow-2xl transition-all duration-300 group-hover:scale-110">
           {apparel?.avatar_url ? (
             <img 
               src={apparel.avatar_url} 
