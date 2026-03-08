@@ -68,6 +68,9 @@ const adminLinks = [
   { title: "תבניות הודעה", url: createPageUrl("MessageTemplates"), icon: FileText, isSubItem: true },
   { title: "סקרי לקוחות", url: createPageUrl("CustomerSurveys"), icon: MessageSquare, isSubItem: true },
   { title: "ברקודי סקרים", url: createPageUrl("SurveyQRCodes"), icon: QrCode, isSubItem: true },
+
+  // חנות בגדים
+  { title: "ניהול חנות בגדים", url: createPageUrl("ApparelManagement"), icon: Trophy },
 ];
 
 // תפריט לעובדים רגילים - מחולק לקטגוריות
