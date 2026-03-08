@@ -35,7 +35,7 @@ export default function AvatarUploader({
     setGenerating(true);
     try {
       const { url } = await base44.integrations.Core.GenerateImage({
-        prompt: `Transform this person's face into a cute cartoon avatar style character in white circle, vibrant colors, clean art style, friendly expression, profile picture quality, Pixar style`,
+        prompt: `A high-end 3D stylized character portrait in the style of Apple Memoji and Fortnite. The character must have a large head, expressive eyes, and maintain the exact facial features, hair style, and hair color of the person in the uploaded photo. Use soft studio lighting, realistic 3D textures (skin and hair), and a clean, solid white background (or transparent). The character should have a friendly smile, look directly at the camera, and have a high-quality Pixar-style render finish. Aspect ratio 1:1 (Square). High quality professional render.`,
         existing_image_urls: [uploadedOriginal],
       });
       setGeneratedFace(url);
