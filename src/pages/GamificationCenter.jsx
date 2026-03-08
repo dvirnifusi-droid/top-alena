@@ -42,6 +42,7 @@ export default function GamificationCenter() {
   const [rewards, setRewards] = useState([]);
   const [theme, setTheme] = useState(() => localStorage.getItem('gc_theme') || 'light');
   const [avatar, setAvatar] = useState(() => localStorage.getItem('gc_avatar') || '😎');
+  const [avatarIsImage, setAvatarIsImage] = useState(() => localStorage.getItem('gc_avatar_is_image') === 'true');
   const [showAvatarPicker, setShowAvatarPicker] = useState(false);
   const [showThemePicker, setShowThemePicker] = useState(false);
 
