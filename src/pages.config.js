@@ -96,6 +96,7 @@ import Training from './pages/Training';
 import UploadChecklists from './pages/UploadChecklists';
 import WaiterTables from './pages/WaiterTables';
 import WorkScheduling from './pages/WorkScheduling';
+import AvatarShop from './pages/AvatarShop';
 import __Layout from './Layout.jsx';
 
 
@@ -149,6 +150,7 @@ export const PAGES = {
     "UploadChecklists": UploadChecklists,
     "WaiterTables": WaiterTables,
     "WorkScheduling": WorkScheduling,
+    "AvatarShop": AvatarShop,
 }
 
 export const pagesConfig = {
