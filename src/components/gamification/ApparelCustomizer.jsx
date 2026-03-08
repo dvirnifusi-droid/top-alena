@@ -74,6 +74,30 @@ export default function ApparelCustomizer({ employeeId, employeeAvatar, onAvatar
     }
   };
 
+  const handleBuyAndEquip = async (item) => {
+    if (balance < item.cost) {
+      alert(`אין מספיק מטבעות! נדרשים ${item.cost} 🪙`);
+      return;
+    }
+
+    // הוסף לרשימת הבגדים שלך
+    const newOwned = [...ownedApparel, item.id];
+    setOwnedApparel(newOwned);
+
+    // עדכן ב-DB
+    if (employeeApparelId) {
+      await base44.entities.EmployeeApparel.update(employeeApparelId, { owned_apparel: newOwned });
+    }
+
+    // הפחת מטבעות
+    if (onSpendCoins) {
+      onSpendCoins(item.cost);
+    }
+
+    // הלבש את הבגד החדש
+    await handleEquip(item.id, item.category);
+  };
+
 
 
   if (loading) return <div>טוען...</div>;
