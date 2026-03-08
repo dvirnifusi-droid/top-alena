@@ -17,6 +17,9 @@ export default function GamificationAdmin() {
   const [employees, setEmployees] = useState([]);
   const [showConfetti, setShowConfetti] = useState(false);
   const [leaderboard, setLeaderboard] = useState([]);
+  const [rewards, setRewards] = useState([]);
+  const [editingReward, setEditingReward] = useState(null);
+  const [newReward, setNewReward] = useState({ title: '', description: '', emoji: '🎁', cost: 500, is_active: true });
 
   useEffect(() => {
     loadAll();
@@ -25,11 +28,13 @@ export default function GamificationAdmin() {
   const loadAll = async () => {
     const today = format(new Date(), 'yyyy-MM-dd');
 
-    const [txns, challenges, emps] = await Promise.all([
+    const [txns, challenges, emps, rws] = await Promise.all([
       base44.entities.CoinTransaction.filter({ status: 'pending_approval' }),
       base44.entities.DailyChallenge.filter({ date: today }),
-      base44.entities.Employee.filter({ status: 'active' })
+      base44.entities.Employee.filter({ status: 'active' }),
+      base44.entities.Reward.list()
     ]);
+    setRewards(rws);
 
     setPendingRedemptions(txns);
     setTodayChallenge(challenges[0] || null);
@@ -128,6 +133,7 @@ export default function GamificationAdmin() {
             <TabsTrigger value="bonus" className="flex-1">🪙 בונוס ידני</TabsTrigger>
             <TabsTrigger value="shoutout" className="flex-1">🔥 שאאוט</TabsTrigger>
             <TabsTrigger value="leaderboard" className="flex-1">🏆 לוח מובילים</TabsTrigger>
+            <TabsTrigger value="rewards" className="flex-1">🎁 פרסים</TabsTrigger>
           </TabsList>
 
           {/* פדיונות */}
@@ -236,6 +242,82 @@ export default function GamificationAdmin() {
                 {leaderboard.length === 0 && <p className="text-center text-gray-500 py-4">אין נתונים עדיין</p>}
               </CardContent>
             </Card>
+          </TabsContent>
+
+          {/* עריכת פרסים */}
+          <TabsContent value="rewards">
+            <div className="space-y-4">
+              {/* הוספת פרס חדש */}
+              <Card>
+                <CardHeader><CardTitle>➕ {editingReward ? 'עריכת פרס' : 'הוסף פרס חדש'}</CardTitle></CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="flex gap-2">
+                    <Input placeholder="אמוג'י" value={newReward.emoji} onChange={e => setNewReward(p => ({ ...p, emoji: e.target.value }))} className="w-20" />
+                    <Input placeholder="שם הפרס" value={newReward.title} onChange={e => setNewReward(p => ({ ...p, title: e.target.value }))} className="flex-1" />
+                  </div>
+                  <Input placeholder="תיאור הפרס" value={newReward.description} onChange={e => setNewReward(p => ({ ...p, description: e.target.value }))} />
+                  <div className="flex items-center gap-2">
+                    <label className="text-sm font-medium">מחיר במטבעות:</label>
+                    <Input type="number" value={newReward.cost} onChange={e => setNewReward(p => ({ ...p, cost: Number(e.target.value) }))} className="w-28" />
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      onClick={async () => {
+                        if (editingReward) {
+                          await base44.entities.Reward.update(editingReward.id, newReward);
+                          setEditingReward(null);
+                        } else {
+                          await base44.entities.Reward.create(newReward);
+                        }
+                        setNewReward({ title: '', description: '', emoji: '🎁', cost: 500, is_active: true });
+                        loadAll();
+                      }}
+                      disabled={!newReward.title || !newReward.cost}
+                      className="flex-1 bg-green-500 hover:bg-green-600 text-white font-bold"
+                    >
+                      {editingReward ? '💾 שמור שינויים' : '✅ הוסף פרס'}
+                    </Button>
+                    {editingReward && (
+                      <Button variant="outline" onClick={() => { setEditingReward(null); setNewReward({ title: '', description: '', emoji: '🎁', cost: 500, is_active: true }); }}>
+                        ביטול
+                      </Button>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* רשימת פרסים קיימים */}
+              {rewards.length === 0 && (
+                <Card><CardContent className="p-6 text-center text-gray-500">אין פרסים עדיין — הוסף את הראשון!</CardContent></Card>
+              )}
+              {rewards.map(r => (
+                <Card key={r.id} className={`border-2 ${r.is_active ? 'border-yellow-200 bg-yellow-50' : 'border-gray-200 bg-gray-50 opacity-60'}`}>
+                  <CardContent className="p-4 flex items-center gap-3">
+                    <span className="text-3xl">{r.emoji}</span>
+                    <div className="flex-1">
+                      <p className="font-bold">{r.title}</p>
+                      <p className="text-sm text-gray-500">{r.description}</p>
+                      <p className="text-yellow-600 font-black text-sm">{r.cost?.toLocaleString()} 🪙</p>
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <Button
+                        size="sm" variant="outline"
+                        onClick={() => { setEditingReward(r); setNewReward({ title: r.title, description: r.description || '', emoji: r.emoji, cost: r.cost, is_active: r.is_active }); }}
+                      >✏️ ערוך</Button>
+                      <Button
+                        size="sm" variant="outline"
+                        className={r.is_active ? 'text-gray-500' : 'text-green-600'}
+                        onClick={async () => { await base44.entities.Reward.update(r.id, { is_active: !r.is_active }); loadAll(); }}
+                      >{r.is_active ? '🔴 בטל' : '🟢 הפעל'}</Button>
+                      <Button
+                        size="sm" variant="outline" className="text-red-600 border-red-200"
+                        onClick={async () => { await base44.entities.Reward.delete(r.id); loadAll(); }}
+                      >🗑️ מחק</Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
           </TabsContent>
         </Tabs>
       </div>
