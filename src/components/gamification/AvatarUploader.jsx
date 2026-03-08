@@ -10,6 +10,7 @@ export default function AvatarUploader({ currentAvatar, balance, onSave, onSpend
   const [generating, setGenerating] = useState(false);
   const [uploadedUrl, setUploadedUrl] = useState(null);
   const [aiResult, setAiResult] = useState(null);
+  const [showPreview, setShowPreview] = useState(false);
   const fileRef = useRef();
 
   const handleFileChange = async (e) => {
