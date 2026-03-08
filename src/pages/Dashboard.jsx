@@ -7,6 +7,9 @@ import { Users, TrendingUp, CheckCircle, AlertTriangle, Star, Brain, Zap, Chevro
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
+import { base44 } from '@/api/base44Client';
+import ApparelShop from '../components/gamification/ApparelShop';
+import ApparelCustomizer from '../components/gamification/ApparelCustomizer';
 
 import RecentIncidents from '../components/dashboard/RecentIncidents';
 import TrainingOverview from '../components/dashboard/TrainingOverview';
