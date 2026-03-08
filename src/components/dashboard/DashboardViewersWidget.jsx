@@ -86,7 +86,7 @@ export default function DashboardViewersWidget() {
                 ) : (
                     <div className="space-y-3 max-h-[400px] overflow-y-auto">
                         {briefReaders.map((reader) => (
-                            <div key={reader.id} className="flex items-center justify-between p-3 bg-green-50 rounded-lg hover:bg-green-100 transition">
+                            <div key={reader.email} className="flex items-center justify-between p-3 bg-green-50 rounded-lg hover:bg-green-100 transition">
                                 <div className="flex items-center gap-3 min-w-0">
                                     <div className="w-8 h-8 rounded-full bg-green-200 flex items-center justify-center flex-shrink-0">
                                         <User className="w-4 h-4 text-green-700" />
