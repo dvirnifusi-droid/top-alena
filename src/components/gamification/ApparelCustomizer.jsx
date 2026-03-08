@@ -310,6 +310,47 @@ export default function ApparelCustomizer({ employeeId, employeeAvatar, onAvatar
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* דיאלוג העלאת תמונה חדשה */}
+      <Dialog open={showUploadDialog} onOpenChange={setShowUploadDialog}>
+        <DialogContent className="max-w-md" dir="rtl">
+          <DialogTitle>עדכן את הדמות שלך</DialogTitle>
+          <div className="space-y-4 py-4">
+            <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 flex flex-col items-center gap-3">
+              <input
+                type="file"
+                accept="image/*"
+                onChange={handleUploadNewAvatar}
+                disabled={uploading}
+                className="hidden"
+                id="avatar-upload"
+              />
+              <label htmlFor="avatar-upload" className="cursor-pointer">
+                <Button
+                  as="div"
+                  className="bg-blue-600 hover:bg-blue-700 cursor-pointer"
+                  disabled={uploading}
+                >
+                  <Upload className="w-4 h-4 mr-2" />
+                  {uploading ? 'מעלה...' : 'בחר תמונה חדשה'}
+                </Button>
+              </label>
+              <p className="text-xs text-gray-500">או גרור תמונה לכאן</p>
+            </div>
+            
+            {currentAvatarUrl && (
+              <Button
+                onClick={handleDeleteAvatar}
+                variant="destructive"
+                className="w-full"
+              >
+                <Trash2 className="w-4 h-4 mr-2" />
+                מחק את הדמות הנוכחית
+              </Button>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
