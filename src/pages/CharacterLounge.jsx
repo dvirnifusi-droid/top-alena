@@ -14,8 +14,29 @@ export default function CharacterLounge() {
   const [coinsMap, setCoinsMap] = useState({});
   const [selectedEmployee, setSelectedEmployee] = useState(null);
   const [showTransferDialog, setShowTransferDialog] = useState(false);
+  const [showDetailModal, setShowDetailModal] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
   const [loading, setLoading] = useState(true);
+
+  const refreshCoins = async () => {
+    try {
+      const transactions = await base44.entities.CoinTransaction.list();
+      const coinsByEmp = {};
+      employees.forEach(emp => {
+        const empTransactions = transactions.filter(t => t.employee_id === emp.id);
+        const totalCoins = empTransactions.reduce((sum, t) => {
+          if (t.status === 'approved') {
+            return sum + (t.amount || 0);
+          }
+          return sum;
+        }, 0);
+        coinsByEmp[emp.id] = Math.max(0, totalCoins);
+      });
+      setCoinsMap(coinsByEmp);
+    } catch (error) {
+      console.error('Failed to refresh coins:', error);
+    }
+  };
 
   useEffect(() => {
     const loadData = async () => {
@@ -69,9 +90,9 @@ export default function CharacterLounge() {
       }
     });
 
-    // Subscribe to CoinTransaction updates - simplified
+    // Subscribe to CoinTransaction updates
     const unsubscribeCoins = base44.entities.CoinTransaction.subscribe(() => {
-      // Just trigger a UI refresh when transactions change
+      refreshCoins();
     });
 
     return () => {
