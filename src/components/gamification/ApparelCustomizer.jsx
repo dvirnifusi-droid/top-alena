@@ -150,26 +150,32 @@ export default function ApparelCustomizer({ employeeId, employeeAvatar, onAvatar
                       const isEquipped = cat.value === item.id;
 
                       return (
-                        <button
-                          key={item.id}
-                          onClick={() => handleEquip(item.id, cat.key)}
-                          disabled={!isOwned}
-                          className={`p-2 rounded-lg border-2 text-sm transition-all ${
-                            !isOwned ? 'opacity-50 cursor-not-allowed' : ''
-                          } ${
-                            isEquipped
-                              ? 'border-green-500 bg-green-50'
-                              : isOwned
-                              ? 'border-blue-300 bg-blue-50 hover:border-blue-400'
-                              : 'border-gray-300 bg-gray-100'
-                          }`}
-                        >
-                          <div className="text-2xl mb-1">{item.emoji}</div>
-                          <div className="text-xs font-semibold">{item.name}</div>
-                          <div className="text-xs text-gray-500">
-                            {isOwned ? '✅ בבעלותך' : `${item.cost} 🪙`}
-                          </div>
-                        </button>
+                        <div key={item.id} className={`p-2 rounded-lg border-2 text-sm transition-all flex flex-col ${
+                          isEquipped && isOwned
+                            ? 'border-green-500 bg-green-50'
+                            : isOwned
+                            ? 'border-blue-300 bg-blue-50'
+                            : 'border-gray-300 bg-gray-100'
+                        }`}>
+                          <div className="text-2xl mb-1 text-center">{item.emoji}</div>
+                          <div className="text-xs font-semibold text-center mb-1">{item.name}</div>
+                          {isOwned ? (
+                            <button
+                              onClick={() => handleEquip(item.id, cat.key)}
+                              className="text-xs bg-green-500 hover:bg-green-600 text-white py-1 rounded"
+                            >
+                              ✅ בבעלותך
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => handleBuyAndEquip(item)}
+                              disabled={balance < item.cost}
+                              className="text-xs bg-blue-500 hover:bg-blue-600 disabled:bg-gray-400 disabled:cursor-not-allowed text-white py-1 rounded"
+                            >
+                              {item.cost} 🪙
+                            </button>
+                          )}
+                        </div>
                       );
                     })}
                    </div>
