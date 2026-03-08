@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Shift } from '@/entities/all';
+import { base44 } from '@/api/base44Client';
 import PageGuard from '../components/shared/PageGuard';
-import { InvokeLLM } from "@/integrations/Core";
-import { Crown, Trophy, TrendingUp, Loader2, BrainCircuit, BarChart, Sparkles } from 'lucide-react';
+import { Crown, Trophy, TrendingUp, Loader2, BrainCircuit, BarChart, Sparkles, Clock, Star, Banknote, CheckSquare, GraduationCap, Heart, Info } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { base44 as b44 } from '@/api/base44Client';
 import ReactMarkdown from 'react-markdown';
 
 function LeaderboardInner() {
