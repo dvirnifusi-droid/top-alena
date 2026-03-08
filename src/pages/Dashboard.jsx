@@ -495,6 +495,7 @@ function DashboardInner() {
                          <div className="xl:col-span-2">
                              <SalesChart />
                          </div>
+                         <RevenueWidget />
                          <div>
                              <ActiveEmployeesWidget />
                          </div>
