@@ -75,6 +75,63 @@ export default function ApparelCustomizer({ employeeId, employeeAvatar, onAvatar
     if (employeeApparelId) {
       await base44.entities.EmployeeApparel.update(employeeApparelId, updated);
     }
+
+    // אם האווטר נעול, עדכן אותו עם הבגדים החדשים
+    if (avatarLocked) {
+      applyApparelOverlay(updated);
+    }
+  };
+
+  const applyApparelOverlay = (currentEquipped) => {
+    // יצור תיאור של הביגדים הנוכחיים
+    const apparelItems = [];
+    if (currentEquipped.shirt) {
+      const shirt = apparel.find(a => a.id === currentEquipped.shirt);
+      if (shirt) apparelItems.push(shirt.wearing_text);
+    }
+    if (currentEquipped.pants) {
+      const pants = apparel.find(a => a.id === currentEquipped.pants);
+      if (pants) apparelItems.push(pants.wearing_text);
+    }
+    if (currentEquipped.shoes) {
+      const shoes = apparel.find(a => a.id === currentEquipped.shoes);
+      if (shoes) apparelItems.push(shoes.wearing_text);
+    }
+    if (currentEquipped.hat) {
+      const hat = apparel.find(a => a.id === currentEquipped.hat);
+      if (hat) apparelItems.push(hat.wearing_text);
+    }
+    if (currentEquipped.outerwear) {
+      const outerwear = apparel.find(a => a.id === currentEquipped.outerwear);
+      if (outerwear) apparelItems.push(outerwear.wearing_text);
+    }
+    if (currentEquipped.accessories?.length > 0) {
+      currentEquipped.accessories.forEach(accId => {
+        const acc = apparel.find(a => a.id === accId);
+        if (acc) apparelItems.push(acc.wearing_text);
+      });
+    }
+
+    const wearingText = apparelItems.join(', ');
+    const prompt = `Full body 3D stylized character avatar, Pixar/Fortnite style, standing in a neutral T-pose. Same character as before, ${wearingText || 'wearing a basic grey t-shirt and blue jeans'}. High-quality 3D render, studio lighting, solid white background. Professional 3D game character design.`;
+
+    base44.integrations.Core.GenerateImage({
+      prompt,
+      existing_image_urls: [baseAvatarUrl]
+    }).then(({ url }) => {
+      setCurrentAvatarUrl(url);
+      onAvatarUpdate(url);
+    }).catch(error => {
+      console.error('Error applying apparel:', error);
+    });
+  };
+
+  const handleLockAvatar = () => {
+    if (!avatarLocked) {
+      setAvatarLocked(true);
+    } else {
+      setAvatarLocked(false);
+    }
   };
 
 
