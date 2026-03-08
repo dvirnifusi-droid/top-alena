@@ -224,6 +224,21 @@ function LeaderboardInner() {
                     </CardHeader>
                 </Card>
 
+                <Card className="mb-4 bg-orange-50 border-orange-200">
+                    <CardContent className="p-3">
+                        <p className="text-xs font-bold text-orange-700 mb-2 flex items-center gap-1"><Info className="w-3 h-3"/>מקורות נקודות:</p>
+                        <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-600">
+                            <span><CheckSquare className="w-3 h-3 inline text-blue-400 ml-1"/>משמרת = 15 נק'</span>
+                            <span><Clock className="w-3 h-3 inline text-indigo-400 ml-1"/>שעת עבודה = 5 נק'</span>
+                            <span><Banknote className="w-3 h-3 inline text-green-400 ml-1"/>₪1 טיפ/שעה = 3 נק'</span>
+                            <span><Star className="w-3 h-3 inline text-yellow-400 ml-1"/>דירוג מנהל 5/5 = 100 נק'</span>
+                            <span><Heart className="w-3 h-3 inline text-pink-400 ml-1"/>מחמאה = 10 נק'</span>
+                            <span><GraduationCap className="w-3 h-3 inline text-purple-400 ml-1"/>קורס = 25 נק'</span>
+                            <span><CheckSquare className="w-3 h-3 inline text-teal-400 ml-1"/>צ'קליסט = 5 נק'</span>
+                        </div>
+                    </CardContent>
+                </Card>
+
                 <Tabs value={timeFrame} onValueChange={setTimeFrame} className="mb-6">
                     <TabsList className="grid w-full grid-cols-3">
                         <TabsTrigger value="daily">היום</TabsTrigger>
