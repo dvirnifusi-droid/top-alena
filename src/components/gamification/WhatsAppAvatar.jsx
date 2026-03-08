@@ -2,61 +2,88 @@ import React from 'react';
 import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
 
-// Avatar Renderer - Layers-based עם ראש גדול וPNG layers
+// SVG Avatar בסגנון Pixar/Fortnite עם Layers
 export function AvatarRenderer({ faceUrl, body = {}, accessories = [] }) {
+  const sizeW = 200;
+  const sizeH = 280;
+
   return (
-    <div className="relative w-full aspect-square bg-gradient-to-b from-gray-100 to-gray-200 rounded-2xl overflow-hidden flex items-center justify-center">
-      {/* גוף בסיס - תמונה או placeholder */}
-      <div className="absolute inset-0 flex flex-col items-center justify-end">
-        {/* גוף */}
-        <div className="w-32 h-40 rounded-t-3xl flex items-end justify-center relative"
-          style={{ backgroundColor: body.color || '#3b82f6' }}>
-          {/* שרוולים */}
-          <div className="absolute top-4 left-0 w-12 h-20 rounded-full"
-            style={{ backgroundColor: body.color || '#3b82f6', marginLeft: '-24px' }} />
-          <div className="absolute top-4 right-0 w-12 h-20 rounded-full"
-            style={{ backgroundColor: body.color || '#3b82f6', marginRight: '-24px' }} />
-        </div>
-        {/* רגליים */}
-        <div className="flex gap-6">
-          <div className="w-4 h-20 bg-amber-100 rounded" />
-          <div className="w-4 h-20 bg-amber-100 rounded" />
-        </div>
-      </div>
+    <svg viewBox={`0 0 ${sizeW} ${sizeH}`} xmlns="http://www.w3.org/2000/svg" className="w-full h-full">
+      <defs>
+        <clipPath id="headClip">
+          <circle cx="100" cy="80" r="38" />
+        </clipPath>
+        <filter id="shadow">
+          <feDropShadow dx="0" dy="2" stdDeviation="2" floodOpacity="0.2" />
+        </filter>
+      </defs>
 
-      {/* ראש - Layer ראשון (הראש הגדול) */}
-      <div className="absolute top-8 w-56 h-56 rounded-full overflow-hidden border-4 border-amber-100 shadow-lg"
-        style={{ left: '50%', transform: 'translateX(-50%)' }}>
-        {faceUrl ? (
-          <img src={faceUrl} alt="avatar-head" className="w-full h-full object-cover" />
-        ) : (
-          <div className="w-full h-full bg-gradient-to-b from-amber-200 to-amber-100 flex items-center justify-center text-4xl">
-            😊
-          </div>
-        )}
-      </div>
+      {/* רקע */}
+      <rect width={sizeW} height={sizeH} fill="#f5f0eb" />
 
-      {/* Layers - בגדים ואביזרים (PNGs) */}
-      {accessories.map((acc, idx) => {
-        const layerMap = {
-          'hat': { top: '-10%', width: '140%', left: '50%', transform: 'translateX(-50%)' },
-          'glasses': { top: '35%', width: '90%', left: '50%', transform: 'translateX(-50%)' },
-          'earring': { top: '40%', width: '100%', left: '50%', transform: 'translateX(-50%)' },
-          'necklace': { top: '65%', width: '100%', left: '50%', transform: 'translateX(-50%)' },
-        };
-        const pos = layerMap[acc] || {};
-        return (
-          <div key={`${acc}-${idx}`} className="absolute" style={pos}>
-            <div className="text-4xl text-center opacity-80">
-              {acc === 'hat' && '👒'}
-              {acc === 'glasses' && '👓'}
-              {acc === 'earring' && '💍'}
-              {acc === 'necklace' && '📿'}
-            </div>
-          </div>
-        );
-      })}
-    </div>
+      {/* רגליים */}
+      <rect x="78" y="210" width="12" height="55" rx="6" fill="#d4a574" filter="url(#shadow)" />
+      <rect x="110" y="210" width="12" height="55" rx="6" fill="#d4a574" filter="url(#shadow)" />
+      {/* נעליים */}
+      <ellipse cx="84" cy="268" rx="8" ry="4" fill="#333" />
+      <ellipse cx="116" cy="268" rx="8" ry="4" fill="#333" />
+
+      {/* צוואר */}
+      <rect x="94" y="132" width="12" height="8" fill="#d4a574" />
+
+      {/* גוף - חולצה */}
+      <g filter="url(#shadow)">
+        <path d="M 70 142 L 75 140 L 75 205 Q 100 215 125 205 L 125 140 L 130 142 Q 100 130 70 142" 
+          fill={body.color || '#3b82f6'} />
+        {/* שרוולים */}
+        <ellipse cx="55" cy="160" rx="11" ry="28" fill={body.color || '#3b82f6'} />
+        <ellipse cx="145" cy="160" rx="11" ry="28" fill={body.color || '#3b82f6'} />
+        {/* כפתורים */}
+        <circle cx="100" cy="155" r="1.5" fill="white" opacity="0.5" />
+        <circle cx="100" cy="170" r="1.5" fill="white" opacity="0.5" />
+      </g>
+
+      {/* ראש - תמונה מה-AI או צבע */}
+      {faceUrl ? (
+        <image href={faceUrl} x="62" y="42" width="76" height="76" 
+          clipPath="url(#headClip)" preserveAspectRatio="xMidYMid slice" />
+      ) : (
+        <circle cx="100" cy="80" r="38" fill="#d4a574" filter="url(#shadow)" />
+      )}
+
+      {/* גבול ראש עדין */}
+      <circle cx="100" cy="80" r="38" fill="none" stroke="#d4a574" strokeWidth="0.5" opacity="0.3" />
+
+      {/* Layer: כובע */}
+      {accessories.includes('hat') && (
+        <>
+          <ellipse cx="100" cy="50" rx="42" ry="10" fill="#ef4444" />
+          <path d="M 72 48 Q 72 35 100 32 Q 128 35 128 48" fill="#ef4444" />
+        </>
+      )}
+
+      {/* Layer: משקפיים */}
+      {accessories.includes('glasses') && (
+        <>
+          <rect x="75" y="72" width="14" height="12" rx="2" fill="none" stroke="#1f2937" strokeWidth="1.5" />
+          <rect x="111" y="72" width="14" height="12" rx="2" fill="none" stroke="#1f2937" strokeWidth="1.5" />
+          <line x1="89" y1="78" x2="111" y2="78" stroke="#1f2937" strokeWidth="1" />
+        </>
+      )}
+
+      {/* Layer: עגיל */}
+      {accessories.includes('earring') && (
+        <>
+          <circle cx="52" cy="85" r="3" fill="#fbbf24" />
+          <circle cx="148" cy="85" r="3" fill="#fbbf24" />
+        </>
+      )}
+
+      {/* Layer: שרשרת */}
+      {accessories.includes('necklace') && (
+        <ellipse cx="100" cy="132" rx="28" ry="6" fill="none" stroke="#fbbf24" strokeWidth="1.2" />
+      )}
+    </svg>
   );
 }
 
