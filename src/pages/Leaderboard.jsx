@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import ReactMarkdown from 'react-markdown';
+import ApparelCustomizer from '../components/gamification/ApparelCustomizer';
 
 function LeaderboardInner() {
     const [performanceData, setPerformanceData] = useState([]);
