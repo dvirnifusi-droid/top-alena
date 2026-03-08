@@ -172,10 +172,14 @@ export default function BriefingManagement() {
             const updatedReadBy = [...(currentBriefData.read_by || [])];
             if (!updatedReadBy.includes(user.id)) {
                 updatedReadBy.push(user.id);
+            } else {
+                return; // כבר קראת את הבריף
             }
             
-            const updatedBrief = await DailyBrief.update(currentBriefData.id, { read_by: updatedReadBy });
-            setCurrentBriefData(updatedBrief);
+            await DailyBrief.update(currentBriefData.id, { read_by: updatedReadBy });
+            const refreshedBrief = await DailyBrief.list();
+            const latestBrief = refreshedBrief.find(b => b.id === currentBriefData.id);
+            setCurrentBriefData(latestBrief);
             await loadBriefs(date);
             toast.success('סומן כקרא בהצלחה!');
         } catch (error) {
