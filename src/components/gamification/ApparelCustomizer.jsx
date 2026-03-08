@@ -74,53 +74,7 @@ export default function ApparelCustomizer({ employeeId, employeeAvatar, onAvatar
     }
   };
 
-  const handleUpdateAvatar = async () => {
-    if (regenerating) return;
-    setRegenerating(true);
 
-    try {
-      const apparelItems = [];
-      if (equipped.shirt) {
-        const shirt = apparel.find(a => a.id === equipped.shirt);
-        if (shirt) apparelItems.push(shirt.wearing_text);
-      }
-      if (equipped.pants) {
-        const pants = apparel.find(a => a.id === equipped.pants);
-        if (pants) apparelItems.push(pants.wearing_text);
-      }
-      if (equipped.shoes) {
-        const shoes = apparel.find(a => a.id === equipped.shoes);
-        if (shoes) apparelItems.push(shoes.wearing_text);
-      }
-      if (equipped.hat) {
-        const hat = apparel.find(a => a.id === equipped.hat);
-        if (hat) apparelItems.push(hat.wearing_text);
-      }
-      if (equipped.outerwear) {
-        const outerwear = apparel.find(a => a.id === equipped.outerwear);
-        if (outerwear) apparelItems.push(outerwear.wearing_text);
-      }
-      equipped.accessories?.forEach(accId => {
-        const acc = apparel.find(a => a.id === accId);
-        if (acc) apparelItems.push(acc.wearing_text);
-      });
-
-      const wearingText = apparelItems.join(', ');
-      const prompt = `Full body 3D stylized character avatar, Pixar/Fortnite style, standing in a neutral T-pose. Character ${wearingText || 'wearing a basic grey t-shirt and blue jeans'}. High-quality 3D render, studio lighting, solid white background. Professional 3D game character design.`;
-
-      const { url } = await base44.integrations.Core.GenerateImage({
-        prompt
-      });
-
-      setCurrentAvatarUrl(url);
-      onAvatarUpdate(url);
-
-      if (window.triggerConfetti) window.triggerConfetti();
-    } catch (error) {
-      console.error('Error updating avatar:', error);
-    }
-    setRegenerating(false);
-  };
 
   if (loading) return <div>טוען...</div>;
 
