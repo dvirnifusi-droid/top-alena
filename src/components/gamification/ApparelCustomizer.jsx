@@ -167,22 +167,31 @@ export default function ApparelCustomizer({ employeeId, employeeAvatar, onAvatar
                     {currentItem && <span className="text-xs text-gray-500 mr-2">({currentItem.name})</span>}
                   </p>
                   <div className="grid grid-cols-3 gap-2">
-                    {categoryItems.map(item => (
-                      <button
-                        key={item.id}
-                        onClick={() => handleEquip(item.id, cat.key)}
-                        disabled={regenerating}
-                        className={`p-2 rounded-lg border-2 text-sm transition-all ${
-                          cat.value === item.id
-                            ? 'border-green-500 bg-green-50'
-                            : 'border-gray-200 hover:border-blue-400'
-                        }`}
-                      >
-                        <div className="text-2xl mb-1">{item.emoji}</div>
-                        <div className="text-xs font-semibold">{item.name}</div>
-                        <div className="text-xs text-gray-500">{item.cost} 🪙</div>
-                      </button>
-                    ))}
+                   {categoryItems.map(item => {
+                     const isOwned = equipped.owned?.includes(item.id);
+                     const isEquipped = cat.value === item.id;
+
+                     return (
+                       <button
+                         key={item.id}
+                         onClick={() => handleEquip(item.id, cat.key)}
+                         disabled={regenerating || !isOwned}
+                         className={`p-2 rounded-lg border-2 text-sm transition-all opacity-${isOwned ? '100' : '50'} cursor-${isOwned ? 'pointer' : 'not-allowed'} ${
+                           isEquipped
+                             ? 'border-green-500 bg-green-50'
+                             : isOwned
+                             ? 'border-blue-300 bg-blue-50 hover:border-blue-400'
+                             : 'border-gray-300 bg-gray-100'
+                         }`}
+                       >
+                         <div className="text-2xl mb-1">{item.emoji}</div>
+                         <div className="text-xs font-semibold">{item.name}</div>
+                         <div className="text-xs text-gray-500">
+                           {isOwned ? '✅ בבעלותך' : `${item.cost} 🪙`}
+                         </div>
+                       </button>
+                     );
+                   })}
                   </div>
                 </div>
               );
