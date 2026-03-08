@@ -294,26 +294,31 @@ export default function GamificationAdmin() {
 
               {/* פרסים כשירים לקופסה */}
               <Card className="border-2 border-orange-200 bg-orange-50">
-                <CardHeader><CardTitle>🎁 פרסים אמיתיים בקופסת ההפתעה</CardTitle></CardHeader>
+                <CardHeader><CardTitle>🎁 פרסים בקופסת ההפתעה</CardTitle></CardHeader>
                 <CardContent>
-                  <p className="text-sm text-gray-600 mb-3">הפרסים הבאים (פעילים, עלות ≤ 1000 🪙) עשויים לצאת בקופסה:</p>
-                  {rewards.filter(r => r.is_active && r.cost <= 1000).length === 0 ? (
-                    <p className="text-orange-600 text-sm font-medium">⚠️ אין פרסים כשירים — הוסף פרסים עם עלות עד 1000 מטבעות</p>
+                  <p className="text-sm text-gray-600 mb-3">סמן אילו פרסים יכולים לצאת בקופסת ההפתעה:</p>
+                  {rewards.filter(r => r.is_active).length === 0 ? (
+                    <p className="text-orange-600 text-sm font-medium">⚠️ אין פרסים פעילים — הוסף פרסים תחילה</p>
                   ) : (
                     <div className="space-y-2">
-                      {rewards.filter(r => r.is_active && r.cost <= 1000).map(r => (
-                        <div key={r.id} className="flex items-center gap-3 p-3 bg-white rounded-xl border border-orange-200">
+                      {rewards.filter(r => r.is_active).map(r => (
+                        <div key={r.id} className={`flex items-center gap-3 p-3 bg-white rounded-xl border-2 transition-colors ${r.in_lootbox ? 'border-orange-400 bg-orange-50' : 'border-gray-200'}`}>
+                          <input
+                            type="checkbox"
+                            checked={!!r.in_lootbox}
+                            onChange={async (e) => {
+                              await base44.entities.Reward.update(r.id, { in_lootbox: e.target.checked });
+                              loadAll();
+                            }}
+                            className="w-5 h-5 accent-orange-500 cursor-pointer"
+                          />
                           <span className="text-2xl">{r.emoji}</span>
                           <div className="flex-1">
                             <p className="font-bold text-sm">{r.title}</p>
                             {r.description && <p className="text-xs text-gray-500">{r.description}</p>}
                           </div>
                           <span className="font-black text-yellow-600 text-sm">{r.cost?.toLocaleString()} 🪙</span>
-                          <Button
-                            size="sm" variant="outline"
-                            onClick={() => { setEditingReward(r); setNewReward({ title: r.title, description: r.description || '', emoji: r.emoji, cost: r.cost, is_active: r.is_active }); window.scrollTo(0,0); }}
-                            className="text-xs"
-                          >✏️ ערוך</Button>
+                          {r.in_lootbox && <span className="text-xs bg-orange-500 text-white px-2 py-1 rounded-full font-bold">בקופסה ✓</span>}
                         </div>
                       ))}
                     </div>
