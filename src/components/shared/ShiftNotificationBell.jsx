@@ -181,6 +181,7 @@ export default function ShiftNotificationBell({ currentEmployee, isManager = fal
                         )}
                     </div>
                 </div>
+                </>
             )}
         </div>
     );
