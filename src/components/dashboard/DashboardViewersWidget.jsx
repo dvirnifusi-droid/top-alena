@@ -1,38 +1,55 @@
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { base44 } from '@/api/base44Client';
-import { Eye, User } from 'lucide-react';
-import { format } from 'date-fns';
-import { he } from 'date-fns/locale';
+import { BookOpen, User } from 'lucide-react';
 
 export default function DashboardViewersWidget() {
-    const [viewers, setViewers] = useState([]);
+    const [briefReaders, setBriefReaders] = useState([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        const loadViewers = async () => {
+        const loadBriefReaders = async () => {
             try {
                 const today = new Date().toISOString().split('T')[0];
-                const views = await base44.entities.DashboardView.filter({ view_date: today });
+                const briefs = await base44.entities.DailyBrief.filter({ date: today });
                 
-                // Remove duplicates - keep only the latest view from each user
-                const uniqueViewers = {};
-                views.forEach(view => {
-                    if (!uniqueViewers[view.user_email] || new Date(view.view_time) > new Date(uniqueViewers[view.user_email].view_time)) {
-                        uniqueViewers[view.user_email] = view;
-                    }
+                // Get all employees
+                const employees = await base44.entities.Employee.list();
+                const employeeMap = {};
+                employees.forEach(emp => {
+                    employeeMap[emp.id] = emp;
                 });
                 
-                setViewers(Object.values(uniqueViewers).sort((a, b) => new Date(b.view_time) - new Date(a.view_time)));
+                // Aggregate readers with their brief types
+                const readers = {};
+                briefs.forEach(brief => {
+                    const readBy = brief.read_by || [];
+                    const shiftType = brief.shift_type === 'lunch' ? 'צהריים' : brief.shift_type === 'dinner' ? 'ערב' : 'unknown';
+                    
+                    readBy.forEach(empId => {
+                        if (!readers[empId]) {
+                            const emp = employeeMap[empId];
+                            readers[empId] = {
+                                id: empId,
+                                name: emp?.full_name || 'Unknown',
+                                email: emp?.email || 'unknown@email.com',
+                                shifts: []
+                            };
+                        }
+                        readers[empId].shifts.push(shiftType);
+                    });
+                });
+                
+                setBriefReaders(Object.values(readers).sort((a, b) => a.name.localeCompare(b.name)));
             } catch (error) {
-                console.error('Failed to load dashboard viewers:', error);
+                console.error('Failed to load brief readers:', error);
             } finally {
                 setLoading(false);
             }
         };
 
-        loadViewers();
-        const interval = setInterval(loadViewers, 30000); // Refresh every 30 seconds
+        loadBriefReaders();
+        const interval = setInterval(loadBriefReaders, 30000);
         return () => clearInterval(interval);
     }, []);
 
@@ -41,8 +58,8 @@ export default function DashboardViewersWidget() {
             <Card>
                 <CardHeader>
                     <CardTitle className="flex items-center gap-2">
-                        <Eye className="w-5 h-5 text-blue-600" />
-                        שקראו את לוח הבקרה
+                        <BookOpen className="w-5 h-5 text-green-600" />
+                        שקראו את התדריך
                     </CardTitle>
                 </CardHeader>
                 <CardContent>
@@ -56,32 +73,31 @@ export default function DashboardViewersWidget() {
         <Card>
             <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                    <Eye className="w-5 h-5 text-blue-600" />
-                    שקראו את לוח הבקרה היום ({viewers.length})
+                    <BookOpen className="w-5 h-5 text-green-600" />
+                    שקראו את התדריך היום ({briefReaders.length})
                 </CardTitle>
             </CardHeader>
             <CardContent>
-                {viewers.length === 0 ? (
-                    <p className="text-gray-500 text-sm">אף אחד עדיין לא קרא את הלוח היום</p>
+                {briefReaders.length === 0 ? (
+                    <p className="text-gray-500 text-sm">אף אחד עדיין לא קרא את התדריך היום</p>
                 ) : (
                     <div className="space-y-3 max-h-[400px] overflow-y-auto">
-                        {viewers.map((view, idx) => (
-                            <div key={idx} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition">
-                                <div className="flex items-center gap-3">
-                                    <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center">
-                                        <User className="w-4 h-4 text-blue-600" />
+                        {briefReaders.map((reader) => (
+                            <div key={reader.id} className="flex items-center justify-between p-3 bg-green-50 rounded-lg hover:bg-green-100 transition">
+                                <div className="flex items-center gap-3 min-w-0">
+                                    <div className="w-8 h-8 rounded-full bg-green-200 flex items-center justify-center flex-shrink-0">
+                                        <User className="w-4 h-4 text-green-700" />
                                     </div>
                                     <div className="min-w-0">
-                                        <p className="font-medium text-sm text-gray-900 truncate">{view.user_name}</p>
-                                        <p className="text-xs text-gray-500">{view.user_email}</p>
+                                        <p className="font-medium text-sm text-gray-900 truncate">{reader.name}</p>
+                                        <p className="text-xs text-gray-500">{reader.email}</p>
                                     </div>
                                 </div>
-                                <div className="text-right">
-                                    <p className="text-xs font-medium text-gray-600">
-                                        {format(new Date(view.view_time), 'HH:mm', { locale: he })}
-                                    </p>
-                                    <p className="text-xs text-gray-400 capitalize">
-                                        {view.user_role === 'admin' ? 'מנהל' : 'עובד'}
+                                <div className="text-right flex-shrink-0">
+                                    <p className="text-xs font-medium text-green-700">
+                                        {reader.shifts.includes('צהריים') && reader.shifts.includes('ערב') 
+                                            ? 'שניהם' 
+                                            : reader.shifts.join(', ')}
                                     </p>
                                 </div>
                             </div>
