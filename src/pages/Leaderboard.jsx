@@ -21,70 +21,130 @@ function LeaderboardInner() {
     useEffect(() => {
         const getPerformanceData = async () => {
             setLoading(true);
-            const allShifts = await Shift.list();
-            
             const now = new Date();
-            const filteredShifts = allShifts.filter(shift => {
-                const shiftDate = new Date(shift.date);
-                if (timeFrame === 'daily') {
-                    return shiftDate.toDateString() === now.toDateString();
-                }
-                if (timeFrame === 'weekly') {
-                    const weekStart = new Date(now.setDate(now.getDate() - now.getDay()));
-                    return shiftDate >= weekStart;
-                }
-                if (timeFrame === 'monthly') {
-                    return shiftDate.getMonth() === now.getMonth() && shiftDate.getFullYear() === now.getFullYear();
-                }
-                return true;
-            });
 
-            const employeeData = {};
+            // חישוב תאריך התחלה לפי טווח
+            const getStartDate = () => {
+                const d = new Date(now);
+                if (timeFrame === 'daily') { d.setHours(0,0,0,0); return d; }
+                if (timeFrame === 'weekly') { d.setDate(d.getDate() - d.getDay()); d.setHours(0,0,0,0); return d; }
+                if (timeFrame === 'monthly') { return new Date(d.getFullYear(), d.getMonth(), 1); }
+                return null;
+            };
+            const startDate = getStartDate();
+            const inRange = (dateStr) => !startDate || new Date(dateStr) >= startDate;
 
-            filteredShifts.forEach(shift => {
-                if (!employeeData[shift.employee_id]) {
-                    employeeData[shift.employee_id] = {
-                        employee_name: shift.employee_name,
-                        totalSales: 0,
-                        totalHours: 0,
+            // שליפת נתונים במקביל
+            const [workShifts, tipReports, shiftEndReports, staffPerfs, trainingEnrollments, checklistExecs, employees] = await Promise.all([
+                base44.entities.WorkShift.list('-date', 500),
+                base44.entities.TipReport.list('-date', 200),
+                base44.entities.ShiftEndReport.list('-shift_date', 200),
+                base44.entities.StaffPerformance.list('-date', 500),
+                base44.entities.TrainingEnrollment.list('-created_date', 500),
+                base44.entities.ChecklistExecution.list('-execution_date', 500),
+                base44.entities.Employee.filter({ status: 'active' }),
+            ]);
+
+            const empData = {}; // key = employee_name (כי אין ID אחיד בכל הדאטה)
+
+            const getOrCreate = (name) => {
+                if (!empData[name]) {
+                    empData[name] = {
+                        employee_name: name,
                         shifts: 0,
+                        totalHours: 0,
+                        tipPerHourSamples: [],
                         managerRatings: [],
-                        customerServiceRatings: [],
-                        targetMetCount: 0,
+                        compliments: 0,
+                        trainingCompleted: 0,
+                        checklistsDone: 0,
                     };
                 }
-                const emp = employeeData[shift.employee_id];
-                emp.totalSales += shift.sales_amount || 0;
-                emp.totalHours += shift.hours_worked || 0;
-                emp.shifts++;
-                if (shift.manager_rating) emp.managerRatings.push(shift.manager_rating);
-                if (shift.customer_service_rating) emp.customerServiceRatings.push(shift.customer_service_rating);
-                if ((shift.sales_amount || 0) >= (shift.sales_target || 0)) {
-                    emp.targetMetCount++;
-                }
+                return empData[name];
+            };
+
+            // 1. משמרות + שעות מ-WorkShift
+            workShifts.filter(ws => inRange(ws.date)).forEach(ws => {
+                (ws.assigned_staff || []).forEach(s => {
+                    if (!s.employee_name) return;
+                    const emp = getOrCreate(s.employee_name);
+                    emp.shifts++;
+                    if (s.start_time && s.end_time) {
+                        const [sh, sm] = s.start_time.split(':').map(Number);
+                        const [eh, em] = s.end_time.split(':').map(Number);
+                        let hours = (eh * 60 + em - sh * 60 - sm - (s.total_break_minutes || 0)) / 60;
+                        if (hours < 0) hours += 24;
+                        emp.totalHours += Math.max(0, hours);
+                    }
+                });
             });
 
-            const leaderboard = Object.entries(employeeData).map(([id, data]) => {
-                const avgManagerRating = data.managerRatings.length ? (data.managerRatings.reduce((a, b) => a + b, 0) / data.managerRatings.length) : 0;
-                const avgCustomerServiceRating = data.customerServiceRatings.length ? (data.customerServiceRatings.reduce((a, b) => a + b, 0) / data.customerServiceRatings.length) : 0;
-                
-                // Scoring formula: Sales + Ratings + Consistency
-                const salesScore = data.totalSales * 0.05;
-                const managerScore = avgManagerRating * 20;
-                const customerScore = avgCustomerServiceRating;
-                const consistencyScore = data.shifts * 10;
-                
-                const totalScore = Math.round(salesScore + managerScore + customerScore + consistencyScore);
+            // 2. טיפ לשעה מ-TipReport
+            tipReports.filter(tr => inRange(tr.date)).forEach(tr => {
+                (tr.staff_details || []).forEach(s => {
+                    if (!s.employee_name || !s.effective_hours || s.effective_hours <= 0) return;
+                    const tipPerHour = (s.gross_tip || 0) / s.effective_hours;
+                    const emp = getOrCreate(s.employee_name);
+                    emp.tipPerHourSamples.push(tipPerHour);
+                });
+            });
+
+            // 3. דירוג מנהל מ-ShiftEndReport
+            shiftEndReports.filter(r => inRange(r.shift_date)).forEach(r => {
+                (r.staff_performance || []).forEach(s => {
+                    if (!s.employee_name || !s.performance_rating) return;
+                    const emp = getOrCreate(s.employee_name);
+                    emp.managerRatings.push(s.performance_rating);
+                });
+            });
+
+            // 4. מחמאות מ-StaffPerformance
+            staffPerfs.filter(sp => inRange(sp.date)).forEach(sp => {
+                const emp = employees.find(e => e.id === sp.employee_id);
+                if (!emp?.full_name) return;
+                const d = getOrCreate(emp.full_name);
+                d.compliments += sp.compliments_count || 0;
+            });
+
+            // 5. הכשרות שהושלמו
+            trainingEnrollments.filter(e => e.status === 'completed' && inRange(e.created_date)).forEach(e => {
+                const emp = employees.find(em => em.id === e.employee_id);
+                if (!emp?.full_name) return;
+                getOrCreate(emp.full_name).trainingCompleted++;
+            });
+
+            // 6. צ'קליסטים שהושלמו
+            checklistExecs.filter(c => c.status === 'completed' && inRange(c.execution_date)).forEach(c => {
+                if (!c.executed_by_name) return;
+                getOrCreate(c.executed_by_name).checklistsDone++;
+            });
+
+            // חישוב ניקוד סופי
+            const leaderboard = Object.values(empData).map(data => {
+                const avgManagerRating = data.managerRatings.length
+                    ? data.managerRatings.reduce((a, b) => a + b, 0) / data.managerRatings.length : 0;
+                const avgTipPerHour = data.tipPerHourSamples.length
+                    ? data.tipPerHourSamples.reduce((a, b) => a + b, 0) / data.tipPerHourSamples.length : 0;
+
+                const shiftsScore      = data.shifts * 15;           // 15 נק' למשמרת
+                const hoursScore       = Math.round(data.totalHours) * 5;  // 5 נק' לשעה
+                const tipScore         = Math.round(avgTipPerHour) * 3;    // 3 נק' לכל ₪ טיפ/שעה
+                const managerScore     = Math.round(avgManagerRating * 20); // עד 100 נק' (5*20)
+                const complimentsScore = data.compliments * 10;       // 10 נק' למחמאה
+                const trainingScore    = data.trainingCompleted * 25; // 25 נק' לקורס
+                const checklistScore   = data.checklistsDone * 5;     // 5 נק' לצ'קליסט
+
+                const totalScore = shiftsScore + hoursScore + tipScore + managerScore + complimentsScore + trainingScore + checklistScore;
 
                 return {
-                    id,
                     ...data,
                     avgManagerRating,
-                    avgCustomerServiceRating,
+                    avgTipPerHour,
+                    shiftsScore, hoursScore, tipScore, managerScore, complimentsScore, trainingScore, checklistScore,
                     totalScore
                 };
-            }).sort((a, b) => b.totalScore - a.totalScore);
-            
+            }).filter(d => d.totalScore > 0).sort((a, b) => b.totalScore - a.totalScore);
+
             setPerformanceData(leaderboard);
             setLoading(false);
         };
