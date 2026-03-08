@@ -31,11 +31,11 @@ export default function LootBox({ employeeId, employeeName, onDone }) {
     setPhase('shaking');
     setTimeout(() => setPhase('opening'), 1000);
     setTimeout(async () => {
-      // 15% סיכוי לפרס אמיתי, 85% מטבעות
-      const realRewardChance = Math.random();
+      const settings = getLootSettings();
+      const realRewardChance = Math.random() * 100;
       let result;
 
-      if (realRewardChance < 0.15 && rewards.length > 0) {
+      if (realRewardChance < settings.realRewardChance && rewards.length > 0) {
         // פרס אמיתי - בחר רנדומלי מהפרסים הזולים (עד 1000 מטבעות)
         const cheapRewards = rewards.filter(r => r.cost <= 1000);
         const pool = cheapRewards.length > 0 ? cheapRewards : rewards;
