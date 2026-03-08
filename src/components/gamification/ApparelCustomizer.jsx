@@ -8,11 +8,13 @@ import { Maximize2, Trash2, Upload } from 'lucide-react';
 export default function ApparelCustomizer({ employeeId, employeeAvatar, onAvatarUpdate, balance, onSpendCoins }) {
   const [showDialog, setShowDialog] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
+  const [showUploadDialog, setShowUploadDialog] = useState(false);
   const [apparel, setApparel] = useState([]);
   const [equipped, setEquipped] = useState({});
   const [ownedApparel, setOwnedApparel] = useState([]);
   const [loading, setLoading] = useState(true);
   const [regenerating, setRegenerating] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [originalAvatarUrl, setOriginalAvatarUrl] = useState(employeeAvatar);
   const [currentAvatarUrl, setCurrentAvatarUrl] = useState(employeeAvatar);
   const [employeeApparelId, setEmployeeApparelId] = useState(null);
