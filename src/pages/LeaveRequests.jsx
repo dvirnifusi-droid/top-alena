@@ -176,10 +176,13 @@ function LeaveCalendar({ requests }) {
     const month = monthDate.getMonth();
     const firstDay = new Date(year, month, 1);
     const lastDay = new Date(year, month + 1, 0);
-    const startPad = firstDay.getDay(); // 0=Sun
+    // 0=ראשון, 6=שבת - מתחילים מיום א׳
+    const startPad = firstDay.getDay();
     const days = [];
     for (let i = 0; i < startPad; i++) days.push(null);
     for (let d = 1; d <= lastDay.getDate(); d++) days.push(new Date(year, month, d));
+    // ממלאים שארית השורה האחרונה
+    while (days.length % 7 !== 0) days.push(null);
 
     const getEmployeesOnLeave = (date) => {
         if (!date) return [];
