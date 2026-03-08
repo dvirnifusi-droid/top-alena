@@ -201,12 +201,6 @@ export default function CharacterLounge() {
 }
 
 function CharacterCard({ employee, apparel, coins, isCurrentUser, onSelect }) {
-  useEffect(() => {
-    if (apparel?.employee_id) {
-      console.log(`Employee: ${employee.full_name}, Apparel exists: ${!!apparel}, Has avatar_url: ${!!apparel?.avatar_url}, URL: ${apparel?.avatar_url}`);
-    }
-  }, [apparel, employee.full_name]);
-
   return (
     <div className="flex flex-col items-center cursor-pointer group" onClick={onSelect}>
       {/* Avatar container */}
@@ -239,21 +233,72 @@ function CharacterCard({ employee, apparel, coins, isCurrentUser, onSelect }) {
         <Coins className="w-3 h-3" />
         {coins}
       </div>
+    </div>
+  );
+}
 
-      {/* Transfer button */}
-      {!isCurrentUser && (
-        <Button
-          onClick={(e) => {
-            e.stopPropagation();
-            onSelect();
-          }}
-          size="sm"
-          className="w-full bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 text-white text-xs"
+function CharacterDetailModal({ employee, apparel, coins, isCurrentUser, onClose, onTransfer, currentUser }) {
+  return (
+    <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full">
+        {/* Close button */}
+        <button
+          onClick={onClose}
+          className="absolute top-4 right-4 bg-gray-200 hover:bg-gray-300 rounded-full p-2 transition"
         >
-          <Send className="w-3 h-3 mr-1" />
-          שלח מטבעות
-        </Button>
-      )}
+          <X className="w-5 h-5" />
+        </button>
+
+        {/* Large avatar */}
+        <div className="w-full h-96 bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center overflow-hidden">
+          {apparel?.avatar_url ? (
+            <img 
+              src={apparel.avatar_url} 
+              alt={employee.full_name}
+              className="w-full h-full object-cover"
+            />
+          ) : (
+            <div className="text-9xl">{employee.full_name.charAt(0)}</div>
+          )}
+        </div>
+
+        {/* Info section */}
+        <div className="p-6 space-y-4">
+          {/* Name and title */}
+          <div>
+            <h2 className="text-2xl font-bold text-gray-900">{employee.full_name}</h2>
+            {isCurrentUser && (
+              <p className="text-sm text-yellow-600 font-semibold">👤 זה אתה</p>
+            )}
+          </div>
+
+          {/* Coins display */}
+          <div className="bg-yellow-50 border-2 border-yellow-300 rounded-xl p-4">
+            <p className="text-sm text-gray-600 mb-1">מטבעות זמינים</p>
+            <div className="flex items-center gap-2">
+              <Coins className="w-6 h-6 text-yellow-500" />
+              <span className="text-3xl font-bold text-gray-900">{coins}</span>
+            </div>
+          </div>
+
+          {/* Action button */}
+          {!isCurrentUser && (
+            <Button
+              onClick={onTransfer}
+              className="w-full bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 text-white py-6"
+            >
+              <Send className="w-5 h-5 mr-2" />
+              שלח מטבעות
+            </Button>
+          )}
+
+          {isCurrentUser && (
+            <div className="bg-blue-50 border-2 border-blue-300 rounded-xl p-4 text-center">
+              <p className="text-sm text-blue-800">זה הקרדיט שלך שאתה יכול להשתמש בו</p>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
