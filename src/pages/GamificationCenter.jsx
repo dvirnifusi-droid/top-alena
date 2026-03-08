@@ -21,10 +21,11 @@ const RANKS = [
 ];
 
 const THEMES = [
-  { id: 'light',  label: 'בהיר',      icon: Sun,     preview: 'bg-gradient-to-br from-white to-gray-100 border border-gray-200',     card: '' },
-  { id: 'dark',   label: 'כהה',       icon: Moon,    preview: 'bg-gradient-to-br from-gray-900 to-gray-800',                          card: 'dark' },
-  { id: 'purple', label: 'סגול',      icon: Palette, preview: 'bg-gradient-to-br from-purple-900 to-indigo-900',                      card: 'dark' },
-  { id: 'green',  label: 'ירוק כהה',  icon: Palette, preview: 'bg-gradient-to-br from-emerald-900 to-teal-900',                      card: 'dark' },
+  { id: 'light',  label: 'לבן',   icon: Sun,     preview: 'bg-gradient-to-br from-white to-gray-100 border border-gray-200' },
+  { id: 'purple', label: 'סגול',  icon: Palette, preview: 'bg-gradient-to-br from-purple-100 to-purple-200 border border-purple-300' },
+  { id: 'green',  label: 'ירוק',  icon: Palette, preview: 'bg-gradient-to-br from-green-100 to-emerald-200 border border-green-300' },
+  { id: 'pink',   label: 'ורוד',  icon: Palette, preview: 'bg-gradient-to-br from-pink-100 to-rose-200 border border-pink-300' },
+  { id: 'blue',   label: 'כחול',  icon: Palette, preview: 'bg-gradient-to-br from-blue-100 to-sky-200 border border-blue-300' },
 ];
 
 const AVATAR_OPTIONS = ['😎', '🤩', '🥷', '👨‍🍳', '👩‍🍳', '🦁', '🐯', '🔥', '⭐', '💎', '🎯', '🏆'];
