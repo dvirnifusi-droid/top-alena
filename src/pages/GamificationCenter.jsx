@@ -114,8 +114,8 @@ export default function GamificationCenter() {
 
       <div className="max-w-2xl mx-auto space-y-5">
 
-        {/* כפתור ערכת נושא */}
-        <div className="flex justify-end">
+        {/* כפתורי ניווט מהיר */}
+        <div className="flex justify-between items-center">
           <Button
             variant="outline"
             size="sm"
@@ -123,7 +123,15 @@ export default function GamificationCenter() {
             className={`gap-2 ${isDark ? 'border-white/20 text-white bg-white/10 hover:bg-white/20' : ''}`}
           >
             <Palette className="w-4 h-4" />
-            ערכת נושא
+            🎨 ערכת נושא
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => document.getElementById('badges-tab')?.click()}
+            className={`gap-2 ${isDark ? 'border-white/20 text-white bg-white/10 hover:bg-white/20' : ''}`}
+          >
+            🏅 {earnedBadges.length} תגים
           </Button>
         </div>
 
