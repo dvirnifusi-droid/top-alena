@@ -138,10 +138,21 @@ export default function ApparelCustomizer({ employeeId, employeeAvatar, onAvatar
         🎨 עדכן הלבוש
       </Button>
 
+      {currentAvatarUrl && (
+        <div className="mt-3 flex justify-center">
+          <img src={currentAvatarUrl} alt="avatar" className="w-24 h-24 rounded-full object-cover border-4 border-purple-400 shadow-lg cursor-pointer hover:scale-110 transition-transform" onClick={() => setShowPreview(true)} title="לחץ להגדלה" />
+        </div>
+      )}
+
       <Dialog open={showDialog} onOpenChange={setShowDialog}>
         <DialogContent className="max-w-2xl">
           <DialogTitle>בחר הלבוש לדמות</DialogTitle>
           <div className="space-y-4" dir="rtl">
+            {currentAvatarUrl && (
+              <div className="flex justify-center mb-4 p-4 bg-gray-50 rounded-lg">
+                <img src={currentAvatarUrl} alt="avatar preview" className="h-32 object-contain" />
+              </div>
+            )}
             {categories.map(cat => {
               const currentItem = apparel.find(a => a.id === cat.value);
               const categoryItems = apparel.filter(a => a.category === cat.key);
@@ -173,6 +184,18 @@ export default function ApparelCustomizer({ employeeId, employeeAvatar, onAvatar
                 </div>
               );
             })}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showPreview} onOpenChange={setShowPreview}>
+        <DialogContent className="max-w-3xl p-0 border-0 bg-gradient-to-b from-purple-50 to-white">
+          <DialogTitle className="sr-only">תצוגה מוגדלת של הדמות</DialogTitle>
+          <div className="flex flex-col items-center justify-center p-8 min-h-[500px]">
+            {currentAvatarUrl && (
+              <img src={currentAvatarUrl} alt="avatar fullscreen" className="w-full max-h-[600px] object-contain" />
+            )}
+            <p className="text-center text-gray-600 text-sm mt-4">כך הדמות שלך נראית עם הלבוש הנוכחי</p>
           </div>
         </DialogContent>
       </Dialog>
