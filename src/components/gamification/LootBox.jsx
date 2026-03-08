@@ -22,15 +22,29 @@ function pickCoinPrize(coinPrizesStr) {
 function playSound(type) {
   try {
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
+
     if (type === 'shake') {
-      // ניעור — רעש קצר
-      const buf = ctx.createBuffer(1, ctx.sampleRate * 0.3, ctx.sampleRate);
-      const data = buf.getChannelData(0);
-      for (let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1) * 0.15;
-      const src = ctx.createBufferSource();
-      src.buffer = buf;
-      src.connect(ctx.destination);
-      src.start();
+      // ניעור — קישקוש כמו קופסה עם אוכל בפנים
+      const times = [0, 80, 160, 240, 320, 400, 480];
+      times.forEach(delay => {
+        setTimeout(() => {
+          const buf = ctx.createBuffer(1, ctx.sampleRate * 0.06, ctx.sampleRate);
+          const data = buf.getChannelData(0);
+          for (let i = 0; i < data.length; i++) {
+            data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (data.length * 0.4)) * 0.5;
+          }
+          const src = ctx.createBufferSource();
+          const filter = ctx.createBiquadFilter();
+          filter.type = 'bandpass';
+          filter.frequency.value = 1200 + Math.random() * 800;
+          filter.Q.value = 2;
+          src.buffer = buf;
+          src.connect(filter);
+          filter.connect(ctx.destination);
+          src.start();
+        }, delay);
+      });
+
     } else if (type === 'open') {
       // פתיחה — "פופ" עולה
       [0, 80, 160].forEach((delay, i) => {
@@ -46,21 +60,47 @@ function playSound(type) {
           o.start(); o.stop(ctx.currentTime + 0.2);
         }, delay);
       });
+
     } else if (type === 'reveal') {
-      // חשיפה — פנפרה חגיגית
-      const notes = [523, 659, 784, 1047];
-      notes.forEach((freq, i) => {
+      // חשיפה — מחיאות כפיים!
+      const clapCount = 6;
+      for (let c = 0; c < clapCount; c++) {
         setTimeout(() => {
-          const o = ctx.createOscillator();
+          const buf = ctx.createBuffer(1, ctx.sampleRate * 0.12, ctx.sampleRate);
+          const data = buf.getChannelData(0);
+          for (let i = 0; i < data.length; i++) {
+            const env = Math.exp(-i / (data.length * 0.25));
+            data[i] = (Math.random() * 2 - 1) * env * 0.7;
+          }
+          const src = ctx.createBufferSource();
+          const filter = ctx.createBiquadFilter();
+          filter.type = 'highpass';
+          filter.frequency.value = 800;
           const g = ctx.createGain();
-          o.type = 'triangle';
-          o.frequency.value = freq;
-          g.gain.setValueAtTime(0.35, ctx.currentTime);
-          g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.35);
-          o.connect(g); g.connect(ctx.destination);
-          o.start(); o.stop(ctx.currentTime + 0.35);
-        }, i * 120);
-      });
+          g.gain.value = 0.9;
+          src.buffer = buf;
+          src.connect(filter);
+          filter.connect(g);
+          g.connect(ctx.destination);
+          src.start();
+        }, c * 140 + Math.random() * 30);
+      }
+      // אחרי הכפיים — פנפרה קצרה
+      setTimeout(() => {
+        const notes = [523, 659, 784, 1047];
+        notes.forEach((freq, i) => {
+          setTimeout(() => {
+            const o = ctx.createOscillator();
+            const g = ctx.createGain();
+            o.type = 'triangle';
+            o.frequency.value = freq;
+            g.gain.setValueAtTime(0.3, ctx.currentTime);
+            g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
+            o.connect(g); g.connect(ctx.destination);
+            o.start(); o.stop(ctx.currentTime + 0.3);
+          }, i * 110);
+        });
+      }, clapCount * 140 + 100);
     }
   } catch (e) {}
 }
