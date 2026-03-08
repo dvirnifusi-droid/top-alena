@@ -136,7 +136,7 @@ export default function GamificationCenter() {
             variant="outline"
             size="sm"
             onClick={() => setShowThemePicker(true)}
-            className={`gap-2 ${isDark ? 'border-white/20 text-white bg-white/10 hover:bg-white/20' : ''}`}
+            className="gap-2"
           >
             <Palette className="w-4 h-4" />
             🎨 ערכת נושא
@@ -145,7 +145,7 @@ export default function GamificationCenter() {
             variant="outline"
             size="sm"
             onClick={() => document.getElementById('badges-tab')?.click()}
-            className={`gap-2 ${isDark ? 'border-white/20 text-white bg-white/10 hover:bg-white/20' : ''}`}
+            className="gap-2"
           >
             🏅 {earnedBadges.length} תגים
           </Button>
