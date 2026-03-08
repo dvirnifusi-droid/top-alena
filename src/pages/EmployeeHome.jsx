@@ -408,6 +408,7 @@ export default function EmployeeHome() {
                     <DailyBriefView
                         brief={selectedBrief}
                         employeeId={user?.id}
+                        employeeName={user?.full_name}
                         onReady={handleMarkAsRead}
                     />
                 </DialogContent>
