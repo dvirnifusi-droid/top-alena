@@ -308,12 +308,12 @@ export default function GamificationCenter() {
             {/* אמוג'ים מהירים */}
             <div>
               <p className="text-xs text-gray-500 mb-1.5 font-medium">אמוג'י מהיר:</p>
-              <div className="grid grid-cols-6 gap-1.5">
+              <div className="grid grid-cols-8 gap-1">
                 {AVATAR_OPTIONS.map(a => (
                   <button
                     key={a}
                     onClick={() => setAndSaveAvatar(a, false)}
-                    className={`text-xl rounded-lg p-1.5 hover:bg-yellow-100 transition-all aspect-square flex items-center justify-center ${!avatarIsImage && avatar === a ? 'bg-yellow-200 ring-2 ring-yellow-500' : 'bg-gray-50'}`}
+                    className={`text-2xl rounded p-1 hover:bg-yellow-100 transition-all aspect-square flex items-center justify-center ${!avatarIsImage && avatar === a ? 'bg-yellow-200 ring-2 ring-yellow-500' : ''}`}
                   >
                     {a}
                   </button>
