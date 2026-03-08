@@ -129,7 +129,7 @@ export default function BriefEditor({ briefData, onChange, onSave, onCancel, isL
                     {briefData.id ? 'עריכת' : 'יצירת'} תדריך {shiftType === 'lunch' ? '☀️ צהריים' : '🌙 ערב'}
                 </CardTitle>
                 <CardDescription>
-                    תאריך: {format(new Date(briefData.date), 'PPP', { locale: he })}
+                    תאריך: {briefData.date && !isNaN(new Date(briefData.date)) ? format(new Date(briefData.date), 'PPP', { locale: he }) : 'תאריך לא תקין'}
                 </CardDescription>
             </CardHeader>
 
