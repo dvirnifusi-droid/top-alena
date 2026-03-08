@@ -10,9 +10,11 @@ export default function ApparelCustomizer({ employeeId, employeeAvatar, onAvatar
   const [showPreview, setShowPreview] = useState(false);
   const [apparel, setApparel] = useState([]);
   const [equipped, setEquipped] = useState({});
+  const [ownedApparel, setOwnedApparel] = useState([]);
   const [loading, setLoading] = useState(true);
   const [regenerating, setRegenerating] = useState(false);
   const [currentAvatarUrl, setCurrentAvatarUrl] = useState(employeeAvatar);
+  const [employeeApparelId, setEmployeeApparelId] = useState(null);
 
   useEffect(() => {
     loadData();
