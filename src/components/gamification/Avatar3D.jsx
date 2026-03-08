@@ -56,62 +56,75 @@ export default function Avatar3D({ faceUrl, gender = 'woman', shirtColor = '#3b8
       return geometry;
     };
 
-    // Feet
-    const footGeometry = new THREE.CapsuleGeometry(0.15, 0.3, 4, 8);
-    const footMaterial = new THREE.MeshStandardMaterial({ color: 0x8B4513 });
-    const leftFoot = new THREE.Mesh(footGeometry, footMaterial);
-    leftFoot.position.set(-0.35, -1.3, 0);
+    // Feet/Shoes
+    const footGeometry = new THREE.SphereGeometry(0.12, 16, 16);
+    const shoeMaterial = new THREE.MeshStandardMaterial({ color: 0x333333 });
+    const leftFoot = new THREE.Mesh(footGeometry, shoeMaterial);
+    leftFoot.position.set(-0.25, -1.55, 0);
+    leftFoot.scale.set(1, 0.7, 1);
     leftFoot.castShadow = true;
     avatarGroup.add(leftFoot);
-    const rightFoot = new THREE.Mesh(footGeometry, footMaterial);
-    rightFoot.position.set(0.35, -1.3, 0);
+    const rightFoot = new THREE.Mesh(footGeometry, shoeMaterial);
+    rightFoot.position.set(0.25, -1.55, 0);
+    rightFoot.scale.set(1, 0.7, 1);
     rightFoot.castShadow = true;
     avatarGroup.add(rightFoot);
 
-    // Legs/Pants
+    // Legs/Pants - דק יותר
     const pantsColor3 = new THREE.Color(pantsColor);
     const pantsMaterial = new THREE.MeshStandardMaterial({ color: pantsColor3 });
-    const legsGeometry = new THREE.BoxGeometry(0.6, 0.8, 0.5);
+    const legsGeometry = new THREE.BoxGeometry(0.45, 0.85, 0.35);
     const legs = new THREE.Mesh(legsGeometry, pantsMaterial);
-    legs.position.set(0, -0.5, 0);
+    legs.position.set(0, -0.45, 0);
     legs.castShadow = true;
     avatarGroup.add(legs);
 
-    // Torso/Shirt
+    // Torso/Shirt - גוף קטן יותר
     const shirtColor3 = new THREE.Color(shirtColor);
     const shirtMaterial = new THREE.MeshStandardMaterial({ color: shirtColor3 });
-    const torsoGeometry = new THREE.BoxGeometry(0.7, 0.9, 0.5);
+    const torsoGeometry = new THREE.BoxGeometry(0.5, 0.75, 0.4);
     const torso = new THREE.Mesh(torsoGeometry, shirtMaterial);
-    torso.position.set(0, 0.3, 0);
+    torso.position.set(0, 0.25, 0);
     torso.castShadow = true;
     avatarGroup.add(torso);
 
     // Neck
-    const neckGeometry = new THREE.CylinderGeometry(0.2, 0.2, 0.2, 16);
+    const neckGeometry = new THREE.CylinderGeometry(0.15, 0.15, 0.15, 16);
     const skinMaterial = new THREE.MeshStandardMaterial({ color: 0xd4a574 });
     const neck = new THREE.Mesh(neckGeometry, skinMaterial);
-    neck.position.set(0, 1.0, 0);
+    neck.position.set(0, 0.85, 0);
     neck.castShadow = true;
     avatarGroup.add(neck);
 
-    // Arms
-    const armGeometry = new THREE.CapsuleGeometry(0.15, 0.7, 4, 8);
+    // Arms - דקים וקטנים יותר
+    const armGeometry = new THREE.CapsuleGeometry(0.11, 0.65, 4, 8);
     const leftArm = new THREE.Mesh(armGeometry, shirtMaterial);
-    leftArm.position.set(-0.5, 0.4, 0);
-    leftArm.rotation.z = 0.3;
+    leftArm.position.set(-0.35, 0.25, 0);
+    leftArm.rotation.z = 0.2;
     leftArm.castShadow = true;
     avatarGroup.add(leftArm);
     const rightArm = new THREE.Mesh(armGeometry, shirtMaterial);
-    rightArm.position.set(0.5, 0.4, 0);
-    rightArm.rotation.z = -0.3;
+    rightArm.position.set(0.35, 0.25, 0);
+    rightArm.rotation.z = -0.2;
     rightArm.castShadow = true;
     avatarGroup.add(rightArm);
 
-    // Head
-    const headGeometry = new THREE.SphereGeometry(0.35, 32, 32);
+    // Hands
+    const handGeometry = new THREE.SphereGeometry(0.1, 16, 16);
+    const leftHand = new THREE.Mesh(handGeometry, skinMaterial);
+    leftHand.position.set(-0.4, -0.2, 0);
+    leftHand.castShadow = true;
+    avatarGroup.add(leftHand);
+    const rightHand = new THREE.Mesh(handGeometry, skinMaterial);
+    rightHand.position.set(0.4, -0.2, 0);
+    rightHand.castShadow = true;
+    avatarGroup.add(rightHand);
+
+    // Head - קטן יותר
+    const headGeometry = new THREE.SphereGeometry(0.3, 32, 32);
     const headMaterial = new THREE.MeshStandardMaterial({ color: 0xd4a574 });
     const head = new THREE.Mesh(headGeometry, headMaterial);
-    head.position.set(0, 1.5, 0);
+    head.position.set(0, 1.3, 0);
     head.castShadow = true;
     avatarGroup.add(head);
 
