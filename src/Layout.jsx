@@ -99,11 +99,34 @@ const employeeLinks = [
   { title: "🪙 המטבעות שלי", url: createPageUrl("GamificationCenter"), icon: Trophy, isSubItem: true },
 ];
 
+// CSS Variables per theme - applied globally
+const THEME_VARS = {
+  light:  '',
+  dark:   `--background:222 47% 8%;--foreground:210 40% 98%;--card:222 47% 11%;--card-foreground:210 40% 98%;--muted:217 33% 17%;--muted-foreground:215 20% 65%;--border:217 33% 20%;--primary:152 53% 35%;--primary-foreground:0 0% 100%;--accent:33 95% 44%;`,
+  purple: `--background:265 50% 8%;--foreground:270 40% 98%;--card:265 50% 12%;--card-foreground:270 40% 98%;--muted:265 30% 18%;--muted-foreground:270 20% 65%;--border:265 30% 22%;--primary:270 70% 60%;--primary-foreground:0 0% 100%;--accent:33 95% 44%;`,
+  green:  `--background:160 40% 7%;--foreground:150 40% 96%;--card:160 40% 11%;--card-foreground:150 40% 96%;--muted:160 25% 17%;--muted-foreground:150 20% 62%;--border:160 25% 21%;--primary:152 53% 40%;--primary-foreground:0 0% 100%;--accent:33 95% 44%;`,
+};
+
 export default function Layout({ children, currentPageName }) {
   const location = useLocation();
   const [user, setUser] = React.useState(null);
   const [originalUserRole, setOriginalUserRole] = React.useState(null);
   const [hasUnreadChat, setHasUnreadChat] = React.useState(false);
+  const [appTheme, setAppTheme] = React.useState(() => localStorage.getItem('gc_theme') || 'light');
+
+  // Listen for theme changes from GamificationCenter
+  React.useEffect(() => {
+    const onStorage = (e) => {
+      if (e.key === 'gc_theme') setAppTheme(e.newValue || 'light');
+    };
+    window.addEventListener('storage', onStorage);
+    // Also poll for same-tab changes
+    const interval = setInterval(() => {
+      const t = localStorage.getItem('gc_theme') || 'light';
+      setAppTheme(prev => prev !== t ? t : prev);
+    }, 500);
+    return () => { window.removeEventListener('storage', onStorage); clearInterval(interval); };
+  }, []);
 
   React.useEffect(() => {
     const loadUser = async () => {
