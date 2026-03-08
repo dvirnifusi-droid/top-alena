@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo } from 'react';
+import React, { useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Check, Star, Zap, Info, ChefHat, GlassWater, Trophy, Users, Edit } from 'lucide-react';
