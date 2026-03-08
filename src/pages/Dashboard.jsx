@@ -259,35 +259,80 @@ function SmartToolsPanel() {
 
     return (
         <>
-            <Card 
-                className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white cursor-pointer hover:shadow-xl transition-all duration-300 transform hover:scale-105"
-                onClick={() => setIsOpen(true)}
-            >
-                <CardContent className="p-6">
-                    <div className="flex items-center justify-between">
-                        <div>
-                            <h3 className="text-xl font-bold mb-2">🤖 כלי עבודה חכמים</h3>
-                            <p className="text-indigo-100 mb-4">
-                                כלים מבוססי AI לחיסכון בזמן ושיפור היעילות
-                            </p>
-                            <div className="flex items-center gap-2">
-                                <Badge variant="secondary" className="bg-white/20 text-white">
-                                    {tools.length} כלים
-                                </Badge>
-                                <Badge variant="secondary" className="bg-white/20 text-white">
-                                    חדש!
-                                </Badge>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <Card 
+                    className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white cursor-pointer hover:shadow-xl transition-all duration-300 transform hover:scale-105"
+                    onClick={() => setIsOpen(true)}
+                >
+                    <CardContent className="p-6">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <h3 className="text-xl font-bold mb-2">🤖 כלי עבודה חכמים</h3>
+                                <p className="text-indigo-100 mb-4">
+                                    כלים מבוססי AI לחיסכון בזמן
+                                </p>
+                                <div className="flex items-center gap-2">
+                                    <Badge variant="secondary" className="bg-white/20 text-white">
+                                        {tools.length} כלים
+                                    </Badge>
+                                </div>
+                            </div>
+                            <div className="flex flex-col items-center">
+                                <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center mb-2">
+                                    <Brain className="w-8 h-8" />
+                                </div>
+                                <ChevronRight className="w-6 h-6" />
                             </div>
                         </div>
-                        <div className="flex flex-col items-center">
-                            <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center mb-2">
-                                <Brain className="w-8 h-8" />
+                    </CardContent>
+                </Card>
+
+                <Card 
+                    className="bg-gradient-to-r from-pink-600 to-rose-600 text-white cursor-pointer hover:shadow-xl transition-all duration-300 transform hover:scale-105"
+                    onClick={() => setShowShop(true)}
+                >
+                    <CardContent className="p-6">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <h3 className="text-xl font-bold mb-2">💰 טיפים</h3>
+                                <p className="text-rose-100 mb-4">
+                                    ניהול וחלוקת טיפים בקלות
+                                </p>
+                                <Link to={createPageUrl('Tips')} className="text-white hover:underline text-sm font-semibold">
+                                    עבור לדף →
+                                </Link>
                             </div>
-                            <ChevronRight className="w-6 h-6" />
+                            <div className="flex flex-col items-center">
+                                <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center">
+                                    <span className="text-3xl">💵</span>
+                                </div>
+                            </div>
                         </div>
-                    </div>
-                </CardContent>
-            </Card>
+                    </CardContent>
+                </Card>
+
+                <Card 
+                    className="bg-gradient-to-r from-orange-600 to-amber-600 text-white cursor-pointer hover:shadow-xl transition-all duration-300 transform hover:scale-105"
+                    onClick={() => setShowShop(true)}
+                >
+                    <CardContent className="p-6">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <h3 className="text-xl font-bold mb-2">👗 חנות בגדים</h3>
+                                <p className="text-amber-100 mb-4">
+                                    התחפשות וקנייה של אביזרים
+                                </p>
+                                <span className="text-white font-semibold text-sm">{balance.toLocaleString()} 🪙</span>
+                            </div>
+                            <div className="flex flex-col items-center">
+                                <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center">
+                                    <span className="text-3xl">👕</span>
+                                </div>
+                            </div>
+                        </div>
+                    </CardContent>
+                </Card>
+            </div>
 
             <Dialog open={isOpen} onOpenChange={setIsOpen}>
                 <DialogContent className="max-w-7xl max-h-[90vh] overflow-y-auto" dir="rtl">
