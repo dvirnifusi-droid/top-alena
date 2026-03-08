@@ -26,29 +26,12 @@ export default function CharacterLounge() {
         const empList = await base44.entities.Employee.list();
         setEmployees(empList);
 
-        // Load apparel for all employees
+        // Load apparel for all employees - just need avatar_url if stored
         const apparel = await base44.entities.EmployeeApparel.list();
-        const apparelItems = await base44.entities.Apparel.list();
         const apparelByEmp = {};
         
         apparel.forEach(a => {
-          // Get apparel details for each equipped item
-          const shirt = apparelItems.find(item => item.id === a.shirt_id);
-          const pants = apparelItems.find(item => item.id === a.pants_id);
-          const shoes = apparelItems.find(item => item.id === a.shoes_id);
-          const hat = apparelItems.find(item => item.id === a.hat_id);
-          
-          const wearingTexts = [
-            shirt?.wearing_text,
-            pants?.wearing_text,
-            shoes?.wearing_text,
-            hat?.wearing_text
-          ].filter(Boolean);
-          
-          apparelByEmp[a.employee_id] = {
-            ...a,
-            wearingDescription: wearingTexts.join(', ')
-          };
+          apparelByEmp[a.employee_id] = a;
         });
         setApparelMap(apparelByEmp);
 
