@@ -1,5 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { base44 } from '@/api/base44Client';
 
 const UPGRADE_COST = 50; // מטבעות לשיפור AI
