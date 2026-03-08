@@ -177,7 +177,10 @@ function CharacterCard({ employee, apparel, coins, isCurrentUser, onSelect }) {
       {/* Transfer button */}
       {!isCurrentUser && (
         <Button
-          onClick={onSelect}
+          onClick={(e) => {
+            e.stopPropagation();
+            onSelect();
+          }}
           size="sm"
           className="w-full bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 text-white text-xs"
         >
