@@ -207,8 +207,13 @@ export default function ApparelCustomizer({ employeeId, employeeAvatar, onAvatar
     setPublishing(true);
     try {
       if (employeeApparelId) {
-        await base44.entities.EmployeeApparel.update(employeeApparelId, { avatar_url: currentAvatarUrl });
+        console.log('Publishing avatar for existing apparel:', employeeApparelId, currentAvatarUrl);
+        const result = await base44.entities.EmployeeApparel.update(employeeApparelId, { 
+          avatar_url: currentAvatarUrl 
+        });
+        console.log('Update result:', result);
       } else {
+        console.log('Creating new EmployeeApparel for employee:', employeeId);
         const employees = await base44.entities.Employee.list();
         const currentEmp = employees.find(e => e.id === employeeId);
         if (currentEmp) {
@@ -217,6 +222,7 @@ export default function ApparelCustomizer({ employeeId, employeeAvatar, onAvatar
             employee_name: currentEmp.full_name,
             avatar_url: currentAvatarUrl
           });
+          console.log('Created new apparel:', newApparel);
           setEmployeeApparelId(newApparel.id);
         }
       }
