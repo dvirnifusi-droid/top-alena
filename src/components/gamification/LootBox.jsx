@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -18,9 +18,56 @@ function pickCoinPrize(coinPrizesStr) {
   return prizes[Math.floor(Math.random() * prizes.length)];
 }
 
+// יצירת צלילים עם Web Audio API
+function playSound(type) {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    if (type === 'shake') {
+      // ניעור — רעש קצר
+      const buf = ctx.createBuffer(1, ctx.sampleRate * 0.3, ctx.sampleRate);
+      const data = buf.getChannelData(0);
+      for (let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1) * 0.15;
+      const src = ctx.createBufferSource();
+      src.buffer = buf;
+      src.connect(ctx.destination);
+      src.start();
+    } else if (type === 'open') {
+      // פתיחה — "פופ" עולה
+      [0, 80, 160].forEach((delay, i) => {
+        setTimeout(() => {
+          const o = ctx.createOscillator();
+          const g = ctx.createGain();
+          o.type = 'sine';
+          o.frequency.setValueAtTime(400 + i * 200, ctx.currentTime);
+          o.frequency.exponentialRampToValueAtTime(800 + i * 300, ctx.currentTime + 0.15);
+          g.gain.setValueAtTime(0.4, ctx.currentTime);
+          g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.2);
+          o.connect(g); g.connect(ctx.destination);
+          o.start(); o.stop(ctx.currentTime + 0.2);
+        }, delay);
+      });
+    } else if (type === 'reveal') {
+      // חשיפה — פנפרה חגיגית
+      const notes = [523, 659, 784, 1047];
+      notes.forEach((freq, i) => {
+        setTimeout(() => {
+          const o = ctx.createOscillator();
+          const g = ctx.createGain();
+          o.type = 'triangle';
+          o.frequency.value = freq;
+          g.gain.setValueAtTime(0.35, ctx.currentTime);
+          g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.35);
+          o.connect(g); g.connect(ctx.destination);
+          o.start(); o.stop(ctx.currentTime + 0.35);
+        }, i * 120);
+      });
+    }
+  } catch (e) {}
+}
+
 export default function LootBox({ employeeId, employeeName, onDone }) {
-  const [phase, setPhase] = useState('closed'); // closed → shaking → opening → reveal → done
-  const [prize, setPrize] = useState(null); // { type: 'coins'|'reward', coins?, reward? }
+  const [phase, setPhase] = useState('closed');
+  const [prize, setPrize] = useState(null);
   const [rewards, setRewards] = useState([]);
 
   useEffect(() => {
@@ -28,48 +75,48 @@ export default function LootBox({ employeeId, employeeName, onDone }) {
   }, []);
 
   const openBox = async () => {
+    playSound('shake');
     setPhase('shaking');
-    setTimeout(() => setPhase('opening'), 1000);
+    setTimeout(() => {
+      playSound('open');
+      setPhase('opening');
+    }, 1000);
     setTimeout(async () => {
       const settings = getLootSettings();
       const realRewardChance = Math.random() * 100;
       let result;
 
       if (realRewardChance < settings.realRewardChance && rewards.length > 0) {
-        // פרס אמיתי - בחר רנדומלי מהפרסים הזולים (עד 1000 מטבעות)
         const cheapRewards = rewards.filter(r => r.cost <= 1000);
         const pool = cheapRewards.length > 0 ? cheapRewards : rewards;
         const picked = pool[Math.floor(Math.random() * pool.length)];
         result = { type: 'reward', reward: picked };
-
-        // יצור טרנזקציה לפדיון ממתין לאישור מנהל
         await base44.entities.CoinTransaction.create({
           employee_id: employeeId,
           employee_name: employeeName,
           amount: 0,
-          reason: `🎁 זכייה בקופסת הפתעה: ${picked.emoji} ${picked.title}`,
+          reason: `🎁 זכייה בהפתעה עלינא: ${picked.emoji} ${picked.title}`,
           type: 'redeemed',
           trigger: 'redemption',
           status: 'pending_approval',
           redemption_reward: picked.id || picked.title,
-          manager_notes: 'זכייה אוטומטית מקופסת הפתעה - יציאה ממשמרת'
+          manager_notes: 'זכייה אוטומטית מהפתעה עלינא - יציאה ממשמרת'
         });
       } else {
-        // מטבעות
         const coins = pickCoinPrize(settings.coinPrizes);
         result = { type: 'coins', coins };
-
         await base44.entities.CoinTransaction.create({
           employee_id: employeeId,
           employee_name: employeeName,
           amount: coins,
-          reason: `🎲 קופסת הפתעה - יציאה ממשמרת`,
+          reason: `🎲 הפתעה עלינא - יציאה ממשמרת`,
           type: 'earned',
           trigger: 'manager_bonus',
           status: 'approved'
         });
       }
 
+      playSound('reveal');
       setPrize(result);
       setPhase('reveal');
     }, 2200);
@@ -77,65 +124,85 @@ export default function LootBox({ employeeId, employeeName, onDone }) {
 
   return (
     <Dialog open={true} onOpenChange={() => {}}>
-      <DialogContent dir="rtl" className="max-w-sm text-center overflow-hidden" onPointerDownOutside={e => e.preventDefault()}>
+      <DialogContent
+        dir="rtl"
+        className="max-w-lg w-full text-center overflow-hidden p-0"
+        onPointerDownOutside={e => e.preventDefault()}
+        style={{ borderRadius: '1.5rem' }}
+      >
+        <style>{`
+          @keyframes shake { 0%,100%{transform:rotate(-10deg) scale(1.05)} 50%{transform:rotate(10deg) scale(1.1)} }
+          @keyframes bigBounce { 0%,100%{transform:translateY(0) scale(1)} 40%{transform:translateY(-18px) scale(1.08)} 70%{transform:translateY(-8px) scale(1.04)} }
+          @keyframes pop { 0%{transform:scale(0.8)} 60%{transform:scale(1.35)} 100%{transform:scale(1.15)} }
+          @keyframes revealPop { 0%{transform:scale(0) rotate(-10deg);opacity:0} 70%{transform:scale(1.15) rotate(3deg);opacity:1} 100%{transform:scale(1) rotate(0deg);opacity:1} }
+          @keyframes starFloat { 0%,100%{opacity:0.6;transform:translateY(0)} 50%{opacity:1;transform:translateY(-10px)} }
+          .star1{animation:starFloat 1.8s ease-in-out infinite}
+          .star2{animation:starFloat 2.1s ease-in-out 0.4s infinite}
+          .star3{animation:starFloat 1.6s ease-in-out 0.8s infinite}
+        `}</style>
 
         {/* Phase: closed */}
         {phase === 'closed' && (
-          <div className="py-6 space-y-4">
-            <div className="text-6xl animate-bounce">🎁</div>
-            <h2 className="text-2xl font-black text-gray-800">קופסת הפתעה!</h2>
-            <p className="text-gray-500 text-sm">סיימת משמרת — מגיע לך פרס!</p>
+          <div className="py-10 px-8 space-y-6 bg-gradient-to-br from-purple-600 via-pink-500 to-yellow-400 relative overflow-hidden">
+            <div className="absolute top-4 right-6 text-2xl star1">✨</div>
+            <div className="absolute top-8 left-8 text-xl star2">🌟</div>
+            <div className="absolute bottom-16 right-10 text-lg star3">⭐</div>
+            <div className="text-9xl" style={{ animation: 'bigBounce 1.4s ease-in-out infinite', display:'inline-block' }}>🎁</div>
+            <div>
+              <h2 className="text-3xl font-black text-white drop-shadow-lg">הפתעה עלינא!</h2>
+              <p className="text-white/80 text-base mt-1">סיימת משמרת מלאה — מגיע לך פרס! 🎉</p>
+            </div>
             <Button
               onClick={openBox}
-              className="w-full bg-gradient-to-r from-yellow-400 to-orange-500 hover:from-yellow-500 hover:to-orange-600 text-white font-black text-lg py-6 rounded-2xl shadow-lg"
+              className="w-full bg-white hover:bg-yellow-50 text-purple-700 font-black text-xl py-7 rounded-2xl shadow-2xl border-0"
             >
-              🎲 פתח את הקופסה!
+              🎲 פתח את ההפתעה!
             </Button>
           </div>
         )}
 
         {/* Phase: shaking */}
         {phase === 'shaking' && (
-          <div className="py-10">
-            <div className="text-7xl" style={{ animation: 'shake 0.3s infinite' }}>🎁</div>
-            <p className="text-gray-500 mt-4 font-medium">מערבב...</p>
-            <style>{`@keyframes shake { 0%,100%{transform:rotate(-8deg)} 50%{transform:rotate(8deg)} }`}</style>
+          <div className="py-16 px-8 bg-gradient-to-br from-purple-600 via-pink-500 to-yellow-400">
+            <div className="text-9xl" style={{ animation: 'shake 0.25s infinite', display:'inline-block' }}>🎁</div>
+            <p className="text-white font-black text-xl mt-6">מערבב...</p>
           </div>
         )}
 
         {/* Phase: opening */}
         {phase === 'opening' && (
-          <div className="py-10">
-            <div className="text-7xl" style={{ animation: 'pop 0.5s ease-out forwards' }}>📦</div>
-            <p className="text-yellow-600 mt-4 font-bold text-lg">פותח...</p>
-            <style>{`@keyframes pop { 0%{transform:scale(1)} 50%{transform:scale(1.4)} 100%{transform:scale(1.1)} }`}</style>
+          <div className="py-16 px-8 bg-gradient-to-br from-purple-600 via-pink-500 to-yellow-400">
+            <div className="text-9xl" style={{ animation: 'pop 0.6s ease-out forwards', display:'inline-block' }}>📦</div>
+            <p className="text-yellow-200 font-black text-2xl mt-6">פותח! 🔓</p>
           </div>
         )}
 
         {/* Phase: reveal */}
         {phase === 'reveal' && prize && (
-          <div className="py-6 space-y-4">
-            <div className="text-6xl animate-bounce">
+          <div className="py-10 px-8 space-y-5 bg-gradient-to-br from-yellow-50 to-orange-50">
+            <div className="text-8xl" style={{ animation: 'revealPop 0.6s cubic-bezier(0.34,1.56,0.64,1) forwards', display:'inline-block' }}>
               {prize.type === 'coins' ? '🪙' : prize.reward?.emoji || '🎁'}
             </div>
-            <div className="bg-gradient-to-br from-yellow-50 to-orange-50 border-2 border-yellow-300 rounded-2xl p-5">
+            <div className="bg-white border-2 border-yellow-300 rounded-3xl p-6 shadow-xl">
               {prize.type === 'coins' ? (
                 <>
-                  <p className="text-5xl font-black text-yellow-600">+{prize.coins}</p>
-                  <p className="text-lg font-bold text-gray-700 mt-1">מטבעות! 🎉</p>
-                  <p className="text-xs text-gray-500 mt-2">נוספו לחשבונך אוטומטית</p>
+                  <p className="text-7xl font-black text-yellow-500">+{prize.coins}</p>
+                  <p className="text-2xl font-black text-gray-700 mt-1">מטבעות! 🎉</p>
+                  <p className="text-sm text-gray-400 mt-2">נוספו לחשבונך אוטומטית</p>
                 </>
               ) : (
                 <>
-                  <p className="text-2xl font-black text-orange-600">{prize.reward?.emoji} {prize.reward?.title}</p>
-                  <p className="text-sm text-gray-600 mt-1">{prize.reward?.description}</p>
-                  <p className="text-xs text-blue-500 mt-3 bg-blue-50 rounded-lg p-2">⏳ הבקשה נשלחה למנהל לאישור</p>
+                  <p className="text-3xl font-black text-orange-600">{prize.reward?.emoji} {prize.reward?.title}</p>
+                  <p className="text-base text-gray-600 mt-2">{prize.reward?.description}</p>
+                  <div className="mt-3 bg-blue-50 rounded-xl p-3 text-sm text-blue-600 font-medium">
+                    ⏳ הבקשה נשלחה למנהל לאישור
+                  </div>
                 </>
               )}
             </div>
             <Button
               onClick={() => { setPhase('done'); onDone && onDone(prize); }}
-              className="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-3 rounded-xl"
+              className="w-full bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white font-black text-lg py-5 rounded-2xl shadow-lg"
             >
               🙌 תודה! סיום
             </Button>
