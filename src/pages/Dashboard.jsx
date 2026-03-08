@@ -504,16 +504,7 @@ function DashboardInner() {
                      </div>
                  </section>
 
-                 {/* 🔍 מעקב ובקרה */}
-                 <section>
-                     <h2 className="text-2xl font-bold text-slate-900 mb-4 flex items-center gap-2">
-                         🔍 מעקב ובקרה
-                     </h2>
-                     <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-                         <RecentIncidents />
-                         <ChecklistStatus />
-                     </div>
-                 </section>
+
             </div>
         </div>
     );
