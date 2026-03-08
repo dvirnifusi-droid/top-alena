@@ -148,12 +148,31 @@ export default function CharacterLounge() {
                 isCurrentUser={currentUser?.email === emp.email}
                 onSelect={() => {
                   setSelectedEmployee(emp);
-                  setShowTransferDialog(true);
+                  setShowDetailModal(true);
                 }}
               />
             ))}
           </div>
         </div>
+
+        {/* Character Detail Modal */}
+        {selectedEmployee && showDetailModal && (
+          <CharacterDetailModal
+            employee={selectedEmployee}
+            apparel={apparelMap[selectedEmployee.id]}
+            coins={coinsMap[selectedEmployee.id] || 0}
+            isCurrentUser={currentUser?.email === selectedEmployee.email}
+            onClose={() => {
+              setShowDetailModal(false);
+              setSelectedEmployee(null);
+            }}
+            onTransfer={() => {
+              setShowDetailModal(false);
+              setShowTransferDialog(true);
+            }}
+            currentUser={currentUser}
+          />
+        )}
 
         {/* Info section */}
         <Card className="bg-blue-50 border-blue-200">
