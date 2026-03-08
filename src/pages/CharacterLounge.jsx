@@ -28,9 +28,27 @@ export default function CharacterLounge() {
 
         // Load apparel for all employees
         const apparel = await base44.entities.EmployeeApparel.list();
+        const apparelItems = await base44.entities.Apparel.list();
         const apparelByEmp = {};
+        
         apparel.forEach(a => {
-          apparelByEmp[a.employee_id] = a;
+          // Get apparel details for each equipped item
+          const shirt = apparelItems.find(item => item.id === a.shirt_id);
+          const pants = apparelItems.find(item => item.id === a.pants_id);
+          const shoes = apparelItems.find(item => item.id === a.shoes_id);
+          const hat = apparelItems.find(item => item.id === a.hat_id);
+          
+          const wearingTexts = [
+            shirt?.wearing_text,
+            pants?.wearing_text,
+            shoes?.wearing_text,
+            hat?.wearing_text
+          ].filter(Boolean);
+          
+          apparelByEmp[a.employee_id] = {
+            ...a,
+            wearingDescription: wearingTexts.join(', ')
+          };
         });
         setApparelMap(apparelByEmp);
 
