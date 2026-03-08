@@ -68,55 +68,9 @@ export default function ApparelCustomizer({ employeeId, employeeAvatar, onAvatar
     const updated = { ...equipped, [category]: itemId };
     setEquipped(updated);
 
-    // עדכן ב-DB
+    // עדכן ב-DB בלבד
     if (employeeApparelId) {
       await base44.entities.EmployeeApparel.update(employeeApparelId, updated);
-    }
-
-    // עדכן את הדמות עם הביגדים החדשים
-    try {
-      const apparelItems = [];
-      if (updated.shirt) {
-        const shirt = apparel.find(a => a.id === updated.shirt);
-        if (shirt) apparelItems.push(shirt.wearing_text);
-      }
-      if (updated.pants) {
-        const pants = apparel.find(a => a.id === updated.pants);
-        if (pants) apparelItems.push(pants.wearing_text);
-      }
-      if (updated.shoes) {
-        const shoes = apparel.find(a => a.id === updated.shoes);
-        if (shoes) apparelItems.push(shoes.wearing_text);
-      }
-      if (updated.hat) {
-        const hat = apparel.find(a => a.id === updated.hat);
-        if (hat) apparelItems.push(hat.wearing_text);
-      }
-      if (updated.outerwear) {
-        const outerwear = apparel.find(a => a.id === updated.outerwear);
-        if (outerwear) apparelItems.push(outerwear.wearing_text);
-      }
-      if (updated.accessories?.length > 0) {
-        updated.accessories.forEach(accId => {
-          const acc = apparel.find(a => a.id === accId);
-          if (acc) apparelItems.push(acc.wearing_text);
-        });
-      }
-
-      const wearingText = apparelItems.join(', ');
-      const prompt = `Full body 3D stylized character avatar, Pixar/Fortnite style, standing in a neutral T-pose. Character ${wearingText || 'wearing a basic grey t-shirt and blue jeans'}. High-quality 3D render, studio lighting, solid white background. Professional 3D game character design.`;
-
-      setRegenerating(true);
-      const { url } = await base44.integrations.Core.GenerateImage({
-        prompt
-      });
-
-      setCurrentAvatarUrl(url);
-      onAvatarUpdate(url);
-      setRegenerating(false);
-    } catch (error) {
-      console.error('Error updating avatar:', error);
-      setRegenerating(false);
     }
   };
 
