@@ -24,6 +24,56 @@ import SurveyQRGenerator from '../components/dashboard/SurveyQRGenerator';
 import ActiveEmployeesWidget from '../components/dashboard/ActiveEmployeesWidget';
 import BriefReadersWidget from '../components/dashboard/BriefReadersWidget';
 
+// וידג'ט הכנסות חכם
+function RevenueWidget() {
+    const { data: insights = [], isLoading } = useQuery({
+        queryKey: ['revenue-insights'],
+        queryFn: async () => {
+            try {
+                const response = await base44.integrations.Core.InvokeLLM({
+                    prompt: "Analyze revenue trends for a restaurant. Provide key insights in Hebrew with total revenue and peak hour.",
+                    add_context_from_internet: false,
+                    response_json_schema: {
+                        type: "object",
+                        properties: {
+                            total_revenue: { type: "string" },
+                            transactions: { type: "string" },
+                            peak_hour: { type: "string" }
+                        }
+                    }
+                });
+                return response;
+            } catch (error) {
+                console.error('Failed to fetch revenue insights:', error);
+                return { total_revenue: "₪0", transactions: "0", peak_hour: "-" };
+            }
+        }
+    });
+
+    return (
+        <Card className="bg-white">
+            <CardHeader>
+                <CardTitle className="flex items-center justify-between">
+                    <span>💹 תחזיות ותובנות</span>
+                    <span className="text-2xl font-bold text-green-600">{insights.total_revenue || "₪0"}</span>
+                </CardTitle>
+                <p className="text-sm text-gray-600 mt-1">{insights.transactions || "0"} עסקאות</p>
+            </CardHeader>
+            <CardContent>
+                <div className="space-y-3">
+                    <div className="p-3 bg-green-50 rounded-lg">
+                        <p className="text-sm font-medium text-gray-700">שעה עמוסה ביותר</p>
+                        <p className="text-lg font-bold text-green-600">{insights.peak_hour || "-"}</p>
+                    </div>
+                    <Link to={createPageUrl('RevenueForecasting')} className="text-sm text-blue-600 hover:underline">
+                        ראה דוח מלא →
+                    </Link>
+                </div>
+            </CardContent>
+        </Card>
+    );
+}
+
 // רכיב סטטיסטיקות מהירות מעודכן
 function QuickStats() {
     const [realTimeData, setRealTimeData] = React.useState({
