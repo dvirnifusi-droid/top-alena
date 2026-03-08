@@ -340,21 +340,25 @@ export default function GamificationCenter() {
       <Dialog open={showThemePicker} onOpenChange={setShowThemePicker}>
         <DialogContent dir="rtl" className="max-w-xs">
           <DialogHeader>
-            <DialogTitle className="text-center">🎨 ערכת נושא</DialogTitle>
+            <DialogTitle className="text-center">🎨 ערכת נושא לכל האפליקציה</DialogTitle>
           </DialogHeader>
-          <div className="space-y-2 p-2">
+          <p className="text-xs text-center text-gray-500 mb-2">השינוי יחול על כל הדפים</p>
+          <div className="grid grid-cols-2 gap-3 p-2">
             {THEMES.map(t => {
               const Icon = t.icon;
+              const isSelected = theme === t.id;
               return (
                 <button
                   key={t.id}
                   onClick={() => setAndSaveTheme(t.id)}
-                  className={`w-full flex items-center gap-3 p-3 rounded-xl border-2 transition-all ${theme === t.id ? 'border-primary bg-primary/10' : 'border-gray-200 hover:border-gray-300'}`}
+                  className={`flex flex-col items-center gap-2 p-3 rounded-2xl border-2 transition-all ${isSelected ? 'border-primary ring-2 ring-primary/30 scale-105' : 'border-gray-200 hover:border-gray-300'}`}
                 >
-                  <div className={`w-8 h-8 rounded-lg ${t.bg} border border-gray-200`} />
-                  <Icon className="w-4 h-4" />
-                  <span className="font-medium">{t.label}</span>
-                  {theme === t.id && <span className="mr-auto text-primary font-bold">✓</span>}
+                  <div className={`w-full h-12 rounded-xl ${t.preview}`} />
+                  <div className="flex items-center gap-1">
+                    <Icon className="w-3 h-3" />
+                    <span className="text-sm font-medium">{t.label}</span>
+                    {isSelected && <span className="text-primary font-bold text-xs">✓</span>}
+                  </div>
                 </button>
               );
             })}
