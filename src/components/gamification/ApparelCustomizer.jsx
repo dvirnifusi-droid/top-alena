@@ -62,6 +62,8 @@ export default function ApparelCustomizer({ employeeId, employeeAvatar, onAvatar
 
   useEffect(() => {
     setCurrentAvatarUrl(employeeAvatar);
+    setBaseAvatarUrl(employeeAvatar);
+    setAvatarLocked(false);
   }, [employeeAvatar]);
 
   const handleEquip = async (itemId, category) => {
