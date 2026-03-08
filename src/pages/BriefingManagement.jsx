@@ -166,6 +166,23 @@ export default function BriefingManagement() {
         }
     };
 
+    const handleMarkAsRead = async () => {
+        if (!currentBriefData || !currentBriefData.id || !user) return;
+        try {
+            const updatedReadBy = [...(currentBriefData.read_by || [])];
+            if (!updatedReadBy.includes(user.id)) {
+                updatedReadBy.push(user.id);
+            }
+            
+            const updatedBrief = await DailyBrief.update(currentBriefData.id, { read_by: updatedReadBy });
+            setCurrentBriefData(updatedBrief);
+            await loadBriefs(date);
+            toast.success('סומן כקרא בהצלחה!');
+        } catch (error) {
+            toast.error('שגיאה בסימון קריאה: ' + (error.message || 'נסה שוב'));
+        }
+    };
+
     return (
         <div className="min-h-screen bg-gray-50 p-3 sm:p-6" dir="rtl">
             <div className="max-w-7xl mx-auto space-y-6">
