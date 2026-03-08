@@ -522,18 +522,7 @@ function DashboardInner() {
                          <div>
                              <BriefReadersWidget />
                          </div>
-                         <Link to={createPageUrl('Tips')} className="block">
-                             <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full">
-                                 <CardHeader>
-                                     <CardTitle className="flex items-center gap-2 text-lg">
-                                         💰 ניהול טיפים
-                                     </CardTitle>
-                                 </CardHeader>
-                                 <CardContent>
-                                     <p className="text-sm text-gray-600">עקוב וחלק טיפים בקלות</p>
-                                 </CardContent>
-                             </Card>
-                         </Link>
+
                      </div>
                  </section>
 
