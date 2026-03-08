@@ -404,7 +404,10 @@ export default function ShiftClockWidget() {
                             סיום משמרת - שאלון קצר
                         </DialogTitle>
                     </DialogHeader>
-                    <p className="text-sm text-gray-500 mb-4">לפני שאתה יוצא, איך הייתה המשמרת? (אופציונלי)</p>
+                    <div className="bg-gradient-to-r from-purple-50 to-pink-50 border border-purple-200 rounded-xl p-3 mb-3 flex items-center gap-2">
+                      <span className="text-2xl">🎁</span>
+                      <p className="text-sm text-purple-700 font-semibold">מלא את השאלון ותקבל הפתעה עלינא! 🎉</p>
+                    </div>
 
                     <div className="space-y-5">
                         {/* מידע אוטומטי מהמשמרת */}
