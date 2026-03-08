@@ -62,16 +62,15 @@ export function AvatarRenderer({ faceUrl, body = {}, accessories = [] }) {
         <circle cx="100" cy="165" r="1" fill="white" opacity="0.6" />
       </g>
 
-      {/* ראש - תמונה מה-AI או צבע */}
+      {/* ראש - תמונה מה-AI בצורה דינאמית ללא גבול */}
       {faceUrl ? (
-        <image href={faceUrl} x="65" y="35" width="70" height="70" 
-          clipPath="url(#headClip)" preserveAspectRatio="xMidYMid slice" />
+        <g filter="url(#shadow)">
+          <image href={faceUrl} x="62" y="32" width="76" height="76" 
+            preserveAspectRatio="xMidYMid slice" />
+        </g>
       ) : (
         <circle cx="100" cy="70" r="35" fill="#d4a574" filter="url(#shadow)" />
       )}
-
-      {/* גבול ראש */}
-      <circle cx="100" cy="70" r="35" fill="none" stroke="#d4a574" strokeWidth="0.5" opacity="0.3" />
 
       {/* Layer: כובע */}
       {accessories.includes('hat') && (
