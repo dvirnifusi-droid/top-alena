@@ -160,15 +160,12 @@ export default function GamificationCenter() {
               <div className="flex flex-col items-center gap-1 flex-shrink-0">
                 <button
                   onClick={() => setShowAvatarPicker(true)}
-                  className="w-20 h-20 rounded-full bg-white/20 flex items-center justify-center hover:bg-white/30 transition-all shadow-lg border-2 border-white/40 overflow-hidden"
-                  title="שנה אווטאר"
+                  className="w-20 h-20 rounded-2xl bg-white/20 hover:bg-white/30 transition-all shadow-lg border-2 border-white/40 overflow-hidden flex items-center justify-center"
+                  title="פתח בונה אווטר"
                 >
-                  {avatarIsImage
-                    ? <img src={avatar} alt="avatar" className="w-full h-full object-cover" />
-                    : <span className="text-4xl">{avatar}</span>
-                  }
+                  <AvatarPreview employeeId={employee?.id || 'guest'} />
                 </button>
-                <span className="text-white/60 text-xs">✏️ שנה</span>
+                <span className="text-white/60 text-xs">✏️ עצב</span>
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-white/80 text-sm">שלום,</p>
