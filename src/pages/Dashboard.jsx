@@ -199,6 +199,7 @@ function SmartToolsPanel() {
     const [showShop, setShowShop] = useState(false);
     const [employee, setEmployee] = useState(null);
     const [balance, setBalance] = useState(0);
+    const [employeeAvatar, setEmployeeAvatar] = useState(null);
 
     useEffect(() => {
         const loadData = async () => {
