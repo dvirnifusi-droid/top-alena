@@ -530,8 +530,8 @@ function DashboardInner() {
                             <TableStatus />
                         </div>
                         <TodayReservations />
-                        <div className="lg:col-span-2">
-                            {/* ריק - לכלים נוספים בעתיד */}
+                        <div>
+                            <ActiveEmployeesWidget />
                         </div>
                     </div>
                 </section>
