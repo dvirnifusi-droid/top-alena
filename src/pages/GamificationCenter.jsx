@@ -11,6 +11,31 @@ import DailyChallengeCard from '../components/gamification/DailyChallengeCard';
 import BadgesDisplay, { computeBadges } from '../components/gamification/BadgesDisplay';
 import AvatarUploader from '../components/gamification/AvatarUploader';
 import AvatarBuilder from '../components/gamification/AvatarBuilder';
+
+// תצוגה מיני של האווטר בכרטיס הפרופיל
+function AvatarPreview({ employeeId }) {
+  const getEquipped = () => {
+    try { return JSON.parse(localStorage.getItem(`avatar_equipped_${employeeId}`) || 'null') || {}; }
+    catch { return {}; }
+  };
+  const ITEMS = {
+    base_chef:'👨‍🍳',base_cool:'😎',base_star:'🤩',base_ninja:'🥷',base_robot:'🤖',base_alien:'👽',
+    hat_crown:'👑',hat_wizard:'🧙',hat_top:'🎩',hat_helmet:'⛑️',hat_halo:'😇',hat_fire:'🔥',
+    suit_super:'🦸',suit_wizard:'🧙‍♂️',suit_ninja:'🥷',suit_king:'🤴',suit_chef:'👨‍🍳',suit_tux:'🤵',
+    acc_wand:'🪄',acc_sword:'⚔️',acc_shield:'🛡️',acc_trophy:'🏆',acc_mic:'🎤',acc_star:'⭐',
+    bg_fire:'🔥',bg_rainbow:'🌈',bg_stars:'✨',bg_lightning:'⚡',bg_crown:'👑',bg_music:'🎵',
+  };
+  const eq = getEquipped();
+  return (
+    <div className="relative w-full h-full flex items-center justify-center">
+      {eq.bg && <span className="absolute text-4xl opacity-30">{ITEMS[eq.bg]}</span>}
+      {eq.suit && <span className="absolute bottom-0 text-2xl">{ITEMS[eq.suit]}</span>}
+      <span className="text-4xl z-10">{ITEMS[eq.base] || '😎'}</span>
+      {eq.hat && <span className="absolute top-0 text-2xl z-20">{ITEMS[eq.hat]}</span>}
+      {eq.acc && <span className="absolute bottom-0 right-0 text-xl z-20">{ITEMS[eq.acc]}</span>}
+    </div>
+  );
+}
 import { Sun, Palette } from 'lucide-react';
 
 const RANKS = [
