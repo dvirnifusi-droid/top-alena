@@ -3,13 +3,16 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { base44 } from '@/api/base44Client';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Maximize2 } from 'lucide-react';
 
 export default function ApparelCustomizer({ employeeId, employeeAvatar, onAvatarUpdate, balance, onSpendCoins }) {
   const [showDialog, setShowDialog] = useState(false);
+  const [showPreview, setShowPreview] = useState(false);
   const [apparel, setApparel] = useState([]);
   const [equipped, setEquipped] = useState({});
   const [loading, setLoading] = useState(true);
   const [regenerating, setRegenerating] = useState(false);
+  const [currentAvatarUrl, setCurrentAvatarUrl] = useState(employeeAvatar);
 
   useEffect(() => {
     loadData();
