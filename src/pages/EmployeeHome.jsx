@@ -72,15 +72,29 @@ export default function EmployeeHome() {
     };
 
     const handleMarkAsRead = async (briefId) => {
-        if (!user) return;
-        const brief = todayBriefs.find(b => b.id === briefId);
-        if (!brief) return;
-        const alreadyRead = brief.read_by?.includes(user.id);
-        if (alreadyRead) return;
-        const updatedReadBy = [...(brief.read_by || []), user.id];
-        await DailyBrief.update(briefId, { read_by: updatedReadBy });
-        setTodayBriefs(prev => prev.map(b => b.id === briefId ? { ...b, read_by: updatedReadBy } : b));
-        if (selectedBrief?.id === briefId) setSelectedBrief(prev => ({ ...prev, read_by: updatedReadBy }));
+         console.log('📌 handleMarkAsRead called:', { briefId, userId: user?.id });
+         if (!user) {
+             console.log('❌ No user found');
+             return;
+         }
+         const brief = todayBriefs.find(b => b.id === briefId);
+         console.log('📋 Brief found:', brief?.id);
+         if (!brief) {
+             console.log('❌ Brief not found in todayBriefs');
+             return;
+         }
+         const alreadyRead = brief.read_by?.includes(user.id);
+         console.log('✅ Already read?', alreadyRead, 'read_by:', brief.read_by);
+         if (alreadyRead) {
+             console.log('⚠️ Already marked as read');
+             return;
+         }
+         const updatedReadBy = [...(brief.read_by || []), user.id];
+         console.log('💾 Updating brief with new read_by:', updatedReadBy);
+         await DailyBrief.update(briefId, { read_by: updatedReadBy });
+         console.log('✅ Brief updated in DB');
+         setTodayBriefs(prev => prev.map(b => b.id === briefId ? { ...b, read_by: updatedReadBy } : b));
+         if (selectedBrief?.id === briefId) setSelectedBrief(prev => ({ ...prev, read_by: updatedReadBy }));
     };
 
     const smartTools = [
