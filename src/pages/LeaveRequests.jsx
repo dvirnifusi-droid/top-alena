@@ -187,17 +187,17 @@ function LeaveCalendar({ requests }) {
         return approved.filter(r => r.start_date <= ds && r.end_date >= ds);
     };
 
-    const DAYS_HE = ['א', 'ב', 'ג', 'ד', 'ה', 'ו', 'ש'];
+    const DAYS_HE = ['א׳', 'ב׳', 'ג׳', 'ד׳', 'ה׳', 'ו׳', 'ש׳'];
 
     return (
         <Card>
             <CardHeader className="pb-2">
                 <div className="flex items-center justify-between">
-                    <CardTitle className="text-base">לוח חופשות מאושרות</CardTitle>
-                    <div className="flex items-center gap-2">
-                        <Button variant="outline" size="sm" onClick={() => setMonthDate(new Date(year, month - 1, 1))}>{'>'}</Button>
-                        <span className="text-sm font-medium min-w-[100px] text-center">{format(monthDate, 'MMMM yyyy', { locale: he })}</span>
-                        <Button variant="outline" size="sm" onClick={() => setMonthDate(new Date(year, month + 1, 1))}>{'<'}</Button>
+                    <CardTitle className="text-sm sm:text-base">לוח חופשות מאושרות</CardTitle>
+                    <div className="flex items-center gap-1 sm:gap-2">
+                        <Button variant="outline" size="sm" className="h-7 w-7 p-0" onClick={() => setMonthDate(new Date(year, month - 1, 1))}>{'>'}</Button>
+                        <span className="text-xs sm:text-sm font-medium min-w-[90px] text-center">{format(monthDate, 'MMMM yyyy', { locale: he })}</span>
+                        <Button variant="outline" size="sm" className="h-7 w-7 p-0" onClick={() => setMonthDate(new Date(year, month + 1, 1))}>{'<'}</Button>
                     </div>
                 </div>
             </CardHeader>
