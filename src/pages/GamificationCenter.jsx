@@ -429,6 +429,36 @@ export default function GamificationCenter() {
           )}
         </DialogContent>
       </Dialog>
-    </div>
-  );
-}
+
+      {/* דיאלוג חנות בגדים */}
+      <Dialog open={showShop} onOpenChange={setShowShop}>
+        <DialogContent dir="rtl" className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-center">👗 חנות בגדים - התחפשות לדמות</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            {employee && (
+              <>
+                <ApparelShop 
+                  employeeId={employee.id}
+                  balance={balance}
+                  onPurchase={handleApparelPurchase}
+                />
+                <div className="border-t pt-4">
+                  <p className="font-bold text-sm mb-3">🎨 עדכן את פוזת הדמות:</p>
+                  <ApparelCustomizer 
+                    employeeId={employee.id}
+                    employeeAvatar={avatarImageUrl}
+                    onAvatarUpdate={handleAvatarImageSave}
+                    balance={balance}
+                    onSpendCoins={handleSpendCoins}
+                  />
+                </div>
+              </>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+      </div>
+      );
+      }
