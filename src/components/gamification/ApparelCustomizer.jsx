@@ -149,6 +149,36 @@ export default function ApparelCustomizer({ employeeId, employeeAvatar, onAvatar
     setRegenerating(false);
   };
 
+  const handleUploadNewAvatar = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploading(true);
+    try {
+      const { file_url } = await base44.integrations.Core.UploadFile({ file });
+      setOriginalAvatarUrl(file_url);
+      setCurrentAvatarUrl(file_url);
+      if (onAvatarUpdate) {
+        onAvatarUpdate(file_url);
+      }
+      setShowUploadDialog(false);
+    } catch (error) {
+      console.error('Error uploading avatar:', error);
+      alert('שגיאה בהעלאת התמונה');
+    }
+    setUploading(false);
+  };
+
+  const handleDeleteAvatar = async () => {
+    if (!window.confirm('האם אתה בטוח שאתה רוצה למחוק את הדמות?')) return;
+    setOriginalAvatarUrl(null);
+    setCurrentAvatarUrl(null);
+    if (onAvatarUpdate) {
+      onAvatarUpdate(null);
+    }
+    setShowUploadDialog(false);
+  };
+
 
 
   if (loading) return <div>טוען...</div>;
