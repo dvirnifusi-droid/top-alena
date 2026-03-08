@@ -147,10 +147,18 @@ export default function ApparelCustomizer({ employeeId, employeeAvatar, onAvatar
   ];
 
   return (
-    <div>
+    <div className="space-y-2">
+      <Button
+        onClick={handleLockAvatar}
+        className={`w-full ${avatarLocked ? 'bg-red-600 hover:bg-red-700' : 'bg-blue-600 hover:bg-blue-700'}`}
+      >
+        {avatarLocked ? '🔒 בטל נעילה' : '🔓 נעול את האווטר'}
+      </Button>
+
       <Button
         onClick={() => setShowDialog(true)}
         className="w-full bg-purple-600 hover:bg-purple-700"
+        disabled={!avatarLocked}
       >
         🎨 עדכן הלבוש
       </Button>
