@@ -140,13 +140,16 @@ export default function GamificationCenter() {
           <CardContent className="p-6">
             <div className="flex items-center gap-4 mb-4">
               {/* אווטאר */}
-              <button
-                onClick={() => setShowAvatarPicker(true)}
-                className="w-20 h-20 rounded-full bg-white/20 flex items-center justify-center text-4xl hover:bg-white/30 transition-all shadow-lg border-2 border-white/40 flex-shrink-0"
-                title="שנה אווטאר"
-              >
-                {avatar}
-              </button>
+              <div className="flex flex-col items-center gap-1 flex-shrink-0">
+                <button
+                  onClick={() => setShowAvatarPicker(true)}
+                  className="w-20 h-20 rounded-full bg-white/20 flex items-center justify-center text-4xl hover:bg-white/30 transition-all shadow-lg border-2 border-white/40"
+                  title="שנה אווטאר"
+                >
+                  {avatar}
+                </button>
+                <span className="text-white/60 text-xs">✏️ שנה</span>
+              </div>
               <div className="flex-1 min-w-0">
                 <p className="text-white/80 text-sm">שלום,</p>
                 <h2 className="text-2xl font-black leading-tight truncate">{user?.full_name}</h2>
