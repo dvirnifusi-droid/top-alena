@@ -21,6 +21,17 @@ export default function DailyBriefView({ brief, employeeId, onReady, employeeNam
      // Moved hook to the top level before any conditional returns
      const randomLine = React.useMemo(() => closingLines[Math.floor(Math.random() * closingLines.length)], []);
 
+     // סימון אוטומטי כקרא כשהתדריך נקרא
+     React.useEffect(() => {
+          if (brief && employeeId && onReady && !brief.read_by?.includes(employeeId)) {
+               // זמן קצר כדי שהמשתמש ירגיש שהוא קרא משהו
+               const timer = setTimeout(() => {
+                    onReady(brief.id);
+               }, 2000);
+               return () => clearTimeout(timer);
+          }
+     }, [brief?.id, employeeId, onReady]);
+
      if (!brief) {
          return (
              <Card>
