@@ -9,6 +9,7 @@ import ConfettiEffect from '../components/gamification/ConfettiEffect';
 import ShoutOutFeed from '../components/gamification/ShoutOutFeed';
 import DailyChallengeCard from '../components/gamification/DailyChallengeCard';
 import BadgesDisplay, { computeBadges } from '../components/gamification/BadgesDisplay';
+import AvatarUploader from '../components/gamification/AvatarUploader';
 import { Sun, Moon, Palette } from 'lucide-react';
 
 const RANKS = [
