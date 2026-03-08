@@ -22,6 +22,19 @@ export default function ApparelShop({ employeeId, balance, onPurchase, onApparel
     if (employed.length > 0) {
       setEmployeeApparelId(employed[0].id);
       setOwnedApparel(employed[0].owned_apparel || []);
+    } else {
+      // צור EmployeeApparel חדש אם לא קיים
+      try {
+        const user = await base44.auth.me();
+        const newRecord = await base44.entities.EmployeeApparel.create({
+          employee_id: employeeId,
+          employee_name: user?.full_name || 'עובד',
+          owned_apparel: []
+        });
+        setEmployeeApparelId(newRecord.id);
+      } catch (err) {
+        console.error('Error creating EmployeeApparel:', err);
+      }
     }
     setLoading(false);
   };
