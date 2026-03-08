@@ -258,12 +258,20 @@ export default function ApparelCustomizer({ employeeId, employeeAvatar, onAvatar
         )}
       </div>
 
-      <Button
-        onClick={() => setShowDialog(true)}
-        className="w-full bg-purple-600 hover:bg-purple-700"
-      >
-        🎨 עדכן הלבוש
-      </Button>
+      <div className="space-y-2">
+        <Button
+          onClick={() => setShowDialog(true)}
+          className="w-full bg-purple-600 hover:bg-purple-700"
+        >
+          🎨 עדכן הלבוש
+        </Button>
+        <Button
+          onClick={handlePublishAvatar}
+          className="w-full bg-green-600 hover:bg-green-700"
+        >
+          📢 פרסום דמות לסלון
+        </Button>
+      </div>
 
       <Dialog open={showDialog} onOpenChange={setShowDialog}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" dir="rtl">
