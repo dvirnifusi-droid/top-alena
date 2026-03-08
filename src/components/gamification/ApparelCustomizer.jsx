@@ -61,6 +61,7 @@ export default function ApparelCustomizer({ employeeId, employeeAvatar, onAvatar
   };
 
   useEffect(() => {
+    setOriginalAvatarUrl(employeeAvatar);
     setCurrentAvatarUrl(employeeAvatar);
   }, [employeeAvatar]);
 
