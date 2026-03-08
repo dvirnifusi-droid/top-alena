@@ -244,9 +244,22 @@ export default function BriefEditor({ briefData, onChange, onSave, onCancel, isL
                 </Tabs>
 
                 <div className="flex flex-col sm:flex-row justify-between gap-3 mt-6 pt-4 border-t">
-                    <Button variant="outline" onClick={onCancel} className="sm:w-auto w-full">
-                        ביטול
-                    </Button>
+                    <div className="flex gap-2 sm:flex-row flex-col">
+                        <Button variant="outline" onClick={onCancel} className="sm:w-auto w-full">
+                            ביטול
+                        </Button>
+                        {briefData.id && (
+                            <Button
+                                onClick={onMarkAsRead}
+                                disabled={isLoading}
+                                variant="outline"
+                                className="border-green-300 text-green-700 hover:bg-green-50"
+                            >
+                                {isLoading ? <Loader2 className="w-4 h-4 ml-2 animate-spin" /> : '✓'}
+                                סימון כקרא
+                            </Button>
+                        )}
+                    </div>
                     <div className="flex gap-2 sm:flex-row flex-col">
                         <Button
                             onClick={() => onSave(false)}
