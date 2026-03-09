@@ -246,7 +246,7 @@ export default function ShiftClockWidget() {
         await base44.entities.Shift.create({
             employee_id: employeeId,
             employee_name: user.full_name,
-            date: today,
+            date: shiftDate,
             hours_worked: Math.round(finalEffectiveHours * 100) / 100,
             sales_amount: 0,
             area: '',
