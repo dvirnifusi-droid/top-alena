@@ -466,6 +466,8 @@ function EmployeesInner() {
    const [isPermissionsOpen, setIsPermissionsOpen] = useState(false);
    const [accessCodeEmployee, setAccessCodeEmployee] = useState(null);
    const [isAccessCodeOpen, setIsAccessCodeOpen] = useState(false);
+   const [pushoverEmployee, setPushoverEmployee] = useState(null);
+   const [isPushoverOpen, setIsPushoverOpen] = useState(false);
 
   useEffect(() => {
     loadEmployees();
