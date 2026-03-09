@@ -754,25 +754,29 @@ function EmployeesInner() {
            onRefresh={loadEmployees}
          />
 
-        <AccessCodeDialog
-           isOpen={isAccessCodeOpen}
-           onClose={() => {
-             setIsAccessCodeOpen(false);
-             setAccessCodeEmployee(null);
-           }}
-           employee={accessCodeEmployee}
-           onRefresh={loadEmployees}
-         />
+        {isAccessCodeOpen && accessCodeEmployee && (
+          <AccessCodeDialog
+            isOpen={isAccessCodeOpen}
+            onClose={() => {
+              setIsAccessCodeOpen(false);
+              setAccessCodeEmployee(null);
+            }}
+            employee={accessCodeEmployee}
+            onRefresh={loadEmployees}
+          />
+        )}
 
-        <PushoverKeyDialog
-           isOpen={isPushoverOpen}
-           onClose={() => {
-             setIsPushoverOpen(false);
-             setPushoverEmployee(null);
-           }}
-           employee={pushoverEmployee}
-           onRefresh={loadEmployees}
-         />
+        {isPushoverOpen && pushoverEmployee && (
+          <PushoverKeyDialog
+            isOpen={isPushoverOpen}
+            onClose={() => {
+              setIsPushoverOpen(false);
+              setPushoverEmployee(null);
+            }}
+            employee={pushoverEmployee}
+            onRefresh={loadEmployees}
+          />
+        )}
         </div>
         </div>
         );
