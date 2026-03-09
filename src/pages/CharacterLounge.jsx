@@ -228,7 +228,7 @@ function CharacterCard({ employee, apparel, coins, isCurrentUser, onSelect }) {
 
       {/* Name */}
       <h3 className="text-sm font-bold text-white text-center mb-1 line-clamp-2">
-        {employee.full_name}
+        {employee.full_name.trim()}
       </h3>
 
       {/* Coins display */}
