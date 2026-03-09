@@ -46,11 +46,16 @@ export default function ShiftClockWidget() {
     const loadActiveShift = async (u) => {
         if (!u) { setLoading(false); return; }
         const today = format(new Date(), 'yyyy-MM-dd');
-        const shifts = await base44.entities.ShiftTracking.filter({
-            employee_id: u.id,
-            date: today
-        });
-        const active = shifts.find(s => s.status === 'active' || s.status === 'on_break');
+        const yesterday = format(new Date(Date.now() - 86400000), 'yyyy-MM-dd');
+
+        // חפש גם ביום הנוכחי וגם אתמול (לכיסוי משמרות לילה שעוברות חצות)
+        const [todayShifts, yesterdayShifts] = await Promise.all([
+            base44.entities.ShiftTracking.filter({ employee_id: u.id, date: today }),
+            base44.entities.ShiftTracking.filter({ employee_id: u.id, date: yesterday }),
+        ]);
+
+        const allShifts = [...todayShifts, ...yesterdayShifts];
+        const active = allShifts.find(s => s.status === 'active' || s.status === 'on_break');
         setActiveShift(active || null);
         setLoading(false);
     };
