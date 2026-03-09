@@ -206,6 +206,10 @@ function InviteSuccessDialog({ isOpen, onClose, invitationDetails }) {
 
 function AccessCodeDialog({ isOpen, onClose, employee, onRefresh }) {
   const [accessCode, setAccessCode] = useState(employee?.access_code || '');
+
+  useEffect(() => {
+    setAccessCode(employee?.access_code || '');
+  }, [employee?.id]);
   const [loading, setLoading] = useState(false);
   const [copied, setCopied] = useState(false);
 

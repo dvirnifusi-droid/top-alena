@@ -81,6 +81,7 @@ import MyPerformance from './pages/MyPerformance';
 import PositionsManagement from './pages/PositionsManagement';
 import PublicReservation from './pages/PublicReservation';
 import PublicReservationSettings from './pages/PublicReservationSettings';
+import PushNotifications from './pages/PushNotifications';
 import Reports from './pages/Reports';
 import RevenueForecasting from './pages/RevenueForecasting';
 import SeatingSetup from './pages/SeatingSetup';
@@ -98,7 +99,6 @@ import Training from './pages/Training';
 import UploadChecklists from './pages/UploadChecklists';
 import WaiterTables from './pages/WaiterTables';
 import WorkScheduling from './pages/WorkScheduling';
-import PushNotifications from './pages/PushNotifications';
 import __Layout from './Layout.jsx';
 
 
@@ -137,6 +137,7 @@ export const PAGES = {
     "PositionsManagement": PositionsManagement,
     "PublicReservation": PublicReservation,
     "PublicReservationSettings": PublicReservationSettings,
+    "PushNotifications": PushNotifications,
     "Reports": Reports,
     "RevenueForecasting": RevenueForecasting,
     "SeatingSetup": SeatingSetup,
@@ -154,7 +155,6 @@ export const PAGES = {
     "UploadChecklists": UploadChecklists,
     "WaiterTables": WaiterTables,
     "WorkScheduling": WorkScheduling,
-    "PushNotifications": PushNotifications,
 }
 
 export const pagesConfig = {
