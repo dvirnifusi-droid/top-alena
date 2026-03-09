@@ -412,6 +412,10 @@ function PermissionsDialog({ isOpen, onClose, employee, onRefresh }) {
 
 function PushoverKeyDialog({ isOpen, onClose, employee, onRefresh }) {
   const [userKey, setUserKey] = useState(employee?.pushover_user_key || '');
+
+  useEffect(() => {
+    setUserKey(employee?.pushover_user_key || '');
+  }, [employee?.id]);
   const [loading, setLoading] = useState(false);
 
   const handleSave = async () => {
