@@ -220,8 +220,9 @@ export default function ShiftClockWidget() {
         const employeeRecord = await findEmployeeRecord(user);
         const employeeId = employeeRecord?.id || user.id;
 
-        // 3. עדכון WorkShift - מצא את כל משמרות היום ועדכן את השיבוץ
-        const workShifts = await base44.entities.WorkShift.filter({ date: today });
+        // 3. עדכון WorkShift - מצא לפי תאריך תחילת המשמרת (לא בהכרח היום, עשוי להיות אתמול במשמרת לילה)
+        const shiftDate = format(new Date(activeShift.shift_start), 'yyyy-MM-dd');
+        const workShifts = await base44.entities.WorkShift.filter({ date: shiftDate });
         for (const ws of workShifts) {
             const staff = ws.assigned_staff || [];
             const idx = staff.findIndex(s => s.employee_id === employeeId);
