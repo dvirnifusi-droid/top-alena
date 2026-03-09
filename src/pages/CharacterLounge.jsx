@@ -216,7 +216,7 @@ function CharacterCard({ employee, apparel, coins, isCurrentUser, onSelect }) {
               onError={() => setImgError(true)}
             />
           ) : (
-            <div className="text-5xl">{employee.full_name.charAt(0)}</div>
+            <div className="text-5xl">{employee.full_name.trim().charAt(0)}</div>
           )}
         </div>
         {isCurrentUser && (
