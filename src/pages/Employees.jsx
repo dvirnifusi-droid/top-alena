@@ -574,6 +574,11 @@ function EmployeesInner() {
     setIsAccessCodeOpen(true);
   };
 
+  const openPushoverDialog = (employee) => {
+    setPushoverEmployee(employee);
+    setIsPushoverOpen(true);
+  };
+
   const syncAllEmails = async () => {
     if (!window.confirm('האם אתה בטוח? זה יעדכן את המייל של כל העובדים לפי המשתמשים רשומים במערכת')) return;
     
