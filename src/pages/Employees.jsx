@@ -406,6 +406,56 @@ function PermissionsDialog({ isOpen, onClose, employee, onRefresh }) {
   );
 }
 
+function PushoverKeyDialog({ isOpen, onClose, employee, onRefresh }) {
+  const [userKey, setUserKey] = useState(employee?.pushover_user_key || '');
+  const [loading, setLoading] = useState(false);
+
+  const handleSave = async () => {
+    setLoading(true);
+    await base44.entities.Employee.update(employee.id, { pushover_user_key: userKey.trim() });
+    setLoading(false);
+    onClose();
+    onRefresh();
+  };
+
+  return (
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent dir="rtl">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Bell className="w-5 h-5 text-orange-500" />
+            Pushover - {employee?.full_name}
+          </DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4 py-4">
+          <div className="bg-orange-50 p-4 rounded-lg text-sm text-orange-800 space-y-1">
+            <p>כדי לקבל התראות push, העובד צריך:</p>
+            <p>1. להוריד את אפליקציית <strong>Pushover</strong></p>
+            <p>2. להירשם ולהעתיק את <strong>User Key</strong> מהפרופיל שלו</p>
+            <p>3. להעביר אותו למנהל להזנה כאן</p>
+          </div>
+          <div>
+            <Label>Pushover User Key</Label>
+            <Input
+              value={userKey}
+              onChange={e => setUserKey(e.target.value)}
+              placeholder="uXXXXXXXXXXXXXXXXXXXXXX"
+              dir="ltr"
+              className="font-mono text-sm"
+            />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={loading}>ביטול</Button>
+          <Button onClick={handleSave} disabled={loading} className="bg-orange-500 hover:bg-orange-600 text-white">
+            {loading ? 'שומר...' : 'שמור'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function EmployeesInner() {
    const [employees, setEmployees] = useState([]);
    const [loading, setLoading] = useState(true);
