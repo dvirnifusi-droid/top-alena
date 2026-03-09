@@ -684,8 +684,12 @@ function EmployeesInner() {
                               קוד גישה
                             </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => openPermissionsDialog(employee)}>
-                              <Shield className="w-4 h-4 ml-2" />
-                              ניהול הרשאות
+                             <Shield className="w-4 h-4 ml-2" />
+                             ניהול הרשאות
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => openPushoverDialog(employee)}>
+                             <Bell className="w-4 h-4 ml-2" />
+                             🔔 Pushover {employee.pushover_user_key ? '✅' : ''}
                             </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => {
                               createInvitation(employee).then(inv => {
