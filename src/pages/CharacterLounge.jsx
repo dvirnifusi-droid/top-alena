@@ -272,7 +272,7 @@ function CharacterDetailModal({ employee, apparel, coins, isCurrentUser, onClose
         <div className="p-6 space-y-4">
           {/* Name and title */}
           <div>
-            <h2 className="text-2xl font-bold text-gray-900">{employee.full_name}</h2>
+            <h2 className="text-2xl font-bold text-gray-900">{employee.full_name.trim()}</h2>
             {isCurrentUser && (
               <p className="text-sm text-yellow-600 font-semibold">👤 זה אתה</p>
             )}
