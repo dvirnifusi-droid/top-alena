@@ -241,6 +241,8 @@ function CharacterCard({ employee, apparel, coins, isCurrentUser, onSelect }) {
 }
 
 function CharacterDetailModal({ employee, apparel, coins, isCurrentUser, onClose, onTransfer, currentUser }) {
+  const [imgError, setImgError] = React.useState(false);
+
   return (
     <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full relative">
@@ -254,11 +256,12 @@ function CharacterDetailModal({ employee, apparel, coins, isCurrentUser, onClose
 
         {/* Large avatar */}
         <div className="w-full h-96 bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center overflow-hidden">
-          {apparel?.avatar_url ? (
+          {apparel?.avatar_url && !imgError ? (
             <img 
               src={apparel.avatar_url} 
               alt={employee.full_name}
               className="w-full h-full object-cover"
+              onError={() => setImgError(true)}
             />
           ) : (
             <div className="text-9xl">{employee.full_name.charAt(0)}</div>
