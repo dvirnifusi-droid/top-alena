@@ -201,16 +201,19 @@ export default function CharacterLounge() {
 }
 
 function CharacterCard({ employee, apparel, coins, isCurrentUser, onSelect }) {
+  const [imgError, setImgError] = React.useState(false);
+
   return (
     <div className="flex flex-col items-center cursor-pointer group" onClick={onSelect}>
       {/* Avatar container */}
       <div className="relative mb-3">
         <div className="w-24 h-32 rounded-xl bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center overflow-hidden border-4 border-white shadow-lg hover:shadow-2xl transition-all duration-300 group-hover:scale-110">
-          {apparel?.avatar_url ? (
+          {apparel?.avatar_url && !imgError ? (
             <img 
               src={apparel.avatar_url} 
               alt={employee.full_name}
               className="w-full h-full object-cover"
+              onError={() => setImgError(true)}
             />
           ) : (
             <div className="text-5xl">{employee.full_name.charAt(0)}</div>
