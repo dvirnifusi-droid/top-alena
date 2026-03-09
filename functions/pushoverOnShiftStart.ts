@@ -32,11 +32,10 @@ Deno.serve(async (req) => {
         console.log('employees found:', employees.length, employees.map(e => ({ email: e.email, key: e.pushover_user_key ? '✅' : '❌' })));
 
         for (const admin of adminUsers) {
-            const emp = employees.find(e => e.email?.toLowerCase() === admin.email?.toLowerCase());
-            console.log('admin:', admin.email, '→ employee match:', emp?.full_name, '→ key:', emp?.pushover_user_key ? '✅' : '❌');
+            const adminEmps = employees.filter(e => e.email?.toLowerCase() === admin.email?.toLowerCase());
+            const emp = adminEmps.find(e => e.pushover_user_key) || adminEmps[0];
             if (emp?.pushover_user_key) {
-                const res = await pushover(emp.pushover_user_key, title, message);
-                console.log('pushover sent to', admin.email);
+                await pushover(emp.pushover_user_key, title, message);
             }
         }
 
