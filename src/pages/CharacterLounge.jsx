@@ -264,7 +264,7 @@ function CharacterDetailModal({ employee, apparel, coins, isCurrentUser, onClose
               onError={() => setImgError(true)}
             />
           ) : (
-            <div className="text-9xl">{employee.full_name.charAt(0)}</div>
+            <div className="text-9xl">{employee.full_name.trim().charAt(0)}</div>
           )}
         </div>
 
