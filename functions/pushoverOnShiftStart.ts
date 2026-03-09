@@ -28,10 +28,15 @@ Deno.serve(async (req) => {
             base44.asServiceRole.entities.Employee.list()
         ]);
 
+        console.log('admins found:', adminUsers.length, adminUsers.map(u => u.email));
+        console.log('employees found:', employees.length, employees.map(e => ({ email: e.email, key: e.pushover_user_key ? '✅' : '❌' })));
+
         for (const admin of adminUsers) {
             const emp = employees.find(e => e.email?.toLowerCase() === admin.email?.toLowerCase());
+            console.log('admin:', admin.email, '→ employee match:', emp?.full_name, '→ key:', emp?.pushover_user_key ? '✅' : '❌');
             if (emp?.pushover_user_key) {
-                await pushover(emp.pushover_user_key, title, message);
+                const res = await pushover(emp.pushover_user_key, title, message);
+                console.log('pushover sent to', admin.email);
             }
         }
 
