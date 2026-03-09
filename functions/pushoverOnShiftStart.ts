@@ -28,9 +28,6 @@ Deno.serve(async (req) => {
             base44.asServiceRole.entities.Employee.list()
         ]);
 
-        console.log('admins found:', adminUsers.length, adminUsers.map(u => u.email));
-        console.log('employees found:', employees.length, employees.map(e => ({ email: e.email, key: e.pushover_user_key ? '✅' : '❌' })));
-
         for (const admin of adminUsers) {
             const adminEmps = employees.filter(e => e.email?.toLowerCase() === admin.email?.toLowerCase());
             const emp = adminEmps.find(e => e.pushover_user_key) || adminEmps[0];
