@@ -468,10 +468,51 @@ export default function StoriesBar({ currentEmployee }) {
                 />
               </div>
 
+              {/* Text Overlay */}
+              {currentStory.text_overlay && (
+                <div
+                  className={`absolute inset-x-0 flex items-center justify-center px-4 ${
+                    currentStory.text_overlay.position === "top" ? "top-8" : 
+                    currentStory.text_overlay.position === "bottom" ? "bottom-8" : 
+                    "top-1/2 -translate-y-1/2"
+                  }`}
+                >
+                  <div
+                    style={{
+                      color: currentStory.text_overlay.color,
+                      fontSize: `${currentStory.text_overlay.font_size}px`,
+                      backgroundColor: currentStory.text_overlay.background_color ? `${currentStory.text_overlay.background_color}80` : "transparent",
+                      padding: currentStory.text_overlay.background_color ? "8px 16px" : "0",
+                      borderRadius: currentStory.text_overlay.background_color ? "8px" : "0",
+                      textAlign: "center",
+                      fontWeight: "bold",
+                      textShadow: currentStory.text_overlay.background_color ? "none" : "2px 2px 4px rgba(0,0,0,0.5)"
+                    }}
+                  >
+                    {currentStory.text_overlay.text}
+                  </div>
+                </div>
+              )}
+
               {/* Caption */}
               {currentStory.caption && (
                 <div className="absolute bottom-20 left-0 right-0 px-4">
                   <p className="text-white text-sm bg-black/40 rounded-lg px-3 py-2">{currentStory.caption}</p>
+                </div>
+              )}
+
+              {/* Audio Indicator */}
+              {currentStory.audio_url && (
+                <div className="absolute top-1/2 -translate-y-1/2 left-4 bg-white/20 backdrop-blur rounded-lg p-3">
+                  <div className="flex items-center gap-2">
+                    <div className="animate-pulse">
+                      🎵
+                    </div>
+                    <div className="text-xs text-white">
+                      <p className="font-semibold">{currentStory.audio_metadata?.title}</p>
+                      <p className="text-white/70">{currentStory.audio_metadata?.artist}</p>
+                    </div>
+                  </div>
                 </div>
               )}
             </div>
