@@ -60,9 +60,20 @@ export default function StoriesBar({ currentEmployee }) {
 
   const groups = Object.entries(grouped);
 
+  const recordView = async (story) => {
+    if (!currentEmployee || !story) return;
+    const views = story.views || [];
+    const alreadyViewed = views.some(v => v.employee_id === currentEmployee.id);
+    if (!alreadyViewed) {
+      const newViews = [...views, { employee_id: currentEmployee.id, employee_name: currentEmployee.full_name }];
+      await base44.entities.EmployeeStory.update(story.id, { views: newViews });
+    }
+  };
+
   const openStory = (groupIndex) => {
     const [, group] = groups[groupIndex];
     setViewingStory({ groupIndex, storyIndex: 0, stories: group.stories });
+    recordView(group.stories[0]);
   };
 
   const goNext = () => {
