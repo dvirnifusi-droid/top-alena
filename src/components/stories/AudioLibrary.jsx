@@ -3,16 +3,16 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Music, Check, Play, Pause } from "lucide-react";
 
-// דוגמות של מוזיקה ללא זכויות יוצרים
+// דוגמות של מוזיקה ללא זכויות יוצרים עם URLs ממשיים
 const SAMPLE_AUDIO_LIBRARY = [
-  { id: "upbeat1", title: "יום חדש", artist: "ספרייה חופשית", duration: 60, category: "upbeat" },
-  { id: "upbeat2", title: "אנרגיה חיובית", artist: "ספרייה חופשית", duration: 45, category: "upbeat" },
-  { id: "chill1", title: "הרגע מנוח", artist: "ספרייה חופשית", duration: 90, category: "chill" },
-  { id: "chill2", title: "ערב שקט", artist: "ספרייה חופשית", duration: 120, category: "chill" },
-  { id: "fun1", title: "כיף וצחוק", artist: "ספרייה חופשית", duration: 60, category: "fun" },
-  { id: "fun2", title: "מסיבה קטנה", artist: "ספרייה חופשית", duration: 75, category: "fun" },
-  { id: "motivate1", title: "השראה", artist: "ספרייה חופשית", duration: 80, category: "motivate" },
-  { id: "motivate2", title: "עוצמה ויכולת", artist: "ספרייה חופשית", duration: 100, category: "motivate" },
+  { id: "upbeat1", title: "יום חדש", artist: "ספרייה חופשית", duration: 60, category: "upbeat", url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3" },
+  { id: "upbeat2", title: "אנרגיה חיובית", artist: "ספרייה חופשית", duration: 45, category: "upbeat", url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3" },
+  { id: "chill1", title: "הרגע מנוח", artist: "ספרייה חופשית", duration: 90, category: "chill", url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3" },
+  { id: "chill2", title: "ערב שקט", artist: "ספרייה חופשית", duration: 120, category: "chill", url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-4.mp3" },
+  { id: "fun1", title: "כיף וצחוק", artist: "ספרייה חופשית", duration: 60, category: "fun", url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-5.mp3" },
+  { id: "fun2", title: "מסיבה קטנה", artist: "ספרייה חופשית", duration: 75, category: "fun", url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-6.mp3" },
+  { id: "motivate1", title: "השראה", artist: "ספרייה חופשית", duration: 80, category: "motivate", url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-7.mp3" },
+  { id: "motivate2", title: "עוצמה ויכולת", artist: "ספרייה חופשית", duration: 100, category: "motivate", url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-8.mp3" },
 ];
 
 const CATEGORIES = {
