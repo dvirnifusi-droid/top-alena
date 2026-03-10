@@ -593,6 +593,14 @@ export default function StoriesBar({ currentEmployee }) {
                       )}
                     </div>
                   )}
+
+                  <button
+                    onClick={handleDeleteStory}
+                    className="w-full mt-3 bg-red-500/30 hover:bg-red-500/50 text-red-200 rounded-lg py-1.5 text-sm flex items-center justify-center gap-1"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    מחק סטורי
+                  </button>
                 </div>
               )}
             </div>
