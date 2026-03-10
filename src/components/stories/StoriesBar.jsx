@@ -16,16 +16,18 @@ export default function StoriesBar({ currentEmployee }) {
   const [progress, setProgress] = useState(0);
   const [showViewers, setShowViewers] = useState(false);
   const [paused, setPaused] = useState(false);
+  const [showPoll, setShowPoll] = useState(false);
+  const [showQA, setShowQA] = useState(false);
+  const [qaQuestion, setQaQuestion] = useState("");
+  const [pollAnswer, setPollAnswer] = useState(null);
+  const [selectedReactions, setSelectedReactions] = useState(new Set());
   
-  const handlePauseToggle = () => {
-    const next = !paused;
-    setPaused(next);
-    pausedRef.current = next;
-  };
   const fileInputRef = useRef();
   const progressRef = useRef();
   const timerRef = useRef();
   const pausedRef = useRef(false);
+
+  const QUICK_REACTION_EMOJIS = ["❤️", "🔥", "😂", "👏", "😮", "🎉"];
 
   useEffect(() => {
     loadStories();
