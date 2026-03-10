@@ -281,7 +281,7 @@ export default function StoriesBar({ currentEmployee }) {
       media_type: mediaType,
       caption,
       text_overlay: textOverlay || undefined,
-      audio_url: selectedAudio?.id || undefined,
+      audio_url: selectedAudio?.url || undefined,
       audio_metadata: selectedAudio ? { title: selectedAudio.title, artist: selectedAudio.artist, duration: selectedAudio.duration } : undefined,
       likes: [],
       views: [],
