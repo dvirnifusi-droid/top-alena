@@ -307,6 +307,10 @@ export default function StoriesBar({ currentEmployee }) {
     setPreviewUrl(null);
     setCaption("");
     setSelectedFile(null);
+    setTextOverlay(null);
+    setSelectedAudio(null);
+    setShowTextEditor(false);
+    setShowAudioLibrary(false);
     loadStories();
   };
 
