@@ -71,6 +71,7 @@ const adminLinks = [
 
   // חנות בגדים וגמיפיקציה
   { title: "משלוחים", url: createPageUrl("Deliveries"), icon: Package },
+  { title: "מועדון לקוחות משלוחים", url: createPageUrl("DeliveryCustomerClub"), icon: Users },
   { title: "שליחת Push ידני", url: createPageUrl("PushNotifications"), icon: Bell },
   { title: "ניהול חנות בגדים", url: createPageUrl("ApparelManagement"), icon: Trophy },
   { title: "סלון דמויות", url: createPageUrl("CharacterLounge"), icon: Trophy },
