@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { base44 } from "@/api/base44Client";
-import { Plus, X, Heart, Share2, Send, ChevronLeft, ChevronRight, Eye } from "lucide-react";
+import { Plus, X, Heart, Share2, Send, ChevronLeft, ChevronRight, Eye, Trash2, MessageCircle } from "lucide-react";
 import { format, isAfter } from "date-fns";
 
 export default function StoriesBar({ currentEmployee }) {
