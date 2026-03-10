@@ -402,7 +402,7 @@ export default function Deliveries() {
             <div><Label>שם לקוח</Label><Input value={formData.customer_name} onChange={(e) => setFormData({ ...formData, customer_name: e.target.value })} placeholder="שם הלקוח" /></div>
             <div><Label>טלפון</Label><Input value={formData.customer_phone} onChange={(e) => setFormData({ ...formData, customer_phone: e.target.value })} placeholder="מספר טלפון" /></div>
             <div><Label>כתובת</Label><Input value={formData.address} onChange={(e) => setFormData({ ...formData, address: e.target.value })} placeholder="כתובת" /></div>
-            <div><Label>סכום מזומן (₪)</Label><Input type="number" value={formData.cash_amount} onChange={(e) => setFormData({ ...formData, cash_amount: e.target.value })} placeholder="0" /></div>
+            <div><Label>סכום (₪) - מזומן או סה״כ</Label><Input type="number" value={formData.cash_amount} onChange={(e) => setFormData({ ...formData, cash_amount: e.target.value })} placeholder="0" /></div>
             <div>
               <Label>פלטפורמה <span className="text-xs text-muted-foreground">(זוהתה אוטומטית – ניתן לשנות)</span></Label>
               <Select value={formData.platform || ""} onValueChange={(v) => setFormData({ ...formData, platform: v })}>
