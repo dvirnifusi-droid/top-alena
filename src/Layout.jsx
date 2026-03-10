@@ -166,10 +166,13 @@ export default function Layout({ children, currentPageName }) {
     loadUser();
   }, []);
 
+  const [storiesOpen, setStoriesOpen] = React.useState(false);
+
   React.useEffect(() => {
     // Setup global callback for chat unread status
     window.__setUnreadChat = setHasUnreadChat;
-    return () => delete window.__setUnreadChat;
+    window.__setStoriesOpen = setStoriesOpen;
+    return () => { delete window.__setUnreadChat; delete window.__setStoriesOpen; };
   }, []);
 
   const isCurrentViewAdmin = user?.role === 'admin';
