@@ -232,7 +232,7 @@ export default function Deliveries() {
       {/* כותרת */}
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">🛵 משלוחים היום</h1>
-        <div className="flex gap-2">
+        <div className="hidden sm:flex gap-2">
           <Link to={createPageUrl("DeliveryCustomerClub")}>
             <Button variant="outline" size="sm"><Users className="w-4 h-4 ml-1" /> מועדון לקוחות</Button>
           </Link>
@@ -240,7 +240,25 @@ export default function Deliveries() {
           <Button onClick={() => fileInputRef.current?.click()} className="bg-primary text-primary-foreground" size="sm">
             <Camera className="w-4 h-4 ml-1" /> צלם פתק
           </Button>
-          <input ref={fileInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={handlePhotoSelect} />
+        </div>
+        <input ref={fileInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={handlePhotoSelect} />
+      </div>
+
+      {/* כפתור צלם פתק - מובייל בלבד */}
+      <div className="sm:hidden">
+        <button
+          onClick={() => fileInputRef.current?.click()}
+          className="w-full bg-primary text-primary-foreground rounded-2xl py-5 flex flex-col items-center justify-center gap-2 shadow-lg active:scale-95 transition-transform"
+        >
+          <Camera className="w-10 h-10" />
+          <span className="text-xl font-bold">צלם פתק</span>
+          <span className="text-sm opacity-80">לחץ לסריקה מהירה</span>
+        </button>
+        <div className="flex gap-2 mt-2">
+          <Button onClick={handleManualAdd} variant="outline" className="flex-1">+ הוסף ידנית</Button>
+          <Link to={createPageUrl("DeliveryCustomerClub")} className="flex-1">
+            <Button variant="outline" className="w-full"><Users className="w-4 h-4 ml-1" /> מועדון לקוחות</Button>
+          </Link>
         </div>
       </div>
 
