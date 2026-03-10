@@ -54,6 +54,16 @@ export default function Deliveries() {
   useEffect(() => {
     base44.auth.me().then(u => setCurrentUser(u)).catch(() => {});
   }, []);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("autoScan") === "1") {
+      // מחכה קצת לטעינת הדף ואז פותח מיד את בחירת הקובץ
+      setTimeout(() => {
+        fileInputRef.current?.click();
+      }, 300);
+    }
+  }, []);
   const [photoPreview, setPhotoPreview] = useState(null);
   const fileInputRef = useRef();
 
