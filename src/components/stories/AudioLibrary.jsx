@@ -149,6 +149,9 @@ export default function AudioLibrary({ onSelect, selected }) {
           <p className="text-sm">{selected.title} - {selected.artist}</p>
         </div>
       )}
+
+      {/* Hidden audio player */}
+      <audio ref={audioRef} onEnded={() => setPlayingId(null)} />
     </div>
   );
 }
