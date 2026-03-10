@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
-import { Briefcase, Phone, Plus, Edit, Trash2, TrendingUp } from "lucide-react";
+import { Briefcase, Phone, Plus, Edit, Trash2, TrendingUp, Package, CheckCircle2 } from "lucide-react";
 import { format } from "date-fns";
 
 export default function Couriers() {
@@ -21,7 +21,9 @@ export default function Couriers() {
   const [editingCourier, setEditingCourier] = useState(null);
   const [selectedCourier, setSelectedCourier] = useState(null);
   const [showDetailsDialog, setShowDetailsDialog] = useState(false);
+  const [showEditWithDeliveriesDialog, setShowEditWithDeliveriesDialog] = useState(false);
   const [formData, setFormData] = useState({ name: "", phone: "", status: "active", bank_account: "", notes: "" });
+  const [selectedDeliveriesForCourier, setSelectedDeliveriesForCourier] = useState([]);
 
   useEffect(() => {
     loadData();
@@ -60,6 +62,42 @@ export default function Couriers() {
     setEditingCourier(courier);
     setFormData(courier);
     setShowAddDialog(true);
+  };
+
+  const handleEditWithDeliveries = (courier) => {
+    setEditingCourier(courier);
+    setFormData(courier);
+    const courierDeliveries = deliveries.filter((d) => d.courier_name === courier.name).map((d) => d.id);
+    setSelectedDeliveriesForCourier(courierDeliveries);
+    setShowEditWithDeliveriesDialog(true);
+  };
+
+  const handleSaveWithDeliveries = async () => {
+    if (!formData.name.trim()) {
+      alert("שם השליח חובה!");
+      return;
+    }
+
+    // עדכן את השליח
+    if (editingCourier) {
+      await base44.entities.Courier.update(editingCourier.id, formData);
+    }
+
+    // עדכן את כל המשלוחים הקודמים - הסר את שם השליח הישן
+    const oldCourierDeliveries = deliveries.filter((d) => d.courier_name === editingCourier?.name && !selectedDeliveriesForCourier.includes(d.id));
+    for (const delivery of oldCourierDeliveries) {
+      await base44.entities.Delivery.update(delivery.id, { courier_name: "" });
+    }
+
+    // עדכן את המשלוחים החדשים - שיוך לשליח החדש
+    for (const deliveryId of selectedDeliveriesForCourier) {
+      await base44.entities.Delivery.update(deliveryId, { courier_name: formData.name });
+    }
+
+    setShowEditWithDeliveriesDialog(false);
+    setEditingCourier(null);
+    setSelectedDeliveriesForCourier([]);
+    loadData();
   };
 
   const handleDeleteCourier = async (courier) => {
@@ -157,6 +195,9 @@ export default function Couriers() {
                         <TrendingUp className="w-3.5 h-3.5 ml-1" /> צפה באפליקציה
                       </Button>
                     </Link>
+                    <Button onClick={() => handleEditWithDeliveries(courier)} variant="outline" size="sm" title="ערוך ושייך משלוחים">
+                      <Package className="w-3.5 h-3.5" />
+                    </Button>
                     <Button onClick={() => handleEditCourier(courier)} variant="outline" size="sm">
                       <Edit className="w-3.5 h-3.5" />
                     </Button>
@@ -232,6 +273,89 @@ export default function Couriers() {
                     ))
                   )}
                 </div>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* דיאלוג עריכה + שיוך משלוחים */}
+      {editingCourier && (
+        <Dialog open={showEditWithDeliveriesDialog} onOpenChange={setShowEditWithDeliveriesDialog}>
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" dir="rtl">
+            <DialogHeader>
+              <DialogTitle>✏️ ערוך שליח + שייך משלוחים</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              {/* פרטי השליח */}
+              <div className="bg-blue-50 rounded-lg p-4 space-y-3 border border-blue-200">
+                <p className="text-sm font-semibold text-blue-900">פרטי השליח</p>
+                <div>
+                  <Label>שם</Label>
+                  <Input value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} placeholder="שם השליח" />
+                </div>
+                <div>
+                  <Label>טלפון</Label>
+                  <Input value={formData.phone} onChange={(e) => setFormData({ ...formData, phone: e.target.value })} placeholder="מספר טלפון" />
+                </div>
+                <div>
+                  <Label>פרטי בנק</Label>
+                  <Input value={formData.bank_account} onChange={(e) => setFormData({ ...formData, bank_account: e.target.value })} placeholder="מספר חשבון וקוד בנק" />
+                </div>
+                <div>
+                  <Label>הערות</Label>
+                  <Input value={formData.notes} onChange={(e) => setFormData({ ...formData, notes: e.target.value })} placeholder="הערות כלליות" />
+                </div>
+              </div>
+
+              {/* בחירת משלוחים */}
+              <div className="border-t pt-4">
+                <p className="text-sm font-semibold mb-3">📦 בחר משלוחים לשייך</p>
+                <div className="space-y-2 max-h-72 overflow-y-auto border rounded-lg p-3 bg-gray-50">
+                  {deliveries.length === 0 ? (
+                    <p className="text-muted-foreground text-sm">אין משלוחים זמינים</p>
+                  ) : (
+                    deliveries
+                      .filter((d) => !d.courier_name || d.courier_name === editingCourier.name)
+                      .map((delivery) => (
+                        <label key={delivery.id} className="flex items-start gap-2 p-2 rounded hover:bg-white cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={selectedDeliveriesForCourier.includes(delivery.id)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedDeliveriesForCourier([...selectedDeliveriesForCourier, delivery.id]);
+                              } else {
+                                setSelectedDeliveriesForCourier(selectedDeliveriesForCourier.filter((id) => id !== delivery.id));
+                              }
+                            }}
+                            className="mt-1"
+                          />
+                          <div className="flex-1 min-w-0">
+                            <div className="font-semibold text-sm">{delivery.customer_name || delivery.address}</div>
+                            <div className="text-xs text-muted-foreground">📍 {delivery.address}</div>
+                            <div className="text-xs text-muted-foreground">📅 {delivery.date} • ₪{delivery.cash_amount}</div>
+                          </div>
+                          {delivery.delivery_status && (
+                            <Badge className={delivery.delivery_status === "delivered" ? "bg-green-100 text-green-800 text-xs" : "bg-blue-100 text-blue-800 text-xs"}>
+                              {delivery.delivery_status === "delivered" ? "✅ הוריד" : "🚴 בדרך"}
+                            </Badge>
+                          )}
+                        </label>
+                      ))
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground mt-2">בחרת {selectedDeliveriesForCourier.length} משלוחים</p>
+              </div>
+
+              {/* כפתורים */}
+              <div className="flex gap-2 pt-4 border-t">
+                <Button className="flex-1 bg-green-600 hover:bg-green-700" onClick={handleSaveWithDeliveries}>
+                  <CheckCircle2 className="w-4 h-4 ml-2" /> שמור עריכה ושיוך
+                </Button>
+                <Button variant="outline" className="flex-1" onClick={() => { setShowEditWithDeliveriesDialog(false); setEditingCourier(null); }}>
+                  ביטול
+                </Button>
               </div>
             </div>
           </DialogContent>
