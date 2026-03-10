@@ -255,22 +255,6 @@ export default function EmployeeHome() {
                     </Card>
                 </div>
 
-                {/* כפתור צלם פתק */}
-                <div className="mb-6">
-                    <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={(e) => {
-                        if (e.target.files?.[0]) {
-                            window.location.href = createPageUrl("Deliveries");
-                        }
-                    }} />
-                    <Link to={createPageUrl("Deliveries")}>
-                        <button className="w-full bg-primary text-primary-foreground rounded-2xl py-5 flex flex-col items-center justify-center gap-2 shadow-lg active:scale-95 transition-transform hover:opacity-90">
-                            <Camera className="w-10 h-10" />
-                            <span className="text-xl font-bold">צלם פתק</span>
-                            <span className="text-sm opacity-80">לחץ לסריקה מהירה</span>
-                        </button>
-                    </Link>
-                </div>
-
                 {/* כרטיסי גישה מהירה */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                     <Link to={createPageUrl("Training")}>
