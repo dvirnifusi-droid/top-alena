@@ -487,7 +487,7 @@ export default function Deliveries() {
               </div>
 
               <div className="bg-blue-50 rounded p-2 text-xs text-blue-700 font-mono text-center">
-                /{showTelegramDialog.customer_phone || "??"},{showTelegramDialog.address || "??"},{prepTime}
+                /{showTelegramDialog.address || "???"}&{showTelegramDialog.customer_phone || "??"}, {prepTime} דקות
               </div>
 
               <Button

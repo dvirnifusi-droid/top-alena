@@ -91,6 +91,10 @@ import ShiftChat from './pages/ShiftChat';
 import ShiftEndReport from './pages/ShiftEndReport';
 import ShiftEndReportDetails from './pages/ShiftEndReportDetails';
 import SmartPrediction from './pages/SmartPrediction';
+import StoriesAnalytics from './pages/StoriesAnalytics';
+import StoriesArchive from './pages/StoriesArchive';
+import StoriesLeaderboard from './pages/StoriesLeaderboard';
+import StoriesNotifications from './pages/StoriesNotifications';
 import SupplierDetails from './pages/SupplierDetails';
 import Suppliers from './pages/Suppliers';
 import SurveyQRCodes from './pages/SurveyQRCodes';
@@ -101,10 +105,6 @@ import Training from './pages/Training';
 import UploadChecklists from './pages/UploadChecklists';
 import WaiterTables from './pages/WaiterTables';
 import WorkScheduling from './pages/WorkScheduling';
-import StoriesArchive from './pages/StoriesArchive';
-import StoriesLeaderboard from './pages/StoriesLeaderboard';
-import StoriesAnalytics from './pages/StoriesAnalytics';
-import StoriesNotifications from './pages/StoriesNotifications';
 import __Layout from './Layout.jsx';
 
 
@@ -153,6 +153,10 @@ export const PAGES = {
     "ShiftEndReport": ShiftEndReport,
     "ShiftEndReportDetails": ShiftEndReportDetails,
     "SmartPrediction": SmartPrediction,
+    "StoriesAnalytics": StoriesAnalytics,
+    "StoriesArchive": StoriesArchive,
+    "StoriesLeaderboard": StoriesLeaderboard,
+    "StoriesNotifications": StoriesNotifications,
     "SupplierDetails": SupplierDetails,
     "Suppliers": Suppliers,
     "SurveyQRCodes": SurveyQRCodes,
@@ -163,10 +167,6 @@ export const PAGES = {
     "UploadChecklists": UploadChecklists,
     "WaiterTables": WaiterTables,
     "WorkScheduling": WorkScheduling,
-    "StoriesArchive": StoriesArchive,
-    "StoriesLeaderboard": StoriesLeaderboard,
-    "StoriesAnalytics": StoriesAnalytics,
-    "StoriesNotifications": StoriesNotifications,
 }
 
 export const pagesConfig = {
