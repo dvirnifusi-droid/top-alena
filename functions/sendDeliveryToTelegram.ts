@@ -15,7 +15,7 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Missing Telegram credentials' }, { status: 500 });
     }
 
-    const message = `/${address}&${phone}, ${prep_time} דקות`;
+    const message = `/${address}&${phone}`;
 
     const res = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
       method: "POST",
