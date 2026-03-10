@@ -10,6 +10,7 @@ export default function CourierTracking() {
   const [couriers, setCouriers] = useState([]);
   const [deliveries, setDeliveries] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [updatingId, setUpdatingId] = useState(null);
 
   useEffect(() => {
     loadData();
