@@ -576,7 +576,7 @@ export default function StoriesBar({ currentEmployee }) {
                 <div className="space-y-2">
                   <button
                     onClick={() => setShowViewers(v => !v)}
-                    className="flex items-center gap-2 text-white/70 text-xs hover:text-white"
+                    className="w-full flex items-center gap-2 text-white/70 text-xs hover:text-white px-3 py-2 rounded-lg hover:bg-white/10 transition-all"
                   >
                     <Eye className="w-4 h-4" />
                     <span>{(currentStory.views || []).length} צפיות</span>
