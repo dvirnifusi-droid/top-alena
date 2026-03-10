@@ -169,6 +169,11 @@ export default function StoriesBar({ currentEmployee }) {
     loadStories();
   };
 
+  useEffect(() => {
+    document.body.classList.toggle('stories-open', viewingStory !== null);
+    return () => document.body.classList.remove('stories-open');
+  }, [viewingStory]);
+
   const isLiked = currentStory && currentEmployee && (currentStory.likes || []).includes(currentEmployee.id);
 
   // Swipe support for story viewer
