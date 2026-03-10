@@ -160,22 +160,24 @@ export default function Deliveries() {
     setShowAddDialog(true);
   };
 
-  const handleSaveDelivery = async () => {
+  const performSave = async () => {
     const amount = Number(formData.cash_amount) || 0;
-    const payload = { ...formData, cash_amount: amount, customer_phone: (formData.customer_phone || "").replace(/-/g, "") };
+    const cleanPhone = (formData.customer_phone || "").replace(/-/g, "");
+    const payload = { ...formData, cash_amount: amount, customer_phone: cleanPhone };
 
+    let savedDelivery;
     if (editingDelivery) {
       await base44.entities.Delivery.update(editingDelivery.id, payload);
+      savedDelivery = { ...editingDelivery, ...payload };
     } else {
-      await base44.entities.Delivery.create({ ...payload, date: today, payment_status: "unpaid" });
+      savedDelivery = await base44.entities.Delivery.create({ ...payload, date: today, payment_status: "unpaid" });
       // שמור/עדכן במועדון לקוחות
-      if (formData.customer_phone) {
-        const existing = await base44.entities.DeliveryCustomer.filter({ customer_phone: formData.customer_phone });
+      if (cleanPhone) {
+        const existing = await base44.entities.DeliveryCustomer.filter({ customer_phone: cleanPhone });
         const orderEntry = { date: today, amount, items_ordered: formData.items_ordered || "", address: formData.address || "", platform: formData.platform || "" };
         if (existing.length > 0) {
           const c = existing[0];
           const orders = [...(c.orders || []), orderEntry];
-          // אם הלקוח היה "לא מזוהה" ועכשיו יש שם – עדכן
           const updatedName = formData.customer_name
             ? formData.customer_name
             : (c.customer_name === "לקוח לא מזוהה" ? "לקוח לא מזוהה" : c.customer_name);
@@ -190,7 +192,7 @@ export default function Deliveries() {
         } else {
           await base44.entities.DeliveryCustomer.create({
             customer_name: formData.customer_name || "",
-            customer_phone: formData.customer_phone,
+            customer_phone: cleanPhone,
             address: formData.address || "",
             neighborhood: formData.neighborhood || "",
             orders: [orderEntry], total_orders: 1,
@@ -204,6 +206,19 @@ export default function Deliveries() {
     setEditingDelivery(null);
     setPhotoPreview(null);
     loadDeliveries(selectedDate);
+    return savedDelivery;
+  };
+
+  const handleSaveDelivery = async () => {
+    await performSave();
+  };
+
+  const handleSaveAndDispatch = async () => {
+    const saved = await performSave();
+    if (saved) {
+      setPrepTime(15);
+      setShowTelegramDialog(saved);
+    }
   };
 
   const handleDeleteDelivery = async (delivery) => {
