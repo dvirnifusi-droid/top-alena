@@ -36,7 +36,7 @@ export default function StoriesBar({ currentEmployee }) {
     let p = 0;
     clearInterval(timerRef.current);
     timerRef.current = setInterval(() => {
-      if (paused) return;
+      if (pausedRef.current) return;
       p += 1;
       setProgress(p);
       if (p >= 100) {
