@@ -100,6 +100,7 @@ import UploadChecklists from './pages/UploadChecklists';
 import WaiterTables from './pages/WaiterTables';
 import WorkScheduling from './pages/WorkScheduling';
 import Deliveries from './pages/Deliveries';
+import DeliveryCustomerClub from './pages/DeliveryCustomerClub';
 import __Layout from './Layout.jsx';
 
 
@@ -157,6 +158,7 @@ export const PAGES = {
     "WaiterTables": WaiterTables,
     "WorkScheduling": WorkScheduling,
     "Deliveries": Deliveries,
+    "DeliveryCustomerClub": DeliveryCustomerClub,
 }
 
 export const pagesConfig = {
