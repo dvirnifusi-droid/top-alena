@@ -185,6 +185,7 @@ export default function StoriesBar({ currentEmployee }) {
 
   useEffect(() => {
     window.__setStoriesOpen?.(viewingStory !== null);
+    setShowViewers(false);
   }, [viewingStory]);
 
   const isLiked = currentStory && currentEmployee && (currentStory.likes || []).includes(currentEmployee.id);
