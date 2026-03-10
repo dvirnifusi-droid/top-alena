@@ -8,6 +8,7 @@ import {
 } from "@/components/ui/dialog";
 import { Phone, MapPin, CheckCircle2, Clock, Package, User } from "lucide-react";
 import { format } from "date-fns";
+import { sendPushoverOnDeliveryStatus } from "@/functions/sendPushoverOnDeliveryStatus";
 
 export default function CourierDashboard() {
   const [currentUser, setCurrentUser] = useState(null);
@@ -48,15 +49,16 @@ export default function CourierDashboard() {
       picked_up_at: new Date().toISOString(),
     });
 
-    // שלח push לניהול
+    // שלח Pushover notification
     try {
-      await base44.integrations.Core.SendEmail({
-        to: "admin@example.com",
-        subject: `📦 משלוח הורם - ${delivery.customer_name || delivery.address}`,
-        body: `השליח ${currentUser?.full_name} הרים את המשלוח לכתובת ${delivery.address}`,
+      await sendPushoverOnDeliveryStatus({
+        delivery_id: delivery.id,
+        status: "picked_up",
+        customer_name: delivery.customer_name,
+        address: delivery.address,
       });
     } catch (e) {
-      console.error("Error sending notification:", e);
+      console.error("Error sending push notification:", e);
     }
 
     loadData();
@@ -78,15 +80,16 @@ export default function CourierDashboard() {
       delivered_at: new Date().toISOString(),
     });
 
-    // שלח push לניהול
+    // שלח Pushover notification
     try {
-      await base44.integrations.Core.SendEmail({
-        to: "admin@example.com",
-        subject: `✅ משלוח הוריד - ${delivery.customer_name || delivery.address}`,
-        body: `השליח ${currentUser?.full_name} הוריד את המשלוח בכתובת ${delivery.address}`,
+      await sendPushoverOnDeliveryStatus({
+        delivery_id: delivery.id,
+        status: "delivered",
+        customer_name: delivery.customer_name,
+        address: delivery.address,
       });
     } catch (e) {
-      console.error("Error sending notification:", e);
+      console.error("Error sending push notification:", e);
     }
 
     loadData();
