@@ -283,9 +283,9 @@ export default function Deliveries() {
 
   const handleSaveSessionToken = () => {
     localStorage.setItem("telegram_session_token", sessionToken);
-    localStorage.setItem("telegram_ngrok_url", ngrokUrl);
+    localStorage.setItem("telegram_group_id", groupId);
     setShowSessionDialog(false);
-    alert("✅ Session Token ו-Ngrok URL נשמרו בהצלחה!");
+    alert("✅ Session Token ו-Group ID נשמרו בהצלחה!");
   };
 
   const handleMarkPaid = async (delivery) => {
