@@ -268,6 +268,18 @@ export default function CourierTracking() {
 
                         {/* Action Buttons */}
                         <div className="flex gap-1 mt-2 flex-wrap">
+                          {delivery.address && (
+                            <a
+                              href={`https://www.waze.com/livemap/directions?to=${encodeURIComponent(delivery.address)}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-xs"
+                            >
+                              <Button size="sm" variant="outline" className="text-xs h-7 bg-green-50 text-green-700 hover:bg-green-100">
+                                <MapIcon className="w-3 h-3 ml-1" /> Waze
+                              </Button>
+                            </a>
+                          )}
                           {delivery.delivery_status !== "picked_up" && (
                             <Button
                               size="sm"
