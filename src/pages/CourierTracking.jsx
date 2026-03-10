@@ -116,8 +116,9 @@ export default function CourierTracking() {
     }
     // סדר כתובות עם מיזוגים לוויז
     const addresses = roundTripDeliveries.map(d => d.address).filter(Boolean);
-    const wazeUrl = `https://www.waze.com/livemap/directions?to=${addresses.map(a => encodeURIComponent(a)).join("&to=")}`;
-    window.open(wazeUrl, "_blank");
+    if (addresses.length > 0) {
+      window.location.href = `waze://navigate?q=${encodeURIComponent(addresses[0])}`;
+    }
     setRoundTripDialog(null);
   };
 
