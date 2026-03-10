@@ -80,12 +80,14 @@ export default function StoriesBar({ currentEmployee }) {
     setViewingStory(prev => {
       if (!prev) return null;
       if (prev.storyIndex < prev.stories.length - 1) {
-        return { ...prev, storyIndex: prev.storyIndex + 1 };
+        const next = { ...prev, storyIndex: prev.storyIndex + 1 };
+        recordView(prev.stories[next.storyIndex]);
+        return next;
       }
-      // next group
       const nextGroup = prev.groupIndex + 1;
       if (nextGroup < groups.length) {
         const [, group] = groups[nextGroup];
+        recordView(group.stories[0]);
         return { groupIndex: nextGroup, storyIndex: 0, stories: group.stories };
       }
       return null;
