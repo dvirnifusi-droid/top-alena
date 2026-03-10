@@ -23,6 +23,10 @@ export default function StoriesBar({ currentEmployee }) {
   const [qaQuestion, setQaQuestion] = useState("");
   const [pollAnswer, setPollAnswer] = useState(null);
   const [selectedReactions, setSelectedReactions] = useState(new Set());
+  const [textOverlay, setTextOverlay] = useState(null);
+  const [selectedAudio, setSelectedAudio] = useState(null);
+  const [showTextEditor, setShowTextEditor] = useState(false);
+  const [showAudioLibrary, setShowAudioLibrary] = useState(false);
   
   const fileInputRef = useRef();
   const progressRef = useRef();
