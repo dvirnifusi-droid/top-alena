@@ -345,6 +345,40 @@ export default function StoriesBar({ currentEmployee }) {
                   ))}
                 </div>
               )}
+
+              {/* Viewers & Likes - only for story owner */}
+              {currentEmployee && currentStory.employee_id === currentEmployee.id && (
+                <div>
+                  <button
+                    onClick={() => setShowViewers(v => !v)}
+                    className="flex items-center gap-2 text-white/70 text-xs hover:text-white"
+                  >
+                    <Eye className="w-4 h-4" />
+                    <span>{(currentStory.views || []).length} צפיות</span>
+                    <span>•</span>
+                    <Heart className="w-4 h-4 fill-red-400 text-red-400" />
+                    <span>{(currentStory.likes || []).length} לייקים</span>
+                  </button>
+
+                  {showViewers && (
+                    <div className="mt-2 bg-white/10 rounded-xl p-3 space-y-2 max-h-40 overflow-y-auto">
+                      {(currentStory.views || []).length === 0 ? (
+                        <p className="text-white/50 text-xs text-center">אין צפיות עדיין</p>
+                      ) : (
+                        (currentStory.views || []).map((v, i) => {
+                          const liked = (currentStory.likes || []).includes(v.employee_id);
+                          return (
+                            <div key={i} className="flex items-center justify-between">
+                              <span className="text-white text-xs font-medium">{v.employee_name}</span>
+                              {liked && <Heart className="w-3.5 h-3.5 fill-red-400 text-red-400" />}
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </div>
