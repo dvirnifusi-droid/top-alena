@@ -15,6 +15,7 @@ export default function StoriesBar({ currentEmployee }) {
   const [comment, setComment] = useState("");
   const [progress, setProgress] = useState(0);
   const [showViewers, setShowViewers] = useState(false);
+  const [paused, setPaused] = useState(false);
   const fileInputRef = useRef();
   const progressRef = useRef();
   const timerRef = useRef();
