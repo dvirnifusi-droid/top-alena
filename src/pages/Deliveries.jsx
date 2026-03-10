@@ -59,8 +59,22 @@ export default function Deliveries() {
   });
 
   useEffect(() => {
-    base44.auth.me().then(u => setCurrentUser(u)).catch(() => {});
-    loadCouriers();
+    const init = async () => {
+      try {
+        const u = await base44.auth.me();
+        setCurrentUser(u);
+      } catch (e) {
+        console.error("Auth error:", e);
+      }
+      
+      try {
+        const c = await base44.entities.Courier.list();
+        setCouriers(c);
+      } catch (e) {
+        console.error("Error loading couriers:", e);
+      }
+    };
+    init();
   }, []);
 
   const loadCouriers = async () => {
