@@ -90,6 +90,7 @@ const employeeLinks = [
   // כלי עבודה יומיים
   { title: "כלי עבודה יומיים", url: "#", icon: Zap, isCategory: true },
   { title: "משלוחים", url: createPageUrl("Deliveries"), icon: Package, isSubItem: true },
+  { title: "אפליקציית שליח", url: createPageUrl("CourierDashboard"), icon: Package, isSubItem: true },
   { title: "מועדון לקוחות משלוחים", url: createPageUrl("DeliveryCustomerClub"), icon: Users, isSubItem: true },
   { title: "תדריכים", url: createPageUrl("BriefingManagement"), icon: Megaphone, isSubItem: true },
   { title: "השולחנות שלי", url: createPageUrl("WaiterTables"), icon: Utensils, isSubItem: true },

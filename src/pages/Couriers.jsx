@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
+import { createPageUrl } from "@/utils";
 import { base44 } from "@/api/base44Client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -149,10 +151,12 @@ export default function Couriers() {
                   </div>
 
                   {/* כפתורים */}
-                  <div className="flex gap-2">
-                    <Button onClick={() => handleOpenDetails(courier)} variant="outline" size="sm" className="flex-1">
-                      <TrendingUp className="w-3.5 h-3.5 ml-1" /> פרטים
-                    </Button>
+                  <div className="flex gap-1">
+                    <Link to={createPageUrl("CourierDashboard")} className="flex-1">
+                      <Button variant="outline" size="sm" className="w-full">
+                        <TrendingUp className="w-3.5 h-3.5 ml-1" /> צפה באפליקציה
+                      </Button>
+                    </Link>
                     <Button onClick={() => handleEditCourier(courier)} variant="outline" size="sm">
                       <Edit className="w-3.5 h-3.5" />
                     </Button>
