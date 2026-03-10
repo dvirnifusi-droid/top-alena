@@ -41,6 +41,9 @@ export default function Deliveries() {
   const [editingDelivery, setEditingDelivery] = useState(null);
   const [courierName, setCourierName] = useState("");
   const [noteData, setNoteData] = useState({ issue_type: "", notes: "" });
+  const [showTelegramDialog, setShowTelegramDialog] = useState(null); // delivery object
+  const [prepTime, setPrepTime] = useState(15);
+  const [sendingTelegram, setSendingTelegram] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
   const [formData, setFormData] = useState({
     customer_name: "", customer_phone: "", address: "",
