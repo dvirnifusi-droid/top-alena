@@ -333,6 +333,7 @@ export default function Deliveries() {
                   onEdit={() => handleEditDelivery(d)}
                   onDelete={() => handleDeleteDelivery(d)}
                   onNote={() => { setNoteData({ issue_type: d.issue_type || "", notes: d.notes || "" }); setShowNoteDialog(d); }}
+                  onTelegram={() => { setPrepTime(15); setShowTelegramDialog(d); }}
                 />
               ))}
             </>
@@ -346,6 +347,7 @@ export default function Deliveries() {
                   onEdit={() => handleEditDelivery(d)}
                   onDelete={() => handleDeleteDelivery(d)}
                   onNote={() => { setNoteData({ issue_type: d.issue_type || "", notes: d.notes || "" }); setShowNoteDialog(d); }}
+                  onTelegram={() => { setPrepTime(15); setShowTelegramDialog(d); }}
                 />
               ))}
             </>
