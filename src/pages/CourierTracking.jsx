@@ -174,12 +174,17 @@ export default function CourierTracking() {
                   </div>
 
                   {/* Stats Row */}
-                  <div className="flex gap-2 mt-3 flex-wrap">
+                  <div className="flex gap-2 mt-3 flex-wrap items-center">
                     <Badge className="bg-red-100 text-red-800">⏳ {stats.pending}</Badge>
                     <Badge className="bg-blue-100 text-blue-800">🚴 {stats.pickedUp}</Badge>
                     <Badge className="bg-green-100 text-green-800">✅ {stats.delivered}</Badge>
                     {stats.totalAmount > 0 && (
                       <Badge className="bg-amber-100 text-amber-800">₪{stats.totalAmount}</Badge>
+                    )}
+                    {stats.total > 0 && stats.pickedUp + stats.pending > 0 && (
+                      <Button size="sm" onClick={() => openRoundTrip(courier)} className="bg-blue-600 hover:bg-blue-700 text-white text-xs h-7">
+                        <Send className="w-3 h-3 ml-1" /> צוות סיבוב
+                      </Button>
                     )}
                   </div>
                 </CardHeader>
