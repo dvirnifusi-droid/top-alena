@@ -85,6 +85,17 @@ export default function StoriesBar({ currentEmployee }) {
     if (!alreadyViewed) {
       const newViews = [...views, { employee_id: currentEmployee.id, employee_name: currentEmployee.full_name }];
       await base44.entities.EmployeeStory.update(story.id, { views: newViews });
+      
+      // Award coins for viewing a story
+      await base44.entities.CoinTransaction.create({
+        employee_id: currentEmployee.id,
+        employee_name: currentEmployee.full_name,
+        amount: 3,
+        reason: "צפייה בסטורי",
+        type: "earned",
+        trigger: "story_viewed",
+        status: "approved"
+      });
     }
   };
 
