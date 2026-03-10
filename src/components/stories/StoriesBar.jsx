@@ -571,9 +571,9 @@ export default function StoriesBar({ currentEmployee }) {
                 </div>
               )}
 
-              {/* Viewers & Likes - only for story owner */}
+              {/* Owner Controls - Delete & Analytics */}
               {currentEmployee && currentStory.employee_id === currentEmployee.id && (
-                <div>
+                <div className="space-y-2">
                   <button
                     onClick={() => setShowViewers(v => !v)}
                     className="flex items-center gap-2 text-white/70 text-xs hover:text-white"
