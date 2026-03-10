@@ -211,7 +211,7 @@ export default function EmployeeHome() {
 
                 {/* כפתור הכנס משלוח */}
                 <div className="mb-4">
-                    <Link to={createPageUrl("Deliveries")}>
+                    <Link to={createPageUrl("Deliveries") + "?autoScan=1"}>
                         <button className="w-full bg-primary text-primary-foreground rounded-2xl py-5 flex flex-col items-center justify-center gap-2 shadow-lg active:scale-95 transition-transform hover:opacity-90">
                             <Camera className="w-10 h-10" />
                             <span className="text-xl font-bold">הכנס משלוח</span>
