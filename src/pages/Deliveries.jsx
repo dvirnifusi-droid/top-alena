@@ -204,6 +204,11 @@ export default function Deliveries() {
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">🛵 משלוחים היום</h1>
         <div className="flex gap-2">
+          <Link to={createPageUrl("DeliveryCustomerClub")}>
+            <Button variant="outline" size="sm">
+              <Users className="w-4 h-4 ml-1" /> מועדון לקוחות
+            </Button>
+          </Link>
           <Button onClick={handleManualAdd} variant="outline" size="sm">
             + הוסף ידנית
           </Button>
