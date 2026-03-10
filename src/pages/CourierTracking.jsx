@@ -93,6 +93,34 @@ export default function CourierTracking() {
     setUpdatingId(null);
   };
 
+  const openRoundTrip = (courier) => {
+    const courierDeliveries = deliveries.filter(d => d.courier_name === courier.name && d.delivery_status !== "delivered");
+    setRoundTripDeliveries(courierDeliveries);
+    setRoundTripDialog(courier);
+  };
+
+  const handleMoveDelivery = (index, direction) => {
+    const newList = [...roundTripDeliveries];
+    if (direction === "up" && index > 0) {
+      [newList[index], newList[index - 1]] = [newList[index - 1], newList[index]];
+    } else if (direction === "down" && index < newList.length - 1) {
+      [newList[index], newList[index + 1]] = [newList[index + 1], newList[index]];
+    }
+    setRoundTripDeliveries(newList);
+  };
+
+  const sendRoundTrip = () => {
+    if (roundTripDeliveries.length === 0) {
+      alert("אין משלוחים לשליח זה");
+      return;
+    }
+    // סדר כתובות עם מיזוגים לוויז
+    const addresses = roundTripDeliveries.map(d => d.address).filter(Boolean);
+    const wazeUrl = `https://www.waze.com/livemap/directions?to=${addresses.map(a => encodeURIComponent(a)).join("&to=")}`;
+    window.open(wazeUrl, "_blank");
+    setRoundTripDialog(null);
+  };
+
   return (
     <div className="p-4 max-w-6xl mx-auto space-y-4" dir="rtl">
       {/* Header */}
