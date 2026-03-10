@@ -218,12 +218,10 @@ export default function Layout({ children, currentPageName }) {
       </SidebarProvider>
 
       {/* AI Assistant - רק בדפי בית ולוח בקרה */}
-      {(['EmployeeHome', 'Dashboard'].includes(currentPageName)) && (
-        {!storiesOpen && (
+      {(['EmployeeHome', 'Dashboard'].includes(currentPageName)) && !storiesOpen && (
         <div className="ai-chat-widget fixed bottom-6 left-1/2 -translate-x-1/2 z-50 lg:left-[calc(50%-10rem)]" style={{width: 'min(600px, calc(100vw - 2rem))'}}>
           <AiChatWidget />
         </div>
-      )}
       )}
     </div>
   );
