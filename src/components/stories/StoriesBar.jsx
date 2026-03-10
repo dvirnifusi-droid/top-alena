@@ -496,8 +496,8 @@ export default function StoriesBar({ currentEmployee }) {
                 })}
               </div>
 
-              {/* Poll */}
-              {currentStory.poll && (
+              {/* Poll - only for story owner */}
+              {currentStory.poll && currentEmployee && currentStory.employee_id === currentEmployee.id && (
                 <div className="bg-white/10 rounded-xl p-3 space-y-2">
                   <p className="text-white font-semibold text-sm">{currentStory.poll.question}</p>
                   <div className="space-y-1.5">
@@ -506,17 +506,11 @@ export default function StoriesBar({ currentEmployee }) {
                       const votes = (currentStory.poll.votes || []).filter(v => v.option === opt).length;
                       const totalVotes = currentStory.poll.votes?.length || 0;
                       const percent = totalVotes > 0 ? Math.round((votes / totalVotes) * 100) : 0;
-                      const userVoted = pollAnswer === opt;
                       
                       return (
-                        <button
+                        <div
                           key={opt}
-                          onClick={() => handlePollVote(opt)}
-                          className={`w-full px-2 py-1.5 rounded text-xs text-right transition-all ${
-                            userVoted
-                              ? "bg-white/30 border border-white/50"
-                              : "bg-white/10 hover:bg-white/15 border border-white/20"
-                          }`}
+                          className="w-full px-2 py-1.5 rounded text-xs text-right"
                         >
                           <div className="flex items-center justify-between">
                             <span>{optionText}</span>
@@ -525,7 +519,7 @@ export default function StoriesBar({ currentEmployee }) {
                           <div className="w-full h-1 bg-black/30 rounded mt-1 overflow-hidden">
                             <div className="h-full bg-white/40 transition-all" style={{width: `${percent}%`}} />
                           </div>
-                        </button>
+                        </div>
                       );
                     })}
                   </div>
