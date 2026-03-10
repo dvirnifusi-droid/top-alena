@@ -1,6 +1,6 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
-import { TelegramClient } from 'npm:telethon';
-import { StringSession } from 'npm:telethon/sessions';
+import { TelegramClient } from 'npm:telegram';
+import { StringSession } from 'npm:telegram/sessions';
 
 Deno.serve(async (req) => {
   try {
@@ -19,37 +19,26 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Missing Telegram credentials' }, { status: 500 });
     }
 
-    // Use empty session or stored session from environment
-    const sessionString = Deno.env.get("TELEGRAM_SESSION") || "";
-    const session = new StringSession(sessionString);
-
+    const session = new StringSession(Deno.env.get("TELEGRAM_SESSION") || "");
     const client = new TelegramClient(session, apiId, apiHash, {
       connectionRetries: 5,
-      autoReconnect: true,
-      requestTimeout: 30,
     });
 
-    await client.connect();
-
-    // Check if already authorized, if not will need user to input code
-    if (!await client.isUserAuthorized()) {
-      await client.sendCodeRequest(phoneNumber);
-      return Response.json({ 
-        error: 'Need verification code. Check your Telegram for code.',
-        needsAuth: true 
-      }, { status: 400 });
-    }
+    await client.start({
+      phoneNumber: async () => phoneNumber,
+      password: async () => Deno.env.get("TELEGRAM_2FA_PASSWORD") || "",
+      phoneCode: async () => {
+        throw new Error("Please authenticate via Telegram app and store session token");
+      },
+      onError: (err) => console.error(err),
+    });
 
     const message = `/${address}${phone ? '&' + phone : ''}`;
-    
     await client.sendMessage(chatId, { message });
-
-    // Save session for future use
-    const sessionString2 = client.session.save();
     
     await client.disconnect();
 
-    return Response.json({ success: true, message: 'Message sent via personal account' });
+    return Response.json({ success: true, message: 'Message sent from personal account' });
   } catch (error) {
     return Response.json({ error: error.message }, { status: 500 });
   }
