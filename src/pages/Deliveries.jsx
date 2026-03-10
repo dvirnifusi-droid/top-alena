@@ -281,7 +281,7 @@ export default function Deliveries() {
             <Camera className="w-4 h-4 ml-1" /> צלם פתק
           </Button>
         </div>
-        <input ref={fileInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={handlePhotoSelect} />
+        <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handlePhotoSelect} />
       </div>
 
       {/* כפתור צלם פתק - מובייל בלבד */}
