@@ -18,7 +18,7 @@ export default function CustomerFormDialog({ customer, onSave, onClose }) {
   const [saving, setSaving] = useState(false);
 
   const handleSave = async () => {
-    if (!form.customer_phone) return alert("טלפון הוא שדה חובה");
+    if (!form.customer_phone) return alert("מספר טלפון הוא שדה חובה");
     setSaving(true);
     if (customer) {
       await base44.entities.DeliveryCustomer.update(customer.id, form);
@@ -45,7 +45,10 @@ export default function CustomerFormDialog({ customer, onSave, onClose }) {
           <DialogTitle>{customer ? "✏️ עריכת לקוח" : "➕ הוספת לקוח"}</DialogTitle>
         </DialogHeader>
         <div className="space-y-3">
-          <div><Label>שם לקוח</Label><Input value={form.customer_name} onChange={(e) => set("customer_name", e.target.value)} placeholder="שם מלא" /></div>
+          <div>
+            <Label>שם לקוח <span className="text-muted-foreground text-xs font-normal">(אופציונלי)</span></Label>
+            <Input value={form.customer_name} onChange={(e) => set("customer_name", e.target.value)} placeholder="אם לא ידוע – השאר ריק" />
+          </div>
           <div><Label>טלפון *</Label><Input value={form.customer_phone} onChange={(e) => set("customer_phone", e.target.value)} placeholder="05X-XXXXXXX" /></div>
           <div><Label>אימייל</Label><Input value={form.email} onChange={(e) => set("email", e.target.value)} placeholder="example@mail.com" /></div>
           <div><Label>כתובת</Label><Input value={form.address} onChange={(e) => set("address", e.target.value)} placeholder="רחוב ומספר" /></div>
