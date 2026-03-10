@@ -170,8 +170,7 @@ export default function StoriesBar({ currentEmployee }) {
   };
 
   useEffect(() => {
-    document.body.classList.toggle('stories-open', viewingStory !== null);
-    return () => document.body.classList.remove('stories-open');
+    window.__setStoriesOpen?.(viewingStory !== null);
   }, [viewingStory]);
 
   const isLiked = currentStory && currentEmployee && (currentStory.likes || []).includes(currentEmployee.id);
