@@ -548,10 +548,12 @@ export default function StoriesBar({ currentEmployee }) {
                 </div>
               )}
 
-              {/* Ask Question Button */}
+              {/* Ask Question Button - only for story owner */}
               <button
                 onClick={() => setShowQA(!showQA)}
-                className="w-full bg-white/10 hover:bg-white/20 text-white rounded-lg py-2 text-sm transition-all flex items-center justify-center gap-1"
+                disabled={!currentEmployee || currentStory.employee_id !== currentEmployee.id}
+                className="w-full bg-white/10 hover:bg-white/20 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-lg py-2 text-sm transition-all flex items-center justify-center gap-1"
+                title={!currentEmployee || currentStory.employee_id !== currentEmployee.id ? "רק בעל הסטורי יכול להוסיף שאלות" : ""}
               >
                 <MessageCircle className="w-4 h-4" />
                 שאל שאלה
