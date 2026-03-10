@@ -331,9 +331,10 @@ export default function StoriesBar({ currentEmployee }) {
           {/* Stories */}
           {groups.map(([empId, group], idx) => {
             const hasUnviewed = true;
+            const isManagerStory = group.stories[0]?.employee_id && group.stories.some(s => s.employee_id);
             return (
-              <div key={empId} className="flex flex-col items-center gap-1 flex-shrink-0 cursor-pointer" onClick={() => openStory(idx)}>
-                <div className={`w-16 h-16 rounded-full p-0.5 ${hasUnviewed ? "bg-gradient-to-tr from-yellow-400 via-pink-500 to-purple-600" : "bg-gray-300"}`}>
+              <div key={empId} className="flex flex-col items-center gap-1 flex-shrink-0 cursor-pointer relative" onClick={() => openStory(idx)}>
+                <div className={`w-16 h-16 rounded-full p-0.5 ${isManagerStory && group.stories[0]?.employee_id ? "ring-2 ring-green-400" : ""} ${hasUnviewed ? "bg-gradient-to-tr from-yellow-400 via-pink-500 to-purple-600" : "bg-gray-300"}`}>
                   <div className="w-full h-full rounded-full border-2 border-white overflow-hidden bg-gray-100 flex items-center justify-center">
                     {group.avatar_url
                       ? <img src={group.avatar_url} className="w-full h-full object-cover" alt="" />
@@ -341,6 +342,9 @@ export default function StoriesBar({ currentEmployee }) {
                   </div>
                 </div>
                 <span className="text-xs text-gray-600 truncate w-16 text-center">{group.employee_name?.split(" ")[0]}</span>
+                {isManagerStory && group.stories[0]?.employee_id && (
+                  <span className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-green-400 rounded-full border border-white" title="מנהל" />
+                )}
               </div>
             );
           })}
