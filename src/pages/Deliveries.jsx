@@ -116,6 +116,7 @@ export default function Deliveries() {
         customer_phone: result.customer_phone || "",
         address: result.address || "",
         cash_amount: result.cash_amount ? String(result.cash_amount) : "",
+        platform: result.platform || "",
         photo_url: file_url,
       }));
       setShowAddDialog(true);
