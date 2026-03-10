@@ -135,7 +135,7 @@ export default function CourierTracking() {
                       אין משלוחים
                     </div>
                   ) : (
-                    courierDeliveries.map((delivery) => (
+                    optimizeDeliveryOrder(courierDeliveries).map((delivery) => (
                       <div
                         key={delivery.id}
                         className="border rounded-lg p-2 bg-gray-50 hover:bg-gray-100 transition-colors text-sm"
