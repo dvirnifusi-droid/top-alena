@@ -361,6 +361,56 @@ export default function CourierTracking() {
           </CardContent>
         </Card>
       )}
+
+      {/* Round Trip Dialog */}
+      <Dialog open={!!roundTripDialog} onOpenChange={() => setRoundTripDialog(null)}>
+        <DialogContent className="max-w-md max-h-[80vh] overflow-y-auto" dir="rtl">
+          <DialogHeader>
+            <DialogTitle>🚴 צוות סיבוב - {roundTripDialog?.name}</DialogTitle>
+          </DialogHeader>
+          
+          {roundTripDeliveries.length === 0 ? (
+            <div className="text-center text-muted-foreground py-6">אין משלוחים לסדר</div>
+          ) : (
+            <div className="space-y-2">
+              {/* Ordered List */}
+              {roundTripDeliveries.map((delivery, idx) => (
+                <div key={delivery.id} className="flex items-start gap-2 p-2 bg-gray-50 rounded border">
+                  <div className="flex flex-col gap-1">
+                    <button
+                      onClick={() => handleMoveDelivery(idx, "up")}
+                      disabled={idx === 0}
+                      className="p-1 hover:bg-gray-200 disabled:opacity-30 rounded text-xs font-bold"
+                    >
+                      ▲
+                    </button>
+                    <button
+                      onClick={() => handleMoveDelivery(idx, "down")}
+                      disabled={idx === roundTripDeliveries.length - 1}
+                      className="p-1 hover:bg-gray-200 disabled:opacity-30 rounded text-xs font-bold"
+                    >
+                      ▼
+                    </button>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="font-bold text-sm">{idx + 1}. {delivery.customer_name}</div>
+                    <div className="text-xs text-muted-foreground truncate">{delivery.address}</div>
+                    <div className="text-xs text-amber-600 font-semibold">₪{delivery.cash_amount}</div>
+                  </div>
+                </div>
+              ))}
+
+              {/* Send Button */}
+              <Button
+                onClick={sendRoundTrip}
+                className="w-full bg-green-600 hover:bg-green-700 text-white mt-4"
+              >
+                <MapIcon className="w-4 h-4 ml-2" /> שלח לוויז בסדר הזה
+              </Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
