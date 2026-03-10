@@ -16,14 +16,15 @@ import {
   Package,
   CheckCircle2,
   Clock,
-  TrendingUp,
   Phone,
   MapPin,
   User,
   Banknote,
-  X,
+  Users,
 } from "lucide-react";
 import { format } from "date-fns";
+import { createPageUrl } from "@/utils";
+import { Link } from "react-router-dom";
 
 export default function Deliveries() {
   const [deliveries, setDeliveries] = useState([]);
