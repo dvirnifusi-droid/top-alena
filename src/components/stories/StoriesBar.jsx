@@ -665,6 +665,45 @@ export default function StoriesBar({ currentEmployee }) {
               placeholder="הוסף כיתוב (אופציונלי)..."
               className="w-full border rounded-xl px-3 py-2 text-sm outline-none"
             />
+
+            {/* Design Tools Tabs */}
+            <div className="flex gap-2 border-b">
+              <button
+                onClick={() => { setShowTextEditor(!showTextEditor); setShowAudioLibrary(false); }}
+                className={`px-4 py-2 font-medium text-sm transition-all ${
+                  showTextEditor ? "border-b-2 border-primary text-primary" : "text-gray-600"
+                }`}
+              >
+                ✏️ טקסט
+              </button>
+              <button
+                onClick={() => { setShowAudioLibrary(!showAudioLibrary); setShowTextEditor(false); }}
+                className={`px-4 py-2 font-medium text-sm transition-all ${
+                  showAudioLibrary ? "border-b-2 border-primary text-primary" : "text-gray-600"
+                }`}
+              >
+                🎵 מוזיקה
+              </button>
+            </div>
+
+            {/* Text Editor */}
+            {showTextEditor && (
+              <TextOverlayEditor
+                preview={{ media_url: previewUrl, media_type: mediaType }}
+                current={textOverlay}
+                onAdd={setTextOverlay}
+                onRemove={() => setTextOverlay(null)}
+              />
+            )}
+
+            {/* Audio Library */}
+            {showAudioLibrary && (
+              <AudioLibrary
+                selected={selectedAudio}
+                onSelect={setSelectedAudio}
+              />
+            )}
+
             <button
               onClick={handleUpload}
               disabled={uploading}
