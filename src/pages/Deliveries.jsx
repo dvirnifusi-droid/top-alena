@@ -485,11 +485,16 @@ function DeliveryCard({ delivery, onAction }) {
             {delivery.courier_name && delivery.payment_status === "unpaid" && (
               <div className="text-xs text-red-600 font-medium">שליח: {delivery.courier_name}</div>
             )}
-            {delivery.created_date && (
-              <div className="text-xs text-muted-foreground">
-                🕐 {new Date(delivery.created_date).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })} · {new Date(delivery.created_date).toLocaleDateString('he-IL')}
-              </div>
-            )}
+            <div className="flex items-center gap-2 flex-wrap">
+              {delivery.platform && (
+                <span className="text-xs bg-blue-50 text-blue-700 border border-blue-200 rounded px-1.5 py-0.5 font-medium">{delivery.platform}</span>
+              )}
+              {delivery.created_date && (
+                <span className="text-xs text-muted-foreground">
+                  🕐 {new Date(delivery.created_date).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })} · {new Date(delivery.created_date).toLocaleDateString('he-IL')}
+                </span>
+              )}
+            </div>
           </div>
           <div className="flex flex-col items-end gap-2 flex-shrink-0">
             <span className="font-bold text-base">₪{delivery.cash_amount}</span>
