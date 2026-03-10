@@ -25,8 +25,21 @@ const CATEGORIES = {
 export default function AudioLibrary({ onSelect, selected }) {
   const [category, setCategory] = useState("upbeat");
   const [playingId, setPlayingId] = useState(null);
+  const audioRef = React.useRef(null);
 
   const filtered = SAMPLE_AUDIO_LIBRARY.filter(audio => audio.category === category);
+
+  React.useEffect(() => {
+    if (!playingId) {
+      audioRef.current?.pause();
+      return;
+    }
+    const audio = SAMPLE_AUDIO_LIBRARY.find(a => a.id === playingId);
+    if (audio && audioRef.current) {
+      audioRef.current.src = audio.url;
+      audioRef.current.play().catch(e => console.error("Failed to play audio:", e));
+    }
+  }, [playingId]);
 
   return (
     <div className="space-y-4 bg-white rounded-xl p-4" dir="rtl">
