@@ -449,7 +449,7 @@ export default function Deliveries() {
   );
 }
 
-function DeliveryCard({ delivery, onAction, onEdit, onDelete, onNote }) {
+function DeliveryCard({ delivery, onAction, onEdit, onDelete, onNote, onTelegram }) {
   const issueLabel = ISSUE_TYPES.find((t) => t.value === delivery.issue_type)?.label;
 
   return (
@@ -507,6 +507,9 @@ function DeliveryCard({ delivery, onAction, onEdit, onDelete, onNote }) {
             </Badge>
             {/* כפתורי פעולה */}
             <div className="flex gap-1">
+              <button onClick={onTelegram} className="p-1 rounded hover:bg-green-100 text-green-600" title="צוות משלוח">
+                <Send className="w-3.5 h-3.5" />
+              </button>
               <button onClick={onNote} className="p-1 rounded hover:bg-yellow-100 text-yellow-600" title="הוסף הערה">
                 <MessageSquare className="w-3.5 h-3.5" />
               </button>
