@@ -11,6 +11,10 @@ Deno.serve(async (req) => {
     const botToken = Deno.env.get("TELEGRAM_BOT_TOKEN");
     const chatId = Deno.env.get("TELEGRAM_CHAT_ID");
 
+    if (!botToken || !chatId) {
+      return Response.json({ error: 'Missing Telegram credentials' }, { status: 500 });
+    }
+
     const message = `/${address}&${phone}, ${prep_time} דקות`;
 
     const res = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
