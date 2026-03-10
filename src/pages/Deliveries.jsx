@@ -346,6 +346,7 @@ export default function Deliveries() {
             <div><Label>מה הוזמן</Label><Input value={formData.items_ordered || ""} onChange={(e) => setFormData({ ...formData, items_ordered: e.target.value })} placeholder="פירוט ההזמנה (אופציונלי)" /></div>
             <div><Label>שכונה</Label><Input value={formData.neighborhood || ""} onChange={(e) => setFormData({ ...formData, neighborhood: e.target.value })} placeholder="שכונה" /></div>
             <div><Label>שם השליח</Label><Input value={formData.courier_name} onChange={(e) => setFormData({ ...formData, courier_name: e.target.value })} placeholder="מי לוקח את המשלוח?" /></div>
+            <div><Label>נרשם על ידי</Label><Input value={formData.opened_by || ""} onChange={(e) => setFormData({ ...formData, opened_by: e.target.value })} placeholder="שם העובד שפתח את המשלוח" /></div>
             <Button className="w-full" onClick={handleSaveDelivery}>{editingDelivery ? "שמור שינויים" : "שמור משלוח"}</Button>
           </div>
         </DialogContent>
@@ -438,6 +439,9 @@ function DeliveryCard({ delivery, onAction, onEdit, onDelete, onNote }) {
             </div>
             {delivery.courier_name && delivery.payment_status === "unpaid" && (
               <div className="text-xs text-red-600 font-medium">שליח: {delivery.courier_name}</div>
+            )}
+            {delivery.opened_by && (
+              <div className="text-xs text-muted-foreground">נרשם ע״י: {delivery.opened_by}</div>
             )}
             <div className="flex items-center gap-2 flex-wrap">
               {delivery.platform && (
