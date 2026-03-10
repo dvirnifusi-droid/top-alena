@@ -60,6 +60,7 @@ const adminLinks = [
   { title: "מרכז גמיפיקציה", url: createPageUrl("GamificationAdmin"), icon: Trophy, isSubItem: true },
   { title: "צ'קליסטים", url: createPageUrl("Checklists"), icon: CheckSquare, isSubItem: true },
   { title: "תקריות", url: createPageUrl("Incidents"), icon: AlertTriangle, isSubItem: true },
+  { title: "ארכיון סטוריז", url: createPageUrl("StoriesArchive"), icon: FileText, isSubItem: true },
 
   // לקוחות ושיווק
   { title: "לקוחות ושיווק", url: "#", icon: MessageSquare, isCategory: true },
