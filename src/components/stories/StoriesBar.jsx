@@ -696,7 +696,7 @@ export default function StoriesBar({ currentEmployee }) {
 
       {/* Upload Dialog */}
       {showUpload && (
-        <div className="fixed inset-0 z-50 bg-black/80 flex items-end justify-center" onClick={() => setShowUpload(false)}>
+        <div className="fixed inset-0 z-[60] bg-black/80 flex items-end justify-center" onClick={() => setShowUpload(false)}>
           <div className="bg-white w-full max-w-sm rounded-t-3xl p-6 space-y-4" onClick={e => e.stopPropagation()} dir="rtl">
             <h3 className="text-lg font-bold text-center">העלה סטורי חדש</h3>
             {previewUrl && (
