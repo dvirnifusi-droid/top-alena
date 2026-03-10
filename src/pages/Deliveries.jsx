@@ -153,7 +153,7 @@ export default function Deliveries() {
       // שמור/עדכן במועדון לקוחות
       if (formData.customer_phone) {
         const existing = await base44.entities.DeliveryCustomer.filter({ customer_phone: formData.customer_phone });
-        const orderEntry = { date: today, amount, items_ordered: formData.items_ordered || "", address: formData.address || "" };
+        const orderEntry = { date: today, amount, items_ordered: formData.items_ordered || "", address: formData.address || "", platform: formData.platform || "" };
         if (existing.length > 0) {
           const c = existing[0];
           const orders = [...(c.orders || []), orderEntry];
