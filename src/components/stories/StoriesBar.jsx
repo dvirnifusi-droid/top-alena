@@ -16,6 +16,12 @@ export default function StoriesBar({ currentEmployee }) {
   const [progress, setProgress] = useState(0);
   const [showViewers, setShowViewers] = useState(false);
   const [paused, setPaused] = useState(false);
+  
+  const handlePauseToggle = () => {
+    const next = !paused;
+    setPaused(next);
+    pausedRef.current = next;
+  };
   const fileInputRef = useRef();
   const progressRef = useRef();
   const timerRef = useRef();
