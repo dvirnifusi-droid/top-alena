@@ -25,11 +25,11 @@ const CATEGORIES = {
 export default function AudioLibrary({ onSelect, selected }) {
   const [category, setCategory] = useState("upbeat");
   const [playingId, setPlayingId] = useState(null);
-  const audioRef = React.useRef(null);
+  const audioRef = useRef(null);
 
   const filtered = SAMPLE_AUDIO_LIBRARY.filter(audio => audio.category === category);
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (!playingId) {
       audioRef.current?.pause();
       return;
