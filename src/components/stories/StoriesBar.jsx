@@ -171,11 +171,32 @@ export default function StoriesBar({ currentEmployee }) {
 
   const isLiked = currentStory && currentEmployee && (currentStory.likes || []).includes(currentEmployee.id);
 
+  // Swipe support for story viewer
+  const touchStartX = useRef(null);
+  const handleTouchStart = (e) => { touchStartX.current = e.touches[0].clientX; };
+  const handleTouchEnd = (e) => {
+    if (touchStartX.current === null) return;
+    const diff = touchStartX.current - e.changedTouches[0].clientX;
+    if (Math.abs(diff) > 50) diff > 0 ? goNext() : goPrev();
+    touchStartX.current = null;
+  };
+
+  // Stories bar scroll
+  const barRef = useRef();
+  const scrollBar = (dir) => { barRef.current?.scrollBy({ left: dir * 200, behavior: "smooth" }); };
+
   return (
     <>
       {/* Stories Bar */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 mb-6">
-        <div className="flex gap-4 overflow-x-auto pb-1 scrollbar-hide">
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 mb-6 relative">
+        {/* Scroll arrows */}
+        <button onClick={() => scrollBar(-1)} className="absolute right-1 top-1/2 -translate-y-1/2 z-10 bg-white/90 shadow rounded-full w-7 h-7 flex items-center justify-center text-gray-500 hover:bg-gray-100">
+          <ChevronRight className="w-4 h-4" />
+        </button>
+        <button onClick={() => scrollBar(1)} className="absolute left-1 top-1/2 -translate-y-1/2 z-10 bg-white/90 shadow rounded-full w-7 h-7 flex items-center justify-center text-gray-500 hover:bg-gray-100">
+          <ChevronLeft className="w-4 h-4" />
+        </button>
+        <div ref={barRef} className="flex gap-4 overflow-x-auto pb-1 scrollbar-hide px-4">
           {/* Add Story */}
           {currentEmployee && (
             <div className="flex flex-col items-center gap-1 flex-shrink-0 cursor-pointer" onClick={() => fileInputRef.current?.click()}>
