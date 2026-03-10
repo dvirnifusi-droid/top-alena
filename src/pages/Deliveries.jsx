@@ -155,7 +155,7 @@ export default function Deliveries() {
 
   const handleSaveDelivery = async () => {
     const amount = Number(formData.cash_amount) || 0;
-    const payload = { ...formData, cash_amount: amount };
+    const payload = { ...formData, cash_amount: amount, customer_phone: (formData.customer_phone || "").replace(/-/g, "") };
 
     if (editingDelivery) {
       await base44.entities.Delivery.update(editingDelivery.id, payload);
