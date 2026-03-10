@@ -103,6 +103,7 @@ import WaiterTables from './pages/WaiterTables';
 import WorkScheduling from './pages/WorkScheduling';
 import StoriesArchive from './pages/StoriesArchive';
 import StoriesLeaderboard from './pages/StoriesLeaderboard';
+import StoriesAnalytics from './pages/StoriesAnalytics';
 import __Layout from './Layout.jsx';
 
 
@@ -163,6 +164,7 @@ export const PAGES = {
     "WorkScheduling": WorkScheduling,
     "StoriesArchive": StoriesArchive,
     "StoriesLeaderboard": StoriesLeaderboard,
+    "StoriesAnalytics": StoriesAnalytics,
 }
 
 export const pagesConfig = {
