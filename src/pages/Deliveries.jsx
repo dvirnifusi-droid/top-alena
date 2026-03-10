@@ -45,6 +45,8 @@ export default function Deliveries() {
   const [prepTime, setPrepTime] = useState(15);
   const [sendingTelegram, setSendingTelegram] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
+  const [showSessionDialog, setShowSessionDialog] = useState(false);
+  const [sessionToken, setSessionToken] = useState(localStorage.getItem("telegram_session_token") || "");
   const [formData, setFormData] = useState({
     customer_name: "", customer_phone: "", address: "",
     cash_amount: "", courier_name: "", payment_status: "unpaid",
@@ -251,6 +253,11 @@ export default function Deliveries() {
   };
 
   const handleSendToTelegram = async () => {
+    if (!sessionToken) {
+      setShowSessionDialog(true);
+      return;
+    }
+
     const d = showTelegramDialog;
     const phone = d.customer_phone;
     const address = d.address;
@@ -259,9 +266,15 @@ export default function Deliveries() {
     if (!address) { alert("חסרה כתובת במשלוח זה!"); return; }
 
     setSendingTelegram(true);
-    await sendDeliveryToTelegram({ phone, address, prep_time: prepTime });
+    await sendDeliveryToTelegram({ phone, address, prep_time: prepTime, sessionToken });
     setSendingTelegram(false);
     setShowTelegramDialog(null);
+  };
+
+  const handleSaveSessionToken = () => {
+    localStorage.setItem("telegram_session_token", sessionToken);
+    setShowSessionDialog(false);
+    alert("✅ Session Token נשמר בהצלחה!");
   };
 
   const handleMarkPaid = async (delivery) => {
@@ -506,6 +519,44 @@ export default function Deliveries() {
           </DialogContent>
         </Dialog>
       )}
+
+      {/* דיאלוג ה-Session Token */}
+      <Dialog open={showSessionDialog} onOpenChange={setShowSessionDialog}>
+        <DialogContent className="max-w-md" dir="rtl">
+          <DialogHeader>
+            <DialogTitle>🔑 הזנת Telegram Session Token</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 text-sm">
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-blue-900">
+              <p className="font-semibold mb-2">📚 איך להשיג את ה-Session Token?</p>
+              <ol className="space-y-1 text-xs list-decimal list-inside">
+                <li>הריצ UserBot לוקלי על המחשב שלך</li>
+                <li>בצע אימות עם הטלפון שלך דרך הקוד שהטלגרם יותר לך</li>
+                <li>שמור את ה-Session String (שיוצג בקונסול)</li>
+                <li>הדבק אותו כאן</li>
+              </ol>
+            </div>
+
+            <div>
+              <Label className="font-semibold mb-2 block">Session Token</Label>
+              <Textarea
+                value={sessionToken}
+                onChange={(e) => setSessionToken(e.target.value)}
+                placeholder="הדבק את ה-session string כאן... (מ-MTProto authentication)"
+                rows={6}
+                className="font-mono text-xs"
+              />
+            </div>
+
+            <div className="flex gap-2">
+              <Button className="flex-1 bg-green-600 hover:bg-green-700" onClick={handleSaveSessionToken} disabled={!sessionToken}>
+                ✅ שמור Token
+              </Button>
+              <Button variant="outline" className="flex-1" onClick={() => setShowSessionDialog(false)}>ביטול</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* דיאלוג הערה */}
       {showNoteDialog && (
