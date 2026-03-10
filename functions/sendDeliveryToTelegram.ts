@@ -11,7 +11,7 @@ Deno.serve(async (req) => {
     const botToken = Deno.env.get("TELEGRAM_BOT_TOKEN");
     const chatId = Deno.env.get("TELEGRAM_CHAT_ID");
 
-    const message = `/${phone},${address},${prep_time}`;
+    const message = `/${phone},${address}, ${prep_time} דקות`;
 
     const res = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
       method: "POST",
