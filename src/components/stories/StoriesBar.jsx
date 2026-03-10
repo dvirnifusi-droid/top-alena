@@ -63,9 +63,15 @@ export default function StoriesBar({ currentEmployee }) {
     setStories(active);
   };
 
+  // Get employee details by ID
+  const getEmployeeById = async (empId) => {
+    const employees = await base44.entities.Employee.filter({ id: empId });
+    return employees[0];
+  };
+
   // Group by employee
   const grouped = stories.reduce((acc, s) => {
-    if (!acc[s.employee_id]) acc[s.employee_id] = { employee_name: s.employee_name, avatar_url: s.avatar_url, stories: [] };
+    if (!acc[s.employee_id]) acc[s.employee_id] = { employee_name: s.employee_name, avatar_url: s.avatar_url, stories: [], isManager: false };
     acc[s.employee_id].stories.push(s);
     return acc;
   }, {});
