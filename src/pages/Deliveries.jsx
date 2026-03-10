@@ -47,7 +47,7 @@ export default function Deliveries() {
   const [currentUser, setCurrentUser] = useState(null);
   const [showSessionDialog, setShowSessionDialog] = useState(false);
   const [sessionToken, setSessionToken] = useState(localStorage.getItem("telegram_session_token") || "");
-  const [ngrokUrl, setNgrokUrl] = useState(localStorage.getItem("telegram_ngrok_url") || "");
+  const [groupId, setGroupId] = useState(localStorage.getItem("telegram_group_id") || "");
   const [formData, setFormData] = useState({
     customer_name: "", customer_phone: "", address: "",
     cash_amount: "", courier_name: "", payment_status: "unpaid",
