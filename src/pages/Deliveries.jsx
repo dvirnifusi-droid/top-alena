@@ -47,14 +47,17 @@ export default function Deliveries() {
   const fileInputRef = React.useRef();
 
   const today = format(new Date(), "yyyy-MM-dd");
+  const yesterday = format(new Date(Date.now() - 86400000), "yyyy-MM-dd");
+  const [selectedDate, setSelectedDate] = useState(today);
+  const [customDate, setCustomDate] = useState("");
 
   useEffect(() => {
-    loadDeliveries();
-  }, []);
+    loadDeliveries(selectedDate);
+  }, [selectedDate]);
 
-  const loadDeliveries = async () => {
+  const loadDeliveries = async (date) => {
     setLoading(true);
-    const data = await base44.entities.Delivery.filter({ date: today }, "-created_date");
+    const data = await base44.entities.Delivery.filter({ date }, "-created_date");
     setDeliveries(data);
     setLoading(false);
   };
