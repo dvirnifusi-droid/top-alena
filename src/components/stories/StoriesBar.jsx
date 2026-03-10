@@ -19,6 +19,7 @@ export default function StoriesBar({ currentEmployee }) {
   const fileInputRef = useRef();
   const progressRef = useRef();
   const timerRef = useRef();
+  const pausedRef = useRef(false);
 
   useEffect(() => {
     loadStories();
