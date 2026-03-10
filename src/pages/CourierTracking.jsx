@@ -66,6 +66,28 @@ export default function CourierTracking() {
     });
   };
 
+  const updateDeliveryStatus = async (delivery, newStatus) => {
+    setUpdatingId(delivery.id);
+    try {
+      await base44.entities.Delivery.update(delivery.id, { delivery_status: newStatus });
+      await loadData();
+    } catch (error) {
+      console.error("Error updating delivery:", error);
+    }
+    setUpdatingId(null);
+  };
+
+  const markAsPaid = async (delivery) => {
+    setUpdatingId(delivery.id);
+    try {
+      await base44.entities.Delivery.update(delivery.id, { payment_status: "paid" });
+      await loadData();
+    } catch (error) {
+      console.error("Error marking as paid:", error);
+    }
+    setUpdatingId(null);
+  };
+
   return (
     <div className="p-4 max-w-6xl mx-auto space-y-4" dir="rtl">
       {/* Header */}
