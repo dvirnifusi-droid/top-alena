@@ -241,7 +241,12 @@ export default function StoriesBar({ currentEmployee }) {
       {/* Story Viewer */}
       {viewingStory && currentStory && (
         <div className="fixed inset-0 z-50 bg-black flex items-center justify-center" onClick={() => setViewingStory(null)}>
-          <div className="relative w-full max-w-sm h-full max-h-screen flex flex-col" onClick={e => e.stopPropagation()}>
+          <div
+          className="relative w-full max-w-sm h-full max-h-screen flex flex-col"
+          onClick={e => e.stopPropagation()}
+          onTouchStart={handleTouchStart}
+          onTouchEnd={handleTouchEnd}
+        >
             {/* Progress bars */}
             <div className="absolute top-0 left-0 right-0 z-10 flex gap-1 p-2">
               {viewingStory.stories.map((_, i) => (
