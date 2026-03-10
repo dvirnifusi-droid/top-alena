@@ -413,6 +413,57 @@ export default function Deliveries() {
         </Dialog>
       )}
 
+      {/* דיאלוג צוות משלוח טלגרם */}
+      {showTelegramDialog && (
+        <Dialog open={!!showTelegramDialog} onOpenChange={() => setShowTelegramDialog(null)}>
+          <DialogContent className="max-w-sm" dir="rtl">
+            <DialogHeader><DialogTitle>🚴 צוות משלוח חדש</DialogTitle></DialogHeader>
+            <div className="space-y-4">
+              <div className="bg-gray-50 rounded-lg p-3 space-y-1 text-sm">
+                <div className="flex items-center gap-2">
+                  <Phone className="w-4 h-4 text-muted-foreground" />
+                  {showTelegramDialog.customer_phone
+                    ? <span className="font-medium">{showTelegramDialog.customer_phone}</span>
+                    : <span className="text-red-500 font-semibold">⚠️ חסר טלפון!</span>}
+                </div>
+                <div className="flex items-center gap-2">
+                  <MapPin className="w-4 h-4 text-muted-foreground" />
+                  {showTelegramDialog.address
+                    ? <span className="font-medium">{showTelegramDialog.address}</span>
+                    : <span className="text-red-500 font-semibold">⚠️ חסרה כתובת!</span>}
+                </div>
+              </div>
+
+              <div>
+                <Label>זמן הכנה (דקות): <span className="font-bold text-primary">{prepTime}</span></Label>
+                <input
+                  type="range" min={10} max={30} step={5}
+                  value={prepTime}
+                  onChange={(e) => setPrepTime(Number(e.target.value))}
+                  className="w-full mt-2 accent-primary"
+                />
+                <div className="flex justify-between text-xs text-muted-foreground mt-1">
+                  <span>10 דק׳</span><span>20 דק׳</span><span>30 דק׳</span>
+                </div>
+              </div>
+
+              <div className="bg-blue-50 rounded p-2 text-xs text-blue-700 font-mono text-center">
+                /{showTelegramDialog.customer_phone || "??"},{showTelegramDialog.address || "??"},{prepTime}
+              </div>
+
+              <Button
+                className="w-full bg-green-600 hover:bg-green-700"
+                onClick={handleSendToTelegram}
+                disabled={sendingTelegram || !showTelegramDialog.customer_phone || !showTelegramDialog.address}
+              >
+                <Send className="w-4 h-4 ml-2" />
+                {sendingTelegram ? "שולח..." : "שלח לצוות משלוח"}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
+
       {/* דיאלוג הערה */}
       {showNoteDialog && (
         <Dialog open={!!showNoteDialog} onOpenChange={() => setShowNoteDialog(null)}>
