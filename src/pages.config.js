@@ -102,6 +102,7 @@ import UploadChecklists from './pages/UploadChecklists';
 import WaiterTables from './pages/WaiterTables';
 import WorkScheduling from './pages/WorkScheduling';
 import StoriesArchive from './pages/StoriesArchive';
+import StoriesLeaderboard from './pages/StoriesLeaderboard';
 import __Layout from './Layout.jsx';
 
 
@@ -161,6 +162,7 @@ export const PAGES = {
     "WaiterTables": WaiterTables,
     "WorkScheduling": WorkScheduling,
     "StoriesArchive": StoriesArchive,
+    "StoriesLeaderboard": StoriesLeaderboard,
 }
 
 export const pagesConfig = {
