@@ -81,17 +81,19 @@ export default function Deliveries() {
       const { file_url } = await base44.integrations.Core.UploadFile({ file });
       const result = await base44.integrations.Core.InvokeLLM({
         prompt: `נתח את תמונת פתק המשלוח הזו ומצא:
-- שם הלקוח
+- שם הלקוח (השם שמופיע בפתק כשם המזמין/לקוח - לא שם הרחוב!)
 - מספר טלפון
-- כתובת
-- סכום לתשלום (מזומן)
+- כתובת מלאה
+- סכום לתשלום במזומן (מספר בלבד)
+- פלטפורמת ההזמנה - חפש לוגו או שם של: Wolt, תן ביס, סיבוס, Mishloha, Valuecard. אם לא מזהה - השאר ריק.
 
 החזר JSON בלבד בפורמט:
 {
   "customer_name": "...",
   "customer_phone": "...",
   "address": "...",
-  "cash_amount": 0
+  "cash_amount": 0,
+  "platform": "..."
 }
 
 אם לא מצאת שדה, השאר ריק. הסכום צריך להיות מספר בלבד.`,
@@ -103,6 +105,7 @@ export default function Deliveries() {
             customer_phone: { type: "string" },
             address: { type: "string" },
             cash_amount: { type: "number" },
+            platform: { type: "string" },
           },
         },
       });
