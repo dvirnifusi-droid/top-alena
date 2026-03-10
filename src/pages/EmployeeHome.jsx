@@ -154,6 +154,9 @@ export default function EmployeeHome() {
 
                 <ConfettiEffect trigger={showConfetti} message={confettiMsg} emoji="🎉" onDone={() => setShowConfetti(false)} />
 
+                {/* סטוריז */}
+                <StoriesBar currentEmployee={currentEmployee} />
+
                 {/* אתגר יומי */}
                 {currentEmployee && (
                     <div className="mb-4">
