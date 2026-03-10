@@ -104,6 +104,7 @@ import WorkScheduling from './pages/WorkScheduling';
 import StoriesArchive from './pages/StoriesArchive';
 import StoriesLeaderboard from './pages/StoriesLeaderboard';
 import StoriesAnalytics from './pages/StoriesAnalytics';
+import StoriesNotifications from './pages/StoriesNotifications';
 import __Layout from './Layout.jsx';
 
 
@@ -165,6 +166,7 @@ export const PAGES = {
     "StoriesArchive": StoriesArchive,
     "StoriesLeaderboard": StoriesLeaderboard,
     "StoriesAnalytics": StoriesAnalytics,
+    "StoriesNotifications": StoriesNotifications,
 }
 
 export const pagesConfig = {
