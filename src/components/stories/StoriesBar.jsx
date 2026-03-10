@@ -258,7 +258,10 @@ export default function StoriesBar({ currentEmployee }) {
       media_type: mediaType,
       caption,
       likes: [],
+      views: [],
       comments: [],
+      quick_reactions: [],
+      questions: [],
       expires_at: expires
     });
     setUploading(false);
