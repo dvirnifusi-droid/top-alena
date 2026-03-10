@@ -535,16 +535,16 @@ export default function Deliveries() {
       <Dialog open={showSessionDialog} onOpenChange={setShowSessionDialog}>
         <DialogContent className="max-w-md" dir="rtl">
           <DialogHeader>
-            <DialogTitle>🔑 הזנת Telegram Session Token</DialogTitle>
+            <DialogTitle>🔑 הגדרות Telegram</DialogTitle>
           </DialogHeader>
           <div className="space-y-3 text-sm">
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-blue-900">
-              <p className="font-semibold mb-2">📚 הגדרות</p>
+              <p className="font-semibold mb-2">📚 איך להשיג Session Token?</p>
               <ol className="space-y-1 text-xs list-decimal list-inside">
-                <li>הרץ UserBot Server לוקלי</li>
-                <li>הריץ Ngrok: <code className="bg-white px-1 rounded">ngrok http 5000</code></li>
-                <li>העתק את ה-Session Token</li>
-                <li>העתק את Ngrok URL</li>
+                <li>בPython: <code className="bg-white px-1 rounded">from telethon.sync import TelegramClient</code></li>
+                <li><code className="bg-white px-1 rounded">client = TelegramClient('session', API_ID, API_HASH)</code></li>
+                <li><code className="bg-white px-1 rounded">print(client.session.save())</code></li>
+                <li>העתק את התוצאה שלמעלה</li>
               </ol>
             </div>
 
@@ -560,17 +560,18 @@ export default function Deliveries() {
             </div>
 
             <div>
-              <Label className="font-semibold mb-2 block">Ngrok URL</Label>
+              <Label className="font-semibold mb-2 block">Group ID של הקבוצה</Label>
               <Input
-                value={ngrokUrl}
-                onChange={(e) => setNgrokUrl(e.target.value)}
-                placeholder="https://xxx.ngrok.io"
+                value={groupId}
+                onChange={(e) => setGroupId(e.target.value)}
+                placeholder="-1001234567890"
                 className="font-mono text-xs"
               />
+              <p className="text-xs text-muted-foreground mt-1">מצא את ה-ID בדרך אחת: 1) שלח '/id' לקבוצה, 2) בהודעה: right-click → Copy Link (ה-ID בקישור)</p>
             </div>
 
             <div className="flex gap-2">
-              <Button className="flex-1 bg-green-600 hover:bg-green-700" onClick={handleSaveSessionToken} disabled={!sessionToken || !ngrokUrl}>
+              <Button className="flex-1 bg-green-600 hover:bg-green-700" onClick={handleSaveSessionToken} disabled={!sessionToken || !groupId}>
                 ✅ שמור הגדרות
               </Button>
               <Button variant="outline" className="flex-1" onClick={() => setShowSessionDialog(false)}>ביטול</Button>
