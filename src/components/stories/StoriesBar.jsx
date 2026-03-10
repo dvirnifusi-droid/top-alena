@@ -270,6 +270,18 @@ export default function StoriesBar({ currentEmployee }) {
       questions: [],
       expires_at: expires
     });
+    
+    // Award coins for posting a story
+    await base44.entities.CoinTransaction.create({
+      employee_id: currentEmployee.id,
+      employee_name: currentEmployee.full_name,
+      amount: 5,
+      reason: "פרסום סטורי",
+      type: "earned",
+      trigger: "story_posted",
+      status: "approved"
+    });
+    
     setUploading(false);
     setShowUpload(false);
     setPreviewUrl(null);
