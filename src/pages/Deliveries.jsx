@@ -234,6 +234,39 @@ export default function Deliveries() {
         </div>
       </div>
 
+      {/* פילטר תאריך */}
+      <div className="flex gap-2 flex-wrap items-center">
+        <Button
+          size="sm"
+          variant={selectedDate === today ? "default" : "outline"}
+          onClick={() => setSelectedDate(today)}
+        >
+          היום
+        </Button>
+        <Button
+          size="sm"
+          variant={selectedDate === yesterday ? "default" : "outline"}
+          onClick={() => setSelectedDate(yesterday)}
+        >
+          אתמול
+        </Button>
+        <input
+          type="date"
+          className="border rounded-md px-2 py-1 text-sm"
+          value={customDate}
+          max={today}
+          onChange={(e) => {
+            setCustomDate(e.target.value);
+            if (e.target.value) setSelectedDate(e.target.value);
+          }}
+        />
+        {selectedDate !== today && selectedDate !== yesterday && (
+          <span className="text-sm text-muted-foreground">
+            📅 {new Date(selectedDate + "T12:00:00").toLocaleDateString('he-IL')}
+          </span>
+        )}
+      </div>
+
       {/* סריקה בתהליך */}
       {scanning && (
         <Card className="border-blue-200 bg-blue-50">
