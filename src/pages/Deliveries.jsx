@@ -157,8 +157,12 @@ export default function Deliveries() {
         if (existing.length > 0) {
           const c = existing[0];
           const orders = [...(c.orders || []), orderEntry];
+          // אם הלקוח היה "לא מזוהה" ועכשיו יש שם – עדכן
+          const updatedName = formData.customer_name
+            ? formData.customer_name
+            : (c.customer_name === "לקוח לא מזוהה" ? "לקוח לא מזוהה" : c.customer_name);
           await base44.entities.DeliveryCustomer.update(c.id, {
-            customer_name: formData.customer_name || c.customer_name,
+            customer_name: updatedName,
             address: formData.address || c.address,
             neighborhood: formData.neighborhood || c.neighborhood,
             orders, total_orders: orders.length,

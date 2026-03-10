@@ -30,7 +30,11 @@ export default function CustomerFormDialog({ customer, onSave, onClose }) {
         setSaving(false);
         return;
       }
-      await base44.entities.DeliveryCustomer.create({ ...form, total_orders: 0, total_spent: 0, orders: [] });
+      await base44.entities.DeliveryCustomer.create({
+        ...form,
+        customer_name: form.customer_name || "לקוח לא מזוהה",
+        total_orders: 0, total_spent: 0, orders: [],
+      });
     }
     setSaving(false);
     onSave();
