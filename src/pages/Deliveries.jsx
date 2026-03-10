@@ -47,6 +47,7 @@ export default function Deliveries() {
   const [currentUser, setCurrentUser] = useState(null);
   const [showSessionDialog, setShowSessionDialog] = useState(false);
   const [sessionToken, setSessionToken] = useState(localStorage.getItem("telegram_session_token") || "");
+  const [ngrokUrl, setNgrokUrl] = useState(localStorage.getItem("telegram_ngrok_url") || "");
   const [formData, setFormData] = useState({
     customer_name: "", customer_phone: "", address: "",
     cash_amount: "", courier_name: "", payment_status: "unpaid",
@@ -258,6 +259,11 @@ export default function Deliveries() {
       return;
     }
 
+    if (!ngrokUrl) {
+      alert("חסר Ngrok URL! הדבק את הקישור מ-Ngrok בהגדרות.");
+      return;
+    }
+
     const d = showTelegramDialog;
     const phone = d.customer_phone;
     const address = d.address;
@@ -266,15 +272,20 @@ export default function Deliveries() {
     if (!address) { alert("חסרה כתובת במשלוח זה!"); return; }
 
     setSendingTelegram(true);
-    await sendDeliveryViaTelegramClient({ phone, address, prep_time: prepTime, sessionToken });
+    try {
+      await sendDeliveryViaTelegramClient({ phone, address, prep_time: prepTime, sessionToken, ngrokUrl });
+    } catch (err) {
+      alert("שגיאה בשליחה: " + err.message);
+    }
     setSendingTelegram(false);
     setShowTelegramDialog(null);
   };
 
   const handleSaveSessionToken = () => {
     localStorage.setItem("telegram_session_token", sessionToken);
+    localStorage.setItem("telegram_ngrok_url", ngrokUrl);
     setShowSessionDialog(false);
-    alert("✅ Session Token נשמר בהצלחה!");
+    alert("✅ Session Token ו-Ngrok URL נשמרו בהצלחה!");
   };
 
   const handleMarkPaid = async (delivery) => {
@@ -528,12 +539,12 @@ export default function Deliveries() {
           </DialogHeader>
           <div className="space-y-3 text-sm">
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-blue-900">
-              <p className="font-semibold mb-2">📚 איך להשיג את ה-Session Token?</p>
+              <p className="font-semibold mb-2">📚 הגדרות</p>
               <ol className="space-y-1 text-xs list-decimal list-inside">
-                <li>הריצ UserBot לוקלי על המחשב שלך</li>
-                <li>בצע אימות עם הטלפון שלך דרך הקוד שהטלגרם יותר לך</li>
-                <li>שמור את ה-Session String (שיוצג בקונסול)</li>
-                <li>הדבק אותו כאן</li>
+                <li>הרץ UserBot Server לוקלי</li>
+                <li>הריץ Ngrok: <code className="bg-white px-1 rounded">ngrok http 5000</code></li>
+                <li>העתק את ה-Session Token</li>
+                <li>העתק את Ngrok URL</li>
               </ol>
             </div>
 
@@ -542,15 +553,25 @@ export default function Deliveries() {
               <Textarea
                 value={sessionToken}
                 onChange={(e) => setSessionToken(e.target.value)}
-                placeholder="הדבק את ה-session string כאן... (מ-MTProto authentication)"
-                rows={6}
+                placeholder="הדבק את ה-session string כאן..."
+                rows={4}
+                className="font-mono text-xs"
+              />
+            </div>
+
+            <div>
+              <Label className="font-semibold mb-2 block">Ngrok URL</Label>
+              <Input
+                value={ngrokUrl}
+                onChange={(e) => setNgrokUrl(e.target.value)}
+                placeholder="https://xxx.ngrok.io"
                 className="font-mono text-xs"
               />
             </div>
 
             <div className="flex gap-2">
-              <Button className="flex-1 bg-green-600 hover:bg-green-700" onClick={handleSaveSessionToken} disabled={!sessionToken}>
-                ✅ שמור Token
+              <Button className="flex-1 bg-green-600 hover:bg-green-700" onClick={handleSaveSessionToken} disabled={!sessionToken || !ngrokUrl}>
+                ✅ שמור הגדרות
               </Button>
               <Button variant="outline" className="flex-1" onClick={() => setShowSessionDialog(false)}>ביטול</Button>
             </div>
