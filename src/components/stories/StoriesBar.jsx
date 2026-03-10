@@ -379,13 +379,16 @@ export default function StoriesBar({ currentEmployee }) {
 
             {/* Header */}
             <div className="absolute top-4 left-0 right-0 z-10 flex items-center gap-3 px-4 pt-4">
-              <div className="w-9 h-9 rounded-full bg-gray-400 overflow-hidden border-2 border-white flex-shrink-0">
+              <div className={`w-9 h-9 rounded-full bg-gray-400 overflow-hidden border-2 border-white flex-shrink-0 ${viewingStory.stories[0]?.employee_id ? "ring-2 ring-green-400" : ""}`}>
                 {currentStory.avatar_url
                   ? <img src={currentStory.avatar_url} className="w-full h-full object-cover" alt="" />
                   : <span className="text-sm font-bold text-white flex items-center justify-center h-full">{currentStory.employee_name?.charAt(0)}</span>}
               </div>
               <div className="flex-1">
-                <p className="text-white font-semibold text-sm">{currentStory.employee_name}</p>
+                <div className="flex items-center gap-2">
+                  <p className="text-white font-semibold text-sm">{currentStory.employee_name}</p>
+                  {viewingStory.stories[0]?.employee_id && <span className="text-xs bg-green-500/30 text-green-200 px-2 py-0.5 rounded-full">👔 מנהל</span>}
+                </div>
                 <p className="text-white/60 text-xs">{format(new Date(currentStory.created_date), "HH:mm")}</p>
               </div>
               <button onClick={() => setViewingStory(null)} className="text-white p-1">
