@@ -526,8 +526,8 @@ export default function StoriesBar({ currentEmployee }) {
                 </div>
               )}
 
-              {/* Q&A Section */}
-              {(currentStory.questions || []).length > 0 && (
+              {/* Q&A Section - only for story owner */}
+              {currentEmployee && currentStory.employee_id === currentEmployee.id && (currentStory.questions || []).length > 0 && (
                 <div className="bg-white/10 rounded-xl p-3 space-y-2 max-h-32 overflow-y-auto">
                   <p className="text-white font-semibold text-sm flex items-center gap-1">
                     <MessageCircle className="w-4 h-4" />
