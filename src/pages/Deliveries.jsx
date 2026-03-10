@@ -349,6 +349,14 @@ export default function Deliveries() {
               <Input type="number" value={formData.cash_amount} onChange={(e) => setFormData({ ...formData, cash_amount: e.target.value })} placeholder="0" />
             </div>
             <div>
+              <Label>מה הוזמן</Label>
+              <Input value={formData.items_ordered || ""} onChange={(e) => setFormData({ ...formData, items_ordered: e.target.value })} placeholder="פירוט ההזמנה (אופציונלי)" />
+            </div>
+            <div>
+              <Label>שכונה</Label>
+              <Input value={formData.neighborhood || ""} onChange={(e) => setFormData({ ...formData, neighborhood: e.target.value })} placeholder="שכונה" />
+            </div>
+            <div>
               <Label>שם השליח</Label>
               <Input value={formData.courier_name} onChange={(e) => setFormData({ ...formData, courier_name: e.target.value })} placeholder="מי לוקח את המשלוח?" />
             </div>
