@@ -107,6 +107,7 @@ import WaiterTables from './pages/WaiterTables';
 import WorkScheduling from './pages/WorkScheduling';
 import Couriers from './pages/Couriers';
 import CourierDashboard from './pages/CourierDashboard';
+import CourierTracking from './pages/CourierTracking';
 import __Layout from './Layout.jsx';
 
 
@@ -171,6 +172,7 @@ export const PAGES = {
     "WorkScheduling": WorkScheduling,
     "Couriers": Couriers,
     "CourierDashboard": CourierDashboard,
+    "CourierTracking": CourierTracking,
 }
 
 export const pagesConfig = {
