@@ -3,8 +3,11 @@ import { base44 } from "@/api/base44Client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { MapPin, Phone, Package, Clock, User, Navigation, CheckCircle2, Truck, DollarSign } from "lucide-react";
+import { MapPin, Phone, Package, Clock, User, Navigation, CheckCircle2, Truck, DollarSign, MapIcon, Send, GripVertical } from "lucide-react";
 import { format } from "date-fns";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle,
+} from "@/components/ui/dialog";
 
 export default function CourierTracking() {
   const [couriers, setCouriers] = useState([]);
