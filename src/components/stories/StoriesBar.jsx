@@ -501,11 +501,14 @@ export default function StoriesBar({ currentEmployee }) {
                 </div>
               )}
 
-              {/* Audio Indicator */}
+              {/* Audio Player */}
               {currentStory.audio_url && (
-                <div className="absolute top-1/2 -translate-y-1/2 left-4 bg-white/20 backdrop-blur rounded-lg p-3">
+                <div className="absolute top-1/2 -translate-y-1/2 left-4 bg-white/20 backdrop-blur rounded-lg p-3 z-20">
+                  <audio autoPlay loop className="w-48">
+                    <source src={currentStory.audio_url} type="audio/mpeg" />
+                  </audio>
                   <div className="flex items-center gap-2">
-                    <div className="animate-pulse">
+                    <div className="animate-pulse text-xl">
                       🎵
                     </div>
                     <div className="text-xs text-white">
