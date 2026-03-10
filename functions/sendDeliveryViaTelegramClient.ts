@@ -6,24 +6,40 @@ Deno.serve(async (req) => {
     const user = await base44.auth.me();
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
 
-    const { phone, address, prep_time, sessionToken } = await req.json();
+    const { phone, address, prep_time, sessionToken, ngrokUrl } = await req.json();
 
     if (!sessionToken) {
       return Response.json({ error: 'Session token not provided. Please set it in the app.', needsAuth: true }, { status: 401 });
     }
 
-    // שלח את ההודעה דרך הטלגרם - בעזרת ה-Session Token שלך
-    // זה דורש שסידרת את ה-UserBot לוקלי וחלצת את ה-session
-    
-    // ברגע שיהיה לך טוקן חוקי, תוכל לשלוח:
+    if (!ngrokUrl) {
+      return Response.json({ error: 'Ngrok URL not provided. Set it in the app settings.', needsUrl: true }, { status: 400 });
+    }
+
     const message = `/${address}${phone ? '&' + phone : ''}`;
-    
-    // TODO: השתמש ב-sessionToken כדי לשדר את ההודעה דרך Telegram Client API
-    // זה דורש server נוסף שרץ עם ה-UserBot וקולט את ההודעות
-    
+
+    // שלח ל-UserBot Server דרך Ngrok
+    const res = await fetch(ngrokUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ 
+        phone, 
+        address, 
+        message,
+        prep_time,
+        sessionToken 
+      }),
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      return Response.json({ error: data.error || 'Failed to send message' }, { status: 500 });
+    }
+
     return Response.json({ 
       success: true, 
-      message: 'Message queued for sending',
+      message: 'Message sent via UserBot',
       sentData: { address, phone, prep_time }
     });
   } catch (error) {
