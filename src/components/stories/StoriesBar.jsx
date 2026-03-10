@@ -460,6 +460,108 @@ export default function StoriesBar({ currentEmployee }) {
                 </div>
               )}
 
+              {/* Quick Reactions */}
+              <div className="flex gap-1 flex-wrap">
+                {QUICK_REACTION_EMOJIS.map((emoji) => {
+                  const reaction = (currentStory.quick_reactions || []).find(r => r.emoji === emoji);
+                  const count = reaction?.employee_ids?.length || 0;
+                  const hasReacted = currentEmployee && reaction?.employee_ids?.includes(currentEmployee.id);
+                  
+                  return (
+                    <button
+                      key={emoji}
+                      onClick={() => handleQuickReaction(emoji)}
+                      className={`px-2 py-1 rounded-full text-sm transition-all ${
+                        hasReacted
+                          ? "bg-white/30 scale-110"
+                          : "bg-white/10 hover:bg-white/20"
+                      }`}
+                    >
+                      {emoji} {count > 0 && <span className="text-xs">{count}</span>}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Poll */}
+              {currentStory.poll && (
+                <div className="bg-white/10 rounded-xl p-3 space-y-2">
+                  <p className="text-white font-semibold text-sm">{currentStory.poll.question}</p>
+                  <div className="space-y-1.5">
+                    {['a', 'b'].map((opt) => {
+                      const optionText = opt === 'a' ? currentStory.poll.option_a : currentStory.poll.option_b;
+                      const votes = (currentStory.poll.votes || []).filter(v => v.option === opt).length;
+                      const totalVotes = currentStory.poll.votes?.length || 0;
+                      const percent = totalVotes > 0 ? Math.round((votes / totalVotes) * 100) : 0;
+                      const userVoted = pollAnswer === opt;
+                      
+                      return (
+                        <button
+                          key={opt}
+                          onClick={() => handlePollVote(opt)}
+                          className={`w-full px-2 py-1.5 rounded text-xs text-right transition-all ${
+                            userVoted
+                              ? "bg-white/30 border border-white/50"
+                              : "bg-white/10 hover:bg-white/15 border border-white/20"
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <span>{optionText}</span>
+                            <span className="text-white/70">{percent}% ({votes})</span>
+                          </div>
+                          <div className="w-full h-1 bg-black/30 rounded mt-1 overflow-hidden">
+                            <div className="h-full bg-white/40 transition-all" style={{width: `${percent}%`}} />
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Q&A Section */}
+              {(currentStory.questions || []).length > 0 && (
+                <div className="bg-white/10 rounded-xl p-3 space-y-2 max-h-32 overflow-y-auto">
+                  <p className="text-white font-semibold text-sm flex items-center gap-1">
+                    <MessageCircle className="w-4 h-4" />
+                    שאלות ({(currentStory.questions || []).length})
+                  </p>
+                  {(currentStory.questions || []).slice(-3).map((q, i) => (
+                    <div key={i} className="bg-black/20 rounded p-1.5 text-xs">
+                      <p className="text-white font-medium">{q.employee_name}:</p>
+                      <p className="text-white/80">{q.text}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Ask Question Button */}
+              <button
+                onClick={() => setShowQA(!showQA)}
+                className="w-full bg-white/10 hover:bg-white/20 text-white rounded-lg py-2 text-sm transition-all flex items-center justify-center gap-1"
+              >
+                <MessageCircle className="w-4 h-4" />
+                שאל שאלה
+              </button>
+
+              {showQA && (
+                <div className="space-y-2">
+                  <input
+                    value={qaQuestion}
+                    onChange={(e) => setQaQuestion(e.target.value)}
+                    placeholder="מה אתה חושב על זה?"
+                    className="w-full bg-white/10 text-white placeholder-white/40 rounded-lg px-3 py-2 text-sm outline-none"
+                  />
+                  <button
+                    onClick={handleAskQuestion}
+                    disabled={!qaQuestion.trim()}
+                    className="w-full bg-white/20 hover:bg-white/30 disabled:opacity-50 text-white rounded-lg py-1.5 text-sm"
+                  >
+                    שלח שאלה
+                  </button>
+                </div>
+              )}
+
               {/* Viewers & Likes - only for story owner */}
               {currentEmployee && currentStory.employee_id === currentEmployee.id && (
                 <div>
