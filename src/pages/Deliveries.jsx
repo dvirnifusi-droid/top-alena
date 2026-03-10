@@ -390,9 +390,9 @@ export default function Deliveries() {
             <div><Label>כתובת</Label><Input value={formData.address} onChange={(e) => setFormData({ ...formData, address: e.target.value })} placeholder="כתובת" /></div>
             <div><Label>סכום מזומן (₪)</Label><Input type="number" value={formData.cash_amount} onChange={(e) => setFormData({ ...formData, cash_amount: e.target.value })} placeholder="0" /></div>
             <div>
-              <Label>פלטפורמה</Label>
+              <Label>פלטפורמה <span className="text-xs text-muted-foreground">(זוהתה אוטומטית – ניתן לשנות)</span></Label>
               <Select value={formData.platform || ""} onValueChange={(v) => setFormData({ ...formData, platform: v })}>
-                <SelectTrigger><SelectValue placeholder="בחר פלטפורמה" /></SelectTrigger>
+                <SelectTrigger><SelectValue placeholder="זוהתה אוטומטית" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="Wolt">🔵 Wolt</SelectItem>
                   <SelectItem value="תן ביס">🟠 תן ביס</SelectItem>
