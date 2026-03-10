@@ -62,6 +62,8 @@ import CustomerDetails from './pages/CustomerDetails';
 import CustomerSurvey from './pages/CustomerSurvey';
 import CustomerSurveys from './pages/CustomerSurveys';
 import Dashboard from './pages/Dashboard';
+import Deliveries from './pages/Deliveries';
+import DeliveryCustomerClub from './pages/DeliveryCustomerClub';
 import EmployeeDetails from './pages/EmployeeDetails';
 import EmployeeFeedback from './pages/EmployeeFeedback';
 import EmployeeHome from './pages/EmployeeHome';
@@ -99,8 +101,6 @@ import Training from './pages/Training';
 import UploadChecklists from './pages/UploadChecklists';
 import WaiterTables from './pages/WaiterTables';
 import WorkScheduling from './pages/WorkScheduling';
-import Deliveries from './pages/Deliveries';
-import DeliveryCustomerClub from './pages/DeliveryCustomerClub';
 import __Layout from './Layout.jsx';
 
 
@@ -120,6 +120,8 @@ export const PAGES = {
     "CustomerSurvey": CustomerSurvey,
     "CustomerSurveys": CustomerSurveys,
     "Dashboard": Dashboard,
+    "Deliveries": Deliveries,
+    "DeliveryCustomerClub": DeliveryCustomerClub,
     "EmployeeDetails": EmployeeDetails,
     "EmployeeFeedback": EmployeeFeedback,
     "EmployeeHome": EmployeeHome,
@@ -157,8 +159,6 @@ export const PAGES = {
     "UploadChecklists": UploadChecklists,
     "WaiterTables": WaiterTables,
     "WorkScheduling": WorkScheduling,
-    "Deliveries": Deliveries,
-    "DeliveryCustomerClub": DeliveryCustomerClub,
 }
 
 export const pagesConfig = {

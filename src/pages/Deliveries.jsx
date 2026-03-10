@@ -14,8 +14,9 @@ import {
 } from "@/components/ui/select";
 import {
   Camera, Package, CheckCircle2, Clock, Phone, MapPin, User,
-  Banknote, Users, Pencil, Trash2, MessageSquare, AlertTriangle,
+  Banknote, Users, Pencil, Trash2, MessageSquare, AlertTriangle, Send,
 } from "lucide-react";
+import { sendDeliveryToTelegram } from "@/functions/sendDeliveryToTelegram";
 import { format } from "date-fns";
 import { createPageUrl } from "@/utils";
 import { Link } from "react-router-dom";
