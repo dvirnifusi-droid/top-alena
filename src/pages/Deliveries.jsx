@@ -178,13 +178,13 @@ export default function Deliveries() {
     setShowAddDialog(false);
     setScanResult(null);
     setPhotoPreview(null);
-    loadDeliveries();
+    loadDeliveries(selectedDate);
   };
 
   const handleMarkPaid = async (delivery) => {
     await base44.entities.Delivery.update(delivery.id, { payment_status: "paid" });
     setShowMarkPaidDialog(null);
-    loadDeliveries();
+    loadDeliveries(selectedDate);
   };
 
   const handleMarkUnpaid = async (delivery) => {
@@ -194,7 +194,7 @@ export default function Deliveries() {
     });
     setCourierName("");
     setShowMarkPaidDialog(null);
-    loadDeliveries();
+    loadDeliveries(selectedDate);
   };
 
   const totalCash = deliveries.reduce((s, d) => s + (d.cash_amount || 0), 0);
