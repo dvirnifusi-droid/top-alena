@@ -396,6 +396,22 @@ export default function Deliveries() {
               <Input type="number" value={formData.cash_amount} onChange={(e) => setFormData({ ...formData, cash_amount: e.target.value })} placeholder="0" />
             </div>
             <div>
+              <Label>פלטפורמה</Label>
+              <Select value={formData.platform || ""} onValueChange={(v) => setFormData({ ...formData, platform: v })}>
+                <SelectTrigger>
+                  <SelectValue placeholder="בחר פלטפורמה" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Wolt">🔵 Wolt</SelectItem>
+                  <SelectItem value="תן ביס">🟠 תן ביס</SelectItem>
+                  <SelectItem value="סיבוס">🟡 סיבוס</SelectItem>
+                  <SelectItem value="Mishloha">🟢 Mishloha</SelectItem>
+                  <SelectItem value="Valuecard">🔴 Valuecard</SelectItem>
+                  <SelectItem value="טלפון">📞 טלפון</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
               <Label>מה הוזמן</Label>
               <Input value={formData.items_ordered || ""} onChange={(e) => setFormData({ ...formData, items_ordered: e.target.value })} placeholder="פירוט ההזמנה (אופציונלי)" />
             </div>
