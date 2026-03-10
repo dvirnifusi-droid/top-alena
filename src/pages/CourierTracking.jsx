@@ -44,6 +44,26 @@ export default function CourierTracking() {
     return { pending, pickedUp, delivered, totalAmount, total: cDeliveries.length };
   };
 
+  const optimizeDeliveryOrder = (deliveries) => {
+    if (deliveries.length === 0) return [];
+    
+    // סדר: pending → picked_up → delivered
+    const statusOrder = { pending: 0, picked_up: 1, delivered: 2 };
+    
+    return [...deliveries].sort((a, b) => {
+      // ראשית לפי סטטוס
+      const statusDiff = (statusOrder[a.delivery_status] || 3) - (statusOrder[b.delivery_status] || 3);
+      if (statusDiff !== 0) return statusDiff;
+      
+      // אחר כך לפי שכונה (כדי לקבץ קרוב)
+      const neighborhoodDiff = (a.neighborhood || "").localeCompare(b.neighborhood || "", "he");
+      if (neighborhoodDiff !== 0) return neighborhoodDiff;
+      
+      // לבסוף לפי סדר יצירה
+      return new Date(b.created_date) - new Date(a.created_date);
+    });
+  };
+
   return (
     <div className="p-4 max-w-6xl mx-auto space-y-4" dir="rtl">
       {/* Header */}
