@@ -32,6 +32,7 @@ export default function EmployeeHome() {
     const [todayPosition, setTodayPosition] = useState(null);
     const [showConfetti, setShowConfetti] = useState(false);
     const [confettiMsg, setConfettiMsg] = useState('');
+    const fileInputRef = React.useRef();
 
     useEffect(() => {
         User.me().then(async u => {
