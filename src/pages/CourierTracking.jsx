@@ -232,6 +232,42 @@ export default function CourierTracking() {
                             📍 {delivery.neighborhood}
                           </div>
                         )}
+
+                        {/* Action Buttons */}
+                        <div className="flex gap-1 mt-2 flex-wrap">
+                          {delivery.delivery_status !== "picked_up" && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => updateDeliveryStatus(delivery, "picked_up")}
+                              disabled={updatingId === delivery.id}
+                              className="text-xs h-7"
+                            >
+                              <Truck className="w-3 h-3 ml-1" /> בדרך
+                            </Button>
+                          )}
+                          {delivery.delivery_status !== "delivered" && (
+                            <Button
+                              size="sm"
+                              className="bg-green-600 hover:bg-green-700 text-white text-xs h-7"
+                              onClick={() => updateDeliveryStatus(delivery, "delivered")}
+                              disabled={updatingId === delivery.id}
+                            >
+                              <CheckCircle2 className="w-3 h-3 ml-1" /> הורד
+                            </Button>
+                          )}
+                          {delivery.payment_status !== "paid" && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => markAsPaid(delivery)}
+                              disabled={updatingId === delivery.id}
+                              className="text-xs h-7"
+                            >
+                              <DollarSign className="w-3 h-3 ml-1" /> שולם
+                            </Button>
+                          )}
+                        </div>
                       </div>
                     ))
                   )}
