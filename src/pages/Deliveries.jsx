@@ -259,8 +259,8 @@ export default function Deliveries() {
       return;
     }
 
-    if (!ngrokUrl) {
-      alert("חסר Ngrok URL! הדבק את הקישור מ-Ngrok בהגדרות.");
+    if (!groupId) {
+      alert("חסר Group ID! הזן את ה-ID של הקבוצה בהגדרות.");
       return;
     }
 
@@ -273,7 +273,7 @@ export default function Deliveries() {
 
     setSendingTelegram(true);
     try {
-      await sendDeliveryViaTelegramClient({ phone, address, prep_time: prepTime, sessionToken, ngrokUrl });
+      await sendDeliveryViaTelegramClient({ phone, address, prep_time: prepTime, sessionToken, groupId });
     } catch (err) {
       alert("שגיאה בשליחה: " + err.message);
     }
