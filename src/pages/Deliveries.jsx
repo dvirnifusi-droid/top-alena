@@ -128,12 +128,49 @@ export default function Deliveries() {
   };
 
   const handleSaveDelivery = async () => {
+    const amount = Number(formData.cash_amount) || 0;
     await base44.entities.Delivery.create({
       ...formData,
-      cash_amount: Number(formData.cash_amount) || 0,
+      cash_amount: amount,
       date: today,
       payment_status: "unpaid",
     });
+
+    // שמור/עדכן במועדון לקוחות משלוחים
+    if (formData.customer_phone) {
+      const existing = await base44.entities.DeliveryCustomer.filter({ customer_phone: formData.customer_phone });
+      const orderEntry = {
+        date: today,
+        amount,
+        items_ordered: formData.items_ordered || "",
+        address: formData.address || "",
+      };
+      if (existing.length > 0) {
+        const c = existing[0];
+        const orders = [...(c.orders || []), orderEntry];
+        await base44.entities.DeliveryCustomer.update(c.id, {
+          customer_name: formData.customer_name || c.customer_name,
+          address: formData.address || c.address,
+          neighborhood: formData.neighborhood || c.neighborhood,
+          orders,
+          total_orders: orders.length,
+          total_spent: (c.total_spent || 0) + amount,
+          last_order_date: today,
+        });
+      } else {
+        await base44.entities.DeliveryCustomer.create({
+          customer_name: formData.customer_name || "",
+          customer_phone: formData.customer_phone,
+          address: formData.address || "",
+          neighborhood: formData.neighborhood || "",
+          orders: [orderEntry],
+          total_orders: 1,
+          total_spent: amount,
+          last_order_date: today,
+        });
+      }
+    }
+
     setShowAddDialog(false);
     setScanResult(null);
     setPhotoPreview(null);
