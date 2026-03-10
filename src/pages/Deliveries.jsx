@@ -106,6 +106,7 @@ export default function Deliveries() {
         cash_amount: result.cash_amount ? String(result.cash_amount) : "",
         platform: result.platform || "",
         photo_url: file_url,
+        opened_by: currentUser?.full_name || currentUser?.email || "",
       }));
       setEditingDelivery(null);
       setShowAddDialog(true);
