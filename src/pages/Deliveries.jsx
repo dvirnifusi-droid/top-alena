@@ -128,7 +128,7 @@ export default function Deliveries() {
         customer_name: result.customer_name || "",
         customer_phone: result.customer_phone || "",
         address: result.address || "",
-        cash_amount: result.cash_amount ? String(result.cash_amount) : "",
+        cash_amount: result.cash_amount ? String(result.cash_amount) : result.total_amount ? String(result.total_amount) : "",
         platform: result.platform || "",
         photo_url: file_url,
         opened_by: currentUser?.full_name || currentUser?.email || "",
