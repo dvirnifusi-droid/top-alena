@@ -214,6 +214,20 @@ export default function Deliveries() {
     loadDeliveries(selectedDate);
   };
 
+  const handleSendToTelegram = async () => {
+    const d = showTelegramDialog;
+    const phone = d.customer_phone;
+    const address = d.address;
+
+    if (!phone) { alert("חסר מספר טלפון במשלוח זה!"); return; }
+    if (!address) { alert("חסרה כתובת במשלוח זה!"); return; }
+
+    setSendingTelegram(true);
+    await sendDeliveryToTelegram({ phone, address, prep_time: prepTime });
+    setSendingTelegram(false);
+    setShowTelegramDialog(null);
+  };
+
   const handleMarkPaid = async (delivery) => {
     await base44.entities.Delivery.update(delivery.id, { payment_status: "paid" });
     setShowMarkPaidDialog(null);
