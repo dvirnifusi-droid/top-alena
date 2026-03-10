@@ -57,6 +57,9 @@ import BeecommIntegration from './pages/BeecommIntegration';
 import BriefingManagement from './pages/BriefingManagement';
 import CharacterLounge from './pages/CharacterLounge';
 import Checklists from './pages/Checklists';
+import CourierDashboard from './pages/CourierDashboard';
+import CourierTracking from './pages/CourierTracking';
+import Couriers from './pages/Couriers';
 import CustomerClub from './pages/CustomerClub';
 import CustomerDetails from './pages/CustomerDetails';
 import CustomerSurvey from './pages/CustomerSurvey';
@@ -105,9 +108,6 @@ import Training from './pages/Training';
 import UploadChecklists from './pages/UploadChecklists';
 import WaiterTables from './pages/WaiterTables';
 import WorkScheduling from './pages/WorkScheduling';
-import Couriers from './pages/Couriers';
-import CourierDashboard from './pages/CourierDashboard';
-import CourierTracking from './pages/CourierTracking';
 import __Layout from './Layout.jsx';
 
 
@@ -122,6 +122,9 @@ export const PAGES = {
     "BriefingManagement": BriefingManagement,
     "CharacterLounge": CharacterLounge,
     "Checklists": Checklists,
+    "CourierDashboard": CourierDashboard,
+    "CourierTracking": CourierTracking,
+    "Couriers": Couriers,
     "CustomerClub": CustomerClub,
     "CustomerDetails": CustomerDetails,
     "CustomerSurvey": CustomerSurvey,
@@ -170,9 +173,6 @@ export const PAGES = {
     "UploadChecklists": UploadChecklists,
     "WaiterTables": WaiterTables,
     "WorkScheduling": WorkScheduling,
-    "Couriers": Couriers,
-    "CourierDashboard": CourierDashboard,
-    "CourierTracking": CourierTracking,
 }
 
 export const pagesConfig = {
