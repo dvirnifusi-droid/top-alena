@@ -19,29 +19,35 @@ Deno.serve(async (req) => {
   const existing = await base44.asServiceRole.entities.DeliveryCustomer.list();
   const existingPhones = new Set(existing.map(c => c.customer_phone?.replace(/\s/g, '')));
 
-  let imported = 0, skipped = 0, errors = 0;
-
+  // בנה את רשימת הלקוחות החדשים
+  const toCreate = [];
   for (const line of phoneLines) {
     const phone = line.trim().replace(/"/g, '').replace(/\s/g, '');
     if (!phone) continue;
+    if (existingPhones.has(phone)) continue;
+    existingPhones.add(phone);
+    toCreate.push({
+      customer_phone: phone,
+      customer_name: 'לקוח לא מזוהה',
+      total_orders: 0,
+      total_spent: 0,
+      orders: [],
+    });
+  }
 
-    if (existingPhones.has(phone)) {
-      skipped++;
-      continue;
-    }
+  const skipped = phoneLines.length - toCreate.length;
+  let imported = 0, errors = 0;
 
+  // צור ב-batches של 100
+  const BATCH = 100;
+  for (let i = 0; i < toCreate.length; i += BATCH) {
+    const batch = toCreate.slice(i, i + BATCH);
     try {
-      await base44.asServiceRole.entities.DeliveryCustomer.create({
-        customer_phone: phone,
-        customer_name: 'לקוח לא מזוהה',
-        total_orders: 0,
-        total_spent: 0,
-        orders: [],
-      });
-      existingPhones.add(phone);
-      imported++;
+      await base44.asServiceRole.entities.DeliveryCustomer.bulkCreate(batch);
+      imported += batch.length;
     } catch (e) {
-      errors++;
+      errors += batch.length;
+      console.error('Batch error:', e.message);
     }
   }
 
