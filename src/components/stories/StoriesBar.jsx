@@ -161,6 +161,80 @@ export default function StoriesBar({ currentEmployee }) {
     }
   };
 
+  const handleQuickReaction = async (emoji) => {
+    if (!currentEmployee || !currentStory) return;
+    const reactions = currentStory.quick_reactions || [];
+    const reactionIdx = reactions.findIndex(r => r.emoji === emoji);
+    
+    if (reactionIdx === -1) {
+      reactions.push({ emoji, employee_ids: [currentEmployee.id] });
+    } else {
+      const empIds = reactions[reactionIdx].employee_ids;
+      if (empIds.includes(currentEmployee.id)) {
+        empIds.splice(empIds.indexOf(currentEmployee.id), 1);
+        if (empIds.length === 0) reactions.splice(reactionIdx, 1);
+      } else {
+        empIds.push(currentEmployee.id);
+      }
+    }
+    
+    await base44.entities.EmployeeStory.update(currentStory.id, { quick_reactions: reactions });
+    setViewingStory(prev => {
+      const updated = { ...currentStory, quick_reactions: reactions };
+      const newStories = prev.stories.map((s, i) => i === prev.storyIndex ? updated : s);
+      return { ...prev, stories: newStories };
+    });
+  };
+
+  const handleAskQuestion = async () => {
+    if (!qaQuestion.trim() || !currentEmployee || !currentStory) return;
+    const newQuestion = {
+      employee_id: currentEmployee.id,
+      employee_name: currentEmployee.full_name,
+      text: qaQuestion.trim(),
+      created_at: new Date().toISOString()
+    };
+    const questions = [...(currentStory.questions || []), newQuestion];
+    await base44.entities.EmployeeStory.update(currentStory.id, { questions });
+    setQaQuestion("");
+    setShowQA(false);
+    setViewingStory(prev => {
+      const updated = { ...currentStory, questions };
+      const newStories = prev.stories.map((s, i) => i === prev.storyIndex ? updated : s);
+      return { ...prev, stories: newStories };
+    });
+  };
+
+  const handlePollVote = async (option) => {
+    if (!currentEmployee || !currentStory?.poll) return;
+    const votes = currentStory.poll.votes || [];
+    const existingVote = votes.find(v => v.employee_id === currentEmployee.id);
+    
+    if (existingVote) {
+      existingVote.option = option;
+    } else {
+      votes.push({ employee_id: currentEmployee.id, option });
+    }
+    
+    const updatedPoll = { ...currentStory.poll, votes };
+    await base44.entities.EmployeeStory.update(currentStory.id, { poll: updatedPoll });
+    setPollAnswer(option);
+    setShowPoll(false);
+    setViewingStory(prev => {
+      const updated = { ...currentStory, poll: updatedPoll };
+      const newStories = prev.stories.map((s, i) => i === prev.storyIndex ? updated : s);
+      return { ...prev, stories: newStories };
+    });
+  };
+
+  const handleDeleteStory = async () => {
+    if (!currentEmployee || currentStory.employee_id !== currentEmployee.id) return;
+    if (!window.confirm("לחזור? סטורי זה יוחק")) return;
+    await base44.entities.EmployeeStory.delete(currentStory.id);
+    loadStories();
+    setViewingStory(null);
+  };
+
   const handleFileSelect = (e) => {
     const file = e.target.files[0];
     if (!file) return;
