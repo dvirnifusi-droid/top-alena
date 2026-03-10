@@ -40,11 +40,16 @@ export default function Deliveries() {
   const [editingDelivery, setEditingDelivery] = useState(null);
   const [courierName, setCourierName] = useState("");
   const [noteData, setNoteData] = useState({ issue_type: "", notes: "" });
+  const [currentUser, setCurrentUser] = useState(null);
   const [formData, setFormData] = useState({
     customer_name: "", customer_phone: "", address: "",
     cash_amount: "", courier_name: "", payment_status: "unpaid",
-    platform: "", items_ordered: "", neighborhood: "",
+    platform: "", items_ordered: "", neighborhood: "", opened_by: "",
   });
+
+  useEffect(() => {
+    base44.auth.me().then(u => setCurrentUser(u)).catch(() => {});
+  }, []);
   const [photoPreview, setPhotoPreview] = useState(null);
   const fileInputRef = useRef();
 
@@ -119,6 +124,7 @@ export default function Deliveries() {
       customer_name: "", customer_phone: "", address: "",
       cash_amount: "", courier_name: "", payment_status: "unpaid",
       platform: "", items_ordered: "", neighborhood: "",
+      opened_by: currentUser?.full_name || currentUser?.email || "",
     });
     setShowAddDialog(true);
   };
