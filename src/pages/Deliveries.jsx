@@ -407,7 +407,14 @@ export default function Deliveries() {
             <div><Label>שכונה</Label><Input value={formData.neighborhood || ""} onChange={(e) => setFormData({ ...formData, neighborhood: e.target.value })} placeholder="שכונה" /></div>
             <div><Label>שם השליח</Label><Input value={formData.courier_name} onChange={(e) => setFormData({ ...formData, courier_name: e.target.value })} placeholder="מי לוקח את המשלוח?" /></div>
             <div><Label>נרשם על ידי</Label><Input value={formData.opened_by || ""} onChange={(e) => setFormData({ ...formData, opened_by: e.target.value })} placeholder="שם העובד שפתח את המשלוח" /></div>
-            <Button className="w-full" onClick={handleSaveDelivery}>{editingDelivery ? "שמור שינויים" : "שמור משלוח"}</Button>
+            <div className="flex gap-2">
+              <Button className="flex-1" onClick={handleSaveDelivery}>{editingDelivery ? "שמור שינויים" : "שמור משלוח"}</Button>
+              {!editingDelivery && (
+                <Button className="flex-1 bg-green-600 hover:bg-green-700" onClick={handleSaveAndDispatch}>
+                  <Send className="w-4 h-4 ml-1" /> שמור וצוות משלוח
+                </Button>
+              )}
+            </div>
           </div>
         </DialogContent>
       </Dialog>
