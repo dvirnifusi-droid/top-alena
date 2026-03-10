@@ -1,7 +1,6 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
-import { TelegramClient } from 'npm:telegram';
-import { StringSession } from 'npm:telegram/sessions';
-import { Api } from 'npm:telegram';
+import { TelegramClient } from 'npm:telegram@2.26.22';
+import { StringSession } from 'npm:telegram@2.26.22/sessions/index.js';
 
 Deno.serve(async (req) => {
   try {
