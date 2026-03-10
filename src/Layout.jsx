@@ -70,6 +70,7 @@ const adminLinks = [
   { title: "ברקודי סקרים", url: createPageUrl("SurveyQRCodes"), icon: QrCode, isSubItem: true },
 
   // חנות בגדים וגמיפיקציה
+  { title: "משלוחים", url: createPageUrl("Deliveries"), icon: Package },
   { title: "שליחת Push ידני", url: createPageUrl("PushNotifications"), icon: Bell },
   { title: "ניהול חנות בגדים", url: createPageUrl("ApparelManagement"), icon: Trophy },
   { title: "סלון דמויות", url: createPageUrl("CharacterLounge"), icon: Trophy },
