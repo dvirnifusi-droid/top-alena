@@ -47,6 +47,7 @@ const adminLinks = [
   { title: "רשימת עובדים", url: createPageUrl("Employees"), icon: Users, isSubItem: true },
   { title: "ניהול תפקידים", url: createPageUrl("PositionsManagement"), icon: Briefcase, isSubItem: true },
   { title: "ניהול שליחים", url: createPageUrl("Couriers"), icon: Package, isSubItem: true },
+  { title: "מעקב שליחים חי 🗺️", url: createPageUrl("CourierTracking"), icon: Navigation, isSubItem: true },
   { title: "סידור עבודה", url: createPageUrl("WorkScheduling"), icon: Calendar, isSubItem: true },
   { title: "בקשות זמינות", url: createPageUrl("AvailabilityRequests"), icon: Calendar, isSubItem: true },
   { title: "בקשות חופשה", url: createPageUrl("LeaveRequests"), icon: CalendarDays, isSubItem: true },
