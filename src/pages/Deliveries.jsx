@@ -16,7 +16,7 @@ import {
   Camera, Package, CheckCircle2, Clock, Phone, MapPin, User,
   Banknote, Users, Pencil, Trash2, MessageSquare, AlertTriangle, Send,
 } from "lucide-react";
-import { sendDeliveryToTelegram } from "@/functions/sendDeliveryToTelegram";
+import { sendDeliveryViaTelegramClient } from "@/functions/sendDeliveryViaTelegramClient";
 import { format } from "date-fns";
 import { createPageUrl } from "@/utils";
 import { Link } from "react-router-dom";
@@ -266,7 +266,7 @@ export default function Deliveries() {
     if (!address) { alert("חסרה כתובת במשלוח זה!"); return; }
 
     setSendingTelegram(true);
-    await sendDeliveryToTelegram({ phone, address, prep_time: prepTime, sessionToken });
+    await sendDeliveryViaTelegramClient({ phone, address, prep_time: prepTime, sessionToken });
     setSendingTelegram(false);
     setShowTelegramDialog(null);
   };
