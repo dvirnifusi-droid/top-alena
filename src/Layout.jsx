@@ -61,6 +61,9 @@ const adminLinks = [
   { title: "צ'קליסטים", url: createPageUrl("Checklists"), icon: CheckSquare, isSubItem: true },
   { title: "תקריות", url: createPageUrl("Incidents"), icon: AlertTriangle, isSubItem: true },
   { title: "ארכיון סטוריז", url: createPageUrl("StoriesArchive"), icon: FileText, isSubItem: true },
+  { title: "לוח דירוג סטוריז", url: createPageUrl("StoriesLeaderboard"), icon: Trophy, isSubItem: true },
+  { title: "ניתוח סטוריז", url: createPageUrl("StoriesAnalytics"), icon: BarChart3, isSubItem: true },
+  { title: "הודעות סטוריז", url: createPageUrl("StoriesNotifications"), icon: Bell, isSubItem: true },
 
   // לקוחות ושיווק
   { title: "לקוחות ושיווק", url: "#", icon: MessageSquare, isCategory: true },
