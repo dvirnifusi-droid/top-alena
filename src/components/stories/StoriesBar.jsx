@@ -310,10 +310,34 @@ export default function StoriesBar({ currentEmployee }) {
                 ? <video src={currentStory.media_url} autoPlay muted loop className="w-full h-full object-cover" style={{maxHeight:"100vh"}} />
                 : <img src={currentStory.media_url} className="w-full h-full object-cover" style={{maxHeight:"100vh"}} alt="" />}
 
+              {/* Pause indicator */}
+              {paused && (
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                  <div className="bg-black/40 rounded-full p-4">
+                    <div className="flex gap-1.5">
+                      <div className="w-3 h-8 bg-white rounded-full" />
+                      <div className="w-3 h-8 bg-white rounded-full" />
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Tap zones */}
               <div className="absolute inset-0 flex">
-                <div className="flex-1" onClick={goPrev} />
-                <div className="flex-1" onClick={goNext} />
+                <div className="flex-1"
+                  onClick={goPrev}
+                  onMouseDown={() => { pausedRef.current = true; setPaused(true); }}
+                  onMouseUp={() => { pausedRef.current = false; setPaused(false); }}
+                  onTouchStart={() => { pausedRef.current = true; setPaused(true); }}
+                  onTouchEnd={(e) => { pausedRef.current = false; setPaused(false); handleTouchEnd(e); }}
+                />
+                <div className="flex-1"
+                  onClick={goNext}
+                  onMouseDown={() => { pausedRef.current = true; setPaused(true); }}
+                  onMouseUp={() => { pausedRef.current = false; setPaused(false); }}
+                  onTouchStart={() => { pausedRef.current = true; setPaused(true); }}
+                  onTouchEnd={(e) => { pausedRef.current = false; setPaused(false); handleTouchEnd(e); }}
+                />
               </div>
 
               {/* Caption */}
