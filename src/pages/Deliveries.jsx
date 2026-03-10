@@ -40,6 +40,7 @@ export default function Deliveries() {
   const [showNoteDialog, setShowNoteDialog] = useState(null);
   const [editingDelivery, setEditingDelivery] = useState(null);
   const [courierName, setCourierName] = useState("");
+  const [couriers, setCouriers] = useState([]);
   const [noteData, setNoteData] = useState({ issue_type: "", notes: "" });
   const [showTelegramDialog, setShowTelegramDialog] = useState(null); // delivery object
   const [prepTime, setPrepTime] = useState(15);
@@ -56,6 +57,7 @@ export default function Deliveries() {
 
   useEffect(() => {
     base44.auth.me().then(u => setCurrentUser(u)).catch(() => {});
+    base44.entities.Courier.list().then(c => setCouriers(c)).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -443,7 +445,17 @@ export default function Deliveries() {
             </div>
             <div><Label>מה הוזמן</Label><Input value={formData.items_ordered || ""} onChange={(e) => setFormData({ ...formData, items_ordered: e.target.value })} placeholder="פירוט ההזמנה (אופציונלי)" /></div>
             <div><Label>שכונה</Label><Input value={formData.neighborhood || ""} onChange={(e) => setFormData({ ...formData, neighborhood: e.target.value })} placeholder="שכונה" /></div>
-            <div><Label>שם השליח</Label><Input value={formData.courier_name} onChange={(e) => setFormData({ ...formData, courier_name: e.target.value })} placeholder="מי לוקח את המשלוח?" /></div>
+            <div>
+              <Label>שם השליח</Label>
+              <Select value={formData.courier_name || ""} onValueChange={(v) => setFormData({ ...formData, courier_name: v })}>
+                <SelectTrigger><SelectValue placeholder="בחר שליח" /></SelectTrigger>
+                <SelectContent>
+                  {couriers.filter(c => c.status === "active").map((c) => (
+                    <SelectItem key={c.id} value={c.name}>{c.name} {c.phone ? `(${c.phone})` : ""}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
             <div><Label>נרשם על ידי</Label><Input value={formData.opened_by || ""} onChange={(e) => setFormData({ ...formData, opened_by: e.target.value })} placeholder="שם העובד שפתח את המשלוח" /></div>
             <div className="flex gap-2">
               <Button className="flex-1" onClick={handleSaveDelivery}>{editingDelivery ? "שמור שינויים" : "שמור משלוח"}</Button>
