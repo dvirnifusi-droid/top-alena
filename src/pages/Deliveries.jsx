@@ -42,6 +42,9 @@ export default function Deliveries() {
   const [courierName, setCourierName] = useState("");
   const [couriers, setCouriers] = useState([]);
   const [noteData, setNoteData] = useState({ issue_type: "", notes: "" });
+  const [showAddCourierDialog, setShowAddCourierDialog] = useState(false);
+  const [newCourierName, setNewCourierName] = useState("");
+  const [newCourierPhone, setNewCourierPhone] = useState("");
   const [showTelegramDialog, setShowTelegramDialog] = useState(null); // delivery object
   const [prepTime, setPrepTime] = useState(15);
   const [sendingTelegram, setSendingTelegram] = useState(false);
@@ -57,8 +60,30 @@ export default function Deliveries() {
 
   useEffect(() => {
     base44.auth.me().then(u => setCurrentUser(u)).catch(() => {});
-    base44.entities.Courier.list().then(c => setCouriers(c)).catch(() => {});
+    loadCouriers();
   }, []);
+
+  const loadCouriers = async () => {
+    const c = await base44.entities.Courier.list();
+    setCouriers(c);
+  };
+
+  const handleAddNewCourier = async () => {
+    if (!newCourierName.trim()) {
+      alert("שם השליח חובה!");
+      return;
+    }
+    await base44.entities.Courier.create({
+      name: newCourierName,
+      phone: newCourierPhone,
+      status: "active",
+    });
+    setFormData({ ...formData, courier_name: newCourierName });
+    setNewCourierName("");
+    setNewCourierPhone("");
+    setShowAddCourierDialog(false);
+    loadCouriers();
+  };
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -447,14 +472,17 @@ export default function Deliveries() {
             <div><Label>שכונה</Label><Input value={formData.neighborhood || ""} onChange={(e) => setFormData({ ...formData, neighborhood: e.target.value })} placeholder="שכונה" /></div>
             <div>
               <Label>שם השליח</Label>
-              <Select value={formData.courier_name || ""} onValueChange={(v) => setFormData({ ...formData, courier_name: v })}>
-                <SelectTrigger><SelectValue placeholder="בחר שליח" /></SelectTrigger>
-                <SelectContent>
-                  {couriers.filter(c => c.status === "active").map((c) => (
-                    <SelectItem key={c.id} value={c.name}>{c.name} {c.phone ? `(${c.phone})` : ""}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div className="flex gap-2">
+                <Select value={formData.courier_name || ""} onValueChange={(v) => setFormData({ ...formData, courier_name: v })}>
+                  <SelectTrigger className="flex-1"><SelectValue placeholder="בחר שליח" /></SelectTrigger>
+                  <SelectContent>
+                    {couriers.filter(c => c.status === "active").map((c) => (
+                      <SelectItem key={c.id} value={c.name}>{c.name} {c.phone ? `(${c.phone})` : ""}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button type="button" onClick={() => setShowAddCourierDialog(true)} variant="outline" size="icon" title="הוסף שליח חדש">+</Button>
+              </div>
             </div>
             <div><Label>נרשם על ידי</Label><Input value={formData.opened_by || ""} onChange={(e) => setFormData({ ...formData, opened_by: e.target.value })} placeholder="שם העובד שפתח את המשלוח" /></div>
             <div className="flex gap-2">
@@ -587,6 +615,27 @@ export default function Deliveries() {
                 ✅ שמור הגדרות
               </Button>
               <Button variant="outline" className="flex-1" onClick={() => setShowSessionDialog(false)}>ביטול</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* דיאלוג הוספת שליח */}
+      <Dialog open={showAddCourierDialog} onOpenChange={setShowAddCourierDialog}>
+        <DialogContent className="max-w-sm" dir="rtl">
+          <DialogHeader><DialogTitle>➕ שליח חדש</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <Label>שם השליח</Label>
+              <Input value={newCourierName} onChange={(e) => setNewCourierName(e.target.value)} placeholder="שם השליח" />
+            </div>
+            <div>
+              <Label>טלפון (אופציונלי)</Label>
+              <Input value={newCourierPhone} onChange={(e) => setNewCourierPhone(e.target.value)} placeholder="מספר טלפון" />
+            </div>
+            <div className="flex gap-2">
+              <Button className="flex-1" onClick={handleAddNewCourier}>הוסף</Button>
+              <Button variant="outline" className="flex-1" onClick={() => setShowAddCourierDialog(false)}>ביטול</Button>
             </div>
           </div>
         </DialogContent>
