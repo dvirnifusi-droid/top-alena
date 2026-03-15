@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Incident } from '@/entities/all';
 import PageGuard from '../components/shared/PageGuard';
 import { User } from '@/entities/User';
