@@ -765,7 +765,11 @@ function DeliveryCard({ delivery, onAction, onEdit, onDelete, onNote, onTelegram
             )}
           </div>
           <div className="flex flex-col items-end gap-2 flex-shrink-0">
-            <span className="font-bold text-base">₪{delivery.cash_amount}</span>
+            <div className="text-right space-y-0.5">
+              {delivery.cash_amount > 0 && <div className="font-bold text-base text-green-700">💵 ₪{delivery.cash_amount}</div>}
+              {delivery.credit_amount > 0 && <div className="text-sm font-semibold text-blue-700">💳 ₪{delivery.credit_amount}</div>}
+              {delivery.total_delivery_amount > 0 && <div className="text-xs text-muted-foreground">סה״כ: ₪{delivery.total_delivery_amount}</div>}
+            </div>
             <Badge
               className={`cursor-pointer text-xs ${delivery.payment_status === "paid" ? "bg-green-100 text-green-800 hover:bg-green-200" : "bg-red-100 text-red-800 hover:bg-red-200"}`}
               onClick={onAction}
