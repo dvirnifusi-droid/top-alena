@@ -209,6 +209,8 @@ export default function Deliveries() {
       customer_phone: delivery.customer_phone || "",
       address: delivery.address || "",
       cash_amount: String(delivery.cash_amount || ""),
+      credit_amount: String(delivery.credit_amount || ""),
+      total_delivery_amount: String(delivery.total_delivery_amount || ""),
       courier_name: delivery.courier_name || "",
       payment_status: delivery.payment_status || "unpaid",
       platform: delivery.platform || "",
