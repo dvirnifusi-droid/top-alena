@@ -523,7 +523,11 @@ export default function MenuLearning({ onComplete, user }) {
                         />
                         <Button variant="outline" size="icon" onClick={() => {
                             if (newCatName.trim()) {
-                                setCatEdits(prev => [...prev, { original: newCatName.trim(), current: newCatName.trim() }]);
+                                const name = newCatName.trim();
+                                setCatEdits(prev => [...prev, { original: name, current: name }]);
+                                const updated = [...extraCategories, name];
+                                setExtraCategories(updated);
+                                localStorage.setItem('menuExtraCategories', JSON.stringify(updated));
                                 setNewCatName('');
                             }
                         }}>
