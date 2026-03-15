@@ -754,7 +754,24 @@ export default function RevenueForecastingPage() {
                 {/* Charts */}
                 <Card className="shadow-xl">
                     <CardHeader>
-                        <CardTitle>מגמות הכנסות - 30 יום אחרונים</CardTitle>
+                        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                            <CardTitle>מגמות הכנסות</CardTitle>
+                            <div className="flex flex-wrap gap-2">
+                                {CHART_FILTERS.map(f => (
+                                    <button
+                                        key={f.value}
+                                        onClick={() => setChartFilter(f.value)}
+                                        className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                                            chartFilter === f.value
+                                                ? 'bg-blue-600 text-white shadow'
+                                                : 'bg-white border border-slate-200 text-slate-600 hover:bg-blue-50'
+                                        }`}
+                                    >
+                                        {f.label}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
                     </CardHeader>
                     <CardContent>
                         <ResponsiveContainer width="100%" height={300}>
