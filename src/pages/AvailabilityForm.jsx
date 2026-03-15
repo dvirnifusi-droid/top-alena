@@ -45,6 +45,7 @@ const initDayData = () => {
 };
 
 export default function AvailabilityForm() {
+     const { toast } = useToast();
      const [selectedEmployee, setSelectedEmployee] = useState(null);
      const [employeeEmail, setEmployeeEmail] = useState('');
      const [accessCode, setAccessCode] = useState('');
