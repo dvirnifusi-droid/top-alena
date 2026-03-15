@@ -8,7 +8,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { format, addDays, startOfWeek, endOfWeek, eachDayOfInterval } from 'date-fns';
 import { he } from 'date-fns/locale';
-import { CheckCircle2, Loader2, CalendarDays, User } from 'lucide-react';
+import { CheckCircle2, Loader2, CalendarDays, User, Coins } from 'lucide-react';
+import { awardAvailabilityCoins } from '@/functions/awardAvailabilityCoins';
 
 
 
