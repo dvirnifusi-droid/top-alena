@@ -267,7 +267,15 @@ export default function MenuLearning({ onComplete, user }) {
                                            border-2 border-gray-200 bg-white hover:border-orange-500 rounded-lg px-4 py-3 flex items-center gap-3"
                             >
                                 <IconComponent className="w-5 h-5" />
-                                <span className="font-semibold">{category.name}</span>
+                                {user?.role === 'admin' && category.id !== 'all' ? (
+                                    <CategoryRenameInline
+                                        catName={category.name}
+                                        onRename={handleRenameCategory}
+                                        disabled={renamingCategory}
+                                    />
+                                ) : (
+                                    <span className="font-semibold">{category.name}</span>
+                                )}
                             </TabsTrigger>
                         );
                     })}
