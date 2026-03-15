@@ -38,16 +38,13 @@ function ReportsInner() {
     const loadReports = useCallback(async () => {
         setLoading(true);
         try {
-            const { TipReport } = await import('@/entities/TipReport');
-            const { WorkShift } = await import('@/entities/WorkShift');
-            const { Employee } = await import('@/entities/Employee');
-            const { ShiftEndReport } = await import('@/entities/ShiftEndReport');
+            const { base44 } = await import('@/api/base44Client');
             
             const [reports, shifts, employeeList, endReports] = await Promise.all([
-                TipReport.list('-date'),
-                WorkShift.list('-date'),
-                Employee.list(),
-                ShiftEndReport.list('-shift_date')
+                base44.entities.TipReport.list('-date', 500),
+                base44.entities.WorkShift.list('-date', 500),
+                base44.entities.Employee.list(),
+                base44.entities.ShiftEndReport.list('-shift_date', 500)
             ]);
             
             // Filter by date range or month/year
