@@ -358,9 +358,17 @@ export default function MenuLearning({ onComplete, user }) {
                 </TabsList>
 
                 <div className="mt-8">
-                    <h2 className="text-2xl font-bold mb-6 text-gray-900 border-b-2 border-orange-500 pb-2">
+                <div className="flex items-center justify-between mb-6 border-b-2 border-orange-500 pb-2">
+                    <h2 className="text-2xl font-bold text-gray-900">
                         {categories.find(c => c.id === selectedCategory)?.name || 'כל התפריט'}
                     </h2>
+                    {user?.role === 'admin' && selectedCategory !== 'all' && (
+                        <Button size="sm" onClick={() => openAddItemDialog(selectedCategory)} className="flex items-center gap-2 bg-orange-600 hover:bg-orange-700">
+                            <Plus className="w-4 h-4" />
+                            הוסף מנה
+                        </Button>
+                    )}
+                </div>
                     
                     <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
                         {filteredItems.map((item) => {
