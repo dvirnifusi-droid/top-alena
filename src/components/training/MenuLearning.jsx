@@ -96,6 +96,9 @@ export default function MenuLearning({ onComplete, user }) {
 
     const [imageUploading, setImageUploading] = useState(false);
     const [renamingCategory, setRenamingCategory] = useState(false);
+    const [isCatDialogOpen, setIsCatDialogOpen] = useState(false);
+    const [catEdits, setCatEdits] = useState([]);
+    const [newCatName, setNewCatName] = useState('');
 
     const handleImageUpload = async (e) => {
         const file = e.target.files[0];
