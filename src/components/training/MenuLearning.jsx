@@ -79,7 +79,7 @@ export default function MenuLearning({ onComplete, user }) {
                 price: parseFloat(editingItem.price)
             };
             const { id, ...dataToUpdate } = itemToUpdate;
-            await MenuItem.update(id, dataToUpdate);
+            await base44.entities.MenuItem.update(id, dataToUpdate);
             setIsEditDialogOpen(false);
             setEditingItem(null);
             loadMenu();
@@ -87,6 +87,19 @@ export default function MenuLearning({ onComplete, user }) {
             console.error('שגיאה בעדכון המנה:', error);
             alert('שגיאה בעדכון המנה.');
         }
+    };
+
+    const handleRenameCategory = async (oldName, newName) => {
+        if (!newName || newName === oldName) return;
+        setRenamingCategory(true);
+        try {
+            const itemsInCategory = menuItems.filter(i => i.category === oldName);
+            await Promise.all(itemsInCategory.map(i => base44.entities.MenuItem.update(i.id, { category: newName })));
+            await loadMenu();
+        } catch (error) {
+            console.error('שגיאה בשינוי שם קטגוריה:', error);
+        }
+        setRenamingCategory(false);
     };
     
     // Predefined categories for the edit dialog's select input
