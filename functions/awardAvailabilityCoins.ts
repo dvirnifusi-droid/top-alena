@@ -5,29 +5,20 @@ Deno.serve(async (req) => {
     const base44 = createClientFromRequest(req);
     const body = await req.json();
     
-    const { employee_id, employee_name, submittedByTuesday, scheduledInWeekly } = body;
-    let coinsToAward = 0;
+    const { employee_id, employee_name, availableShifts, coinsToAward } = body;
 
-    // Base 50 coins for submitting availability by Tuesday
-    if (submittedByTuesday) {
-      coinsToAward += 50;
+    if (!employee_id || !employee_name) {
+      return Response.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
-    // Additional 100 coins if submitted by Friday AND scheduled in weekly shifts
-    if (submittedByTuesday && scheduledInWeekly) {
-      coinsToAward += 100;
-    }
+    const coins = coinsToAward || (availableShifts * 5);
 
-    if (coinsToAward > 0) {
-      const reason = submittedByTuesday && scheduledInWeekly 
-        ? 'הגשת זמינות בזמן וסידור במשמרות'
-        : 'הגשת זמינות בזמן';
-
+    if (coins > 0) {
       await base44.asServiceRole.entities.CoinTransaction.create({
         employee_id,
         employee_name,
-        amount: coinsToAward,
-        reason,
+        amount: coins,
+        reason: `הגשת סידור זמינות - ${availableShifts} משמרות פנויות`,
         type: 'earned',
         trigger: 'availability_submitted',
         status: 'approved'
@@ -36,7 +27,7 @@ Deno.serve(async (req) => {
 
     return Response.json({ 
       success: true, 
-      coinsAwarded: coinsToAward 
+      coinsAwarded: coins 
     });
   } catch (error) {
     console.error('Error awarding availability coins:', error);
