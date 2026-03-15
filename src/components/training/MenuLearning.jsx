@@ -435,6 +435,54 @@ export default function MenuLearning({ onComplete, user }) {
                 </div>
             )}
 
+            {/* Category Management Dialog */}
+            <Dialog open={isCatDialogOpen} onOpenChange={setIsCatDialogOpen}>
+                <DialogContent className="sm:max-w-[400px]" dir="rtl">
+                    <DialogHeader>
+                        <DialogTitle>ניהול קטגוריות</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-3 py-2 max-h-72 overflow-y-auto">
+                        {catEdits.map((edit, idx) => (
+                            <div key={idx} className="flex items-center gap-2">
+                                <Input
+                                    value={edit.current}
+                                    onChange={e => {
+                                        const updated = [...catEdits];
+                                        updated[idx] = { ...edit, current: e.target.value };
+                                        setCatEdits(updated);
+                                    }}
+                                    className="flex-1"
+                                />
+                                <span className="text-xs text-gray-400">{menuItems.filter(i => i.category === edit.original).length} מנות</span>
+                            </div>
+                        ))}
+                    </div>
+                    <div className="flex gap-2 pt-2 border-t">
+                        <Input
+                            placeholder="שם קטגוריה חדשה..."
+                            value={newCatName}
+                            onChange={e => setNewCatName(e.target.value)}
+                            className="flex-1"
+                        />
+                        <Button variant="outline" size="icon" onClick={() => {
+                            if (newCatName.trim()) {
+                                setCatEdits(prev => [...prev, { original: newCatName.trim(), current: newCatName.trim() }]);
+                                setNewCatName('');
+                            }
+                        }}>
+                            <Plus className="w-4 h-4" />
+                        </Button>
+                    </div>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setIsCatDialogOpen(false)}>ביטול</Button>
+                        <Button onClick={saveCatEdits} disabled={renamingCategory}>
+                            {renamingCategory ? <Loader className="w-4 h-4 animate-spin ml-1" /> : null}
+                            שמור שינויים
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
             {/* Edit Dialog */}
             <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
                 <DialogContent className="sm:max-w-[425px]" dir="rtl">
