@@ -140,6 +140,10 @@ export default function MenuLearning({ onComplete, user }) {
         setRenamingCategory(false);
     };
 
+    const [isAddItemDialogOpen, setIsAddItemDialogOpen] = useState(false);
+    const [newItem, setNewItem] = useState({ name: '', price: '', cost: '', description: '', category: '' });
+    const [addingItem, setAddingItem] = useState(false);
+
     const openCatDialog = () => {
         const unique = [...new Set(menuItems.map(i => i.category))];
         setCatEdits(unique.map(c => ({ original: c, current: c })));
@@ -151,9 +155,9 @@ export default function MenuLearning({ onComplete, user }) {
         setRenamingCategory(true);
         try {
             for (const edit of catEdits) {
-                if (edit.current !== edit.original) {
+                if (edit.current !== edit.original && edit.current.trim()) {
                     const items = menuItems.filter(i => i.category === edit.original);
-                    await Promise.all(items.map(i => base44.entities.MenuItem.update(i.id, { category: edit.current })));
+                    await Promise.all(items.map(i => base44.entities.MenuItem.update(i.id, { category: edit.current.trim() })));
                 }
             }
             await loadMenu();
@@ -162,6 +166,45 @@ export default function MenuLearning({ onComplete, user }) {
         }
         setRenamingCategory(false);
         setIsCatDialogOpen(false);
+    };
+
+    const handleDeleteCategory = async (catOriginal) => {
+        const count = menuItems.filter(i => i.category === catOriginal).length;
+        if (!window.confirm(`האם למחוק את הקטגוריה "${catOriginal}"? ${count > 0 ? `יימחקו גם ${count} מנות!` : ''}`)) return;
+        setRenamingCategory(true);
+        try {
+            const items = menuItems.filter(i => i.category === catOriginal);
+            await Promise.all(items.map(i => base44.entities.MenuItem.delete(i.id)));
+            await loadMenu();
+        } catch (e) {
+            console.error(e);
+        }
+        setRenamingCategory(false);
+        setCatEdits(prev => prev.filter(e => e.original !== catOriginal));
+    };
+
+    const openAddItemDialog = (categoryName) => {
+        setNewItem({ name: '', price: '', cost: '0', description: '', category: categoryName });
+        setIsAddItemDialogOpen(true);
+    };
+
+    const handleAddItem = async () => {
+        if (!newItem.name || !newItem.price) return;
+        setAddingItem(true);
+        try {
+            await base44.entities.MenuItem.create({
+                name: newItem.name,
+                price: parseFloat(newItem.price),
+                cost: parseFloat(newItem.cost) || 0,
+                description: newItem.description,
+                category: newItem.category,
+            });
+            await loadMenu();
+            setIsAddItemDialogOpen(false);
+        } catch (e) {
+            console.error(e);
+        }
+        setAddingItem(false);
     };
     
     // Predefined categories for the edit dialog's select input
