@@ -92,7 +92,7 @@ function IncidentForm({ incident, onSave, onCancel }) {
 
   const [user, setUser] = useState(null);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
-  const photoInputRef = React.useRef();
+  const photoInputRef = useRef();
 
   useEffect(() => {
     User.me().then(setUser);
