@@ -301,9 +301,38 @@ function IncidentForm({ incident, onSave, onCancel }) {
         />
       </div>
 
+      {/* צילום תמונה */}
+      <div>
+        <Label>תמונה (אופציונלי)</Label>
+        <input ref={photoInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={handlePhotoUpload} />
+        {formData.photo_url ? (
+          <div className="relative mt-2 inline-block">
+            <img src={formData.photo_url} alt="תמונת תקרית" className="w-full max-h-48 object-cover rounded-lg border" />
+            <button
+              type="button"
+              onClick={() => setFormData(prev => ({ ...prev, photo_url: '' }))}
+              className="absolute top-1 left-1 bg-red-600 text-white rounded-full p-1 hover:bg-red-700"
+            >
+              <X className="w-3 h-3" />
+            </button>
+          </div>
+        ) : (
+          <Button
+            type="button"
+            variant="outline"
+            className="mt-2 w-full border-dashed"
+            onClick={() => photoInputRef.current?.click()}
+            disabled={uploadingPhoto}
+          >
+            <Camera className="w-4 h-4 ml-2" />
+            {uploadingPhoto ? 'מעלה תמונה...' : 'צלם / העלה תמונה'}
+          </Button>
+        )}
+      </div>
+
       <div className="flex justify-end gap-3">
         <Button type="button" variant="outline" onClick={onCancel}>ביטול</Button>
-        <Button type="submit" className="bg-red-600 hover:bg-red-700">
+        <Button type="submit" className="bg-red-600 hover:bg-red-700" disabled={uploadingPhoto}>
           {incident ? 'עדכן תקרית' : 'דווח תקרית'}
         </Button>
       </div>
