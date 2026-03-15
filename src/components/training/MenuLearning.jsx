@@ -184,6 +184,10 @@ export default function MenuLearning({ onComplete, user }) {
         }
         setRenamingCategory(false);
         setCatEdits(prev => prev.filter(e => e.original !== catOriginal));
+        // Remove from extra categories too
+        const updatedExtra = extraCategories.filter(c => c !== catOriginal);
+        setExtraCategories(updatedExtra);
+        localStorage.setItem('menuExtraCategories', JSON.stringify(updatedExtra));
     };
 
     const openAddItemDialog = (categoryName) => {
