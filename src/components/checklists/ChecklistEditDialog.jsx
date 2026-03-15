@@ -100,7 +100,7 @@ export default function ChecklistEditDialog({ isOpen, checklist, employees, onCl
         }));
     };
 
-    const currentItem = selectedItemIndex !== null ? formData.items[selectedItemIndex] : null;
+    const currentItem = (selectedItemIndex !== null && selectedItemIndex < formData.items.length) ? formData.items[selectedItemIndex] : null;
 
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
