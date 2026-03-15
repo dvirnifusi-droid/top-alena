@@ -12,7 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { base44 } from '@/api/base44Client';
 import { 
     Search, Clock, DollarSign, AlertTriangle, ChefHat, Trash2, Pencil,
-    Flame, Sparkles, Beef, Utensils, Leaf, CakeSlice, Martini, Image, X, Loader2 as Loader
+    Flame, Sparkles, Beef, Utensils, Leaf, CakeSlice, Martini, Image, X, Loader2 as Loader, Settings, Plus
 } from 'lucide-react';
 
 function CategoryRenameInline({ catName, onRename, disabled }) {
