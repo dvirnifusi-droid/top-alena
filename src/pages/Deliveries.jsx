@@ -225,7 +225,13 @@ export default function Deliveries() {
   const performSave = async () => {
     const amount = Number(formData.cash_amount) || 0;
     const cleanPhone = (formData.customer_phone || "").replace(/-/g, "");
-    const payload = { ...formData, cash_amount: amount, customer_phone: cleanPhone };
+    const payload = {
+      ...formData,
+      cash_amount: amount,
+      credit_amount: Number(formData.credit_amount) || 0,
+      total_delivery_amount: Number(formData.total_delivery_amount) || 0,
+      customer_phone: cleanPhone,
+    };
 
     let savedDelivery;
     if (editingDelivery) {
