@@ -280,6 +280,12 @@ export default function MenuLearning({ onComplete, user }) {
                         className="pr-10"
                     />
                 </div>
+                {user?.role === 'admin' && (
+                    <Button variant="outline" onClick={openCatDialog} className="flex items-center gap-2">
+                        <Settings className="w-4 h-4" />
+                        ערוך קטגוריות
+                    </Button>
+                )}
             </div>
 
             <Tabs value={selectedCategory} onValueChange={setSelectedCategory} className="w-full">
