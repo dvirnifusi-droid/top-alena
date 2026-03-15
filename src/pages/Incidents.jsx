@@ -22,10 +22,13 @@ import {
   Wine,
   CreditCard,
   Edit,
-  Eye, // Added
-  EyeOff, // Added
-  RefreshCw // Added for refresh button
+  Eye,
+  EyeOff,
+  RefreshCw,
+  Camera,
+  X
 } from 'lucide-react';
+import { base44 } from '@/api/base44Client';
 
 // קטגוריות עם אייקונים
 const categoryConfig = {
