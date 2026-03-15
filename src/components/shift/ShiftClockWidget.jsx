@@ -403,19 +403,20 @@ export default function ShiftClockWidget() {
 
             {/* דיאלוג סיום משמרת + שאלון משוב */}
             <Dialog open={showEndShiftDialog} onOpenChange={setShowEndShiftDialog}>
-                <DialogContent dir="rtl" className="max-w-md">
-                    <DialogHeader>
-                        <DialogTitle className="flex items-center gap-2 text-xl">
-                            <Square className="w-5 h-5 text-red-500" />
+                <DialogContent dir="rtl" className="max-w-md w-[95vw] max-h-[90vh] flex flex-col p-0 gap-0">
+                    <DialogHeader className="px-4 pt-4 pb-2 shrink-0">
+                        <DialogTitle className="flex items-center gap-2 text-lg">
+                            <Square className="w-4 h-4 text-red-500" />
                             סיום משמרת - שאלון קצר
                         </DialogTitle>
                     </DialogHeader>
-                    <div className="bg-gradient-to-r from-purple-50 to-pink-50 border border-purple-200 rounded-xl p-3 mb-3 flex items-center gap-2">
-                      <span className="text-2xl">🎁</span>
+                    <div className="bg-gradient-to-r from-purple-50 to-pink-50 border-y border-purple-200 px-4 py-2 shrink-0 flex items-center gap-2">
+                      <span className="text-xl">🎁</span>
                       <p className="text-sm text-purple-700 font-semibold">מלא את השאלון ותקבל הפתעה עלינא! 🎉</p>
                     </div>
 
-                    <div className="space-y-5">
+                    <div className="overflow-y-auto flex-1 px-4 py-3">
+                    <div className="space-y-4">
                         {/* מידע אוטומטי מהמשמרת */}
                         <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm space-y-2">
                             <p className="font-semibold text-blue-800 mb-1">📋 נתוני המשמרת שלך:</p>
