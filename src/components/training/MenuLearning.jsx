@@ -52,6 +52,9 @@ function CategoryRenameInline({ catName, onRename, disabled }) {
 
 export default function MenuLearning({ onComplete, user }) {
     const [menuItems, setMenuItems] = useState([]);
+    const [extraCategories, setExtraCategories] = useState(() => {
+        try { return JSON.parse(localStorage.getItem('menuExtraCategories') || '[]'); } catch { return []; }
+    });
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedCategory, setSelectedCategory] = useState('all');
     const [viewedItems, setViewedItems] = useState(new Set());
