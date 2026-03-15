@@ -568,18 +568,19 @@ export default function ShiftClockWidget() {
                             />
                         </div>
                     </div>
+                    </div>
 
-                    <div className="flex gap-2 mt-4">
+                    <div className="flex gap-2 px-4 py-3 border-t shrink-0">
                         <button
                             onClick={submitEndShift}
-                            className="flex-1 text-sm text-gray-400 hover:text-gray-600 py-2"
+                            className="flex-1 text-sm text-gray-400 hover:text-gray-600 py-2 border rounded-lg"
                         >
                             דלג ולסיים
                         </button>
                         <button
                             onClick={submitEndShift}
                             disabled={actionLoading}
-                            className="flex-1 bg-red-600 hover:bg-red-700 text-white py-2 rounded-lg font-semibold text-sm"
+                            className="flex-1 bg-red-600 hover:bg-red-700 text-white py-3 rounded-lg font-semibold text-sm"
                         >
                             שלח ולסיים משמרת
                         </button>
