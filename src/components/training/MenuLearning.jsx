@@ -359,17 +359,17 @@ export default function MenuLearning({ onComplete, user }) {
                             </div>
                             <div className="grid grid-cols-4 items-center gap-4">
                                 <Label htmlFor="category" className="text-right">קטגוריה</Label>
-                                <Select
+                                <Input
+                                    id="category"
                                     value={editingItem.category}
-                                    onValueChange={(value) => setEditingItem({...editingItem, category: value})}
-                                >
-                                    <SelectTrigger className="col-span-3">
-                                        <SelectValue placeholder="בחר קטגוריה" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {menuCategories.map(cat => <SelectItem key={cat} value={cat}>{cat}</SelectItem>)}
-                                    </SelectContent>
-                                </Select>
+                                    onChange={(e) => setEditingItem({...editingItem, category: e.target.value})}
+                                    className="col-span-3"
+                                    placeholder="שם קטגוריה..."
+                                    list="category-suggestions"
+                                />
+                                <datalist id="category-suggestions">
+                                    {menuCategories.map(cat => <option key={cat} value={cat} />)}
+                                </datalist>
                             </div>
                             <div className="grid grid-cols-4 items-center gap-4">
                                 <Label htmlFor="price" className="text-right">מחיר</Label>
