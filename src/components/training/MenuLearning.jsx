@@ -139,6 +139,30 @@ export default function MenuLearning({ onComplete, user }) {
         }
         setRenamingCategory(false);
     };
+
+    const openCatDialog = () => {
+        const unique = [...new Set(menuItems.map(i => i.category))];
+        setCatEdits(unique.map(c => ({ original: c, current: c })));
+        setNewCatName('');
+        setIsCatDialogOpen(true);
+    };
+
+    const saveCatEdits = async () => {
+        setRenamingCategory(true);
+        try {
+            for (const edit of catEdits) {
+                if (edit.current !== edit.original) {
+                    const items = menuItems.filter(i => i.category === edit.original);
+                    await Promise.all(items.map(i => base44.entities.MenuItem.update(i.id, { category: edit.current })));
+                }
+            }
+            await loadMenu();
+        } catch (e) {
+            console.error(e);
+        }
+        setRenamingCategory(false);
+        setIsCatDialogOpen(false);
+    };
     
     // Predefined categories for the edit dialog's select input
     const menuCategories = ["מזאטים בחמארה", "ראשונות", "עיקריות", "המבורגרים", "סלטים", "קינוחים", "אלכוהול / קוקטיילים"];
