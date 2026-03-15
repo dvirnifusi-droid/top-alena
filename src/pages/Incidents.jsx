@@ -400,6 +400,9 @@ function IncidentCard({ incident, onEdit, canEdit }) { // Added canEdit prop
               <strong>השפעה על המשמרת:</strong> {incident.impact_on_shift}
             </div>
           )}
+          {incident.photo_url && (
+            <img src={incident.photo_url} alt="תמונת תקרית" className="w-full max-h-40 object-cover rounded-lg border mt-2 cursor-pointer" onClick={() => window.open(incident.photo_url, '_blank')} />
+          )}
         </div>
       </CardContent>
     </Card>
