@@ -153,7 +153,6 @@ export default function Deliveries() {
 החזר JSON בלבד:
 {"customer_name":"...","customer_phone":"...","address":"...","cash_amount":0,"credit_amount":0,"total_delivery_amount":0,"platform":"..."}`,
         file_urls: [file_url],
-        model: "claude_sonnet_4_6",
         response_json_schema: {
           type: "object",
           properties: {
