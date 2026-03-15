@@ -86,14 +86,26 @@ function IncidentForm({ incident, onSave, onCancel }) {
     estimated_cost: incident?.estimated_cost === undefined ? null : incident?.estimated_cost,
     prevention_measures: incident?.prevention_measures || '',
     status: incident?.status || 'reported',
-    visibility_level: incident?.visibility_level || 'managers_and_employees' // Added
+    visibility_level: incident?.visibility_level || 'managers_and_employees',
+    photo_url: incident?.photo_url || ''
   });
 
   const [user, setUser] = useState(null);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const photoInputRef = React.useRef();
 
   useEffect(() => {
     User.me().then(setUser);
   }, []);
+
+  const handlePhotoUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setUploadingPhoto(true);
+    const { file_url } = await base44.integrations.Core.UploadFile({ file });
+    setFormData(prev => ({ ...prev, photo_url: file_url }));
+    setUploadingPhoto(false);
+  };
 
   const handleSubmit = (e) => {
     e.preventDefault();
