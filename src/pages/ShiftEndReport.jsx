@@ -249,7 +249,20 @@ export default function ShiftEndReportPage() {
         try {
             const currentUser = await User.me();
             setUser(currentUser);
-            updateReportData('manager_name', currentUser.full_name);
+            
+            // נסה להביא שם מ-Employee entity (יותר עדכני)
+            let managerName = currentUser.full_name;
+            try {
+                const { Employee } = await import('@/entities/Employee');
+                const employees = await Employee.filter({ email: currentUser.email });
+                if (employees.length > 0 && employees[0].full_name) {
+                    managerName = employees[0].full_name;
+                }
+            } catch (e) {
+                // fallback to user full_name
+            }
+            
+            updateReportData('manager_name', managerName);
         } catch (error) { toast.error('שגיאה בטעינת נתוני משתמש.'); }
     }, []);
 
