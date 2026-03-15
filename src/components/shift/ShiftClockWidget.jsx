@@ -416,7 +416,7 @@ export default function ShiftClockWidget() {
                     </div>
 
                     <div className="overflow-y-auto flex-1 px-4 py-3">
-                    <div className="space-y-4">
+                    <div className="space-y-4 pb-2">
                         {/* מידע אוטומטי מהמשמרת */}
                         <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm space-y-2">
                             <p className="font-semibold text-blue-800 mb-1">📋 נתוני המשמרת שלך:</p>
