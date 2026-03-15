@@ -353,8 +353,7 @@ export default function ShiftEndReportPage() {
                 <div className="bg-white p-4 rounded-xl shadow-sm mb-6">
                     <div className="flex flex-wrap justify-between items-center gap-4">
                         <div>
-                            <h1 className="text-2xl font-bold text-gray-800">דוח סיום משמרת - {user?.full_name}</h1>
-                            <p className="text-gray-500">Nifusi</p>
+                            <h1 className="text-2xl font-bold text-gray-800">דוח סיום משמרת - {reportData.manager_name || user?.full_name}</h1>
                         </div>
                         <div className="flex items-center gap-2 flex-wrap">
                             <Input type="date" value={reportData.shift_date} onChange={e => updateReportData('shift_date', e.target.value)} className="w-auto" />
