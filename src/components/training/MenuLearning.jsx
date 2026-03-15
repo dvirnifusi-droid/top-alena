@@ -537,6 +537,40 @@ export default function MenuLearning({ onComplete, user }) {
                 </DialogContent>
             </Dialog>
 
+            {/* Add Item Dialog */}
+            <Dialog open={isAddItemDialogOpen} onOpenChange={setIsAddItemDialogOpen}>
+                <DialogContent className="sm:max-w-[400px]" dir="rtl">
+                    <DialogHeader>
+                        <DialogTitle>הוספת מנה ל"{newItem.category}"</DialogTitle>
+                    </DialogHeader>
+                    <div className="grid gap-4 py-4">
+                        <div className="grid grid-cols-4 items-center gap-4">
+                            <Label className="text-right">שם *</Label>
+                            <Input value={newItem.name} onChange={e => setNewItem(p => ({...p, name: e.target.value}))} className="col-span-3" placeholder="שם המנה" />
+                        </div>
+                        <div className="grid grid-cols-4 items-center gap-4">
+                            <Label className="text-right">מחיר *</Label>
+                            <Input type="number" value={newItem.price} onChange={e => setNewItem(p => ({...p, price: e.target.value}))} className="col-span-3" placeholder="₪" />
+                        </div>
+                        <div className="grid grid-cols-4 items-center gap-4">
+                            <Label className="text-right">עלות</Label>
+                            <Input type="number" value={newItem.cost} onChange={e => setNewItem(p => ({...p, cost: e.target.value}))} className="col-span-3" placeholder="₪" />
+                        </div>
+                        <div className="grid grid-cols-4 items-center gap-4">
+                            <Label className="text-right">תיאור</Label>
+                            <Textarea value={newItem.description} onChange={e => setNewItem(p => ({...p, description: e.target.value}))} className="col-span-3" placeholder="תיאור קצר..." />
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setIsAddItemDialogOpen(false)}>ביטול</Button>
+                        <Button onClick={handleAddItem} disabled={addingItem || !newItem.name || !newItem.price}>
+                            {addingItem ? <Loader className="w-4 h-4 animate-spin ml-1" /> : null}
+                            הוסף מנה
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
             {/* Edit Dialog */}
             <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
                 <DialogContent className="sm:max-w-[425px]" dir="rtl">
