@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { ShiftEndReport } from '@/entities/ShiftEndReport';
 import { MarketingTask } from '@/entities/MarketingTask';
@@ -499,7 +498,41 @@ export default function RevenueForecastingPage() {
         }
     };
 
-    const chartData = reports.slice(0, 30).reverse().map(report => ({
+    const [chartFilter, setChartFilter] = useState('last30');
+
+    const CHART_FILTERS = [
+        { label: 'שבוע אחרון', value: 'last7', days: 7 },
+        { label: 'חודש נוכחי', value: 'current_month' },
+        { label: '30 יום', value: 'last30', days: 30 },
+        { label: 'חודש קודם', value: 'prev_month' },
+        { label: 'הכל', value: 'all' },
+    ];
+
+    const filteredReports = reports.filter(r => {
+        const d = r.shift_date;
+        const today = new Date().toISOString().split('T')[0];
+        if (chartFilter === 'last7') {
+            const from = new Date(); from.setDate(from.getDate() - 6);
+            return d >= from.toISOString().split('T')[0];
+        }
+        if (chartFilter === 'last30') {
+            const from = new Date(); from.setDate(from.getDate() - 29);
+            return d >= from.toISOString().split('T')[0];
+        }
+        if (chartFilter === 'current_month') {
+            const start = new Date(); start.setDate(1);
+            return d >= start.toISOString().split('T')[0];
+        }
+        if (chartFilter === 'prev_month') {
+            const firstOfCurrent = new Date(); firstOfCurrent.setDate(1);
+            const lastOfPrev = new Date(firstOfCurrent); lastOfPrev.setDate(0);
+            const firstOfPrev = new Date(lastOfPrev); firstOfPrev.setDate(1);
+            return d >= firstOfPrev.toISOString().split('T')[0] && d <= lastOfPrev.toISOString().split('T')[0];
+        }
+        return true; // all
+    });
+
+    const chartData = [...filteredReports].reverse().map(report => ({
         date: format(new Date(report.shift_date), 'dd/MM'),
         revenue: report.total_revenue || 0,
         covers: report.total_covers || 0,
