@@ -107,8 +107,8 @@ function ReportsInner() {
 
     const handleDeleteShiftReport = async (reportId) => {
         try {
-            const { ShiftEndReport } = await import('@/entities/ShiftEndReport');
-            await ShiftEndReport.delete(reportId);
+            const { base44 } = await import('@/api/base44Client');
+            await base44.entities.ShiftEndReport.delete(reportId);
             // Reload the reports after deletion
             loadReports();
         } catch (error) {
