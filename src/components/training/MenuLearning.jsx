@@ -496,7 +496,10 @@ export default function MenuLearning({ onComplete, user }) {
                                     }}
                                     className="flex-1"
                                 />
-                                <span className="text-xs text-gray-400">{menuItems.filter(i => i.category === edit.original).length} מנות</span>
+                                <span className="text-xs text-gray-400 whitespace-nowrap">{menuItems.filter(i => i.category === edit.original).length} מנות</span>
+                                <Button variant="ghost" size="icon" className="text-red-500 hover:text-red-700 flex-shrink-0" onClick={() => handleDeleteCategory(edit.original)}>
+                                    <Trash2 className="w-4 h-4" />
+                                </Button>
                             </div>
                         ))}
                     </div>
