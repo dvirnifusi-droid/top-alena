@@ -215,7 +215,7 @@ export default function MenuLearning({ onComplete, user }) {
 
     const getAvailableCategories = () => {
         const uniqueCategoriesFromItems = [...new Set(menuItems.map(item => item.category))];
-        const allPossibleCategories = [...new Set([...uniqueCategoriesFromItems, ...menuCategories])];
+        const allPossibleCategories = [...new Set([...uniqueCategoriesFromItems, ...menuCategories, ...extraCategories])];
         
         const categoryMap = {
             "מזאטים בחמארה": Flame,
