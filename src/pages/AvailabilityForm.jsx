@@ -241,6 +241,24 @@ export default function AvailabilityForm() {
                     await base44.entities.EmployeeAvailability.create(record);
                 }
             }
+            // Count available shifts (each day can have 1 or 2 shifts based on preference)
+            const availableShifts = Object.values(dayData).reduce((count, data) => {
+                if (data.availability_type === 'unavailable') return count;
+                return count + (data.shift_preference === 'both' ? 2 : 1);
+            }, 0);
+
+            // Award coins: 5 coins per available shift
+            if (availableShifts > 0) {
+                const coinsToAward = availableShifts * 5;
+                const res = await awardAvailabilityCoins({
+                    employee_id: selectedEmployee.id,
+                    employee_name: selectedEmployee.full_name,
+                    availableShifts,
+                    coinsToAward,
+                });
+                setCoinsAwarded(res?.data?.coinsAwarded || coinsToAward);
+            }
+
             setSubmitted(true);
         } catch (e) {
             console.error(e);
