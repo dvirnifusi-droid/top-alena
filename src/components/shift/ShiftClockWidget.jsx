@@ -529,6 +529,33 @@ export default function ShiftClockWidget() {
                             </div>
                         ))}
 
+                        {/* עם מי היה הכי כיף */}
+                        <div>
+                            <p className="text-sm font-medium mb-2">🤝 עם איזה חבר/ה היה לך הכי כיף לעבוד היום?</p>
+                            <input
+                                className="w-full border rounded-lg px-3 py-2 text-sm text-right"
+                                placeholder="שם החבר/ה..."
+                                value={feedbackRatings.funWith || ''}
+                                onChange={e => setFeedbackRatings(prev => ({ ...prev, funWith: e.target.value }))}
+                            />
+                        </div>
+
+                        {/* 3 דברים להודות עליהם */}
+                        <div>
+                            <p className="text-sm font-medium mb-2">🙏 3 דברים שקרו היום שאתה אומר תודה עליהם</p>
+                            <div className="space-y-2">
+                                {[1, 2, 3].map(i => (
+                                    <input
+                                        key={i}
+                                        className="w-full border rounded-lg px-3 py-2 text-sm text-right"
+                                        placeholder={`דבר ${i}...`}
+                                        value={feedbackRatings[`grateful${i}`] || ''}
+                                        onChange={e => setFeedbackRatings(prev => ({ ...prev, [`grateful${i}`]: e.target.value }))}
+                                    />
+                                ))}
+                            </div>
+                        </div>
+
                         <div>
                             <p className="text-sm font-medium mb-2">📝 הערות נוספות (אופציונלי)</p>
                             <Textarea
