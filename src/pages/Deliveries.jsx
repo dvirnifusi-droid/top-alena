@@ -133,27 +133,25 @@ export default function Deliveries() {
     try {
       const { file_url } = await base44.integrations.Core.UploadFile({ file });
       const result = await base44.integrations.Core.InvokeLLM({
-        prompt: `אתה מומחה בקריאת פתקי משלוח. נתח את התמונה בקפידה ומצא:
+        prompt: `אתה מומחה בקריאת פתקי משלוח. נתח את הפתק בקפידה ומצא את כל הפרטים הבאים:
 
 1. שם הלקוח - השם הפרטי/משפחה של המזמין בלבד. אל תבלבל עם שם הרחוב.
-2. מספר טלפון - 10 ספרות, הסר מקפים ורווחים. אם יש כמה מספרים, קח את המספר של הלקוח (לא של המשלוחית).
-3. כתובת מלאה - שם הרחוב + מספר בית + עיר. קרא בעיון! כתובת היא בדרך כלל: "רחוב X מספר Y, עיר". אם יש קומה/דירה כלול גם אותם.
-4. סכום - חפש את הסכום הסופי הכתוב בפתק. זה יכול להיות:
-   - "מזומן" = סכום לתשלום במזומן (שים בשדה cash_amount)
-   - "סה״כ" או מספר ללא הערה = סכום כולל של ההזמנה (שים בשדה total_amount)
-   כל שדה חייב להיות מספר בלבד. אם אתה רואה "מזומן 100" - זה מזומן. אם אתה רואה "סה״כ 150" - זה סה״כ.
-5. פלטפורמת ההזמנה - חפש לוגו או שם של: Wolt, תן ביס, סיבוס, Mishloha, Valuecard, טלפון. אם לא מזהה - השאר ריק.
+2. מספר טלפון - 10 ספרות, הסר מקפים ורווחים.
+3. כתובת מלאה - שם הרחוב + מספר בית + עיר. כלול קומה/דירה אם קיים.
+4. סכום מזומן (cash_amount) - חפש שורה שכתוב בה "מזומן" או "cash". זה הסכום שהלקוח ישלם במזומן לשליח. אם לא קיים - 0.
+5. סכום אשראי (credit_amount) - חפש שורה שכתוב בה "אשראי" או "credit" או "כרטיס". זה סכום שכבר שולם בכרטיס. אם לא קיים - 0.
+6. סה"כ משלוח (total_delivery_amount) - חפש "סה"כ" או "סהכ" או "Total" - זה הסכום הכולל של ההזמנה כולל דמי משלוח. אם לא קיים - 0.
+7. פלטפורמה - חפש לוגו או שם של: Wolt, תן ביס, סיבוס, Mishloha, Valuecard, טלפון. אם לא מזהה - השאר ריק.
 
-חשוב מאוד לגבי כתובת:
-- קרא את כל הטקסט בתמונה בקפידה
-- הכתובת כוללת שם רחוב בעברית/אנגלית + מספר + שם עיר
-- אל תחסיר את שם העיר
-- אל תבלבל שם לקוח עם שם רחוב
+חשוב:
+- cash_amount = מה הלקוח צריך לשלם במזומן לשליח
+- credit_amount = מה כבר שולם באשראי מראש
+- total_delivery_amount = הסכום הכולל של כל ההזמנה
+- אם יש רק מספר אחד בפתק בלי הסבר - שים אותו ב-total_delivery_amount
+- כל הסכומים חייבים להיות מספרים בלבד (ללא סימן ₪)
 
 החזר JSON בלבד:
-{"customer_name":"...","customer_phone":"...","address":"...","cash_amount":0,"total_amount":0,"platform":"..."}
-
-אם לא מצאת שדה, השאר 0. הסכומים חייבים להיות מספרים.`,
+{"customer_name":"...","customer_phone":"...","address":"...","cash_amount":0,"credit_amount":0,"total_delivery_amount":0,"platform":"..."}`,
         file_urls: [file_url],
         response_json_schema: {
           type: "object",
@@ -162,7 +160,8 @@ export default function Deliveries() {
             customer_phone: { type: "string" },
             address: { type: "string" },
             cash_amount: { type: "number" },
-            total_amount: { type: "number" },
+            credit_amount: { type: "number" },
+            total_delivery_amount: { type: "number" },
             platform: { type: "string" },
           },
         },
@@ -172,7 +171,9 @@ export default function Deliveries() {
         customer_name: result.customer_name || "",
         customer_phone: result.customer_phone || "",
         address: result.address || "",
-        cash_amount: result.cash_amount ? String(result.cash_amount) : result.total_amount ? String(result.total_amount) : "",
+        cash_amount: result.cash_amount ? String(result.cash_amount) : "",
+        credit_amount: result.credit_amount ? String(result.credit_amount) : "",
+        total_delivery_amount: result.total_delivery_amount ? String(result.total_delivery_amount) : "",
         platform: result.platform || "",
         photo_url: file_url,
         opened_by: currentUser?.full_name || currentUser?.email || "",
