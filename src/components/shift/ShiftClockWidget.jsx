@@ -567,8 +567,8 @@ export default function ShiftClockWidget() {
                                 className="text-right"
                             />
                         </div>
-                    </div>
-                    </div>
+                    </div>{/* space-y-4 */}
+                    </div>{/* overflow-y-auto */}
 
                     <div className="flex gap-2 px-4 py-3 border-t shrink-0">
                         <button
