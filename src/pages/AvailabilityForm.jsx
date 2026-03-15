@@ -54,6 +54,7 @@ export default function AvailabilityForm() {
      const [error, setError] = useState(null);
      const [saving, setSaving] = useState(false);
      const [submitted, setSubmitted] = useState(false);
+    const [coinsAwarded, setCoinsAwarded] = useState(0);
      const [existingAvailabilities, setExistingAvailabilities] = useState([]);
      const [dayData, setDayData] = useState(initDayData);
      const [selectedDepartment, setSelectedDepartment] = useState(null);
