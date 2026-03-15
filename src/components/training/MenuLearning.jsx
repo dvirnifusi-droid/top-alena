@@ -15,6 +15,41 @@ import {
     Flame, Sparkles, Beef, Utensils, Leaf, CakeSlice, Martini, Image, X, Loader2 as Loader
 } from 'lucide-react';
 
+function CategoryRenameInline({ catName, onRename, disabled }) {
+    const [editing, setEditing] = useState(false);
+    const [value, setValue] = useState(catName);
+
+    const handleSave = () => {
+        onRename(catName, value);
+        setEditing(false);
+    };
+
+    if (editing) {
+        return (
+            <span className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
+                <input
+                    autoFocus
+                    value={value}
+                    onChange={e => setValue(e.target.value)}
+                    className="border rounded px-1 py-0.5 text-sm w-28"
+                    onKeyDown={e => { if (e.key === 'Enter') handleSave(); if (e.key === 'Escape') setEditing(false); }}
+                />
+                <button onClick={handleSave} disabled={disabled} className="text-green-600 text-xs font-bold">✓</button>
+                <button onClick={() => setEditing(false)} className="text-red-500 text-xs font-bold">✕</button>
+            </span>
+        );
+    }
+
+    return (
+        <span className="flex items-center gap-1">
+            <span>{catName}</span>
+            <button onClick={e => { e.stopPropagation(); setEditing(true); }} className="opacity-50 hover:opacity-100">
+                <Pencil className="w-3 h-3" />
+            </button>
+        </span>
+    );
+}
+
 export default function MenuLearning({ onComplete, user }) {
     const [menuItems, setMenuItems] = useState([]);
     const [searchTerm, setSearchTerm] = useState('');
