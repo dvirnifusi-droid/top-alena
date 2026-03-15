@@ -438,7 +438,16 @@ export default function AvailabilityForm() {
                 <CheckCircle2 className="w-20 h-20 text-green-500 mx-auto mb-4" />
                 <h2 className="text-2xl font-bold mb-2">הבקשה נשלחה בהצלחה!</h2>
                 <p className="text-gray-500 mb-2">שלום {selectedEmployee?.full_name}!</p>
-                <p className="text-gray-500 mb-6">המנהל יראה את הזמינות שלך ויוכל לשבץ אותך בסידור.</p>
+                <p className="text-gray-500 mb-4">המנהל יראה את הזמינות שלך ויוכל לשבץ אותך בסידור.</p>
+                {coinsAwarded > 0 && (
+                    <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 mb-6 flex items-center justify-center gap-3">
+                        <span className="text-4xl">🪙</span>
+                        <div>
+                            <p className="font-bold text-yellow-800 text-lg">+{coinsAwarded} מטבעות!</p>
+                            <p className="text-yellow-700 text-sm">קיבלת מטבעות על הגשת סידור</p>
+                        </div>
+                    </div>
+                )}
                 <div className="flex gap-2 flex-col">
                     <Button onClick={() => setSubmitted(false)} className="bg-blue-600 hover:bg-blue-700">
                         עדכן שוב
