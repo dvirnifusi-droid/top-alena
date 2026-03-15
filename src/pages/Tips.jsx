@@ -77,9 +77,9 @@ function TipsInner() {
                             position: staff.position,
                             start_time: staff.start_time,
                             end_time: staff.end_time,
-                            break_minutes: 0,
+                            break_minutes: staff.total_break_minutes || 0,
                             meal_cost: 0,
-                            sales_bonus: 0 // New field
+                            sales_bonus: 0
                         };
                     }) || [];
                     setStaffDetails(details);
