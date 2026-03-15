@@ -193,7 +193,8 @@ export default function Deliveries() {
     setEditingDelivery(null);
     setFormData({
       customer_name: "", customer_phone: "", address: "",
-      cash_amount: "", courier_name: "", payment_status: "unpaid",
+      cash_amount: "", credit_amount: "", total_delivery_amount: "",
+      courier_name: "", payment_status: "unpaid",
       platform: "", items_ordered: "", neighborhood: "",
       opened_by: currentUser?.full_name || currentUser?.email || "",
     });
