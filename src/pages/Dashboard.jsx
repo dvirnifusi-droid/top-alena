@@ -23,6 +23,7 @@ import InventoryScanner from '../components/dashboard/InventoryScanner';
 import SurveyQRGenerator from '../components/dashboard/SurveyQRGenerator';
 import ActiveEmployeesWidget from '../components/dashboard/ActiveEmployeesWidget';
 import BriefReadersWidget from '../components/dashboard/BriefReadersWidget';
+import SalesChart from '../components/dashboard/SalesChart';
 
 // רכיב סטטיסטיקות מהירות מעודכן
 function QuickStats() {
