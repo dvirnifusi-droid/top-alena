@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -109,31 +108,31 @@ export default function MarketingAIPage() {
             });
 
             const prompt = `
-                You are an expert marketing consultant for restaurants. Your goal is to help a restaurant double its sales in 6 months.
+                אתה יועץ שיווק מומחה למסעדות. המטרה שלך היא לעזור למסעדה להכפיל את המכירות תוך 6 חודשים.
 
-                Here is the restaurant's profile: ${profileContext}
+                פרופיל המסעדה: ${profileContext}
                 
-                Today is ${dayName}, ${today}.
+                היום הוא ${dayName}, ${today}.
                 
-                Based on the restaurant's profile, create a list of 5-7 daily marketing tasks for today, including:
-                1. An Instagram or Facebook post
-                2. An Instagram story
-                3. A Google My Business activity
-                4. Review management
-                5. Additional tasks based on the day of the week and the restaurant's profile.
+                בהתבסס על פרופיל המסעדה, צור רשימה של 5-7 משימות שיווק יומיות להיום, כולל:
+                1. פוסט לאינסטגרם או פייסבוק
+                2. סטורי לאינסטגרם
+                3. פעילות בגוגל לעסק שלי
+                4. ניהול ביקורות
+                5. משימות נוספות בהתאם ליום בשבוע ופרופיל המסעדה.
                 
-                For each task, provide:
-                - A task_type from this list: social_media_post, story_upload, google_ads, facebook_ads, instagram_ads, email_campaign, content_creation, customer_engagement, influencer_outreach, review_management, seo_optimization, event_promotion, loyalty_program, seasonal_campaign
-                - A short, clear title
-                - A detailed description of how to perform it
-                - A ready-to-use content suggestion
-                - A rationale for why it's important now
-                - Estimated time to complete
-                - Platform (instagram, facebook, google, tiktok, email, whatsapp, website, multiple)
-                - Priority (low, medium, high, urgent)
-                - Detailed step-by-step instructions
+                לכל משימה ספק:
+                - task_type מהרשימה: social_media_post, story_upload, google_ads, facebook_ads, instagram_ads, email_campaign, content_creation, customer_engagement, influencer_outreach, review_management, seo_optimization, event_promotion, loyalty_program, seasonal_campaign
+                - כותרת קצרה וברורה בעברית
+                - תיאור מפורט בעברית של כיצד לבצע
+                - הצעת תוכן מוכנה לשימוש בעברית
+                - הסבר מדוע זה חשוב עכשיו בעברית
+                - זמן משוער לביצוע
+                - פלטפורמה (instagram, facebook, google, tiktok, email, whatsapp, website, multiple)
+                - עדיפות (low, medium, high, urgent)
+                - הוראות צעד אחר צעד מפורטות בעברית
                 
-                Focus on creative ideas that will differentiate the restaurant from its competitors. The response must be in Hebrew.
+                התמקד ברעיונות יצירתיים שיבדלו את המסעדה מהמתחרים. כל הטקסטים חייבים להיות בעברית בלבד.
             `;
 
             const aiResponse = await InvokeLLM({
