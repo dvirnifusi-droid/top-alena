@@ -258,7 +258,13 @@ export default function AvailabilityForm() {
                     availableShifts,
                     coinsToAward,
                 });
-                setCoinsAwarded(res?.data?.coinsAwarded || coinsToAward);
+                const awarded = res?.data?.coinsAwarded || coinsToAward;
+                setCoinsAwarded(awarded);
+                toast({
+                    title: `🪙 +${awarded} מטבעות נוספו!`,
+                    description: `קיבלת ${awarded} מטבעות על הגשת סידור עם ${availableShifts} משמרות פנויות`,
+                    duration: 5000,
+                });
             }
 
             setSubmitted(true);
