@@ -380,8 +380,30 @@ function TipsInner() {
                                     </TableBody>
                                 </Table>
                             </div>
-                            <div className="flex justify-start">
+                            <div className="flex justify-start gap-2 flex-wrap">
                                 <Button variant="outline" onClick={handleAddStaff}><UserPlus className="w-4 h-4 ml-2"/>הוסף עובד ידנית</Button>
+                                <Button variant="outline" className="border-blue-400 text-blue-600 hover:bg-blue-50" onClick={async () => {
+                                    const dateString = format(date, 'yyyy-MM-dd');
+                                    const shifts = await WorkShift.filter({ date: dateString, shift_type: shiftType });
+                                    if (shifts.length > 0) {
+                                        const shift = shifts[0];
+                                        setStaffDetails(prev => prev.map(staff => {
+                                            const wsStaff = shift.assigned_staff?.find(s => s.employee_id === staff.employee_id);
+                                            if (wsStaff) {
+                                                return {
+                                                    ...staff,
+                                                    start_time: wsStaff.start_time || staff.start_time,
+                                                    end_time: wsStaff.end_time || staff.end_time,
+                                                    break_minutes: wsStaff.total_break_minutes ?? staff.break_minutes,
+                                                };
+                                            }
+                                            return staff;
+                                        }));
+                                        toast.success("נתוני הסידור סונכרנו בהצלחה");
+                                    } else {
+                                        toast.error("לא נמצא סידור עבור תאריך ומשמרת זו");
+                                    }
+                                }}>🔄 סנכרן שעות מסידור</Button>
                             </div>
                         </>
                     )}
