@@ -65,6 +65,46 @@ function generateCSV(employees, hourlyData, tipData, monthLabel) {
     rows.push(['דוח שעות עבודה - ' + monthLabel]);
     rows.push([]);
     rows.push(['שם עובד', 'תאריך', 'משמרת', 'תפקיד', 'כניסה', 'יציאה', 'הפסקה (דקות)', 'שעות נטו', 'סוג']);
+
+    employees.forEach(emp => {
+        const empHourly = (hourlyData[emp.id] || []).sort((a, b) => a.date.localeCompare(b.date));
+        empHourly.forEach(e => {
+            rows.push([
+                emp.full_name,
+                e.date,
+                e.shift_type === 'lunch' ? 'צהריים' : 'ערב',
+                e.position,
+                e.start_time,
+                e.end_time,
+                e.break_minutes || 0,
+                e.net_hours.toFixed(2),
+                'שעתי'
+            ]);
+        });
+
+        const empTips = (tipData[emp.id] || []).sort((a, b) => a.date.localeCompare(b.date));
+        empTips.forEach(e => {
+            rows.push([
+                emp.full_name,
+                e.date,
+                e.shift_type === 'lunch' ? 'צהריים' : 'ערב',
+                e.position || 'מלצר',
+                '-', '-', '-',
+                (e.effectiveHours || 0).toFixed(2),
+                `טיפים - ₪${(e.totalEarnings || 0).toFixed(2)}`
+            ]);
+        });
+
+        const totalH = empHourly.reduce((s, e) => s + e.net_hours, 0);
+        const totalT = empTips.reduce((s, e) => s + (e.effectiveHours || 0), 0);
+        const totalTips = empTips.reduce((s, e) => s + (e.totalEarnings || 0), 0);
+        if (empHourly.length > 0 || empTips.length > 0) {
+            rows.push([`סה"כ - ${emp.full_name}`, '', '', '', '', '', '', (totalH + totalT).toFixed(2), totalTips > 0 ? `טיפים: ₪${totalTips.toFixed(2)}` : '']);
+            rows.push([]);
+        }
+    });
+
+    return rows.map(r => r.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',')).join('\n');
 }
 
 export default function ExportToAccountantDialog({ open, onClose, employees, selectedEmployees: initSelected, hourlyData, tipData, monthLabel }) {
