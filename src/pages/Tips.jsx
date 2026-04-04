@@ -13,7 +13,7 @@ import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { format, parseISO } from 'date-fns';
 import { he } from 'date-fns/locale';
-import { Loader2, CalendarIcon, Save, Printer, UserPlus, Trash2, Lock, Unlock } from 'lucide-react';
+import { Loader2, CalendarIcon, Save, Printer, UserPlus, Trash2, Lock, Unlock, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 
 const MINIMUM_WAGE = 32; // שכר מינימום לשעה
@@ -23,6 +23,55 @@ const RESTAURANT_HOURLY_DEDUCTION = 3;
 const RUNNER_HOURLY_PAY = 40;
 
 const TIP_ELIGIBLE_POSITIONS = ['מלצר', 'ברמן'];
+
+function UnlockedReportsAlert() {
+    const [unlockedReports, setUnlockedReports] = useState([]);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        TipReport.list('-date', 200).then(all => {
+            setUnlockedReports(all.filter(r => r.status !== 'locked'));
+            setLoading(false);
+        }).catch(() => setLoading(false));
+    }, []);
+
+    if (loading || unlockedReports.length === 0) return null;
+
+    return (
+        <div className="max-w-7xl mx-auto mb-4 p-4 border-2 border-orange-300 bg-orange-50 rounded-xl" dir="rtl">
+            <div className="flex items-center gap-2 mb-3">
+                <AlertTriangle className="w-5 h-5 text-orange-500" />
+                <h3 className="font-bold text-orange-800">דוחות טיפים שלא ננעלו ({unlockedReports.length})</h3>
+            </div>
+            <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                    <thead>
+                        <tr className="border-b border-orange-200">
+                            <th className="text-right py-1 px-2 text-orange-700">תאריך</th>
+                            <th className="text-right py-1 px-2 text-orange-700">משמרת</th>
+                            <th className="text-right py-1 px-2 text-orange-700">סה"כ טיפים</th>
+                            <th className="text-right py-1 px-2 text-orange-700">סטטוס</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {unlockedReports.map(r => (
+                            <tr key={r.id} className="border-b border-orange-100">
+                                <td className="py-1 px-2">{r.date}</td>
+                                <td className="py-1 px-2">{r.shift_type === 'lunch' ? 'צהריים' : 'ערב'}</td>
+                                <td className="py-1 px-2 font-medium">₪{(r.total_tips_collected || 0).toFixed(2)}</td>
+                                <td className="py-1 px-2">
+                                    <span className="bg-yellow-100 text-yellow-800 text-xs px-2 py-0.5 rounded-full font-medium">
+                                        {r.status === 'draft' ? 'טיוטה' : r.status}
+                                    </span>
+                                </td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    );
+}
 
 function TipsInner() {
     const [date, setDate] = useState(new Date());
@@ -258,6 +307,7 @@ function TipsInner() {
 
     return (
         <div className="p-4 md:p-8" dir="rtl">
+            <UnlockedReportsAlert />
             <Card className="max-w-7xl mx-auto">
                 <CardHeader>
                     <CardTitle className="text-2xl">ניהול טיפים</CardTitle>
