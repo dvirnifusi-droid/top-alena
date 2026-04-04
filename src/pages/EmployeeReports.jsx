@@ -339,7 +339,6 @@ function EmployeeReportsInner() {
             w.overtime,
         ]));
         rows.push(['', 'סה"כ חודשי:', parseFloat(monthlyBreakdown.totalHours), parseFloat(monthlyBreakdown.totalRegular), parseFloat(monthlyBreakdown.totalOvertime)]);
-        // Add tips summary
         const totalTipEarnings = filteredData.tipEntries.reduce((s, e) => s + (e.totalEarnings || 0), 0);
         const totalTipHours = filteredData.tipEntries.reduce((s, e) => s + (e.effectiveHours || 0), 0);
         rows.push([]);
@@ -347,6 +346,54 @@ function EmployeeReportsInner() {
         rows.push(['שעות טיפים', parseFloat(totalTipHours.toFixed(2)), '', '', '']);
         rows.push(['סה"כ טיפים', parseFloat(totalTipEarnings.toFixed(2)), '', '', '']);
         downloadCsv(rows, `סיכום_חודשי_${emp?.full_name || ''}_${monthLabel}.csv`);
+    };
+
+    const sendWhatsApp = (text) => {
+        const url = `https://wa.me/?text=${encodeURIComponent(text)}`;
+        window.open(url, '_blank');
+    };
+
+    const sendHourlyShiftsWhatsApp = () => {
+        const emp = employees.find(e => e.id === selectedEmployeeId);
+        const monthLabel = format(selectedMonth, 'MMMM yyyy', { locale: he });
+        let text = `📋 *דוח שעות סידור - ${emp?.full_name || ''}*\n📅 ${monthLabel}\n\n`;
+        filteredData.hourlyShiftEntries
+            .sort((a, b) => a.date.localeCompare(b.date))
+            .forEach(e => {
+                text += `${format(new Date(e.date), 'dd/MM/yyyy')} | ${e.shift_type === 'lunch' ? 'צהריים' : 'ערב'} | ${e.position} | ${e.start_time}-${e.end_time} | ${e.net_hours.toFixed(2)} ש'\n`;
+            });
+        const total = filteredData.hourlyShiftEntries.reduce((s, e) => s + e.net_hours, 0);
+        text += `\n*סה"כ: ${total.toFixed(2)} שעות*`;
+        sendWhatsApp(text);
+    };
+
+    const sendTipsWhatsApp = () => {
+        const emp = employees.find(e => e.id === selectedEmployeeId);
+        const monthLabel = format(selectedMonth, 'MMMM yyyy', { locale: he });
+        let text = `💰 *דוח טיפים - ${emp?.full_name || ''}*\n📅 ${monthLabel}\n\n`;
+        filteredData.tipEntries.forEach(e => {
+            text += `${format(new Date(e.date), 'dd/MM/yyyy')} | ${e.shift_type === 'lunch' ? 'צהריים' : 'ערב'} | ${e.effectiveHours?.toFixed(1)} ש' | ₪${e.totalEarnings?.toFixed(2)}\n`;
+        });
+        const total = filteredData.tipEntries.reduce((s, e) => s + (e.totalEarnings || 0), 0);
+        text += `\n*סה"כ טיפים: ₪${total.toFixed(2)}*`;
+        sendWhatsApp(text);
+    };
+
+    const sendMonthlySummaryWhatsApp = () => {
+        const emp = employees.find(e => e.id === selectedEmployeeId);
+        const monthLabel = format(selectedMonth, 'MMMM yyyy', { locale: he });
+        let text = `📊 *סיכום חודשי - ${emp?.full_name || ''}*\n📅 ${monthLabel}\n\n`;
+        monthlyBreakdown.weeks.forEach(w => {
+            text += `📆 ${w.label}: ${w.hours} ש'`;
+            if (w.overtime > 0) text += ` (כולל ${w.overtime} נוספות)`;
+            text += '\n';
+        });
+        text += `\n*סה"כ שעות: ${monthlyBreakdown.totalHours}*\n*שעות רגילות: ${monthlyBreakdown.totalRegular}*\n*שעות נוספות: ${monthlyBreakdown.totalOvertime}*`;
+        const totalTipEarnings = filteredData.tipEntries.reduce((s, e) => s + (e.totalEarnings || 0), 0);
+        if (totalTipEarnings > 0) {
+            text += `\n\n💰 *סה"כ טיפים: ₪${totalTipEarnings.toFixed(2)}*`;
+        }
+        sendWhatsApp(text);
     };
 
     if (loading) {
@@ -485,7 +532,11 @@ function EmployeeReportsInner() {
 
                     {/* TAB: סיכום חודשי */}
                     <TabsContent value="monthly">
-                        <div className="flex justify-end mb-4">
+                        <div className="flex justify-end gap-2 mb-4">
+                            <Button onClick={sendMonthlySummaryWhatsApp} variant="outline" className="flex items-center gap-2 border-green-400 text-green-600 hover:bg-green-50">
+                                <span>📱</span>
+                                שלח לוואטסאפ
+                            </Button>
                             <Button onClick={exportMonthlySummaryExcel} variant="outline" className="flex items-center gap-2 border-blue-300 text-blue-700 hover:bg-blue-50">
                                 <FileDown className="w-4 h-4" />
                                 ייצוא סיכום חודשי לאקסל
@@ -601,7 +652,11 @@ function EmployeeReportsInner() {
 
                     {/* TAB: שעות עבודה */}
                     <TabsContent value="hourly">
-                        <div className="flex justify-end mb-4">
+                        <div className="flex justify-end gap-2 mb-4">
+                            <Button onClick={sendHourlyShiftsWhatsApp} variant="outline" className="flex items-center gap-2 border-green-400 text-green-600 hover:bg-green-50" disabled={filteredData.hourlyShiftEntries.length === 0}>
+                                <span>📱</span>
+                                שלח לוואטסאפ
+                            </Button>
                             <Button onClick={exportHourlyShiftsExcel} variant="outline" className="flex items-center gap-2 border-blue-300 text-blue-700 hover:bg-blue-50" disabled={filteredData.hourlyShiftEntries.length === 0}>
                                 <FileDown className="w-4 h-4" />
                                 ייצוא שעות סידור לאקסל
@@ -730,7 +785,11 @@ function EmployeeReportsInner() {
 
                     {/* TAB: טיפים */}
                     <TabsContent value="tips">
-                        <div className="flex justify-end mb-4">
+                        <div className="flex justify-end gap-2 mb-4">
+                            <Button onClick={sendTipsWhatsApp} variant="outline" className="flex items-center gap-2 border-green-400 text-green-600 hover:bg-green-50" disabled={filteredData.tipEntries.length === 0}>
+                                <span>📱</span>
+                                שלח לוואטסאפ
+                            </Button>
                             <Button onClick={exportTipsExcel} variant="outline" className="flex items-center gap-2 border-green-300 text-green-700 hover:bg-green-50" disabled={filteredData.tipEntries.length === 0}>
                                 <FileDown className="w-4 h-4" />
                                 ייצוא דוח טיפים לאקסל
