@@ -953,37 +953,35 @@ function EmployeeReportsInner() {
                                                                          </tr>
                                                                          ));
                                                                          })()}
-                                                            {(() => {
-                                                            const totalGross = filteredData.hourlyShiftEntries.reduce((s, e) => {
-                                                                const rate = parseFloat(positionRates[e.position] || 0);
-                                                                return s + (rate > 0 ? e.net_hours * rate : 0);
-                                                            }, 0);
-                                                            return (
-                                                                <tr className="border-t-2 border-gray-400 bg-blue-50">
-                                                                    <td colSpan={isAdmin ? 7 : 6} className="py-3 px-4 font-bold text-right text-blue-800">סה"כ שעות לתקופה:</td>
-                                                                    <td className="py-3 px-4 font-bold text-xl text-blue-700">{calculations.totalHourlyHours}</td>
-                                                                    <td className="py-3 px-4 font-bold text-xl text-orange-600">{totalGross > 0 ? `₪${totalGross.toFixed(2)}` : ''}</td>
-                                                                </tr>
-                                                                {(() => {
-                                                                    const byDate2 = {};
-                                                                    filteredData.hourlyShiftEntries.forEach(e => { byDate2[e.date] = (byDate2[e.date] || 0) + e.net_hours; });
-                                                                    let r = 0, h1 = 0, h2 = 0;
-                                                                    Object.values(byDate2).forEach(h => { const b = calcOvertimeBreakdown(h); r += b.regular; h1 += b.h125; h2 += b.h150; });
-                                                                    return (
-                                                                        <tr className="bg-slate-50 border-t border-slate-200">
-                                                                            <td colSpan={isAdmin ? 9 : 7} className="py-2 px-4">
-                                                                                <div className="flex flex-wrap gap-4 text-xs font-semibold">
-                                                                                    <span className="text-green-700">✅ שעות רגילות (100%): {r.toFixed(2)}</span>
-                                                                                    <span className="text-orange-600">⚡ שעות 125%: {h1.toFixed(2)}</span>
-                                                                                    <span className="text-red-600">🔥 שעות 150%: {h2.toFixed(2)}</span>
-                                                                                </div>
-                                                                            </td>
-                                                                        </tr>
-                                                                    );
-                                                                })()}
-                                                            );
-                                                        })()}
-                                            </tbody>
+                                                                         {(() => {
+                                                                         const totalGross = filteredData.hourlyShiftEntries.reduce((s, e) => {
+                                                                         const rate = parseFloat(positionRates[e.position] || 0);
+                                                                         return s + (rate > 0 ? e.net_hours * rate : 0);
+                                                                         }, 0);
+                                                                         const byDate2 = {};
+                                                                         filteredData.hourlyShiftEntries.forEach(e => { byDate2[e.date] = (byDate2[e.date] || 0) + e.net_hours; });
+                                                                         let r = 0, h1 = 0, h2 = 0;
+                                                                         Object.values(byDate2).forEach(h => { const b = calcOvertimeBreakdown(h); r += b.regular; h1 += b.h125; h2 += b.h150; });
+                                                                         return (
+                                                                         <>
+                                                                         <tr className="border-t-2 border-gray-400 bg-blue-50">
+                                                                         <td colSpan={isAdmin ? 7 : 6} className="py-3 px-4 font-bold text-right text-blue-800">סה"כ שעות לתקופה:</td>
+                                                                         <td className="py-3 px-4 font-bold text-xl text-blue-700">{calculations.totalHourlyHours}</td>
+                                                                         <td className="py-3 px-4 font-bold text-xl text-orange-600">{totalGross > 0 ? `₪${totalGross.toFixed(2)}` : ''}</td>
+                                                                         </tr>
+                                                                         <tr className="bg-slate-50 border-t border-slate-200">
+                                                                         <td colSpan={isAdmin ? 9 : 7} className="py-2 px-4">
+                                                                         <div className="flex flex-wrap gap-4 text-xs font-semibold">
+                                                                            <span className="text-green-700">✅ שעות רגילות (100%): {r.toFixed(2)}</span>
+                                                                            <span className="text-orange-600">⚡ שעות 125%: {h1.toFixed(2)}</span>
+                                                                            <span className="text-red-600">🔥 שעות 150%: {h2.toFixed(2)}</span>
+                                                                         </div>
+                                                                         </td>
+                                                                         </tr>
+                                                                         </>
+                                                                         );
+                                                                         })()}
+                                                                         </tbody>
                                         </table>
                                     </div>
                                 )}
