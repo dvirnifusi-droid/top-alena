@@ -752,17 +752,41 @@ function EmployeeReportsInner() {
                                         ))}
                                     </div>
                                     <div className="flex items-center gap-2 border-t pt-3">
-                                        <input
-                                            type="text"
-                                            placeholder="שם תפקיד חדש (למשל: קופה)"
+                                        <select
                                             value={newPositionName}
                                             onChange={e => setNewPositionName(e.target.value)}
-                                            onKeyDown={e => e.key === 'Enter' && addPosition()}
-                                            className="flex-1 border rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-300"
-                                        />
-                                        <Button size="sm" onClick={addPosition} variant="outline" className="border-orange-400 text-orange-600 hover:bg-orange-100">
+                                            className="flex-1 border rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-300 bg-white"
+                                        >
+                                            <option value="">-- בחר תפקיד להוספה --</option>
+                                            {[...new Set(
+                                                employees.flatMap(e => (e.positions || []).map(p => p.position_name).filter(Boolean))
+                                            )]
+                                            .filter(pos => !employeePositions.find(p => p.position_name === pos))
+                                            .sort()
+                                            .map(pos => (
+                                                <option key={pos} value={pos}>{pos}</option>
+                                            ))}
+                                            <option value="__custom__">+ הקלד תפקיד חדש...</option>
+                                        </select>
+                                        {newPositionName === '__custom__' && (
+                                            <input
+                                                type="text"
+                                                placeholder="שם תפקיד חדש"
+                                                autoFocus
+                                                onKeyDown={e => {
+                                                    if (e.key === 'Enter') {
+                                                        setNewPositionName(e.target.value);
+                                                        addPosition();
+                                                        e.target.value = '';
+                                                    }
+                                                }}
+                                                onBlur={e => { if (!e.target.value) setNewPositionName(''); }}
+                                                className="flex-1 border rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-300"
+                                            />
+                                        )}
+                                        <Button size="sm" onClick={addPosition} variant="outline" className="border-orange-400 text-orange-600 hover:bg-orange-100" disabled={!newPositionName || newPositionName === '__custom__'}>
                                             <Plus className="w-4 h-4" />
-                                            הוסף תפקיד
+                                            הוסף
                                         </Button>
                                     </div>
                                 </CardContent>
