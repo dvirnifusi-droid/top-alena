@@ -1268,6 +1268,30 @@ function AllEmployeesSummary({ workShifts, employees, selectedMonth, tipReports,
         window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
     };
 
+    // Build cross-employee position summary
+    const positionSummary = {}; // { pos: { days: Set, hours, regular, h125, h150, earnings, isTip } }
+    data.forEach(({ emp, hourlyByPosition, tipByPosition, totalRegular, totalH125, totalH150 }) => {
+        // hourly positions - distribute overtime proportionally per position
+        const totalHourlyH = Object.values(hourlyByPosition).reduce((s, h) => s + h, 0);
+        Object.entries(hourlyByPosition).forEach(([pos, hours]) => {
+            if (!positionSummary[pos]) positionSummary[pos] = { days: 0, hours: 0, regular: 0, h125: 0, h150: 0, earnings: 0, isTip: false, empSet: new Set() };
+            const ratio = totalHourlyH > 0 ? hours / totalHourlyH : 1;
+            positionSummary[pos].hours += hours;
+            positionSummary[pos].regular += totalRegular * ratio;
+            positionSummary[pos].h125 += totalH125 * ratio;
+            positionSummary[pos].h150 += totalH150 * ratio;
+            positionSummary[pos].empSet.add(emp.id);
+        });
+        // tip positions
+        Object.entries(tipByPosition).forEach(([pos, { hours, earnings }]) => {
+            if (!positionSummary[pos]) positionSummary[pos] = { days: 0, hours: 0, regular: 0, h125: 0, h150: 0, earnings: 0, isTip: true, empSet: new Set() };
+            positionSummary[pos].hours += hours;
+            positionSummary[pos].earnings += earnings;
+            positionSummary[pos].empSet.add(emp.id);
+            positionSummary[pos].isTip = true;
+        });
+    });
+
     return (
         <div className="space-y-6">
             <div className="flex items-center justify-between flex-wrap gap-2">
@@ -1283,6 +1307,45 @@ function AllEmployeesSummary({ workShifts, employees, selectedMonth, tipReports,
                     </Button>
                 </div>
             </div>
+
+            {/* סיכום מרוכז לפי תפקיד */}
+            {Object.keys(positionSummary).length > 0 && (
+                <Card className="border-2 border-purple-200 bg-purple-50">
+                    <CardHeader className="pb-3">
+                        <CardTitle className="text-purple-800">📊 סיכום כללי לפי תפקיד - כל העובדים</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-sm">
+                                <thead className="border-b-2 border-purple-300 bg-purple-100">
+                                    <tr>
+                                        <th className="text-right py-2 px-3">תפקיד</th>
+                                        <th className="text-right py-2 px-3">עובדים</th>
+                                        <th className="text-right py-2 px-3">סה"כ שעות</th>
+                                        <th className="text-right py-2 px-3 text-green-700">רגילות (100%)</th>
+                                        <th className="text-right py-2 px-3 text-orange-600">125%</th>
+                                        <th className="text-right py-2 px-3 text-red-600">150%</th>
+                                        <th className="text-right py-2 px-3 text-blue-700">סה"כ טיפ / עלות</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {Object.entries(positionSummary).map(([pos, s]) => (
+                                        <tr key={pos} className="border-b border-purple-100 hover:bg-purple-50">
+                                            <td className="py-2 px-3 font-semibold">{pos}</td>
+                                            <td className="py-2 px-3 text-gray-600">{s.empSet.size}</td>
+                                            <td className="py-2 px-3 font-bold text-blue-700">{s.hours.toFixed(2)}</td>
+                                            <td className="py-2 px-3 text-green-700">{s.isTip ? '-' : s.regular.toFixed(2)}</td>
+                                            <td className="py-2 px-3 text-orange-600">{s.isTip ? '-' : s.h125.toFixed(2)}</td>
+                                            <td className="py-2 px-3 text-red-600">{s.isTip ? '-' : s.h150.toFixed(2)}</td>
+                                            <td className="py-2 px-3 font-bold">{s.isTip ? `₪${s.earnings.toFixed(2)}` : '-'}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </CardContent>
+                </Card>
+            )}
 
             {data.length === 0 ? (
                 <p className="text-center text-gray-500 py-12">אין נתונים לחודש זה</p>
