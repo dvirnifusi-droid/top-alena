@@ -1154,6 +1154,7 @@ function AllEmployeesSummary({ workShifts, employees, selectedMonth, tipReports,
             if (!ws.date || ws.date < monthStart || ws.date > monthEnd) return;
             (ws.assigned_staff || []).forEach(a => {
                 if (a.employee_id !== emp.id) return;
+                if (TIP_POSITIONS.includes(a.position)) return; // tip-based - shown in tip section
                 const hours = calcHours(a.start_time, a.end_time) - (a.total_break_minutes || 0) / 60;
                 if (hours <= 0) return;
                 workDates.add(ws.date);
