@@ -482,7 +482,16 @@ function TipsInner() {
                                                         <SelectContent>{allEmployees.map(e => <SelectItem key={e.id} value={e.id}>{e.full_name}</SelectItem>)}</SelectContent>
                                                     </Select>
                                                 </TableCell>
-                                                <TableCell>{staff.position}</TableCell>
+                                                <TableCell>
+                                                    <Select value={staff.position} onValueChange={(value) => handleStaffDetailChange(index, 'position', value)}>
+                                                        <SelectTrigger className="w-32"><SelectValue placeholder="בחר תפקיד" /></SelectTrigger>
+                                                        <SelectContent>
+                                                            <SelectItem value="מלצר">מלצר</SelectItem>
+                                                            <SelectItem value="ראנר">ראנר</SelectItem>
+                                                            <SelectItem value="ברמן">ברמן</SelectItem>
+                                                        </SelectContent>
+                                                    </Select>
+                                                </TableCell>
                                                 <TableCell><Input type="time" value={staff.start_time} onChange={e => handleStaffDetailChange(index, 'start_time', e.target.value)} /></TableCell>
                                                 <TableCell><Input type="time" value={staff.end_time} onChange={e => handleStaffDetailChange(index, 'end_time', e.target.value)} /></TableCell>
                                                 <TableCell><Input type="number" value={staff.break_minutes} onChange={e => handleStaffDetailChange(index, 'break_minutes', e.target.value)} className="w-24"/></TableCell>
