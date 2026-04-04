@@ -179,7 +179,7 @@ function EmployeeReportsInner() {
             return true;
         };
 
-        const tipEntries = allTipEntries.filter(e => inPeriod(e.date));
+        const tipEntries = allTipEntries.filter(e => inPeriod(e.date) && (!e.position || TIP_POSITIONS.includes(e.position)));
 
         // משמרות ShiftTracking לפי שם עובד
         const empShifts = shifts.filter(s =>
