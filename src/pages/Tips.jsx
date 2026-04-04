@@ -28,6 +28,8 @@ function UnlockedReportsAlert() {
     const [unlockedReports, setUnlockedReports] = useState([]);
     const [missingReports, setMissingReports] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [isOpen, setIsOpen] = useState(false);
+    const [shiftFilter, setShiftFilter] = useState('all');
 
     useEffect(() => {
         Promise.all([
@@ -48,88 +50,30 @@ function UnlockedReportsAlert() {
         }).catch(() => setLoading(false));
     }, []);
 
-    const [shiftFilter, setShiftFilter] = useState('all');
-
     if (loading || (unlockedReports.length === 0 && missingReports.length === 0)) return null;
 
     const filteredUnlocked = shiftFilter === 'all' ? unlockedReports : unlockedReports.filter(r => r.shift_type === shiftFilter);
     const filteredMissing = shiftFilter === 'all' ? missingReports : missingReports.filter(r => r.shift_type === shiftFilter);
 
     return (
-        <div className="max-w-7xl mx-auto mb-4 p-4 border-2 border-orange-300 bg-orange-50 rounded-xl" dir="rtl">
-            <div className="flex items-center justify-between gap-2 mb-3 flex-wrap">
+        <div className="max-w-7xl mx-auto mb-4 border-2 border-orange-300 bg-orange-50 rounded-xl" dir="rtl">
+            <div className="p-4 flex items-center justify-between gap-2 flex-wrap">
                 <div className="flex items-center gap-2">
                     <AlertTriangle className="w-5 h-5 text-orange-500" />
                     <h3 className="font-bold text-orange-800">דוחות טיפים שלא ננעלו ({filteredUnlocked.length}) | חסרים לחלוטין ({filteredMissing.length})</h3>
                 </div>
-                <div className="flex gap-1">
-                    {[['all','הכל'],['lunch','צהריים'],['dinner','ערב']].map(([val, label]) => (
-                        <button
-                            key={val}
-                            onClick={() => setShiftFilter(val)}
-                            className={`text-xs px-3 py-1 rounded-full border font-medium transition-colors ${
-                                shiftFilter === val ? 'bg-orange-500 text-white border-orange-500' : 'bg-white text-orange-700 border-orange-300 hover:bg-orange-100'
-                            }`}
-                        >{label}</button>
-                    ))}
-                </div>
+                <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setIsOpen(!isOpen)}
+                    className="border-orange-300 text-orange-700 hover:bg-orange-100"
+                >
+                    {isOpen ? '▼ הסתר' : '▶ הצג'}
+                </Button>
             </div>
-            <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                    <thead>
-                        <tr className="border-b border-orange-200">
-                            <th className="text-right py-1 px-2 text-orange-700">תאריך</th>
-                            <th className="text-right py-1 px-2 text-orange-700">משמרת</th>
-                            <th className="text-right py-1 px-2 text-orange-700">סה"כ טיפים</th>
-                            <th className="text-right py-1 px-2 text-orange-700">סטטוס</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {filteredUnlocked.map(r => (
-                            <tr key={r.id} className="border-b border-orange-100">
-                                <td className="py-1 px-2">{r.date}</td>
-                                <td className="py-1 px-2">{r.shift_type === 'lunch' ? 'צהריים' : 'ערב'}</td>
-                                <td className="py-1 px-2 font-medium">₪{(r.total_tips_collected || 0).toFixed(2)}</td>
-                                <td className="py-1 px-2">
-                                    <span className="bg-yellow-100 text-yellow-800 text-xs px-2 py-0.5 rounded-full font-medium">
-                                        {r.status === 'draft' ? 'טיוטה' : r.status}
-                                    </span>
-                                </td>
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
-            </div>
-            {filteredMissing.length > 0 && (
-                <div className="mt-4">
-                    <h4 className="font-bold text-red-700 mb-2 flex items-center gap-1">❌ משמרות ללא דוח טיפים כלל ({filteredMissing.length})</h4>
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
-                            <thead>
-                                <tr className="border-b border-red-200">
-                                    <th className="text-right py-1 px-2 text-red-700">תאריך</th>
-                                    <th className="text-right py-1 px-2 text-red-700">משמרת</th>
-                                    <th className="text-right py-1 px-2 text-red-700">סטטוס</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {filteredMissing.map((ws, i) => (
-                                    <tr key={i} className="border-b border-red-100">
-                                        <td className="py-1 px-2">{ws.date}</td>
-                                        <td className="py-1 px-2">{ws.shift_type === 'lunch' ? 'צהריים' : 'ערב'}</td>
-                                        <td className="py-1 px-2">
-                                            <span className="bg-red-100 text-red-800 text-xs px-2 py-0.5 rounded-full font-medium">לא נפתח</span>
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            )}
-        </div>
-    );
-}
+            {isOpen && (
+                <div className="px-4 pb-4">
+                    <div className="flex gap-1 my-3">
 
 function TipsInner() {
     const [date, setDate] = useState(new Date());
