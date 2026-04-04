@@ -760,9 +760,10 @@ function EmployeeReportsInner() {
                                             className="flex-1 border rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-300 bg-white"
                                         >
                                             <option value="">-- בחר תפקיד להוספה --</option>
-                                            {[...new Set(
-                                                employees.flatMap(e => (e.positions || []).map(p => p.position_name).filter(Boolean))
-                                            )]
+                                            {[...new Set([
+                                                ...employees.flatMap(e => (e.positions || []).map(p => p.position_name).filter(Boolean)),
+                                                ...workShifts.flatMap(ws => (ws.assigned_staff || []).map(a => a.position).filter(Boolean))
+                                            ])]
                                             .filter(pos => !employeePositions.find(p => p.position_name === pos))
                                             .sort()
                                             .map(pos => (
