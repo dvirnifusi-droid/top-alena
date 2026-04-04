@@ -28,6 +28,14 @@ function calcHours(startTime, endTime) {
     return (end - start) / 60;
 }
 
+// Split daily hours into regular / 125% / 150% overtime buckets
+function calcOvertimeBreakdown(dailyHours) {
+    const regular = Math.min(dailyHours, 8);
+    const h125 = dailyHours > 8 ? Math.min(dailyHours - 8, 2) : 0;
+    const h150 = dailyHours > 10 ? dailyHours - 10 : 0;
+    return { regular, h125, h150 };
+}
+
 export default function EmployeeReportsPage() {
     return (
         <PageGuard pageName="EmployeeReports" pageTitle="דוחות עובדים">
@@ -1147,21 +1155,32 @@ function AllEmployeesSummary({ workShifts, employees, selectedMonth, tipReports,
     const monthEnd = format(endOfMonth(selectedMonth), 'yyyy-MM-dd');
 
     const data = employees.map(emp => {
-        // hourly shifts grouped by position
+        // hourly shifts grouped by position, also track per-date hours for overtime
         const hourlyByPosition = {};
+        const hourlyByDate = {}; // date -> total hours (for overtime calc)
         const workDates = new Set();
         workShifts.forEach(ws => {
             if (!ws.date || ws.date < monthStart || ws.date > monthEnd) return;
             (ws.assigned_staff || []).forEach(a => {
                 if (a.employee_id !== emp.id) return;
-                if (TIP_POSITIONS.includes(a.position)) return; // tip-based - shown in tip section
+                if (TIP_POSITIONS.includes(a.position)) return;
                 const hours = calcHours(a.start_time, a.end_time) - (a.total_break_minutes || 0) / 60;
                 if (hours <= 0) return;
                 workDates.add(ws.date);
                 const pos = a.position || 'לא מוגדר';
                 if (!hourlyByPosition[pos]) hourlyByPosition[pos] = 0;
                 hourlyByPosition[pos] += hours;
+                hourlyByDate[ws.date] = (hourlyByDate[ws.date] || 0) + hours;
             });
+        });
+
+        // Aggregate overtime breakdown across all days
+        let totalRegular = 0, totalH125 = 0, totalH150 = 0;
+        Object.values(hourlyByDate).forEach(dayHours => {
+            const { regular, h125, h150 } = calcOvertimeBreakdown(dayHours);
+            totalRegular += regular;
+            totalH125 += h125;
+            totalH150 += h150;
         });
 
         // tip shifts grouped by position
@@ -1186,7 +1205,7 @@ function AllEmployeesSummary({ workShifts, employees, selectedMonth, tipReports,
         const totalHourlyHours = Object.values(hourlyByPosition).reduce((s, h) => s + h, 0);
         const totalTipEarnings = Object.values(tipByPosition).reduce((s, p) => s + p.earnings, 0);
 
-        return { emp, hourlyByPosition, tipByPosition, totalDays, totalHourlyHours, totalTipEarnings };
+        return { emp, hourlyByPosition, tipByPosition, totalDays, totalHourlyHours, totalTipEarnings, totalRegular, totalH125, totalH150 };
     }).filter(d => d.totalDays > 0);
 
     const sendAllWhatsApp = () => {
@@ -1223,7 +1242,7 @@ function AllEmployeesSummary({ workShifts, employees, selectedMonth, tipReports,
 
             {data.length === 0 ? (
                 <p className="text-center text-gray-500 py-12">אין נתונים לחודש זה</p>
-            ) : data.map(({ emp, hourlyByPosition, tipByPosition, totalDays, totalHourlyHours, totalTipEarnings }) => (
+            ) : data.map(({ emp, hourlyByPosition, tipByPosition, totalDays, totalHourlyHours, totalTipEarnings, totalRegular, totalH125, totalH150 }) => (
                 <Card key={emp.id} className="border-2">
                     <CardHeader className="pb-3">
                         <div className="flex items-center justify-between flex-wrap gap-2">
@@ -1245,6 +1264,14 @@ function AllEmployeesSummary({ workShifts, employees, selectedMonth, tipReports,
                                     <span className="font-bold text-blue-700">סה"כ {hours.toFixed(2)} שעות</span>
                                 </div>
                             ))}
+                            {totalHourlyHours > 0 && (
+                                <div className="flex flex-wrap gap-2 p-2 rounded-lg bg-slate-100 border border-slate-200 text-xs mt-1">
+                                    <span className="font-semibold text-slate-600">פירוט שעות נוספות:</span>
+                                    <span className="text-green-700 font-medium">רגילות (100%): {totalRegular.toFixed(2)}</span>
+                                    {totalH125 > 0 && <span className="text-orange-600 font-medium">125%: {totalH125.toFixed(2)}</span>}
+                                    {totalH150 > 0 && <span className="text-red-600 font-medium">150%: {totalH150.toFixed(2)}</span>}
+                                </div>
+                            )}
                             {Object.entries(tipByPosition).map(([pos, { hours, earnings }]) => (
                                 <div key={pos} className="flex items-center justify-between p-2 rounded-lg bg-green-50 border border-green-100">
                                     <span className="font-medium text-gray-700">📌 {pos}</span>
