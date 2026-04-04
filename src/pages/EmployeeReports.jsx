@@ -412,16 +412,6 @@ function EmployeeReportsInner() {
         sendWhatsApp(text);
     };
 
-    if (loading) {
-        return (
-            <div className="flex items-center justify-center h-screen">
-                <Loader2 className="w-12 h-12 animate-spin text-blue-600" />
-            </div>
-        );
-    }
-
-    const selectedEmployee = employees.find(e => e.id === selectedEmployeeId) || { full_name: user?.full_name };
-
     // When employee changes, pre-fill rates from their positions config
     React.useEffect(() => {
         if (!selectedEmployeeId || selectedEmployeeId === 'all') return;
@@ -442,7 +432,6 @@ function EmployeeReportsInner() {
             rate: parseFloat(positionRates[p.position_name] || 0),
         }));
         await base44.entities.Employee.update(selectedEmployeeId, { positions: positionsToSave });
-        // update local employees list
         setEmployees(prev => prev.map(e => e.id === selectedEmployeeId ? { ...e, positions: positionsToSave } : e));
         setSavingRates(false);
     };
@@ -458,6 +447,16 @@ function EmployeeReportsInner() {
         setEmployeePositions(prev => prev.filter(p => p.position_name !== name));
         setPositionRates(prev => { const n = { ...prev }; delete n[name]; return n; });
     };
+
+    if (loading) {
+        return (
+            <div className="flex items-center justify-center h-screen">
+                <Loader2 className="w-12 h-12 animate-spin text-blue-600" />
+            </div>
+        );
+    }
+
+    const selectedEmployee = employees.find(e => e.id === selectedEmployeeId) || { full_name: user?.full_name };
 
     return (
         <div className="p-4 sm:p-8 bg-gradient-to-br from-slate-50 to-slate-100 min-h-screen" dir="rtl">
