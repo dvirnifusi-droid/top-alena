@@ -1147,124 +1147,112 @@ function AllEmployeesSummary({ workShifts, employees, selectedMonth, tipReports,
     const monthEnd = format(endOfMonth(selectedMonth), 'yyyy-MM-dd');
 
     const data = employees.map(emp => {
-        let hourlyShifts = [];
+        // hourly shifts grouped by position
+        const hourlyByPosition = {};
+        const workDates = new Set();
         workShifts.forEach(ws => {
             if (!ws.date || ws.date < monthStart || ws.date > monthEnd) return;
             (ws.assigned_staff || []).forEach(a => {
                 if (a.employee_id !== emp.id) return;
                 const hours = calcHours(a.start_time, a.end_time) - (a.total_break_minutes || 0) / 60;
                 if (hours <= 0) return;
-                hourlyShifts.push({ date: ws.date, shift_type: ws.shift_type, position: a.position, start_time: a.start_time, end_time: a.end_time, hours });
+                workDates.add(ws.date);
+                const pos = a.position || 'לא מוגדר';
+                if (!hourlyByPosition[pos]) hourlyByPosition[pos] = 0;
+                hourlyByPosition[pos] += hours;
             });
         });
 
-        let tipEntries = [];
+        // tip shifts grouped by position
+        const tipByPosition = {};
+        const tipDates = new Set();
         tipReports.forEach(report => {
             if (!report.date || report.date < monthStart || report.date > monthEnd) return;
             const s = (report.staff_details || []).find(s =>
                 s.employee_id === emp.id ||
                 (emp.full_name && s.employee_name && s.employee_name.trim().toLowerCase() === emp.full_name.trim().toLowerCase())
             );
-            if (s) tipEntries.push({ date: report.date, hours: s.effective_hours || 0, earnings: s.total_earnings || s.final_tip || 0 });
+            if (!s) return;
+            tipDates.add(report.date);
+            const pos = s.position || 'מלצר';
+            if (!tipByPosition[pos]) tipByPosition[pos] = { hours: 0, earnings: 0 };
+            tipByPosition[pos].hours += s.effective_hours || 0;
+            tipByPosition[pos].earnings += s.total_earnings || s.final_tip || 0;
         });
 
-        const totalHourlyHours = hourlyShifts.reduce((s, e) => s + e.hours, 0);
-        const totalTipHours = tipEntries.reduce((s, e) => s + e.hours, 0);
-        const totalTipEarnings = tipEntries.reduce((s, e) => s + e.earnings, 0);
+        const totalDays = new Set([...workDates, ...tipDates]).size;
+        const totalHourlyHours = Object.values(hourlyByPosition).reduce((s, h) => s + h, 0);
+        const totalTipEarnings = Object.values(tipByPosition).reduce((s, p) => s + p.earnings, 0);
 
-        return { emp, hourlyShifts, tipEntries, totalHourlyHours, totalTipHours, totalTipEarnings };
-    }).filter(d => d.totalHourlyHours > 0 || d.totalTipHours > 0);
+        return { emp, hourlyByPosition, tipByPosition, totalDays, totalHourlyHours, totalTipEarnings };
+    }).filter(d => d.totalDays > 0);
+
+    const sendAllWhatsApp = () => {
+        const monthLabel = format(selectedMonth, 'MMMM yyyy', { locale: he });
+        let text = `📊 *דוח עובדים - ${monthLabel}*\n${'─'.repeat(30)}\n\n`;
+        data.forEach(({ emp, hourlyByPosition, tipByPosition, totalDays }) => {
+            text += `👤 *${emp.full_name}* - סה"כ ${totalDays} ימי עבודה\n`;
+            Object.entries(hourlyByPosition).forEach(([pos, hours]) => {
+                text += `  📌 ${pos} - סה"כ ${hours.toFixed(2)} שעות\n`;
+            });
+            Object.entries(tipByPosition).forEach(([pos, { hours, earnings }]) => {
+                text += `  📌 ${pos} - סה"כ ${hours.toFixed(2)} שעות, סה"כ טיפ: ₪${earnings.toFixed(2)}\n`;
+            });
+            text += '\n';
+        });
+        window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+    };
 
     return (
         <div className="space-y-6">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between flex-wrap gap-2">
                 <h2 className="text-xl font-bold">דוח כללי - {format(selectedMonth, 'MMMM yyyy', { locale: he })}</h2>
-                <Button onClick={onExport} className="bg-emerald-600 hover:bg-emerald-700 flex items-center gap-2">
-                    <FileDown className="w-4 h-4" />
-                    ייצוא לרואה חשבון
-                </Button>
+                <div className="flex gap-2">
+                    <Button onClick={sendAllWhatsApp} variant="outline" className="flex items-center gap-2 border-green-400 text-green-600 hover:bg-green-50" disabled={data.length === 0}>
+                        <span>📱</span>
+                        שלח לוואטסאפ
+                    </Button>
+                    <Button onClick={onExport} className="bg-emerald-600 hover:bg-emerald-700 flex items-center gap-2">
+                        <FileDown className="w-4 h-4" />
+                        ייצוא לרואה חשבון
+                    </Button>
+                </div>
             </div>
 
             {data.length === 0 ? (
                 <p className="text-center text-gray-500 py-12">אין נתונים לחודש זה</p>
-            ) : data.map(({ emp, hourlyShifts, tipEntries, totalHourlyHours, totalTipHours, totalTipEarnings }) => (
+            ) : data.map(({ emp, hourlyByPosition, tipByPosition, totalDays, totalHourlyHours, totalTipEarnings }) => (
                 <Card key={emp.id} className="border-2">
-                    <CardHeader className="pb-2">
-                        <div className="flex items-center justify-between">
-                            <CardTitle className="text-lg">{emp.full_name}</CardTitle>
+                    <CardHeader className="pb-3">
+                        <div className="flex items-center justify-between flex-wrap gap-2">
+                            <div>
+                                <CardTitle className="text-lg">{emp.full_name}</CardTitle>
+                                <p className="text-sm text-gray-500 mt-0.5">סה"כ <span className="font-bold text-gray-700">{totalDays}</span> ימי עבודה</p>
+                            </div>
                             <div className="flex gap-2 flex-wrap">
-                                {totalHourlyHours > 0 && <Badge className="bg-blue-100 text-blue-800">שעות סידור: {totalHourlyHours.toFixed(2)}</Badge>}
-                                {totalTipHours > 0 && <Badge className="bg-green-100 text-green-800">שעות טיפים: {totalTipHours.toFixed(2)}</Badge>}
-                                {totalTipEarnings > 0 && <Badge className="bg-orange-100 text-orange-800">סה"כ טיפים: ₪{totalTipEarnings.toFixed(0)}</Badge>}
+                                {totalHourlyHours > 0 && <Badge className="bg-blue-100 text-blue-800">שעות: {totalHourlyHours.toFixed(2)}</Badge>}
+                                {totalTipEarnings > 0 && <Badge className="bg-green-100 text-green-800">טיפים: ₪{totalTipEarnings.toFixed(2)}</Badge>}
                             </div>
                         </div>
                     </CardHeader>
                     <CardContent>
-                        {hourlyShifts.length > 0 && (
-                            <div className="mb-4">
-                                <p className="text-sm font-semibold text-gray-600 mb-2">משמרות מסידור עבודה:</p>
-                                <div className="overflow-x-auto">
-                                    <table className="w-full text-sm">
-                                        <thead className="bg-slate-50 border-b">
-                                            <tr>
-                                                <th className="text-right py-2 px-3">תאריך</th>
-                                                <th className="text-right py-2 px-3">משמרת</th>
-                                                <th className="text-right py-2 px-3">תפקיד</th>
-                                                <th className="text-right py-2 px-3">כניסה</th>
-                                                <th className="text-right py-2 px-3">יציאה</th>
-                                                <th className="text-right py-2 px-3 font-bold text-blue-700">שעות נטו</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {hourlyShifts.sort((a,b) => a.date.localeCompare(b.date)).map((s, i) => (
-                                                <tr key={i} className="border-b hover:bg-slate-50">
-                                                    <td className="py-2 px-3">{format(new Date(s.date), 'dd/MM/yyyy', { locale: he })}</td>
-                                                    <td className="py-2 px-3"><Badge variant={s.shift_type === 'lunch' ? 'default' : 'secondary'}>{s.shift_type === 'lunch' ? 'צהריים' : 'ערב'}</Badge></td>
-                                                    <td className="py-2 px-3">{s.position}</td>
-                                                    <td className="py-2 px-3">{s.start_time}</td>
-                                                    <td className="py-2 px-3">{s.end_time}</td>
-                                                    <td className="py-2 px-3 font-bold text-blue-700">{s.hours.toFixed(2)}</td>
-                                                </tr>
-                                            ))}
-                                            <tr className="bg-blue-50 border-t-2">
-                                                <td colSpan={5} className="py-2 px-3 font-bold text-right text-blue-800">סה"כ:</td>
-                                                <td className="py-2 px-3 font-bold text-blue-700">{totalHourlyHours.toFixed(2)}</td>
-                                            </tr>
-                                        </tbody>
-                                    </table>
+                        <div className="space-y-2">
+                            {Object.entries(hourlyByPosition).map(([pos, hours]) => (
+                                <div key={pos} className="flex items-center justify-between p-2 rounded-lg bg-blue-50 border border-blue-100">
+                                    <span className="font-medium text-gray-700">📌 {pos}</span>
+                                    <span className="font-bold text-blue-700">סה"כ {hours.toFixed(2)} שעות</span>
                                 </div>
-                            </div>
-                        )}
-                        {tipEntries.length > 0 && (
-                            <div>
-                                <p className="text-sm font-semibold text-gray-600 mb-2">טיפים:</p>
-                                <div className="overflow-x-auto">
-                                    <table className="w-full text-sm">
-                                        <thead className="bg-slate-50 border-b">
-                                            <tr>
-                                                <th className="text-right py-2 px-3">תאריך</th>
-                                                <th className="text-right py-2 px-3">שעות</th>
-                                                <th className="text-right py-2 px-3 font-bold text-green-700">סה"כ טיפים</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {tipEntries.sort((a,b) => a.date.localeCompare(b.date)).map((e, i) => (
-                                                <tr key={i} className="border-b hover:bg-slate-50">
-                                                    <td className="py-2 px-3">{format(new Date(e.date), 'dd/MM/yyyy', { locale: he })}</td>
-                                                    <td className="py-2 px-3">{e.hours.toFixed(2)}</td>
-                                                    <td className="py-2 px-3 font-bold text-green-700">₪{e.earnings.toFixed(2)}</td>
-                                                </tr>
-                                            ))}
-                                            <tr className="bg-green-50 border-t-2">
-                                                <td className="py-2 px-3 font-bold text-right text-green-800">סה"כ:</td>
-                                                <td className="py-2 px-3 font-bold">{totalTipHours.toFixed(2)}</td>
-                                                <td className="py-2 px-3 font-bold text-green-700">₪{totalTipEarnings.toFixed(2)}</td>
-                                            </tr>
-                                        </tbody>
-                                    </table>
+                            ))}
+                            {Object.entries(tipByPosition).map(([pos, { hours, earnings }]) => (
+                                <div key={pos} className="flex items-center justify-between p-2 rounded-lg bg-green-50 border border-green-100">
+                                    <span className="font-medium text-gray-700">📌 {pos}</span>
+                                    <div className="flex gap-4 text-sm">
+                                        <span className="text-green-700">סה"כ {hours.toFixed(2)} שעות</span>
+                                        <span className="font-bold text-green-800">סה"כ טיפ: ₪{earnings.toFixed(2)}</span>
+                                    </div>
                                 </div>
-                            </div>
-                        )}
+                            ))}
+                        </div>
                     </CardContent>
                 </Card>
             ))}
