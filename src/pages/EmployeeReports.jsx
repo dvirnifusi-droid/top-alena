@@ -382,13 +382,27 @@ function EmployeeReportsInner() {
         const emp = employees.find(e => e.id === selectedEmployeeId);
         const monthLabel = format(selectedMonth, 'MMMM yyyy', { locale: he });
         let text = `📋 *דוח שעות סידור - ${emp?.full_name || ''}*\n📅 ${monthLabel}\n\n`;
+        // Group by date for overtime calc
+        const byDate = {};
+        filteredData.hourlyShiftEntries.forEach(e => {
+            byDate[e.date] = (byDate[e.date] || 0) + e.net_hours;
+        });
+        let totRegular = 0, totH125 = 0, totH150 = 0;
+        Object.values(byDate).forEach(h => {
+            const { regular, h125, h150 } = calcOvertimeBreakdown(h);
+            totRegular += regular; totH125 += h125; totH150 += h150;
+        });
         filteredData.hourlyShiftEntries
             .sort((a, b) => a.date.localeCompare(b.date))
             .forEach(e => {
                 text += `${format(new Date(e.date), 'dd/MM/yyyy')} | ${e.shift_type === 'lunch' ? 'צהריים' : 'ערב'} | ${e.position} | ${e.start_time}-${e.end_time} | ${e.net_hours.toFixed(2)} ש'\n`;
             });
         const total = filteredData.hourlyShiftEntries.reduce((s, e) => s + e.net_hours, 0);
-        text += `\n*סה"כ: ${total.toFixed(2)} שעות*`;
+        text += `\n*סה"כ: ${total.toFixed(2)} שעות*\n`;
+        text += `-- פירוט שעות --\n`;
+        text += `שעות רגילות (100%): ${totRegular.toFixed(2)}\n`;
+        text += `שעות 125%: ${totH125.toFixed(2)}\n`;
+        text += `שעות 150%: ${totH150.toFixed(2)}`;
         sendWhatsApp(text);
     };
 
@@ -823,23 +837,32 @@ function EmployeeReportsInner() {
                                 </CardContent>
                             </Card>
                             {(() => {
-                                const totalGross = filteredData.hourlyShiftEntries.reduce((s, e) => {
-                                    const rate = parseFloat(positionRates[e.position] || 0);
-                                    return s + (rate > 0 ? e.net_hours * rate : 0);
-                                }, 0);
-                                return totalGross > 0 ? (
-                                    <Card className="border-2 border-orange-200">
-                                        <CardContent className="p-6">
-                                            <div className="flex items-center justify-between">
-                                                <div>
-                                                    <p className="text-sm text-gray-600">ברוטו לתשלום</p>
-                                                    <p className="text-2xl font-bold text-orange-600">₪{totalGross.toFixed(2)}</p>
-                                                </div>
-                                                <span className="text-3xl opacity-40">💵</span>
-                                            </div>
-                                        </CardContent>
-                                    </Card>
-                                ) : null;
+                            const totalGross = filteredData.hourlyShiftEntries.reduce((s, e) => {
+                                const rate = parseFloat(positionRates[e.position] || 0);
+                                return s + (rate > 0 ? e.net_hours * rate : 0);
+                            }, 0);
+                            const byDate2 = {};
+                            filteredData.hourlyShiftEntries.forEach(e => { byDate2[e.date] = (byDate2[e.date] || 0) + e.net_hours; });
+                            let r = 0, h1 = 0, h2 = 0;
+                            Object.values(byDate2).forEach(h => { const b = calcOvertimeBreakdown(h); r += b.regular; h1 += b.h125; h2 += b.h150; });
+                            return (
+                                <>
+                                <tr className="border-t-2 border-gray-400 bg-blue-50">
+                                    <td colSpan={isAdmin ? 7 : 6} className="py-3 px-4 font-bold text-right text-blue-800">סה"כ שעות לתקופה:</td>
+                                    <td className="py-3 px-4 font-bold text-xl text-blue-700">{calculations.totalHourlyHours}</td>
+                                    <td className="py-3 px-4 font-bold text-xl text-orange-600">{totalGross > 0 ? `₪${totalGross.toFixed(2)}` : ''}</td>
+                                </tr>
+                                <tr className="bg-slate-50 border-t border-slate-200">
+                                    <td colSpan={isAdmin ? 9 : 7} className="py-2 px-4">
+                                        <div className="flex flex-wrap gap-4 text-xs font-semibold">
+                                            <span className="text-green-700">✅ שעות רגילות (100%): {r.toFixed(2)}</span>
+                                            <span className="text-orange-600">⚡ שעות 125%: {h1.toFixed(2)}</span>
+                                            <span className="text-red-600">🔥 שעות 150%: {h2.toFixed(2)}</span>
+                                        </div>
+                                    </td>
+                                </tr>
+                                </>
+                            );
                             })()}
                             </div>
 
@@ -941,6 +964,23 @@ function EmployeeReportsInner() {
                                                                     <td className="py-3 px-4 font-bold text-xl text-blue-700">{calculations.totalHourlyHours}</td>
                                                                     <td className="py-3 px-4 font-bold text-xl text-orange-600">{totalGross > 0 ? `₪${totalGross.toFixed(2)}` : ''}</td>
                                                                 </tr>
+                                                                {(() => {
+                                                                    const byDate2 = {};
+                                                                    filteredData.hourlyShiftEntries.forEach(e => { byDate2[e.date] = (byDate2[e.date] || 0) + e.net_hours; });
+                                                                    let r = 0, h1 = 0, h2 = 0;
+                                                                    Object.values(byDate2).forEach(h => { const b = calcOvertimeBreakdown(h); r += b.regular; h1 += b.h125; h2 += b.h150; });
+                                                                    return (
+                                                                        <tr className="bg-slate-50 border-t border-slate-200">
+                                                                            <td colSpan={isAdmin ? 9 : 7} className="py-2 px-4">
+                                                                                <div className="flex flex-wrap gap-4 text-xs font-semibold">
+                                                                                    <span className="text-green-700">✅ שעות רגילות (100%): {r.toFixed(2)}</span>
+                                                                                    <span className="text-orange-600">⚡ שעות 125%: {h1.toFixed(2)}</span>
+                                                                                    <span className="text-red-600">🔥 שעות 150%: {h2.toFixed(2)}</span>
+                                                                                </div>
+                                                                            </td>
+                                                                        </tr>
+                                                                    );
+                                                                })()}
                                                             );
                                                         })()}
                                             </tbody>
