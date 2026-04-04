@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import { TipReport } from '@/entities/TipReport';
 import PageGuard from '../components/shared/PageGuard';
 import { WorkShift } from '@/entities/WorkShift';
@@ -74,6 +74,74 @@ function UnlockedReportsAlert() {
             {isOpen && (
                 <div className="px-4 pb-4">
                     <div className="flex gap-1 my-3">
+                        {[['all','הכל'],['lunch','צהריים'],['dinner','ערב']].map(([val, label]) => (
+                            <button
+                                key={val}
+                                onClick={() => setShiftFilter(val)}
+                                className={`text-xs px-3 py-1 rounded-full border font-medium transition-colors ${
+                                    shiftFilter === val ? 'bg-orange-500 text-white border-orange-500' : 'bg-white text-orange-700 border-orange-300 hover:bg-orange-100'
+                                }`}
+                            >{label}</button>
+                        ))}
+                    </div>
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                            <thead>
+                                <tr className="border-b border-orange-200">
+                                    <th className="text-right py-1 px-2 text-orange-700">תאריך</th>
+                                    <th className="text-right py-1 px-2 text-orange-700">משמרת</th>
+                                    <th className="text-right py-1 px-2 text-orange-700">סה"כ טיפים</th>
+                                    <th className="text-right py-1 px-2 text-orange-700">סטטוס</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {filteredUnlocked.map(r => (
+                                    <tr key={r.id} className="border-b border-orange-100">
+                                        <td className="py-1 px-2">{r.date}</td>
+                                        <td className="py-1 px-2">{r.shift_type === 'lunch' ? 'צהריים' : 'ערב'}</td>
+                                        <td className="py-1 px-2 font-medium">₪{(r.total_tips_collected || 0).toFixed(2)}</td>
+                                        <td className="py-1 px-2">
+                                            <span className="bg-yellow-100 text-yellow-800 text-xs px-2 py-0.5 rounded-full font-medium">
+                                                {r.status === 'draft' ? 'טיוטה' : r.status}
+                                            </span>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                    {filteredMissing.length > 0 && (
+                        <div className="mt-4">
+                            <h4 className="font-bold text-red-700 mb-2 flex items-center gap-1">❌ משמרות ללא דוח טיפים כלל ({filteredMissing.length})</h4>
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-sm">
+                                    <thead>
+                                        <tr className="border-b border-red-200">
+                                            <th className="text-right py-1 px-2 text-red-700">תאריך</th>
+                                            <th className="text-right py-1 px-2 text-red-700">משמרת</th>
+                                            <th className="text-right py-1 px-2 text-red-700">סטטוס</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {filteredMissing.map((ws, i) => (
+                                            <tr key={i} className="border-b border-red-100">
+                                                <td className="py-1 px-2">{ws.date}</td>
+                                                <td className="py-1 px-2">{ws.shift_type === 'lunch' ? 'צהריים' : 'ערב'}</td>
+                                                <td className="py-1 px-2">
+                                                    <span className="bg-red-100 text-red-800 text-xs px-2 py-0.5 rounded-full font-medium">לא נפתח</span>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            )}
+        </div>
+    );
+}
 
 function TipsInner() {
     const [date, setDate] = useState(new Date());
@@ -246,54 +314,53 @@ function TipsInner() {
         };
     }, [staffDetails, totalTips]);
 
-    // ... (rest of the component, including handleSave, handleAddStaff, handleRemoveStaff)
     const handleSaveReport = async () => {
          setIsLoading(true);
          try {
-             const reportData = {
-                 date: format(date, 'yyyy-MM-dd'),
-                 shift_type: shiftType,
-                 total_tips_collected: parseFloat(totalTips) || 0,
-                 runner_deduction: calculatedResults.totalRunnerDeduction,
-                 restaurant_deduction: calculatedResults.totalRestaurantDeduction,
-                 net_tips_for_distribution: calculatedResults.netTipsForDistribution,
-                 tip_per_hour: calculatedResults.tipPerHour,
-                 staff_details: calculatedResults.staffDetails.map(s => ({
-                     employee_id: s.employee_id,
-                     employee_name: s.employee_name,
-                     position: s.position,
-                     start_time: s.start_time,
-                     end_time: s.end_time,
-                     break_minutes: s.break_minutes || 0,
-                     meal_cost: s.meal_cost || 0,
-                     sales_bonus: s.sales_bonus || 0,
-                     total_hours: s.totalHours,
-                     effective_hours: s.effectiveHours,
-                     hourly_deduction: s.effectiveHours * RESTAURANT_HOURLY_DEDUCTION,
-                     gross_tip: s.grossTip,
-                     final_tip: s.finalTip,
-                     supplement: s.supplement,
-                     total_earnings: s.totalEarnings,
-                     employee_signature: s.employee_signature || null,
-                 })),
-                 status: existingReport?.status || 'draft',
-             };
+              const reportData = {
+                  date: format(date, 'yyyy-MM-dd'),
+                  shift_type: shiftType,
+                  total_tips_collected: parseFloat(totalTips) || 0,
+                  runner_deduction: calculatedResults.totalRunnerDeduction,
+                  restaurant_deduction: calculatedResults.totalRestaurantDeduction,
+                  net_tips_for_distribution: calculatedResults.netTipsForDistribution,
+                  tip_per_hour: calculatedResults.tipPerHour,
+                  staff_details: calculatedResults.staffDetails.map(s => ({
+                      employee_id: s.employee_id,
+                      employee_name: s.employee_name,
+                      position: s.position,
+                      start_time: s.start_time,
+                      end_time: s.end_time,
+                      break_minutes: s.break_minutes || 0,
+                      meal_cost: s.meal_cost || 0,
+                      sales_bonus: s.sales_bonus || 0,
+                      total_hours: s.totalHours,
+                      effective_hours: s.effectiveHours,
+                      hourly_deduction: s.effectiveHours * RESTAURANT_HOURLY_DEDUCTION,
+                      gross_tip: s.grossTip,
+                      final_tip: s.finalTip,
+                      supplement: s.supplement,
+                      total_earnings: s.totalEarnings,
+                      employee_signature: s.employee_signature || null,
+                  })),
+                  status: existingReport?.status || 'draft',
+              };
 
-             if (existingReport) {
-                 await TipReport.update(existingReport.id, reportData);
-                 toast.success("דוח טיפים עודכן בהצלחה!");
-             } else {
-                 await TipReport.create(reportData);
-                 toast.success("דוח טיפים נשמר בהצלחה!");
-             }
-             fetchShiftData();
-         } catch (error) {
-             toast.error("שגיאה בשמירת הדוח");
-             console.error(error);
-         } finally {
-             setIsLoading(false);
-         }
-     };
+              if (existingReport) {
+                  await TipReport.update(existingReport.id, reportData);
+                  toast.success("דוח טיפים עודכן בהצלחה!");
+              } else {
+                  await TipReport.create(reportData);
+                  toast.success("דוח טיפים נשמר בהצלחה!");
+              }
+              fetchShiftData();
+          } catch (error) {
+              toast.error("שגיאה בשמירת הדוח");
+              console.error(error);
+          } finally {
+              setIsLoading(false);
+          }
+      };
 
     const handleAddStaff = () => {
         setStaffDetails([
