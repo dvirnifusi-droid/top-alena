@@ -61,6 +61,7 @@ function EmployeeReportsInner() {
     // All positions for the selected employee (including manually added)
     const [employeePositions, setEmployeePositions] = useState([]); // [{ position_name, rate }]
     const [newPositionName, setNewPositionName] = useState('');
+    const [customPositionInput, setCustomPositionInput] = useState('');
     const [savingRates, setSavingRates] = useState(false);
 
     const handleDeleteShiftEntry = async (entry) => {
@@ -437,10 +438,11 @@ function EmployeeReportsInner() {
     };
 
     const addPosition = () => {
-        const name = newPositionName.trim();
-        if (!name || employeePositions.find(p => p.position_name === name)) return;
+        const name = (newPositionName === '__custom__' ? customPositionInput : newPositionName).trim();
+        if (!name || name === '__custom__' || employeePositions.find(p => p.position_name === name)) return;
         setEmployeePositions(prev => [...prev, { position_name: name, rate: 0 }]);
         setNewPositionName('');
+        setCustomPositionInput('');
     };
 
     const removePosition = (name) => {
@@ -773,18 +775,13 @@ function EmployeeReportsInner() {
                                                 type="text"
                                                 placeholder="שם תפקיד חדש"
                                                 autoFocus
-                                                onKeyDown={e => {
-                                                    if (e.key === 'Enter') {
-                                                        setNewPositionName(e.target.value);
-                                                        addPosition();
-                                                        e.target.value = '';
-                                                    }
-                                                }}
-                                                onBlur={e => { if (!e.target.value) setNewPositionName(''); }}
+                                                value={customPositionInput}
+                                                onChange={e => setCustomPositionInput(e.target.value)}
+                                                onKeyDown={e => { if (e.key === 'Enter') addPosition(); }}
                                                 className="flex-1 border rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-300"
                                             />
                                         )}
-                                        <Button size="sm" onClick={addPosition} variant="outline" className="border-orange-400 text-orange-600 hover:bg-orange-100" disabled={!newPositionName || newPositionName === '__custom__'}>
+                                        <Button size="sm" onClick={addPosition} variant="outline" className="border-orange-400 text-orange-600 hover:bg-orange-100" disabled={!newPositionName || (newPositionName === '__custom__' && !customPositionInput.trim())}>
                                             <Plus className="w-4 h-4" />
                                             הוסף
                                         </Button>
