@@ -1252,6 +1252,19 @@ function AllEmployeesSummary({ workShifts, employees, selectedMonth, tipReports,
     const sendAllWhatsApp = () => {
         const monthLabel = format(selectedMonth, 'MMMM yyyy', { locale: he });
         let text = `📊 *דוח עובדים - ${monthLabel}*\n${'─'.repeat(30)}\n\n`;
+
+        // סיכום לפי תפקיד
+        text += `📊 *סיכום כללי לפי תפקיד:*\n`;
+        Object.entries(positionSummary).forEach(([pos, s]) => {
+            if (s.isTip) {
+                text += `  📌 ${pos} | עובדים: ${s.empSet.size} | שעות: ${s.hours.toFixed(2)} | טיפ: ₪${s.earnings.toFixed(2)}\n`;
+            } else {
+                text += `  📌 ${pos} | עובדים: ${s.empSet.size} | שעות: ${s.hours.toFixed(2)} | 100%: ${s.regular.toFixed(2)} | 125%: ${s.h125.toFixed(2)} | 150%: ${s.h150.toFixed(2)}\n`;
+            }
+        });
+        text += `${'─'.repeat(30)}\n\n`;
+
+        // פירוט לפי עובד
         data.forEach(({ emp, hourlyByPosition, tipByPosition, totalDays, totalRegular, totalH125, totalH150 }) => {
             text += `👤 *${emp.full_name}* - סה"כ ${totalDays} ימי עבודה\n`;
             Object.entries(hourlyByPosition).forEach(([pos, hours]) => {
