@@ -754,7 +754,6 @@ function EmployeeReportsInner() {
                         </Card>
                     </TabsContent>
                 </Tabs>
-                </div>
                 )}
 
             {/* דיאלוג ייצוא */}
@@ -828,6 +827,7 @@ function EmployeeReportsInner() {
                 />
             )}
         </div>
+    </div>
     );
 }
 
