@@ -1174,6 +1174,7 @@ function AllEmployeesSummary({ workShifts, employees, selectedMonth, tipReports,
                 (emp.full_name && s.employee_name && s.employee_name.trim().toLowerCase() === emp.full_name.trim().toLowerCase())
             );
             if (!s) return;
+            if (s.position && !TIP_POSITIONS.includes(s.position)) return;
             tipDates.add(report.date);
             const pos = s.position || 'מלצר';
             if (!tipByPosition[pos]) tipByPosition[pos] = { hours: 0, earnings: 0 };
