@@ -1193,9 +1193,9 @@ function AllEmployeesSummary({ workShifts, employees, selectedMonth, tipReports,
     const monthEnd = format(endOfMonth(selectedMonth), 'yyyy-MM-dd');
 
     const data = employees.map(emp => {
-        // hourly shifts grouped by position, also track per-date hours for overtime
+        // hourly shifts grouped by position, calculate overtime per shift entry directly
         const hourlyByPosition = {};
-        const hourlyByDate = {}; // date -> total hours (for overtime calc)
+        const overtimeByPosition = {}; // pos -> { regular, h125, h150 }
         const workDates = new Set();
         workShifts.forEach(ws => {
             if (!ws.date || ws.date < monthStart || ws.date > monthEnd) return;
@@ -1208,16 +1208,17 @@ function AllEmployeesSummary({ workShifts, employees, selectedMonth, tipReports,
                 const pos = a.position || 'לא מוגדר';
                 if (!hourlyByPosition[pos]) hourlyByPosition[pos] = 0;
                 hourlyByPosition[pos] += hours;
-                // Key by shift id to calculate overtime per-shift (not per-day)
-                const shiftKey = ws.id + '_' + a.employee_id;
-                hourlyByDate[shiftKey] = (hourlyByDate[shiftKey] || 0) + hours;
+                // Calculate overtime for THIS shift entry directly by position
+                const { regular, h125, h150 } = calcOvertimeBreakdown(hours);
+                if (!overtimeByPosition[pos]) overtimeByPosition[pos] = { regular: 0, h125: 0, h150: 0 };
+                overtimeByPosition[pos].regular += regular;
+                overtimeByPosition[pos].h125 += h125;
+                overtimeByPosition[pos].h150 += h150;
             });
         });
 
-        // Aggregate overtime breakdown per shift (not per day)
         let totalRegular = 0, totalH125 = 0, totalH150 = 0;
-        Object.values(hourlyByDate).forEach(shiftHours => {
-            const { regular, h125, h150 } = calcOvertimeBreakdown(shiftHours);
+        Object.values(overtimeByPosition).forEach(({ regular, h125, h150 }) => {
             totalRegular += regular;
             totalH125 += h125;
             totalH150 += h150;
@@ -1245,7 +1246,7 @@ function AllEmployeesSummary({ workShifts, employees, selectedMonth, tipReports,
         const totalHourlyHours = Object.values(hourlyByPosition).reduce((s, h) => s + h, 0);
         const totalTipEarnings = Object.values(tipByPosition).reduce((s, p) => s + p.earnings, 0);
 
-        return { emp, hourlyByPosition, tipByPosition, totalDays, totalHourlyHours, totalTipEarnings, totalRegular, totalH125, totalH150 };
+        return { emp, hourlyByPosition, overtimeByPosition, tipByPosition, totalDays, totalHourlyHours, totalTipEarnings, totalRegular, totalH125, totalH150 };
     }).filter(d => d.totalDays > 0);
 
     const sendAllWhatsApp = () => {
@@ -1271,17 +1272,16 @@ function AllEmployeesSummary({ workShifts, employees, selectedMonth, tipReports,
     };
 
     // Build cross-employee position summary
-    const positionSummary = {}; // { pos: { days: Set, hours, regular, h125, h150, earnings, isTip } }
-    data.forEach(({ emp, hourlyByPosition, tipByPosition, totalRegular, totalH125, totalH150 }) => {
-        // hourly positions - distribute overtime proportionally per position
-        const totalHourlyH = Object.values(hourlyByPosition).reduce((s, h) => s + h, 0);
+    const positionSummary = {}; // { pos: { hours, regular, h125, h150, earnings, isTip, empSet } }
+    data.forEach(({ emp, hourlyByPosition, overtimeByPosition, tipByPosition }) => {
+        // hourly positions - use per-position overtime directly
         Object.entries(hourlyByPosition).forEach(([pos, hours]) => {
-            if (!positionSummary[pos]) positionSummary[pos] = { days: 0, hours: 0, regular: 0, h125: 0, h150: 0, earnings: 0, isTip: false, empSet: new Set() };
-            const ratio = totalHourlyH > 0 ? hours / totalHourlyH : 1;
+            if (!positionSummary[pos]) positionSummary[pos] = { hours: 0, regular: 0, h125: 0, h150: 0, earnings: 0, isTip: false, empSet: new Set() };
+            const ot = overtimeByPosition?.[pos] || { regular: 0, h125: 0, h150: 0 };
             positionSummary[pos].hours += hours;
-            positionSummary[pos].regular += totalRegular * ratio;
-            positionSummary[pos].h125 += totalH125 * ratio;
-            positionSummary[pos].h150 += totalH150 * ratio;
+            positionSummary[pos].regular += ot.regular;
+            positionSummary[pos].h125 += ot.h125;
+            positionSummary[pos].h150 += ot.h150;
             positionSummary[pos].empSet.add(emp.id);
         });
         // tip positions
