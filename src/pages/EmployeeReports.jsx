@@ -1031,7 +1031,7 @@ function EmployeeReportsInner() {
                                             </thead>
                                             <tbody>
                                                 {filteredData.tipEntries.map((entry, idx) => (
-                                                    <tr key={idx} className={rowClass(entry, idx)}>
+                                                                     <tr key={idx} className="border-b border-gray-200 hover:bg-slate-50">
                                                         <td className="py-3 px-4">{format(new Date(entry.date), 'dd/MM/yyyy', { locale: he })}</td>
                                                         <td className="py-3 px-4">
                                                             <Badge variant={entry.shift_type === 'lunch' ? 'default' : 'secondary'}>
