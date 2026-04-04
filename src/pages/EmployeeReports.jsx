@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Loader2, TrendingUp, Clock, DollarSign, BarChart3, Calendar, Target, AlertCircle, FileDown, Pencil, Users, Trash2 } from 'lucide-react';
+import { Loader2, TrendingUp, Clock, DollarSign, BarChart3, Calendar, Target, AlertCircle, FileDown, Pencil, Users, Trash2, Plus, Save, X } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
 import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, subMonths, eachWeekOfInterval, addDays } from 'date-fns';
 import { he } from 'date-fns/locale';
@@ -58,6 +58,10 @@ function EmployeeReportsInner() {
     const [editShift, setEditShift] = useState(null); // { entry, workShiftId }
     // Rates per position for gross calculation
     const [positionRates, setPositionRates] = useState({}); // { positionName: rate }
+    // All positions for the selected employee (including manually added)
+    const [employeePositions, setEmployeePositions] = useState([]); // [{ position_name, rate }]
+    const [newPositionName, setNewPositionName] = useState('');
+    const [savingRates, setSavingRates] = useState(false);
 
     const handleDeleteShiftEntry = async (entry) => {
         if (!confirm(`למחוק את המשמרת מתאריך ${entry.date}?`)) return;
@@ -422,13 +426,38 @@ function EmployeeReportsInner() {
     React.useEffect(() => {
         if (!selectedEmployeeId || selectedEmployeeId === 'all') return;
         const emp = employees.find(e => e.id === selectedEmployeeId);
-        if (!emp?.positions) return;
+        const savedPositions = (emp?.positions || []).filter(p => p.position_name);
+        setEmployeePositions(savedPositions.map(p => ({ position_name: p.position_name, rate: p.rate || 0 })));
         const rates = {};
-        emp.positions.forEach(p => {
-            if (p.position_name && p.rate) rates[p.position_name] = p.rate;
-        });
+        savedPositions.forEach(p => { if (p.rate) rates[p.position_name] = p.rate; });
         setPositionRates(rates);
     }, [selectedEmployeeId, employees]);
+
+    const savePositionRates = async () => {
+        if (!selectedEmployeeId || selectedEmployeeId === 'all') return;
+        setSavingRates(true);
+        const positionsToSave = employeePositions.map(p => ({
+            position_name: p.position_name,
+            pay_type: 'hourly',
+            rate: parseFloat(positionRates[p.position_name] || 0),
+        }));
+        await base44.entities.Employee.update(selectedEmployeeId, { positions: positionsToSave });
+        // update local employees list
+        setEmployees(prev => prev.map(e => e.id === selectedEmployeeId ? { ...e, positions: positionsToSave } : e));
+        setSavingRates(false);
+    };
+
+    const addPosition = () => {
+        const name = newPositionName.trim();
+        if (!name || employeePositions.find(p => p.position_name === name)) return;
+        setEmployeePositions(prev => [...prev, { position_name: name, rate: 0 }]);
+        setNewPositionName('');
+    };
+
+    const removePosition = (name) => {
+        setEmployeePositions(prev => prev.filter(p => p.position_name !== name));
+        setPositionRates(prev => { const n = { ...prev }; delete n[name]; return n; });
+    };
 
     return (
         <div className="p-4 sm:p-8 bg-gradient-to-br from-slate-50 to-slate-100 min-h-screen" dir="rtl">
@@ -688,37 +717,58 @@ function EmployeeReportsInner() {
                         </div>
 
                         {/* תעריפים לפי תפקיד */}
-                        {filteredData.hourlyShiftEntries.length > 0 && (() => {
-                            const positions = [...new Set(filteredData.hourlyShiftEntries.map(e => e.position).filter(Boolean))];
-                            return (
-                                <Card className="mb-4 border-2 border-orange-200 bg-orange-50">
-                                    <CardHeader className="pb-2">
-                                        <CardTitle className="text-base text-orange-800">💵 תעריף שעתי לפי תפקיד (ברוטו)</CardTitle>
-                                    </CardHeader>
-                                    <CardContent>
-                                        <div className="flex flex-wrap gap-4">
-                                            {positions.map(pos => (
-                                                <div key={pos} className="flex items-center gap-2">
-                                                    <label className="text-sm font-medium text-gray-700 min-w-[80px]">{pos}:</label>
-                                                    <div className="flex items-center gap-1">
-                                                        <span className="text-gray-500 text-sm">₪</span>
-                                                        <input
-                                                            type="number"
-                                                            min="0"
-                                                            placeholder="0"
-                                                            value={positionRates[pos] || ''}
-                                                            onChange={e => setPositionRates(prev => ({ ...prev, [pos]: e.target.value }))}
-                                                            className="w-24 border rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-orange-300"
-                                                        />
-                                                        <span className="text-gray-400 text-xs">/שעה</span>
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </CardContent>
-                                </Card>
-                            );
-                        })()}
+                        {selectedEmployeeId && selectedEmployeeId !== 'all' && (
+                            <Card className="mb-4 border-2 border-orange-200 bg-orange-50">
+                                <CardHeader className="pb-2">
+                                    <div className="flex items-center justify-between">
+                                        <CardTitle className="text-base text-orange-800">💵 תעריפים לפי תפקיד (ברוטו)</CardTitle>
+                                        <Button size="sm" onClick={savePositionRates} disabled={savingRates} className="bg-orange-500 hover:bg-orange-600 text-white flex items-center gap-1">
+                                            {savingRates ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                                            שמור תעריפים
+                                        </Button>
+                                    </div>
+                                </CardHeader>
+                                <CardContent>
+                                    <div className="space-y-2 mb-4">
+                                        {employeePositions.length === 0 && (
+                                            <p className="text-sm text-gray-400">אין תפקידים מוגדרים. הוסף תפקיד למטה.</p>
+                                        )}
+                                        {employeePositions.map(pos => (
+                                            <div key={pos.position_name} className="flex items-center gap-3 bg-white rounded-lg px-3 py-2 border">
+                                                <span className="font-medium text-gray-800 min-w-[120px]">{pos.position_name}</span>
+                                                <span className="text-gray-400 text-sm">₪</span>
+                                                <input
+                                                    type="number"
+                                                    min="0"
+                                                    placeholder="0"
+                                                    value={positionRates[pos.position_name] || ''}
+                                                    onChange={e => setPositionRates(prev => ({ ...prev, [pos.position_name]: e.target.value }))}
+                                                    className="w-24 border rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-orange-300"
+                                                />
+                                                <span className="text-gray-400 text-xs">/שעה</span>
+                                                <button onClick={() => removePosition(pos.position_name)} className="mr-auto text-gray-400 hover:text-red-500 p-1">
+                                                    <X className="w-4 h-4" />
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                    <div className="flex items-center gap-2 border-t pt-3">
+                                        <input
+                                            type="text"
+                                            placeholder="שם תפקיד חדש (למשל: קופה)"
+                                            value={newPositionName}
+                                            onChange={e => setNewPositionName(e.target.value)}
+                                            onKeyDown={e => e.key === 'Enter' && addPosition()}
+                                            className="flex-1 border rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-300"
+                                        />
+                                        <Button size="sm" onClick={addPosition} variant="outline" className="border-orange-400 text-orange-600 hover:bg-orange-100">
+                                            <Plus className="w-4 h-4" />
+                                            הוסף תפקיד
+                                        </Button>
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        )}
 
                         <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
                             <Card className="border-2 border-blue-200">
