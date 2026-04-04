@@ -275,6 +275,80 @@ function EmployeeReportsInner() {
         };
     }, [filteredData]);
 
+    // --- Excel Export helpers ---
+    const downloadCsv = (rows, filename) => {
+        const bom = '\uFEFF';
+        const csv = bom + rows.map(r => r.map(c => `"${String(c ?? '').replace(/"/g, '""')}"`).join(',')).join('\n');
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a'); a.href = url; a.download = filename; a.click();
+        URL.revokeObjectURL(url);
+    };
+
+    const exportHourlyShiftsExcel = () => {
+        const emp = employees.find(e => e.id === selectedEmployeeId);
+        const monthLabel = format(selectedMonth, 'MM-yyyy');
+        const rows = [['שם עובד', 'תאריך', 'משמרת', 'תפקיד', 'כניסה', 'יציאה', 'הפסקה (דק\')', 'שעות נטו']];
+        filteredData.hourlyShiftEntries
+            .sort((a, b) => a.date.localeCompare(b.date))
+            .forEach(e => rows.push([
+                emp?.full_name || '',
+                format(new Date(e.date), 'dd/MM/yyyy'),
+                e.shift_type === 'lunch' ? 'צהריים' : 'ערב',
+                e.position,
+                e.start_time,
+                e.end_time,
+                e.break_minutes || 0,
+                parseFloat(e.net_hours.toFixed(2)),
+            ]));
+        const total = filteredData.hourlyShiftEntries.reduce((s, e) => s + e.net_hours, 0);
+        rows.push(['', '', '', '', '', '', 'סה"כ:', parseFloat(total.toFixed(2))]);
+        downloadCsv(rows, `שעות_סידור_${emp?.full_name || ''}_${monthLabel}.csv`);
+    };
+
+    const exportTipsExcel = () => {
+        const emp = employees.find(e => e.id === selectedEmployeeId);
+        const monthLabel = format(selectedMonth, 'MM-yyyy');
+        const rows = [['שם עובד', 'תאריך', 'משמרת', 'תפקיד', 'שעות', 'טיפ ברוטו', 'ארוחה', 'בונוס', 'השלמה', 'סה"כ']];
+        filteredData.tipEntries.forEach(e => rows.push([
+            emp?.full_name || '',
+            format(new Date(e.date), 'dd/MM/yyyy'),
+            e.shift_type === 'lunch' ? 'צהריים' : 'ערב',
+            e.position || '',
+            parseFloat((e.effectiveHours || 0).toFixed(2)),
+            parseFloat((e.grossTip || 0).toFixed(2)),
+            parseFloat((e.meal_cost || 0).toFixed(2)),
+            parseFloat((e.sales_bonus || 0).toFixed(2)),
+            parseFloat((e.supplement || 0).toFixed(2)),
+            parseFloat((e.totalEarnings || 0).toFixed(2)),
+        ]));
+        const totalEarnings = filteredData.tipEntries.reduce((s, e) => s + (e.totalEarnings || 0), 0);
+        rows.push(['', '', '', '', '', '', '', '', 'סה"כ:', parseFloat(totalEarnings.toFixed(2))]);
+        downloadCsv(rows, `טיפים_${emp?.full_name || ''}_${monthLabel}.csv`);
+    };
+
+    const exportMonthlySummaryExcel = () => {
+        const emp = employees.find(e => e.id === selectedEmployeeId);
+        const monthLabel = format(selectedMonth, 'MM-yyyy');
+        const rows = [['שם עובד', 'שבוע', 'שעות', 'שעות רגילות', 'שעות נוספות']];
+        monthlyBreakdown.weeks.forEach(w => rows.push([
+            emp?.full_name || '',
+            w.label,
+            w.hours,
+            w.regular,
+            w.overtime,
+        ]));
+        rows.push(['', 'סה"כ חודשי:', parseFloat(monthlyBreakdown.totalHours), parseFloat(monthlyBreakdown.totalRegular), parseFloat(monthlyBreakdown.totalOvertime)]);
+        // Add tips summary
+        const totalTipEarnings = filteredData.tipEntries.reduce((s, e) => s + (e.totalEarnings || 0), 0);
+        const totalTipHours = filteredData.tipEntries.reduce((s, e) => s + (e.effectiveHours || 0), 0);
+        rows.push([]);
+        rows.push(['סיכום טיפים', '', '', '', '']);
+        rows.push(['שעות טיפים', parseFloat(totalTipHours.toFixed(2)), '', '', '']);
+        rows.push(['סה"כ טיפים', parseFloat(totalTipEarnings.toFixed(2)), '', '', '']);
+        downloadCsv(rows, `סיכום_חודשי_${emp?.full_name || ''}_${monthLabel}.csv`);
+    };
+
     if (loading) {
         return (
             <div className="flex items-center justify-center h-screen">
@@ -411,6 +485,12 @@ function EmployeeReportsInner() {
 
                     {/* TAB: סיכום חודשי */}
                     <TabsContent value="monthly">
+                        <div className="flex justify-end mb-4">
+                            <Button onClick={exportMonthlySummaryExcel} variant="outline" className="flex items-center gap-2 border-blue-300 text-blue-700 hover:bg-blue-50">
+                                <FileDown className="w-4 h-4" />
+                                ייצוא סיכום חודשי לאקסל
+                            </Button>
+                        </div>
                         {/* כרטיסי סיכום */}
                         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
                             <Card className="border-2 border-blue-200">
@@ -521,6 +601,12 @@ function EmployeeReportsInner() {
 
                     {/* TAB: שעות עבודה */}
                     <TabsContent value="hourly">
+                        <div className="flex justify-end mb-4">
+                            <Button onClick={exportHourlyShiftsExcel} variant="outline" className="flex items-center gap-2 border-blue-300 text-blue-700 hover:bg-blue-50" disabled={filteredData.hourlyShiftEntries.length === 0}>
+                                <FileDown className="w-4 h-4" />
+                                ייצוא שעות סידור לאקסל
+                            </Button>
+                        </div>
                         <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
                             <Card className="border-2 border-blue-200">
                                 <CardContent className="p-6">
@@ -644,6 +730,12 @@ function EmployeeReportsInner() {
 
                     {/* TAB: טיפים */}
                     <TabsContent value="tips">
+                        <div className="flex justify-end mb-4">
+                            <Button onClick={exportTipsExcel} variant="outline" className="flex items-center gap-2 border-green-300 text-green-700 hover:bg-green-50" disabled={filteredData.tipEntries.length === 0}>
+                                <FileDown className="w-4 h-4" />
+                                ייצוא דוח טיפים לאקסל
+                            </Button>
+                        </div>
                         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
                             <Card className="border-2 border-blue-200">
                                 <CardContent className="p-6">
