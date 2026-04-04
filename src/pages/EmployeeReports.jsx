@@ -56,6 +56,8 @@ function EmployeeReportsInner() {
     const [exportSelectedEmps, setExportSelectedEmps] = useState([]);
     // Edit shift inline
     const [editShift, setEditShift] = useState(null); // { entry, workShiftId }
+    // Rates per position for gross calculation
+    const [positionRates, setPositionRates] = useState({}); // { positionName: rate }
 
     const handleDeleteShiftEntry = async (entry) => {
         if (!confirm(`למחוק את המשמרת מתאריך ${entry.date}?`)) return;
@@ -288,21 +290,31 @@ function EmployeeReportsInner() {
     const exportHourlyShiftsExcel = () => {
         const emp = employees.find(e => e.id === selectedEmployeeId);
         const monthLabel = format(selectedMonth, 'MM-yyyy');
-        const rows = [['שם עובד', 'תאריך', 'משמרת', 'תפקיד', 'כניסה', 'יציאה', 'הפסקה (דק\')', 'שעות נטו']];
+        const rows = [['שם עובד', 'תאריך', 'משמרת', 'תפקיד', 'כניסה', 'יציאה', 'הפסקה (דק\')', 'שעות נטו', 'תעריף לשעה', 'ברוטו']];
         filteredData.hourlyShiftEntries
             .sort((a, b) => a.date.localeCompare(b.date))
-            .forEach(e => rows.push([
-                emp?.full_name || '',
-                format(new Date(e.date), 'dd/MM/yyyy'),
-                e.shift_type === 'lunch' ? 'צהריים' : 'ערב',
-                e.position,
-                e.start_time,
-                e.end_time,
-                e.break_minutes || 0,
-                parseFloat(e.net_hours.toFixed(2)),
-            ]));
+            .forEach(e => {
+                const rate = parseFloat(positionRates[e.position] || 0);
+                const gross = rate > 0 ? parseFloat((e.net_hours * rate).toFixed(2)) : '';
+                rows.push([
+                    emp?.full_name || '',
+                    format(new Date(e.date), 'dd/MM/yyyy'),
+                    e.shift_type === 'lunch' ? 'צהריים' : 'ערב',
+                    e.position,
+                    e.start_time,
+                    e.end_time,
+                    e.break_minutes || 0,
+                    parseFloat(e.net_hours.toFixed(2)),
+                    rate || '',
+                    gross,
+                ]);
+            });
         const total = filteredData.hourlyShiftEntries.reduce((s, e) => s + e.net_hours, 0);
-        rows.push(['', '', '', '', '', '', 'סה"כ:', parseFloat(total.toFixed(2))]);
+        const totalGross = filteredData.hourlyShiftEntries.reduce((s, e) => {
+            const rate = parseFloat(positionRates[e.position] || 0);
+            return s + (rate > 0 ? e.net_hours * rate : 0);
+        }, 0);
+        rows.push(['', '', '', '', '', '', 'סה"כ:', parseFloat(total.toFixed(2)), '', totalGross > 0 ? parseFloat(totalGross.toFixed(2)) : '']);
         downloadCsv(rows, `שעות_סידור_${emp?.full_name || ''}_${monthLabel}.csv`);
     };
 
@@ -405,6 +417,18 @@ function EmployeeReportsInner() {
     }
 
     const selectedEmployee = employees.find(e => e.id === selectedEmployeeId) || { full_name: user?.full_name };
+
+    // When employee changes, pre-fill rates from their positions config
+    React.useEffect(() => {
+        if (!selectedEmployeeId || selectedEmployeeId === 'all') return;
+        const emp = employees.find(e => e.id === selectedEmployeeId);
+        if (!emp?.positions) return;
+        const rates = {};
+        emp.positions.forEach(p => {
+            if (p.position_name && p.rate) rates[p.position_name] = p.rate;
+        });
+        setPositionRates(rates);
+    }, [selectedEmployeeId, employees]);
 
     return (
         <div className="p-4 sm:p-8 bg-gradient-to-br from-slate-50 to-slate-100 min-h-screen" dir="rtl">
@@ -662,6 +686,40 @@ function EmployeeReportsInner() {
                                 ייצוא שעות סידור לאקסל
                             </Button>
                         </div>
+
+                        {/* תעריפים לפי תפקיד */}
+                        {filteredData.hourlyShiftEntries.length > 0 && (() => {
+                            const positions = [...new Set(filteredData.hourlyShiftEntries.map(e => e.position).filter(Boolean))];
+                            return (
+                                <Card className="mb-4 border-2 border-orange-200 bg-orange-50">
+                                    <CardHeader className="pb-2">
+                                        <CardTitle className="text-base text-orange-800">💵 תעריף שעתי לפי תפקיד (ברוטו)</CardTitle>
+                                    </CardHeader>
+                                    <CardContent>
+                                        <div className="flex flex-wrap gap-4">
+                                            {positions.map(pos => (
+                                                <div key={pos} className="flex items-center gap-2">
+                                                    <label className="text-sm font-medium text-gray-700 min-w-[80px]">{pos}:</label>
+                                                    <div className="flex items-center gap-1">
+                                                        <span className="text-gray-500 text-sm">₪</span>
+                                                        <input
+                                                            type="number"
+                                                            min="0"
+                                                            placeholder="0"
+                                                            value={positionRates[pos] || ''}
+                                                            onChange={e => setPositionRates(prev => ({ ...prev, [pos]: e.target.value }))}
+                                                            className="w-24 border rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-orange-300"
+                                                        />
+                                                        <span className="text-gray-400 text-xs">/שעה</span>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </CardContent>
+                                </Card>
+                            );
+                        })()}
+
                         <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
                             <Card className="border-2 border-blue-200">
                                 <CardContent className="p-6">
@@ -685,7 +743,26 @@ function EmployeeReportsInner() {
                                     </div>
                                 </CardContent>
                             </Card>
-                        </div>
+                            {(() => {
+                                const totalGross = filteredData.hourlyShiftEntries.reduce((s, e) => {
+                                    const rate = parseFloat(positionRates[e.position] || 0);
+                                    return s + (rate > 0 ? e.net_hours * rate : 0);
+                                }, 0);
+                                return totalGross > 0 ? (
+                                    <Card className="border-2 border-orange-200">
+                                        <CardContent className="p-6">
+                                            <div className="flex items-center justify-between">
+                                                <div>
+                                                    <p className="text-sm text-gray-600">ברוטו לתשלום</p>
+                                                    <p className="text-2xl font-bold text-orange-600">₪{totalGross.toFixed(2)}</p>
+                                                </div>
+                                                <span className="text-3xl opacity-40">💵</span>
+                                            </div>
+                                        </CardContent>
+                                    </Card>
+                                ) : null;
+                            })()}
+                            </div>
 
                         <Card className="border-2">
                             <CardHeader>
@@ -726,6 +803,7 @@ function EmployeeReportsInner() {
                                                             <th className="text-right py-3 px-4">יציאה</th>
                                                             <th className="text-right py-3 px-4">הפסקה (דק')</th>
                                                             <th className="text-right py-3 px-4 font-bold text-blue-700">שעות נטו</th>
+                                                            <th className="text-right py-3 px-4 font-bold text-orange-600">ברוטו</th>
                                                             {isAdmin && <th className="py-3 px-4" colSpan={2}></th>}
                                                         </tr>
                                             </thead>
@@ -745,36 +823,38 @@ function EmployeeReportsInner() {
                                                         <td className="py-3 px-4">{entry.end_time}</td>
                                                         <td className="py-3 px-4 text-gray-500">{entry.break_minutes > 0 ? entry.break_minutes : '-'}</td>
                                                         <td className="py-3 px-4 font-bold text-blue-700">{entry.net_hours.toFixed(2)}</td>
+                                                        <td className="py-3 px-4 font-bold text-orange-600">
+                                                            {positionRates[entry.position] > 0 ? `₪${(entry.net_hours * parseFloat(positionRates[entry.position])).toFixed(2)}` : '-'}
+                                                        </td>
                                                         {isAdmin && (
                                                             <td className="py-3 px-4">
-                                                                <Button
-                                                                    size="sm"
-                                                                    variant="ghost"
-                                                                    onClick={() => setEditShift({ entry, workShiftId: entry.workShiftId })}
-                                                                    className="text-gray-500 hover:text-blue-600 p-1 h-7"
-                                                                >
+                                                                <button size="sm" variant="ghost" onClick={() => setEditShift({ entry, workShiftId: entry.workShiftId })} className="text-gray-500 hover:text-blue-600 p-1">
                                                                     <Pencil className="w-3.5 h-3.5" />
-                                                                </Button>
+                                                                </button>
                                                             </td>
                                                         )}
                                                         {isAdmin && (
                                                             <td className="py-3 px-2">
-                                                                <Button
-                                                                    size="sm"
-                                                                    variant="ghost"
-                                                                    onClick={() => handleDeleteShiftEntry(entry)}
-                                                                    className="text-gray-400 hover:text-red-600 p-1 h-7"
-                                                                >
+                                                                <button size="sm" variant="ghost" onClick={() => handleDeleteShiftEntry(entry)} className="text-gray-400 hover:text-red-600 p-1">
                                                                     <Trash2 className="w-3.5 h-3.5" />
-                                                                </Button>
+                                                                </button>
                                                             </td>
                                                         )}
                                                         </tr>
                                                         ))}
-                                                        <tr className="border-t-2 border-gray-400 bg-blue-50">
-                                                        <td colSpan={isAdmin ? 7 : 6} className="py-3 px-4 font-bold text-right text-blue-800">סה"כ שעות לתקופה:</td>
-                                                    <td className="py-3 px-4 font-bold text-xl text-blue-700">{calculations.totalHourlyHours}</td>
-                                                </tr>
+                                                        {(() => {
+                                                            const totalGross = filteredData.hourlyShiftEntries.reduce((s, e) => {
+                                                                const rate = parseFloat(positionRates[e.position] || 0);
+                                                                return s + (rate > 0 ? e.net_hours * rate : 0);
+                                                            }, 0);
+                                                            return (
+                                                                <tr className="border-t-2 border-gray-400 bg-blue-50">
+                                                                    <td colSpan={isAdmin ? 7 : 6} className="py-3 px-4 font-bold text-right text-blue-800">סה"כ שעות לתקופה:</td>
+                                                                    <td className="py-3 px-4 font-bold text-xl text-blue-700">{calculations.totalHourlyHours}</td>
+                                                                    <td className="py-3 px-4 font-bold text-xl text-orange-600">{totalGross > 0 ? `₪${totalGross.toFixed(2)}` : ''}</td>
+                                                                </tr>
+                                                            );
+                                                        })()}
                                             </tbody>
                                         </table>
                                     </div>
