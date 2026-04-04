@@ -1211,11 +1211,16 @@ function AllEmployeesSummary({ workShifts, employees, selectedMonth, tipReports,
     const sendAllWhatsApp = () => {
         const monthLabel = format(selectedMonth, 'MMMM yyyy', { locale: he });
         let text = `📊 *דוח עובדים - ${monthLabel}*\n${'─'.repeat(30)}\n\n`;
-        data.forEach(({ emp, hourlyByPosition, tipByPosition, totalDays }) => {
+        data.forEach(({ emp, hourlyByPosition, tipByPosition, totalDays, totalRegular, totalH125, totalH150 }) => {
             text += `👤 *${emp.full_name}* - סה"כ ${totalDays} ימי עבודה\n`;
             Object.entries(hourlyByPosition).forEach(([pos, hours]) => {
                 text += `  📌 ${pos} - סה"כ ${hours.toFixed(2)} שעות\n`;
             });
+            if (Object.keys(hourlyByPosition).length > 0) {
+                text += `  ⏱ שעות רגילות (100%): ${totalRegular.toFixed(2)}\n`;
+                if (totalH125 > 0) text += `  ⚡ שעות 125%: ${totalH125.toFixed(2)}\n`;
+                if (totalH150 > 0) text += `  🔥 שעות 150%: ${totalH150.toFixed(2)}\n`;
+            }
             Object.entries(tipByPosition).forEach(([pos, { hours, earnings }]) => {
                 text += `  📌 ${pos} - סה"כ ${hours.toFixed(2)} שעות, סה"כ טיפ: ₪${earnings.toFixed(2)}\n`;
             });
