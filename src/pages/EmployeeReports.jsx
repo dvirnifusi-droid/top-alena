@@ -879,41 +879,50 @@ function EmployeeReportsInner() {
                                                         </tr>
                                             </thead>
                                             <tbody>
-                                                {filteredData.hourlyShiftEntries
-                                                    .sort((a, b) => a.date.localeCompare(b.date))
-                                                    .map((entry, idx) => (
-                                                    <tr key={idx} className="border-b border-gray-200 hover:bg-slate-50">
-                                                        <td className="py-3 px-4">{format(new Date(entry.date), 'dd/MM/yyyy', { locale: he })}</td>
-                                                        <td className="py-3 px-4">
-                                                            <Badge variant={entry.shift_type === 'lunch' ? 'default' : 'secondary'}>
-                                                                {entry.shift_type === 'lunch' ? 'צהריים' : 'ערב'}
-                                                            </Badge>
-                                                        </td>
-                                                        <td className="py-3 px-4 text-gray-700 font-medium">{entry.position}</td>
-                                                        <td className="py-3 px-4">{entry.start_time}</td>
-                                                        <td className="py-3 px-4">{entry.end_time}</td>
-                                                        <td className="py-3 px-4 text-gray-500">{entry.break_minutes > 0 ? entry.break_minutes : '-'}</td>
-                                                        <td className="py-3 px-4 font-bold text-blue-700">{entry.net_hours.toFixed(2)}</td>
-                                                        <td className="py-3 px-4 font-bold text-orange-600">
-                                                            {positionRates[entry.position] > 0 ? `₪${(entry.net_hours * parseFloat(positionRates[entry.position])).toFixed(2)}` : '-'}
-                                                        </td>
-                                                        {isAdmin && (
-                                                            <td className="py-3 px-4">
-                                                                <button size="sm" variant="ghost" onClick={() => setEditShift({ entry, workShiftId: entry.workShiftId })} className="text-gray-500 hover:text-blue-600 p-1">
-                                                                    <Pencil className="w-3.5 h-3.5" />
-                                                                </button>
-                                                            </td>
-                                                        )}
-                                                        {isAdmin && (
-                                                            <td className="py-3 px-2">
-                                                                <button size="sm" variant="ghost" onClick={() => handleDeleteShiftEntry(entry)} className="text-gray-400 hover:text-red-600 p-1">
-                                                                    <Trash2 className="w-3.5 h-3.5" />
-                                                                </button>
-                                                            </td>
-                                                        )}
-                                                        </tr>
-                                                        ))}
-                                                        {(() => {
+                                                {(() => {
+                                                                         const sorted = [...filteredData.hourlyShiftEntries].sort((a, b) => a.date.localeCompare(b.date));
+                                                                         const toMins = t => { if (!t) return 0; const [h, m] = t.split(':').map(Number); return h * 60 + m; };
+                                                                         const overlaps = (a, b) => toMins(a.start_time) < toMins(b.end_time) && toMins(a.end_time) > toMins(b.start_time);
+                                                                         const rowClass = (entry, idx) => {
+                                                                             const sameDate = sorted.filter((e, i) => i !== idx && e.date === entry.date);
+                                                                             if (sameDate.length === 0) return 'border-b border-gray-200 hover:bg-slate-50';
+                                                                             const hasOverlap = sameDate.some(e => overlaps(entry, e));
+                                                                             return hasOverlap ? 'border-b border-red-900 bg-red-900/20' : 'border-b border-red-200 bg-red-50';
+                                                                         };
+                                                                         return sorted.map((entry, idx) => (
+                                                                         <tr key={idx} className={rowClass(entry, idx)}>
+                                                                         <td className="py-3 px-4">{format(new Date(entry.date), 'dd/MM/yyyy', { locale: he })}</td>
+                                                                         <td className="py-3 px-4">
+                                                                         <Badge variant={entry.shift_type === 'lunch' ? 'default' : 'secondary'}>
+                                                                         {entry.shift_type === 'lunch' ? 'צהריים' : 'ערב'}
+                                                                         </Badge>
+                                                                         </td>
+                                                                         <td className="py-3 px-4 text-gray-700 font-medium">{entry.position}</td>
+                                                                         <td className="py-3 px-4">{entry.start_time}</td>
+                                                                         <td className="py-3 px-4">{entry.end_time}</td>
+                                                                         <td className="py-3 px-4 text-gray-500">{entry.break_minutes > 0 ? entry.break_minutes : '-'}</td>
+                                                                         <td className="py-3 px-4 font-bold text-blue-700">{entry.net_hours.toFixed(2)}</td>
+                                                                         <td className="py-3 px-4 font-bold text-orange-600">
+                                                                         {positionRates[entry.position] > 0 ? `₪${(entry.net_hours * parseFloat(positionRates[entry.position])).toFixed(2)}` : '-'}
+                                                                         </td>
+                                                                         {isAdmin && (
+                                                                         <td className="py-3 px-4">
+                                                                         <button onClick={() => setEditShift({ entry, workShiftId: entry.workShiftId })} className="text-gray-500 hover:text-blue-600 p-1">
+                                                                         <Pencil className="w-3.5 h-3.5" />
+                                                                         </button>
+                                                                         </td>
+                                                                         )}
+                                                                         {isAdmin && (
+                                                                         <td className="py-3 px-2">
+                                                                         <button onClick={() => handleDeleteShiftEntry(entry)} className="text-gray-400 hover:text-red-600 p-1">
+                                                                         <Trash2 className="w-3.5 h-3.5" />
+                                                                         </button>
+                                                                         </td>
+                                                                         )}
+                                                                         </tr>
+                                                                         ));
+                                                                         })()}
+                                                            {(() => {
                                                             const totalGross = filteredData.hourlyShiftEntries.reduce((s, e) => {
                                                                 const rate = parseFloat(positionRates[e.position] || 0);
                                                                 return s + (rate > 0 ? e.net_hours * rate : 0);
@@ -1022,7 +1031,7 @@ function EmployeeReportsInner() {
                                             </thead>
                                             <tbody>
                                                 {filteredData.tipEntries.map((entry, idx) => (
-                                                    <tr key={idx} className="border-b border-gray-200 hover:bg-slate-50">
+                                                    <tr key={idx} className={rowClass(entry, idx)}>
                                                         <td className="py-3 px-4">{format(new Date(entry.date), 'dd/MM/yyyy', { locale: he })}</td>
                                                         <td className="py-3 px-4">
                                                             <Badge variant={entry.shift_type === 'lunch' ? 'default' : 'secondary'}>
