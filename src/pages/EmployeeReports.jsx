@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Loader2, TrendingUp, Clock, DollarSign, BarChart3, Calendar, Target, AlertCircle, FileDown, Pencil, Users } from 'lucide-react';
+import { Loader2, TrendingUp, Clock, DollarSign, BarChart3, Calendar, Target, AlertCircle, FileDown, Pencil, Users, Trash2 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
 import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, subMonths, eachWeekOfInterval, addDays } from 'date-fns';
 import { he } from 'date-fns/locale';
@@ -56,6 +56,17 @@ function EmployeeReportsInner() {
     const [exportSelectedEmps, setExportSelectedEmps] = useState([]);
     // Edit shift inline
     const [editShift, setEditShift] = useState(null); // { entry, workShiftId }
+
+    const handleDeleteShiftEntry = async (entry) => {
+        if (!confirm(`למחוק את המשמרת מתאריך ${entry.date}?`)) return;
+        const ws = workShifts.find(w => w.id === entry.workShiftId);
+        if (!ws) return;
+        const updatedStaff = (ws.assigned_staff || []).filter(a =>
+            !(a.employee_id === selectedEmployeeId && a.start_time === entry.start_time && a.end_time === entry.end_time && ws.date === entry.date)
+        );
+        await base44.entities.WorkShift.update(ws.id, { assigned_staff: updatedStaff });
+        await loadReportData();
+    };
     const WEEKLY_GOAL_HOURS = 40; // יעד שעות שבועי ברירת מחדל
     const OVERTIME_THRESHOLD = 8; // שעות נוספות מעל X שעות ביום
 
@@ -561,7 +572,7 @@ function EmployeeReportsInner() {
                                                             <th className="text-right py-3 px-4">יציאה</th>
                                                             <th className="text-right py-3 px-4">הפסקה (דק')</th>
                                                             <th className="text-right py-3 px-4 font-bold text-blue-700">שעות נטו</th>
-                                                            {isAdmin && <th className="py-3 px-4"></th>}
+                                                            {isAdmin && <th className="py-3 px-4" colSpan={2}></th>}
                                                         </tr>
                                             </thead>
                                             <tbody>
@@ -589,6 +600,18 @@ function EmployeeReportsInner() {
                                                                     className="text-gray-500 hover:text-blue-600 p-1 h-7"
                                                                 >
                                                                     <Pencil className="w-3.5 h-3.5" />
+                                                                </Button>
+                                                            </td>
+                                                        )}
+                                                        {isAdmin && (
+                                                            <td className="py-3 px-2">
+                                                                <Button
+                                                                    size="sm"
+                                                                    variant="ghost"
+                                                                    onClick={() => handleDeleteShiftEntry(entry)}
+                                                                    className="text-gray-400 hover:text-red-600 p-1 h-7"
+                                                                >
+                                                                    <Trash2 className="w-3.5 h-3.5" />
                                                                 </Button>
                                                             </td>
                                                         )}
