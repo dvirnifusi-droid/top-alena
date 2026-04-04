@@ -1208,14 +1208,16 @@ function AllEmployeesSummary({ workShifts, employees, selectedMonth, tipReports,
                 const pos = a.position || 'לא מוגדר';
                 if (!hourlyByPosition[pos]) hourlyByPosition[pos] = 0;
                 hourlyByPosition[pos] += hours;
-                hourlyByDate[ws.date] = (hourlyByDate[ws.date] || 0) + hours;
+                // Key by shift id to calculate overtime per-shift (not per-day)
+                const shiftKey = ws.id + '_' + a.employee_id;
+                hourlyByDate[shiftKey] = (hourlyByDate[shiftKey] || 0) + hours;
             });
         });
 
-        // Aggregate overtime breakdown across all days
+        // Aggregate overtime breakdown per shift (not per day)
         let totalRegular = 0, totalH125 = 0, totalH150 = 0;
-        Object.values(hourlyByDate).forEach(dayHours => {
-            const { regular, h125, h150 } = calcOvertimeBreakdown(dayHours);
+        Object.values(hourlyByDate).forEach(shiftHours => {
+            const { regular, h125, h150 } = calcOvertimeBreakdown(shiftHours);
             totalRegular += regular;
             totalH125 += h125;
             totalH150 += h150;
