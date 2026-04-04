@@ -324,6 +324,7 @@ function EmployeeReportsInner() {
                                             <SelectValue placeholder="בחר עובד" />
                                         </SelectTrigger>
                                         <SelectContent>
+                                            <SelectItem value="all">👥 כל העובדים (דוח מרוכז)</SelectItem>
                                             {employees.map(emp => (
                                                 <SelectItem key={emp.id} value={emp.id}>
                                                     {emp.full_name}
@@ -374,6 +375,18 @@ function EmployeeReportsInner() {
                     </CardContent>
                 </Card>
 
+                {/* תצוגת כל העובדים - דוח מרוכז */}
+                {selectedEmployeeId === 'all' && (
+                    <AllEmployeesSummary
+                        workShifts={workShifts}
+                        employees={employees}
+                        selectedMonth={selectedMonth}
+                        tipReports={tipReports}
+                        onExport={() => { setExportSelectedEmps(employees.map(e => e.id)); setShowExport(true); }}
+                    />
+                )}
+
+                {selectedEmployeeId !== 'all' && (
                 <Tabs defaultValue="monthly" className="w-full">
                     <TabsList className="mb-6">
                         <TabsTrigger value="monthly" className="flex items-center gap-2">
@@ -741,7 +754,8 @@ function EmployeeReportsInner() {
                         </Card>
                     </TabsContent>
                 </Tabs>
-            </div>
+                </div>
+                )}
 
             {/* דיאלוג ייצוא */}
             {showExport && (
@@ -813,6 +827,136 @@ function EmployeeReportsInner() {
                     onSaved={loadReportData}
                 />
             )}
+        </div>
+    );
+}
+
+function AllEmployeesSummary({ workShifts, employees, selectedMonth, tipReports, onExport }) {
+    const monthStart = format(startOfMonth(selectedMonth), 'yyyy-MM-dd');
+    const monthEnd = format(endOfMonth(selectedMonth), 'yyyy-MM-dd');
+
+    const data = employees.map(emp => {
+        let hourlyShifts = [];
+        workShifts.forEach(ws => {
+            if (!ws.date || ws.date < monthStart || ws.date > monthEnd) return;
+            (ws.assigned_staff || []).forEach(a => {
+                if (a.employee_id !== emp.id) return;
+                const hours = calcHours(a.start_time, a.end_time) - (a.total_break_minutes || 0) / 60;
+                if (hours <= 0) return;
+                hourlyShifts.push({ date: ws.date, shift_type: ws.shift_type, position: a.position, start_time: a.start_time, end_time: a.end_time, hours });
+            });
+        });
+
+        let tipEntries = [];
+        tipReports.forEach(report => {
+            if (!report.date || report.date < monthStart || report.date > monthEnd) return;
+            const s = (report.staff_details || []).find(s =>
+                s.employee_id === emp.id ||
+                (emp.full_name && s.employee_name && s.employee_name.trim().toLowerCase() === emp.full_name.trim().toLowerCase())
+            );
+            if (s) tipEntries.push({ date: report.date, hours: s.effective_hours || 0, earnings: s.total_earnings || s.final_tip || 0 });
+        });
+
+        const totalHourlyHours = hourlyShifts.reduce((s, e) => s + e.hours, 0);
+        const totalTipHours = tipEntries.reduce((s, e) => s + e.hours, 0);
+        const totalTipEarnings = tipEntries.reduce((s, e) => s + e.earnings, 0);
+
+        return { emp, hourlyShifts, tipEntries, totalHourlyHours, totalTipHours, totalTipEarnings };
+    }).filter(d => d.totalHourlyHours > 0 || d.totalTipHours > 0);
+
+    return (
+        <div className="space-y-6">
+            <div className="flex items-center justify-between">
+                <h2 className="text-xl font-bold">דוח כללי - {format(selectedMonth, 'MMMM yyyy', { locale: he })}</h2>
+                <Button onClick={onExport} className="bg-emerald-600 hover:bg-emerald-700 flex items-center gap-2">
+                    <FileDown className="w-4 h-4" />
+                    ייצוא לרואה חשבון
+                </Button>
+            </div>
+
+            {data.length === 0 ? (
+                <p className="text-center text-gray-500 py-12">אין נתונים לחודש זה</p>
+            ) : data.map(({ emp, hourlyShifts, tipEntries, totalHourlyHours, totalTipHours, totalTipEarnings }) => (
+                <Card key={emp.id} className="border-2">
+                    <CardHeader className="pb-2">
+                        <div className="flex items-center justify-between">
+                            <CardTitle className="text-lg">{emp.full_name}</CardTitle>
+                            <div className="flex gap-2 flex-wrap">
+                                {totalHourlyHours > 0 && <Badge className="bg-blue-100 text-blue-800">שעות סידור: {totalHourlyHours.toFixed(2)}</Badge>}
+                                {totalTipHours > 0 && <Badge className="bg-green-100 text-green-800">שעות טיפים: {totalTipHours.toFixed(2)}</Badge>}
+                                {totalTipEarnings > 0 && <Badge className="bg-orange-100 text-orange-800">סה"כ טיפים: ₪{totalTipEarnings.toFixed(0)}</Badge>}
+                            </div>
+                        </div>
+                    </CardHeader>
+                    <CardContent>
+                        {hourlyShifts.length > 0 && (
+                            <div className="mb-4">
+                                <p className="text-sm font-semibold text-gray-600 mb-2">משמרות מסידור עבודה:</p>
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-sm">
+                                        <thead className="bg-slate-50 border-b">
+                                            <tr>
+                                                <th className="text-right py-2 px-3">תאריך</th>
+                                                <th className="text-right py-2 px-3">משמרת</th>
+                                                <th className="text-right py-2 px-3">תפקיד</th>
+                                                <th className="text-right py-2 px-3">כניסה</th>
+                                                <th className="text-right py-2 px-3">יציאה</th>
+                                                <th className="text-right py-2 px-3 font-bold text-blue-700">שעות נטו</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {hourlyShifts.sort((a,b) => a.date.localeCompare(b.date)).map((s, i) => (
+                                                <tr key={i} className="border-b hover:bg-slate-50">
+                                                    <td className="py-2 px-3">{format(new Date(s.date), 'dd/MM/yyyy', { locale: he })}</td>
+                                                    <td className="py-2 px-3"><Badge variant={s.shift_type === 'lunch' ? 'default' : 'secondary'}>{s.shift_type === 'lunch' ? 'צהריים' : 'ערב'}</Badge></td>
+                                                    <td className="py-2 px-3">{s.position}</td>
+                                                    <td className="py-2 px-3">{s.start_time}</td>
+                                                    <td className="py-2 px-3">{s.end_time}</td>
+                                                    <td className="py-2 px-3 font-bold text-blue-700">{s.hours.toFixed(2)}</td>
+                                                </tr>
+                                            ))}
+                                            <tr className="bg-blue-50 border-t-2">
+                                                <td colSpan={5} className="py-2 px-3 font-bold text-right text-blue-800">סה"כ:</td>
+                                                <td className="py-2 px-3 font-bold text-blue-700">{totalHourlyHours.toFixed(2)}</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        )}
+                        {tipEntries.length > 0 && (
+                            <div>
+                                <p className="text-sm font-semibold text-gray-600 mb-2">טיפים:</p>
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-sm">
+                                        <thead className="bg-slate-50 border-b">
+                                            <tr>
+                                                <th className="text-right py-2 px-3">תאריך</th>
+                                                <th className="text-right py-2 px-3">שעות</th>
+                                                <th className="text-right py-2 px-3 font-bold text-green-700">סה"כ טיפים</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {tipEntries.sort((a,b) => a.date.localeCompare(b.date)).map((e, i) => (
+                                                <tr key={i} className="border-b hover:bg-slate-50">
+                                                    <td className="py-2 px-3">{format(new Date(e.date), 'dd/MM/yyyy', { locale: he })}</td>
+                                                    <td className="py-2 px-3">{e.hours.toFixed(2)}</td>
+                                                    <td className="py-2 px-3 font-bold text-green-700">₪{e.earnings.toFixed(2)}</td>
+                                                </tr>
+                                            ))}
+                                            <tr className="bg-green-50 border-t-2">
+                                                <td className="py-2 px-3 font-bold text-right text-green-800">סה"כ:</td>
+                                                <td className="py-2 px-3 font-bold">{totalTipHours.toFixed(2)}</td>
+                                                <td className="py-2 px-3 font-bold text-green-700">₪{totalTipEarnings.toFixed(2)}</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        )}
+                    </CardContent>
+                </Card>
+            ))}
         </div>
     );
 }
