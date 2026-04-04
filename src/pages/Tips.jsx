@@ -48,13 +48,31 @@ function UnlockedReportsAlert() {
         }).catch(() => setLoading(false));
     }, []);
 
+    const [shiftFilter, setShiftFilter] = useState('all');
+
     if (loading || (unlockedReports.length === 0 && missingReports.length === 0)) return null;
+
+    const filteredUnlocked = shiftFilter === 'all' ? unlockedReports : unlockedReports.filter(r => r.shift_type === shiftFilter);
+    const filteredMissing = shiftFilter === 'all' ? missingReports : missingReports.filter(r => r.shift_type === shiftFilter);
 
     return (
         <div className="max-w-7xl mx-auto mb-4 p-4 border-2 border-orange-300 bg-orange-50 rounded-xl" dir="rtl">
-            <div className="flex items-center gap-2 mb-3">
-                <AlertTriangle className="w-5 h-5 text-orange-500" />
-                <h3 className="font-bold text-orange-800">דוחות טיפים שלא ננעלו ({unlockedReports.length})</h3>
+            <div className="flex items-center justify-between gap-2 mb-3 flex-wrap">
+                <div className="flex items-center gap-2">
+                    <AlertTriangle className="w-5 h-5 text-orange-500" />
+                    <h3 className="font-bold text-orange-800">דוחות טיפים שלא ננעלו ({filteredUnlocked.length}) | חסרים לחלוטין ({filteredMissing.length})</h3>
+                </div>
+                <div className="flex gap-1">
+                    {[['all','הכל'],['lunch','צהריים'],['dinner','ערב']].map(([val, label]) => (
+                        <button
+                            key={val}
+                            onClick={() => setShiftFilter(val)}
+                            className={`text-xs px-3 py-1 rounded-full border font-medium transition-colors ${
+                                shiftFilter === val ? 'bg-orange-500 text-white border-orange-500' : 'bg-white text-orange-700 border-orange-300 hover:bg-orange-100'
+                            }`}
+                        >{label}</button>
+                    ))}
+                </div>
             </div>
             <div className="overflow-x-auto">
                 <table className="w-full text-sm">
@@ -67,7 +85,7 @@ function UnlockedReportsAlert() {
                         </tr>
                     </thead>
                     <tbody>
-                        {unlockedReports.map(r => (
+                        {filteredUnlocked.map(r => (
                             <tr key={r.id} className="border-b border-orange-100">
                                 <td className="py-1 px-2">{r.date}</td>
                                 <td className="py-1 px-2">{r.shift_type === 'lunch' ? 'צהריים' : 'ערב'}</td>
@@ -82,9 +100,9 @@ function UnlockedReportsAlert() {
                     </tbody>
                 </table>
             </div>
-            {missingReports.length > 0 && (
+            {filteredMissing.length > 0 && (
                 <div className="mt-4">
-                    <h4 className="font-bold text-red-700 mb-2 flex items-center gap-1">❌ משמרות ללא דוח טיפים כלל ({missingReports.length})</h4>
+                    <h4 className="font-bold text-red-700 mb-2 flex items-center gap-1">❌ משמרות ללא דוח טיפים כלל ({filteredMissing.length})</h4>
                     <div className="overflow-x-auto">
                         <table className="w-full text-sm">
                             <thead>
@@ -95,7 +113,7 @@ function UnlockedReportsAlert() {
                                 </tr>
                             </thead>
                             <tbody>
-                                {missingReports.map((ws, i) => (
+                                {filteredMissing.map((ws, i) => (
                                     <tr key={i} className="border-b border-red-100">
                                         <td className="py-1 px-2">{ws.date}</td>
                                         <td className="py-1 px-2">{ws.shift_type === 'lunch' ? 'צהריים' : 'ערב'}</td>
