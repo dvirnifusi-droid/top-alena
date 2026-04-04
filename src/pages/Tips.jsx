@@ -26,16 +26,29 @@ const TIP_ELIGIBLE_POSITIONS = ['מלצר', 'ברמן'];
 
 function UnlockedReportsAlert() {
     const [unlockedReports, setUnlockedReports] = useState([]);
+    const [missingReports, setMissingReports] = useState([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        TipReport.list('-date', 200).then(all => {
-            setUnlockedReports(all.filter(r => r.status !== 'locked'));
+        Promise.all([
+            TipReport.list('-date', 500),
+            WorkShift.filter({})
+        ]).then(([allTipReports, allWorkShifts]) => {
+            setUnlockedReports(allTipReports.filter(r => r.status !== 'locked'));
+
+            // מצא משמרות שאין להן דוח טיפים כלל
+            const reportKeys = new Set(allTipReports.map(r => `${r.date}_${r.shift_type}`));
+            const today = format(new Date(), 'yyyy-MM-dd');
+            const missing = allWorkShifts
+                .filter(ws => ws.date < today && !reportKeys.has(`${ws.date}_${ws.shift_type}`))
+                .sort((a, b) => b.date.localeCompare(a.date))
+                .slice(0, 30);
+            setMissingReports(missing);
             setLoading(false);
         }).catch(() => setLoading(false));
     }, []);
 
-    if (loading || unlockedReports.length === 0) return null;
+    if (loading || (unlockedReports.length === 0 && missingReports.length === 0)) return null;
 
     return (
         <div className="max-w-7xl mx-auto mb-4 p-4 border-2 border-orange-300 bg-orange-50 rounded-xl" dir="rtl">
@@ -69,6 +82,33 @@ function UnlockedReportsAlert() {
                     </tbody>
                 </table>
             </div>
+            {missingReports.length > 0 && (
+                <div className="mt-4">
+                    <h4 className="font-bold text-red-700 mb-2 flex items-center gap-1">❌ משמרות ללא דוח טיפים כלל ({missingReports.length})</h4>
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                            <thead>
+                                <tr className="border-b border-red-200">
+                                    <th className="text-right py-1 px-2 text-red-700">תאריך</th>
+                                    <th className="text-right py-1 px-2 text-red-700">משמרת</th>
+                                    <th className="text-right py-1 px-2 text-red-700">סטטוס</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {missingReports.map((ws, i) => (
+                                    <tr key={i} className="border-b border-red-100">
+                                        <td className="py-1 px-2">{ws.date}</td>
+                                        <td className="py-1 px-2">{ws.shift_type === 'lunch' ? 'צהריים' : 'ערב'}</td>
+                                        <td className="py-1 px-2">
+                                            <span className="bg-red-100 text-red-800 text-xs px-2 py-0.5 rounded-full font-medium">לא נפתח</span>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
