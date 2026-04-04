@@ -347,8 +347,8 @@ function EmployeeReportsInner() {
                                             <SelectValue />
                                         </SelectTrigger>
                                         <SelectContent>
-                                            {[0, -1, -2, -3, -4, -5].map(offset => {
-                                                const month = subMonths(new Date(), offset);
+                                            {Array.from({ length: 24 }, (_, i) => -i).map(offset => {
+                                                const month = subMonths(new Date(), -offset);
                                                 return (
                                                     <SelectItem key={offset} value={format(month, 'yyyy-MM')}>
                                                         {format(month, 'MMMM yyyy', { locale: he })}
