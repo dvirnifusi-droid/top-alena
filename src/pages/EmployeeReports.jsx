@@ -1217,9 +1217,10 @@ function AllEmployeesSummary({ workShifts, employees, selectedMonth, tipReports,
                 text += `  📌 ${pos} - סה"כ ${hours.toFixed(2)} שעות\n`;
             });
             if (Object.keys(hourlyByPosition).length > 0) {
-                text += `  ⏱ שעות רגילות (100%): ${totalRegular.toFixed(2)}\n`;
-                if (totalH125 > 0) text += `  ⚡ שעות 125%: ${totalH125.toFixed(2)}\n`;
-                if (totalH150 > 0) text += `  🔥 שעות 150%: ${totalH150.toFixed(2)}\n`;
+                text += `  -- פירוט שעות --\n`;
+                text += `  שעות רגילות (100%): ${totalRegular.toFixed(2)}\n`;
+                text += `  שעות 125%: ${totalH125.toFixed(2)}\n`;
+                text += `  שעות 150%: ${totalH150.toFixed(2)}\n`;
             }
             Object.entries(tipByPosition).forEach(([pos, { hours, earnings }]) => {
                 text += `  📌 ${pos} - סה"כ ${hours.toFixed(2)} שעות, סה"כ טיפ: ₪${earnings.toFixed(2)}\n`;
