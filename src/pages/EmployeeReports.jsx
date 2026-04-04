@@ -716,7 +716,7 @@ function EmployeeReportsInner() {
                         </div>
 
                         {/* תעריפים לפי תפקיד */}
-                        {selectedEmployeeId && selectedEmployeeId !== 'all' && (
+                        {isAdmin && selectedEmployeeId && selectedEmployeeId !== 'all' && (
                             <Card className="mb-4 border-2 border-orange-200 bg-orange-50">
                                 <CardHeader className="pb-2">
                                     <div className="flex items-center justify-between">
