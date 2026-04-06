@@ -189,7 +189,6 @@ function TipsInner() {
                 if (shifts.length > 0) {
                     const shift = shifts[0];
                     const details = shift.assigned_staff?.map(staff => {
-                         const employee = allEmployees.find(e => e.id === staff.employee_id);
                          return {
                             employee_id: staff.employee_id,
                             employee_name: staff.employee_name,
@@ -197,9 +196,10 @@ function TipsInner() {
                             start_time: staff.start_time,
                             end_time: staff.end_time,
                             break_minutes: staff.total_break_minutes || 0,
+                            breaks: staff.breaks || [],
                             meal_cost: 0,
                             sales_bonus: 0
-                        };
+                         };
                     }) || [];
                     setStaffDetails(details);
                 } else {
@@ -458,7 +458,7 @@ function TipsInner() {
                                             <TableHead>תפקיד</TableHead>
                                             <TableHead>שעת כניסה</TableHead>
                                             <TableHead>שעת יציאה</TableHead>
-                                            <TableHead>הפסקה (דקות)</TableHead>
+                                            <TableHead>הפסקות</TableHead>
                                             <TableHead>שעות אפקטיבי</TableHead>
                                             <TableHead>ארוחת עובד (₪)</TableHead>
                                             <TableHead>בונוס מכירות (₪)</TableHead>
@@ -494,7 +494,21 @@ function TipsInner() {
                                                 </TableCell>
                                                 <TableCell><Input type="time" value={staff.start_time} onChange={e => handleStaffDetailChange(index, 'start_time', e.target.value)} /></TableCell>
                                                 <TableCell><Input type="time" value={staff.end_time} onChange={e => handleStaffDetailChange(index, 'end_time', e.target.value)} /></TableCell>
-                                                <TableCell><Input type="number" value={staff.break_minutes} onChange={e => handleStaffDetailChange(index, 'break_minutes', e.target.value)} className="w-24"/></TableCell>
+                                                <TableCell>
+                                                    <div className="space-y-1">
+                                                        <Input type="number" value={staff.break_minutes} onChange={e => handleStaffDetailChange(index, 'break_minutes', e.target.value)} className="w-24"/>
+                                                        {staff.breaks && staff.breaks.length > 0 && (
+                                                            <div className="text-xs text-gray-500 space-y-0.5">
+                                                                {staff.breaks.map((b, bi) => (
+                                                                    <div key={bi} className="bg-orange-50 border border-orange-200 rounded px-1.5 py-0.5">
+                                                                        🕐 {b.break_start ? b.break_start.slice(11,16) : '?'} – {b.break_end ? b.break_end.slice(11,16) : '?'}
+                                                                        {b.duration_minutes ? ` (${Math.round(b.duration_minutes)} ד')` : ''}
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </TableCell>
                                                 <TableCell>{staff.effectiveHours.toFixed(2)}</TableCell>
                                                 <TableCell><Input type="number" value={staff.meal_cost} onChange={e => handleStaffDetailChange(index, 'meal_cost', e.target.value)} className="w-24"/></TableCell>
                                                 <TableCell><Input type="number" value={staff.sales_bonus} onChange={e => handleStaffDetailChange(index, 'sales_bonus', e.target.value)} className="w-24"/></TableCell>
@@ -523,6 +537,7 @@ function TipsInner() {
                                                     start_time: wsStaff.start_time || staff.start_time,
                                                     end_time: wsStaff.end_time || staff.end_time,
                                                     break_minutes: wsStaff.total_break_minutes ?? staff.break_minutes,
+                                                    breaks: wsStaff.breaks || staff.breaks || [],
                                                 };
                                             }
                                             return staff;
