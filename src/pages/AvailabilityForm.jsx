@@ -531,7 +531,8 @@ export default function AvailabilityForm() {
                 {weekDays.map(day => {
                     const dateStr = format(day, 'yyyy-MM-dd');
                     const data = dayData[dateStr];
-                    const typeConfig = AVAILABILITY_TYPES[data.availability_type];
+                    if (!data) return null;
+                    const typeConfig = AVAILABILITY_TYPES[data.availability_type] || Object.values(AVAILABILITY_TYPES)[0];
 
                     return (
                         <Card key={dateStr} className={`border-2 ${data.availability_type === 'unavailable' ? 'opacity-60' : ''}`}>
