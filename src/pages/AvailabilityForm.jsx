@@ -27,13 +27,15 @@ const DEFAULT_SHIFT_OPTIONS = [
     { value: 'both', label: 'שתיהן' },
 ];
 
-const nextWeekStart = startOfWeek(addDays(new Date(), 7), { weekStartsOn: 0 });
-const nextWeekEnd = endOfWeek(nextWeekStart, { weekStartsOn: 0 });
-const weekDays = eachDayOfInterval({ start: nextWeekStart, end: nextWeekEnd });
+const getWeekDays = (offsetDays) => {
+    const weekStart = startOfWeek(addDays(new Date(), offsetDays), { weekStartsOn: 0 });
+    const weekEnd = endOfWeek(weekStart, { weekStartsOn: 0 });
+    return eachDayOfInterval({ start: weekStart, end: weekEnd });
+};
 
-const initDayData = () => {
+const initDayData = (days) => {
     const init = {};
-    weekDays.forEach(day => {
+    days.forEach(day => {
         init[format(day, 'yyyy-MM-dd')] = {
             availability_type: 'available',
             shift_preference: 'both',
@@ -47,6 +49,7 @@ const initDayData = () => {
 export default function AvailabilityForm() {
      const { toast } = useToast();
      const [selectedEmployee, setSelectedEmployee] = useState(null);
+     const [selectedWeekOffset, setSelectedWeekOffset] = useState(7); // 7=next week, 14=+2, 21=+3
      const [employeeEmail, setEmployeeEmail] = useState('');
      const [accessCode, setAccessCode] = useState('');
      const [useCodeAuth, setUseCodeAuth] = useState(true);
@@ -58,7 +61,7 @@ export default function AvailabilityForm() {
      const [submitted, setSubmitted] = useState(false);
     const [coinsAwarded, setCoinsAwarded] = useState(0);
      const [existingAvailabilities, setExistingAvailabilities] = useState([]);
-     const [dayData, setDayData] = useState(initDayData);
+     const [dayData, setDayData] = useState(() => initDayData(getWeekDays(7)));
      const [selectedDepartment, setSelectedDepartment] = useState(null);
      const [loginDepartment, setLoginDepartment] = useState(null);
      
@@ -70,6 +73,26 @@ export default function AvailabilityForm() {
      useEffect(() => {
          loadData();
      }, []);
+
+     // When week offset changes and employee is logged in, rebuild dayData for the new week
+     useEffect(() => {
+         if (!selectedEmployee) return;
+         const deptConfig = settings?.departments?.find(d => d.key === selectedDepartment);
+         const defaultPosition = deptConfig?.default_position ? [deptConfig.default_position] : deptConfig?.positions?.length > 0 ? [deptConfig.positions[0]] : [];
+         const newWeekDays = getWeekDays(selectedWeekOffset);
+         const newDayData = initDayData(newWeekDays);
+         existingAvailabilities.forEach(a => {
+             if (newDayData[a.date]) {
+                 newDayData[a.date] = { availability_type: a.availability_type || 'available', shift_preference: a.shift_preference || 'both', reason: a.reason || '', positions: a.positions?.length > 0 ? a.positions : defaultPosition };
+             }
+         });
+         if (defaultPosition.length > 0) {
+             Object.keys(newDayData).forEach(dateStr => {
+                 if (!existingAvailabilities.find(a => a.date === dateStr)) newDayData[dateStr].positions = defaultPosition;
+             });
+         }
+         setDayData(newDayData);
+     }, [selectedWeekOffset, selectedEmployee]);
 
      const loadData = async () => {
          setLoading(true);
@@ -167,8 +190,9 @@ export default function AvailabilityForm() {
              setSelectedDepartment(dept);
 
              const existing = await base44.entities.EmployeeAvailability.filter({ employee_id: emp.id });
-             setExistingAvailabilities(existing);
-             const newDayData = initDayData();
+                  setExistingAvailabilities(existing);
+                  const currentWeekDays = getWeekDays(selectedWeekOffset);
+                  const newDayData = initDayData(currentWeekDays);
 
              // Auto-set default position based on department config
              const deptConfig = settings?.departments?.find(d => d.key === dept);
@@ -281,7 +305,8 @@ export default function AvailabilityForm() {
         setEmployeeEmail('');
         setAccessCode('');
         setUseCodeAuth(true);
-        setDayData(initDayData());
+        setSelectedWeekOffset(7);
+        setDayData(initDayData(getWeekDays(7)));
         setExistingAvailabilities([]);
         setSelectedDepartment(null);
         setLoginDepartment(null);
@@ -471,20 +496,42 @@ export default function AvailabilityForm() {
     // Fill availability
     const currentDept = DEPARTMENTS.find(d => d.key === selectedDepartment);
 
+    const WEEK_OPTIONS = [
+        { offset: 7, label: 'שבוע הבא' },
+        { offset: 14, label: 'עוד שבועיים' },
+        { offset: 21, label: 'עוד שלושה שבועות' },
+    ];
+
     return (
         <div className="p-4 sm:p-8 max-w-4xl mx-auto" dir="rtl">
-            <div className="mb-6 flex items-center justify-between flex-wrap gap-3">
-                <div>
-                    <h1 className="text-3xl font-bold flex items-center gap-2">
-                        <CalendarDays className="w-8 h-8 text-primary" />
-                        הגשת זמינות לסידור
-                    </h1>
-                    <p className="text-gray-500 mt-1">
-                        שלום <strong>{selectedEmployee.full_name}</strong>! ({currentDept?.label}) - שבוע{' '}
-                        <strong>{format(nextWeekStart, 'dd/MM')} – {format(nextWeekEnd, 'dd/MM/yyyy')}</strong>
-                    </p>
-                </div>
+            <div className="mb-6">
+                <h1 className="text-3xl font-bold flex items-center gap-2 mb-1">
+                    <CalendarDays className="w-8 h-8 text-primary" />
+                    הגשת זמינות לסידור
+                </h1>
+                <p className="text-gray-500">
+                    שלום <strong>{selectedEmployee.full_name}</strong>! ({currentDept?.label})
+                </p>
+            </div>
 
+            {/* Week selector */}
+            <div className="flex gap-2 mb-6 flex-wrap">
+                {WEEK_OPTIONS.map(opt => (
+                    <button
+                        key={opt.offset}
+                        onClick={() => setSelectedWeekOffset(opt.offset)}
+                        className={`px-4 py-2 rounded-lg font-semibold text-sm border-2 transition-all ${
+                            selectedWeekOffset === opt.offset
+                                ? 'bg-primary text-white border-primary'
+                                : 'bg-white text-gray-700 border-gray-300 hover:border-primary/50'
+                        }`}
+                    >
+                        {opt.label}
+                        <span className="block text-xs font-normal opacity-75">
+                            {format(getWeekDays(opt.offset)[0], 'dd/MM')} – {format(getWeekDays(opt.offset)[6], 'dd/MM')}
+                        </span>
+                    </button>
+                ))}
             </div>
 
             <div className="space-y-4">
