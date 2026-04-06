@@ -294,11 +294,20 @@ function AvailabilityRequestsInner() {
                     <Button variant="outline" size="sm" onClick={() => setSelectedDepartment(null)}>
                         חזור לבחירה
                     </Button>
-                    <Button variant="outline" onClick={() => setWeekOffset(w => w - 1)}>
+                    <Button variant="outline" size="sm" onClick={() => setWeekOffset(w => w - 1)}>
                         <ChevronRight className="w-4 h-4" />
                     </Button>
-                    <Button variant="outline" onClick={() => setWeekOffset(1)}>השבוע הבא</Button>
-                    <Button variant="outline" onClick={() => setWeekOffset(w => w + 1)}>
+                    {[1, 2, 3].map(w => (
+                        <Button
+                            key={w}
+                            variant={weekOffset === w ? 'default' : 'outline'}
+                            size="sm"
+                            onClick={() => setWeekOffset(w)}
+                        >
+                            {w === 1 ? 'שבוע הבא' : w === 2 ? 'עוד שבועיים' : 'עוד 3 שבועות'}
+                        </Button>
+                    ))}
+                    <Button variant="outline" size="sm" onClick={() => setWeekOffset(w => w + 1)}>
                         <ChevronLeft className="w-4 h-4" />
                     </Button>
                     <Button
