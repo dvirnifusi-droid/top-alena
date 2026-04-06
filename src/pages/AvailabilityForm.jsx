@@ -494,6 +494,7 @@ export default function AvailabilityForm() {
     );
 
     // Fill availability
+    const weekDays = getWeekDays(selectedWeekOffset);
     const currentDept = DEPARTMENTS.find(d => d.key === selectedDepartment);
 
     const WEEK_OPTIONS = [
