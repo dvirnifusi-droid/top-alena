@@ -74,11 +74,10 @@ export default function AvailabilityForm() {
          loadData();
      }, []);
 
-     useEffect(() => {
-         if (!selectedEmployee) return;
+     const buildDayDataForWeek = (offset) => {
          const deptConfig = settings?.departments?.find(d => d.key === selectedDepartment);
          const defaultPosition = deptConfig?.default_position ? [deptConfig.default_position] : deptConfig?.positions?.length > 0 ? [deptConfig.positions[0]] : [];
-         const newWeekDays = getWeekDays(selectedWeekOffset);
+         const newWeekDays = getWeekDays(offset);
          const newDayData = initDayData(newWeekDays);
          existingAvailabilities.forEach(a => {
              if (newDayData[a.date]) {
@@ -90,8 +89,8 @@ export default function AvailabilityForm() {
                  if (!existingAvailabilities.find(a => a.date === dateStr)) newDayData[dateStr].positions = defaultPosition;
              });
          }
-         setDayData(newDayData);
-     }, [selectedWeekOffset, selectedEmployee]);
+         return newDayData;
+     };
 
      const loadData = async () => {
          setLoading(true);
@@ -512,7 +511,7 @@ export default function AvailabilityForm() {
                 {WEEK_OPTIONS.map(opt => (
                     <button
                         key={opt.offset}
-                        onClick={() => setSelectedWeekOffset(opt.offset)}
+                        onClick={() => { const newData = buildDayDataForWeek(opt.offset); setDayData(newData); setSelectedWeekOffset(opt.offset); }}
                         className={`px-4 py-2 rounded-lg font-semibold text-sm border-2 transition-all ${
                             selectedWeekOffset === opt.offset
                                 ? 'bg-primary text-white border-primary'
