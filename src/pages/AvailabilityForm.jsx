@@ -14,6 +14,8 @@ import { awardAvailabilityCoins } from '@/functions/awardAvailabilityCoins';
 
 
 
+const DEFAULT_POSITIONS = ['מלצר', 'ברמן', 'ראנר', 'מארח/ת'];
+
 const DEFAULT_AVAILABILITY_TYPES = {
     available: { label: '✅ פנוי/ה', color: 'bg-green-100 text-green-800 border-green-300' },
     unavailable: { label: '❌ לא פנוי/ה', color: 'bg-red-100 text-red-800 border-red-300' },
