@@ -12,8 +12,6 @@ import { CheckCircle2, Loader2, CalendarDays, User } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 import { awardAvailabilityCoins } from '@/functions/awardAvailabilityCoins';
 
-
-
 const DEFAULT_POSITIONS = ['מלצר', 'ברמן', 'ראנר', 'מארח/ת'];
 
 const DEFAULT_AVAILABILITY_TYPES = {
@@ -51,7 +49,7 @@ const initDayData = (days) => {
 export default function AvailabilityForm() {
      const { toast } = useToast();
      const [selectedEmployee, setSelectedEmployee] = useState(null);
-     const [selectedWeekOffset, setSelectedWeekOffset] = useState(7); // 7=next week, 14=+2, 21=+3
+     const [selectedWeekOffset, setSelectedWeekOffset] = useState(7);
      const [employeeEmail, setEmployeeEmail] = useState('');
      const [accessCode, setAccessCode] = useState('');
      const [useCodeAuth, setUseCodeAuth] = useState(true);
@@ -76,7 +74,6 @@ export default function AvailabilityForm() {
          loadData();
      }, []);
 
-     // When week offset changes and employee is logged in, rebuild dayData for the new week
      useEffect(() => {
          if (!selectedEmployee) return;
          const deptConfig = settings?.departments?.find(d => d.key === selectedDepartment);
@@ -196,7 +193,6 @@ export default function AvailabilityForm() {
                   const currentWeekDays = getWeekDays(selectedWeekOffset);
                   const newDayData = initDayData(currentWeekDays);
 
-             // Auto-set default position based on department config
              const deptConfig = settings?.departments?.find(d => d.key === dept);
              const defaultPosition = deptConfig?.default_position
                  ? [deptConfig.default_position]
@@ -215,7 +211,6 @@ export default function AvailabilityForm() {
                 }
              });
 
-             // For days without existing data, set default position if kitchen
              if (defaultPosition.length > 0) {
                 Object.keys(newDayData).forEach(dateStr => {
                     if (!existing.find(a => a.date === dateStr)) {
@@ -269,13 +264,11 @@ export default function AvailabilityForm() {
                     await base44.entities.EmployeeAvailability.create(record);
                 }
             }
-            // Count available shifts (each day can have 1 or 2 shifts based on preference)
             const availableShifts = Object.values(dayData).reduce((count, data) => {
                 if (data.availability_type === 'unavailable') return count;
                 return count + (data.shift_preference === 'both' ? 2 : 1);
             }, 0);
 
-            // Award coins: 5 coins per available shift
             if (availableShifts > 0) {
                 const coinsToAward = availableShifts * 5;
                 const res = await awardAvailabilityCoins({
@@ -433,7 +426,6 @@ export default function AvailabilityForm() {
          </div>
      );
 
-     // Department Selection
      if (!selectedDepartment) return (
         <div className="flex items-center justify-center min-h-screen p-4" dir="rtl">
             <Card className="max-w-md w-full p-8">
@@ -495,7 +487,6 @@ export default function AvailabilityForm() {
         </div>
     );
 
-    // Fill availability
     const weekDays = getWeekDays(selectedWeekOffset);
     const currentDept = DEPARTMENTS.find(d => d.key === selectedDepartment);
 
@@ -517,7 +508,6 @@ export default function AvailabilityForm() {
                 </p>
             </div>
 
-            {/* Week selector */}
             <div className="flex gap-2 mb-6 flex-wrap">
                 {WEEK_OPTIONS.map(opt => (
                     <button
@@ -615,25 +605,25 @@ export default function AvailabilityForm() {
                                                 ))}
                                             </div>
                                         </div>
-                                        </>
-                                        )}
+                                    </>
+                                )}
 
-                                        <div>
-                                            <Label className="mb-2 block">הערה / סיבה (אופציונלי)</Label>
-                                            <Textarea
-                                                placeholder="לדוגמה: יש לי טיסה, מועדף לסיים עד 22:00..."
-                                                value={data.reason}
-                                                onChange={e => updateDay(dateStr, 'reason', e.target.value)}
-                                                className="h-20"
-                                            />
-                                        </div>
+                                <div>
+                                    <Label className="mb-2 block">הערה / סיבה (אופציונלי)</Label>
+                                    <Textarea
+                                        placeholder="לדוגמה: יש לי טיסה, מועדף לסיים עד 22:00..."
+                                        value={data.reason}
+                                        onChange={e => updateDay(dateStr, 'reason', e.target.value)}
+                                        className="h-20"
+                                    />
+                                </div>
 
-                                        <button
-                                            onClick={() => updateDay(dateStr, 'availability_type', 'available') || updateDay(dateStr, 'shift_preference', 'both') || updateDay(dateStr, 'reason', '') || updateDay(dateStr, 'positions', [])}
-                                            className="text-sm text-red-600 hover:text-red-800 font-semibold mt-2"
-                                        >
-                                            נקה יום זה
-                                        </button>
+                                <button
+                                    onClick={() => { updateDay(dateStr, 'availability_type', 'available'); updateDay(dateStr, 'shift_preference', 'both'); updateDay(dateStr, 'reason', ''); updateDay(dateStr, 'positions', []); }}
+                                    className="text-sm text-red-600 hover:text-red-800 font-semibold mt-2"
+                                >
+                                    נקה יום זה
+                                </button>
                             </CardContent>
                         </Card>
                     );
