@@ -64,6 +64,7 @@ export default function AvailabilityForm() {
      const [dayData, setDayData] = useState(() => initDayData(getWeekDays(7)));
      const [selectedDepartment, setSelectedDepartment] = useState(null);
      const [loginDepartment, setLoginDepartment] = useState(null);
+     const [selectedDates, setSelectedDates] = useState(null); // null = all selected
      
      const AVAILABILITY_TYPES = settings ? Object.fromEntries(settings.availability_types.map(t => [t.key, { label: t.label, color: t.color }])) : DEFAULT_AVAILABILITY_TYPES;
      const SHIFT_OPTIONS = settings?.shift_options || DEFAULT_SHIFT_OPTIONS;
@@ -242,8 +243,12 @@ export default function AvailabilityForm() {
     const handleSubmit = async () => {
         if (!selectedEmployee) return;
         setSaving(true);
+        const weekDates = getWeekDays(selectedWeekOffset).map(d => format(d, 'yyyy-MM-dd'));
+        const datesToSave = selectedDates === null ? weekDates : selectedDates;
         try {
-            for (const [dateStr, data] of Object.entries(dayData)) {
+            for (const dateStr of datesToSave) {
+                const data = dayData[dateStr];
+                if (!data) continue;
                 const existing = existingAvailabilities.find(a => a.date === dateStr);
                 const record = {
                     employee_id: selectedEmployee.id,
@@ -293,6 +298,18 @@ export default function AvailabilityForm() {
         setSaving(false);
     };
 
+    const toggleDateSelection = (dateStr) => {
+        setSelectedDates(prev => {
+            const allDates = getWeekDays(selectedWeekOffset).map(d => format(d, 'yyyy-MM-dd'));
+            const current = prev === null ? allDates : prev;
+            if (current.includes(dateStr)) {
+                return current.filter(d => d !== dateStr);
+            } else {
+                return [...current, dateStr];
+            }
+        });
+    };
+
     const handleReset = () => {
         setSubmitted(false);
         setSelectedEmployee(null);
@@ -304,6 +321,7 @@ export default function AvailabilityForm() {
         setExistingAvailabilities([]);
         setSelectedDepartment(null);
         setLoginDepartment(null);
+        setSelectedDates(null);
     };
 
     if (loading) return (
@@ -531,12 +549,22 @@ export default function AvailabilityForm() {
                     const dateStr = format(day, 'yyyy-MM-dd');
                     const data = dayData[dateStr];
                     if (!data) return null;
+                    const weekDates = getWeekDays(selectedWeekOffset).map(d => format(d, 'yyyy-MM-dd'));
+                    const isSelected = selectedDates === null ? true : selectedDates.includes(dateStr);
                     const typeConfig = AVAILABILITY_TYPES[data.availability_type] || Object.values(AVAILABILITY_TYPES)[0];
 
                     return (
-                        <Card key={dateStr} className={`border-2 ${data.availability_type === 'unavailable' ? 'opacity-60' : ''}`}>
+                        <Card key={dateStr} className={`border-2 transition-all ${!isSelected ? 'opacity-40 grayscale' : ''} ${data.availability_type === 'unavailable' ? 'opacity-60' : ''}`}>
                             <CardHeader className="pb-3">
                                 <div className="flex items-center justify-between flex-wrap gap-2">
+                                    <label className="flex items-center gap-2 cursor-pointer">
+                                        <input
+                                            type="checkbox"
+                                            checked={isSelected}
+                                            onChange={() => toggleDateSelection(dateStr)}
+                                            className="w-5 h-5 accent-primary cursor-pointer"
+                                        />
+                                    </label>
                                     <CardTitle className="text-lg">
                                         {format(day, 'EEEE', { locale: he })}{' '}
                                         <span className="text-gray-500 font-normal">{format(day, 'dd/MM')}</span>
