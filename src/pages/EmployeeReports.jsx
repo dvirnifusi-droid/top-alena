@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Loader2, TrendingUp, Clock, DollarSign, BarChart3, Calendar, Target, AlertCircle, FileDown, Pencil, Users, Trash2, Plus, Save, X } from 'lucide-react';
-import { toast } from 'sonner';
+import { useToast } from '@/components/ui/use-toast';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
@@ -48,6 +48,7 @@ export default function EmployeeReportsPage() {
 }
 
 function EmployeeReportsInner() {
+    const { toast } = useToast();
     const [user, setUser] = useState(null);
     const [isAdmin, setIsAdmin] = useState(false);
     const [employees, setEmployees] = useState([]);
