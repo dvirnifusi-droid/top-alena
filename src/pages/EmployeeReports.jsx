@@ -81,10 +81,10 @@ function EmployeeReportsInner() {
     const [savingRates, setSavingRates] = useState(false);
 
     const handleAddManualShift = async () => {
-        if (!selectedEmployeeId) { toast.error('לא נבחר עובד'); return; }
-        if (!addShiftForm.date) { toast.error('חסר תאריך'); return; }
-        if (!addShiftForm.start_time) { toast.error('חסרה שעת כניסה'); return; }
-        if (!addShiftForm.end_time) { toast.error('חסרה שעת יציאה'); return; }
+        if (!selectedEmployeeId) { toast({ title: 'שגיאה', description: 'לא נבחר עובד', variant: 'destructive' }); return; }
+        if (!addShiftForm.date) { toast({ title: 'שגיאה', description: 'חסר תאריך', variant: 'destructive' }); return; }
+        if (!addShiftForm.start_time) { toast({ title: 'שגיאה', description: 'חסרה שעת כניסה', variant: 'destructive' }); return; }
+        if (!addShiftForm.end_time) { toast({ title: 'שגיאה', description: 'חסרה שעת יציאה', variant: 'destructive' }); return; }
         setSavingAddShift(true);
         const emp = employees.find(e => e.id === selectedEmployeeId);
         const newEntry = { employee_id: selectedEmployeeId, employee_name: emp?.full_name || '', position: addShiftForm.position, start_time: addShiftForm.start_time, end_time: addShiftForm.end_time, total_break_minutes: Number(addShiftForm.break_minutes) || 0, status: 'scheduled' };
