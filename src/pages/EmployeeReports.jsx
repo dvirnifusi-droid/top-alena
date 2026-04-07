@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Loader2, TrendingUp, Clock, DollarSign, BarChart3, Calendar, Target, AlertCircle, FileDown, Pencil, Users, Trash2, Plus, Save, X } from 'lucide-react';
+import { toast } from 'sonner';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
@@ -79,7 +80,10 @@ function EmployeeReportsInner() {
     const [savingRates, setSavingRates] = useState(false);
 
     const handleAddManualShift = async () => {
-        if (!selectedEmployeeId || !addShiftForm.date || !addShiftForm.start_time || !addShiftForm.end_time) return;
+        if (!selectedEmployeeId) { toast.error('לא נבחר עובד'); return; }
+        if (!addShiftForm.date) { toast.error('חסר תאריך'); return; }
+        if (!addShiftForm.start_time) { toast.error('חסרה שעת כניסה'); return; }
+        if (!addShiftForm.end_time) { toast.error('חסרה שעת יציאה'); return; }
         setSavingAddShift(true);
         const emp = employees.find(e => e.id === selectedEmployeeId);
         const newEntry = { employee_id: selectedEmployeeId, employee_name: emp?.full_name || '', position: addShiftForm.position, start_time: addShiftForm.start_time, end_time: addShiftForm.end_time, total_break_minutes: Number(addShiftForm.break_minutes) || 0, status: 'scheduled' };
