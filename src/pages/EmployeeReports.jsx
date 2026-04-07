@@ -64,6 +64,10 @@ function EmployeeReportsInner() {
     const [exportSelectedEmps, setExportSelectedEmps] = useState([]);
     // Edit shift inline
     const [editShift, setEditShift] = useState(null); // { entry, workShiftId }
+    // Add manual shift
+    const [showAddShift, setShowAddShift] = useState(false);
+    const [addShiftForm, setAddShiftForm] = useState({ date: format(new Date(), 'yyyy-MM-dd'), shift_type: 'dinner', position: '', start_time: '', end_time: '', break_minutes: 0 });
+    const [savingAddShift, setSavingAddShift] = useState(false);
     // Rates per position for gross calculation
     const [positionRates, setPositionRates] = useState({}); // { positionName: rate }
     // All positions for the selected employee (including manually added)
@@ -71,6 +75,22 @@ function EmployeeReportsInner() {
     const [newPositionName, setNewPositionName] = useState('');
     const [customPositionInput, setCustomPositionInput] = useState('');
     const [savingRates, setSavingRates] = useState(false);
+
+    const handleAddManualShift = async () => {
+        if (!selectedEmployeeId || !addShiftForm.date || !addShiftForm.start_time || !addShiftForm.end_time) return;
+        setSavingAddShift(true);
+        const emp = employees.find(e => e.id === selectedEmployeeId);
+        const newEntry = { employee_id: selectedEmployeeId, employee_name: emp?.full_name || '', position: addShiftForm.position, start_time: addShiftForm.start_time, end_time: addShiftForm.end_time, total_break_minutes: Number(addShiftForm.break_minutes) || 0, status: 'scheduled' };
+        const existing = await base44.entities.WorkShift.filter({ date: addShiftForm.date, shift_type: addShiftForm.shift_type });
+        if (existing.length > 0) {
+            await base44.entities.WorkShift.update(existing[0].id, { assigned_staff: [...(existing[0].assigned_staff || []), newEntry] });
+        } else {
+            await base44.entities.WorkShift.create({ date: addShiftForm.date, shift_type: addShiftForm.shift_type, start_time: addShiftForm.start_time, end_time: addShiftForm.end_time, assigned_staff: [newEntry] });
+        }
+        setSavingAddShift(false);
+        setShowAddShift(false);
+        await loadReportData();
+    };
 
     const handleDeleteShiftEntry = async (entry) => {
         if (!confirm(`למחוק את המשמרת מתאריך ${entry.date}?`)) return;
@@ -873,16 +893,19 @@ function EmployeeReportsInner() {
                                         <CardTitle>פירוט משמרות לפי סידור עבודה</CardTitle>
                                         <p className="text-sm text-gray-500 mt-1">תפקידים שאינם מלצר/ברמן/ראנר (אלו נמצאים בטאב הטיפים)</p>
                                     </div>
-                                    {isAdmin && filteredData.hourlyShiftEntries.length > 0 && (
-                                        <Button
-                                            size="sm"
-                                            variant="outline"
-                                            onClick={() => { setExportSelectedEmps([selectedEmployeeId]); setShowExport(true); }}
-                                            className="flex items-center gap-2"
-                                        >
-                                            <FileDown className="w-4 h-4" />
-                                            ייצא עובד זה
-                                        </Button>
+                                    {isAdmin && (
+                                        <div className="flex gap-2">
+                                            <Button size="sm" onClick={() => { setAddShiftForm({ date: format(selectedMonth, 'yyyy-MM') + '-01', shift_type: 'dinner', position: '', start_time: '', end_time: '', break_minutes: 0 }); setShowAddShift(true); }} className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white">
+                                                <Plus className="w-4 h-4" />
+                                                הוסף משמרת ידנית
+                                            </Button>
+                                            {filteredData.hourlyShiftEntries.length > 0 && (
+                                                <Button size="sm" variant="outline" onClick={() => { setExportSelectedEmps([selectedEmployeeId]); setShowExport(true); }} className="flex items-center gap-2">
+                                                    <FileDown className="w-4 h-4" />
+                                                    ייצא עובד זה
+                                                </Button>
+                                            )}
+                                        </div>
                                     )}
                                 </div>
                             </CardHeader>
@@ -1170,6 +1193,53 @@ function EmployeeReportsInner() {
                     })()}
                     monthLabel={format(selectedMonth, 'MMMM yyyy', { locale: he })}
                 />
+            )}
+
+            {/* דיאלוג הוספת משמרת ידנית */}
+            {showAddShift && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" dir="rtl">
+                    <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-md space-y-4">
+                        <h2 className="text-lg font-bold">הוסף משמרת ידנית - {employees.find(e => e.id === selectedEmployeeId)?.full_name}</h2>
+                        <div className="grid grid-cols-2 gap-3">
+                            <div>
+                                <Label>תאריך</Label>
+                                <Input type="date" value={addShiftForm.date} onChange={e => setAddShiftForm(p => ({ ...p, date: e.target.value }))} />
+                            </div>
+                            <div>
+                                <Label>סוג משמרת</Label>
+                                <select value={addShiftForm.shift_type} onChange={e => setAddShiftForm(p => ({ ...p, shift_type: e.target.value }))} className="w-full border rounded px-3 py-2 text-sm">
+                                    <option value="dinner">ערב</option>
+                                    <option value="lunch">צהריים</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div>
+                            <Label>תפקיד</Label>
+                            <Input value={addShiftForm.position} onChange={e => setAddShiftForm(p => ({ ...p, position: e.target.value }))} placeholder="לדוגמה: מטבח, שליח..." />
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                            <div>
+                                <Label>שעת כניסה</Label>
+                                <Input type="time" value={addShiftForm.start_time} onChange={e => setAddShiftForm(p => ({ ...p, start_time: e.target.value }))} />
+                            </div>
+                            <div>
+                                <Label>שעת יציאה</Label>
+                                <Input type="time" value={addShiftForm.end_time} onChange={e => setAddShiftForm(p => ({ ...p, end_time: e.target.value }))} />
+                            </div>
+                        </div>
+                        <div>
+                            <Label>הפסקה (דקות)</Label>
+                            <Input type="number" min={0} value={addShiftForm.break_minutes} onChange={e => setAddShiftForm(p => ({ ...p, break_minutes: e.target.value }))} />
+                        </div>
+                        <div className="flex gap-2 pt-2">
+                            <Button onClick={handleAddManualShift} disabled={savingAddShift} className="flex-1 bg-green-600 hover:bg-green-700">
+                                {savingAddShift ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+                                הוסף משמרת
+                            </Button>
+                            <Button variant="outline" onClick={() => setShowAddShift(false)}>ביטול</Button>
+                        </div>
+                    </div>
+                </div>
             )}
 
             {/* דיאלוג עריכת משמרת */}
