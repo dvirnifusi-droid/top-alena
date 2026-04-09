@@ -12,7 +12,8 @@ export default function ShiftEditInlineDialog({ open, onClose, shiftEntry, workS
         start_time: '',
         end_time: '',
         total_break_minutes: 0,
-        notes: ''
+        notes: '',
+        position: ''
     });
     const [saving, setSaving] = useState(false);
 
@@ -23,7 +24,8 @@ export default function ShiftEditInlineDialog({ open, onClose, shiftEntry, workS
                 start_time: shiftEntry.start_time || '',
                 end_time: shiftEntry.end_time || '',
                 total_break_minutes: shiftEntry.break_minutes || 0,
-                notes: shiftEntry.notes || ''
+                notes: shiftEntry.notes || '',
+                position: shiftEntry.position || ''
             });
         }
     }, [shiftEntry]);
@@ -57,7 +59,7 @@ export default function ShiftEditInlineDialog({ open, onClose, shiftEntry, workS
                     if (a.employee_id === employeeId &&
                         a.start_time === shiftEntry.start_time &&
                         a.end_time === shiftEntry.end_time) {
-                        return { ...a, start_time: form.start_time, end_time: form.end_time, total_break_minutes: Number(form.total_break_minutes) || 0, notes: form.notes };
+                        return { ...a, start_time: form.start_time, end_time: form.end_time, total_break_minutes: Number(form.total_break_minutes) || 0, notes: form.notes, position: form.position };
                     }
                     return a;
                 });
@@ -78,6 +80,10 @@ export default function ShiftEditInlineDialog({ open, onClose, shiftEntry, workS
                     <DialogTitle>עריכת משמרת - {shiftEntry.date}</DialogTitle>
                 </DialogHeader>
                 <div className="space-y-4">
+                    <div>
+                        <Label>תפקיד</Label>
+                        <Input value={form.position} onChange={e => setForm(p => ({ ...p, position: e.target.value }))} placeholder="לדוגמה: קופה, מטבח..." />
+                    </div>
                     <div>
                         <Label>סוג משמרת</Label>
                         <select value={form.shift_type} onChange={e => setForm(p => ({ ...p, shift_type: e.target.value }))} className="w-full border rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary">
