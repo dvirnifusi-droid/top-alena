@@ -3,7 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Incident } from '@/entities/Incident';
+import { base44 } from '@/api/base44Client';
 import { Loader2, AlertTriangle } from 'lucide-react';
 
 const DEPT_CONFIG = {
@@ -72,7 +72,7 @@ export default function TableIncidentDialog({ open, onClose, tableNumber }) {
         else if (step === 'move') category = 'table_move';
 
         try {
-            await Incident.create({
+            await base44.entities.Incident.create({
                 title: `שולחן ${tableNumber} - ${step === 'move' ? 'בקשת מעבר מקום' : subOption || 'בעיית שירות'}`,
                 description,
                 category,
