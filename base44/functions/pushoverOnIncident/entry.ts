@@ -77,9 +77,14 @@ Deno.serve(async (req) => {
         // שלח לעובד "מטבח" בתקריות מטבח
         if (data.category === 'kitchen') {
             console.log('משדר לעובד מטבח...');
+            console.log('חיפוש עובדים עם שם מטבח מתוך', employees.length, 'עובדים');
             const kitchenEmployee = employees.find(e => e.full_name?.toLowerCase() === 'מטבח');
+            console.log('עובד מטבח שנמצא:', kitchenEmployee ? { name: kitchenEmployee.full_name, hasKey: !!kitchenEmployee.pushover_user_key } : 'NOT FOUND');
             if (kitchenEmployee?.pushover_user_key) {
+                console.log('שולח לעובד מטבח עם key:', kitchenEmployee.pushover_user_key.substring(0, 8) + '...');
                 await pushover(kitchenEmployee.pushover_user_key, `🍳 תקרית מטבח`, message);
+            } else {
+                console.log('לא קיים עובד מטבח עם key');
             }
         }
 
