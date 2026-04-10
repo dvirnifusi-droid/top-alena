@@ -271,6 +271,7 @@ export default function SeatingSetup() {
     const [editingReservation, setEditingReservation] = useState(null);
     const [isEditReservationOpen, setIsEditReservationOpen] = useState(false);
 
+    // טוען את המפה והשולחנות — פעם אחת בלבד (לא מאפס כשיש polling)
     const loadLayout = useCallback(async () => {
         setIsLoading(true);
         try {
@@ -304,11 +305,31 @@ export default function SeatingSetup() {
         }
     }, [selectedDate]);
 
+    // טוען רק נתונים חיים (sessions, הזמנות) — לא נוגע בשולחנות/מפה
+    const loadLiveData = useCallback(async () => {
+        try {
+            const dateString = format(selectedDate, 'yyyy-MM-dd');
+            const [sessions, dateReservations, allCustomers] = await Promise.all([
+                TableSession.filter({ status: 'active' }),
+                Reservation.filter({ date: dateString }, 'time'),
+                Customer.list()
+            ]);
+            setActiveSessions(sessions);
+            setReservations(dateReservations);
+            setCustomers(allCustomers);
+        } catch (error) {
+            console.error('Error loading live data:', error);
+        }
+    }, [selectedDate]);
+
     useEffect(() => {
         loadLayout();
-        const interval = setInterval(loadLayout, 60000);
-        return () => clearInterval(interval);
     }, [loadLayout]);
+
+    useEffect(() => {
+        const interval = setInterval(loadLiveData, 60000);
+        return () => clearInterval(interval);
+    }, [loadLiveData]);
 
     const getTableSession = (tableNumber) => {
         return activeSessions.find(session => 
