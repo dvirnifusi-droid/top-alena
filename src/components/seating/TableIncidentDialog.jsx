@@ -183,7 +183,7 @@ export default function TableIncidentDialog({ open, onClose, tableNumber }) {
                         <Button variant="ghost" onClick={() => setStep('dept')}>← חזור</Button>
                         <Button className="flex-1 bg-red-600 hover:bg-red-700" onClick={handleSubmit} disabled={isSaving}>
                             {isSaving ? <Loader2 className="w-4 h-4 animate-spin ml-1" /> : null}
-                            שלח תקרית
+                            שלח תקרית {dept === 'kitchen' ? 'מטבח' : 'בר'}
                         </Button>
                     </div>
                 </div>
