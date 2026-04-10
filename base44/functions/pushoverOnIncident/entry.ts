@@ -17,6 +17,9 @@ Deno.serve(async (req) => {
     console.log('pushoverOnIncident: START');
     try {
         const body = await req.json();
+        console.log('Event:', body.event);
+        console.log('Event type:', body.event?.type);
+        console.log('Entity ID:', body.event?.entity_id);
         console.log('body keys:', JSON.stringify(Object.keys(body)));
         console.log('payload_too_large:', body.payload_too_large);
         console.log('has data:', !!body.data);
@@ -27,16 +30,23 @@ Deno.serve(async (req) => {
         // אם הנתונים חסרים, טען מהדאטהבייס
         if (body.payload_too_large || !data) {
             const entityId = body.event?.entity_id;
-            console.log('fetching entity_id:', entityId);
-            if (!entityId) return Response.json({ ok: true });
+            console.log('Payload too large or no data, fetching entity_id:', entityId);
+            if (!entityId) {
+                console.log('ERROR: No entity_id provided, skipping');
+                return Response.json({ ok: true });
+            }
+            console.log('Fetching incident from DB...');
             data = await base44.asServiceRole.entities.Incident.get(entityId);
+            console.log('Fetched data:', data ? 'SUCCESS' : 'FAILED');
         }
 
         if (!data) {
-            console.log('no data, skipping');
+            console.log('ERROR: No data available, skipping');
             return Response.json({ ok: true });
         }
 
+        console.log('Data loaded successfully:', { title: data.title, category: data.category, severity: data.severity });
+        
         // דלג על תקריות משוב אוטומטיות
         if (data.incident_number?.startsWith('FEEDBACK-')) {
             console.log('FEEDBACK incident, skipping');
