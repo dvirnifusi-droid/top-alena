@@ -85,7 +85,7 @@ export default function TableIncidentDialog({ open, onClose, tableNumber }) {
         else if (step === 'move') category = 'table_move';
 
         try {
-            const incident = await base44.entities.Incident.create({
+            await base44.entities.Incident.create({
                 title: `שולחן ${tableNumber} - ${step === 'move' ? 'בקשת מעבר מקום' : subOption || 'בעיית שירות'}`,
                 description,
                 category,
@@ -94,28 +94,6 @@ export default function TableIncidentDialog({ open, onClose, tableNumber }) {
                 incident_date: new Date().toISOString(),
                 reported_by: currentUserName,
             });
-
-            // שלח push לכל המקבלים שנבחרו
-            const severityEmoji = { low: '🟡', medium: '🟠', high: '🔴', critical: '🚨' };
-            const title = `${severityEmoji.medium} תקרית חדשה`;
-            const message = `שולחן ${tableNumber}: ${incident.title}`;
-            
-            for (const empId of selectedRecipients) {
-                const emp = employees.find(e => e.id === empId);
-                if (emp?.pushover_user_key) {
-                    await fetch('https://api.pushover.net/1/messages.json', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            token: Deno.env.get('PUSHOVER_API_TOKEN'),
-                            user: emp.pushover_user_key,
-                            title,
-                            message,
-                            priority: 1
-                        })
-                    });
-                }
-            }
 
             alert('✅ התקרית נפתחה וההתראות נשלחו!');
             handleClose();
