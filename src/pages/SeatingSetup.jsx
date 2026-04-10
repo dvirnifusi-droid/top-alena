@@ -342,53 +342,78 @@ export default function SeatingSetup() {
             }
 
             const allTables = [
-                { table_number: "8", min_capacity: 2, max_capacity: 2, location: "indoor", area: "פנים", combinable_with: [], features: [], x: 150, y: 50, width: 70, height: 60 },
-                { table_number: "9", min_capacity: 2, max_capacity: 2, location: "indoor", area: "פנים", combinable_with: [], features: [], x: 250, y: 50, width: 70, height: 60 },
-                { table_number: "21", min_capacity: 2, max_capacity: 2, location: "indoor", area: "פנים", combinable_with: ["20"], features: [], x: 350, y: 50, width: 70, height: 60 },
-                { table_number: "10", min_capacity: 5, max_capacity: 11, location: "indoor", area: "פנים", combinable_with: [], features: ["שולחן גדול"], x: 50, y: 50, width: 100, height: 60 },
-                { table_number: "20", min_capacity: 4, max_capacity: 8, location: "indoor", area: "פנים", combinable_with: ["21"], features: ["שולחן בינוני-גדול"], x: 50, y: 120, width: 90, height: 60 },
-                { table_number: "30", min_capacity: 1, max_capacity: 5, location: "indoor", area: "פנים", combinable_with: ["31", "32"], features: [], x: 50, y: 190, width: 80, height: 60 },
-                { table_number: "31", min_capacity: 1, max_capacity: 2, location: "indoor", area: "פנים", combinable_with: ["30", "32"], features: [], x: 150, y: 190, width: 70, height: 60 },
-                { table_number: "32", min_capacity: 1, max_capacity: 2, location: "indoor", area: "פנים", combinable_with: ["30", "31"], features: [], x: 250, y: 190, width: 70, height: 60 },
-                { table_number: "40", min_capacity: 4, max_capacity: 7, location: "indoor", area: "פנים", combinable_with: ["41", "42"], features: ["שולחן בינוני-גדול"], x: 50, y: 260, width: 90, height: 60 },
-                { table_number: "41", min_capacity: 2, max_capacity: 2, location: "indoor", area: "פנים", combinable_with: ["40", "42"], features: [], x: 150, y: 260, width: 70, height: 60 },
-                { table_number: "42", min_capacity: 2, max_capacity: 2, location: "indoor", area: "פנים", combinable_with: ["40", "41"], features: [], x: 250, y: 260, width: 70, height: 60 },
-                { table_number: "50", min_capacity: 2, max_capacity: 4, location: "indoor", area: "פנים", combinable_with: [], features: [], x: 350, y: 260, width: 70, height: 60 },
-                { table_number: "60", min_capacity: 1, max_capacity: 2, location: "indoor", area: "פנים", combinable_with: ["61", "62"], features: [], x: 450, y: 190, width: 70, height: 60 },
-                { table_number: "61", min_capacity: 1, max_capacity: 2, location: "indoor", area: "פנים", combinable_with: ["60", "62"], features: [], x: 450, y: 230, width: 70, height: 60 },
-                { table_number: "62", min_capacity: 1, max_capacity: 2, location: "indoor", area: "פנים", combinable_with: ["60", "61"], features: [], x: 450, y: 270, width: 70, height: 60 },
-                { table_number: "70", min_capacity: 3, max_capacity: 7, location: "indoor", area: "פנים", combinable_with: [], features: ["שולחן בינוני-גדול"], x: 550, y: 230, width: 90, height: 60 },
-                { table_number: "80", min_capacity: 1, max_capacity: 2, location: "indoor", area: "פנים", combinable_with: ["81"], features: [], x: 650, y: 230, width: 70, height: 60 },
-                { table_number: "81", min_capacity: 2, max_capacity: 3, location: "indoor", area: "פנים", combinable_with: ["80"], features: [], x: 700, y: 270, width: 80, height: 60 },
-                { table_number: "100", min_capacity: 1, max_capacity: 4, location: "outdoor", area: "חוץ", combinable_with: ["101", "102", "103"], features: [], x: 50, y: 350, width: 70, height: 60 },
-                { table_number: "101", min_capacity: 1, max_capacity: 5, location: "outdoor", area: "חוץ", combinable_with: ["100", "102", "103"], features: [], x: 120, y: 350, width: 80, height: 60 },
-                { table_number: "102", min_capacity: 1, max_capacity: 3, location: "outdoor", area: "חוץ", combinable_with: ["100", "101", "103"], features: [], x: 190, y: 350, width: 70, height: 60 },
-                { table_number: "103", min_capacity: 1, max_capacity: 4, location: "outdoor", area: "חוץ", combinable_with: ["100", "101", "102"], features: [], x: 260, y: 350, width: 70, height: 60 },
-                { table_number: "104", min_capacity: 1, max_capacity: 3, location: "outdoor", area: "חוץ", combinable_with: [], features: [], x: 330, y: 350, width: 70, height: 60 },
-                { table_number: "200", min_capacity: 1, max_capacity: 2, location: "outdoor", area: "חוץ", combinable_with: ["201", "202"], features: [], x: 400, y: 350, width: 70, height: 60 },
-                { table_number: "201", min_capacity: 1, max_capacity: 3, location: "outdoor", area: "חוץ", combinable_with: ["200", "202"], features: [], x: 470, y: 350, width: 70, height: 60 },
-                { table_number: "202", min_capacity: 1, max_capacity: 1, location: "outdoor", area: "חוץ", combinable_with: ["200", "201"], features: ["אדם יחיד"], x: 540, y: 350, width: 60, height: 60 },
-                { table_number: "203", min_capacity: 1, max_capacity: 1, location: "outdoor", area: "חוץ", combinable_with: [], features: ["אדם יחיד"], x: 610, y: 350, width: 60, height: 60 },
-                { table_number: "204", min_capacity: 1, max_capacity: 1, location: "outdoor", area: "חוץ", combinable_with: [], features: ["אדם יחיד"], x: 680, y: 350, width: 60, height: 60 },
-                { table_number: "205", min_capacity: 1, max_capacity: 2, location: "outdoor", area: "חוץ", combinable_with: [], features: [], x: 750, y: 350, width: 70, height: 60 },
-                { table_number: "301", min_capacity: 1, max_capacity: 2, location: "outdoor", area: "חוץ", combinable_with: ["302"], features: [], x: 400, y: 420, width: 70, height: 60 },
-                { table_number: "302", min_capacity: 1, max_capacity: 4, location: "outdoor", area: "חוץ", combinable_with: ["301"], features: [], x: 470, y: 420, width: 70, height: 60 },
-                { table_number: "400", min_capacity: 1, max_capacity: 2, location: "outdoor", area: "חוץ", combinable_with: ["401"], features: [], x: 540, y: 420, width: 70, height: 60 },
-                { table_number: "401", min_capacity: 1, max_capacity: 2, location: "outdoor", area: "חוץ", combinable_with: ["400"], features: [], x: 610, y: 420, width: 70, height: 60 },
-                { table_number: "500", min_capacity: 1, max_capacity: 2, location: "outdoor", area: "חוץ", combinable_with: ["501"], features: [], x: 680, y: 420, width: 70, height: 60 },
-                { table_number: "501", min_capacity: 1, max_capacity: 2, location: "outdoor", area: "חוץ", combinable_with: ["500"], features: [], x: 750, y: 420, width: 70, height: 60 },
-                { table_number: "600", min_capacity: 1, max_capacity: 2, location: "outdoor", area: "חוץ", combinable_with: ["601", "602"], features: [], x: 540, y: 490, width: 70, height: 60 },
-                { table_number: "601", min_capacity: 1, max_capacity: 2, location: "outdoor", area: "חוץ", combinable_with: ["600", "602"], features: [], x: 610, y: 490, width: 70, height: 60 },
-                { table_number: "602", min_capacity: 1, max_capacity: 2, location: "outdoor", area: "חוץ", combinable_with: ["600", "601"], features: [], x: 680, y: 490, width: 70, height: 60 },
-                { table_number: "700", min_capacity: 1, max_capacity: 4, location: "outdoor", area: "חוץ", combinable_with: [], features: [], x: 750, y: 490, width: 70, height: 60 },
-                { table_number: "701", min_capacity: 1, max_capacity: 2, location: "outdoor", area: "חוץ", combinable_with: [], features: [], x: 820, y: 490, width: 70, height: 60 },
-                { table_number: "800", min_capacity: 1, max_capacity: 4, location: "outdoor", area: "חוץ", combinable_with: ["801"], features: [], x: 890, y: 350, width: 70, height: 60 },
-                { table_number: "801", min_capacity: 1, max_capacity: 2, location: "outdoor", area: "חוץ", combinable_with: ["800"], features: [], x: 890, y: 420, width: 70, height: 60 }
+                // === אזור חום (שקט/פנימי) ===
+                { table_number: "10", min_capacity: 5, max_capacity: 11, location: "indoor", area: "אזור חום", combinable_with: [], features: [], x: 15, y: 15, width: 58, height: 52 },
+                { table_number: "11", min_capacity: 5, max_capacity: 11, location: "indoor", area: "אזור חום", combinable_with: [], features: [], x: 78, y: 15, width: 58, height: 52 },
+                { table_number: "12", min_capacity: 12, max_capacity: 12, location: "indoor", area: "אזור חום", combinable_with: [], features: [], x: 141, y: 10, width: 68, height: 62 },
+                { table_number: "13", min_capacity: 5, max_capacity: 11, location: "indoor", area: "אזור חום", combinable_with: [], features: [], x: 214, y: 15, width: 58, height: 52 },
+                { table_number: "9", min_capacity: 2, max_capacity: 3, location: "indoor", area: "אזור חום", combinable_with: [], features: [], x: 242, y: 80, width: 62, height: 52 },
+                { table_number: "8", min_capacity: 2, max_capacity: 3, location: "indoor", area: "אזור חום", combinable_with: [], features: [], x: 242, y: 140, width: 62, height: 52 },
+                { table_number: "20", min_capacity: 5, max_capacity: 12, location: "indoor", area: "אזור חום", combinable_with: [], features: [], x: 15, y: 80, width: 118, height: 68 },
+                { table_number: "30", min_capacity: 5, max_capacity: 7, location: "indoor", area: "אזור חום", combinable_with: ["31"], features: [], x: 15, y: 160, width: 92, height: 65 },
+                { table_number: "31", min_capacity: 1, max_capacity: 2, location: "indoor", area: "אזור חום", combinable_with: ["30"], features: [], x: 113, y: 160, width: 66, height: 65 },
+                { table_number: "40", min_capacity: 4, max_capacity: 5, location: "indoor", area: "אזור חום", combinable_with: ["41"], features: [], x: 15, y: 235, width: 97, height: 72 },
+                { table_number: "41", min_capacity: 5, max_capacity: 5, location: "indoor", area: "אזור חום", combinable_with: ["40"], features: [], x: 120, y: 235, width: 97, height: 72 },
+                // === כניסה ===
+                { table_number: "50", min_capacity: 2, max_capacity: 4, location: "indoor", area: "כניסה", combinable_with: [], features: [], x: 258, y: 265, width: 62, height: 62 },
+                { table_number: "60", min_capacity: 1, max_capacity: 2, location: "indoor", area: "כניסה", combinable_with: ["61"], features: [], x: 323, y: 278, width: 68, height: 65 },
+                { table_number: "61", min_capacity: 2, max_capacity: 4, location: "indoor", area: "כניסה", combinable_with: ["60"], features: [], x: 323, y: 355, width: 68, height: 65 },
+                { table_number: "70", min_capacity: 4, max_capacity: 5, location: "indoor", area: "כניסה", combinable_with: ["71"], features: [], x: 403, y: 278, width: 78, height: 65 },
+                { table_number: "71", min_capacity: 2, max_capacity: 5, location: "indoor", area: "כניסה", combinable_with: ["70"], features: [], x: 403, y: 355, width: 78, height: 65 },
+                { table_number: "80", min_capacity: 2, max_capacity: 3, location: "indoor", area: "כניסה", combinable_with: ["81"], features: [], x: 493, y: 278, width: 72, height: 65 },
+                { table_number: "81", min_capacity: 2, max_capacity: 5, location: "indoor", area: "כניסה", combinable_with: ["80"], features: [], x: 493, y: 355, width: 72, height: 65 },
+                // === אזור אדום מרוכזי - שורה 1 ===
+                { table_number: "104", min_capacity: 1, max_capacity: 3, location: "indoor", area: "אדום מרוכזי", combinable_with: ["103"], features: [], x: 113, y: 464, width: 80, height: 65 },
+                { table_number: "103", min_capacity: 2, max_capacity: 2, location: "indoor", area: "אדום מרוכזי", combinable_with: ["104"], features: [], x: 202, y: 464, width: 80, height: 65 },
+                { table_number: "102", min_capacity: 1, max_capacity: 5, location: "indoor", area: "אדום מרוכזי", combinable_with: ["101"], features: [], x: 315, y: 464, width: 82, height: 65 },
+                { table_number: "101", min_capacity: 1, max_capacity: 2, location: "indoor", area: "אדום מרוכזי", combinable_with: ["100","102"], features: [], x: 408, y: 464, width: 82, height: 65 },
+                { table_number: "100", min_capacity: 1, max_capacity: 5, location: "indoor", area: "אדום מרוכזי", combinable_with: ["101"], features: [], x: 501, y: 464, width: 82, height: 65 },
+                // === אזור אדום מרוכזי - שורה 2 ===
+                { table_number: "154", min_capacity: 2, max_capacity: 2, location: "indoor", area: "אדום מרוכזי", combinable_with: ["153"], features: [], x: 113, y: 540, width: 80, height: 65 },
+                { table_number: "153", min_capacity: 2, max_capacity: 2, location: "indoor", area: "אדום מרוכזי", combinable_with: ["154"], features: [], x: 202, y: 540, width: 80, height: 65 },
+                { table_number: "152", min_capacity: 1, max_capacity: 2, location: "indoor", area: "אדום מרוכזי", combinable_with: ["151"], features: [], x: 315, y: 540, width: 82, height: 65 },
+                { table_number: "151", min_capacity: 1, max_capacity: 2, location: "indoor", area: "אדום מרוכזי", combinable_with: ["150","152"], features: [], x: 408, y: 540, width: 82, height: 65 },
+                { table_number: "150", min_capacity: 1, max_capacity: 5, location: "indoor", area: "אדום מרוכזי", combinable_with: ["151"], features: [], x: 501, y: 540, width: 82, height: 65 },
+                // === אזור אדום מרוכזי - שורה 3 ===
+                { table_number: "205", min_capacity: 1, max_capacity: 2, location: "indoor", area: "אדום מרוכזי", combinable_with: [], features: [], x: 113, y: 622, width: 78, height: 68 },
+                { table_number: "204", min_capacity: 1, max_capacity: 2, location: "indoor", area: "אדום מרוכזי", combinable_with: [], features: [], x: 200, y: 622, width: 78, height: 68 },
+                { table_number: "203", min_capacity: 2, max_capacity: 2, location: "indoor", area: "אדום מרוכזי", combinable_with: [], features: [], x: 288, y: 622, width: 78, height: 68 },
+                { table_number: "202", min_capacity: 1, max_capacity: 2, location: "indoor", area: "אדום מרוכזי", combinable_with: ["201"], features: [], x: 375, y: 622, width: 82, height: 68 },
+                { table_number: "201", min_capacity: 4, max_capacity: 6, location: "indoor", area: "אדום מרוכזי", combinable_with: ["200","202"], features: [], x: 467, y: 622, width: 88, height: 68 },
+                { table_number: "200", min_capacity: 1, max_capacity: 5, location: "indoor", area: "אדום מרוכזי", combinable_with: ["201"], features: [], x: 565, y: 622, width: 82, height: 68 },
+                // === זוהרה ===
+                { table_number: "300", min_capacity: 1, max_capacity: 2, location: "indoor", area: "זוהרה", combinable_with: [], features: [], x: 650, y: 380, width: 78, height: 68 },
+                { table_number: "301", min_capacity: 1, max_capacity: 2, location: "indoor", area: "זוהרה", combinable_with: [], features: [], x: 650, y: 460, width: 78, height: 68 },
+                { table_number: "400", min_capacity: 1, max_capacity: 2, location: "indoor", area: "זוהרה", combinable_with: [], features: [], x: 740, y: 380, width: 78, height: 68 },
+                { table_number: "401", min_capacity: 2, max_capacity: 2, location: "indoor", area: "זוהרה", combinable_with: [], features: [], x: 740, y: 460, width: 78, height: 68 },
+                { table_number: "402", min_capacity: 1, max_capacity: 2, location: "indoor", area: "זוהרה", combinable_with: [], features: [], x: 650, y: 540, width: 78, height: 68 },
+                { table_number: "500", min_capacity: 1, max_capacity: 2, location: "indoor", area: "זוהרה", combinable_with: [], features: ["ספסל"], x: 740, y: 540, width: 78, height: 68 },
+                { table_number: "501", min_capacity: 2, max_capacity: 2, location: "indoor", area: "זוהרה", combinable_with: [], features: [], x: 740, y: 620, width: 78, height: 68 },
+                { table_number: "403", min_capacity: 1, max_capacity: 2, location: "indoor", area: "זוהרה", combinable_with: [], features: [], x: 650, y: 700, width: 78, height: 68 },
+                { table_number: "503", min_capacity: 1, max_capacity: 2, location: "indoor", area: "זוהרה", combinable_with: [], features: [], x: 740, y: 700, width: 78, height: 68 },
+                // === מספרה ===
+                { table_number: "600", min_capacity: 1, max_capacity: 4, location: "indoor", area: "מספרה", combinable_with: [], features: [], x: 838, y: 380, width: 78, height: 68 },
+                { table_number: "601", min_capacity: 1, max_capacity: 2, location: "indoor", area: "מספרה", combinable_with: [], features: [], x: 838, y: 460, width: 78, height: 68 },
+                // === גבטה ===
+                { table_number: "700", min_capacity: 1, max_capacity: 4, location: "indoor", area: "גבטה", combinable_with: [], features: [], x: 1002, y: 322, width: 80, height: 68 },
+                { table_number: "800", min_capacity: 1, max_capacity: 6, location: "indoor", area: "גבטה", combinable_with: [], features: [], x: 1094, y: 322, width: 80, height: 68 },
+                { table_number: "701", min_capacity: 1, max_capacity: 2, location: "indoor", area: "גבטה", combinable_with: [], features: [], x: 1002, y: 402, width: 80, height: 68 },
+                { table_number: "801", min_capacity: 1, max_capacity: 2, location: "indoor", area: "גבטה", combinable_with: [], features: [], x: 1094, y: 402, width: 80, height: 68 },
+                { table_number: "702", min_capacity: 1, max_capacity: 2, location: "indoor", area: "גבטה", combinable_with: [], features: [], x: 1002, y: 482, width: 80, height: 68 },
+                { table_number: "802", min_capacity: 1, max_capacity: 2, location: "indoor", area: "גבטה", combinable_with: [], features: [], x: 1094, y: 482, width: 80, height: 68 },
+                { table_number: "782", min_capacity: 1, max_capacity: 2, location: "indoor", area: "גבטה", combinable_with: [], features: [], x: 1002, y: 562, width: 80, height: 68 },
+                // === אזור ורוד ===
+                { table_number: "603", min_capacity: 1, max_capacity: 2, location: "indoor", area: "ורוד", combinable_with: [], features: [], x: 1073, y: 568, width: 78, height: 68 },
+                { table_number: "703", min_capacity: 1, max_capacity: 2, location: "indoor", area: "ורוד", combinable_with: [], features: [], x: 1073, y: 648, width: 78, height: 68 },
+                { table_number: "803", min_capacity: 1, max_capacity: 2, location: "indoor", area: "ורוד", combinable_with: [], features: [], x: 1073, y: 728, width: 78, height: 68 },
+                { table_number: "604", min_capacity: 1, max_capacity: 2, location: "indoor", area: "ורוד", combinable_with: [], features: [], x: 1163, y: 568, width: 78, height: 68 },
+                { table_number: "704", min_capacity: 1, max_capacity: 5, location: "indoor", area: "ורוד", combinable_with: [], features: [], x: 1163, y: 648, width: 78, height: 68 },
             ];
 
             const defaultFacilities = [
-                { id: 'kitchen-1', type: 'kitchen', name: 'מטבח', x: 800, y: 50, width: 150, height: 100 },
-                { id: 'restroom-1', type: 'restroom', name: 'שירותים', x: 800, y: 180, width: 100, height: 80 },
+                { id: 'kitchen-1', type: 'kitchen', name: 'מטבח', x: 352, y: 5, width: 195, height: 132 },
+                { id: 'bar-1', type: 'bar', name: 'בר', x: 352, y: 132, width: 232, height: 140 },
+                { id: 'restroom-1', type: 'restroom', name: 'שירותים', x: 545, y: 5, width: 173, height: 185 },
             ];
 
             await SeatingLayout.create({ layout_name: "מפה ראשית - עלינא", tables: allTables, facilities: defaultFacilities });
@@ -1412,18 +1437,60 @@ export default function SeatingSetup() {
                                     </div>
 
                                     <div 
-                                        className="relative w-[1200px] h-[800px] bg-gradient-to-b from-green-100 to-yellow-100 border rounded-lg overflow-auto"
+                                        className="relative w-[1400px] h-[850px] bg-gray-50 border rounded-lg overflow-auto"
                                         style={{
                                             backgroundImage: 'radial-gradient(rgba(0, 0, 0, 0.15) 1px, transparent 1px)',
                                             backgroundSize: `${GRID_SIZE}px ${GRID_SIZE}px`,
                                         }}
                                     >
-                                        <div className="absolute top-4 left-4 right-4 h-[350px] bg-green-200/50 rounded border-2 border-green-400 border-dashed">
-                                            <span className="absolute top-2 right-2 text-green-800 font-bold text-sm">🏠 אזור פנים</span>
+                                        {/* אזור חום */}
+                                        <div className="absolute rounded border-2 border-amber-600" style={{left:5,top:5,width:310,height:443,backgroundColor:'rgba(217,119,6,0.1)'}}>
+                                            <span className="absolute bottom-3 right-3 font-bold text-amber-900 text-sm leading-tight text-right">אזור חום<br/><span className="font-normal text-xs">(שקט / פנימי)</span></span>
                                         </div>
-                                        
-                                        <div className="absolute bottom-4 left-4 right-4 h-[350px] bg-yellow-200/50 rounded border-2 border-yellow-600 border-dashed">
-                                            <span className="absolute top-2 right-2 text-yellow-800 font-bold text-sm">🌿 אזור חוץ</span>
+                                        {/* אזור פנים */}
+                                        <div className="absolute rounded border-2 border-gray-300" style={{left:578,top:5,width:817,height:310,backgroundColor:'rgba(243,244,246,0.5)'}}>
+                                            <span className="absolute top-4 right-4 font-bold text-gray-400 text-2xl">אזור פנים</span>
+                                        </div>
+                                        {/* G/Z/I/N */}
+                                        <div className="absolute rounded border-2 border-gray-400" style={{left:720,top:5,width:58,height:158,backgroundColor:'rgba(209,213,219,0.8)'}}>
+                                            <div className="h-full flex flex-col items-center justify-evenly text-gray-600 font-bold text-xs">
+                                                <span>G</span><span>Z</span><span>I</span><span>N</span>
+                                            </div>
+                                        </div>
+                                        {/* כניסה */}
+                                        <div className="absolute rounded border-2 border-green-600" style={{left:315,top:265,width:265,height:180,backgroundColor:'rgba(134,239,172,0.25)'}}>
+                                            <span className="absolute top-1 right-2 font-bold text-green-900 text-sm">כניסה</span>
+                                        </div>
+                                        {/* בחוץ */}
+                                        <div className="absolute rounded border-2 border-green-500" style={{left:5,top:448,width:100,height:397,backgroundColor:'rgba(187,247,208,0.4)'}}>
+                                            <div className="h-full flex items-center justify-center">
+                                                <span className="font-bold text-green-800 text-sm" style={{writingMode:'vertical-rl',transform:'rotate(180deg)'}}>בחוץ</span>
+                                            </div>
+                                        </div>
+                                        {/* אזור אדום מרוכזי */}
+                                        <div className="absolute rounded border-2 border-orange-500" style={{left:105,top:448,width:545,height:397,backgroundColor:'rgba(251,146,60,0.12)'}}>
+                                            <span className="absolute bottom-3 right-3 font-bold text-orange-900 text-sm">אזור אדום מרוכזי</span>
+                                            <div className="absolute" style={{left:8,top:55}}>
+                                                <div className="bg-orange-200 border border-orange-400 rounded p-1 text-center" style={{width:72}}>
+                                                    <span className="text-xs font-semibold text-orange-900">עמדת<br/>מארחת</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        {/* זוהרה */}
+                                        <div className="absolute rounded border-2 border-gray-400" style={{left:645,top:318,width:185,height:458,backgroundColor:'rgba(209,213,219,0.35)'}}>
+                                            <span className="absolute top-2 right-2 font-bold text-gray-700 text-sm">זוהרה</span>
+                                        </div>
+                                        {/* מספרה */}
+                                        <div className="absolute rounded border-2 border-yellow-500" style={{left:830,top:318,width:163,height:285,backgroundColor:'rgba(254,240,138,0.35)'}}>
+                                            <span className="absolute top-2 right-2 font-bold text-yellow-800 text-sm">מספרה 🪴</span>
+                                            <span className="absolute text-yellow-700 font-semibold" style={{top:65,right:10,fontSize:'11px'}}>ספסל</span>
+                                        </div>
+                                        {/* גבטה */}
+                                        <div className="absolute rounded border-2 border-gray-400" style={{left:993,top:318,width:215,height:312,backgroundColor:'rgba(209,213,219,0.35)'}}>
+                                            <span className="absolute top-2 right-2 font-bold text-gray-700 text-sm">גבטה</span>
+                                        </div>
+                                        {/* אזור ורוד */}
+                                        <div className="absolute rounded border-2 border-pink-400" style={{left:1063,top:558,width:185,height:288,backgroundColor:'rgba(249,168,212,0.25)'}}>
                                         </div>
 
                                         {facilities.map((facility) => {
