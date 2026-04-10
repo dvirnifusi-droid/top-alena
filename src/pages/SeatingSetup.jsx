@@ -498,7 +498,6 @@ export default function SeatingSetup() {
             alert("שגיאה בשמירת המפה.");
         } finally {
             setIsSaving(false);
-            loadLayout();
         }
     };
 
