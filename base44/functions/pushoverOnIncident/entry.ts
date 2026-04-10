@@ -15,6 +15,7 @@ async function pushover(userKey, title, message) {
 
 Deno.serve(async (req) => {
     console.log('=== pushoverOnIncident START ===');
+    console.log('Full request body keys:', Object.keys(await req.clone().json()));
     try {
         const body = await req.json();
         console.log('Event:', body.event);
