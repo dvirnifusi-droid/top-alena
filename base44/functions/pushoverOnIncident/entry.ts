@@ -17,6 +17,8 @@ Deno.serve(async (req) => {
         // Skip auto-generated feedback incidents
         if (data.incident_number?.startsWith('FEEDBACK-')) return Response.json({ ok: true });
 
+        console.log('Incident data received:', JSON.stringify(data));
+
         const severityEmoji = { low: '🟡', medium: '🟠', high: '🔴', critical: '🚨' };
         const title = `${severityEmoji[data.severity] || '⚠️'} תקרית חדשה`;
         const message = `${data.title}\nדווח ע"י: ${data.reported_by || 'לא ידוע'}${data.description ? `\n${data.description.substring(0, 100)}` : ''}`;
