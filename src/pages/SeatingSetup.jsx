@@ -339,81 +339,81 @@ export default function SeatingSetup() {
         try {
             if (layout) {
                 await SeatingLayout.delete(layout.id);
-            }
+                }
 
             const allTables = [
-                // === אזור חום (שקט/פנימי) ===
-                { table_number: "10", min_capacity: 5, max_capacity: 11, location: "indoor", area: "אזור חום", combinable_with: [], features: [], x: 15, y: 15, width: 58, height: 52 },
-                { table_number: "11", min_capacity: 5, max_capacity: 11, location: "indoor", area: "אזור חום", combinable_with: [], features: [], x: 78, y: 15, width: 58, height: 52 },
-                { table_number: "12", min_capacity: 12, max_capacity: 12, location: "indoor", area: "אזור חום", combinable_with: [], features: [], x: 141, y: 10, width: 68, height: 62 },
-                { table_number: "13", min_capacity: 5, max_capacity: 11, location: "indoor", area: "אזור חום", combinable_with: [], features: [], x: 214, y: 15, width: 58, height: 52 },
-                { table_number: "9", min_capacity: 2, max_capacity: 3, location: "indoor", area: "אזור חום", combinable_with: [], features: [], x: 242, y: 80, width: 62, height: 52 },
-                { table_number: "8", min_capacity: 2, max_capacity: 3, location: "indoor", area: "אזור חום", combinable_with: [], features: [], x: 242, y: 140, width: 62, height: 52 },
-                { table_number: "20", min_capacity: 5, max_capacity: 12, location: "indoor", area: "אזור חום", combinable_with: [], features: [], x: 15, y: 80, width: 118, height: 68 },
-                { table_number: "30", min_capacity: 5, max_capacity: 7, location: "indoor", area: "אזור חום", combinable_with: ["31"], features: [], x: 15, y: 160, width: 92, height: 65 },
-                { table_number: "31", min_capacity: 1, max_capacity: 2, location: "indoor", area: "אזור חום", combinable_with: ["30"], features: [], x: 113, y: 160, width: 66, height: 65 },
-                { table_number: "40", min_capacity: 4, max_capacity: 5, location: "indoor", area: "אזור חום", combinable_with: ["41"], features: [], x: 15, y: 235, width: 97, height: 72 },
-                { table_number: "41", min_capacity: 5, max_capacity: 5, location: "indoor", area: "אזור חום", combinable_with: ["40"], features: [], x: 120, y: 235, width: 97, height: 72 },
+                // === אזור חום (שקט/פנימי) - top-left ===
+                { table_number: "10", min_capacity: 5, max_capacity: 11, location: "indoor", area: "אזור חום", combinable_with: [], features: [], x: 14, y: 52, width: 62, height: 52 },
+                { table_number: "11", min_capacity: 5, max_capacity: 11, location: "indoor", area: "אזור חום", combinable_with: [], features: [], x: 80, y: 52, width: 62, height: 52 },
+                { table_number: "12", min_capacity: 12, max_capacity: 12, location: "indoor", area: "אזור חום", combinable_with: [], features: [], x: 148, y: 42, width: 72, height: 65 },
+                { table_number: "13", min_capacity: 5, max_capacity: 11, location: "indoor", area: "אזור חום", combinable_with: [], features: [], x: 225, y: 52, width: 62, height: 52 },
+                { table_number: "9", min_capacity: 2, max_capacity: 3, location: "indoor", area: "אזור חום", combinable_with: [], features: [], x: 242, y: 115, width: 65, height: 55 },
+                { table_number: "8", min_capacity: 2, max_capacity: 3, location: "indoor", area: "אזור חום", combinable_with: [], features: [], x: 242, y: 178, width: 65, height: 55 },
+                { table_number: "20", min_capacity: 5, max_capacity: 12, location: "indoor", area: "אזור חום", combinable_with: [], features: [], x: 14, y: 118, width: 120, height: 68 },
+                { table_number: "30", min_capacity: 5, max_capacity: 7, location: "indoor", area: "אזור חום", combinable_with: ["31"], features: [], x: 14, y: 200, width: 95, height: 65 },
+                { table_number: "31", min_capacity: 1, max_capacity: 2, location: "indoor", area: "אזור חום", combinable_with: ["30"], features: [], x: 114, y: 200, width: 65, height: 65 },
+                { table_number: "40", min_capacity: 4, max_capacity: 5, location: "indoor", area: "אזור חום", combinable_with: ["41"], features: [], x: 14, y: 278, width: 100, height: 68 },
+                { table_number: "41", min_capacity: 5, max_capacity: 5, location: "indoor", area: "אזור חום", combinable_with: ["40"], features: [], x: 120, y: 278, width: 100, height: 68 },
                 // === כניסה ===
-                { table_number: "50", min_capacity: 2, max_capacity: 4, location: "indoor", area: "כניסה", combinable_with: [], features: [], x: 258, y: 265, width: 62, height: 62 },
-                { table_number: "60", min_capacity: 1, max_capacity: 2, location: "indoor", area: "כניסה", combinable_with: ["61"], features: [], x: 323, y: 278, width: 68, height: 65 },
-                { table_number: "61", min_capacity: 2, max_capacity: 4, location: "indoor", area: "כניסה", combinable_with: ["60"], features: [], x: 323, y: 355, width: 68, height: 65 },
-                { table_number: "70", min_capacity: 4, max_capacity: 5, location: "indoor", area: "כניסה", combinable_with: ["71"], features: [], x: 403, y: 278, width: 78, height: 65 },
-                { table_number: "71", min_capacity: 2, max_capacity: 5, location: "indoor", area: "כניסה", combinable_with: ["70"], features: [], x: 403, y: 355, width: 78, height: 65 },
-                { table_number: "80", min_capacity: 2, max_capacity: 3, location: "indoor", area: "כניסה", combinable_with: ["81"], features: [], x: 493, y: 278, width: 72, height: 65 },
-                { table_number: "81", min_capacity: 2, max_capacity: 5, location: "indoor", area: "כניסה", combinable_with: ["80"], features: [], x: 493, y: 355, width: 72, height: 65 },
+                { table_number: "50", min_capacity: 2, max_capacity: 4, location: "indoor", area: "כניסה", combinable_with: [], features: [], x: 254, y: 282, width: 65, height: 62 },
+                { table_number: "60", min_capacity: 1, max_capacity: 2, location: "indoor", area: "כניסה", combinable_with: ["61"], features: [], x: 326, y: 278, width: 70, height: 62 },
+                { table_number: "61", min_capacity: 2, max_capacity: 4, location: "indoor", area: "כניסה", combinable_with: ["60"], features: [], x: 326, y: 352, width: 70, height: 62 },
+                { table_number: "70", min_capacity: 4, max_capacity: 5, location: "indoor", area: "כניסה", combinable_with: ["71"], features: [], x: 408, y: 278, width: 78, height: 62 },
+                { table_number: "71", min_capacity: 2, max_capacity: 5, location: "indoor", area: "כניסה", combinable_with: ["70"], features: [], x: 408, y: 352, width: 78, height: 62 },
+                { table_number: "80", min_capacity: 2, max_capacity: 3, location: "indoor", area: "כניסה", combinable_with: ["81"], features: [], x: 497, y: 278, width: 72, height: 62 },
+                { table_number: "81", min_capacity: 2, max_capacity: 5, location: "indoor", area: "כניסה", combinable_with: ["80"], features: [], x: 497, y: 352, width: 72, height: 62 },
                 // === אזור אדום מרוכזי - שורה 1 ===
-                { table_number: "104", min_capacity: 1, max_capacity: 3, location: "indoor", area: "אדום מרוכזי", combinable_with: ["103"], features: [], x: 113, y: 464, width: 80, height: 65 },
-                { table_number: "103", min_capacity: 2, max_capacity: 2, location: "indoor", area: "אדום מרוכזי", combinable_with: ["104"], features: [], x: 202, y: 464, width: 80, height: 65 },
-                { table_number: "102", min_capacity: 1, max_capacity: 5, location: "indoor", area: "אדום מרוכזי", combinable_with: ["101"], features: [], x: 315, y: 464, width: 82, height: 65 },
-                { table_number: "101", min_capacity: 1, max_capacity: 2, location: "indoor", area: "אדום מרוכזי", combinable_with: ["100","102"], features: [], x: 408, y: 464, width: 82, height: 65 },
-                { table_number: "100", min_capacity: 1, max_capacity: 5, location: "indoor", area: "אדום מרוכזי", combinable_with: ["101"], features: [], x: 501, y: 464, width: 82, height: 65 },
+                { table_number: "104", min_capacity: 1, max_capacity: 3, location: "indoor", area: "אדום מרוכזי", combinable_with: ["103"], features: [], x: 114, y: 458, width: 82, height: 65 },
+                { table_number: "103", min_capacity: 2, max_capacity: 2, location: "indoor", area: "אדום מרוכזי", combinable_with: ["104"], features: [], x: 205, y: 458, width: 82, height: 65 },
+                { table_number: "102", min_capacity: 1, max_capacity: 5, location: "indoor", area: "אדום מרוכזי", combinable_with: ["101"], features: [], x: 318, y: 458, width: 82, height: 65 },
+                { table_number: "101", min_capacity: 1, max_capacity: 2, location: "indoor", area: "אדום מרוכזי", combinable_with: ["100","102"], features: [], x: 410, y: 458, width: 82, height: 65 },
+                { table_number: "100", min_capacity: 1, max_capacity: 5, location: "indoor", area: "אדום מרוכזי", combinable_with: ["101"], features: [], x: 502, y: 458, width: 82, height: 65 },
                 // === אזור אדום מרוכזי - שורה 2 ===
-                { table_number: "154", min_capacity: 2, max_capacity: 2, location: "indoor", area: "אדום מרוכזי", combinable_with: ["153"], features: [], x: 113, y: 540, width: 80, height: 65 },
-                { table_number: "153", min_capacity: 2, max_capacity: 2, location: "indoor", area: "אדום מרוכזי", combinable_with: ["154"], features: [], x: 202, y: 540, width: 80, height: 65 },
-                { table_number: "152", min_capacity: 1, max_capacity: 2, location: "indoor", area: "אדום מרוכזי", combinable_with: ["151"], features: [], x: 315, y: 540, width: 82, height: 65 },
-                { table_number: "151", min_capacity: 1, max_capacity: 2, location: "indoor", area: "אדום מרוכזי", combinable_with: ["150","152"], features: [], x: 408, y: 540, width: 82, height: 65 },
-                { table_number: "150", min_capacity: 1, max_capacity: 5, location: "indoor", area: "אדום מרוכזי", combinable_with: ["151"], features: [], x: 501, y: 540, width: 82, height: 65 },
+                { table_number: "154", min_capacity: 2, max_capacity: 2, location: "indoor", area: "אדום מרוכזי", combinable_with: ["153"], features: [], x: 114, y: 535, width: 82, height: 65 },
+                { table_number: "153", min_capacity: 2, max_capacity: 2, location: "indoor", area: "אדום מרוכזי", combinable_with: ["154"], features: [], x: 205, y: 535, width: 82, height: 65 },
+                { table_number: "152", min_capacity: 1, max_capacity: 2, location: "indoor", area: "אדום מרוכזי", combinable_with: ["151"], features: [], x: 318, y: 535, width: 82, height: 65 },
+                { table_number: "151", min_capacity: 1, max_capacity: 2, location: "indoor", area: "אדום מרוכזי", combinable_with: ["150","152"], features: [], x: 410, y: 535, width: 82, height: 65 },
+                { table_number: "150", min_capacity: 1, max_capacity: 5, location: "indoor", area: "אדום מרוכזי", combinable_with: ["151"], features: [], x: 502, y: 535, width: 82, height: 65 },
                 // === אזור אדום מרוכזי - שורה 3 ===
-                { table_number: "205", min_capacity: 1, max_capacity: 2, location: "indoor", area: "אדום מרוכזי", combinable_with: [], features: [], x: 113, y: 622, width: 78, height: 68 },
-                { table_number: "204", min_capacity: 1, max_capacity: 2, location: "indoor", area: "אדום מרוכזי", combinable_with: [], features: [], x: 200, y: 622, width: 78, height: 68 },
-                { table_number: "203", min_capacity: 2, max_capacity: 2, location: "indoor", area: "אדום מרוכזי", combinable_with: [], features: [], x: 288, y: 622, width: 78, height: 68 },
-                { table_number: "202", min_capacity: 1, max_capacity: 2, location: "indoor", area: "אדום מרוכזי", combinable_with: ["201"], features: [], x: 375, y: 622, width: 82, height: 68 },
-                { table_number: "201", min_capacity: 4, max_capacity: 6, location: "indoor", area: "אדום מרוכזי", combinable_with: ["200","202"], features: [], x: 467, y: 622, width: 88, height: 68 },
-                { table_number: "200", min_capacity: 1, max_capacity: 5, location: "indoor", area: "אדום מרוכזי", combinable_with: ["201"], features: [], x: 565, y: 622, width: 82, height: 68 },
+                { table_number: "205", min_capacity: 1, max_capacity: 2, location: "indoor", area: "אדום מרוכזי", combinable_with: [], features: [], x: 114, y: 618, width: 78, height: 68 },
+                { table_number: "204", min_capacity: 1, max_capacity: 2, location: "indoor", area: "אדום מרוכזי", combinable_with: [], features: [], x: 200, y: 618, width: 78, height: 68 },
+                { table_number: "203", min_capacity: 2, max_capacity: 2, location: "indoor", area: "אדום מרוכזי", combinable_with: [], features: [], x: 288, y: 618, width: 78, height: 68 },
+                { table_number: "202", min_capacity: 1, max_capacity: 2, location: "indoor", area: "אדום מרוכזי", combinable_with: ["201"], features: [], x: 374, y: 618, width: 82, height: 68 },
+                { table_number: "201", min_capacity: 4, max_capacity: 6, location: "indoor", area: "אדום מרוכזי", combinable_with: ["200","202"], features: [], x: 464, y: 618, width: 88, height: 68 },
+                { table_number: "200", min_capacity: 1, max_capacity: 5, location: "indoor", area: "אדום מרוכזי", combinable_with: ["201"], features: [], x: 560, y: 618, width: 82, height: 68 },
                 // === זוהרה ===
-                { table_number: "300", min_capacity: 1, max_capacity: 2, location: "indoor", area: "זוהרה", combinable_with: [], features: [], x: 650, y: 380, width: 78, height: 68 },
-                { table_number: "301", min_capacity: 1, max_capacity: 2, location: "indoor", area: "זוהרה", combinable_with: [], features: [], x: 650, y: 460, width: 78, height: 68 },
-                { table_number: "400", min_capacity: 1, max_capacity: 2, location: "indoor", area: "זוהרה", combinable_with: [], features: [], x: 740, y: 380, width: 78, height: 68 },
-                { table_number: "401", min_capacity: 2, max_capacity: 2, location: "indoor", area: "זוהרה", combinable_with: [], features: [], x: 740, y: 460, width: 78, height: 68 },
-                { table_number: "402", min_capacity: 1, max_capacity: 2, location: "indoor", area: "זוהרה", combinable_with: [], features: [], x: 650, y: 540, width: 78, height: 68 },
-                { table_number: "500", min_capacity: 1, max_capacity: 2, location: "indoor", area: "זוהרה", combinable_with: [], features: ["ספסל"], x: 740, y: 540, width: 78, height: 68 },
-                { table_number: "501", min_capacity: 2, max_capacity: 2, location: "indoor", area: "זוהרה", combinable_with: [], features: [], x: 740, y: 620, width: 78, height: 68 },
-                { table_number: "403", min_capacity: 1, max_capacity: 2, location: "indoor", area: "זוהרה", combinable_with: [], features: [], x: 650, y: 700, width: 78, height: 68 },
-                { table_number: "503", min_capacity: 1, max_capacity: 2, location: "indoor", area: "זוהרה", combinable_with: [], features: [], x: 740, y: 700, width: 78, height: 68 },
+                { table_number: "300", min_capacity: 1, max_capacity: 2, location: "indoor", area: "זוהרה", combinable_with: [], features: [], x: 654, y: 385, width: 78, height: 65 },
+                { table_number: "301", min_capacity: 1, max_capacity: 2, location: "indoor", area: "זוהרה", combinable_with: [], features: [], x: 654, y: 460, width: 78, height: 65 },
+                { table_number: "400", min_capacity: 1, max_capacity: 2, location: "indoor", area: "זוהרה", combinable_with: [], features: [], x: 744, y: 385, width: 78, height: 65 },
+                { table_number: "401", min_capacity: 2, max_capacity: 2, location: "indoor", area: "זוהרה", combinable_with: [], features: [], x: 744, y: 460, width: 78, height: 65 },
+                { table_number: "402", min_capacity: 1, max_capacity: 2, location: "indoor", area: "זוהרה", combinable_with: [], features: [], x: 654, y: 543, width: 78, height: 65 },
+                { table_number: "500", min_capacity: 1, max_capacity: 2, location: "indoor", area: "זוהרה", combinable_with: [], features: ["ספסל"], x: 744, y: 543, width: 78, height: 65 },
+                { table_number: "501", min_capacity: 2, max_capacity: 2, location: "indoor", area: "זוהרה", combinable_with: [], features: [], x: 744, y: 620, width: 78, height: 65 },
+                { table_number: "403", min_capacity: 1, max_capacity: 2, location: "indoor", area: "זוהרה", combinable_with: [], features: [], x: 654, y: 706, width: 78, height: 68 },
+                { table_number: "503", min_capacity: 1, max_capacity: 2, location: "indoor", area: "זוהרה", combinable_with: [], features: [], x: 744, y: 706, width: 78, height: 68 },
                 // === מספרה ===
-                { table_number: "600", min_capacity: 1, max_capacity: 4, location: "indoor", area: "מספרה", combinable_with: [], features: [], x: 838, y: 380, width: 78, height: 68 },
-                { table_number: "601", min_capacity: 1, max_capacity: 2, location: "indoor", area: "מספרה", combinable_with: [], features: [], x: 838, y: 460, width: 78, height: 68 },
+                { table_number: "600", min_capacity: 1, max_capacity: 4, location: "indoor", area: "מספרה", combinable_with: [], features: [], x: 840, y: 385, width: 78, height: 65 },
+                { table_number: "601", min_capacity: 1, max_capacity: 2, location: "indoor", area: "מספרה", combinable_with: [], features: [], x: 840, y: 460, width: 78, height: 65 },
                 // === גבטה ===
-                { table_number: "700", min_capacity: 1, max_capacity: 4, location: "indoor", area: "גבטה", combinable_with: [], features: [], x: 1002, y: 322, width: 80, height: 68 },
-                { table_number: "800", min_capacity: 1, max_capacity: 6, location: "indoor", area: "גבטה", combinable_with: [], features: [], x: 1094, y: 322, width: 80, height: 68 },
-                { table_number: "701", min_capacity: 1, max_capacity: 2, location: "indoor", area: "גבטה", combinable_with: [], features: [], x: 1002, y: 402, width: 80, height: 68 },
-                { table_number: "801", min_capacity: 1, max_capacity: 2, location: "indoor", area: "גבטה", combinable_with: [], features: [], x: 1094, y: 402, width: 80, height: 68 },
-                { table_number: "702", min_capacity: 1, max_capacity: 2, location: "indoor", area: "גבטה", combinable_with: [], features: [], x: 1002, y: 482, width: 80, height: 68 },
-                { table_number: "802", min_capacity: 1, max_capacity: 2, location: "indoor", area: "גבטה", combinable_with: [], features: [], x: 1094, y: 482, width: 80, height: 68 },
-                { table_number: "782", min_capacity: 1, max_capacity: 2, location: "indoor", area: "גבטה", combinable_with: [], features: [], x: 1002, y: 562, width: 80, height: 68 },
+                { table_number: "700", min_capacity: 1, max_capacity: 4, location: "indoor", area: "גבטה", combinable_with: [], features: [], x: 1005, y: 322, width: 80, height: 65 },
+                { table_number: "800", min_capacity: 1, max_capacity: 6, location: "indoor", area: "גבטה", combinable_with: [], features: [], x: 1097, y: 322, width: 80, height: 65 },
+                { table_number: "701", min_capacity: 1, max_capacity: 2, location: "indoor", area: "גבטה", combinable_with: [], features: [], x: 1005, y: 398, width: 80, height: 65 },
+                { table_number: "801", min_capacity: 1, max_capacity: 2, location: "indoor", area: "גבטה", combinable_with: [], features: [], x: 1097, y: 398, width: 80, height: 65 },
+                { table_number: "702", min_capacity: 1, max_capacity: 2, location: "indoor", area: "גבטה", combinable_with: [], features: [], x: 1005, y: 475, width: 80, height: 65 },
+                { table_number: "802", min_capacity: 1, max_capacity: 2, location: "indoor", area: "גבטה", combinable_with: [], features: [], x: 1097, y: 475, width: 80, height: 65 },
+                { table_number: "782", min_capacity: 1, max_capacity: 2, location: "indoor", area: "גבטה", combinable_with: [], features: [], x: 1005, y: 553, width: 80, height: 65 },
                 // === אזור ורוד ===
-                { table_number: "603", min_capacity: 1, max_capacity: 2, location: "indoor", area: "ורוד", combinable_with: [], features: [], x: 1073, y: 568, width: 78, height: 68 },
-                { table_number: "703", min_capacity: 1, max_capacity: 2, location: "indoor", area: "ורוד", combinable_with: [], features: [], x: 1073, y: 648, width: 78, height: 68 },
-                { table_number: "803", min_capacity: 1, max_capacity: 2, location: "indoor", area: "ורוד", combinable_with: [], features: [], x: 1073, y: 728, width: 78, height: 68 },
-                { table_number: "604", min_capacity: 1, max_capacity: 2, location: "indoor", area: "ורוד", combinable_with: [], features: [], x: 1163, y: 568, width: 78, height: 68 },
-                { table_number: "704", min_capacity: 1, max_capacity: 5, location: "indoor", area: "ורוד", combinable_with: [], features: [], x: 1163, y: 648, width: 78, height: 68 },
+                { table_number: "603", min_capacity: 1, max_capacity: 2, location: "indoor", area: "ורוד", combinable_with: [], features: [], x: 1078, y: 565, width: 78, height: 68 },
+                { table_number: "703", min_capacity: 1, max_capacity: 2, location: "indoor", area: "ורוד", combinable_with: [], features: [], x: 1078, y: 645, width: 78, height: 68 },
+                { table_number: "803", min_capacity: 1, max_capacity: 2, location: "indoor", area: "ורוד", combinable_with: [], features: [], x: 1078, y: 725, width: 78, height: 68 },
+                { table_number: "604", min_capacity: 1, max_capacity: 2, location: "indoor", area: "ורוד", combinable_with: [], features: [], x: 1168, y: 565, width: 78, height: 68 },
+                { table_number: "704", min_capacity: 1, max_capacity: 5, location: "indoor", area: "ורוד", combinable_with: [], features: [], x: 1168, y: 645, width: 78, height: 68 },
             ];
 
             const defaultFacilities = [
-                { id: 'kitchen-1', type: 'kitchen', name: 'מטבח', x: 352, y: 5, width: 195, height: 132 },
-                { id: 'bar-1', type: 'bar', name: 'בר', x: 352, y: 132, width: 232, height: 140 },
-                { id: 'restroom-1', type: 'restroom', name: 'שירותים', x: 545, y: 5, width: 173, height: 185 },
+                { id: 'kitchen-1', type: 'kitchen', name: 'מטבח', x: 355, y: 5, width: 195, height: 130 },
+                { id: 'bar-1', type: 'bar', name: 'בר', x: 355, y: 135, width: 230, height: 142 },
+                { id: 'restroom-1', type: 'restroom', name: 'שירותים', x: 557, y: 5, width: 175, height: 190 },
             ];
 
             await SeatingLayout.create({ layout_name: "מפה ראשית - עלינא", tables: allTables, facilities: defaultFacilities });
@@ -1341,6 +1341,10 @@ export default function SeatingSetup() {
                                 <Settings className="w-4 h-4 ml-2" />
                                 עריכת עמוד הזמנות
                             </Button>
+                             <Button variant="outline" onClick={createAllTables} className="bg-red-50 border-red-200 text-red-700 hover:bg-red-100" title="מחק ובנה מחדש">
+                                 <Wand2 className="w-4 h-4 ml-2" />
+                                 איפוס מפה
+                             </Button>
                              <Button variant={viewMode === 'list' ? 'secondary' : 'outline'} size="icon" onClick={() => setViewMode('list')}><Edit className="w-4 h-4"/></Button>
                              <Button variant={viewMode === 'map' ? 'secondary' : 'outline'} size="icon" onClick={() => setViewMode('map')}><Eye className="w-4 h-4"/></Button>
                             <Button onClick={handleSaveLayout} disabled={isSaving}>
@@ -1355,9 +1359,9 @@ export default function SeatingSetup() {
                         <div className="text-center py-12">
                             <p className="mb-4">לא נמצאו שולחנות או אלמנטים. האם ברצונך לטעון את כל 41 השולחנות של עלינא ואלמנטים בסיסיים?</p>
                             <Button onClick={createAllTables} className="bg-green-600 hover:bg-green-700">
-                                <Wand2 className="w-4 h-4 ml-2" /> 
-                                כן, טען את כל השולחנות ואלמנטים (41 שולחנות)
-                            </Button>
+                                     <Wand2 className="w-4 h-4 ml-2" /> 
+                                     כן, טען את כל השולחנות ואלמנטים (41 שולחנות)
+                                 </Button>
                         </div>
                     ) : (
                         viewMode === 'list' ? (
