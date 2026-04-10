@@ -15,15 +15,10 @@ async function pushover(userKey, title, message) {
 
 Deno.serve(async (req) => {
     console.log('=== pushoverOnIncident START ===');
-    console.log('Full request body keys:', Object.keys(await req.clone().json()));
+    const body = await req.json();
+    console.log('Body:', JSON.stringify(body, null, 2));
+    
     try {
-        const body = await req.json();
-        console.log('Event:', body.event);
-        console.log('Event type:', body.event?.type);
-        console.log('Entity ID:', body.event?.entity_id);
-        console.log('body keys:', JSON.stringify(Object.keys(body)));
-        console.log('payload_too_large:', body.payload_too_large);
-        console.log('has data:', !!body.data);
 
         const base44 = createClientFromRequest(req);
         let data = body.data;
