@@ -78,6 +78,8 @@ export default function TableIncidentDialog({ open, onClose, tableNumber }) {
                 category,
                 severity: 'medium',
                 status: 'open',
+                incident_date: new Date().toISOString().split('T')[0],
+                reported_by: 'צוות',
             });
 
             alert('✅ התקרית נפתחה בהצלחה ונשלחה התראה!');
