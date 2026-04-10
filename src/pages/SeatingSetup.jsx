@@ -270,7 +270,18 @@ export default function SeatingSetup() {
     const [multiAssignReservationId, setMultiAssignReservationId] = useState(null);
     const [editingReservation, setEditingReservation] = useState(null);
     const [isEditReservationOpen, setIsEditReservationOpen] = useState(false);
-    const [selectedArea, setSelectedArea] = useState('all');
+    const [selectedAreas, setSelectedAreas] = useState(['all']);
+    const toggleArea = (key) => {
+        if (key === 'all') { setSelectedAreas(['all']); return; }
+        setSelectedAreas(prev => {
+            const without = prev.filter(a => a !== 'all');
+            if (without.includes(key)) {
+                const next = without.filter(a => a !== key);
+                return next.length === 0 ? ['all'] : next;
+            }
+            return [...without, key];
+        });
+    };
 
     // טוען את המפה והשולחנות — פעם אחת בלבד (לא מאפס כשיש polling)
     const loadLayout = useCallback(async () => {
@@ -1428,16 +1439,16 @@ export default function SeatingSetup() {
                                             { key: 'אזור חום', label: '🟤 חום', color: 'bg-amber-700' },
                                             { key: 'כניסה', label: '🟣 כניסה', color: 'bg-purple-600' },
                                             { key: 'אדום מרוכזי', label: '🔴 אדום', color: 'bg-red-600' },
-                                            { key: 'זוהרה', label: '🟠 זוהרה', color: 'bg-orange-500' },
+                                            { key: 'זוהרה', label: '🗠 זוהרה', color: 'bg-orange-500' },
                                             { key: 'מספרה', label: '🟡 מספרה', color: 'bg-yellow-500' },
                                             { key: 'גבטה', label: '🔵 גבטה', color: 'bg-blue-600' },
                                             { key: 'ורוד', label: '🩷 ורוד', color: 'bg-pink-500' },
-                                        ].map(area => (
+                                            ].map(area => (
                                             <button
                                                 key={area.key}
-                                                onClick={() => setSelectedArea(area.key)}
+                                                onClick={() => toggleArea(area.key)}
                                                 className={`px-3 py-1.5 rounded-full text-sm font-bold text-white transition-all ${
-                                                    selectedArea === area.key
+                                                    selectedAreas.includes(area.key)
                                                         ? `${area.color} ring-2 ring-offset-1 ring-gray-800 scale-105`
                                                         : `${area.color} opacity-50`
                                                 }`}
@@ -1513,7 +1524,7 @@ export default function SeatingSetup() {
                                             );
                                         })}
 
-                                    {tables.filter(t => selectedArea === 'all' || t.area === selectedArea).map((table) => {
+                                    {tables.filter(t => selectedAreas.includes('all') || selectedAreas.includes(t.area)).map((table) => {
                                        const session = getTableSession(table.table_number);
                                         const progress = session ? Math.round(((session.steps_completed?.length || 0) / 23) * 100) : 0;
 
