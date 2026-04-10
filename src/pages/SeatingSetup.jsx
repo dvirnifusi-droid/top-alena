@@ -19,6 +19,7 @@ import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { format } from "date-fns";
 import ReservationTool from '../components/reservations/ReservationTool';
 import TableIncidentDialog from '../components/seating/TableIncidentDialog';
+import TableIncidentHistory from '../components/seating/TableIncidentHistory';
 
 // Dialog לעריכת הזמנה - עם כל הפרטים
 function ReservationEditDialog({ open, setOpen, reservation, onUpdate, tables, reservations }) {
@@ -1139,6 +1140,13 @@ export default function SeatingSetup() {
                             <p className="text-gray-500">אין פעילות כרגע בשולחן זה</p>
                         </div>
                     )}
+
+                    <div className="border rounded-lg p-4 bg-red-50">
+                        <h3 className="font-bold text-base mb-3 flex items-center gap-2 text-red-700">
+                            📜 היסטוריית תקריות
+                        </h3>
+                        <TableIncidentHistory tableNumber={table.table_number} />
+                    </div>
                 </div>
             </DialogContent>
         );
