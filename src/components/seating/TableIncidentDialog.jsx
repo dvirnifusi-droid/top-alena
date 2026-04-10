@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,6 +22,7 @@ const DEPT_CONFIG = {
 };
 
 export default function TableIncidentDialog({ open, onClose, tableNumber }) {
+    const [currentUserName, setCurrentUserName] = useState('');
     const [step, setStep] = useState('type'); // type | kitchen | bar | service | move | confirm
     const [dept, setDept] = useState(null); // kitchen | bar
     const [subOption, setSubOption] = useState(null);
@@ -30,6 +31,10 @@ export default function TableIncidentDialog({ open, onClose, tableNumber }) {
     const [elapsedTime, setElapsedTime] = useState('');
     const [issueDesc, setIssueDesc] = useState('');
     const [isSaving, setIsSaving] = useState(false);
+
+    useEffect(() => {
+        base44.auth.me().then(u => setCurrentUserName(u?.full_name || u?.email || 'לא ידוע')).catch(() => {});
+    }, []);
 
     const reset = () => {
         setStep('type');
@@ -79,7 +84,7 @@ export default function TableIncidentDialog({ open, onClose, tableNumber }) {
                 severity: 'medium',
                 status: 'open',
                 incident_date: new Date().toISOString(),
-                reported_by: 'צוות',
+                reported_by: currentUserName,
             });
 
             alert('✅ התקרית נפתחה בהצלחה ונשלחה התראה!');
