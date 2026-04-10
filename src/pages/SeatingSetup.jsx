@@ -911,17 +911,15 @@ export default function SeatingSetup() {
         return (
             <DialogContent className="sm:max-w-[700px] max-h-[80vh] overflow-y-auto" dir="rtl">
                 <DialogHeader>
-                    <DialogTitle className="text-xl flex items-center justify-between">
-                        <span>פרטי שולחן {table.table_number}</span>
-                        <Button
-                            size="sm"
-                            variant="outline"
-                            className="bg-red-50 border-red-300 text-red-700 hover:bg-red-100"
-                            onClick={() => { setTableDetailsOpen(false); setIncidentTableNumber(table.table_number); }}
-                        >
-                            🚨 פתח תקרית
-                        </Button>
-                    </DialogTitle>
+                    <DialogTitle className="text-xl">פרטי שולחן {table.table_number}</DialogTitle>
+                    <Button
+                        size="sm"
+                        variant="outline"
+                        className="w-full mt-2 bg-red-50 border-red-300 text-red-700 hover:bg-red-100"
+                        onClick={() => { setTableDetailsOpen(false); setIncidentTableNumber(table.table_number); }}
+                    >
+                        🚨 פתח תקרית
+                    </Button>
                 </DialogHeader>
                 
                 <div className="space-y-6 py-4">
