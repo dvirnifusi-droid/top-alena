@@ -1,6 +1,6 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.23';
 
-const KITCHEN_IPAD_KEY = 'dMSzho1c4vdcrrvgt8Ccj1eiqanmfmv';
+const KITCHEN_IPAD_KEY = 'uh5zhote4vdcrrgt8ccjjeiqannfmv';
 
 async function pushover(userKey, title, message) {
     const token = Deno.env.get('PUSHOVER_API_TOKEN');
