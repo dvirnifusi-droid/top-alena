@@ -23,7 +23,9 @@ const DEPT_CONFIG = {
 
 export default function TableIncidentDialog({ open, onClose, tableNumber }) {
     const [currentUserName, setCurrentUserName] = useState('');
-    const [step, setStep] = useState('type'); // type | kitchen | bar | service | move | confirm
+    const [employees, setEmployees] = useState([]);
+    const [selectedRecipients, setSelectedRecipients] = useState([]);
+    const [step, setStep] = useState('type'); // type | kitchen | bar | service | move | recipients | confirm
     const [dept, setDept] = useState(null); // kitchen | bar
     const [subOption, setSubOption] = useState(null);
     const [itemName, setItemName] = useState('');
@@ -34,6 +36,7 @@ export default function TableIncidentDialog({ open, onClose, tableNumber }) {
 
     useEffect(() => {
         base44.auth.me().then(u => setCurrentUserName(u?.full_name || u?.email || 'לא ידוע')).catch(() => {});
+        base44.entities.Employee.list().then(emps => setEmployees(emps.filter(e => e.pushover_user_key))).catch(() => {});
     }, []);
 
     const reset = () => {
@@ -44,6 +47,7 @@ export default function TableIncidentDialog({ open, onClose, tableNumber }) {
         setIsEntered('');
         setElapsedTime('');
         setIssueDesc('');
+        setSelectedRecipients([]);
     };
 
     const handleClose = () => {
@@ -68,6 +72,10 @@ export default function TableIncidentDialog({ open, onClose, tableNumber }) {
     };
 
     const handleSubmit = async () => {
+        if (selectedRecipients.length === 0) {
+            alert('⚠️ בחר לפחות מקבל אחד');
+            return;
+        }
         setIsSaving(true);
         const description = buildDescription();
         let category = 'operational';
@@ -77,7 +85,7 @@ export default function TableIncidentDialog({ open, onClose, tableNumber }) {
         else if (step === 'move') category = 'table_move';
 
         try {
-            await base44.entities.Incident.create({
+            const incident = await base44.entities.Incident.create({
                 title: `שולחן ${tableNumber} - ${step === 'move' ? 'בקשת מעבר מקום' : subOption || 'בעיית שירות'}`,
                 description,
                 category,
@@ -87,7 +95,29 @@ export default function TableIncidentDialog({ open, onClose, tableNumber }) {
                 reported_by: currentUserName,
             });
 
-            alert('✅ התקרית נפתחה בהצלחה ונשלחה התראה!');
+            // שלח push לכל המקבלים שנבחרו
+            const severityEmoji = { low: '🟡', medium: '🟠', high: '🔴', critical: '🚨' };
+            const title = `${severityEmoji.medium} תקרית חדשה`;
+            const message = `שולחן ${tableNumber}: ${incident.title}`;
+            
+            for (const empId of selectedRecipients) {
+                const emp = employees.find(e => e.id === empId);
+                if (emp?.pushover_user_key) {
+                    await fetch('https://api.pushover.net/1/messages.json', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            token: Deno.env.get('PUSHOVER_API_TOKEN'),
+                            user: emp.pushover_user_key,
+                            title,
+                            message,
+                            priority: 1
+                        })
+                    });
+                }
+            }
+
+            alert('✅ התקרית נפתחה וההתראות נשלחו!');
             handleClose();
         } catch (err) {
             console.error(err);
@@ -141,6 +171,18 @@ export default function TableIncidentDialog({ open, onClose, tableNumber }) {
             return (
                 <div className="space-y-4">
                     <p className="font-bold text-center">{subOption}</p>
+                    <p className="text-xs text-gray-500 text-center">בחר למי לשלוח התראה</p>
+                    <div className="space-y-2 max-h-32 overflow-y-auto border rounded p-2">
+                        {employees.map(emp => (
+                            <label key={emp.id} className="flex items-center gap-2 p-1 hover:bg-gray-100 rounded cursor-pointer">
+                                <input type="checkbox" checked={selectedRecipients.includes(emp.id)} onChange={e => {
+                                    if (e.target.checked) setSelectedRecipients([...selectedRecipients, emp.id]);
+                                    else setSelectedRecipients(selectedRecipients.filter(id => id !== emp.id));
+                                }} />
+                                <span className="text-xs">{emp.full_name}</span>
+                            </label>
+                        ))}
+                    </div>
                     {isNotOut && (
                         <>
                             <div>
@@ -181,7 +223,7 @@ export default function TableIncidentDialog({ open, onClose, tableNumber }) {
                     )}
                     <div className="flex gap-2 mt-4">
                         <Button variant="ghost" onClick={() => setStep('dept')}>← חזור</Button>
-                        <Button className="flex-1 bg-red-600 hover:bg-red-700" onClick={handleSubmit} disabled={isSaving}>
+                        <Button className="flex-1 bg-red-600 hover:bg-red-700" onClick={handleSubmit} disabled={isSaving || selectedRecipients.length === 0}>
                             {isSaving ? <Loader2 className="w-4 h-4 animate-spin ml-1" /> : null}
                             שלח תקרית {dept === 'kitchen' ? 'מטבח' : 'בר'}
                         </Button>
@@ -212,7 +254,18 @@ export default function TableIncidentDialog({ open, onClose, tableNumber }) {
         if (step === 'move') return (
             <div className="space-y-4">
                 <p className="font-bold text-center">🔄 בקשת מעבר מקום — שולחן {tableNumber}</p>
-                <p className="text-sm text-gray-600 text-center">תישלח התראה למנהל לסדר שולחן חלופי</p>
+                <p className="text-sm text-gray-600 text-center">בחר למי לשלוח התראה</p>
+                <div className="space-y-2 max-h-48 overflow-y-auto">
+                    {employees.map(emp => (
+                        <label key={emp.id} className="flex items-center gap-2 p-2 hover:bg-gray-100 rounded cursor-pointer">
+                            <input type="checkbox" checked={selectedRecipients.includes(emp.id)} onChange={e => {
+                                if (e.target.checked) setSelectedRecipients([...selectedRecipients, emp.id]);
+                                else setSelectedRecipients(selectedRecipients.filter(id => id !== emp.id));
+                            }} />
+                            <span className="text-sm">{emp.full_name}</span>
+                        </label>
+                    ))}
+                </div>
                 <div className="flex gap-2">
                     <Button variant="ghost" onClick={() => setStep('type')}>← חזור</Button>
                     <Button className="flex-1 bg-orange-600 hover:bg-orange-700" onClick={handleSubmit} disabled={isSaving}>
