@@ -18,6 +18,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { format } from "date-fns";
 import ReservationTool from '../components/reservations/ReservationTool';
+import TableIncidentDialog from '../components/seating/TableIncidentDialog';
 
 // Dialog לעריכת הזמנה - עם כל הפרטים
 function ReservationEditDialog({ open, setOpen, reservation, onUpdate, tables, reservations }) {
@@ -270,6 +271,7 @@ export default function SeatingSetup() {
     const [multiAssignReservationId, setMultiAssignReservationId] = useState(null);
     const [editingReservation, setEditingReservation] = useState(null);
     const [isEditReservationOpen, setIsEditReservationOpen] = useState(false);
+    const [incidentTableNumber, setIncidentTableNumber] = useState(null);
     const [selectedAreas, setSelectedAreas] = useState(['all']);
     const toggleArea = (key) => {
         if (key === 'all') { setSelectedAreas(['all']); return; }
@@ -908,7 +910,17 @@ export default function SeatingSetup() {
         return (
             <DialogContent className="sm:max-w-[700px] max-h-[80vh] overflow-y-auto" dir="rtl">
                 <DialogHeader>
-                    <DialogTitle className="text-xl">פרטי שולחן {table.table_number}</DialogTitle>
+                    <DialogTitle className="text-xl flex items-center justify-between">
+                        <span>פרטי שולחן {table.table_number}</span>
+                        <Button
+                            size="sm"
+                            variant="outline"
+                            className="bg-red-50 border-red-300 text-red-700 hover:bg-red-100"
+                            onClick={() => { setTableDetailsOpen(false); setIncidentTableNumber(table.table_number); }}
+                        >
+                            🚨 פתח תקרית
+                        </Button>
+                    </DialogTitle>
                 </DialogHeader>
                 
                 <div className="space-y-6 py-4">
@@ -1749,7 +1761,12 @@ export default function SeatingSetup() {
                             session={selectedTable ? getTableSession(selectedTable.table_number) : null} 
                         />
                     </Dialog>
-                     <ReservationEditDialog
+                     <TableIncidentDialog
+                        open={!!incidentTableNumber}
+                        onClose={() => setIncidentTableNumber(null)}
+                        tableNumber={incidentTableNumber}
+                    />
+                    <ReservationEditDialog
                         open={isEditReservationOpen}
                         setOpen={setIsEditReservationOpen}
                         reservation={editingReservation}
