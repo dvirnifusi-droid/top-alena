@@ -37,10 +37,15 @@ Deno.serve(async (req) => {
             }
         }
 
-        // תמיד שלח לאייפד המטבח - לבדיקה זמנית
-        const kitchenIpadKey = 'uh5zhote4vdcrrgt8ccjjeiqannfmv';
-        const debugMsg = `category=${data.category} | ${message}`;
-        await pushover(kitchenIpadKey, `🔍 DEBUG תקרית`, debugMsg);
+        // שלח לאייפד המטבח רק בתקריות מטבח
+        const isKitchen = data.category === 'kitchen' ||
+            (data.title && data.title.includes('מטבח')) ||
+            (data.description && data.description.includes('מטבח'));
+        
+        if (isKitchen) {
+            const kitchenIpadKey = 'uh5zhote4vdcrrgt8ccjjeiqannfmv';
+            await pushover(kitchenIpadKey, `📣 תקרית מטבח`, message);
+        }
 
         return Response.json({ ok: true });
     } catch (error) {
