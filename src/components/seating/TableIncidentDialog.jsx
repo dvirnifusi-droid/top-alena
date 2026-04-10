@@ -78,7 +78,7 @@ export default function TableIncidentDialog({ open, onClose, tableNumber }) {
                 category,
                 severity: 'medium',
                 status: 'open',
-                incident_date: new Date().toISOString().split('T')[0],
+                incident_date: new Date().toISOString(),
                 reported_by: 'צוות',
             });
 
