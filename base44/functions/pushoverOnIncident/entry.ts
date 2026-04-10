@@ -1,6 +1,6 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.23';
 
-const KITCHEN_IPAD_KEY = 'uh5zhote4vdcrrgt8ccjjeiqannfmv';
+const KITCHEN_IPAD_KEY = 'dMSzho1c4vdcrrvgt8Ccj1eiqanmfmv';
 
 async function pushover(userKey, title, message) {
     const token = Deno.env.get('PUSHOVER_API_TOKEN');
@@ -76,18 +76,8 @@ Deno.serve(async (req) => {
 
         // שלח לעובד "מטבח" בתקריות מטבח
         if (data.category === 'kitchen') {
-            console.log('KITCHEN INCIDENT - searching for kitchen employee');
-            console.log('Total employees:', employees.length);
-            console.log('Employee names:', employees.map(e => e.full_name).join(', '));
-            const kitchenEmployee = employees.find(e => e.full_name?.toLowerCase() === 'מטבח');
-            console.log('Kitchen employee found:', kitchenEmployee ? 'YES' : 'NO');
-            if (kitchenEmployee) {
-                console.log('Kitchen employee name:', kitchenEmployee.full_name);
-                console.log('Kitchen employee has key:', !!kitchenEmployee.pushover_user_key);
-                if (kitchenEmployee.pushover_user_key) {
-                    await pushover(kitchenEmployee.pushover_user_key, `🍳 Kitchen Incident`, message);
-                }
-            }
+            console.log('KITCHEN INCIDENT - sending to kitchen iPad');
+            await pushover(KITCHEN_IPAD_KEY, `🍳 תקרית מטבח`, message);
         }
 
         console.log('=== pushoverOnIncident DONE ===');
