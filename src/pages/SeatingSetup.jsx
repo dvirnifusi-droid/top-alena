@@ -1437,89 +1437,28 @@ export default function SeatingSetup() {
                                     </div>
 
                                     <div 
-                                        className="relative w-[1400px] h-[850px] bg-gray-50 border rounded-lg overflow-auto"
+                                        className="relative w-[1400px] h-[850px] border rounded-lg overflow-auto"
                                         style={{
-                                            backgroundImage: 'radial-gradient(rgba(0, 0, 0, 0.15) 1px, transparent 1px)',
-                                            backgroundSize: `${GRID_SIZE}px ${GRID_SIZE}px`,
+                                            backgroundImage: `url('https://media.base44.com/images/public/68ac71d972dff18b98e30a21/5fc81039d_WhatsAppImage2026-04-10at145322.jpg')`,
+                                            backgroundSize: '100% 100%',
+                                            backgroundRepeat: 'no-repeat',
+                                            backgroundPosition: 'center',
                                         }}
-                                    >
-                                        {/* אזור חום */}
-                                        <div className="absolute rounded border-2 border-amber-600" style={{left:5,top:5,width:310,height:443,backgroundColor:'rgba(217,119,6,0.1)'}}>
-                                            <span className="absolute bottom-3 right-3 font-bold text-amber-900 text-sm leading-tight text-right">אזור חום<br/><span className="font-normal text-xs">(שקט / פנימי)</span></span>
-                                        </div>
-                                        {/* אזור פנים */}
-                                        <div className="absolute rounded border-2 border-gray-300" style={{left:578,top:5,width:817,height:310,backgroundColor:'rgba(243,244,246,0.5)'}}>
-                                            <span className="absolute top-4 right-4 font-bold text-gray-400 text-2xl">אזור פנים</span>
-                                        </div>
-                                        {/* G/Z/I/N */}
-                                        <div className="absolute rounded border-2 border-gray-400" style={{left:720,top:5,width:58,height:158,backgroundColor:'rgba(209,213,219,0.8)'}}>
-                                            <div className="h-full flex flex-col items-center justify-evenly text-gray-600 font-bold text-xs">
-                                                <span>G</span><span>Z</span><span>I</span><span>N</span>
-                                            </div>
-                                        </div>
-                                        {/* כניסה */}
-                                        <div className="absolute rounded border-2 border-green-600" style={{left:315,top:265,width:265,height:180,backgroundColor:'rgba(134,239,172,0.25)'}}>
-                                            <span className="absolute top-1 right-2 font-bold text-green-900 text-sm">כניסה</span>
-                                        </div>
-                                        {/* בחוץ */}
-                                        <div className="absolute rounded border-2 border-green-500" style={{left:5,top:448,width:100,height:397,backgroundColor:'rgba(187,247,208,0.4)'}}>
-                                            <div className="h-full flex items-center justify-center">
-                                                <span className="font-bold text-green-800 text-sm" style={{writingMode:'vertical-rl',transform:'rotate(180deg)'}}>בחוץ</span>
-                                            </div>
-                                        </div>
-                                        {/* אזור אדום מרוכזי */}
-                                        <div className="absolute rounded border-2 border-orange-500" style={{left:105,top:448,width:545,height:397,backgroundColor:'rgba(251,146,60,0.12)'}}>
-                                            <span className="absolute bottom-3 right-3 font-bold text-orange-900 text-sm">אזור אדום מרוכזי</span>
-                                            <div className="absolute" style={{left:8,top:55}}>
-                                                <div className="bg-orange-200 border border-orange-400 rounded p-1 text-center" style={{width:72}}>
-                                                    <span className="text-xs font-semibold text-orange-900">עמדת<br/>מארחת</span>
-                                                </div>
-                                            </div>
-                                        </div>
-                                        {/* זוהרה */}
-                                        <div className="absolute rounded border-2 border-gray-400" style={{left:645,top:318,width:185,height:458,backgroundColor:'rgba(209,213,219,0.35)'}}>
-                                            <span className="absolute top-2 right-2 font-bold text-gray-700 text-sm">זוהרה</span>
-                                        </div>
-                                        {/* מספרה */}
-                                        <div className="absolute rounded border-2 border-yellow-500" style={{left:830,top:318,width:163,height:285,backgroundColor:'rgba(254,240,138,0.35)'}}>
-                                            <span className="absolute top-2 right-2 font-bold text-yellow-800 text-sm">מספרה 🪴</span>
-                                            <span className="absolute text-yellow-700 font-semibold" style={{top:65,right:10,fontSize:'11px'}}>ספסל</span>
-                                        </div>
-                                        {/* גבטה */}
-                                        <div className="absolute rounded border-2 border-gray-400" style={{left:993,top:318,width:215,height:312,backgroundColor:'rgba(209,213,219,0.35)'}}>
-                                            <span className="absolute top-2 right-2 font-bold text-gray-700 text-sm">גבטה</span>
-                                        </div>
-                                        {/* אזור ורוד */}
-                                        <div className="absolute rounded border-2 border-pink-400" style={{left:1063,top:558,width:185,height:288,backgroundColor:'rgba(249,168,212,0.25)'}}>
-                                        </div>
-
+                                        >
                                         {facilities.map((facility) => {
                                             const facilityType = FACILITY_TYPES[facility.type];
                                             if (!facilityType) return null;
-
                                             return (
                                                 <div
                                                     key={facility.id}
                                                     draggable={!swapping && !assigningTable && !isSelectingTables}
                                                     onDragEnd={(e) => handleFacilityDragEnd(facility.id, e)}
-                                                    style={{
-                                                        position: 'absolute',
-                                                        left: facility.x || 50,
-                                                        top: facility.y || 50,
-                                                        width: facility.width || 80,
-                                                        height: facility.height || 60
-                                                    }}
+                                                    style={{ position: 'absolute', left: facility.x || 50, top: facility.y || 50, width: facility.width || 80, height: facility.height || 60 }}
                                                     className={`flex flex-col items-center justify-center rounded-lg shadow-lg border-2 transition-all hover:scale-105 ${facilityType.color} relative group ${swapping || assigningTable || isSelectingTables ? 'cursor-not-allowed' : 'cursor-grab'}`}
                                                 >
                                                     <span className="text-2xl">{facilityType.icon}</span>
                                                     <span className="font-bold text-xs mt-1 text-inherit">{facility.name}</span>
-                                                    
-                                                    <button
-                                                        onClick={() => handleRemoveFacility(facility.id)}
-                                                        className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 text-white rounded-full text-xs opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
-                                                    >
-                                                        ×
-                                                    </button>
+                                                    <button onClick={() => handleRemoveFacility(facility.id)} className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 text-white rounded-full text-xs opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">×</button>
                                                 </div>
                                             );
                                         })}
