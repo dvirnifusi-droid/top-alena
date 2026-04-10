@@ -14,7 +14,7 @@ async function pushover(userKey, title, message) {
 }
 
 Deno.serve(async (req) => {
-    console.log('pushoverOnIncident: START');
+    console.log('=== pushoverOnIncident START ===');
     try {
         const body = await req.json();
         console.log('Event:', body.event);
@@ -76,19 +76,21 @@ Deno.serve(async (req) => {
 
         // שלח לעובד "מטבח" בתקריות מטבח
         if (data.category === 'kitchen') {
-            console.log('משדר לעובד מטבח...');
-            console.log('חיפוש עובדים עם שם מטבח מתוך', employees.length, 'עובדים');
+            console.log('KITCHEN INCIDENT - searching for kitchen employee');
+            console.log('Total employees:', employees.length);
+            console.log('Employee names:', employees.map(e => e.full_name).join(', '));
             const kitchenEmployee = employees.find(e => e.full_name?.toLowerCase() === 'מטבח');
-            console.log('עובד מטבח שנמצא:', kitchenEmployee ? { name: kitchenEmployee.full_name, hasKey: !!kitchenEmployee.pushover_user_key } : 'NOT FOUND');
-            if (kitchenEmployee?.pushover_user_key) {
-                console.log('שולח לעובד מטבח עם key:', kitchenEmployee.pushover_user_key.substring(0, 8) + '...');
-                await pushover(kitchenEmployee.pushover_user_key, `🍳 תקרית מטבח`, message);
-            } else {
-                console.log('לא קיים עובד מטבח עם key');
+            console.log('Kitchen employee found:', kitchenEmployee ? 'YES' : 'NO');
+            if (kitchenEmployee) {
+                console.log('Kitchen employee name:', kitchenEmployee.full_name);
+                console.log('Kitchen employee has key:', !!kitchenEmployee.pushover_user_key);
+                if (kitchenEmployee.pushover_user_key) {
+                    await pushover(kitchenEmployee.pushover_user_key, `🍳 Kitchen Incident`, message);
+                }
             }
         }
 
-        console.log('pushoverOnIncident: DONE');
+        console.log('=== pushoverOnIncident DONE ===');
         return Response.json({ ok: true });
     } catch (error) {
         console.error('שגיאה:', error.message, error.stack);
