@@ -33,6 +33,12 @@ Deno.serve(async (req) => {
             }
         }
 
+        // שלח לאייפד המטבח בתקרית מטבח
+        if (data.category === 'kitchen') {
+            const kitchenIpadKey = 'uh5zhote4vdcrrgt8ccjjeiqannfmv';
+            await pushover(kitchenIpadKey, `📣 תקרית מטבח`, message);
+        }
+
         return Response.json({ ok: true });
     } catch (error) {
         return Response.json({ error: error.message }, { status: 500 });
