@@ -74,10 +74,13 @@ Deno.serve(async (req) => {
             }
         }
 
-        // שלח לאייפד מטבח בתקריות מטבח
+        // שלח לעובד "מטבח" בתקריות מטבח
         if (data.category === 'kitchen') {
-            console.log('שולח לאייפד מטבח...');
-            await pushover(KITCHEN_IPAD_KEY, `🍳 תקרית מטבח`, message);
+            console.log('משדר לעובד מטבח...');
+            const kitchenEmployee = employees.find(e => e.full_name?.toLowerCase() === 'מטבח');
+            if (kitchenEmployee?.pushover_user_key) {
+                await pushover(kitchenEmployee.pushover_user_key, `🍳 תקרית מטבח`, message);
+            }
         }
 
         console.log('pushoverOnIncident: DONE');
