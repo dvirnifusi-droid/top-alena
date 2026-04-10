@@ -34,7 +34,11 @@ Deno.serve(async (req) => {
         }
 
         // שלח לאייפד המטבח בתקרית מטבח
-        if (data.category === 'kitchen') {
+        const isKitchen = data.category === 'kitchen' ||
+            (data.title && data.title.includes('מטבח')) ||
+            (data.description && data.description.includes('מטבח'));
+        
+        if (isKitchen) {
             const kitchenIpadKey = 'uh5zhote4vdcrrgt8ccjjeiqannfmv';
             await pushover(kitchenIpadKey, `📣 תקרית מטבח`, message);
         }
