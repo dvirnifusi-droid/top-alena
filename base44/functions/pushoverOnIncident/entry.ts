@@ -2,11 +2,13 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
 
 async function pushover(userKey, title, message) {
     const token = Deno.env.get('PUSHOVER_API_TOKEN');
-    await fetch('https://api.pushover.net/1/messages.json', {
+    const res = await fetch('https://api.pushover.net/1/messages.json', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token, user: userKey, title, message, priority: 0 })
     });
+    const resJson = await res.json();
+    console.log(`Pushover to ${userKey.substring(0,8)}...: status=${resJson.status} errors=${JSON.stringify(resJson.errors)}`);
 }
 
 Deno.serve(async (req) => {
@@ -35,15 +37,10 @@ Deno.serve(async (req) => {
             }
         }
 
-        // שלח לאייפד המטבח בתקרית מטבח
-        const isKitchen = data.category === 'kitchen' ||
-            (data.title && data.title.includes('מטבח')) ||
-            (data.description && data.description.includes('מטבח'));
-        
-        if (isKitchen) {
-            const kitchenIpadKey = 'uh5zhote4vdcrrgt8ccjjeiqannfmv';
-            await pushover(kitchenIpadKey, `📣 תקרית מטבח`, message);
-        }
+        // תמיד שלח לאייפד המטבח - לבדיקה זמנית
+        const kitchenIpadKey = 'uh5zhote4vdcrrgt8ccjjeiqannfmv';
+        const debugMsg = `category=${data.category} | ${message}`;
+        await pushover(kitchenIpadKey, `🔍 DEBUG תקרית`, debugMsg);
 
         return Response.json({ ok: true });
     } catch (error) {
