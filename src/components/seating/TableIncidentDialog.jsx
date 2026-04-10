@@ -3,7 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { base44 } from '@/api/base44Client';
+import { Incident } from '@/entities/Incident';
 import { Loader2, AlertTriangle } from 'lucide-react';
 
 const DEPT_CONFIG = {
@@ -72,19 +72,14 @@ export default function TableIncidentDialog({ open, onClose, tableNumber }) {
         else if (step === 'move') category = 'table_move';
 
         try {
-            await base44.entities.Incident.create({
+            await Incident.create({
                 title: `שולחן ${tableNumber} - ${step === 'move' ? 'בקשת מעבר מקום' : subOption || 'בעיית שירות'}`,
                 description,
                 category,
                 severity: 'medium',
                 status: 'open',
-                table_number: tableNumber,
             });
-            // Send pushover via existing backend function
-            await base44.functions.invoke('pushoverOnIncident', {
-                title: `🚨 תקרית שולחן ${tableNumber}`,
-                message: description,
-            }).catch(() => {});
+
             alert('✅ התקרית נפתחה בהצלחה ונשלחה התראה!');
             handleClose();
         } catch (err) {
