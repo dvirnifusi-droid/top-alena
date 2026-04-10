@@ -909,7 +909,7 @@ export default function SeatingSetup() {
         };
 
         return (
-            <DialogContent className="sm:max-w-[700px] max-h-[80vh] overflow-y-auto" dir="rtl">
+            <DialogContent className="w-full h-full sm:h-auto max-w-full sm:max-w-[700px] sm:max-h-[85vh] overflow-y-auto rounded-none sm:rounded-lg" dir="rtl">
                 <DialogHeader>
                     <DialogTitle className="text-xl">פרטי שולחן {table.table_number}</DialogTitle>
                     <Button
@@ -1376,30 +1376,35 @@ export default function SeatingSetup() {
                 </div>
             )}
             <Card>
-                <CardHeader>
-                    <div className="flex justify-between items-center">
-                        <div>
-                            <CardTitle>ניהול הושבה - מפת עלינא</CardTitle>
-                            <CardDescription>כל השולחנות והאלמנטים הפיזיים במסעדה. ניתן לערוך במצב רשימה או לגרור ולשנות במפה ויזואלית.</CardDescription>
+                <CardHeader className="pb-3">
+                    <div className="flex flex-col gap-3">
+                        <div className="flex justify-between items-start">
+                            <div>
+                                <CardTitle className="text-base sm:text-xl">ניהול הושבה</CardTitle>
+                                <CardDescription className="hidden sm:block">כל השולחנות והאלמנטים הפיזיים במסעדה.</CardDescription>
+                            </div>
+                            <div className="flex gap-1 sm:gap-2">
+                                <Button variant={viewMode === 'list' ? 'secondary' : 'outline'} size="icon" className="h-9 w-9" onClick={() => setViewMode('list')}><Edit className="w-4 h-4"/></Button>
+                                <Button variant={viewMode === 'map' ? 'secondary' : 'outline'} size="icon" className="h-9 w-9" onClick={() => setViewMode('map')}><Eye className="w-4 h-4"/></Button>
+                                <Button onClick={handleSaveLayout} disabled={isSaving} size="sm">
+                                    {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                                    <span className="hidden sm:inline mr-1">שמור</span>
+                                </Button>
+                            </div>
                         </div>
-                        <div className="flex gap-2">
-                             <Button 
-                                variant="outline" 
+                        <div className="flex gap-2 flex-wrap">
+                            <Button 
+                                variant="outline"
+                                size="sm"
                                 onClick={() => window.open(window.location.origin + '/PublicReservationSettings', '_blank')}
-                                className="bg-orange-50 border-orange-200 text-orange-700 hover:bg-orange-100"
+                                className="bg-orange-50 border-orange-200 text-orange-700 hover:bg-orange-100 text-xs"
                             >
-                                <Settings className="w-4 h-4 ml-2" />
-                                עריכת עמוד הזמנות
+                                <Settings className="w-3 h-3 ml-1" />
+                                הגדרות הזמנות
                             </Button>
-                             <Button variant="outline" onClick={createAllTables} className="bg-red-50 border-red-200 text-red-700 hover:bg-red-100" title="מחק ובנה מחדש">
-                                 <Wand2 className="w-4 h-4 ml-2" />
-                                 איפוס מפה
-                             </Button>
-                             <Button variant={viewMode === 'list' ? 'secondary' : 'outline'} size="icon" onClick={() => setViewMode('list')}><Edit className="w-4 h-4"/></Button>
-                             <Button variant={viewMode === 'map' ? 'secondary' : 'outline'} size="icon" onClick={() => setViewMode('map')}><Eye className="w-4 h-4"/></Button>
-                            <Button onClick={handleSaveLayout} disabled={isSaving}>
-                                {isSaving ? <Loader2 className="w-4 h-4 animate-spin ml-2" /> : <Save className="w-4 h-4 ml-2" />}
-                                שמור שינויים
+                            <Button variant="outline" size="sm" onClick={createAllTables} className="bg-red-50 border-red-200 text-red-700 hover:bg-red-100 text-xs">
+                                <Wand2 className="w-3 h-3 ml-1" />
+                                איפוס מפה
                             </Button>
                         </div>
                     </div>
