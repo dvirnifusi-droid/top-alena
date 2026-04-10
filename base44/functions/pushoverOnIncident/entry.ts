@@ -38,13 +38,19 @@ Deno.serve(async (req) => {
         }
 
         // שלח לאייפד המטבח רק בתקריות מטבח
-        const isKitchen = data.category === 'kitchen' ||
+        const cat = data.category;
+        const isKitchen = cat === 'kitchen' ||
             (data.title && data.title.includes('מטבח')) ||
             (data.description && data.description.includes('מטבח'));
         
+        console.log(`isKitchen=${isKitchen} | category="${cat}" | title="${data.title}"`);
+
+        const kitchenIpadKey = 'uh5zhote4vdcrrgt8ccjjeiqannfmv';
         if (isKitchen) {
-            const kitchenIpadKey = 'uh5zhote4vdcrrgt8ccjjeiqannfmv';
             await pushover(kitchenIpadKey, `📣 תקרית מטבח`, message);
+        } else {
+            // DEBUG זמני: שלח תמיד כדי לאשר שהפונקציה רצה
+            await pushover(kitchenIpadKey, `⚙️ לא מטבח`, `category=${cat} | ${data.title}`);
         }
 
         return Response.json({ ok: true });
