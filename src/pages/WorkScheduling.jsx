@@ -872,10 +872,6 @@ export default function WorkScheduling() {
                                 {copied ? <Check className="w-4 h-4 ml-2 text-green-600" /> : <Link className="w-4 h-4 ml-2" />}
                                 {copied ? "הועתק!" : "העתק לינק לזמינות"}
                             </Button>
-                            <Button variant="outline" className="border-green-400 text-green-700 hover:bg-green-50" onClick={() => setWhatsappDialogOpen(true)}>
-                                <MessageCircle className="w-4 h-4 ml-2" />
-                                שלח לוואטסאפ
-                            </Button>
                             <Button variant="outline" className="border-red-300 text-red-600 hover:bg-red-50" onClick={() => setClearDialog(true)}>
                                 <Trash2 className="w-4 h-4 ml-2" />
                                 נקה שיבוצים
@@ -1011,6 +1007,14 @@ export default function WorkScheduling() {
                         </div>
                     </SheetContent>
                 </Sheet>
+                <div className="fixed bottom-4 left-4 z-20">
+                    <Button
+                        onClick={() => setWhatsappDialogOpen(true)}
+                        className="h-14 w-14 rounded-full shadow-lg bg-green-600 hover:bg-green-700 text-white"
+                    >
+                        <MessageCircle className="h-6 w-6" />
+                    </Button>
+                </div>
                 {currentUser?.role === 'admin' && (
                     <div className="fixed bottom-4 right-4 z-20">
                         <ShiftNotificationBell currentEmployee={currentEmployee} isManager={true} />
