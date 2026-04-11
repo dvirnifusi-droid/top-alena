@@ -20,16 +20,13 @@ function buildMessage(shift, selectedDay, shiftType) {
     const shiftLabel = shiftType === 'lunch' ? '🌞 משמרת צהריים' : '🌙 משמרת ערב';
     const posOrder = shiftType === 'lunch' ? LUNCH_POSITIONS_ORDER : DINNER_POSITIONS_ORDER;
 
-    // Group staff by position
     const byPosition = {};
     for (const a of shift.assigned_staff) {
         if (!byPosition[a.position]) byPosition[a.position] = [];
         byPosition[a.position].push(a);
     }
 
-    // Build ordered sections
     const orderedPositions = posOrder.filter(p => byPosition[p]);
-    // Add any leftover positions not in the order
     const extras = Object.keys(byPosition).filter(p => !posOrder.includes(p));
     const allPositions = [...orderedPositions, ...extras];
 
