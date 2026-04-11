@@ -41,9 +41,7 @@ function buildMessage(shift, selectedDay, shiftType) {
         if (!staff?.length) continue;
         msg += `\n*${pos}:*\n`;
         for (const a of staff) {
-            msg += `• ${a.employee_name}`;
-            if (a.start_time && a.end_time) msg += ` (${a.start_time}-${a.end_time})`;
-            msg += '\n';
+            msg += `• ${a.employee_name}\n`;
         }
     }
 
