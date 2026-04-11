@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
-import { Loader2, Plus, Calendar as CalendarIcon, ChevronLeft, ChevronRight, Filter, RotateCcw, X, Crown, Link, Check, Trash2, MoveRight, Phone } from 'lucide-react';
+import { Loader2, Plus, Calendar as CalendarIcon, ChevronLeft, ChevronRight, Filter, RotateCcw, X, Crown, Link, Check, Trash2, MoveRight, Phone, MessageCircle } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { format, addDays, subDays, startOfWeek, endOfWeek, eachDayOfInterval, isToday } from 'date-fns';
@@ -16,6 +16,7 @@ import ShiftEditDialog from '../components/scheduling/ShiftEditDialog';
 import AssignmentEditDialog from '../components/scheduling/AssignmentEditDialog';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import ShiftNotificationBell from '../components/shared/ShiftNotificationBell';
+import SendScheduleWhatsAppDialog from '../components/scheduling/SendScheduleWhatsAppDialog';
 import { RestaurantProfile } from '@/entities/RestaurantProfile';
 import ApparelCustomizer from '../components/gamification/ApparelCustomizer';
 
@@ -325,6 +326,7 @@ export default function WorkScheduling() {
     const [undoSnapshot, setUndoSnapshot] = useState(null); // { shiftsBackup: [{id, assigned_staff}] }
     const [editHistory, setEditHistory] = useState([]); // שמורת שינויים בודדים
     const [lastEditedShift, setLastEditedShift] = useState(null); // מידע על השינוי האחרון
+    const [whatsappDialogOpen, setWhatsappDialogOpen] = useState(false);
 
     const handleCopyAvailabilityLink = () => {
         const url = `${window.location.origin}/AvailabilityForm`;
@@ -870,6 +872,10 @@ export default function WorkScheduling() {
                                 {copied ? <Check className="w-4 h-4 ml-2 text-green-600" /> : <Link className="w-4 h-4 ml-2" />}
                                 {copied ? "הועתק!" : "העתק לינק לזמינות"}
                             </Button>
+                            <Button variant="outline" className="border-green-400 text-green-700 hover:bg-green-50" onClick={() => setWhatsappDialogOpen(true)}>
+                                <MessageCircle className="w-4 h-4 ml-2" />
+                                שלח לוואטסאפ
+                            </Button>
                             <Button variant="outline" className="border-red-300 text-red-600 hover:bg-red-50" onClick={() => setClearDialog(true)}>
                                 <Trash2 className="w-4 h-4 ml-2" />
                                 נקה שיבוצים
@@ -1136,6 +1142,13 @@ export default function WorkScheduling() {
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
+
+            <SendScheduleWhatsAppDialog
+                open={whatsappDialogOpen}
+                onClose={() => setWhatsappDialogOpen(false)}
+                week={week}
+                days={days}
+            />
 
             {/* Clear Assignments Dialog */}
             <Dialog open={clearDialog} onOpenChange={(o) => { setClearDialog(o); if (!o) { setClearScope('week'); setClearDepartment('all'); } }}>
