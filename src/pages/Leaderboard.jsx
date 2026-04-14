@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
-import React, { useState, useEffect } from 'react';
 import PageGuard from '../components/shared/PageGuard';
 import { Crown, Trophy, TrendingUp, Loader2, BrainCircuit, BarChart, Sparkles, Clock, Star, Banknote, CheckSquare, GraduationCap, Heart, Info } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
