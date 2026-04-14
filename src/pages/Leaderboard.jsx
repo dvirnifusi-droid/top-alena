@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
+import React, { useState, useEffect } from 'react';
 import PageGuard from '../components/shared/PageGuard';
 import { Crown, Trophy, TrendingUp, Loader2, BrainCircuit, BarChart, Sparkles, Clock, Star, Banknote, CheckSquare, GraduationCap, Heart, Info } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -194,7 +195,7 @@ function LeaderboardInner() {
         `;
 
         try {
-            const result = await InvokeLLM({ prompt });
+            const result = await base44.integrations.Core.InvokeLLM({ prompt });
             setAnalysisResult(result);
         } catch (error) {
             setAnalysisResult("שגיאה בניתוח הנתונים. נסה שוב.");

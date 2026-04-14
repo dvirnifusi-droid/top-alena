@@ -10,7 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
-import { Plus, CalendarDays, Check, X, Clock, Loader2 } from 'lucide-react';
+import { Plus, CalendarDays, Check, X, Clock, Loader2, Pencil } from 'lucide-react';
 import { format, parseISO, eachDayOfInterval } from 'date-fns';
 import { he } from 'date-fns/locale';
 import PageGuard from '../components/shared/PageGuard';
@@ -29,7 +29,50 @@ const STATUS_CONFIG = {
     rejected: { label: 'נדחה', color: 'bg-red-100 text-red-800', icon: X },
 };
 
-function LeaveRequestCard({ req, isManager, onApprove, onReject, actionLoading }) {
+function EditDatesDialog({ open, onClose, req, onSaved }) {
+    const [startDate, setStartDate] = useState(req?.start_date || '');
+    const [endDate, setEndDate] = useState(req?.end_date || '');
+    const [loading, setLoading] = useState(false);
+
+    useEffect(() => {
+        if (req) { setStartDate(req.start_date); setEndDate(req.end_date); }
+    }, [req]);
+
+    const handleSave = async () => {
+        if (!startDate || !endDate) return;
+        setLoading(true);
+        await base44.entities.LeaveRequest.update(req.id, { start_date: startDate, end_date: endDate });
+        setLoading(false);
+        onSaved();
+        onClose();
+    };
+
+    return (
+        <Dialog open={open} onOpenChange={onClose}>
+            <DialogContent dir="rtl" className="max-w-sm">
+                <DialogHeader><DialogTitle>עריכת תאריכי חופשה</DialogTitle></DialogHeader>
+                <div className="grid grid-cols-2 gap-3">
+                    <div>
+                        <Label>מתאריך</Label>
+                        <Input type="date" className="mt-1" value={startDate} onChange={e => setStartDate(e.target.value)} />
+                    </div>
+                    <div>
+                        <Label>עד תאריך</Label>
+                        <Input type="date" className="mt-1" value={endDate} min={startDate} onChange={e => setEndDate(e.target.value)} />
+                    </div>
+                </div>
+                <DialogFooter className="flex gap-2">
+                    <Button variant="outline" onClick={onClose}>ביטול</Button>
+                    <Button onClick={handleSave} disabled={!startDate || !endDate || loading}>
+                        {loading ? <Loader2 className="w-4 h-4 animate-spin ml-1" /> : null} שמור
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
+function LeaveRequestCard({ req, isManager, onApprove, onReject, onEdit, actionLoading }) {
      const leaveType = LEAVE_TYPES[req.leave_type] || LEAVE_TYPES.other;
      const statusCfg = STATUS_CONFIG[req.status] || STATUS_CONFIG.pending;
      const StatusIcon = statusCfg.icon;
@@ -60,13 +103,20 @@ function LeaveRequestCard({ req, isManager, onApprove, onReject, actionLoading }
                          {req.reason && <p className="text-xs sm:text-sm text-gray-500 mt-1 italic">"{req.reason}"</p>}
                          {req.manager_notes && <p className="text-xs sm:text-sm text-amber-700 mt-1 bg-amber-50 rounded px-2 py-1">📝 {req.manager_notes}</p>}
                      </div>
-                     {isManager && req.status === 'pending' && (
+                     {isManager && (
                          <div className="flex gap-1 sm:gap-2 flex-shrink-0 w-full sm:w-auto">
-                             <Button size="sm" className="bg-green-600 hover:bg-green-700 h-8 flex-1 sm:flex-none" onClick={() => onApprove(req)} disabled={!!actionLoading}>
-                                 {actionLoading === req.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
-                             </Button>
-                             <Button size="sm" variant="outline" className="border-red-300 text-red-600 h-8 flex-1 sm:flex-none" onClick={() => onReject(req)} disabled={!!actionLoading}>
-                                 {actionLoading === req.id + '_r' ? <Loader2 className="w-3 h-3 animate-spin" /> : <X className="w-3 h-3" />}
+                             {req.status === 'pending' && (
+                                 <>
+                                     <Button size="sm" className="bg-green-600 hover:bg-green-700 h-8 flex-1 sm:flex-none" onClick={() => onApprove(req)} disabled={!!actionLoading}>
+                                         {actionLoading === req.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
+                                     </Button>
+                                     <Button size="sm" variant="outline" className="border-red-300 text-red-600 h-8 flex-1 sm:flex-none" onClick={() => onReject(req)} disabled={!!actionLoading}>
+                                         {actionLoading === req.id + '_r' ? <Loader2 className="w-3 h-3 animate-spin" /> : <X className="w-3 h-3" />}
+                                     </Button>
+                                 </>
+                             )}
+                             <Button size="sm" variant="outline" className="h-8" onClick={() => onEdit(req)}>
+                                 <Pencil className="w-3 h-3" />
                              </Button>
                          </div>
                      )}
@@ -84,8 +134,8 @@ function NewLeaveRequestDialog({ open, onClose, currentEmployee, onSaved }) {
         if (!form.start_date || !form.end_date) return;
         setLoading(true);
         await base44.entities.LeaveRequest.create({
-            employee_id: currentEmployee?.id || currentUser?.id,
-            employee_name: currentEmployee?.full_name || currentUser?.full_name,
+            employee_id: currentEmployee?.id,
+            employee_name: currentEmployee?.full_name,
             leave_type: form.leave_type,
             start_date: form.start_date,
             end_date: form.end_date,
@@ -253,6 +303,7 @@ function LeaveRequestsInner() {
     const [loading, setLoading] = useState(true);
     const [newOpen, setNewOpen] = useState(false);
     const [rejectTarget, setRejectTarget] = useState(null);
+    const [editTarget, setEditTarget] = useState(null);
     const [actionLoading, setActionLoading] = useState(null);
     const isAdmin = currentUser?.role === 'admin';
 
@@ -327,7 +378,7 @@ function LeaveRequestsInner() {
                         </h2>
                         <div className="space-y-3">
                             {pendingReqs.map(r => (
-                                <LeaveRequestCard key={r.id} req={r} isManager={isAdmin} onApprove={handleApprove} onReject={setRejectTarget} actionLoading={actionLoading} />
+                                <LeaveRequestCard key={r.id} req={r} isManager={isAdmin} onApprove={handleApprove} onReject={setRejectTarget} onEdit={setEditTarget} actionLoading={actionLoading} />
                             ))}
                         </div>
                     </div>
@@ -338,7 +389,7 @@ function LeaveRequestsInner() {
                         <h2 className="font-bold text-gray-800 mb-3">היסטוריה</h2>
                         <div className="space-y-3">
                             {pastReqs.map(r => (
-                                <LeaveRequestCard key={r.id} req={r} isManager={isAdmin} onApprove={handleApprove} onReject={setRejectTarget} actionLoading={actionLoading} />
+                                <LeaveRequestCard key={r.id} req={r} isManager={isAdmin} onApprove={handleApprove} onReject={setRejectTarget} onEdit={setEditTarget} actionLoading={actionLoading} />
                             ))}
                         </div>
                     </div>
@@ -357,6 +408,7 @@ function LeaveRequestsInner() {
             )}
 
             <RejectDialog open={!!rejectTarget} onClose={() => setRejectTarget(null)} onConfirm={handleReject} loading={actionLoading === rejectTarget?.id + '_r'} />
+            {editTarget && <EditDatesDialog open={!!editTarget} onClose={() => setEditTarget(null)} req={editTarget} onSaved={loadData} />}
         </div>
     );
 }
