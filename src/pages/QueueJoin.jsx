@@ -182,7 +182,7 @@ function QueueJoinInner() {
     };
 
     fetchStatus();
-    const interval = setInterval(fetchStatus, 10000);
+    const interval = setInterval(fetchStatus, 3000); // רענן כל 3 שניות לעדכון מהיר יותר
     return () => {
       clearInterval(interval);
       if (callTimerRef.current) clearInterval(callTimerRef.current);
