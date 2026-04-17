@@ -157,21 +157,28 @@ function QueueJoinInner() {
           return;
         }
 
-        // מיקום בתור
-        const activeQueue = all
-          .filter(e => e.status === 'active')
-          .sort((a, b) => (a.sort_order ?? 9999) - (b.sort_order ?? 9999));
-        const pos = activeQueue.findIndex(e => e.id === entryId);
-        
-        // אם לא בפעיל, בדוק pending
-        if (pos >= 0) {
-          setQueuePosition(pos + 1);
-        } else {
-          const pendingQueue = all
-            .filter(e => e.status === 'pending')
-            .sort((a, b) => new Date(a.timestamp_register) - new Date(b.timestamp_register));
-          const pendingPos = pendingQueue.findIndex(e => e.id === entryId);
-          setQueuePosition(pendingPos >= 0 ? pendingPos + 1 : null);
+        // נסה לשלוף את מיקום בתור (עשוי להיכשל לMשתמשים אנונימיים)
+        try {
+          const all = await base44.entities.QueueEntry.list('-timestamp_register', 300);
+          // מיקום בתור
+          const activeQueue = all
+            .filter(e => e.status === 'active')
+            .sort((a, b) => (a.sort_order ?? 9999) - (b.sort_order ?? 9999));
+          const pos = activeQueue.findIndex(e => e.id === entryId);
+          
+          // אם לא בפעיל, בדוק pending
+          if (pos >= 0) {
+            setQueuePosition(pos + 1);
+          } else {
+            const pendingQueue = all
+              .filter(e => e.status === 'pending')
+              .sort((a, b) => new Date(a.timestamp_register) - new Date(b.timestamp_register));
+            const pendingPos = pendingQueue.findIndex(e => e.id === entryId);
+            setQueuePosition(pendingPos >= 0 ? pendingPos + 1 : null);
+          }
+        } catch (e) {
+          console.warn('Cannot fetch queue position (may be public user):', e);
+          setQueuePosition(null);
         }
         setEstimatedWait(null);
 
