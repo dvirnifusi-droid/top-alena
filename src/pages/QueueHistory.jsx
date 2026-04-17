@@ -117,7 +117,10 @@ export default function QueueHistory() {
       ? parseInt(Object.keys(hourCounts).reduce((a, b) => hourCounts[a] > hourCounts[b] ? a : b))
       : null;
 
-    return { totalCount, seatedCount, abandonedCount, totalDiners, abandonedDiners, avgWaitTime, conversionRate, peakHour };
+    // סועדים שישבו בפועל
+    const seatedDiners = totalDiners - abandonedDiners;
+
+    return { totalCount, seatedCount, abandonedCount, totalDiners, abandonedDiners, seatedDiners, avgWaitTime, conversionRate, peakHour };
   };
 
   const stats = calculateStats();
@@ -215,9 +218,16 @@ export default function QueueHistory() {
             <p className="text-xs text-indigo-500">הרשומים</p>
           </CardContent>
         </Card>
+        <Card className="bg-green-50 border-green-300">
+          <CardContent className="p-3 text-center">
+            <p className="text-sm text-green-700 font-bold">✅ ישבו בפועל</p>
+            <p className="text-2xl font-black text-green-800">{stats.seatedDiners}</p>
+            <p className="text-xs text-green-600">סועדים</p>
+          </CardContent>
+        </Card>
         <Card className="bg-pink-50 border-pink-200">
           <CardContent className="p-3 text-center">
-            <p className="text-sm text-pink-600 font-bold">נטשו</p>
+            <p className="text-sm text-pink-600 font-bold">❌ נטשו</p>
             <p className="text-2xl font-black text-pink-700">{stats.abandonedDiners}</p>
             <p className="text-xs text-pink-500">סועדים</p>
           </CardContent>
