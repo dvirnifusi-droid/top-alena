@@ -558,12 +558,12 @@ function QueueJoinInner() {
             </div>
           )}
 
-          {/* סטטוס */}
+          {/* סטטוס - ממתין לאישור */}
           {isPending && (
-            <div className="bg-amber-50 border-2 border-amber-200 rounded-2xl p-4 text-center">
-              <div className="text-3xl mb-2">⏳</div>
-              <p className="font-black text-amber-800 text-lg">ממתין לאישור המארחת</p>
-              <p className="text-amber-600 text-sm mt-1">המארחת תאשר את נוכחותך בקרוב</p>
+            <div className="bg-gradient-to-b from-yellow-50 to-amber-50 border-2 border-yellow-300 rounded-2xl p-5 text-center">
+              <div className="text-5xl mb-3">⏳</div>
+              <p className="font-black text-amber-800 text-2xl mb-2">המארחת בודקת אתכם</p>
+              <p className="text-amber-700 text-base leading-relaxed">המארחת תאשר את נוכחותך בקרוב<br/><span className="text-sm">בקשה זו בדרך כלל מאושרת תוך דקה אחת</span></p>
             </div>
           )}
 
