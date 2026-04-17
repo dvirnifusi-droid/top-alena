@@ -3,10 +3,11 @@ import { base44 } from '@/api/base44Client';
 import { sendQueueSms } from '@/functions/sendQueueSms';
 import { sendQueuePush } from '@/functions/sendQueuePush';
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
-import { Check, X, Gift, UserCheck, Clock, Users, RefreshCw, QrCode } from 'lucide-react';
+import { Check, X, Gift, UserCheck, Clock, Users, RefreshCw, QrCode, AlertCircle, Star } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { sendFeedbackSms } from '@/functions/sendFeedbackSms';
 
 const STATUS_LABELS = {
   pending: { label: 'ממתין לאישור', color: 'bg-yellow-100 text-yellow-800' },
@@ -38,8 +39,11 @@ export default function QueueDashboard() {
   const [loading, setLoading] = useState(true);
   const [showQR, setShowQR] = useState(false);
   const [smsSent, setSmsSent] = useState({});
-  const [partySizeFilter, setPartySizeFilter] = useState(null); // null = הכל
+  const [partySizeFilter, setPartySizeFilter] = useState(null);
+  const [countdowns, setCountdowns] = useState({}); // entryId -> secondsLeft
+  const [lowFeedbacks, setLowFeedbacks] = useState([]);
   const prevFirstActiveRef = useRef(null);
+  const countdownRef = useRef({});
   const qrUrl = `${window.location.origin}/QueueJoin`;
 
   // שלח Push + SMS כ-fallback
@@ -140,19 +144,64 @@ export default function QueueDashboard() {
     fetchEntries();
   };
 
+  // מונה 3 דקות אחרי "השולחן מוכן"
+  const startCountdown = (entryId, totalSecs = 180) => {
+    if (countdownRef.current[entryId]) clearInterval(countdownRef.current[entryId]);
+    setCountdowns(prev => ({ ...prev, [entryId]: totalSecs }));
+    countdownRef.current[entryId] = setInterval(() => {
+      setCountdowns(prev => {
+        const left = (prev[entryId] || 0) - 1;
+        if (left <= 0) {
+          clearInterval(countdownRef.current[entryId]);
+          delete countdownRef.current[entryId];
+          return { ...prev, [entryId]: 0 };
+        }
+        return { ...prev, [entryId]: left };
+      });
+    }, 1000);
+  };
+
   const handleSeat = async (entry) => {
+    const now = new Date().toISOString();
     await base44.entities.QueueEntry.update(entry.id, {
       status: 'seated',
-      timestamp_end: new Date().toISOString(),
+      timestamp_end: now,
+      timestamp_seated: now,
+      seat_countdown_active: true,
     });
     sendNotification(
       entry.id,
       entry.phone,
-      `השולחן שלכם מוכן! המארחת ממתינה לכם. בתיאבון! 🍽️`,
+      `🍽️ עלינא מחכה לכם! השולחן שלכם מוכן — יש לכם 3 דקות להגיע למארחת!`,
       '✅ השולחן מוכן!'
     );
+    startCountdown(entry.id);
+
+    // שלח SMS פידבק בעוד 3 שעות (scheduled - כאן נסמן ב-DB)
+    // הסמסאוטומציה תרוץ דרך שדה feedback_sms_sent
     fetchEntries();
   };
+
+  // בדוק לקוחות שהוּשבו לפני 3 שעות ועדיין לא קיבלו SMS פידבק
+  useEffect(() => {
+    const checkFeedback = async () => {
+      const threeHoursAgo = new Date(Date.now() - 3 * 60 * 60 * 1000);
+      const toSend = entries.filter(e =>
+        e.status === 'seated' &&
+        !e.feedback_sms_sent &&
+        e.timestamp_end &&
+        new Date(e.timestamp_end) < threeHoursAgo
+      );
+      for (const e of toSend) {
+        await base44.entities.QueueEntry.update(e.id, { feedback_sms_sent: true });
+        sendFeedbackSms({ entryId: e.id, phone: e.phone, customerName: e.customer_name }).catch(() => {});
+      }
+      // פידבקים נמוכים שטרם טופלו
+      const low = entries.filter(e => e.feedback_rating && e.feedback_rating <= 2);
+      setLowFeedbacks(low);
+    };
+    if (entries.length) checkFeedback();
+  }, [entries]);
 
   const handleAbandon = async (entry) => {
     await base44.entities.QueueEntry.update(entry.id, {
@@ -248,6 +297,24 @@ export default function QueueDashboard() {
           </CardContent>
         </Card>
       </div>
+
+      {/* התראות פידבק נמוך */}
+      {lowFeedbacks.length > 0 && (
+        <div className="mb-4 space-y-2">
+          {lowFeedbacks.map(e => (
+            <Card key={e.id} className="border-red-300 bg-red-50">
+              <CardContent className="p-3 flex items-center gap-3">
+                <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0" />
+                <div className="flex-1">
+                  <p className="font-bold text-red-700 text-sm">פידבק נמוך! ⚠️ {e.customer_name}</p>
+                  <p className="text-red-500 text-xs">דירג {'⭐'.repeat(e.feedback_rating)} — טפל לפני שיכתוב ביקורת רעה</p>
+                </div>
+                <span className="text-xs text-red-400 flex-shrink-0">{e.phone}</span>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
 
       {/* Live Stats - סועדים ממוצע המתנה */}
       <div className="mb-4 grid grid-cols-2 gap-3">
@@ -405,6 +472,21 @@ export default function QueueDashboard() {
                               </div>
                             </div>
 
+                            {/* מונה 3 דקות */}
+                            {countdowns[entry.id] !== undefined && (
+                              <div className={`text-xs font-black px-2 py-1 rounded-lg flex-shrink-0 ${
+                                countdowns[entry.id] === 0
+                                  ? 'bg-red-100 text-red-700 animate-pulse'
+                                  : countdowns[entry.id] <= 60
+                                  ? 'bg-orange-100 text-orange-700'
+                                  : 'bg-green-100 text-green-700'
+                              }`}>
+                                {countdowns[entry.id] === 0
+                                  ? '⏰ לא הגיע!'
+                                  : `⏱ ${Math.floor(countdowns[entry.id]/60)}:${String(countdowns[entry.id]%60).padStart(2,'0')}`}
+                              </div>
+                            )}
+
                             {/* כפתורי פעולה */}
                             <div className="flex gap-1 flex-shrink-0">
                               <button
@@ -418,7 +500,7 @@ export default function QueueDashboard() {
                               </button>
                               <button
                                 onClick={() => handleSeat(entry)}
-                                title="הושב"
+                                title="השולחן מוכן - שלח הודעה + התחל מונה 3 דק'"
                                 className="w-8 h-8 rounded-lg bg-green-100 hover:bg-green-200 text-green-700 flex items-center justify-center transition-all"
                               >
                                 <Check className="w-4 h-4" />

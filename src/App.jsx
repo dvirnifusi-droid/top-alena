@@ -14,6 +14,7 @@ import QueueDashboard from './pages/QueueDashboard';
 import QueueAnalytics from './pages/QueueAnalytics';
 import QueueGame from './pages/QueueGame';
 import GamesAdmin from './pages/GamesAdmin';
+import QueueFeedback from './pages/QueueFeedback';
 
 const { Pages, Layout, mainPage } = pagesConfig;
 const mainPageKey = mainPage ?? Object.keys(Pages)[0];
@@ -77,6 +78,7 @@ const AuthenticatedApp = () => {
       <Route path="/QueueAnalytics" element={<LayoutWrapper currentPageName="QueueAnalytics"><QueueAnalytics /></LayoutWrapper>} />
       <Route path="/QueueGame" element={<QueueGame />} />
       <Route path="/GamesAdmin" element={<LayoutWrapper currentPageName="GamesAdmin"><GamesAdmin /></LayoutWrapper>} />
+      <Route path="/QueueFeedback" element={<QueueFeedback />} />
       <Route path="*" element={<PageNotFound />} />
     </Routes>
   );

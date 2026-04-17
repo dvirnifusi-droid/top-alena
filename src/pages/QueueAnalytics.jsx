@@ -6,7 +6,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   LineChart, Line, Legend
 } from 'recharts';
-import { Users, Clock, TrendingDown, UserCheck, Gift, AlertTriangle, Zap } from 'lucide-react';
+import { Users, Clock, TrendingDown, UserCheck, Gift, AlertTriangle, Zap, Star } from 'lucide-react';
 
 export default function QueueAnalytics() {
   const [entries, setEntries] = useState([]);
@@ -218,6 +218,82 @@ export default function QueueAnalytics() {
                 </ResponsiveContainer>
               </CardContent>
             </Card>
+
+            {/* נוטשים סדרתיים */}
+            {(() => {
+              const phoneMap = {};
+              entries.forEach(e => {
+                if (!phoneMap[e.phone]) phoneMap[e.phone] = { name: e.customer_name, phone: e.phone, total: 0, abandoned: 0 };
+                phoneMap[e.phone].total++;
+                if (e.status === 'abandoned') phoneMap[e.phone].abandoned++;
+              });
+              const serial = Object.values(phoneMap)
+                .filter(p => p.total >= 2 && p.abandoned / p.total >= 0.6)
+                .sort((a, b) => b.abandoned - a.abandoned);
+              if (!serial.length) return null;
+              return (
+                <Card className="mb-6 border-orange-200 bg-orange-50">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-base flex items-center gap-2 text-orange-800">
+                      <AlertTriangle className="w-4 h-4" /> נוטשים סדרתיים 🚨
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-xs text-orange-600 mb-3">אלו לקוחות שנרשמים אבל לא נכנסים — מומלץ לסמן אותם בעת ההרשמה הבאה</p>
+                    <div className="space-y-2">
+                      {serial.map(p => (
+                        <div key={p.phone} className="flex items-center justify-between bg-white border border-orange-200 rounded-xl px-4 py-2.5">
+                          <div>
+                            <p className="font-bold text-gray-800 text-sm">{p.name}</p>
+                            <p className="text-xs text-gray-400">{p.phone}</p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-orange-700 font-black text-sm">{p.abandoned}/{p.total} ביקורים עזב</p>
+                            <p className="text-xs text-orange-500">{Math.round(p.abandoned/p.total*100)}% נטישה</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })()}
+
+            {/* פידבקים */}
+            {(() => {
+              const withRating = filtered.filter(e => e.feedback_rating);
+              if (!withRating.length) return null;
+              const avg = (withRating.reduce((s, e) => s + e.feedback_rating, 0) / withRating.length).toFixed(1);
+              const dist = [1,2,3,4,5].map(s => ({ s, count: withRating.filter(e => e.feedback_rating === s).length }));
+              return (
+                <Card className="mb-6">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <Star className="w-4 h-4 text-yellow-500" /> פידבקים מלקוחות ({withRating.length})
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex items-center gap-6">
+                      <div className="text-center">
+                        <p className="text-4xl font-black text-yellow-500">{avg}</p>
+                        <p className="text-xs text-gray-400">ממוצע</p>
+                      </div>
+                      <div className="flex-1 space-y-1">
+                        {dist.reverse().map(({ s, count }) => (
+                          <div key={s} className="flex items-center gap-2 text-xs">
+                            <span className="w-4 text-yellow-500">{'⭐'.repeat(s).slice(0,1)}{s}</span>
+                            <div className="flex-1 bg-gray-100 rounded-full h-2 overflow-hidden">
+                              <div className="h-full bg-yellow-400 rounded-full" style={{ width: withRating.length ? `${count/withRating.length*100}%` : '0%' }} />
+                            </div>
+                            <span className="text-gray-400 w-5 text-right">{count}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })()}
 
             {/* טבלת רשומות */}
             <Card>

@@ -327,6 +327,23 @@ export default function QueueJoin() {
           <div className="text-center pt-2">
             <p className="text-gray-300 text-xs">📡 מתרענן אוטומטית כל 10 שניות</p>
           </div>
+
+          {/* כפתור ויתרתי */}
+          <div className="border-t border-gray-100 pt-4">
+            <button
+              onClick={async () => {
+                if (!confirm('בטוח שתרצו לעזוב את התור?')) return;
+                await base44.entities.QueueEntry.update(entryId, {
+                  status: 'abandoned',
+                  timestamp_end: new Date().toISOString(),
+                });
+                setPhase('done');
+              }}
+              className="w-full text-gray-300 text-xs hover:text-red-400 transition-colors py-2"
+            >
+              😔 ויתרתי על התור, נתראה פעם אחרת
+            </button>
+          </div>
         </div>
       </div>
 
