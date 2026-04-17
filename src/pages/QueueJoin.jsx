@@ -47,7 +47,7 @@ const ABANDON_REASONS = [
   { id: 'other', label: '✏️ אחר — ציין מה' },
 ];
 
-export default function QueueJoin() {
+function QueueJoinInner() {
   const urlParams = new URLSearchParams(window.location.search);
   const entryId = urlParams.get('id');
 
@@ -780,4 +780,8 @@ export default function QueueJoin() {
       <p className="text-slate-400 text-xs mt-8 font-light">מסעדת עלינא © 2026</p>
     </div>
   );
+}
+
+export default function QueueJoin() {
+  return <QueueJoinInner />;
 }
