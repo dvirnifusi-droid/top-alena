@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  LineChart, Line, Legend
+  LineChart, Line, Legend, ScatterChart, Scatter
 } from 'recharts';
 import { Users, Clock, TrendingDown, UserCheck, Gift, AlertTriangle, Zap, Star } from 'lucide-react';
 
@@ -216,6 +216,69 @@ export default function QueueAnalytics() {
                     <Line yAxisId="left" type="monotone" dataKey="נטישה %" stroke="#ef4444" strokeWidth={2} dot={false} name="נטישה %" />
                   </LineChart>
                 </ResponsiveContainer>
+              </CardContent>
+            </Card>
+
+            {/* Churn Heatmap - מפת חום של נטישה */}
+            <Card className="mb-6">
+              <CardHeader>
+                <CardTitle className="text-base">🔥 מפת חום נטישה - מתי אנשים עוזבים?</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs">
+                    <thead className="bg-gray-100">
+                      <tr>
+                        <th className="text-right p-2 font-bold">שעה</th>
+                        <th className="text-right p-2 font-bold">נרשמו</th>
+                        <th className="text-right p-2 font-bold">הוּשבו</th>
+                        <th className="text-right p-2 font-bold">נטשו</th>
+                        <th className="text-right p-2 font-bold">נטישה %</th>
+                        <th className="text-right p-2 font-bold">המתנה (דק')</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {hourlyData.map(h => {
+                        const abandonPct = h['נטישה %'];
+                        let bgColor = 'bg-green-50';
+                        if (abandonPct > 50) bgColor = 'bg-red-100';
+                        else if (abandonPct > 30) bgColor = 'bg-orange-100';
+                        else if (abandonPct > 10) bgColor = 'bg-yellow-100';
+                        
+                        return (
+                          <tr key={h.hour} className={`border-b ${bgColor} hover:opacity-70`}>
+                            <td className="p-2 font-bold text-gray-700">{h.hour}</td>
+                            <td className="p-2 text-center text-blue-600 font-semibold">{h.נרשמו}</td>
+                            <td className="p-2 text-center text-green-600 font-semibold">{h.הוּשבו}</td>
+                            <td className="p-2 text-center text-red-600 font-semibold">{h.נטשו}</td>
+                            <td className={`p-2 text-center font-black ${abandonPct > 40 ? 'text-red-700' : abandonPct > 20 ? 'text-orange-700' : 'text-green-700'}`}>
+                              {abandonPct}%
+                            </td>
+                            <td className="p-2 text-center text-purple-600 font-semibold">{h['המתנה ממוצע']}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 bg-green-50 border border-green-200 rounded"></div>
+                    <span>0-10% נטישה</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 bg-yellow-100 border border-yellow-300 rounded"></div>
+                    <span>10-30% נטישה</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 bg-orange-100 border border-orange-300 rounded"></div>
+                    <span>30-50% נטישה</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 bg-red-100 border border-red-300 rounded"></div>
+                    <span>50%+ נטישה</span>
+                  </div>
+                </div>
               </CardContent>
             </Card>
 

@@ -1,0 +1,31 @@
+{
+  "name": "TimeTreat",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "\u05e9\u05dd \u05d4\u05e4\u05d9\u05e0\u05d5\u05e7"
+    },
+    "description": {
+      "type": "string",
+      "description": "\u05ea\u05d9\u05d0\u05d5\u05e8 \u05e7\u05e6\u05e8 \u05e9\u05dc \u05d4\u05e4\u05d9\u05e0\u05d5\u05e7"
+    },
+    "cost": {
+      "type": "integer",
+      "description": "\u05e2\u05dc\u05d5\u05ea \u05d1\u05de\u05d8\u05d1\u05e2\u05d5\u05ea \u05e2\u05dc\u05d9\u05e0\u05d0"
+    },
+    "emoji": {
+      "type": "string",
+      "description": "\u05d0\u05d9\u05de\u05d5\u05d2'\u05d9 \u05de\u05d9\u05d9\u05e6\u05d2"
+    },
+    "is_active": {
+      "type": "boolean",
+      "default": true,
+      "description": "\u05d4\u05d0\u05dd \u05d4\u05e4\u05d9\u05e0\u05d5\u05e7 \u05e4\u05e2\u05d9\u05dc"
+    }
+  },
+  "required": [
+    "name",
+    "cost"
+  ]
+}

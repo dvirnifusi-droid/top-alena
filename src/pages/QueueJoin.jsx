@@ -66,6 +66,9 @@ export default function QueueJoin() {
   const [error, setError] = useState('');
   const [waitMinutes, setWaitMinutes] = useState(0);
   const [callSecondsLeft, setCallSecondsLeft] = useState(null);
+  const [timeCreditsEarned, setTimeCreditsEarned] = useState(0);
+  const [treats, setTreats] = useState([]);
+  const [showTreatModal, setShowTreatModal] = useState(false);
   const callTimerRef = useRef(null);
 
   // טעינת הגדרות מסעדה
@@ -75,6 +78,11 @@ export default function QueueJoin() {
         setGeofencingEnabled(false);
       }
     }).catch(() => {});
+  }, []);
+
+  // טעינת פינוקים זמינים
+  useEffect(() => {
+    base44.entities.TimeTreat.filter({ is_active: true }).then(t => setTreats(t));
   }, []);
 
   // שידור מיקום כל 30 שניות (רק אם הלקוח פעיל בתור)
@@ -155,12 +163,16 @@ export default function QueueJoin() {
     };
   }, [entryId]);
 
-  // טיק-טוק עדכון זמן מצטבר בלייב
+  // טיק-טוק עדכון זמן מצטבר בלייב + צבירת מטבעות
   useEffect(() => {
     if (!entry?.timestamp_approved) return;
     const tick = setInterval(() => {
-      setWaitMinutes(Math.round((Date.now() - new Date(entry.timestamp_approved).getTime()) / 60000));
-    }, 30000);
+      const waitMin = Math.round((Date.now() - new Date(entry.timestamp_approved).getTime()) / 60000);
+      setWaitMinutes(waitMin);
+      // צביר 100 מטבעות לכל 10 דקות המתנה
+      const creditsEarned = Math.floor(waitMin / 10) * 100;
+      setTimeCreditsEarned(creditsEarned);
+    }, 10000); // עדכון כל 10 שניות לדיוק
     return () => clearInterval(tick);
   }, [entry?.timestamp_approved]);
 
@@ -473,13 +485,14 @@ export default function QueueJoin() {
                   <p className="text-sm text-gray-500 mb-4">גשו למארחת — יש לכם {Math.ceil(callSecondsLeft / 60)} דקות!</p>
                   <button
                     onClick={async () => {
-                      await base44.entities.QueueEntry.update(entryId, {
-                        status: 'seated',
-                        timestamp_end: new Date().toISOString(),
-                        timestamp_seated: new Date().toISOString(),
-                        seat_called_at: null,
-                      });
-                      setPhase('done');
+                       await base44.entities.QueueEntry.update(entryId, {
+                         status: 'seated',
+                         timestamp_end: new Date().toISOString(),
+                         timestamp_seated: new Date().toISOString(),
+                         seat_called_at: null,
+                         time_credits_earned: timeCreditsEarned,
+                       });
+                       setPhase('done');
                     }}
                     className="w-full bg-green-500 hover:bg-green-600 active:scale-95 text-white font-black py-4 rounded-2xl text-xl transition-all shadow-lg"
                   >
@@ -523,10 +536,22 @@ export default function QueueJoin() {
                 </div>
               )}
 
-              {/* זמן המתנה מצטבר */}
+              {/* זמן המתנה מצטבר + צבירת מטבעות */}
               {entry?.timestamp_approved && (
-                <div className="text-center">
+                <div className="text-center space-y-2">
                   <p className="text-gray-400 text-xs">ממתינים {waitMinutes} דקות</p>
+                  <div className="bg-gradient-to-r from-yellow-50 to-amber-50 border border-yellow-200 rounded-2xl p-3">
+                    <p className="text-3xl font-black text-yellow-600 mb-1">💰 {timeCreditsEarned}</p>
+                    <p className="text-xs text-yellow-700">מטבעות עלינא שצברת</p>
+                    {treats.length > 0 && (
+                      <button
+                        onClick={() => setShowTreatModal(true)}
+                        className="mt-2 w-full text-xs font-bold bg-yellow-500 hover:bg-yellow-600 text-white py-2 rounded-xl transition-all"
+                      >
+                        🎁 בחר פינוק
+                      </button>
+                    )}
+                  </div>
                 </div>
               )}
             </>
@@ -561,6 +586,54 @@ export default function QueueJoin() {
           </div>}
         </div>
       </div>
+
+      {/* מודאל בחירת פינוק */}
+      {showTreatModal && (
+        <div className="fixed inset-0 bg-black/60 flex items-end justify-center z-50 p-4" dir="rtl">
+          <div className="bg-white rounded-3xl w-full max-w-sm p-6 shadow-2xl mb-4">
+            <h3 className="text-lg font-black text-gray-800 mb-1 text-center">🎁 בחר את הפינוק שלך</h3>
+            <p className="text-gray-400 text-sm text-center mb-4">יש לך {timeCreditsEarned} מטבעות</p>
+
+            <div className="space-y-3 mb-4 max-h-60 overflow-y-auto">
+              {treats.map(treat => (
+                <button
+                  key={treat.id}
+                  onClick={async () => {
+                    if (timeCreditsEarned >= treat.cost) {
+                      await base44.entities.QueueEntry.update(entryId, {
+                        selected_treat_id: treat.id,
+                        time_credits_spent: treat.cost,
+                      });
+                      setTimeCreditsEarned(prev => prev - treat.cost);
+                      setShowTreatModal(false);
+                      setEntry(prev => ({ ...prev, selected_treat_id: treat.id }));
+                    }
+                  }}
+                  disabled={timeCreditsEarned < treat.cost}
+                  className={`w-full text-right px-4 py-4 rounded-2xl border-2 font-bold text-base transition-all flex items-center justify-between ${
+                    timeCreditsEarned >= treat.cost
+                      ? 'border-green-300 bg-green-50 text-gray-800 hover:bg-green-100'
+                      : 'border-gray-200 bg-gray-50 text-gray-400 cursor-not-allowed'
+                  }`}
+                >
+                  <span className="text-xs text-gray-500">{treat.cost} 💰</span>
+                  <div className="text-center flex-1">
+                    <p className="text-sm font-black">{treat.emoji} {treat.name}</p>
+                    <p className="text-xs text-gray-500">{treat.description}</p>
+                  </div>
+                </button>
+              ))}
+            </div>
+
+            <button
+              onClick={() => setShowTreatModal(false)}
+              className="w-full text-gray-400 text-sm py-2 hover:text-gray-600 transition-colors"
+            >
+              ← חזור
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* מודאל נטישה */}
       {showAbandonModal && (
