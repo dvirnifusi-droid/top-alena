@@ -11,6 +11,7 @@ Deno.serve(async (req) => {
 
     const base44 = createClientFromRequest(req);
 
+    console.log('🔍 Fetching entry:', entryId);
     // קרא עם service role כדי שלא תלוי בהרשאות המשתמש
     const entry = await base44.asServiceRole.entities.QueueEntry.get(entryId);
 

@@ -11,6 +11,7 @@ Deno.serve(async (req) => {
 
     const base44 = createClientFromRequest(req);
 
+    console.log('🔧 Creating queue entry for:', customer_name, phone);
     const newEntry = await base44.asServiceRole.entities.QueueEntry.create({
       customer_name: customer_name.trim(),
       phone: phone.trim(),
