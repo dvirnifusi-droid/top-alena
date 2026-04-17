@@ -87,6 +87,7 @@ const adminLinks = [
   // תור
   { title: "ניהול תור", url: "#", icon: Users, isCategory: true },
   { title: "דאשבורד מארחת", url: createPageUrl("QueueDashboard"), icon: Users, isSubItem: true },
+  { title: "היסטוריית תור + קשרים", url: createPageUrl("QueueHistory"), icon: Users, isSubItem: true },
   { title: "ניתוח תור", url: createPageUrl("QueueAnalytics"), icon: BarChart3, isSubItem: true },
   { title: "ניהול משחקי ממתינים", url: createPageUrl("GamesAdmin"), icon: Trophy, isSubItem: true },
   ];

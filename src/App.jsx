@@ -11,6 +11,7 @@ import React from 'react';
 import TrainingVideos from './pages/TrainingVideos';
 import QueueJoin from './pages/QueueJoin';
 import QueueDashboard from './pages/QueueDashboard';
+import QueueHistory from './pages/QueueHistory';
 import QueueAnalytics from './pages/QueueAnalytics';
 import QueueGame from './pages/QueueGame';
 import GamesAdmin from './pages/GamesAdmin';
@@ -92,6 +93,7 @@ function App() {
             <Route path="/QueueJoin" element={<QueueJoin />} />
             <Route path="/QueueGame" element={<QueueGame />} />
             <Route path="/QueueFeedback" element={<QueueFeedback />} />
+            <Route path="/QueueHistory" element={<LayoutWrapper currentPageName="QueueHistory"><QueueHistory /></LayoutWrapper>} />
             <Route path="/*" element={<AuthenticatedApp />} />
           </Routes>
         </Router>
