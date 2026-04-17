@@ -276,6 +276,7 @@ function QueueJoinInner() {
       // ניווט מיד לדף ההמתנה
       window.location.href = `/QueueJoin?id=${newEntry.id}`;
     } catch (e) {
+      console.error('Registration error:', e);
       setError('שגיאה בהרשמה: ' + (e.message || 'נסה שוב'));
       setLoading(false);
     }
