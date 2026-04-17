@@ -5,12 +5,12 @@ import { Button } from '@/components/ui/button';
 import { Plus, Trash2, Edit2, Save, X } from 'lucide-react';
 
 const CATEGORIES = {
-  friends: '👯 ארוחת חברים',
-  date: '💕 דייט רומנטי',
-  family: '👨‍👩‍👧‍👦 משפחה',
-  bday: '🎉 יום הולדת',
-  girls: '💃 ערב בנות',
-  business: '💼 עסקים',
+  friends: '👯 ארוחת חברים (50)',
+  date: '💕 דייט רומנטי (50)',
+  family: '👨‍👩‍👧‍👦 משפחה (50)',
+  bday: '🎉 יום הולדת (50)',
+  girls: '💃 ערב בנות (50)',
+  business: '💼 עסקים (50)',
 };
 
 export default function GameQuestionsAdmin() {
@@ -21,7 +21,7 @@ export default function GameQuestionsAdmin() {
   const [formData, setFormData] = useState({ question: '', category: 'friends' });
 
   const fetchQuestions = async () => {
-    const qs = await base44.entities.GameQuestion.list('-updated_date', 100);
+    const qs = await base44.entities.GameQuestion.list('-updated_date', 500);
     setQuestions(qs);
     setLoading(false);
   };
