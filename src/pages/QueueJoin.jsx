@@ -26,11 +26,22 @@ async function registerPushAndSave(entryId) {
   }
 }
 
+const ABANDON_REASONS = [
+  { id: 'wait_too_long', label: '⏳ זמן המתנה ארוך מידי' },
+  { id: 'no_vibe', label: '🌫️ לא התחברתי לאווירה' },
+  { id: 'no_menu', label: '🍽️ לא התחברתי לתפריט' },
+  { id: 'other', label: '✏️ אחר — ציין מה' },
+];
+
 export default function QueueJoin() {
   const urlParams = new URLSearchParams(window.location.search);
   const entryId = urlParams.get('id');
 
   const [phase, setPhase] = useState(entryId ? 'waiting' : 'register');
+  const [showAbandonModal, setShowAbandonModal] = useState(false);
+  const [abandonReason, setAbandonReason] = useState('');
+  const [abandonOther, setAbandonOther] = useState('');
+  const [abandonLoading, setAbandonLoading] = useState(false);
   const [form, setForm] = useState({ customer_name: '', phone: '', party_size: 2 });
   const [loading, setLoading] = useState(false);
   const [entry, setEntry] = useState(null);
@@ -331,21 +342,78 @@ export default function QueueJoin() {
           {/* כפתור ויתרתי */}
           <div className="border-t border-gray-100 pt-4">
             <button
-              onClick={async () => {
-                if (!confirm('בטוח שתרצו לעזוב את התור?')) return;
-                await base44.entities.QueueEntry.update(entryId, {
-                  status: 'abandoned',
-                  timestamp_end: new Date().toISOString(),
-                });
-                setPhase('done');
-              }}
-              className="w-full text-gray-300 text-xs hover:text-red-400 transition-colors py-2"
+              onClick={() => setShowAbandonModal(true)}
+              className="w-full border-2 border-red-200 text-red-400 hover:bg-red-50 hover:border-red-300 hover:text-red-500 transition-all rounded-2xl py-3 text-sm font-semibold"
             >
-              😔 ויתרתי על התור, נתראה פעם אחרת
+              😔 ויתרתי על התור
             </button>
           </div>
         </div>
       </div>
+
+      {/* מודאל נטישה */}
+      {showAbandonModal && (
+        <div className="fixed inset-0 bg-black/60 flex items-end justify-center z-50 p-4" dir="rtl">
+          <div className="bg-white rounded-3xl w-full max-w-sm p-6 shadow-2xl mb-4">
+            <h3 className="text-lg font-black text-gray-800 mb-1 text-center">עוזבים אותנו? 😢</h3>
+            <p className="text-gray-400 text-sm text-center mb-5">ספרו לנו למה — נשתפר בשבילכם</p>
+
+            <div className="space-y-2 mb-4">
+              {ABANDON_REASONS.map(r => (
+                <button
+                  key={r.id}
+                  onClick={() => setAbandonReason(r.id)}
+                  className={`w-full text-right px-4 py-3 rounded-2xl border-2 font-medium text-sm transition-all ${
+                    abandonReason === r.id
+                      ? 'border-red-400 bg-red-50 text-red-700'
+                      : 'border-gray-200 text-gray-600 hover:border-gray-300'
+                  }`}
+                >
+                  {r.label}
+                </button>
+              ))}
+            </div>
+
+            {abandonReason === 'other' && (
+              <textarea
+                className="w-full border-2 border-gray-200 rounded-2xl px-4 py-3 text-sm focus:outline-none focus:border-red-300 resize-none mb-4"
+                rows={2}
+                placeholder="ספר לנו מה..."
+                value={abandonOther}
+                onChange={e => setAbandonOther(e.target.value)}
+              />
+            )}
+
+            <button
+              disabled={!abandonReason || abandonLoading}
+              onClick={async () => {
+                setAbandonLoading(true);
+                const reason = abandonReason === 'other'
+                  ? `אחר: ${abandonOther}`
+                  : ABANDON_REASONS.find(r => r.id === abandonReason)?.label;
+                await base44.entities.QueueEntry.update(entryId, {
+                  status: 'abandoned',
+                  timestamp_end: new Date().toISOString(),
+                  notes: reason,
+                });
+                setAbandonLoading(false);
+                setShowAbandonModal(false);
+                setPhase('done');
+              }}
+              className="w-full bg-red-500 hover:bg-red-600 disabled:opacity-40 text-white font-black py-3.5 rounded-2xl text-base transition-all"
+            >
+              {abandonLoading ? 'שומר...' : 'אישור — עוזב את התור'}
+            </button>
+
+            <button
+              onClick={() => { setShowAbandonModal(false); setAbandonReason(''); setAbandonOther(''); }}
+              className="w-full text-gray-400 text-sm mt-3 py-2 hover:text-gray-600 transition-colors"
+            >
+              ← בעצם נשאר 😊
+            </button>
+          </div>
+        </div>
+      )}
 
       <p className="text-emerald-400 text-xs mt-6">© מסעדת עלינא</p>
     </div>
