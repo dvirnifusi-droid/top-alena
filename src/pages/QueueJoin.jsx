@@ -555,15 +555,21 @@ function QueueJoinInner() {
     setActionLoading(true);
     try {
       if (answer === 'no') {
+        // הוצא מהתור וסמן כנטש
         await base44.entities.QueueEntry.update(entryId, {
           status: 'abandoned',
+          proximity_response: 'no',
           timestamp_end: new Date().toISOString(),
           notes: 'לא בסביבה — בדיקת קרבה',
         });
-        setPhase('done');
+        // עדכן את ה-UI מיד
+        const all = await base44.entities.QueueEntry.list('-timestamp_register', 300);
+        const found = all.find(e => e.id === entryId);
+        if (found) setEntry(found);
       } else {
+        // סמן שנמצא בסביבה
         await base44.entities.QueueEntry.update(entryId, {
-          proximity_response: answer,
+          proximity_response: 'yes',
         });
         // רענן מיד
         const all = await base44.entities.QueueEntry.list('-timestamp_register', 300);
@@ -589,11 +595,17 @@ function QueueJoinInner() {
     {/* כרטיס ראשי */}
     <div className="bg-white/95 backdrop-blur-sm rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden border border-white/20">
 
-      {/* כותרת */}
-      <div className={`p-6 text-white text-center ${isPending ? 'bg-amber-600' : 'bg-slate-800'}`}>
-          <p className="font-black text-2xl">{entry?.customer_name || ''}</p>
-          <p className="text-sm opacity-80 mt-1">{entry?.party_size} סועדים</p>
-        </div>
+    {/* כותרת */}
+    <div className={`p-6 text-white text-center ${
+      entry?.proximity_response === 'yes' ? 'bg-green-600' : 
+      entry?.proximity_response === 'no' ? 'bg-purple-600' :
+      isPending ? 'bg-amber-600' : 'bg-slate-800'
+    }`}>
+        <p className="font-black text-2xl">{entry?.customer_name || ''}</p>
+        <p className="text-sm opacity-80 mt-1">{entry?.party_size} סועדים</p>
+        {entry?.proximity_response === 'yes' && <p className="text-xs mt-1">✅ בסביבה</p>}
+        {entry?.proximity_response === 'no' && <p className="text-xs mt-1">❌ נטש</p>}
+      </div>
 
         <div className="p-6 space-y-4">
 
@@ -697,10 +709,12 @@ function QueueJoinInner() {
                     onClick={async () => {
                        setActionLoading(true);
                        try {
+                         const now = new Date().toISOString();
                          await base44.entities.QueueEntry.update(entryId, {
                            status: 'seated',
-                           timestamp_end: new Date().toISOString(),
-                           timestamp_seated: new Date().toISOString(),
+                           proximity_response: 'yes',
+                           timestamp_end: now,
+                           timestamp_seated: now,
                            seat_called_at: null,
                            time_credits_earned: timeCreditsEarned,
                          });
