@@ -90,8 +90,8 @@ function QueueJoinInner() {
     if (isPublicMode) {
       base44.entities.RestaurantProfile.list()
         .then(profiles => {
-          if (profiles.length > 0 && profiles[0].geofencing_enabled === false) {
-            setGeofencingEnabled(false);
+          if (profiles.length > 0) {
+            setGeofencingEnabled(profiles[0].geofencing_enabled !== false);
           }
         })
         .catch(() => {}); // שגיאות בטוחות - המשך עם ברירת מחדל
