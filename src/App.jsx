@@ -75,6 +75,7 @@ const AuthenticatedApp = () => {
       ))}
       <Route path="/TrainingVideos" element={<LayoutWrapper currentPageName="TrainingVideos"><TrainingVideos /></LayoutWrapper>} />
       <Route path="/QueueDashboard" element={<LayoutWrapper currentPageName="QueueDashboard"><QueueDashboard /></LayoutWrapper>} />
+      <Route path="/QueueHistory" element={<LayoutWrapper currentPageName="QueueHistory"><QueueHistory /></LayoutWrapper>} />
       <Route path="/QueueAnalytics" element={<LayoutWrapper currentPageName="QueueAnalytics"><QueueAnalytics /></LayoutWrapper>} />
       <Route path="/GamesAdmin" element={<LayoutWrapper currentPageName="GamesAdmin"><GamesAdmin /></LayoutWrapper>} />
       <Route path="*" element={<PageNotFound />} />
