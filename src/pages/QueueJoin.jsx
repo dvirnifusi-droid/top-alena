@@ -259,23 +259,12 @@ function QueueJoinInner() {
     setError('');
 
     try {
-      // קרא ל-backend function שלא צריכה auth
-      const response = await fetch('/api/functions/createQueueEntry', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          customer_name: form.customer_name.trim(),
-          phone: form.phone.trim(),
-          party_size: parseInt(form.party_size),
-        }),
+      // קרא ל-backend function דרך SDK
+      const { entry: newEntry } = await base44.asServiceRole.functions.invoke('createQueueEntry', {
+        customer_name: form.customer_name.trim(),
+        phone: form.phone.trim(),
+        party_size: parseInt(form.party_size),
       });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to register');
-      }
-
-      const { entry: newEntry } = await response.json();
 
       // סנכרון ל-CRM (אופציונלי)
       try {
