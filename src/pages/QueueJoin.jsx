@@ -143,8 +143,8 @@ function QueueJoinInner() {
 
     const fetchStatus = async () => {
       try {
-        const all = await base44.entities.QueueEntry.list('-timestamp_register', 300);
-        const found = all.find(e => e.id === entryId);
+        // קרא רק את ה-entry הספציפי עם ה-ID - לא את כולם
+        const found = await base44.entities.QueueEntry.get(entryId);
         if (!found) {
           console.warn('Entry not found:', entryId);
           return;
