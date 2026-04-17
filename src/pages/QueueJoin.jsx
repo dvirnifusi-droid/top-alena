@@ -658,14 +658,28 @@ function QueueJoinInner() {
               <p className="text-blue-600 text-base mb-4">האם אתם בסביבת המסעדה?</p>
               <div className="flex gap-3">
                <button
-                 onClick={() => { setEntry(prev => ({ ...prev, proximity_response: 'yes' })); base44.entities.QueueEntry.update(entryId, { proximity_response: 'yes' }); }}
+                 onClick={async () => {
+                   setEntry(prev => ({ ...prev, proximity_response: 'yes' }));
+                   try {
+                     await base44.functions.invoke('updateProximityResponse', { entryId, response: 'yes' });
+                   } catch (e) {
+                     console.error('Error:', e);
+                   }
+                 }}
                  disabled={actionLoading}
                  className="flex-1 bg-green-500 hover:bg-green-600 active:scale-95 disabled:opacity-50 text-white font-black py-3.5 rounded-2xl text-lg transition-all shadow"
                >
                  ✅ כן, אני כאן!
                </button>
                <button
-                 onClick={() => { setEntry(prev => ({ ...prev, status: 'abandoned', proximity_response: 'no', timestamp_end: new Date().toISOString() })); base44.entities.QueueEntry.update(entryId, { status: 'abandoned', proximity_response: 'no', timestamp_end: new Date().toISOString() }); }}
+                 onClick={async () => {
+                   setEntry(prev => ({ ...prev, status: 'abandoned', proximity_response: 'no', timestamp_end: new Date().toISOString() }));
+                   try {
+                     await base44.functions.invoke('updateProximityResponse', { entryId, response: 'no' });
+                   } catch (e) {
+                     console.error('Error:', e);
+                   }
+                 }}
                  disabled={actionLoading}
                  className="flex-1 bg-red-400 hover:bg-red-500 active:scale-95 disabled:opacity-50 text-white font-black py-3.5 rounded-2xl text-lg transition-all shadow"
                >
