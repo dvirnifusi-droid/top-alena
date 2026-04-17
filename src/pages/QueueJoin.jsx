@@ -116,65 +116,59 @@ function QueueJoinInner() {
         const all = await base44.entities.QueueEntry.list('-timestamp_register', 300);
         const found = all.find(e => e.id === entryId);
         if (!found) {
-          // אם לא נמצא באופן ישיר, נסה לקבל ישירות
-          const direct = await base44.entities.QueueEntry.get ? await base44.entities.QueueEntry.get(entryId) : null;
-          if (direct) {
-            setEntry(direct);
-          }
           return;
         }
         setEntry(found);
+
+        if (found.status === 'seated' || found.status === 'abandoned') {
+          setPhase('done');
+          return;
+        }
+
+        // מיקום בתור
+        const activeQueue = all
+          .filter(e => e.status === 'active')
+          .sort((a, b) => (a.sort_order ?? 9999) - (b.sort_order ?? 9999));
+        const pos = activeQueue.findIndex(e => e.id === entryId);
+        
+        // אם לא בפעיל, בדוק pending
+        if (pos >= 0) {
+          setQueuePosition(pos + 1);
+        } else {
+          const pendingQueue = all
+            .filter(e => e.status === 'pending')
+            .sort((a, b) => new Date(a.timestamp_register) - new Date(b.timestamp_register));
+          const pendingPos = pendingQueue.findIndex(e => e.id === entryId);
+          setQueuePosition(pendingPos >= 0 ? pendingPos + 1 : null);
+        }
+        setEstimatedWait(null);
+
+        // זמן המתנה מצטבר
+        if (found.timestamp_approved) {
+          setWaitMinutes(Math.round((Date.now() - new Date(found.timestamp_approved).getTime()) / 60000));
+        }
+
+        // טיימר קריאה למזדמן
+        if (found.seat_called_at) {
+          const elapsed = Math.floor((Date.now() - new Date(found.seat_called_at).getTime()) / 1000);
+          const left = Math.max(0, 180 - elapsed);
+          setCallSecondsLeft(left);
+          // הפעל טיימר חי אם עדיין רץ
+          if (callTimerRef.current) clearInterval(callTimerRef.current);
+          if (left > 0) {
+            callTimerRef.current = setInterval(() => {
+              setCallSecondsLeft(prev => {
+                if (prev <= 1) { clearInterval(callTimerRef.current); return 0; }
+                return prev - 1;
+              });
+            }, 1000);
+          }
+        } else {
+          setCallSecondsLeft(null);
+          if (callTimerRef.current) clearInterval(callTimerRef.current);
+        }
       } catch (e) {
         console.error('Error fetching queue status:', e);
-        return;
-      }
-
-      if (found.status === 'seated' || found.status === 'abandoned') {
-        setPhase('done');
-        return;
-      }
-
-      // מיקום בתור
-      const activeQueue = all
-        .filter(e => e.status === 'active')
-        .sort((a, b) => (a.sort_order ?? 9999) - (b.sort_order ?? 9999));
-      const pos = activeQueue.findIndex(e => e.id === entryId);
-      
-      // אם לא בפעיל, בדוק pending
-      if (pos >= 0) {
-        setQueuePosition(pos + 1);
-      } else {
-        const pendingQueue = all
-          .filter(e => e.status === 'pending')
-          .sort((a, b) => new Date(a.timestamp_register) - new Date(b.timestamp_register));
-        const pendingPos = pendingQueue.findIndex(e => e.id === entryId);
-        setQueuePosition(pendingPos >= 0 ? pendingPos + 1 : null);
-      }
-      setEstimatedWait(null);
-
-      // זמן המתנה מצטבר
-      if (found.timestamp_approved) {
-        setWaitMinutes(Math.round((Date.now() - new Date(found.timestamp_approved).getTime()) / 60000));
-      }
-
-      // טיימר קריאה למזדמן
-      if (found.seat_called_at) {
-        const elapsed = Math.floor((Date.now() - new Date(found.seat_called_at).getTime()) / 1000);
-        const left = Math.max(0, 180 - elapsed);
-        setCallSecondsLeft(left);
-        // הפעל טיימר חי אם עדיין רץ
-        if (callTimerRef.current) clearInterval(callTimerRef.current);
-        if (left > 0) {
-          callTimerRef.current = setInterval(() => {
-            setCallSecondsLeft(prev => {
-              if (prev <= 1) { clearInterval(callTimerRef.current); return 0; }
-              return prev - 1;
-            });
-          }, 1000);
-        }
-      } else {
-        setCallSecondsLeft(null);
-        if (callTimerRef.current) clearInterval(callTimerRef.current);
       }
     };
 
