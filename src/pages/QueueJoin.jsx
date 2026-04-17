@@ -143,8 +143,9 @@ function QueueJoinInner() {
 
     const fetchStatus = async () => {
       try {
-        // קרא רק את ה-entry הספציפי עם ה-ID - לא את כולם
-        const found = await base44.entities.QueueEntry.get(entryId);
+        // קרא דרך backend function עם service role - עובד גם למשתמשים אנונימיים
+        const res = await base44.functions.invoke('getQueueEntry', { entryId });
+        const found = res.data?.entry || res.entry;
         if (!found) {
           console.warn('Entry not found:', entryId);
           return;
