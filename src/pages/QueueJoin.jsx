@@ -761,12 +761,7 @@ function QueueJoinInner() {
             </>
           )}
 
-          {/* Debug Log */}
-          <div className="text-center pt-2 bg-gray-700 rounded-lg p-2">
-            <p className="text-xs text-gray-300 font-mono text-left">
-              {debugLog.slice(-3).map((log, i) => <div key={i}>{log}</div>)}
-            </p>
-          </div>
+
 
           {/* רענון אוטומטי */}
           <div className="text-center pt-2">
