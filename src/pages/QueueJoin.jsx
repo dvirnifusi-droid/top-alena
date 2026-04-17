@@ -69,6 +69,7 @@ function QueueJoinInner() {
   const [timeCreditsEarned, setTimeCreditsEarned] = useState(0);
   const [treats, setTreats] = useState([]);
   const [showTreatModal, setShowTreatModal] = useState(false);
+  const [debugLog, setDebugLog] = useState([]);
   const [duplicateEntry, setDuplicateEntry] = useState(null);
   const [isPublicMode] = useState(true); // תמיד בדף ציבורי זה
   const callTimerRef = useRef(null);
@@ -100,17 +101,18 @@ function QueueJoinInner() {
 
   // טעינת פינוקים זמינים (ללא בדיקת התחברות)
   useEffect(() => {
-    if (isPublicMode) {
-      base44.entities.TimeTreat.filter({ is_active: true })
-        .then(t => {
-          console.log('Treats loaded:', t);
-          setTreats(t);
-        })
-        .catch(e => {
-          console.warn('Failed to load treats:', e);
-        }); // שגיאות בטוחות
-    }
-  }, [isPublicMode]);
+    console.log('🔄 Loading treats...');
+    base44.entities.TimeTreat.filter({ is_active: true })
+      .then(t => {
+        console.log('✅ Treats loaded:', t.length, 'items');
+        setTreats(t);
+        setDebugLog(prev => [...prev, `✅ Treats: ${t.length} items`]);
+      })
+      .catch(e => {
+        console.error('❌ Failed to load treats:', e.message);
+        setDebugLog(prev => [...prev, `❌ Treats error: ${e.message}`]);
+      });
+  }, []);
 
   // שידור מיקום כל 30 שניות (רק אם הלקוח פעיל בתור)
   useEffect(() => {
@@ -165,29 +167,35 @@ function QueueJoinInner() {
 
         // נסה לשלוף את מיקום בתור
         try {
+          console.log('🔄 Fetching queue position for entry:', entryId);
           const all = await base44.entities.QueueEntry.list('-timestamp_register', 300);
-          console.log('All queue entries:', all.length);
+          console.log('✅ All queue entries:', all.length);
+          setDebugLog(prev => [...prev, `✅ Total entries: ${all.length}`]);
           
           // מיקום בתור
           const activeQueue = all
             .filter(e => e.status === 'active')
             .sort((a, b) => (a.sort_order ?? 9999) - (b.sort_order ?? 9999));
+          console.log('Active queue:', activeQueue.length, 'entries');
           const pos = activeQueue.findIndex(e => e.id === entryId);
           
           // אם לא בפעיל, בדוק pending
           if (pos >= 0) {
-            console.log('Queue position:', pos + 1);
+            console.log('✅ Queue position (active):', pos + 1);
             setQueuePosition(pos + 1);
+            setDebugLog(prev => [...prev, `✅ Queue pos (active): ${pos + 1}`]);
           } else {
             const pendingQueue = all
               .filter(e => e.status === 'pending')
               .sort((a, b) => new Date(a.timestamp_register) - new Date(b.timestamp_register));
             const pendingPos = pendingQueue.findIndex(e => e.id === entryId);
-            console.log('Pending position:', pendingPos >= 0 ? pendingPos + 1 : null);
+            console.log('Pending position:', pendingPos >= 0 ? pendingPos + 1 : null, 'of', pendingQueue.length);
             setQueuePosition(pendingPos >= 0 ? pendingPos + 1 : null);
+            setDebugLog(prev => [...prev, `Pending pos: ${pendingPos >= 0 ? pendingPos + 1 : 'null'}`]);
           }
         } catch (e) {
-          console.warn('Cannot fetch queue position:', e);
+          console.error('❌ Error fetching queue position:', e.message);
+          setDebugLog(prev => [...prev, `❌ Position error: ${e.message}`]);
           setQueuePosition(null);
         }
         setEstimatedWait(null);
@@ -766,6 +774,13 @@ function QueueJoinInner() {
               )}
             </>
           )}
+
+          {/* Debug Log */}
+          <div className="text-center pt-2 bg-gray-700 rounded-lg p-2">
+            <p className="text-xs text-gray-300 font-mono text-left">
+              {debugLog.slice(-3).map((log, i) => <div key={i}>{log}</div>)}
+            </p>
+          </div>
 
           {/* רענון אוטומטי */}
           <div className="text-center pt-2">
