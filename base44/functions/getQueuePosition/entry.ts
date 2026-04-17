@@ -12,7 +12,9 @@ Deno.serve(async (req) => {
     const base44 = createClientFromRequest(req);
 
     // קרא את כל הכניסות עם service role (ללא דרישת התחברות)
+    console.log('🔍 Fetching queue entries with service role...');
     const all = await base44.asServiceRole.entities.QueueEntry.list('-timestamp_register', 300);
+    console.log('✅ Queue entries fetched:', all.length);
 
     // חפש מיקום בתור active
     const activeQueue = all
