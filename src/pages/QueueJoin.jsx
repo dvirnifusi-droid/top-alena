@@ -102,8 +102,13 @@ function QueueJoinInner() {
   useEffect(() => {
     if (isPublicMode) {
       base44.entities.TimeTreat.filter({ is_active: true })
-        .then(t => setTreats(t))
-        .catch(() => {}); // שגיאות בטוחות
+        .then(t => {
+          console.log('Treats loaded:', t);
+          setTreats(t);
+        })
+        .catch(e => {
+          console.warn('Failed to load treats:', e);
+        }); // שגיאות בטוחות
     }
   }, [isPublicMode]);
 
@@ -158,9 +163,11 @@ function QueueJoinInner() {
           return;
         }
 
-        // נסה לשלוף את מיקום בתור (עשוי להיכשל לMשתמשים אנונימיים)
+        // נסה לשלוף את מיקום בתור
         try {
           const all = await base44.entities.QueueEntry.list('-timestamp_register', 300);
+          console.log('All queue entries:', all.length);
+          
           // מיקום בתור
           const activeQueue = all
             .filter(e => e.status === 'active')
@@ -169,16 +176,18 @@ function QueueJoinInner() {
           
           // אם לא בפעיל, בדוק pending
           if (pos >= 0) {
+            console.log('Queue position:', pos + 1);
             setQueuePosition(pos + 1);
           } else {
             const pendingQueue = all
               .filter(e => e.status === 'pending')
               .sort((a, b) => new Date(a.timestamp_register) - new Date(b.timestamp_register));
             const pendingPos = pendingQueue.findIndex(e => e.id === entryId);
+            console.log('Pending position:', pendingPos >= 0 ? pendingPos + 1 : null);
             setQueuePosition(pendingPos >= 0 ? pendingPos + 1 : null);
           }
         } catch (e) {
-          console.warn('Cannot fetch queue position (may be public user):', e);
+          console.warn('Cannot fetch queue position:', e);
           setQueuePosition(null);
         }
         setEstimatedWait(null);
