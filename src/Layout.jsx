@@ -83,6 +83,11 @@ const adminLinks = [
   { title: "שליחת Push ידני", url: createPageUrl("PushNotifications"), icon: Bell },
   { title: "ניהול חנות בגדים", url: createPageUrl("ApparelManagement"), icon: Trophy },
   { title: "סלון דמויות", url: createPageUrl("CharacterLounge"), icon: Trophy },
+
+  // תור
+  { title: "ניהול תור", url: "#", icon: Users, isCategory: true },
+  { title: "דאשבורד מארחת", url: createPageUrl("QueueDashboard"), icon: Users, isSubItem: true },
+  { title: "ניתוח תור", url: createPageUrl("QueueAnalytics"), icon: BarChart3, isSubItem: true },
   ];
 
 // תפריט לעובדים רגילים - מחולק לקטגוריות

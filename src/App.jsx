@@ -9,6 +9,9 @@ import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 import { base44 } from '@/api/base44Client';
 import React from 'react';
 import TrainingVideos from './pages/TrainingVideos';
+import QueueJoin from './pages/QueueJoin';
+import QueueDashboard from './pages/QueueDashboard';
+import QueueAnalytics from './pages/QueueAnalytics';
 
 const { Pages, Layout, mainPage } = pagesConfig;
 const mainPageKey = mainPage ?? Object.keys(Pages)[0];
@@ -67,6 +70,9 @@ const AuthenticatedApp = () => {
         />
       ))}
       <Route path="/TrainingVideos" element={<LayoutWrapper currentPageName="TrainingVideos"><TrainingVideos /></LayoutWrapper>} />
+      <Route path="/QueueJoin" element={<QueueJoin />} />
+      <Route path="/QueueDashboard" element={<LayoutWrapper currentPageName="QueueDashboard"><QueueDashboard /></LayoutWrapper>} />
+      <Route path="/QueueAnalytics" element={<LayoutWrapper currentPageName="QueueAnalytics"><QueueAnalytics /></LayoutWrapper>} />
       <Route path="*" element={<PageNotFound />} />
     </Routes>
   );
