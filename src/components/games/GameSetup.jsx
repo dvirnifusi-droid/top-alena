@@ -3,12 +3,12 @@ import { Button } from '@/components/ui/button';
 import { X, Plus } from 'lucide-react';
 
 const CATEGORIES = {
-  friends: { label: '👯 ארוחת חברים', vibe: 'מצחיק ומביך' },
-  date: { label: '💕 דייט רומנטי', vibe: 'רומנטי וקרוב' },
-  family: { label: '👨‍👩‍👧‍👦 ארוחה משפחתית', vibe: 'נוסטלגיה וחום' },
-  bday: { label: '🎉 חגיגת יום הולדת', vibe: 'חגיגה וכיף' },
-  girls: { label: '💃 ערב בנות', vibe: 'חברויות ודקויות' },
-  business: { label: '💼 פגישת עסקים', vibe: 'מקצועי אבל שובב' },
+  friends: { label: '👯 ארוחת חברים', vibe: '😂 מצחיק • מביך • טיפשי', color: 'from-pink-500 to-rose-500' },
+  date: { label: '💕 דייט רומנטי', vibe: '🌹 רומנטי • קרוב • מתוק', color: 'from-red-500 to-pink-500' },
+  family: { label: '👨‍👩‍👧‍👦 ארוחה משפחתית', vibe: '🏡 נוסטלגיה • חום • ממלא פה', color: 'from-amber-500 to-yellow-500' },
+  bday: { label: '🎉 חגיגת יום הולדת', vibe: '🎊 חגיגה • כיף • שמחה', color: 'from-purple-500 to-pink-500' },
+  girls: { label: '💃 ערב בנות', vibe: '✨ חברויות • דקויות • סוד', color: 'from-violet-500 to-purple-500' },
+  business: { label: '💼 פגישת עסקים', vibe: '🤝 מקצועי • חזק • בררני', color: 'from-blue-500 to-indigo-500' },
 };
 
 const GAME_TYPES = [
@@ -101,22 +101,23 @@ export default function GameSetup({ onStart }) {
           <p className="text-gray-600 text-sm">בחר את ה-vibe של הערב</p>
         </div>
 
-        <div className="space-y-2">
-          {Object.entries(CATEGORIES).map(([key, value]) => (
-            <button
-              key={key}
-              onClick={() => setSelectedCategory(key)}
-              className={`w-full p-4 rounded-xl border-2 transition-all text-left font-bold ${
-                selectedCategory === key
-                  ? 'border-primary bg-primary/10 text-primary'
-                  : 'border-gray-200 text-gray-700 hover:border-gray-400'
-              }`}
-            >
-              <div className="text-lg">{value.label}</div>
-              <div className="text-xs text-gray-500 mt-1">{value.vibe}</div>
-            </button>
-          ))}
-        </div>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-1">
+           {Object.entries(CATEGORIES).map(([key, value]) => (
+             <button
+               key={key}
+               onClick={() => setSelectedCategory(key)}
+               className={`p-4 rounded-2xl border-3 transition-all text-center font-black transform hover:scale-105 active:scale-95 ${
+                 selectedCategory === key
+                   ? `bg-gradient-to-br ${value.color} text-white border-white shadow-2xl scale-105`
+                   : 'bg-white border-gray-200 text-gray-800 hover:border-gray-400 shadow-lg'
+               }`}
+             >
+               <div className="text-3xl mb-2">{value.label.split(' ')[0]}</div>
+               <div className="text-sm font-bold">{value.label.split(' ').slice(1).join(' ')}</div>
+               <div className={`text-xs mt-2 ${selectedCategory === key ? 'text-white/90' : 'text-gray-600'}`}>{value.vibe}</div>
+             </button>
+           ))}
+         </div>
 
         <div className="flex gap-3">
           <Button

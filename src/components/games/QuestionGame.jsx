@@ -13,7 +13,7 @@ export default function QuestionGame({ players, category, questions }) {
   const activeQuestions = questions.filter(q => q.is_active && q.category === category);
 
   const getNextQuestion = () => {
-    if (answered.length >= Math.min(10, activeQuestions.length)) {
+    if (activeQuestions.length === 0) {
       setGameOver(true);
       return;
     }
@@ -92,7 +92,7 @@ export default function QuestionGame({ players, category, questions }) {
     <div className="flex flex-col gap-6 p-6">
       {/* מעמד השאלה */}
       <div className="text-center text-sm text-gray-500">
-        שאלה {answered.length + 1} מתוך 10
+        שאלה {answered.length + 1} 🔥 {answered.length > 0 && `(${answered.length} כבר ענו)`}
       </div>
 
       {/* השאלה */}
@@ -135,12 +135,9 @@ export default function QuestionGame({ players, category, questions }) {
         </Button>
       </div>
 
-      {/* פרוגרס */}
-      <div className="w-full bg-gray-200 rounded-full h-2">
-        <div
-          className="bg-gradient-to-r from-primary to-accent h-2 rounded-full transition-all"
-          style={{ width: `${((answered.length + 1) / 10) * 100}%` }}
-        />
+      {/* פרוגרס - אין סוף */}
+      <div className="text-center text-xs text-gray-400">
+        🎮 המשחק לא מסתיים - שחקו כמה שאתם רוצים!
       </div>
 
       {/* מודאל בחירת מנצח */}
