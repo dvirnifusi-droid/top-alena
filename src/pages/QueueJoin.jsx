@@ -438,12 +438,7 @@ export default function QueueJoin() {
                     <p className="text-blue-800 font-black text-4xl">{queuePosition}</p>
                     <p className="text-blue-600 text-xs mt-1 font-medium">מקום בתור</p>
                   </div>
-                  {estimatedWait != null && (
-                    <div className="bg-purple-50 border border-purple-200 rounded-2xl p-4 text-center">
-                      <p className="text-purple-800 font-black text-4xl">~{estimatedWait}</p>
-                      <p className="text-purple-600 text-xs mt-1 font-medium">דקות המתנה</p>
-                    </div>
-                  )}
+    
                 </div>
               )}
 
