@@ -582,6 +582,17 @@ export default function QueueJoin() {
                       </button>
                     )}
                   </div>
+                  
+                  {/* הצגת הפרס שנבחר */}
+                  {entry?.selected_treat_id && (
+                    <div className="bg-purple-100 border-2 border-purple-400 rounded-2xl p-3 animate-pulse">
+                      <p className="text-xs text-purple-700 font-bold mb-1">✅ פרס שלך מחכה:</p>
+                      <p className="text-lg font-black text-purple-800">
+                        {treats.find(t => t.id === entry.selected_treat_id)?.emoji} {treats.find(t => t.id === entry.selected_treat_id)?.name}
+                      </p>
+                      <p className="text-xs text-purple-600 mt-1">{treats.find(t => t.id === entry.selected_treat_id)?.description}</p>
+                    </div>
+                  )}
                 </div>
               )}
             </>
