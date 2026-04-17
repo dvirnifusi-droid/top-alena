@@ -839,14 +839,14 @@ function QueueJoinInner() {
                   key={treat.id}
                   onClick={async () => {
                     if (timeCreditsEarned >= treat.cost) {
-                      await base44.entities.QueueEntry.update(entryId, {
-                        selected_treat_id: treat.id,
-                        time_credits_spent: treat.cost,
-                        time_credits_earned: timeCreditsEarned - treat.cost,
-                      });
-                      setTimeCreditsEarned(prev => prev - treat.cost);
-                      setShowTreatModal(false);
-                      setEntry(prev => ({ ...prev, selected_treat_id: treat.id }));
+                      try {
+                        const res = await base44.functions.invoke('selectTreat', { entryId, treatId: treat.id, treatCost: treat.cost });
+                        setTimeCreditsEarned(res.data?.remainingCredits || 0);
+                        setShowTreatModal(false);
+                        setEntry(prev => ({ ...prev, selected_treat_id: treat.id, time_credits_earned: res.data?.remainingCredits }));
+                      } catch (e) {
+                        console.error('Error:', e);
+                      }
                     }
                   }}
                   disabled={timeCreditsEarned < treat.cost}
