@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
-import { Phone, MessageSquare, Download, Search, Gift } from 'lucide-react';
+import { Phone, MessageSquare, Download, Search, Gift, AlertTriangle, TrendingDown, Cloud, Ban } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 
@@ -15,6 +15,8 @@ export default function QueueHistory() {
   const [partySizeFilter, setPartySizeFilter] = useState('all');
   const [abandonedOnly, setAbandonedOnly] = useState(false);
   const [specificDate, setSpecificDate] = useState('');
+  const [blacklistedCustomers, setBlacklistedCustomers] = useState(new Set());
+  const [avgOrderValue, setAvgOrderValue] = useState(120);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -108,6 +110,37 @@ export default function QueueHistory() {
     const endTime = entry.timestamp_end || new Date().toISOString();
     const minutes = Math.round((new Date(endTime) - new Date(startTime)) / 60000);
     return minutes;
+  };
+
+  // חיזוי Churn Risk - כמה פעמים הלקוח נטש כשחיכה יותר מ-20 דקות
+  const getChurnRisk = (entry) => {
+    if (entry.status !== 'active') return null;
+    const pastAbandonments = entries.filter(e =>
+      e.phone === entry.phone && 
+      e.status === 'abandoned' && 
+      getWaitTime(e) > 20
+    ).length;
+    
+    if (pastAbandonments >= 2) return 'high';
+    if (pastAbandonments === 1) return 'medium';
+    return 'low';
+  };
+
+  // Lost Revenue - הכסף שהאבדנו בגלל נטישות
+  const getLostRevenue = () => {
+    const abandoned = filteredEntries.filter(e => e.status === 'abandoned');
+    return abandoned.reduce((sum, e) => sum + (e.party_size * avgOrderValue), 0);
+  };
+
+  // Toggle blacklist
+  const toggleBlacklist = (phone) => {
+    const updated = new Set(blacklistedCustomers);
+    if (updated.has(phone)) {
+      updated.delete(phone);
+    } else {
+      updated.add(phone);
+    }
+    setBlacklistedCustomers(updated);
   };
 
   // סיכום נתונים
@@ -252,6 +285,13 @@ export default function QueueHistory() {
             <p className="text-xs text-pink-500">סועדים</p>
           </CardContent>
         </Card>
+        <Card className="bg-red-50 border-red-200">
+          <CardContent className="p-3 text-center">
+            <p className="text-sm text-red-600 font-bold">💸 הכסף האבוד</p>
+            <p className="text-2xl font-black text-red-700">₪{getLostRevenue().toLocaleString()}</p>
+            <p className="text-xs text-red-500">נטישות × מחיר</p>
+          </CardContent>
+        </Card>
         <Card className="bg-slate-50 border-slate-200">
           <CardContent className="p-3 text-center">
             <p className="text-sm text-slate-600 font-bold">סה"כ הזמנות</p>
@@ -331,6 +371,18 @@ export default function QueueHistory() {
           <span className="text-sm font-medium text-gray-700">נטישות בלבד</span>
         </label>
 
+        {/* סנן ממוצע הזמנה */}
+        <div>
+          <label className="text-xs text-gray-600 block mb-1">💰 ממוצע הזמנה (לחישוב הכסף האבוד)</label>
+          <input
+            type="number"
+            value={avgOrderValue}
+            onChange={(e) => setAvgOrderValue(parseInt(e.target.value) || 120)}
+            className="w-full border-2 border-gray-200 rounded-lg px-2 py-2 text-sm focus:outline-none focus:border-blue-500"
+            placeholder="120"
+          />
+        </div>
+
         {/* יצוא */}
         <Button
           onClick={exportToCSV}
@@ -353,6 +405,7 @@ export default function QueueHistory() {
               <th className="text-right px-4 py-3 font-black text-sm text-gray-700">טלפון</th>
               <th className="text-right px-4 py-3 font-black text-sm text-gray-700">סועדים</th>
               <th className="text-right px-4 py-3 font-black text-sm text-gray-700">סטטוס</th>
+              <th className="text-right px-4 py-3 font-black text-sm text-gray-700">⚠️ סכנת נטישה</th>
               <th className="text-right px-4 py-3 font-black text-sm text-gray-700">⏱️ זמן המתנה</th>
               <th className="text-right px-4 py-3 font-black text-sm text-gray-700">🎁 פינוק</th>
               <th className="text-right px-4 py-3 font-black text-sm text-gray-700">דירוג</th>
@@ -370,21 +423,40 @@ export default function QueueHistory() {
               </tr>
             ) : (
               filteredEntries.map(entry => {
-                const waitTime = getWaitTime(entry);
-                const waitColor = waitTime > 40 ? 'text-red-700 bg-red-50' : waitTime > 20 ? 'text-yellow-700 bg-yellow-50' : 'text-green-700 bg-green-50';
-                const customer = customers[entry.phone];
-                const tierEmoji = { vip: '👑', frequent: '⭐', regular: '👤' };
-                
-                return (
-                <tr key={entry.id} className="border-b border-gray-200 hover:bg-gray-50 transition-colors">
-                  <td className="px-4 py-3 font-semibold text-gray-800">{entry.customer_name}</td>
-                  <td className="px-4 py-3 text-gray-700 font-mono text-sm">{entry.phone}</td>
-                  <td className="px-4 py-3 text-gray-700 text-center">{entry.party_size}</td>
-                  <td className="px-4 py-3">
-                    <span className="text-sm">
-                      {STATUS_LABELS[entry.status] || entry.status}
-                    </span>
-                  </td>
+                 const waitTime = getWaitTime(entry);
+                 const waitColor = waitTime > 40 ? 'text-red-700 bg-red-50' : waitTime > 20 ? 'text-yellow-700 bg-yellow-50' : 'text-green-700 bg-green-50';
+                 const customer = customers[entry.phone];
+                 const tierEmoji = { vip: '👑', frequent: '⭐', regular: '👤' };
+                 const churnRisk = getChurnRisk(entry);
+                 const isBlacklisted = blacklistedCustomers.has(entry.phone);
+
+                 return (
+                 <tr key={entry.id} className={`border-b border-gray-200 hover:bg-gray-50 transition-colors ${isBlacklisted ? 'bg-red-50' : ''}`}>
+                   <td className={`px-4 py-3 font-semibold ${isBlacklisted ? 'text-red-700' : 'text-gray-800'}`}>
+                     {isBlacklisted && <span className="mr-1">🚫</span>}
+                     {entry.customer_name}
+                   </td>
+                   <td className="px-4 py-3 text-gray-700 font-mono text-sm">{entry.phone}</td>
+                   <td className="px-4 py-3 text-gray-700 text-center">{entry.party_size}</td>
+                   <td className="px-4 py-3">
+                     <span className="text-sm">
+                       {STATUS_LABELS[entry.status] || entry.status}
+                     </span>
+                   </td>
+                   <td className="px-4 py-3 text-center">
+                     {churnRisk === 'high' && (
+                       <span className="text-xs bg-red-100 text-red-700 px-2 py-1 rounded-full font-bold flex items-center justify-center gap-1 w-fit mx-auto">
+                         <AlertTriangle className="w-3 h-3" />
+                         גבוהה
+                       </span>
+                     )}
+                     {churnRisk === 'medium' && (
+                       <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-1 rounded-full font-bold">⚠️ בינונית</span>
+                     )}
+                     {churnRisk === 'low' && (
+                       <span className="text-xs text-gray-400">-</span>
+                     )}
+                   </td>
                   <td className={`px-4 py-3 text-center font-bold text-sm rounded-lg ${waitColor}`}>
                     {waitTime} דק'
                   </td>
@@ -420,7 +492,7 @@ export default function QueueHistory() {
                       <span className="text-gray-300 text-sm">-</span>
                     )}
                   </td>
-                  <td className="px-4 py-3 text-center flex gap-2 justify-center">
+                  <td className="px-4 py-3 text-center flex gap-1 justify-center flex-wrap">
                     <a
                       href={`tel:${entry.phone}`}
                       title="התקשר"
@@ -435,6 +507,17 @@ export default function QueueHistory() {
                     >
                       <MessageSquare className="w-4 h-4" />
                     </a>
+                    <button
+                      onClick={() => toggleBlacklist(entry.phone)}
+                      title={isBlacklisted ? 'הסר מרשימה שחורה' : 'הוסף לרשימה שחורה'}
+                      className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all ${
+                        isBlacklisted
+                          ? 'bg-red-200 text-red-700 hover:bg-red-300'
+                          : 'bg-gray-100 text-gray-400 hover:bg-gray-200'
+                      }`}
+                    >
+                      <Ban className="w-4 h-4" />
+                    </button>
                   </td>
                 </tr>
                 );
