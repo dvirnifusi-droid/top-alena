@@ -2,8 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { Users, Clock, TrendingDown, UserCheck, Gift } from 'lucide-react';
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  LineChart, Line, Legend
+} from 'recharts';
+import { Users, Clock, TrendingDown, UserCheck, Gift, AlertTriangle, Zap } from 'lucide-react';
 
 export default function QueueAnalytics() {
   const [entries, setEntries] = useState([]);
@@ -11,12 +14,10 @@ export default function QueueAnalytics() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetch = async () => {
-      const all = await base44.entities.QueueEntry.list('-timestamp_register', 1000);
+    base44.entities.QueueEntry.list('-timestamp_register', 1000).then(all => {
       setEntries(all);
       setLoading(false);
-    };
-    fetch();
+    });
   }, []);
 
   const getStartDate = () => {
@@ -27,9 +28,7 @@ export default function QueueAnalytics() {
     return new Date(0);
   };
 
-  const filtered = entries.filter(e =>
-    new Date(e.timestamp_register) >= getStartDate()
-  );
+  const filtered = entries.filter(e => new Date(e.timestamp_register) >= getStartDate());
 
   const total = filtered.length;
   const seated = filtered.filter(e => e.status === 'seated');
@@ -37,54 +36,64 @@ export default function QueueAnalytics() {
   const treated = filtered.filter(e => e.treated);
   const abandonRate = total > 0 ? Math.round((abandoned.length / total) * 100) : 0;
 
-  const avgWaitSeated = seated.length > 0
-    ? Math.round(
-        seated
-          .filter(e => e.timestamp_approved && e.timestamp_end)
-          .reduce((sum, e) => sum + (new Date(e.timestamp_end) - new Date(e.timestamp_approved)) / 60000, 0)
-        / Math.max(1, seated.filter(e => e.timestamp_approved && e.timestamp_end).length)
-      )
-    : 0;
+  const calcAvgWait = (list) => {
+    const valid = list.filter(e => e.timestamp_approved && e.timestamp_end);
+    if (!valid.length) return 0;
+    return Math.round(valid.reduce((sum, e) =>
+      sum + (new Date(e.timestamp_end) - new Date(e.timestamp_approved)) / 60000, 0) / valid.length);
+  };
 
-  const avgWaitAbandoned = abandoned.length > 0
-    ? Math.round(
-        abandoned
-          .filter(e => e.timestamp_approved && e.timestamp_end)
-          .reduce((sum, e) => sum + (new Date(e.timestamp_end) - new Date(e.timestamp_approved)) / 60000, 0)
-        / Math.max(1, abandoned.filter(e => e.timestamp_approved && e.timestamp_end).length)
-      )
-    : 0;
+  const avgWaitSeated = calcAvgWait(seated);
+  const avgWaitAbandoned = calcAvgWait(abandoned);
 
-  // נתונים לגרף - לפי שעה
-  const hourlyData = Array.from({ length: 24 }, (_, h) => ({
-    hour: `${h}:00`,
-    נרשמו: 0,
-    הוּשבו: 0,
-    נטשו: 0,
-  }));
+  // נתוני שעות - כמות נרשמו + נטישה + זמן המתנה ממוצע
+  const hourlyMap = {};
   filtered.forEach(e => {
     const h = new Date(e.timestamp_register).getHours();
-    hourlyData[h].נרשמו++;
-    if (e.status === 'seated') hourlyData[h].הוּשבו++;
-    if (e.status === 'abandoned') hourlyData[h].נטשו++;
+    if (!hourlyMap[h]) hourlyMap[h] = { registered: 0, seated: 0, abandoned: 0, waitTotal: 0, waitCount: 0 };
+    hourlyMap[h].registered++;
+    if (e.status === 'seated') hourlyMap[h].seated++;
+    if (e.status === 'abandoned') hourlyMap[h].abandoned++;
+    if (e.timestamp_approved && e.timestamp_end) {
+      hourlyMap[h].waitTotal += (new Date(e.timestamp_end) - new Date(e.timestamp_approved)) / 60000;
+      hourlyMap[h].waitCount++;
+    }
   });
-  const activeHours = hourlyData.filter(h => h.נרשמו > 0);
 
-  const stats = [
+  const hourlyData = Object.entries(hourlyMap)
+    .sort(([a], [b]) => Number(a) - Number(b))
+    .map(([h, d]) => ({
+      hour: `${h}:00`,
+      נרשמו: d.registered,
+      הוּשבו: d.seated,
+      נטשו: d.abandoned,
+      'נטישה %': d.registered > 0 ? Math.round((d.abandoned / d.registered) * 100) : 0,
+      'המתנה ממוצע': d.waitCount > 0 ? Math.round(d.waitTotal / d.waitCount) : 0,
+    }));
+
+  // שעות שיא - top 3 לפי כמות נרשמו
+  const peakHours = [...hourlyData].sort((a, b) => b.נרשמו - a.נרשמו).slice(0, 3);
+
+  // שעות נטישה גבוהה (>30%)
+  const highAbandonHours = hourlyData.filter(h => h['נטישה %'] > 30 && h.נרשמו >= 3);
+
+  const kpis = [
     { label: 'סה"כ נרשמו', value: total, icon: Users, color: 'text-blue-600', bg: 'bg-blue-50', border: 'border-blue-200' },
     { label: 'הוּשבו', value: seated.length, icon: UserCheck, color: 'text-green-600', bg: 'bg-green-50', border: 'border-green-200' },
-    { label: 'אחוז נטישה', value: `${abandonRate}%`, icon: TrendingDown, color: 'text-red-600', bg: 'bg-red-50', border: 'border-red-200' },
-    { label: 'ממוצע המתנה (הוּשב)', value: `${avgWaitSeated} דק'`, icon: Clock, color: 'text-purple-600', bg: 'bg-purple-50', border: 'border-purple-200' },
-    { label: 'ממוצע המתנה (נטש)', value: `${avgWaitAbandoned} דק'`, icon: Clock, color: 'text-orange-600', bg: 'bg-orange-50', border: 'border-orange-200' },
+    { label: 'אחוז נטישה', value: `${abandonRate}%`, icon: TrendingDown, color: abandonRate > 25 ? 'text-red-600' : 'text-orange-600', bg: abandonRate > 25 ? 'bg-red-50' : 'bg-orange-50', border: abandonRate > 25 ? 'border-red-200' : 'border-orange-200' },
+    { label: 'המתנה ממוצע (הוּשב)', value: `${avgWaitSeated} דק'`, icon: Clock, color: 'text-purple-600', bg: 'bg-purple-50', border: 'border-purple-200' },
+    { label: 'המתנה ממוצע (נטש)', value: `${avgWaitAbandoned} דק'`, icon: Clock, color: 'text-orange-600', bg: 'bg-orange-50', border: 'border-orange-200' },
     { label: 'קיבלו פינוק', value: treated.length, icon: Gift, color: 'text-pink-600', bg: 'bg-pink-50', border: 'border-pink-200' },
   ];
 
   return (
     <div className="p-4 sm:p-8 min-h-screen bg-gray-50" dir="rtl">
       <div className="max-w-5xl mx-auto">
+
+        {/* כותרת */}
         <div className="mb-6">
-          <h1 className="text-2xl font-black text-gray-800">📊 ניתוח תור - מסעדת עלינא</h1>
-          <p className="text-gray-500 text-sm">דוח ניהולי</p>
+          <h1 className="text-2xl font-black text-gray-800">📊 ניתוח תור - דוח ניהולי</h1>
+          <p className="text-gray-500 text-sm">ניתוח עומסים, נטישות ושעות שיא לניהול צוות</p>
         </div>
 
         <Tabs value={timeframe} onValueChange={setTimeframe} className="mb-6">
@@ -95,84 +104,164 @@ export default function QueueAnalytics() {
           </TabsList>
         </Tabs>
 
-        {/* KPI Cards */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-8">
-          {stats.map(s => (
-            <Card key={s.label} className={`${s.bg} border ${s.border}`}>
-              <CardContent className="p-4">
-                <div className="flex items-center gap-2 mb-1">
-                  <s.icon className={`w-4 h-4 ${s.color}`} />
-                  <p className="text-xs text-gray-500">{s.label}</p>
-                </div>
-                <p className={`text-2xl font-black ${s.color}`}>{loading ? '-' : s.value}</p>
+        {loading ? (
+          <div className="text-center py-20 text-gray-400">טוען נתונים...</div>
+        ) : total === 0 ? (
+          <div className="text-center py-20 text-gray-400">אין נתונים לטווח הנבחר</div>
+        ) : (
+          <>
+            {/* KPIs */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-6">
+              {kpis.map(s => (
+                <Card key={s.label} className={`${s.bg} border ${s.border}`}>
+                  <CardContent className="p-4">
+                    <div className="flex items-center gap-2 mb-1">
+                      <s.icon className={`w-4 h-4 ${s.color}`} />
+                      <p className="text-xs text-gray-500">{s.label}</p>
+                    </div>
+                    <p className={`text-2xl font-black ${s.color}`}>{s.value}</p>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+
+            {/* שעות שיא */}
+            {peakHours.length > 0 && (
+              <Card className="mb-6 border-amber-200 bg-amber-50">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base flex items-center gap-2 text-amber-800">
+                    <Zap className="w-4 h-4" /> שעות שיא — המלצות לניהול צוות
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    {peakHours.map((h, i) => (
+                      <div key={h.hour} className="bg-white rounded-xl p-3 border border-amber-200">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="font-black text-amber-700 text-lg">{h.hour}</span>
+                          <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${i === 0 ? 'bg-red-100 text-red-700' : i === 1 ? 'bg-orange-100 text-orange-700' : 'bg-yellow-100 text-yellow-700'}`}>
+                            #{i + 1} שיא
+                          </span>
+                        </div>
+                        <p className="text-sm text-gray-600">{h.נרשמו} נרשמו · {h['המתנה ממוצע']} דק' המתנה</p>
+                        <p className="text-xs text-gray-400 mt-1">
+                          💡 {h.נרשמו >= 6 ? 'מומלץ להוסיף מארחת/ית נוספת' : h.נרשמו >= 3 ? 'עומס בינוני — צוות מלא' : 'עומס קל'}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* שעות נטישה גבוהה */}
+            {highAbandonHours.length > 0 && (
+              <Card className="mb-6 border-red-200 bg-red-50">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base flex items-center gap-2 text-red-700">
+                    <AlertTriangle className="w-4 h-4" /> שעות עם נטישה גבוהה
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex flex-wrap gap-2">
+                    {highAbandonHours.map(h => (
+                      <div key={h.hour} className="bg-white border border-red-200 rounded-xl px-4 py-2 text-sm">
+                        <span className="font-black text-red-700">{h.hour}</span>
+                        <span className="text-gray-500 mr-2">· נטישה {h['נטישה %']}%</span>
+                        <span className="text-gray-400">({h.נטשו} מתוך {h.נרשמו})</span>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-xs text-red-600 mt-3">💡 שקול לקצר את זמן ההמתנה או להוסיף פינוק בשעות אלו</p>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* גרף עומס לפי שעה */}
+            <Card className="mb-6">
+              <CardHeader>
+                <CardTitle className="text-base">עומס לפי שעה</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={240}>
+                  <BarChart data={hourlyData}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="hour" tick={{ fontSize: 11 }} />
+                    <YAxis tick={{ fontSize: 11 }} />
+                    <Tooltip />
+                    <Legend />
+                    <Bar dataKey="נרשמו" fill="#3b82f6" />
+                    <Bar dataKey="הוּשבו" fill="#22c55e" />
+                    <Bar dataKey="נטשו" fill="#ef4444" />
+                  </BarChart>
+                </ResponsiveContainer>
               </CardContent>
             </Card>
-          ))}
-        </div>
 
-        {/* גרף שעות */}
-        {activeHours.length > 0 && (
-          <Card className="mb-6">
-            <CardHeader>
-              <CardTitle className="text-base">התפלגות לפי שעה</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ResponsiveContainer width="100%" height={240}>
-                <BarChart data={activeHours}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="hour" tick={{ fontSize: 11 }} />
-                  <YAxis tick={{ fontSize: 11 }} />
-                  <Tooltip />
-                  <Bar dataKey="נרשמו" fill="#3b82f6" />
-                  <Bar dataKey="הוּשבו" fill="#22c55e" />
-                  <Bar dataKey="נטשו" fill="#ef4444" />
-                </BarChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-        )}
+            {/* גרף זמן המתנה + נטישה לאורך היום */}
+            <Card className="mb-6">
+              <CardHeader>
+                <CardTitle className="text-base">זמן המתנה ממוצע ואחוז נטישה לאורך היום</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={240}>
+                  <LineChart data={hourlyData}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="hour" tick={{ fontSize: 11 }} />
+                    <YAxis yAxisId="left" tick={{ fontSize: 11 }} />
+                    <YAxis yAxisId="right" orientation="left" tick={{ fontSize: 11 }} hide />
+                    <Tooltip />
+                    <Legend />
+                    <Line yAxisId="left" type="monotone" dataKey="המתנה ממוצע" stroke="#8b5cf6" strokeWidth={2} dot={false} name="המתנה ממוצע (דק')" />
+                    <Line yAxisId="left" type="monotone" dataKey="נטישה %" stroke="#ef4444" strokeWidth={2} dot={false} name="נטישה %" />
+                  </LineChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
 
-        {/* טבלת רשומות אחרונות */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">רשומות אחרונות</CardTitle>
-          </CardHeader>
-          <CardContent className="p-0">
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-gray-50 border-b">
-                  <tr>
-                    <th className="text-right p-3 font-semibold text-gray-600">שם</th>
-                    <th className="text-right p-3 font-semibold text-gray-600">טלפון</th>
-                    <th className="text-right p-3 font-semibold text-gray-600">סועדים</th>
-                    <th className="text-right p-3 font-semibold text-gray-600">סטטוס</th>
-                    <th className="text-right p-3 font-semibold text-gray-600">המתנה</th>
-                    <th className="text-right p-3 font-semibold text-gray-600">פינוק</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filtered.slice(0, 50).map(e => {
-                    const waitMin = e.timestamp_approved && e.timestamp_end
-                      ? Math.round((new Date(e.timestamp_end) - new Date(e.timestamp_approved)) / 60000)
-                      : null;
-                    const statusMap = { pending: 'ממתין', active: 'בתור', seated: 'הוּשב', abandoned: 'נטש' };
-                    const statusColor = { pending: 'text-yellow-600', active: 'text-blue-600', seated: 'text-green-600', abandoned: 'text-red-600' };
-                    return (
-                      <tr key={e.id} className="border-b hover:bg-gray-50">
-                        <td className="p-3 font-medium">{e.customer_name}</td>
-                        <td className="p-3 text-gray-500">{e.phone}</td>
-                        <td className="p-3">{e.party_size}</td>
-                        <td className={`p-3 font-semibold ${statusColor[e.status]}`}>{statusMap[e.status]}</td>
-                        <td className="p-3 text-gray-500">{waitMin != null ? `${waitMin} דק'` : '-'}</td>
-                        <td className="p-3">{e.treated ? '🎁' : '-'}</td>
+            {/* טבלת רשומות */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">רשומות אחרונות</CardTitle>
+              </CardHeader>
+              <CardContent className="p-0">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-50 border-b">
+                      <tr>
+                        <th className="text-right p-3 font-semibold text-gray-600">שם</th>
+                        <th className="text-right p-3 font-semibold text-gray-600">סועדים</th>
+                        <th className="text-right p-3 font-semibold text-gray-600">שעת הרשמה</th>
+                        <th className="text-right p-3 font-semibold text-gray-600">סטטוס</th>
+                        <th className="text-right p-3 font-semibold text-gray-600">המתנה</th>
+                        <th className="text-right p-3 font-semibold text-gray-600">פינוק</th>
                       </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </CardContent>
-        </Card>
+                    </thead>
+                    <tbody>
+                      {filtered.slice(0, 50).map(e => {
+                        const waitMin = e.timestamp_approved && e.timestamp_end
+                          ? Math.round((new Date(e.timestamp_end) - new Date(e.timestamp_approved)) / 60000)
+                          : null;
+                        const statusMap = { pending: 'ממתין', active: 'בתור', seated: 'הוּשב', abandoned: 'נטש' };
+                        const statusColor = { pending: 'text-yellow-600', active: 'text-blue-600', seated: 'text-green-600', abandoned: 'text-red-600' };
+                        return (
+                          <tr key={e.id} className="border-b hover:bg-gray-50">
+                            <td className="p-3 font-medium">{e.customer_name}</td>
+                            <td className="p-3">{e.party_size}</td>
+                            <td className="p-3 text-gray-500">{new Date(e.timestamp_register).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}</td>
+                            <td className={`p-3 font-semibold ${statusColor[e.status]}`}>{statusMap[e.status]}</td>
+                            <td className="p-3 text-gray-500">{waitMin != null ? `${waitMin} דק'` : '-'}</td>
+                            <td className="p-3">{e.treated ? '🎁' : '-'}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </CardContent>
+            </Card>
+          </>
+        )}
       </div>
     </div>
   );
