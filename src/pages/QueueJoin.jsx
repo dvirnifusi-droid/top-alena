@@ -274,6 +274,7 @@ function QueueJoinInner() {
       }
       
       console.log('Final isGeoEnabled:', isGeoEnabled);
+      console.log('navigator.geolocation available:', !!navigator.geolocation);
       
       // אם גיאופנסינג כבוי או אין תמיכה בmGeolocation, הנח מיד
       if (!isGeoEnabled || !navigator.geolocation) {
@@ -283,6 +284,7 @@ function QueueJoinInner() {
       }
 
       // אם גיאופנסינג פעיל, בדוק מיקום
+      console.log('Starting geolocation check...');
       setGeoStatus('checking');
       navigator.geolocation.getCurrentPosition(
         (pos) => {
