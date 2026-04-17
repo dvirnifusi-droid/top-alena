@@ -824,32 +824,32 @@ export default function QueueDashboard() {
                             )}
 
                             {/* כפתורי פעולה */}
-                            <div className="flex gap-1 flex-shrink-0 flex-wrap justify-end items-center sm:flex-nowrap">
-                              {/* היסטוריה - הסתר בטלפון */}
+                            <div className="flex gap-1 flex-shrink-0 flex-wrap justify-end items-center">
+                              {/* היסטוריה */}
                               <button
                                 onClick={() => openCustomerHistory(entry.phone)}
                                 title="היסטוריית תור"
-                                className="hidden sm:flex w-8 h-8 rounded-lg bg-purple-100 hover:bg-purple-200 text-purple-700 items-center justify-center transition-all"
+                                className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-purple-100 hover:bg-purple-200 text-purple-700 flex items-center justify-center transition-all text-xs sm:text-sm flex-shrink-0"
                               >
-                                <History className="w-4 h-4" />
+                                <History className="w-3 h-3 sm:w-4 sm:h-4" />
                               </button>
 
-                              {/* בונוס מטבעות - הסתר בטלפון */}
+                              {/* בונוס מטבעות */}
                               {!bonusAmount[entry.id] ? (
                                 <button
                                   onClick={() => setBonusAmount(prev => ({ ...prev, [entry.id]: 100 }))}
                                   title="תן בונוס"
-                                  className="hidden sm:flex w-8 h-8 rounded-lg bg-yellow-100 hover:bg-yellow-200 text-yellow-700 items-center justify-center transition-all text-base"
+                                  className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-yellow-100 hover:bg-yellow-200 text-yellow-700 flex items-center justify-center transition-all text-base flex-shrink-0"
                                 >⭐</button>
                               ) : (
-                                <div className="hidden sm:flex items-center gap-1 bg-yellow-50 px-2 py-1 rounded-lg border border-yellow-200">
+                                <div className="flex items-center gap-0.5 bg-yellow-50 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-lg border border-yellow-200">
                                   <input
                                     type="number"
                                     min="1"
                                     max="999"
                                     value={bonusAmount[entry.id]}
                                     onChange={(e) => setBonusAmount(prev => ({ ...prev, [entry.id]: parseInt(e.target.value) || 100 }))}
-                                    className="w-10 text-center text-xs border-0 bg-transparent text-yellow-700 font-black outline-none"
+                                    className="w-8 sm:w-10 text-center text-xs border-0 bg-transparent text-yellow-700 font-black outline-none"
                                   />
                                   <button
                                     onClick={() => handleGiveBonus(entry)}
@@ -865,7 +865,7 @@ export default function QueueDashboard() {
                               <button
                                 onClick={() => handleToggleTreat(entry)}
                                 title="פינוק"
-                                className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all text-sm ${
+                                className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center transition-all text-sm flex-shrink-0 ${
                                   entry.treated ? 'bg-pink-200 text-pink-700' : 'bg-gray-100 hover:bg-pink-100'
                                 }`}
                               >🎁</button>
@@ -875,7 +875,7 @@ export default function QueueDashboard() {
                                 <button
                                   onClick={() => handleProximityCheck(entry)}
                                   title="בדוק אם בסביבה"
-                                  className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all text-base hidden sm:flex ${
+                                  className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center transition-all text-base flex-shrink-0 ${
                                     proxNo ? 'bg-purple-200 text-purple-700' :
                                     proxYes ? 'bg-green-200 text-green-700' :
                                     'bg-blue-100 hover:bg-blue-200 text-blue-700'
@@ -883,29 +883,29 @@ export default function QueueDashboard() {
                                 >📍</button>
                               )}
                               {proxPending && (
-                                <div title="ממתינים לתגובה..." className="hidden sm:flex w-8 h-8 rounded-lg bg-yellow-200 text-yellow-700 items-center justify-center text-base animate-pulse">📍</div>
+                                <div title="ממתינים לתגובה..." className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-yellow-200 text-yellow-700 flex items-center justify-center text-base animate-pulse flex-shrink-0">📍</div>
                               )}
 
-                              {/* קריאה למזדמן - הסתר בטלפון */}
+                              {/* קריאה למזדמן */}
                               {callCountdowns[entry.id] === undefined && (
                                 <button
                                   onClick={() => handleCallGuest(entry)}
                                   title="קרא למזדמן"
-                                  className="hidden sm:flex w-8 h-8 rounded-lg bg-amber-100 hover:bg-amber-200 text-amber-700 items-center justify-center transition-all text-base"
+                                  className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-amber-100 hover:bg-amber-200 text-amber-700 flex items-center justify-center transition-all text-base flex-shrink-0"
                                 >🔔</button>
                               )}
 
                               <button
                                 onClick={() => handleSeat(entry)}
                                 title="הושב"
-                                className="w-8 h-8 rounded-lg bg-green-100 hover:bg-green-200 text-green-700 flex items-center justify-center transition-all"
-                              ><Check className="w-4 h-4" /></button>
+                                className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-green-100 hover:bg-green-200 text-green-700 flex items-center justify-center transition-all flex-shrink-0"
+                              ><Check className="w-3.5 h-3.5 sm:w-4 sm:h-4" /></button>
 
                               <button
                                 onClick={() => handleAbandon(entry)}
                                 title="נטש"
-                                className="w-8 h-8 rounded-lg bg-red-100 hover:bg-red-200 text-red-600 flex items-center justify-center transition-all"
-                              ><X className="w-4 h-4" /></button>
+                                className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-red-100 hover:bg-red-200 text-red-600 flex items-center justify-center transition-all flex-shrink-0"
+                              ><X className="w-3.5 h-3.5 sm:w-4 sm:h-4" /></button>
                             </div>
                           </CardContent>
                         </Card>
