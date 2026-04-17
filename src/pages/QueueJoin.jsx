@@ -146,9 +146,11 @@ function QueueJoinInner() {
         const all = await base44.entities.QueueEntry.list('-timestamp_register', 300);
         const found = all.find(e => e.id === entryId);
         if (!found) {
+          console.warn('Entry not found:', entryId);
           return;
         }
         setEntry(found);
+        console.log('Entry fetched:', found.id, 'status:', found.status);
 
         if (found.status === 'seated' || found.status === 'abandoned') {
           setPhase('done');
@@ -202,8 +204,8 @@ function QueueJoinInner() {
       }
     };
 
-    fetchStatus();
-    const interval = setInterval(fetchStatus, 5000);
+    fetchStatus(); // רענן מיד בטעינה
+    const interval = setInterval(fetchStatus, 3000); // רענן כל 3 שניות
     return () => {
       clearInterval(interval);
       unsubscribe();
