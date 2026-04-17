@@ -1,22 +1,23 @@
 self.addEventListener('push', (event) => {
-  const data = event.data ? event.data.json() : {};
-  const title = data.title || 'עלינא 🍽️';
-  const body = data.body || 'יש עדכון לגבי התור שלך';
+  let data = {};
+  try {
+    data = event.data.json();
+  } catch (e) {
+    data = { title: 'עלינא', body: event.data?.text() || '' };
+  }
 
   event.waitUntil(
-    self.registration.showNotification(title, {
-      body,
+    self.registration.showNotification(data.title || 'עלינא', {
+      body: data.body || '',
       icon: '/favicon.ico',
       badge: '/favicon.ico',
       dir: 'rtl',
       lang: 'he',
-      vibrate: [200, 100, 200],
-      requireInteraction: true,
     })
   );
 });
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  event.waitUntil(clients.openWindow('/'));
+  event.waitUntil(clients.openWindow('/QueueJoin'));
 });
