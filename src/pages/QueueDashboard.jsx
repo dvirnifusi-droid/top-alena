@@ -112,6 +112,23 @@ export default function QueueDashboard() {
       return acc;
     }, {});
 
+  // סועדים כולל בתור (active + pending)
+  const totalDinersInQueue = entries
+    .filter(e => e.status === 'pending' || e.status === 'active')
+    .reduce((sum, e) => sum + (e.party_size || 0), 0);
+
+  // זמן המתנה ממוצע לפי גודל קבוצה (רק active עם timestamp_approved)
+  const avgWaitBySize = entries
+    .filter(e => e.status === 'active' && e.timestamp_approved)
+    .reduce((acc, e) => {
+      const mins = Math.round((Date.now() - new Date(e.timestamp_approved).getTime()) / 60000);
+      const key = e.party_size;
+      if (!acc[key]) acc[key] = { total: 0, count: 0 };
+      acc[key].total += mins;
+      acc[key].count += 1;
+      return acc;
+    }, {});
+
   const handleApprove = async (entry) => {
     const now = new Date().toISOString();
     const maxOrder = Math.max(0, ...activeEntries.map(e => e.sort_order ?? 0));
@@ -228,6 +245,38 @@ export default function QueueDashboard() {
               {entries.filter(e => e.status === 'seated').length}
             </p>
             <p className="text-xs text-green-600">הוּשבו היום</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Live Stats - סועדים ממוצע המתנה */}
+      <div className="mb-4 grid grid-cols-2 gap-3">
+        <Card className="bg-indigo-50 border-indigo-200">
+          <CardContent className="p-3 text-center">
+            <p className="text-3xl font-black text-indigo-700">{totalDinersInQueue}</p>
+            <p className="text-xs text-indigo-600 font-medium">סועדים כולל בתור עכשיו</p>
+          </CardContent>
+        </Card>
+        <Card className="bg-orange-50 border-orange-200">
+          <CardContent className="p-3">
+            <p className="text-xs font-bold text-orange-700 mb-2 text-center">זמן המתנה ממוצע לפי גודל</p>
+            {Object.keys(avgWaitBySize).length === 0 ? (
+              <p className="text-xs text-gray-400 text-center">אין נתונים</p>
+            ) : (
+              <div className="space-y-1">
+                {Object.entries(avgWaitBySize)
+                  .sort(([a], [b]) => Number(a) - Number(b))
+                  .map(([size, { total, count }]) => (
+                    <div key={size} className="flex items-center justify-between text-xs">
+                      <span className="text-gray-600">
+                        {Number(size) === 1 ? '👤' : Number(size) === 2 ? '👫' : Number(size) <= 3 ? '👨‍👩‍👦' : '👨‍👩‍👧‍👦'}
+                        {' '}{size} סועדים
+                      </span>
+                      <span className="font-black text-orange-700">{Math.round(total / count)} דק'</span>
+                    </div>
+                  ))}
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
