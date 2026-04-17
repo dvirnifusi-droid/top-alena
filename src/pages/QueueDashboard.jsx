@@ -849,9 +849,10 @@ export default function QueueDashboard() {
                               {callCountdowns[entry.id] === undefined && (
                                 <button
                                   onClick={() => handleProximityCheck(entry)}
-                                  title="בדוק אם בסביבה"
+                                  disabled={proxPending}
+                                  title={proxPending ? 'ממתינים לתגובה...' : 'בדוק אם בסביבה'}
                                   className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all text-base ${
-                                    proxPending ? 'bg-yellow-200 text-yellow-700 animate-pulse' :
+                                    proxPending ? 'bg-yellow-200 text-yellow-700 animate-pulse opacity-60 cursor-not-allowed' :
                                     proxNo ? 'bg-purple-200 text-purple-700' :
                                     proxYes ? 'bg-green-200 text-green-700' :
                                     'bg-blue-100 hover:bg-blue-200 text-blue-700'
