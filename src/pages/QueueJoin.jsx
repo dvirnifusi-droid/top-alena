@@ -254,17 +254,21 @@ function QueueJoinInner() {
         sort_order: maxOrder,
       });
 
-      // סנכרון ל-CRM
+      // סנכרון ל-CRM (אופציונלי)
       try {
-        const existing = await base44.entities.Customer.filter({ phone: form.phone.trim() });
-        if (existing.length === 0) {
-          await base44.entities.Customer.create({
-            full_name: form.customer_name.trim(),
-            phone: form.phone.trim(),
-            source: 'queue_qr',
-          });
+        if (base44.entities.Customer) {
+          const existing = await base44.entities.Customer.filter({ phone: form.phone.trim() });
+          if (existing.length === 0) {
+            await base44.entities.Customer.create({
+              full_name: form.customer_name.trim(),
+              phone: form.phone.trim(),
+              source: 'queue_qr',
+            });
+          }
         }
-      } catch (_) {}
+      } catch (e) {
+        console.warn('CRM sync failed:', e);
+      }
 
       // רישום Push בלי לחסום את הניווט
       registerPushAndSave(newEntry.id).catch(() => {});
