@@ -279,7 +279,7 @@ function QueueJoinInner() {
       // אם גיאופנסינג כבוי או אין תמיכה בmGeolocation, הנח מיד
       if (!isGeoEnabled || !navigator.geolocation) {
         console.log('Skipping geofencing - bypassing to registration');
-        await handleRegister();
+        await performRegister();
         return;
       }
 
@@ -412,7 +412,7 @@ function QueueJoinInner() {
                 placeholder="הכנס את שמך המלא"
                 value={form.customer_name}
                 onChange={e => setForm({ ...form, customer_name: e.target.value })}
-                onKeyDown={e => e.key === 'Enter' && handleRegister()}
+                onKeyDown={e => e.key === 'Enter' && checkGeoAndRegister()}
               />
             </div>
 
@@ -425,7 +425,7 @@ function QueueJoinInner() {
                 type="tel"
                 value={form.phone}
                 onChange={e => setForm({ ...form, phone: e.target.value })}
-                onKeyDown={e => e.key === 'Enter' && handleRegister()}
+                onKeyDown={e => e.key === 'Enter' && checkGeoAndRegister()}
               />
             </div>
 
