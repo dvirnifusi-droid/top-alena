@@ -104,6 +104,7 @@ function TriviaGame({ playerName, entryId, allQuestions }) {
             onClick={() => navigator.share ? navigator.share({ title: `${score} נקודות בטריוויה של עלינא!`, url: shareUrl }) : (navigator.clipboard.writeText(shareUrl), alert('הועתק!'))}
             className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 rounded-2xl text-sm mb-2 transition-all"
           >📤 שתף את הניקוד</button>
+          <button onClick={() => setPhase(null)} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-2xl text-sm mb-2 transition-all">🎮 המשך לשחק</button>
           <button onClick={() => window.history.back()} className="w-full bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold py-3 rounded-2xl text-sm transition-all">🔙 חזור לתור</button>
         </div>
         <div className="bg-white/10 backdrop-blur rounded-3xl p-4 w-full">
