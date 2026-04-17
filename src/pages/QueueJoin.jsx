@@ -260,11 +260,12 @@ function QueueJoinInner() {
 
     try {
       // קרא ל-backend function דרך SDK
-      const { entry: newEntry } = await base44.asServiceRole.functions.invoke('createQueueEntry', {
+      const res = await base44.functions.invoke('createQueueEntry', {
         customer_name: form.customer_name.trim(),
         phone: form.phone.trim(),
         party_size: parseInt(form.party_size),
       });
+      const newEntry = res.data?.entry || res.entry;
 
       // סנכרון ל-CRM (אופציונלי)
       try {
