@@ -213,7 +213,13 @@ function QueueJoinInner() {
 
     try {
       // בדוק אם יש כניסה עם אותו מספר טלפון
-      const existing = await base44.entities.QueueEntry.filter({ phone: form.phone.trim() });
+      let existing = [];
+      try {
+        existing = await base44.entities.QueueEntry.filter({ phone: form.phone.trim() });
+      } catch (e) {
+        // אם הקוד לא מחובר או אין גישה, המשך בלי בדיקה
+        console.warn('Cannot check existing entries:', e);
+      }
       const activeEntry = existing.find(e => e.status !== 'seated' && e.status !== 'abandoned');
       if (activeEntry) {
         setDuplicateEntry(activeEntry);
