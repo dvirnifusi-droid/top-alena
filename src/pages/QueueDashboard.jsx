@@ -500,7 +500,7 @@ export default function QueueDashboard() {
                               </button>
                               <button
                                 onClick={() => handleSeat(entry)}
-                                title="השולחן מוכן - שלח הודעה + התחל מונה 3 דק'"
+                                title="השולחן מוכן"
                                 className="w-8 h-8 rounded-lg bg-green-100 hover:bg-green-200 text-green-700 flex items-center justify-center transition-all"
                               >
                                 <Check className="w-4 h-4" />
