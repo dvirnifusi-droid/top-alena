@@ -112,10 +112,22 @@ function QueueJoinInner() {
     if (!entryId) return;
 
     const fetchStatus = async () => {
-      const all = await base44.entities.QueueEntry.list('-timestamp_register', 300);
-      const found = all.find(e => e.id === entryId);
-      if (!found) return;
-      setEntry(found);
+      try {
+        const all = await base44.entities.QueueEntry.list('-timestamp_register', 300);
+        const found = all.find(e => e.id === entryId);
+        if (!found) {
+          // אם לא נמצא באופן ישיר, נסה לקבל ישירות
+          const direct = await base44.entities.QueueEntry.get ? await base44.entities.QueueEntry.get(entryId) : null;
+          if (direct) {
+            setEntry(direct);
+          }
+          return;
+        }
+        setEntry(found);
+      } catch (e) {
+        console.error('Error fetching queue status:', e);
+        return;
+      }
 
       if (found.status === 'seated' || found.status === 'abandoned') {
         setPhase('done');
@@ -427,9 +439,6 @@ function QueueJoinInner() {
   const isActive = entry?.status === 'active';
   const showProximityBanner = entry?.proximity_response === 'pending' && entry?.proximity_check_at;
 
-  // אם הלקוח פעיל בתור והמארחת שלחה קישור - הצג כרטיס עשיר
-  const shouldShowRichCard = entry && isActive && !callSecondsLeft;
-
   const handleProximityResponse = async (answer) => {
     await base44.entities.QueueEntry.update(entryId, {
       proximity_response: answer, // 'yes' or 'no'
@@ -459,76 +468,6 @@ function QueueJoinInner() {
       <h1 className="text-3xl font-black text-white">עלינא</h1>
       <p className="text-slate-300 text-xs mt-1 font-light">קו אישי לתור</p>
     </div>
-
-    {/* כרטיס עשיר - כשמארחת שולחת קישור */}
-    {shouldShowRichCard && (
-      <div className="bg-white/95 backdrop-blur-sm rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden border border-white/20 mb-4">
-        {/* כותרת */}
-        <div className="bg-gradient-to-l from-emerald-500 to-teal-600 text-white p-4 text-center">
-          <div className="text-3xl mb-1">⭐</div>
-          <p className="font-black text-base">זריקה בשמחתנו!</p>
-          <p className="text-white/80 text-xs mt-1">אתה בתור - המארחת תקרא לך כשהשולחן מוכן</p>
-        </div>
-
-        <div className="p-4 space-y-3">
-          {/* פרסים זמינים */}
-          {treats.length > 0 && (
-            <div className="bg-gradient-to-r from-purple-50 to-pink-50 border-2 border-purple-200 rounded-2xl p-3">
-              <p className="font-black text-purple-800 text-sm mb-2 text-center">🎁 פרסים שאתה יכול להרוויח</p>
-              <div className="space-y-2">
-                {treats.slice(0, 4).map(treat => (
-                  <div key={treat.id} className="bg-white rounded-xl p-2 flex items-center justify-between border border-purple-100">
-                    <div className="flex-1 min-w-0">
-                      <p className="font-bold text-xs text-gray-800">{treat.emoji} {treat.name}</p>
-                      <p className="text-xs text-gray-500">{treat.description}</p>
-                    </div>
-                    <div className="text-right ml-2 flex-shrink-0">
-                      <p className="font-black text-sm text-purple-700">⭐ {treat.cost}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <p className="text-xs text-purple-600 text-center mt-2">💡 צבור עוד {Math.max(0, 30 - waitMinutes)} דקות כדי להתחיל להצטבר מטבעות</p>
-            </div>
-          )}
-
-          {/* קסם בתור */}
-          {queuePosition != null && (
-            <div className="bg-blue-50 border-2 border-blue-200 rounded-2xl p-4 text-center">
-              <p className="text-4xl font-black text-blue-700 mb-1">{queuePosition}</p>
-              <p className="text-blue-600 text-xs font-medium">קסם בתור</p>
-            </div>
-          )}
-
-          {/* זמן המתנה + מטבעות */}
-          {entry?.timestamp_approved && (
-            <div className="text-center space-y-2">
-              <p className="text-gray-400 text-xs">ממתינים {waitMinutes} דקות</p>
-              <div className="bg-gradient-to-r from-yellow-50 to-amber-50 border border-yellow-200 rounded-2xl p-3">
-                <p className="text-3xl font-black text-yellow-600 mb-1">⭐ {timeCreditsEarned}</p>
-                <p className="text-xs text-yellow-700">מטבעות עלינא שצברת</p>
-              </div>
-            </div>
-          )}
-
-          {/* כפתורים */}
-          <div className="space-y-2 pt-2">
-            <a
-              href={`/QueueGame?entry=${entryId}&name=${encodeURIComponent(entry?.customer_name || 'אורח')}`}
-              className="flex items-center justify-center gap-2 w-full bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 active:scale-95 text-white font-black py-3 rounded-2xl text-base transition-all shadow-lg"
-            >
-              🎮 משחקים בזמן ההמתנה
-            </a>
-            <button
-              onClick={() => window.history.back()}
-              className="w-full border-2 border-slate-800 text-slate-800 hover:bg-slate-800 hover:text-white font-black py-2.5 rounded-2xl text-sm transition-all"
-            >
-              ← חזור לתור
-            </button>
-          </div>
-        </div>
-      </div>
-    )}
 
     {/* כרטיס ראשי */}
     <div className="bg-white/95 backdrop-blur-sm rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden border border-white/20">
