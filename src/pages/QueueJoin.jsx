@@ -99,11 +99,12 @@ function QueueJoinInner() {
     }
   }, [isPublicMode]);
 
-  // טעינת פינוקים זמינים (ללא בדיקת התחברות)
+  // טעינת פינוקים זמינים דרך backend function
   useEffect(() => {
     console.log('🔄 Loading treats...');
-    base44.entities.TimeTreat.filter({ is_active: true })
-      .then(t => {
+    base44.functions.invoke('getTreats', {})
+      .then(res => {
+        const t = res.data?.treats || [];
         console.log('✅ Treats loaded:', t.length, 'items');
         setTreats(t);
         setDebugLog(prev => [...prev, `✅ Treats: ${t.length} items`]);
@@ -165,33 +166,18 @@ function QueueJoinInner() {
           return;
         }
 
-        // נסה לשלוף את מיקום בתור
+        // קבל מיקום בתור דרך backend function
         try {
           console.log('🔄 Fetching queue position for entry:', entryId);
-          const all = await base44.entities.QueueEntry.list('-timestamp_register', 300);
-          console.log('✅ All queue entries:', all.length);
-          setDebugLog(prev => [...prev, `✅ Total entries: ${all.length}`]);
-          
-          // מיקום בתור
-          const activeQueue = all
-            .filter(e => e.status === 'active')
-            .sort((a, b) => (a.sort_order ?? 9999) - (b.sort_order ?? 9999));
-          console.log('Active queue:', activeQueue.length, 'entries');
-          const pos = activeQueue.findIndex(e => e.id === entryId);
-          
-          // אם לא בפעיל, בדוק pending
-          if (pos >= 0) {
-            console.log('✅ Queue position (active):', pos + 1);
-            setQueuePosition(pos + 1);
-            setDebugLog(prev => [...prev, `✅ Queue pos (active): ${pos + 1}`]);
+          const res = await base44.functions.invoke('getQueuePosition', { entryId });
+          if (res.data?.position) {
+            console.log('✅ Queue position:', res.data.position, res.data.status);
+            setQueuePosition(res.data.position);
+            setDebugLog(prev => [...prev, `✅ Queue pos (${res.data.status}): ${res.data.position}/${res.data.total}`]);
           } else {
-            const pendingQueue = all
-              .filter(e => e.status === 'pending')
-              .sort((a, b) => new Date(a.timestamp_register) - new Date(b.timestamp_register));
-            const pendingPos = pendingQueue.findIndex(e => e.id === entryId);
-            console.log('Pending position:', pendingPos >= 0 ? pendingPos + 1 : null, 'of', pendingQueue.length);
-            setQueuePosition(pendingPos >= 0 ? pendingPos + 1 : null);
-            setDebugLog(prev => [...prev, `Pending pos: ${pendingPos >= 0 ? pendingPos + 1 : 'null'}`]);
+            console.log('⚠️ Not in queue');
+            setQueuePosition(null);
+            setDebugLog(prev => [...prev, `⚠️ Not in queue`]);
           }
         } catch (e) {
           console.error('❌ Error fetching queue position:', e.message);
@@ -230,7 +216,7 @@ function QueueJoinInner() {
     };
 
     fetchStatus(); // רענן מיד בטעינה
-    const interval = setInterval(fetchStatus, 3000); // רענן כל 3 שניות
+    const interval = setInterval(fetchStatus, 5000); // רענן כל 5 שניות
     return () => {
       clearInterval(interval);
       unsubscribe();
