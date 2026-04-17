@@ -4,6 +4,7 @@ import { sendQueueSms } from '@/functions/sendQueueSms';
 import { sendQueuePush } from '@/functions/sendQueuePush';
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import { Check, X, Gift, UserCheck, Clock, Users, RefreshCw, QrCode, AlertCircle, Star } from 'lucide-react';
+import TreatsReport from '../components/dashboard/TreatsReport';
 import { QRCodeSVG } from 'qrcode.react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -544,6 +545,11 @@ export default function QueueDashboard() {
           </CardContent>
         </Card>
       )}
+
+      {/* דוח פינוקים */}
+      <div className="mb-6">
+        <TreatsReport />
+      </div>
 
       {/* סטטיסטיקה */}
       <div className="grid grid-cols-3 gap-3 mb-6">
