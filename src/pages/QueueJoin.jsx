@@ -551,24 +551,24 @@ function QueueJoinInner() {
   const showProximityBanner = entry?.proximity_response === 'pending' && entry?.proximity_check_at;
 
   const handleProximityResponse = async (answer) => {
-    await base44.entities.QueueEntry.update(entryId, {
-      proximity_response: answer, // 'yes' or 'no'
-    });
-    // אם אמר "לא" — אפשר לעזוב מיד
-    if (answer === 'no') {
-      await new Promise(r => setTimeout(r, 500));
+    try {
       await base44.entities.QueueEntry.update(entryId, {
-        status: 'abandoned',
-        timestamp_end: new Date().toISOString(),
-        notes: 'לא בסביבה — בדיקת קרבה',
+        proximity_response: answer,
       });
-      setPhase('done');
-      return;
+      // אם אמר "לא" — אפשר לעזוב מיד
+      if (answer === 'no') {
+        await base44.entities.QueueEntry.update(entryId, {
+          status: 'abandoned',
+          timestamp_end: new Date().toISOString(),
+          notes: 'לא בסביבה — בדיקת קרבה',
+        });
+        setPhase('done');
+      }
+      // רענן מיד אם אמר כן
+      await fetchStatus();
+    } catch (e) {
+      console.error('Error in handleProximityResponse:', e);
     }
-    // רענן מיד
-    const all = await base44.entities.QueueEntry.list('-timestamp_register', 300);
-    const found = all.find(e => e.id === entryId);
-    if (found) setEntry(found);
   };
 
   return (
@@ -640,14 +640,16 @@ function QueueJoinInner() {
               <p className="text-blue-600 text-base mb-4">האם אתם בסביבת המסעדה?</p>
               <div className="flex gap-3">
                 <button
-                  onClick={() => handleProximityResponse('yes')}
-                  className="flex-1 bg-green-500 hover:bg-green-600 active:scale-95 text-white font-black py-3.5 rounded-2xl text-lg transition-all shadow"
+                  onClick={() => { handleProximityResponse('yes'); }}
+                  disabled={loading}
+                  className="flex-1 bg-green-500 hover:bg-green-600 active:scale-95 disabled:opacity-50 text-white font-black py-3.5 rounded-2xl text-lg transition-all shadow"
                 >
                   ✅ כן, אני כאן!
                 </button>
                 <button
-                  onClick={() => handleProximityResponse('no')}
-                  className="flex-1 bg-red-400 hover:bg-red-500 active:scale-95 text-white font-black py-3.5 rounded-2xl text-lg transition-all shadow"
+                  onClick={() => { handleProximityResponse('no'); }}
+                  disabled={loading}
+                  className="flex-1 bg-red-400 hover:bg-red-500 active:scale-95 disabled:opacity-50 text-white font-black py-3.5 rounded-2xl text-lg transition-all shadow"
                 >
                   ❌ לא, הולך
                 </button>
@@ -687,16 +689,21 @@ function QueueJoinInner() {
                   <p className="text-sm text-gray-500 mb-4">גשו למארחת — יש לכם {Math.ceil(callSecondsLeft / 60)} דקות!</p>
                   <button
                     onClick={async () => {
-                       await base44.entities.QueueEntry.update(entryId, {
-                         status: 'seated',
-                         timestamp_end: new Date().toISOString(),
-                         timestamp_seated: new Date().toISOString(),
-                         seat_called_at: null,
-                         time_credits_earned: timeCreditsEarned,
-                       });
-                       setPhase('done');
+                       try {
+                         await base44.entities.QueueEntry.update(entryId, {
+                           status: 'seated',
+                           timestamp_end: new Date().toISOString(),
+                           timestamp_seated: new Date().toISOString(),
+                           seat_called_at: null,
+                           time_credits_earned: timeCreditsEarned,
+                         });
+                         setPhase('done');
+                       } catch (e) {
+                         console.error('Error seating:', e);
+                       }
                     }}
-                    className="w-full bg-green-500 hover:bg-green-600 active:scale-95 text-white font-black py-4 rounded-2xl text-xl transition-all shadow-lg"
+                    disabled={loading}
+                    className="w-full bg-green-500 hover:bg-green-600 active:scale-95 disabled:opacity-50 text-white font-black py-4 rounded-2xl text-xl transition-all shadow-lg"
                   >
                     ✅ הגעתי למארחת!
                   </button>
@@ -769,7 +776,7 @@ function QueueJoinInner() {
           </div>
 
           {/* כפתור משחק */}
-          {isActive && !callSecondsLeft && (
+          {isActive && callSecondsLeft === null && (
             <div className="text-center pt-1">
               <a
                 href={`/QueueGame?entry=${entryId}&name=${encodeURIComponent(entry?.customer_name || 'אורח')}`}
