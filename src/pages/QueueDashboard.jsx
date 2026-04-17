@@ -3,7 +3,7 @@ import { base44 } from '@/api/base44Client';
 import { sendQueueSms } from '@/functions/sendQueueSms';
 import { sendQueuePush } from '@/functions/sendQueuePush';
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
-import { Check, X, Gift, UserCheck, Clock, Users, RefreshCw, QrCode, AlertCircle, Star } from 'lucide-react';
+import { Check, X, Gift, UserCheck, Clock, Users, RefreshCw, QrCode, AlertCircle, Star, History } from 'lucide-react';
 import TreatsReport from '../components/dashboard/TreatsReport';
 import { QRCodeSVG } from 'qrcode.react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -72,6 +72,8 @@ export default function QueueDashboard() {
   const [bonusAmount, setBonusAmount] = useState({});
   const [treats, setTreats] = useState([]);
   const [showManualAdd, setShowManualAdd] = useState(false);
+  const [historyPhone, setHistoryPhone] = useState(null);
+  const [historyEntries, setHistoryEntries] = useState([]);
   const [manualForm, setManualForm] = useState({ name: '', phone: '', party_size: 2 });
   const [manualLoading, setManualLoading] = useState(false);
   const prevFirstActiveRef = useRef(null);
@@ -370,6 +372,13 @@ export default function QueueDashboard() {
     });
     setBonusAmount(prev => { const n = {...prev}; delete n[entry.id]; return n; });
     fetchEntries();
+  };
+
+  const openCustomerHistory = async (phone) => {
+    const allEntries = await base44.entities.QueueEntry.list('-timestamp_register', 500);
+    const phoneHistory = allEntries.filter(e => e.phone === phone);
+    setHistoryPhone(phone);
+    setHistoryEntries(phoneHistory);
   };
 
   const handleManualAdd = async () => {
@@ -809,6 +818,15 @@ export default function QueueDashboard() {
 
                             {/* כפתורי פעולה */}
                             <div className="flex gap-1 flex-shrink-0 flex-wrap justify-end items-center">
+                              {/* היסטוריה */}
+                              <button
+                                onClick={() => openCustomerHistory(entry.phone)}
+                                title="היסטוריית תור"
+                                className="w-8 h-8 rounded-lg bg-purple-100 hover:bg-purple-200 text-purple-700 flex items-center justify-center transition-all"
+                              >
+                                <History className="w-4 h-4" />
+                              </button>
+
                               {/* בונוס מטבעות */}
                               {!bonusAmount[entry.id] ? (
                                 <button
@@ -895,6 +913,54 @@ export default function QueueDashboard() {
           </DragDropContext>
         )}
       </div>
+
+      {/* מודאל היסטוריה */}
+      {historyPhone && (
+        <div className="fixed inset-0 bg-black/60 flex items-end justify-center z-50 p-4" dir="rtl">
+          <div className="bg-white rounded-3xl w-full max-w-sm p-6 shadow-2xl mb-4 max-h-96 overflow-y-auto">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-black text-gray-800">📋 היסטוריית תור</h3>
+              <button
+                onClick={() => { setHistoryPhone(null); setHistoryEntries([]); }}
+                className="text-gray-400 hover:text-gray-600 text-2xl leading-none"
+              >✕</button>
+            </div>
+
+            <p className="text-sm text-gray-600 mb-4">📱 {historyPhone}</p>
+
+            {historyEntries.length === 0 ? (
+              <p className="text-gray-400 text-center text-sm">אין היסטוריה</p>
+            ) : (
+              <div className="space-y-2">
+                {historyEntries.map(e => {
+                  const waitTime = Math.round((new Date(e.timestamp_end || new Date()) - new Date(e.timestamp_approved || e.timestamp_register)) / 60000);
+                  return (
+                    <div key={e.id} className="bg-gray-50 rounded-lg p-3 border border-gray-200">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="font-bold text-sm text-gray-800">{e.customer_name}</span>
+                        <span className={`text-xs font-bold px-2 py-1 rounded-full ${
+                          e.status === 'seated' ? 'bg-green-100 text-green-700' :
+                          e.status === 'abandoned' ? 'bg-red-100 text-red-700' :
+                          'bg-yellow-100 text-yellow-700'
+                        }`}>
+                          {e.status === 'seated' ? '✅ הוּשב' : e.status === 'abandoned' ? '❌ נטש' : '⏳ ממתין'}
+                        </span>
+                      </div>
+                      <div className="text-xs text-gray-600 space-y-0.5">
+                        <p>👥 {e.party_size} סועדים</p>
+                        <p>⏱️ זמן המתנה: {waitTime} דק'</p>
+                        {e.time_credits_earned > 0 && <p>💰 מטבעות: {e.time_credits_earned}</p>}
+                        {e.feedback_rating && <p>⭐ דירוג: {e.feedback_rating}</p>}
+                        <p className="text-xs text-gray-400">{new Date(e.timestamp_register).toLocaleDateString('he-IL')}</p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
