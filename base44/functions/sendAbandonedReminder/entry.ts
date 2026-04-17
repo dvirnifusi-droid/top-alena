@@ -17,7 +17,10 @@ Deno.serve(async (req) => {
 
     console.log(`📨 Found ${targets.length} abandoned entries to remind`);
 
-    // שלח הודעה לכל אחד
+    const twilioSid = Deno.env.get('TWILIO_ACCOUNT_SID');
+    const twilioToken = Deno.env.get('TWILIO_AUTH_TOKEN');
+    const twilioPhone = Deno.env.get('TWILIO_PHONE_NUMBER');
+
     for (const entry of targets) {
       if (!entry.phone) continue;
 
@@ -25,21 +28,27 @@ Deno.serve(async (req) => {
       const message = `היי ${entry.customer_name},\n\nראינו שביקרת אצלנו ביום ${dayOfWeek} והיה עומס חריג... 😅\n\nאנחנו לא אוהבים שיוצאים מאיתנו רעבים! 😋\n\nבואו לבקר אותנו באמצע שבוע (א'-ד') - הקינוח עלינו! 🎁\n\n🍰 בתוקף עד שבועיים`;
 
       try {
-        // שלח via Twilio SMS (יש לך secrets)
-        const client = require('twilio')(
-          Deno.env.get('TWILIO_ACCOUNT_SID'),
-          Deno.env.get('TWILIO_AUTH_TOKEN')
-        );
-        
-        await client.messages.create({
-          body: message,
-          from: Deno.env.get('TWILIO_PHONE_NUMBER'),
-          to: `+972${entry.phone.replace(/^0/, '')}`, // format ל-whatsapp
+        const auth = btoa(`${twilioSid}:${twilioToken}`);
+        const response = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${twilioSid}/Messages.json`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Basic ${auth}`,
+            'Content-Type': 'application/x-www-form-urlencoded'
+          },
+          body: new URLSearchParams({
+            From: twilioPhone,
+            To: `+972${entry.phone.replace(/^0/, '')}`,
+            Body: message
+          })
         });
 
-        console.log(`✅ Sent reminder to ${entry.phone}`);
+        if (response.ok) {
+          console.log(`✅ WhatsApp sent to ${entry.phone}`);
+        } else {
+          console.warn(`⚠️ Failed to send to ${entry.phone}`);
+        }
       } catch (e) {
-        console.warn(`⚠️ Failed to send to ${entry.phone}: ${e.message}`);
+        console.warn(`⚠️ Error: ${e.message}`);
       }
     }
 

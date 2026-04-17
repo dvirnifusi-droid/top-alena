@@ -17,6 +17,10 @@ Deno.serve(async (req) => {
 
     console.log(`📊 Found ${targets.length} entries to send rating request`);
 
+    const twilioSid = Deno.env.get('TWILIO_ACCOUNT_SID');
+    const twilioToken = Deno.env.get('TWILIO_AUTH_TOKEN');
+    const twilioPhone = Deno.env.get('TWILIO_PHONE_NUMBER');
+
     for (const entry of targets) {
       if (!entry.phone) continue;
 
@@ -24,12 +28,19 @@ Deno.serve(async (req) => {
       const message = `${customer_name}, איך היה הערב בעלינא? 🍽️\n\nנשמח לדירוג שלך וההערות שלך עוזרות לנו להשתפר!\n\n⭐ https://g.page/r/CReDn7f8zub7EAI/review`;
 
       try {
-        await base44.asServiceRole.integrations.Core.SendEmail({
-          to: phone,
-          subject: 'איך היה הערב בעלינא?',
-          body: message,
-          from_name: 'עלינא',
-        }).catch(() => {});
+        const auth = btoa(`${twilioSid}:${twilioToken}`);
+        await fetch(`https://api.twilio.com/2010-04-01/Accounts/${twilioSid}/Messages.json`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Basic ${auth}`,
+            'Content-Type': 'application/x-www-form-urlencoded'
+          },
+          body: new URLSearchParams({
+            From: twilioPhone,
+            To: `+972${phone.replace(/^0/, '')}`,
+            Body: message
+          })
+        });
 
         console.log(`✅ Rating request sent to ${phone}`);
       } catch (e) {

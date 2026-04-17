@@ -12,17 +12,29 @@ Deno.serve(async (req) => {
 
     const message = `${couples[0]?.name || 'היי'},\n\n💕 אנחנו יודעים שאתם אוהבים לבקר אצלנו כזוג!\n\nלכן הכנו משהו מיוחד לכם:\n🍷 ערב רומנטי באמצע שבוע (א'-ד')\n🎵 מוזיקה בחלקה + תאורה מיוחדת\n🍽️ מנה זוגית בהנחה 20%\n\nהזמינו שולחן עכשיו! 📞`;
 
+    const twilioSid = Deno.env.get('TWILIO_ACCOUNT_SID');
+    const twilioToken = Deno.env.get('TWILIO_AUTH_TOKEN');
+    const twilioPhone = Deno.env.get('TWILIO_PHONE_NUMBER');
+
     for (const customer of couples) {
       if (!customer.phone) continue;
 
-      try {
-        await base44.asServiceRole.integrations.Core.SendEmail({
-          to: customer.phone,
-          subject: 'ערב רומנטי מיוחד בעלינא',
-          body: message,
-          from_name: 'עלינא',
-        }).catch(() => {});
+      const msg = `${customer.name},\n\n💕 אנחנו יודעים שאתם אוהבים לבקר אצלנו כזוג!\n\nלכן הכנו משהו מיוחד:\n🍷 ערב רומנטי באמצע שבוע (א'-ד')\n🎵 מוזיקה בחלקה + תאורה מיוחדת\n🍽️ מנה זוגית בהנחה 20%\n\nהזמינו שולחן עכשיו! 📞`;
 
+      try {
+        const auth = btoa(`${twilioSid}:${twilioToken}`);
+        await fetch(`https://api.twilio.com/2010-04-01/Accounts/${twilioSid}/Messages.json`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Basic ${auth}`,
+            'Content-Type': 'application/x-www-form-urlencoded'
+          },
+          body: new URLSearchParams({
+            From: twilioPhone,
+            To: `+972${customer.phone.replace(/^0/, '')}`,
+            Body: msg
+          })
+        });
         console.log(`✅ Couple offer sent to ${customer.phone}`);
       } catch (e) {
         console.warn(`⚠️ Failed: ${e.message}`);
