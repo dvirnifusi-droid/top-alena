@@ -170,11 +170,13 @@ export default function QueueJoin() {
       const waitMin = Math.round((Date.now() - new Date(entry.timestamp_approved).getTime()) / 60000);
       setWaitMinutes(waitMin);
       // צביר 100 מטבעות לכל 10 דקות המתנה - רק אחרי 30 דק' ממתנה
-      const creditsEarned = waitMin >= 30 ? Math.floor((waitMin - 30) / 10) * 100 : 0;
-      setTimeCreditsEarned(creditsEarned);
+      const calculatedCredits = waitMin >= 30 ? Math.floor((waitMin - 30) / 10) * 100 : 0;
+      // משלב בונוסים שנתנה המארחת עם ההצטברות הטבעית
+      const totalCredits = (entry.time_credits_earned || 0) + (calculatedCredits > (entry.time_credits_earned || 0) ? calculatedCredits - (entry.time_credits_earned || 0) : 0);
+      setTimeCreditsEarned(entry.time_credits_earned || calculatedCredits);
     }, 10000); // עדכון כל 10 שניות לדיוק
     return () => clearInterval(tick);
-  }, [entry?.timestamp_approved]);
+  }, [entry?.timestamp_approved, entry?.time_credits_earned]);
 
   const checkGeoAndRegister = () => {
     if (!form.customer_name.trim() || !form.phone.trim()) {
