@@ -60,6 +60,7 @@ function QueueJoinInner() {
   const [abandonLoading, setAbandonLoading] = useState(false);
   const [form, setForm] = useState({ customer_name: '', phone: '', party_size: 2 });
   const [loading, setLoading] = useState(false);
+  const [actionLoading, setActionLoading] = useState(false);
   const [entry, setEntry] = useState(null);
   const [queuePosition, setQueuePosition] = useState(null);
   const [estimatedWait, setEstimatedWait] = useState(null);
@@ -551,6 +552,7 @@ function QueueJoinInner() {
   const showProximityBanner = entry?.proximity_response === 'pending' && entry?.proximity_check_at;
 
   const handleProximityResponse = async (answer) => {
+    setActionLoading(true);
     try {
       if (answer === 'no') {
         await base44.entities.QueueEntry.update(entryId, {
@@ -570,6 +572,8 @@ function QueueJoinInner() {
       }
     } catch (e) {
       console.error('Error in handleProximityResponse:', e);
+    } finally {
+      setActionLoading(false);
     }
   };
 
@@ -643,14 +647,14 @@ function QueueJoinInner() {
               <div className="flex gap-3">
                 <button
                   onClick={() => { handleProximityResponse('yes'); }}
-                  disabled={loading}
+                  disabled={actionLoading}
                   className="flex-1 bg-green-500 hover:bg-green-600 active:scale-95 disabled:opacity-50 text-white font-black py-3.5 rounded-2xl text-lg transition-all shadow"
                 >
                   ✅ כן, אני כאן!
                 </button>
                 <button
                   onClick={() => { handleProximityResponse('no'); }}
-                  disabled={loading}
+                  disabled={actionLoading}
                   className="flex-1 bg-red-400 hover:bg-red-500 active:scale-95 disabled:opacity-50 text-white font-black py-3.5 rounded-2xl text-lg transition-all shadow"
                 >
                   ❌ לא, הולך
@@ -691,6 +695,7 @@ function QueueJoinInner() {
                   <p className="text-sm text-gray-500 mb-4">גשו למארחת — יש לכם {Math.ceil(callSecondsLeft / 60)} דקות!</p>
                   <button
                     onClick={async () => {
+                       setActionLoading(true);
                        try {
                          await base44.entities.QueueEntry.update(entryId, {
                            status: 'seated',
@@ -702,9 +707,11 @@ function QueueJoinInner() {
                          setPhase('done');
                        } catch (e) {
                          console.error('Error seating:', e);
+                       } finally {
+                         setActionLoading(false);
                        }
                     }}
-                    disabled={loading}
+                    disabled={actionLoading}
                     className="w-full bg-green-500 hover:bg-green-600 active:scale-95 disabled:opacity-50 text-white font-black py-4 rounded-2xl text-xl transition-all shadow-lg"
                   >
                     ✅ הגעתי למארחת!
