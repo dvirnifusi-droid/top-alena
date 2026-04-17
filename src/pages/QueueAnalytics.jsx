@@ -311,6 +311,7 @@ export default function QueueAnalytics() {
                         <th className="text-right p-3 font-semibold text-gray-600">סטטוס</th>
                         <th className="text-right p-3 font-semibold text-gray-600">המתנה</th>
                         <th className="text-right p-3 font-semibold text-gray-600">פינוק</th>
+                        <th className="text-right p-3 font-semibold text-gray-600">סיבת נטישה</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -328,6 +329,9 @@ export default function QueueAnalytics() {
                             <td className={`p-3 font-semibold ${statusColor[e.status]}`}>{statusMap[e.status]}</td>
                             <td className="p-3 text-gray-500">{waitMin != null ? `${waitMin} דק'` : '-'}</td>
                             <td className="p-3">{e.treated ? '🎁' : '-'}</td>
+                            <td className="p-3 text-gray-500 text-xs max-w-[140px]">
+                              {e.status === 'abandoned' && e.notes ? e.notes : '-'}
+                            </td>
                           </tr>
                         );
                       })}
