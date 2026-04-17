@@ -73,6 +73,8 @@ function QueueJoinInner() {
   const [debugLog, setDebugLog] = useState([]);
   const [duplicateEntry, setDuplicateEntry] = useState(null);
   const [isPublicMode] = useState(true); // תמיד בדף ציבורי זה
+  const [customerHistory, setCustomerHistory] = useState(null);
+  const [showPreviousHistory, setShowPreviousHistory] = useState(false);
   const callTimerRef = useRef(null);
 
   // עדכן את ה-phase כשה-entry משתנה
@@ -254,6 +256,18 @@ function QueueJoinInner() {
     setError('');
     setLoading(true);
 
+    // טען היסטוריה של הטלפון הזה
+    try {
+      const histRes = await base44.functions.invoke('getAnonymousCustomerHistory', { phone: form.phone.trim() });
+      setCustomerHistory(histRes.data);
+      if (!histRes.data?.isNewCustomer) {
+        setShowPreviousHistory(true);
+        return; // עצור פה והראה את ההיסטוריה
+      }
+    } catch (e) {
+      console.warn('Could not fetch history:', e);
+    }
+
     try {
       // בדוק אם יש כניסה עם אותו מספר טלפון
       let existing = [];
@@ -403,6 +417,67 @@ function QueueJoinInner() {
             className="w-full text-slate-400 text-sm mt-4 hover:text-slate-600 transition-colors"
           >
             ← רוצה להרשם מחדש
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ========== דף היסטוריה קודמת ==========
+  if (showPreviousHistory && customerHistory && !customerHistory.isNewCustomer) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center p-4" style={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%)' }} dir="rtl">
+        <div className="bg-white/95 backdrop-blur-sm rounded-3xl shadow-2xl p-8 w-full max-w-sm border border-white/20">
+          <div className="text-center mb-6">
+            <div className="text-5xl mb-3">👋</div>
+            <h2 className="text-2xl font-black text-slate-800 mb-1">שלום שוב!</h2>
+            <p className="text-slate-600 text-sm">המערכת זוכרת אותך</p>
+          </div>
+
+          <div className="bg-blue-50 border-2 border-blue-300 rounded-2xl p-4 mb-4 space-y-3">
+            <div className="text-center">
+              <p className="text-sm text-blue-600 font-medium">🔄 זה הביקור שלך</p>
+              <p className="text-2xl font-black text-blue-700">#{customerHistory.visitCount + 1}</p>
+            </div>
+            
+            {customerHistory.seatedCount > 0 && (
+              <div className="text-center pt-2 border-t border-blue-200">
+                <p className="text-xs text-blue-600 mb-1">✅ מהם ישבו בהצלחה</p>
+                <p className="font-bold text-blue-700">{customerHistory.seatedCount} פעמים</p>
+              </div>
+            )}
+
+            {customerHistory.totalCredits > 0 && (
+              <div className="text-center pt-2 border-t border-blue-200 bg-yellow-50 rounded-xl p-2">
+                <p className="text-xs text-yellow-600 mb-1">💰 מטבעות שנתרו לך</p>
+                <p className="font-black text-yellow-700">{customerHistory.totalCredits}</p>
+              </div>
+            )}
+
+            {customerHistory.previousTreat && (
+              <div className="text-center pt-2 border-t border-blue-200 bg-purple-50 rounded-xl p-2">
+                <p className="text-xs text-purple-600 mb-1">🎁 בחרת בעבר:</p>
+                <p className="text-sm text-purple-700 font-medium">פינוק מיוחד</p>
+              </div>
+            )}
+          </div>
+
+          <button
+            onClick={() => setShowPreviousHistory(false)}
+            className="w-full bg-slate-800 hover:bg-slate-900 active:scale-95 text-white font-black py-4 rounded-2xl text-lg transition-all mb-2 shadow-xl"
+          >
+            ✨ ממשיך להרשמה
+          </button>
+
+          <button
+            onClick={() => {
+              setForm({ customer_name: '', phone: '', party_size: 2 });
+              setCustomerHistory(null);
+              setShowPreviousHistory(false);
+            }}
+            className="w-full text-slate-400 text-sm hover:text-slate-600 transition-colors"
+          >
+            זה לא אני - רוצה טלפון אחר
           </button>
         </div>
       </div>
