@@ -771,6 +771,8 @@ export default function QueueDashboard() {
                                   {proxNo && <span className="mr-1 text-xs">🟣 לא בסביבה</span>}
                                   {proxYes && <span className="mr-1 text-xs">🟢 חזר לתור</span>}
                                 </p>
+                                {entry.seating_preference === 'inside' && <span title="העדפה: רק בפנים" className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">🏠 בפנים</span>}
+                                {entry.seating_preference === 'outside' && <span title="העדפה: רק בחוץ" className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">🌳 בחוץ</span>}
                                 <PartySizeIcon size={entry.party_size} />
                                 <span className="text-xs text-gray-500">{entry.party_size}</span>
                                 {entry.treated && <span title="קיבל פינוק">🎁</span>}
