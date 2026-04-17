@@ -52,6 +52,7 @@ export default function QueueJoin() {
   const entryId = urlParams.get('id');
 
   const [phase, setPhase] = useState(entryId ? 'waiting' : 'register');
+  const [geofencingEnabled, setGeofencingEnabled] = useState(true);
   const [geoStatus, setGeoStatus] = useState('idle'); // idle | checking | denied | too_far | ok
   const [showAbandonModal, setShowAbandonModal] = useState(false);
   const [abandonReason, setAbandonReason] = useState('');
@@ -66,6 +67,15 @@ export default function QueueJoin() {
   const [waitMinutes, setWaitMinutes] = useState(0);
   const [callSecondsLeft, setCallSecondsLeft] = useState(null);
   const callTimerRef = useRef(null);
+
+  // טעינת הגדרות מסעדה
+  useEffect(() => {
+    base44.entities.RestaurantProfile.list().then(profiles => {
+      if (profiles.length > 0 && profiles[0].geofencing_enabled === false) {
+        setGeofencingEnabled(false);
+      }
+    }).catch(() => {});
+  }, []);
 
   // רענון אוטומטי כל 10 שניות
   useEffect(() => {
@@ -139,8 +149,7 @@ export default function QueueJoin() {
       return;
     }
     setError('');
-    if (!navigator.geolocation) {
-      // דפדפן לא תומך — מאפשרים להירשם ללא בדיקה
+    if (!geofencingEnabled || !navigator.geolocation) {
       handleRegister();
       return;
     }

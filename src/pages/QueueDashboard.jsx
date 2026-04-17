@@ -38,6 +38,8 @@ export default function QueueDashboard() {
   const [entries, setEntries] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showQR, setShowQR] = useState(false);
+  const [geofencingEnabled, setGeofencingEnabled] = useState(true);
+  const [restaurantProfileId, setRestaurantProfileId] = useState(null);
   const [smsSent, setSmsSent] = useState({});
   const [partySizeFilter, setPartySizeFilter] = useState(null);
   const [countdowns, setCountdowns] = useState({}); // entryId -> secondsLeft (seat countdown)
@@ -71,6 +73,27 @@ export default function QueueDashboard() {
     const interval = setInterval(fetchEntries, 8000);
     return () => clearInterval(interval);
   }, [fetchEntries]);
+
+  useEffect(() => {
+    base44.entities.RestaurantProfile.list().then(profiles => {
+      if (profiles.length > 0) {
+        setRestaurantProfileId(profiles[0].id);
+        setGeofencingEnabled(profiles[0].geofencing_enabled !== false);
+      }
+    }).catch(() => {});
+  }, []);
+
+  const toggleGeofencing = async () => {
+    const newVal = !geofencingEnabled;
+    setGeofencingEnabled(newVal);
+    if (restaurantProfileId) {
+      await base44.entities.RestaurantProfile.update(restaurantProfileId, { geofencing_enabled: newVal });
+    } else {
+      // צור פרופיל חדש אם לא קיים
+      const profile = await base44.entities.RestaurantProfile.create({ restaurant_name: 'עלינא', geofencing_enabled: newVal });
+      setRestaurantProfileId(profile.id);
+    }
+  };
 
   // שלח SMS אוטומטי כשמישהו הופך להיות הבא בתור
   useEffect(() => {
@@ -312,6 +335,17 @@ export default function QueueDashboard() {
           <Button variant="outline" size="sm" onClick={() => setShowQR(!showQR)}>
             <QrCode className="w-4 h-4 ml-1" /> QR
           </Button>
+          <button
+            onClick={toggleGeofencing}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold border-2 transition-all ${
+              geofencingEnabled
+                ? 'bg-emerald-50 border-emerald-400 text-emerald-700'
+                : 'bg-gray-100 border-gray-300 text-gray-500'
+            }`}
+          >
+            <span>{geofencingEnabled ? '📍' : '📍'}</span>
+            {geofencingEnabled ? 'מיקום: פעיל' : 'מיקום: כבוי'}
+          </button>
         </div>
       </div>
 
