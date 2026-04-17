@@ -112,22 +112,10 @@ function QueueJoinInner() {
     if (!entryId) return;
 
     const fetchStatus = async () => {
-      try {
-        const all = await base44.entities.QueueEntry.list('-timestamp_register', 300);
-        const found = all.find(e => e.id === entryId);
-        if (!found) {
-          // אם לא נמצא באופן ישיר, נסה לקבל ישירות
-          const direct = await base44.entities.QueueEntry.get ? await base44.entities.QueueEntry.get(entryId) : null;
-          if (direct) {
-            setEntry(direct);
-          }
-          return;
-        }
-        setEntry(found);
-      } catch (e) {
-        console.error('Error fetching queue status:', e);
-        return;
-      }
+      const all = await base44.entities.QueueEntry.list('-timestamp_register', 300);
+      const found = all.find(e => e.id === entryId);
+      if (!found) return;
+      setEntry(found);
 
       if (found.status === 'seated' || found.status === 'abandoned') {
         setPhase('done');
