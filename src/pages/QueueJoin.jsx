@@ -348,7 +348,12 @@ function QueueJoinInner() {
         party_size: parseInt(form.party_size),
       });
       console.log('Response from createQueueEntry:', res);
-      const newEntry = res.data?.entry || res.entry || res;
+      
+      if (res.error || !res.data?.entry) {
+        throw new Error(res.error || 'שגיאה בהרשמה - נסה שוב');
+      }
+      
+      const newEntry = res.data.entry;
       console.log('New entry:', newEntry);
 
       if (!newEntry || !newEntry.id) {
