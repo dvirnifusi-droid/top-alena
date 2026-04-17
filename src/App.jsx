@@ -12,6 +12,7 @@ import TrainingVideos from './pages/TrainingVideos';
 import QueueJoin from './pages/QueueJoin';
 import QueueDashboard from './pages/QueueDashboard';
 import QueueAnalytics from './pages/QueueAnalytics';
+import QueueGame from './pages/QueueGame';
 
 const { Pages, Layout, mainPage } = pagesConfig;
 const mainPageKey = mainPage ?? Object.keys(Pages)[0];
@@ -73,6 +74,7 @@ const AuthenticatedApp = () => {
       <Route path="/QueueJoin" element={<QueueJoin />} />
       <Route path="/QueueDashboard" element={<LayoutWrapper currentPageName="QueueDashboard"><QueueDashboard /></LayoutWrapper>} />
       <Route path="/QueueAnalytics" element={<LayoutWrapper currentPageName="QueueAnalytics"><QueueAnalytics /></LayoutWrapper>} />
+      <Route path="/QueueGame" element={<QueueGame />} />
       <Route path="*" element={<PageNotFound />} />
     </Routes>
   );

@@ -310,6 +310,19 @@ export default function QueueJoin() {
             </>
           )}
 
+          {/* כפתור משחק */}
+          {isActive && (
+            <div className="text-center pt-1">
+              <a
+                href={`/QueueGame?entry=${entryId}&name=${encodeURIComponent(entry?.customer_name || 'אורח')}`}
+                className="flex items-center justify-center gap-2 w-full bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 active:scale-95 text-white font-black py-3.5 rounded-2xl text-base transition-all shadow-lg"
+              >
+                🎮 שחק עם שאר הממתינים!
+              </a>
+              <p className="text-gray-400 text-xs mt-1.5">טריוויה על המסעדה · תוצאות לייב</p>
+            </div>
+          )}
+
           {/* רענון אוטומטי */}
           <div className="text-center pt-2">
             <p className="text-gray-300 text-xs">📡 מתרענן אוטומטית כל 10 שניות</p>

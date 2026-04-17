@@ -1,0 +1,44 @@
+{
+  "name": "QueueGameSession",
+  "type": "object",
+  "properties": {
+    "player_name": {
+      "type": "string",
+      "description": "\u05e9\u05dd \u05d4\u05e9\u05d7\u05e7\u05df"
+    },
+    "queue_entry_id": {
+      "type": "string",
+      "description": "\u05de\u05d6\u05d4\u05d4 \u05e8\u05e9\u05d5\u05de\u05ea \u05d4\u05ea\u05d5\u05e8"
+    },
+    "score": {
+      "type": "integer",
+      "default": 0,
+      "description": "\u05e0\u05d9\u05e7\u05d5\u05d3"
+    },
+    "answers": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "q": {
+            "type": "integer"
+          },
+          "correct": {
+            "type": "boolean"
+          },
+          "ms": {
+            "type": "integer"
+          }
+        }
+      },
+      "description": "\u05ea\u05e9\u05d5\u05d1\u05d5\u05ea"
+    },
+    "finished": {
+      "type": "boolean",
+      "default": false
+    }
+  },
+  "required": [
+    "player_name"
+  ]
+}
