@@ -541,17 +541,11 @@ function QueueJoinInner() {
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-start pt-8 p-4" style={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%)' }} dir="rtl">
-    {/* לוגו + כפתור רענון */}
-    <div className="text-center mb-8 flex flex-col items-center">
+    {/* לוגו */}
+    <div className="text-center mb-8">
       <div className="text-5xl mb-2 drop-shadow-lg">🍽️</div>
       <h1 className="text-3xl font-black text-white">עלינא</h1>
       <p className="text-slate-300 text-xs mt-1 font-light">קו אישי לתור</p>
-      <button
-        onClick={() => window.location.reload()}
-        className="mt-4 px-4 py-2 bg-white/20 hover:bg-white/30 text-white text-sm font-bold rounded-full transition-all"
-      >
-        🔄 רענן
-      </button>
     </div>
 
     {/* כרטיס ראשי */}
@@ -564,6 +558,47 @@ function QueueJoinInner() {
         </div>
 
         <div className="p-6 space-y-4">
+
+          {/* מקום בתור + פרסים */}
+          {isActive && (
+            <>
+              {/* מקום בתור */}
+              {queuePosition != null && (
+                <div className="bg-blue-50 border-2 border-blue-300 rounded-2xl p-4 text-center mb-4">
+                  <p className="text-blue-800 font-black text-5xl">{queuePosition}</p>
+                  <p className="text-blue-600 text-sm mt-2 font-bold">מקום בתור</p>
+                </div>
+              )}
+
+              {/* פרסים זמינים */}
+              {treats.length > 0 && (
+                <div className="bg-gradient-to-r from-purple-50 to-pink-50 border-2 border-purple-200 rounded-2xl p-4">
+                  <p className="font-black text-purple-800 text-sm mb-3 text-center">🎁 פרסים שאתה יכול להרוויח</p>
+                  <div className="space-y-2">
+                    {treats.map(treat => (
+                      <div key={treat.id} className="bg-white rounded-xl p-3 flex items-center justify-between border border-purple-100">
+                        <div className="flex-1 min-w-0">
+                          <p className="font-bold text-sm text-gray-800">{treat.emoji} {treat.name}</p>
+                          <p className="text-xs text-gray-500">{treat.description}</p>
+                        </div>
+                        <div className="text-right ml-3 flex-shrink-0">
+                          <p className={`font-black text-sm ${timeCreditsEarned >= treat.cost ? 'text-purple-700' : 'text-gray-400'}`}>
+                            {treat.cost} 💰
+                          </p>
+                          {timeCreditsEarned >= treat.cost && (
+                            <span className="text-xs text-green-600 font-bold">✅ זמין!</span>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-xs text-purple-600 text-center mt-3">
+                    💡 צבור עוד {treats.length > 0 ? Math.max(0, treats[0].cost - timeCreditsEarned) : 0} מטבעות להפוך לאפשרי
+                  </p>
+                </div>
+              )}
+            </>
+          )}
 
           {/* באנר בדיקת קרבה */}
           {showProximityBanner && (
@@ -654,41 +689,7 @@ function QueueJoinInner() {
                 </p>
               </div>
 
-              {/* פרסים זמינים */}
-              {treats.length > 0 && (
-                <div className="bg-gradient-to-r from-purple-50 to-pink-50 border-2 border-purple-200 rounded-2xl p-4">
-                  <p className="font-black text-purple-800 text-sm mb-3 text-center">🎁 פרסים שאתה יכול להרוויח</p>
-                  <div className="space-y-2">
-                    {treats.map(treat => (
-                      <div key={treat.id} className="bg-white rounded-xl p-3 flex items-center justify-between border border-purple-100">
-                        <div className="flex-1 min-w-0">
-                          <p className="font-bold text-sm text-gray-800">{treat.emoji} {treat.name}</p>
-                          <p className="text-xs text-gray-500">{treat.description}</p>
-                        </div>
-                        <div className="text-right ml-3 flex-shrink-0">
-                          <p className={`font-black text-sm ${timeCreditsEarned >= treat.cost ? 'text-purple-700' : 'text-gray-400'}`}>
-                            {treat.cost} 💰
-                          </p>
-                          {timeCreditsEarned >= treat.cost && (
-                            <span className="text-xs text-green-600 font-bold">✅ זמין!</span>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                  <p className="text-xs text-purple-600 text-center mt-3">
-                   💡 צבור עוד {treats.length > 0 ? Math.max(0, treats[0].cost - timeCreditsEarned) : 0} מטבעות להפוך לאפשרי
-                 </p>
-                </div>
-              )}
 
-              {/* מיקום בתור */}
-              {queuePosition != null && (
-                <div className="bg-blue-50 border-2 border-blue-300 rounded-2xl p-4 text-center">
-                  <p className="text-blue-800 font-black text-5xl">{queuePosition}</p>
-                  <p className="text-blue-600 text-sm mt-2 font-bold">מקום בתור</p>
-                </div>
-              )}
 
               {queuePosition === 1 && (
                 <div className="bg-green-50 border-2 border-green-400 rounded-2xl p-3 text-center animate-pulse">
