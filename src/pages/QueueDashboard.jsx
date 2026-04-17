@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
+import { sendQueueSms } from '@/functions/sendQueueSms';
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import { Check, X, Gift, UserCheck, Clock, Users, RefreshCw, QrCode } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -35,7 +36,17 @@ export default function QueueDashboard() {
   const [entries, setEntries] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showQR, setShowQR] = useState(false);
+  const [smsSent, setSmsSent] = useState({}); // track sent SMS per entry id
+  const prevFirstActiveRef = useRef(null);
   const qrUrl = `${window.location.origin}/QueueJoin`;
+
+  const sendSms = async (phone, message) => {
+    try {
+      await sendQueueSms({ to: phone, message });
+    } catch (e) {
+      console.error('SMS error:', e);
+    }
+  };
 
   const fetchEntries = useCallback(async () => {
     const all = await base44.entities.QueueEntry.list('-timestamp_register', 300);
@@ -48,6 +59,29 @@ export default function QueueDashboard() {
     const interval = setInterval(fetchEntries, 8000);
     return () => clearInterval(interval);
   }, [fetchEntries]);
+
+  // שלח SMS אוטומטי כשמישהו הופך להיות הבא בתור
+  useEffect(() => {
+    const activeQueue = entries
+      .filter(e => e.status === 'active')
+      .sort((a, b) => (a.sort_order ?? 9999) - (b.sort_order ?? 9999));
+
+    if (activeQueue.length === 0) return;
+
+    const firstEntry = activeQueue[0];
+    const prevFirst = prevFirstActiveRef.current;
+
+    // אם הראשון בתור השתנה ולא שלחנו לו עדיין
+    if (prevFirst && prevFirst !== firstEntry.id && !smsSent[firstEntry.id + '_next']) {
+      setSmsSent(prev => ({ ...prev, [firstEntry.id + '_next']: true }));
+      sendSms(
+        firstEntry.phone,
+        `שלום ${firstEntry.customer_name}! 🎉 אתם הבאים בתור במסעדת עלינא. אנא היו מוכנים - השולחן שלכם מתפנה עכשיו!`
+      );
+    }
+
+    prevFirstActiveRef.current = firstEntry.id;
+  }, [entries]);
 
   const pendingEntries = entries.filter(e => e.status === 'pending')
     .sort((a, b) => new Date(a.timestamp_register) - new Date(b.timestamp_register));
@@ -71,6 +105,11 @@ export default function QueueDashboard() {
       status: 'seated',
       timestamp_end: new Date().toISOString(),
     });
+    // SMS הושבה
+    sendSms(
+      entry.phone,
+      `שלום ${entry.customer_name}! 🍽️ השולחן שלכם מוכן! המארחת ממתינה לכם. בתיאבון ממסעדת עלינא!`
+    );
     fetchEntries();
   };
 
@@ -118,7 +157,11 @@ export default function QueueDashboard() {
           <h1 className="text-2xl font-black text-gray-800">🎯 ניהול תור - מסעדת עלינא</h1>
           <p className="text-gray-500 text-sm">דאשבורד מארחת בזמן אמת</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 items-center">
+          <span className="text-xs text-gray-400 flex items-center gap-1">
+            <span className="w-2 h-2 bg-green-400 rounded-full inline-block"></span>
+            SMS פעיל
+          </span>
           <Button variant="outline" size="sm" onClick={fetchEntries}>
             <RefreshCw className="w-4 h-4 ml-1" /> רענן
           </Button>
