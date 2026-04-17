@@ -137,9 +137,7 @@ function QueueJoinInner() {
       if (event.id === entryId) {
         // עדכן מיד כשיש שינוי
         setEntry(event.data);
-        if (event.data?.status === 'seated' || event.data?.status === 'abandoned') {
-          setPhase('done');
-        }
+        // phase יתעדכן אוטומטית דרך ה-useEffect של entry
       }
     });
 
