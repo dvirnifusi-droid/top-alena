@@ -53,11 +53,17 @@ export default function QuestionGame({ players, category, questions }) {
   };
 
   if (gameOver) {
+    const winner = players[Math.floor(Math.random() * players.length)];
     return (
       <div className="flex flex-col items-center gap-4 p-6 text-center">
-        <div className="text-6xl">🎉</div>
+        <div className="text-6xl animate-bounce">🎉</div>
         <h2 className="text-3xl font-black text-gray-800">משחק הסתיים!</h2>
         <p className="text-lg text-gray-600">ענית על {answered.length} שאלות</p>
+        <div className="bg-gradient-to-r from-yellow-100 to-orange-100 border-2 border-orange-400 rounded-2xl p-6 w-full mt-4">
+          <p className="text-sm text-orange-600 font-bold mb-2">המנצח הוא:</p>
+          <p className="text-4xl font-black text-orange-700">🏆 {winner}</p>
+          <p className="text-xs text-orange-500 mt-2">מי שתפתור את המטלה הבאה!</p>
+        </div>
         <Button
           onClick={() => {
             setAnswered([]);
