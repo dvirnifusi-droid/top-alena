@@ -824,7 +824,7 @@ export default function QueueDashboard() {
                             )}
 
                             {/* כפתורי פעולה */}
-                            <div className="grid grid-cols-5 gap-1 flex-shrink-0">
+                            <div className="grid grid-cols-3 gap-1 flex-shrink-0">
                               {/* היסטוריה */}
                               <button
                                 onClick={() => openCustomerHistory(entry.phone)}
