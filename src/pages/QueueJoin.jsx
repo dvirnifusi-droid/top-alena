@@ -428,7 +428,7 @@ function QueueJoinInner() {
   const showProximityBanner = entry?.proximity_response === 'pending' && entry?.proximity_check_at;
 
   // אם הלקוח פעיל בתור והמארחת שלחה קישור - הצג כרטיס עשיר
-  const shouldShowRichCard = isActive && !callSecondsLeft;
+  const shouldShowRichCard = entry && isActive && !callSecondsLeft;
 
   const handleProximityResponse = async (answer) => {
     await base44.entities.QueueEntry.update(entryId, {
