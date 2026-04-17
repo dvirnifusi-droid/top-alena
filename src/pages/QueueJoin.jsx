@@ -221,18 +221,16 @@ function QueueJoinInner() {
     };
   }, [entryId]);
 
-  // טיק-טוק עדכון זמן מצטבר בלייב + צבירת מטבעות (מתחיל אחרי 30 דק')
+  // טיק-טוק עדכון זמן מצטבר בלייב + צבירת מטבעות (7 מטבעות לדקה)
   useEffect(() => {
     if (!entry?.timestamp_approved) return;
     const tick = setInterval(() => {
       const waitMin = Math.round((Date.now() - new Date(entry.timestamp_approved).getTime()) / 60000);
       setWaitMinutes(waitMin);
-      // צביר 100 מטבעות לכל 10 דקות המתנה - רק אחרי 30 דק' ממתנה
-      const calculatedCredits = waitMin >= 30 ? Math.floor((waitMin - 30) / 10) * 100 : 0;
-      // משלב בונוסים שנתנה המארחת עם ההצטברות הטבעית
-      const totalCredits = (entry.time_credits_earned || 0) + (calculatedCredits > (entry.time_credits_earned || 0) ? calculatedCredits - (entry.time_credits_earned || 0) : 0);
-      setTimeCreditsEarned(entry.time_credits_earned || calculatedCredits);
-    }, 10000); // עדכון כל 10 שניות לדיוק
+      // צביר 7 מטבעות לכל דקת המתנה
+      const calculatedCredits = Math.floor(waitMin * 7);
+      setTimeCreditsEarned(Math.max(entry.time_credits_earned || 0, calculatedCredits));
+    }, 10000);
     return () => clearInterval(tick);
   }, [entry?.timestamp_approved, entry?.time_credits_earned]);
 
@@ -673,7 +671,7 @@ function QueueJoinInner() {
                     ))}
                   </div>
                   <p className="text-xs text-purple-600 text-center mt-3">
-                    💡 צבור עוד {Math.max(0, 30 - waitMinutes)} דקות כדי להתחיל להצטבר מטבעות
+                   💡 צברת {timeCreditsEarned} מטבעות עד כה
                   </p>
                 </div>
               )}
