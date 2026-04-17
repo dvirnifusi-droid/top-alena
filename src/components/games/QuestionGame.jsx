@@ -224,6 +224,14 @@ export default function QuestionGame({ players, category, questions }) {
       {/* סטטוס */}
       <p className="text-purple-300 text-xs text-center">🎮 המשחק לא מסתיים - שחקו כמה שאתם רוצים!</p>
 
+      {/* חזור לתור */}
+      <button
+        onClick={() => window.history.back()}
+        className="text-purple-300 hover:text-white text-sm transition-colors mt-4"
+      >
+        ← חזור לתור
+      </button>
+
       {/* מודאל בחירת מנצח */}
       {showWinnerPicker && (
         <div className="fixed inset-0 bg-black/60 flex items-end justify-center z-50 p-4" dir="rtl">
