@@ -80,6 +80,26 @@ function QueueJoinInner() {
   const historyTimeoutRef = useRef(null);
   const callTimerRef = useRef(null);
 
+  // טען את רשימת כל הממתינים כשמודאל נפתח
+  useEffect(() => {
+    if (showQueueList) {
+      base44.entities.QueueEntry.filter({ status: 'pending' }, '-timestamp_register', 100)
+        .then(entries => setAllQueueEntries(entries))
+        .catch(() => setAllQueueEntries([]));
+    }
+  }, [showQueueList]);
+
+  const handleDeleteEntry = async (id) => {
+    if (window.confirm('בטוח להסיר את ההרשמה?')) {
+      try {
+        await base44.entities.QueueEntry.delete(id);
+        setAllQueueEntries(prev => prev.filter(e => e.id !== id));
+      } catch (e) {
+        console.error('Error:', e);
+      }
+    }
+  };
+
   // עדכן את ה-phase כשה-entry משתנה
   useEffect(() => {
     if (!entry) {
@@ -519,26 +539,6 @@ function QueueJoinInner() {
       </div>
     );
   }
-
-  // טען את רשימת כל הממתינים כשמודאל נפתח
-  useEffect(() => {
-    if (showQueueList) {
-      base44.entities.QueueEntry.filter({ status: 'pending' }, '-timestamp_register', 100)
-        .then(entries => setAllQueueEntries(entries))
-        .catch(() => setAllQueueEntries([]));
-    }
-  }, [showQueueList]);
-
-  const handleDeleteEntry = async (id) => {
-    if (window.confirm('בטוח להסיר את ההרשמה?')) {
-      try {
-        await base44.entities.QueueEntry.delete(id);
-        setAllQueueEntries(prev => prev.filter(e => e.id !== id));
-      } catch (e) {
-        console.error('Error:', e);
-      }
-    }
-  };
 
   // ========== דף הרשמה ==========
   if (phase === 'register') {
