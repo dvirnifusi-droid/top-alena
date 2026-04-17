@@ -696,14 +696,27 @@ export default function QueueDashboard() {
                       </p>
                     </div>
                   </div>
-                  <Button
-                    size="sm"
-                    className="bg-emerald-600 hover:bg-emerald-700 text-white flex-shrink-0"
-                    onClick={() => handleApprove(entry)}
-                  >
-                    <UserCheck className="w-4 h-4 ml-1" />
-                    אשר נוכחות
-                  </Button>
+                  <div className="flex gap-2 flex-shrink-0">
+                    <Button
+                      size="sm"
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                      onClick={() => handleApprove(entry)}
+                    >
+                      <UserCheck className="w-4 h-4 ml-1" />
+                      אשר
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      onClick={() => {
+                        if (window.confirm(`בטוח למחוק את ${entry.customer_name}?`)) {
+                          base44.entities.QueueEntry.delete(entry.id).then(() => fetchEntries()).catch(e => console.error(e));
+                        }
+                      }}
+                    >
+                      <X className="w-4 h-4" />
+                    </Button>
+                  </div>
                 </CardContent>
               </Card>
             ))}
