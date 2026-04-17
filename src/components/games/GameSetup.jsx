@@ -7,7 +7,7 @@ const CATEGORIES = {
   date: { label: '💕 דייט רומנטי', vibe: '🌹 רומנטי • קרוב • מתוק', color: 'from-red-500 to-pink-500' },
   family: { label: '👨‍👩‍👧‍👦 ארוחה משפחתית', vibe: '🏡 נוסטלגיה • חום • ממלא פה', color: 'from-amber-500 to-yellow-500' },
   bday: { label: '🎉 חגיגת יום הולדת', vibe: '🎊 חגיגה • כיף • שמחה', color: 'from-purple-500 to-pink-500' },
-  girls: { label: '💃 ערב בנות', vibe: '✨ חברויות • דקויות • סוד', color: 'from-violet-500 to-purple-500' },
+  girls: { label: '💃 ערב בנות', vibe: '✨ חברויות • דקויות • סוד\n⚠️ גיל 24+', color: 'from-violet-500 to-purple-500' },
   business: { label: '💼 פגישת עסקים', vibe: '🤝 מקצועי • חזק • בררני', color: 'from-blue-500 to-indigo-500' },
 };
 
