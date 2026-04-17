@@ -3,6 +3,20 @@ import { base44 } from '@/api/base44Client';
 
 const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY || '';
 
+// קואורדינטות המסעדה — עדכן לפי המיקום האמיתי של המסעדה
+// כדי לקבל קואורדינטות: פתח Google Maps, חפש את המסעדה, לחץ ימני → "מה כאן?"
+const RESTAURANT_LAT = 32.0853;
+const RESTAURANT_LNG = 34.7818;
+const MAX_DISTANCE_METERS = 100;
+
+function calcDistance(lat1, lon1, lat2, lon2) {
+  const R = 6371000;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
 async function registerPushAndSave(entryId) {
   if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
   try {
@@ -38,6 +52,7 @@ export default function QueueJoin() {
   const entryId = urlParams.get('id');
 
   const [phase, setPhase] = useState(entryId ? 'waiting' : 'register');
+  const [geoStatus, setGeoStatus] = useState('idle'); // idle | checking | denied | too_far | ok
   const [showAbandonModal, setShowAbandonModal] = useState(false);
   const [abandonReason, setAbandonReason] = useState('');
   const [abandonOther, setAbandonOther] = useState('');
@@ -118,11 +133,39 @@ export default function QueueJoin() {
     return () => clearInterval(tick);
   }, [entry?.timestamp_approved]);
 
-  const handleRegister = async () => {
+  const checkGeoAndRegister = () => {
     if (!form.customer_name.trim() || !form.phone.trim()) {
       setError('נא למלא שם ומספר טלפון');
       return;
     }
+    setError('');
+    if (!navigator.geolocation) {
+      // דפדפן לא תומך — מאפשרים להירשם ללא בדיקה
+      handleRegister();
+      return;
+    }
+    setGeoStatus('checking');
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const dist = calcDistance(pos.coords.latitude, pos.coords.longitude, RESTAURANT_LAT, RESTAURANT_LNG);
+        if (dist <= MAX_DISTANCE_METERS) {
+          setGeoStatus('ok');
+          handleRegister();
+        } else {
+          setGeoStatus('too_far');
+        }
+      },
+      () => {
+        // המשתמש סירב / שגיאה — נאפשר הרשמה (לא לחסום לגמרי)
+        setGeoStatus('denied');
+        handleRegister();
+      },
+      { timeout: 8000, maximumAge: 0, enableHighAccuracy: true }
+    );
+  };
+
+  const handleRegister = async () => {
+    setGeoStatus('idle');
     setLoading(true);
     setError('');
 
@@ -222,21 +265,51 @@ export default function QueueJoin() {
               </div>
             )}
 
-            <button
-              onClick={handleRegister}
-              disabled={loading}
-              className="w-full bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-black py-4 rounded-2xl text-lg transition-all disabled:opacity-50 shadow-lg mt-2"
-            >
-              {loading ? (
-                <span className="flex items-center justify-center gap-2">
+            {/* מסך בדיקת מיקום */}
+            {geoStatus === 'checking' && (
+              <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4 text-center">
+                <div className="flex items-center justify-center gap-2 text-blue-700">
                   <svg className="animate-spin w-5 h-5" viewBox="0 0 24 24" fill="none">
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
                   </svg>
-                  מצטרף לתור...
-                </span>
-              ) : '✅ הצטרף לתור'}
-            </button>
+                  <span className="font-bold text-sm">מאמת שאתם ליד המסעדה...</span>
+                </div>
+              </div>
+            )}
+
+            {/* רחוק מדי */}
+            {geoStatus === 'too_far' && (
+              <div className="bg-red-50 border-2 border-red-300 rounded-2xl p-5 text-center">
+                <div className="text-4xl mb-2">📍</div>
+                <p className="font-black text-red-700 text-base mb-1">אתם רחוקים מדי מהמסעדה</p>
+                <p className="text-red-500 text-sm mb-4">ניתן להירשם לתור רק כשאתם עומדים בכניסה למסעדה (עד 100 מטר)</p>
+                <button
+                  onClick={() => setGeoStatus('idle')}
+                  className="text-sm text-red-400 underline"
+                >
+                  נסה שוב
+                </button>
+              </div>
+            )}
+
+            {geoStatus !== 'too_far' && (
+              <button
+                onClick={checkGeoAndRegister}
+                disabled={loading || geoStatus === 'checking'}
+                className="w-full bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-black py-4 rounded-2xl text-lg transition-all disabled:opacity-50 shadow-lg mt-2"
+              >
+                {loading ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <svg className="animate-spin w-5 h-5" viewBox="0 0 24 24" fill="none">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+                    </svg>
+                    מצטרף לתור...
+                  </span>
+                ) : '✅ הצטרף לתור'}
+              </button>
+            )}
           </div>
         </div>
 
