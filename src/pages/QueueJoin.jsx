@@ -236,18 +236,20 @@ function QueueJoinInner() {
     };
   }, [entryId]);
 
-  // טיק-טוק עדכון זמן מצטבר בלייב + צבירת מטבעות (7 מטבעות לדקה)
+  // טיק-טוק עדכון זמן מצטבר בלייב + צבירת מטבעות (7 מטבעות לדקה) - עד שיושב
   useEffect(() => {
-    if (!entry?.timestamp_approved) return;
+    if (!entry?.timestamp_approved || entry.status === 'seated') return;
     const tick = setInterval(() => {
       const waitMin = Math.round((Date.now() - new Date(entry.timestamp_approved).getTime()) / 60000);
       setWaitMinutes(waitMin);
-      // צביר 7 מטבעות לכל דקת המתנה
-      const calculatedCredits = Math.floor(waitMin * 7);
-      setTimeCreditsEarned(Math.max(entry.time_credits_earned || 0, calculatedCredits));
+      // צביר 7 מטבעות לכל דקת המתנה - רק אם לא יושב
+      if (entry.status !== 'seated') {
+        const calculatedCredits = Math.floor(waitMin * 7);
+        setTimeCreditsEarned(Math.max(entry.time_credits_earned || 0, calculatedCredits));
+      }
     }, 3000);
     return () => clearInterval(tick);
-  }, [entry?.timestamp_approved, entry?.time_credits_earned]);
+  }, [entry?.timestamp_approved, entry?.status, entry?.time_credits_earned]);
 
   // טען היסטוריה אוטומטית כשהטלפון משתנה (debounce)
   useEffect(() => {
