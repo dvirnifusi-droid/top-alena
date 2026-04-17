@@ -16,6 +16,7 @@ import QueueAnalytics from './pages/QueueAnalytics';
 import QueueGame from './pages/QueueGame';
 import GamesAdmin from './pages/GamesAdmin';
 import QueueFeedback from './pages/QueueFeedback';
+import MarketingCampaigns from './pages/MarketingCampaigns';
 
 const { Pages, Layout, mainPage } = pagesConfig;
 const mainPageKey = mainPage ?? Object.keys(Pages)[0];
@@ -95,6 +96,7 @@ function App() {
           <Route path="/QueueFeedback" element={<QueueFeedback />} />
           
           {/* דורש התחברות */}
+          <Route path="/MarketingCampaigns" element={<MarketingCampaigns />} />
           <Route path="/*" element={
             <AuthProvider>
               <AuthenticatedApp />
