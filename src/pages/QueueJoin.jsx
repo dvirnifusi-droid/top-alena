@@ -721,22 +721,11 @@ function QueueJoinInner() {
                   <p className="text-sm text-gray-500 mb-4">גשו למארחת — יש לכם {Math.ceil(callSecondsLeft / 60)} דקות!</p>
                   <button
                    onClick={async () => {
-                     setActionLoading(true);
                      try {
-                       const now = new Date().toISOString();
-                       await base44.entities.QueueEntry.update(entryId, {
-                         status: 'seated',
-                         proximity_response: 'yes',
-                         timestamp_end: now,
-                         timestamp_seated: now,
-                         seat_called_at: null,
-                         time_credits_earned: timeCreditsEarned,
-                       });
+                       await base44.functions.invoke('seatGuest', { entryId });
                        setPhase('done');
                      } catch (e) {
                        console.error('Error seating:', e);
-                     } finally {
-                       setActionLoading(false);
                      }
                    }}
                    disabled={actionLoading}
