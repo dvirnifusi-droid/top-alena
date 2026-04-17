@@ -286,24 +286,36 @@ function QueueJoinInner() {
       // אם גיאופנסינג פעיל, בדוק מיקום
       console.log('Starting geolocation check...');
       setGeoStatus('checking');
+      
+      // timeout של 5 שניות - אם לא קיבלנו תשובה, המשך בלעדיה
+      const geoTimeout = setTimeout(() => {
+        console.log('Geolocation timeout - proceeding without location');
+        setGeoStatus('denied');
+        handleRegister();
+      }, 5000);
+      
       navigator.geolocation.getCurrentPosition(
         (pos) => {
+          clearTimeout(geoTimeout);
           const dist = calcDistance(pos.coords.latitude, pos.coords.longitude, RESTAURANT_LAT, RESTAURANT_LNG);
           console.log('Distance:', dist, 'meters');
           if (dist <= MAX_DISTANCE_METERS) {
+            console.log('✅ User is within range - approving');
             setGeoStatus('ok');
             handleRegister();
           } else {
+            console.log('❌ User is too far - rejecting');
             setGeoStatus('too_far');
             setLoading(false);
           }
         },
-        () => {
-          console.log('Geolocation denied/unavailable - proceeding without location');
+        (err) => {
+          clearTimeout(geoTimeout);
+          console.log('Geolocation error:', err.code, err.message);
           setGeoStatus('denied');
           handleRegister();
         },
-        { timeout: 8000, maximumAge: 0, enableHighAccuracy: true }
+        { timeout: 4000, maximumAge: 0, enableHighAccuracy: false }
       );
     } catch (e) {
       console.error('Error in checkGeoAndRegister:', e);
