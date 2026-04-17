@@ -37,7 +37,8 @@ export default function QueueDashboard() {
   const [entries, setEntries] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showQR, setShowQR] = useState(false);
-  const [smsSent, setSmsSent] = useState({}); // track sent SMS per entry id
+  const [smsSent, setSmsSent] = useState({});
+  const [partySizeFilter, setPartySizeFilter] = useState(null); // null = הכל
   const prevFirstActiveRef = useRef(null);
   const qrUrl = `${window.location.origin}/QueueJoin`;
 
@@ -90,11 +91,26 @@ export default function QueueDashboard() {
     prevFirstActiveRef.current = firstEntry.id;
   }, [entries]);
 
-  const pendingEntries = entries.filter(e => e.status === 'pending')
-    .sort((a, b) => new Date(a.timestamp_register) - new Date(b.timestamp_register));
+  const filterByParty = (list) =>
+    partySizeFilter ? list.filter(e => e.party_size === partySizeFilter) : list;
 
-  const activeEntries = entries.filter(e => e.status === 'active')
-    .sort((a, b) => (a.sort_order ?? 9999) - (b.sort_order ?? 9999));
+  const pendingEntries = filterByParty(
+    entries.filter(e => e.status === 'pending')
+      .sort((a, b) => new Date(a.timestamp_register) - new Date(b.timestamp_register))
+  );
+
+  const activeEntries = filterByParty(
+    entries.filter(e => e.status === 'active')
+      .sort((a, b) => (a.sort_order ?? 9999) - (b.sort_order ?? 9999))
+  );
+
+  // ספירה לפי גודל קבוצה (רק active + pending)
+  const partySizeCounts = entries
+    .filter(e => e.status === 'pending' || e.status === 'active')
+    .reduce((acc, e) => {
+      acc[e.party_size] = (acc[e.party_size] || 0) + 1;
+      return acc;
+    }, {});
 
   const handleApprove = async (entry) => {
     const now = new Date().toISOString();
@@ -215,6 +231,42 @@ export default function QueueDashboard() {
           </CardContent>
         </Card>
       </div>
+
+      {/* פילטר גודל קבוצה */}
+      {Object.keys(partySizeCounts).length > 0 && (
+        <div className="mb-4 flex flex-wrap gap-2 items-center">
+          <span className="text-sm font-bold text-gray-600">סנן לפי גודל:</span>
+          <button
+            onClick={() => setPartySizeFilter(null)}
+            className={`px-3 py-1.5 rounded-full text-sm font-bold transition-all ${
+              partySizeFilter === null
+                ? 'bg-gray-700 text-white'
+                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+            }`}
+          >
+            הכל
+          </button>
+          {Object.entries(partySizeCounts)
+            .sort(([a], [b]) => Number(a) - Number(b))
+            .map(([size, count]) => (
+              <button
+                key={size}
+                onClick={() => setPartySizeFilter(partySizeFilter === Number(size) ? null : Number(size))}
+                className={`px-3 py-1.5 rounded-full text-sm font-bold transition-all flex items-center gap-1 ${
+                  partySizeFilter === Number(size)
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-blue-50 text-blue-700 hover:bg-blue-100'
+                }`}
+              >
+                {Number(size) === 1 ? '👤' : Number(size) === 2 ? '👫' : Number(size) <= 3 ? '👨‍👩‍👦' : '👨‍👩‍👧‍👦'}
+                {size} סועדים
+                <span className={`text-xs rounded-full px-1.5 py-0.5 ${
+                  partySizeFilter === Number(size) ? 'bg-white text-blue-600' : 'bg-blue-200 text-blue-800'
+                }`}>{count}</span>
+              </button>
+            ))}
+        </div>
+      )}
 
       {/* ממתינים לאישור */}
       {pendingEntries.length > 0 && (
