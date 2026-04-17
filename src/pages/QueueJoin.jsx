@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
 
 const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY || '';
@@ -49,6 +49,8 @@ export default function QueueJoin() {
   const [estimatedWait, setEstimatedWait] = useState(null);
   const [error, setError] = useState('');
   const [waitMinutes, setWaitMinutes] = useState(0);
+  const [callSecondsLeft, setCallSecondsLeft] = useState(null);
+  const callTimerRef = useRef(null);
 
   // רענון אוטומטי כל 10 שניות
   useEffect(() => {
@@ -77,11 +79,34 @@ export default function QueueJoin() {
       if (found.timestamp_approved) {
         setWaitMinutes(Math.round((Date.now() - new Date(found.timestamp_approved).getTime()) / 60000));
       }
+
+      // טיימר קריאה למזדמן
+      if (found.seat_called_at) {
+        const elapsed = Math.floor((Date.now() - new Date(found.seat_called_at).getTime()) / 1000);
+        const left = Math.max(0, 180 - elapsed);
+        setCallSecondsLeft(left);
+        // הפעל טיימר חי אם עדיין רץ
+        if (callTimerRef.current) clearInterval(callTimerRef.current);
+        if (left > 0) {
+          callTimerRef.current = setInterval(() => {
+            setCallSecondsLeft(prev => {
+              if (prev <= 1) { clearInterval(callTimerRef.current); return 0; }
+              return prev - 1;
+            });
+          }, 1000);
+        }
+      } else {
+        setCallSecondsLeft(null);
+        if (callTimerRef.current) clearInterval(callTimerRef.current);
+      }
     };
 
     fetchStatus();
     const interval = setInterval(fetchStatus, 10000);
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+      if (callTimerRef.current) clearInterval(callTimerRef.current);
+    };
   }, [entryId]);
 
   // טיק-טוק עדכון זמן מצטבר בלייב
@@ -277,6 +302,49 @@ export default function QueueJoin() {
             </div>
           )}
 
+          {/* טיימר קריאה למזדמן */}
+          {isActive && callSecondsLeft !== null && (
+            <div className={`rounded-2xl p-5 text-center border-2 ${
+              callSecondsLeft === 0
+                ? 'bg-red-50 border-red-400 animate-pulse'
+                : callSecondsLeft <= 60
+                ? 'bg-orange-50 border-orange-400'
+                : 'bg-green-50 border-green-400'
+            }`}>
+              <div className="text-4xl mb-2">{callSecondsLeft === 0 ? '❌' : '🔔'}</div>
+              <p className={`font-black text-xl mb-1 ${
+                callSecondsLeft === 0 ? 'text-red-700' : callSecondsLeft <= 60 ? 'text-orange-700' : 'text-green-700'
+              }`}>
+                {callSecondsLeft === 0 ? 'הזמן עבר!' : 'השולחן שלכם מוכן!'}
+              </p>
+              {callSecondsLeft > 0 && (
+                <>
+                  <p className={`text-5xl font-black mb-2 ${callSecondsLeft <= 60 ? 'text-orange-600' : 'text-green-600'}`}>
+                    {Math.floor(callSecondsLeft / 60)}:{String(callSecondsLeft % 60).padStart(2, '0')}
+                  </p>
+                  <p className="text-sm text-gray-500 mb-4">גשו למארחת — יש לכם {Math.ceil(callSecondsLeft / 60)} דקות!</p>
+                  <button
+                    onClick={async () => {
+                      await base44.entities.QueueEntry.update(entryId, {
+                        status: 'seated',
+                        timestamp_end: new Date().toISOString(),
+                        timestamp_seated: new Date().toISOString(),
+                        seat_called_at: null,
+                      });
+                      setPhase('done');
+                    }}
+                    className="w-full bg-green-500 hover:bg-green-600 active:scale-95 text-white font-black py-4 rounded-2xl text-xl transition-all shadow-lg"
+                  >
+                    ✅ הגעתי למארחת!
+                  </button>
+                </>
+              )}
+              {callSecondsLeft === 0 && (
+                <p className="text-red-600 text-sm font-medium">הצוות עבר ללקוח הבא 😔</p>
+              )}
+            </div>
+          )}
+
           {isActive && (
             <>
               {/* הודעת קבלת פנים */}
@@ -322,7 +390,7 @@ export default function QueueJoin() {
           )}
 
           {/* כפתור משחק */}
-          {isActive && (
+          {isActive && !callSecondsLeft && (
             <div className="text-center pt-1">
               <a
                 href={`/QueueGame?entry=${entryId}&name=${encodeURIComponent(entry?.customer_name || 'אורח')}`}
@@ -340,14 +408,14 @@ export default function QueueJoin() {
           </div>
 
           {/* כפתור ויתרתי */}
-          <div className="border-t border-gray-100 pt-4">
+          {!callSecondsLeft && <div className="border-t border-gray-100 pt-4">
             <button
               onClick={() => setShowAbandonModal(true)}
               className="w-full border-2 border-red-200 text-red-400 hover:bg-red-50 hover:border-red-300 hover:text-red-500 transition-all rounded-2xl py-3 text-sm font-semibold"
             >
               😔 ויתרתי על התור
             </button>
-          </div>
+          </div>}
         </div>
       </div>
 

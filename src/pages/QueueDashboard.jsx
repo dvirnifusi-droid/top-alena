@@ -40,10 +40,12 @@ export default function QueueDashboard() {
   const [showQR, setShowQR] = useState(false);
   const [smsSent, setSmsSent] = useState({});
   const [partySizeFilter, setPartySizeFilter] = useState(null);
-  const [countdowns, setCountdowns] = useState({}); // entryId -> secondsLeft
+  const [countdowns, setCountdowns] = useState({}); // entryId -> secondsLeft (seat countdown)
+  const [callCountdowns, setCallCountdowns] = useState({}); // entryId -> secondsLeft (call countdown)
   const [lowFeedbacks, setLowFeedbacks] = useState([]);
   const prevFirstActiveRef = useRef(null);
   const countdownRef = useRef({});
+  const callCountdownRef = useRef({});
   const qrUrl = `${window.location.origin}/QueueJoin`;
 
   // שלח Push + SMS כ-fallback
@@ -144,7 +146,7 @@ export default function QueueDashboard() {
     fetchEntries();
   };
 
-  // מונה 3 דקות אחרי "השולחן מוכן"
+  // מונה 3 דקות אחרי "השולחן מוכן" (seated countdown)
   const startCountdown = (entryId, totalSecs = 180) => {
     if (countdownRef.current[entryId]) clearInterval(countdownRef.current[entryId]);
     setCountdowns(prev => ({ ...prev, [entryId]: totalSecs }));
@@ -159,6 +161,58 @@ export default function QueueDashboard() {
         return { ...prev, [entryId]: left };
       });
     }, 1000);
+  };
+
+  // קריאה למזדמן — מונה 3 דק' + שמירה ב-DB
+  const handleCallGuest = async (entry) => {
+    const now = new Date().toISOString();
+    await base44.entities.QueueEntry.update(entry.id, { seat_called_at: now });
+    sendNotification(
+      entry.id,
+      entry.phone,
+      `🔔 עלינא קוראת לכם! השולחן שלכם מוכן — יש לכם 3 דקות להגיע למארחת!`,
+      '🔔 הגיע תורכם!'
+    );
+    // התחל מונה 3 דקות
+    if (callCountdownRef.current[entry.id]) clearInterval(callCountdownRef.current[entry.id]);
+    setCallCountdowns(prev => ({ ...prev, [entry.id]: 180 }));
+    callCountdownRef.current[entry.id] = setInterval(() => {
+      setCallCountdowns(prev => {
+        const left = (prev[entry.id] || 0) - 1;
+        if (left <= 0) {
+          clearInterval(callCountdownRef.current[entry.id]);
+          delete callCountdownRef.current[entry.id];
+          return { ...prev, [entry.id]: 0 };
+        }
+        return { ...prev, [entry.id]: left };
+      });
+    }, 1000);
+  };
+
+  // "ישב" אחרי קריאה למזדמן
+  const handleSeatAfterCall = async (entry) => {
+    if (callCountdownRef.current[entry.id]) clearInterval(callCountdownRef.current[entry.id]);
+    setCallCountdowns(prev => { const n = {...prev}; delete n[entry.id]; return n; });
+    const now = new Date().toISOString();
+    await base44.entities.QueueEntry.update(entry.id, {
+      status: 'seated',
+      timestamp_end: now,
+      timestamp_seated: now,
+      seat_called_at: null,
+    });
+    fetchEntries();
+  };
+
+  // "עבור לשולחן הבא" — מסמן נטש ומקדם לבא
+  const handleSkipToNext = async (entry) => {
+    if (callCountdownRef.current[entry.id]) clearInterval(callCountdownRef.current[entry.id]);
+    setCallCountdowns(prev => { const n = {...prev}; delete n[entry.id]; return n; });
+    await base44.entities.QueueEntry.update(entry.id, {
+      status: 'abandoned',
+      timestamp_end: new Date().toISOString(),
+      notes: 'לא הגיע בזמן — עבר לשולחן הבא',
+    });
+    fetchEntries();
   };
 
   const handleSeat = async (entry) => {
@@ -472,18 +526,36 @@ export default function QueueDashboard() {
                               </div>
                             </div>
 
-                            {/* מונה 3 דקות */}
-                            {countdowns[entry.id] !== undefined && (
-                              <div className={`text-xs font-black px-2 py-1 rounded-lg flex-shrink-0 ${
-                                countdowns[entry.id] === 0
-                                  ? 'bg-red-100 text-red-700 animate-pulse'
-                                  : countdowns[entry.id] <= 60
-                                  ? 'bg-orange-100 text-orange-700'
-                                  : 'bg-green-100 text-green-700'
-                              }`}>
-                                {countdowns[entry.id] === 0
-                                  ? '⏰ לא הגיע!'
-                                  : `⏱ ${Math.floor(countdowns[entry.id]/60)}:${String(countdowns[entry.id]%60).padStart(2,'0')}`}
+                            {/* מונה קריאה למזדמן */}
+                            {callCountdowns[entry.id] !== undefined && (
+                              <div className={`flex flex-col items-center gap-1 flex-shrink-0`}>
+                                <div className={`text-sm font-black px-3 py-1.5 rounded-xl ${
+                                  callCountdowns[entry.id] === 0
+                                    ? 'bg-red-100 text-red-700 animate-pulse'
+                                    : callCountdowns[entry.id] <= 60
+                                    ? 'bg-orange-100 text-orange-700'
+                                    : 'bg-amber-100 text-amber-700'
+                                }`}>
+                                  {callCountdowns[entry.id] === 0
+                                    ? '⏰ לא הגיע!'
+                                    : `🔔 ${Math.floor(callCountdowns[entry.id]/60)}:${String(callCountdowns[entry.id]%60).padStart(2,'0')}`}
+                                </div>
+                                <div className="flex gap-1">
+                                  <button
+                                    onClick={() => handleSeatAfterCall(entry)}
+                                    title="ישב"
+                                    className="px-2 py-1 rounded-lg bg-green-500 hover:bg-green-600 text-white text-xs font-black transition-all"
+                                  >
+                                    ✅ ישב
+                                  </button>
+                                  <button
+                                    onClick={() => handleSkipToNext(entry)}
+                                    title="שולחן הבא"
+                                    className="px-2 py-1 rounded-lg bg-red-400 hover:bg-red-500 text-white text-xs font-black transition-all"
+                                  >
+                                    ⏭ הבא
+                                  </button>
+                                </div>
                               </div>
                             )}
 
@@ -498,9 +570,19 @@ export default function QueueDashboard() {
                               >
                                 🎁
                               </button>
+                              {/* קריאה למזדמן */}
+                              {callCountdowns[entry.id] === undefined && (
+                                <button
+                                  onClick={() => handleCallGuest(entry)}
+                                  title="קרא למזדמן"
+                                  className="w-8 h-8 rounded-lg bg-amber-100 hover:bg-amber-200 text-amber-700 flex items-center justify-center transition-all text-base"
+                                >
+                                  🔔
+                                </button>
+                              )}
                               <button
                                 onClick={() => handleSeat(entry)}
-                                title="השולחן מוכן"
+                                title="הושב (ללא קריאה)"
                                 className="w-8 h-8 rounded-lg bg-green-100 hover:bg-green-200 text-green-700 flex items-center justify-center transition-all"
                               >
                                 <Check className="w-4 h-4" />
