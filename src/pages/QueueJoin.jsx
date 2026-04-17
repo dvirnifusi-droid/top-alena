@@ -287,14 +287,15 @@ function QueueJoinInner() {
       console.log('Starting geolocation check...');
       setGeoStatus('checking');
       
-      // timeout של 5 שניות - אם לא קיבלנו תשובה, המשך בלעדיה
+      // timeout של 5 שניות - אם לא קיבלנו תשובה, חסום את הרישום
       let timeoutCleared = false;
       const geoTimeout = setTimeout(() => {
         if (!timeoutCleared) {
           timeoutCleared = true;
-          console.log('Geolocation timeout - proceeding without location');
+          console.log('Geolocation timeout - blocking registration');
           setGeoStatus('denied');
-          performRegister();
+          setError('לא הצלחנו לאמת את מיקומך. אנא אשר גישה למיקום וסדר אחד.');
+          setLoading(false);
         }
       }, 5000);
       
@@ -312,6 +313,7 @@ function QueueJoinInner() {
           } else {
             console.log('❌ User is too far - rejecting');
             setGeoStatus('too_far');
+            setError('אופס! נראה שאתם רחוקים מדי. הרישום לתור מתאפשר רק מהמסעדה עצמה.');
             setLoading(false);
           }
         },
@@ -321,7 +323,8 @@ function QueueJoinInner() {
           clearTimeout(geoTimeout);
           console.log('Geolocation error:', err.code, err.message);
           setGeoStatus('denied');
-          performRegister();
+          setError('לא הצלחנו לאמת את מיקומך. אנא אשר גישה למיקום וסדר אחד.');
+          setLoading(false);
         },
         { timeout: 4000, maximumAge: 0, enableHighAccuracy: false }
       );
