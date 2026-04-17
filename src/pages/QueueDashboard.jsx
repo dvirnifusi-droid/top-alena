@@ -303,6 +303,31 @@ export default function QueueDashboard() {
     if (entries.length) checkFeedback();
   }, [entries]);
 
+  // בדיקת קרבה — שולח הודעה ללקוח + מסמן pending
+  const handleProximityCheck = async (entry) => {
+    const now = new Date().toISOString();
+    await base44.entities.QueueEntry.update(entry.id, {
+      proximity_check_at: now,
+      proximity_response: 'pending',
+    });
+    sendNotification(
+      entry.id,
+      entry.phone,
+      `שלום ${entry.customer_name}! המארחת שואלת — האם אתם בסביבת המסעדה? יש לכם 3 דקות לענות.`,
+      '📍 האם אתם בסביבה?'
+    );
+    fetchEntries();
+    // אחרי 3 דקות — אם לא ענו, הפוך לאדום
+    setTimeout(async () => {
+      const all = await base44.entities.QueueEntry.list('-timestamp_register', 300);
+      const current = all.find(e => e.id === entry.id);
+      if (current && current.proximity_response === 'pending') {
+        await base44.entities.QueueEntry.update(entry.id, { proximity_response: 'no' });
+        fetchEntries();
+      }
+    }, 3 * 60 * 1000);
+  };
+
   const handleAbandon = async (entry) => {
     await base44.entities.QueueEntry.update(entry.id, {
       status: 'abandoned',
@@ -561,27 +586,53 @@ export default function QueueDashboard() {
             <Droppable droppableId="queue">
               {(provided) => (
                 <div {...provided.droppableProps} ref={provided.innerRef} className="space-y-2">
-                  {activeEntries.map((entry, index) => (
+                  {activeEntries.map((entry, index) => {
+                    const farAway = isGuestFarAway(entry);
+                    const proxPending = entry.proximity_response === 'pending' && entry.proximity_check_at;
+                    const proxNo = entry.proximity_response === 'no';
+                    const proxYes = entry.proximity_response === 'yes';
+
+                    let cardBg = 'bg-white border-blue-200';
+                    if (snapshot?.isDragging) cardBg = 'bg-blue-50 border-blue-200';
+                    else if (proxNo) cardBg = 'bg-purple-100 border-purple-400';
+                    else if (proxYes) cardBg = 'bg-green-50 border-green-300';
+                    else if (farAway) cardBg = 'bg-red-50 border-red-300';
+
+                    return (
                     <Draggable key={entry.id} draggableId={entry.id} index={index}>
-                      {(provided, snapshot) => (
+                      {(provided, snapshot) => {
+                        let cardBg = 'bg-white border-blue-200';
+                        if (snapshot.isDragging) cardBg = 'bg-blue-50 border-blue-200';
+                        else if (proxNo) cardBg = 'bg-purple-100 border-purple-400';
+                        else if (proxYes) cardBg = 'bg-green-50 border-green-300';
+                        else if (farAway) cardBg = 'bg-red-50 border-red-300';
+
+                        return (
                         <Card
                           ref={provided.innerRef}
                           {...provided.draggableProps}
                           {...provided.dragHandleProps}
-                          className={`border-blue-200 ${snapshot.isDragging ? 'shadow-xl rotate-1 bg-blue-50' : isGuestFarAway(entry) ? 'bg-red-50 border-red-300' : 'bg-white'}`}
+                          className={`${cardBg} transition-colors`}
                         >
                           <CardContent className="p-3 flex items-center gap-3">
                             {/* מספר בתור */}
-                            <div className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center font-black text-sm flex-shrink-0">
+                            <div className={`w-8 h-8 rounded-full text-white flex items-center justify-center font-black text-sm flex-shrink-0 ${
+                              proxNo ? 'bg-purple-600' : proxYes ? 'bg-green-600' : 'bg-blue-600'
+                            }`}>
                               {index + 1}
                             </div>
 
                             {/* פרטים */}
                             <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2">
-                                <p className={`font-bold truncate ${isGuestFarAway(entry) ? 'text-red-600' : 'text-gray-800'}`}>
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <p className={`font-bold truncate ${
+                                  proxNo ? 'text-purple-800' : proxYes ? 'text-green-700' : farAway ? 'text-red-600' : 'text-gray-800'
+                                }`}>
                                   {entry.customer_name}
-                                  {isGuestFarAway(entry) && <span className="mr-1 text-xs">📍❌ רחוק</span>}
+                                  {farAway && !proxNo && !proxYes && <span className="mr-1 text-xs">📍❌</span>}
+                                  {proxPending && !proxNo && !proxYes && <span className="mr-1 text-xs animate-pulse">🟡 ממתין לתגובה</span>}
+                                  {proxNo && <span className="mr-1 text-xs">🟣 לא בסביבה</span>}
+                                  {proxYes && <span className="mr-1 text-xs">🟢 חזר לתור</span>}
                                 </p>
                                 <PartySizeIcon size={entry.party_size} />
                                 <span className="text-xs text-gray-500">{entry.party_size}</span>
@@ -598,7 +649,7 @@ export default function QueueDashboard() {
 
                             {/* מונה קריאה למזדמן */}
                             {callCountdowns[entry.id] !== undefined && (
-                              <div className={`flex flex-col items-center gap-1 flex-shrink-0`}>
+                              <div className="flex flex-col items-center gap-1 flex-shrink-0">
                                 <div className={`text-sm font-black px-3 py-1.5 rounded-xl ${
                                   callCountdowns[entry.id] === 0
                                     ? 'bg-red-100 text-red-700 animate-pulse'
@@ -613,63 +664,68 @@ export default function QueueDashboard() {
                                 <div className="flex gap-1">
                                   <button
                                     onClick={() => handleSeatAfterCall(entry)}
-                                    title="ישב"
                                     className="px-2 py-1 rounded-lg bg-green-500 hover:bg-green-600 text-white text-xs font-black transition-all"
-                                  >
-                                    ✅ ישב
-                                  </button>
+                                  >✅ ישב</button>
                                   <button
                                     onClick={() => handleSkipToNext(entry)}
-                                    title="שולחן הבא"
                                     className="px-2 py-1 rounded-lg bg-red-400 hover:bg-red-500 text-white text-xs font-black transition-all"
-                                  >
-                                    ⏭ הבא
-                                  </button>
+                                  >⏭ הבא</button>
                                 </div>
                               </div>
                             )}
 
                             {/* כפתורי פעולה */}
-                            <div className="flex gap-1 flex-shrink-0">
+                            <div className="flex gap-1 flex-shrink-0 flex-wrap justify-end">
                               <button
                                 onClick={() => handleToggleTreat(entry)}
                                 title="פינוק"
                                 className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all text-sm ${
                                   entry.treated ? 'bg-pink-200 text-pink-700' : 'bg-gray-100 hover:bg-pink-100'
                                 }`}
-                              >
-                                🎁
-                              </button>
+                              >🎁</button>
+
+                              {/* כפתור בדיקת קרבה */}
+                              {callCountdowns[entry.id] === undefined && (
+                                <button
+                                  onClick={() => handleProximityCheck(entry)}
+                                  title="בדוק אם בסביבה"
+                                  className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all text-base ${
+                                    proxPending ? 'bg-yellow-200 text-yellow-700 animate-pulse' :
+                                    proxNo ? 'bg-purple-200 text-purple-700' :
+                                    proxYes ? 'bg-green-200 text-green-700' :
+                                    'bg-blue-100 hover:bg-blue-200 text-blue-700'
+                                  }`}
+                                >📍</button>
+                              )}
+
                               {/* קריאה למזדמן */}
                               {callCountdowns[entry.id] === undefined && (
                                 <button
                                   onClick={() => handleCallGuest(entry)}
                                   title="קרא למזדמן"
                                   className="w-8 h-8 rounded-lg bg-amber-100 hover:bg-amber-200 text-amber-700 flex items-center justify-center transition-all text-base"
-                                >
-                                  🔔
-                                </button>
+                                >🔔</button>
                               )}
+
                               <button
                                 onClick={() => handleSeat(entry)}
-                                title="הושב (ללא קריאה)"
+                                title="הושב"
                                 className="w-8 h-8 rounded-lg bg-green-100 hover:bg-green-200 text-green-700 flex items-center justify-center transition-all"
-                              >
-                                <Check className="w-4 h-4" />
-                              </button>
+                              ><Check className="w-4 h-4" /></button>
+
                               <button
                                 onClick={() => handleAbandon(entry)}
                                 title="נטש"
                                 className="w-8 h-8 rounded-lg bg-red-100 hover:bg-red-200 text-red-600 flex items-center justify-center transition-all"
-                              >
-                                <X className="w-4 h-4" />
-                              </button>
+                              ><X className="w-4 h-4" /></button>
                             </div>
                           </CardContent>
                         </Card>
-                      )}
+                        );
+                      }}
                     </Draggable>
-                  ))}
+                    );
+                  })}
                   {provided.placeholder}
                 </div>
               )}

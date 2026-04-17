@@ -376,6 +376,17 @@ export default function QueueJoin() {
   // ========== דף המתנה ==========
   const isPending = entry?.status === 'pending';
   const isActive = entry?.status === 'active';
+  const showProximityBanner = entry?.proximity_response === 'pending' && entry?.proximity_check_at;
+
+  const handleProximityResponse = async (answer) => {
+    await base44.entities.QueueEntry.update(entryId, {
+      proximity_response: answer, // 'yes' or 'no'
+    });
+    // רענן מיד
+    const all = await base44.entities.QueueEntry.list('-timestamp_register', 300);
+    const found = all.find(e => e.id === entryId);
+    if (found) setEntry(found);
+  };
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-start pt-8 p-4" style={{ background: 'linear-gradient(135deg, #064e3b 0%, #065f46 50%, #047857 100%)' }} dir="rtl">
@@ -395,6 +406,29 @@ export default function QueueJoin() {
         </div>
 
         <div className="p-6 space-y-4">
+
+          {/* באנר בדיקת קרבה */}
+          {showProximityBanner && (
+            <div className="bg-blue-50 border-2 border-blue-400 rounded-2xl p-5 text-center animate-pulse">
+              <div className="text-4xl mb-2">📍</div>
+              <p className="font-black text-blue-800 text-lg mb-1">המארחת שואלת:</p>
+              <p className="text-blue-600 text-base mb-4">האם אתם בסביבת המסעדה?</p>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => handleProximityResponse('yes')}
+                  className="flex-1 bg-green-500 hover:bg-green-600 active:scale-95 text-white font-black py-3.5 rounded-2xl text-lg transition-all shadow"
+                >
+                  ✅ כן, אני כאן!
+                </button>
+                <button
+                  onClick={() => handleProximityResponse('no')}
+                  className="flex-1 bg-red-400 hover:bg-red-500 active:scale-95 text-white font-black py-3.5 rounded-2xl text-lg transition-all shadow"
+                >
+                  ❌ לא, הולך
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* סטטוס */}
           {isPending && (

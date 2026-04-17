@@ -93,6 +93,20 @@
       "type": "string",
       "format": "date-time",
       "description": "\u05d6\u05de\u05df \u05e2\u05d3\u05db\u05d5\u05df \u05d4\u05de\u05d9\u05e7\u05d5\u05dd \u05d4\u05d0\u05d7\u05e8\u05d5\u05df"
+    },
+    "proximity_check_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "\u05d6\u05de\u05df \u05e9\u05e0\u05e9\u05dc\u05d7\u05d4 \u05e9\u05d0\u05dc\u05ea '\u05d4\u05d0\u05dd \u05d1\u05e1\u05d1\u05d9\u05d1\u05d4?'"
+    },
+    "proximity_response": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "yes",
+        "no"
+      ],
+      "description": "\u05ea\u05d2\u05d5\u05d1\u05ea \u05d4\u05dc\u05e7\u05d5\u05d7 \u05dc\u05e9\u05d0\u05dc\u05ea \u05e7\u05e8\u05d1\u05d4"
     }
   },
   "required": [
