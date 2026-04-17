@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
-import { Share2 } from 'lucide-react';
+import { Share2, Download } from 'lucide-react';
+import html2canvas from 'html2canvas';
 
 export default function QuestionGame({ players, category, questions }) {
   const [currentQuestion, setCurrentQuestion] = useState(null);
@@ -9,6 +10,8 @@ export default function QuestionGame({ players, category, questions }) {
   const [gameOver, setGameOver] = useState(false);
   const [selectedWinner, setSelectedWinner] = useState(null);
   const [showWinnerPicker, setShowWinnerPicker] = useState(false);
+  const storyRef = useRef(null);
+  const [generatingStory, setGeneratingStory] = useState(false);
 
   const activeQuestions = questions.filter(q => q.is_active && q.category === category);
 
@@ -40,6 +43,40 @@ export default function QuestionGame({ players, category, questions }) {
     }
   };
 
+  const handleShareStory = async () => {
+    if (!currentQuestion || !storyRef.current) return;
+    
+    setGeneratingStory(true);
+    try {
+      const canvas = await html2canvas(storyRef.current, {
+        backgroundColor: '#ffffff',
+        scale: 2,
+      });
+      
+      canvas.toBlob((blob) => {
+        if (navigator.share && navigator.canShare({ files: [new File([blob], 'story.png', { type: 'image/png' })] })) {
+          navigator.share({
+            files: [new File([blob], 'story.png', { type: 'image/png' })],
+            title: 'עלינא - משחק השאלות',
+          });
+        } else {
+          // Fallback: download
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = 'alina-story.png';
+          a.click();
+          URL.revokeObjectURL(url);
+        }
+      });
+    } catch (e) {
+      console.error('Error generating story:', e);
+      alert('❌ שגיאה בייצור התמונה');
+    } finally {
+      setGeneratingStory(false);
+    }
+  };
+
   const handleShare = () => {
     if (!currentQuestion) return;
     
@@ -48,9 +85,8 @@ export default function QuestionGame({ players, category, questions }) {
     if (navigator.share) {
       navigator.share({ title: 'עלינא - משחק השאלות', text });
     } else {
-      // Fallback: copy to clipboard
       navigator.clipboard.writeText(text);
-      alert('✅ הטקסט הועתק! אתה יכול להשתיל אותו בסטורי');
+      alert('✅ הטקסט הועתק!');
     }
   };
 
@@ -90,6 +126,28 @@ export default function QuestionGame({ players, category, questions }) {
 
   return (
     <div className="flex flex-col gap-6 p-6">
+      {/* Hidden story generator */}
+      <div
+        ref={storyRef}
+        className="fixed -left-96 top-0 w-80 h-screen bg-gradient-to-br from-purple-600 to-pink-600 flex flex-col items-center justify-between p-8 text-center pointer-events-none"
+        style={{ visibility: 'hidden' }}
+      >
+        <div>
+          <div className="text-6xl mb-4">🎮</div>
+          <p className="text-4xl font-black text-white mb-8">עלינא</p>
+        </div>
+        <div className="flex-1 flex flex-col items-center justify-center">
+          <p className="text-white text-2xl font-black leading-relaxed break-words max-w-xs mb-8">
+            {currentQuestion?.text}
+          </p>
+          <p className="text-3xl font-black text-yellow-300 mb-4">{currentPlayer}</p>
+        </div>
+        <div className="text-white text-sm font-bold">
+          🎮 משחק השאלות של עלינא
+          <p className="text-xs mt-2 opacity-80">#עלינא #משחקים</p>
+        </div>
+      </div>
+
       {/* מעמד השאלה */}
       <div className="text-center text-sm text-gray-500">
         שאלה {answered.length + 1} 🔥 {answered.length > 0 && `(${answered.length} כבר ענו)`}
@@ -113,12 +171,29 @@ export default function QuestionGame({ players, category, questions }) {
       {/* כפתורים */}
       <div className="flex gap-3 flex-col sm:flex-row">
         <Button
+          onClick={handleShareStory}
+          disabled={generatingStory}
+          className="flex-1 bg-gradient-to-r from-pink-500 to-red-500 hover:from-pink-600 hover:to-red-600 disabled:opacity-50 text-white font-black py-3 rounded-xl flex items-center justify-center gap-2"
+        >
+          {generatingStory ? (
+            <>
+              <div className="animate-spin text-lg">⏳</div>
+              יוצר...
+            </>
+          ) : (
+            <>
+              <Download className="w-4 h-4" />
+              סטורי אינסטגרם 📸
+            </>
+          )}
+        </Button>
+        <Button
           onClick={handleShare}
           variant="outline"
           className="flex-1 border-2 border-blue-400 text-blue-600 hover:bg-blue-50 font-black py-3 rounded-xl flex items-center justify-center gap-2"
         >
           <Share2 className="w-4 h-4" />
-          שתף 📸
+          שתף טקסט
         </Button>
         <Button
           onClick={handleNext}
