@@ -70,21 +70,30 @@ function QueueJoinInner() {
   const [treats, setTreats] = useState([]);
   const [showTreatModal, setShowTreatModal] = useState(false);
   const [duplicateEntry, setDuplicateEntry] = useState(null);
+  const [isPublicMode] = useState(true); // תמיד בדף ציבורי זה
   const callTimerRef = useRef(null);
 
-  // טעינת הגדרות מסעדה
+  // טעינת הגדרות מסעדה (ללא בדיקת התחברות)
   useEffect(() => {
-    base44.entities.RestaurantProfile.list().then(profiles => {
-      if (profiles.length > 0 && profiles[0].geofencing_enabled === false) {
-        setGeofencingEnabled(false);
-      }
-    }).catch(() => {});
-  }, []);
+    if (isPublicMode) {
+      base44.entities.RestaurantProfile.list()
+        .then(profiles => {
+          if (profiles.length > 0 && profiles[0].geofencing_enabled === false) {
+            setGeofencingEnabled(false);
+          }
+        })
+        .catch(() => {}); // שגיאות בטוחות - המשך עם ברירת מחדל
+    }
+  }, [isPublicMode]);
 
-  // טעינת פינוקים זמינים
+  // טעינת פינוקים זמינים (ללא בדיקת התחברות)
   useEffect(() => {
-    base44.entities.TimeTreat.filter({ is_active: true }).then(t => setTreats(t));
-  }, []);
+    if (isPublicMode) {
+      base44.entities.TimeTreat.filter({ is_active: true })
+        .then(t => setTreats(t))
+        .catch(() => {}); // שגיאות בטוחות
+    }
+  }, [isPublicMode]);
 
   // שידור מיקום כל 30 שניות (רק אם הלקוח פעיל בתור)
   useEffect(() => {
