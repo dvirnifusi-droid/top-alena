@@ -652,7 +652,7 @@ function QueueJoinInner() {
               {treats.length > 0 && (
                 <div className="bg-gradient-to-r from-purple-50 to-pink-50 border-2 border-purple-200 rounded-2xl p-4">
                   <p className="font-black text-purple-800 text-sm mb-3 text-center">🎁 פרסים שאתה יכול להרוויח</p>
-                  <div className="grid grid-cols-1 gap-2">
+                  <div className="space-y-2">
                     {treats.map(treat => (
                       <div key={treat.id} className="bg-white rounded-xl p-3 flex items-center justify-between border border-purple-100">
                         <div className="flex-1 min-w-0">
@@ -671,19 +671,16 @@ function QueueJoinInner() {
                     ))}
                   </div>
                   <p className="text-xs text-purple-600 text-center mt-3">
-                   💡 צברת {timeCreditsEarned} מטבעות עד כה
-                  </p>
+                   💡 צבור עוד {treats.length > 0 ? Math.max(0, treats[0].cost - timeCreditsEarned) : 0} מטבעות להפוך לאפשרי
+                 </p>
                 </div>
               )}
 
-              {/* מיקום + זמן */}
+              {/* מיקום בתור */}
               {queuePosition != null && (
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4 text-center">
-                    <p className="text-blue-800 font-black text-4xl">{queuePosition}</p>
-                    <p className="text-blue-600 text-xs mt-1 font-medium">מקום בתור</p>
-                  </div>
-    
+                <div className="bg-blue-50 border-2 border-blue-300 rounded-2xl p-4 text-center">
+                  <p className="text-blue-800 font-black text-5xl">{queuePosition}</p>
+                  <p className="text-blue-600 text-sm mt-2 font-bold">מקום בתור</p>
                 </div>
               )}
 
