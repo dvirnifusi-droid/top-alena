@@ -657,20 +657,20 @@ function QueueJoinInner() {
               <p className="font-black text-blue-800 text-lg mb-1">המארחת שואלת:</p>
               <p className="text-blue-600 text-base mb-4">האם אתם בסביבת המסעדה?</p>
               <div className="flex gap-3">
-                <button
-                  onClick={() => { handleProximityResponse('yes'); }}
-                  disabled={actionLoading}
-                  className="flex-1 bg-green-500 hover:bg-green-600 active:scale-95 disabled:opacity-50 text-white font-black py-3.5 rounded-2xl text-lg transition-all shadow"
-                >
-                  ✅ כן, אני כאן!
-                </button>
-                <button
-                  onClick={() => { handleProximityResponse('no'); }}
-                  disabled={actionLoading}
-                  className="flex-1 bg-red-400 hover:bg-red-500 active:scale-95 disabled:opacity-50 text-white font-black py-3.5 rounded-2xl text-lg transition-all shadow"
-                >
-                  ❌ לא, הולך
-                </button>
+               <button
+                 onClick={() => handleProximityResponse('yes')}
+                 disabled={actionLoading}
+                 className="flex-1 bg-green-500 hover:bg-green-600 active:scale-95 disabled:opacity-50 text-white font-black py-3.5 rounded-2xl text-lg transition-all shadow"
+               >
+                 ✅ כן, אני כאן!
+               </button>
+               <button
+                 onClick={() => handleProximityResponse('no')}
+                 disabled={actionLoading}
+                 className="flex-1 bg-red-400 hover:bg-red-500 active:scale-95 disabled:opacity-50 text-white font-black py-3.5 rounded-2xl text-lg transition-all shadow"
+               >
+                 ❌ לא, הולך
+               </button>
               </div>
             </div>
           )}
@@ -706,29 +706,29 @@ function QueueJoinInner() {
                   </p>
                   <p className="text-sm text-gray-500 mb-4">גשו למארחת — יש לכם {Math.ceil(callSecondsLeft / 60)} דקות!</p>
                   <button
-                    onClick={async () => {
-                       setActionLoading(true);
-                       try {
-                         const now = new Date().toISOString();
-                         await base44.entities.QueueEntry.update(entryId, {
-                           status: 'seated',
-                           proximity_response: 'yes',
-                           timestamp_end: now,
-                           timestamp_seated: now,
-                           seat_called_at: null,
-                           time_credits_earned: timeCreditsEarned,
-                         });
-                         setPhase('done');
-                       } catch (e) {
-                         console.error('Error seating:', e);
-                       } finally {
-                         setActionLoading(false);
-                       }
-                    }}
-                    disabled={actionLoading}
-                    className="w-full bg-green-500 hover:bg-green-600 active:scale-95 disabled:opacity-50 text-white font-black py-4 rounded-2xl text-xl transition-all shadow-lg"
+                   onClick={async () => {
+                     setActionLoading(true);
+                     try {
+                       const now = new Date().toISOString();
+                       await base44.entities.QueueEntry.update(entryId, {
+                         status: 'seated',
+                         proximity_response: 'yes',
+                         timestamp_end: now,
+                         timestamp_seated: now,
+                         seat_called_at: null,
+                         time_credits_earned: timeCreditsEarned,
+                       });
+                       setPhase('done');
+                     } catch (e) {
+                       console.error('Error seating:', e);
+                     } finally {
+                       setActionLoading(false);
+                     }
+                   }}
+                   disabled={actionLoading}
+                   className="w-full bg-green-500 hover:bg-green-600 active:scale-95 disabled:opacity-50 text-white font-black py-4 rounded-2xl text-xl transition-all shadow-lg"
                   >
-                    ✅ הגעתי למארחת!
+                   ✅ הגעתי למארחת!
                   </button>
                 </>
               )}
