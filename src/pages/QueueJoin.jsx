@@ -74,6 +74,7 @@ function QueueJoinInner() {
   const [duplicateEntry, setDuplicateEntry] = useState(null);
   const [isPublicMode] = useState(true); // תמיד בדף ציבורי זה
   const [customerHistory, setCustomerHistory] = useState(null);
+  const [existingEntry, setExistingEntry] = useState(null);
   const historyTimeoutRef = useRef(null);
   const callTimerRef = useRef(null);
 
@@ -252,6 +253,7 @@ function QueueJoinInner() {
   useEffect(() => {
     if (!form.phone.trim()) {
       setCustomerHistory(null);
+      setExistingEntry(null);
       return;
     }
 
@@ -259,6 +261,21 @@ function QueueJoinInner() {
     
     historyTimeoutRef.current = setTimeout(async () => {
       try {
+        // בדוק אם יש כניסה פעילה
+        const allEntries = await base44.asServiceRole.entities.QueueEntry.list('-timestamp_register', 500);
+        const activeEntry = allEntries.find(e => 
+          e.phone === form.phone.trim() && 
+          e.status !== 'seated' && 
+          e.status !== 'abandoned'
+        );
+        
+        if (activeEntry) {
+          setExistingEntry(activeEntry);
+        } else {
+          setExistingEntry(null);
+        }
+
+        // טען היסטוריה
         const histRes = await base44.functions.invoke('getAnonymousCustomerHistory', { phone: form.phone.trim() });
         if (histRes.data && !histRes.data.isNewCustomer) {
           setCustomerHistory(histRes.data);
@@ -266,8 +283,9 @@ function QueueJoinInner() {
           setCustomerHistory(null);
         }
       } catch (e) {
-        console.warn('Could not fetch history:', e);
+        console.warn('Could not fetch data:', e);
         setCustomerHistory(null);
+        setExistingEntry(null);
       }
     }, 500);
 
@@ -414,7 +432,65 @@ function QueueJoinInner() {
 
 
 
-  // דף כניסה לתור קיים
+  // דף כניסה לתור קיים (כתוצאה מחיפוש אוטומטי)
+  if (existingEntry) {
+    const waitTime = existingEntry.timestamp_approved 
+      ? Math.round((Date.now() - new Date(existingEntry.timestamp_approved).getTime()) / 60000)
+      : '?';
+    
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center p-4" style={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%)' }} dir="rtl">
+        <div className="bg-white/95 backdrop-blur-sm rounded-3xl shadow-2xl p-8 w-full max-w-sm text-center border border-white/20">
+          <div className="text-5xl mb-4 animate-bounce">👋</div>
+          <h2 className="text-2xl font-black text-slate-800 mb-2">שלום שוב!</h2>
+          <p className="text-slate-600 text-sm mb-6">אנחנו כבר זוכרים אותך</p>
+          
+          <div className="bg-blue-50 border-2 border-blue-300 rounded-2xl p-4 mb-6 space-y-3">
+            <div className="text-center">
+              <p className="text-sm text-blue-600 font-medium">🟢 סטטוס</p>
+              <p className="text-base font-black text-blue-700 mt-1">
+                {existingEntry.status === 'pending' ? '⏳ ממתין לאישור' : '🎯 פעיל בתור'}
+              </p>
+            </div>
+            
+            {existingEntry.status === 'active' && (
+              <div className="text-center pt-2 border-t border-blue-200">
+                <p className="text-xs text-blue-600 mb-1">⏱️ זמן המתנה</p>
+                <p className="font-bold text-blue-700 text-lg">{waitTime} דקות</p>
+              </div>
+            )}
+
+            <div className="text-center pt-2 border-t border-blue-200">
+              <p className="text-xs text-blue-600 mb-1">👥 גודל קבוצה</p>
+              <p className="font-bold text-blue-700">{existingEntry.party_size} סועדים</p>
+            </div>
+
+            {existingEntry.time_credits_earned > 0 && (
+              <div className="text-center pt-2 border-t border-blue-200 bg-yellow-50 rounded-xl p-2">
+                <p className="text-xs text-yellow-600 mb-1">💰 מטבעות שצברת</p>
+                <p className="font-black text-yellow-700">{existingEntry.time_credits_earned}</p>
+              </div>
+            )}
+          </div>
+
+          <button
+            onClick={() => window.location.href = `/QueueJoin?id=${existingEntry.id}`}
+            className="w-full bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-black py-3.5 rounded-2xl text-base transition-all shadow-lg mb-2"
+          >
+            ↩️ חזור לתור שלי
+          </button>
+          <button
+            onClick={() => { setExistingEntry(null); setForm({ customer_name: '', phone: '', party_size: 2 }); }}
+            className="w-full text-slate-400 text-sm hover:text-slate-600 transition-colors"
+          >
+            ← טלפון אחר
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // דף כניסה לתור קיים (דרך duplicateEntry - עדיין משמורה לתאימות)
   if (duplicateEntry) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center p-4" style={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%)' }} dir="rtl">
