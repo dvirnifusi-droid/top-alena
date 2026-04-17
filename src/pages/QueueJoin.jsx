@@ -289,7 +289,13 @@ function QueueJoinInner() {
         phone: form.phone.trim(),
         party_size: parseInt(form.party_size),
       });
-      const newEntry = res.data?.entry || res.entry;
+      console.log('Response from createQueueEntry:', res);
+      const newEntry = res.data?.entry || res.entry || res;
+      console.log('New entry:', newEntry);
+
+      if (!newEntry || !newEntry.id) {
+        throw new Error('לא קיבלנו ID - תשובה לא תקינה מהשרת');
+      }
 
       // סנכרון ל-CRM (אופציונלי)
       try {
@@ -311,6 +317,7 @@ function QueueJoinInner() {
       registerPushAndSave(newEntry.id).catch(() => {});
 
       // ניווט מיד לדף ההמתנה
+      console.log('Redirecting to:', `/QueueJoin?id=${newEntry.id}`);
       window.location.href = `/QueueJoin?id=${newEntry.id}`;
     } catch (e) {
       console.error('Registration error:', e);
