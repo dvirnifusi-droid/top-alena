@@ -4,6 +4,8 @@ import { sendQueueSms } from '@/functions/sendQueueSms';
 import { sendQueuePush } from '@/functions/sendQueuePush';
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import { Check, X, Gift, UserCheck, Clock, Users, RefreshCw, QrCode, AlertCircle, Star } from 'lucide-react';
+import { QRCodeSVG } from 'qrcode.react';
+import { QRCodeSVG } from 'qrcode.react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -353,11 +355,21 @@ export default function QueueDashboard() {
       {showQR && (
         <Card className="mb-4 border-2 border-emerald-300 bg-emerald-50">
           <CardContent className="p-4 text-center">
-            <p className="font-bold text-emerald-800 mb-2">קישור להרשמה לתור:</p>
-            <div className="bg-white rounded-xl p-3 border border-emerald-200">
-              <p className="text-sm text-blue-600 break-all">{qrUrl}</p>
+            <p className="font-bold text-emerald-800 mb-3">סרקו להצטרפות לתור:</p>
+            <div className="flex justify-center mb-3">
+              <div className="bg-white p-3 rounded-2xl shadow-md inline-block">
+                <QRCodeSVG value={qrUrl} size={180} bgColor="#ffffff" fgColor="#064e3b" level="H" />
+              </div>
             </div>
-            <p className="text-xs text-gray-500 mt-2">שלח את הקישור ללקוחות או הדפס QR מ-qr.io</p>
+            <div className="bg-white rounded-xl p-2 border border-emerald-200">
+              <p className="text-xs text-blue-600 break-all">{qrUrl}</p>
+            </div>
+            <button
+              onClick={() => navigator.clipboard.writeText(qrUrl)}
+              className="mt-2 text-xs text-emerald-700 underline"
+            >
+              העתק קישור
+            </button>
           </CardContent>
         </Card>
       )}
