@@ -826,7 +826,7 @@ export default function QueueDashboard() {
                             {/* כפתורי פעולה - 3 כפתורים בשתי שורות */}
                             <div className="flex flex-col gap-1 flex-shrink-0 w-full">
                               {/* שורה 1: קרבה, קריאה, נטש */}
-                              <div className="flex gap-1 justify-end items-center">
+                              <div className="flex gap-2 justify-between items-center w-full">
                                 {/* כפתור בדיקת קרבה */}
                                 {callCountdowns[entry.id] === undefined && !proxPending && (
                                   <button
@@ -860,7 +860,7 @@ export default function QueueDashboard() {
                               </div>
 
                               {/* שורה 2: פינוק, היסטוריה, ישב + בונוס */}
-                              <div className="flex gap-1 justify-end items-center">
+                              <div className="flex gap-2 justify-between items-center w-full">
                                 <button
                                   onClick={() => handleToggleTreat(entry)}
                                   title="פינוק"
