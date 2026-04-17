@@ -5,8 +5,8 @@ const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY || '';
 
 // קואורדינטות המסעדה — עדכן לפי המיקום האמיתי של המסעדה
 // כדי לקבל קואורדינטות: פתח Google Maps, חפש את המסעדה, לחץ ימני → "מה כאן?"
-const RESTAURANT_LAT = 32.0853;
-const RESTAURANT_LNG = 34.7818;
+const RESTAURANT_LAT = 31.964780873771108;
+const RESTAURANT_LNG = 34.79326668650769;
 const MAX_DISTANCE_METERS = 100;
 
 function calcDistance(lat1, lon1, lat2, lon2) {
