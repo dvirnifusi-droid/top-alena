@@ -257,10 +257,21 @@ function QueueJoinInner() {
         return;
       }
 
-      console.log('geofencingEnabled:', geofencingEnabled);
+      // טען את geofencingEnabled עדכני מה-DB
+      let isGeoEnabled = true;
+      try {
+        const profiles = await base44.entities.RestaurantProfile.list();
+        if (profiles.length > 0) {
+          isGeoEnabled = profiles[0].geofencing_enabled !== false;
+        }
+      } catch (e) {
+        console.warn('Cannot check geofencing status:', e);
+      }
+      
+      console.log('geofencingEnabled:', isGeoEnabled);
       
       // אם גיאופנסינג כבוי או אין תמיכה בmGeolocation, הנח מיד
-      if (!geofencingEnabled || !navigator.geolocation) {
+      if (!isGeoEnabled || !navigator.geolocation) {
         console.log('Skipping geofencing - bypassing to registration');
         await handleRegister();
         return;
