@@ -245,25 +245,25 @@ export default function QueueJoin() {
   // ========== דף הרשמה ==========
   if (phase === 'register') {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center p-4" style={{ background: 'linear-gradient(135deg, #064e3b 0%, #065f46 50%, #047857 100%)' }} dir="rtl">
+      <div className="min-h-screen flex flex-col items-center justify-center p-4" style={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%)' }} dir="rtl">
         {/* לוגו */}
-        <div className="text-center mb-8">
-          <div className="text-6xl mb-3">🍽️</div>
-          <h1 className="text-3xl font-black text-white tracking-wide">עלינא</h1>
-          <p className="text-emerald-300 text-sm mt-1">הצטרפו לתור שלנו</p>
+        <div className="text-center mb-10">
+          <div className="text-7xl mb-4 drop-shadow-lg">🍽️</div>
+          <h1 className="text-4xl font-black text-white tracking-wider">עלינא</h1>
+          <p className="text-slate-300 text-sm mt-2 font-light">ברוכים הבאים לחוויה קולינרית עדינה</p>
         </div>
 
         {/* כרטיסית */}
-        <div className="bg-white rounded-3xl shadow-2xl p-8 w-full max-w-sm">
-          <h2 className="text-xl font-black text-gray-800 mb-6 text-center">פרטי הרשמה</h2>
+        <div className="bg-white/95 backdrop-blur-sm rounded-3xl shadow-2xl p-8 w-full max-w-sm border border-white/20">
+          <h2 className="text-2xl font-black text-slate-800 mb-6 text-center">הצטרפות לתור</h2>
 
           <div className="space-y-5">
             {/* שם */}
             <div>
-              <label className="text-sm font-bold text-gray-600 block mb-1.5">👤 שם מלא</label>
+              <label className="text-sm font-bold text-slate-700 block mb-2">👤 שם מלא</label>
               <input
-                className="w-full border-2 border-gray-200 rounded-2xl px-4 py-3.5 text-base focus:outline-none focus:border-emerald-500 transition-colors"
-                placeholder="הכנס שם מלא"
+                className="w-full border-2 border-slate-200 rounded-2xl px-4 py-3.5 text-base focus:outline-none focus:border-slate-800 focus:shadow-md transition-all"
+                placeholder="הכנס את שמך המלא"
                 value={form.customer_name}
                 onChange={e => setForm({ ...form, customer_name: e.target.value })}
                 onKeyDown={e => e.key === 'Enter' && handleRegister()}
@@ -272,9 +272,9 @@ export default function QueueJoin() {
 
             {/* טלפון */}
             <div>
-              <label className="text-sm font-bold text-gray-600 block mb-1.5">📱 מספר טלפון</label>
+              <label className="text-sm font-bold text-slate-700 block mb-2">📱 מספר טלפון</label>
               <input
-                className="w-full border-2 border-gray-200 rounded-2xl px-4 py-3.5 text-base focus:outline-none focus:border-emerald-500 transition-colors"
+                className="w-full border-2 border-slate-200 rounded-2xl px-4 py-3.5 text-base focus:outline-none focus:border-slate-800 focus:shadow-md transition-all"
                 placeholder="050-0000000"
                 type="tel"
                 value={form.phone}
@@ -285,7 +285,7 @@ export default function QueueJoin() {
 
             {/* כמות סועדים */}
             <div>
-              <label className="text-sm font-bold text-gray-600 block mb-2">🍴 כמות סועדים</label>
+              <label className="text-sm font-bold text-slate-700 block mb-2">🍴 כמות סועדים</label>
               <div className="grid grid-cols-4 gap-2">
                 {[1, 2, 3, 4, 5, 6, 7, 8].map(n => (
                   <button
@@ -293,8 +293,8 @@ export default function QueueJoin() {
                     onClick={() => setForm({ ...form, party_size: n })}
                     className={`py-3 rounded-xl font-bold text-lg transition-all ${
                       form.party_size === n
-                        ? 'bg-emerald-600 text-white shadow-md scale-105'
-                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                        ? 'bg-slate-800 text-white shadow-lg scale-105'
+                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                     }`}
                   >
                     {n === 8 ? '8+' : n}
@@ -305,19 +305,19 @@ export default function QueueJoin() {
 
             {error && (
               <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-center">
-                <p className="text-red-600 text-sm font-medium">{error}</p>
+                <p className="text-red-600 text-sm font-medium">⚠️ {error}</p>
               </div>
             )}
 
             {/* מסך בדיקת מיקום */}
             {geoStatus === 'checking' && (
-              <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4 text-center">
-                <div className="flex items-center justify-center gap-2 text-blue-700">
+              <div className="bg-slate-100 border border-slate-300 rounded-2xl p-4 text-center">
+                <div className="flex items-center justify-center gap-2 text-slate-700">
                   <svg className="animate-spin w-5 h-5" viewBox="0 0 24 24" fill="none">
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
                   </svg>
-                  <span className="font-bold text-sm">מאמת שאתם ליד המסעדה...</span>
+                  <span className="font-bold text-sm">מאמת מיקום...</span>
                 </div>
               </div>
             )}
@@ -326,11 +326,11 @@ export default function QueueJoin() {
             {geoStatus === 'too_far' && (
               <div className="bg-red-50 border-2 border-red-300 rounded-2xl p-5 text-center">
                 <div className="text-4xl mb-2">📍</div>
-                <p className="font-black text-red-700 text-base mb-1">אתם רחוקים מדי מהמסעדה</p>
-                <p className="text-red-500 text-sm mb-4">ניתן להירשם לתור רק כשאתם עומדים בכניסה למסעדה (עד 100 מטר)</p>
+                <p className="font-black text-red-700 text-base mb-1">אתם רחוקים מהמסעדה</p>
+                <p className="text-red-500 text-sm mb-4">הרשמה אפשרית רק בקרבת המסעדה</p>
                 <button
                   onClick={() => setGeoStatus('idle')}
-                  className="text-sm text-red-400 underline"
+                  className="text-sm text-red-600 font-bold hover:text-red-700"
                 >
                   נסה שוב
                 </button>
@@ -341,7 +341,7 @@ export default function QueueJoin() {
               <button
                 onClick={checkGeoAndRegister}
                 disabled={loading || geoStatus === 'checking'}
-                className="w-full bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-black py-4 rounded-2xl text-lg transition-all disabled:opacity-50 shadow-lg mt-2"
+                className="w-full bg-slate-800 hover:bg-slate-900 active:scale-95 text-white font-black py-4 rounded-2xl text-lg transition-all disabled:opacity-50 shadow-xl mt-2"
               >
                 {loading ? (
                   <span className="flex items-center justify-center gap-2">
@@ -349,15 +349,15 @@ export default function QueueJoin() {
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
                       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
                     </svg>
-                    מצטרף לתור...
+                    מצטרף...
                   </span>
-                ) : '✅ הצטרף לתור'}
+                ) : '✨ הצטרף לתור'}
               </button>
             )}
           </div>
         </div>
 
-        <p className="text-emerald-400 text-xs mt-6">© מסעדת עלינא</p>
+        <p className="text-slate-400 text-xs mt-8 font-light">מסעדת עלינא © 2026</p>
       </div>
     );
   }
@@ -366,8 +366,8 @@ export default function QueueJoin() {
   if (phase === 'done') {
     const isSeated = entry?.status === 'seated';
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center p-4" style={{ background: 'linear-gradient(135deg, #064e3b 0%, #065f46 50%, #047857 100%)' }} dir="rtl">
-        <div className="bg-white rounded-3xl shadow-2xl p-10 w-full max-w-sm text-center">
+      <div className="min-h-screen flex flex-col items-center justify-center p-4" style={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%)' }} dir="rtl">
+        <div className="bg-white/95 backdrop-blur-sm rounded-3xl shadow-2xl p-10 w-full max-w-sm text-center border border-white/20">
           <div className="text-7xl mb-4 animate-bounce">{isSeated ? '🎉' : '👋'}</div>
           <h2 className="text-2xl font-black text-gray-800 mb-3">
             {isSeated ? 'בתיאבון!' : 'להתראות!'}
@@ -414,18 +414,19 @@ export default function QueueJoin() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-start pt-8 p-4" style={{ background: 'linear-gradient(135deg, #064e3b 0%, #065f46 50%, #047857 100%)' }} dir="rtl">
-      {/* לוגו */}
-      <div className="text-center mb-6">
-        <div className="text-4xl mb-1">🍽️</div>
-        <h1 className="text-2xl font-black text-white">עלינא</h1>
-      </div>
+    <div className="min-h-screen flex flex-col items-center justify-start pt-8 p-4" style={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%)' }} dir="rtl">
+    {/* לוגו */}
+    <div className="text-center mb-8">
+      <div className="text-5xl mb-2 drop-shadow-lg">🍽️</div>
+      <h1 className="text-3xl font-black text-white">עלינא</h1>
+      <p className="text-slate-300 text-xs mt-1 font-light">קו אישי לתור</p>
+    </div>
 
-      {/* כרטיס ראשי */}
-      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden">
+    {/* כרטיס ראשי */}
+    <div className="bg-white/95 backdrop-blur-sm rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden border border-white/20">
 
-        {/* כותרת */}
-        <div className={`p-6 text-white text-center ${isPending ? 'bg-amber-500' : 'bg-emerald-600'}`}>
+      {/* כותרת */}
+      <div className={`p-6 text-white text-center ${isPending ? 'bg-amber-600' : 'bg-slate-800'}`}>
           <p className="font-black text-2xl">{entry?.customer_name || ''}</p>
           <p className="text-sm opacity-80 mt-1">{entry?.party_size} סועדים</p>
         </div>
@@ -603,11 +604,11 @@ export default function QueueJoin() {
             <div className="text-center pt-1">
               <a
                 href={`/QueueGame?entry=${entryId}&name=${encodeURIComponent(entry?.customer_name || 'אורח')}`}
-                className="flex items-center justify-center gap-2 w-full bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 active:scale-95 text-white font-black py-3.5 rounded-2xl text-base transition-all shadow-lg"
+                className="flex items-center justify-center gap-2 w-full bg-gradient-to-r from-slate-700 to-slate-800 hover:from-slate-800 hover:to-slate-900 active:scale-95 text-white font-black py-3.5 rounded-2xl text-base transition-all shadow-lg"
               >
-                🎮 שחק עם שאר הממתינים!
+                🎮 משחקים בזמן ההמתנה
               </a>
-              <p className="text-gray-400 text-xs mt-1.5">טריוויה על המסעדה · תוצאות לייב</p>
+              <p className="text-slate-400 text-xs mt-1.5 font-light">טריוויה · תוצאות בזמן אמת</p>
             </div>
           )}
 
@@ -741,7 +742,7 @@ export default function QueueJoin() {
         </div>
       )}
 
-      <p className="text-emerald-400 text-xs mt-6">© מסעדת עלינא</p>
+      <p className="text-slate-400 text-xs mt-8 font-light">מסעדת עלינא © 2026</p>
     </div>
   );
 }
