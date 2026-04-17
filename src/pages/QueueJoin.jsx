@@ -234,6 +234,7 @@ function QueueJoinInner() {
       return;
     }
     setError('');
+    setLoading(true);
 
     try {
       // בדוק אם יש כניסה עם אותו מספר טלפון
@@ -241,37 +242,47 @@ function QueueJoinInner() {
       try {
         existing = await base44.entities.QueueEntry.filter({ phone: form.phone.trim() });
       } catch (e) {
-        // אם הקוד לא מחובר או אין גישה, המשך בלי בדיקה
         console.warn('Cannot check existing entries:', e);
       }
       const activeEntry = existing.find(e => e.status !== 'seated' && e.status !== 'abandoned');
       if (activeEntry) {
         setDuplicateEntry(activeEntry);
+        setLoading(false);
         return;
       }
 
+      console.log('geofencingEnabled:', geofencingEnabled);
+      
+      // אם גיאופנסינג כבוי או אין תמיכה בmGeolocation, הנח מיד
       if (!geofencingEnabled || !navigator.geolocation) {
+        console.log('Skipping geofencing - bypassing to registration');
         await handleRegister();
         return;
       }
+
+      // אם גיאופנסינג פעיל, בדוק מיקום
       setGeoStatus('checking');
       navigator.geolocation.getCurrentPosition(
         (pos) => {
           const dist = calcDistance(pos.coords.latitude, pos.coords.longitude, RESTAURANT_LAT, RESTAURANT_LNG);
+          console.log('Distance:', dist, 'meters');
           if (dist <= MAX_DISTANCE_METERS) {
             setGeoStatus('ok');
             handleRegister();
           } else {
             setGeoStatus('too_far');
+            setLoading(false);
           }
         },
         () => {
+          console.log('Geolocation denied/unavailable - proceeding without location');
           setGeoStatus('denied');
           handleRegister();
         },
         { timeout: 8000, maximumAge: 0, enableHighAccuracy: true }
       );
     } catch (e) {
+      console.error('Error in checkGeoAndRegister:', e);
       setError('שגיאה בהרשמה: ' + (e.message || 'נסה שוב'));
       setLoading(false);
     }
