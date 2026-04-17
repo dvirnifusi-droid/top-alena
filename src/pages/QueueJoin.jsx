@@ -408,6 +408,7 @@ function QueueJoinInner() {
         customer_name: form.customer_name.trim(),
         phone: form.phone.trim(),
         party_size: parseInt(form.party_size),
+        seating_preference: form.seating_preference,
       });
       console.log('Response from createQueueEntry:', res);
       
