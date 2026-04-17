@@ -1,6 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
 import TicTacToe from '@/components/games/TicTacToe';
+import GameSetup from '@/components/games/GameSetup';
+import FortuneWheel from '@/components/games/FortuneWheel';
+import QuestionGame from '@/components/games/QuestionGame';
 
 const FALLBACK_QUESTIONS = [
   { question: 'מה שם המסעדה?', options: ['עלינא', 'נועה', 'אליס', 'בלינה'], answer: 0 },
@@ -169,11 +172,14 @@ export default function QueueGame() {
   const entryId = urlParams.get('entry') || '';
   const playerName = urlParams.get('name') || 'אורח';
 
-  const [game, setGame] = useState(null); // null=lobby | 'trivia' | 'tictactoe'
+  const [game, setGame] = useState(null); // null=lobby | 'trivia' | 'tictactoe' | 'setup'
   const [questions, setQuestions] = useState([]);
+  const [gameQuestions, setGameQuestions] = useState([]);
+  const [gameConfig, setGameConfig] = useState(null);
 
   useEffect(() => {
     base44.entities.TriviaQuestion.filter({ is_active: true }).then(qs => setQuestions(qs));
+    base44.entities.GameQuestion.filter({ is_active: true }).then(qs => setGameQuestions(qs));
   }, []);
 
   const shareUrl = `${window.location.origin}/QueueGame?entry=${entryId}&name=${encodeURIComponent(playerName)}`;
@@ -181,6 +187,7 @@ export default function QueueGame() {
   const GAMES = [
     { id: 'trivia', emoji: '🧠', title: 'טריוויה', desc: 'שאלות על המסעדה — תתחרו בניקוד!', color: 'from-purple-600 to-indigo-600' },
     { id: 'tictactoe', emoji: '✕○', title: 'איקס עיגול', desc: 'שחק נגד המחשב', color: 'from-emerald-500 to-teal-600' },
+    { id: 'setup', emoji: '🎪', title: 'משחקי קבוצה', desc: 'גלגל מזל ושאלות מחדדות', color: 'from-amber-500 to-orange-600' },
   ];
 
   return (
@@ -221,6 +228,47 @@ export default function QueueGame() {
         </>
       ) : game === 'trivia' ? (
         <TriviaGame playerName={playerName} entryId={entryId} allQuestions={questions} />
+      ) : game === 'setup' ? (
+        <div className="w-full max-w-sm">
+          {!gameConfig ? (
+            <GameSetup 
+              onStart={(config) => {
+                setGameConfig(config);
+              }}
+            />
+          ) : gameConfig.gameType === 'wheel' ? (
+            <div className="text-center">
+              <h2 className="text-2xl font-black text-white mb-6">🎡 גלגל המזל</h2>
+              <FortuneWheel 
+                players={gameConfig.players}
+                onResult={() => {
+                  setTimeout(() => {
+                    setGameConfig(null);
+                    setGame(null);
+                  }, 3000);
+                }}
+              />
+            </div>
+          ) : (
+            <div className="text-center">
+              <h2 className="text-2xl font-black text-white mb-6">❓ מי עונה?</h2>
+              <QuestionGame 
+                players={gameConfig.players}
+                category={gameConfig.category}
+                questions={gameQuestions}
+              />
+              <button
+                onClick={() => {
+                  setGameConfig(null);
+                  setGame(null);
+                }}
+                className="w-full text-white/50 text-sm hover:text-white/80 transition-colors mt-6"
+              >
+                🔙 חזור לתור
+              </button>
+            </div>
+          )}
+        </div>
       ) : (
         <div className="w-full max-w-sm">
           <div className="text-center mb-6">

@@ -91,6 +91,7 @@ const adminLinks = [
   { title: "היסטוריית תור + קשרים", url: createPageUrl("QueueHistory"), icon: Users, isSubItem: true },
   { title: "ניתוח תור", url: createPageUrl("QueueAnalytics"), icon: BarChart3, isSubItem: true },
   { title: "ניהול משחקי ממתינים", url: createPageUrl("GamesAdmin"), icon: Trophy, isSubItem: true },
+  { title: "ניהול שאלות משחקים", url: createPageUrl("GameQuestionsAdmin"), icon: FileText, isSubItem: true },
   ];
 
 // תפריט לעובדים רגילים - מחולק לקטגוריות

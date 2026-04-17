@@ -15,6 +15,7 @@ import QueueHistory from './pages/QueueHistory';
 import QueueAnalytics from './pages/QueueAnalytics';
 import QueueGame from './pages/QueueGame';
 import GamesAdmin from './pages/GamesAdmin';
+import GameQuestionsAdmin from './pages/GameQuestionsAdmin';
 import QueueFeedback from './pages/QueueFeedback';
 import MarketingCampaigns from './pages/MarketingCampaigns';
 
@@ -79,6 +80,7 @@ const AuthenticatedApp = () => {
       <Route path="/QueueHistory" element={<LayoutWrapper currentPageName="QueueHistory"><QueueHistory /></LayoutWrapper>} />
       <Route path="/QueueAnalytics" element={<LayoutWrapper currentPageName="QueueAnalytics"><QueueAnalytics /></LayoutWrapper>} />
       <Route path="/GamesAdmin" element={<LayoutWrapper currentPageName="GamesAdmin"><GamesAdmin /></LayoutWrapper>} />
+      <Route path="/GameQuestionsAdmin" element={<LayoutWrapper currentPageName="GameQuestionsAdmin"><GameQuestionsAdmin /></LayoutWrapper>} />
       <Route path="*" element={<PageNotFound />} />
     </Routes>
   );
