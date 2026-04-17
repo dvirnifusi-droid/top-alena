@@ -195,23 +195,24 @@ function QueueJoinInner() {
     return () => clearInterval(tick);
   }, [entry?.timestamp_approved, entry?.time_credits_earned]);
 
-  const checkGeoAndRegister = () => {
+  const checkGeoAndRegister = async () => {
     if (!form.customer_name.trim() || !form.phone.trim()) {
       setError('נא למלא שם ומספר טלפון');
       return;
     }
     setError('');
 
-    // בדוק אם יש כניסה עם אותו מספר טלפון
-    base44.entities.QueueEntry.filter({ phone: form.phone.trim() }).then(existing => {
+    try {
+      // בדוק אם יש כניסה עם אותו מספר טלפון
+      const existing = await base44.entities.QueueEntry.filter({ phone: form.phone.trim() });
       const activeEntry = existing.find(e => e.status !== 'seated' && e.status !== 'abandoned');
       if (activeEntry) {
         setDuplicateEntry(activeEntry);
         return;
       }
-      
+
       if (!geofencingEnabled || !navigator.geolocation) {
-        handleRegister();
+        await handleRegister();
         return;
       }
       setGeoStatus('checking');
@@ -231,7 +232,10 @@ function QueueJoinInner() {
         },
         { timeout: 8000, maximumAge: 0, enableHighAccuracy: true }
       );
-    });
+    } catch (e) {
+      setError('שגיאה בהרשמה: ' + (e.message || 'נסה שוב'));
+      setLoading(false);
+    }
   };
 
   const handleRegister = async () => {
@@ -239,33 +243,38 @@ function QueueJoinInner() {
     setLoading(true);
     setError('');
 
-    const maxOrder = 9999;
-    const newEntry = await base44.entities.QueueEntry.create({
-      customer_name: form.customer_name.trim(),
-      phone: form.phone.trim(),
-      party_size: parseInt(form.party_size),
-      status: 'pending',
-      timestamp_register: new Date().toISOString(),
-      sort_order: maxOrder,
-    });
-
-    // סנכרון ל-CRM
     try {
-      const existing = await base44.entities.Customer.filter({ phone: form.phone.trim() });
-      if (existing.length === 0) {
-        await base44.entities.Customer.create({
-          full_name: form.customer_name.trim(),
-          phone: form.phone.trim(),
-          source: 'queue_qr',
-        });
-      }
-    } catch (_) {}
+      const maxOrder = 9999;
+      const newEntry = await base44.entities.QueueEntry.create({
+        customer_name: form.customer_name.trim(),
+        phone: form.phone.trim(),
+        party_size: parseInt(form.party_size),
+        status: 'pending',
+        timestamp_register: new Date().toISOString(),
+        sort_order: maxOrder,
+      });
 
-    // רישום Push בלי לחסום את הניווט
-    registerPushAndSave(newEntry.id).catch(() => {});
+      // סנכרון ל-CRM
+      try {
+        const existing = await base44.entities.Customer.filter({ phone: form.phone.trim() });
+        if (existing.length === 0) {
+          await base44.entities.Customer.create({
+            full_name: form.customer_name.trim(),
+            phone: form.phone.trim(),
+            source: 'queue_qr',
+          });
+        }
+      } catch (_) {}
 
-    setLoading(false);
-    window.location.href = `/QueueJoin?id=${newEntry.id}`;
+      // רישום Push בלי לחסום את הניווט
+      registerPushAndSave(newEntry.id).catch(() => {});
+
+      // ניווט מיד לדף ההמתנה
+      window.location.href = `/QueueJoin?id=${newEntry.id}`;
+    } catch (e) {
+      setError('שגיאה בהרשמה: ' + (e.message || 'נסה שוב'));
+      setLoading(false);
+    }
   };
 
   // דף כניסה לתור קיים

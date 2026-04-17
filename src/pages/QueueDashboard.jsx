@@ -113,6 +113,20 @@ export default function QueueDashboard() {
     base44.entities.TimeTreat.filter({ is_active: true }).then(t => setTreats(t));
   }, []);
 
+  // התראות נוספות כשמישהו חדש נרשם
+  useEffect(() => {
+    const sub = base44.entities.QueueEntry.subscribe(event => {
+      if (event.type === 'create' && event.data?.status === 'pending') {
+        // שמור notification
+        const msg = `📍 הרשמה חדשה! ${event.data.customer_name} - ${event.data.party_size} סועדים`;
+        if ('Notification' in window && Notification.permission === 'granted') {
+          new Notification('עלינא - בקשה להשלמה', { body: msg });
+        }
+      }
+    });
+    return () => sub();
+  }, []);
+
   const toggleGeofencing = async () => {
     const newVal = !geofencingEnabled;
     setGeofencingEnabled(newVal);
