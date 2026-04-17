@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 export default function QueueHistory() {
   const [entries, setEntries] = useState([]);
   const [filteredEntries, setFilteredEntries] = useState([]);
+  const [customers, setCustomers] = useState({});
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -16,17 +17,24 @@ export default function QueueHistory() {
   const [specificDate, setSpecificDate] = useState('');
 
   useEffect(() => {
-    const fetchEntries = async () => {
+    const fetchData = async () => {
       try {
         const all = await base44.entities.QueueEntry.list('-timestamp_register', 500);
         setEntries(all);
+
+        // טען customers לmapping
+        const custs = await base44.entities.Customer.list();
+        const custMap = {};
+        custs.forEach(c => { custMap[c.phone] = c; });
+        setCustomers(custMap);
+
         setLoading(false);
       } catch (e) {
-        console.error('Error fetching queue history:', e);
+        console.error('Error fetching data:', e);
         setLoading(false);
       }
     };
-    fetchEntries();
+    fetchData();
   }, []);
 
   useEffect(() => {
@@ -348,6 +356,8 @@ export default function QueueHistory() {
               <th className="text-right px-4 py-3 font-black text-sm text-gray-700">⏱️ זמן המתנה</th>
               <th className="text-right px-4 py-3 font-black text-sm text-gray-700">🎁 פינוק</th>
               <th className="text-right px-4 py-3 font-black text-sm text-gray-700">דירוג</th>
+              <th className="text-center px-4 py-3 font-black text-sm text-gray-700">🏆 דרגה</th>
+              <th className="text-center px-4 py-3 font-black text-sm text-gray-700">💰 מטבעות</th>
               <th className="text-center px-4 py-3 font-black text-sm text-gray-700">פעולות</th>
             </tr>
           </thead>
@@ -362,6 +372,9 @@ export default function QueueHistory() {
               filteredEntries.map(entry => {
                 const waitTime = getWaitTime(entry);
                 const waitColor = waitTime > 40 ? 'text-red-700 bg-red-50' : waitTime > 20 ? 'text-yellow-700 bg-yellow-50' : 'text-green-700 bg-green-50';
+                const customer = customers[entry.phone];
+                const tierEmoji = { vip: '👑', frequent: '⭐', regular: '👤' };
+                
                 return (
                 <tr key={entry.id} className="border-b border-gray-200 hover:bg-gray-50 transition-colors">
                   <td className="px-4 py-3 font-semibold text-gray-800">{entry.customer_name}</td>
@@ -389,6 +402,22 @@ export default function QueueHistory() {
                       </span>
                     ) : (
                       <span className="text-gray-400 text-sm">-</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-center">
+                    {customer ? (
+                      <span className="text-base" title={`${customer.visit_count} ביקורים`}>
+                        {tierEmoji[customer.loyalty_tier] || '👤'}
+                      </span>
+                    ) : (
+                      <span className="text-gray-300 text-xs">new</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-center">
+                    {customer ? (
+                      <span className="font-bold text-purple-700">{customer.coin_balance}</span>
+                    ) : (
+                      <span className="text-gray-300 text-sm">-</span>
                     )}
                   </td>
                   <td className="px-4 py-3 text-center flex gap-2 justify-center">
