@@ -519,6 +519,34 @@ export default function QueueJoin() {
                 </p>
               </div>
 
+              {/* פרסים זמינים */}
+              {treats.length > 0 && (
+                <div className="bg-gradient-to-r from-purple-50 to-pink-50 border-2 border-purple-200 rounded-2xl p-4">
+                  <p className="font-black text-purple-800 text-sm mb-3 text-center">🎁 פרסים שאתה יכול להרוויח</p>
+                  <div className="grid grid-cols-1 gap-2">
+                    {treats.map(treat => (
+                      <div key={treat.id} className="bg-white rounded-xl p-3 flex items-center justify-between border border-purple-100">
+                        <div className="flex-1 min-w-0">
+                          <p className="font-bold text-sm text-gray-800">{treat.emoji} {treat.name}</p>
+                          <p className="text-xs text-gray-500">{treat.description}</p>
+                        </div>
+                        <div className="text-right ml-3 flex-shrink-0">
+                          <p className={`font-black text-sm ${timeCreditsEarned >= treat.cost ? 'text-purple-700' : 'text-gray-400'}`}>
+                            {treat.cost} 💰
+                          </p>
+                          {timeCreditsEarned >= treat.cost && (
+                            <span className="text-xs text-green-600 font-bold">✅ זמין!</span>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-xs text-purple-600 text-center mt-3">
+                    💡 צבור עוד {Math.max(0, 30 - waitMinutes)} דקות כדי להתחיל להצטבר מטבעות
+                  </p>
+                </div>
+              )}
+
               {/* מיקום + זמן */}
               {queuePosition != null && (
                 <div className="grid grid-cols-2 gap-3">
