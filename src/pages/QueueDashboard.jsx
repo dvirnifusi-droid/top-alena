@@ -68,6 +68,7 @@ export default function QueueDashboard() {
   const [countdowns, setCountdowns] = useState({}); // entryId -> secondsLeft (seat countdown)
   const [callCountdowns, setCallCountdowns] = useState({}); // entryId -> secondsLeft (call countdown)
   const [lowFeedbacks, setLowFeedbacks] = useState([]);
+  const [bonusAmount, setBonusAmount] = useState({});
   const prevFirstActiveRef = useRef(null);
   const countdownRef = useRef({});
   const callCountdownRef = useRef({});
@@ -338,6 +339,15 @@ export default function QueueDashboard() {
 
   const handleToggleTreat = async (entry) => {
     await base44.entities.QueueEntry.update(entry.id, { treated: !entry.treated });
+    fetchEntries();
+  };
+
+  const handleGiveBonus = async (entry) => {
+    const bonus = bonusAmount[entry.id] || 100;
+    await base44.entities.QueueEntry.update(entry.id, {
+      time_credits_earned: (entry.time_credits_earned || 0) + bonus,
+    });
+    setBonusAmount(prev => { const n = {...prev}; delete n[entry.id]; return n; });
     fetchEntries();
   };
 
@@ -667,7 +677,35 @@ export default function QueueDashboard() {
                             )}
 
                             {/* כפתורי פעולה */}
-                            <div className="flex gap-1 flex-shrink-0 flex-wrap justify-end">
+                            <div className="flex gap-1 flex-shrink-0 flex-wrap justify-end items-center">
+                              {/* בונוס מטבעות */}
+                              {!bonusAmount[entry.id] ? (
+                                <button
+                                  onClick={() => setBonusAmount(prev => ({ ...prev, [entry.id]: 100 }))}
+                                  title="תן בונוס"
+                                  className="w-8 h-8 rounded-lg bg-yellow-100 hover:bg-yellow-200 text-yellow-700 flex items-center justify-center transition-all text-base"
+                                >⭐</button>
+                              ) : (
+                                <div className="flex items-center gap-1 bg-yellow-50 px-2 py-1 rounded-lg border border-yellow-200">
+                                  <input
+                                    type="number"
+                                    min="1"
+                                    max="999"
+                                    value={bonusAmount[entry.id]}
+                                    onChange={(e) => setBonusAmount(prev => ({ ...prev, [entry.id]: parseInt(e.target.value) || 100 }))}
+                                    className="w-10 text-center text-xs border-0 bg-transparent text-yellow-700 font-black outline-none"
+                                  />
+                                  <button
+                                    onClick={() => handleGiveBonus(entry)}
+                                    className="text-xs font-black text-yellow-700 hover:text-yellow-800 transition-all"
+                                  >✓</button>
+                                  <button
+                                    onClick={() => setBonusAmount(prev => { const n = {...prev}; delete n[entry.id]; return n; })}
+                                    className="text-xs font-black text-yellow-500 hover:text-yellow-600 transition-all"
+                                  >✕</button>
+                                </div>
+                              )}
+                              
                               <button
                                 onClick={() => handleToggleTreat(entry)}
                                 title="פינוק"
