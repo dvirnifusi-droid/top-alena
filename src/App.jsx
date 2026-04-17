@@ -75,9 +75,7 @@ const AuthenticatedApp = () => {
       <Route path="/TrainingVideos" element={<LayoutWrapper currentPageName="TrainingVideos"><TrainingVideos /></LayoutWrapper>} />
       <Route path="/QueueDashboard" element={<LayoutWrapper currentPageName="QueueDashboard"><QueueDashboard /></LayoutWrapper>} />
       <Route path="/QueueAnalytics" element={<LayoutWrapper currentPageName="QueueAnalytics"><QueueAnalytics /></LayoutWrapper>} />
-      <Route path="/QueueGame" element={<QueueGame />} />
       <Route path="/GamesAdmin" element={<LayoutWrapper currentPageName="GamesAdmin"><GamesAdmin /></LayoutWrapper>} />
-      <Route path="/QueueFeedback" element={<QueueFeedback />} />
       <Route path="*" element={<PageNotFound />} />
     </Routes>
   );
@@ -90,7 +88,12 @@ function App() {
     <AuthProvider>
       <QueryClientProvider client={queryClientInstance}>
         <Router>
-          <AuthenticatedApp />
+          <Routes>
+            <Route path="/QueueJoin" element={<QueueJoin />} />
+            <Route path="/QueueGame" element={<QueueGame />} />
+            <Route path="/QueueFeedback" element={<QueueFeedback />} />
+            <Route path="/*" element={<AuthenticatedApp />} />
+          </Routes>
         </Router>
         <Toaster />
       </QueryClientProvider>
