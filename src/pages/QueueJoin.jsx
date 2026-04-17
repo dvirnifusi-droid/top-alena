@@ -88,7 +88,7 @@ export default function QueueJoin() {
         .sort((a, b) => (a.sort_order ?? 9999) - (b.sort_order ?? 9999));
       const pos = activeQueue.findIndex(e => e.id === entryId);
       setQueuePosition(pos >= 0 ? pos + 1 : null);
-      setEstimatedWait(pos >= 0 ? pos * 7 : null); // 7 דקות ממוצע לפני כל שולחן
+      setEstimatedWait(null);
 
       // זמן המתנה מצטבר
       if (found.timestamp_approved) {
