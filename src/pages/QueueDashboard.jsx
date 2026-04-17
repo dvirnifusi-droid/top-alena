@@ -10,6 +10,28 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { sendFeedbackSms } from '@/functions/sendFeedbackSms';
 
+const RESTAURANT_LAT = 31.964780873771108;
+const RESTAURANT_LNG = 34.79326668650769;
+const MAX_DISTANCE_METERS = 100;
+
+function calcDistance(lat1, lon1, lat2, lon2) {
+  const R = 6371000;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
+function isGuestFarAway(entry) {
+  if (!entry.last_lat || !entry.last_lng) return false;
+  // אם המיקום ישן מ-2 דקות, לא נציג אזהרה
+  if (entry.last_location_at) {
+    const age = Date.now() - new Date(entry.last_location_at).getTime();
+    if (age > 2 * 60 * 1000) return false;
+  }
+  return calcDistance(entry.last_lat, entry.last_lng, RESTAURANT_LAT, RESTAURANT_LNG) > MAX_DISTANCE_METERS;
+}
+
 const STATUS_LABELS = {
   pending: { label: 'ממתין לאישור', color: 'bg-yellow-100 text-yellow-800' },
   active: { label: 'פעיל בתור', color: 'bg-blue-100 text-blue-800' },
@@ -546,7 +568,7 @@ export default function QueueDashboard() {
                           ref={provided.innerRef}
                           {...provided.draggableProps}
                           {...provided.dragHandleProps}
-                          className={`border-blue-200 ${snapshot.isDragging ? 'shadow-xl rotate-1 bg-blue-50' : 'bg-white'}`}
+                          className={`border-blue-200 ${snapshot.isDragging ? 'shadow-xl rotate-1 bg-blue-50' : isGuestFarAway(entry) ? 'bg-red-50 border-red-300' : 'bg-white'}`}
                         >
                           <CardContent className="p-3 flex items-center gap-3">
                             {/* מספר בתור */}
@@ -557,7 +579,10 @@ export default function QueueDashboard() {
                             {/* פרטים */}
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2">
-                                <p className="font-bold text-gray-800 truncate">{entry.customer_name}</p>
+                                <p className={`font-bold truncate ${isGuestFarAway(entry) ? 'text-red-600' : 'text-gray-800'}`}>
+                                  {entry.customer_name}
+                                  {isGuestFarAway(entry) && <span className="mr-1 text-xs">📍❌ רחוק</span>}
+                                </p>
                                 <PartySizeIcon size={entry.party_size} />
                                 <span className="text-xs text-gray-500">{entry.party_size}</span>
                                 {entry.treated && <span title="קיבל פינוק">🎁</span>}

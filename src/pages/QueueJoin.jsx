@@ -77,6 +77,27 @@ export default function QueueJoin() {
     }).catch(() => {});
   }, []);
 
+  // שידור מיקום כל 30 שניות (רק אם הלקוח פעיל בתור)
+  useEffect(() => {
+    if (!entryId || !navigator.geolocation) return;
+    const sendLocation = () => {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          base44.entities.QueueEntry.update(entryId, {
+            last_lat: pos.coords.latitude,
+            last_lng: pos.coords.longitude,
+            last_location_at: new Date().toISOString(),
+          }).catch(() => {});
+        },
+        () => {},
+        { timeout: 5000, maximumAge: 15000, enableHighAccuracy: false }
+      );
+    };
+    sendLocation();
+    const interval = setInterval(sendLocation, 30000);
+    return () => clearInterval(interval);
+  }, [entryId]);
+
   // רענון אוטומטי כל 10 שניות
   useEffect(() => {
     if (!entryId) return;
