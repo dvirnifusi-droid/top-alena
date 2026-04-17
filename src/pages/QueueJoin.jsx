@@ -73,6 +73,18 @@ function QueueJoinInner() {
   const [isPublicMode] = useState(true); // תמיד בדף ציבורי זה
   const callTimerRef = useRef(null);
 
+  // עדכן את ה-phase כשה-entry משתנה
+  useEffect(() => {
+    if (!entry) {
+      if (entryId) setPhase('waiting'); // entry עדיין טוען
+      else setPhase('register'); // אין ID - תצוגת הרשמה
+    } else if (entry.status === 'seated' || entry.status === 'abandoned') {
+      setPhase('done');
+    } else {
+      setPhase('waiting'); // pending או active
+    }
+  }, [entry, entryId]);
+
   // טעינת הגדרות מסעדה (ללא בדיקת התחברות)
   useEffect(() => {
     if (isPublicMode) {
