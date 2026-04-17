@@ -24,12 +24,21 @@ export default function FortuneWheel({ players, onResult }) {
   return (
     <div className="flex flex-col items-center gap-6 p-6">
       {/* גלגל מזל */}
-      <div className="relative w-64 h-64 rounded-full border-8 border-gradient-to-r from-primary to-accent flex items-center justify-center bg-white shadow-2xl overflow-hidden">
+      <div className="relative w-64 h-64 rounded-full border-8 border-white flex items-center justify-center bg-white shadow-2xl overflow-hidden" style={{ boxShadow: '0 0 30px rgba(139, 92, 246, 0.4)' }}>
         {/* רקע גלגל */}
         <div 
           className={`absolute inset-0 transition-transform duration-3000 ease-out ${spinning ? 'rotate-[720deg]' : ''}`}
           style={{
-            background: `conic-gradient(${players.map((_, i) => `hsl(${(i * 360) / players.length}, 70%, 60%)`).join(',')})`,
+            background: `conic-gradient(
+              #FF6B6B 0deg,
+              #FF8C42 45deg,
+              #FFD93D 90deg,
+              #6BCB77 135deg,
+              #4D96FF 180deg,
+              #9D84B7 225deg,
+              #FF77A8 270deg,
+              #FF6B6B 360deg
+            )`,
           }}
         >
           {/* חלוקות לשמות */}
@@ -52,7 +61,7 @@ export default function FortuneWheel({ players, onResult }) {
         </div>
 
         {/* חץ למעלה */}
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-6 border-l-transparent border-r-transparent border-t-red-500 z-10" />
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-0 h-0 border-l-5 border-r-5 border-t-8 border-l-transparent border-r-transparent border-t-red-500 z-10 drop-shadow-lg" style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.3))' }} />
 
         {/* טקסט במרכז */}
         <div className="relative z-10 text-center">
