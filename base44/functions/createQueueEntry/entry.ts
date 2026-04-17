@@ -9,12 +9,16 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
-    // קבל את המטבעות הקודמים מכניסות קודמות
-    const allEntries = await base44.asServiceRole.entities.QueueEntry.list('-timestamp_register', 1000);
-    const previousEntries = allEntries.filter(e => e.phone === phone);
-    const previousCredits = previousEntries.length > 0 
-      ? (previousEntries[0].time_credits_earned || 0) 
-      : 0;
+    // קבל את המטבעות מCustomer entity (השמור מפעמים קודמות)
+    let previousCredits = 0;
+    try {
+      const customers = await base44.asServiceRole.entities.Customer.filter({ phone: phone.trim() });
+      if (customers.length > 0) {
+        previousCredits = customers[0].coin_balance || 0;
+      }
+    } catch (e) {
+      console.warn('Could not fetch customer:', e);
+    }
 
     // צור כניסה חדשה עם המטבעות הקודמים
     const newEntry = await base44.asServiceRole.entities.QueueEntry.create({
