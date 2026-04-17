@@ -74,7 +74,7 @@ function QueueJoinInner() {
   const [duplicateEntry, setDuplicateEntry] = useState(null);
   const [isPublicMode] = useState(true); // תמיד בדף ציבורי זה
   const [customerHistory, setCustomerHistory] = useState(null);
-  const [showPreviousHistory, setShowPreviousHistory] = useState(false);
+  const historyTimeoutRef = useRef(null);
   const callTimerRef = useRef(null);
 
   // עדכן את ה-phase כשה-entry משתנה
@@ -248,6 +248,34 @@ function QueueJoinInner() {
     return () => clearInterval(tick);
   }, [entry?.timestamp_approved, entry?.time_credits_earned]);
 
+  // טען היסטוריה אוטומטית כשהטלפון משתנה (debounce)
+  useEffect(() => {
+    if (!form.phone.trim()) {
+      setCustomerHistory(null);
+      return;
+    }
+
+    if (historyTimeoutRef.current) clearTimeout(historyTimeoutRef.current);
+    
+    historyTimeoutRef.current = setTimeout(async () => {
+      try {
+        const histRes = await base44.functions.invoke('getAnonymousCustomerHistory', { phone: form.phone.trim() });
+        if (histRes.data && !histRes.data.isNewCustomer) {
+          setCustomerHistory(histRes.data);
+        } else {
+          setCustomerHistory(null);
+        }
+      } catch (e) {
+        console.warn('Could not fetch history:', e);
+        setCustomerHistory(null);
+      }
+    }, 500);
+
+    return () => {
+      if (historyTimeoutRef.current) clearTimeout(historyTimeoutRef.current);
+    };
+  }, [form.phone]);
+
   const checkGeoAndRegister = async () => {
     if (!form.customer_name.trim() || !form.phone.trim()) {
       setError('נא למלא שם ומספר טלפון');
@@ -255,18 +283,6 @@ function QueueJoinInner() {
     }
     setError('');
     setLoading(true);
-
-    // טען היסטוריה של הטלפון הזה
-    try {
-      const histRes = await base44.functions.invoke('getAnonymousCustomerHistory', { phone: form.phone.trim() });
-      setCustomerHistory(histRes.data);
-      if (!histRes.data?.isNewCustomer) {
-        setShowPreviousHistory(true);
-        return; // עצור פה והראה את ההיסטוריה
-      }
-    } catch (e) {
-      console.warn('Could not fetch history:', e);
-    }
 
     try {
       // בדוק אם יש כניסה עם אותו מספר טלפון
@@ -423,67 +439,6 @@ function QueueJoinInner() {
     );
   }
 
-  // ========== דף היסטוריה קודמת ==========
-  if (showPreviousHistory && customerHistory && !customerHistory.isNewCustomer) {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center p-4" style={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%)' }} dir="rtl">
-        <div className="bg-white/95 backdrop-blur-sm rounded-3xl shadow-2xl p-8 w-full max-w-sm border border-white/20">
-          <div className="text-center mb-6">
-            <div className="text-5xl mb-3">👋</div>
-            <h2 className="text-2xl font-black text-slate-800 mb-1">שלום שוב!</h2>
-            <p className="text-slate-600 text-sm">המערכת זוכרת אותך</p>
-          </div>
-
-          <div className="bg-blue-50 border-2 border-blue-300 rounded-2xl p-4 mb-4 space-y-3">
-            <div className="text-center">
-              <p className="text-sm text-blue-600 font-medium">🔄 זה הביקור שלך</p>
-              <p className="text-2xl font-black text-blue-700">#{customerHistory.visitCount + 1}</p>
-            </div>
-            
-            {customerHistory.seatedCount > 0 && (
-              <div className="text-center pt-2 border-t border-blue-200">
-                <p className="text-xs text-blue-600 mb-1">✅ מהם ישבו בהצלחה</p>
-                <p className="font-bold text-blue-700">{customerHistory.seatedCount} פעמים</p>
-              </div>
-            )}
-
-            {customerHistory.totalCredits > 0 && (
-              <div className="text-center pt-2 border-t border-blue-200 bg-yellow-50 rounded-xl p-2">
-                <p className="text-xs text-yellow-600 mb-1">💰 מטבעות שנתרו לך</p>
-                <p className="font-black text-yellow-700">{customerHistory.totalCredits}</p>
-              </div>
-            )}
-
-            {customerHistory.previousTreat && (
-              <div className="text-center pt-2 border-t border-blue-200 bg-purple-50 rounded-xl p-2">
-                <p className="text-xs text-purple-600 mb-1">🎁 בחרת בעבר:</p>
-                <p className="text-sm text-purple-700 font-medium">פינוק מיוחד</p>
-              </div>
-            )}
-          </div>
-
-          <button
-            onClick={() => setShowPreviousHistory(false)}
-            className="w-full bg-slate-800 hover:bg-slate-900 active:scale-95 text-white font-black py-4 rounded-2xl text-lg transition-all mb-2 shadow-xl"
-          >
-            ✨ ממשיך להרשמה
-          </button>
-
-          <button
-            onClick={() => {
-              setForm({ customer_name: '', phone: '', party_size: 2 });
-              setCustomerHistory(null);
-              setShowPreviousHistory(false);
-            }}
-            className="w-full text-slate-400 text-sm hover:text-slate-600 transition-colors"
-          >
-            זה לא אני - רוצה טלפון אחר
-          </button>
-        </div>
-      </div>
-    );
-  }
-
   // ========== דף הרשמה ==========
   if (phase === 'register') {
     return (
@@ -523,6 +478,34 @@ function QueueJoinInner() {
                 onChange={e => setForm({ ...form, phone: e.target.value })}
                 onKeyDown={e => e.key === 'Enter' && checkGeoAndRegister()}
               />
+              
+              {/* בנר היסטוריה קודמת - אוטומטי */}
+              {customerHistory && (
+                <div className="mt-3 bg-gradient-to-r from-blue-50 to-cyan-50 border-2 border-blue-300 rounded-2xl p-3 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-bold text-blue-700">👋 שלום שוב!</span>
+                    <span className="text-xs text-blue-600">ביקור #{customerHistory.visitCount + 1}</span>
+                  </div>
+                  
+                  <div className="flex gap-2 flex-wrap text-xs">
+                    {customerHistory.seatedCount > 0 && (
+                      <div className="bg-green-100 text-green-700 px-2 py-1 rounded-full font-bold">
+                        ✅ {customerHistory.seatedCount} הושבו
+                      </div>
+                    )}
+                    {customerHistory.abandonedCount > 0 && (
+                      <div className="bg-red-100 text-red-700 px-2 py-1 rounded-full font-bold">
+                        ❌ {customerHistory.abandonedCount} נטשו
+                      </div>
+                    )}
+                    {customerHistory.totalCredits > 0 && (
+                      <div className="bg-yellow-100 text-yellow-700 px-2 py-1 rounded-full font-bold">
+                        💰 {customerHistory.totalCredits} מטבעות
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* כמות סועדים */}
