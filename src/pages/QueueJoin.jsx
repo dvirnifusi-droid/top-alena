@@ -139,7 +139,17 @@ function QueueJoinInner() {
         .filter(e => e.status === 'active')
         .sort((a, b) => (a.sort_order ?? 9999) - (b.sort_order ?? 9999));
       const pos = activeQueue.findIndex(e => e.id === entryId);
-      setQueuePosition(pos >= 0 ? pos + 1 : null);
+      
+      // אם לא בפעיל, בדוק pending
+      if (pos >= 0) {
+        setQueuePosition(pos + 1);
+      } else {
+        const pendingQueue = all
+          .filter(e => e.status === 'pending')
+          .sort((a, b) => new Date(a.timestamp_register) - new Date(b.timestamp_register));
+        const pendingPos = pendingQueue.findIndex(e => e.id === entryId);
+        setQueuePosition(pendingPos >= 0 ? pendingPos + 1 : null);
+      }
       setEstimatedWait(null);
 
       // זמן המתנה מצטבר
