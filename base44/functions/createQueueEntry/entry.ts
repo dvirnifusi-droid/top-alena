@@ -1,5 +1,3 @@
-import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
-
 Deno.serve(async (req) => {
   try {
     const body = await req.json();
@@ -9,18 +7,32 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
-    // צור client עם service role כדי שלא צריך להיות authenticated
-    const base44 = createClientFromRequest(req);
-
-    const newEntry = await base44.asServiceRole.entities.QueueEntry.create({
-      customer_name: customer_name.trim(),
-      phone: phone.trim(),
-      party_size: parseInt(party_size),
-      status: 'pending',
-      timestamp_register: new Date().toISOString(),
-      sort_order: 9999,
+    // שלח בקשה ישירה ל-API (ללא auth requirement)
+    const appId = Deno.env.get('BASE44_APP_ID');
+    const url = `https://api.base44.app/apps/${appId}/entities/QueueEntry`;
+    
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        customer_name: customer_name.trim(),
+        phone: phone.trim(),
+        party_size: parseInt(party_size),
+        status: 'pending',
+        timestamp_register: new Date().toISOString(),
+        sort_order: 9999,
+      }),
     });
 
+    if (!response.ok) {
+      const error = await response.text();
+      console.error('API error:', error);
+      throw new Error(`Failed to create entry: ${response.status}`);
+    }
+
+    const newEntry = await response.json();
     console.log('Created queue entry:', newEntry.id);
     return Response.json({ entry: newEntry });
   } catch (error) {
