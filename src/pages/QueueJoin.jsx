@@ -520,6 +520,29 @@ function QueueJoinInner() {
 
   // ========== דף הרשמה ==========
   if (phase === 'register') {
+    const [showQueueList, setShowQueueList] = useState(false);
+    const [allQueueEntries, setAllQueueEntries] = useState([]);
+
+    // טען את רשימת כל הממתינים כשמודאל נפתח
+    React.useEffect(() => {
+      if (showQueueList) {
+        base44.entities.QueueEntry.filter({ status: 'pending' }, '-timestamp_register', 100)
+          .then(entries => setAllQueueEntries(entries))
+          .catch(() => setAllQueueEntries([]));
+      }
+    }, [showQueueList]);
+
+    const handleDeleteEntry = async (id) => {
+      if (window.confirm('בטוח להסיר את ההרשמה?')) {
+        try {
+          await base44.entities.QueueEntry.delete(id);
+          setAllQueueEntries(prev => prev.filter(e => e.id !== id));
+        } catch (e) {
+          console.error('Error:', e);
+        }
+      }
+    };
+
     return (
       <div className="min-h-screen flex flex-col items-center justify-center p-4" style={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%)' }} dir="rtl">
         {/* לוגו */}
@@ -682,8 +705,53 @@ function QueueJoinInner() {
                 ) : '✨ הצטרף לתור'}
               </button>
             )}
+
+            <button
+              onClick={() => setShowQueueList(!showQueueList)}
+              className="w-full bg-gray-200 hover:bg-gray-300 text-gray-700 font-bold py-2 rounded-xl text-sm transition-all mt-1"
+            >
+              👥 {showQueueList ? 'הסתר' : 'הצג'} רשימת ממתינים
+            </button>
           </div>
         </div>
+
+        {/* מודאל רשימת ממתינים */}
+        {showQueueList && (
+          <div className="fixed inset-0 bg-black/60 flex items-end justify-center z-50 p-4" dir="rtl">
+            <div className="bg-white rounded-3xl w-full max-w-sm p-6 shadow-2xl mb-4 max-h-96 overflow-y-auto">
+              <h3 className="text-lg font-black text-gray-800 mb-4 text-center">👥 ממתינים לאישור ({allQueueEntries.length})</h3>
+              
+              {allQueueEntries.length === 0 ? (
+                <p className="text-gray-400 text-center text-sm">אין ממתינים כרגע</p>
+              ) : (
+                <div className="space-y-2">
+                  {allQueueEntries.map(entry => (
+                    <div key={entry.id} className="bg-yellow-50 border-2 border-yellow-200 rounded-2xl p-4 flex items-center justify-between">
+                      <div className="flex-1 min-w-0">
+                        <p className="font-bold text-gray-800">{entry.customer_name}</p>
+                        <p className="text-xs text-gray-500">{entry.phone}</p>
+                        <p className="text-xs text-gray-400 mt-1">👥 {entry.party_size} סועדים</p>
+                      </div>
+                      <button
+                        onClick={() => handleDeleteEntry(entry.id)}
+                        className="ml-2 px-3 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg text-xs font-bold transition-all"
+                      >
+                        ❌ מחק
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <button
+                onClick={() => setShowQueueList(false)}
+                className="w-full text-gray-400 text-sm mt-4 py-2 hover:text-gray-600 transition-colors"
+              >
+                ← סגור
+              </button>
+            </div>
+          </div>
+        )}
 
         <p className="text-slate-400 text-xs mt-8 font-light">מסעדת עלינא © 2026</p>
       </div>
