@@ -586,19 +586,7 @@ export default function QueueDashboard() {
             <Droppable droppableId="queue">
               {(provided) => (
                 <div {...provided.droppableProps} ref={provided.innerRef} className="space-y-2">
-                  {activeEntries.map((entry, index) => {
-                    const farAway = isGuestFarAway(entry);
-                    const proxPending = entry.proximity_response === 'pending' && entry.proximity_check_at;
-                    const proxNo = entry.proximity_response === 'no';
-                    const proxYes = entry.proximity_response === 'yes';
-
-                    let cardBg = 'bg-white border-blue-200';
-                    if (snapshot?.isDragging) cardBg = 'bg-blue-50 border-blue-200';
-                    else if (proxNo) cardBg = 'bg-purple-100 border-purple-400';
-                    else if (proxYes) cardBg = 'bg-green-50 border-green-300';
-                    else if (farAway) cardBg = 'bg-red-50 border-red-300';
-
-                    return (
+                  {activeEntries.map((entry, index) => (
                     <Draggable key={entry.id} draggableId={entry.id} index={index}>
                       {(provided, snapshot) => {
                         let cardBg = 'bg-white border-blue-200';
@@ -724,8 +712,7 @@ export default function QueueDashboard() {
                         );
                       }}
                     </Draggable>
-                    );
-                  })}
+                  ))}
                   {provided.placeholder}
                 </div>
               )}
