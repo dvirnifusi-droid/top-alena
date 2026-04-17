@@ -382,6 +382,17 @@ export default function QueueJoin() {
     await base44.entities.QueueEntry.update(entryId, {
       proximity_response: answer, // 'yes' or 'no'
     });
+    // אם אמר "לא" — אפשר לעזוב מיד
+    if (answer === 'no') {
+      await new Promise(r => setTimeout(r, 500));
+      await base44.entities.QueueEntry.update(entryId, {
+        status: 'abandoned',
+        timestamp_end: new Date().toISOString(),
+        notes: 'לא בסביבה — בדיקת קרבה',
+      });
+      setPhase('done');
+      return;
+    }
     // רענן מיד
     const all = await base44.entities.QueueEntry.list('-timestamp_register', 300);
     const found = all.find(e => e.id === entryId);
