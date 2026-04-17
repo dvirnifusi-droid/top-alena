@@ -70,6 +70,9 @@ export default function QueueDashboard() {
   const [lowFeedbacks, setLowFeedbacks] = useState([]);
   const [bonusAmount, setBonusAmount] = useState({});
   const [treats, setTreats] = useState([]);
+  const [showManualAdd, setShowManualAdd] = useState(false);
+  const [manualForm, setManualForm] = useState({ name: '', phone: '' });
+  const [manualLoading, setManualLoading] = useState(false);
   const prevFirstActiveRef = useRef(null);
   const countdownRef = useRef({});
   const callCountdownRef = useRef({});
@@ -354,6 +357,40 @@ export default function QueueDashboard() {
     fetchEntries();
   };
 
+  const handleManualAdd = async () => {
+    if (!manualForm.name.trim() || !manualForm.phone.trim()) {
+      alert('נא למלא שם ומספר טלפון');
+      return;
+    }
+    setManualLoading(true);
+    try {
+      const newEntry = await base44.entities.QueueEntry.create({
+        customer_name: manualForm.name.trim(),
+        phone: manualForm.phone.trim(),
+        party_size: 1,
+        status: 'active',
+        timestamp_register: new Date().toISOString(),
+        timestamp_approved: new Date().toISOString(),
+        sort_order: (Math.max(0, ...entries.filter(e => e.status === 'active').map(e => e.sort_order ?? 0)) + 1),
+      });
+
+      // שלח SMS עם קישור
+      const guestUrl = `${window.location.origin}/QueueJoin?id=${newEntry.id}`;
+      await sendQueueSms({
+        to: manualForm.phone.trim(),
+        message: `שלום ${manualForm.name}! 🍽️ קישור לדף התור שלך: ${guestUrl}`
+      }).catch(() => {});
+
+      setManualForm({ name: '', phone: '' });
+      setShowManualAdd(false);
+      fetchEntries();
+    } catch (e) {
+      alert('שגיאה: ' + e.message);
+    } finally {
+      setManualLoading(false);
+    }
+  };
+
   const onDragEnd = async (result) => {
     if (!result.destination) return;
     const reordered = Array.from(activeEntries);
@@ -385,11 +422,14 @@ export default function QueueDashboard() {
           <h1 className="text-2xl font-black text-gray-800">🎯 ניהול תור - מסעדת עלינא</h1>
           <p className="text-gray-500 text-sm">דאשבורד מארחת בזמן אמת</p>
         </div>
-        <div className="flex gap-2 items-center">
+        <div className="flex gap-2 items-center flex-wrap">
           <span className="text-xs text-gray-400 flex items-center gap-1">
             <span className="w-2 h-2 bg-green-400 rounded-full inline-block"></span>
             SMS פעיל
           </span>
+          <Button variant="outline" size="sm" onClick={() => setShowManualAdd(!showManualAdd)}>
+            ➕ הוסף ידנית
+          </Button>
           <Button variant="outline" size="sm" onClick={fetchEntries}>
             <RefreshCw className="w-4 h-4 ml-1" /> רענן
           </Button>
@@ -409,6 +449,46 @@ export default function QueueDashboard() {
           </button>
         </div>
       </div>
+
+      {/* Modal הוסף ידנית */}
+      {showManualAdd && (
+        <Card className="mb-4 border-2 border-emerald-300 bg-emerald-50">
+          <CardContent className="p-4">
+            <p className="font-bold text-emerald-800 mb-4">הוסף לקוח ידנית:</p>
+            <div className="space-y-3">
+              <input
+                type="text"
+                placeholder="שם מלא"
+                value={manualForm.name}
+                onChange={(e) => setManualForm({ ...manualForm, name: e.target.value })}
+                className="w-full border-2 border-emerald-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-emerald-400"
+              />
+              <input
+                type="tel"
+                placeholder="מספר טלפון"
+                value={manualForm.phone}
+                onChange={(e) => setManualForm({ ...manualForm, phone: e.target.value })}
+                className="w-full border-2 border-emerald-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-emerald-400"
+              />
+              <div className="flex gap-2">
+                <button
+                  onClick={handleManualAdd}
+                  disabled={manualLoading}
+                  className="flex-1 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold py-2 rounded-xl text-sm transition-all"
+                >
+                  {manualLoading ? 'שומר...' : '✅ הוסף + שלח SMS'}
+                </button>
+                <button
+                  onClick={() => { setShowManualAdd(false); setManualForm({ name: '', phone: '' }); }}
+                  className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-700 font-bold py-2 rounded-xl text-sm transition-all"
+                >
+                  ✕ ביטול
+                </button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* QR Modal */}
       {showQR && (

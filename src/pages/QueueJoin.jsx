@@ -69,6 +69,7 @@ export default function QueueJoin() {
   const [timeCreditsEarned, setTimeCreditsEarned] = useState(0);
   const [treats, setTreats] = useState([]);
   const [showTreatModal, setShowTreatModal] = useState(false);
+  const [duplicateEntry, setDuplicateEntry] = useState(null);
   const callTimerRef = useRef(null);
 
   // טעינת הגדרות מסעדה
@@ -184,28 +185,37 @@ export default function QueueJoin() {
       return;
     }
     setError('');
-    if (!geofencingEnabled || !navigator.geolocation) {
-      handleRegister();
-      return;
-    }
-    setGeoStatus('checking');
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        const dist = calcDistance(pos.coords.latitude, pos.coords.longitude, RESTAURANT_LAT, RESTAURANT_LNG);
-        if (dist <= MAX_DISTANCE_METERS) {
-          setGeoStatus('ok');
-          handleRegister();
-        } else {
-          setGeoStatus('too_far');
-        }
-      },
-      () => {
-        // המשתמש סירב / שגיאה — נאפשר הרשמה (לא לחסום לגמרי)
-        setGeoStatus('denied');
+
+    // בדוק אם יש כניסה עם אותו מספר טלפון
+    base44.entities.QueueEntry.filter({ phone: form.phone.trim() }).then(existing => {
+      const activeEntry = existing.find(e => e.status !== 'seated' && e.status !== 'abandoned');
+      if (activeEntry) {
+        setDuplicateEntry(activeEntry);
+        return;
+      }
+      
+      if (!geofencingEnabled || !navigator.geolocation) {
         handleRegister();
-      },
-      { timeout: 8000, maximumAge: 0, enableHighAccuracy: true }
-    );
+        return;
+      }
+      setGeoStatus('checking');
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const dist = calcDistance(pos.coords.latitude, pos.coords.longitude, RESTAURANT_LAT, RESTAURANT_LNG);
+          if (dist <= MAX_DISTANCE_METERS) {
+            setGeoStatus('ok');
+            handleRegister();
+          } else {
+            setGeoStatus('too_far');
+          }
+        },
+        () => {
+          setGeoStatus('denied');
+          handleRegister();
+        },
+        { timeout: 8000, maximumAge: 0, enableHighAccuracy: true }
+      );
+    });
   };
 
   const handleRegister = async () => {
@@ -241,6 +251,31 @@ export default function QueueJoin() {
     setLoading(false);
     window.location.href = `/QueueJoin?id=${newEntry.id}`;
   };
+
+  // דף כניסה לתור קיים
+  if (duplicateEntry) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center p-4" style={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%)' }} dir="rtl">
+        <div className="bg-white/95 backdrop-blur-sm rounded-3xl shadow-2xl p-8 w-full max-w-sm text-center border border-white/20">
+          <div className="text-5xl mb-4">👋</div>
+          <h2 className="text-2xl font-black text-slate-800 mb-2">ברוכים שוב הבאים!</h2>
+          <p className="text-slate-600 text-sm mb-6">יש לך כבר כניסה פעילה בתור</p>
+          <button
+            onClick={() => window.location.href = `/QueueJoin?id=${duplicateEntry.id}`}
+            className="w-full bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-black py-3.5 rounded-2xl text-base transition-all shadow-lg"
+          >
+            ↩️ חזור לתור שלי
+          </button>
+          <button
+            onClick={() => setDuplicateEntry(null)}
+            className="w-full text-slate-400 text-sm mt-4 hover:text-slate-600 transition-colors"
+          >
+            ← רוצה להרשם מחדש
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   // ========== דף הרשמה ==========
   if (phase === 'register') {
