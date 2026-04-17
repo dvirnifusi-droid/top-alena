@@ -7,6 +7,8 @@ export default function QuestionGame({ players, category, questions }) {
   const [currentPlayer, setCurrentPlayer] = useState(null);
   const [answered, setAnswered] = useState([]);
   const [gameOver, setGameOver] = useState(false);
+  const [selectedWinner, setSelectedWinner] = useState(null);
+  const [showWinnerPicker, setShowWinnerPicker] = useState(false);
 
   const activeQuestions = questions.filter(q => q.is_active && q.category === category);
 
@@ -53,7 +55,7 @@ export default function QuestionGame({ players, category, questions }) {
   };
 
   if (gameOver) {
-    const winner = players[Math.floor(Math.random() * players.length)];
+    const winner = selectedWinner || players[Math.floor(Math.random() * players.length)];
     return (
       <div className="flex flex-col items-center gap-4 p-6 text-center">
         <div className="text-6xl animate-bounce">🎉</div>
@@ -124,6 +126,13 @@ export default function QuestionGame({ players, category, questions }) {
         >
           👉 השאלה הבאה
         </Button>
+        <Button
+          onClick={() => setShowWinnerPicker(true)}
+          variant="outline"
+          className="flex-1 border-2 border-red-300 text-red-600 hover:bg-red-50 font-black py-3 rounded-xl"
+        >
+          🛑 סיים משחק
+        </Button>
       </div>
 
       {/* פרוגרס */}
@@ -133,6 +142,36 @@ export default function QuestionGame({ players, category, questions }) {
           style={{ width: `${((answered.length + 1) / 10) * 100}%` }}
         />
       </div>
+
+      {/* מודאל בחירת מנצח */}
+      {showWinnerPicker && (
+        <div className="fixed inset-0 bg-black/60 flex items-end justify-center z-50 p-4" dir="rtl">
+          <div className="bg-white rounded-3xl w-full max-w-sm p-6 shadow-2xl mb-4 max-h-96 overflow-y-auto">
+            <h3 className="text-lg font-black text-gray-800 mb-4 text-center">בחר מנצח 🏆</h3>
+            <div className="space-y-2 mb-4">
+              {players.map(player => (
+                <button
+                  key={player}
+                  onClick={() => {
+                    setSelectedWinner(player);
+                    setShowWinnerPicker(false);
+                    setGameOver(true);
+                  }}
+                  className="w-full text-right px-4 py-4 rounded-2xl border-2 border-primary bg-primary/10 hover:bg-primary/20 text-gray-800 font-bold transition-all"
+                >
+                  {player}
+                </button>
+              ))}
+            </div>
+            <button
+              onClick={() => setShowWinnerPicker(false)}
+              className="w-full text-gray-400 text-sm py-2 hover:text-gray-600 transition-colors"
+            >
+              ← ביטול
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
