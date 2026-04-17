@@ -1029,14 +1029,14 @@ function QueueJoinInner() {
             <p className="text-gray-300 text-xs">📡 מתרענן אוטומטית כל 10 שניות</p>
           </div>
 
-          {/* כפתור משחק */}
-          {isActive && callSecondsLeft === null && (
+          {/* כפתור משחק - בזמן המתנה וכשמושב */}
+          {isActive && (
             <div className="text-center pt-1">
               <a
                 href={`/QueueGame?entry=${entryId}&name=${encodeURIComponent(entry?.customer_name || 'אורח')}`}
                 className="flex items-center justify-center gap-2 w-full bg-gradient-to-r from-slate-700 to-slate-800 hover:from-slate-800 hover:to-slate-900 active:scale-95 text-white font-black py-3.5 rounded-2xl text-base transition-all shadow-lg"
               >
-                🎮 משחקים בזמן ההמתנה
+                🎮 {callSecondsLeft ? 'משחקים בזמן ההמתנה' : 'המשך לשחק'}
               </a>
               <p className="text-slate-400 text-xs mt-1.5 font-light">טריוויה · תוצאות בזמן אמת</p>
             </div>
