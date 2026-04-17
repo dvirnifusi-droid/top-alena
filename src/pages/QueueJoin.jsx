@@ -75,6 +75,8 @@ function QueueJoinInner() {
   const [isPublicMode] = useState(true); // תמיד בדף ציבורי זה
   const [customerHistory, setCustomerHistory] = useState(null);
   const [existingEntry, setExistingEntry] = useState(null);
+  const [showQueueList, setShowQueueList] = useState(false);
+  const [allQueueEntries, setAllQueueEntries] = useState([]);
   const historyTimeoutRef = useRef(null);
   const callTimerRef = useRef(null);
 
@@ -518,31 +520,28 @@ function QueueJoinInner() {
     );
   }
 
+  // טען את רשימת כל הממתינים כשמודאל נפתח
+  useEffect(() => {
+    if (showQueueList) {
+      base44.entities.QueueEntry.filter({ status: 'pending' }, '-timestamp_register', 100)
+        .then(entries => setAllQueueEntries(entries))
+        .catch(() => setAllQueueEntries([]));
+    }
+  }, [showQueueList]);
+
+  const handleDeleteEntry = async (id) => {
+    if (window.confirm('בטוח להסיר את ההרשמה?')) {
+      try {
+        await base44.entities.QueueEntry.delete(id);
+        setAllQueueEntries(prev => prev.filter(e => e.id !== id));
+      } catch (e) {
+        console.error('Error:', e);
+      }
+    }
+  };
+
   // ========== דף הרשמה ==========
   if (phase === 'register') {
-    const [showQueueList, setShowQueueList] = useState(false);
-    const [allQueueEntries, setAllQueueEntries] = useState([]);
-
-    // טען את רשימת כל הממתינים כשמודאל נפתח
-    React.useEffect(() => {
-      if (showQueueList) {
-        base44.entities.QueueEntry.filter({ status: 'pending' }, '-timestamp_register', 100)
-          .then(entries => setAllQueueEntries(entries))
-          .catch(() => setAllQueueEntries([]));
-      }
-    }, [showQueueList]);
-
-    const handleDeleteEntry = async (id) => {
-      if (window.confirm('בטוח להסיר את ההרשמה?')) {
-        try {
-          await base44.entities.QueueEntry.delete(id);
-          setAllQueueEntries(prev => prev.filter(e => e.id !== id));
-        } catch (e) {
-          console.error('Error:', e);
-        }
-      }
-    };
-
     return (
       <div className="min-h-screen flex flex-col items-center justify-center p-4" style={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%)' }} dir="rtl">
         {/* לוגו */}
