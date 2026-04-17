@@ -230,7 +230,7 @@ function QueueJoinInner() {
       // צביר 7 מטבעות לכל דקת המתנה
       const calculatedCredits = Math.floor(waitMin * 7);
       setTimeCreditsEarned(Math.max(entry.time_credits_earned || 0, calculatedCredits));
-    }, 10000);
+    }, 3000);
     return () => clearInterval(tick);
   }, [entry?.timestamp_approved, entry?.time_credits_earned]);
 
