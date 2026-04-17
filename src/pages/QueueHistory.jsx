@@ -13,6 +13,7 @@ export default function QueueHistory() {
   const [dateFilter, setDateFilter] = useState('all');
   const [partySizeFilter, setPartySizeFilter] = useState('all');
   const [abandonedOnly, setAbandonedOnly] = useState(false);
+  const [specificDate, setSpecificDate] = useState('');
 
   useEffect(() => {
     const fetchEntries = async () => {
@@ -58,6 +59,17 @@ export default function QueueHistory() {
       });
     }
 
+    // סנן לפי תאריך ספציפי
+    if (specificDate) {
+      const selectedDate = new Date(specificDate);
+      const selectedDay = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate());
+      filtered = filtered.filter(e => {
+        const entryDate = new Date(e.timestamp_register);
+        const entryDay = new Date(entryDate.getFullYear(), entryDate.getMonth(), entryDate.getDate());
+        return entryDay.getTime() === selectedDay.getTime();
+      });
+    }
+
     // סנן לפי גודל קבוצה
     if (partySizeFilter !== 'all') {
       if (partySizeFilter === '2plus') filtered = filtered.filter(e => e.party_size >= 2);
@@ -79,7 +91,7 @@ export default function QueueHistory() {
     }
 
     setFilteredEntries(filtered);
-  }, [entries, statusFilter, dateFilter, searchTerm, partySizeFilter, abandonedOnly]);
+  }, [entries, statusFilter, dateFilter, searchTerm, partySizeFilter, abandonedOnly, specificDate]);
 
   // חישוב זמן המתנה בדקות
   const getWaitTime = (entry) => {
@@ -291,6 +303,14 @@ export default function QueueHistory() {
           <option value="2plus">2+ סועדים</option>
           <option value="6plus">6+ סועדים</option>
         </select>
+
+        {/* סנן תאריך ספציפי */}
+        <input
+          type="date"
+          value={specificDate}
+          onChange={(e) => setSpecificDate(e.target.value)}
+          className="border-2 border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
+        />
 
         {/* סנן נטישות */}
         <label className="flex items-center gap-2 border-2 border-gray-200 rounded-lg px-3 py-2 cursor-pointer hover:bg-gray-50 transition-colors">
