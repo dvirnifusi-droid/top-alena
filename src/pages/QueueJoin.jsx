@@ -58,7 +58,7 @@ function QueueJoinInner() {
   const [abandonReason, setAbandonReason] = useState('');
   const [abandonOther, setAbandonOther] = useState('');
   const [abandonLoading, setAbandonLoading] = useState(false);
-  const [form, setForm] = useState({ customer_name: '', phone: '', party_size: 2 });
+  const [form, setForm] = useState({ customer_name: '', phone: '', party_size: 2, seating_preference: 'no_preference' });
   const [loading, setLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
   const [entry, setEntry] = useState(null);
@@ -601,6 +601,30 @@ function QueueJoinInner() {
                     }`}
                   >
                     {n === 8 ? '8+' : n}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* העדפת הושבה */}
+            <div>
+              <label className="text-sm font-bold text-slate-700 block mb-2">🪑 העדפת הושבה</label>
+              <div className="grid grid-cols-3 gap-2">
+                {[
+                  { id: 'no_preference', label: 'לא משנה לי', emoji: '🤷' },
+                  { id: 'inside', label: 'רק בפנים', emoji: '🏠' },
+                  { id: 'outside', label: 'רק בחוץ', emoji: '🌳' }
+                ].map(option => (
+                  <button
+                    key={option.id}
+                    onClick={() => setForm({ ...form, seating_preference: option.id })}
+                    className={`py-3 rounded-xl font-bold text-sm transition-all ${
+                      (form.seating_preference || 'no_preference') === option.id
+                        ? 'bg-slate-800 text-white shadow-lg'
+                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    }`}
+                  >
+                    {option.emoji}<br/>{option.label}
                   </button>
                 ))}
               </div>

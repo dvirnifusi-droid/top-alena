@@ -3,7 +3,7 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
-    const { customer_name, phone, party_size } = await req.json();
+    const { customer_name, phone, party_size, seating_preference } = await req.json();
 
     if (!customer_name || !phone || !party_size) {
       return Response.json({ error: 'Missing required fields' }, { status: 400 });
@@ -25,6 +25,7 @@ Deno.serve(async (req) => {
       customer_name: customer_name.trim(),
       phone: phone.trim(),
       party_size: parseInt(party_size),
+      seating_preference: seating_preference || 'no_preference',
       status: 'pending',
       timestamp_register: new Date().toISOString(),
       time_credits_earned: previousCredits,

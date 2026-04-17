@@ -14,6 +14,16 @@
       "type": "integer",
       "description": "\u05db\u05de\u05d5\u05ea \u05e1\u05d5\u05e2\u05d3\u05d9\u05dd"
     },
+    "seating_preference": {
+      "type": "string",
+      "enum": [
+        "no_preference",
+        "inside",
+        "outside"
+      ],
+      "default": "no_preference",
+      "description": "\u05d4\u05e2\u05d3\u05e4\u05ea \u05d4\u05d5\u05e9\u05d1\u05d4: \u05dc\u05d0 \u05de\u05e9\u05e0\u05d4 / \u05e8\u05e7 \u05d1\u05e4\u05e0\u05d9\u05dd / \u05e8\u05e7 \u05d1\u05d7\u05d5\u05e5"
+    },
     "status": {
       "type": "string",
       "enum": [
@@ -111,7 +121,7 @@
     "time_credits_earned": {
       "type": "integer",
       "default": 0,
-      "description": "\u05db\u05de\u05d5\u05ea \u05de\u05d8\u05d1\u05e2\u05d5\u05ea \u05e9\u05e6\u05d1\u05e8\u05d5 \u05de\u05d4\u05de\u05ea\u05e0\u05d4 (100 \u05dc\u05db\u05dc 10 \u05d3\u05e7\u05d5\u05ea)"
+      "description": "\u05db\u05de\u05d5\u05ea \u05de\u05d8\u05d1\u05e2\u05d5\u05ea \u05e9\u05e6\u05d1\u05e8\u05d5 \u05de\u05d4\u05de\u05ea\u05e0\u05d4 (7 \u05dc\u05db\u05dc \u05d3\u05e7\u05d4)"
     },
     "time_credits_spent": {
       "type": "integer",

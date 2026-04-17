@@ -682,10 +682,15 @@ export default function QueueDashboard() {
               <Card key={entry.id} className="border-yellow-300 bg-yellow-50">
                 <CardContent className="p-3 flex items-center justify-between gap-2">
                   <div className="flex items-center gap-3 flex-1 min-w-0">
-                    <PartySizeIcon size={entry.party_size} />
-                    <div className="min-w-0">
-                      <p className="font-bold text-gray-800 truncate">{entry.customer_name}</p>
-                      <p className="text-xs text-gray-500">{entry.phone} · {entry.party_size} סועדים</p>
+                  <PartySizeIcon size={entry.party_size} />
+                  <div className="min-w-0">
+                  <p className="font-bold text-gray-800 truncate">{entry.customer_name}</p>
+                  <p className="text-xs text-gray-500">{entry.phone} · {entry.party_size} סועדים</p>
+                  <p className="text-xs text-gray-400 mt-0.5">
+                  {entry.seating_preference === 'inside' && '🏠 רק בפנים'}
+                  {entry.seating_preference === 'outside' && '🌳 רק בחוץ'}
+                  {(!entry.seating_preference || entry.seating_preference === 'no_preference') && '🤷 לא משנה'}
+                  </p>
                       <p className="text-xs text-gray-400">
                         נרשם: {new Date(entry.timestamp_register).toLocaleTimeString('he-IL')}
                       </p>
