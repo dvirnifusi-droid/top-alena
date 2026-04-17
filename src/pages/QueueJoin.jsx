@@ -541,11 +541,17 @@ function QueueJoinInner() {
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-start pt-8 p-4" style={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%)' }} dir="rtl">
-    {/* לוגו */}
-    <div className="text-center mb-8">
+    {/* לוגו + כפתור רענון */}
+    <div className="text-center mb-8 flex flex-col items-center">
       <div className="text-5xl mb-2 drop-shadow-lg">🍽️</div>
       <h1 className="text-3xl font-black text-white">עלינא</h1>
       <p className="text-slate-300 text-xs mt-1 font-light">קו אישי לתור</p>
+      <button
+        onClick={() => window.location.reload()}
+        className="mt-4 px-4 py-2 bg-white/20 hover:bg-white/30 text-white text-sm font-bold rounded-full transition-all"
+      >
+        🔄 רענן
+      </button>
     </div>
 
     {/* כרטיס ראשי */}
