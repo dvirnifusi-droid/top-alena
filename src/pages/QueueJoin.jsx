@@ -1,6 +1,31 @@
 import React, { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 
+const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY || '';
+
+async function registerPushAndSave(entryId) {
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+  try {
+    const reg = await navigator.serviceWorker.register('/sw.js');
+    await navigator.serviceWorker.ready;
+
+    const permission = await Notification.requestPermission();
+    if (permission !== 'granted') return;
+
+    const existing = await reg.pushManager.getSubscription();
+    const sub = existing || await reg.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: VAPID_PUBLIC_KEY,
+    });
+
+    await base44.entities.QueueEntry.update(entryId, {
+      push_subscription: sub.toJSON(),
+    });
+  } catch (e) {
+    console.warn('Push registration failed:', e);
+  }
+}
+
 export default function QueueJoin() {
   const urlParams = new URLSearchParams(window.location.search);
   const entryId = urlParams.get('id');
@@ -86,6 +111,9 @@ export default function QueueJoin() {
         });
       }
     } catch (_) {}
+
+    // רישום Push בלי לחסום את הניווט
+    registerPushAndSave(newEntry.id).catch(() => {});
 
     setLoading(false);
     window.location.href = `/QueueJoin?id=${newEntry.id}`;

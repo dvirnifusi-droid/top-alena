@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
 import { sendQueueSms } from '@/functions/sendQueueSms';
+import { sendQueuePush } from '@/functions/sendQueuePush';
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import { Check, X, Gift, UserCheck, Clock, Users, RefreshCw, QrCode } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -40,11 +41,15 @@ export default function QueueDashboard() {
   const prevFirstActiveRef = useRef(null);
   const qrUrl = `${window.location.origin}/QueueJoin`;
 
-  const sendSms = async (phone, message) => {
+  // שלח Push + SMS כ-fallback
+  const sendNotification = async (entryId, phone, message, pushTitle) => {
+    // נסה Push קודם
     try {
-      await sendQueueSms({ to: phone, message });
+      const res = await sendQueuePush({ entryId, title: pushTitle, body: message });
+      if (res?.data?.skipped) throw new Error('no subscription');
     } catch (e) {
-      console.error('SMS error:', e);
+      // fallback ל-SMS
+      try { await sendQueueSms({ to: phone, message }); } catch (_) {}
     }
   };
 
@@ -74,9 +79,11 @@ export default function QueueDashboard() {
     // אם הראשון בתור השתנה ולא שלחנו לו עדיין
     if (prevFirst && prevFirst !== firstEntry.id && !smsSent[firstEntry.id + '_next']) {
       setSmsSent(prev => ({ ...prev, [firstEntry.id + '_next']: true }));
-      sendSms(
+      sendNotification(
+        firstEntry.id,
         firstEntry.phone,
-        `שלום ${firstEntry.customer_name}! 🎉 אתם הבאים בתור במסעדת עלינא. אנא היו מוכנים - השולחן שלכם מתפנה עכשיו!`
+        `שלום ${firstEntry.customer_name}! 🎉 אתם הבאים בתור - השולחן שלכם מתפנה עכשיו!`,
+        '🎯 הגיע תורכם!'
       );
     }
 
@@ -105,10 +112,11 @@ export default function QueueDashboard() {
       status: 'seated',
       timestamp_end: new Date().toISOString(),
     });
-    // SMS הושבה
-    sendSms(
+    sendNotification(
+      entry.id,
       entry.phone,
-      `שלום ${entry.customer_name}! 🍽️ השולחן שלכם מוכן! המארחת ממתינה לכם. בתיאבון ממסעדת עלינא!`
+      `השולחן שלכם מוכן! המארחת ממתינה לכם. בתיאבון! 🍽️`,
+      '✅ השולחן מוכן!'
     );
     fetchEntries();
   };
