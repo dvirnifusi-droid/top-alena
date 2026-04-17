@@ -633,6 +633,7 @@ export default function QueueJoin() {
                       await base44.entities.QueueEntry.update(entryId, {
                         selected_treat_id: treat.id,
                         time_credits_spent: treat.cost,
+                        time_credits_earned: timeCreditsEarned - treat.cost,
                       });
                       setTimeCreditsEarned(prev => prev - treat.cost);
                       setShowTreatModal(false);
