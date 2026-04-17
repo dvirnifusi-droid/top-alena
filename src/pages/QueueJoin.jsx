@@ -116,9 +116,20 @@ function QueueJoinInner() {
     return () => clearInterval(interval);
   }, [entryId]);
 
-  // רענון אוטומטי כל 10 שניות
+  // Real-time subscription + רענון אוטומטי
   useEffect(() => {
     if (!entryId) return;
+
+    // Subscribe to real-time updates
+    const unsubscribe = base44.entities.QueueEntry.subscribe((event) => {
+      if (event.id === entryId) {
+        // עדכן מיד כשיש שינוי
+        setEntry(event.data);
+        if (event.data?.status === 'seated' || event.data?.status === 'abandoned') {
+          setPhase('done');
+        }
+      }
+    });
 
     const fetchStatus = async () => {
       try {
@@ -182,9 +193,10 @@ function QueueJoinInner() {
     };
 
     fetchStatus();
-    const interval = setInterval(fetchStatus, 3000); // רענן כל 3 שניות לעדכון מהיר יותר
+    const interval = setInterval(fetchStatus, 5000);
     return () => {
       clearInterval(interval);
+      unsubscribe();
       if (callTimerRef.current) clearInterval(callTimerRef.current);
     };
   }, [entryId]);
