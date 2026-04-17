@@ -258,17 +258,22 @@ function QueueJoinInner() {
       }
 
       // טען את geofencingEnabled עדכני מה-DB
-      let isGeoEnabled = true;
+      let isGeoEnabled = false; // ברירת מחדל: כבוי
       try {
         const profiles = await base44.entities.RestaurantProfile.list();
+        console.log('Profiles from DB:', profiles);
         if (profiles.length > 0) {
           isGeoEnabled = profiles[0].geofencing_enabled !== false;
+          console.log('geofencing_enabled value:', profiles[0].geofencing_enabled, 'isGeoEnabled:', isGeoEnabled);
+        } else {
+          console.log('No profiles found, geofencing disabled by default');
         }
       } catch (e) {
-        console.warn('Cannot check geofencing status:', e);
+        console.error('Cannot check geofencing status:', e);
+        isGeoEnabled = false; // אם יש error, כבה את המיקום
       }
       
-      console.log('geofencingEnabled:', isGeoEnabled);
+      console.log('Final isGeoEnabled:', isGeoEnabled);
       
       // אם גיאופנסינג כבוי או אין תמיכה בmGeolocation, הנח מיד
       if (!isGeoEnabled || !navigator.geolocation) {
