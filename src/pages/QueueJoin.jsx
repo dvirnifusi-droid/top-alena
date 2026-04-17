@@ -257,10 +257,10 @@ function QueueJoinInner() {
         return;
       }
 
-      // טען את geofencingEnabled עדכני מה-DB
+      // טען את geofencingEnabled עדכני מה-DB (אם יש service role)
       let isGeoEnabled = false; // ברירת מחדל: כבוי
       try {
-        const profiles = await base44.entities.RestaurantProfile.list();
+        const profiles = await base44.asServiceRole.entities.RestaurantProfile.list();
         console.log('Profiles from DB:', profiles);
         if (profiles.length > 0) {
           isGeoEnabled = profiles[0].geofencing_enabled !== false;
