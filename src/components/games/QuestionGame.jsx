@@ -132,8 +132,11 @@ export default function QuestionGame({ players, category, questions }) {
       {/* Hidden story generator */}
       <div
         ref={storyRef}
-        className="fixed -left-96 top-0 w-80 h-screen bg-gradient-to-br from-purple-600 to-pink-600 flex flex-col items-center justify-between p-8 text-center pointer-events-none"
-        style={{ visibility: 'hidden' }}
+        className="fixed top-0 w-80 h-screen flex flex-col items-center justify-between p-8 text-center pointer-events-none"
+        style={{
+          left: '-400px',
+          background: 'linear-gradient(135deg, #9333ea 0%, #ec4899 100%)',
+        }}
       >
         <div>
           <div className="text-6xl mb-4">🎮</div>
