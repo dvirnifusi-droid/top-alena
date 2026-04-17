@@ -84,22 +84,25 @@ const AuthenticatedApp = () => {
 
 
 function App() {
-
   return (
-    <AuthProvider>
-      <QueryClientProvider client={queryClientInstance}>
-        <Router>
-          <Routes>
-            <Route path="/QueueJoin" element={<QueueJoin />} />
-            <Route path="/QueueGame" element={<QueueGame />} />
-            <Route path="/QueueFeedback" element={<QueueFeedback />} />
-            <Route path="/QueueHistory" element={<LayoutWrapper currentPageName="QueueHistory"><QueueHistory /></LayoutWrapper>} />
-            <Route path="/*" element={<AuthenticatedApp />} />
-          </Routes>
-        </Router>
+    <QueryClientProvider client={queryClientInstance}>
+      <Router>
+        <Routes>
+          {/* ציבורי - ללא התחברות */}
+          <Route path="/QueueJoin" element={<QueueJoin />} />
+          <Route path="/QueueGame" element={<QueueGame />} />
+          <Route path="/QueueFeedback" element={<QueueFeedback />} />
+          
+          {/* דורש התחברות */}
+          <Route path="/*" element={
+            <AuthProvider>
+              <AuthenticatedApp />
+            </AuthProvider>
+          } />
+        </Routes>
         <Toaster />
-      </QueryClientProvider>
-    </AuthProvider>
+      </Router>
+    </QueryClientProvider>
   )
 }
 
