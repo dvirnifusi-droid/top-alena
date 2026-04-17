@@ -288,21 +288,27 @@ function QueueJoinInner() {
       setGeoStatus('checking');
       
       // timeout של 5 שניות - אם לא קיבלנו תשובה, המשך בלעדיה
+      let timeoutCleared = false;
       const geoTimeout = setTimeout(() => {
-        console.log('Geolocation timeout - proceeding without location');
-        setGeoStatus('denied');
-        handleRegister();
+        if (!timeoutCleared) {
+          timeoutCleared = true;
+          console.log('Geolocation timeout - proceeding without location');
+          setGeoStatus('denied');
+          performRegister();
+        }
       }, 5000);
       
       navigator.geolocation.getCurrentPosition(
         (pos) => {
+          if (timeoutCleared) return;
+          timeoutCleared = true;
           clearTimeout(geoTimeout);
           const dist = calcDistance(pos.coords.latitude, pos.coords.longitude, RESTAURANT_LAT, RESTAURANT_LNG);
           console.log('Distance:', dist, 'meters');
           if (dist <= MAX_DISTANCE_METERS) {
             console.log('✅ User is within range - approving');
             setGeoStatus('ok');
-            handleRegister();
+            performRegister();
           } else {
             console.log('❌ User is too far - rejecting');
             setGeoStatus('too_far');
@@ -310,10 +316,12 @@ function QueueJoinInner() {
           }
         },
         (err) => {
+          if (timeoutCleared) return;
+          timeoutCleared = true;
           clearTimeout(geoTimeout);
           console.log('Geolocation error:', err.code, err.message);
           setGeoStatus('denied');
-          handleRegister();
+          performRegister();
         },
         { timeout: 4000, maximumAge: 0, enableHighAccuracy: false }
       );
@@ -324,13 +332,12 @@ function QueueJoinInner() {
     }
   };
 
-  const handleRegister = async () => {
+  const performRegister = async () => {
     setGeoStatus('idle');
     setLoading(true);
     setError('');
 
     try {
-      // קרא ל-backend function דרך SDK
       const res = await base44.functions.invoke('createQueueEntry', {
         customer_name: form.customer_name.trim(),
         phone: form.phone.trim(),
@@ -344,26 +351,7 @@ function QueueJoinInner() {
         throw new Error('לא קיבלנו ID - תשובה לא תקינה מהשרת');
       }
 
-      // סנכרון ל-CRM (אופציונלי)
-      try {
-        if (base44.entities.Customer) {
-          const existing = await base44.entities.Customer.filter({ phone: form.phone.trim() });
-          if (existing.length === 0) {
-            await base44.entities.Customer.create({
-              full_name: form.customer_name.trim(),
-              phone: form.phone.trim(),
-              source: 'queue_qr',
-            });
-          }
-        }
-      } catch (e) {
-        console.warn('CRM sync failed:', e);
-      }
-
-      // רישום Push בלי לחסום את הניווט
       registerPushAndSave(newEntry.id).catch(() => {});
-
-      // ניווט מיד לדף ההמתנה
       console.log('Redirecting to:', `/QueueJoin?id=${newEntry.id}`);
       window.location.href = `/QueueJoin?id=${newEntry.id}`;
     } catch (e) {
@@ -372,6 +360,8 @@ function QueueJoinInner() {
       setLoading(false);
     }
   };
+
+
 
   // דף כניסה לתור קיים
   if (duplicateEntry) {
