@@ -562,33 +562,22 @@ function QueueJoinInner() {
   const handleProximityResponse = async (answer) => {
     setActionLoading(true);
     try {
-      console.log('🔄 handleProximityResponse:', answer);
       if (answer === 'no') {
-        // הוצא מהתור וסמן כנטש
         await base44.entities.QueueEntry.update(entryId, {
           status: 'abandoned',
           proximity_response: 'no',
           timestamp_end: new Date().toISOString(),
           notes: 'לא בסביבה — בדיקת קרבה',
         });
-        console.log('✅ Marked as abandoned/no');
-        // עדכן את ה-UI מיד
-        const all = await base44.entities.QueueEntry.list('-timestamp_register', 300);
-        const found = all.find(e => e.id === entryId);
-        if (found) setEntry(found);
+        setEntry(prev => ({ ...prev, status: 'abandoned', proximity_response: 'no' }));
       } else {
-        // סמן שנמצא בסביבה
         await base44.entities.QueueEntry.update(entryId, {
           proximity_response: 'yes',
         });
-        console.log('✅ Marked as yes/in proximity');
-        // רענן מיד
-        const all = await base44.entities.QueueEntry.list('-timestamp_register', 300);
-        const found = all.find(e => e.id === entryId);
-        if (found) setEntry(found);
+        setEntry(prev => ({ ...prev, proximity_response: 'yes' }));
       }
     } catch (e) {
-      console.error('❌ Error in handleProximityResponse:', e);
+      console.error('Error:', e);
     } finally {
       setActionLoading(false);
     }
