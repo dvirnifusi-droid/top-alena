@@ -824,25 +824,25 @@ export default function QueueDashboard() {
                             )}
 
                             {/* כפתורי פעולה */}
-                            <div className="flex gap-1 flex-shrink-0 flex-wrap justify-end items-center">
-                              {/* היסטוריה */}
+                            <div className="flex gap-1 flex-shrink-0 flex-wrap justify-end items-center sm:flex-nowrap">
+                              {/* היסטוריה - הסתר בטלפון */}
                               <button
                                 onClick={() => openCustomerHistory(entry.phone)}
                                 title="היסטוריית תור"
-                                className="w-8 h-8 rounded-lg bg-purple-100 hover:bg-purple-200 text-purple-700 flex items-center justify-center transition-all"
+                                className="hidden sm:flex w-8 h-8 rounded-lg bg-purple-100 hover:bg-purple-200 text-purple-700 items-center justify-center transition-all"
                               >
                                 <History className="w-4 h-4" />
                               </button>
 
-                              {/* בונוס מטבעות */}
+                              {/* בונוס מטבעות - הסתר בטלפון */}
                               {!bonusAmount[entry.id] ? (
                                 <button
                                   onClick={() => setBonusAmount(prev => ({ ...prev, [entry.id]: 100 }))}
                                   title="תן בונוס"
-                                  className="w-8 h-8 rounded-lg bg-yellow-100 hover:bg-yellow-200 text-yellow-700 flex items-center justify-center transition-all text-base"
+                                  className="hidden sm:flex w-8 h-8 rounded-lg bg-yellow-100 hover:bg-yellow-200 text-yellow-700 items-center justify-center transition-all text-base"
                                 >⭐</button>
                               ) : (
-                                <div className="flex items-center gap-1 bg-yellow-50 px-2 py-1 rounded-lg border border-yellow-200">
+                                <div className="hidden sm:flex items-center gap-1 bg-yellow-50 px-2 py-1 rounded-lg border border-yellow-200">
                                   <input
                                     type="number"
                                     min="1"
@@ -875,7 +875,7 @@ export default function QueueDashboard() {
                                 <button
                                   onClick={() => handleProximityCheck(entry)}
                                   title="בדוק אם בסביבה"
-                                  className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all text-base ${
+                                  className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all text-base hidden sm:flex ${
                                     proxNo ? 'bg-purple-200 text-purple-700' :
                                     proxYes ? 'bg-green-200 text-green-700' :
                                     'bg-blue-100 hover:bg-blue-200 text-blue-700'
@@ -883,15 +883,15 @@ export default function QueueDashboard() {
                                 >📍</button>
                               )}
                               {proxPending && (
-                                <div title="ממתינים לתגובה..." className="w-8 h-8 rounded-lg bg-yellow-200 text-yellow-700 flex items-center justify-center text-base animate-pulse">📍</div>
+                                <div title="ממתינים לתגובה..." className="hidden sm:flex w-8 h-8 rounded-lg bg-yellow-200 text-yellow-700 items-center justify-center text-base animate-pulse">📍</div>
                               )}
 
-                              {/* קריאה למזדמן */}
+                              {/* קריאה למזדמן - הסתר בטלפון */}
                               {callCountdowns[entry.id] === undefined && (
                                 <button
                                   onClick={() => handleCallGuest(entry)}
                                   title="קרא למזדמן"
-                                  className="w-8 h-8 rounded-lg bg-amber-100 hover:bg-amber-200 text-amber-700 flex items-center justify-center transition-all text-base"
+                                  className="hidden sm:flex w-8 h-8 rounded-lg bg-amber-100 hover:bg-amber-200 text-amber-700 items-center justify-center transition-all text-base"
                                 >🔔</button>
                               )}
 
