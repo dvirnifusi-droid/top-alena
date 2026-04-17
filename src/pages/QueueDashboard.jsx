@@ -846,18 +846,19 @@ export default function QueueDashboard() {
                               >🎁</button>
 
                               {/* כפתור בדיקת קרבה */}
-                              {callCountdowns[entry.id] === undefined && (
+                              {callCountdowns[entry.id] === undefined && !proxPending && (
                                 <button
                                   onClick={() => handleProximityCheck(entry)}
-                                  disabled={proxPending}
-                                  title={proxPending ? 'ממתינים לתגובה...' : 'בדוק אם בסביבה'}
+                                  title="בדוק אם בסביבה"
                                   className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all text-base ${
-                                    proxPending ? 'bg-yellow-200 text-yellow-700 animate-pulse opacity-60 cursor-not-allowed' :
                                     proxNo ? 'bg-purple-200 text-purple-700' :
                                     proxYes ? 'bg-green-200 text-green-700' :
                                     'bg-blue-100 hover:bg-blue-200 text-blue-700'
                                   }`}
                                 >📍</button>
+                              )}
+                              {proxPending && (
+                                <div title="ממתינים לתגובה..." className="w-8 h-8 rounded-lg bg-yellow-200 text-yellow-700 flex items-center justify-center text-base animate-pulse">📍</div>
                               )}
 
                               {/* קריאה למזדמן */}
