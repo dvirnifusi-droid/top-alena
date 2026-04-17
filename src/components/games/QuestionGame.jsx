@@ -49,8 +49,9 @@ export default function QuestionGame({ players, category, questions }) {
     setGeneratingStory(true);
     try {
       const canvas = await html2canvas(storyRef.current, {
-        backgroundColor: '#ffffff',
+        backgroundColor: null,
         scale: 2,
+        logging: false,
       });
       
       canvas.toBlob((blob) => {
