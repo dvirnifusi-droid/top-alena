@@ -13,7 +13,7 @@ import ApparelCustomizer from '../components/gamification/ApparelCustomizer';
 
 import RecentIncidents from '../components/dashboard/RecentIncidents';
 import ChecklistStatus from '../components/dashboard/ChecklistStatus';
-
+import TreatsReport from '../components/dashboard/TreatsReport';
 
 import AiQuickAdd from '../components/dashboard/AiQuickAdd';
 import SeatingAiHelper from '../components/dashboard/SeatingAiHelper';
@@ -496,6 +496,7 @@ function DashboardInner() {
                          <SalesChart />
                          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                              <ActiveEmployeesWidget />
+                             <TreatsReport />
                          </div>
                      </div>
                  </section>
