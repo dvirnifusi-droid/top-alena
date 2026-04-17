@@ -69,6 +69,7 @@ export default function QueueDashboard() {
   const [callCountdowns, setCallCountdowns] = useState({}); // entryId -> secondsLeft (call countdown)
   const [lowFeedbacks, setLowFeedbacks] = useState([]);
   const [bonusAmount, setBonusAmount] = useState({});
+  const [treats, setTreats] = useState([]);
   const prevFirstActiveRef = useRef(null);
   const countdownRef = useRef({});
   const callCountdownRef = useRef({});
@@ -105,6 +106,8 @@ export default function QueueDashboard() {
         setGeofencingEnabled(profiles[0].geofencing_enabled !== false);
       }
     }).catch(() => {});
+    
+    base44.entities.TimeTreat.filter({ is_active: true }).then(t => setTreats(t));
   }, []);
 
   const toggleGeofencing = async () => {
@@ -640,6 +643,16 @@ export default function QueueDashboard() {
                                 <span className="text-xs text-gray-500">{entry.party_size}</span>
                                 {entry.treated && <span title="קיבל פינוק">🎁</span>}
                               </div>
+                              
+                              {/* הצגת הפרס שנבחר */}
+                              {entry.selected_treat_id && (
+                                <div className="mt-1.5 bg-purple-50 border border-purple-200 rounded-lg px-2 py-1.5">
+                                  <p className="text-xs font-bold text-purple-700">
+                                    🎁 פרס: {treats.find(t => t.id === entry.selected_treat_id)?.name || 'לא קיים'}
+                                  </p>
+                                </div>
+                              )}
+                              
                               <div className="flex items-center gap-3 text-xs text-gray-500 mt-0.5">
                                 <span>{entry.phone}</span>
                                 <span className="flex items-center gap-1">
