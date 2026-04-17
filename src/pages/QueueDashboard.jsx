@@ -589,6 +589,10 @@ export default function QueueDashboard() {
                   {activeEntries.map((entry, index) => (
                     <Draggable key={entry.id} draggableId={entry.id} index={index}>
                       {(provided, snapshot) => {
+                        const farAway = isGuestFarAway(entry);
+                        const proxPending = entry.proximity_response === 'pending' && entry.proximity_check_at;
+                        const proxNo = entry.proximity_response === 'no';
+                        const proxYes = entry.proximity_response === 'yes';
                         let cardBg = 'bg-white border-blue-200';
                         if (snapshot.isDragging) cardBg = 'bg-blue-50 border-blue-200';
                         else if (proxNo) cardBg = 'bg-purple-100 border-purple-400';
