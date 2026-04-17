@@ -71,7 +71,7 @@ export default function QueueDashboard() {
   const [bonusAmount, setBonusAmount] = useState({});
   const [treats, setTreats] = useState([]);
   const [showManualAdd, setShowManualAdd] = useState(false);
-  const [manualForm, setManualForm] = useState({ name: '', phone: '' });
+  const [manualForm, setManualForm] = useState({ name: '', phone: '', party_size: 2 });
   const [manualLoading, setManualLoading] = useState(false);
   const prevFirstActiveRef = useRef(null);
   const countdownRef = useRef({});
@@ -367,7 +367,7 @@ export default function QueueDashboard() {
       const newEntry = await base44.entities.QueueEntry.create({
         customer_name: manualForm.name.trim(),
         phone: manualForm.phone.trim(),
-        party_size: 1,
+        party_size: manualForm.party_size || 2,
         status: 'active',
         timestamp_register: new Date().toISOString(),
         timestamp_approved: new Date().toISOString(),
@@ -381,7 +381,7 @@ export default function QueueDashboard() {
         message: `שלום ${manualForm.name}! 🍽️ קישור לדף התור שלך: ${guestUrl}`
       }).catch(() => {});
 
-      setManualForm({ name: '', phone: '' });
+      setManualForm({ name: '', phone: '', party_size: 2 });
       setShowManualAdd(false);
       fetchEntries();
     } catch (e) {
@@ -470,6 +470,24 @@ export default function QueueDashboard() {
                 onChange={(e) => setManualForm({ ...manualForm, phone: e.target.value })}
                 className="w-full border-2 border-emerald-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-emerald-400"
               />
+              <div>
+                <label className="text-xs font-bold text-emerald-700 block mb-2">🍴 כמות סועדים</label>
+                <div className="grid grid-cols-4 gap-2">
+                  {[1, 2, 3, 4, 5, 6, 7, 8].map(n => (
+                    <button
+                      key={n}
+                      onClick={() => setManualForm({ ...manualForm, party_size: n })}
+                      className={`py-2 rounded-lg font-bold text-sm transition-all ${
+                        (manualForm.party_size || 1) === n
+                          ? 'bg-emerald-600 text-white shadow-md'
+                          : 'bg-white text-emerald-600 hover:bg-emerald-100'
+                      }`}
+                    >
+                      {n === 8 ? '8+' : n}
+                    </button>
+                  ))}
+                </div>
+              </div>
               <div className="flex gap-2">
                 <button
                   onClick={handleManualAdd}
