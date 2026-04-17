@@ -103,17 +103,25 @@ function QueueJoinInner() {
   // טעינת פינוקים זמינים דרך backend function
   useEffect(() => {
     console.log('🔄 Loading treats...');
-    base44.functions.invoke('getTreats', {})
-      .then(res => {
+    const fetchTreats = async (retryCount = 0) => {
+      try {
+        const res = await base44.functions.invoke('getTreats', {});
         const t = res.data?.treats || [];
         console.log('✅ Treats loaded:', t.length, 'items');
         setTreats(t);
         setDebugLog(prev => [...prev, `✅ Treats: ${t.length} items`]);
-      })
-      .catch(e => {
-        console.error('❌ Failed to load treats:', e.message);
-        setDebugLog(prev => [...prev, `❌ Treats error: ${e.message}`]);
-      });
+      } catch (e) {
+        if (retryCount < 2) {
+          console.warn(`⚠️ Retry ${retryCount + 1}/2 for treats...`);
+          setTimeout(() => fetchTreats(retryCount + 1), 1000);
+        } else {
+          console.error('❌ Failed to load treats:', e.message);
+          setDebugLog(prev => [...prev, `❌ Treats error: ${e.message}`]);
+          setTreats([]); // fallback to empty
+        }
+      }
+    };
+    fetchTreats();
   }, []);
 
   // שידור מיקום כל 30 שניות (רק אם הלקוח פעיל בתור)
