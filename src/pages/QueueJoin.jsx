@@ -331,6 +331,7 @@ function QueueJoinInner() {
     } catch (e) {
       console.error('Error in checkGeoAndRegister:', e);
       setError('שגיאה בהרשמה: ' + (e.message || 'נסה שוב'));
+      setGeoStatus('idle');
       setLoading(false);
     }
   };
