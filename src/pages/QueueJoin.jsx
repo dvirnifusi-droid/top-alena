@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
+import { invokePublic } from '@/lib/publicFetch';
 
 const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY || '';
 
@@ -130,8 +131,8 @@ function QueueJoinInner() {
     console.log('🔄 Loading treats...');
     const fetchTreats = async (retryCount = 0) => {
       try {
-        const res = await base44.functions.invoke('getTreats', {});
-        const t = res.data?.treats || [];
+        const res = await invokePublic('getTreats', {});
+        const t = res?.treats || [];
         console.log('✅ Treats loaded:', t.length, 'items');
         setTreats(t);
         setDebugLog(prev => [...prev, `✅ Treats: ${t.length} items`]);
@@ -186,8 +187,8 @@ function QueueJoinInner() {
     const fetchStatus = async () => {
       try {
         // קרא דרך backend function עם service role - עובד גם למשתמשים אנונימיים
-        const res = await base44.functions.invoke('getQueueEntry', { entryId });
-        const found = res.data?.entry || res.entry;
+        const res = await invokePublic('getQueueEntry', { entryId });
+        const found = res?.entry;
         if (!found) {
           console.warn('Entry not found:', entryId);
           return;
@@ -203,11 +204,11 @@ function QueueJoinInner() {
         // קבל מיקום בתור דרך backend function
         try {
           console.log('🔄 Fetching queue position for entry:', entryId);
-          const res = await base44.functions.invoke('getQueuePosition', { entryId });
-          if (res.data?.position) {
-            console.log('✅ Queue position:', res.data.position, res.data.status);
-            setQueuePosition(res.data.position);
-            setDebugLog(prev => [...prev, `✅ Queue pos (${res.data.status}): ${res.data.position}/${res.data.total}`]);
+          const res = await invokePublic('getQueuePosition', { entryId });
+          if (res?.position) {
+            console.log('✅ Queue position:', res.position, res.status);
+            setQueuePosition(res.position);
+            setDebugLog(prev => [...prev, `✅ Queue pos (${res.status}): ${res.position}/${res.total}`]);
           } else {
             console.log('⚠️ Not in queue');
             setQueuePosition(null);
@@ -300,9 +301,9 @@ function QueueJoinInner() {
         }
 
         // טען היסטוריה
-        const histRes = await base44.functions.invoke('getAnonymousCustomerHistory', { phone: form.phone.trim() });
-        if (histRes.data && !histRes.data.isNewCustomer) {
-          setCustomerHistory(histRes.data);
+        const histRes = await invokePublic('getAnonymousCustomerHistory', { phone: form.phone.trim() });
+        if (histRes && !histRes.isNewCustomer) {
+          setCustomerHistory(histRes);
         } else {
           setCustomerHistory(null);
         }
@@ -426,7 +427,7 @@ function QueueJoinInner() {
     setError('');
 
     try {
-      const res = await base44.functions.invoke('createQueueEntry', {
+      const res = await invokePublic('createQueueEntry', {
         customer_name: form.customer_name.trim(),
         phone: form.phone.trim(),
         party_size: parseInt(form.party_size),
@@ -434,11 +435,11 @@ function QueueJoinInner() {
       });
       console.log('Response from createQueueEntry:', res);
       
-      if (res.error || !res.data?.entry) {
+      if (res.error || !res?.entry) {
         throw new Error(res.error || 'שגיאה בהרשמה - נסה שוב');
       }
       
-      const newEntry = res.data.entry;
+      const newEntry = res.entry;
       console.log('New entry:', newEntry);
 
       if (!newEntry || !newEntry.id) {
@@ -889,7 +890,7 @@ function QueueJoinInner() {
                  onClick={async () => {
                    setEntry(prev => ({ ...prev, proximity_response: 'yes' }));
                    try {
-                     await base44.functions.invoke('updateProximityResponse', { entryId, response: 'yes' });
+                     await invokePublic('updateProximityResponse', { entryId, response: 'yes' });
                    } catch (e) {
                      console.error('Error:', e);
                    }
@@ -903,7 +904,7 @@ function QueueJoinInner() {
                  onClick={async () => {
                    setEntry(prev => ({ ...prev, status: 'abandoned', proximity_response: 'no', timestamp_end: new Date().toISOString() }));
                    try {
-                     await base44.functions.invoke('updateProximityResponse', { entryId, response: 'no' });
+                     await invokePublic('updateProximityResponse', { entryId, response: 'no' });
                    } catch (e) {
                      console.error('Error:', e);
                    }
@@ -950,7 +951,7 @@ function QueueJoinInner() {
                   <button
                    onClick={async () => {
                      try {
-                       await base44.functions.invoke('seatGuest', { entryId });
+                       await invokePublic('seatGuest', { entryId });
                        setPhase('done');
                      } catch (e) {
                        console.error('Error seating:', e);
@@ -1068,10 +1069,10 @@ function QueueJoinInner() {
                   onClick={async () => {
                     if (timeCreditsEarned >= treat.cost) {
                       try {
-                        const res = await base44.functions.invoke('selectTreat', { entryId, treatId: treat.id, treatCost: treat.cost });
-                        setTimeCreditsEarned(res.data?.remainingCredits || 0);
+                        const res = await invokePublic('selectTreat', { entryId, treatId: treat.id, treatCost: treat.cost });
+                        setTimeCreditsEarned(res?.remainingCredits || 0);
                         setShowTreatModal(false);
-                        setEntry(prev => ({ ...prev, selected_treat_id: treat.id, time_credits_earned: res.data?.remainingCredits }));
+                        setEntry(prev => ({ ...prev, selected_treat_id: treat.id, time_credits_earned: res?.remainingCredits }));
                       } catch (e) {
                         console.error('Error:', e);
                       }
