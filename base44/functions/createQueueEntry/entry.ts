@@ -1,11 +1,9 @@
-import { createClient } from 'npm:@base44/sdk@0.8.25';
-
-const base44 = createClient({ appId: Deno.env.get('BASE44_APP_ID') });
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 
 Deno.serve(async (req) => {
   try {
-    const body = await req.json();
-    const { customer_name, phone, party_size, seating_preference } = body;
+    const base44 = createClientFromRequest(req);
+    const { customer_name, phone, party_size, seating_preference } = await req.json();
 
     if (!customer_name || !phone || !party_size) {
       return Response.json({ error: 'Missing required fields' }, { status: 400 });

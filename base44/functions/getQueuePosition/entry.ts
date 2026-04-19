@@ -1,11 +1,9 @@
-import { createClient } from 'npm:@base44/sdk@0.8.25';
-
-const base44 = createClient({ appId: Deno.env.get('BASE44_APP_ID') });
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 
 Deno.serve(async (req) => {
   try {
-    const body = await req.json();
-    const { entryId } = body;
+    const base44 = createClientFromRequest(req);
+    const { entryId } = await req.json();
 
     if (!entryId) {
       return Response.json({ error: 'Missing entryId' }, { status: 400 });
