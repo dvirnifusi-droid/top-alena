@@ -982,14 +982,6 @@ function QueueJoinInner() {
           >
             הצהרת נגישות
           </a>
-          <span className="text-slate-600 text-xs mx-1">|</span>
-          <a
-            href="/PrivacyPolicy"
-            className="text-slate-400 text-xs underline hover:text-slate-200 transition-colors focus:outline-none focus:ring-2 focus:ring-slate-300 rounded"
-            aria-label="קרא את מדיניות הפרטיות של עלינא"
-          >
-            מדיניות פרטיות
-          </a>
         </footer>
       </div>
     );
@@ -1413,14 +1405,6 @@ function QueueJoinInner() {
           aria-label="קרא את הצהרת הנגישות של עלינא"
         >
           הצהרת נגישות
-        </a>
-        <span className="text-slate-600 text-xs mx-1">|</span>
-        <a
-          href="/PrivacyPolicy"
-          className="text-slate-400 text-xs underline hover:text-slate-200 transition-colors focus:outline-none focus:ring-2 focus:ring-slate-300 rounded"
-          aria-label="קרא את מדיניות הפרטיות של עלינא"
-        >
-          מדיניות פרטיות
         </a>
       </footer>
     </div>
