@@ -48,6 +48,181 @@ const ABANDON_REASONS = [
   { id: 'other', label: '✏️ אחר — ציין מה' },
 ];
 
+// ===== Accessibility Widget =====
+function AccessibilityWidget() {
+  const [open, setOpen] = React.useState(false);
+  const [fontSize, setFontSize] = React.useState(100); // percent
+  const [highContrast, setHighContrast] = React.useState(false);
+  const dialogRef = React.useRef(null);
+
+  // Focus trap inside dialog
+  React.useEffect(() => {
+    if (open && dialogRef.current) {
+      dialogRef.current.focus();
+    }
+  }, [open]);
+
+  // Apply font size & contrast to root
+  React.useEffect(() => {
+    document.documentElement.style.fontSize = `${fontSize}%`;
+    if (highContrast) {
+      document.documentElement.setAttribute('data-high-contrast', 'true');
+    } else {
+      document.documentElement.removeAttribute('data-high-contrast');
+    }
+    return () => {
+      document.documentElement.style.fontSize = '';
+      document.documentElement.removeAttribute('data-high-contrast');
+    };
+  }, [fontSize, highContrast]);
+
+  return (
+    <>
+      {/* High contrast global style */}
+      {highContrast && (
+        <style>{`
+          [data-high-contrast="true"] * {
+            background-color: #000 !important;
+            color: #fff !important;
+            border-color: #fff !important;
+          }
+          [data-high-contrast="true"] button, [data-high-contrast="true"] a {
+            background-color: #000 !important;
+            color: #ffff00 !important;
+            border: 2px solid #ffff00 !important;
+          }
+        `}</style>
+      )}
+
+      {/* Accessibility button */}
+      <button
+        onClick={() => setOpen(true)}
+        aria-label="פתח תפריט נגישות"
+        aria-haspopup="dialog"
+        title="נגישות"
+        style={{
+          position: 'fixed',
+          bottom: '80px',
+          left: '16px',
+          zIndex: 9999,
+          width: '52px',
+          height: '52px',
+          borderRadius: '50%',
+          background: '#1a5fb4',
+          color: '#fff',
+          border: '3px solid #fff',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          cursor: 'pointer',
+          fontSize: '1.4rem',
+        }}
+      >
+        <span aria-hidden="true">♿</span>
+      </button>
+
+      {/* Accessibility dialog */}
+      {open && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="a11y-dialog-title"
+          dir="rtl"
+          ref={dialogRef}
+          tabIndex={-1}
+          onKeyDown={e => e.key === 'Escape' && setOpen(false)}
+          style={{
+            position: 'fixed',
+            bottom: '140px',
+            left: '16px',
+            zIndex: 10000,
+            background: '#fff',
+            border: '2px solid #1a5fb4',
+            borderRadius: '16px',
+            padding: '20px',
+            width: '240px',
+            boxShadow: '0 8px 24px rgba(0,0,0,0.25)',
+            color: '#1a1a1a',
+          }}
+        >
+          <h2 id="a11y-dialog-title" style={{ fontSize: '1rem', fontWeight: 'bold', marginBottom: '16px', margin: '0 0 16px' }}>
+            🛠️ הגדרות נגישות
+          </h2>
+
+          {/* Font size */}
+          <fieldset style={{ border: 'none', padding: 0, margin: '0 0 12px' }}>
+            <legend style={{ fontWeight: 'bold', fontSize: '0.85rem', marginBottom: '6px' }}>גודל טקסט</legend>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button
+                onClick={() => setFontSize(f => Math.max(80, f - 10))}
+                aria-label="הקטן גופן"
+                style={{ flex: 1, padding: '8px', border: '1px solid #ccc', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '1rem', background: '#f5f5f5' }}
+              >A-</button>
+              <button
+                onClick={() => setFontSize(100)}
+                aria-label="אפס גופן לגודל רגיל"
+                style={{ flex: 1, padding: '8px', border: '1px solid #ccc', borderRadius: '8px', cursor: 'pointer', fontSize: '0.75rem', background: '#f5f5f5' }}
+              >רגיל</button>
+              <button
+                onClick={() => setFontSize(f => Math.min(150, f + 10))}
+                aria-label="הגדל גופן"
+                style={{ flex: 1, padding: '8px', border: '1px solid #ccc', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '1.1rem', background: '#f5f5f5' }}
+              >A+</button>
+            </div>
+          </fieldset>
+
+          {/* High contrast */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+            <label htmlFor="high-contrast-toggle" style={{ fontSize: '0.85rem', fontWeight: 'bold', cursor: 'pointer' }}>
+              ניגודיות גבוהה
+            </label>
+            <button
+              id="high-contrast-toggle"
+              role="switch"
+              aria-checked={highContrast}
+              onClick={() => setHighContrast(v => !v)}
+              aria-label={highContrast ? 'כבה ניגודיות גבוהה' : 'הפעל ניגודיות גבוהה'}
+              style={{
+                width: '44px', height: '24px', borderRadius: '12px', border: 'none', cursor: 'pointer',
+                background: highContrast ? '#1a5fb4' : '#ccc',
+                position: 'relative', transition: 'background 0.2s',
+              }}
+            >
+              <span style={{
+                position: 'absolute', top: '3px',
+                right: highContrast ? '3px' : 'auto',
+                left: highContrast ? 'auto' : '3px',
+                width: '18px', height: '18px', borderRadius: '50%', background: '#fff', transition: 'all 0.2s'
+              }} aria-hidden="true" />
+            </button>
+          </div>
+
+          {/* Accessibility statement link */}
+          <a
+            href="/AccessibilityStatement"
+            style={{ display: 'block', textAlign: 'center', color: '#1a5fb4', textDecoration: 'underline', fontSize: '0.82rem', marginBottom: '12px' }}
+            aria-label="עבור להצהרת הנגישות של עלינא"
+          >
+            📄 הצהרת נגישות
+          </a>
+
+          <button
+            onClick={() => setOpen(false)}
+            aria-label="סגור תפריט נגישות"
+            style={{
+              width: '100%', padding: '8px', background: '#1a5fb4', color: '#fff',
+              border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.9rem'
+            }}
+          >
+            סגור ✕
+          </button>
+        </div>
+      )}
+    </>
+  );
+}
+
 function QueueJoinInner() {
   const urlParams = new URLSearchParams(window.location.search);
   const entryId = urlParams.get('id');
@@ -544,7 +719,15 @@ function QueueJoinInner() {
   // ========== דף הרשמה ==========
   if (phase === 'register') {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center p-4" style={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%)' }} dir="rtl">
+      <div className="min-h-screen flex flex-col items-center justify-center p-4" style={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%)' }} dir="rtl" lang="he">
+        {/* Skip to main content */}
+        <a
+          href="#register-form"
+          className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:right-4 focus:bg-blue-600 focus:text-white focus:px-4 focus:py-2 focus:rounded focus:z-50"
+        >
+          דלג לטופס ההרשמה
+        </a>
+        <AccessibilityWidget />
         {/* לוגו */}
         <div className="text-center mb-10">
           <div className="text-7xl mb-4 drop-shadow-lg">🍽️</div>
@@ -553,32 +736,53 @@ function QueueJoinInner() {
         </div>
 
         {/* כרטיסית */}
-        <div className="bg-white/95 backdrop-blur-sm rounded-3xl shadow-2xl p-8 w-full max-w-sm border border-white/20">
-          <h2 className="text-2xl font-black text-slate-800 mb-6 text-center">הצטרפות לתור</h2>
+        <div
+          className="bg-white/95 backdrop-blur-sm rounded-3xl shadow-2xl p-8 w-full max-w-sm border border-white/20"
+          id="register-form"
+          role="main"
+          aria-label="טופס הרשמה לתור"
+        >
+          <h2 className="text-2xl font-black text-slate-800 mb-6 text-center" id="form-title">הצטרפות לתור</h2>
 
+          <form
+            aria-labelledby="form-title"
+            onSubmit={e => { e.preventDefault(); checkGeoAndRegister(); }}
+            noValidate
+          >
           <div className="space-y-5">
             {/* שם */}
             <div>
-              <label className="text-sm font-bold text-slate-700 block mb-2">👤 שם מלא</label>
+              <label htmlFor="field-name" className="text-sm font-bold text-slate-700 block mb-2">
+                <span aria-hidden="true">👤 </span>שם מלא
+              </label>
               <input
+                id="field-name"
                 className="w-full border-2 border-slate-200 rounded-2xl px-4 py-3.5 text-base focus:outline-none focus:border-slate-800 focus:shadow-md transition-all"
                 placeholder="הכנס את שמך המלא"
                 value={form.customer_name}
                 onChange={e => setForm({ ...form, customer_name: e.target.value })}
-                onKeyDown={e => e.key === 'Enter' && checkGeoAndRegister()}
+                autoComplete="name"
+                aria-required="true"
+                aria-label="שם מלא"
               />
             </div>
 
             {/* טלפון */}
             <div>
-              <label className="text-sm font-bold text-slate-700 block mb-2">📱 מספר טלפון</label>
+              <label htmlFor="field-phone" className="text-sm font-bold text-slate-700 block mb-2">
+                <span aria-hidden="true">📱 </span>מספר טלפון
+              </label>
               <input
+                id="field-phone"
                 className="w-full border-2 border-slate-200 rounded-2xl px-4 py-3.5 text-base focus:outline-none focus:border-slate-800 focus:shadow-md transition-all"
                 placeholder="050-0000000"
                 type="tel"
                 value={form.phone}
                 onChange={e => setForm({ ...form, phone: e.target.value })}
-                onKeyDown={e => e.key === 'Enter' && checkGeoAndRegister()}
+                autoComplete="tel"
+                aria-required="true"
+                aria-label="מספר טלפון"
+                inputMode="tel"
               />
               
               {/* בנר היסטוריה קודמת - אוטומטי */}
@@ -611,14 +815,19 @@ function QueueJoinInner() {
             </div>
 
             {/* כמות סועדים */}
-            <div>
-              <label className="text-sm font-bold text-slate-700 block mb-2">🍴 כמות סועדים</label>
-              <div className="grid grid-cols-4 gap-2">
+            <fieldset>
+              <legend className="text-sm font-bold text-slate-700 block mb-2">
+                <span aria-hidden="true">🍴 </span>כמות סועדים
+              </legend>
+              <div className="grid grid-cols-4 gap-2" role="group" aria-label="בחר כמות סועדים">
                 {[1, 2, 3, 4, 5, 6, 7, 8].map(n => (
                   <button
                     key={n}
+                    type="button"
                     onClick={() => setForm({ ...form, party_size: n })}
-                    className={`py-3 rounded-xl font-bold text-lg transition-all ${
+                    aria-pressed={form.party_size === n}
+                    aria-label={n === 8 ? '8 סועדים ומעלה' : `${n} סועדים`}
+                    className={`py-3 rounded-xl font-bold text-lg transition-all focus:outline-none focus:ring-2 focus:ring-slate-800 ${
                       form.party_size === n
                         ? 'bg-slate-800 text-white shadow-lg scale-105'
                         : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
@@ -628,12 +837,14 @@ function QueueJoinInner() {
                   </button>
                 ))}
               </div>
-            </div>
+            </fieldset>
 
             {/* העדפת הושבה */}
-            <div>
-              <label className="text-sm font-bold text-slate-700 block mb-2">🪑 העדפת הושבה</label>
-              <div className="grid grid-cols-3 gap-2">
+            <fieldset>
+              <legend className="text-sm font-bold text-slate-700 block mb-2">
+                <span aria-hidden="true">🪑 </span>העדפת הושבה
+              </legend>
+              <div className="grid grid-cols-3 gap-2" role="group" aria-label="בחר העדפת הושבה">
                 {[
                   { id: 'no_preference', label: 'לא משנה לי', emoji: '🤷' },
                   { id: 'inside', label: 'רק בפנים', emoji: '🏠' },
@@ -641,21 +852,24 @@ function QueueJoinInner() {
                 ].map(option => (
                   <button
                     key={option.id}
+                    type="button"
                     onClick={() => setForm({ ...form, seating_preference: option.id })}
-                    className={`py-3 rounded-xl font-bold text-sm transition-all ${
+                    aria-pressed={(form.seating_preference || 'no_preference') === option.id}
+                    aria-label={option.label}
+                    className={`py-3 rounded-xl font-bold text-sm transition-all focus:outline-none focus:ring-2 focus:ring-slate-800 ${
                       (form.seating_preference || 'no_preference') === option.id
                         ? 'bg-slate-800 text-white shadow-lg'
                         : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                     }`}
                   >
-                    {option.emoji}<br/>{option.label}
+                    <span aria-hidden="true">{option.emoji}</span><br/>{option.label}
                   </button>
                 ))}
               </div>
-            </div>
+            </fieldset>
 
             {error && (
-              <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-center">
+              <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-center" role="alert" aria-live="assertive">
                 <p className="text-red-600 text-sm font-medium">⚠️ {error}</p>
               </div>
             )}
@@ -690,29 +904,35 @@ function QueueJoinInner() {
 
             {geoStatus !== 'too_far' && (
               <button
-                onClick={checkGeoAndRegister}
+                type="submit"
                 disabled={loading || geoStatus === 'checking'}
-                className="w-full bg-slate-800 hover:bg-slate-900 active:scale-95 text-white font-black py-4 rounded-2xl text-lg transition-all disabled:opacity-50 shadow-xl mt-2"
+                aria-busy={loading}
+                aria-label="הצטרף לתור"
+                className="w-full bg-slate-800 hover:bg-slate-900 active:scale-95 text-white font-black py-4 rounded-2xl text-lg transition-all disabled:opacity-50 shadow-xl mt-2 focus:outline-none focus:ring-4 focus:ring-slate-400"
               >
                 {loading ? (
-                  <span className="flex items-center justify-center gap-2">
-                    <svg className="animate-spin w-5 h-5" viewBox="0 0 24 24" fill="none">
+                  <span className="flex items-center justify-center gap-2" aria-live="polite" aria-atomic="true">
+                    <svg className="animate-spin w-5 h-5" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
                       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
                     </svg>
                     מצטרף...
                   </span>
-                ) : '✨ הצטרף לתור'}
+                ) : <><span aria-hidden="true">✨ </span>הצטרף לתור</>}
               </button>
             )}
 
             <button
+              type="button"
               onClick={() => setShowQueueList(!showQueueList)}
-              className="w-full bg-gray-200 hover:bg-gray-300 text-gray-700 font-bold py-2 rounded-xl text-sm transition-all mt-1"
+              aria-expanded={showQueueList}
+              aria-controls="queue-list-modal"
+              className="w-full bg-gray-200 hover:bg-gray-300 text-gray-700 font-bold py-2 rounded-xl text-sm transition-all mt-1 focus:outline-none focus:ring-2 focus:ring-gray-400"
             >
-              👥 {showQueueList ? 'הסתר' : 'הצג'} רשימת ממתינים
+              <span aria-hidden="true">👥 </span>{showQueueList ? 'הסתר' : 'הצג'} רשימת ממתינים
             </button>
           </div>
+          </form>
         </div>
 
         {/* מודאל רשימת ממתינים */}
@@ -753,7 +973,16 @@ function QueueJoinInner() {
           </div>
         )}
 
-        <p className="text-slate-400 text-xs mt-8 font-light">מסעדת עלינא © 2026</p>
+        <footer className="text-center mt-8 space-y-1">
+          <p className="text-slate-400 text-xs font-light">מסעדת עלינא © 2026</p>
+          <a
+            href="/AccessibilityStatement"
+            className="text-slate-400 text-xs underline hover:text-slate-200 transition-colors focus:outline-none focus:ring-2 focus:ring-slate-300 rounded"
+            aria-label="קרא את הצהרת הנגישות של עלינא"
+          >
+            הצהרת נגישות
+          </a>
+        </footer>
       </div>
     );
   }
@@ -1168,7 +1397,16 @@ function QueueJoinInner() {
         </div>
       )}
 
-      <p className="text-slate-400 text-xs mt-8 font-light">מסעדת עלינא © 2026</p>
+      <footer className="text-center mt-8 space-y-1">
+        <p className="text-slate-400 text-xs font-light">מסעדת עלינא © 2026</p>
+        <a
+          href="/AccessibilityStatement"
+          className="text-slate-400 text-xs underline hover:text-slate-200 transition-colors focus:outline-none focus:ring-2 focus:ring-slate-300 rounded"
+          aria-label="קרא את הצהרת הנגישות של עלינא"
+        >
+          הצהרת נגישות
+        </a>
+      </footer>
     </div>
   );
 }
