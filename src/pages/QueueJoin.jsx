@@ -60,7 +60,7 @@ function QueueJoinInner() {
   const [abandonReason, setAbandonReason] = useState('');
   const [abandonOther, setAbandonOther] = useState('');
   const [abandonLoading, setAbandonLoading] = useState(false);
-  const [form, setForm] = useState({ customer_name: '', phone: '', party_size: 2, seating_preference: 'no_preference' });
+  const [form, setForm] = useState({ customer_name: '', phone: '', party_size: 2, seating_preference: 'no_preference', customer_notes: '', table_duration_preference: 'any' });
   const [privacyConsent, setPrivacyConsent] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
@@ -470,6 +470,8 @@ function QueueJoinInner() {
         phone: form.phone.trim(),
         party_size: parseInt(form.party_size),
         seating_preference: form.seating_preference,
+        customer_notes: form.customer_notes.trim() || null,
+        table_duration_preference: form.table_duration_preference,
       });
       console.log('Response from createQueueEntry:', res);
       
@@ -708,6 +710,41 @@ function QueueJoinInner() {
               </div>
             </div>
 
+            {/* משך שולחן */}
+            <div>
+              <label className={`${accessibilityMode ? 'text-xl text-black' : 'text-sm text-slate-700'} font-bold block mb-2`}>⏱️ משך השולחן</label>
+              <div className="grid grid-cols-2 gap-2">
+                {[
+                  { id: 'any', label: 'כל משך', emoji: '🕐' },
+                  { id: 'one_hour_only', label: 'שעה בלבד', emoji: '⏰' }
+                ].map(option => (
+                  <button
+                    key={option.id}
+                    onClick={() => setForm({ ...form, table_duration_preference: option.id })}
+                    className={`py-3 rounded-xl font-bold text-sm transition-all ${
+                      (form.table_duration_preference || 'any') === option.id
+                        ? 'bg-slate-800 text-white shadow-lg'
+                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    }`}
+                  >
+                    {option.emoji}<br/>{option.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* הערות מיוחדות */}
+            <div>
+              <label className={`${accessibilityMode ? 'text-xl text-black' : 'text-sm text-slate-700'} font-bold block mb-2`}>💬 הערות / בקשות מיוחדות (אופציונלי)</label>
+              <textarea
+                className={`w-full ${accessibilityMode ? 'border-4 border-black text-lg py-3 px-6' : 'border-2 border-slate-200 text-base py-3.5 px-4'} rounded-xl focus:outline-none ${accessibilityMode ? 'focus:border-yellow-400 focus:ring-4 focus:ring-yellow-200' : 'focus:border-slate-800 focus:shadow-md'} transition-all resize-none h-20`}
+                placeholder="לדוגמה: אין בירה, שולחן ליד החלון, חגיגה..."
+                value={form.customer_notes}
+                onChange={(e) => setForm({ ...form, customer_notes: e.target.value })}
+              />
+              <p className="text-xs text-gray-400 mt-1">הערות אלו יהיו גלויות לצוות המסעדה</p>
+            </div>
+
             {/* הסכמה לתקנון ופרטיות */}
             <div className="flex items-start gap-3 bg-slate-50 rounded-2xl p-3 border border-slate-200">
               <input
@@ -937,11 +974,28 @@ function QueueJoinInner() {
           {/* מקום בתור + פרסים */}
           {isActive && (
             <>
+              {/* זמן מוערך */}
+              {entry?.estimated_wait_time && (
+                <div className="bg-amber-50 border-2 border-amber-300 rounded-2xl p-4 text-center mb-4">
+                  <p className="text-amber-800 font-black text-4xl">⏱️</p>
+                  <p className="text-amber-800 font-black text-2xl mt-1">{entry.estimated_wait_time} דקות</p>
+                  <p className="text-amber-600 text-xs mt-1">זמן המתנה מוערך</p>
+                </div>
+              )}
+
               {/* מקום בתור */}
               {queuePosition != null && (
                 <div className="bg-blue-50 border-2 border-blue-300 rounded-2xl p-4 text-center mb-4">
                   <p className="text-blue-800 font-black text-5xl">{queuePosition}</p>
                   <p className="text-blue-600 text-sm mt-2 font-bold">מקום בתור</p>
+                </div>
+              )}
+
+              {/* הערות מיוחדות */}
+              {entry?.customer_notes && (
+                <div className="bg-purple-50 border border-purple-200 rounded-2xl p-3">
+                  <p className="text-xs text-purple-600 font-bold mb-1">💬 הערות מיוחדות שלך:</p>
+                  <p className="text-sm text-purple-700">{entry.customer_notes}</p>
                 </div>
               )}
 

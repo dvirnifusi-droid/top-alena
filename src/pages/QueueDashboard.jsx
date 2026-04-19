@@ -76,6 +76,8 @@ export default function QueueDashboard() {
   const [historyEntries, setHistoryEntries] = useState([]);
   const [manualForm, setManualForm] = useState({ name: '', phone: '', party_size: 2 });
   const [manualLoading, setManualLoading] = useState(false);
+  const [estimatedWaitInput, setEstimatedWaitInput] = useState({});
+  const [editingEstimate, setEditingEstimate] = useState(null);
   const prevFirstActiveRef = useRef(null);
   const countdownRef = useRef({});
   const callCountdownRef = useRef({});
@@ -394,6 +396,17 @@ export default function QueueDashboard() {
     const phoneHistory = allEntries.filter(e => e.phone === phone);
     setHistoryPhone(phone);
     setHistoryEntries(phoneHistory);
+  };
+
+  const handleSaveEstimatedWait = async (entryId, minutes) => {
+    if (!minutes || minutes < 0) {
+      await base44.entities.QueueEntry.update(entryId, { estimated_wait_time: null }).catch(() => {});
+    } else {
+      await base44.entities.QueueEntry.update(entryId, { estimated_wait_time: minutes }).catch(() => {});
+    }
+    setEditingEstimate(null);
+    setEstimatedWaitInput(prev => { const n = {...prev}; delete n[entryId]; return n; });
+    fetchEntries();
   };
 
   const handleManualAdd = async () => {
@@ -801,10 +814,48 @@ export default function QueueDashboard() {
                                 </p>
                                 {entry.seating_preference === 'inside' && <span title="העדפה: רק בפנים" className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">🏠 בפנים</span>}
                                 {entry.seating_preference === 'outside' && <span title="העדפה: רק בחוץ" className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">🌳 בחוץ</span>}
+                                {entry.table_duration_preference === 'one_hour_only' && <span title="העדפה: שעה בלבד" className="text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full">⏱️ שעה בלבד</span>}
                                 <PartySizeIcon size={entry.party_size} />
                                 <span className="text-xs text-gray-500">{entry.party_size}</span>
                                 {entry.treated && <span title="קיבל פינוק">🎁</span>}
                               </div>
+                              
+                              {/* זמן מוערך */}
+                              {editingEstimate === entry.id ? (
+                                <div className="mt-1.5 flex gap-1">
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    value={estimatedWaitInput[entry.id] || ''}
+                                    onChange={(e) => setEstimatedWaitInput(prev => ({ ...prev, [entry.id]: parseInt(e.target.value) || 0 }))}
+                                    placeholder="דקות"
+                                    className="w-16 text-xs border border-amber-300 rounded px-2 py-1 focus:outline-none"
+                                    autoFocus
+                                  />
+                                  <button
+                                    onClick={() => handleSaveEstimatedWait(entry.id, estimatedWaitInput[entry.id])}
+                                    className="px-2 py-1 text-xs bg-green-500 hover:bg-green-600 text-white rounded font-bold transition-all"
+                                  >✓</button>
+                                  <button
+                                    onClick={() => { setEditingEstimate(null); setEstimatedWaitInput(prev => { const n = {...prev}; delete n[entry.id]; return n; }); }}
+                                    className="px-2 py-1 text-xs bg-gray-300 hover:bg-gray-400 text-gray-700 rounded font-bold transition-all"
+                                  >✕</button>
+                                </div>
+                              ) : (
+                                <div className="mt-1.5">
+                                  {entry.estimated_wait_time ? (
+                                    <button
+                                      onClick={() => { setEditingEstimate(entry.id); setEstimatedWaitInput(prev => ({ ...prev, [entry.id]: entry.estimated_wait_time })); }}
+                                      className="text-xs bg-amber-50 border border-amber-200 text-amber-700 px-2 py-1 rounded font-bold hover:bg-amber-100 transition-all"
+                                    >⏱️ {entry.estimated_wait_time} דק'</button>
+                                  ) : (
+                                    <button
+                                      onClick={() => { setEditingEstimate(entry.id); setEstimatedWaitInput(prev => ({ ...prev, [entry.id]: 0 })); }}
+                                      className="text-xs bg-gray-100 text-gray-500 px-2 py-1 rounded hover:bg-gray-200 transition-all"
+                                    >⏱️ הוסף זמן מוערך</button>
+                                  )}
+                                </div>
+                              )}
                               
                               {/* הצגת הפרס שנבחר */}
                               {entry.selected_treat_id && (
