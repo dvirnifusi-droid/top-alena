@@ -12,7 +12,8 @@ Deno.serve(async (req) => {
     const base44 = createClientFromRequest(req);
 
     console.log('🔍 Fetching entry:', entryId);
-    const entry = await base44.asServiceRole.entities.QueueEntry.get(entryId);
+    const entries = await base44.asServiceRole.entities.QueueEntry.filter({ id: entryId });
+    const entry = entries[0] || null;
 
     if (!entry) {
       return Response.json({ error: 'Entry not found' }, { status: 404 });
