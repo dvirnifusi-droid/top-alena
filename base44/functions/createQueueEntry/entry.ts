@@ -10,19 +10,18 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
-    // קבל את המטבעות מCustomer entity (השמור מפעמים קודמות)
+    // קבל את המטבעות מCustomer entity - ignore errors
     let previousCredits = 0;
     try {
       const customers = await base44.asServiceRole.entities.Customer.filter({ phone: phone.trim() });
       if (customers.length > 0) {
         previousCredits = customers[0].coin_balance || 0;
       }
-    } catch (e) {
-      // אם לא ניתן לקרוא, נמשיך עם 0 מטבעות
-      console.warn('Could not fetch customer credits, continuing with 0:', e?.message);
+    } catch (_) {
+      // ignore - continue without credits
     }
 
-    // צור כניסה חדשה עם המטבעות הקודמים
+    // צור כניסה חדשה
     const newEntry = await base44.asServiceRole.entities.QueueEntry.create({
       customer_name: customer_name.trim(),
       phone: phone.trim(),

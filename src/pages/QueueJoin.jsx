@@ -54,7 +54,7 @@ function QueueJoinInner() {
   const entryId = urlParams.get('id');
 
   const [phase, setPhase] = useState(entryId ? 'waiting' : 'register');
-  const [geofencingEnabled, setGeofencingEnabled] = useState(true);
+  const [geofencingEnabled, setGeofencingEnabled] = useState(false);
   const [geoStatus, setGeoStatus] = useState('idle'); // idle | checking | denied | too_far | ok
   const [showAbandonModal, setShowAbandonModal] = useState(false);
   const [abandonReason, setAbandonReason] = useState('');
@@ -119,7 +119,7 @@ function QueueJoinInner() {
   useEffect(() => {
     invokePublic('getGeofencingStatus', {})
       .then(res => setGeofencingEnabled(res?.enabled === true))
-      .catch(() => setGeofencingEnabled(false));
+      .catch(() => setGeofencingEnabled(false)); // אם לא נגיש — כבה גיאופנסינג
   }, []);
 
   // טעינת פינוקים זמינים דרך backend function
@@ -406,8 +406,8 @@ function QueueJoinInner() {
       });
       console.log('Response from createQueueEntry:', res);
       
-      if (res.error || !res?.entry) {
-        throw new Error(res.error || 'שגיאה בהרשמה - נסה שוב');
+      if (!res?.entry) {
+        throw new Error(res?.error || 'שגיאה בהרשמה - נסה שוב');
       }
       
       const newEntry = res.entry;
