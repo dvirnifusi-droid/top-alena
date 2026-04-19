@@ -174,14 +174,8 @@ function QueueJoinInner() {
   useEffect(() => {
     if (!entryId) return;
 
-    // Subscribe to real-time updates
-    const unsubscribe = base44.entities.QueueEntry.subscribe((event) => {
-      if (event.id === entryId) {
-        // עדכן מיד כשיש שינוי
-        setEntry(event.data);
-        // phase יתעדכן אוטומטית דרך ה-useEffect של entry
-      }
-    });
+    // polling בלבד — אין subscribe ללא auth
+    const unsubscribe = () => {};
 
     const fetchStatus = async () => {
       try {
@@ -826,17 +820,13 @@ function QueueJoinInner() {
     setActionLoading(true);
     try {
       if (answer === 'no') {
-        await base44.entities.QueueEntry.update(entryId, {
-          status: 'abandoned',
-          proximity_response: 'no',
-          timestamp_end: new Date().toISOString(),
-          notes: 'לא בסביבה — בדיקת קרבה',
+        await invokePublic('updateQueueEntry', {
+          entryId,
+          data: { status: 'abandoned', proximity_response: 'no', timestamp_end: new Date().toISOString(), notes: 'לא בסביבה — בדיקת קרבה' }
         });
         setEntry(prev => ({ ...prev, status: 'abandoned', proximity_response: 'no' }));
       } else {
-        await base44.entities.QueueEntry.update(entryId, {
-          proximity_response: 'yes',
-        });
+        await invokePublic('updateQueueEntry', { entryId, data: { proximity_response: 'yes' } });
         setEntry(prev => ({ ...prev, proximity_response: 'yes' }));
       }
     } catch (e) {
