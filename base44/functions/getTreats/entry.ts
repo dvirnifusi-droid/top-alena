@@ -4,6 +4,7 @@ Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
     const treats = await base44.asServiceRole.entities.TimeTreat.filter({ is_active: true });
+    console.log('✅ Treats fetched:', treats.length);
     return Response.json({ treats });
   } catch (error) {
     console.error('❌ Error getting treats:', error.message);

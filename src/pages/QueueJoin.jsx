@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { base44 } from '@/api/base44Client';
 import { invokePublic } from '@/lib/publicFetch';
-import AccessibilityWidget from '@/components/accessibility/AccessibilityWidget';
 
 const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY || '';
 
@@ -33,9 +33,8 @@ async function registerPushAndSave(entryId) {
       applicationServerKey: VAPID_PUBLIC_KEY,
     });
 
-    await invokePublic('updateQueueEntry', {
-      entryId,
-      data: { push_subscription: sub.toJSON() }
+    await base44.entities.QueueEntry.update(entryId, {
+      push_subscription: sub.toJSON(),
     });
   } catch (e) {
     console.warn('Push registration failed:', e);
@@ -54,15 +53,13 @@ function QueueJoinInner() {
   const entryId = urlParams.get('id');
 
   const [phase, setPhase] = useState(entryId ? 'waiting' : 'register');
-  const [geofencingEnabled, setGeofencingEnabled] = useState(false);
+  const [geofencingEnabled, setGeofencingEnabled] = useState(true);
   const [geoStatus, setGeoStatus] = useState('idle'); // idle | checking | denied | too_far | ok
   const [showAbandonModal, setShowAbandonModal] = useState(false);
   const [abandonReason, setAbandonReason] = useState('');
   const [abandonOther, setAbandonOther] = useState('');
   const [abandonLoading, setAbandonLoading] = useState(false);
   const [form, setForm] = useState({ customer_name: '', phone: '', party_size: 2, seating_preference: 'no_preference' });
-  const [termsAccepted, setTermsAccepted] = useState(false);
-  const [marketingAccepted, setMarketingAccepted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
   const [entry, setEntry] = useState(null);
@@ -76,6 +73,7 @@ function QueueJoinInner() {
   const [showTreatModal, setShowTreatModal] = useState(false);
   const [debugLog, setDebugLog] = useState([]);
   const [duplicateEntry, setDuplicateEntry] = useState(null);
+  const [isPublicMode] = useState(true); // תמיד בדף ציבורי זה
   const [customerHistory, setCustomerHistory] = useState(null);
   const [existingEntry, setExistingEntry] = useState(null);
   const [showQueueList, setShowQueueList] = useState(false);
@@ -86,8 +84,8 @@ function QueueJoinInner() {
   // טען את רשימת כל הממתינים כשמודאל נפתח
   useEffect(() => {
     if (showQueueList) {
-      invokePublic('getQueueList', {})
-        .then(res => setAllQueueEntries(res?.entries || []))
+      base44.entities.QueueEntry.filter({ status: 'pending' }, '-timestamp_register', 100)
+        .then(entries => setAllQueueEntries(entries))
         .catch(() => setAllQueueEntries([]));
     }
   }, [showQueueList]);
@@ -95,7 +93,7 @@ function QueueJoinInner() {
   const handleDeleteEntry = async (id) => {
     if (window.confirm('בטוח להסיר את ההרשמה?')) {
       try {
-        await invokePublic('deleteQueueEntry', { entryId: id });
+        await base44.entities.QueueEntry.delete(id);
         setAllQueueEntries(prev => prev.filter(e => e.id !== id));
       } catch (e) {
         console.error('Error:', e);
@@ -115,12 +113,18 @@ function QueueJoinInner() {
     }
   }, [entry, entryId]);
 
-  // טעינת הגדרות מסעדה
+  // טעינת הגדרות מסעדה (ללא בדיקת התחברות)
   useEffect(() => {
-    invokePublic('getGeofencingStatus', {})
-      .then(res => setGeofencingEnabled(res?.enabled === true))
-      .catch(() => setGeofencingEnabled(false)); // אם לא נגיש — כבה גיאופנסינג
-  }, []);
+    if (isPublicMode) {
+      base44.entities.RestaurantProfile.list()
+        .then(profiles => {
+          if (profiles.length > 0) {
+            setGeofencingEnabled(profiles[0].geofencing_enabled !== false);
+          }
+        })
+        .catch(() => {}); // שגיאות בטוחות - המשך עם ברירת מחדל
+    }
+  }, [isPublicMode]);
 
   // טעינת פינוקים זמינים דרך backend function
   useEffect(() => {
@@ -152,13 +156,10 @@ function QueueJoinInner() {
     const sendLocation = () => {
       navigator.geolocation.getCurrentPosition(
         (pos) => {
-          invokePublic('updateQueueEntry', {
-            entryId,
-            data: {
-              last_lat: pos.coords.latitude,
-              last_lng: pos.coords.longitude,
-              last_location_at: new Date().toISOString(),
-            }
+          base44.entities.QueueEntry.update(entryId, {
+            last_lat: pos.coords.latitude,
+            last_lng: pos.coords.longitude,
+            last_location_at: new Date().toISOString(),
           }).catch(() => {});
         },
         () => {},
@@ -174,8 +175,14 @@ function QueueJoinInner() {
   useEffect(() => {
     if (!entryId) return;
 
-    // polling בלבד — אין subscribe ללא auth
-    const unsubscribe = () => {};
+    // Subscribe to real-time updates
+    const unsubscribe = base44.entities.QueueEntry.subscribe((event) => {
+      if (event.id === entryId) {
+        // עדכן מיד כשיש שינוי
+        setEntry(event.data);
+        // phase יתעדכן אוטומטית דרך ה-useEffect של entry
+      }
+    });
 
     const fetchStatus = async () => {
       try {
@@ -279,9 +286,19 @@ function QueueJoinInner() {
     
     historyTimeoutRef.current = setTimeout(async () => {
       try {
-        // בדוק אם יש כניסה פעילה (דרך backend)
-        const checkRes = await invokePublic('checkExistingEntry', { phone: form.phone.trim() });
-        setExistingEntry(checkRes?.activeEntry || null);
+        // בדוק אם יש כניסה פעילה
+        const allEntries = await base44.asServiceRole.entities.QueueEntry.list('-timestamp_register', 500);
+        const activeEntry = allEntries.find(e => 
+          e.phone === form.phone.trim() && 
+          e.status !== 'seated' && 
+          e.status !== 'abandoned'
+        );
+        
+        if (activeEntry) {
+          setExistingEntry(activeEntry);
+        } else {
+          setExistingEntry(null);
+        }
 
         // טען היסטוריה
         const histRes = await invokePublic('getAnonymousCustomerHistory', { phone: form.phone.trim() });
@@ -307,28 +324,40 @@ function QueueJoinInner() {
       setError('נא למלא שם ומספר טלפון');
       return;
     }
-    if (!termsAccepted) {
-      setError('יש לאשר את תקנון השימוש ומדיניות הפרטיות');
-      return;
-    }
     setError('');
     setLoading(true);
 
     try {
-      // בדוק אם יש כניסה עם אותו מספר טלפון (דרך backend)
+      // בדוק אם יש כניסה עם אותו מספר טלפון
+      let existing = [];
       try {
-        const checkRes = await invokePublic('checkExistingEntry', { phone: form.phone.trim() });
-        if (checkRes?.activeEntry) {
-          setDuplicateEntry(checkRes.activeEntry);
-          setLoading(false);
-          return;
-        }
+        existing = await base44.entities.QueueEntry.filter({ phone: form.phone.trim() });
       } catch (e) {
         console.warn('Cannot check existing entries:', e);
       }
+      const activeEntry = existing.find(e => e.status !== 'seated' && e.status !== 'abandoned');
+      if (activeEntry) {
+        setDuplicateEntry(activeEntry);
+        setLoading(false);
+        return;
+      }
 
-      // בדוק גיאופנסינג מה-state שנטען בהתחלה
-      const isGeoEnabled = geofencingEnabled;
+      // טען את geofencingEnabled עדכני מה-DB (אם יש service role)
+      let isGeoEnabled = false; // ברירת מחדל: כבוי
+      try {
+        const profiles = await base44.asServiceRole.entities.RestaurantProfile.list();
+        console.log('Profiles from DB:', profiles);
+        if (profiles.length > 0) {
+          isGeoEnabled = profiles[0].geofencing_enabled !== false;
+          console.log('geofencing_enabled value:', profiles[0].geofencing_enabled, 'isGeoEnabled:', isGeoEnabled);
+        } else {
+          console.log('No profiles found, geofencing disabled by default');
+        }
+      } catch (e) {
+        console.error('Cannot check geofencing status:', e);
+        isGeoEnabled = false; // אם יש error, כבה את המיקום
+      }
+      
       console.log('Final isGeoEnabled:', isGeoEnabled);
       console.log('navigator.geolocation available:', !!navigator.geolocation);
       
@@ -406,8 +435,8 @@ function QueueJoinInner() {
       });
       console.log('Response from createQueueEntry:', res);
       
-      if (!res?.entry) {
-        throw new Error(res?.error || 'שגיאה בהרשמה - נסה שוב');
+      if (res.error || !res?.entry) {
+        throw new Error(res.error || 'שגיאה בהרשמה - נסה שוב');
       }
       
       const newEntry = res.entry;
@@ -530,32 +559,26 @@ function QueueJoinInner() {
           <div className="space-y-5">
             {/* שם */}
             <div>
-              <label htmlFor="customer-name" className="text-sm font-bold text-slate-700 block mb-2">👤 שם מלא <span className="text-red-500">*</span></label>
+              <label className="text-sm font-bold text-slate-700 block mb-2">👤 שם מלא</label>
               <input
-                id="customer-name"
                 className="w-full border-2 border-slate-200 rounded-2xl px-4 py-3.5 text-base focus:outline-none focus:border-slate-800 focus:shadow-md transition-all"
                 placeholder="הכנס את שמך המלא"
                 value={form.customer_name}
                 onChange={e => setForm({ ...form, customer_name: e.target.value })}
                 onKeyDown={e => e.key === 'Enter' && checkGeoAndRegister()}
-                aria-required="true"
-                autoComplete="name"
               />
             </div>
 
             {/* טלפון */}
             <div>
-              <label htmlFor="customer-phone" className="text-sm font-bold text-slate-700 block mb-2">📱 מספר טלפון <span className="text-red-500">*</span></label>
+              <label className="text-sm font-bold text-slate-700 block mb-2">📱 מספר טלפון</label>
               <input
-                id="customer-phone"
                 className="w-full border-2 border-slate-200 rounded-2xl px-4 py-3.5 text-base focus:outline-none focus:border-slate-800 focus:shadow-md transition-all"
                 placeholder="050-0000000"
                 type="tel"
                 value={form.phone}
                 onChange={e => setForm({ ...form, phone: e.target.value })}
                 onKeyDown={e => e.key === 'Enter' && checkGeoAndRegister()}
-                aria-required="true"
-                autoComplete="tel"
               />
               
               {/* בנר היסטוריה קודמת - אוטומטי */}
@@ -631,47 +654,8 @@ function QueueJoinInner() {
               </div>
             </div>
 
-            {/* תקנון ופרטיות */}
-            <div className="space-y-3 pt-1">
-              <label className="flex items-start gap-3 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={termsAccepted}
-                  onChange={e => setTermsAccepted(e.target.checked)}
-                  aria-required="true"
-                  aria-label="אישור תקנון ומדיניות פרטיות"
-                  className="mt-1 w-5 h-5 accent-slate-800 flex-shrink-0 cursor-pointer"
-                />
-                <span className="text-xs text-slate-600 leading-relaxed">
-                  קראתי ואני מאשר/ת את{' '}
-                  <a
-                    href="/PrivacyPolicy"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-slate-800 font-bold underline"
-                  >
-                    תקנון השימוש ומדיניות הפרטיות
-                  </a>
-                  {' '}ומסכים/ה לשמירת פרטיי לצורך ניהול התור. <span className="text-red-500 font-bold">*</span>
-                </span>
-              </label>
-
-              <label className="flex items-start gap-3 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={marketingAccepted}
-                  onChange={e => setMarketingAccepted(e.target.checked)}
-                  aria-label="הסכמה לקבלת עדכונים ומבצעים"
-                  className="mt-1 w-5 h-5 accent-slate-800 flex-shrink-0 cursor-pointer"
-                />
-                <span className="text-xs text-slate-500 leading-relaxed">
-                  אני מסכים/ה לקבל עדכונים ומבצעים ממסעדת עלינא (אופציונלי).
-                </span>
-              </label>
-            </div>
-
             {error && (
-              <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-center" role="alert">
+              <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-center">
                 <p className="text-red-600 text-sm font-medium">⚠️ {error}</p>
               </div>
             )}
@@ -769,19 +753,7 @@ function QueueJoinInner() {
           </div>
         )}
 
-        <div className="flex items-center gap-3 mt-8">
-          <p className="text-slate-400 text-xs font-light">מסעדת עלינא © 2026</p>
-          <span className="text-slate-600 text-xs">·</span>
-          <a
-            href="/PrivacyPolicy"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-slate-400 text-xs hover:text-slate-300 underline transition-colors"
-            aria-label="פרטיות ונגישות"
-          >
-            פרטיות ונגישות ♿
-          </a>
-        </div>
+        <p className="text-slate-400 text-xs mt-8 font-light">מסעדת עלינא © 2026</p>
       </div>
     );
   }
@@ -820,13 +792,17 @@ function QueueJoinInner() {
     setActionLoading(true);
     try {
       if (answer === 'no') {
-        await invokePublic('updateQueueEntry', {
-          entryId,
-          data: { status: 'abandoned', proximity_response: 'no', timestamp_end: new Date().toISOString(), notes: 'לא בסביבה — בדיקת קרבה' }
+        await base44.entities.QueueEntry.update(entryId, {
+          status: 'abandoned',
+          proximity_response: 'no',
+          timestamp_end: new Date().toISOString(),
+          notes: 'לא בסביבה — בדיקת קרבה',
         });
         setEntry(prev => ({ ...prev, status: 'abandoned', proximity_response: 'no' }));
       } else {
-        await invokePublic('updateQueueEntry', { entryId, data: { proximity_response: 'yes' } });
+        await base44.entities.QueueEntry.update(entryId, {
+          proximity_response: 'yes',
+        });
         setEntry(prev => ({ ...prev, proximity_response: 'yes' }));
       }
     } catch (e) {
@@ -1168,13 +1144,10 @@ function QueueJoinInner() {
                 const reason = abandonReason === 'other'
                   ? `אחר: ${abandonOther}`
                   : ABANDON_REASONS.find(r => r.id === abandonReason)?.label;
-                await invokePublic('updateQueueEntry', {
-                  entryId,
-                  data: {
-                    status: 'abandoned',
-                    timestamp_end: new Date().toISOString(),
-                    notes: reason,
-                  }
+                await base44.entities.QueueEntry.update(entryId, {
+                  status: 'abandoned',
+                  timestamp_end: new Date().toISOString(),
+                  notes: reason,
                 });
                 setAbandonLoading(false);
                 setShowAbandonModal(false);
@@ -1201,10 +1174,5 @@ function QueueJoinInner() {
 }
 
 export default function QueueJoin() {
-  return (
-    <>
-      <QueueJoinInner />
-      <AccessibilityWidget />
-    </>
-  );
+  return <QueueJoinInner />;
 }

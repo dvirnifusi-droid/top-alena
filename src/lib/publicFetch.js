@@ -4,13 +4,9 @@
  * Uses the direct /functions/<name> endpoint which doesn't require a user token.
  */
 export async function invokePublic(functionName, payload = {}) {
-  const appId = import.meta.env.VITE_BASE44_APP_ID || '';
   const res = await fetch(`/functions/${functionName}`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(appId ? { 'X-App-Id': appId } : {}),
-    },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   });
 

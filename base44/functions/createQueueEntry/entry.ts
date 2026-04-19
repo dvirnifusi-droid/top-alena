@@ -9,12 +9,18 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
+    // קבל את המטבעות מCustomer entity (השמור מפעמים קודמות)
     let previousCredits = 0;
     try {
       const customers = await base44.asServiceRole.entities.Customer.filter({ phone: phone.trim() });
-      if (customers.length > 0) previousCredits = customers[0].coin_balance || 0;
-    } catch (_) {}
+      if (customers.length > 0) {
+        previousCredits = customers[0].coin_balance || 0;
+      }
+    } catch (e) {
+      console.warn('Could not fetch customer:', e);
+    }
 
+    // צור כניסה חדשה עם המטבעות הקודמים
     const newEntry = await base44.asServiceRole.entities.QueueEntry.create({
       customer_name: customer_name.trim(),
       phone: phone.trim(),
@@ -27,7 +33,6 @@ Deno.serve(async (req) => {
 
     return Response.json({ entry: newEntry });
   } catch (error) {
-    console.error('createQueueEntry error:', error?.message);
     return Response.json({ error: error.message }, { status: 500 });
   }
 });
