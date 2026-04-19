@@ -235,6 +235,7 @@ function QueueJoinInner() {
   const [abandonOther, setAbandonOther] = useState('');
   const [abandonLoading, setAbandonLoading] = useState(false);
   const [form, setForm] = useState({ customer_name: '', phone: '', party_size: 2, seating_preference: 'no_preference' });
+  const [termsAccepted, setTermsAccepted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
   const [entry, setEntry] = useState(null);
@@ -497,6 +498,10 @@ function QueueJoinInner() {
   const checkGeoAndRegister = async () => {
     if (!form.customer_name.trim() || !form.phone.trim()) {
       setError('נא למלא שם ומספר טלפון');
+      return;
+    }
+    if (!termsAccepted) {
+      setError('יש לאשר את תקנון השימוש ומדיניות הפרטיות כדי להמשיך');
       return;
     }
     setError('');
@@ -812,6 +817,29 @@ function QueueJoinInner() {
                   </div>
                 </div>
               )}
+            </div>
+
+            {/* אישור תקנון */}
+            <div className="bg-slate-50 border-2 border-slate-200 rounded-2xl p-4">
+              <label className="flex items-start gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  id="terms-checkbox"
+                  checked={termsAccepted}
+                  onChange={e => setTermsAccepted(e.target.checked)}
+                  aria-required="true"
+                  aria-describedby="terms-desc"
+                  className="mt-1 w-5 h-5 accent-slate-800 flex-shrink-0 cursor-pointer"
+                />
+                <span id="terms-desc" className="text-sm text-slate-700 leading-relaxed">
+                  אני מאשר/ת את{' '}
+                  <a href="/TermsOfUse" target="_blank" rel="noopener noreferrer" className="text-blue-600 underline font-bold" aria-label="פתח תקנון שימוש בחלון חדש">תקנון השימוש</a>
+                  {' '}ואת{' '}
+                  <a href="/PrivacyPolicy" target="_blank" rel="noopener noreferrer" className="text-blue-600 underline font-bold" aria-label="פתח מדיניות פרטיות בחלון חדש">מדיניות הפרטיות</a>
+                  {' '}ומסכים/ה לקבל עדכוני תור ב-SMS / WhatsApp.{' '}
+                  <span className="text-slate-500">(קבלת הודעות שיווקיות — אופציונלי, ניתן לבטל בכל עת)</span>
+                </span>
+              </label>
             </div>
 
             {/* כמות סועדים */}
