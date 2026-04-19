@@ -1045,7 +1045,7 @@ function QueueJoinInner() {
                       ? 'text-orange-600'
                       : 'text-amber-600'
                   }`}>
-                    {estimatedWaitCountdown === 0 ? 'זמנך הגיע!' : 'דקות עד לשולחן'}
+                    {estimatedWaitCountdown === 0 ? '🎉 כיף אתם ממש תכף נכנסים!' : 'דקות עד לשולחן'}
                   </p>
                 </div>
               )}
