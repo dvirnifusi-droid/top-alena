@@ -51,6 +51,7 @@ const ABANDON_REASONS = [
 function QueueJoinInner() {
   const urlParams = new URLSearchParams(window.location.search);
   const entryId = urlParams.get('id');
+  const [accessibilityMode, setAccessibilityMode] = React.useState(() => localStorage.getItem('accessibilityMode') === 'true');
 
   const [phase, setPhase] = useState(entryId ? 'waiting' : 'register');
   const [geofencingEnabled, setGeofencingEnabled] = useState(true);
@@ -581,24 +582,40 @@ function QueueJoinInner() {
   // ========== דף הרשמה ==========
   if (phase === 'register') {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center p-4" style={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%)' }} dir="rtl">
+      <div className={`min-h-screen flex flex-col items-center justify-center ${accessibilityMode ? 'p-6' : 'p-4'}`} style={{ background: accessibilityMode ? '#000' : 'linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%)' }} dir="rtl">
+        {/* כפתור נגישות */}
+        <button
+          onClick={() => {
+            setAccessibilityMode(!accessibilityMode);
+            localStorage.setItem('accessibilityMode', (!accessibilityMode).toString());
+          }}
+          className={`fixed top-4 right-4 z-50 px-4 py-2 rounded-2xl font-bold text-base transition-all ${
+            accessibilityMode
+              ? 'bg-yellow-400 text-black hover:bg-yellow-500'
+              : 'bg-white/20 text-white hover:bg-white/30 border border-white/50'
+          }`}
+          aria-label={accessibilityMode ? 'כבה מצב נגישות' : 'הפעל מצב נגישות'}
+        >
+          ♿ {accessibilityMode ? 'כבה נגישות' : 'הפעל נגישות'}
+        </button>
+
         {/* לוגו */}
         <div className="text-center mb-10">
-          <div className="text-7xl mb-4 drop-shadow-lg">🍽️</div>
-          <h1 className="text-4xl font-black text-white tracking-wider">עלינא</h1>
-          <p className="text-slate-300 text-sm mt-2 font-light">ברוכים הבאים לחוויה קולינרית עדינה</p>
+          <div className={`${accessibilityMode ? 'text-8xl' : 'text-7xl'} mb-4 drop-shadow-lg`}>🍽️</div>
+          <h1 className={`${accessibilityMode ? 'text-5xl' : 'text-4xl'} font-black ${accessibilityMode ? 'text-white' : 'text-white'} tracking-wider`}>עלינא</h1>
+          <p className={`${accessibilityMode ? 'text-base text-yellow-300' : 'text-slate-300 text-sm'} mt-2 font-${accessibilityMode ? 'bold' : 'light'}`}>ברוכים הבאים לחוויה קולינרית עדינה</p>
         </div>
 
         {/* כרטיסית */}
-        <div className="bg-white/95 backdrop-blur-sm rounded-3xl shadow-2xl p-8 w-full max-w-sm border border-white/20">
-          <h2 className="text-2xl font-black text-slate-800 mb-6 text-center">הצטרפות לתור</h2>
+        <div className={`${accessibilityMode ? 'bg-white border-4 border-black' : 'bg-white/95'} ${accessibilityMode ? 'rounded-lg' : 'rounded-3xl'} shadow-2xl ${accessibilityMode ? 'p-12' : 'p-8'} w-full max-w-sm ${accessibilityMode ? '' : 'border border-white/20'}`}>
+          <h2 className={`${accessibilityMode ? 'text-4xl text-black' : 'text-2xl text-slate-800'} font-black mb-6 text-center`}>הצטרפות לתור</h2>
 
           <div className="space-y-5">
             {/* שם */}
             <div>
-              <label className="text-sm font-bold text-slate-700 block mb-2">👤 שם מלא</label>
+              <label className={`${accessibilityMode ? 'text-xl text-black' : 'text-sm text-slate-700'} font-bold block mb-2`}>👤 שם מלא</label>
               <input
-                className="w-full border-2 border-slate-200 rounded-2xl px-4 py-3.5 text-base focus:outline-none focus:border-slate-800 focus:shadow-md transition-all"
+                className={`w-full ${accessibilityMode ? 'border-4 border-black text-lg py-4 px-6' : 'border-2 border-slate-200 text-base py-3.5 px-4'} rounded-xl focus:outline-none ${accessibilityMode ? 'focus:border-yellow-400 focus:ring-4 focus:ring-yellow-200' : 'focus:border-slate-800 focus:shadow-md'} transition-all`}
                 placeholder="הכנס את שמך המלא"
                 value={form.customer_name}
                 onChange={e => setForm({ ...form, customer_name: e.target.value })}
@@ -608,9 +625,9 @@ function QueueJoinInner() {
 
             {/* טלפון */}
             <div>
-              <label className="text-sm font-bold text-slate-700 block mb-2">📱 מספר טלפון</label>
+              <label className={`${accessibilityMode ? 'text-xl text-black' : 'text-sm text-slate-700'} font-bold block mb-2`}>📱 מספר טלפון</label>
               <input
-                className="w-full border-2 border-slate-200 rounded-2xl px-4 py-3.5 text-base focus:outline-none focus:border-slate-800 focus:shadow-md transition-all"
+                className={`w-full ${accessibilityMode ? 'border-4 border-black text-lg py-4 px-6' : 'border-2 border-slate-200 text-base py-3.5 px-4'} rounded-xl focus:outline-none ${accessibilityMode ? 'focus:border-yellow-400 focus:ring-4 focus:ring-yellow-200' : 'focus:border-slate-800 focus:shadow-md'} transition-all`}
                 placeholder="050-0000000"
                 type="tel"
                 value={form.phone}
@@ -649,7 +666,7 @@ function QueueJoinInner() {
 
             {/* כמות סועדים */}
             <div>
-              <label className="text-sm font-bold text-slate-700 block mb-2">🍴 כמות סועדים</label>
+              <label className={`${accessibilityMode ? 'text-xl text-black' : 'text-sm text-slate-700'} font-bold block mb-2`}>🍴 כמות סועדים</label>
               <div className="grid grid-cols-4 gap-2">
                 {[1, 2, 3, 4, 5, 6, 7, 8].map(n => (
                   <button
@@ -669,7 +686,7 @@ function QueueJoinInner() {
 
             {/* העדפת הושבה */}
             <div>
-              <label className="text-sm font-bold text-slate-700 block mb-2">🪑 העדפת הושבה</label>
+              <label className={`${accessibilityMode ? 'text-xl text-black' : 'text-sm text-slate-700'} font-bold block mb-2`}>🪑 העדפת הושבה</label>
               <div className="grid grid-cols-3 gap-2">
                 {[
                   { id: 'no_preference', label: 'לא משנה לי', emoji: '🤷' },
