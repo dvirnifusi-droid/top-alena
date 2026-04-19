@@ -78,6 +78,8 @@ export default function QueueDashboard() {
   const [manualLoading, setManualLoading] = useState(false);
   const [estimatedWaitInput, setEstimatedWaitInput] = useState({});
   const [editingEstimate, setEditingEstimate] = useState(null);
+  const [approvingEntry, setApprovingEntry] = useState(null);
+  const [approvalWaitTime, setApprovalWaitTime] = useState(null);
   const prevFirstActiveRef = useRef(null);
   const countdownRef = useRef({});
   const callCountdownRef = useRef({});
@@ -219,13 +221,25 @@ export default function QueueDashboard() {
     }, {});
 
   const handleApprove = async (entry) => {
+    setApprovingEntry(entry);
+    setApprovalWaitTime('');
+  };
+
+  const confirmApproval = async () => {
+    if (!approvingEntry) return;
     const now = new Date().toISOString();
     const maxOrder = Math.max(0, ...activeEntries.map(e => e.sort_order ?? 0));
-    await base44.entities.QueueEntry.update(entry.id, {
+    const waitMinutes = approvalWaitTime ? parseInt(approvalWaitTime) : null;
+    
+    await base44.entities.QueueEntry.update(approvingEntry.id, {
       status: 'active',
       timestamp_approved: now,
       sort_order: maxOrder + 1,
+      ...(waitMinutes && { estimated_wait_time: waitMinutes }),
     });
+    
+    setApprovingEntry(null);
+    setApprovalWaitTime(null);
     fetchEntries();
   };
 
@@ -999,6 +1013,48 @@ export default function QueueDashboard() {
           </DragDropContext>
         )}
       </div>
+
+      {/* מודאל אישור עם הזנת זמן */}
+      {approvingEntry && (
+        <div className="fixed inset-0 bg-black/60 flex items-end justify-center z-50 p-4" dir="rtl">
+          <div className="bg-white rounded-3xl w-full max-w-sm p-6 shadow-2xl mb-4">
+            <h3 className="text-lg font-black text-gray-800 mb-1">אישור התור</h3>
+            <p className="text-gray-600 text-sm mb-4">{approvingEntry.customer_name} • {approvingEntry.party_size} סועדים</p>
+            
+            <div className="space-y-3">
+              <div>
+                <label className="text-sm font-bold text-gray-700 block mb-2">⏱️ הזמן המוערך (בדקות)</label>
+                <input
+                  type="number"
+                  min="0"
+                  max="999"
+                  value={approvalWaitTime}
+                  onChange={(e) => setApprovalWaitTime(e.target.value)}
+                  placeholder="לדוגמה: 15"
+                  className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 text-base focus:outline-none focus:border-emerald-400 font-bold text-lg text-center"
+                  autoFocus
+                />
+                <p className="text-xs text-gray-400 mt-2">הלקוח יראה את הטיימר בדף שלו והוא יתחיל לספור מעכשיו</p>
+              </div>
+              
+              <div className="flex gap-2">
+                <button
+                  onClick={confirmApproval}
+                  className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-xl text-sm transition-all"
+                >
+                  ✅ אשר + התחל טיימר
+                </button>
+                <button
+                  onClick={() => { setApprovingEntry(null); setApprovalWaitTime(null); }}
+                  className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-700 font-bold py-3 rounded-xl text-sm transition-all"
+                >
+                  ✕ ביטול
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* מודאל היסטוריה */}
       {historyPhone && (
