@@ -235,7 +235,6 @@ function QueueJoinInner() {
   const [abandonOther, setAbandonOther] = useState('');
   const [abandonLoading, setAbandonLoading] = useState(false);
   const [form, setForm] = useState({ customer_name: '', phone: '', party_size: 2, seating_preference: 'no_preference' });
-  const [termsAccepted, setTermsAccepted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
   const [entry, setEntry] = useState(null);
@@ -462,14 +461,22 @@ function QueueJoinInner() {
     
     historyTimeoutRef.current = setTimeout(async () => {
       try {
-        // קריאה אחת ל-backend — מחזירה גם היסטוריה וגם כניסה פעילה
-        const histRes = await invokePublic('getAnonymousCustomerHistory', { phone: form.phone.trim() });
-        if (histRes?.activeEntryId) {
-          const entryRes = await invokePublic('getQueueEntry', { entryId: histRes.activeEntryId });
-          setExistingEntry(entryRes?.entry || null);
+        // בדוק אם יש כניסה פעילה
+        const allEntries = await base44.asServiceRole.entities.QueueEntry.list('-timestamp_register', 500);
+        const activeEntry = allEntries.find(e => 
+          e.phone === form.phone.trim() && 
+          e.status !== 'seated' && 
+          e.status !== 'abandoned'
+        );
+        
+        if (activeEntry) {
+          setExistingEntry(activeEntry);
         } else {
           setExistingEntry(null);
         }
+
+        // טען היסטוריה
+        const histRes = await invokePublic('getAnonymousCustomerHistory', { phone: form.phone.trim() });
         if (histRes && !histRes.isNewCustomer) {
           setCustomerHistory(histRes);
         } else {
@@ -492,38 +499,38 @@ function QueueJoinInner() {
       setError('נא למלא שם ומספר טלפון');
       return;
     }
-    if (!termsAccepted) {
-      setError('יש לאשר את תקנון השימוש ומדיניות הפרטיות כדי להמשיך');
-      return;
-    }
     setError('');
     setLoading(true);
 
     try {
-      // בדוק אם יש כניסה פעילה — דרך backend function בלבד
+      // בדוק אם יש כניסה עם אותו מספר טלפון
+      let existing = [];
       try {
-        const checkRes = await invokePublic('getAnonymousCustomerHistory', { phone: form.phone.trim() });
-        if (checkRes?.activeEntryId) {
-          const entryRes = await invokePublic('getQueueEntry', { entryId: checkRes.activeEntryId });
-          if (entryRes?.entry) {
-            setDuplicateEntry(entryRes.entry);
-            setLoading(false);
-            return;
-          }
-        }
+        existing = await base44.entities.QueueEntry.filter({ phone: form.phone.trim() });
       } catch (e) {
-        console.warn('Could not check active entry:', e);
+        console.warn('Cannot check existing entries:', e);
+      }
+      const activeEntry = existing.find(e => e.status !== 'seated' && e.status !== 'abandoned');
+      if (activeEntry) {
+        setDuplicateEntry(activeEntry);
+        setLoading(false);
+        return;
       }
 
-      // טען את geofencingEnabled עדכני — דרך backend function
-      let isGeoEnabled = false;
+      // טען את geofencingEnabled עדכני מה-DB (אם יש service role)
+      let isGeoEnabled = false; // ברירת מחדל: כבוי
       try {
-        const geoRes = await invokePublic('getRestaurantSettings', {});
-        isGeoEnabled = geoRes?.geofencing_enabled === true;
-        console.log('geofencing_enabled:', isGeoEnabled);
+        const profiles = await base44.asServiceRole.entities.RestaurantProfile.list();
+        console.log('Profiles from DB:', profiles);
+        if (profiles.length > 0) {
+          isGeoEnabled = profiles[0].geofencing_enabled !== false;
+          console.log('geofencing_enabled value:', profiles[0].geofencing_enabled, 'isGeoEnabled:', isGeoEnabled);
+        } else {
+          console.log('No profiles found, geofencing disabled by default');
+        }
       } catch (e) {
         console.error('Cannot check geofencing status:', e);
-        isGeoEnabled = false;
+        isGeoEnabled = false; // אם יש error, כבה את המיקום
       }
       
       console.log('Final isGeoEnabled:', isGeoEnabled);
@@ -805,29 +812,6 @@ function QueueJoinInner() {
                   </div>
                 </div>
               )}
-            </div>
-
-            {/* אישור תקנון */}
-            <div className="bg-slate-50 border-2 border-slate-200 rounded-2xl p-4">
-              <label className="flex items-start gap-3 cursor-pointer">
-                <input
-                  type="checkbox"
-                  id="terms-checkbox"
-                  checked={termsAccepted}
-                  onChange={e => setTermsAccepted(e.target.checked)}
-                  aria-required="true"
-                  aria-describedby="terms-desc"
-                  className="mt-1 w-5 h-5 accent-slate-800 flex-shrink-0 cursor-pointer"
-                />
-                <span id="terms-desc" className="text-sm text-slate-700 leading-relaxed">
-                  אני מאשר/ת את{' '}
-                  <a href="/TermsOfUse" target="_blank" rel="noopener noreferrer" className="text-blue-600 underline font-bold" aria-label="פתח תקנון שימוש בחלון חדש">תקנון השימוש</a>
-                  {' '}ואת{' '}
-                  <a href="/PrivacyPolicy" target="_blank" rel="noopener noreferrer" className="text-blue-600 underline font-bold" aria-label="פתח מדיניות פרטיות בחלון חדש">מדיניות הפרטיות</a>
-                  {' '}ומסכים/ה לקבל עדכוני תור ב-SMS / WhatsApp.{' '}
-                  <span className="text-slate-500">(קבלת הודעות שיווקיות — אופציונלי, ניתן לבטל בכל עת)</span>
-                </span>
-              </label>
             </div>
 
             {/* כמות סועדים */}

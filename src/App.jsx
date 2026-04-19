@@ -20,7 +20,6 @@ import QueueFeedback from './pages/QueueFeedback';
 import MarketingCampaigns from './pages/MarketingCampaigns';
 import AccessibilityStatement from './pages/AccessibilityStatement';
 import PrivacyPolicy from './pages/PrivacyPolicy';
-import TermsOfUse from './pages/TermsOfUse';
 
 const { Pages, Layout, mainPage } = pagesConfig;
 const mainPageKey = mainPage ?? Object.keys(Pages)[0];
@@ -101,7 +100,6 @@ function App() {
           <Route path="/QueueFeedback" element={<QueueFeedback />} />
           <Route path="/AccessibilityStatement" element={<AccessibilityStatement />} />
           <Route path="/PrivacyPolicy" element={<PrivacyPolicy />} />
-          <Route path="/TermsOfUse" element={<TermsOfUse />} />
           
           {/* דורש התחברות */}
           <Route path="/MarketingCampaigns" element={<MarketingCampaigns />} />

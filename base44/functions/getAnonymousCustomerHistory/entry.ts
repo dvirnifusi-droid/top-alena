@@ -26,9 +26,6 @@ Deno.serve(async (req) => {
     const visitCount = customerEntries.length;
     const seatedCount = customerEntries.filter(e => e.status === 'seated').length;
     const abandonedCount = customerEntries.filter(e => e.status === 'abandoned').length;
-
-    // בדוק אם יש כניסה פעילה
-    const activeEntry = customerEntries.find(e => e.status !== 'seated' && e.status !== 'abandoned');
     
     // המטבעות האחרונים שנתרו
     const lastEntry = customerEntries[0];
@@ -43,7 +40,6 @@ Deno.serve(async (req) => {
       seatedCount,
       abandonedCount,
       totalCredits,
-      activeEntryId: activeEntry ? activeEntry.id : null,
       previousTreat: previousTreat ? {
         treatId: previousTreat.selected_treat_id,
         timestamp: previousTreat.timestamp_register
