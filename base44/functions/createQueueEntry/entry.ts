@@ -3,7 +3,8 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
-    const { customer_name, phone, party_size, seating_preference } = await req.json();
+    const body = await req.json();
+    const { customer_name, phone, party_size, seating_preference } = body;
 
     if (!customer_name || !phone || !party_size) {
       return Response.json({ error: 'Missing required fields' }, { status: 400 });
@@ -17,7 +18,8 @@ Deno.serve(async (req) => {
         previousCredits = customers[0].coin_balance || 0;
       }
     } catch (e) {
-      console.warn('Could not fetch customer:', e);
+      // אם לא ניתן לקרוא, נמשיך עם 0 מטבעות
+      console.warn('Could not fetch customer credits, continuing with 0:', e?.message);
     }
 
     // צור כניסה חדשה עם המטבעות הקודמים
@@ -33,6 +35,7 @@ Deno.serve(async (req) => {
 
     return Response.json({ entry: newEntry });
   } catch (error) {
+    console.error('createQueueEntry error:', error?.message);
     return Response.json({ error: error.message }, { status: 500 });
   }
 });
