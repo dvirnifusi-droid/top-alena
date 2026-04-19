@@ -691,7 +691,7 @@ function QueueJoinInner() {
               </div>
             </div>
 
-            {/* הסכמה לתנאים */}
+            {/* הסכמה לתקנון ופרטיות */}
             <div className="flex items-start gap-3 bg-slate-50 rounded-2xl p-3 border border-slate-200">
               <input
                 type="checkbox"
@@ -712,21 +712,20 @@ function QueueJoinInner() {
                 >
                   תקנון השימוש ומדיניות הפרטיות
                 </a>
-                {' '}ומסכים לקבל עדכונים מהמסעדה <span className="text-slate-400">(אופציונלי לדיוור)</span>
               </label>
             </div>
 
-            {/* כפתור נגישות */}
-            <div className="flex justify-center">
-              <a
-                href="/PrivacyAndAccessibility"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-slate-400 text-xs hover:text-slate-600 transition-colors underline"
-                aria-label="הצהרת נגישות"
-              >
-                ♿ הצהרת נגישות
-              </a>
+            {/* הסכמה לדיוור */}
+            <div className="flex items-start gap-3 bg-blue-50 rounded-2xl p-3 border border-blue-200">
+              <input
+                type="checkbox"
+                id="newsletter-consent"
+                className="mt-0.5 w-5 h-5 accent-blue-600 flex-shrink-0 cursor-pointer"
+                aria-label="הסכמה לקבל עדכונים בדיוור"
+              />
+              <label htmlFor="newsletter-consent" className="text-xs text-blue-700 leading-relaxed cursor-pointer font-medium">
+                🔔 אני מסכים לקבל עדכונים ודיוור מהמסעדה (אופציונלי)
+              </label>
             </div>
 
             {error && (
