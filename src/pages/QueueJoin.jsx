@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { base44 } from '@/api/base44Client';
 import { invokePublic } from '@/lib/publicFetch';
 import AccessibilityWidget from '@/components/accessibility/AccessibilityWidget';
 
@@ -34,8 +33,9 @@ async function registerPushAndSave(entryId) {
       applicationServerKey: VAPID_PUBLIC_KEY,
     });
 
-    await base44.entities.QueueEntry.update(entryId, {
-      push_subscription: sub.toJSON(),
+    await invokePublic('updateQueueEntry', {
+      entryId,
+      data: { push_subscription: sub.toJSON() }
     });
   } catch (e) {
     console.warn('Push registration failed:', e);
@@ -76,7 +76,6 @@ function QueueJoinInner() {
   const [showTreatModal, setShowTreatModal] = useState(false);
   const [debugLog, setDebugLog] = useState([]);
   const [duplicateEntry, setDuplicateEntry] = useState(null);
-  const [isPublicMode] = useState(true); // תמיד בדף ציבורי זה
   const [customerHistory, setCustomerHistory] = useState(null);
   const [existingEntry, setExistingEntry] = useState(null);
   const [showQueueList, setShowQueueList] = useState(false);
@@ -87,8 +86,8 @@ function QueueJoinInner() {
   // טען את רשימת כל הממתינים כשמודאל נפתח
   useEffect(() => {
     if (showQueueList) {
-      base44.entities.QueueEntry.filter({ status: 'pending' }, '-timestamp_register', 100)
-        .then(entries => setAllQueueEntries(entries))
+      invokePublic('getQueueList', {})
+        .then(res => setAllQueueEntries(res?.entries || []))
         .catch(() => setAllQueueEntries([]));
     }
   }, [showQueueList]);
@@ -96,7 +95,7 @@ function QueueJoinInner() {
   const handleDeleteEntry = async (id) => {
     if (window.confirm('בטוח להסיר את ההרשמה?')) {
       try {
-        await base44.entities.QueueEntry.delete(id);
+        await invokePublic('deleteQueueEntry', { entryId: id });
         setAllQueueEntries(prev => prev.filter(e => e.id !== id));
       } catch (e) {
         console.error('Error:', e);
@@ -116,18 +115,12 @@ function QueueJoinInner() {
     }
   }, [entry, entryId]);
 
-  // טעינת הגדרות מסעדה (ללא בדיקת התחברות)
+  // טעינת הגדרות מסעדה
   useEffect(() => {
-    if (isPublicMode) {
-      base44.entities.RestaurantProfile.list()
-        .then(profiles => {
-          if (profiles.length > 0) {
-            setGeofencingEnabled(profiles[0].geofencing_enabled !== false);
-          }
-        })
-        .catch(() => {}); // שגיאות בטוחות - המשך עם ברירת מחדל
-    }
-  }, [isPublicMode]);
+    invokePublic('getGeofencingStatus', {})
+      .then(res => setGeofencingEnabled(res?.enabled === true))
+      .catch(() => setGeofencingEnabled(false));
+  }, []);
 
   // טעינת פינוקים זמינים דרך backend function
   useEffect(() => {
@@ -159,10 +152,13 @@ function QueueJoinInner() {
     const sendLocation = () => {
       navigator.geolocation.getCurrentPosition(
         (pos) => {
-          base44.entities.QueueEntry.update(entryId, {
-            last_lat: pos.coords.latitude,
-            last_lng: pos.coords.longitude,
-            last_location_at: new Date().toISOString(),
+          invokePublic('updateQueueEntry', {
+            entryId,
+            data: {
+              last_lat: pos.coords.latitude,
+              last_lng: pos.coords.longitude,
+              last_location_at: new Date().toISOString(),
+            }
           }).catch(() => {});
         },
         () => {},
@@ -337,22 +333,8 @@ function QueueJoinInner() {
         console.warn('Cannot check existing entries:', e);
       }
 
-      // טען את geofencingEnabled עדכני מה-DB (אם יש service role)
-      let isGeoEnabled = false; // ברירת מחדל: כבוי
-      try {
-        const profiles = await base44.asServiceRole.entities.RestaurantProfile.list();
-        console.log('Profiles from DB:', profiles);
-        if (profiles.length > 0) {
-          isGeoEnabled = profiles[0].geofencing_enabled !== false;
-          console.log('geofencing_enabled value:', profiles[0].geofencing_enabled, 'isGeoEnabled:', isGeoEnabled);
-        } else {
-          console.log('No profiles found, geofencing disabled by default');
-        }
-      } catch (e) {
-        console.error('Cannot check geofencing status:', e);
-        isGeoEnabled = false; // אם יש error, כבה את המיקום
-      }
-      
+      // בדוק גיאופנסינג מה-state שנטען בהתחלה
+      const isGeoEnabled = geofencingEnabled;
       console.log('Final isGeoEnabled:', isGeoEnabled);
       console.log('navigator.geolocation available:', !!navigator.geolocation);
       
@@ -1196,10 +1178,13 @@ function QueueJoinInner() {
                 const reason = abandonReason === 'other'
                   ? `אחר: ${abandonOther}`
                   : ABANDON_REASONS.find(r => r.id === abandonReason)?.label;
-                await base44.entities.QueueEntry.update(entryId, {
-                  status: 'abandoned',
-                  timestamp_end: new Date().toISOString(),
-                  notes: reason,
+                await invokePublic('updateQueueEntry', {
+                  entryId,
+                  data: {
+                    status: 'abandoned',
+                    timestamp_end: new Date().toISOString(),
+                    notes: reason,
+                  }
                 });
                 setAbandonLoading(false);
                 setShowAbandonModal(false);
