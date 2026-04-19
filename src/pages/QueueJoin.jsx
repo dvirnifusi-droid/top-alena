@@ -462,22 +462,14 @@ function QueueJoinInner() {
     
     historyTimeoutRef.current = setTimeout(async () => {
       try {
-        // בדוק אם יש כניסה פעילה
-        const allEntries = await base44.asServiceRole.entities.QueueEntry.list('-timestamp_register', 500);
-        const activeEntry = allEntries.find(e => 
-          e.phone === form.phone.trim() && 
-          e.status !== 'seated' && 
-          e.status !== 'abandoned'
-        );
-        
-        if (activeEntry) {
-          setExistingEntry(activeEntry);
+        // קריאה אחת ל-backend — מחזירה גם היסטוריה וגם כניסה פעילה
+        const histRes = await invokePublic('getAnonymousCustomerHistory', { phone: form.phone.trim() });
+        if (histRes?.activeEntryId) {
+          const entryRes = await invokePublic('getQueueEntry', { entryId: histRes.activeEntryId });
+          setExistingEntry(entryRes?.entry || null);
         } else {
           setExistingEntry(null);
         }
-
-        // טען היסטוריה
-        const histRes = await invokePublic('getAnonymousCustomerHistory', { phone: form.phone.trim() });
         if (histRes && !histRes.isNewCustomer) {
           setCustomerHistory(histRes);
         } else {
@@ -508,34 +500,30 @@ function QueueJoinInner() {
     setLoading(true);
 
     try {
-      // בדוק אם יש כניסה עם אותו מספר טלפון
-      let existing = [];
+      // בדוק אם יש כניסה פעילה — דרך backend function בלבד
       try {
-        existing = await base44.entities.QueueEntry.filter({ phone: form.phone.trim() });
-      } catch (e) {
-        console.warn('Cannot check existing entries:', e);
-      }
-      const activeEntry = existing.find(e => e.status !== 'seated' && e.status !== 'abandoned');
-      if (activeEntry) {
-        setDuplicateEntry(activeEntry);
-        setLoading(false);
-        return;
-      }
-
-      // טען את geofencingEnabled עדכני מה-DB (אם יש service role)
-      let isGeoEnabled = false; // ברירת מחדל: כבוי
-      try {
-        const profiles = await base44.asServiceRole.entities.RestaurantProfile.list();
-        console.log('Profiles from DB:', profiles);
-        if (profiles.length > 0) {
-          isGeoEnabled = profiles[0].geofencing_enabled !== false;
-          console.log('geofencing_enabled value:', profiles[0].geofencing_enabled, 'isGeoEnabled:', isGeoEnabled);
-        } else {
-          console.log('No profiles found, geofencing disabled by default');
+        const checkRes = await invokePublic('getAnonymousCustomerHistory', { phone: form.phone.trim() });
+        if (checkRes?.activeEntryId) {
+          const entryRes = await invokePublic('getQueueEntry', { entryId: checkRes.activeEntryId });
+          if (entryRes?.entry) {
+            setDuplicateEntry(entryRes.entry);
+            setLoading(false);
+            return;
+          }
         }
       } catch (e) {
+        console.warn('Could not check active entry:', e);
+      }
+
+      // טען את geofencingEnabled עדכני — דרך backend function
+      let isGeoEnabled = false;
+      try {
+        const geoRes = await invokePublic('getRestaurantSettings', {});
+        isGeoEnabled = geoRes?.geofencing_enabled === true;
+        console.log('geofencing_enabled:', isGeoEnabled);
+      } catch (e) {
         console.error('Cannot check geofencing status:', e);
-        isGeoEnabled = false; // אם יש error, כבה את המיקום
+        isGeoEnabled = false;
       }
       
       console.log('Final isGeoEnabled:', isGeoEnabled);
