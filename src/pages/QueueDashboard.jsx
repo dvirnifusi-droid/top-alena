@@ -94,14 +94,21 @@ export default function QueueDashboard() {
   };
 
   const fetchEntries = useCallback(async () => {
-    const all = await base44.entities.QueueEntry.list('-timestamp_register', 300);
-    setEntries(all);
-    setLoading(false);
+    try {
+      const all = await base44.entities.QueueEntry.list('-timestamp_register', 100);
+      setEntries(all);
+      setLoading(false);
+    } catch (err) {
+      if (err.status === 429) {
+        console.warn('Rate limited - will retry in 30 seconds');
+        setTimeout(() => fetchEntries(), 30000);
+      }
+    }
   }, []);
 
   useEffect(() => {
     fetchEntries();
-    const interval = setInterval(fetchEntries, 8000);
+    const interval = setInterval(fetchEntries, 15000); // increased from 8s to 15s
     return () => clearInterval(interval);
   }, [fetchEntries]);
 
@@ -111,9 +118,13 @@ export default function QueueDashboard() {
         setRestaurantProfileId(profiles[0].id);
         setGeofencingEnabled(profiles[0].geofencing_enabled !== false);
       }
-    }).catch(() => {});
+    }).catch(err => {
+      if (err?.status !== 429) console.error(err);
+    });
     
-    base44.entities.TimeTreat.filter({ is_active: true }).then(t => setTreats(t));
+    base44.entities.TimeTreat.filter({ is_active: true }).then(t => setTreats(t)).catch(err => {
+      if (err?.status !== 429) console.error(err);
+    });
   }, []);
 
   // התראות נוספות כשמישהו חדש נרשם
@@ -330,24 +341,28 @@ export default function QueueDashboard() {
   // בדיקת קרבה — שולח הודעה ללקוח + מסמן pending
   const handleProximityCheck = async (entry) => {
     const now = new Date().toISOString();
-    await base44.entities.QueueEntry.update(entry.id, {
-      proximity_check_at: now,
-      proximity_response: 'pending',
-    });
+    try {
+      await base44.entities.QueueEntry.update(entry.id, {
+        proximity_check_at: now,
+        proximity_response: 'pending',
+      });
+    } catch (err) {
+      if (err?.status === 429) return; // skip on rate limit
+      throw err;
+    }
     sendNotification(
       entry.id,
       entry.phone,
       `שלום ${entry.customer_name}! המארחת שואלת — האם אתם בסביבת המסעדה? יש לכם 3 דקות לענות.`,
       '📍 האם אתם בסביבה?'
     );
-    fetchEntries();
+    // רענן מ-cache בעוד 15 שניות, לא מיד
+    setTimeout(() => fetchEntries(), 15000);
     // אחרי 3 דקות — אם לא ענו, הפוך לאדום
     setTimeout(async () => {
-      const all = await base44.entities.QueueEntry.list('-timestamp_register', 300);
-      const current = all.find(e => e.id === entry.id);
+      const current = entries.find(e => e.id === entry.id);
       if (current && current.proximity_response === 'pending') {
-        await base44.entities.QueueEntry.update(entry.id, { proximity_response: 'no' });
-        fetchEntries();
+        await base44.entities.QueueEntry.update(entry.id, { proximity_response: 'no' }).catch(() => {});
       }
     }, 3 * 60 * 1000);
   };
