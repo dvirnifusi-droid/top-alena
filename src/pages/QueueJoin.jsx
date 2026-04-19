@@ -60,6 +60,9 @@ function QueueJoinInner() {
   const [abandonOther, setAbandonOther] = useState('');
   const [abandonLoading, setAbandonLoading] = useState(false);
   const [form, setForm] = useState({ customer_name: '', phone: '', party_size: 2, seating_preference: 'no_preference' });
+  const [privacyConsent, setPrivacyConsent] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleteLoading, setDeleteLoading] = useState(false);
   const [loading, setLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
   const [entry, setEntry] = useState(null);
@@ -319,9 +322,43 @@ function QueueJoinInner() {
     };
   }, [form.phone]);
 
+  const handleDeleteMyData = async () => {
+    setDeleteLoading(true);
+    try {
+      // מחק את כניסת התור
+      await base44.entities.QueueEntry.update(entryId, {
+        status: 'abandoned',
+        timestamp_end: new Date().toISOString(),
+        customer_name: '[נמחק]',
+        phone: '[נמחק]',
+        notes: 'בקשת מחיקת מידע מהלקוח',
+      });
+      // מחק את רשומת הלקוח
+      try {
+        const customers = await base44.entities.Customer.filter({ phone: entry?.phone });
+        if (customers.length > 0) {
+          await base44.entities.Customer.update(customers[0].id, {
+            phone: '[נמחק]',
+            name: '[נמחק]',
+          });
+        }
+      } catch (_) {}
+      setShowDeleteModal(false);
+      setPhase('done');
+    } catch (e) {
+      console.error('Delete error:', e);
+    } finally {
+      setDeleteLoading(false);
+    }
+  };
+
   const checkGeoAndRegister = async () => {
     if (!form.customer_name.trim() || !form.phone.trim()) {
       setError('נא למלא שם ומספר טלפון');
+      return;
+    }
+    if (!privacyConsent) {
+      setError('יש לאשר את תנאי הפרטיות כדי להמשיך');
       return;
     }
     setError('');
@@ -654,8 +691,33 @@ function QueueJoinInner() {
               </div>
             </div>
 
+            {/* הסכמה לתנאים */}
+            <div className="flex items-start gap-3 bg-slate-50 rounded-2xl p-3 border border-slate-200">
+              <input
+                type="checkbox"
+                id="privacy-consent"
+                checked={privacyConsent}
+                onChange={e => setPrivacyConsent(e.target.checked)}
+                className="mt-0.5 w-5 h-5 accent-slate-800 flex-shrink-0 cursor-pointer"
+                aria-label="הסכמה למדיניות פרטיות"
+              />
+              <label htmlFor="privacy-consent" className="text-xs text-slate-600 leading-relaxed cursor-pointer">
+                אני מאשר/ת שקראתי את{' '}
+                <a
+                  href="/PrivacyAndAccessibility"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-blue-600 underline font-bold"
+                  onClick={e => e.stopPropagation()}
+                >
+                  מדיניות הפרטיות
+                </a>
+                {' '}ומסכים/ה לשמירת שמי ומספרי לצורך ניהול התור בלבד.
+              </label>
+            </div>
+
             {error && (
-              <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-center">
+              <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-center" role="alert">
                 <p className="text-red-600 text-sm font-medium">⚠️ {error}</p>
               </div>
             )}
@@ -753,7 +815,12 @@ function QueueJoinInner() {
           </div>
         )}
 
-        <p className="text-slate-400 text-xs mt-8 font-light">מסעדת עלינא © 2026</p>
+        <div className="flex gap-4 justify-center mt-6 mb-2">
+          <a href="/PrivacyAndAccessibility" target="_blank" rel="noopener noreferrer" className="text-slate-400 text-xs hover:text-slate-200 transition-colors underline">מדיניות פרטיות</a>
+          <span className="text-slate-600 text-xs">|</span>
+          <a href="/PrivacyAndAccessibility" target="_blank" rel="noopener noreferrer" className="text-slate-400 text-xs hover:text-slate-200 transition-colors underline">הצהרת נגישות</a>
+        </div>
+        <p className="text-slate-500 text-xs mb-4 font-light">מסעדת עלינא © 2026</p>
       </div>
     );
   }
@@ -1044,12 +1111,19 @@ function QueueJoinInner() {
           )}
 
           {/* כפתור ויתרתי */}
-          {!callSecondsLeft && <div className="border-t border-gray-100 pt-4">
+          {!callSecondsLeft && <div className="border-t border-gray-100 pt-4 space-y-2">
            <button
              onClick={() => setShowAbandonModal(true)}
              className="w-full border-2 border-red-200 text-red-400 hover:bg-red-50 hover:border-red-300 hover:text-red-500 transition-all rounded-2xl py-3 text-sm font-semibold"
            >
              😔 ויתרתי על התור
+           </button>
+           <button
+             onClick={() => setShowDeleteModal(true)}
+             className="w-full text-gray-300 text-xs hover:text-gray-500 transition-colors py-1"
+             aria-label="בקשה למחיקת המידע האישי שלך"
+           >
+             🗑️ מחק את המידע שלי (זכות לפרטיות)
            </button>
           </div>}
         </div>
@@ -1168,7 +1242,44 @@ function QueueJoinInner() {
         </div>
       )}
 
-      <p className="text-slate-400 text-xs mt-8 font-light">מסעדת עלינא © 2026</p>
+      {/* מודאל מחיקת מידע */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 bg-black/60 flex items-end justify-center z-50 p-4" dir="rtl" role="dialog" aria-modal="true" aria-label="מחיקת מידע אישי">
+          <div className="bg-white rounded-3xl w-full max-w-sm p-6 shadow-2xl mb-4">
+            <div className="text-3xl text-center mb-3">🗑️</div>
+            <h3 className="text-lg font-black text-gray-800 mb-2 text-center">מחיקת המידע שלך</h3>
+            <p className="text-gray-500 text-sm text-center mb-5 leading-relaxed">
+              פעולה זו תסיר את שמך ומספרך מהמערכת לצמיתות.<br/>
+              <strong>לא ניתן לבטל פעולה זו.</strong>
+            </p>
+            <div className="bg-yellow-50 border border-yellow-200 rounded-2xl p-3 mb-5">
+              <p className="text-yellow-700 text-xs leading-relaxed">
+                ⚠️ בהתאם לחוק הגנת הפרטיות הישראלי, יש לך זכות לבקש מחיקת המידע שלך מהמאגר שלנו.
+              </p>
+            </div>
+            <button
+              disabled={deleteLoading}
+              onClick={handleDeleteMyData}
+              className="w-full bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white font-black py-3.5 rounded-2xl text-base transition-all mb-2"
+            >
+              {deleteLoading ? 'מוחק...' : '✅ כן, מחק את המידע שלי'}
+            </button>
+            <button
+              onClick={() => setShowDeleteModal(false)}
+              className="w-full text-gray-400 text-sm py-2 hover:text-gray-600 transition-colors"
+            >
+              ← ביטול
+            </button>
+          </div>
+        </div>
+      )}
+
+      <div className="flex gap-4 justify-center mt-6 mb-2">
+        <a href="/PrivacyAndAccessibility" target="_blank" rel="noopener noreferrer" className="text-slate-400 text-xs hover:text-slate-200 transition-colors underline">מדיניות פרטיות</a>
+        <span className="text-slate-600 text-xs">|</span>
+        <a href="/PrivacyAndAccessibility" target="_blank" rel="noopener noreferrer" className="text-slate-400 text-xs hover:text-slate-200 transition-colors underline">הצהרת נגישות</a>
+      </div>
+      <p className="text-slate-500 text-xs mb-4 font-light">מסעדת עלינא © 2026</p>
     </div>
   );
 }
