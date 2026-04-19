@@ -699,10 +699,10 @@ function QueueJoinInner() {
                 checked={privacyConsent}
                 onChange={e => setPrivacyConsent(e.target.checked)}
                 className="mt-0.5 w-5 h-5 accent-slate-800 flex-shrink-0 cursor-pointer"
-                aria-label="הסכמה למדיניות פרטיות"
+                aria-label="הסכמה לתקנון השימוש ומדיניות הפרטיות"
               />
               <label htmlFor="privacy-consent" className="text-xs text-slate-600 leading-relaxed cursor-pointer">
-                אני מאשר/ת שקראתי את{' '}
+                אני מאשר את{' '}
                 <a
                   href="/PrivacyAndAccessibility"
                   target="_blank"
@@ -710,10 +710,23 @@ function QueueJoinInner() {
                   className="text-blue-600 underline font-bold"
                   onClick={e => e.stopPropagation()}
                 >
-                  מדיניות הפרטיות
+                  תקנון השימוש ומדיניות הפרטיות
                 </a>
-                {' '}ומסכים/ה לשמירת שמי ומספרי לצורך ניהול התור בלבד.
+                {' '}ומסכים לקבל עדכונים מהמסעדה <span className="text-slate-400">(אופציונלי לדיוור)</span>
               </label>
+            </div>
+
+            {/* כפתור נגישות */}
+            <div className="flex justify-center">
+              <a
+                href="/PrivacyAndAccessibility"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-slate-400 text-xs hover:text-slate-600 transition-colors underline"
+                aria-label="הצהרת נגישות"
+              >
+                ♿ הצהרת נגישות
+              </a>
             </div>
 
             {error && (
