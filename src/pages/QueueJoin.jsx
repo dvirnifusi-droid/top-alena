@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
 import { invokePublic } from '@/lib/publicFetch';
+import AccessibilityWidget from '@/components/accessibility/AccessibilityWidget';
 
 const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY || '';
 
@@ -1237,5 +1238,10 @@ function QueueJoinInner() {
 }
 
 export default function QueueJoin() {
-  return <QueueJoinInner />;
+  return (
+    <>
+      <QueueJoinInner />
+      <AccessibilityWidget />
+    </>
+  );
 }
