@@ -69,6 +69,8 @@ function QueueJoinInner() {
   const [entry, setEntry] = useState(null);
   const [queuePosition, setQueuePosition] = useState(null);
   const [estimatedWait, setEstimatedWait] = useState(null);
+  const [estimatedWaitCountdown, setEstimatedWaitCountdown] = useState(null);
+  const estimatedWaitTimerRef = useRef(null);
   const [error, setError] = useState('');
   const [waitMinutes, setWaitMinutes] = useState(0);
   const [callSecondsLeft, setCallSecondsLeft] = useState(null);
@@ -277,6 +279,35 @@ function QueueJoinInner() {
     }, 3000);
     return () => clearInterval(tick);
   }, [entry?.timestamp_approved, entry?.status, entry?.time_credits_earned]);
+
+  // ספירה לאחור של זמן מוערך
+  useEffect(() => {
+    if (!entry?.estimated_wait_time || !entry?.timestamp_approved) {
+      setEstimatedWaitCountdown(null);
+      if (estimatedWaitTimerRef.current) clearInterval(estimatedWaitTimerRef.current);
+      return;
+    }
+
+    const elapsedMinutes = Math.round((Date.now() - new Date(entry.timestamp_approved).getTime()) / 60000);
+    const remainingMinutes = Math.max(0, entry.estimated_wait_time - elapsedMinutes);
+    setEstimatedWaitCountdown(remainingMinutes);
+
+    if (estimatedWaitTimerRef.current) clearInterval(estimatedWaitTimerRef.current);
+    
+    estimatedWaitTimerRef.current = setInterval(() => {
+      setEstimatedWaitCountdown(prev => {
+        if (prev <= 0) {
+          if (estimatedWaitTimerRef.current) clearInterval(estimatedWaitTimerRef.current);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 60000); // עדכון כל דקה
+
+    return () => {
+      if (estimatedWaitTimerRef.current) clearInterval(estimatedWaitTimerRef.current);
+    };
+  }, [entry?.estimated_wait_time, entry?.timestamp_approved]);
 
   // טען היסטוריה אוטומטית כשהטלפון משתנה (debounce)
   useEffect(() => {
@@ -974,12 +1005,40 @@ function QueueJoinInner() {
           {/* מקום בתור + פרסים */}
           {isActive && (
             <>
-              {/* זמן מוערך */}
-              {entry?.estimated_wait_time && (
-                <div className="bg-amber-50 border-2 border-amber-300 rounded-2xl p-4 text-center mb-4">
-                  <p className="text-amber-800 font-black text-4xl">⏱️</p>
-                  <p className="text-amber-800 font-black text-2xl mt-1">{entry.estimated_wait_time} דקות</p>
-                  <p className="text-amber-600 text-xs mt-1">זמן המתנה מוערך</p>
+              {/* זמן מוערך עם ספירה לאחור */}
+              {entry?.estimated_wait_time && estimatedWaitCountdown !== null && (
+                <div className={`rounded-2xl p-4 text-center mb-4 border-2 transition-colors ${
+                  estimatedWaitCountdown === 0
+                    ? 'bg-red-50 border-red-300'
+                    : estimatedWaitCountdown <= 5
+                    ? 'bg-orange-50 border-orange-300'
+                    : 'bg-amber-50 border-amber-300'
+                }`}>
+                  <p className={`font-black text-4xl mt-1 ${
+                    estimatedWaitCountdown === 0
+                      ? 'text-red-800'
+                      : estimatedWaitCountdown <= 5
+                      ? 'text-orange-800'
+                      : 'text-amber-800'
+                  }`}>⏱️</p>
+                  <p className={`font-black text-3xl mt-2 ${
+                    estimatedWaitCountdown === 0
+                      ? 'text-red-800'
+                      : estimatedWaitCountdown <= 5
+                      ? 'text-orange-800'
+                      : 'text-amber-800'
+                  }`}>
+                    {estimatedWaitCountdown}
+                  </p>
+                  <p className={`text-xs mt-1 font-bold ${
+                    estimatedWaitCountdown === 0
+                      ? 'text-red-600'
+                      : estimatedWaitCountdown <= 5
+                      ? 'text-orange-600'
+                      : 'text-amber-600'
+                  }`}>
+                    {estimatedWaitCountdown === 0 ? 'זמנך הגיע!' : 'דקות עד לשולחן'}
+                  </p>
                 </div>
               )}
 
