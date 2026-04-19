@@ -60,6 +60,8 @@ function QueueJoinInner() {
   const [abandonOther, setAbandonOther] = useState('');
   const [abandonLoading, setAbandonLoading] = useState(false);
   const [form, setForm] = useState({ customer_name: '', phone: '', party_size: 2, seating_preference: 'no_preference' });
+  const [termsAccepted, setTermsAccepted] = useState(false);
+  const [marketingAccepted, setMarketingAccepted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
   const [entry, setEntry] = useState(null);
@@ -324,6 +326,10 @@ function QueueJoinInner() {
       setError('נא למלא שם ומספר טלפון');
       return;
     }
+    if (!termsAccepted) {
+      setError('יש לאשר את תקנון השימוש ומדיניות הפרטיות');
+      return;
+    }
     setError('');
     setLoading(true);
 
@@ -559,26 +565,32 @@ function QueueJoinInner() {
           <div className="space-y-5">
             {/* שם */}
             <div>
-              <label className="text-sm font-bold text-slate-700 block mb-2">👤 שם מלא</label>
+              <label htmlFor="customer-name" className="text-sm font-bold text-slate-700 block mb-2">👤 שם מלא <span className="text-red-500">*</span></label>
               <input
+                id="customer-name"
                 className="w-full border-2 border-slate-200 rounded-2xl px-4 py-3.5 text-base focus:outline-none focus:border-slate-800 focus:shadow-md transition-all"
                 placeholder="הכנס את שמך המלא"
                 value={form.customer_name}
                 onChange={e => setForm({ ...form, customer_name: e.target.value })}
                 onKeyDown={e => e.key === 'Enter' && checkGeoAndRegister()}
+                aria-required="true"
+                autoComplete="name"
               />
             </div>
 
             {/* טלפון */}
             <div>
-              <label className="text-sm font-bold text-slate-700 block mb-2">📱 מספר טלפון</label>
+              <label htmlFor="customer-phone" className="text-sm font-bold text-slate-700 block mb-2">📱 מספר טלפון <span className="text-red-500">*</span></label>
               <input
+                id="customer-phone"
                 className="w-full border-2 border-slate-200 rounded-2xl px-4 py-3.5 text-base focus:outline-none focus:border-slate-800 focus:shadow-md transition-all"
                 placeholder="050-0000000"
                 type="tel"
                 value={form.phone}
                 onChange={e => setForm({ ...form, phone: e.target.value })}
                 onKeyDown={e => e.key === 'Enter' && checkGeoAndRegister()}
+                aria-required="true"
+                autoComplete="tel"
               />
               
               {/* בנר היסטוריה קודמת - אוטומטי */}
@@ -654,8 +666,47 @@ function QueueJoinInner() {
               </div>
             </div>
 
+            {/* תקנון ופרטיות */}
+            <div className="space-y-3 pt-1">
+              <label className="flex items-start gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={termsAccepted}
+                  onChange={e => setTermsAccepted(e.target.checked)}
+                  aria-required="true"
+                  aria-label="אישור תקנון ומדיניות פרטיות"
+                  className="mt-1 w-5 h-5 accent-slate-800 flex-shrink-0 cursor-pointer"
+                />
+                <span className="text-xs text-slate-600 leading-relaxed">
+                  קראתי ואני מאשר/ת את{' '}
+                  <a
+                    href="/PrivacyPolicy"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-slate-800 font-bold underline"
+                  >
+                    תקנון השימוש ומדיניות הפרטיות
+                  </a>
+                  {' '}ומסכים/ה לשמירת פרטיי לצורך ניהול התור. <span className="text-red-500 font-bold">*</span>
+                </span>
+              </label>
+
+              <label className="flex items-start gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={marketingAccepted}
+                  onChange={e => setMarketingAccepted(e.target.checked)}
+                  aria-label="הסכמה לקבלת עדכונים ומבצעים"
+                  className="mt-1 w-5 h-5 accent-slate-800 flex-shrink-0 cursor-pointer"
+                />
+                <span className="text-xs text-slate-500 leading-relaxed">
+                  אני מסכים/ה לקבל עדכונים ומבצעים ממסעדת עלינא (אופציונלי).
+                </span>
+              </label>
+            </div>
+
             {error && (
-              <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-center">
+              <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-center" role="alert">
                 <p className="text-red-600 text-sm font-medium">⚠️ {error}</p>
               </div>
             )}
@@ -753,7 +804,19 @@ function QueueJoinInner() {
           </div>
         )}
 
-        <p className="text-slate-400 text-xs mt-8 font-light">מסעדת עלינא © 2026</p>
+        <div className="flex items-center gap-3 mt-8">
+          <p className="text-slate-400 text-xs font-light">מסעדת עלינא © 2026</p>
+          <span className="text-slate-600 text-xs">·</span>
+          <a
+            href="/PrivacyPolicy"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-slate-400 text-xs hover:text-slate-300 underline transition-colors"
+            aria-label="פרטיות ונגישות"
+          >
+            פרטיות ונגישות ♿
+          </a>
+        </div>
       </div>
     );
   }

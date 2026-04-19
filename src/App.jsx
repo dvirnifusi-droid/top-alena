@@ -18,6 +18,7 @@ import GamesAdmin from './pages/GamesAdmin';
 import GameQuestionsAdmin from './pages/GameQuestionsAdmin';
 import QueueFeedback from './pages/QueueFeedback';
 import MarketingCampaigns from './pages/MarketingCampaigns';
+import PrivacyPolicy from './pages/PrivacyPolicy';
 
 const { Pages, Layout, mainPage } = pagesConfig;
 const mainPageKey = mainPage ?? Object.keys(Pages)[0];
@@ -96,6 +97,7 @@ function App() {
           <Route path="/QueueJoin" element={<QueueJoin />} />
           <Route path="/QueueGame" element={<QueueGame />} />
           <Route path="/QueueFeedback" element={<QueueFeedback />} />
+          <Route path="/PrivacyPolicy" element={<PrivacyPolicy />} />
           
           {/* דורש התחברות */}
           <Route path="/MarketingCampaigns" element={<MarketingCampaigns />} />
