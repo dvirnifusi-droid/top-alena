@@ -1,4 +1,6 @@
-import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
+import { createClient } from 'npm:@base44/sdk@0.8.25';
+
+const base44 = createClient({ appId: Deno.env.get('BASE44_APP_ID') });
 
 Deno.serve(async (req) => {
   try {
@@ -8,8 +10,6 @@ Deno.serve(async (req) => {
     if (!entryId) {
       return Response.json({ error: 'Missing entryId' }, { status: 400 });
     }
-
-    const base44 = createClientFromRequest(req);
 
     console.log('🔍 Fetching entry:', entryId);
     const entries = await base44.asServiceRole.entities.QueueEntry.filter({ id: entryId });
@@ -21,7 +21,7 @@ Deno.serve(async (req) => {
 
     return Response.json({ entry });
   } catch (error) {
-    console.error('Error fetching queue entry:', error);
-    return Response.json({ error: error.message || 'Failed to fetch entry' }, { status: 500 });
+    console.error('Error fetching queue entry:', error.message);
+    return Response.json({ error: error.message }, { status: 500 });
   }
 });

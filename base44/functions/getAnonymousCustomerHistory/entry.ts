@@ -1,8 +1,9 @@
-import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
+import { createClient } from 'npm:@base44/sdk@0.8.25';
+
+const base44 = createClient({ appId: Deno.env.get('BASE44_APP_ID') });
 
 Deno.serve(async (req) => {
   try {
-    const base44 = createClientFromRequest(req);
     const { phone } = await req.json();
 
     if (!phone) {
@@ -20,7 +21,6 @@ Deno.serve(async (req) => {
     const abandonedCount = allEntries.filter(e => e.status === 'abandoned').length;
     const lastEntry = allEntries.sort((a, b) => new Date(b.timestamp_register) - new Date(a.timestamp_register))[0];
     const totalCredits = lastEntry.time_credits_earned || 0;
-    const previousTreat = allEntries.find(e => e.selected_treat_id);
 
     return Response.json({
       isNewCustomer: false,
@@ -28,7 +28,6 @@ Deno.serve(async (req) => {
       seatedCount,
       abandonedCount,
       totalCredits,
-      previousTreat: previousTreat ? { treatId: previousTreat.selected_treat_id } : null,
       lastVisit: lastEntry.timestamp_register
     });
   } catch (error) {
