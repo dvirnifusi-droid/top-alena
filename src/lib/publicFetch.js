@@ -1,10 +1,15 @@
 /**
  * Call a backend function without requiring authentication.
  * Used for public pages like QueueJoin.
- * Uses the direct /functions/<name> endpoint which doesn't require a user token.
+ * Format: /api/apps/<appId>/functions/<functionName>
  */
+import { appParams } from '@/lib/app-params';
+
 export async function invokePublic(functionName, payload = {}) {
-  const res = await fetch(`/functions/${functionName}`, {
+  const appId = appParams.appId || import.meta.env.VITE_BASE44_APP_ID;
+  const url = `/api/apps/${appId}/functions/${functionName}`;
+
+  const res = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
@@ -12,7 +17,7 @@ export async function invokePublic(functionName, payload = {}) {
 
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err.error || err.message || `Request failed with status ${res.status}`);
+    throw new Error(err.error || err.message || `HTTP ${res.status}`);
   }
 
   return res.json();
