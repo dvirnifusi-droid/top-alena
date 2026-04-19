@@ -289,19 +289,9 @@ function QueueJoinInner() {
     
     historyTimeoutRef.current = setTimeout(async () => {
       try {
-        // בדוק אם יש כניסה פעילה
-        const allEntries = await base44.asServiceRole.entities.QueueEntry.list('-timestamp_register', 500);
-        const activeEntry = allEntries.find(e => 
-          e.phone === form.phone.trim() && 
-          e.status !== 'seated' && 
-          e.status !== 'abandoned'
-        );
-        
-        if (activeEntry) {
-          setExistingEntry(activeEntry);
-        } else {
-          setExistingEntry(null);
-        }
+        // בדוק אם יש כניסה פעילה (דרך backend)
+        const checkRes = await invokePublic('checkExistingEntry', { phone: form.phone.trim() });
+        setExistingEntry(checkRes?.activeEntry || null);
 
         // טען היסטוריה
         const histRes = await invokePublic('getAnonymousCustomerHistory', { phone: form.phone.trim() });
@@ -335,18 +325,16 @@ function QueueJoinInner() {
     setLoading(true);
 
     try {
-      // בדוק אם יש כניסה עם אותו מספר טלפון
-      let existing = [];
+      // בדוק אם יש כניסה עם אותו מספר טלפון (דרך backend)
       try {
-        existing = await base44.entities.QueueEntry.filter({ phone: form.phone.trim() });
+        const checkRes = await invokePublic('checkExistingEntry', { phone: form.phone.trim() });
+        if (checkRes?.activeEntry) {
+          setDuplicateEntry(checkRes.activeEntry);
+          setLoading(false);
+          return;
+        }
       } catch (e) {
         console.warn('Cannot check existing entries:', e);
-      }
-      const activeEntry = existing.find(e => e.status !== 'seated' && e.status !== 'abandoned');
-      if (activeEntry) {
-        setDuplicateEntry(activeEntry);
-        setLoading(false);
-        return;
       }
 
       // טען את geofencingEnabled עדכני מה-DB (אם יש service role)
