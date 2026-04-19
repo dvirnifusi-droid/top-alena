@@ -235,6 +235,8 @@ function QueueJoinInner() {
   const [abandonOther, setAbandonOther] = useState('');
   const [abandonLoading, setAbandonLoading] = useState(false);
   const [form, setForm] = useState({ customer_name: '', phone: '', party_size: 2, seating_preference: 'no_preference' });
+  const [termsAccepted, setTermsAccepted] = useState(false);
+  const [marketingConsent, setMarketingConsent] = useState(false);
   const [loading, setLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
   const [entry, setEntry] = useState(null);
@@ -497,6 +499,10 @@ function QueueJoinInner() {
   const checkGeoAndRegister = async () => {
     if (!form.customer_name.trim() || !form.phone.trim()) {
       setError('נא למלא שם ומספר טלפון');
+      return;
+    }
+    if (!termsAccepted) {
+      setError('יש לאשר את התקנון ומדיניות הפרטיות כדי להמשיך');
       return;
     }
     setError('');
@@ -868,6 +874,41 @@ function QueueJoinInner() {
               </div>
             </fieldset>
 
+            {/* אישור תקנון - חובה */}
+            <div className="space-y-3 bg-slate-50 border border-slate-200 rounded-2xl p-4">
+              <label className="flex items-start gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={termsAccepted}
+                  onChange={e => setTermsAccepted(e.target.checked)}
+                  aria-required="true"
+                  aria-describedby="terms-desc"
+                  className="mt-0.5 w-5 h-5 accent-slate-800 flex-shrink-0 cursor-pointer"
+                />
+                <span id="terms-desc" className="text-xs text-slate-700 leading-relaxed">
+                  קראתי ואני מאשר את{' '}
+                  <a href="/TermsOfUse" target="_blank" rel="noopener noreferrer" className="text-blue-600 underline font-bold" onClick={e => e.stopPropagation()}>תקנון השימוש</a>
+                  {' '}ואת{' '}
+                  <a href="/PrivacyPolicy" target="_blank" rel="noopener noreferrer" className="text-blue-600 underline font-bold" onClick={e => e.stopPropagation()}>מדיניות הפרטיות</a>.
+                  {' '}אני מבין שהתור הוא על בסיס מקום פנוי ואין התחייבות לזמן המתנה מדויק.
+                  {' '}<span className="text-red-500 font-bold">*חובה</span>
+                </span>
+              </label>
+
+              <label className="flex items-start gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={marketingConsent}
+                  onChange={e => setMarketingConsent(e.target.checked)}
+                  className="mt-0.5 w-5 h-5 accent-slate-800 flex-shrink-0 cursor-pointer"
+                />
+                <span className="text-xs text-slate-600 leading-relaxed">
+                  אני מסכים לקבל עדכונים ומבצעים ממסעדת עלינא בעתיד. ניתן לבטל בכל עת.
+                  {' '}<span className="text-slate-400">(אופציונלי)</span>
+                </span>
+              </label>
+            </div>
+
             {error && (
               <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-center" role="alert" aria-live="assertive">
                 <p className="text-red-600 text-sm font-medium">⚠️ {error}</p>
@@ -989,6 +1030,14 @@ function QueueJoinInner() {
             aria-label="קרא את מדיניות הפרטיות של עלינא"
           >
             מדיניות פרטיות
+          </a>
+          <span className="text-slate-600 text-xs mx-1">|</span>
+          <a
+            href="/TermsOfUse"
+            className="text-slate-400 text-xs underline hover:text-slate-200 transition-colors focus:outline-none focus:ring-2 focus:ring-slate-300 rounded"
+            aria-label="קרא את תקנון השימוש של עלינא"
+          >
+            תקנון
           </a>
         </footer>
       </div>
@@ -1421,6 +1470,14 @@ function QueueJoinInner() {
           aria-label="קרא את מדיניות הפרטיות של עלינא"
         >
           מדיניות פרטיות
+        </a>
+        <span className="text-slate-600 text-xs mx-1">|</span>
+        <a
+          href="/TermsOfUse"
+          className="text-slate-400 text-xs underline hover:text-slate-200 transition-colors focus:outline-none focus:ring-2 focus:ring-slate-300 rounded"
+          aria-label="קרא את תקנון השימוש של עלינא"
+        >
+          תקנון
         </a>
       </footer>
     </div>
