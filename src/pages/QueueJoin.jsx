@@ -68,6 +68,8 @@ function QueueJoinInner() {
   const [actionLoading, setActionLoading] = useState(false);
   const [entry, setEntry] = useState(null);
   const [queuePosition, setQueuePosition] = useState(null);
+  const [prevQueuePosition, setPrevQueuePosition] = useState(null);
+  const [queueMovedUp, setQueueMovedUp] = useState(false);
   const [estimatedWait, setEstimatedWait] = useState(null);
   const [estimatedWaitCountdown, setEstimatedWaitCountdown] = useState(null);
   const estimatedWaitTimerRef = useRef(null);
@@ -213,6 +215,12 @@ function QueueJoinInner() {
           const res = await invokePublic('getQueuePosition', { entryId });
           if (res?.position) {
             console.log('✅ Queue position:', res.position, res.status);
+            // בדוק אם התור התקדם
+            if (prevQueuePosition !== null && res.position < prevQueuePosition) {
+              setQueueMovedUp(true);
+              setTimeout(() => setQueueMovedUp(false), 2000);
+            }
+            setPrevQueuePosition(res.position);
             setQueuePosition(res.position);
             setDebugLog(prev => [...prev, `✅ Queue pos (${res.status}): ${res.position}/${res.total}`]);
           } else {
@@ -1042,11 +1050,28 @@ function QueueJoinInner() {
                 </div>
               )}
 
-              {/* מקום בתור */}
+              {/* מקום בתור עם אנימציה */}
               {queuePosition != null && (
-                <div className="bg-blue-50 border-2 border-blue-300 rounded-2xl p-4 text-center mb-4">
-                  <p className="text-blue-800 font-black text-5xl">{queuePosition}</p>
-                  <p className="text-blue-600 text-sm mt-2 font-bold">מקום בתור</p>
+                <div className={`rounded-2xl p-4 text-center mb-4 border-2 transition-all ${
+                  queueMovedUp ? 'bg-green-100 border-green-400 scale-110 shadow-lg' : 'bg-blue-50 border-blue-300'
+                }`}>
+                  <div className="relative inline-block">
+                    <p className={`font-black text-5xl transition-all ${
+                      queueMovedUp ? 'text-green-700 animate-bounce' : 'text-blue-800'
+                    }`}>
+                      {queuePosition}
+                    </p>
+                    {queueMovedUp && (
+                      <div className="absolute -top-8 left-1/2 transform -translate-x-1/2 text-2xl animate-bounce">
+                        ⬆️
+                      </div>
+                    )}
+                  </div>
+                  <p className={`text-sm mt-2 font-bold transition-colors ${
+                    queueMovedUp ? 'text-green-700' : 'text-blue-600'
+                  }`}>
+                    {queueMovedUp ? '🎉 התור התקדם!' : 'מקום בתור'}
+                  </p>
                 </div>
               )}
 
