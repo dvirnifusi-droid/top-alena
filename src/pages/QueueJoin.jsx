@@ -960,8 +960,16 @@ function QueueJoinInner() {
               <div className="text-4xl mb-2">{selectedTreat.emoji}</div>
               <p className="font-black text-purple-800 text-lg">{selectedTreat.name}</p>
               <p className="text-purple-600 text-sm mt-1">{selectedTreat.description}</p>
-              <div className="mt-3 bg-white/60 rounded-xl p-2">
-                <p className="text-xs text-purple-500 font-bold">הצג כרטיס זה לצוות המסעדה לממש את המתנה שלך</p>
+              <div className="mt-3 rounded-xl p-2">
+                {entry?.treat_redeemed ? (
+                  <div className="bg-green-100 border border-green-300 rounded-xl p-2">
+                    <p className="text-sm text-green-700 font-black text-center">✅ המתנה מומשה!</p>
+                  </div>
+                ) : (
+                  <div className="bg-white/60 rounded-xl p-2">
+                    <p className="text-xs text-purple-500 font-bold">הצג כרטיס זה לצוות המסעדה לממש את המתנה שלך</p>
+                  </div>
+                )}
               </div>
             </div>
           )}
