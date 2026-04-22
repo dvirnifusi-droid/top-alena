@@ -751,11 +751,11 @@ function QueueJoinInner() {
 
             {/* משך שולחן */}
             <div>
-              <label className={`${accessibilityMode ? 'text-xl text-black' : 'text-sm text-slate-700'} font-bold block mb-2`}>⏱️ משך השולחן</label>
+              <label className={`${accessibilityMode ? 'text-xl text-black' : 'text-sm text-slate-700'} font-bold block mb-2`}>⏱️ האם בסדר שולחן לשעה בלבד?</label>
               <div className="grid grid-cols-2 gap-2">
                 {[
-                  { id: 'any', label: 'כל משך', emoji: '🕐' },
-                  { id: 'one_hour_only', label: 'שעה בלבד', emoji: '⏰' }
+                  { id: 'any', label: 'לא, אני צריך יותר', emoji: '❌' },
+                  { id: 'one_hour_only', label: 'כן, שעה זה בסדר', emoji: '✅' }
                 ].map(option => (
                   <button
                     key={option.id}

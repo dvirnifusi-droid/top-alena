@@ -863,10 +863,17 @@ export default function QueueDashboard() {
                               <div className="flex gap-1 flex-wrap mb-1">
                                 {entry.seating_preference === 'inside' && <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">🏠 בפנים</span>}
                                 {entry.seating_preference === 'outside' && <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">🌳 בחוץ</span>}
-                                {entry.table_duration_preference === 'one_hour_only' && <span className="text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full">⏱️ שעה בלבד</span>}
+                                {entry.table_duration_preference === 'one_hour_only' && <span className="text-xs bg-orange-100 text-orange-800 font-bold px-2 py-0.5 rounded-full border border-orange-300">✅ בסדר שולחן לשעה</span>}
                                 {proxNo && <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">🟣 לא בסביבה</span>}
                                 {proxYes && <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">🟢 חזר לתור</span>}
                               </div>
+
+                              {/* הערות הלקוח */}
+                              {entry.customer_notes && (
+                                <div className="mb-1 bg-yellow-50 border border-yellow-200 rounded-lg px-2 py-1.5">
+                                  <p className="text-xs text-yellow-800"><span className="font-bold">💬 הערות:</span> {entry.customer_notes}</p>
+                                </div>
+                              )}
                               
                               {/* זמן מוערך */}
                               {editingEstimate === entry.id ? (
