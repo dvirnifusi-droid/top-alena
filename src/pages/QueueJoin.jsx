@@ -935,6 +935,7 @@ function QueueJoinInner() {
   // ========== דף סיום ==========
   if (phase === 'done') {
     const isSeated = entry?.status === 'seated';
+    const selectedTreat = entry?.selected_treat_id ? treats.find(t => t.id === entry.selected_treat_id) : null;
     return (
       <div className="min-h-screen flex flex-col items-center justify-center p-4" style={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%)' }} dir="rtl">
         <div className="bg-white/95 backdrop-blur-sm rounded-3xl shadow-2xl p-10 w-full max-w-sm text-center border border-white/20">
@@ -950,6 +951,18 @@ function QueueJoinInner() {
           {isSeated && (
             <div className="mt-6 bg-emerald-50 rounded-2xl p-4 border border-emerald-200">
               <p className="text-emerald-700 font-bold text-sm">הצוות שלנו ממתין לכם 🌟</p>
+            </div>
+          )}
+          {/* מתנה שנרכשה */}
+          {selectedTreat && (
+            <div className="mt-4 bg-gradient-to-r from-purple-50 to-pink-50 border-2 border-purple-300 rounded-2xl p-5">
+              <p className="text-purple-700 font-bold text-sm mb-2">🎁 המתנה שרכשת:</p>
+              <div className="text-4xl mb-2">{selectedTreat.emoji}</div>
+              <p className="font-black text-purple-800 text-lg">{selectedTreat.name}</p>
+              <p className="text-purple-600 text-sm mt-1">{selectedTreat.description}</p>
+              <div className="mt-3 bg-white/60 rounded-xl p-2">
+                <p className="text-xs text-purple-500 font-bold">הצג כרטיס זה לצוות המסעדה לממש את המתנה שלך</p>
+              </div>
             </div>
           )}
         </div>

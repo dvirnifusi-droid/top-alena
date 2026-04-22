@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
-import { Phone, MessageSquare, Download, Search, Gift, AlertTriangle, TrendingDown, Cloud, Ban } from 'lucide-react';
+import { Phone, MessageSquare, Download, Search, Gift, AlertTriangle, TrendingDown, Cloud, Ban, CheckCircle } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 
@@ -8,6 +8,7 @@ export default function QueueHistory() {
   const [entries, setEntries] = useState([]);
   const [filteredEntries, setFilteredEntries] = useState([]);
   const [customers, setCustomers] = useState({});
+  const [treats, setTreats] = useState({});
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -29,6 +30,12 @@ export default function QueueHistory() {
         const custMap = {};
         custs.forEach(c => { custMap[c.phone] = c; });
         setCustomers(custMap);
+
+        // טען treats
+        const treatsArr = await base44.entities.TimeTreat.list();
+        const treatsMap = {};
+        treatsArr.forEach(t => { treatsMap[t.id] = t; });
+        setTreats(treatsMap);
 
         setLoading(false);
       } catch (e) {
@@ -408,6 +415,7 @@ export default function QueueHistory() {
               <th className="text-right px-4 py-3 font-black text-sm text-gray-700">⚠️ סכנת נטישה</th>
               <th className="text-right px-4 py-3 font-black text-sm text-gray-700">⏱️ זמן המתנה</th>
               <th className="text-right px-4 py-3 font-black text-sm text-gray-700">🎁 פינוק</th>
+              <th className="text-right px-4 py-3 font-black text-sm text-gray-700">🛍️ מתנה שרכש</th>
               <th className="text-right px-4 py-3 font-black text-sm text-gray-700">דירוג</th>
               <th className="text-center px-4 py-3 font-black text-sm text-gray-700">🏆 דרגה</th>
               <th className="text-center px-4 py-3 font-black text-sm text-gray-700">💰 מטבעות</th>
@@ -464,6 +472,36 @@ export default function QueueHistory() {
                     {entry.treated ? (
                       <span className="text-xl">🎁</span>
                     ) : (
+                      <span className="text-gray-300 text-sm">-</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-center">
+                    {entry.selected_treat_id && treats[entry.selected_treat_id] ? (() => {
+                      const treat = treats[entry.selected_treat_id];
+                      const redeemed = entry.treat_redeemed;
+                      return (
+                        <div className="flex flex-col items-center gap-1">
+                          <span className="text-sm font-bold text-purple-700">
+                            {treat.emoji} {treat.name}
+                          </span>
+                          {redeemed ? (
+                            <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-bold flex items-center gap-1">
+                              <CheckCircle className="w-3 h-3" /> מומש
+                            </span>
+                          ) : (
+                            <button
+                              onClick={async () => {
+                                await base44.entities.QueueEntry.update(entry.id, { treat_redeemed: true });
+                                setEntries(prev => prev.map(e => e.id === entry.id ? { ...e, treat_redeemed: true } : e));
+                              }}
+                              className="text-xs bg-purple-500 hover:bg-purple-600 text-white px-2 py-0.5 rounded-full font-bold transition-all active:scale-95"
+                            >
+                              ✓ מממש
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })() : (
                       <span className="text-gray-300 text-sm">-</span>
                     )}
                   </td>
