@@ -787,7 +787,7 @@ export default function QueueDashboard() {
       {(() => {
         const recentAbandoned = entries
           .filter(e => e.status === 'abandoned' && e.timestamp_end)
-          .filter(e => (Date.now() - new Date(e.timestamp_end).getTime()) < 60 * 60 * 1000) // שעה אחרונה
+          .filter(e => (Date.now() - new Date(e.timestamp_end).getTime()) < 24 * 60 * 60 * 1000) // 24 שעות אחרונות
           .sort((a, b) => new Date(b.timestamp_end) - new Date(a.timestamp_end))
           .slice(0, 5);
         if (recentAbandoned.length === 0) return null;
