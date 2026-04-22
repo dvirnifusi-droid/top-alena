@@ -741,7 +741,8 @@ export default function QueueDashboard() {
                     {entry.seating_preference === 'inside' && <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">🏠 בפנים</span>}
                     {entry.seating_preference === 'outside' && <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">🌳 בחוץ</span>}
                     {(!entry.seating_preference || entry.seating_preference === 'no_preference') && <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">🤷 לא משנה</span>}
-                    {entry.table_duration_preference === 'one_hour_only' && <span className="text-xs bg-orange-100 text-orange-800 font-bold px-2 py-0.5 rounded-full border border-orange-300">✅ בסדר שולחן לשעה</span>}
+                    {(entry.table_duration_preference === 'one_hour_only' || entry.table_duration_preference === 'one_hour') && <span className="text-xs bg-orange-100 text-orange-800 font-bold px-2 py-0.5 rounded-full border border-orange-300">✅ בסדר שולחן לשעה</span>}
+                    {(!entry.table_duration_preference || entry.table_duration_preference === 'any') && <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full">❌ צריך יותר משעה</span>}
                   </div>
                   {entry.customer_notes && (
                     <div className="mb-1 bg-yellow-50 border border-yellow-200 rounded-lg px-2 py-1.5">
@@ -869,7 +870,8 @@ export default function QueueDashboard() {
                               <div className="flex gap-1 flex-wrap mb-1">
                                 {entry.seating_preference === 'inside' && <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">🏠 בפנים</span>}
                                 {entry.seating_preference === 'outside' && <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">🌳 בחוץ</span>}
-                                {entry.table_duration_preference === 'one_hour_only' && <span className="text-xs bg-orange-100 text-orange-800 font-bold px-2 py-0.5 rounded-full border border-orange-300">✅ בסדר שולחן לשעה</span>}
+                                {(entry.table_duration_preference === 'one_hour_only' || entry.table_duration_preference === 'one_hour') && <span className="text-xs bg-orange-100 text-orange-800 font-bold px-2 py-0.5 rounded-full border border-orange-300">✅ בסדר שולחן לשעה</span>}
+                                {(!entry.table_duration_preference || entry.table_duration_preference === 'any') && <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full">❌ צריך יותר משעה</span>}
                                 {proxNo && <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">🟣 לא בסביבה</span>}
                                 {proxYes && <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">🟢 חזר לתור</span>}
                               </div>
