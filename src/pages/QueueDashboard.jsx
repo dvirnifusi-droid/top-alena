@@ -726,13 +726,16 @@ export default function QueueDashboard() {
                   <div className="flex items-center gap-3 flex-1 min-w-0">
                   <PartySizeIcon size={entry.party_size} />
                   <div className="min-w-0">
-                  <div className="flex items-center gap-1">
-                    <p className="font-bold text-lg text-gray-800 truncate">{entry.customer_name}</p>
-                    <button onClick={() => navigator.clipboard.writeText(entry.customer_name)} title="העתק שם" className="text-gray-300 hover:text-blue-500 transition-colors flex-shrink-0">📋</button>
+                  <div className="flex items-center gap-2 mb-1">
+                    <p className="font-black text-xl text-gray-800 truncate">{entry.customer_name}</p>
+                    <div className="flex items-center gap-1 bg-gray-100 rounded-xl px-2.5 py-1 flex-shrink-0">
+                      <PartySizeIcon size={entry.party_size} />
+                      <span className="font-black text-2xl text-gray-800">{entry.party_size}</span>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-1">
-                    <p className="text-xs text-gray-500">{entry.phone} · <span className="font-black text-gray-700">{entry.party_size}</span> סועדים</p>
-                    <button onClick={() => navigator.clipboard.writeText(entry.phone)} title="העתק טלפון" className="text-gray-300 hover:text-blue-500 transition-colors flex-shrink-0">📋</button>
+                  <div className="flex gap-2 mb-1">
+                    <button onClick={() => navigator.clipboard.writeText(entry.customer_name)} className="flex items-center gap-1 text-xs bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 px-2 py-1 rounded-lg font-bold transition-all">📋 העתק שם</button>
+                    <button onClick={() => navigator.clipboard.writeText(entry.phone)} className="flex items-center gap-1 text-xs bg-green-50 hover:bg-green-100 text-green-700 border border-green-200 px-2 py-1 rounded-lg font-bold transition-all">📋 {entry.phone}</button>
                   </div>
                   <p className="text-xs text-gray-400 mt-0.5">
                   {entry.seating_preference === 'inside' && '🏠 רק בפנים'}
@@ -822,28 +825,48 @@ export default function QueueDashboard() {
 
                             {/* פרטים */}
                             <div className="flex-1 min-w-0">
-                             <div className="flex items-center gap-2 flex-wrap">
-                               <p className={`font-bold text-lg truncate ${
-                                 proxNo ? 'text-purple-800' : proxYes ? 'text-green-700' : farAway ? 'text-red-600' : 'text-gray-800'
-                               }`}>
-                                 {entry.customer_name}
-                                 {farAway && !proxNo && !proxYes && <span className="mr-1 text-xs">📍❌</span>}
-                                 {proxPending && !proxNo && !proxYes && <span className="mr-1 text-xs animate-pulse">🟡 ממתין לתגובה</span>}
-                                 {proxNo && <span className="mr-1 text-xs">🟣 לא בסביבה</span>}
-                                 {proxYes && <span className="mr-1 text-xs">🟢 חזר לתור</span>}
-                               </p>
-                               <button
-                                 onClick={() => navigator.clipboard.writeText(entry.customer_name)}
-                                 title="העתק שם"
-                                 className="text-gray-300 hover:text-blue-500 transition-colors flex-shrink-0"
-                               >📋</button>
-                               {entry.seating_preference === 'inside' && <span title="העדפה: רק בפנים" className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">🏠 בפנים</span>}
-                               {entry.seating_preference === 'outside' && <span title="העדפה: רק בחוץ" className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">🌳 בחוץ</span>}
-                               {entry.table_duration_preference === 'one_hour_only' && <span title="העדפה: שעה בלבד" className="text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full">⏱️ שעה בלבד</span>}
-                               <PartySizeIcon size={entry.party_size} />
-                               <span className="font-black text-base text-gray-700">{entry.party_size}</span>
-                               {entry.treated && <span title="קיבל פינוק">🎁</span>}
-                             </div>
+                              {/* שם + כמות סועדים */}
+                              <div className="flex items-center gap-2 mb-1">
+                                <p className={`font-black text-xl truncate ${
+                                  proxNo ? 'text-purple-800' : proxYes ? 'text-green-700' : farAway ? 'text-red-600' : 'text-gray-800'
+                                }`}>
+                                  {entry.customer_name}
+                                  {farAway && !proxNo && !proxYes && <span className="mr-1 text-xs">📍❌</span>}
+                                  {proxPending && !proxNo && !proxYes && <span className="mr-1 text-xs animate-pulse">🟡</span>}
+                                  {proxNo && <span className="mr-1 text-xs">🟣</span>}
+                                  {proxYes && <span className="mr-1 text-xs">🟢</span>}
+                                </p>
+                                <div className="flex items-center gap-1 bg-gray-100 rounded-xl px-2.5 py-1 flex-shrink-0">
+                                  <PartySizeIcon size={entry.party_size} />
+                                  <span className="font-black text-2xl text-gray-800">{entry.party_size}</span>
+                                </div>
+                                {entry.treated && <span title="קיבל פינוק">🎁</span>}
+                              </div>
+
+                              {/* כפתורי העתקה */}
+                              <div className="flex gap-2 mb-1.5">
+                                <button
+                                  onClick={() => navigator.clipboard.writeText(entry.customer_name)}
+                                  className="flex items-center gap-1 text-xs bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 px-2 py-1 rounded-lg font-bold transition-all"
+                                >
+                                  📋 העתק שם
+                                </button>
+                                <button
+                                  onClick={() => navigator.clipboard.writeText(entry.phone)}
+                                  className="flex items-center gap-1 text-xs bg-green-50 hover:bg-green-100 text-green-700 border border-green-200 px-2 py-1 rounded-lg font-bold transition-all"
+                                >
+                                  📋 {entry.phone}
+                                </button>
+                              </div>
+
+                              {/* תגיות */}
+                              <div className="flex gap-1 flex-wrap mb-1">
+                                {entry.seating_preference === 'inside' && <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">🏠 בפנים</span>}
+                                {entry.seating_preference === 'outside' && <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">🌳 בחוץ</span>}
+                                {entry.table_duration_preference === 'one_hour_only' && <span className="text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full">⏱️ שעה בלבד</span>}
+                                {proxNo && <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">🟣 לא בסביבה</span>}
+                                {proxYes && <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">🟢 חזר לתור</span>}
+                              </div>
                               
                               {/* זמן מוערך */}
                               {editingEstimate === entry.id ? (
@@ -891,17 +914,9 @@ export default function QueueDashboard() {
                                 </div>
                               )}
                               
-                              <div className="flex items-center gap-2 text-xs text-gray-500 mt-0.5 flex-wrap">
-                                <span className="font-medium">{entry.phone}</span>
-                                <button
-                                  onClick={() => navigator.clipboard.writeText(entry.phone)}
-                                  title="העתק טלפון"
-                                  className="text-gray-300 hover:text-blue-500 transition-colors"
-                                >📋</button>
-                                <span className="flex items-center gap-1">
-                                  <Clock className="w-3 h-3" />
-                                  <WaitTime timestamp_approved={entry.timestamp_approved} />
-                                </span>
+                              <div className="flex items-center gap-1 text-xs text-gray-400">
+                                <Clock className="w-3 h-3" />
+                                <WaitTime timestamp_approved={entry.timestamp_approved} />
                               </div>
                             </div>
 
