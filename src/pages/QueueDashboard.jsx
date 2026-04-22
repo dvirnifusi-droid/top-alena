@@ -5,6 +5,7 @@ import { sendQueuePush } from '@/functions/sendQueuePush';
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import { Check, X, Gift, UserCheck, Clock, Users, RefreshCw, QrCode, AlertCircle, Star, History } from 'lucide-react';
 import TreatsReport from '../components/dashboard/TreatsReport';
+import RecentAbandonedSection from '../components/dashboard/RecentAbandonedSection';
 import TablePicker from '../components/dashboard/TablePicker';
 import { QRCodeSVG } from 'qrcode.react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -787,52 +788,11 @@ export default function QueueDashboard() {
       {(() => {
         const recentAbandoned = entries
           .filter(e => e.status === 'abandoned' && e.timestamp_end)
-          .filter(e => (Date.now() - new Date(e.timestamp_end).getTime()) < 24 * 60 * 60 * 1000) // 24 שעות אחרונות
+          .filter(e => (Date.now() - new Date(e.timestamp_end).getTime()) < 24 * 60 * 60 * 1000)
           .sort((a, b) => new Date(b.timestamp_end) - new Date(a.timestamp_end))
           .slice(0, 5);
         if (recentAbandoned.length === 0) return null;
-        return (
-          <div className="mb-6">
-            <h2 className="text-lg font-bold text-red-600 mb-3 flex items-center gap-2">
-              <span className="w-2 h-2 bg-red-400 rounded-full inline-block"></span>
-              נטשו לאחרונה ({recentAbandoned.length})
-            </h2>
-            <div className="space-y-2">
-              {recentAbandoned.map(entry => {
-                const minsAgo = Math.round((Date.now() - new Date(entry.timestamp_end).getTime()) / 60000);
-                return (
-                  <Card key={entry.id} className="border-red-200 bg-red-50">
-                    <CardContent className="p-3 flex items-center justify-between gap-3">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
-                          <p className="font-black text-gray-800 truncate">{entry.customer_name}</p>
-                          <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full flex-shrink-0">👥 {entry.party_size}</span>
-                        </div>
-                        <p className="text-xs text-gray-400">לפני {minsAgo} דק' • {entry.phone}</p>
-                        {entry.notes && <p className="text-xs text-red-500 mt-0.5">{entry.notes}</p>}
-                      </div>
-                      <button
-                        onClick={async () => {
-                          const maxOrder = Math.max(0, ...entries.filter(x => x.status === 'active').map(x => x.sort_order ?? 0));
-                          await base44.entities.QueueEntry.update(entry.id, {
-                            status: 'active',
-                            timestamp_end: null,
-                            seat_called_at: null,
-                            sort_order: maxOrder + 1,
-                          });
-                          fetchEntries();
-                        }}
-                        className="flex-shrink-0 bg-blue-500 hover:bg-blue-600 text-white text-xs font-black px-3 py-2 rounded-xl transition-all active:scale-95"
-                      >
-                        ↩️ החזר לתור
-                      </button>
-                    </CardContent>
-                  </Card>
-                );
-              })}
-            </div>
-          </div>
-        );
+        return <RecentAbandonedSection entries={entries} recentAbandoned={recentAbandoned} fetchEntries={fetchEntries} />;
       })()}
 
       {/* תור פעיל - Drag & Drop */}
