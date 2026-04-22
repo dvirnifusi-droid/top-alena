@@ -737,14 +737,20 @@ export default function QueueDashboard() {
                     <button onClick={() => navigator.clipboard.writeText(entry.customer_name)} className="flex items-center gap-1 text-xs bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 px-2 py-1 rounded-lg font-bold transition-all">📋 העתק שם</button>
                     <button onClick={() => navigator.clipboard.writeText(entry.phone)} className="flex items-center gap-1 text-xs bg-green-50 hover:bg-green-100 text-green-700 border border-green-200 px-2 py-1 rounded-lg font-bold transition-all">📋 {entry.phone}</button>
                   </div>
-                  <p className="text-xs text-gray-400 mt-0.5">
-                  {entry.seating_preference === 'inside' && '🏠 רק בפנים'}
-                  {entry.seating_preference === 'outside' && '🌳 רק בחוץ'}
-                  {(!entry.seating_preference || entry.seating_preference === 'no_preference') && '🤷 לא משנה'}
+                  <div className="flex gap-1 flex-wrap mt-0.5 mb-1">
+                    {entry.seating_preference === 'inside' && <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">🏠 בפנים</span>}
+                    {entry.seating_preference === 'outside' && <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">🌳 בחוץ</span>}
+                    {(!entry.seating_preference || entry.seating_preference === 'no_preference') && <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">🤷 לא משנה</span>}
+                    {entry.table_duration_preference === 'one_hour_only' && <span className="text-xs bg-orange-100 text-orange-800 font-bold px-2 py-0.5 rounded-full border border-orange-300">✅ בסדר שולחן לשעה</span>}
+                  </div>
+                  {entry.customer_notes && (
+                    <div className="mb-1 bg-yellow-50 border border-yellow-200 rounded-lg px-2 py-1.5">
+                      <p className="text-xs text-yellow-800"><span className="font-bold">💬 הערות:</span> {entry.customer_notes}</p>
+                    </div>
+                  )}
+                  <p className="text-xs text-gray-400">
+                    נרשם: {new Date(entry.timestamp_register).toLocaleTimeString('he-IL')}
                   </p>
-                      <p className="text-xs text-gray-400">
-                        נרשם: {new Date(entry.timestamp_register).toLocaleTimeString('he-IL')}
-                      </p>
                     </div>
                   </div>
                   <div className="flex gap-2 flex-shrink-0">
