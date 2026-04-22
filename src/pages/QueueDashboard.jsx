@@ -897,6 +897,22 @@ export default function QueueDashboard() {
                               </div>
                             )}
 
+                            {/* שולחן ייעודי */}
+                            <div className="mb-2 flex items-center gap-2">
+                              <span className="text-xs text-gray-400 font-bold flex-shrink-0">🪑 שולחן:</span>
+                              <input
+                                type="text"
+                                value={entry.notes?.startsWith('שולחן:') ? entry.notes.replace('שולחן:', '').trim() : (entry.assigned_table || '')}
+                                onChange={async (e) => {
+                                  const val = e.target.value;
+                                  await base44.entities.QueueEntry.update(entry.id, { notes: val ? `שולחן: ${val}` : '' });
+                                  fetchEntries();
+                                }}
+                                placeholder="מספר / שם שולחן"
+                                className="flex-1 text-sm border-2 border-dashed border-gray-200 focus:border-blue-400 focus:outline-none rounded-xl px-3 py-1.5 bg-gray-50 text-gray-700 font-bold transition-all"
+                              />
+                            </div>
+
                             {/* פרס שנבחר */}
                             {entry.selected_treat_id && (
                               <div className="mb-2 bg-purple-50 border border-purple-200 rounded-xl px-3 py-2">
