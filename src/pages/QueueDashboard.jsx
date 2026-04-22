@@ -5,6 +5,7 @@ import { sendQueuePush } from '@/functions/sendQueuePush';
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import { Check, X, Gift, UserCheck, Clock, Users, RefreshCw, QrCode, AlertCircle, Star, History } from 'lucide-react';
 import TreatsReport from '../components/dashboard/TreatsReport';
+import TablePicker from '../components/dashboard/TablePicker';
 import { QRCodeSVG } from 'qrcode.react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -898,20 +899,7 @@ export default function QueueDashboard() {
                             )}
 
                             {/* שולחן ייעודי */}
-                            <div className="mb-2 flex items-center gap-2">
-                              <span className="text-xs text-gray-400 font-bold flex-shrink-0">🪑 שולחן:</span>
-                              <input
-                                type="text"
-                                value={entry.notes?.startsWith('שולחן:') ? entry.notes.replace('שולחן:', '').trim() : (entry.assigned_table || '')}
-                                onChange={async (e) => {
-                                  const val = e.target.value;
-                                  await base44.entities.QueueEntry.update(entry.id, { notes: val ? `שולחן: ${val}` : '' });
-                                  fetchEntries();
-                                }}
-                                placeholder="מספר / שם שולחן"
-                                className="flex-1 text-sm border-2 border-dashed border-gray-200 focus:border-blue-400 focus:outline-none rounded-xl px-3 py-1.5 bg-gray-50 text-gray-700 font-bold transition-all"
-                              />
-                            </div>
+                            <TablePicker entry={entry} onSave={fetchEntries} />
 
                             {/* פרס שנבחר */}
                             {entry.selected_treat_id && (
