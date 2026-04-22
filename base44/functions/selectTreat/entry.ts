@@ -9,9 +9,9 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Missing parameters' }, { status: 400 });
     }
 
-    // קרא את הentry הנוכחי
-    const entry = await base44.asServiceRole.entities.QueueEntry.list('-timestamp_register', 300)
-      .then(entries => entries.find(e => e.id === entryId));
+    // קרא את הentry הנוכחי דרך service role (ציבורי — אנונימי)
+    const allEntries = await base44.asServiceRole.entities.QueueEntry.list('-timestamp_register', 500);
+    const entry = allEntries.find(e => e.id === entryId);
 
     if (!entry) {
       return Response.json({ error: 'Entry not found' }, { status: 404 });
