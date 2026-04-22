@@ -1081,10 +1081,7 @@ function QueueJoinInner() {
               {entry?.notes?.startsWith('שולחן:') && (
                 <div className="rounded-2xl px-4 py-3 mb-3 text-center border-2 bg-green-50 border-green-400">
                   <p className="text-green-700 font-black text-sm">
-                    🪑 שולחן ייעודי כבר נשמר עבורך!
-                  </p>
-                  <p className="text-green-800 font-black text-2xl mt-1">
-                    {entry.notes.replace('שולחן:', '').trim()}
+                    🪑 המארחת שמרה עבורך שולחן ייעודי!
                   </p>
                 </div>
               )}
