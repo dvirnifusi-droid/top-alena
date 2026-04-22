@@ -28,27 +28,47 @@ const ZONES = [
   },
 ];
 
-function getCurrentTable(entry) {
-  if (entry.notes?.startsWith('שולחן:')) return entry.notes.replace('שולחן:', '').trim();
-  return '';
+function getCurrentTables(entry) {
+  if (entry.notes?.startsWith('שולחן:')) {
+    return entry.notes.replace('שולחן:', '').trim().split(',').map(s => s.trim()).filter(Boolean);
+  }
+  return [];
 }
 
 export default function TablePicker({ entry, onSave }) {
   const [open, setOpen] = useState(false);
   const [activeZone, setActiveZone] = useState(null);
   const [customVal, setCustomVal] = useState('');
+  const [selected, setSelected] = useState(() => getCurrentTables(entry));
 
-  const current = getCurrentTable(entry);
+  const current = getCurrentTables(entry);
+  const currentDisplay = current.join(' + ') || '';
 
-  const saveTable = async (val) => {
+  const toggleTable = (t) => {
+    const s = String(t);
+    setSelected(prev =>
+      prev.includes(s) ? prev.filter(x => x !== s) : [...prev, s]
+    );
+  };
+
+  const handleSave = async () => {
+    const val = selected.join(', ');
     await base44.entities.QueueEntry.update(entry.id, { notes: val ? `שולחן: ${val}` : '' });
     onSave();
     setOpen(false);
     setActiveZone(null);
   };
 
-  const handleCustomSave = async () => {
-    await saveTable(customVal.trim());
+  const handleClear = async () => {
+    setSelected([]);
+    await base44.entities.QueueEntry.update(entry.id, { notes: '' });
+    onSave();
+  };
+
+  const handleCustomAdd = () => {
+    const val = customVal.trim();
+    if (!val) return;
+    setSelected(prev => prev.includes(val) ? prev : [...prev, val]);
     setCustomVal('');
   };
 
@@ -58,42 +78,64 @@ export default function TablePicker({ entry, onSave }) {
       <div className="flex items-center gap-2">
         <span className="text-xs text-gray-400 font-bold flex-shrink-0">🪑 שולחן:</span>
         <button
-          onClick={() => setOpen(!open)}
+          onClick={() => {
+            setSelected(current);
+            setOpen(!open);
+          }}
           className={`flex-1 text-sm border-2 border-dashed rounded-xl px-3 py-1.5 font-bold text-right transition-all ${
-            current
+            currentDisplay
               ? 'border-blue-400 bg-blue-50 text-blue-700'
               : 'border-gray-200 bg-gray-50 text-gray-400 hover:border-blue-300'
           }`}
         >
-          {current || 'בחר שולחן...'}
+          {currentDisplay || 'בחר שולחן...'}
         </button>
-        {current && (
-          <button
-            onClick={() => saveTable('')}
-            className="text-gray-300 hover:text-red-400 text-lg transition-all"
-            title="נקה"
-          >✕</button>
+        {currentDisplay && (
+          <button onClick={handleClear} className="text-gray-300 hover:text-red-400 text-lg transition-all" title="נקה">✕</button>
         )}
       </div>
 
       {/* פאנל בחירה */}
       {open && (
         <div className="mt-2 bg-white border-2 border-blue-200 rounded-2xl p-3 shadow-lg">
+
+          {/* שולחנות שנבחרו + כפתור שמירה */}
+          <div className="flex items-center gap-2 mb-3 min-h-[36px]">
+            <div className="flex-1 flex flex-wrap gap-1">
+              {selected.length === 0 ? (
+                <span className="text-xs text-gray-300">לא נבחר עדיין</span>
+              ) : selected.map(t => (
+                <span
+                  key={t}
+                  onClick={() => setSelected(prev => prev.filter(x => x !== t))}
+                  className="bg-blue-600 text-white text-xs font-black px-2.5 py-1 rounded-lg cursor-pointer hover:bg-red-400 transition-all"
+                  title="לחץ להסרה"
+                >{t}</span>
+              ))}
+            </div>
+            <button
+              onClick={handleSave}
+              className="flex-shrink-0 px-4 py-1.5 bg-green-500 hover:bg-green-600 text-white text-sm font-black rounded-xl transition-all active:scale-95"
+            >
+              💾 שמור
+            </button>
+          </div>
+
           {/* כתיבה חופשית */}
           <div className="flex gap-2 mb-3">
             <input
               type="text"
               value={customVal}
               onChange={e => setCustomVal(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && customVal.trim() && handleCustomSave()}
-              placeholder="כתוב מספר שולחן..."
+              onKeyDown={e => e.key === 'Enter' && handleCustomAdd()}
+              placeholder="הוסף מספר ידנית..."
               className="flex-1 text-sm border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:border-blue-400"
             />
             <button
-              onClick={handleCustomSave}
+              onClick={handleCustomAdd}
               disabled={!customVal.trim()}
               className="px-3 py-2 bg-blue-500 disabled:opacity-40 text-white rounded-xl text-sm font-black"
-            >✓</button>
+            >+</button>
           </div>
 
           {/* טאבי אזורים */}
@@ -114,19 +156,22 @@ export default function TablePicker({ entry, onSave }) {
           {/* גריד שולחנות */}
           {activeZone && (
             <div className="grid grid-cols-5 gap-1.5 max-h-40 overflow-y-auto">
-              {ZONES.find(z => z.id === activeZone)?.tables.map(t => (
-                <button
-                  key={t}
-                  onClick={() => saveTable(String(t))}
-                  className={`py-2 rounded-xl text-sm font-black border-2 transition-all active:scale-95 ${
-                    current === String(t)
-                      ? 'bg-blue-600 text-white border-blue-600'
-                      : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-blue-50 hover:border-blue-300'
-                  }`}
-                >
-                  {t}
-                </button>
-              ))}
+              {ZONES.find(z => z.id === activeZone)?.tables.map(t => {
+                const isSelected = selected.includes(String(t));
+                return (
+                  <button
+                    key={t}
+                    onClick={() => toggleTable(t)}
+                    className={`py-2 rounded-xl text-sm font-black border-2 transition-all active:scale-95 ${
+                      isSelected
+                        ? 'bg-blue-600 text-white border-blue-600'
+                        : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-blue-50 hover:border-blue-300'
+                    }`}
+                  >
+                    {t}
+                  </button>
+                );
+              })}
             </div>
           )}
         </div>
