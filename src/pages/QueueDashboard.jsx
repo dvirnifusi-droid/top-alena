@@ -1083,6 +1083,24 @@ export default function QueueDashboard() {
                         {e.feedback_rating && <p>⭐ דירוג: {e.feedback_rating}</p>}
                         <p className="text-xs text-gray-400">{new Date(e.timestamp_register).toLocaleDateString('he-IL')}</p>
                       </div>
+                      {e.status === 'abandoned' && (
+                        <button
+                          onClick={async () => {
+                            const maxOrder = Math.max(0, ...entries.filter(x => x.status === 'active').map(x => x.sort_order ?? 0));
+                            await base44.entities.QueueEntry.update(e.id, {
+                              status: 'active',
+                              timestamp_end: null,
+                              seat_called_at: null,
+                              sort_order: maxOrder + 1,
+                            });
+                            fetchEntries();
+                            setHistoryEntries(prev => prev.map(x => x.id === e.id ? { ...x, status: 'active' } : x));
+                          }}
+                          className="mt-2 w-full bg-blue-500 hover:bg-blue-600 text-white text-xs font-black py-2 rounded-lg transition-all active:scale-95"
+                        >
+                          ↩️ החזר לתור
+                        </button>
+                      )}
                     </div>
                   );
                 })}
