@@ -820,231 +820,169 @@ export default function QueueDashboard() {
                           ref={provided.innerRef}
                           {...provided.draggableProps}
                           {...provided.dragHandleProps}
-                          className={`${cardBg} transition-colors`}
+                          className={`overflow-hidden transition-all shadow-md ${
+                            snapshot.isDragging ? 'shadow-xl scale-[1.02]' :
+                            proxNo ? 'border-2 border-purple-400' :
+                            proxYes ? 'border-2 border-green-400' :
+                            farAway ? 'border-2 border-red-300' :
+                            'border border-blue-100'
+                          }`}
                         >
-                          <CardContent className="p-3 flex items-center gap-3">
-                            {/* מספר בתור */}
-                            <div className={`w-8 h-8 rounded-full text-white flex items-center justify-center font-black text-sm flex-shrink-0 ${
-                              proxNo ? 'bg-purple-600' : proxYes ? 'bg-green-600' : 'bg-blue-600'
-                            }`}>
-                              {index + 1}
-                            </div>
+                          {/* פס צבע עליון */}
+                          <div className={`h-1.5 w-full ${
+                            proxNo ? 'bg-purple-500' :
+                            proxYes ? 'bg-green-500' :
+                            farAway ? 'bg-red-400' :
+                            index === 0 ? 'bg-gradient-to-l from-blue-500 to-indigo-500' : 'bg-blue-300'
+                          }`} />
 
-                            {/* פרטים */}
-                            <div className="flex-1 min-w-0">
-                              {/* שם + כמות סועדים */}
-                              <div className="flex items-center gap-2 mb-1">
-                                <p className={`font-black text-xl truncate ${
-                                  proxNo ? 'text-purple-800' : proxYes ? 'text-green-700' : farAway ? 'text-red-600' : 'text-gray-800'
-                                }`}>
-                                  {entry.customer_name}
-                                  {farAway && !proxNo && !proxYes && <span className="mr-1 text-xs">📍❌</span>}
-                                  {proxPending && !proxNo && !proxYes && <span className="mr-1 text-xs animate-pulse">🟡</span>}
-                                  {proxNo && <span className="mr-1 text-xs">🟣</span>}
-                                  {proxYes && <span className="mr-1 text-xs">🟢</span>}
-                                </p>
-                                <div className="flex items-center gap-1 bg-gray-100 rounded-xl px-2.5 py-1 flex-shrink-0">
-                                  <PartySizeIcon size={entry.party_size} />
-                                  <span className="font-black text-2xl text-gray-800">{entry.party_size}</span>
-                                </div>
-                                {entry.treated && <span title="קיבל פינוק">🎁</span>}
+                          <CardContent className="p-3">
+                            {/* שורה 1: מספר בתור + שם + סועדים */}
+                            <div className="flex items-center gap-2 mb-2">
+                              <div className={`w-9 h-9 rounded-2xl text-white flex items-center justify-center font-black text-lg flex-shrink-0 shadow ${
+                                proxNo ? 'bg-purple-500' : proxYes ? 'bg-green-500' : index === 0 ? 'bg-gradient-to-br from-blue-500 to-indigo-600' : 'bg-blue-500'
+                              }`}>
+                                {index + 1}
                               </div>
-
-                              {/* כפתורי העתקה */}
-                              <div className="flex gap-2 mb-1.5">
-                                <button
-                                  onClick={() => navigator.clipboard.writeText(entry.customer_name)}
-                                  className="flex items-center gap-1 text-xs bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 px-2 py-1 rounded-lg font-bold transition-all"
-                                >
-                                  📋 העתק שם
-                                </button>
-                                <button
-                                  onClick={() => navigator.clipboard.writeText(entry.phone)}
-                                  className="flex items-center gap-1 text-xs bg-green-50 hover:bg-green-100 text-green-700 border border-green-200 px-2 py-1 rounded-lg font-bold transition-all"
-                                >
-                                  📋 {entry.phone}
-                                </button>
-                              </div>
-
-                              {/* תגיות */}
-                              <div className="flex gap-1 flex-wrap mb-1">
-                                {entry.seating_preference === 'inside' && <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">🏠 בפנים</span>}
-                                {entry.seating_preference === 'outside' && <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">🌳 בחוץ</span>}
-                                {(entry.table_duration_preference === 'one_hour_only' || entry.table_duration_preference === 'one_hour') && <span className="text-xs bg-orange-100 text-orange-800 font-bold px-2 py-0.5 rounded-full border border-orange-300">✅ בסדר שולחן לשעה</span>}
-                                {(!entry.table_duration_preference || entry.table_duration_preference === 'any') && <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full">❌ צריך יותר משעה</span>}
-                                {proxNo && <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">🟣 לא בסביבה</span>}
-                                {proxYes && <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">🟢 חזר לתור</span>}
-                              </div>
-
-                              {/* הערות הלקוח */}
-                              {entry.customer_notes && (
-                                <div className="mb-1 bg-yellow-50 border border-yellow-200 rounded-lg px-2 py-1.5">
-                                  <p className="text-xs text-yellow-800"><span className="font-bold">💬 הערות:</span> {entry.customer_notes}</p>
-                                </div>
-                              )}
-                              
-                              {/* זמן מוערך */}
-                              {editingEstimate === entry.id ? (
-                                <div className="mt-1.5 flex gap-1">
-                                  <input
-                                    type="number"
-                                    min="0"
-                                    value={estimatedWaitInput[entry.id] || ''}
-                                    onChange={(e) => setEstimatedWaitInput(prev => ({ ...prev, [entry.id]: parseInt(e.target.value) || 0 }))}
-                                    placeholder="דקות"
-                                    className="w-16 text-xs border border-amber-300 rounded px-2 py-1 focus:outline-none"
-                                    autoFocus
-                                  />
-                                  <button
-                                    onClick={() => handleSaveEstimatedWait(entry.id, estimatedWaitInput[entry.id])}
-                                    className="px-2 py-1 text-xs bg-green-500 hover:bg-green-600 text-white rounded font-bold transition-all"
-                                  >✓</button>
-                                  <button
-                                    onClick={() => { setEditingEstimate(null); setEstimatedWaitInput(prev => { const n = {...prev}; delete n[entry.id]; return n; }); }}
-                                    className="px-2 py-1 text-xs bg-gray-300 hover:bg-gray-400 text-gray-700 rounded font-bold transition-all"
-                                  >✕</button>
-                                </div>
-                              ) : (
-                                <div className="mt-1.5">
-                                  {entry.estimated_wait_time ? (
-                                    <button
-                                      onClick={() => { setEditingEstimate(entry.id); setEstimatedWaitInput(prev => ({ ...prev, [entry.id]: entry.estimated_wait_time })); }}
-                                      className="text-xs bg-amber-50 border border-amber-200 text-amber-700 px-2 py-1 rounded font-bold hover:bg-amber-100 transition-all"
-                                    >⏱️ {entry.estimated_wait_time} דק'</button>
-                                  ) : (
-                                    <button
-                                      onClick={() => { setEditingEstimate(entry.id); setEstimatedWaitInput(prev => ({ ...prev, [entry.id]: 0 })); }}
-                                      className="text-xs bg-gray-100 text-gray-500 px-2 py-1 rounded hover:bg-gray-200 transition-all"
-                                    >⏱️ הוסף זמן מוערך</button>
-                                  )}
-                                </div>
-                              )}
-                              
-                              {/* הצגת הפרס שנבחר */}
-                              {entry.selected_treat_id && (
-                                <div className="mt-1.5 bg-purple-50 border border-purple-200 rounded-lg px-2 py-1.5">
-                                  <p className="text-xs font-bold text-purple-700">
-                                    🎁 פרס: {treats.find(t => t.id === entry.selected_treat_id)?.name || 'לא קיים'}
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2">
+                                  <p className={`font-black text-lg leading-tight truncate ${
+                                    proxNo ? 'text-purple-800' : proxYes ? 'text-green-700' : farAway ? 'text-red-600' : 'text-gray-900'
+                                  }`}>
+                                    {entry.customer_name}
+                                    {proxPending && !proxNo && !proxYes && <span className="mr-1 animate-pulse">🟡</span>}
+                                    {proxNo && <span className="mr-1">🟣</span>}
+                                    {proxYes && <span className="mr-1">🟢</span>}
+                                    {farAway && !proxNo && !proxYes && <span className="mr-1">📍❌</span>}
+                                    {entry.treated && <span className="mr-1">🎁</span>}
                                   </p>
                                 </div>
-                              )}
-                              
-                              <div className="flex items-center gap-1 text-xs text-gray-400">
+                              </div>
+                              {/* כמות סועדים */}
+                              <div className={`flex items-center gap-1 px-3 py-1.5 rounded-2xl flex-shrink-0 shadow-sm ${
+                                proxNo ? 'bg-purple-100' : proxYes ? 'bg-green-100' : 'bg-blue-50 border border-blue-200'
+                              }`}>
+                                <PartySizeIcon size={entry.party_size} />
+                                <span className="font-black text-2xl text-gray-800">{entry.party_size}</span>
+                              </div>
+                            </div>
+
+                            {/* שורה 2: כפתורי העתקה */}
+                            <div className="flex gap-2 mb-2">
+                              <button
+                                onClick={() => navigator.clipboard.writeText(entry.customer_name)}
+                                className="flex-1 flex items-center justify-center gap-1 text-xs bg-blue-50 active:bg-blue-200 text-blue-700 border border-blue-200 px-2 py-2 rounded-xl font-bold transition-all"
+                              >📋 העתק שם</button>
+                              <button
+                                onClick={() => navigator.clipboard.writeText(entry.phone)}
+                                className="flex-1 flex items-center justify-center gap-1 text-xs bg-green-50 active:bg-green-200 text-green-700 border border-green-200 px-2 py-2 rounded-xl font-bold transition-all"
+                              >📞 {entry.phone}</button>
+                            </div>
+
+                            {/* שורה 3: תגיות העדפות */}
+                            <div className="flex gap-1.5 flex-wrap mb-2">
+                              {entry.seating_preference === 'inside' && <span className="text-xs bg-blue-100 text-blue-700 px-2.5 py-1 rounded-full font-semibold">🏠 בפנים</span>}
+                              {entry.seating_preference === 'outside' && <span className="text-xs bg-emerald-100 text-emerald-700 px-2.5 py-1 rounded-full font-semibold">🌳 בחוץ</span>}
+                              {(!entry.seating_preference || entry.seating_preference === 'no_preference') && <span className="text-xs bg-gray-100 text-gray-500 px-2.5 py-1 rounded-full">🤷 לא משנה</span>}
+                              {(entry.table_duration_preference === 'one_hour_only' || entry.table_duration_preference === 'one_hour') && <span className="text-xs bg-orange-100 text-orange-800 font-bold px-2.5 py-1 rounded-full border border-orange-200">✅ שעה בסדר</span>}
+                              {(!entry.table_duration_preference || entry.table_duration_preference === 'any') && <span className="text-xs bg-red-100 text-red-700 px-2.5 py-1 rounded-full font-semibold">⏳ צריך יותר</span>}
+                              {proxNo && <span className="text-xs bg-purple-100 text-purple-700 px-2.5 py-1 rounded-full">🟣 לא בסביבה</span>}
+                              {proxYes && <span className="text-xs bg-green-100 text-green-700 px-2.5 py-1 rounded-full">🟢 בסביבה</span>}
+                            </div>
+
+                            {/* הערות לקוח */}
+                            {entry.customer_notes && (
+                              <div className="mb-2 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
+                                <p className="text-xs text-amber-800"><span className="font-bold">💬</span> {entry.customer_notes}</p>
+                              </div>
+                            )}
+
+                            {/* פרס שנבחר */}
+                            {entry.selected_treat_id && (
+                              <div className="mb-2 bg-purple-50 border border-purple-200 rounded-xl px-3 py-2">
+                                <p className="text-xs font-bold text-purple-700">
+                                  🎁 {treats.find(t => t.id === entry.selected_treat_id)?.name || 'פרס'}
+                                </p>
+                              </div>
+                            )}
+
+                            {/* זמן המתנה + זמן מוערך */}
+                            <div className="flex items-center gap-2 mb-2">
+                              <div className="flex items-center gap-1 text-xs text-gray-400 bg-gray-50 rounded-xl px-2 py-1">
                                 <Clock className="w-3 h-3" />
                                 <WaitTime timestamp_approved={entry.timestamp_approved} />
                               </div>
+                              {editingEstimate === entry.id ? (
+                                <div className="flex gap-1 flex-1">
+                                  <input
+                                    type="number" min="0"
+                                    value={estimatedWaitInput[entry.id] || ''}
+                                    onChange={(e) => setEstimatedWaitInput(prev => ({ ...prev, [entry.id]: parseInt(e.target.value) || 0 }))}
+                                    placeholder="דקות"
+                                    className="flex-1 text-xs border border-amber-300 rounded-lg px-2 py-1 focus:outline-none"
+                                    autoFocus
+                                  />
+                                  <button onClick={() => handleSaveEstimatedWait(entry.id, estimatedWaitInput[entry.id])} className="px-2 py-1 text-xs bg-green-500 text-white rounded-lg font-bold">✓</button>
+                                  <button onClick={() => { setEditingEstimate(null); setEstimatedWaitInput(prev => { const n = {...prev}; delete n[entry.id]; return n; }); }} className="px-2 py-1 text-xs bg-gray-300 text-gray-700 rounded-lg font-bold">✕</button>
+                                </div>
+                              ) : (
+                                <button
+                                  onClick={() => { setEditingEstimate(entry.id); setEstimatedWaitInput(prev => ({ ...prev, [entry.id]: entry.estimated_wait_time || 0 })); }}
+                                  className={`text-xs px-2.5 py-1 rounded-xl font-bold transition-all ${entry.estimated_wait_time ? 'bg-amber-100 border border-amber-200 text-amber-700' : 'bg-gray-100 text-gray-400 hover:bg-gray-200'}`}
+                                >⏱️ {entry.estimated_wait_time ? `${entry.estimated_wait_time} דק'` : 'הוסף זמן'}</button>
+                              )}
                             </div>
 
                             {/* מונה קריאה למזדמן */}
                             {callCountdowns[entry.id] !== undefined && (
-                              <div className="flex flex-col items-center gap-1 flex-shrink-0">
-                                <div className={`text-sm font-black px-3 py-1.5 rounded-xl ${
-                                  callCountdowns[entry.id] === 0
-                                    ? 'bg-red-100 text-red-700 animate-pulse'
-                                    : callCountdowns[entry.id] <= 60
-                                    ? 'bg-orange-100 text-orange-700'
-                                    : 'bg-amber-100 text-amber-700'
-                                }`}>
-                                  {callCountdowns[entry.id] === 0
-                                    ? '⏰ לא הגיע!'
-                                    : `🔔 ${Math.floor(callCountdowns[entry.id]/60)}:${String(callCountdowns[entry.id]%60).padStart(2,'0')}`}
-                                </div>
-                                <div className="flex gap-1">
-                                  <button
-                                    onClick={() => handleSeatAfterCall(entry)}
-                                    className="px-2 py-1 rounded-lg bg-green-500 hover:bg-green-600 text-white text-xs font-black transition-all"
-                                  >✅ ישב</button>
-                                  <button
-                                    onClick={() => handleSkipToNext(entry)}
-                                    className="px-2 py-1 rounded-lg bg-red-400 hover:bg-red-500 text-white text-xs font-black transition-all"
-                                  >⏭ הבא</button>
+                              <div className={`flex items-center justify-between mb-2 px-3 py-2 rounded-2xl ${
+                                callCountdowns[entry.id] === 0 ? 'bg-red-100 animate-pulse' :
+                                callCountdowns[entry.id] <= 60 ? 'bg-orange-100' : 'bg-amber-100'
+                              }`}>
+                                <span className={`font-black text-base ${callCountdowns[entry.id] === 0 ? 'text-red-700' : callCountdowns[entry.id] <= 60 ? 'text-orange-700' : 'text-amber-700'}`}>
+                                  {callCountdowns[entry.id] === 0 ? '⏰ לא הגיע!' : `🔔 ${Math.floor(callCountdowns[entry.id]/60)}:${String(callCountdowns[entry.id]%60).padStart(2,'0')}`}
+                                </span>
+                                <div className="flex gap-1.5">
+                                  <button onClick={() => handleSeatAfterCall(entry)} className="px-3 py-1.5 rounded-xl bg-green-500 text-white text-sm font-black active:scale-95 transition-all">✅ ישב</button>
+                                  <button onClick={() => handleSkipToNext(entry)} className="px-3 py-1.5 rounded-xl bg-red-400 text-white text-sm font-black active:scale-95 transition-all">⏭ הבא</button>
                                 </div>
                               </div>
                             )}
 
-                            {/* כפתורי פעולה */}
-                            <div className="flex gap-1 flex-shrink-0 flex-wrap justify-end items-center">
-                              {/* היסטוריה */}
-                              <button
-                                onClick={() => openCustomerHistory(entry.phone)}
-                                title="היסטוריית תור"
-                                className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-purple-100 hover:bg-purple-200 text-purple-700 flex items-center justify-center transition-all text-xs sm:text-sm flex-shrink-0"
-                              >
-                                <History className="w-3 h-3 sm:w-4 sm:h-4" />
-                              </button>
-
-                              {/* בונוס מטבעות */}
-                              {!bonusAmount[entry.id] ? (
-                                <button
-                                  onClick={() => setBonusAmount(prev => ({ ...prev, [entry.id]: 100 }))}
-                                  title="תן בונוס"
-                                  className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-yellow-100 hover:bg-yellow-200 text-yellow-700 flex items-center justify-center transition-all text-base flex-shrink-0"
-                                >⭐</button>
-                              ) : (
-                                <div className="flex items-center gap-0.5 bg-yellow-50 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-lg border border-yellow-200">
-                                  <input
-                                    type="number"
-                                    min="1"
-                                    max="999"
-                                    value={bonusAmount[entry.id]}
-                                    onChange={(e) => setBonusAmount(prev => ({ ...prev, [entry.id]: parseInt(e.target.value) || 100 }))}
-                                    className="w-8 sm:w-10 text-center text-xs border-0 bg-transparent text-yellow-700 font-black outline-none"
-                                  />
-                                  <button
-                                    onClick={() => handleGiveBonus(entry)}
-                                    className="text-xs font-black text-yellow-700 hover:text-yellow-800 transition-all"
-                                  >✓</button>
-                                  <button
-                                    onClick={() => setBonusAmount(prev => { const n = {...prev}; delete n[entry.id]; return n; })}
-                                    className="text-xs font-black text-yellow-500 hover:text-yellow-600 transition-all"
-                                  >✕</button>
-                                </div>
-                              )}
-                              
-                              <button
-                                onClick={() => handleToggleTreat(entry)}
-                                title="פינוק"
-                                className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center transition-all text-sm flex-shrink-0 ${
-                                  entry.treated ? 'bg-pink-200 text-pink-700' : 'bg-gray-100 hover:bg-pink-100'
-                                }`}
-                              >🎁</button>
-
-                              {/* כפתור בדיקת קרבה */}
-                              {callCountdowns[entry.id] === undefined && !proxPending && (
-                                <button
-                                  onClick={() => handleProximityCheck(entry)}
-                                  title="בדוק אם בסביבה"
-                                  className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center transition-all text-base flex-shrink-0 ${
-                                    proxNo ? 'bg-purple-200 text-purple-700' :
-                                    proxYes ? 'bg-green-200 text-green-700' :
-                                    'bg-blue-100 hover:bg-blue-200 text-blue-700'
-                                  }`}
-                                >📍</button>
-                              )}
-                              {proxPending && (
-                                <div title="ממתינים לתגובה..." className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-yellow-200 text-yellow-700 flex items-center justify-center text-base animate-pulse flex-shrink-0">📍</div>
-                              )}
-
-                              {/* קריאה למזדמן */}
-                              {callCountdowns[entry.id] === undefined && (
-                                <button
-                                  onClick={() => handleCallGuest(entry)}
-                                  title="קרא למזדמן"
-                                  className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-amber-100 hover:bg-amber-200 text-amber-700 flex items-center justify-center transition-all text-base flex-shrink-0"
-                                >🔔</button>
-                              )}
-
-                              <button
-                                onClick={() => handleSeat(entry)}
-                                title="הושב"
-                                className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-green-100 hover:bg-green-200 text-green-700 flex items-center justify-center transition-all flex-shrink-0"
-                              ><Check className="w-3.5 h-3.5 sm:w-4 sm:h-4" /></button>
-
-                              <button
-                                onClick={() => handleAbandon(entry)}
-                                title="נטש"
-                                className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-red-100 hover:bg-red-200 text-red-600 flex items-center justify-center transition-all flex-shrink-0"
-                              ><X className="w-3.5 h-3.5 sm:w-4 sm:h-4" /></button>
+                            {/* כפתורי פעולה — שורה תחתונה */}
+                            <div className="flex items-center justify-between pt-2 border-t border-gray-100">
+                              {/* צד שמאל: פעולות משניות */}
+                              <div className="flex gap-2">
+                                <button onClick={() => openCustomerHistory(entry.phone)} title="היסטוריה" className="w-10 h-10 rounded-2xl bg-purple-100 active:bg-purple-200 text-purple-700 flex items-center justify-center transition-all">
+                                  <History className="w-4 h-4" />
+                                </button>
+                                <button onClick={() => handleToggleTreat(entry)} title="פינוק" className={`w-10 h-10 rounded-2xl flex items-center justify-center transition-all text-lg ${entry.treated ? 'bg-pink-200 text-pink-700' : 'bg-gray-100 active:bg-pink-100'}`}>🎁</button>
+                                {!bonusAmount[entry.id] ? (
+                                  <button onClick={() => setBonusAmount(prev => ({ ...prev, [entry.id]: 100 }))} title="בונוס" className="w-10 h-10 rounded-2xl bg-yellow-100 active:bg-yellow-200 text-yellow-700 flex items-center justify-center transition-all text-lg">⭐</button>
+                                ) : (
+                                  <div className="flex items-center gap-0.5 bg-yellow-50 px-2 py-1 rounded-xl border border-yellow-200">
+                                    <input type="number" min="1" max="999" value={bonusAmount[entry.id]} onChange={(e) => setBonusAmount(prev => ({ ...prev, [entry.id]: parseInt(e.target.value) || 100 }))} className="w-10 text-center text-xs border-0 bg-transparent text-yellow-700 font-black outline-none" />
+                                    <button onClick={() => handleGiveBonus(entry)} className="text-xs font-black text-yellow-700">✓</button>
+                                    <button onClick={() => setBonusAmount(prev => { const n = {...prev}; delete n[entry.id]; return n; })} className="text-xs font-black text-yellow-500">✕</button>
+                                  </div>
+                                )}
+                                {callCountdowns[entry.id] === undefined && !proxPending && (
+                                  <button onClick={() => handleProximityCheck(entry)} title="בדוק קרבה" className={`w-10 h-10 rounded-2xl flex items-center justify-center transition-all text-lg ${proxNo ? 'bg-purple-200' : proxYes ? 'bg-green-200' : 'bg-blue-100 active:bg-blue-200'}`}>📍</button>
+                                )}
+                                {proxPending && <div className="w-10 h-10 rounded-2xl bg-yellow-200 flex items-center justify-center text-lg animate-pulse">📍</div>}
+                                {callCountdowns[entry.id] === undefined && (
+                                  <button onClick={() => handleCallGuest(entry)} title="קרא למזדמן" className="w-10 h-10 rounded-2xl bg-amber-100 active:bg-amber-200 text-amber-700 flex items-center justify-center transition-all text-lg">🔔</button>
+                                )}
+                              </div>
+                              {/* צד ימין: פעולות ראשיות */}
+                              <div className="flex gap-2">
+                                <button onClick={() => handleSeat(entry)} title="הושב" className="flex items-center gap-1.5 px-4 py-2.5 rounded-2xl bg-green-500 active:bg-green-600 text-white font-black text-sm transition-all shadow-sm active:scale-95">
+                                  <Check className="w-4 h-4" /> הושב
+                                </button>
+                                <button onClick={() => handleAbandon(entry)} title="נטש" className="w-10 h-10 rounded-2xl bg-red-100 active:bg-red-200 text-red-600 flex items-center justify-center transition-all">
+                                  <X className="w-4 h-4" />
+                                </button>
+                              </div>
                             </div>
                           </CardContent>
                         </Card>
