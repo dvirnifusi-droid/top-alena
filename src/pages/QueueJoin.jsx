@@ -74,6 +74,7 @@ function QueueJoinInner() {
   const [estimatedWaitCountdown, setEstimatedWaitCountdown] = useState(null);
   const estimatedWaitTimerRef = useRef(null);
   const [error, setError] = useState('');
+  const [samePartyAhead, setSamePartyAhead] = useState(null);
   const [waitMinutes, setWaitMinutes] = useState(0);
   const [callSecondsLeft, setCallSecondsLeft] = useState(null);
   const [timeCreditsEarned, setTimeCreditsEarned] = useState(0);
@@ -222,6 +223,7 @@ function QueueJoinInner() {
             }
             setPrevQueuePosition(res.position);
             setQueuePosition(res.position);
+            setSamePartyAhead(res.samePartyAhead ?? null);
             setDebugLog(prev => [...prev, `✅ Queue pos (${res.status}): ${res.position}/${res.total}`]);
           } else {
             console.log('⚠️ Not in queue');
@@ -1052,7 +1054,7 @@ function QueueJoinInner() {
 
               {/* מקום בתור עם אנימציה */}
               {queuePosition != null && (
-                <div className={`rounded-2xl p-4 text-center mb-4 border-2 transition-all ${
+                <div className={`rounded-2xl p-4 text-center mb-2 border-2 transition-all ${
                   queueMovedUp ? 'bg-green-100 border-green-400 scale-110 shadow-lg' : 'bg-blue-50 border-blue-300'
                 }`}>
                   <div className="relative inline-block">
@@ -1072,6 +1074,25 @@ function QueueJoinInner() {
                   }`}>
                     {queueMovedUp ? '🎉 התור התקדם!' : 'מקום בתור'}
                   </p>
+                </div>
+              )}
+
+              {/* כמה שולחנות עם אותו גודל לפניהם */}
+              {samePartyAhead !== null && entry?.party_size && (
+                <div className={`rounded-2xl px-4 py-3 mb-3 text-center border-2 ${
+                  samePartyAhead === 0
+                    ? 'bg-emerald-50 border-emerald-300'
+                    : 'bg-indigo-50 border-indigo-200'
+                }`}>
+                  {samePartyAhead === 0 ? (
+                    <p className="text-emerald-700 font-black text-sm">
+                      🎯 אין קבוצות של {entry.party_size} לפניכם — אתם הבאים בתור לשולחן!
+                    </p>
+                  ) : (
+                    <p className="text-indigo-700 font-bold text-sm">
+                      👥 {samePartyAhead} קבוצ{samePartyAhead === 1 ? 'ה' : 'ות'} של {entry.party_size} סועדים לפניכם
+                    </p>
+                  )}
                 </div>
               )}
 

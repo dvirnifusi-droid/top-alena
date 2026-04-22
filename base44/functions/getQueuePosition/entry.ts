@@ -23,7 +23,11 @@ Deno.serve(async (req) => {
     const activePos = activeQueue.findIndex(e => e.id === entryId);
 
     if (activePos >= 0) {
-      return Response.json({ position: activePos + 1, status: 'active', total: activeQueue.length });
+      const myEntry = activeQueue[activePos];
+      const samePartyAhead = activeQueue
+        .slice(0, activePos)
+        .filter(e => e.party_size === myEntry.party_size).length;
+      return Response.json({ position: activePos + 1, status: 'active', total: activeQueue.length, samePartyAhead, partySize: myEntry.party_size });
     }
 
     // אם לא בפעיל, בדוק pending
@@ -33,7 +37,11 @@ Deno.serve(async (req) => {
     const pendingPos = pendingQueue.findIndex(e => e.id === entryId);
 
     if (pendingPos >= 0) {
-      return Response.json({ position: pendingPos + 1, status: 'pending', total: pendingQueue.length });
+      const myEntry = pendingQueue[pendingPos];
+      const samePartyAhead = pendingQueue
+        .slice(0, pendingPos)
+        .filter(e => e.party_size === myEntry.party_size).length;
+      return Response.json({ position: pendingPos + 1, status: 'pending', total: pendingQueue.length, samePartyAhead, partySize: myEntry.party_size });
     }
 
     return Response.json({ position: null, status: 'not_found' });
