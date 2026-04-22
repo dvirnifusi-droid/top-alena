@@ -10,8 +10,7 @@ Deno.serve(async (req) => {
     }
 
     // קרא את הentry הנוכחי דרך service role (ציבורי — אנונימי)
-    const allEntries = await base44.asServiceRole.entities.QueueEntry.list('-timestamp_register', 500);
-    const entry = allEntries.find(e => e.id === entryId);
+    const entry = await base44.asServiceRole.entities.QueueEntry.get(entryId);
 
     if (!entry) {
       return Response.json({ error: 'Entry not found' }, { status: 404 });
