@@ -16,6 +16,7 @@ import { he } from 'date-fns/locale';
 import { Checkbox } from '@/components/ui/checkbox';
 import ExportToAccountantDialog from '../components/reports/ExportToAccountantDialog';
 import ShiftEditInlineDialog from '../components/reports/ShiftEditInlineDialog';
+import EmployeeRankingReport from '../components/reports/EmployeeRankingReport';
 
 // TIP-based positions (excluded from hourly salary report)
 const TIP_POSITIONS = ['מלצר', 'ברמן', 'ראנר'];
@@ -1401,6 +1402,7 @@ function AllEmployeesSummary({ workShifts, employees, selectedMonth, tipReports,
         <div className="space-y-6">
             <div className="flex items-center justify-between flex-wrap gap-2">
                 <h2 className="text-xl font-bold">דוח כללי - {format(selectedMonth, 'MMMM yyyy', { locale: he })}</h2>
+
                 <div className="flex gap-2">
                     <Button onClick={sendAllWhatsApp} variant="outline" className="flex items-center gap-2 border-green-400 text-green-600 hover:bg-green-50" disabled={data.length === 0}>
                         <span>📱</span>
@@ -1412,6 +1414,14 @@ function AllEmployeesSummary({ workShifts, employees, selectedMonth, tipReports,
                     </Button>
                 </div>
             </div>
+
+            {/* דירוג עובדים */}
+            <EmployeeRankingReport
+                workShifts={workShifts}
+                employees={employees}
+                selectedMonth={selectedMonth}
+                tipReports={tipReports}
+            />
 
             {/* סיכום מרוכז לפי תפקיד */}
             {Object.keys(positionSummary).length > 0 && (
