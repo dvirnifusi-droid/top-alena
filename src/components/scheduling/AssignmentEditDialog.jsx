@@ -22,7 +22,7 @@ const filterPositionsByShiftType = (positions, shiftType) => {
 };
 
 
-export default function AssignmentEditDialog({ isOpen, onOpenChange, assignment, onSave, onDelete, positions, onMoveShift, weekDays }) {
+export default function AssignmentEditDialog({ isOpen, onOpenChange, assignment, onSave, onDelete, positions, employees, onMoveShift, weekDays }) {
   const [editData, setEditData] = useState(null);
   const [showMoveDate, setShowMoveDate] = useState(false);
   const [moveDate, setMoveDate] = useState('');
@@ -109,6 +109,26 @@ export default function AssignmentEditDialog({ isOpen, onOpenChange, assignment,
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-6 py-4">
+          {/* עובד */}
+          {employees && employees.length > 0 && (
+            <div className="space-y-2">
+              <Label className="font-semibold flex items-center gap-2">👤 עובד</Label>
+              <Select value={editData.employee_id} onValueChange={val => {
+                const emp = employees.find(e => e.id === val);
+                setEditData({ ...editData, employee_id: val, employee_name: emp?.full_name || editData.employee_name });
+              }}>
+                <SelectTrigger>
+                  <SelectValue placeholder="בחר עובד" />
+                </SelectTrigger>
+                <SelectContent>
+                  {employees.map(emp => (
+                    <SelectItem key={emp.id} value={emp.id}>{emp.full_name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
           {/* תפקיד */}
           <div className="space-y-2">
             <Label htmlFor="position" className="font-semibold flex items-center gap-2"><Briefcase className="w-4 h-4"/>תפקיד</Label>
