@@ -1268,6 +1268,19 @@ function EmployeeReportsInner() {
 function AllEmployeesSummary({ workShifts, employees, selectedMonth, tipReports, onExport }) {
     const monthStart = format(startOfMonth(selectedMonth), 'yyyy-MM-dd');
     const monthEnd = format(endOfMonth(selectedMonth), 'yyyy-MM-dd');
+    const monthKey = format(selectedMonth, 'yyyy-MM');
+    const storageKey = `approved_hours_${monthKey}`;
+    const [approvedEmployees, setApprovedEmployees] = React.useState(() => {
+        try { return JSON.parse(localStorage.getItem(storageKey) || '[]'); } catch { return []; }
+    });
+
+    const toggleApproved = (empId) => {
+        setApprovedEmployees(prev => {
+            const next = prev.includes(empId) ? prev.filter(id => id !== empId) : [...prev, empId];
+            localStorage.setItem(storageKey, JSON.stringify(next));
+            return next;
+        });
+    };
 
     const data = employees.map(emp => {
         // hourly shifts grouped by position, calculate overtime per shift entry directly
@@ -1446,12 +1459,28 @@ function AllEmployeesSummary({ workShifts, employees, selectedMonth, tipReports,
                     <CardHeader className="pb-3">
                         <div className="flex items-center justify-between flex-wrap gap-2">
                             <div>
-                                <CardTitle className="text-lg">{emp.full_name}</CardTitle>
+                                <CardTitle className="text-lg flex items-center gap-2">
+                                    {emp.full_name}
+                                    {approvedEmployees.includes(emp.id) && (
+                                        <span className="text-xs bg-green-100 text-green-700 border border-green-300 px-2 py-0.5 rounded-full font-bold">✅ מאושר</span>
+                                    )}
+                                </CardTitle>
                                 <p className="text-sm text-gray-500 mt-0.5">סה"כ <span className="font-bold text-gray-700">{totalDays}</span> ימי עבודה</p>
                             </div>
-                            <div className="flex gap-2 flex-wrap">
+                            <div className="flex gap-2 flex-wrap items-center">
                                 {totalHourlyHours > 0 && <Badge className="bg-blue-100 text-blue-800">שעות: {totalHourlyHours.toFixed(2)}</Badge>}
                                 {totalTipEarnings > 0 && <Badge className="bg-green-100 text-green-800">טיפים: ₪{totalTipEarnings.toFixed(2)}</Badge>}
+                                <button
+                                    onClick={() => toggleApproved(emp.id)}
+                                    className={`px-3 py-1.5 rounded-full text-xs font-bold border-2 transition-all ${
+                                        approvedEmployees.includes(emp.id)
+                                            ? 'bg-green-500 text-white border-green-500 hover:bg-red-100 hover:text-red-600 hover:border-red-300'
+                                            : 'bg-white text-gray-500 border-gray-300 hover:border-green-400 hover:text-green-600'
+                                    }`}
+                                    title={approvedEmployees.includes(emp.id) ? 'בטל אישור' : 'סמן כמאושר'}
+                                >
+                                    {approvedEmployees.includes(emp.id) ? '✅ מאושר' : '○ אשר שעות'}
+                                </button>
                             </div>
                         </div>
                     </CardHeader>
