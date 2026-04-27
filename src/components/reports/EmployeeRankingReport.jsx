@@ -24,6 +24,7 @@ const SORT_OPTIONS = [
     { value: 'hourlyAvg', label: '⚡ ממוצע שעתי גבוה', icon: TrendingUp, color: 'text-purple-600' },
     { value: 'totalDays', label: '📅 הכי הרבה ימי עבודה', icon: Star, color: 'text-orange-600' },
     { value: 'totalOvertime', label: '🔥 הכי הרבה שעות נוספות', icon: Trophy, color: 'text-red-600' },
+    { value: 'thursdayDays', label: '📆 הכי הרבה ימי חמישי', icon: Star, color: 'text-indigo-600' },
 ];
 
 const MEDALS = ['🥇', '🥈', '🥉'];
@@ -70,7 +71,14 @@ export default function EmployeeRankingReport({ workShifts, employees, selectedM
             const totalDays = workDates.size;
             const hourlyAvg = totalTipHours > 0 ? totalTipEarnings / totalTipHours : 0;
 
-            return { emp, totalHours, totalOvertime, totalTipEarnings, totalTipHours, totalDays, hourlyAvg };
+            // ספירת ימי חמישי (day=4)
+            let thursdayDays = 0;
+            workDates.forEach(dateStr => {
+                const d = new Date(dateStr);
+                if (d.getDay() === 4) thursdayDays++;
+            });
+
+            return { emp, totalHours, totalOvertime, totalTipEarnings, totalTipHours, totalDays, hourlyAvg, thursdayDays };
         }).filter(d => d.totalDays > 0);
     }, [workShifts, employees, tipReports, monthStart, monthEnd]);
 
@@ -112,6 +120,8 @@ export default function EmployeeRankingReport({ workShifts, employees, selectedM
                             displayValue = `₪${value.toFixed(2)}`;
                         } else if (sortBy === 'totalDays') {
                             displayValue = `${value} ימים`;
+                        } else if (sortBy === 'thursdayDays') {
+                            displayValue = `${value} ימי חמישי`;
                         } else {
                             displayValue = `${value.toFixed(2)} שעות`;
                         }
@@ -126,6 +136,7 @@ export default function EmployeeRankingReport({ workShifts, employees, selectedM
                                         {d.totalTipEarnings > 0 && <span>💰 ₪{d.totalTipEarnings.toFixed(0)}</span>}
                                         {d.hourlyAvg > 0 && <span>⚡ ₪{d.hourlyAvg.toFixed(0)}/ש'</span>}
                                         <span>📅 {d.totalDays} ימים</span>
+                                        {d.thursdayDays > 0 && <span>📆 {d.thursdayDays} חמישי</span>}
                                     </div>
                                 </div>
                                 <div className={`text-xl font-black flex-shrink-0 ${currentSort?.color}`}>
