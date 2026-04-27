@@ -100,6 +100,7 @@ const employeeLinks = [
 
   // כלי עבודה יומיים
   { title: "כלי עבודה יומיים", url: "#", icon: Zap, isCategory: true },
+  { title: "דאשבורד תור", url: createPageUrl("QueueDashboard"), icon: Users, isSubItem: true },
   { title: "משלוחים", url: createPageUrl("Deliveries"), icon: Package, isSubItem: true },
   { title: "אפליקציית שליח", url: createPageUrl("CourierDashboard"), icon: Package, isSubItem: true },
   { title: "מועדון לקוחות משלוחים", url: createPageUrl("DeliveryCustomerClub"), icon: Users, isSubItem: true },
