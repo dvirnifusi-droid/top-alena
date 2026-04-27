@@ -1275,6 +1275,11 @@ function AllEmployeesSummary({ workShifts, employees, selectedMonth, tipReports,
         try { return JSON.parse(localStorage.getItem(storageKey) || '[]'); } catch { return []; }
     });
 
+    // סנכרן עם localStorage כשהחודש משתנה
+    React.useEffect(() => {
+        try { setApprovedEmployees(JSON.parse(localStorage.getItem(storageKey) || '[]')); } catch { setApprovedEmployees([]); }
+    }, [storageKey]);
+
     const toggleApproved = (empId) => {
         setApprovedEmployees(prev => {
             const next = prev.includes(empId) ? prev.filter(id => id !== empId) : [...prev, empId];
