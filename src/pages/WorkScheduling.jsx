@@ -707,27 +707,13 @@ export default function WorkScheduling() {
         return currentEmployee && assignment.employee_id === currentEmployee.id;
     };
 
-    // זיהוי פתיחה/סגירה לפי TipReport — מי עשה הכי מוקדם/מאוחר באותו יום ומשמרת
+    // זיהוי פתיחה/סגירה לפי TipReport — לפי הבחירה הידנית של המנהל
     const getAssignmentTipRole = (assignment, dateStr, shiftType) => {
         const report = tipReports.find(r => r.date === dateStr && r.shift_type === shiftType);
-        if (!report || !report.staff_details?.length) return null;
-        const staff = report.staff_details;
-        const toMins = t => { if (!t) return null; const [h, m] = t.split(':').map(Number); return h * 60 + m; };
-        // מי פתח — הכי קטן start_time
-        const startTimes = staff.map(s => toMins(s.start_time)).filter(v => v !== null);
-        const endTimes = staff.map(s => toMins(s.end_time)).filter(v => v !== null);
-        if (!startTimes.length) return null;
-        const minStart = Math.min(...startTimes);
-        const maxEnd = Math.max(...endTimes);
-        const empStaff = staff.find(s =>
-            s.employee_id === assignment.employee_id ||
-            (s.employee_name && assignment.employee_name && s.employee_name.trim().toLowerCase() === assignment.employee_name.trim().toLowerCase())
-        );
-        if (!empStaff) return null;
-        const empStart = toMins(empStaff.start_time);
-        const empEnd = toMins(empStaff.end_time);
-        if (empEnd !== null && empEnd === maxEnd) return 'closing'; // סגירה = אדום בהיר
-        if (empStart !== null && empStart === minStart) return 'opening'; // פתיחה = סגול בהיר
+        if (!report) return null;
+        const empId = assignment.employee_id;
+        if (report.closing_employee_ids?.includes(empId)) return 'closing';
+        if (report.opening_employee_ids?.includes(empId)) return 'opening';
         return null;
     };
 

@@ -151,6 +151,8 @@ function TipsInner() {
     const [isLoading, setIsLoading] = useState(false);
     const [existingReport, setExistingReport] = useState(null);
     const [allEmployees, setAllEmployees] = useState([]);
+    const [openingEmployeeIds, setOpeningEmployeeIds] = useState([]);
+    const [closingEmployeeIds, setClosingEmployeeIds] = useState([]);
 
     const fetchAllEmployees = useCallback(async () => {
         try {
@@ -177,6 +179,8 @@ function TipsInner() {
                 const report = reports[0];
                 setExistingReport(report);
                 setTotalTips(report.total_tips_collected.toString());
+                setOpeningEmployeeIds(report.opening_employee_ids || []);
+                setClosingEmployeeIds(report.closing_employee_ids || []);
                 setStaffDetails(report.staff_details.map(staff => ({
                     ...staff,
                     start_time: staff.start_time ? format(parseISO(`1970-01-01T${staff.start_time}`), 'HH:mm') : '',
@@ -185,6 +189,8 @@ function TipsInner() {
             } else {
                 // Fetch from WorkShift for a new report
                 setExistingReport(null);
+                setOpeningEmployeeIds([]);
+                setClosingEmployeeIds([]);
                 const shifts = await WorkShift.filter({ date: dateString, shift_type: shiftType });
                 if (shifts.length > 0) {
                     const shift = shifts[0];
@@ -325,6 +331,8 @@ function TipsInner() {
                   restaurant_deduction: calculatedResults.totalRestaurantDeduction,
                   net_tips_for_distribution: calculatedResults.netTipsForDistribution,
                   tip_per_hour: calculatedResults.tipPerHour,
+                  opening_employee_ids: openingEmployeeIds,
+                  closing_employee_ids: closingEmployeeIds,
                   staff_details: calculatedResults.staffDetails.map(s => ({
                       employee_id: s.employee_id,
                       employee_name: s.employee_name,
@@ -522,6 +530,73 @@ function TipsInner() {
                                     </TableBody>
                                 </Table>
                             </div>
+                            {/* פתיחה / סגירה */}
+                            <div className="border rounded-xl p-4 bg-gray-50 space-y-4">
+                                <h3 className="font-bold text-gray-800">פתיחה וסגירה</h3>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    {/* פתיחה */}
+                                    <div>
+                                        <Label className="flex items-center gap-2 mb-2">
+                                            <span className="w-3 h-3 rounded-full bg-purple-400 inline-block"></span>
+                                            מי עשה פתיחה? (ניתן לבחור מספר)
+                                        </Label>
+                                        <div className="space-y-1 max-h-48 overflow-y-auto border rounded-lg bg-white p-2">
+                                            {staffDetails.filter(s => s.employee_id).map(s => (
+                                                <label key={s.employee_id} className="flex items-center gap-2 cursor-pointer hover:bg-purple-50 rounded px-2 py-1">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={openingEmployeeIds.includes(s.employee_id)}
+                                                        onChange={(e) => {
+                                                            if (e.target.checked) {
+                                                                setOpeningEmployeeIds(prev => [...prev, s.employee_id]);
+                                                            } else {
+                                                                setOpeningEmployeeIds(prev => prev.filter(id => id !== s.employee_id));
+                                                            }
+                                                        }}
+                                                        disabled={existingReport?.status === 'locked'}
+                                                        className="accent-purple-500"
+                                                    />
+                                                    <span className="text-sm">{s.employee_name}</span>
+                                                </label>
+                                            ))}
+                                            {staffDetails.filter(s => s.employee_id).length === 0 && (
+                                                <p className="text-xs text-gray-400 p-2">אין עובדים ברשימה</p>
+                                            )}
+                                        </div>
+                                    </div>
+                                    {/* סגירה */}
+                                    <div>
+                                        <Label className="flex items-center gap-2 mb-2">
+                                            <span className="w-3 h-3 rounded-full bg-red-400 inline-block"></span>
+                                            מי עשה סגירה? (ניתן לבחור מספר)
+                                        </Label>
+                                        <div className="space-y-1 max-h-48 overflow-y-auto border rounded-lg bg-white p-2">
+                                            {staffDetails.filter(s => s.employee_id).map(s => (
+                                                <label key={s.employee_id} className="flex items-center gap-2 cursor-pointer hover:bg-red-50 rounded px-2 py-1">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={closingEmployeeIds.includes(s.employee_id)}
+                                                        onChange={(e) => {
+                                                            if (e.target.checked) {
+                                                                setClosingEmployeeIds(prev => [...prev, s.employee_id]);
+                                                            } else {
+                                                                setClosingEmployeeIds(prev => prev.filter(id => id !== s.employee_id));
+                                                            }
+                                                        }}
+                                                        disabled={existingReport?.status === 'locked'}
+                                                        className="accent-red-500"
+                                                    />
+                                                    <span className="text-sm">{s.employee_name}</span>
+                                                </label>
+                                            ))}
+                                            {staffDetails.filter(s => s.employee_id).length === 0 && (
+                                                <p className="text-xs text-gray-400 p-2">אין עובדים ברשימה</p>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
                             <div className="flex justify-start gap-2 flex-wrap">
                                 <Button variant="outline" onClick={handleAddStaff}><UserPlus className="w-4 h-4 ml-2"/>הוסף עובד ידנית</Button>
                                 <Button variant="outline" className="border-blue-400 text-blue-600 hover:bg-blue-50" onClick={async () => {
@@ -574,6 +649,8 @@ function TipsInner() {
                                        restaurant_deduction: calculatedResults.totalRestaurantDeduction,
                                        net_tips_for_distribution: calculatedResults.netTipsForDistribution,
                                        tip_per_hour: calculatedResults.tipPerHour,
+                                       opening_employee_ids: openingEmployeeIds,
+                                       closing_employee_ids: closingEmployeeIds,
                                        staff_details: calculatedResults.staffDetails.map(s => ({
                                            employee_id: s.employee_id,
                                            employee_name: s.employee_name,
