@@ -1,0 +1,86 @@
+{
+  "name": "Employee",
+  "type": "object",
+  "properties": {
+    "full_name": {
+      "type": "string",
+      "description": "\u05e9\u05dd \u05de\u05dc\u05d0 \u05e9\u05dc \u05d4\u05e2\u05d5\u05d1\u05d3"
+    },
+    "email": {
+      "type": "string",
+      "format": "email",
+      "description": "\u05db\u05ea\u05d5\u05d1\u05ea \u05de\u05d9\u05d9\u05dc \u05e9\u05dc \u05d4\u05e2\u05d5\u05d1\u05d3 (\u05dc\u05d7\u05d9\u05d1\u05d5\u05e8 \u05e2\u05dd \u05d4\u05de\u05e9\u05ea\u05de\u05e9)"
+    },
+    "phone": {
+      "type": "string",
+      "description": "\u05de\u05e1\u05e4\u05e8 \u05d8\u05dc\u05e4\u05d5\u05df \u05e9\u05dc \u05d4\u05e2\u05d5\u05d1\u05d3 (\u05db\u05d5\u05dc\u05dc \u05e7\u05d9\u05d3\u05d5\u05de\u05ea \u05de\u05d3\u05d9\u05e0\u05d4, \u05dc\u05d3\u05d5\u05d2\u05de\u05d4 +972501234567)"
+    },
+    "role": {
+      "type": "string",
+      "description": "\u05ea\u05e4\u05e7\u05d9\u05d3 \u05d4\u05e8\u05d0\u05e9\u05d9 \u05e9\u05dc \u05d4\u05e2\u05d5\u05d1\u05d3"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "active",
+        "inactive"
+      ],
+      "default": "active",
+      "description": "\u05e1\u05d8\u05d8\u05d5\u05e1 \u05d4\u05e2\u05d5\u05d1\u05d3"
+    },
+    "access_code": {
+      "type": "string",
+      "description": "\u05e7\u05d5\u05d3 \u05d0\u05d9\u05e9\u05d9 \u05dc\u05d2\u05d9\u05e9\u05d4 \u05d1\u05d8\u05d5\u05e4\u05e1 \u05dc\u05d4\u05d2\u05e9\u05ea \u05d6\u05de\u05d9\u05e0\u05d5\u05ea (4-6 \u05e1\u05e4\u05e8\u05d5\u05ea)"
+    },
+    "department": {
+      "type": "string",
+      "enum": [
+        "floor",
+        "kitchen"
+      ],
+      "description": "\u05d4\u05d7\u05d8\u05d9\u05d1\u05d4 \u05e9\u05d0\u05dc\u05d9\u05d4 \u05e9\u05d9\u05d9\u05da \u05d4\u05e2\u05d5\u05d1\u05d3 - \u05e4\u05dc\u05d5\u05e8 (\u05de\u05dc\u05e6\u05e8\u05d9\u05dd \u05d5\u05d1\u05e8\u05de\u05e0\u05d9\u05dd) \u05d0\u05d5 \u05de\u05d8\u05d1\u05d7 (\u05d8\u05d1\u05d7\u05d9\u05dd)"
+    },
+    "positions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "position_name": {
+            "type": "string",
+            "description": "\u05e9\u05dd \u05d4\u05ea\u05e4\u05e7\u05d9\u05d3"
+          },
+          "pay_type": {
+            "type": "string",
+            "enum": [
+              "hourly",
+              "tip_based"
+            ],
+            "description": "\u05e1\u05d5\u05d2 \u05ea\u05e9\u05dc\u05d5\u05dd: \u05e9\u05db\u05e8 \u05e9\u05e2\u05ea\u05d9 \u05d0\u05d5 \u05de\u05d1\u05d5\u05e1\u05e1 \u05d8\u05d9\u05e4\u05d9\u05dd"
+          },
+          "rate": {
+            "type": "number",
+            "description": "\u05d4\u05e1\u05db\u05d5\u05dd \u05d1\u05e9\u05e7\u05dc\u05d9\u05dd (\u05e9\u05db\u05e8 \u05dc\u05e9\u05e2\u05d4 \u05d0\u05d5 \u05d4\u05e9\u05dc\u05de\u05d4 \u05dc\u05de\u05d9\u05e0\u05d9\u05de\u05d5\u05dd)"
+          }
+        }
+      },
+      "description": "\u05e8\u05e9\u05d9\u05de\u05ea \u05ea\u05e4\u05e7\u05d9\u05d3\u05d9\u05dd \u05d5\u05d4\u05e9\u05db\u05e8 \u05e9\u05d4\u05e2\u05d5\u05d1\u05d3 \u05d9\u05db\u05d5\u05dc \u05dc\u05de\u05dc\u05d0"
+    },
+    "pushover_user_key": {
+      "type": "string",
+      "description": "\u05de\u05e4\u05ea\u05d7 \u05de\u05e9\u05ea\u05de\u05e9 Pushover \u05dc\u05e7\u05d1\u05dc\u05ea \u05d4\u05ea\u05e8\u05d0\u05d5\u05ea push \u05d0\u05d9\u05e9\u05d9\u05d5\u05ea"
+    },
+    "manager_quality_rating": {
+      "type": "number",
+      "description": "\u05d3\u05d9\u05e8\u05d5\u05d2 \u05d0\u05d9\u05db\u05d5\u05ea \u05e2\u05d5\u05d1\u05d3 \u05e2\u05dc \u05d9\u05d3\u05d9 \u05d4\u05de\u05e0\u05d4\u05dc (1-5 \u05db\u05d5\u05db\u05d1\u05d9\u05dd)"
+    },
+    "manager_rating_notes": {
+      "type": "string",
+      "description": "\u05d4\u05e2\u05e8\u05d5\u05ea \u05de\u05e0\u05d4\u05dc \u05e2\u05dc \u05d3\u05d9\u05e8\u05d5\u05d2 \u05d4\u05e2\u05d5\u05d1\u05d3"
+    }
+  },
+  "required": [
+    "full_name",
+    "email",
+    "role"
+  ]
+}

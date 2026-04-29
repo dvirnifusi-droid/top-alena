@@ -2,7 +2,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
-import { Loader2, Plus, Calendar as CalendarIcon, ChevronLeft, ChevronRight, Filter, RotateCcw, X, Crown, Link, Check, Trash2, MoveRight, Phone, MessageCircle } from 'lucide-react';
+import { Loader2, Plus, Calendar as CalendarIcon, ChevronLeft, ChevronRight, Filter, RotateCcw, X, Crown, Link, Check, Trash2, MoveRight, Phone, MessageCircle, Star } from 'lucide-react';
+import EmployeeRatingDialog from '../components/scheduling/EmployeeRatingDialog';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { format, addDays, subDays, startOfWeek, endOfWeek, eachDayOfInterval, isToday } from 'date-fns';
@@ -327,6 +328,8 @@ export default function WorkScheduling() {
     const [editHistory, setEditHistory] = useState([]); // שמורת שינויים בודדים
     const [lastEditedShift, setLastEditedShift] = useState(null); // מידע על השינוי האחרון
     const [whatsappDialogOpen, setWhatsappDialogOpen] = useState(false);
+    const [tipReports, setTipReports] = useState([]); // לזיהוי פתיחה/סגירה
+    const [ratingDialog, setRatingDialog] = useState(null); // { employee }
 
     const handleCopyAvailabilityLink = () => {
         const url = `${window.location.origin}/AvailabilityForm`;
@@ -359,10 +362,12 @@ export default function WorkScheduling() {
             
             setCurrentEmployee(myEmployee);
 
-            const [shifts, allPositions] = await Promise.all([
+            const [shifts, allPositions, allTipReports] = await Promise.all([
                 base44.entities.WorkShift.list('-date', 100),
-                base44.entities.WorkPosition.filter({ is_active: true })
+                base44.entities.WorkPosition.filter({ is_active: true }),
+                base44.entities.TipReport.list('-date', 200),
             ]);
+            setTipReports(allTipReports);
 
             // סנכרן שמות עובדים בשיבוצים עם הנתונים הנוכחיים
             const employeeMap = Object.fromEntries(allEmployees.map(e => [e.id, e.full_name]));
@@ -702,6 +707,30 @@ export default function WorkScheduling() {
         return currentEmployee && assignment.employee_id === currentEmployee.id;
     };
 
+    // זיהוי פתיחה/סגירה לפי TipReport — מי עשה הכי מוקדם/מאוחר באותו יום ומשמרת
+    const getAssignmentTipRole = (assignment, dateStr, shiftType) => {
+        const report = tipReports.find(r => r.date === dateStr && r.shift_type === shiftType);
+        if (!report || !report.staff_details?.length) return null;
+        const staff = report.staff_details;
+        const toMins = t => { if (!t) return null; const [h, m] = t.split(':').map(Number); return h * 60 + m; };
+        // מי פתח — הכי קטן start_time
+        const startTimes = staff.map(s => toMins(s.start_time)).filter(v => v !== null);
+        const endTimes = staff.map(s => toMins(s.end_time)).filter(v => v !== null);
+        if (!startTimes.length) return null;
+        const minStart = Math.min(...startTimes);
+        const maxEnd = Math.max(...endTimes);
+        const empStaff = staff.find(s =>
+            s.employee_id === assignment.employee_id ||
+            (s.employee_name && assignment.employee_name && s.employee_name.trim().toLowerCase() === assignment.employee_name.trim().toLowerCase())
+        );
+        if (!empStaff) return null;
+        const empStart = toMins(empStaff.start_time);
+        const empEnd = toMins(empStaff.end_time);
+        if (empEnd !== null && empEnd === maxEnd) return 'closing'; // סגירה = אדום בהיר
+        if (empStart !== null && empStart === minStart) return 'opening'; // פתיחה = סגול בהיר
+        return null;
+    };
+
     if (loading) {
         return <div className="flex justify-center items-center h-screen"><Loader2 className="w-8 h-8 animate-spin" /></div>;
     }
@@ -881,6 +910,12 @@ export default function WorkScheduling() {
                     </div>
                 </CardHeader>
                 <CardContent className="overflow-x-auto">
+                    {/* מקרא צבעים */}
+                    <div className="flex gap-3 mb-3 text-xs flex-wrap">
+                        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-red-200 border border-red-300 inline-block"></span> 🔴 סגירה (מניהול טיפים)</span>
+                        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-purple-200 border border-purple-300 inline-block"></span> 🟣 פתיחה (מניהול טיפים)</span>
+                        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-gradient-to-r from-green-400 to-yellow-400 inline-block"></span> 👑 המשמרת שלי</span>
+                    </div>
                     <div className="grid grid-cols-[200px_repeat(7,1fr)] min-w-[1200px]">
                         <div className="sticky top-0 bg-gray-100 z-10"></div>
                         {days.map(day => (
@@ -931,8 +966,9 @@ export default function WorkScheduling() {
                                                         assignments = assignments.filter(a => a.employee_id === filters.employee);
                                                     }
 
+                                                    const dateStr = format(day, 'yyyy-MM-dd');
                                                     return (
-                                                        <div key={day.toISOString()} className="p-2 border-b border-r min-h-[60px] space-y-1 group relative">
+                                                       <div key={day.toISOString()} className="p-2 border-b border-r min-h-[60px] space-y-1 group relative">
                                                             {shift && positionIdx === 0 && (
                                                                 <button
                                                                     title="העבר משמרת לתאריך אחר"
@@ -942,23 +978,46 @@ export default function WorkScheduling() {
                                                                     <MoveRight className="w-3 h-3" />
                                                                 </button>
                                                             )}
-                                                            {assignments.map(assignment => (
+                                                            {assignments.map(assignment => {
+                                                                const tipRole = getAssignmentTipRole(assignment, dateStr, type);
+                                                                const emp = employees.find(e => e.id === assignment.employee_id);
+                                                                const rating = emp?.manager_quality_rating || 0;
+                                                                let cardClass = 'bg-blue-100 hover:bg-blue-200';
+                                                                if (isMyAssignment(assignment)) {
+                                                                    cardClass = 'bg-gradient-to-r from-green-400 to-yellow-400 text-gray-900 font-bold shadow-lg border-2 border-yellow-500 hover:shadow-xl';
+                                                                } else if (tipRole === 'closing') {
+                                                                    cardClass = 'bg-red-100 border border-red-300 hover:bg-red-200';
+                                                                } else if (tipRole === 'opening') {
+                                                                    cardClass = 'bg-purple-100 border border-purple-300 hover:bg-purple-200';
+                                                                }
+                                                                return (
                                                                 <div
                                                                     key={assignment.employee_id}
-                                                                    className={`p-1 rounded text-center cursor-pointer transition-colors ${
-                                                                        isMyAssignment(assignment)
-                                                                            ? 'bg-gradient-to-r from-green-400 to-yellow-400 text-gray-900 font-bold shadow-lg border-2 border-yellow-500 hover:shadow-xl'
-                                                                            : 'bg-blue-100 hover:bg-blue-200'
-                                                                    }`}
+                                                                    className={`p-1 rounded text-center cursor-pointer transition-colors relative ${cardClass}`}
                                                                     onClick={() => handleEditAssignment(day, type, position.position_name, assignment)}
                                                                 >
+                                                                    {currentUser?.role === 'admin' && (
+                                                                        <button
+                                                                            onClick={(e) => { e.stopPropagation(); setRatingDialog({ employee: emp || { id: assignment.employee_id, full_name: assignment.employee_name } }); }}
+                                                                            className="absolute top-0.5 left-0.5 opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                                                                            title="דרג עובד"
+                                                                        >
+                                                                            <Star className={`w-3 h-3 ${rating > 0 ? 'fill-yellow-400 text-yellow-500' : 'text-gray-400'}`} />
+                                                                        </button>
+                                                                    )}
                                                                     <p className="font-semibold text-sm truncate flex items-center justify-center gap-1">
                                                                         {isMyAssignment(assignment) && <Crown className="w-3 h-3 text-yellow-700" />}
+                                                                        {tipRole === 'closing' && <span title="סגירה" className="text-xs">🔴</span>}
+                                                                        {tipRole === 'opening' && <span title="פתיחה" className="text-xs">🟣</span>}
                                                                         {assignment.employee_name}
                                                                     </p>
                                                                     <p className="text-xs">{assignment.start_time} - {assignment.end_time}</p>
+                                                                    {currentUser?.role === 'admin' && rating > 0 && (
+                                                                        <p className="text-xs text-yellow-600 font-bold">{'⭐'.repeat(rating)}</p>
+                                                                    )}
                                                                 </div>
-                                                            ))}
+                                                                );
+                                                            })}
                                                             <div
                                                                 className="flex justify-center items-center h-full text-gray-400 cursor-pointer hover:bg-gray-100 rounded"
                                                                 onClick={() => handleQuickAssign(day, type, position.position_name)}
@@ -1153,6 +1212,19 @@ export default function WorkScheduling() {
                 week={week}
                 days={days}
             />
+
+            {/* Employee Rating Dialog */}
+            {ratingDialog && (
+                <EmployeeRatingDialog
+                    employee={ratingDialog.employee}
+                    open={!!ratingDialog}
+                    onClose={() => setRatingDialog(null)}
+                    onSaved={(updatedEmp) => {
+                        setEmployees(prev => prev.map(e => e.id === updatedEmp.id ? updatedEmp : e));
+                        setRatingDialog(null);
+                    }}
+                />
+            )}
 
             {/* Clear Assignments Dialog */}
             <Dialog open={clearDialog} onOpenChange={(o) => { setClearDialog(o); if (!o) { setClearScope('week'); setClearDepartment('all'); } }}>
