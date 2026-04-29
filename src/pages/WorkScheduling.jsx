@@ -155,7 +155,7 @@ const ScheduleFilters = ({ filters, onFilterChange, employees, currentEmployeeId
 // =================================================================
 // Mobile View Component
 // =================================================================
-const MobileScheduleView = ({ week, positions, employees, onCellClick, onAssignmentClick, filters, currentEmployeeId }) => {
+const MobileScheduleView = ({ week, positions, employees, onCellClick, onAssignmentClick, filters, currentEmployeeId, tipReports }) => {
     const [selectedDay, setSelectedDay] = useState(new Date());
 
     const weekDays = eachDayOfInterval({
@@ -186,6 +186,15 @@ const MobileScheduleView = ({ week, positions, employees, onCellClick, onAssignm
 
     const isMyAssignment = (assignment) => {
         return currentEmployeeId && assignment.employee_id === currentEmployeeId;
+    };
+
+    const getMobileTipRole = (assignment, dateStr, shiftType) => {
+        const report = tipReports?.find(r => r.date === dateStr && r.shift_type === shiftType);
+        if (!report) return null;
+        const empId = assignment.employee_id;
+        if (report.closing_employee_ids?.includes(empId)) return 'closing';
+        if (report.opening_employee_ids?.includes(empId)) return 'opening';
+        return null;
     };
 
     return (
@@ -223,6 +232,13 @@ const MobileScheduleView = ({ week, positions, employees, onCellClick, onAssignm
                     </Button>
                 </div>
                 
+                {/* מקרא */}
+                <div className="flex gap-3 text-xs flex-wrap justify-center mb-2">
+                    <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-red-400 inline-block"></span> 🔴 סגירה</span>
+                    <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-purple-400 inline-block"></span> 🟣 פתיחה</span>
+                    <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-yellow-400 inline-block"></span> 👑 שלי</span>
+                </div>
+
                 {/* Day Selector */}
                 <div className="flex justify-around">
                     {weekDays.map(day => (
@@ -258,23 +274,33 @@ const MobileScheduleView = ({ week, positions, employees, onCellClick, onAssignm
                                                 <h3 className="font-semibold border-b-2 border-orange-300 pb-1 ">{position.position_name}</h3>
                                             </div>
                                             <div className="space-y-2">
-                                                {getAssignmentsFor(selectedDay, shiftKey, position.position_name).map(assignment => (
-                                                    <div
-                                                        key={assignment.employee_id}
-                                                        className={`p-2 rounded-lg cursor-pointer flex justify-between items-center ${
-                                                            isMyAssignment(assignment) 
-                                                                ? 'bg-gradient-to-r from-green-400 to-yellow-400 text-gray-900 font-bold shadow-lg border-2 border-yellow-500' 
-                                                                : 'bg-blue-100 text-blue-800'
-                                                        }`}
-                                                        onClick={() => onAssignmentClick(selectedDay, shiftKey, position.position_name, assignment)}
-                                                    >
-                                                        <span className="truncate flex items-center gap-1">
-                                                            {isMyAssignment(assignment) && <Crown className="w-4 h-4 text-yellow-700" />}
-                                                            {assignment.employee_name}
-                                                        </span>
-                                                        <span className="text-sm">{assignment.start_time} - {assignment.end_time}</span>
-                                                    </div>
-                                                ))}
+                                                             {getAssignmentsFor(selectedDay, shiftKey, position.position_name).map(assignment => {
+                                                                 const dateStr = format(selectedDay, 'yyyy-MM-dd');
+                                                                 const tipRole = getMobileTipRole(assignment, dateStr, shiftKey);
+                                                                 let cardClass = 'bg-blue-100 text-blue-800';
+                                                                 if (isMyAssignment(assignment)) {
+                                                                     cardClass = 'bg-gradient-to-r from-green-400 to-yellow-400 text-gray-900 font-bold shadow-lg border-2 border-yellow-500';
+                                                                 } else if (tipRole === 'closing') {
+                                                                     cardClass = 'bg-red-100 text-red-800 border border-red-300';
+                                                                 } else if (tipRole === 'opening') {
+                                                                     cardClass = 'bg-purple-100 text-purple-800 border border-purple-300';
+                                                                 }
+                                                                 return (
+                                                                 <div
+                                                                     key={assignment.employee_id}
+                                                                     className={`p-2 rounded-lg cursor-pointer flex justify-between items-center ${cardClass}`}
+                                                                     onClick={() => onAssignmentClick(selectedDay, shiftKey, position.position_name, assignment)}
+                                                                 >
+                                                                     <span className="truncate flex items-center gap-1">
+                                                                         {isMyAssignment(assignment) && <Crown className="w-4 h-4 text-yellow-700" />}
+                                                                         {tipRole === 'closing' && <span className="text-xs">🔴</span>}
+                                                                         {tipRole === 'opening' && <span className="text-xs">🟣</span>}
+                                                                         {assignment.employee_name}
+                                                                     </span>
+                                                                     <span className="text-sm">{assignment.start_time} - {assignment.end_time}</span>
+                                                                 </div>
+                                                                 );
+                                                             })}
                                                 <Button
                                                     variant="outline"
                                                     className="w-full h-9"
@@ -1031,6 +1057,7 @@ export default function WorkScheduling() {
                     onCellClick={handleQuickAssign}
                     onAssignmentClick={handleEditAssignment}
                     currentEmployeeId={currentEmployee?.id}
+                    tipReports={tipReports}
                 />
                 <Sheet>
                     <SheetTrigger asChild>
