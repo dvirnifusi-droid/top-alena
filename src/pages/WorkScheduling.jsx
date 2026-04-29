@@ -155,7 +155,7 @@ const ScheduleFilters = ({ filters, onFilterChange, employees, currentEmployeeId
 // =================================================================
 // Mobile View Component
 // =================================================================
-const MobileScheduleView = ({ week, positions, employees, onCellClick, onAssignmentClick, filters, currentEmployeeId, tipReports }) => {
+const MobileScheduleView = ({ week, positions, employees, onCellClick, onAssignmentClick, filters, currentEmployeeId, tipReports, isAdmin, strengthLabel }) => {
     const [selectedDay, setSelectedDay] = useState(new Date());
 
     const weekDays = eachDayOfInterval({
@@ -265,8 +265,26 @@ const MobileScheduleView = ({ week, positions, employees, onCellClick, onAssignm
                         return (
                             <Card key={shiftKey}>
                                 <CardHeader className="p-3 bg-gray-100">
-                                    <CardTitle className="text-lg">{shiftConfig.label}</CardTitle>
-                                </CardHeader>
+                                     <CardTitle className="text-lg flex items-center gap-2">
+                                         {shiftConfig.label}
+                                         {isAdmin && (() => {
+                                             const dateStr = format(selectedDay, 'yyyy-MM-dd');
+                                             const shift = week.find(s => s.date === dateStr && s.shift_type === shiftKey);
+                                             if (!shift?.assigned_staff?.length) return null;
+                                             const rated = shift.assigned_staff
+                                                 .map(a => employees.find(e => e.id === a.employee_id)?.manager_quality_rating || 0)
+                                                 .filter(r => r > 0);
+                                             if (!rated.length) return null;
+                                             const avg = (rated.reduce((s, r) => s + r, 0) / rated.length).toFixed(1);
+                                             const lbl = strengthLabel(avg);
+                                             return lbl ? (
+                                                 <span className={`text-xs font-normal px-2 py-0.5 rounded-full ${lbl.color}`}>
+                                                     {lbl.text} ({avg}/5)
+                                                 </span>
+                                             ) : null;
+                                         })()}
+                                     </CardTitle>
+                                 </CardHeader>
                                 <CardContent className="p-3 space-y-4">
                                     {finalFilteredPositions.map(position => (
                                         <div key={position.id}>
@@ -733,6 +751,26 @@ export default function WorkScheduling() {
         return currentEmployee && assignment.employee_id === currentEmployee.id;
     };
 
+    // חוזק משמרת: ממוצע דירוגי העובדים המשובצים ביום ומשמרת מסוימים
+    const getShiftStrength = (day, shiftType) => {
+        const shift = getShiftFor(day, shiftType);
+        if (!shift?.assigned_staff?.length) return null;
+        const rated = shift.assigned_staff
+            .map(a => employees.find(e => e.id === a.employee_id)?.manager_quality_rating || 0)
+            .filter(r => r > 0);
+        if (!rated.length) return null;
+        return (rated.reduce((s, r) => s + r, 0) / rated.length).toFixed(1);
+    };
+
+    const strengthLabel = (avg) => {
+        if (!avg) return null;
+        const n = parseFloat(avg);
+        if (n >= 4.5) return { text: 'חזקה מאוד 💪', color: 'text-green-700 bg-green-50' };
+        if (n >= 3.5) return { text: 'חזקה 👍', color: 'text-blue-700 bg-blue-50' };
+        if (n >= 2.5) return { text: 'בינונית 😐', color: 'text-yellow-700 bg-yellow-50' };
+        return { text: 'חלשה ⚠️', color: 'text-red-700 bg-red-50' };
+    };
+
     // זיהוי פתיחה/סגירה לפי TipReport — לפי הבחירה הידנית של המנהל
     const getAssignmentTipRole = (assignment, dateStr, shiftType) => {
         const report = tipReports.find(r => r.date === dateStr && r.shift_type === shiftType);
@@ -930,12 +968,26 @@ export default function WorkScheduling() {
                     </div>
                     <div className="grid grid-cols-[200px_repeat(7,1fr)] min-w-[1200px]">
                         <div className="sticky top-0 bg-gray-100 z-10"></div>
-                        {days.map(day => (
+                        {days.map(day => {
+                            const lunchStrength = currentUser?.role === 'admin' ? strengthLabel(getShiftStrength(day, 'lunch')) : null;
+                            const dinnerStrength = currentUser?.role === 'admin' ? strengthLabel(getShiftStrength(day, 'dinner')) : null;
+                            return (
                             <div key={day.toISOString()} className={`text-center font-bold p-2 border-b sticky top-0 bg-gray-100 z-10 ${isToday(day) ? 'border-2 border-orange-400' : ''}`}>
                                 <div>{format(day, 'EEEE', { locale: he })}</div>
                                 <div>{format(day, 'dd/MM')}</div>
+                                {lunchStrength && (
+                                    <div className={`text-xs font-normal mt-0.5 rounded px-1 ${lunchStrength.color}`}>
+                                        צ: {lunchStrength.text}
+                                    </div>
+                                )}
+                                {dinnerStrength && (
+                                    <div className={`text-xs font-normal mt-0.5 rounded px-1 ${dinnerStrength.color}`}>
+                                        ע: {dinnerStrength.text}
+                                    </div>
+                                )}
                             </div>
-                        ))}
+                            );
+                        })}
 
                         {Object.entries(shiftTypesConfig)
                             .filter(([type]) => filters.shiftType === 'all' || type === filters.shiftType)
@@ -1012,7 +1064,7 @@ export default function WorkScheduling() {
                                                                         <button
                                                                             onClick={(e) => { e.stopPropagation(); setRatingDialog({ employee: emp || { id: assignment.employee_id, full_name: assignment.employee_name } }); }}
                                                                             className="absolute top-0.5 left-0.5 opacity-0 group-hover:opacity-100 transition-opacity z-10"
-                                                                            title="דרג עובד"
+                                                                            title={`דרג עובד${rating > 0 ? ` (${rating}/5)` : ''}`}
                                                                         >
                                                                             <Star className={`w-3 h-3 ${rating > 0 ? 'fill-yellow-400 text-yellow-500' : 'text-gray-400'}`} />
                                                                         </button>
@@ -1056,6 +1108,8 @@ export default function WorkScheduling() {
                     onAssignmentClick={handleEditAssignment}
                     currentEmployeeId={currentEmployee?.id}
                     tipReports={tipReports}
+                    isAdmin={currentUser?.role === 'admin'}
+                    strengthLabel={strengthLabel}
                 />
                 <Sheet>
                     <SheetTrigger asChild>
