@@ -1,12 +1,10 @@
 import React, { useState, useMemo } from 'react';
-import { format, getDay, parseISO, differenceInMinutes } from 'date-fns';
+import { format, getDay, parseISO, startOfWeek, endOfWeek, eachWeekOfInterval, startOfMonth, endOfMonth } from 'date-fns';
 import { he } from 'date-fns/locale';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { BarChart3, TrendingUp, Calendar, Clock, Users, Star } from 'lucide-react';
-
-const DAY_NAMES_HE = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'];
 
 function calcHours(start, end) {
     if (!start || !end) return 0;
@@ -19,6 +17,7 @@ function calcHours(start, end) {
 
 export default function ScheduleInsights({ week, employees, tipReports }) {
     const [monthFilter, setMonthFilter] = useState('all');
+    const [weekFilter, setWeekFilter] = useState('all');
 
     // חודשים זמינים
     const availableMonths = useMemo(() => {
@@ -29,15 +28,50 @@ export default function ScheduleInsights({ week, employees, tipReports }) {
         return Array.from(months).sort().reverse();
     }, [week]);
 
+    // שבועות זמינים לחודש שנבחר
+    const availableWeeks = useMemo(() => {
+        if (monthFilter === 'all') return [];
+        const monthStart = startOfMonth(parseISO(monthFilter + '-01'));
+        const monthEnd = endOfMonth(monthStart);
+        const weekStarts = eachWeekOfInterval({ start: monthStart, end: monthEnd }, { weekStartsOn: 0 });
+        return weekStarts.map(ws => {
+            const we = endOfWeek(ws, { weekStartsOn: 0 });
+            return {
+                value: format(ws, 'yyyy-MM-dd'),
+                label: `${format(ws, 'dd/MM')} - ${format(we, 'dd/MM')}`
+            };
+        });
+    }, [monthFilter]);
+
+    // איפוס פילטר שבוע כשמחליפים חודש
+    const handleMonthChange = (val) => {
+        setMonthFilter(val);
+        setWeekFilter('all');
+    };
+
     const filteredShifts = useMemo(() => {
         if (monthFilter === 'all') return week;
-        return week.filter(s => s.date?.startsWith(monthFilter));
-    }, [week, monthFilter]);
+        const byMonth = week.filter(s => s.date?.startsWith(monthFilter));
+        if (weekFilter === 'all') return byMonth;
+        const ws = parseISO(weekFilter);
+        const we = endOfWeek(ws, { weekStartsOn: 0 });
+        return byMonth.filter(s => {
+            const d = parseISO(s.date);
+            return d >= ws && d <= we;
+        });
+    }, [week, monthFilter, weekFilter]);
 
     const filteredTipReports = useMemo(() => {
         if (monthFilter === 'all') return tipReports;
-        return tipReports.filter(r => r.date?.startsWith(monthFilter));
-    }, [tipReports, monthFilter]);
+        const byMonth = tipReports.filter(r => r.date?.startsWith(monthFilter));
+        if (weekFilter === 'all') return byMonth;
+        const ws = parseISO(weekFilter);
+        const we = endOfWeek(ws, { weekStartsOn: 0 });
+        return byMonth.filter(r => {
+            const d = parseISO(r.date);
+            return d >= ws && d <= we;
+        });
+    }, [tipReports, monthFilter, weekFilter]);
 
     // חישוב נתונים לכל עובד
     const stats = useMemo(() => {
@@ -153,19 +187,36 @@ export default function ScheduleInsights({ week, employees, tipReports }) {
                         <BarChart3 className="w-5 h-5" />
                         הסקת מסקנות מהסידור
                     </CardTitle>
-                    <Select value={monthFilter} onValueChange={setMonthFilter}>
-                        <SelectTrigger className="w-44">
-                            <SelectValue placeholder="כל הזמנים" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="all">כל הזמנים</SelectItem>
-                            {availableMonths.map(m => (
-                                <SelectItem key={m} value={m}>
-                                    {format(parseISO(m + '-01'), 'MMMM yyyy', { locale: he })}
-                                </SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
+                    <div className="flex gap-2">
+                        <Select value={monthFilter} onValueChange={handleMonthChange}>
+                            <SelectTrigger className="w-40">
+                                <SelectValue placeholder="כל הזמנים" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">כל הזמנים</SelectItem>
+                                {availableMonths.map(m => (
+                                    <SelectItem key={m} value={m}>
+                                        {format(parseISO(m + '-01'), 'MMMM yyyy', { locale: he })}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                        {monthFilter !== 'all' && availableWeeks.length > 0 && (
+                            <Select value={weekFilter} onValueChange={setWeekFilter}>
+                                <SelectTrigger className="w-44">
+                                    <SelectValue placeholder="כל השבועות" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="all">כל השבועות</SelectItem>
+                                    {availableWeeks.map(w => (
+                                        <SelectItem key={w.value} value={w.value}>
+                                            {w.label}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        )}
+                    </div>
                 </div>
             </CardHeader>
             <CardContent>
