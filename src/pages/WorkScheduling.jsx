@@ -1024,9 +1024,7 @@ export default function WorkScheduling() {
                                                                         {assignment.employee_name}
                                                                     </p>
                                                                     <p className="text-xs">{assignment.start_time} - {assignment.end_time}</p>
-                                                                    {currentUser?.role === 'admin' && rating > 0 && (
-                                                                        <p className="text-xs text-yellow-600 font-bold">{'⭐'.repeat(rating)}</p>
-                                                                    )}
+
                                                                 </div>
                                                                 );
                                                             })}
