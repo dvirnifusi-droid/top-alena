@@ -58,18 +58,33 @@ export default function ScheduleInsights({ week, employees, tipReports }) {
             };
         });
 
-        // ספירת שיבוצים ושעות
+        // ספירת שיבוצים ושעות — משמרת ייחודית לפי תאריך+סוג לכל עובד
         filteredShifts.forEach(shift => {
             if (!shift.assigned_staff?.length) return;
-            const dayOfWeek = getDay(parseISO(shift.date)); // 0=ראשון, 4=חמישי, 6=שבת
+            const dayOfWeek = getDay(parseISO(shift.date));
+
+            // מזהה ייחודי של המשמרת
+            const shiftKey = `${shift.date}_${shift.shift_type}`;
+
+            // עובדים שכבר נספרו במשמרת זו (למנוע כפילות מתפקידים מרובים)
+            const countedInShift = new Set();
 
             shift.assigned_staff.forEach(a => {
                 if (!empStats[a.employee_id]) return;
                 const s = empStats[a.employee_id];
-                s.totalShifts++;
-                s.totalHours += calcHours(a.start_time, a.end_time);
-                if (dayOfWeek === 4) s.thursdayShifts++;
-                if (dayOfWeek === 6) s.saturdayShifts++;
+
+                // שעות — לפי שעות השיבוץ הספציפי אם קיימות, אחרת לפי שעות המשמרת
+                const hours = calcHours(a.start_time, a.end_time) || calcHours(shift.start_time, shift.end_time);
+                s.totalHours += hours;
+
+                // משמרות — ספירה ייחודית לכל עובד למשמרת
+                const uniqueKey = `${shiftKey}_${a.employee_id}`;
+                if (!countedInShift.has(uniqueKey)) {
+                    countedInShift.add(uniqueKey);
+                    s.totalShifts++;
+                    if (dayOfWeek === 4) s.thursdayShifts++;
+                    if (dayOfWeek === 6) s.saturdayShifts++;
+                }
             });
         });
 
