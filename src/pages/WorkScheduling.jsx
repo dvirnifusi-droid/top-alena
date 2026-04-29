@@ -20,6 +20,7 @@ import ShiftNotificationBell from '../components/shared/ShiftNotificationBell';
 import SendScheduleWhatsAppDialog from '../components/scheduling/SendScheduleWhatsAppDialog';
 import { RestaurantProfile } from '@/entities/RestaurantProfile';
 import ApparelCustomizer from '../components/gamification/ApparelCustomizer';
+import ScheduleInsights from '../components/scheduling/ScheduleInsights';
 
 const shiftTypesConfig = {
     lunch: { label: 'צהריים', color: 'bg-blue-100 border-blue-300' },
@@ -1270,6 +1271,14 @@ export default function WorkScheduling() {
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
+
+            {currentUser?.role === 'admin' && (
+                <ScheduleInsights
+                    week={week}
+                    employees={employees}
+                    tipReports={tipReports}
+                />
+            )}
 
             <SendScheduleWhatsAppDialog
                 open={whatsappDialogOpen}
