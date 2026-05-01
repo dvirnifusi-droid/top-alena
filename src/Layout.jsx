@@ -4,7 +4,7 @@ import { createPageUrl } from "@/utils";
 import { base44 } from "@/api/base44Client";
 import {
   Users, GraduationCap, AlertTriangle, CheckSquare, Building, BarChart3,
-  LayoutGrid, Trophy, Menu, FileText, Utensils, Sparkles, Crown, Rocket, Map, Brain, Calendar, CalendarDays, Banknote, MessageSquare, Briefcase, QrCode, ClipboardCheck, Settings, TrendingUp, Zap, Megaphone, Bell, Package, Navigation
+  LayoutGrid, Trophy, Menu, FileText, Utensils, Sparkles, Crown, Rocket, Map, Brain, Calendar, CalendarDays, Banknote, MessageSquare, Briefcase, QrCode, ClipboardCheck, Settings, TrendingUp, Zap, Megaphone, Bell, Package, Navigation, LogOut
 } from "lucide-react";
 import {
   Sidebar, SidebarContent,
@@ -317,6 +317,15 @@ const DesktopSidebar = ({ userName, isCurrentViewAdmin, isOriginalAdmin, navigat
           {user?.role === 'admin' ? '👁️ צפה כעובד' : '⚙️ חזור לניהול'}
         </Button>
       )}
+      <Button
+        onClick={() => base44.auth.logout('/')}
+        variant="outline"
+        size="sm"
+        className="w-full mt-2 border-red-200 text-red-600 hover:bg-red-50"
+      >
+        <LogOut className="w-4 h-4 ml-1" />
+        התנתקות
+      </Button>
     </div>
   </div>
 );
@@ -393,6 +402,15 @@ const MobileSidebar = ({ userName, isCurrentViewAdmin, isOriginalAdmin, navigati
           {user?.role === 'admin' ? '👁️ צפה כעובד' : '⚙️ חזור'}
         </Button>
       )}
+      <Button
+        onClick={() => base44.auth.logout('/')}
+        variant="outline"
+        size="sm"
+        className="w-full mt-1 text-xs border-red-200 text-red-600 hover:bg-red-50"
+      >
+        <LogOut className="w-3 h-3 ml-1" />
+        התנתקות
+      </Button>
     </SidebarFooter>
   </Sidebar>
 );
