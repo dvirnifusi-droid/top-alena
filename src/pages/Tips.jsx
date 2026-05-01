@@ -149,6 +149,7 @@ function TipsInner() {
     const [shiftType, setShiftType] = useState('dinner');
     const [totalTips, setTotalTips] = useState('');
     const [staffDetails, setStaffDetails] = useState([]);
+    const [paidEmployeeIds, setPaidEmployeeIds] = useState(new Set());
     const [isLoading, setIsLoading] = useState(false);
     const [existingReport, setExistingReport] = useState(null);
     const [allEmployees, setAllEmployees] = useState([]);
@@ -539,6 +540,7 @@ function TipsInner() {
                                 <Table>
                                     <TableHeader>
                                         <TableRow>
+                                            <TableHead>שולם</TableHead>
                                             <TableHead>שם העובד</TableHead>
                                             <TableHead>תפקיד</TableHead>
                                             <TableHead>שעת כניסה</TableHead>
@@ -556,7 +558,31 @@ function TipsInner() {
                                     </TableHeader>
                                     <TableBody>
                                         {calculatedResults.staffDetails.map((staff, index) => (
-                                            <TableRow key={index}>
+                                            <TableRow
+                                                key={index}
+                                                className={paidEmployeeIds.has(staff.employee_id) ? 'bg-green-50 border-l-4 border-green-500' : ''}
+                                            >
+                                                <TableCell>
+                                                    <button
+                                                        onClick={() => {
+                                                            if (!staff.employee_id) return;
+                                                            setPaidEmployeeIds(prev => {
+                                                                const next = new Set(prev);
+                                                                if (next.has(staff.employee_id)) next.delete(staff.employee_id);
+                                                                else next.add(staff.employee_id);
+                                                                return next;
+                                                            });
+                                                        }}
+                                                        className={`w-8 h-8 rounded-full border-2 flex items-center justify-center transition-colors ${
+                                                            paidEmployeeIds.has(staff.employee_id)
+                                                                ? 'bg-green-500 border-green-600 text-white'
+                                                                : 'border-gray-300 hover:border-green-400'
+                                                        }`}
+                                                        title={paidEmployeeIds.has(staff.employee_id) ? 'חולק ✓' : 'לחץ לסימון כ"שולם"'}
+                                                    >
+                                                        {paidEmployeeIds.has(staff.employee_id) && <span className="text-sm font-bold">✓</span>}
+                                                    </button>
+                                                </TableCell>
                                                 <TableCell>
                                                     <Select value={staff.employee_id} onValueChange={(value) => {
                                                         const employee = allEmployees.find(e => e.id === value);
