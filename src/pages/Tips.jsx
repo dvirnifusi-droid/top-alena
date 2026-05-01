@@ -14,6 +14,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { format, parseISO } from 'date-fns';
 import { he } from 'date-fns/locale';
 import { Loader2, CalendarIcon, Save, Printer, UserPlus, Trash2, Lock, Unlock, AlertTriangle } from 'lucide-react';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { toast } from 'sonner';
 
 const MINIMUM_WAGE = 32; // שכר מינימום לשעה
@@ -320,22 +321,24 @@ function TipsInner() {
             .filter(s => s.position === 'ראנר')
             .reduce((sum, s) => sum + s.effectiveHours, 0);
 
-        // טווח שעת כניסה נפוצה של מלצרים
+        // התפלגות שעות כניסה של מלצרים לפי 15 דקות
         const waiterStartTimes = finalStaffDetails
             .filter(s => TIP_ELIGIBLE_POSITIONS.includes(s.position) && s.start_time)
             .map(s => s.start_time);
 
-        let popularStartRange = null;
-        if (waiterStartTimes.length > 0) {
-            // קבץ לפי שעה עגולה
-            const hourGroups = {};
-            waiterStartTimes.forEach(t => {
-                const hour = t.substring(0, 2);
-                hourGroups[hour] = (hourGroups[hour] || 0) + 1;
-            });
-            const topHour = Object.entries(hourGroups).sort((a, b) => b[1] - a[1])[0];
-            popularStartRange = `${topHour[0]}:00 - ${String(parseInt(topHour[0]) + 1).padStart(2, '0')}:00`;
-        }
+        const startTimeBuckets = {};
+        waiterStartTimes.forEach(t => {
+            const [h, m] = t.split(':').map(Number);
+            const bucket = `${String(h).padStart(2,'0')}:${m < 15 ? '00' : m < 30 ? '15' : m < 45 ? '30' : '45'}`;
+            startTimeBuckets[bucket] = (startTimeBuckets[bucket] || 0) + 1;
+        });
+        const startTimeChart = Object.entries(startTimeBuckets)
+            .sort((a, b) => a[0].localeCompare(b[0]))
+            .map(([time, count]) => ({ time, count }));
+
+        const popularStartRange = startTimeChart.length > 0
+            ? startTimeChart.reduce((a, b) => b.count > a.count ? b : a).time
+            : null;
 
         return {
             staffDetails: finalStaffDetails,
@@ -346,6 +349,7 @@ function TipsInner() {
             waiterHours,
             runnerHours,
             popularStartRange,
+            startTimeChart,
         };
     }, [staffDetails, totalTips]);
 
@@ -496,12 +500,36 @@ function TipsInner() {
                                     <CardHeader className="pb-2"><CardTitle className="text-sm font-medium">סה"כ שעות ראנרים</CardTitle></CardHeader>
                                     <CardContent><p className="text-2xl font-bold text-orange-600">{calculatedResults.runnerHours.toFixed(2)} שע'</p></CardContent>
                                 </Card>
-                                <Card className="border-r-4 border-teal-400">
-                                    <CardHeader className="pb-2"><CardTitle className="text-sm font-medium">שעת כניסה נפוצה (מלצרים)</CardTitle></CardHeader>
-                                    <CardContent>
-                                        <p className="text-2xl font-bold text-teal-600">
-                                            {calculatedResults.popularStartRange || '—'}
-                                        </p>
+                                <Card className="border-r-4 border-teal-400 sm:col-span-1">
+                                    <CardHeader className="pb-2">
+                                        <CardTitle className="text-sm font-medium">התפלגות שעות כניסה (מלצרים)</CardTitle>
+                                        {calculatedResults.popularStartRange && (
+                                            <p className="text-xs text-teal-700 font-semibold">
+                                                שיא: {calculatedResults.popularStartRange}
+                                            </p>
+                                        )}
+                                    </CardHeader>
+                                    <CardContent className="pt-0">
+                                        {calculatedResults.startTimeChart.length === 0 ? (
+                                            <p className="text-gray-400 text-sm">אין נתונים</p>
+                                        ) : (
+                                            <ResponsiveContainer width="100%" height={100}>
+                                                <BarChart data={calculatedResults.startTimeChart} margin={{ top: 0, right: 0, left: -30, bottom: 0 }}>
+                                                    <XAxis dataKey="time" tick={{ fontSize: 10 }} />
+                                                    <YAxis allowDecimals={false} tick={{ fontSize: 10 }} />
+                                                    <Tooltip
+                                                        formatter={(val) => [`${val} מלצרים`, 'כניסות']}
+                                                        labelFormatter={(l) => `שעה: ${l}`}
+                                                    />
+                                                    <Bar dataKey="count" radius={[3,3,0,0]}>
+                                                        {calculatedResults.startTimeChart.map((entry, i) => {
+                                                            const isPeak = entry.time === calculatedResults.popularStartRange;
+                                                            return <Cell key={i} fill={isPeak ? '#0d9488' : '#99f6e4'} />;
+                                                        })}
+                                                    </Bar>
+                                                </BarChart>
+                                            </ResponsiveContainer>
+                                        )}
                                     </CardContent>
                                 </Card>
                             </div>
