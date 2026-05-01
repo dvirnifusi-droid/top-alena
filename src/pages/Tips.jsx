@@ -311,12 +311,41 @@ function TipsInner() {
             return { ...staff, grossTip, finalTip, supplement, totalEarnings };
         });
 
+        // שעות לפי תפקיד
+        const waiterHours = finalStaffDetails
+            .filter(s => TIP_ELIGIBLE_POSITIONS.includes(s.position))
+            .reduce((sum, s) => sum + s.effectiveHours, 0);
+
+        const runnerHours = finalStaffDetails
+            .filter(s => s.position === 'ראנר')
+            .reduce((sum, s) => sum + s.effectiveHours, 0);
+
+        // טווח שעת כניסה נפוצה של מלצרים
+        const waiterStartTimes = finalStaffDetails
+            .filter(s => TIP_ELIGIBLE_POSITIONS.includes(s.position) && s.start_time)
+            .map(s => s.start_time);
+
+        let popularStartRange = null;
+        if (waiterStartTimes.length > 0) {
+            // קבץ לפי שעה עגולה
+            const hourGroups = {};
+            waiterStartTimes.forEach(t => {
+                const hour = t.substring(0, 2);
+                hourGroups[hour] = (hourGroups[hour] || 0) + 1;
+            });
+            const topHour = Object.entries(hourGroups).sort((a, b) => b[1] - a[1])[0];
+            popularStartRange = `${topHour[0]}:00 - ${String(parseInt(topHour[0]) + 1).padStart(2, '0')}:00`;
+        }
+
         return {
             staffDetails: finalStaffDetails,
             tipPerHour,
             totalRestaurantDeduction: totalRestaurantDeduction,
             totalRunnerDeduction: totalRunnerDeduction,
-            netTipsForDistribution: Math.max(0, distributableTips)
+            netTipsForDistribution: Math.max(0, distributableTips),
+            waiterHours,
+            runnerHours,
+            popularStartRange,
         };
     }, [staffDetails, totalTips]);
 
@@ -454,6 +483,26 @@ function TipsInner() {
                                 <Card>
                                     <CardHeader className="pb-2"><CardTitle className="text-sm font-medium">טיפ לשעה</CardTitle></CardHeader>
                                     <CardContent><p className="text-2xl font-bold text-blue-600">₪{calculatedResults.tipPerHour.toFixed(2)}</p></CardContent>
+                                </Card>
+                            </div>
+
+                            {/* Extra Stats */}
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                <Card className="border-r-4 border-purple-400">
+                                    <CardHeader className="pb-2"><CardTitle className="text-sm font-medium">סה"כ שעות מלצרים</CardTitle></CardHeader>
+                                    <CardContent><p className="text-2xl font-bold text-purple-600">{calculatedResults.waiterHours.toFixed(2)} שע'</p></CardContent>
+                                </Card>
+                                <Card className="border-r-4 border-orange-400">
+                                    <CardHeader className="pb-2"><CardTitle className="text-sm font-medium">סה"כ שעות ראנרים</CardTitle></CardHeader>
+                                    <CardContent><p className="text-2xl font-bold text-orange-600">{calculatedResults.runnerHours.toFixed(2)} שע'</p></CardContent>
+                                </Card>
+                                <Card className="border-r-4 border-teal-400">
+                                    <CardHeader className="pb-2"><CardTitle className="text-sm font-medium">שעת כניסה נפוצה (מלצרים)</CardTitle></CardHeader>
+                                    <CardContent>
+                                        <p className="text-2xl font-bold text-teal-600">
+                                            {calculatedResults.popularStartRange || '—'}
+                                        </p>
+                                    </CardContent>
                                 </Card>
                             </div>
                             
