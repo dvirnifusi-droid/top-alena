@@ -1080,6 +1080,11 @@ export default function WorkScheduling() {
                                                                         {assignment.employee_name}
                                                                     </p>
                                                                     <p className="text-xs">{assignment.start_time} - {assignment.end_time}</p>
+                                                                    {assignment.notes && (
+                                                                        <p className="text-xs text-orange-700 bg-orange-50 rounded px-1 mt-0.5 text-right leading-tight" title={assignment.notes}>
+                                                                            📝 {assignment.notes}
+                                                                        </p>
+                                                                    )}
 
                                                                 </div>
                                                                 );
@@ -1180,6 +1185,11 @@ export default function WorkScheduling() {
                     onSave={handleAssignmentSave}
                     onDelete={handleAssignmentDelete}
                     weekDays={days}
+                    availabilityNote={(() => {
+                        if (!selectedAssignment) return null;
+                        const dateStr = format(new Date(selectedAssignment.date), 'yyyy-MM-dd');
+                        return availabilities.find(av => av.employee_id === selectedAssignment.employee_id && av.date === dateStr)?.reason || null;
+                    })()}
                     onMoveShift={async (assignment, newDate) => {
                         const dateString = format(new Date(assignment.date), 'yyyy-MM-dd');
                         const sourceShift = week.find(s => s.date === dateString && s.shift_type === assignment.shift_type);

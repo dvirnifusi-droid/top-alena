@@ -22,7 +22,7 @@ const filterPositionsByShiftType = (positions, shiftType) => {
 };
 
 
-export default function AssignmentEditDialog({ isOpen, onOpenChange, assignment, onSave, onDelete, positions, employees, onMoveShift, weekDays }) {
+export default function AssignmentEditDialog({ isOpen, onOpenChange, assignment, onSave, onDelete, positions, employees, onMoveShift, weekDays, availabilityNote }) {
   const [editData, setEditData] = useState(null);
   const [showMoveDate, setShowMoveDate] = useState(false);
   const [moveDate, setMoveDate] = useState('');
@@ -205,10 +205,18 @@ export default function AssignmentEditDialog({ isOpen, onOpenChange, assignment,
             ))}
           </div>
 
-          {/* הערות */}
+          {/* הערת זמינות מהעובד */}
+          {availabilityNote && (
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 space-y-1">
+              <Label className="text-amber-800 font-semibold text-sm">💬 הערת זמינות מהעובד</Label>
+              <p className="text-amber-900 text-sm whitespace-pre-wrap">{availabilityNote}</p>
+            </div>
+          )}
+
+          {/* הערות מנהל */}
           <div>
-            <Label>הערות כלליות</Label>
-            <Textarea value={editData.notes} onChange={e => setEditData({...editData, notes: e.target.value})} placeholder="הערות למשמרת..." />
+            <Label>📝 הערת מנהל למשמרת</Label>
+            <Textarea value={editData.notes} onChange={e => setEditData({...editData, notes: e.target.value})} placeholder="הוסף הערה שתוצג בסידור..." />
           </div>
         </div>
         {showMoveDate && (() => {
