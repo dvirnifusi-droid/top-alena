@@ -209,9 +209,16 @@ export default function SendScheduleWhatsAppDialog({ open, onClose, week, days, 
                                         return (
                                             <div key={a.employee_id} className={`grid grid-cols-[1fr_110px_90px_90px] gap-0 px-3 py-2 items-center text-sm
                                                 ${ov.isClosing && ov.isPromoter ? 'bg-amber-50' : ov.isClosing ? 'bg-orange-50' : ov.isPromoter ? 'bg-yellow-50' : ''}`}>
-                                                <span className="font-medium truncate">{a.employee_name}
-                                                    <span className="text-xs text-gray-400 mr-1">({a.position})</span>
-                                                </span>
+                                                <div className="flex flex-col gap-0.5 min-w-0">
+                                                    <span className="font-medium truncate">{a.employee_name}
+                                                        <span className="text-xs text-gray-400 mr-1">({a.position})</span>
+                                                    </span>
+                                                    {a.notes && (
+                                                        <span className="text-[10px] text-orange-700 bg-orange-50 border border-orange-200 rounded px-1 py-0.5 leading-tight whitespace-normal break-words block">
+                                                            📝 {a.notes}
+                                                        </span>
+                                                    )}
+                                                </div>
                                                 <div className="flex flex-col gap-0.5">
                                                    <Input
                                                        type="time"
