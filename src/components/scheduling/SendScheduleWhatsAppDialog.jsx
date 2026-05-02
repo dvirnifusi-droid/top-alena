@@ -222,7 +222,7 @@ export default function SendScheduleWhatsAppDialog({ open, onClose, week, days, 
                                                    {(() => {
                                                        const note = availabilities.find(av => av.employee_id === a.employee_id && av.date === selectedDate)?.reason;
                                                        return note ? (
-                                                           <span className="text-[10px] text-amber-700 bg-amber-50 border border-amber-200 rounded px-1 py-0.5 leading-tight max-w-[100px] truncate" title={note}>
+                                                           <span className="text-[10px] text-amber-700 bg-amber-50 border border-amber-200 rounded px-1 py-0.5 leading-tight whitespace-normal break-words max-w-[160px] block">
                                                                💬 {note}
                                                            </span>
                                                        ) : null;
