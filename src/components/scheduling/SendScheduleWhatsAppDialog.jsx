@@ -77,7 +77,7 @@ function buildMessage(shift, selectedDay, shiftType, staffOverrides) {
     return msg;
 }
 
-export default function SendScheduleWhatsAppDialog({ open, onClose, week, days }) {
+export default function SendScheduleWhatsAppDialog({ open, onClose, week, days, availabilities = [] }) {
     const [selectedDate, setSelectedDate] = useState('');
     const [shiftType, setShiftType] = useState('dinner');
     const [copied, setCopied] = useState(false);
@@ -212,12 +212,22 @@ export default function SendScheduleWhatsAppDialog({ open, onClose, week, days }
                                                 <span className="font-medium truncate">{a.employee_name}
                                                     <span className="text-xs text-gray-400 mr-1">({a.position})</span>
                                                 </span>
-                                                <Input
-                                                    type="time"
-                                                    value={ov.start_time || ''}
-                                                    onChange={e => setOverride(a.employee_id, 'start_time', e.target.value)}
-                                                    className="h-7 text-xs px-1 w-24"
-                                                />
+                                                <div className="flex flex-col gap-0.5">
+                                                   <Input
+                                                       type="time"
+                                                       value={ov.start_time || ''}
+                                                       onChange={e => setOverride(a.employee_id, 'start_time', e.target.value)}
+                                                       className="h-7 text-xs px-1 w-24"
+                                                   />
+                                                   {(() => {
+                                                       const note = availabilities.find(av => av.employee_id === a.employee_id && av.date === selectedDate)?.reason;
+                                                       return note ? (
+                                                           <span className="text-[10px] text-amber-700 bg-amber-50 border border-amber-200 rounded px-1 py-0.5 leading-tight max-w-[100px] truncate" title={note}>
+                                                               💬 {note}
+                                                           </span>
+                                                       ) : null;
+                                                   })()}
+                                                </div>
                                                 <div className="flex justify-center">
                                                     <button
                                                         onClick={() => setOverride(a.employee_id, 'isClosing', !ov.isClosing)}

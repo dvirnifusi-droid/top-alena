@@ -375,6 +375,7 @@ export default function WorkScheduling() {
     const [whatsappDialogOpen, setWhatsappDialogOpen] = useState(false);
     const [tipReports, setTipReports] = useState([]); // לזיהוי פתיחה/סגירה
     const [ratingDialog, setRatingDialog] = useState(null); // { employee }
+    const [availabilities, setAvailabilities] = useState([]);
 
     const handleCopyAvailabilityLink = () => {
         const url = `${window.location.origin}/AvailabilityForm`;
@@ -407,12 +408,14 @@ export default function WorkScheduling() {
             
             setCurrentEmployee(myEmployee);
 
-            const [shifts, allPositions, allTipReports] = await Promise.all([
+            const [shifts, allPositions, allTipReports, allAvailabilities] = await Promise.all([
                 base44.entities.WorkShift.list('-date', 100),
                 base44.entities.WorkPosition.filter({ is_active: true }),
                 base44.entities.TipReport.list('-date', 200),
+                base44.entities.EmployeeAvailability.list(),
             ]);
             setTipReports(allTipReports);
+            setAvailabilities(allAvailabilities);
 
             // סנכרן שמות עובדים בשיבוצים עם הנתונים הנוכחיים
             const employeeMap = Object.fromEntries(allEmployees.map(e => [e.id, e.full_name]));
@@ -1285,6 +1288,7 @@ export default function WorkScheduling() {
                 onClose={() => setWhatsappDialogOpen(false)}
                 week={week}
                 days={days}
+                availabilities={availabilities}
             />
 
             {/* Employee Rating Dialog */}
