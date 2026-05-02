@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Save, RefreshCw } from 'lucide-react';
+import { Save, RefreshCw, MessageCircle } from 'lucide-react';
 
 export default function TaskAssignmentDialog({ isOpen, onClose, checklist, employees, onSave }) {
     const [assignments, setAssignments] = useState({});
@@ -53,6 +53,32 @@ export default function TaskAssignmentDialog({ isOpen, onClose, checklist, emplo
         }
     };
 
+    const handleSendWhatsApp = () => {
+        if (!checklist) return;
+        // Build message grouped by employee
+        const byEmployee = {};
+        checklist.items?.forEach(item => {
+            const taskId = `${checklist.id}_${item.order}`;
+            const empId = assignments[taskId];
+            if (!empId) return;
+            const name = getEmployeeName(empId);
+            if (!byEmployee[name]) byEmployee[name] = [];
+            byEmployee[name].push(`• ${item.area} - ${item.task}`);
+        });
+
+        if (Object.keys(byEmployee).length === 0) return;
+
+        let msg = `📋 שיוך משימות - ${checklist.title}\n`;
+        msg += `${'─'.repeat(25)}\n\n`;
+        for (const [name, tasks] of Object.entries(byEmployee)) {
+            msg += `👤 *${name}:*\n${tasks.join('\n')}\n\n`;
+        }
+        msg += `✅ סה"כ ${checklist.items?.filter(i => assignments[`${checklist.id}_${i.order}`]).length} משימות משויכות`;
+
+        const encoded = encodeURIComponent(msg);
+        window.open(`https://wa.me/?text=${encoded}`, '_blank');
+    };
+
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
             <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col" dir="rtl">
@@ -93,9 +119,13 @@ export default function TaskAssignmentDialog({ isOpen, onClose, checklist, emplo
                     })}
                 </div>
 
-                <DialogFooter>
+                <DialogFooter className="flex gap-2 flex-wrap">
                     <Button variant="outline" onClick={onClose} disabled={saving}>
                         ביטול
+                    </Button>
+                    <Button variant="outline" onClick={handleSendWhatsApp} className="bg-green-50 border-green-300 text-green-700 hover:bg-green-100">
+                        <MessageCircle className="w-4 h-4 mr-2" />
+                        שלח לוואטסאפ
                     </Button>
                     <Button onClick={handleSave} disabled={saving}>
                         {saving ? <RefreshCw className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}

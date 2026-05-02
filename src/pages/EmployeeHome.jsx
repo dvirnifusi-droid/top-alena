@@ -23,6 +23,7 @@ import CoinWidget from '../components/gamification/CoinWidget';
 import DailyChallengeCard from '../components/gamification/DailyChallengeCard';
 import ConfettiEffect from '../components/gamification/ConfettiEffect';
 import StoriesBar from '../components/stories/StoriesBar';
+import MyAssignedTasks from '../components/checklists/MyAssignedTasks';
 
 export default function EmployeeHome() {
     const [user, setUser] = useState(null);
@@ -173,6 +174,9 @@ export default function EmployeeHome() {
 
                 {/* סידור עבודה שבועי */}
                 {user && <WeeklyScheduleSummary userId={user.id} currentEmployee={currentEmployee} />}
+
+                {/* משימות משויכות */}
+                {currentEmployee && <MyAssignedTasks currentEmployee={currentEmployee} />}
 
                 {/* תדריכי היום */}
                 {todayBriefs.length > 0 && (
