@@ -29,7 +29,10 @@ export default function GearReturnDialog({ open, onClose, myDevices, employeeId 
     const terminalDone = !hasTerminal || terminalReturned;
     const ipadPhotoDone = !hasIpad || !!ipadPhoto;
     const terminalPhotoDone = !hasTerminal || !!terminalPhoto;
-    const canProceed = ipadDone && terminalDone && ipadPhotoDone && terminalPhotoDone;
+    // כשאין ציוד בכלל — דורשים לפחות תמונה כללית אחת
+    const noDevices = !hasIpad && !hasTerminal;
+    const hasAtLeastOnePhoto = !!ipadPhoto || !!terminalPhoto;
+    const canProceed = ipadDone && terminalDone && ipadPhotoDone && terminalPhotoDone && (!noDevices || hasAtLeastOnePhoto);
 
     const handlePhotoUpload = async (file, setUrl, setPreview, setUploading) => {
         if (!file) return;
@@ -176,8 +179,19 @@ export default function GearReturnDialog({ open, onClose, myDevices, employeeId 
                     )}
 
                     {!hasIpad && !hasTerminal && (
-                        <div className="text-center py-2 text-sm text-slate-500 bg-slate-50 rounded-lg border">
-                            לא נרשם ציוד עבורך במשמרת זו
+                        <div className="space-y-3">
+                            <div className="text-center py-2 text-sm text-slate-500 bg-slate-50 rounded-lg border">
+                                לא נרשם ציוד עבורך במשמרת זו
+                            </div>
+                            <PhotoUploader
+                                label="צלם את הציוד שהחזרת"
+                                icon={Camera}
+                                iconColor="text-indigo-500"
+                                preview={ipadPhotoPreview}
+                                uploading={uploadingIpadPhoto}
+                                onFile={f => handlePhotoUpload(f, setIpadPhoto, setIpadPhotoPreview, setUploadingIpadPhoto)}
+                                onClear={() => { setIpadPhoto(null); setIpadPhotoPreview(null); }}
+                            />
                         </div>
                     )}
 
@@ -194,14 +208,15 @@ export default function GearReturnDialog({ open, onClose, myDevices, employeeId 
                     </div>
 
                     {/* ולידציה */}
-                    {!canProceed && (hasIpad || hasTerminal) && (
+                    {!canProceed && (
                         <div className="flex items-center gap-2 text-amber-600 text-xs bg-amber-50 border border-amber-200 rounded-lg p-2">
                             <AlertCircle className="w-4 h-4 flex-shrink-0" />
                             <span>
                                 {!ipadDone ? 'יש לאשר החזרת האייפד' :
                                  !terminalDone ? 'יש לאשר החזרת המסופון' :
                                  !ipadPhotoDone ? 'יש לצלם את האייפד בעמדת הטעינה' :
-                                 'יש לצלם את המסופון בעמדת הטעינה'}
+                                 !terminalPhotoDone ? 'יש לצלם את המסופון בעמדת הטעינה' :
+                                 'יש לצלם את הציוד לפני סיום המשמרת'}
                             </span>
                         </div>
                     )}
