@@ -27,12 +27,13 @@ export default function GearReturnDialog({ open, onClose, myDevices, employeeId 
 
     const ipadDone = !hasIpad || ipadReturned;
     const terminalDone = !hasTerminal || terminalReturned;
-    const ipadPhotoDone = !hasIpad || !!ipadPhoto;
-    const terminalPhotoDone = !hasTerminal || !!terminalPhoto;
-    // כשאין ציוד בכלל — דורשים לפחות תמונה כללית אחת
+    // בודקים preview (הצגה מיידית) ולא רק URL שמגיע אחרי העלאה
+    const ipadPhotoDone = !hasIpad || !!ipadPhotoPreview;
+    const terminalPhotoDone = !hasTerminal || !!terminalPhotoPreview;
+    const isUploading = uploadingIpadPhoto || uploadingTerminalPhoto;
     const noDevices = !hasIpad && !hasTerminal;
-    const hasAtLeastOnePhoto = !!ipadPhoto || !!terminalPhoto;
-    const canProceed = ipadDone && terminalDone && ipadPhotoDone && terminalPhotoDone && (!noDevices || hasAtLeastOnePhoto);
+    const hasAtLeastOnePhoto = !!ipadPhotoPreview || !!terminalPhotoPreview;
+    const canProceed = ipadDone && terminalDone && ipadPhotoDone && terminalPhotoDone && (!noDevices || hasAtLeastOnePhoto) && !isUploading;
 
     const handlePhotoUpload = async (file, setUrl, setPreview, setUploading) => {
         if (!file) return;
@@ -57,7 +58,7 @@ export default function GearReturnDialog({ open, onClose, myDevices, employeeId 
                 status: 'available',
                 current_holder_id: '',
                 current_holder_name: '',
-                return_photo_url: ipadPhoto,
+                return_photo_url: ipadPhoto || ipadPhotoPreview,
                 return_notes: notes,
                 returned_at: now,
             }));
@@ -67,7 +68,7 @@ export default function GearReturnDialog({ open, onClose, myDevices, employeeId 
                 status: 'available',
                 current_holder_id: '',
                 current_holder_name: '',
-                return_photo_url: terminalPhoto,
+                return_photo_url: terminalPhoto || terminalPhotoPreview,
                 return_notes: notes,
                 returned_at: now,
             }));
@@ -208,7 +209,13 @@ export default function GearReturnDialog({ open, onClose, myDevices, employeeId 
                     </div>
 
                     {/* ולידציה */}
-                    {!canProceed && (
+                    {isUploading && (
+                        <div className="flex items-center gap-2 text-blue-600 text-xs bg-blue-50 border border-blue-200 rounded-lg p-2">
+                            <Loader2 className="w-4 h-4 flex-shrink-0 animate-spin" />
+                            <span>מעלה תמונה... אנא המתן</span>
+                        </div>
+                    )}
+                    {!canProceed && !isUploading && (
                         <div className="flex items-center gap-2 text-amber-600 text-xs bg-amber-50 border border-amber-200 rounded-lg p-2">
                             <AlertCircle className="w-4 h-4 flex-shrink-0" />
                             <span>
