@@ -114,18 +114,20 @@ export default function GearUpDialog({ open, onClose, shiftTrackingId, employeeI
                 {loading ? (
                     <div className="flex justify-center py-8"><Loader2 className="w-8 h-8 animate-spin text-slate-400" /></div>
                 ) : (
-                    <div className="space-y-5">
+                    <div className="space-y-4">
+                        {/* אייפדים + מסופונים בגלילה */}
+                        <div className="overflow-y-auto max-h-[45vh] space-y-4 pr-1">
                         {/* אייפדים */}
                         <div>
-                            <div className="flex items-center justify-between mb-2">
-                                <p className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                            <div className="flex items-center justify-between mb-1.5">
+                                <p className="text-sm font-semibold text-slate-700 flex items-center gap-1.5">
                                     <Tablet className="w-4 h-4 text-blue-500" /> בחר אייפד
                                 </p>
                                 <button
                                     onClick={handleNoIpadToggle}
                                     className={`text-xs px-2 py-1 rounded-lg border transition-all font-medium ${noIpad ? 'bg-slate-700 text-white border-slate-700' : 'bg-white text-slate-500 border-slate-300 hover:border-slate-500'}`}
                                 >
-                                    {noIpad ? '✓ לא נלקח אייפד' : 'לא נלקח אייפד'}
+                                    {noIpad ? '✓ לא נלקח' : 'לא נלקח'}
                                 </button>
                             </div>
                             {!noIpad && (
@@ -146,15 +148,15 @@ export default function GearUpDialog({ open, onClose, shiftTrackingId, employeeI
 
                         {/* מסופונים */}
                         <div>
-                            <div className="flex items-center justify-between mb-2">
-                                <p className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                            <div className="flex items-center justify-between mb-1.5">
+                                <p className="text-sm font-semibold text-slate-700 flex items-center gap-1.5">
                                     <CreditCard className="w-4 h-4 text-purple-500" /> בחר מסופון
                                 </p>
                                 <button
                                     onClick={handleNoTerminalToggle}
                                     className={`text-xs px-2 py-1 rounded-lg border transition-all font-medium ${noTerminal ? 'bg-slate-700 text-white border-slate-700' : 'bg-white text-slate-500 border-slate-300 hover:border-slate-500'}`}
                                 >
-                                    {noTerminal ? '✓ לא נלקח מסופון' : 'לא נלקח מסופון'}
+                                    {noTerminal ? '✓ לא נלקח' : 'לא נלקח'}
                                 </button>
                             </div>
                             {!noTerminal && (
@@ -171,6 +173,7 @@ export default function GearUpDialog({ open, onClose, shiftTrackingId, employeeI
                             {noTerminal && (
                                 <p className="text-xs text-slate-400 bg-slate-50 rounded-lg p-2 text-center">לא נלקח מסופון במשמרת זו</p>
                             )}
+                        </div>
                         </div>
 
                         {/* אישור תקינות */}
