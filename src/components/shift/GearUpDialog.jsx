@@ -11,6 +11,8 @@ export default function GearUpDialog({ open, onClose, shiftTrackingId, employeeI
     const [saving, setSaving] = useState(false);
     const [selectedIpad, setSelectedIpad] = useState(null);
     const [selectedTerminal, setSelectedTerminal] = useState(null);
+    const [noIpad, setNoIpad] = useState(false);
+    const [noTerminal, setNoTerminal] = useState(false);
     const [conditionOk, setConditionOk] = useState(false);
 
     useEffect(() => {
@@ -35,7 +37,7 @@ export default function GearUpDialog({ open, onClose, shiftTrackingId, employeeI
         const now = new Date().toISOString();
         const updates = [];
 
-        if (selectedIpad) {
+        if (selectedIpad && !noIpad) {
             updates.push(base44.entities.DeviceAsset.update(selectedIpad.id, {
                 status: 'in_use',
                 current_holder_id: employeeId,
@@ -48,7 +50,7 @@ export default function GearUpDialog({ open, onClose, shiftTrackingId, employeeI
                 returned_at: null,
             }));
         }
-        if (selectedTerminal) {
+        if (selectedTerminal && !noTerminal) {
             updates.push(base44.entities.DeviceAsset.update(selectedTerminal.id, {
                 status: 'in_use',
                 current_holder_id: employeeId,
@@ -64,7 +66,17 @@ export default function GearUpDialog({ open, onClose, shiftTrackingId, employeeI
 
         await Promise.all(updates);
         setSaving(false);
-        onClose({ ipad: selectedIpad, terminal: selectedTerminal });
+        onClose({ ipad: noIpad ? null : selectedIpad, terminal: noTerminal ? null : selectedTerminal });
+    };
+
+    const handleNoIpadToggle = () => {
+        setNoIpad(prev => !prev);
+        if (!noIpad) setSelectedIpad(null);
+    };
+
+    const handleNoTerminalToggle = () => {
+        setNoTerminal(prev => !prev);
+        if (!noTerminal) setSelectedTerminal(null);
     };
 
     const DeviceButton = ({ device, selected, onSelect, icon: Icon, label }) => {
@@ -104,33 +116,59 @@ export default function GearUpDialog({ open, onClose, shiftTrackingId, employeeI
                     <div className="space-y-5">
                         {/* אייפדים */}
                         <div>
-                            <p className="text-sm font-semibold text-slate-700 mb-2 flex items-center gap-2">
-                                <Tablet className="w-4 h-4 text-blue-500" /> בחר אייפד
-                            </p>
-                            {ipads.length === 0 ? (
-                                <p className="text-xs text-slate-400">אין אייפדים במערכת</p>
-                            ) : (
-                                <div className="grid grid-cols-3 gap-2">
-                                    {ipads.map(d => (
-                                        <DeviceButton key={d.id} device={d} selected={selectedIpad} onSelect={setSelectedIpad} icon={Tablet} label="אייפד" />
-                                    ))}
-                                </div>
+                            <div className="flex items-center justify-between mb-2">
+                                <p className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                                    <Tablet className="w-4 h-4 text-blue-500" /> בחר אייפד
+                                </p>
+                                <button
+                                    onClick={handleNoIpadToggle}
+                                    className={`text-xs px-2 py-1 rounded-lg border transition-all font-medium ${noIpad ? 'bg-slate-700 text-white border-slate-700' : 'bg-white text-slate-500 border-slate-300 hover:border-slate-500'}`}
+                                >
+                                    {noIpad ? '✓ לא נלקח אייפד' : 'לא נלקח אייפד'}
+                                </button>
+                            </div>
+                            {!noIpad && (
+                                ipads.length === 0 ? (
+                                    <p className="text-xs text-slate-400">אין אייפדים במערכת</p>
+                                ) : (
+                                    <div className="grid grid-cols-3 gap-2">
+                                        {ipads.map(d => (
+                                            <DeviceButton key={d.id} device={d} selected={selectedIpad} onSelect={setSelectedIpad} icon={Tablet} label="אייפד" />
+                                        ))}
+                                    </div>
+                                )
+                            )}
+                            {noIpad && (
+                                <p className="text-xs text-slate-400 bg-slate-50 rounded-lg p-2 text-center">לא נלקח אייפד במשמרת זו</p>
                             )}
                         </div>
 
                         {/* מסופונים */}
                         <div>
-                            <p className="text-sm font-semibold text-slate-700 mb-2 flex items-center gap-2">
-                                <CreditCard className="w-4 h-4 text-purple-500" /> בחר מסופון
-                            </p>
-                            {terminals.length === 0 ? (
-                                <p className="text-xs text-slate-400">אין מסופונים במערכת</p>
-                            ) : (
-                                <div className="grid grid-cols-3 gap-2">
-                                    {terminals.map(d => (
-                                        <DeviceButton key={d.id} device={d} selected={selectedTerminal} onSelect={setSelectedTerminal} icon={CreditCard} label="מסופון" />
-                                    ))}
-                                </div>
+                            <div className="flex items-center justify-between mb-2">
+                                <p className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                                    <CreditCard className="w-4 h-4 text-purple-500" /> בחר מסופון
+                                </p>
+                                <button
+                                    onClick={handleNoTerminalToggle}
+                                    className={`text-xs px-2 py-1 rounded-lg border transition-all font-medium ${noTerminal ? 'bg-slate-700 text-white border-slate-700' : 'bg-white text-slate-500 border-slate-300 hover:border-slate-500'}`}
+                                >
+                                    {noTerminal ? '✓ לא נלקח מסופון' : 'לא נלקח מסופון'}
+                                </button>
+                            </div>
+                            {!noTerminal && (
+                                terminals.length === 0 ? (
+                                    <p className="text-xs text-slate-400">אין מסופונים במערכת</p>
+                                ) : (
+                                    <div className="grid grid-cols-3 gap-2">
+                                        {terminals.map(d => (
+                                            <DeviceButton key={d.id} device={d} selected={selectedTerminal} onSelect={setSelectedTerminal} icon={CreditCard} label="מסופון" />
+                                        ))}
+                                    </div>
+                                )
+                            )}
+                            {noTerminal && (
+                                <p className="text-xs text-slate-400 bg-slate-50 rounded-lg p-2 text-center">לא נלקח מסופון במשמרת זו</p>
                             )}
                         </div>
 
@@ -164,7 +202,7 @@ export default function GearUpDialog({ open, onClose, shiftTrackingId, employeeI
                             </Button>
                             <Button
                                 onClick={handleConfirm}
-                                disabled={!conditionOk || saving || (!selectedIpad && !selectedTerminal)}
+                                disabled={!conditionOk || saving || (!selectedIpad && !noIpad && !selectedTerminal && !noTerminal)}
                                 className="flex-1 bg-green-600 hover:bg-green-700 text-white text-sm"
                             >
                                 {saving ? <Loader2 className="w-4 h-4 animate-spin ml-1" /> : <CheckCircle className="w-4 h-4 ml-1" />}
