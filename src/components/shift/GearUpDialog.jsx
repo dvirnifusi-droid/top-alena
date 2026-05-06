@@ -81,22 +81,23 @@ export default function GearUpDialog({ open, onClose, shiftTrackingId, employeeI
 
     const DeviceButton = ({ device, selected, onSelect, icon: Icon, label }) => {
         const available = isAvailable(device);
+        const isSelected = selected?.id === device.id;
         return (
             <button
-                onClick={() => available && onSelect(selected?.id === device.id ? null : device)}
+                onClick={() => available && onSelect(isSelected ? null : device)}
                 disabled={!available}
-                className={`flex flex-col items-center justify-center p-3 rounded-xl border-2 transition-all text-sm font-bold
-                    ${selected?.id === device.id
+                className={`flex flex-col items-center justify-center py-2 px-1 rounded-lg border-2 transition-all font-bold
+                    ${isSelected
                         ? 'border-green-500 bg-green-50 text-green-700'
                         : available
                             ? 'border-slate-200 bg-white hover:border-blue-400 hover:bg-blue-50 text-slate-700'
                             : 'border-red-200 bg-red-50 text-red-400 opacity-60 cursor-not-allowed'
                     }`}
             >
-                <Icon className="w-6 h-6 mb-1" />
-                <span>{label} #{device.device_number}</span>
-                {!available && <span className="text-xs font-normal mt-1">({device.current_holder_name?.split(' ')[0] || 'תפוס'})</span>}
-                {selected?.id === device.id && <CheckCircle className="w-4 h-4 mt-1 text-green-500" />}
+                <Icon className="w-4 h-4 mb-0.5" />
+                <span className="text-xs leading-tight">#{device.device_number}</span>
+                {!available && <span className="text-[9px] font-normal leading-tight">{device.current_holder_name?.split(' ')[0] || 'תפוס'}</span>}
+                {isSelected && <CheckCircle className="w-3 h-3 text-green-500 mt-0.5" />}
             </button>
         );
     };
@@ -131,7 +132,7 @@ export default function GearUpDialog({ open, onClose, shiftTrackingId, employeeI
                                 ipads.length === 0 ? (
                                     <p className="text-xs text-slate-400">אין אייפדים במערכת</p>
                                 ) : (
-                                    <div className="grid grid-cols-3 gap-2">
+                                    <div className="grid grid-cols-4 gap-1.5">
                                         {ipads.map(d => (
                                             <DeviceButton key={d.id} device={d} selected={selectedIpad} onSelect={setSelectedIpad} icon={Tablet} label="אייפד" />
                                         ))}
@@ -160,7 +161,7 @@ export default function GearUpDialog({ open, onClose, shiftTrackingId, employeeI
                                 terminals.length === 0 ? (
                                     <p className="text-xs text-slate-400">אין מסופונים במערכת</p>
                                 ) : (
-                                    <div className="grid grid-cols-3 gap-2">
+                                    <div className="grid grid-cols-4 gap-1.5">
                                         {terminals.map(d => (
                                             <DeviceButton key={d.id} device={d} selected={selectedTerminal} onSelect={setSelectedTerminal} icon={CreditCard} label="מסופון" />
                                         ))}
