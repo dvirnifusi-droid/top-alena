@@ -5,6 +5,53 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Camera, CheckCircle, AlertCircle, Loader2, Tablet, CreditCard, X } from 'lucide-react';
 
+// מוגדר מחוץ לקומפוננטה הראשית כדי שלא יאבד state בכל render
+function PhotoUploader({ label, IconComp, iconColor, preview, uploading, onFile, onClear }) {
+    const inputRef = useRef();
+    return (
+        <div className="space-y-1.5">
+            <p className="text-sm font-semibold text-slate-700 flex items-center gap-1.5">
+                <IconComp className={`w-4 h-4 ${iconColor}`} />
+                {label} <span className="text-red-500">*חובה</span>
+            </p>
+            {preview ? (
+                <div className="relative">
+                    <img src={preview} alt={label} className="w-full h-32 object-cover rounded-xl border-2 border-green-400" />
+                    {uploading && (
+                        <div className="absolute inset-0 bg-black/40 flex items-center justify-center rounded-xl">
+                            <Loader2 className="w-7 h-7 text-white animate-spin" />
+                        </div>
+                    )}
+                    {!uploading && (
+                        <button onClick={onClear} className="absolute top-2 left-2 bg-white rounded-full p-1 shadow">
+                            <X className="w-4 h-4 text-red-500" />
+                        </button>
+                    )}
+                </div>
+            ) : (
+                <div
+                    className="flex flex-col items-center justify-center h-24 rounded-xl border-2 border-dashed border-indigo-300 bg-indigo-50 cursor-pointer hover:bg-indigo-100 transition-colors"
+                    onClick={() => inputRef.current?.click()}
+                >
+                    <Camera className="w-6 h-6 text-indigo-400 mb-1" />
+                    <span className="text-xs text-indigo-600 font-medium">לחץ לצילום / העלאה</span>
+                    <input
+                        ref={inputRef}
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={e => {
+                            const file = e.target.files[0];
+                            if (file) onFile(file);
+                            e.target.value = '';
+                        }}
+                    />
+                </div>
+            )}
+        </div>
+    );
+}
+
 export default function GearReturnDialog({ open, onClose, myDevices, employeeId }) {
     const [ipadReturned, setIpadReturned] = useState(false);
     const [terminalReturned, setTerminalReturned] = useState(false);
@@ -27,7 +74,7 @@ export default function GearReturnDialog({ open, onClose, myDevices, employeeId 
 
     const ipadDone = !hasIpad || ipadReturned;
     const terminalDone = !hasTerminal || terminalReturned;
-    // בודקים preview (הצגה מיידית) ולא רק URL שמגיע אחרי העלאה
+    // בודקים preview — מוצג מיד כשנבחרה תמונה, לפני סיום ה-upload
     const ipadPhotoDone = !hasIpad || !!ipadPhotoPreview;
     const terminalPhotoDone = !hasTerminal || !!terminalPhotoPreview;
     const isUploading = uploadingIpadPhoto || uploadingTerminalPhoto;
@@ -37,13 +84,14 @@ export default function GearReturnDialog({ open, onClose, myDevices, employeeId 
 
     const handlePhotoUpload = async (file, setUrl, setPreview, setUploading) => {
         if (!file) return;
-        setUploading(true);
         setPreview(URL.createObjectURL(file));
+        setUploading(true);
         try {
             const { file_url } = await base44.integrations.Core.UploadFile({ file });
             setUrl(file_url);
         } catch (err) {
             console.error('Upload failed', err);
+            // preview נשאר — נשתמש בו כ-fallback
         }
         setUploading(false);
     };
@@ -76,44 +124,8 @@ export default function GearReturnDialog({ open, onClose, myDevices, employeeId 
 
         await Promise.all(updates);
         setSaving(false);
-        onClose({ ipadPhoto, terminalPhoto, notes });
+        onClose({ ipadPhoto: ipadPhoto || ipadPhotoPreview, terminalPhoto: terminalPhoto || terminalPhotoPreview, notes });
     };
-
-    const PhotoUploader = ({ label, icon: Icon, iconColor, preview, uploading, onFile, onClear }) => (
-        <div className="space-y-1.5">
-            <p className="text-sm font-semibold text-slate-700 flex items-center gap-1.5">
-                <Icon className={`w-4 h-4 ${iconColor}`} />
-                {label} <span className="text-red-500">*חובה</span>
-            </p>
-            {preview ? (
-                <div className="relative">
-                    <img src={preview} alt={label} className="w-full h-32 object-cover rounded-xl border-2 border-green-400" />
-                    {uploading && (
-                        <div className="absolute inset-0 bg-black/40 flex items-center justify-center rounded-xl">
-                            <Loader2 className="w-7 h-7 text-white animate-spin" />
-                        </div>
-                    )}
-                    {!uploading && (
-                        <button onClick={onClear} className="absolute top-2 left-2 bg-white rounded-full p-1 shadow">
-                            <X className="w-4 h-4 text-red-500" />
-                        </button>
-                    )}
-                </div>
-            ) : (
-                <label className="flex flex-col items-center justify-center h-24 rounded-xl border-2 border-dashed border-indigo-300 bg-indigo-50 cursor-pointer hover:bg-indigo-100 transition-colors">
-                    <Camera className="w-6 h-6 text-indigo-400 mb-1" />
-                    <span className="text-xs text-indigo-600 font-medium">לחץ לצילום / העלאה</span>
-                    <input
-                        type="file"
-                        accept="image/*"
-                        capture="environment"
-                        className="hidden"
-                        onChange={e => onFile(e.target.files[0])}
-                    />
-                </label>
-            )}
-        </div>
-    );
 
     return (
         <Dialog open={open} onOpenChange={() => {}}>
@@ -142,7 +154,7 @@ export default function GearReturnDialog({ open, onClose, myDevices, employeeId 
                             </div>
                             <PhotoUploader
                                 label="צלם אייפד מחובר למטען"
-                                icon={Tablet}
+                                IconComp={Tablet}
                                 iconColor="text-blue-500"
                                 preview={ipadPhotoPreview}
                                 uploading={uploadingIpadPhoto}
@@ -169,7 +181,7 @@ export default function GearReturnDialog({ open, onClose, myDevices, employeeId 
                             </div>
                             <PhotoUploader
                                 label="צלם מסופון מחובר למטען"
-                                icon={CreditCard}
+                                IconComp={CreditCard}
                                 iconColor="text-purple-500"
                                 preview={terminalPhotoPreview}
                                 uploading={uploadingTerminalPhoto}
@@ -179,14 +191,15 @@ export default function GearReturnDialog({ open, onClose, myDevices, employeeId 
                         </div>
                     )}
 
-                    {!hasIpad && !hasTerminal && (
+                    {/* אין ציוד — תמונה כללית */}
+                    {noDevices && (
                         <div className="space-y-3">
                             <div className="text-center py-2 text-sm text-slate-500 bg-slate-50 rounded-lg border">
                                 לא נרשם ציוד עבורך במשמרת זו
                             </div>
                             <PhotoUploader
                                 label="צלם את הציוד שהחזרת"
-                                icon={Camera}
+                                IconComp={Camera}
                                 iconColor="text-indigo-500"
                                 preview={ipadPhotoPreview}
                                 uploading={uploadingIpadPhoto}
