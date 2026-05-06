@@ -166,11 +166,24 @@ function ReportsInner() {
     const getEmployeeMonthlyData = () => {
         const employeeData = {};
         
+        // איחוד לפי employee_id אם קיים, אחרת לפי שם
+        const getKey = (id, name) => (id && id.trim()) ? id.trim() : `name_${(name || '').trim().toLowerCase()}`;
+        
+        // בנה map משם → id מרשימת העובדים, לאיחוד כשיש ID ב-workShifts אבל לא בטיפים
+        const nameToIdMap = {};
+        employees.forEach(e => {
+            if (e.full_name && e.id) nameToIdMap[e.full_name.trim().toLowerCase()] = e.id;
+        });
+
         // Process tip reports (waiters, bartenders, etc.)
         tipReports.forEach(report => {
             report.staff_details?.forEach(staff => {
-                if (!employeeData[staff.employee_id]) {
-                    employeeData[staff.employee_id] = {
+                if (!staff.employee_name && !staff.employee_id) return;
+                // נסה למצוא ID לפי שם אם אין ID
+                const resolvedId = staff.employee_id?.trim() || nameToIdMap[staff.employee_name?.trim().toLowerCase()] || '';
+                const key = getKey(resolvedId, staff.employee_name);
+                if (!employeeData[key]) {
+                    employeeData[key] = {
                         name: staff.employee_name,
                         totalHours: 0,
                         totalTips: 0,
@@ -181,7 +194,7 @@ function ReportsInner() {
                     };
                 }
                 
-                const empData = employeeData[staff.employee_id];
+                const empData = employeeData[key];
                 empData.totalHours += staff.effective_hours || 0;
                 empData.totalTips += staff.final_tip || 0;
                 empData.totalMealCost += staff.meal_cost || 0;
@@ -193,8 +206,11 @@ function ReportsInner() {
         // Process work shifts (kitchen, dishwashers, cashiers, etc.)
         workShifts.forEach(shift => {
             (shift.assigned_staff || []).forEach(staff => {
-                if (!employeeData[staff.employee_id]) {
-                    employeeData[staff.employee_id] = {
+                if (!staff.employee_name && !staff.employee_id) return;
+                const resolvedId = staff.employee_id?.trim() || nameToIdMap[staff.employee_name?.trim().toLowerCase()] || '';
+                const key = getKey(resolvedId, staff.employee_name);
+                if (!employeeData[key]) {
+                    employeeData[key] = {
                         name: staff.employee_name,
                         totalHours: 0,
                         totalTips: 0,
@@ -206,7 +222,7 @@ function ReportsInner() {
                     };
                 }
 
-                const empData = employeeData[staff.employee_id];
+                const empData = employeeData[key];
                 
                 // Calculate hours for this shift
                 if (staff.start_time && staff.end_time) {
@@ -216,7 +232,7 @@ function ReportsInner() {
                     
                     empData.totalHours += effectiveHours;
                     empData.shifts += 1;
-                    empData.position = staff.position; // Update position info
+                    empData.position = staff.position;
                 }
             });
         });
