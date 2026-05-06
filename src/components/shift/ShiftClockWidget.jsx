@@ -100,7 +100,10 @@ export default function ShiftClockWidget() {
         let targetShift = null;
         
         for (const ws of workShifts) {
-            const assignment = (ws.assigned_staff || []).find(a => a.employee_id === employeeId);
+            const assignment = (ws.assigned_staff || []).find(a =>
+                a.employee_id === employeeId ||
+                (a.employee_name && user.full_name && a.employee_name.toLowerCase() === user.full_name.toLowerCase())
+            );
             if (assignment) {
                 assignmentFound = assignment;
                 targetShift = ws;
@@ -141,7 +144,7 @@ export default function ShiftClockWidget() {
         } else if (assignmentFound.position === 'בלתם' || !assignmentFound.start_time) {
             // עדכן את שעת ההתחלה של העובד בסידור אם הוא בתפקיד "בלתם" או ללא שעה
             const updatedStaff = [...(targetShift.assigned_staff || [])].map(a =>
-                a.employee_id === employeeId
+                (a.employee_id === employeeId || (a.employee_name && user.full_name && a.employee_name.toLowerCase() === user.full_name.toLowerCase()))
                     ? { ...a, start_time: format(new Date(now), 'HH:mm') }
                     : a
             );
@@ -257,7 +260,11 @@ export default function ShiftClockWidget() {
         const workShifts = await base44.entities.WorkShift.filter({ date: shiftDate });
         for (const ws of workShifts) {
             const staff = ws.assigned_staff || [];
-            const idx = staff.findIndex(s => s.employee_id === employeeId);
+            // חיפוש לפי employee_id ובמידת הצורך גם לפי שם
+            const idx = staff.findIndex(s =>
+                s.employee_id === employeeId ||
+                (s.employee_name && user.full_name && s.employee_name.toLowerCase() === user.full_name.toLowerCase())
+            );
             if (idx !== -1) {
                 const updatedStaff = [...staff];
                 updatedStaff[idx] = {
