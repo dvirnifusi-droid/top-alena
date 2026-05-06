@@ -1,0 +1,197 @@
+import React, { useState, useRef } from 'react';
+import { base44 } from '@/api/base44Client';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Textarea } from '@/components/ui/textarea';
+import { Camera, CheckCircle, AlertCircle, Loader2, Tablet, CreditCard, X } from 'lucide-react';
+
+export default function GearReturnDialog({ open, onClose, myDevices, employeeId }) {
+    const [ipadReturned, setIpadReturned] = useState(false);
+    const [terminalReturned, setTerminalReturned] = useState(false);
+    const [photo, setPhoto] = useState(null);
+    const [photoPreview, setPhotoPreview] = useState(null);
+    const [notes, setNotes] = useState('');
+    const [saving, setSaving] = useState(false);
+    const [uploadingPhoto, setUploadingPhoto] = useState(false);
+    const cameraRef = useRef();
+
+    const myIpad = myDevices?.ipad;
+    const myTerminal = myDevices?.terminal;
+
+    const hasIpad = !!myIpad;
+    const hasTerminal = !!myTerminal;
+
+    const ipadDone = !hasIpad || ipadReturned;
+    const terminalDone = !hasTerminal || terminalReturned;
+    const canProceed = ipadDone && terminalDone && !!photo;
+
+    const handlePhoto = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        setUploadingPhoto(true);
+        const preview = URL.createObjectURL(file);
+        setPhotoPreview(preview);
+        try {
+            const { file_url } = await base44.integrations.Core.UploadFile({ file });
+            setPhoto(file_url);
+        } catch (err) {
+            console.error('Upload failed', err);
+        }
+        setUploadingPhoto(false);
+    };
+
+    const handleConfirm = async () => {
+        setSaving(true);
+        const now = new Date().toISOString();
+        const updates = [];
+
+        if (myIpad) {
+            updates.push(base44.entities.DeviceAsset.update(myIpad.id, {
+                status: 'available',
+                current_holder_id: '',
+                current_holder_name: '',
+                return_photo_url: photo,
+                return_notes: notes,
+                returned_at: now,
+            }));
+        }
+        if (myTerminal) {
+            updates.push(base44.entities.DeviceAsset.update(myTerminal.id, {
+                status: 'available',
+                current_holder_id: '',
+                current_holder_name: '',
+                return_photo_url: photo,
+                return_notes: notes,
+                returned_at: now,
+            }));
+        }
+
+        await Promise.all(updates);
+        setSaving(false);
+        onClose({ photo, notes });
+    };
+
+    return (
+        <Dialog open={open} onOpenChange={() => {}}>
+            <DialogContent dir="rtl" className="max-w-sm w-[95vw]" onInteractOutside={e => e.preventDefault()}>
+                <DialogHeader>
+                    <DialogTitle className="flex items-center gap-2 text-lg">
+                        📦 סיום משמרת – החזרת ציוד
+                    </DialogTitle>
+                </DialogHeader>
+
+                <div className="space-y-4">
+                    {/* ציוד להחזרה */}
+                    {hasIpad && (
+                        <div
+                            className={`flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer transition-all ${ipadReturned ? 'border-green-400 bg-green-50' : 'border-slate-200 bg-slate-50'}`}
+                            onClick={() => setIpadReturned(!ipadReturned)}
+                        >
+                            <div className={`w-6 h-6 rounded border-2 flex-shrink-0 flex items-center justify-center ${ipadReturned ? 'border-green-500 bg-green-500' : 'border-slate-400'}`}>
+                                {ipadReturned && <CheckCircle className="w-4 h-4 text-white" />}
+                            </div>
+                            <Tablet className="w-5 h-5 text-blue-500 flex-shrink-0" />
+                            <p className="text-sm font-medium text-slate-700">
+                                החזרתי <strong>אייפד #{myIpad.device_number}</strong> לעמדת הטעינה
+                            </p>
+                        </div>
+                    )}
+
+                    {hasTerminal && (
+                        <div
+                            className={`flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer transition-all ${terminalReturned ? 'border-green-400 bg-green-50' : 'border-slate-200 bg-slate-50'}`}
+                            onClick={() => setTerminalReturned(!terminalReturned)}
+                        >
+                            <div className={`w-6 h-6 rounded border-2 flex-shrink-0 flex items-center justify-center ${terminalReturned ? 'border-green-500 bg-green-500' : 'border-slate-400'}`}>
+                                {terminalReturned && <CheckCircle className="w-4 h-4 text-white" />}
+                            </div>
+                            <CreditCard className="w-5 h-5 text-purple-500 flex-shrink-0" />
+                            <p className="text-sm font-medium text-slate-700">
+                                החזרתי <strong>מסופון #{myTerminal.device_number}</strong> לעמדת הטעינה
+                            </p>
+                        </div>
+                    )}
+
+                    {!hasIpad && !hasTerminal && (
+                        <div className="text-center py-2 text-sm text-slate-500 bg-slate-50 rounded-lg border">
+                            לא נרשם ציוד עבורך במשמרת זו
+                        </div>
+                    )}
+
+                    {/* צילום הציוד */}
+                    <div className="space-y-2">
+                        <p className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                            <Camera className="w-4 h-4 text-indigo-500" />
+                            צלם את הציוד מחובר למטען <span className="text-red-500">*חובה</span>
+                        </p>
+
+                        {photoPreview ? (
+                            <div className="relative">
+                                <img src={photoPreview} alt="צילום ציוד" className="w-full h-40 object-cover rounded-xl border-2 border-green-400" />
+                                {uploadingPhoto && (
+                                    <div className="absolute inset-0 bg-black/40 flex items-center justify-center rounded-xl">
+                                        <Loader2 className="w-8 h-8 text-white animate-spin" />
+                                    </div>
+                                )}
+                                {!uploadingPhoto && (
+                                    <button
+                                        onClick={() => { setPhoto(null); setPhotoPreview(null); }}
+                                        className="absolute top-2 left-2 bg-white rounded-full p-1 shadow"
+                                    >
+                                        <X className="w-4 h-4 text-red-500" />
+                                    </button>
+                                )}
+                            </div>
+                        ) : (
+                            <label className="flex flex-col items-center justify-center h-32 rounded-xl border-2 border-dashed border-indigo-300 bg-indigo-50 cursor-pointer hover:bg-indigo-100 transition-colors">
+                                <Camera className="w-8 h-8 text-indigo-400 mb-2" />
+                                <span className="text-sm text-indigo-600 font-medium">לחץ לצילום / העלאה</span>
+                                <input
+                                    ref={cameraRef}
+                                    type="file"
+                                    accept="image/*"
+                                    capture="environment"
+                                    className="hidden"
+                                    onChange={handlePhoto}
+                                />
+                            </label>
+                        )}
+                    </div>
+
+                    {/* הערות */}
+                    <div>
+                        <p className="text-sm font-medium text-slate-600 mb-1">הערות (אופציונלי) – תקלות, נזק וכו'</p>
+                        <Textarea
+                            value={notes}
+                            onChange={e => setNotes(e.target.value)}
+                            placeholder="לדוגמה: הסוללה של אייפד #3 לא טענה..."
+                            rows={2}
+                            className="text-right text-sm"
+                        />
+                    </div>
+
+                    {/* ולידציה */}
+                    {!canProceed && (
+                        <div className="flex items-center gap-2 text-amber-600 text-xs bg-amber-50 border border-amber-200 rounded-lg p-2">
+                            <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                            <span>
+                                {!photo ? 'יש לצלם את הציוד בעמדת הטעינה לפני סיום המשמרת' :
+                                 !ipadDone ? 'יש לאשר החזרת האייפד' :
+                                 'יש לאשר החזרת המסופון'}
+                            </span>
+                        </div>
+                    )}
+
+                    <Button
+                        onClick={handleConfirm}
+                        disabled={!canProceed || saving}
+                        className="w-full bg-red-600 hover:bg-red-700 text-white py-3 text-base font-bold"
+                    >
+                        {saving ? <Loader2 className="w-5 h-5 animate-spin ml-2" /> : null}
+                        ✅ אישור החזרה וסיום משמרת
+                    </Button>
+                </div>
+            </DialogContent>
+        </Dialog>
+    );
+}

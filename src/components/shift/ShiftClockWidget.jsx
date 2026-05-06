@@ -9,6 +9,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Clock, Coffee, Play, Square, UtensilsCrossed, CheckCircle } from 'lucide-react';
 import LootBox from '../gamification/LootBox';
+import GearUpDialog from './GearUpDialog';
+import GearReturnDialog from './GearReturnDialog';
 import { format } from 'date-fns';
 
 export default function ShiftClockWidget() {
@@ -29,6 +31,10 @@ export default function ShiftClockWidget() {
     const [managerPassword, setManagerPassword] = useState('');
     const [breakEditUnlocked, setBreakEditUnlocked] = useState(false);
     const MANAGER_CODE = '1234'; // קוד מנהל - ניתן לשנות
+    const [showGearUp, setShowGearUp] = useState(false);
+    const [showGearReturn, setShowGearReturn] = useState(false);
+    const [myDevices, setMyDevices] = useState({ ipad: null, terminal: null });
+    const [pendingEndShift, setPendingEndShift] = useState(false);
     const timerRef = useRef(null);
 
     useEffect(() => {
@@ -144,6 +150,20 @@ export default function ShiftClockWidget() {
 
         setActiveShift(shift);
         setActionLoading(false);
+        // פתח דיאלוג קבלת ציוד לאחר כניסה למשמרת
+        setShowGearUp(true);
+    };
+
+    const handleGearUpDone = (devices) => {
+        setShowGearUp(false);
+        if (devices) setMyDevices(devices);
+    };
+
+    const loadMyDevices = async (userId) => {
+        const all = await base44.entities.DeviceAsset.filter({ current_holder_id: userId });
+        const ipad = all.find(d => d.device_type === 'ipad' && d.status === 'in_use') || null;
+        const terminal = all.find(d => d.device_type === 'terminal' && d.status === 'in_use') || null;
+        setMyDevices({ ipad, terminal });
     };
 
     const startBreak = async () => {
@@ -192,7 +212,19 @@ export default function ShiftClockWidget() {
     };
 
     const endShift = async () => {
-        setShowEndShiftDialog(true);
+        // טען ציוד פעיל של העובד לפני פתיחת דיאלוג החזרה
+        if (user) await loadMyDevices(user.id);
+        setPendingEndShift(true);
+        setShowGearReturn(true);
+    };
+
+    const handleGearReturnDone = (result) => {
+        setShowGearReturn(false);
+        if (result) {
+            // המשך לשאלון סיום משמרת
+            setShowEndShiftDialog(true);
+        }
+        setPendingEndShift(false);
     };
 
     const submitEndShift = async () => {
@@ -587,6 +619,23 @@ export default function ShiftClockWidget() {
                     </div>
                 </DialogContent>
             </Dialog>
+
+            {/* דיאלוג קבלת ציוד */}
+            <GearUpDialog
+                open={showGearUp}
+                onClose={handleGearUpDone}
+                shiftTrackingId={activeShift?.id}
+                employeeId={user?.id}
+                employeeName={user?.full_name}
+            />
+
+            {/* דיאלוג החזרת ציוד */}
+            <GearReturnDialog
+                open={showGearReturn}
+                onClose={handleGearReturnDone}
+                myDevices={myDevices}
+                employeeId={user?.id}
+            />
 
             {/* קופסת הפתעה */}
             {showLootBox && lootBoxEmployee && (

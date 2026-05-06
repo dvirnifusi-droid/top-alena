@@ -1,0 +1,66 @@
+{
+  "name": "DeviceAsset",
+  "type": "object",
+  "properties": {
+    "device_type": {
+      "type": "string",
+      "enum": [
+        "ipad",
+        "terminal"
+      ],
+      "description": "\u05e1\u05d5\u05d2 \u05d4\u05de\u05db\u05e9\u05d9\u05e8: \u05d0\u05d9\u05d9\u05e4\u05d3 \u05d0\u05d5 \u05de\u05e1\u05d5\u05e4\u05d5\u05df"
+    },
+    "device_number": {
+      "type": "integer",
+      "description": "\u05de\u05e1\u05e4\u05e8 \u05d4\u05de\u05db\u05e9\u05d9\u05e8"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "available",
+        "in_use",
+        "maintenance"
+      ],
+      "default": "available",
+      "description": "\u05e1\u05d8\u05d8\u05d5\u05e1: \u05e4\u05e0\u05d5\u05d9 / \u05d1\u05e9\u05d9\u05de\u05d5\u05e9 / \u05d1\u05ea\u05d9\u05e7\u05d5\u05df"
+    },
+    "current_holder_id": {
+      "type": "string",
+      "description": "ID \u05e9\u05dc \u05d4\u05e2\u05d5\u05d1\u05d3 \u05d4\u05de\u05d7\u05d6\u05d9\u05e7 \u05db\u05e8\u05d2\u05e2"
+    },
+    "current_holder_name": {
+      "type": "string",
+      "description": "\u05e9\u05dd \u05d4\u05e2\u05d5\u05d1\u05d3 \u05d4\u05de\u05d7\u05d6\u05d9\u05e7 \u05db\u05e8\u05d2\u05e2"
+    },
+    "checked_out_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "\u05d6\u05de\u05df \u05e7\u05d1\u05dc\u05ea \u05d4\u05de\u05db\u05e9\u05d9\u05e8"
+    },
+    "shift_tracking_id": {
+      "type": "string",
+      "description": "ID \u05e9\u05dc ShiftTracking \u05d4\u05de\u05e9\u05d5\u05d9\u05da"
+    },
+    "condition_ok": {
+      "type": "boolean",
+      "description": "\u05d4\u05d0\u05dd \u05d0\u05d5\u05e9\u05e8 \u05db\u05ea\u05e7\u05d9\u05df \u05d1\u05e7\u05d1\u05dc\u05d4"
+    },
+    "return_photo_url": {
+      "type": "string",
+      "description": "\u05e7\u05d9\u05e9\u05d5\u05e8 \u05dc\u05ea\u05de\u05d5\u05e0\u05ea \u05d4\u05d7\u05d6\u05e8\u05d4 \u05dc\u05e2\u05de\u05d3\u05ea \u05d4\u05d8\u05e2\u05d9\u05e0\u05d4"
+    },
+    "return_notes": {
+      "type": "string",
+      "description": "\u05d4\u05e2\u05e8\u05d5\u05ea \u05d1\u05d4\u05d7\u05d6\u05e8\u05d4"
+    },
+    "returned_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "\u05d6\u05de\u05df \u05d4\u05d7\u05d6\u05e8\u05ea \u05d4\u05de\u05db\u05e9\u05d9\u05e8"
+    }
+  },
+  "required": [
+    "device_type",
+    "device_number"
+  ]
+}
