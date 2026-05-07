@@ -66,10 +66,15 @@ export default function ShiftClockWidget() {
         setLoading(false);
     };
 
-    // Find employee record matching the current user by email
+    // Find employee record matching the current user by email, then by name
     const findEmployeeRecord = async (u) => {
         const allEmployees = await Employee.filter({ status: 'active' });
-        return allEmployees.find(emp => emp.email && u.email && emp.email.toLowerCase() === u.email.toLowerCase());
+        // 1. חיפוש לפי אימייל (מדויק)
+        const byEmail = allEmployees.find(emp => emp.email && u.email && emp.email.toLowerCase() === u.email.toLowerCase());
+        if (byEmail) return byEmail;
+        // 2. fallback: חיפוש לפי שם מלא
+        const byName = allEmployees.find(emp => emp.full_name && u.full_name && emp.full_name.trim().toLowerCase() === u.full_name.trim().toLowerCase());
+        return byName || null;
     };
 
     const startShift = async () => {
