@@ -92,6 +92,7 @@ export default function ShiftClockWidget() {
         // בדוק אם העובד מופיע בסידור עבודה של היום
         const employeeRecord = await findEmployeeRecord(user);
         const employeeId = employeeRecord?.id || user.id;
+        const employeeName = employeeRecord?.full_name || user.full_name;
 
         const workShifts = await base44.entities.WorkShift.filter({ date: today });
         
@@ -102,7 +103,7 @@ export default function ShiftClockWidget() {
         for (const ws of workShifts) {
             const assignment = (ws.assigned_staff || []).find(a =>
                 a.employee_id === employeeId ||
-                (a.employee_name && user.full_name && a.employee_name.toLowerCase() === user.full_name.toLowerCase())
+                (a.employee_name && employeeName && a.employee_name.toLowerCase() === employeeName.toLowerCase())
             );
             if (assignment) {
                 assignmentFound = assignment;
@@ -144,8 +145,8 @@ export default function ShiftClockWidget() {
         } else if (assignmentFound.position === 'בלתם' || !assignmentFound.start_time) {
             // עדכן את שעת ההתחלה של העובד בסידור אם הוא בתפקיד "בלתם" או ללא שעה
             const updatedStaff = [...(targetShift.assigned_staff || [])].map(a =>
-                (a.employee_id === employeeId || (a.employee_name && user.full_name && a.employee_name.toLowerCase() === user.full_name.toLowerCase()))
-                    ? { ...a, start_time: format(new Date(now), 'HH:mm') }
+                (a.employee_id === employeeId || (a.employee_name && employeeName && a.employee_name.toLowerCase() === employeeName.toLowerCase()))
+                    ? { ...a, employee_id: employeeId, start_time: format(new Date(now), 'HH:mm') }
                     : a
             );
             await base44.entities.WorkShift.update(targetShift.id, { assigned_staff: updatedStaff });
@@ -254,30 +255,40 @@ export default function ShiftClockWidget() {
         // 2. מצא את רשומת העובד לפי אימייל (כמו WorkScheduling)
         const employeeRecord = await findEmployeeRecord(user);
         const employeeId = employeeRecord?.id || user.id;
+        const employeeName = employeeRecord?.full_name || user.full_name;
 
-        // 3. עדכון WorkShift - מצא לפי תאריך תחילת המשמרת (לא בהכרח היום, עשוי להיות אתמול במשמרת לילה)
+        // 3. עדכון WorkShift - חפש גם ביום הנוכחי וגם בתאריך תחילת המשמרת (לכיסוי משמרות לילה)
         const shiftDate = format(new Date(activeShift.shift_start), 'yyyy-MM-dd');
-        const workShifts = await base44.entities.WorkShift.filter({ date: shiftDate });
-        for (const ws of workShifts) {
-            const staff = ws.assigned_staff || [];
-            // חיפוש לפי employee_id ובמידת הצורך גם לפי שם
-            const idx = staff.findIndex(s =>
-                s.employee_id === employeeId ||
-                (s.employee_name && user.full_name && s.employee_name.toLowerCase() === user.full_name.toLowerCase())
-            );
-            if (idx !== -1) {
-                const updatedStaff = [...staff];
-                updatedStaff[idx] = {
-                    ...updatedStaff[idx],
-                    start_time: format(new Date(activeShift.shift_start), 'HH:mm'),
-                    end_time: format(new Date(now), 'HH:mm'),
-                    total_break_minutes: finalBreakMinutes,
-                    had_meal: activeShift.had_meal || false,
-                    meal_details: activeShift.meal_details || '',
-                    breaks: activeShift.breaks || [],
-                };
-                await base44.entities.WorkShift.update(ws.id, { assigned_staff: updatedStaff });
-                break;
+        const today2 = format(new Date(), 'yyyy-MM-dd');
+        const datesToSearch = [...new Set([shiftDate, today2])];
+        
+        let workShiftUpdated = false;
+        for (const dateToSearch of datesToSearch) {
+            if (workShiftUpdated) break;
+            const workShifts = await base44.entities.WorkShift.filter({ date: dateToSearch });
+            for (const ws of workShifts) {
+                const staff = ws.assigned_staff || [];
+                // חיפוש לפי employee_id או שם עובד
+                const idx = staff.findIndex(s =>
+                    s.employee_id === employeeId ||
+                    (s.employee_name && employeeName && s.employee_name.toLowerCase() === employeeName.toLowerCase())
+                );
+                if (idx !== -1) {
+                    const updatedStaff = [...staff];
+                    updatedStaff[idx] = {
+                        ...updatedStaff[idx],
+                        employee_id: employeeId, // וודא שה-ID מעודכן
+                        start_time: format(new Date(activeShift.shift_start), 'HH:mm'),
+                        end_time: format(new Date(now), 'HH:mm'),
+                        total_break_minutes: finalBreakMinutes,
+                        had_meal: activeShift.had_meal || false,
+                        meal_details: activeShift.meal_details || '',
+                        breaks: activeShift.breaks || [],
+                    };
+                    await base44.entities.WorkShift.update(ws.id, { assigned_staff: updatedStaff });
+                    workShiftUpdated = true;
+                    break;
+                }
             }
         }
 
