@@ -256,6 +256,7 @@ export default function ShiftClockWidget() {
         const employeeRecord = await findEmployeeRecord(user);
         const employeeId = employeeRecord?.id || user.id;
         const employeeName = employeeRecord?.full_name || user.full_name;
+        console.log('[EndShift] user.id:', user.id, '| employeeRecord.id:', employeeRecord?.id, '| employeeName:', employeeName);
 
         // 3. עדכון WorkShift - חפש גם ביום הנוכחי וגם בתאריך תחילת המשמרת (לכיסוי משמרות לילה)
         const shiftDate = format(new Date(activeShift.shift_start), 'yyyy-MM-dd');
@@ -263,12 +264,24 @@ export default function ShiftClockWidget() {
         const datesToSearch = [...new Set([shiftDate, today2])];
         
         let workShiftUpdated = false;
+        const shiftStartHour = new Date(activeShift.shift_start).getHours() + new Date(activeShift.shift_start).getMinutes() / 60;
+        // קבע את סוג המשמרת לפי שעת הכניסה (UTC+3 ישראל)
+        const shiftStartLocalHour = (new Date(activeShift.shift_start).getHours() + 3) % 24;
+        const expectedShiftType = shiftStartLocalHour < 15 ? 'lunch' : 'dinner';
+
         for (const dateToSearch of datesToSearch) {
             if (workShiftUpdated) break;
             const workShifts = await base44.entities.WorkShift.filter({ date: dateToSearch });
-            for (const ws of workShifts) {
+            
+            // מיין: תעדוף את המשמרת שתואמת לסוג לפי שעת הכניסה
+            const sortedShifts = [...workShifts].sort((a, b) => {
+                if (a.shift_type === expectedShiftType && b.shift_type !== expectedShiftType) return -1;
+                if (b.shift_type === expectedShiftType && a.shift_type !== expectedShiftType) return 1;
+                return 0;
+            });
+
+            for (const ws of sortedShifts) {
                 const staff = ws.assigned_staff || [];
-                // חיפוש לפי employee_id או שם עובד
                 const idx = staff.findIndex(s =>
                     s.employee_id === employeeId ||
                     (s.employee_name && employeeName && s.employee_name.toLowerCase() === employeeName.toLowerCase())
@@ -277,7 +290,7 @@ export default function ShiftClockWidget() {
                     const updatedStaff = [...staff];
                     updatedStaff[idx] = {
                         ...updatedStaff[idx],
-                        employee_id: employeeId, // וודא שה-ID מעודכן
+                        employee_id: employeeId,
                         start_time: format(new Date(activeShift.shift_start), 'HH:mm'),
                         end_time: format(new Date(now), 'HH:mm'),
                         total_break_minutes: finalBreakMinutes,
