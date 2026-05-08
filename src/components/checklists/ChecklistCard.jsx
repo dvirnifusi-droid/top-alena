@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Play, Edit, Trash2, MoreHorizontal, CheckSquare, User, Users } from "lucide-react";
+import { Play, Edit, Trash2, MoreHorizontal, CheckSquare, User, Users, Download } from "lucide-react";
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -30,6 +30,63 @@ const SHIFT_LABELS = {
 
 export default function ChecklistCard({ checklist, onStart, executions, onEdit, onDelete, onAssignTasks }) {
     const [isDeleting, setIsDeleting] = useState(false);
+
+    const exportToPdf = () => {
+        const items = checklist.items || [];
+        const shiftLabel = SHIFT_LABELS[checklist.shift]?.label || '';
+        const date = new Date().toLocaleDateString('he-IL');
+
+        const html = `
+            <html dir="rtl">
+            <head>
+                <meta charset="utf-8">
+                <title>${checklist.title}</title>
+                <style>
+                    body { font-family: Arial, sans-serif; padding: 30px; color: #222; }
+                    h1 { font-size: 24px; border-bottom: 2px solid #333; padding-bottom: 8px; }
+                    .meta { color: #666; font-size: 14px; margin-bottom: 20px; }
+                    .item { display: flex; align-items: flex-start; gap: 10px; padding: 10px 0; border-bottom: 1px solid #eee; }
+                    .checkbox { width: 20px; height: 20px; border: 2px solid #555; border-radius: 4px; flex-shrink: 0; margin-top: 2px; }
+                    .item-text { font-size: 15px; }
+                    .item-note { font-size: 12px; color: #888; margin-top: 3px; }
+                    .footer { margin-top: 30px; font-size: 13px; color: #999; }
+                    .sign-area { margin-top: 40px; border-top: 1px solid #aaa; padding-top: 10px; display: flex; justify-content: space-between; }
+                </style>
+            </head>
+            <body>
+                <h1>${checklist.title}</h1>
+                <div class="meta">
+                    ${shiftLabel ? `<span>${shiftLabel} · </span>` : ''}
+                    <span>תאריך: ${date}</span>
+                    · <span>${items.length} פריטים</span>
+                </div>
+                ${checklist.description ? `<p style="color:#555;margin-bottom:16px">${checklist.description}</p>` : ''}
+                <div>
+                    ${items.map((item, i) => `
+                        <div class="item">
+                            <div class="checkbox"></div>
+                            <div>
+                                <div class="item-text">${i + 1}. ${item.text || item.title || item}</div>
+                                ${item.notes ? `<div class="item-note">📝 ${item.notes}</div>` : ''}
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+                <div class="sign-area">
+                    <span>חתימת מבצע: __________________</span>
+                    <span>חתימת מנהל: __________________</span>
+                </div>
+                <div class="footer">הופק מ-TOP ALENA · ${date}</div>
+            </body>
+            </html>
+        `;
+
+        const win = window.open('', '_blank');
+        win.document.write(html);
+        win.document.close();
+        win.focus();
+        setTimeout(() => win.print(), 500);
+    };
     const colors = COLOR_MAP[checklist.color] || COLOR_MAP.emerald;
     const shiftInfo = SHIFT_LABELS[checklist.shift] || null;
 
@@ -94,6 +151,10 @@ export default function ChecklistCard({ checklist, onStart, executions, onEdit, 
                         <DropdownMenuItem onClick={() => onAssignTasks(checklist)} className="rounded-xl">
                             <Users className="w-4 h-4 mr-2" />
                             שייך משימות
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={exportToPdf} className="rounded-xl">
+                            <Download className="w-4 h-4 mr-2" />
+                            ייצוא PDF להדפסה
                         </DropdownMenuItem>
                         <DropdownMenuItem 
                             onClick={handleDelete}
