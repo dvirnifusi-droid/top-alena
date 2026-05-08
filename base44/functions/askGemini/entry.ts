@@ -35,13 +35,13 @@ Deno.serve(async (req) => {
         system_instruction: systemPrompt ? { parts: [{ text: systemPrompt }] } : undefined,
         contents,
         generationConfig: {
-            temperature: 0.7,
+            temperature: 0.2,
             maxOutputTokens: 2048,
         }
     };
 
     const res = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`,
         {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
