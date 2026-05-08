@@ -151,16 +151,20 @@ export default function AiChatWidget() {
                     value: item.title
                 }));
 
-                const aiMessage = {
-                    id: Date.now() + 1,
-                    type: 'ai',
-                    content: `בטח, מצאתי כמה דברים רלוונטיים בקטגוריית "${triggeredCategory}". בחר אחת מהאפשרויות:`,
-                    timestamp: new Date(),
-                    options: options.length > 0 ? options : undefined
-                };
-                setMessages(prev => [...prev, aiMessage]);
-                setIsLoading(false);
-                return;
+                // יש פריטים בבסיס הידע - הצג כפתורים
+                if (options.length > 0) {
+                    const aiMessage = {
+                        id: Date.now() + 1,
+                        type: 'ai',
+                        content: `בטח, מצאתי כמה דברים רלוונטיים בקטגוריית "${triggeredCategory}". בחר אחת מהאפשרויות:`,
+                        timestamp: new Date(),
+                        options
+                    };
+                    setMessages(prev => [...prev, aiMessage]);
+                    setIsLoading(false);
+                    return;
+                }
+                // אין פריטים - תמשיך ל-Gemini (אל תחזור)
             }
             
             const relevantKnowledge = searchInternalKnowledge(currentInput, knowledgeBase);
