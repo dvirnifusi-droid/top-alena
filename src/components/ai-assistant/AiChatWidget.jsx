@@ -6,6 +6,7 @@ import { KnowledgeBase, StaffQuestion, PendingQuestion } from "@/entities/all";
 import { User } from "@/entities/User";
 import { Send, ThumbsUp, ThumbsDown, X, Minimize2, Maximize2 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
+import { askGemini } from "@/functions/askGemini";
 
 const DVIR_ICON_URL = "https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/68ac71d972dff18b98e30a21/5d2c4834a_17.png";
 
@@ -172,17 +173,36 @@ export default function AiChatWidget() {
                 aiResponseContent = `**${topResult.title}**\n\n${topResult.content}`;
             } else {
                 // הדרך האמינה והסופית: שמירת השאלה במערכת לטיפול במרכז הבקרה
+                // נסה Gemini
                 try {
-                    await PendingQuestion.create({
-                        question: currentInput,
-                        asked_by: user?.email || 'unknown',
-                        context: `שאלה נשאלה ב-${new Date().toLocaleString('he-IL')}`
-                    });
-                } catch (e) {
-                    console.log('Could not save pending question:', e);
-                }
+                    const conversationHistory = messages
+                        .filter(m => m.type === 'user' || m.type === 'ai')
+                        .slice(-6)
+                        .map(m => ({ role: m.type === 'ai' ? 'assistant' : 'user', content: m.content }));
 
-                aiResponseContent = `אופס, אני לא מכיר את התשובה לשאלה הזו 😅\n\nהשאלה שלך נשמרה, והמנהל יוכל ללמד אותי את התשובה דרך **מרכז בקרת AI** בתפריט.`;
+                    const systemPrompt = `אתה דביר - עוזר AI פנימי של מסעדת TOP ALENA. 
+אתה עונה בעברית בלבד, בצורה קצרה וידידותית.
+אתה עוזר לעובדים עם שאלות על המסעדה, נהלי עבודה, תפריט, וכל שאלה מקצועית.
+אל תחשוף מידע רגיש. אם אתה לא יודע משהו ספציפי למסעדה - אמור בכנות.`;
+
+                    const geminiRes = await askGemini({
+                        message: currentInput,
+                        history: conversationHistory,
+                        systemPrompt
+                    });
+                    aiResponseContent = geminiRes.data?.reply || 'אופס, לא הצלחתי לקבל תשובה מ-Gemini.';
+                } catch (geminiErr) {
+                    console.error('Gemini error:', geminiErr);
+                    // שמור שאלה לטיפול ידני
+                    try {
+                        await PendingQuestion.create({
+                            question: currentInput,
+                            asked_by: user?.email || 'unknown',
+                            context: `שאלה נשאלה ב-${new Date().toLocaleString('he-IL')}`
+                        });
+                    } catch (e) {}
+                    aiResponseContent = `אופס, אני לא מכיר את התשובה לשאלה הזו 😅\n\nהשאלה שלך נשמרה, והמנהל יוכל ללמד אותי את התשובה דרך **מרכז בקרת AI** בתפריט.`;
+                }
             }
 
             const aiMessage = {
