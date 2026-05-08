@@ -201,15 +201,12 @@ export default function AiChatWidget() {
                     aiResponseContent = geminiRes.data?.reply || 'אופס, לא הצלחתי לקבל תשובה מ-Gemini.';
                 } catch (geminiErr) {
                     console.error('Gemini error:', geminiErr);
-                    // שמור שאלה לטיפול ידני
-                    try {
-                        await PendingQuestion.create({
-                            question: currentInput,
-                            asked_by: user?.email || 'unknown',
-                            context: `שאלה נשאלה ב-${new Date().toLocaleString('he-IL')}`
-                        });
-                    } catch (e) {}
-                    aiResponseContent = `אופס, אני לא מכיר את התשובה לשאלה הזו 😅\n\nהשאלה שלך נשמרה, והמנהל יוכל ללמד אותי את התשובה דרך **מרכז בקרת AI** בתפריט.`;
+                    const errMsg = geminiErr?.response?.data?.error || geminiErr?.message || '';
+                    if (errMsg.includes('quota') || errMsg.includes('429')) {
+                        aiResponseContent = `אני קצת עמוס כרגע 😅 נסה שוב בעוד כמה שניות.`;
+                    } else {
+                        aiResponseContent = `יש לי תקלה טכנית כרגע. נסה שוב בעוד רגע.`;
+                    }
                 }
             }
 
