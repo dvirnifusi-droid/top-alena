@@ -2,14 +2,12 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 
 // URIs של קבצי המסעדה שהועלו ל-Gemini File API
 const RESTAURANT_FILE_URIS = [
-    "https://generativelanguage.googleapis.com/v1beta/files/b3pre91aah6v",  // תפריט ערב
-    "https://generativelanguage.googleapis.com/v1beta/files/7jqf86mhqp5u",  // תפריט שתייה
-    "https://generativelanguage.googleapis.com/v1beta/files/m7nuf3o9rlc7",  // צ'ק ליסט סגירת בוקר/העברת משמרת
-    "https://generativelanguage.googleapis.com/v1beta/files/3smea2fbvl3k",  // צ'ק ליסט פתיחת בר ערב
-    "https://generativelanguage.googleapis.com/v1beta/files/wohplw8y0ctj",  // צ'ק ליסט סגירת בר ערב
-    "https://generativelanguage.googleapis.com/v1beta/files/t4shf8drkm8y",  // צ'ק ליסט בוקר-צהריים
-    "https://generativelanguage.googleapis.com/v1beta/files/kmypayugnswj",  // עלינא ביג
-    "https://generativelanguage.googleapis.com/v1beta/files/w0e8d8nbnjpk",  // עיצוב ללא שם
+    "https://generativelanguage.googleapis.com/v1beta/files/s12wmp6x6ild",  // עלינא ביג
+    "https://generativelanguage.googleapis.com/v1beta/files/etw27aw31vp4",  // צ'ק ליסט פתיחת משמרת
+    "https://generativelanguage.googleapis.com/v1beta/files/vb2tkfhc93kx",  // צ'ק ליסט סגירת בר ערב
+    "https://generativelanguage.googleapis.com/v1beta/files/scorxso8xe50",  // תפריט שתייה
+    "https://generativelanguage.googleapis.com/v1beta/files/ixjv635g7a46",  // צ'ק ליסט פתיחת בר ערב
+    "https://generativelanguage.googleapis.com/v1beta/files/62pcnn7dpd1a",  // צ'ק ליסט סגירת בוקר
 ];
 
 Deno.serve(async (req) => {
