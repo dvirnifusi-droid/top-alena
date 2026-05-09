@@ -7,6 +7,7 @@ import { User } from "@/entities/User";
 import { Send, ThumbsUp, ThumbsDown, X, Minimize2, Maximize2, Mic, MicOff, Volume2, VolumeX } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { askGemini } from "@/functions/askGemini";
+import { elevenLabsTts } from "@/functions/elevenLabsTts";
 
 const DVIR_ICON_URL = "https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/68ac71d972dff18b98e30a21/5d2c4834a_17.png";
 
@@ -37,44 +38,38 @@ export default function AiChatWidget() {
     const chatContainerRef = useRef(null);
     const recognitionRef = useRef(null);
 
-    const speak = (text) => {
+    const currentAudioRef = useRef(null);
+
+    const speak = async (text) => {
         if (!ttsEnabled) return;
-        window.speechSynthesis.cancel();
-        const clean = text.replace(/[*_#`~]/g, '').replace(/\n+/g, ' ').trim();
-        if (!clean) return;
-
-        const doSpeak = () => {
-            const utterance = new SpeechSynthesisUtterance(clean);
-            // נסה קול עברי, אחרת כל קול זמין
-            const voices = window.speechSynthesis.getVoices();
-            const heVoice = voices.find(v => v.lang === 'he-IL' || v.lang === 'he' || v.lang.startsWith('he'));
-            if (heVoice) {
-                utterance.voice = heVoice;
-                utterance.lang = heVoice.lang;
-            } else {
-                utterance.lang = 'he-IL';
-            }
-            utterance.rate = 1.0;
-            utterance.pitch = 1;
-            utterance.volume = 1;
-            utterance.onstart = () => setIsSpeaking(true);
-            utterance.onend = () => setIsSpeaking(false);
-            utterance.onerror = () => setIsSpeaking(false);
-            window.speechSynthesis.speak(utterance);
-        };
-
-        const voices = window.speechSynthesis.getVoices();
-        if (voices.length > 0) {
-            doSpeak();
-        } else {
-            // iOS/Mobile: קולות נטענים אסינכרונית
-            window.speechSynthesis.onvoiceschanged = () => {
-                window.speechSynthesis.onvoiceschanged = null;
-                doSpeak();
-            };
-            // fallback אם onvoiceschanged לא מופעל
-            setTimeout(doSpeak, 500);
+        // עצור אודיו קודם
+        if (currentAudioRef.current) {
+            currentAudioRef.current.pause();
+            currentAudioRef.current = null;
         }
+        setIsSpeaking(true);
+        try {
+            const res = await elevenLabsTts({ text });
+            // res.data הוא ArrayBuffer דרך axios
+            const blob = new Blob([res.data], { type: 'audio/mpeg' });
+            const url = URL.createObjectURL(blob);
+            const audio = new Audio(url);
+            currentAudioRef.current = audio;
+            audio.onended = () => { setIsSpeaking(false); URL.revokeObjectURL(url); };
+            audio.onerror = () => { setIsSpeaking(false); URL.revokeObjectURL(url); };
+            await audio.play();
+        } catch (e) {
+            console.error('ElevenLabs TTS error:', e);
+            setIsSpeaking(false);
+        }
+    };
+
+    const stopSpeaking = () => {
+        if (currentAudioRef.current) {
+            currentAudioRef.current.pause();
+            currentAudioRef.current = null;
+        }
+        setIsSpeaking(false);
     };
 
     const startListening = () => {
@@ -374,13 +369,13 @@ export default function AiChatWidget() {
                         <CardTitle className="text-xs sm:text-sm">דביר - עוזר פנימי</CardTitle>
                     </div>
                     <div className="flex items-center gap-2">
-                        <Button variant="ghost" size="sm" onClick={() => { setTtsEnabled(p => { if (p) window.speechSynthesis.cancel(); return !p; }); }} className="bg-white/30 hover:bg-white/50 text-white h-8 w-8 p-0 rounded-full" title={ttsEnabled ? 'השתק קול' : 'הפעל קול'}>
+                        <Button variant="ghost" size="sm" onClick={() => { setTtsEnabled(p => { if (p) stopSpeaking(); return !p; }); }} className="bg-white/30 hover:bg-white/50 text-white h-8 w-8 p-0 rounded-full" title={ttsEnabled ? 'השתק קול' : 'הפעל קול'}>
                             {ttsEnabled ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
                         </Button>
                         <Button variant="ghost" size="sm" onClick={() => setIsMinimized(!isMinimized)} className="bg-white/30 hover:bg-white/50 text-white h-8 w-8 p-0 rounded-full">
                             {isMinimized ? <Maximize2 className="h-4 w-4" /> : <Minimize2 className="h-4 w-4" />}
                         </Button>
-                        <Button variant="ghost" size="sm" onClick={() => { setIsOpen(false); window.speechSynthesis.cancel(); }} className="bg-white/30 hover:bg-white/50 text-white h-8 w-8 p-0 rounded-full">
+                        <Button variant="ghost" size="sm" onClick={() => { setIsOpen(false); stopSpeaking(); }} className="bg-white/30 hover:bg-white/50 text-white h-8 w-8 p-0 rounded-full">
                             <X className="h-4 w-4" />
                         </Button>
                     </div>
@@ -464,7 +459,7 @@ export default function AiChatWidget() {
                                 <div className="flex items-center gap-2 mt-2 text-xs text-orange-600">
                                     <Volume2 className="h-3 w-3 animate-pulse" />
                                     <span>דביר מדבר...</span>
-                                    <button onClick={() => { window.speechSynthesis.cancel(); setIsSpeaking(false); }} className="underline">עצור</button>
+                                    <button onClick={stopSpeaking} className="underline">עצור</button>
                                 </div>
                             )}
                         </div>
