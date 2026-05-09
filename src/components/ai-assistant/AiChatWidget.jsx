@@ -40,19 +40,41 @@ export default function AiChatWidget() {
     const speak = (text) => {
         if (!ttsEnabled) return;
         window.speechSynthesis.cancel();
-        const clean = text.replace(/[*_#`~]/g, '').replace(/\n+/g, ' ');
-        const utterance = new SpeechSynthesisUtterance(clean);
-        utterance.lang = 'he-IL';
-        // בחר קול עברי אם קיים
+        const clean = text.replace(/[*_#`~]/g, '').replace(/\n+/g, ' ').trim();
+        if (!clean) return;
+
+        const doSpeak = () => {
+            const utterance = new SpeechSynthesisUtterance(clean);
+            // נסה קול עברי, אחרת כל קול זמין
+            const voices = window.speechSynthesis.getVoices();
+            const heVoice = voices.find(v => v.lang === 'he-IL' || v.lang === 'he' || v.lang.startsWith('he'));
+            if (heVoice) {
+                utterance.voice = heVoice;
+                utterance.lang = heVoice.lang;
+            } else {
+                utterance.lang = 'he-IL';
+            }
+            utterance.rate = 1.0;
+            utterance.pitch = 1;
+            utterance.volume = 1;
+            utterance.onstart = () => setIsSpeaking(true);
+            utterance.onend = () => setIsSpeaking(false);
+            utterance.onerror = () => setIsSpeaking(false);
+            window.speechSynthesis.speak(utterance);
+        };
+
         const voices = window.speechSynthesis.getVoices();
-        const heVoice = voices.find(v => v.lang === 'he-IL' || v.lang === 'he');
-        if (heVoice) utterance.voice = heVoice;
-        utterance.rate = 1.1;
-        utterance.pitch = 1;
-        utterance.onstart = () => setIsSpeaking(true);
-        utterance.onend = () => setIsSpeaking(false);
-        utterance.onerror = () => setIsSpeaking(false);
-        window.speechSynthesis.speak(utterance);
+        if (voices.length > 0) {
+            doSpeak();
+        } else {
+            // iOS/Mobile: קולות נטענים אסינכרונית
+            window.speechSynthesis.onvoiceschanged = () => {
+                window.speechSynthesis.onvoiceschanged = null;
+                doSpeak();
+            };
+            // fallback אם onvoiceschanged לא מופעל
+            setTimeout(doSpeak, 500);
+        }
     };
 
     const startListening = () => {
