@@ -7,7 +7,7 @@ import { User } from "@/entities/User";
 import { Send, ThumbsUp, ThumbsDown, X, Minimize2, Maximize2, Mic, MicOff, Volume2, VolumeX } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { askGemini } from "@/functions/askGemini";
-import { elevenLabsTts } from "@/functions/elevenLabsTts";
+import { appParams } from "@/lib/app-params";
 
 const DVIR_ICON_URL = "https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/68ac71d972dff18b98e30a21/5d2c4834a_17.png";
 
@@ -42,21 +42,32 @@ export default function AiChatWidget() {
 
     const speak = async (text) => {
         if (!ttsEnabled) return;
-        // עצור אודיו קודם
         if (currentAudioRef.current) {
             currentAudioRef.current.pause();
             currentAudioRef.current = null;
         }
         setIsSpeaking(true);
         try {
-            const res = await elevenLabsTts({ text });
-            // res.data הוא ArrayBuffer דרך axios
-            const blob = new Blob([res.data], { type: 'audio/mpeg' });
-            const url = URL.createObjectURL(blob);
-            const audio = new Audio(url);
+            const { appId, token, appBaseUrl, functionsVersion } = appParams;
+            const baseUrl = appBaseUrl || '';
+            const v = functionsVersion || 'v1';
+            const url = `${baseUrl}/api/functions/${v}/${appId}/elevenLabsTts`;
+            const res = await fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+                },
+                body: JSON.stringify({ text }),
+            });
+            if (!res.ok) throw new Error(`TTS error: ${res.status}`);
+            const arrayBuffer = await res.arrayBuffer();
+            const blob = new Blob([arrayBuffer], { type: 'audio/mpeg' });
+            const audioUrl = URL.createObjectURL(blob);
+            const audio = new Audio(audioUrl);
             currentAudioRef.current = audio;
-            audio.onended = () => { setIsSpeaking(false); URL.revokeObjectURL(url); };
-            audio.onerror = () => { setIsSpeaking(false); URL.revokeObjectURL(url); };
+            audio.onended = () => { setIsSpeaking(false); URL.revokeObjectURL(audioUrl); };
+            audio.onerror = () => { setIsSpeaking(false); URL.revokeObjectURL(audioUrl); };
             await audio.play();
         } catch (e) {
             console.error('ElevenLabs TTS error:', e);
