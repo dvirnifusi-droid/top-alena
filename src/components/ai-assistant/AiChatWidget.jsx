@@ -7,7 +7,7 @@ import { User } from "@/entities/User";
 import { Send, ThumbsUp, ThumbsDown, X, Minimize2, Maximize2, Mic, MicOff, Volume2, VolumeX } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { askGemini } from "@/functions/askGemini";
-import { appParams } from "@/lib/app-params";
+import { base44 } from "@/api/base44Client";
 
 const DVIR_ICON_URL = "https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/68ac71d972dff18b98e30a21/5d2c4834a_17.png";
 
@@ -48,21 +48,8 @@ export default function AiChatWidget() {
         }
         setIsSpeaking(true);
         try {
-            const { appId, token, appBaseUrl, functionsVersion } = appParams;
-            const baseUrl = appBaseUrl || '';
-            const v = functionsVersion || 'v1';
-            const url = `${baseUrl}/api/functions/${v}/${appId}/elevenLabsTts`;
-            const res = await fetch(url, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
-                },
-                body: JSON.stringify({ text }),
-            });
-            if (!res.ok) throw new Error(`TTS error: ${res.status}`);
-            const arrayBuffer = await res.arrayBuffer();
-            const blob = new Blob([arrayBuffer], { type: 'audio/mpeg' });
+            const res = await base44.functions.invoke('elevenLabsTts', { text }, { responseType: 'arraybuffer' });
+            const blob = new Blob([res.data], { type: 'audio/mpeg' });
             const audioUrl = URL.createObjectURL(blob);
             const audio = new Audio(audioUrl);
             currentAudioRef.current = audio;
