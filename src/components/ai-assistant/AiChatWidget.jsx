@@ -40,33 +40,21 @@ export default function AiChatWidget() {
 
     const currentAudioRef = useRef(null);
 
-    const speak = async (text) => {
+    const speak = (text) => {
         if (!ttsEnabled) return;
-        if (currentAudioRef.current) {
-            currentAudioRef.current.pause();
-            currentAudioRef.current = null;
-        }
-        setIsSpeaking(true);
-        try {
-            const res = await base44.functions.invoke('elevenLabsTts', { text }, { responseType: 'arraybuffer' });
-            const blob = new Blob([res.data], { type: 'audio/mpeg' });
-            const audioUrl = URL.createObjectURL(blob);
-            const audio = new Audio(audioUrl);
-            currentAudioRef.current = audio;
-            audio.onended = () => { setIsSpeaking(false); URL.revokeObjectURL(audioUrl); };
-            audio.onerror = () => { setIsSpeaking(false); URL.revokeObjectURL(audioUrl); };
-            await audio.play();
-        } catch (e) {
-            console.error('ElevenLabs TTS error:', e);
-            setIsSpeaking(false);
-        }
+        window.speechSynthesis.cancel();
+        const clean = text.replace(/[*_#`~]/g, '').replace(/\n+/g, ' ').trim().slice(0, 500);
+        const utterance = new SpeechSynthesisUtterance(clean);
+        utterance.lang = 'he-IL';
+        utterance.rate = 1.1;
+        utterance.onstart = () => setIsSpeaking(true);
+        utterance.onend = () => setIsSpeaking(false);
+        utterance.onerror = () => setIsSpeaking(false);
+        window.speechSynthesis.speak(utterance);
     };
 
     const stopSpeaking = () => {
-        if (currentAudioRef.current) {
-            currentAudioRef.current.pause();
-            currentAudioRef.current = null;
-        }
+        window.speechSynthesis.cancel();
         setIsSpeaking(false);
     };
 
