@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { KnowledgeBase, StaffQuestion, PendingQuestion } from "@/entities/all";
 import { User } from "@/entities/User";
-import { Send, ThumbsUp, ThumbsDown, X, Minimize2, Maximize2 } from "lucide-react";
+import { Send, ThumbsUp, ThumbsDown, X, Minimize2, Maximize2, Mic, MicOff, Volume2, VolumeX } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { askGemini } from "@/functions/askGemini";
 
@@ -30,8 +30,57 @@ export default function AiChatWidget() {
     const [isLoading, setIsLoading] = useState(false);
     const [user, setUser] = useState(null);
     const [feedbackGiven, setFeedbackGiven] = useState({});
+    const [isListening, setIsListening] = useState(false);
+    const [ttsEnabled, setTtsEnabled] = useState(true);
+    const [isSpeaking, setIsSpeaking] = useState(false);
 
     const chatContainerRef = useRef(null);
+    const recognitionRef = useRef(null);
+
+    const speak = (text) => {
+        if (!ttsEnabled) return;
+        window.speechSynthesis.cancel();
+        const clean = text.replace(/[*_#`~]/g, '').replace(/\n+/g, ' ');
+        const utterance = new SpeechSynthesisUtterance(clean);
+        utterance.lang = 'he-IL';
+        // בחר קול עברי אם קיים
+        const voices = window.speechSynthesis.getVoices();
+        const heVoice = voices.find(v => v.lang === 'he-IL' || v.lang === 'he');
+        if (heVoice) utterance.voice = heVoice;
+        utterance.rate = 1.1;
+        utterance.pitch = 1;
+        utterance.onstart = () => setIsSpeaking(true);
+        utterance.onend = () => setIsSpeaking(false);
+        utterance.onerror = () => setIsSpeaking(false);
+        window.speechSynthesis.speak(utterance);
+    };
+
+    const startListening = () => {
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SpeechRecognition) {
+            alert('הדפדפן שלך לא תומך בזיהוי קול. נסה Chrome.');
+            return;
+        }
+        const recognition = new SpeechRecognition();
+        recognition.lang = 'he-IL';
+        recognition.continuous = false;
+        recognition.interimResults = false;
+        recognition.onresult = (e) => {
+            const transcript = e.results[0][0].transcript;
+            setInputValue(transcript);
+            setIsListening(false);
+        };
+        recognition.onerror = () => setIsListening(false);
+        recognition.onend = () => setIsListening(false);
+        recognitionRef.current = recognition;
+        recognition.start();
+        setIsListening(true);
+    };
+
+    const stopListening = () => {
+        recognitionRef.current?.stop();
+        setIsListening(false);
+    };
 
     useEffect(() => {
         if (isOpen && chatContainerRef.current) {
@@ -161,6 +210,7 @@ export default function AiChatWidget() {
                         options
                     };
                     setMessages(prev => [...prev, aiMessage]);
+                    speak(aiMessage.content);
                     setIsLoading(false);
                     return;
                 }
@@ -219,6 +269,7 @@ export default function AiChatWidget() {
             };
 
             setMessages(prev => [...prev, aiMessage]);
+            speak(aiResponseContent);
             
             if(confidenceScore > 0) {
                 try {
@@ -301,11 +352,14 @@ export default function AiChatWidget() {
                         <CardTitle className="text-xs sm:text-sm">דביר - עוזר פנימי</CardTitle>
                     </div>
                     <div className="flex items-center gap-2">
-                         <Button variant="ghost" size="sm" onClick={() => setIsMinimized(!isMinimized)} className="bg-white/30 hover:bg-white/50 text-white h-8 w-8 sm:h-8 sm:w-8 p-0 rounded-full">
-                            {isMinimized ? <Maximize2 className="h-4 w-4 sm:h-4 sm:w-4" /> : <Minimize2 className="h-4 w-4 sm:h-4 sm:w-4" />}
+                        <Button variant="ghost" size="sm" onClick={() => { setTtsEnabled(p => { if (p) window.speechSynthesis.cancel(); return !p; }); }} className="bg-white/30 hover:bg-white/50 text-white h-8 w-8 p-0 rounded-full" title={ttsEnabled ? 'השתק קול' : 'הפעל קול'}>
+                            {ttsEnabled ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
                         </Button>
-                        <Button variant="ghost" size="sm" onClick={() => setIsOpen(false)} className="bg-white/30 hover:bg-white/50 text-white h-8 w-8 sm:h-8 sm:w-8 p-0 rounded-full">
-                            <X className="h-4 w-4 sm:h-4 sm:w-4" />
+                        <Button variant="ghost" size="sm" onClick={() => setIsMinimized(!isMinimized)} className="bg-white/30 hover:bg-white/50 text-white h-8 w-8 p-0 rounded-full">
+                            {isMinimized ? <Maximize2 className="h-4 w-4" /> : <Minimize2 className="h-4 w-4" />}
+                        </Button>
+                        <Button variant="ghost" size="sm" onClick={() => { setIsOpen(false); window.speechSynthesis.cancel(); }} className="bg-white/30 hover:bg-white/50 text-white h-8 w-8 p-0 rounded-full">
+                            <X className="h-4 w-4" />
                         </Button>
                     </div>
                 </CardHeader>
@@ -367,14 +421,30 @@ export default function AiChatWidget() {
                                 <Input 
                                     value={inputValue} 
                                     onChange={(e) => setInputValue(e.target.value)}
-                                    placeholder="שאל את דביר..."
-                                    className="flex-1 text-sm sm:text-base"
+                                    placeholder={isListening ? '🎤 מקשיב...' : 'שאל את דביר...'}
+                                    className={`flex-1 text-sm sm:text-base ${isListening ? 'border-red-400 bg-red-50' : ''}`}
                                     disabled={isLoading}
                                 />
+                                <Button
+                                    type="button"
+                                    size="icon"
+                                    onClick={isListening ? stopListening : startListening}
+                                    className={`h-8 w-8 sm:h-10 sm:w-10 ${isListening ? 'bg-red-500 hover:bg-red-600 animate-pulse' : 'bg-slate-500 hover:bg-slate-600'}`}
+                                    title={isListening ? 'עצור הקלטה' : 'דבר למיקרופון'}
+                                >
+                                    {isListening ? <MicOff className="h-3 w-3 sm:h-4 sm:w-4" /> : <Mic className="h-3 w-3 sm:h-4 sm:w-4" />}
+                                </Button>
                                 <Button type="submit" disabled={isLoading || !inputValue.trim()} size="icon" className="bg-orange-600 hover:bg-orange-700 h-8 w-8 sm:h-10 sm:w-10">
                                     <Send className="h-3 w-3 sm:h-4 sm:w-4" />
                                 </Button>
                             </form>
+                            {isSpeaking && (
+                                <div className="flex items-center gap-2 mt-2 text-xs text-orange-600">
+                                    <Volume2 className="h-3 w-3 animate-pulse" />
+                                    <span>דביר מדבר...</span>
+                                    <button onClick={() => { window.speechSynthesis.cancel(); setIsSpeaking(false); }} className="underline">עצור</button>
+                                </div>
+                            )}
                         </div>
                     </CardContent>
                 )}
