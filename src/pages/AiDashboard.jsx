@@ -7,7 +7,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { KnowledgeBase, StaffQuestion, PendingQuestion, MenuItem, RestaurantInfo } from "@/entities/all";
-import { Plus, Search, Brain, MessageSquare, BookOpen, Shield, Users, Coffee, Settings, Trash2, Edit, Utensils, CheckCircle, Info } from "lucide-react";
+import { Plus, Search, Brain, MessageSquare, BookOpen, Shield, Users, Coffee, Settings, Trash2, Edit, Utensils, CheckCircle, Info, RefreshCw } from "lucide-react";
+import { refreshGeminiFiles } from "@/functions/refreshGeminiFiles";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
@@ -57,7 +58,21 @@ function AiDashboardInner() {
     const [editingItem, setEditingItem] = useState(null);
     const [searchTerm, setSearchTerm] = useState('');
     const [loading, setLoading] = useState(true);
-    const [pendingAnswers, setPendingAnswers] = useState({}); // New state for pending answers
+    const [pendingAnswers, setPendingAnswers] = useState({});
+    const [isRefreshing, setIsRefreshing] = useState(false);
+    const [refreshResult, setRefreshResult] = useState(null);
+
+    const handleRefreshGeminiFiles = async () => {
+        setIsRefreshing(true);
+        setRefreshResult(null);
+        try {
+            const res = await refreshGeminiFiles({});
+            setRefreshResult({ success: true, count: res.data?.files?.length || 0 });
+        } catch (e) {
+            setRefreshResult({ success: false, error: e.message });
+        }
+        setIsRefreshing(false);
+    };
 
     useEffect(() => {
         loadData();
@@ -404,6 +419,21 @@ function AiDashboardInner() {
                         מרכז בקרת AI
                     </h1>
                     <p className="text-gray-600 text-lg">ניהול בסיס הידע של המערכת החכמה</p>
+                    <div className="mt-4 flex flex-col items-center gap-2">
+                        <Button
+                            onClick={handleRefreshGeminiFiles}
+                            disabled={isRefreshing}
+                            className="bg-indigo-600 hover:bg-indigo-700 gap-2"
+                        >
+                            <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+                            {isRefreshing ? 'מעדכן קבצים מ-Drive...' : '🔄 רענן קבצי Gemini מ-Drive עכשיו'}
+                        </Button>
+                        {refreshResult && (
+                            <p className={`text-sm font-medium ${refreshResult.success ? 'text-green-600' : 'text-red-600'}`}>
+                                {refreshResult.success ? `✅ עודכנו ${refreshResult.count} קבצים בהצלחה!` : `❌ שגיאה: ${refreshResult.error}`}
+                            </p>
+                        )}
+                    </div>
                 </div>
 
                 {/* Stats Cards */}
