@@ -31,12 +31,12 @@ Deno.serve(async (req) => {
     }
 
     // הוספת הקבצים + השאלה בהודעת המשתמש האחרונה
-    const fileParts = fileUris.map(uri => ({
+    const fileParts = cachedFiles.map(f => ({
         file_data: {
-            mime_type: "application/pdf",
-            file_uri: uri
+            mime_type: f.mime_type || "application/pdf",
+            file_uri: f.gemini_file_uri
         }
-    }));
+    })).filter(f => f.file_data.file_uri);
 
     const userParts = [
         ...fileParts,

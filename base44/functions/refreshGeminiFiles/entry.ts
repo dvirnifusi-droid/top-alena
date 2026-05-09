@@ -25,8 +25,16 @@ Deno.serve(async (req) => {
     // Get Google Drive access token
     const { accessToken } = await base44.asServiceRole.connectors.getConnection('googledrive');
 
-    // List all PDF files in the folder
-    const listUrl = `https://www.googleapis.com/drive/v3/files?q='${FOLDER_ID}'+in+parents+and+mimeType='application/pdf'+and+trashed=false&fields=files(id,name,mimeType)&pageSize=50`;
+    // List all supported files in the folder (PDF, Word, Excel)
+    const mimeTypes = [
+        'application/pdf',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // .docx
+        'application/msword', // .doc
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // .xlsx
+        'application/vnd.ms-excel' // .xls
+    ];
+    const mimeQuery = mimeTypes.map(m => `mimeType='${m}'`).join(' or ');
+    const listUrl = `https://www.googleapis.com/drive/v3/files?q='${FOLDER_ID}'+in+parents+and+(${mimeQuery})+and+trashed=false&fields=files(id,name,mimeType)&pageSize=50`;
     const listRes = await fetch(listUrl, {
         headers: { Authorization: `Bearer ${accessToken}` }
     });
@@ -53,10 +61,10 @@ Deno.serve(async (req) => {
             {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/pdf',
+                    'Content-Type': file.mimeType,
                     'X-Goog-Upload-Command': 'upload, finalize',
                     'X-Goog-Upload-Header-Content-Length': fileBytes.byteLength,
-                    'X-Goog-Upload-Header-Content-Type': 'application/pdf',
+                    'X-Goog-Upload-Header-Content-Type': file.mimeType,
                 },
                 body: fileBytes
             }
