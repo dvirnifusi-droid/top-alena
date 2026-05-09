@@ -18,13 +18,8 @@ export default function AiChatWidget() {
         {
             id: 1,
             type: 'ai',
-            content: 'היי, כאן דביר! 🧠\nשאל אותי כל דבר, ואתן לך תשובה ישר מהמוח הדיגיטלי שלי. אפשר גם לבחור באחת מהאפשרויות הנפוצות:',
+            content: 'היי, כאן דביר! 🧠\nשאל אותי כל דבר, ואתן לך תשובה ישר מהמוח הדיגיטלי שלי.',
             timestamp: new Date(),
-            options: [
-                { label: 'אילו קוקטיילים יש?', value: 'אילו קוקטיילים יש' },
-                { label: 'נוהל סגירת משמרת', value: 'נוהל סגירת משמרת' },
-                { label: 'עזרה עם הקופה', value: 'יש לי בעיה עם הקופה' }
-            ]
         }
     ]);
     const [inputValue, setInputValue] = useState('');
@@ -151,13 +146,6 @@ export default function AiChatWidget() {
         return results.filter(r => r.relevanceScore > 60).sort((a, b) => b.relevanceScore - a.relevanceScore);
     };
 
-    const handleOptionClick = (option, messageId) => {
-        setMessages(prev => prev.map(m => 
-            m.id === messageId ? { ...m, options: undefined } : m
-        ));
-        handleSendMessage(option.value);
-    };
-
     const handleSendMessage = async (messageText) => {
         const currentInput = messageText || inputValue;
         if (!currentInput.trim() || isLoading) return;
@@ -180,64 +168,17 @@ export default function AiChatWidget() {
         setIsLoading(true);
 
         try {
-            const knowledgeBase = await KnowledgeBase.list();
-            
-            const multiOptionTriggers = {
-                menu: ['קוקטייל', 'קוקטיילים', 'איזה קוקטיילים יש', 'מה המבצעים', 'תפריט', 'מה לאכול'],
-                procedures: ['סגירת משמרת', 'פתיחת קופה', 'נוהל'],
-            };
-
-            let triggeredCategory = null;
-            const normalizedInput = currentInput.toLowerCase();
-            for (const category in multiOptionTriggers) {
-                if (multiOptionTriggers[category].some(phrase => normalizedInput.includes(phrase.toLowerCase()))) {
-                    triggeredCategory = category;
-                    break;
-                }
-            }
-
-            if (triggeredCategory) {
-                const categoryItems = knowledgeBase.filter(item => item.category?.toLowerCase() === triggeredCategory.toLowerCase());
-                const options = categoryItems.slice(0, 3).map(item => ({
-                    label: item.title,
-                    value: item.title
-                }));
-
-                // יש פריטים בבסיס הידע - הצג כפתורים
-                if (options.length > 0) {
-                    const aiMessage = {
-                        id: Date.now() + 1,
-                        type: 'ai',
-                        content: `בטח, מצאתי כמה דברים רלוונטיים בקטגוריית "${triggeredCategory}". בחר אחת מהאפשרויות:`,
-                        timestamp: new Date(),
-                        options
-                    };
-                    setMessages(prev => [...prev, aiMessage]);
-                    speak(aiMessage.content);
-                    setIsLoading(false);
-                    return;
-                }
-                // אין פריטים - תמשיך ל-Gemini (אל תחזור)
-            }
-            
-            const relevantKnowledge = searchInternalKnowledge(currentInput, knowledgeBase);
+            // שלב 1: קודם Gemini עם קבצי Drive
             let aiResponseContent = '';
-            let confidenceScore = 0;
+            let usedKnowledgeBase = false;
 
-            if (relevantKnowledge.length > 0) {
-                const topResult = relevantKnowledge[0].item;
-                confidenceScore = relevantKnowledge[0].relevanceScore;
-                aiResponseContent = `**${topResult.title}**\n\n${topResult.content}`;
-            } else {
-                // הדרך האמינה והסופית: שמירת השאלה במערכת לטיפול במרכז הבקרה
-                // נסה Gemini
-                try {
-                    const conversationHistory = messages
-                        .filter(m => m.type === 'user' || m.type === 'ai')
-                        .slice(-6)
-                        .map(m => ({ role: m.type === 'ai' ? 'assistant' : 'user', content: m.content }));
+            try {
+                const conversationHistory = messages
+                    .filter(m => m.type === 'user' || m.type === 'ai')
+                    .slice(-6)
+                    .map(m => ({ role: m.type === 'ai' ? 'assistant' : 'user', content: m.content }));
 
-                    const systemPrompt = `אתה דביר - עוזר AI פנימי של מסעדת TOP ALENA.
+                const systemPrompt = `אתה דביר - עוזר AI פנימי של מסעדת TOP ALENA.
 אתה עונה בעברית בלבד, בצורה קצרה וידידותית.
 אתה עוזר לעובדים עם שאלות על נהלי עבודה, תפקידים, לוגיסטיקה, תפריט, ושאלות כלליות.
 
@@ -246,20 +187,41 @@ export default function AiChatWidget() {
 אם המידע לא מופיע בקבצים שקיבלת, ענה: "לא מצאתי את זה בתפריט - בדוק עם המנהל."
 אל תמציא מידע שלא קיים בקבצים.`;
 
-                    const geminiRes = await askGemini({
-                        message: currentInput,
-                        history: conversationHistory,
-                        systemPrompt
-                    });
-                    aiResponseContent = geminiRes.data?.reply || 'אופס, לא הצלחתי לקבל תשובה מ-Gemini.';
-                } catch (geminiErr) {
-                    console.error('Gemini error:', geminiErr);
-                    const errMsg = geminiErr?.response?.data?.error || geminiErr?.message || '';
-                    if (errMsg.includes('quota') || errMsg.includes('429')) {
-                        aiResponseContent = `אני קצת עמוס כרגע 😅 נסה שוב בעוד כמה שניות.`;
-                    } else {
-                        aiResponseContent = `יש לי תקלה טכנית כרגע. נסה שוב בעוד רגע.`;
+                const geminiRes = await askGemini({
+                    message: currentInput,
+                    history: conversationHistory,
+                    systemPrompt
+                });
+                aiResponseContent = geminiRes.data?.reply || '';
+            } catch (geminiErr) {
+                console.error('Gemini error:', geminiErr);
+                const errMsg = geminiErr?.response?.data?.error || geminiErr?.message || '';
+                if (errMsg.includes('quota') || errMsg.includes('429')) {
+                    aiResponseContent = `אני קצת עמוס כרגע 😅 נסה שוב בעוד כמה שניות.`;
+                }
+            }
+
+            // שלב 2: אם Gemini לא החזיר תשובה - חפש ב-KnowledgeBase
+            if (!aiResponseContent) {
+                const knowledgeBase = await KnowledgeBase.list();
+                const relevantKnowledge = searchInternalKnowledge(currentInput, knowledgeBase);
+                if (relevantKnowledge.length > 0) {
+                    const topResult = relevantKnowledge[0].item;
+                    aiResponseContent = `**${topResult.title}**\n\n${topResult.content}`;
+                    usedKnowledgeBase = true;
+
+                    try {
+                        await StaffQuestion.create({
+                            question: currentInput,
+                            answer: aiResponseContent,
+                            category: topResult.category,
+                            asked_by: user?.email || 'unknown',
+                        });
+                    } catch (e) {
+                        console.log('Could not save staff question:', e);
                     }
+                } else {
+                    aiResponseContent = `יש לי תקלה טכנית כרגע. נסה שוב בעוד רגע.`;
                 }
             }
 
@@ -268,24 +230,10 @@ export default function AiChatWidget() {
                 type: 'ai',
                 content: aiResponseContent,
                 timestamp: new Date(),
-                showFeedback: confidenceScore > 0,
             };
 
             setMessages(prev => [...prev, aiMessage]);
             speak(aiResponseContent);
-            
-            if(confidenceScore > 0) {
-                try {
-                    await StaffQuestion.create({
-                        question: currentInput,
-                        answer: aiResponseContent,
-                        category: relevantKnowledge[0].item.category,
-                        asked_by: user?.email || 'unknown',
-                    });
-                } catch (e) {
-                    console.log('Could not save staff question:', e);
-                }
-            }
 
         } catch (error) {
             console.error('Error in handleSendMessage:', error);
@@ -381,24 +329,7 @@ export default function AiChatWidget() {
                                         
                                         {message.timestamp && <p className="text-xs opacity-70 mt-2 text-right">{new Date(message.timestamp).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}</p>}
                                         
-                                        {message.options && message.options.length > 0 && (
-                                            <div className="mt-3 space-y-2">
-                                                {message.options.map((option, index) => (
-                                                    <Button 
-                                                        key={index}
-                                                        variant="outline"
-                                                        size="sm"
-                                                        className="w-full justify-center bg-white/50 hover:bg-white text-orange-700 hover:text-orange-800 border-orange-300 text-xs"
-                                                        onClick={() => handleOptionClick(option, message.id)}
-                                                        disabled={isLoading}
-                                                    >
-                                                        {option.label}
-                                                    </Button>
-                                                ))}
-                                            </div>
-                                        )}
-
-                                        {message.type === 'ai' && message.showFeedback && !feedbackGiven[message.id] && (
+                                        {message.type === 'ai' && !feedbackGiven[message.id] && (
                                             <div className="flex justify-end gap-2 mt-2">
                                                 <button onClick={() => handleFeedback(message.id, true)} className="p-1 rounded-full hover:bg-slate-300 transition-colors"><ThumbsUp className="h-3 w-3 sm:h-4 sm:w-4 text-slate-600"/></button>
                                                 <button onClick={() => handleFeedback(message.id, false)} className="p-1 rounded-full hover:bg-slate-300 transition-colors"><ThumbsDown className="h-3 w-3 sm:h-4 sm:w-4 text-slate-600"/></button>
