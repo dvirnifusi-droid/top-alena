@@ -30,13 +30,31 @@ Deno.serve(async (req) => {
         }
     }
 
+    // MIME types that Gemini File API supports
+    const supportedMimeTypes = [
+        'application/pdf',
+        'text/plain',
+        'text/html',
+        'text/csv',
+        'text/markdown',
+        'image/jpeg',
+        'image/png',
+        'image/gif',
+        'image/webp',
+        'video/mp4',
+        'audio/mpeg',
+        'audio/wav',
+    ];
+
     // הוספת הקבצים + השאלה בהודעת המשתמש האחרונה
-    const fileParts = cachedFiles.map(f => ({
-        file_data: {
-            mime_type: f.mime_type || "application/pdf",
-            file_uri: f.gemini_file_uri
-        }
-    })).filter(f => f.file_data.file_uri);
+    const fileParts = cachedFiles
+        .filter(f => f.gemini_file_uri && supportedMimeTypes.includes(f.mime_type))
+        .map(f => ({
+            file_data: {
+                mime_type: f.mime_type,
+                file_uri: f.gemini_file_uri
+            }
+        }));
 
     const userParts = [
         ...fileParts,
