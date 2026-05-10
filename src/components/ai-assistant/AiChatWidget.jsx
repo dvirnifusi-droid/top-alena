@@ -35,6 +35,9 @@ export default function AiChatWidget() {
     const [isListening, setIsListening] = useState(false);
     const [ttsEnabled, setTtsEnabled] = useState(true);
     const [isSpeaking, setIsSpeaking] = useState(false);
+    const [trainingMode, setTrainingMode] = useState(false);
+    const [coveredDishes, setCoveredDishes] = useState([]);
+    const [showProgress, setShowProgress] = useState(false);
 
     const chatContainerRef = useRef(null);
     const recognitionRef = useRef(null);
@@ -319,6 +322,9 @@ export default function AiChatWidget() {
                 // אפס שעון לימוד כשמתחיל תהליך לימוד תפריט
                 if (/לימוד תפריט|למד אותי|תלמד אותי|הדרכה|רוצה ללמוד/i.test(currentInput)) {
                     trainingStartRef.current = Date.now();
+                    setTrainingMode(true);
+                    setCoveredDishes([]);
+                    setShowProgress(true);
                 }
 
                 const geminiRes = await askGemini({
@@ -356,6 +362,21 @@ export default function AiChatWidget() {
                     }
                 } else {
                     aiResponseContent = `יש לי תקלה טכנית כרגע. נסה שוב בעוד רגע.`;
+                }
+            }
+
+            // עדכן מנות שנלמדו מתוך תגובת ה-AI
+            if (trainingMode && aiResponseContent) {
+                // זיהוי שמות מנות: שורות שמתחילות ב-** או כוללות "מנה:" או "📌"
+                const dishMatches = [...aiResponseContent.matchAll(/\*\*([^*]{3,40})\*\*/g)]
+                    .map(m => m[1].trim())
+                    .filter(d => !d.includes('בלוק') && !d.includes('שלב') && !d.includes('סיכום') && !d.includes('חשוב'));
+                if (dishMatches.length > 0) {
+                    setCoveredDishes(prev => {
+                        const updated = [...prev];
+                        dishMatches.forEach(d => { if (!updated.includes(d)) updated.push(d); });
+                        return updated;
+                    });
                 }
             }
 
@@ -533,11 +554,14 @@ export default function AiChatWidget() {
                                     onClick={() => {
                                         localStorage.removeItem(STORAGE_KEY);
                                         setMessages(getInitialMessages());
+                                        setTrainingMode(false);
+                                        setCoveredDishes([]);
+                                        setShowProgress(false);
                                         setShowResumePrompt(false);
                                     }}
                                     className="bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl px-4 py-2 text-sm font-bold"
                                 >
-                                    🆕 התחל שיחה חדשה
+                                     🆕 התחל שיחה חדשה
                                 </button>
                             </div>
                         </div>
@@ -546,6 +570,31 @@ export default function AiChatWidget() {
 
                 {!isMinimized && (
                     <CardContent className="p-0 flex flex-col h-full relative">
+
+                        {/* מד התקדמות לימוד תפריט */}
+                        {showProgress && trainingMode && (
+                            <div className="px-3 pt-2 pb-1 bg-amber-50 border-b border-amber-200" dir="rtl">
+                                <div className="flex items-center justify-between mb-1">
+                                    <span className="text-xs font-bold text-amber-800">📚 מנות שנלמדו: {coveredDishes.length}</span>
+                                    <button onClick={() => setShowProgress(false)} className="text-xs text-amber-500 hover:text-amber-700">הסתר</button>
+                                </div>
+                                {coveredDishes.length === 0 ? (
+                                    <p className="text-xs text-amber-600">הלימוד עוד לא התחיל...</p>
+                                ) : (
+                                    <div className="flex flex-wrap gap-1 max-h-16 overflow-y-auto">
+                                        {coveredDishes.map((dish, i) => (
+                                            <span key={i} className="bg-amber-200 text-amber-900 text-xs px-2 py-0.5 rounded-full font-medium">✅ {dish}</span>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                        {!showProgress && trainingMode && (
+                            <button onClick={() => setShowProgress(true)} className="text-xs text-amber-600 bg-amber-50 border-b border-amber-100 px-3 py-1 text-right w-full hover:bg-amber-100" dir="rtl">
+                                📚 הצג התקדמות ({coveredDishes.length} מנות)
+                            </button>
+                        )}
+
                         <div ref={chatContainerRef} className="flex-1 p-3 sm:p-4 space-y-3 sm:space-y-4 overflow-y-auto max-h-[350px] sm:max-h-[430px] lg:max-h-[470px]">
                             {messages.map((message) => (
                                 <div key={message.id} className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}>
