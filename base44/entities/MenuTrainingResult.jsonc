@@ -1,0 +1,64 @@
+{
+  "name": "MenuTrainingResult",
+  "type": "object",
+  "properties": {
+    "employee_name": {
+      "type": "string",
+      "description": "\u05e9\u05dd \u05d4\u05e2\u05d5\u05d1\u05d3 \u05e9\u05e2\u05d1\u05e8 \u05d0\u05ea \u05d4\u05dc\u05de\u05d9\u05d3\u05d4"
+    },
+    "employee_email": {
+      "type": "string",
+      "description": "\u05d0\u05d9\u05de\u05d9\u05d9\u05dc \u05d4\u05e2\u05d5\u05d1\u05d3"
+    },
+    "score_food": {
+      "type": "number",
+      "description": "\u05e6\u05d9\u05d5\u05df \u05ea\u05e4\u05e8\u05d9\u05d8 \u05d0\u05d5\u05db\u05dc (0-100)"
+    },
+    "score_drinks": {
+      "type": "number",
+      "description": "\u05e6\u05d9\u05d5\u05df \u05ea\u05e4\u05e8\u05d9\u05d8 \u05e9\u05ea\u05d9\u05d9\u05d4 \u05d5\u05d0\u05dc\u05db\u05d5\u05d4\u05d5\u05dc (0-100)"
+    },
+    "score_overall": {
+      "type": "number",
+      "description": "\u05e6\u05d9\u05d5\u05df \u05db\u05d5\u05dc\u05dc (0-100)"
+    },
+    "knowledge_level": {
+      "type": "string",
+      "enum": [
+        "beginner",
+        "intermediate",
+        "advanced",
+        "expert"
+      ],
+      "description": "\u05e8\u05de\u05ea \u05d9\u05d3\u05e2 \u05db\u05dc\u05dc\u05d9\u05ea"
+    },
+    "completed_food": {
+      "type": "boolean",
+      "default": false,
+      "description": "\u05d4\u05d0\u05dd \u05e1\u05d9\u05d9\u05dd \u05ea\u05e4\u05e8\u05d9\u05d8 \u05d0\u05d5\u05db\u05dc"
+    },
+    "completed_drinks": {
+      "type": "boolean",
+      "default": false,
+      "description": "\u05d4\u05d0\u05dd \u05e1\u05d9\u05d9\u05dd \u05ea\u05e4\u05e8\u05d9\u05d8 \u05e9\u05ea\u05d9\u05d9\u05d4"
+    },
+    "completed_full": {
+      "type": "boolean",
+      "default": false,
+      "description": "\u05d4\u05d0\u05dd \u05e1\u05d9\u05d9\u05dd \u05d0\u05ea \u05db\u05dc \u05d4\u05ea\u05e4\u05e8\u05d9\u05d8"
+    },
+    "training_date": {
+      "type": "string",
+      "format": "date",
+      "description": "\u05ea\u05d0\u05e8\u05d9\u05da \u05d4\u05dc\u05de\u05d9\u05d3\u05d4"
+    },
+    "notes": {
+      "type": "string",
+      "description": "\u05d4\u05e2\u05e8\u05d5\u05ea \u05d3\u05d1\u05d9\u05e8 \u05e2\u05dc \u05d4\u05dc\u05de\u05d9\u05d3\u05d4"
+    }
+  },
+  "required": [
+    "employee_name",
+    "training_date"
+  ]
+}

@@ -7,7 +7,9 @@ import { User } from "@/entities/User";
 import { Send, ThumbsUp, ThumbsDown, X, Minimize2, Maximize2, Mic, MicOff, Volume2, VolumeX } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { askGemini } from "@/functions/askGemini";
+import { pushoverOnMenuTrainingComplete } from "@/functions/pushoverOnMenuTrainingComplete";
 import { base44 } from "@/api/base44Client";
+import { MenuTrainingResult } from "@/entities/all";
 
 const DVIR_ICON_URL = "https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/68ac71d972dff18b98e30a21/5d2c4834a_17.png";
 
@@ -198,6 +200,7 @@ export default function AiChatWidget() {
 שלב 2 - לימוד תפריט אוכל מנה מנה:
 - תאר את מבנה התפריט (קטגוריות: ראשונות, עיקריות, קינוחים וכו').
 - עבור על כל מנה בנפרד: שם המנה, תיאור, מרכיבים מדויקים, גודל המנה, שיטת הכנה, שאלות נפוצות של לקוחות (חריף? אפשר בלי X? מתאים לצמחוני/טבעוני/גלוטן פרי?).
+- **לאחר כל מנה בודדת שהסברת — שאל מיד שאלה קצרה לבדיקת הבנה**, לדוגמה: "מה המרכיב העיקרי של המנה שהרגע למדנו?" או "אם לקוח שואל אם המנה מכילה גלוטן, מה תענה?" — המשך רק לאחר תשובה.
 - אחרי כל 3-4 מנות עצור ושאל: "האם אתה מוכן להמשיך?" — המתן לאישור.
 - מדי פעם שחק "לקוח קשה" ואתגר את המלצר: "אני רגיש לגלוטן, מה אתה מציע לי?"
 
@@ -216,8 +219,14 @@ export default function AiChatWidget() {
 - הסבר התאמות מומלצות בין משקאות למנות האוכל.
 - סיים בקוויז גם על תפריט השתייה.
 
-בסוף כל תהליך לימוד מלא כתוב סיכום:
-"✅ [שם המלצר] סיים בהצלחה את לימוד [הקטגוריה]. ציון: [הערכה]"
+בסוף כל תהליך לימוד מלא (כולל אלכוהול) כתוב סיכום בפורמט הבא בדיוק — זה חיוני למערכת:
+"🎓 TRAINING_COMPLETE | שם: [שם המלצר] | ציון אוכל: [0-100] | ציון שתייה: [0-100] | ציון כולל: [0-100] | רמה: [beginner/intermediate/advanced/expert] | הערות: [משפט קצר]"
+
+רמות ידע:
+- expert: ציון 90+
+- advanced: ציון 75-89
+- intermediate: ציון 60-74
+- beginner: מתחת ל-60
 
 עקרונות חשובים:
 - השתמש אך ורק במידע מהקבצים. אם חסר מידע — ציין זאת.
@@ -272,6 +281,47 @@ export default function AiChatWidget() {
 
             setMessages(prev => [...prev, aiMessage]);
             speak(aiResponseContent);
+
+            // זיהוי סיום לימוד תפריט ושמירה במערכת
+            if (aiResponseContent.includes('TRAINING_COMPLETE')) {
+                const nameMatch = aiResponseContent.match(/שם:\s*([^\|]+)/);
+                const scoreFoodMatch = aiResponseContent.match(/ציון אוכל:\s*(\d+)/);
+                const scoreDrinksMatch = aiResponseContent.match(/ציון שתייה:\s*(\d+)/);
+                const scoreOverallMatch = aiResponseContent.match(/ציון כולל:\s*(\d+)/);
+                const levelMatch = aiResponseContent.match(/רמה:\s*(beginner|intermediate|advanced|expert)/);
+                const notesMatch = aiResponseContent.match(/הערות:\s*([^\n]+)/);
+
+                const employeeName = nameMatch?.[1]?.trim() || user?.full_name || 'עובד';
+                const scoreFood = parseInt(scoreFoodMatch?.[1] || '0');
+                const scoreDrinks = parseInt(scoreDrinksMatch?.[1] || '0');
+                const scoreOverall = parseInt(scoreOverallMatch?.[1] || '0');
+                const level = levelMatch?.[1] || 'intermediate';
+                const notes = notesMatch?.[1]?.trim() || '';
+
+                try {
+                    await MenuTrainingResult.create({
+                        employee_name: employeeName,
+                        employee_email: user?.email || '',
+                        score_food: scoreFood,
+                        score_drinks: scoreDrinks,
+                        score_overall: scoreOverall,
+                        knowledge_level: level,
+                        completed_food: true,
+                        completed_drinks: true,
+                        completed_full: true,
+                        training_date: new Date().toISOString().split('T')[0],
+                        notes
+                    });
+
+                    await pushoverOnMenuTrainingComplete({
+                        employee_name: employeeName,
+                        score_overall: scoreOverall,
+                        knowledge_level: level
+                    });
+                } catch (e) {
+                    console.error('Failed to save training result:', e);
+                }
+            }
 
         } catch (error) {
             console.error('Error in handleSendMessage:', error);
