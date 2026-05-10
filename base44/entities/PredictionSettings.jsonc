@@ -1,0 +1,64 @@
+{
+  "name": "PredictionSettings",
+  "type": "object",
+  "properties": {
+    "restaurant_capacity": {
+      "type": "integer",
+      "description": "\u05e7\u05d9\u05d1\u05d5\u05dc\u05ea \u05d4\u05de\u05e1\u05e2\u05d3\u05d4 \u05d4\u05db\u05d5\u05dc\u05dc\u05ea"
+    },
+    "average_covers_per_waiter": {
+      "type": "integer",
+      "default": 25,
+      "description": "\u05de\u05de\u05d5\u05e6\u05e2 \u05e1\u05d5\u05e2\u05d3\u05d9\u05dd \u05dc\u05de\u05dc\u05e6\u05e8"
+    },
+    "kitchen_staff_ratio": {
+      "type": "number",
+      "default": 0.3,
+      "description": "\u05d9\u05d7\u05e1 \u05e6\u05d5\u05d5\u05ea \u05de\u05d8\u05d1\u05d7 \u05dc\u05e1\u05d5\u05e2\u05d3\u05d9\u05dd"
+    },
+    "average_spend_per_customer": {
+      "type": "number",
+      "default": 150,
+      "description": "\u05de\u05de\u05d5\u05e6\u05e2 \u05d4\u05d5\u05e6\u05d0\u05d4 \u05dc\u05e1\u05d5\u05e2\u05d3 (\u05d1\u05e9\u05e7\u05dc\u05d9\u05dd)"
+    },
+    "deal_percentage": {
+      "type": "number",
+      "default": 15,
+      "description": "\u05d0\u05d7\u05d5\u05d6 \u05de\u05de\u05d5\u05e6\u05e2 \u05e9\u05dc \u05dc\u05e7\u05d5\u05d7\u05d5\u05ea \u05d4\u05de\u05e9\u05ea\u05de\u05e9\u05d9\u05dd \u05d1\u05d3\u05d9\u05dc \u05d0\u05d5 \u05d4\u05e0\u05d7\u05d4"
+    },
+    "weather_impact_positive": {
+      "type": "number",
+      "default": 1.2,
+      "description": "\u05de\u05e7\u05d3\u05dd \u05d4\u05e9\u05e4\u05e2\u05d4 \u05d7\u05d9\u05d5\u05d1\u05d9\u05ea \u05e9\u05dc \u05de\u05d6\u05d2 \u05d0\u05d5\u05d5\u05d9\u05e8"
+    },
+    "weather_impact_negative": {
+      "type": "number",
+      "default": 0.7,
+      "description": "\u05de\u05e7\u05d3\u05dd \u05d4\u05e9\u05e4\u05e2\u05d4 \u05e9\u05dc\u05d9\u05dc\u05d9\u05ea \u05e9\u05dc \u05de\u05d6\u05d2 \u05d0\u05d5\u05d5\u05d9\u05e8"
+    },
+    "holiday_impact": {
+      "type": "number",
+      "default": 1.5,
+      "description": "\u05de\u05e7\u05d3\u05dd \u05d4\u05e9\u05e4\u05e2\u05ea \u05d7\u05d2\u05d9\u05dd"
+    },
+    "event_radius_km": {
+      "type": "number",
+      "default": 5,
+      "description": "\u05e8\u05d3\u05d9\u05d5\u05e1 \u05d4\u05e9\u05e4\u05e2\u05ea \u05d0\u05d9\u05e8\u05d5\u05e2\u05d9\u05dd \u05d1\u05e7\u05de"
+    },
+    "historical_data_weight": {
+      "type": "number",
+      "default": 0.6,
+      "description": "\u05de\u05e9\u05e7\u05dc \u05e0\u05ea\u05d5\u05e0\u05d9\u05dd \u05d4\u05d9\u05e1\u05d8\u05d5\u05e8\u05d9\u05d9\u05dd"
+    },
+    "external_factors_weight": {
+      "type": "number",
+      "default": 0.4,
+      "description": "\u05de\u05e9\u05e7\u05dc \u05d2\u05d5\u05e8\u05de\u05d9\u05dd \u05d7\u05d9\u05e6\u05d5\u05e0\u05d9\u05d9\u05dd"
+    }
+  },
+  "required": [
+    "restaurant_capacity",
+    "average_spend_per_customer"
+  ]
+}

@@ -1,0 +1,129 @@
+{
+  "name": "ReservationSettings",
+  "type": "object",
+  "properties": {
+    "restaurant_name": {
+      "type": "string",
+      "default": "\u05e2\u05dc\u05d9\u05e0\u05d0",
+      "description": "\u05e9\u05dd \u05d4\u05de\u05e1\u05e2\u05d3\u05d4"
+    },
+    "welcome_message": {
+      "type": "string",
+      "default": "\u05d1\u05e8\u05d5\u05db\u05d9\u05dd \u05d4\u05d1\u05d0\u05d9\u05dd \u05dc\u05de\u05e1\u05e2\u05d3\u05ea \u05e2\u05dc\u05d9\u05e0\u05d0 - \u05d7\u05d5\u05d5\u05d9\u05d4 \u05e7\u05d5\u05dc\u05d9\u05e0\u05e8\u05d9\u05ea \u05de\u05d9\u05d5\u05d7\u05d3\u05ea \u05de\u05d7\u05db\u05d4 \u05dc\u05db\u05dd",
+      "description": "\u05d4\u05d5\u05d3\u05e2\u05ea \u05d1\u05e8\u05d5\u05db\u05d9\u05dd \u05d4\u05d1\u05d0\u05d9\u05dd"
+    },
+    "phone": {
+      "type": "string",
+      "default": "03-1234567",
+      "description": "\u05de\u05e1\u05e4\u05e8 \u05d8\u05dc\u05e4\u05d5\u05df"
+    },
+    "email": {
+      "type": "string",
+      "default": "reservations@alina.co.il",
+      "description": "\u05db\u05ea\u05d5\u05d1\u05ea \u05de\u05d9\u05d9\u05dc"
+    },
+    "address": {
+      "type": "string",
+      "default": "\u05e8\u05d7\u05d5\u05d1 \u05d4\u05d3\u05d5\u05d2\u05de\u05d4 123, \u05ea\u05dc \u05d0\u05d1\u05d9\u05d1",
+      "description": "\u05db\u05ea\u05d5\u05d1\u05ea \u05d4\u05de\u05e1\u05e2\u05d3\u05d4"
+    },
+    "whatsapp_group_link": {
+      "type": "string",
+      "default": "https://chat.whatsapp.com/KwD8J5F3aE9JnZ2vB4XyQr",
+      "description": "\u05e7\u05d9\u05e9\u05d5\u05e8 \u05dc\u05e7\u05d1\u05d5\u05e6\u05ea \u05d5\u05d5\u05d0\u05d8\u05e1\u05d0\u05e4 \u05e9\u05dc \u05d4\u05de\u05e1\u05e2\u05d3\u05d4"
+    },
+    "whatsapp_group_enabled": {
+      "type": "boolean",
+      "default": true,
+      "description": "\u05d4\u05d0\u05dd \u05dc\u05d4\u05e6\u05d9\u05d2 \u05d4\u05e6\u05d8\u05e8\u05e4\u05d5\u05ea \u05dc\u05e7\u05d1\u05d5\u05e6\u05ea \u05d5\u05d5\u05d0\u05d8\u05e1\u05d0\u05e4 \u05d1\u05e1\u05e7\u05e8\u05d9\u05dd"
+    },
+    "opening_hours": {
+      "type": "object",
+      "description": "\u05e9\u05e2\u05d5\u05ea \u05e4\u05e2\u05d9\u05dc\u05d5\u05ea \u05dc\u05db\u05dc \u05d9\u05d5\u05dd \u05d1\u05e9\u05d1\u05d5\u05e2",
+      "default": {
+        "sunday": {
+          "open": "12:00",
+          "close": "23:30",
+          "closed": false
+        },
+        "monday": {
+          "open": "12:00",
+          "close": "23:30",
+          "closed": false
+        },
+        "tuesday": {
+          "open": "12:00",
+          "close": "23:30",
+          "closed": false
+        },
+        "wednesday": {
+          "open": "12:00",
+          "close": "23:30",
+          "closed": false
+        },
+        "thursday": {
+          "open": "12:00",
+          "close": "23:30",
+          "closed": false
+        },
+        "friday": {
+          "open": "12:00",
+          "close": "23:59",
+          "closed": false
+        },
+        "saturday": {
+          "open": "21:00",
+          "close": "23:59",
+          "closed": false
+        }
+      }
+    },
+    "min_party_size": {
+      "type": "integer",
+      "default": 1,
+      "description": "\u05de\u05d9\u05e0\u05d9\u05de\u05d5\u05dd \u05e1\u05d5\u05e2\u05d3\u05d9\u05dd"
+    },
+    "max_party_size": {
+      "type": "integer",
+      "default": 12,
+      "description": "\u05de\u05e7\u05e1\u05d9\u05de\u05d5\u05dd \u05e1\u05d5\u05e2\u05d3\u05d9\u05dd"
+    },
+    "advance_booking_days": {
+      "type": "integer",
+      "default": 30,
+      "description": "\u05db\u05de\u05d4 \u05d9\u05de\u05d9\u05dd \u05de\u05e8\u05d0\u05e9 \u05d0\u05e4\u05e9\u05e8 \u05dc\u05d4\u05d6\u05de\u05d9\u05df"
+    },
+    "booking_cutoff_hours": {
+      "type": "integer",
+      "default": 2,
+      "description": "\u05db\u05de\u05d4 \u05e9\u05e2\u05d5\u05ea \u05dc\u05e4\u05e0\u05d9 \u05dc\u05d0 \u05d0\u05e4\u05e9\u05e8 \u05dc\u05d4\u05d6\u05de\u05d9\u05df"
+    },
+    "special_message": {
+      "type": "string",
+      "description": "\u05d4\u05d5\u05d3\u05e2\u05d4 \u05de\u05d9\u05d5\u05d7\u05d3\u05ea"
+    },
+    "show_menu_link": {
+      "type": "boolean",
+      "default": true,
+      "description": "\u05dc\u05d4\u05e6\u05d9\u05d2 \u05e7\u05d9\u05e9\u05d5\u05e8 \u05dc\u05ea\u05e4\u05e8\u05d9\u05d8"
+    },
+    "show_location_map": {
+      "type": "boolean",
+      "default": true,
+      "description": "\u05dc\u05d4\u05e6\u05d9\u05d2 \u05de\u05e4\u05ea \u05de\u05d9\u05e7\u05d5\u05dd"
+    },
+    "theme_color": {
+      "type": "string",
+      "default": "#059669",
+      "description": "\u05e6\u05d1\u05e2 \u05e0\u05d5\u05e9\u05d0"
+    },
+    "reservations_enabled": {
+      "type": "boolean",
+      "default": true,
+      "description": "\u05d0\u05e4\u05e9\u05e8 \u05d4\u05d6\u05de\u05e0\u05d5\u05ea \u05d7\u05d3\u05e9\u05d5\u05ea"
+    }
+  },
+  "required": [
+    "restaurant_name"
+  ]
+}

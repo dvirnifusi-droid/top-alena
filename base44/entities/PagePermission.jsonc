@@ -1,0 +1,26 @@
+{
+  "name": "PagePermission",
+  "type": "object",
+  "properties": {
+    "page_name": {
+      "type": "string",
+      "description": "\u05e9\u05dd \u05d4\u05d3\u05e3"
+    },
+    "allowed_roles": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "employee",
+          "manager",
+          "owner"
+        ]
+      },
+      "description": "\u05ea\u05e4\u05e7\u05d9\u05d3\u05d9\u05dd \u05de\u05d5\u05e8\u05e9\u05d9\u05dd"
+    }
+  },
+  "required": [
+    "page_name",
+    "allowed_roles"
+  ]
+}

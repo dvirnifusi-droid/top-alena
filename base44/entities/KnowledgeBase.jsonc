@@ -1,0 +1,60 @@
+{
+  "name": "KnowledgeBase",
+  "type": "object",
+  "properties": {
+    "category": {
+      "type": "string",
+      "enum": [
+        "menu",
+        "procedures",
+        "policies",
+        "training",
+        "safety",
+        "customer_service",
+        "technical",
+        "general"
+      ],
+      "description": "\u05e7\u05d8\u05d2\u05d5\u05e8\u05d9\u05d9\u05ea \u05d4\u05de\u05d9\u05d3\u05e2"
+    },
+    "title": {
+      "type": "string",
+      "description": "\u05db\u05d5\u05ea\u05e8\u05ea \u05d4\u05d9\u05d3\u05e2"
+    },
+    "content": {
+      "type": "string",
+      "description": "\u05ea\u05d5\u05db\u05df \u05d4\u05de\u05d9\u05d3\u05e2"
+    },
+    "keywords": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "\u05de\u05d9\u05dc\u05d5\u05ea \u05de\u05e4\u05ea\u05d7 \u05dc\u05d7\u05d9\u05e4\u05d5\u05e9"
+    },
+    "priority": {
+      "type": "string",
+      "enum": [
+        "low",
+        "medium",
+        "high",
+        "critical"
+      ],
+      "default": "medium",
+      "description": "\u05d7\u05e9\u05d9\u05d1\u05d5\u05ea \u05d4\u05de\u05d9\u05d3\u05e2"
+    },
+    "last_updated": {
+      "type": "string",
+      "format": "date-time",
+      "description": "\u05e2\u05d3\u05db\u05d5\u05df \u05d0\u05d7\u05e8\u05d5\u05df"
+    },
+    "updated_by": {
+      "type": "string",
+      "description": "\u05de\u05d9 \u05e2\u05d3\u05db\u05df"
+    }
+  },
+  "required": [
+    "category",
+    "title",
+    "content"
+  ]
+}

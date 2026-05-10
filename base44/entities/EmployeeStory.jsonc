@@ -1,0 +1,215 @@
+{
+  "name": "EmployeeStory",
+  "type": "object",
+  "properties": {
+    "employee_id": {
+      "type": "string",
+      "description": "\u05de\u05d6\u05d4\u05d4 \u05d4\u05e2\u05d5\u05d1\u05d3"
+    },
+    "employee_name": {
+      "type": "string",
+      "description": "\u05e9\u05dd \u05d4\u05e2\u05d5\u05d1\u05d3"
+    },
+    "avatar_url": {
+      "type": "string",
+      "description": "\u05ea\u05de\u05d5\u05e0\u05ea \u05e4\u05e8\u05d5\u05e4\u05d9\u05dc"
+    },
+    "media_url": {
+      "type": "string",
+      "description": "\u05e7\u05d9\u05e9\u05d5\u05e8 \u05dc\u05ea\u05de\u05d5\u05e0\u05d4/\u05e1\u05e8\u05d8\u05d5\u05df"
+    },
+    "media_type": {
+      "type": "string",
+      "enum": [
+        "image",
+        "video"
+      ],
+      "description": "\u05e1\u05d5\u05d2 \u05d4\u05de\u05d3\u05d9\u05d4"
+    },
+    "caption": {
+      "type": "string",
+      "description": "\u05db\u05d9\u05ea\u05d5\u05d1"
+    },
+    "text_overlay": {
+      "type": "object",
+      "properties": {
+        "text": {
+          "type": "string",
+          "description": "\u05d4\u05d8\u05e7\u05e1\u05d8 \u05e9\u05d9\u05d5\u05e6\u05d2 \u05e2\u05dc \u05d4\u05ea\u05de\u05d5\u05e0\u05d4"
+        },
+        "color": {
+          "type": "string",
+          "description": "\u05e6\u05d1\u05e2 \u05d4\u05d8\u05e7\u05e1\u05d8 (hex)"
+        },
+        "font_size": {
+          "type": "number",
+          "description": "\u05d2\u05d5\u05d3\u05dc \u05d4\u05d8\u05e7\u05e1\u05d8 \u05d1\u05e4\u05d9\u05e7\u05e1\u05dc\u05d9\u05dd",
+          "default": 32
+        },
+        "position": {
+          "type": "string",
+          "enum": [
+            "top",
+            "center",
+            "bottom"
+          ],
+          "default": "center",
+          "description": "\u05de\u05d9\u05e7\u05d5\u05dd \u05d4\u05d8\u05e7\u05e1\u05d8 \u05e2\u05dc \u05d4\u05ea\u05de\u05d5\u05e0\u05d4"
+        },
+        "background_color": {
+          "type": "string",
+          "description": "\u05e6\u05d1\u05e2 \u05e8\u05e7\u05e2 \u05e9\u05dc \u05d4\u05d8\u05e7\u05e1\u05d8 (hex, \u05d0\u05d5\u05e4\u05e6\u05d9\u05d5\u05e0\u05dc\u05d9)"
+        }
+      },
+      "description": "\u05d4\u05d2\u05d3\u05e8\u05d5\u05ea \u05d8\u05e7\u05e1\u05d8 overlay"
+    },
+    "audio_url": {
+      "type": "string",
+      "description": "\u05e7\u05d9\u05e9\u05d5\u05e8 \u05dc\u05de\u05d5\u05d6\u05d9\u05e7\u05d4/\u05d0\u05d5\u05d3\u05d9\u05d5"
+    },
+    "audio_metadata": {
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string",
+          "description": "\u05e9\u05dd \u05d4\u05de\u05d5\u05d6\u05d9\u05e7\u05d4"
+        },
+        "artist": {
+          "type": "string",
+          "description": "\u05e9\u05dd \u05d4\u05d0\u05d5\u05de\u05df"
+        },
+        "duration": {
+          "type": "number",
+          "description": "\u05de\u05e9\u05da \u05d1\u05e9\u05e0\u05d9\u05d5\u05ea"
+        }
+      },
+      "description": "\u05de\u05d8\u05d0-\u05d3\u05d8\u05d4 \u05d0\u05d5\u05d3\u05d9\u05d5"
+    },
+    "likes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "\u05de\u05d6\u05d4\u05d9 \u05e2\u05d5\u05d1\u05d3\u05d9\u05dd \u05e9\u05dc\u05d7\u05e6\u05d5 \u05dc\u05d9\u05d9\u05e7"
+    },
+    "views": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "employee_id": {
+            "type": "string"
+          },
+          "employee_name": {
+            "type": "string"
+          }
+        }
+      },
+      "description": "\u05e6\u05e4\u05d9\u05d5\u05ea - \u05de\u05d9 \u05e6\u05e4\u05d4 \u05d1\u05e1\u05d8\u05d5\u05e8\u05d9"
+    },
+    "comments": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "employee_id": {
+            "type": "string"
+          },
+          "employee_name": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string"
+          }
+        }
+      },
+      "description": "\u05ea\u05d2\u05d5\u05d1\u05d5\u05ea"
+    },
+    "quick_reactions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "emoji": {
+            "type": "string"
+          },
+          "employee_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "description": "\u05e8\u05d9\u05d0\u05e7\u05e6\u05d9\u05d5\u05ea \u05de\u05d4\u05d9\u05e8\u05d5\u05ea (emoji) \u05e2\u05dd \u05e8\u05e9\u05d9\u05de\u05ea \u05de\u05d6\u05d4\u05d9 \u05e2\u05d5\u05d1\u05d3\u05d9\u05dd"
+    },
+    "poll": {
+      "type": "object",
+      "properties": {
+        "question": {
+          "type": "string"
+        },
+        "option_a": {
+          "type": "string"
+        },
+        "option_b": {
+          "type": "string"
+        },
+        "votes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "employee_id": {
+                "type": "string"
+              },
+              "option": {
+                "type": "string",
+                "enum": [
+                  "a",
+                  "b"
+                ]
+              }
+            }
+          }
+        }
+      },
+      "description": "\u05e1\u05e7\u05e8 \u05e2\u05dd 2 \u05d0\u05e4\u05e9\u05e8\u05d5\u05d9\u05d5\u05ea"
+    },
+    "questions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "employee_id": {
+            "type": "string"
+          },
+          "employee_name": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string"
+          }
+        }
+      },
+      "description": "\u05e9\u05d0\u05dc\u05d5\u05ea \u05e4\u05ea\u05d5\u05d7\u05d5\u05ea \u05de\u05e6\u05d5\u05e4\u05d9\u05d9\u05dd"
+    },
+    "expires_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "\u05ea\u05e4\u05d5\u05d2\u05d4 (24 \u05e9\u05e2\u05d5\u05ea)"
+    }
+  },
+  "required": [
+    "employee_id",
+    "employee_name",
+    "media_url",
+    "media_type"
+  ]
+}

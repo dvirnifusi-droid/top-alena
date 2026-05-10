@@ -1,0 +1,35 @@
+{
+  "name": "QuizQuestion",
+  "type": "object",
+  "properties": {
+    "quiz_id": {
+      "type": "string",
+      "description": "\u05de\u05d6\u05d4\u05d4 \u05d4\u05de\u05d1\u05d7\u05df \u05d4\u05de\u05e9\u05d5\u05d9\u05da"
+    },
+    "question_text": {
+      "type": "string",
+      "description": "\u05e0\u05d5\u05e1\u05d7 \u05d4\u05e9\u05d0\u05dc\u05d4"
+    },
+    "options": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "\u05d0\u05e4\u05e9\u05e8\u05d5\u05d9\u05d5\u05ea \u05ea\u05e9\u05d5\u05d1\u05d4"
+    },
+    "correct_answer": {
+      "type": "string",
+      "description": "\u05d4\u05ea\u05e9\u05d5\u05d1\u05d4 \u05d4\u05e0\u05db\u05d5\u05e0\u05d4"
+    },
+    "explanation": {
+      "type": "string",
+      "description": "\u05d4\u05e1\u05d1\u05e8 \u05dc\u05ea\u05e9\u05d5\u05d1\u05d4 \u05d4\u05e0\u05db\u05d5\u05e0\u05d4"
+    }
+  },
+  "required": [
+    "quiz_id",
+    "question_text",
+    "options",
+    "correct_answer"
+  ]
+}

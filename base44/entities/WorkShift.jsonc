@@ -1,0 +1,124 @@
+{
+  "name": "WorkShift",
+  "type": "object",
+  "properties": {
+    "date": {
+      "type": "string",
+      "format": "date",
+      "description": "\u05ea\u05d0\u05e8\u05d9\u05da \u05d4\u05de\u05e9\u05de\u05e8\u05ea"
+    },
+    "shift_type": {
+      "type": "string",
+      "enum": [
+        "lunch",
+        "dinner"
+      ],
+      "description": "\u05e1\u05d5\u05d2 \u05de\u05e9\u05de\u05e8\u05ea: \u05e6\u05d4\u05e8\u05d9\u05d9\u05dd \u05d0\u05d5 \u05e2\u05e8\u05d1"
+    },
+    "start_time": {
+      "type": "string",
+      "format": "time",
+      "description": "\u05e9\u05e2\u05ea \u05d4\u05ea\u05d7\u05dc\u05d4 \u05db\u05dc\u05dc\u05d9\u05ea \u05e9\u05dc \u05d4\u05de\u05e9\u05de\u05e8\u05ea"
+    },
+    "end_time": {
+      "type": "string",
+      "format": "time",
+      "description": "\u05e9\u05e2\u05ea \u05e1\u05d9\u05d5\u05dd \u05db\u05dc\u05dc\u05d9\u05ea \u05e9\u05dc \u05d4\u05de\u05e9\u05de\u05e8\u05ea"
+    },
+    "positions_needed": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "integer"
+      },
+      "description": "\u05d0\u05d5\u05d1\u05d9\u05d9\u05e7\u05d8 \u05d3\u05d9\u05e0\u05de\u05d9 \u05e9\u05dc \u05ea\u05e4\u05e7\u05d9\u05d3\u05d9\u05dd \u05e0\u05d3\u05e8\u05e9\u05d9\u05dd \u05d5\u05db\u05de\u05d5\u05ea, \u05dc\u05de\u05e9\u05dc: {'\u05de\u05dc\u05e6\u05e8': 5, '\u05de\u05d8\u05d1\u05d7': 2}"
+    },
+    "assigned_staff": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "employee_id": {
+            "type": "string"
+          },
+          "employee_name": {
+            "type": "string"
+          },
+          "position": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "scheduled",
+              "confirmed",
+              "declined",
+              "absent",
+              "replaced"
+            ],
+            "default": "scheduled"
+          },
+          "start_time": {
+            "type": "string",
+            "format": "time",
+            "description": "\u05e9\u05e2\u05ea \u05d4\u05ea\u05d7\u05dc\u05d4 \u05d0\u05d9\u05e9\u05d9\u05ea \u05e9\u05dc \u05d4\u05e2\u05d5\u05d1\u05d3"
+          },
+          "end_time": {
+            "type": "string",
+            "format": "time",
+            "description": "\u05e9\u05e2\u05ea \u05e1\u05d9\u05d5\u05dd \u05d0\u05d9\u05e9\u05d9\u05ea \u05e9\u05dc \u05d4\u05e2\u05d5\u05d1\u05d3"
+          },
+          "total_break_minutes": {
+            "type": "number",
+            "default": 0,
+            "description": "\u05e1\u05da \u05d3\u05e7\u05d5\u05ea \u05d4\u05e4\u05e1\u05e7\u05d4"
+          },
+          "had_meal": {
+            "type": "boolean",
+            "default": false
+          },
+          "meal_details": {
+            "type": "string"
+          },
+          "notes": {
+            "type": "string"
+          },
+          "breaks": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "break_start": {
+                  "type": "string"
+                },
+                "break_end": {
+                  "type": "string"
+                },
+                "duration_minutes": {
+                  "type": "number"
+                },
+                "notes": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "description": "\u05e2\u05d5\u05d1\u05d3\u05d9\u05dd \u05e9\u05d4\u05d5\u05e7\u05e6\u05d5 \u05dc\u05de\u05e9\u05de\u05e8\u05ea, \u05e2\u05dd \u05d0\u05e4\u05e9\u05e8\u05d5\u05ea \u05dc\u05e9\u05e2\u05d5\u05ea \u05d0\u05d9\u05e9\u05d9\u05d5\u05ea"
+    },
+    "notes": {
+      "type": "string",
+      "description": "\u05d4\u05e2\u05e8\u05d5\u05ea \u05dc\u05de\u05e9\u05de\u05e8\u05ea (\u05dc\u05de\u05e9\u05dc: '\u05d0\u05d9\u05e8\u05d5\u05e2 \u05e4\u05e8\u05d8\u05d9')"
+    },
+    "created_by": {
+      "type": "string",
+      "description": "\u05de\u05d9 \u05d9\u05e6\u05e8 \u05d0\u05ea \u05d4\u05de\u05e9\u05de\u05e8\u05ea"
+    }
+  },
+  "required": [
+    "date",
+    "shift_type",
+    "start_time",
+    "end_time"
+  ]
+}

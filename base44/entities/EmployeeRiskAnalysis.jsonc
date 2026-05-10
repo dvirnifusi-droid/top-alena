@@ -1,0 +1,92 @@
+{
+  "name": "EmployeeRiskAnalysis",
+  "type": "object",
+  "properties": {
+    "employee_id": {
+      "type": "string",
+      "description": "\u05de\u05d6\u05d4\u05d4 \u05d4\u05e2\u05d5\u05d1\u05d3"
+    },
+    "employee_name": {
+      "type": "string",
+      "description": "\u05e9\u05dd \u05d4\u05e2\u05d5\u05d1\u05d3"
+    },
+    "risk_level": {
+      "type": "string",
+      "enum": [
+        "low",
+        "medium",
+        "high",
+        "critical"
+      ],
+      "description": "\u05e8\u05de\u05ea \u05d4\u05e1\u05d9\u05db\u05d5\u05df \u05dc\u05e2\u05d6\u05d9\u05d1\u05d4"
+    },
+    "risk_score": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 100,
+      "description": "\u05e6\u05d9\u05d5\u05df \u05e1\u05d9\u05db\u05d5\u05df (0-100)"
+    },
+    "risk_factors": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "\u05d2\u05d5\u05e8\u05de\u05d9 \u05d4\u05e1\u05d9\u05db\u05d5\u05df \u05e9\u05d6\u05d5\u05d4\u05d5"
+    },
+    "performance_trend": {
+      "type": "string",
+      "enum": [
+        "improving",
+        "stable",
+        "declining",
+        "critical"
+      ],
+      "description": "\u05de\u05d2\u05de\u05ea \u05d4\u05d1\u05d9\u05e6\u05d5\u05e2\u05d9\u05dd"
+    },
+    "attendance_score": {
+      "type": "number",
+      "description": "\u05e6\u05d9\u05d5\u05df \u05e0\u05d5\u05db\u05d7\u05d5\u05ea \u05d5\u05e4\u05d9\u05e6\u05d5\u05e2\u05d9\u05dd (0-100)"
+    },
+    "satisfaction_indicators": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "\u05e1\u05d9\u05de\u05e0\u05d9 \u05e9\u05d1\u05d9\u05e2\u05d5\u05ea \u05e8\u05e6\u05d5\u05df \u05d0\u05d5 \u05d0\u05d9 \u05e9\u05d1\u05d9\u05e2\u05d5\u05ea \u05e8\u05e6\u05d5\u05df"
+    },
+    "recommended_actions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "\u05e4\u05e2\u05d5\u05dc\u05d5\u05ea \u05de\u05d5\u05de\u05dc\u05e6\u05d5\u05ea"
+    },
+    "conversation_talking_points": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "\u05e0\u05e7\u05d5\u05d3\u05d5\u05ea \u05dc\u05e9\u05d9\u05d7\u05d4 \u05e2\u05dd \u05d4\u05e2\u05d5\u05d1\u05d3"
+    },
+    "motivation_strategy": {
+      "type": "string",
+      "description": "\u05d0\u05e1\u05d8\u05e8\u05d8\u05d2\u05d9\u05d9\u05ea \u05de\u05d5\u05d8\u05d9\u05d1\u05e6\u05d9\u05d4 \u05de\u05d5\u05de\u05dc\u05e6\u05ea"
+    },
+    "alert_sent": {
+      "type": "boolean",
+      "default": false,
+      "description": "\u05d4\u05d0\u05dd \u05e0\u05e9\u05dc\u05d7\u05d4 \u05d4\u05ea\u05e8\u05e2\u05d4 \u05dc\u05de\u05e0\u05d4\u05dc"
+    },
+    "last_analysis_date": {
+      "type": "string",
+      "format": "date-time",
+      "description": "\u05ea\u05d0\u05e8\u05d9\u05da \u05e0\u05d9\u05ea\u05d5\u05d7 \u05d0\u05d7\u05e8\u05d5\u05df"
+    }
+  },
+  "required": [
+    "employee_id",
+    "employee_name",
+    "risk_level",
+    "risk_score"
+  ]
+}

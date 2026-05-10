@@ -1,0 +1,278 @@
+{
+  "name": "ShiftEndReport",
+  "type": "object",
+  "properties": {
+    "shift_date": {
+      "type": "string",
+      "format": "date",
+      "description": "\u05ea\u05d0\u05e8\u05d9\u05da \u05d4\u05de\u05e9\u05de\u05e8\u05ea"
+    },
+    "shift_type": {
+      "type": "string",
+      "enum": [
+        "lunch",
+        "dinner"
+      ],
+      "description": "\u05e1\u05d5\u05d2 \u05d4\u05de\u05e9\u05de\u05e8\u05ea"
+    },
+    "manager_name": {
+      "type": "string",
+      "description": "\u05e9\u05dd \u05d4\u05d0\u05d7\u05de\u05e9 \u05e9\u05de\u05d1\u05e6\u05e2 \u05d4\u05d3\u05d5\"\u05d7"
+    },
+    "total_covers": {
+      "type": "integer",
+      "description": "\u05e1\u05da \u05d4\u05e1\u05d5\u05e2\u05d3\u05d9\u05dd"
+    },
+    "total_revenue": {
+      "type": "number",
+      "description": "\u05e1\u05da \u05d4\u05d4\u05db\u05e0\u05e1\u05d5\u05ea"
+    },
+    "staff_performance": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "employee_name": {
+            "type": "string"
+          },
+          "position": {
+            "type": "string"
+          },
+          "performance_rating": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 5
+          },
+          "strengths": {
+            "type": "string"
+          },
+          "improvements_needed": {
+            "type": "string"
+          },
+          "specific_incidents": {
+            "type": "string"
+          }
+        }
+      },
+      "description": "\u05d4\u05e2\u05e8\u05db\u05ea \u05d1\u05d9\u05e6\u05d5\u05e2\u05d9\u05d9\u05dd \u05d0\u05d9\u05e9\u05d9\u05d9\u05dd \u05dc\u05db\u05dc \u05e2\u05d5\u05d1\u05d3"
+    },
+    "department_performance": {
+      "type": "object",
+      "properties": {
+        "kitchen": {
+          "type": "object",
+          "properties": {
+            "rating": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 5
+            },
+            "notes": {
+              "type": "string"
+            },
+            "issues": {
+              "type": "string"
+            }
+          }
+        },
+        "service": {
+          "type": "object",
+          "properties": {
+            "rating": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 5
+            },
+            "notes": {
+              "type": "string"
+            },
+            "issues": {
+              "type": "string"
+            }
+          }
+        },
+        "bar": {
+          "type": "object",
+          "properties": {
+            "rating": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 5
+            },
+            "notes": {
+              "type": "string"
+            },
+            "issues": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    "key_incidents": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "\u05d0\u05d9\u05e8\u05d5\u05e2\u05d9\u05dd \u05d7\u05e9\u05d5\u05d1\u05d9\u05dd \u05d1\u05de\u05e9\u05de\u05e8\u05ea"
+    },
+    "inventory_issues": {
+      "type": "string",
+      "description": "\u05d1\u05e2\u05d9\u05d5\u05ea \u05de\u05dc\u05d0\u05d9 \u05e9\u05d6\u05d5\u05d4\u05d5"
+    },
+    "customer_feedback": {
+      "type": "string",
+      "description": "\u05de\u05e9\u05d5\u05d1 \u05de\u05dc\u05e7\u05d5\u05d7\u05d5\u05ea \u05e9\u05d4\u05ea\u05e7\u05d1\u05dc"
+    },
+    "recommendations": {
+      "type": "string",
+      "description": "\u05d4\u05de\u05dc\u05e6\u05d5\u05ea \u05dc\u05e9\u05d9\u05e4\u05d5\u05e8 \u05dc\u05de\u05e9\u05de\u05e8\u05ea \u05d4\u05d1\u05d0\u05d4"
+    },
+    "overall_rating": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 5,
+      "description": "\u05d3\u05d9\u05e8\u05d5\u05d2 \u05db\u05dc\u05dc\u05d9 \u05dc\u05de\u05e9\u05de\u05e8\u05ea"
+    },
+    "qr_data": {
+      "type": "string",
+      "description": "\u05e0\u05ea\u05d5\u05e0\u05d9\u05dd \u05de\u05e1\u05e8\u05d9\u05e7\u05ea QR (\u05d0\u05dd \u05d1\u05d5\u05e6\u05e2\u05d4)"
+    },
+    "shift_start_time": {
+      "type": "string",
+      "format": "time",
+      "description": "\u05e9\u05e2\u05ea \u05d4\u05ea\u05d7\u05dc\u05ea \u05d4\u05d3\u05d5\u05d7"
+    },
+    "shift_end_time": {
+      "type": "string",
+      "format": "time",
+      "description": "\u05e9\u05e2\u05ea \u05e1\u05d9\u05d5\u05dd \u05d4\u05d3\u05d5\u05d7"
+    },
+    "z_report_number": {
+      "type": "string",
+      "description": "\u05de\u05e1\u05e4\u05e8 \u05d3\u05d5\u05d7 Z"
+    },
+    "total_credit_card": {
+      "type": "number",
+      "description": "\u05e1\u05da \u05d7\u05d9\u05d5\u05d1 \u05d1\u05d0\u05e9\u05e8\u05d0\u05d9"
+    },
+    "total_cash": {
+      "type": "number",
+      "description": "\u05e1\u05da \u05d7\u05d9\u05d5\u05d1 \u05d1\u05de\u05d6\u05d5\u05de\u05df"
+    },
+    "total_credit_card_tips": {
+      "type": "number",
+      "description": "\u05d8\u05d9\u05e4\u05d9\u05dd"
+    },
+    "tip_per_hour_waiter": {
+      "type": "number",
+      "description": "\u05d8\u05d9\u05e4 \u05dc\u05e9\u05e2\u05d4 \u05de\u05dc\u05e6\u05e8"
+    },
+    "total_takeaway_amount": {
+      "type": "number",
+      "description": "\u05e1\u05da \u05d4\u05db\u05e0\u05e1\u05d5\u05ea \u05de-Takeaway"
+    },
+    "total_dine_in_guests": {
+      "type": "integer",
+      "description": "\u05e1\u05da \u05d0\u05d5\u05e8\u05d7\u05d9\u05dd \u05d1\u05d9\u05e9\u05d9\u05d1\u05d4"
+    },
+    "avg_spend_dine_in": {
+      "type": "number",
+      "description": "\u05de\u05de\u05d5\u05e6\u05e2 \u05dc\u05e1\u05d5\u05e2\u05d3 \u05d1\u05d9\u05e9\u05d9\u05d1\u05d4"
+    },
+    "avg_spend_takeaway": {
+      "type": "number",
+      "description": "\u05de\u05de\u05d5\u05e6\u05e2 \u05dc\u05d4\u05d6\u05de\u05e0\u05ea Takeaway"
+    },
+    "total_item_discounts_value": {
+      "type": "number",
+      "description": "\u05e9\u05d5\u05d5\u05d9 \u05d4\u05e0\u05d7\u05d5\u05ea \u05e2\u05dc \u05e4\u05e8\u05d9\u05d8\u05d9\u05dd"
+    },
+    "canceled_items_count": {
+      "type": "integer",
+      "description": "\u05db\u05de\u05d5\u05ea \u05e4\u05e8\u05d9\u05d8\u05d9\u05dd \u05e9\u05d1\u05d5\u05d8\u05dc\u05d5"
+    },
+    "canceled_items_value": {
+      "type": "number",
+      "description": "\u05e9\u05d5\u05d5\u05d9 \u05e4\u05e8\u05d9\u05d8\u05d9\u05dd \u05e9\u05d1\u05d5\u05d8\u05dc\u05d5"
+    },
+    "canceled_orders_count": {
+      "type": "integer",
+      "description": "\u05db\u05de\u05d5\u05ea \u05d4\u05d6\u05de\u05e0\u05d5\u05ea \u05e9\u05d1\u05d5\u05d8\u05dc\u05d5"
+    },
+    "z_report_image_uri": {
+      "type": "string",
+      "description": "URI \u05dc\u05ea\u05de\u05d5\u05e0\u05ea \u05d3\u05d5\u05d7 Z \u05e9\u05e0\u05e1\u05e8\u05e7\u05d4"
+    },
+    "delivery_data": {
+      "type": "object",
+      "properties": {
+        "wolt_deliveries": {
+          "type": "integer"
+        },
+        "cibus_deliveries": {
+          "type": "integer"
+        },
+        "ten_bis_deliveries": {
+          "type": "integer"
+        },
+        "valuecard_deliveries": {
+          "type": "integer"
+        },
+        "mishoha_deliveries": {
+          "type": "integer"
+        },
+        "total_deliveries": {
+          "type": "integer"
+        },
+        "credit_deliveries_amount": {
+          "type": "number"
+        },
+        "cash_deliveries_amount": {
+          "type": "number"
+        },
+        "total_deliveries_amount": {
+          "type": "number"
+        }
+      },
+      "description": "\u05e0\u05ea\u05d5\u05e0\u05d9 \u05de\u05e9\u05dc\u05d5\u05d7\u05d9\u05dd \u05de\u05e4\u05dc\u05d8\u05e4\u05d5\u05e8\u05de\u05d5\u05ea \u05e9\u05d5\u05e0\u05d5\u05ea"
+    },
+    "total_deliveries": {
+      "type": "integer",
+      "description": "\u05e1\u05d4\"\u05db \u05db\u05de\u05d5\u05ea \u05de\u05e9\u05dc\u05d5\u05d7\u05d9\u05dd"
+    },
+    "credit_deliveries_amount": {
+      "type": "number",
+      "description": "\u05db\u05e1\u05e3 \u05de\u05de\u05e9\u05dc\u05d5\u05d7\u05d9\u05dd \u05d1\u05d0\u05e9\u05e8\u05d0\u05d9"
+    },
+    "cash_deliveries_amount": {
+      "type": "number",
+      "description": "\u05db\u05e1\u05e3 \u05de\u05de\u05e9\u05dc\u05d5\u05d7\u05d9\u05dd \u05d1\u05de\u05d6\u05d5\u05de\u05df"
+    },
+    "total_deliveries_amount": {
+      "type": "number",
+      "description": "\u05e1\u05d4\"\u05db \u05db\u05e1\u05e3 \u05de\u05de\u05e9\u05dc\u05d5\u05d7\u05d9\u05dd"
+    },
+    "cash_opening_amount": {
+      "type": "number",
+      "description": "\u05e1\u05db\u05d5\u05dd \u05e4\u05ea\u05d9\u05d7\u05ea \u05e7\u05d5\u05e4\u05d4"
+    },
+    "cash_paid_out": {
+      "type": "number",
+      "description": "\u05d4\u05d5\u05e6\u05d0\u05d5\u05ea \u05de\u05d6\u05d5\u05de\u05df \u05de\u05d4\u05e7\u05d5\u05e4\u05d4"
+    },
+    "actual_cash_in_register": {
+      "type": "number",
+      "description": "\u05e1\u05e4\u05d9\u05e8\u05ea \u05de\u05d6\u05d5\u05de\u05df \u05d1\u05e4\u05d5\u05e2\u05dc \u05d1\u05e1\u05d5\u05e3 \u05de\u05e9\u05de\u05e8\u05ea"
+    },
+    "cash_difference": {
+      "type": "number",
+      "description": "\u05d4\u05d4\u05e4\u05e8\u05e9 \u05d1\u05e7\u05d5\u05e4\u05d4"
+    }
+  },
+  "required": [
+    "shift_date",
+    "shift_type",
+    "manager_name"
+  ]
+}

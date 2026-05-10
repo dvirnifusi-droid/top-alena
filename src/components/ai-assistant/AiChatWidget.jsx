@@ -367,7 +367,6 @@ export default function AiChatWidget() {
             };
 
             setMessages(prev => [...prev, aiMessage]);
-            speak(displayContent);
 
             // זיהוי סיום לימוד תפריט ושמירה במערכת
             if (aiResponseContent.includes('TRAINING_COMPLETE')) {
@@ -565,10 +564,19 @@ export default function AiChatWidget() {
                                         
                                         {message.timestamp && <p className="text-xs opacity-70 mt-2 text-right">{new Date(message.timestamp).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}</p>}
                                         
-                                        {message.type === 'ai' && !feedbackGiven[message.id] && (
+                                        {message.type === 'ai' && (
                                             <div className="flex justify-end gap-2 mt-2">
-                                                <button onClick={() => handleFeedback(message.id, true)} className="p-1 rounded-full hover:bg-slate-300 transition-colors"><ThumbsUp className="h-3 w-3 sm:h-4 sm:w-4 text-slate-600"/></button>
-                                                <button onClick={() => handleFeedback(message.id, false)} className="p-1 rounded-full hover:bg-slate-300 transition-colors"><ThumbsDown className="h-3 w-3 sm:h-4 sm:w-4 text-slate-600"/></button>
+                                                <button
+                                                    onClick={() => speak(message.content)}
+                                                    className="p-1 rounded-full hover:bg-slate-300 transition-colors"
+                                                    title="השמע"
+                                                >
+                                                    <Volume2 className="h-3 w-3 sm:h-4 sm:w-4 text-orange-500"/>
+                                                </button>
+                                                {!feedbackGiven[message.id] && <>
+                                                    <button onClick={() => handleFeedback(message.id, true)} className="p-1 rounded-full hover:bg-slate-300 transition-colors"><ThumbsUp className="h-3 w-3 sm:h-4 sm:w-4 text-slate-600"/></button>
+                                                    <button onClick={() => handleFeedback(message.id, false)} className="p-1 rounded-full hover:bg-slate-300 transition-colors"><ThumbsDown className="h-3 w-3 sm:h-4 sm:w-4 text-slate-600"/></button>
+                                                </>}
                                             </div>
                                         )}
                                     </div>

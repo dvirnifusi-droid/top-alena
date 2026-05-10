@@ -1,0 +1,116 @@
+{
+  "name": "Order",
+  "type": "object",
+  "properties": {
+    "order_number": {
+      "type": "string",
+      "description": "\u05de\u05e1\u05e4\u05e8 \u05d4\u05d6\u05de\u05e0\u05d4"
+    },
+    "table_id": {
+      "type": "string",
+      "description": "\u05de\u05d6\u05d4\u05d4 \u05e9\u05d5\u05dc\u05d7\u05df"
+    },
+    "waiter_id": {
+      "type": "string",
+      "description": "\u05de\u05d6\u05d4\u05d4 \u05de\u05dc\u05e6\u05e8"
+    },
+    "items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "quantity": {
+            "type": "integer"
+          },
+          "price": {
+            "type": "number"
+          },
+          "modifications": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "ordered",
+              "preparing",
+              "ready",
+              "served"
+            ]
+          }
+        }
+      },
+      "description": "\u05e4\u05e8\u05d9\u05d8\u05d9 \u05d4\u05d4\u05d6\u05de\u05e0\u05d4"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "new",
+        "confirmed",
+        "preparing",
+        "ready",
+        "served",
+        "paid",
+        "cancelled"
+      ],
+      "default": "new"
+    },
+    "order_time": {
+      "type": "string",
+      "format": "time",
+      "description": "\u05d6\u05de\u05df \u05d4\u05d6\u05de\u05e0\u05d4"
+    },
+    "ready_time": {
+      "type": "string",
+      "format": "time",
+      "description": "\u05d6\u05de\u05df \u05de\u05d5\u05db\u05e0\u05d5\u05ea"
+    },
+    "serve_time": {
+      "type": "string",
+      "format": "time",
+      "description": "\u05d6\u05de\u05df \u05d4\u05d2\u05e9\u05d4"
+    },
+    "subtotal": {
+      "type": "number",
+      "description": "\u05e1\u05db\u05d5\u05dd \u05dc\u05e4\u05e0\u05d9 \u05de\u05e1"
+    },
+    "tax": {
+      "type": "number",
+      "description": "\u05de\u05e1"
+    },
+    "discount": {
+      "type": "number",
+      "description": "\u05d4\u05e0\u05d7\u05d4"
+    },
+    "tip": {
+      "type": "number",
+      "description": "\u05d8\u05d9\u05e4"
+    },
+    "total": {
+      "type": "number",
+      "description": "\u05e1\u05db\u05d5\u05dd \u05e1\u05d5\u05e4\u05d9"
+    },
+    "payment_method": {
+      "type": "string",
+      "enum": [
+        "cash",
+        "credit",
+        "voucher",
+        "split"
+      ],
+      "description": "\u05d0\u05de\u05e6\u05e2\u05d9 \u05ea\u05e9\u05dc\u05d5\u05dd"
+    },
+    "special_requests": {
+      "type": "string",
+      "description": "\u05d1\u05e7\u05e9\u05d5\u05ea \u05de\u05d9\u05d5\u05d7\u05d3\u05d5\u05ea"
+    }
+  },
+  "required": [
+    "order_number",
+    "table_id",
+    "waiter_id",
+    "items"
+  ]
+}

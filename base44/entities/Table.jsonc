@@ -1,0 +1,70 @@
+{
+  "name": "Table",
+  "type": "object",
+  "properties": {
+    "table_number": {
+      "type": "string",
+      "description": "\u05de\u05e1\u05e4\u05e8 \u05e9\u05d5\u05dc\u05d7\u05df"
+    },
+    "capacity": {
+      "type": "integer",
+      "description": "\u05de\u05e1\u05e4\u05e8 \u05de\u05e7\u05d5\u05de\u05d5\u05ea \u05d9\u05e9\u05d9\u05d1\u05d4"
+    },
+    "location": {
+      "type": "string",
+      "enum": [
+        "indoor",
+        "outdoor",
+        "bar",
+        "private"
+      ],
+      "description": "\u05de\u05d9\u05e7\u05d5\u05dd \u05e9\u05d5\u05dc\u05d7\u05df"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "available",
+        "occupied",
+        "reserved",
+        "cleaning",
+        "out_of_order"
+      ],
+      "default": "available"
+    },
+    "current_waiter": {
+      "type": "string",
+      "description": "\u05de\u05dc\u05e6\u05e8 \u05d0\u05d7\u05e8\u05d0\u05d9"
+    },
+    "occupied_since": {
+      "type": "string",
+      "format": "time",
+      "description": "\u05ea\u05e4\u05d5\u05e1 \u05de\u05d0\u05d6"
+    },
+    "estimated_duration": {
+      "type": "integer",
+      "description": "\u05d6\u05de\u05df \u05de\u05e9\u05d5\u05e2\u05e8 \u05d1\u05d3\u05e7\u05d5\u05ea"
+    },
+    "party_size": {
+      "type": "integer",
+      "description": "\u05de\u05e1\u05e4\u05e8 \u05e1\u05d5\u05e2\u05d3\u05d9\u05dd \u05d1\u05e4\u05d5\u05e2\u05dc"
+    },
+    "reservation_id": {
+      "type": "string",
+      "description": "\u05de\u05d6\u05d4\u05d4 \u05d4\u05d6\u05de\u05e0\u05d4"
+    },
+    "notes": {
+      "type": "string",
+      "description": "\u05d4\u05e2\u05e8\u05d5\u05ea \u05de\u05d9\u05d5\u05d7\u05d3\u05d5\u05ea"
+    },
+    "vip": {
+      "type": "boolean",
+      "default": false,
+      "description": "\u05dc\u05e7\u05d5\u05d7 VIP"
+    }
+  },
+  "required": [
+    "table_number",
+    "capacity",
+    "location"
+  ]
+}

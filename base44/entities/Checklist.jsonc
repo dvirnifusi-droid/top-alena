@@ -1,0 +1,155 @@
+{
+  "name": "Checklist",
+  "type": "object",
+  "properties": {
+    "title": {
+      "type": "string",
+      "description": "\u05e9\u05dd \u05e8\u05e9\u05d9\u05de\u05ea \u05d4\u05d1\u05d3\u05d9\u05e7\u05d4"
+    },
+    "description": {
+      "type": "string",
+      "description": "\u05ea\u05d9\u05d0\u05d5\u05e8 \u05e8\u05e9\u05d9\u05de\u05ea \u05d4\u05d1\u05d3\u05d9\u05e7\u05d4"
+    },
+    "category": {
+      "type": "string",
+      "enum": [
+        "safety",
+        "quality",
+        "maintenance",
+        "compliance",
+        "onboarding",
+        "operational"
+      ],
+      "description": "\u05e7\u05d8\u05d2\u05d5\u05e8\u05d9\u05d9\u05ea \u05d4\u05d1\u05d3\u05d9\u05e7\u05d4"
+    },
+    "frequency": {
+      "type": "string",
+      "enum": [
+        "daily",
+        "weekly",
+        "monthly",
+        "quarterly",
+        "yearly",
+        "as_needed"
+      ],
+      "description": "\u05ea\u05d3\u05d9\u05e8\u05d5\u05ea \u05d1\u05d9\u05e6\u05d5\u05e2"
+    },
+    "assigned_role": {
+      "type": "string",
+      "description": "\u05ea\u05e4\u05e7\u05d9\u05d3 \u05d0\u05d7\u05e8\u05d0\u05d9"
+    },
+    "shift": {
+      "type": "string",
+      "enum": [
+        "morning",
+        "evening",
+        "thursday",
+        "all"
+      ],
+      "default": "all",
+      "description": "\u05de\u05e9\u05de\u05e8\u05ea \u05de\u05e9\u05d5\u05d9\u05db\u05ea"
+    },
+    "color": {
+      "type": "string",
+      "default": "emerald",
+      "description": "\u05e6\u05d1\u05e2 \u05d4\u05e6'\u05e7\u05dc\u05d9\u05e1\u05d8"
+    },
+    "items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "order": {
+            "type": "integer"
+          },
+          "area": {
+            "type": "string"
+          },
+          "task": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "help_text": {
+            "type": "string"
+          },
+          "require_photo": {
+            "type": "boolean",
+            "default": true
+          },
+          "evidence_type": {
+            "type": "string",
+            "enum": [
+              "none",
+              "photo",
+              "note",
+              "signature"
+            ]
+          },
+          "require_check": {
+            "type": "boolean"
+          },
+          "critical": {
+            "type": "boolean"
+          },
+          "points": {
+            "type": "integer"
+          },
+          "role": {
+            "type": "string"
+          },
+          "time_window": {
+            "type": "string"
+          },
+          "dependency": {
+            "type": "string"
+          },
+          "auto_incident": {
+            "type": "boolean"
+          },
+          "manager_verify": {
+            "type": "boolean"
+          },
+          "signature_required": {
+            "type": "boolean"
+          },
+          "assigned_to_employee_id": {
+            "type": "string",
+            "description": "\u05de\u05d6\u05d4\u05d4 \u05e2\u05d5\u05d1\u05d3 \u05de\u05e9\u05d5\u05d9\u05da"
+          },
+          "assigned_to_employee_name": {
+            "type": "string",
+            "description": "\u05e9\u05dd \u05e2\u05d5\u05d1\u05d3 \u05de\u05e9\u05d5\u05d9\u05da"
+          }
+        }
+      },
+      "description": "\u05e4\u05e8\u05d9\u05d8\u05d9 \u05d4\u05d1\u05d3\u05d9\u05e7\u05d4"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "active",
+        "inactive",
+        "draft",
+        "archived"
+      ],
+      "default": "draft",
+      "description": "\u05e1\u05d8\u05d8\u05d5\u05e1 \u05e8\u05e9\u05d9\u05de\u05ea \u05d4\u05d1\u05d3\u05d9\u05e7\u05d4"
+    },
+    "version": {
+      "type": "string",
+      "description": "\u05d2\u05e8\u05e1\u05ea \u05d4\u05e8\u05e9\u05d9\u05de\u05d4"
+    },
+    "created_by": {
+      "type": "string",
+      "description": "\u05de\u05d6\u05d4\u05d4 \u05d9\u05d5\u05e6\u05e8 \u05d4\u05e8\u05e9\u05d9\u05de\u05d4"
+    }
+  },
+  "required": [
+    "title",
+    "category",
+    "frequency",
+    "items"
+  ]
+}

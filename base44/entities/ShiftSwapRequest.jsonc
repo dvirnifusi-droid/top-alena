@@ -1,0 +1,72 @@
+{
+  "name": "ShiftSwapRequest",
+  "type": "object",
+  "properties": {
+    "requester_employee_id": {
+      "type": "string",
+      "description": "\u05de\u05d6\u05d4\u05d4 \u05d4\u05e2\u05d5\u05d1\u05d3 \u05e9\u05de\u05d1\u05e7\u05e9 \u05d4\u05d7\u05dc\u05e4\u05d4"
+    },
+    "requester_name": {
+      "type": "string",
+      "description": "\u05e9\u05dd \u05d4\u05e2\u05d5\u05d1\u05d3 \u05d4\u05de\u05d1\u05e7\u05e9"
+    },
+    "target_employee_id": {
+      "type": "string",
+      "description": "\u05de\u05d6\u05d4\u05d4 \u05d4\u05e2\u05d5\u05d1\u05d3 \u05e9\u05de\u05e6\u05d9\u05e2\u05d9\u05dd \u05dc\u05d5 \u05d4\u05d7\u05dc\u05e4\u05d4"
+    },
+    "target_name": {
+      "type": "string",
+      "description": "\u05e9\u05dd \u05d4\u05e2\u05d5\u05d1\u05d3 \u05d4\u05d9\u05e2\u05d3"
+    },
+    "shift_date": {
+      "type": "string",
+      "format": "date",
+      "description": "\u05ea\u05d0\u05e8\u05d9\u05da \u05d4\u05de\u05e9\u05de\u05e8\u05ea \u05dc\u05d4\u05d7\u05dc\u05e4\u05d4"
+    },
+    "shift_type": {
+      "type": "string",
+      "enum": [
+        "lunch",
+        "dinner"
+      ],
+      "description": "\u05e1\u05d5\u05d2 \u05d4\u05de\u05e9\u05de\u05e8\u05ea"
+    },
+    "position": {
+      "type": "string",
+      "description": "\u05ea\u05e4\u05e7\u05d9\u05d3 \u05d1\u05de\u05e9\u05de\u05e8\u05ea"
+    },
+    "start_time": {
+      "type": "string",
+      "description": "\u05e9\u05e2\u05ea \u05d4\u05ea\u05d7\u05dc\u05d4"
+    },
+    "end_time": {
+      "type": "string",
+      "description": "\u05e9\u05e2\u05ea \u05e1\u05d9\u05d5\u05dd"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "approved_by_manager",
+        "rejected_by_manager",
+        "cancelled"
+      ],
+      "default": "pending",
+      "description": "\u05e1\u05d8\u05d8\u05d5\u05e1 \u05d4\u05d1\u05e7\u05e9\u05d4"
+    },
+    "message": {
+      "type": "string",
+      "description": "\u05d4\u05e2\u05e8\u05d4 \u05de\u05d4\u05e2\u05d5\u05d1\u05d3 \u05d4\u05de\u05d1\u05e7\u05e9"
+    },
+    "manager_notes": {
+      "type": "string",
+      "description": "\u05d4\u05e2\u05e8\u05ea \u05de\u05e0\u05d4\u05dc"
+    }
+  },
+  "required": [
+    "requester_employee_id",
+    "requester_name",
+    "shift_date",
+    "shift_type"
+  ]
+}

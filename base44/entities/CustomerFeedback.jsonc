@@ -1,0 +1,62 @@
+{
+  "name": "CustomerFeedback",
+  "type": "object",
+  "properties": {
+    "session_id": {
+      "type": "string",
+      "description": "\u05de\u05d6\u05d4\u05d4 \u05e4\u05d2\u05d9\u05e9\u05ea \u05d4\u05e9\u05d5\u05dc\u05d7\u05df \u05d0\u05d5 \u05d4\u05e1\u05e7\u05e8 \u05d4\u05d9\u05d3\u05e0\u05d9"
+    },
+    "customer_name": {
+      "type": "string",
+      "description": "\u05e9\u05dd \u05d4\u05dc\u05e7\u05d5\u05d7"
+    },
+    "rating": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 5,
+      "description": "\u05d3\u05d9\u05e8\u05d5\u05d2 (1-5 \u05db\u05d5\u05db\u05d1\u05d9\u05dd)"
+    },
+    "comments": {
+      "type": "string",
+      "description": "\u05d4\u05e2\u05e8\u05d5\u05ea \u05de\u05d4\u05dc\u05e7\u05d5\u05d7"
+    },
+    "visit_date": {
+      "type": "string",
+      "format": "date",
+      "description": "\u05ea\u05d0\u05e8\u05d9\u05da \u05d4\u05d1\u05d9\u05e7\u05d5\u05e8 \u05e9\u05e6\u05d9\u05d9\u05df \u05d4\u05dc\u05e7\u05d5\u05d7"
+    },
+    "party_size": {
+      "type": "integer",
+      "description": "\u05db\u05de\u05d5\u05ea \u05d4\u05e1\u05d5\u05e2\u05d3\u05d9\u05dd \u05e9\u05e6\u05d9\u05d9\u05df \u05d4\u05dc\u05e7\u05d5\u05d7"
+    },
+    "food_rating": {
+      "type": "integer",
+      "description": "\u05d3\u05d9\u05e8\u05d5\u05d2 \u05d4\u05d0\u05d5\u05db\u05dc (1-5)"
+    },
+    "service_rating": {
+      "type": "integer",
+      "description": "\u05d3\u05d9\u05e8\u05d5\u05d2 \u05d4\u05e9\u05d9\u05e8\u05d5\u05ea (1-5)"
+    },
+    "was_redirected_to_google": {
+      "type": "boolean",
+      "default": false,
+      "description": "\u05d4\u05d0\u05dd \u05d4\u05d5\u05e4\u05e0\u05d4 \u05dc\u05d1\u05d9\u05e7\u05d5\u05e8\u05ea \u05d1\u05d2\u05d5\u05d2\u05dc"
+    },
+    "incident_created": {
+      "type": "boolean",
+      "default": false,
+      "description": "\u05d4\u05d0\u05dd \u05e0\u05d5\u05e6\u05e8\u05d4 \u05ea\u05e7\u05e8\u05d9\u05ea \u05d1\u05e2\u05e7\u05d1\u05d5\u05ea \u05d4\u05de\u05e9\u05d5\u05d1"
+    },
+    "table_number": {
+      "type": "string",
+      "description": "\u05de\u05e1\u05e4\u05e8 \u05e9\u05d5\u05dc\u05d7\u05df (\u05d1\u05de\u05d9\u05d3\u05d4 \u05d5\u05d4\u05d2\u05d9\u05e2 \u05de-QR)"
+    },
+    "customer_phone": {
+      "type": "string",
+      "description": "\u05d8\u05dc\u05e4\u05d5\u05df \u05e9\u05d4\u05dc\u05e7\u05d5\u05d7 \u05d4\u05e9\u05d0\u05d9\u05e8 \u05dc\u05d7\u05d6\u05e8\u05d4"
+    }
+  },
+  "required": [
+    "rating"
+  ]
+}

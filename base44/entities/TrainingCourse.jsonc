@@ -1,0 +1,60 @@
+{
+  "name": "TrainingCourse",
+  "type": "object",
+  "properties": {
+    "course_code": {
+      "type": "string",
+      "description": "\u05e7\u05d5\u05d3 \u05d9\u05d9\u05d7\u05d5\u05d3\u05d9 \u05dc\u05e7\u05d5\u05e8\u05e1 \u05dc\u05d8\u05d5\u05d1\u05ea \u05e7\u05d9\u05e9\u05d5\u05e8\u05d9\u05dd \u05e4\u05e0\u05d9\u05de\u05d9\u05d9\u05dd",
+      "unique": true
+    },
+    "title": {
+      "type": "string",
+      "description": "\u05e9\u05dd \u05d4\u05e7\u05d5\u05e8\u05e1"
+    },
+    "description": {
+      "type": "string",
+      "description": "\u05ea\u05d9\u05d0\u05d5\u05e8 \u05d4\u05e7\u05d5\u05e8\u05e1"
+    },
+    "category": {
+      "type": "string",
+      "enum": [
+        "safety",
+        "technical",
+        "soft_skills",
+        "compliance",
+        "leadership",
+        "operations"
+      ],
+      "description": "\u05e7\u05d8\u05d2\u05d5\u05e8\u05d9\u05d9\u05ea \u05d4\u05e7\u05d5\u05e8\u05e1"
+    },
+    "duration_hours": {
+      "type": "number",
+      "description": "\u05de\u05e9\u05da \u05d4\u05e7\u05d5\u05e8\u05e1 \u05d1\u05e9\u05e2\u05d5\u05ea"
+    },
+    "instructor": {
+      "type": "string",
+      "description": "\u05de\u05d3\u05e8\u05d9\u05da \u05d4\u05e7\u05d5\u05e8\u05e1"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "draft",
+        "scheduled",
+        "in_progress",
+        "completed",
+        "cancelled"
+      ],
+      "default": "draft",
+      "description": "\u05e1\u05d8\u05d8\u05d5\u05e1 \u05d4\u05e7\u05d5\u05e8\u05e1"
+    },
+    "assigned_role": {
+      "type": "string",
+      "description": "\u05ea\u05e4\u05e7\u05d9\u05d3 \u05e9\u05d0\u05dc\u05d9\u05d5 \u05d4\u05e7\u05d5\u05e8\u05e1 \u05de\u05d9\u05d5\u05e2\u05d3"
+    }
+  },
+  "required": [
+    "course_code",
+    "title",
+    "category"
+  ]
+}

@@ -1,0 +1,103 @@
+{
+  "name": "TableSession",
+  "type": "object",
+  "properties": {
+    "table_number": {
+      "type": "string",
+      "description": "\u05de\u05e1\u05e4\u05e8 \u05d4\u05e9\u05d5\u05dc\u05d7\u05df"
+    },
+    "party_size": {
+      "type": "integer",
+      "description": "\u05de\u05e1\u05e4\u05e8 \u05d4\u05e1\u05d5\u05e2\u05d3\u05d9\u05dd"
+    },
+    "table_style": {
+      "type": "string",
+      "enum": [
+        "date",
+        "family_with_kids",
+        "business",
+        "friends",
+        "celebration",
+        "couple",
+        "solo"
+      ],
+      "description": "\u05e1\u05d2\u05e0\u05d5\u05df \u05d4\u05e9\u05d5\u05dc\u05d7\u05df"
+    },
+    "waiter_id": {
+      "type": "string",
+      "description": "\u05de\u05d6\u05d4\u05d4 \u05d4\u05de\u05dc\u05e6\u05e8 \u05d4\u05d0\u05d7\u05e8\u05d0\u05d9"
+    },
+    "waiter_name": {
+      "type": "string",
+      "description": "\u05e9\u05dd \u05d4\u05de\u05dc\u05e6\u05e8"
+    },
+    "customer_name": {
+      "type": "string",
+      "description": "\u05e9\u05dd \u05d4\u05dc\u05e7\u05d5\u05d7 (\u05dc\u05e6\u05d5\u05e8\u05da \u05e1\u05e7\u05e8)"
+    },
+    "customer_phone": {
+      "type": "string",
+      "description": "\u05d8\u05dc\u05e4\u05d5\u05df \u05d4\u05dc\u05e7\u05d5\u05d7 (\u05dc\u05e6\u05d5\u05e8\u05da \u05e1\u05e7\u05e8)"
+    },
+    "current_step": {
+      "type": "integer",
+      "default": 1,
+      "description": "\u05d4\u05e9\u05dc\u05d1 \u05d4\u05e0\u05d5\u05db\u05d7\u05d9 (1-23)"
+    },
+    "steps_completed": {
+      "type": "array",
+      "items": {
+        "type": "integer"
+      },
+      "description": "\u05e8\u05e9\u05d9\u05de\u05ea \u05d4\u05e9\u05dc\u05d1\u05d9\u05dd \u05e9\u05d4\u05d5\u05e9\u05dc\u05de\u05d5"
+    },
+    "session_start": {
+      "type": "string",
+      "format": "date-time",
+      "description": "\u05d4\u05ea\u05d7\u05dc\u05ea \u05d4\u05e4\u05d2\u05d9\u05e9\u05d4"
+    },
+    "session_end": {
+      "type": "string",
+      "format": "date-time",
+      "description": "\u05e1\u05d9\u05d5\u05dd \u05d4\u05e4\u05d2\u05d9\u05e9\u05d4"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "active",
+        "completed",
+        "cancelled",
+        "to_be_cleaned"
+      ],
+      "default": "active",
+      "description": "\u05e1\u05d8\u05d8\u05d5\u05e1 \u05d4\u05e4\u05d2\u05d9\u05e9\u05d4"
+    },
+    "notes": {
+      "type": "string",
+      "description": "\u05d4\u05e2\u05e8\u05d5\u05ea \u05e2\u05dc \u05d4\u05e9\u05d5\u05dc\u05d7\u05df"
+    },
+    "special_requests": {
+      "type": "string",
+      "description": "\u05d1\u05e7\u05e9\u05d5\u05ea \u05de\u05d9\u05d5\u05d7\u05d3\u05d5\u05ea"
+    },
+    "ai_recommendations_used": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "\u05d4\u05de\u05dc\u05e6\u05d5\u05ea AI \u05e9\u05e0\u05d5\u05e6\u05dc\u05d5"
+    },
+    "survey_sent": {
+      "type": "boolean",
+      "default": false,
+      "description": "\u05d4\u05d0\u05dd \u05e0\u05e9\u05dc\u05d7 \u05e1\u05e7\u05e8 \u05dc\u05dc\u05e7\u05d5\u05d7"
+    }
+  },
+  "required": [
+    "table_number",
+    "party_size",
+    "table_style",
+    "waiter_id",
+    "waiter_name"
+  ]
+}

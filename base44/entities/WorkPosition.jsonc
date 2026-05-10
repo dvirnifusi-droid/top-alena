@@ -1,0 +1,77 @@
+{
+  "name": "WorkPosition",
+  "type": "object",
+  "properties": {
+    "position_name": {
+      "type": "string",
+      "description": "\u05e9\u05dd \u05d4\u05ea\u05e4\u05e7\u05d9\u05d3"
+    },
+    "emoji": {
+      "type": "string",
+      "description": "\u05d0\u05d9\u05d9\u05e7\u05d5\u05df \u05d0\u05d5 \u05d0\u05d9\u05de\u05d5\u05d2'\u05d9 \u05dc\u05ea\u05e4\u05e7\u05d9\u05d3"
+    },
+    "description": {
+      "type": "string",
+      "description": "\u05ea\u05d9\u05d0\u05d5\u05e8 \u05db\u05dc\u05dc\u05d9 \u05e9\u05dc \u05d4\u05ea\u05e4\u05e7\u05d9\u05d3"
+    },
+    "responsibilities": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "\u05e8\u05e9\u05d9\u05de\u05ea \u05ea\u05d7\u05d5\u05de\u05d9 \u05d4\u05d0\u05d7\u05e8\u05d9\u05d5\u05ea \u05e9\u05dc \u05d4\u05ea\u05e4\u05e7\u05d9\u05d3"
+    },
+    "recruitment_guidelines": {
+      "type": "object",
+      "properties": {
+        "what_to_look_for": {
+          "type": "string",
+          "description": "\u05d0\u05d9\u05d6\u05d4 \u05e1\u05d5\u05d2 \u05d0\u05e0\u05e9\u05d9\u05dd \u05dc\u05d7\u05e4\u05e9"
+        },
+        "where_to_post": {
+          "type": "string",
+          "description": "\u05d0\u05d9\u05e4\u05d4 \u05dc\u05e4\u05e8\u05e1\u05dd \u05de\u05e9\u05e8\u05d5\u05ea"
+        }
+      }
+    },
+    "interview_questions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "\u05e9\u05d0\u05dc\u05d5\u05ea \u05e8\u05d9\u05d0\u05d9\u05d5\u05df \u05de\u05d5\u05de\u05dc\u05e6\u05d5\u05ea"
+    },
+    "training_plan": {
+      "type": "string",
+      "description": "\u05ea\u05d5\u05db\u05e0\u05d9\u05ea \u05d4\u05db\u05e9\u05e8\u05d4 \u05de\u05e4\u05d5\u05e8\u05d8\u05ea \u05dc\u05ea\u05e4\u05e7\u05d9\u05d3"
+    },
+    "required_skills": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "\u05db\u05d9\u05e9\u05d5\u05e8\u05d9\u05dd \u05e0\u05d3\u05e8\u05e9\u05d9\u05dd"
+    },
+    "hourly_rate": {
+      "type": "number",
+      "description": "\u05e9\u05db\u05e8 \u05dc\u05e9\u05e2\u05d4"
+    },
+    "max_hours_per_day": {
+      "type": "integer",
+      "default": 12,
+      "description": "\u05de\u05e7\u05e1\u05d9\u05de\u05d5\u05dd \u05e9\u05e2\u05d5\u05ea \u05e2\u05d1\u05d5\u05d3\u05d4 \u05d1\u05d9\u05d5\u05dd"
+    },
+    "color": {
+      "type": "string",
+      "description": "\u05e6\u05d1\u05e2 \u05dc\u05ea\u05e6\u05d5\u05d2\u05d4 \u05d1\u05e1\u05d9\u05d3\u05d5\u05e8 (hex)"
+    },
+    "is_active": {
+      "type": "boolean",
+      "default": true,
+      "description": "\u05d4\u05d0\u05dd \u05d4\u05ea\u05e4\u05e7\u05d9\u05d3 \u05e4\u05e2\u05d9\u05dc"
+    }
+  },
+  "required": [
+    "position_name"
+  ]
+}

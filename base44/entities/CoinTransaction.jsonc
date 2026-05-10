@@ -1,0 +1,72 @@
+{
+  "name": "CoinTransaction",
+  "type": "object",
+  "properties": {
+    "employee_id": {
+      "type": "string",
+      "description": "\u05de\u05d6\u05d4\u05d4 \u05e2\u05d5\u05d1\u05d3"
+    },
+    "employee_name": {
+      "type": "string",
+      "description": "\u05e9\u05dd \u05e2\u05d5\u05d1\u05d3"
+    },
+    "amount": {
+      "type": "number",
+      "description": "\u05db\u05de\u05d5\u05ea \u05de\u05d8\u05d1\u05e2\u05d5\u05ea (\u05d7\u05d9\u05d5\u05d1\u05d9 = \u05d6\u05db\u05d4, \u05e9\u05dc\u05d9\u05dc\u05d9 = \u05e4\u05d3\u05d4)"
+    },
+    "reason": {
+      "type": "string",
+      "description": "\u05e1\u05d9\u05d1\u05d4 \u05dc\u05d6\u05d9\u05db\u05d5\u05d9/\u05d7\u05d9\u05d5\u05d1"
+    },
+    "type": {
+      "type": "string",
+      "enum": [
+        "earned",
+        "redeemed",
+        "bonus"
+      ],
+      "description": "\u05e1\u05d5\u05d2 \u05e4\u05e2\u05d5\u05dc\u05d4"
+    },
+    "trigger": {
+      "type": "string",
+      "enum": [
+        "shift_completed",
+        "checklist_done",
+        "training_done",
+        "daily_challenge",
+        "manager_bonus",
+        "redemption"
+      ],
+      "description": "\u05de\u05d4 \u05d2\u05e8\u05dd \u05dc\u05e4\u05e2\u05d5\u05dc\u05d4"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "pending_approval",
+        "approved",
+        "rejected"
+      ],
+      "default": "approved",
+      "description": "\u05e1\u05d8\u05d8\u05d5\u05e1 (\u05dc\u05e4\u05d3\u05d9\u05d5\u05e0\u05d5\u05ea \u05e0\u05d3\u05e8\u05e9 \u05d0\u05d9\u05e9\u05d5\u05e8 \u05de\u05e0\u05d4\u05dc)"
+    },
+    "redemption_reward": {
+      "type": "string",
+      "description": "\u05d4\u05e4\u05e8\u05e1 \u05e9\u05d1\u05d9\u05e7\u05e9\u05d5 \u05dc\u05e4\u05d3\u05d5\u05ea"
+    },
+    "manager_notes": {
+      "type": "string",
+      "description": "\u05d4\u05e2\u05e8\u05ea \u05de\u05e0\u05d4\u05dc"
+    },
+    "approved_by": {
+      "type": "string",
+      "description": "\u05de\u05d9 \u05d0\u05d9\u05e9\u05e8"
+    }
+  },
+  "required": [
+    "employee_id",
+    "employee_name",
+    "amount",
+    "reason",
+    "type"
+  ]
+}

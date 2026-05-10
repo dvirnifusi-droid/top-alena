@@ -1,0 +1,184 @@
+{
+  "name": "MarketingTask",
+  "type": "object",
+  "properties": {
+    "task_type": {
+      "type": "string",
+      "enum": [
+        "social_media_post",
+        "story_upload",
+        "google_ads",
+        "facebook_ads",
+        "instagram_ads",
+        "email_campaign",
+        "content_creation",
+        "customer_engagement",
+        "influencer_outreach",
+        "review_management",
+        "seo_optimization",
+        "event_promotion",
+        "loyalty_program",
+        "seasonal_campaign"
+      ],
+      "description": "\u05e1\u05d5\u05d2 \u05d4\u05de\u05e9\u05d9\u05de\u05d4 \u05d4\u05e9\u05d9\u05d5\u05d5\u05e7\u05d9\u05ea"
+    },
+    "title": {
+      "type": "string",
+      "description": "\u05db\u05d5\u05ea\u05e8\u05ea \u05d4\u05de\u05e9\u05d9\u05de\u05d4"
+    },
+    "description": {
+      "type": "string",
+      "description": "\u05ea\u05d9\u05d0\u05d5\u05e8 \u05de\u05e4\u05d5\u05e8\u05d8 \u05e9\u05dc \u05d4\u05de\u05e9\u05d9\u05de\u05d4"
+    },
+    "priority": {
+      "type": "string",
+      "enum": [
+        "low",
+        "medium",
+        "high",
+        "urgent"
+      ],
+      "default": "medium",
+      "description": "\u05e8\u05de\u05ea \u05d7\u05e9\u05d9\u05d1\u05d5\u05ea \u05d4\u05de\u05e9\u05d9\u05de\u05d4"
+    },
+    "platform": {
+      "type": "string",
+      "enum": [
+        "instagram",
+        "facebook",
+        "google",
+        "tiktok",
+        "email",
+        "whatsapp",
+        "website",
+        "multiple"
+      ],
+      "description": "\u05d4\u05e4\u05dc\u05d8\u05e4\u05d5\u05e8\u05de\u05d4 \u05e9\u05d1\u05d4 \u05d9\u05e9 \u05dc\u05d1\u05e6\u05e2 \u05d0\u05ea \u05d4\u05de\u05e9\u05d9\u05de\u05d4"
+    },
+    "estimated_time": {
+      "type": "integer",
+      "description": "\u05d6\u05de\u05df \u05de\u05e9\u05d5\u05e2\u05e8 \u05dc\u05d1\u05d9\u05e6\u05d5\u05e2 \u05d1\u05d3\u05e7\u05d5\u05ea"
+    },
+    "expected_reach": {
+      "type": "integer",
+      "description": "\u05d8\u05d5\u05d5\u05d7 \u05d4\u05d2\u05e2\u05d4 \u05e6\u05e4\u05d5\u05d9"
+    },
+    "budget_required": {
+      "type": "number",
+      "description": "\u05ea\u05e7\u05e6\u05d9\u05d1 \u05e0\u05d3\u05e8\u05e9 \u05dc\u05d1\u05d9\u05e6\u05d5\u05e2 \u05d4\u05de\u05e9\u05d9\u05de\u05d4"
+    },
+    "due_date": {
+      "type": "string",
+      "format": "date",
+      "description": "\u05ea\u05d0\u05e8\u05d9\u05da \u05d9\u05e2\u05d3 \u05dc\u05d1\u05d9\u05e6\u05d5\u05e2"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "in_progress",
+        "completed",
+        "skipped",
+        "starred"
+      ],
+      "default": "pending",
+      "description": "\u05e1\u05d8\u05d8\u05d5\u05e1 \u05d4\u05de\u05e9\u05d9\u05de\u05d4"
+    },
+    "completion_date": {
+      "type": "string",
+      "format": "date-time",
+      "description": "\u05ea\u05d0\u05e8\u05d9\u05da \u05d4\u05e9\u05dc\u05de\u05ea \u05d4\u05de\u05e9\u05d9\u05de\u05d4"
+    },
+    "actual_results": {
+      "type": "object",
+      "properties": {
+        "reach": {
+          "type": "integer"
+        },
+        "engagement": {
+          "type": "integer"
+        },
+        "clicks": {
+          "type": "integer"
+        },
+        "conversions": {
+          "type": "integer"
+        },
+        "cost": {
+          "type": "number"
+        }
+      },
+      "description": "\u05ea\u05d5\u05e6\u05d0\u05d5\u05ea \u05d1\u05e4\u05d5\u05e2\u05dc \u05e9\u05dc \u05d4\u05de\u05e9\u05d9\u05de\u05d4"
+    },
+    "ai_reasoning": {
+      "type": "string",
+      "description": "\u05d4\u05e0\u05de\u05e7\u05d4 \u05e9\u05dc AI \u05dc\u05de\u05d4 \u05d4\u05de\u05e9\u05d9\u05de\u05d4 \u05d4\u05d6\u05d5 \u05d7\u05e9\u05d5\u05d1\u05d4 \u05e2\u05db\u05e9\u05d9\u05d5"
+    },
+    "suggested_content": {
+      "type": "string",
+      "description": "\u05d4\u05e6\u05e2\u05ea \u05ea\u05d5\u05db\u05df \u05de\u05d5\u05db\u05df \u05deAI"
+    },
+    "success_metrics": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "\u05de\u05d3\u05d3\u05d9 \u05d4\u05e6\u05dc\u05d7\u05d4 \u05dc\u05de\u05e9\u05d9\u05de\u05d4"
+    },
+    "detailed_steps": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "step_number": {
+            "type": "integer"
+          },
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "estimated_minutes": {
+            "type": "integer"
+          },
+          "completed": {
+            "type": "boolean",
+            "default": false
+          },
+          "tools_needed": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "tips": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "description": "\u05e4\u05d9\u05e8\u05d5\u05d8 \u05e9\u05dc\u05d1\u05d9 \u05d4\u05de\u05e9\u05d9\u05de\u05d4"
+    },
+    "is_starred": {
+      "type": "boolean",
+      "default": false,
+      "description": "\u05d4\u05d0\u05dd \u05d4\u05de\u05e9\u05d9\u05de\u05d4 \u05de\u05e1\u05d5\u05de\u05e0\u05ea \u05d1\u05db\u05d5\u05db\u05d1 \u05dc\u05de\u05d5\u05e2\u05d3 \u05de\u05d0\u05d5\u05d7\u05e8 \u05d9\u05d5\u05ea\u05e8"
+    },
+    "progress_percentage": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 100,
+      "default": 0,
+      "description": "\u05d0\u05d7\u05d5\u05d6 \u05d4\u05ea\u05e7\u05d3\u05de\u05d5\u05ea \u05d1\u05de\u05e9\u05d9\u05de\u05d4"
+    }
+  },
+  "required": [
+    "task_type",
+    "title",
+    "description",
+    "due_date"
+  ]
+}

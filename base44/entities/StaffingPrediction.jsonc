@@ -1,0 +1,85 @@
+{
+  "name": "StaffingPrediction",
+  "type": "object",
+  "properties": {
+    "date": {
+      "type": "string",
+      "format": "date",
+      "description": "\u05ea\u05d0\u05e8\u05d9\u05da \u05d4\u05d7\u05d9\u05d6\u05d5\u05d9"
+    },
+    "predicted_covers": {
+      "type": "integer",
+      "description": "\u05d7\u05d9\u05d6\u05d5\u05d9 \u05de\u05e1\u05e4\u05e8 \u05e1\u05d5\u05e2\u05d3\u05d9\u05dd"
+    },
+    "confidence_level": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 100,
+      "description": "\u05e8\u05de\u05ea \u05d1\u05d9\u05d8\u05d7\u05d5\u05df \u05d1\u05d7\u05d9\u05d6\u05d5\u05d9"
+    },
+    "weather_factor": {
+      "type": "string",
+      "enum": [
+        "very_positive",
+        "positive",
+        "neutral",
+        "negative",
+        "very_negative"
+      ],
+      "description": "\u05d4\u05e9\u05e4\u05e2\u05ea \u05de\u05d6\u05d2 \u05d4\u05d0\u05d5\u05d5\u05d9\u05e8"
+    },
+    "events_factor": {
+      "type": "string",
+      "description": "\u05d0\u05d9\u05e8\u05d5\u05e2\u05d9\u05dd \u05de\u05e9\u05e4\u05d9\u05e2\u05d9\u05dd"
+    },
+    "holiday_factor": {
+      "type": "string",
+      "enum": [
+        "regular",
+        "holiday_eve",
+        "holiday",
+        "vacation"
+      ],
+      "description": "\u05d2\u05d5\u05e8\u05dd \u05d7\u05d2\u05d9\u05dd \u05d5\u05d7\u05d5\u05e4\u05e9\u05d5\u05ea"
+    },
+    "recommended_waiters": {
+      "type": "integer",
+      "description": "\u05de\u05e1\u05e4\u05e8 \u05de\u05dc\u05e6\u05e8\u05d9\u05dd \u05de\u05d5\u05de\u05dc\u05e5"
+    },
+    "recommended_kitchen_staff": {
+      "type": "integer",
+      "description": "\u05e6\u05d5\u05d5\u05ea \u05de\u05d8\u05d1\u05d7 \u05de\u05d5\u05de\u05dc\u05e5"
+    },
+    "recommended_host_staff": {
+      "type": "integer",
+      "description": "\u05e6\u05d5\u05d5\u05ea \u05e7\u05d1\u05dc\u05d4 \u05de\u05d5\u05de\u05dc\u05e5"
+    },
+    "peak_hours": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "\u05e9\u05e2\u05d5\u05ea \u05e9\u05d9\u05d0 \u05e6\u05e4\u05d5\u05d9\u05d5\u05ea"
+    },
+    "preparation_notes": {
+      "type": "string",
+      "description": "\u05d4\u05e2\u05e8\u05d5\u05ea \u05d4\u05db\u05e0\u05d4 \u05dc\u05de\u05e9\u05de\u05e8\u05ea"
+    },
+    "revenue_prediction": {
+      "type": "number",
+      "description": "\u05d7\u05d9\u05d6\u05d5\u05d9 \u05d4\u05db\u05e0\u05e1\u05d5\u05ea"
+    },
+    "risk_factors": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "\u05d2\u05d5\u05e8\u05de\u05d9 \u05e1\u05d9\u05db\u05d5\u05df \u05e9\u05d6\u05d5\u05d4\u05d5"
+    }
+  },
+  "required": [
+    "date",
+    "predicted_covers",
+    "confidence_level"
+  ]
+}

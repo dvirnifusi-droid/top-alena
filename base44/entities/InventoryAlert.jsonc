@@ -1,0 +1,61 @@
+{
+  "name": "InventoryAlert",
+  "type": "object",
+  "properties": {
+    "item_name": {
+      "type": "string",
+      "description": "\u05e9\u05dd \u05d4\u05e4\u05e8\u05d9\u05d8 \u05d1\u05de\u05dc\u05d0\u05d9"
+    },
+    "current_quantity": {
+      "type": "number",
+      "description": "\u05db\u05de\u05d5\u05ea \u05e0\u05d5\u05db\u05d7\u05d9\u05ea"
+    },
+    "suggested_quantity": {
+      "type": "number",
+      "description": "\u05db\u05de\u05d5\u05ea \u05de\u05d5\u05e6\u05e2\u05ea \u05dc\u05d4\u05d6\u05de\u05e0\u05d4"
+    },
+    "urgency": {
+      "type": "string",
+      "enum": [
+        "low",
+        "medium",
+        "high",
+        "critical"
+      ],
+      "description": "\u05d3\u05d7\u05d9\u05e4\u05d5\u05ea \u05d4\u05d4\u05d6\u05de\u05e0\u05d4"
+    },
+    "supplier_id": {
+      "type": "string",
+      "description": "\u05e1\u05e4\u05e7 \u05de\u05d5\u05e6\u05e2"
+    },
+    "estimated_cost": {
+      "type": "number",
+      "description": "\u05e2\u05dc\u05d5\u05ea \u05de\u05d5\u05e2\u05e8\u05db\u05ea"
+    },
+    "reasoning": {
+      "type": "string",
+      "description": "\u05e0\u05d9\u05de\u05d5\u05e7 \u05dc\u05db\u05de\u05d5\u05ea \u05d4\u05de\u05d5\u05e6\u05e2\u05ea"
+    },
+    "photo_analysis": {
+      "type": "string",
+      "description": "\u05ea\u05d5\u05e6\u05d0\u05ea \u05e0\u05d9\u05ea\u05d5\u05d7 \u05d4\u05ea\u05de\u05d5\u05e0\u05d4"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "approved",
+        "ordered",
+        "delivered"
+      ],
+      "default": "pending",
+      "description": "\u05e1\u05d8\u05d8\u05d5\u05e1 \u05d4\u05d4\u05d6\u05de\u05e0\u05d4"
+    }
+  },
+  "required": [
+    "item_name",
+    "current_quantity",
+    "suggested_quantity",
+    "urgency"
+  ]
+}

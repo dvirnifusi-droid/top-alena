@@ -1,0 +1,60 @@
+{
+  "name": "ShiftMessage",
+  "type": "object",
+  "properties": {
+    "sender_id": {
+      "type": "string",
+      "description": "\u05de\u05d6\u05d4\u05d4 \u05d4\u05e9\u05d5\u05dc\u05d7"
+    },
+    "sender_name": {
+      "type": "string",
+      "description": "\u05e9\u05dd \u05d4\u05e9\u05d5\u05dc\u05d7"
+    },
+    "sender_role": {
+      "type": "string",
+      "description": "\u05ea\u05e4\u05e7\u05d9\u05d3 \u05d4\u05e9\u05d5\u05dc\u05d7 \u05d1\u05de\u05e9\u05de\u05e8\u05ea"
+    },
+    "message": {
+      "type": "string",
+      "description": "\u05ea\u05d5\u05db\u05df \u05d4\u05d4\u05d5\u05d3\u05e2\u05d4"
+    },
+    "shift_date": {
+      "type": "string",
+      "format": "date",
+      "description": "\u05ea\u05d0\u05e8\u05d9\u05da \u05d4\u05de\u05e9\u05de\u05e8\u05ea"
+    },
+    "shift_type": {
+      "type": "string",
+      "enum": [
+        "lunch",
+        "dinner",
+        "general"
+      ],
+      "description": "\u05e1\u05d5\u05d2 \u05d4\u05de\u05e9\u05de\u05e8\u05ea"
+    },
+    "message_type": {
+      "type": "string",
+      "enum": [
+        "text",
+        "announcement",
+        "urgent"
+      ],
+      "default": "text",
+      "description": "\u05e1\u05d5\u05d2 \u05d4\u05d4\u05d5\u05d3\u05e2\u05d4"
+    },
+    "read_by": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "\u05de\u05d6\u05d4\u05d9 \u05de\u05e9\u05ea\u05de\u05e9\u05d9\u05dd \u05e9\u05e7\u05e8\u05d0\u05d5 \u05d0\u05ea \u05d4\u05d4\u05d5\u05d3\u05e2\u05d4"
+    }
+  },
+  "required": [
+    "sender_id",
+    "sender_name",
+    "message",
+    "shift_date",
+    "shift_type"
+  ]
+}
