@@ -16,14 +16,17 @@ const DVIR_ICON_URL = "https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/objec
 export default function AiChatWidget() {
     const [isOpen, setIsOpen] = useState(false);
     const [isMinimized, setIsMinimized] = useState(false);
-    const [messages, setMessages] = useState([
-        {
-            id: 1,
-            type: 'ai',
-            content: 'היי, כאן דביר! 🧠\nשאל אותי כל דבר, ואתן לך תשובה ישר מהמוח הדיגיטלי שלי.',
-            timestamp: new Date(),
-        }
-    ]);
+    const STORAGE_KEY = 'dvir_chat_history';
+
+    const getInitialMessages = () => [{
+        id: 1,
+        type: 'ai',
+        content: 'היי, כאן דביר! 🧠\nשאל אותי כל דבר, ואתן לך תשובה ישר מהמוח הדיגיטלי שלי.',
+        timestamp: new Date(),
+    }];
+
+    const [messages, setMessages] = useState(getInitialMessages);
+    const [showResumePrompt, setShowResumePrompt] = useState(false);
     const [inputValue, setInputValue] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [user, setUser] = useState(null);
@@ -82,6 +85,28 @@ export default function AiChatWidget() {
         recognitionRef.current?.stop();
         setIsListening(false);
     };
+
+    // שמור היסטוריה ב-localStorage בכל שינוי
+    useEffect(() => {
+        if (messages.length > 1) {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(messages));
+        }
+    }, [messages]);
+
+    // בפתיחת הצ'אט — בדוק אם יש היסטוריה קודמת
+    useEffect(() => {
+        if (isOpen) {
+            const saved = localStorage.getItem(STORAGE_KEY);
+            if (saved) {
+                try {
+                    const parsed = JSON.parse(saved);
+                    if (parsed.length > 1) {
+                        setShowResumePrompt(true);
+                    }
+                } catch {}
+            }
+        }
+    }, [isOpen]);
 
     useEffect(() => {
         if (isOpen && chatContainerRef.current) {
@@ -442,8 +467,39 @@ export default function AiChatWidget() {
                     </div>
                 </CardHeader>
 
+                {showResumePrompt && !isMinimized && (
+                    <div className="absolute inset-0 z-10 bg-black/40 flex items-center justify-center rounded-lg">
+                        <div className="bg-white rounded-2xl p-5 mx-4 shadow-2xl text-right" dir="rtl">
+                            <p className="font-bold text-slate-800 mb-1">👋 ברוך השב!</p>
+                            <p className="text-sm text-slate-600 mb-4">יש לי שיחה קודמת שלנו שמורה.<br/>מה תעדיף?</p>
+                            <div className="flex flex-col gap-2">
+                                <button
+                                    onClick={() => {
+                                        const saved = localStorage.getItem(STORAGE_KEY);
+                                        if (saved) setMessages(JSON.parse(saved));
+                                        setShowResumePrompt(false);
+                                    }}
+                                    className="bg-orange-500 hover:bg-orange-600 text-white rounded-xl px-4 py-2 text-sm font-bold"
+                                >
+                                    ↩️ המשך את השיחה הקודמת
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        localStorage.removeItem(STORAGE_KEY);
+                                        setMessages(getInitialMessages());
+                                        setShowResumePrompt(false);
+                                    }}
+                                    className="bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl px-4 py-2 text-sm font-bold"
+                                >
+                                    🆕 התחל שיחה חדשה
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
                 {!isMinimized && (
-                    <CardContent className="p-0 flex flex-col h-full">
+                    <CardContent className="p-0 flex flex-col h-full relative">
                         <div ref={chatContainerRef} className="flex-1 p-3 sm:p-4 space-y-3 sm:space-y-4 overflow-y-auto max-h-[350px] sm:max-h-[430px] lg:max-h-[470px]">
                             {messages.map((message) => (
                                 <div key={message.id} className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}>
