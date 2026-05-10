@@ -177,9 +177,9 @@ export default function AiChatWidget() {
 
             try {
                 const conversationHistory = messages
-                    .filter(m => m.type === 'user' || m.type === 'ai')
-                    .slice(-6)
-                    .map(m => ({ role: m.type === 'ai' ? 'assistant' : 'user', content: m.content }));
+                    .filter(m => m.type === 'user' || m.type === 'ai' || m.type === 'training_summary')
+                    .slice(-30)
+                    .map(m => ({ role: (m.type === 'ai' || m.type === 'training_summary') ? 'assistant' : 'user', content: m.content }));
 
                 const systemPrompt = `אתה דביר - עוזר AI פנימי ומאמן מלצרים בכיר של מסעדת TOP ALENA.
 אתה עונה בעברית בלבד, בצורה חמה, מעודדת ומלהיבה.
