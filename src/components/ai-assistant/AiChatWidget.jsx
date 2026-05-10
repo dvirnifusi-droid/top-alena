@@ -43,62 +43,63 @@ export default function AiChatWidget() {
     const recognitionRef = useRef(null);
 
     const currentAudioRef = useRef(null);
+    const cleanForTts = (text) => text
+        .replace(/[*_#`~\[\]]/g, '')
+        .replace(/[\u{1F000}-\u{1FFFF}]/gu, '')
+        .replace(/[^\u0020-\u007E\u0590-\u05FF\s.,?!:;()\-]/g, '')
+        .replace(/\n+/g, '. ')
+        .replace(/\s{2,}/g, ' ')
+        .trim()
+        .slice(0, 500);
 
-    const speakQueueRef = useRef([]);
-    const isSpeakingRef = useRef(false);
-
-    const speakNext = () => {
-        if (speakQueueRef.current.length === 0) {
-            isSpeakingRef.current = false;
-            setIsSpeaking(false);
-            return;
-        }
-        const chunk = speakQueueRef.current.shift();
-        const utterance = new SpeechSynthesisUtterance(chunk);
-        utterance.lang = 'he-IL';
-        utterance.rate = 1.1;
-        utterance.onend = () => speakNext();
-        utterance.onerror = () => speakNext();
-        window.speechSynthesis.speak(utterance);
-    };
-
-    const speak = (text) => {
+    const speak = async (text) => {
         if (!ttsEnabled) return;
-        window.speechSynthesis.cancel();
-        speakQueueRef.current = [];
+        stopSpeaking();
 
-        const clean = text
-            .replace(/[*_#`~\[\]]/g, '')        // markdown
-            .replace(/!+/g, '.')                  // סימני קריאה → נקודה
-            .replace(/[📌🎓✅⚠️🔥🎉🍽️🍷🏆⭐🟡🟠🟢👋↩️🆕]/gu, '') // אמוג'י
-            .replace(/[\u{1F300}-\u{1FFFF}]/gu, '') // שאר אמוג'י
-            .replace(/\n+/g, '. ')
-            .replace(/\s{2,}/g, ' ')
-            .trim();
-        // חלק לחתיכות של עד 150 תווים על גבול משפט
-        const sentences = clean.match(/[^.!?،؟]+[.!?،؟]*/g) || [clean];
-        const chunks = [];
-        let current = '';
-        for (const s of sentences) {
-            if ((current + s).length > 150) {
-                if (current) chunks.push(current.trim());
-                current = s;
-            } else {
-                current += s;
-            }
-        }
-        if (current.trim()) chunks.push(current.trim());
+        const clean = cleanForTts(text);
+        if (!clean) return;
 
-        speakQueueRef.current = chunks;
-        isSpeakingRef.current = true;
         setIsSpeaking(true);
-        speakNext();
+        try {
+            // קרא ל-elevenLabsTts כפי שה-SDK עושה, אבל נקבל raw Response לצורך blob
+            const { appParams } = await import('@/lib/app-params');
+            const baseUrl = appParams.appBaseUrl || '';
+            const appId = appParams.appId || '';
+            const token = appParams.token
+                || localStorage.getItem('base44_access_token')
+                || localStorage.getItem('token')
+                || '';
+            const fnVersion = appParams.functionsVersion || 'v2';
+
+            const url = `${baseUrl}/api/apps/${appId}/functions/${fnVersion}/elevenLabsTts`;
+            const res = await fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+                },
+                body: JSON.stringify({ text: clean }),
+            });
+
+            if (!res.ok) throw new Error(`TTS HTTP ${res.status}`);
+            const blob = await res.blob();
+            const objUrl = URL.createObjectURL(blob);
+            const audio = new Audio(objUrl);
+            currentAudioRef.current = audio;
+            audio.onended = () => { setIsSpeaking(false); URL.revokeObjectURL(objUrl); };
+            audio.onerror = () => { setIsSpeaking(false); URL.revokeObjectURL(objUrl); };
+            await audio.play();
+        } catch (e) {
+            console.error('TTS error:', e);
+            setIsSpeaking(false);
+        }
     };
 
     const stopSpeaking = () => {
-        window.speechSynthesis.cancel();
-        speakQueueRef.current = [];
-        isSpeakingRef.current = false;
+        if (currentAudioRef.current) {
+            currentAudioRef.current.pause();
+            currentAudioRef.current = null;
+        }
         setIsSpeaking(false);
     };
 
