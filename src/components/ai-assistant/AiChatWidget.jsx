@@ -64,7 +64,14 @@ export default function AiChatWidget() {
         window.speechSynthesis.cancel();
         speakQueueRef.current = [];
 
-        const clean = text.replace(/[*_#`~]/g, '').replace(/\n+/g, ' ').trim();
+        const clean = text
+            .replace(/[*_#`~\[\]]/g, '')        // markdown
+            .replace(/!+/g, '.')                  // סימני קריאה → נקודה
+            .replace(/[📌🎓✅⚠️🔥🎉🍽️🍷🏆⭐🟡🟠🟢👋↩️🆕]/gu, '') // אמוג'י
+            .replace(/[\u{1F300}-\u{1FFFF}]/gu, '') // שאר אמוג'י
+            .replace(/\n+/g, '. ')
+            .replace(/\s{2,}/g, ' ')
+            .trim();
         // חלק לחתיכות של עד 150 תווים על גבול משפט
         const sentences = clean.match(/[^.!?،؟]+[.!?،؟]*/g) || [clean];
         const chunks = [];
