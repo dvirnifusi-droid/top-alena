@@ -3,7 +3,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { KnowledgeBase, StaffQuestion, PendingQuestion } from "@/entities/all";
-import { User } from "@/entities/User";
 import { Send, ThumbsUp, ThumbsDown, X, Minimize2, Maximize2, Mic, MicOff, Volume2, VolumeX } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { askGemini } from "@/functions/askGemini";
@@ -133,7 +132,7 @@ export default function AiChatWidget() {
     }, [messages, isOpen]);
 
     useEffect(() => {
-        User.me().then(setUser).catch(() => setUser(null));
+        base44.auth.me().then(setUser).catch(() => setUser(null));
     }, []);
 
     const searchInternalKnowledge = (question, knowledgeBase) => {
