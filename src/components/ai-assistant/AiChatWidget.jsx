@@ -42,8 +42,8 @@ export default function AiChatWidget() {
 
     const chatContainerRef = useRef(null);
     const recognitionRef = useRef(null);
-
     const currentAudioRef = useRef(null);
+    const audioCacheRef = useRef({}); // messageId -> objectURL
     const cleanForTts = (text) => text
         .replace(/[*_#`~\[\]]/g, '')
         .replace(/[\u{1F000}-\u{1FFFF}]/gu, '')
@@ -53,7 +53,26 @@ export default function AiChatWidget() {
         .trim()
         .slice(0, 500);
 
-    const speak = async (text) => {
+    const base64ToObjUrl = (base64) => {
+        const binary = atob(base64);
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+        const blob = new Blob([bytes], { type: 'audio/mpeg' });
+        return URL.createObjectURL(blob);
+    };
+
+    const prefetchAudio = async (messageId, text) => {
+        if (audioCacheRef.current[messageId]) return; // already cached
+        const clean = cleanForTts(text);
+        if (!clean) return;
+        try {
+            const res = await elevenLabsTts({ text: clean });
+            const base64 = res.data?.audio_base64;
+            if (base64) audioCacheRef.current[messageId] = base64ToObjUrl(base64);
+        } catch (_) {}
+    };
+
+    const speak = async (text, messageId) => {
         if (!ttsEnabled) return;
         stopSpeaking();
 
@@ -62,18 +81,18 @@ export default function AiChatWidget() {
 
         setIsSpeaking(true);
         try {
-            const res = await elevenLabsTts({ text: clean });
-            const base64 = res.data?.audio_base64;
-            if (!base64) throw new Error('No audio returned');
-            const binary = atob(base64);
-            const bytes = new Uint8Array(binary.length);
-            for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-            const blob = new Blob([bytes], { type: 'audio/mpeg' });
-            const objUrl = URL.createObjectURL(blob);
+            let objUrl = messageId && audioCacheRef.current[messageId];
+            if (!objUrl) {
+                const res = await elevenLabsTts({ text: clean });
+                const base64 = res.data?.audio_base64;
+                if (!base64) throw new Error('No audio returned');
+                objUrl = base64ToObjUrl(base64);
+                if (messageId) audioCacheRef.current[messageId] = objUrl;
+            }
             const audio = new Audio(objUrl);
             currentAudioRef.current = audio;
-            audio.onended = () => { setIsSpeaking(false); URL.revokeObjectURL(objUrl); };
-            audio.onerror = () => { setIsSpeaking(false); URL.revokeObjectURL(objUrl); };
+            audio.onended = () => { setIsSpeaking(false); };
+            audio.onerror = () => { setIsSpeaking(false); };
             await audio.play();
         } catch (e) {
             console.error('TTS error:', e);
@@ -383,6 +402,11 @@ export default function AiChatWidget() {
 
             setMessages(prev => [...prev, aiMessage]);
 
+            // Pre-fetch audio in background for instant playback
+            if (!isTrainingEnd) {
+                prefetchAudio(aiMessage.id, displayContent);
+            }
+
             // זיהוי סיום לימוד תפריט ושמירה במערכת
             if (aiResponseContent.includes('TRAINING_COMPLETE')) {
                 const nameMatch = aiResponseContent.match(/שם:\s*([^\|]+)/);
@@ -610,7 +634,7 @@ export default function AiChatWidget() {
                                         {message.type === 'ai' && (
                                             <div className="flex justify-end gap-2 mt-2">
                                                 <button
-                                                    onClick={() => speak(message.content)}
+                                                    onClick={() => speak(message.content, message.id)}
                                                     className="p-1 rounded-full hover:bg-slate-300 transition-colors"
                                                     title="השמע"
                                                 >
