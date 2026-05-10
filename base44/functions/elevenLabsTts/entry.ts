@@ -21,7 +21,8 @@ Deno.serve(async (req) => {
 
     const clean = text.replace(/[*_#`~]/g, '').replace(/\n+/g, ' ').trim().slice(0, 500);
 
-    const res = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${VOICE_ID}`, {
+    // Use /stream endpoint for lower latency - ElevenLabs starts generating immediately
+    const res = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${VOICE_ID}/stream?optimize_streaming_latency=4`, {
         method: 'POST',
         headers: {
             'xi-api-key': apiKey,
@@ -30,11 +31,10 @@ Deno.serve(async (req) => {
         },
         body: JSON.stringify({
             text: clean,
-            model_id: 'eleven_v3',
+            model_id: 'eleven_flash_v2_5',
             voice_settings: {
-                stability: 0.75,
-                similarity_boost: 0.85,
-                style: 0.2,
+                stability: 0.5,
+                similarity_boost: 0.8,
                 use_speaker_boost: true,
             }
         })
@@ -46,6 +46,9 @@ Deno.serve(async (req) => {
     }
 
     const audioBuffer = await res.arrayBuffer();
-    const base64 = btoa(String.fromCharCode(...new Uint8Array(audioBuffer)));
+    const bytes = new Uint8Array(audioBuffer);
+    let binary = '';
+    for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+    const base64 = btoa(binary);
     return Response.json({ audio_base64: base64 });
 });

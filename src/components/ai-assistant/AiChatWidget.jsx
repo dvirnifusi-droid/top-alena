@@ -63,7 +63,7 @@ export default function AiChatWidget() {
     };
 
     const prefetchAudio = async (messageId, text) => {
-        if (audioCacheRef.current[messageId]) return; // already cached
+        if (audioCacheRef.current[messageId]) return;
         const clean = cleanForTts(text);
         if (!clean) return;
         try {
