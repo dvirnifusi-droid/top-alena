@@ -61,23 +61,9 @@ export default function AiChatWidget() {
 
         setIsSpeaking(true);
         try {
-            // קרא ל-elevenLabsTts כפי שה-SDK עושה, אבל נקבל raw Response לצורך blob
-            const { appParams } = await import('@/lib/app-params');
-            const baseUrl = appParams.appBaseUrl || '';
-            const appId = appParams.appId || '';
-            const token = appParams.token
-                || localStorage.getItem('base44_access_token')
-                || localStorage.getItem('token')
-                || '';
-            const fnVersion = appParams.functionsVersion || 'v2';
-
-            const url = `${baseUrl}/api/apps/${appId}/functions/${fnVersion}/elevenLabsTts`;
-            const res = await fetch(url, {
+            const res = await base44.functions.fetch('/elevenLabsTts', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
-                },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ text: clean }),
             });
 
