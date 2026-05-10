@@ -41,21 +41,54 @@ export default function AiChatWidget() {
 
     const currentAudioRef = useRef(null);
 
+    const speakQueueRef = useRef([]);
+    const isSpeakingRef = useRef(false);
+
+    const speakNext = () => {
+        if (speakQueueRef.current.length === 0) {
+            isSpeakingRef.current = false;
+            setIsSpeaking(false);
+            return;
+        }
+        const chunk = speakQueueRef.current.shift();
+        const utterance = new SpeechSynthesisUtterance(chunk);
+        utterance.lang = 'he-IL';
+        utterance.rate = 1.1;
+        utterance.onend = () => speakNext();
+        utterance.onerror = () => speakNext();
+        window.speechSynthesis.speak(utterance);
+    };
+
     const speak = (text) => {
         if (!ttsEnabled) return;
         window.speechSynthesis.cancel();
-        const clean = text.replace(/[*_#`~]/g, '').replace(/\n+/g, ' ').trim().slice(0, 500);
-        const utterance = new SpeechSynthesisUtterance(clean);
-        utterance.lang = 'he-IL';
-        utterance.rate = 1.1;
-        utterance.onstart = () => setIsSpeaking(true);
-        utterance.onend = () => setIsSpeaking(false);
-        utterance.onerror = () => setIsSpeaking(false);
-        window.speechSynthesis.speak(utterance);
+        speakQueueRef.current = [];
+
+        const clean = text.replace(/[*_#`~]/g, '').replace(/\n+/g, ' ').trim();
+        // חלק לחתיכות של עד 150 תווים על גבול משפט
+        const sentences = clean.match(/[^.!?،؟]+[.!?،؟]*/g) || [clean];
+        const chunks = [];
+        let current = '';
+        for (const s of sentences) {
+            if ((current + s).length > 150) {
+                if (current) chunks.push(current.trim());
+                current = s;
+            } else {
+                current += s;
+            }
+        }
+        if (current.trim()) chunks.push(current.trim());
+
+        speakQueueRef.current = chunks;
+        isSpeakingRef.current = true;
+        setIsSpeaking(true);
+        speakNext();
     };
 
     const stopSpeaking = () => {
         window.speechSynthesis.cancel();
+        speakQueueRef.current = [];
+        isSpeakingRef.current = false;
         setIsSpeaking(false);
     };
 
