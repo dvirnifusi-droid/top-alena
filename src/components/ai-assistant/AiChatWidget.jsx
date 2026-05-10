@@ -287,15 +287,22 @@ export default function AiChatWidget() {
                 }
             }
 
+            // הסר את שורת TRAINING_COMPLETE מהתצוגה — רק הסיכום האישי מוצג
+            const displayContent = aiResponseContent.includes('TRAINING_COMPLETE')
+                ? aiResponseContent.replace(/🎓 TRAINING_COMPLETE\s*\|[^\n]*/g, '').trim()
+                : aiResponseContent;
+
+            const isTrainingEnd = aiResponseContent.includes('TRAINING_COMPLETE');
+
             const aiMessage = {
                 id: Date.now() + 1,
-                type: 'ai',
-                content: aiResponseContent,
+                type: isTrainingEnd ? 'training_summary' : 'ai',
+                content: displayContent,
                 timestamp: new Date(),
             };
 
             setMessages(prev => [...prev, aiMessage]);
-            speak(aiResponseContent);
+            speak(displayContent);
 
             // זיהוי סיום לימוד תפריט ושמירה במערכת
             if (aiResponseContent.includes('TRAINING_COMPLETE')) {
@@ -440,6 +447,19 @@ export default function AiChatWidget() {
                         <div ref={chatContainerRef} className="flex-1 p-3 sm:p-4 space-y-3 sm:space-y-4 overflow-y-auto max-h-[350px] sm:max-h-[430px] lg:max-h-[470px]">
                             {messages.map((message) => (
                                 <div key={message.id} className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}>
+                                    {message.type === 'training_summary' ? (
+                                        <div className="w-full rounded-2xl overflow-hidden border-2 border-amber-400 shadow-lg text-right" dir="rtl">
+                                            <div className="bg-gradient-to-r from-amber-500 to-orange-500 px-4 py-2 flex items-center gap-2">
+                                                <span className="text-white font-bold text-sm">🎓 סיכום אישי — סיום לימוד תפריט</span>
+                                            </div>
+                                            <div className="bg-amber-50 p-3 text-slate-800 text-sm">
+                                                <ReactMarkdown className="prose prose-sm max-w-none text-right w-full">{message.content}</ReactMarkdown>
+                                            </div>
+                                            <div className="bg-amber-100 px-4 py-2 text-xs text-amber-700 text-right">
+                                                ✅ הסיכום נשמר ונשלח למנהל
+                                            </div>
+                                        </div>
+                                    ) : (
                                     <div className={`max-w-[85%] sm:max-w-md lg:max-w-lg p-2 sm:p-3 rounded-2xl text-sm sm:text-base ${
                                         message.type === 'user' 
                                         ? 'bg-orange-600 text-white rounded-br-none' 
@@ -456,6 +476,7 @@ export default function AiChatWidget() {
                                             </div>
                                         )}
                                     </div>
+                                    )}
                                 </div>
                             ))}
                             {isLoading && (
