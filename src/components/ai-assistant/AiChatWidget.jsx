@@ -400,12 +400,12 @@ export default function AiChatWidget() {
                 timestamp: new Date(),
             };
 
-            setMessages(prev => [...prev, aiMessage]);
-
-            // Pre-fetch audio in background for instant playback
+            // Start pre-fetching audio BEFORE updating state, so it's ready by the time user clicks
             if (!isTrainingEnd) {
-                prefetchAudio(aiMessage.id, displayContent);
+                prefetchAudio(aiMessage.id, displayContent); // fire and forget - runs in background
             }
+
+            setMessages(prev => [...prev, aiMessage]);
 
             // זיהוי סיום לימוד תפריט ושמירה במערכת
             if (aiResponseContent.includes('TRAINING_COMPLETE')) {
