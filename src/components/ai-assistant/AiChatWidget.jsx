@@ -36,6 +36,7 @@ export default function AiChatWidget() {
     const [isListening, setIsListening] = useState(false);
     const [ttsEnabled, setTtsEnabled] = useState(true);
     const [isSpeaking, setIsSpeaking] = useState(false);
+    const [loadingAudioId, setLoadingAudioId] = useState(null);
     const [trainingMode, setTrainingMode] = useState(false);
     const [coveredDishes, setCoveredDishes] = useState([]);
     const [showProgress, setShowProgress] = useState(false);
@@ -79,7 +80,8 @@ export default function AiChatWidget() {
         const clean = cleanForTts(text);
         if (!clean) return;
 
-        setIsSpeaking(true);
+        setLoadingAudioId(messageId || null);
+        setIsSpeaking(false);
         try {
             let objUrl = messageId && audioCacheRef.current[messageId];
             if (!objUrl) {
@@ -89,6 +91,8 @@ export default function AiChatWidget() {
                 objUrl = base64ToObjUrl(base64);
                 if (messageId) audioCacheRef.current[messageId] = objUrl;
             }
+            setLoadingAudioId(null);
+            setIsSpeaking(true);
             const audio = new Audio(objUrl);
             currentAudioRef.current = audio;
             audio.onended = () => { setIsSpeaking(false); };
@@ -96,6 +100,7 @@ export default function AiChatWidget() {
             await audio.play();
         } catch (e) {
             console.error('TTS error:', e);
+            setLoadingAudioId(null);
             setIsSpeaking(false);
         }
     };
@@ -637,8 +642,13 @@ export default function AiChatWidget() {
                                                     onClick={() => speak(message.content, message.id)}
                                                     className="p-1 rounded-full hover:bg-slate-300 transition-colors"
                                                     title="השמע"
+                                                    disabled={loadingAudioId === message.id}
                                                 >
-                                                    <Volume2 className="h-3 w-3 sm:h-4 sm:w-4 text-orange-500"/>
+                                                    {loadingAudioId === message.id ? (
+                                                        <div className="h-3 w-3 sm:h-4 sm:w-4 border-2 border-orange-400 border-t-transparent rounded-full animate-spin" />
+                                                    ) : (
+                                                        <Volume2 className="h-3 w-3 sm:h-4 sm:w-4 text-orange-500"/>
+                                                    )}
                                                 </button>
                                                 {!feedbackGiven[message.id] && <>
                                                     <button onClick={() => handleFeedback(message.id, true)} className="p-1 rounded-full hover:bg-slate-300 transition-colors"><ThumbsUp className="h-3 w-3 sm:h-4 sm:w-4 text-slate-600"/></button>
