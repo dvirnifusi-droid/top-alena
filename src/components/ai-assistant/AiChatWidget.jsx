@@ -7,6 +7,7 @@ import { User } from "@/entities/User";
 import { Send, ThumbsUp, ThumbsDown, X, Minimize2, Maximize2, Mic, MicOff, Volume2, VolumeX } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { askGemini } from "@/functions/askGemini";
+import { elevenLabsTts } from "@/functions/elevenLabsTts";
 import { pushoverOnMenuTrainingComplete } from "@/functions/pushoverOnMenuTrainingComplete";
 import { base44 } from "@/api/base44Client";
 import { MenuTrainingResult } from "@/entities/all";
@@ -61,14 +62,13 @@ export default function AiChatWidget() {
 
         setIsSpeaking(true);
         try {
-            const res = await base44.functions.fetch('/elevenLabsTts', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ text: clean }),
-            });
-
-            if (!res.ok) throw new Error(`TTS HTTP ${res.status}`);
-            const blob = await res.blob();
+            const res = await elevenLabsTts({ text: clean });
+            const base64 = res.data?.audio_base64;
+            if (!base64) throw new Error('No audio returned');
+            const binary = atob(base64);
+            const bytes = new Uint8Array(binary.length);
+            for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+            const blob = new Blob([bytes], { type: 'audio/mpeg' });
             const objUrl = URL.createObjectURL(blob);
             const audio = new Audio(objUrl);
             currentAudioRef.current = audio;
