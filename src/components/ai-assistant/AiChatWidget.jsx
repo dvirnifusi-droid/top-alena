@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { KnowledgeBase, StaffQuestion, PendingQuestion } from "@/entities/all";
+import { User } from "@/entities/User";
 import { Send, ThumbsUp, ThumbsDown, X, Minimize2, Maximize2, Mic, MicOff, Volume2, VolumeX } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { askGemini } from "@/functions/askGemini";
@@ -38,41 +39,63 @@ export default function AiChatWidget() {
     const chatContainerRef = useRef(null);
     const recognitionRef = useRef(null);
 
-    const cleanTextForSpeech = (text) => text
-        .replace(/[*_#`~\[\]]/g, '')
-        .replace(/[\u{1F000}-\u{1FFFF}]/gu, '')
-        .replace(/[\u2600-\u27BF]/g, '')
-        .replace(/\n+/g, '. ')
-        .replace(/\s{2,}/g, ' ')
-        .trim()
-        .slice(0, 3000);
+    const currentAudioRef = useRef(null);
+
+    const speakQueueRef = useRef([]);
+    const isSpeakingRef = useRef(false);
+
+    const speakNext = () => {
+        if (speakQueueRef.current.length === 0) {
+            isSpeakingRef.current = false;
+            setIsSpeaking(false);
+            return;
+        }
+        const chunk = speakQueueRef.current.shift();
+        const utterance = new SpeechSynthesisUtterance(chunk);
+        utterance.lang = 'he-IL';
+        utterance.rate = 1.1;
+        utterance.onend = () => speakNext();
+        utterance.onerror = () => speakNext();
+        window.speechSynthesis.speak(utterance);
+    };
 
     const speak = (text) => {
-        if (!ttsEnabled || !window.speechSynthesis) return;
-        stopSpeaking();
-        const clean = cleanTextForSpeech(text);
-        if (!clean) return;
+        if (!ttsEnabled) return;
+        window.speechSynthesis.cancel();
+        speakQueueRef.current = [];
 
-        const utter = new SpeechSynthesisUtterance(clean);
-        utter.lang = 'he-IL';
-        utter.rate = 1.0;
-        utter.pitch = 1.0;
+        const clean = text
+            .replace(/[*_#`~\[\]]/g, '')        // markdown
+            .replace(/!+/g, '.')                  // סימני קריאה → נקודה
+            .replace(/[📌🎓✅⚠️🔥🎉🍽️🍷🏆⭐🟡🟠🟢👋↩️🆕]/gu, '') // אמוג'י
+            .replace(/[\u{1F300}-\u{1FFFF}]/gu, '') // שאר אמוג'י
+            .replace(/\n+/g, '. ')
+            .replace(/\s{2,}/g, ' ')
+            .trim();
+        // חלק לחתיכות של עד 150 תווים על גבול משפט
+        const sentences = clean.match(/[^.!?،؟]+[.!?،؟]*/g) || [clean];
+        const chunks = [];
+        let current = '';
+        for (const s of sentences) {
+            if ((current + s).length > 150) {
+                if (current) chunks.push(current.trim());
+                current = s;
+            } else {
+                current += s;
+            }
+        }
+        if (current.trim()) chunks.push(current.trim());
 
-        // נסה למצוא קול עברי
-        const voices = window.speechSynthesis.getVoices();
-        const heVoice = voices.find(v => v.lang === 'he-IL') || voices.find(v => v.lang.startsWith('he'));
-        if (heVoice) utter.voice = heVoice;
-
-        utter.onstart = () => setIsSpeaking(true);
-        utter.onend = () => setIsSpeaking(false);
-        utter.onerror = () => setIsSpeaking(false);
-
+        speakQueueRef.current = chunks;
+        isSpeakingRef.current = true;
         setIsSpeaking(true);
-        window.speechSynthesis.speak(utter);
+        speakNext();
     };
 
     const stopSpeaking = () => {
-        window.speechSynthesis?.cancel();
+        window.speechSynthesis.cancel();
+        speakQueueRef.current = [];
+        isSpeakingRef.current = false;
         setIsSpeaking(false);
     };
 
@@ -132,7 +155,7 @@ export default function AiChatWidget() {
     }, [messages, isOpen]);
 
     useEffect(() => {
-        base44.auth.me().then(setUser).catch(() => setUser(null));
+        User.me().then(setUser).catch(() => setUser(null));
     }, []);
 
     const searchInternalKnowledge = (question, knowledgeBase) => {
@@ -551,11 +574,11 @@ export default function AiChatWidget() {
                                         {message.type === 'ai' && (
                                             <div className="flex justify-end gap-2 mt-2">
                                                 <button
-                                                    onClick={() => isSpeaking ? stopSpeaking() : speak(message.content)}
+                                                    onClick={() => speak(message.content)}
                                                     className="p-1 rounded-full hover:bg-slate-300 transition-colors"
-                                                    title={isSpeaking ? 'עצור' : 'השמע'}
+                                                    title="השמע"
                                                 >
-                                                    <Volume2 className={`h-3 w-3 sm:h-4 sm:w-4 ${isSpeaking ? 'text-orange-600 animate-pulse' : 'text-orange-500'}`}/>
+                                                    <Volume2 className="h-3 w-3 sm:h-4 sm:w-4 text-orange-500"/>
                                                 </button>
                                                 {!feedbackGiven[message.id] && <>
                                                     <button onClick={() => handleFeedback(message.id, true)} className="p-1 rounded-full hover:bg-slate-300 transition-colors"><ThumbsUp className="h-3 w-3 sm:h-4 sm:w-4 text-slate-600"/></button>
