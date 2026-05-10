@@ -4,9 +4,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { KnowledgeBase, StaffQuestion, PendingQuestion } from "@/entities/all";
 import { User } from "@/entities/User";
-import { Send, ThumbsUp, ThumbsDown, X, Minimize2, Maximize2, Mic, MicOff, Volume2, VolumeX } from "lucide-react";
+import { Send, ThumbsUp, ThumbsDown, X, Minimize2, Maximize2, Mic, MicOff, Volume2, VolumeX, Loader } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { askGemini } from "@/functions/askGemini";
+import { elevenLabsTts } from "@/functions/elevenLabsTts";
 import { pushoverOnMenuTrainingComplete } from "@/functions/pushoverOnMenuTrainingComplete";
 import { base44 } from "@/api/base44Client";
 import { MenuTrainingResult } from "@/entities/all";
@@ -35,68 +36,61 @@ export default function AiChatWidget() {
     const [isListening, setIsListening] = useState(false);
     const [ttsEnabled, setTtsEnabled] = useState(true);
     const [isSpeaking, setIsSpeaking] = useState(false);
+    const [ttsLoading, setTtsLoading] = useState(false);
 
     const chatContainerRef = useRef(null);
     const recognitionRef = useRef(null);
-
     const currentAudioRef = useRef(null);
 
-    const speakQueueRef = useRef([]);
-    const isSpeakingRef = useRef(false);
+    const cleanTextForSpeech = (text) => text
+        .replace(/[*_#`~\[\]]/g, '')
+        .replace(/!+/g, '.')
+        .replace(/[\u{1F000}-\u{1FFFF}]/gu, '')
+        .replace(/[\u2600-\u27BF]/g, '')
+        .replace(/\n+/g, '. ')
+        .replace(/\s{2,}/g, ' ')
+        .trim()
+        .slice(0, 2500); // ElevenLabs מוגבל
 
-    const speakNext = () => {
-        if (speakQueueRef.current.length === 0) {
-            isSpeakingRef.current = false;
-            setIsSpeaking(false);
-            return;
-        }
-        const chunk = speakQueueRef.current.shift();
-        const utterance = new SpeechSynthesisUtterance(chunk);
-        utterance.lang = 'he-IL';
-        utterance.rate = 1.1;
-        utterance.onend = () => speakNext();
-        utterance.onerror = () => speakNext();
-        window.speechSynthesis.speak(utterance);
-    };
-
-    const speak = (text) => {
+    const speak = async (text) => {
         if (!ttsEnabled) return;
-        window.speechSynthesis.cancel();
-        speakQueueRef.current = [];
+        stopSpeaking();
+        const clean = cleanTextForSpeech(text);
+        if (!clean) return;
 
-        const clean = text
-            .replace(/[*_#`~\[\]]/g, '')        // markdown
-            .replace(/!+/g, '.')                  // סימני קריאה → נקודה
-            .replace(/[📌🎓✅⚠️🔥🎉🍽️🍷🏆⭐🟡🟠🟢👋↩️🆕]/gu, '') // אמוג'י
-            .replace(/[\u{1F300}-\u{1FFFF}]/gu, '') // שאר אמוג'י
-            .replace(/\n+/g, '. ')
-            .replace(/\s{2,}/g, ' ')
-            .trim();
-        // חלק לחתיכות של עד 150 תווים על גבול משפט
-        const sentences = clean.match(/[^.!?،؟]+[.!?،؟]*/g) || [clean];
-        const chunks = [];
-        let current = '';
-        for (const s of sentences) {
-            if ((current + s).length > 150) {
-                if (current) chunks.push(current.trim());
-                current = s;
-            } else {
-                current += s;
-            }
+        setTtsLoading(true);
+        try {
+            // elevenLabsTts מחזיר ArrayBuffer דרך axios
+            const res = await elevenLabsTts({ text: clean });
+            const base64 = res.data?.audio;
+            if (!base64) return;
+            const byteChars = atob(base64);
+            const byteArr = new Uint8Array(byteChars.length);
+            for (let i = 0; i < byteChars.length; i++) byteArr[i] = byteChars.charCodeAt(i);
+            const blob = new Blob([byteArr], { type: 'audio/mpeg' });
+            const url = URL.createObjectURL(blob);
+
+            const audio = new Audio(url);
+            currentAudioRef.current = audio;
+            setIsSpeaking(true);
+            audio.onended = () => { setIsSpeaking(false); URL.revokeObjectURL(url); };
+            audio.onerror = () => { setIsSpeaking(false); URL.revokeObjectURL(url); };
+            await audio.play();
+        } catch (e) {
+            console.error('TTS error:', e);
+            setIsSpeaking(false);
+        } finally {
+            setTtsLoading(false);
         }
-        if (current.trim()) chunks.push(current.trim());
-
-        speakQueueRef.current = chunks;
-        isSpeakingRef.current = true;
-        setIsSpeaking(true);
-        speakNext();
     };
 
     const stopSpeaking = () => {
-        window.speechSynthesis.cancel();
-        speakQueueRef.current = [];
-        isSpeakingRef.current = false;
+        if (currentAudioRef.current) {
+            currentAudioRef.current.pause();
+            currentAudioRef.current = null;
+        }
         setIsSpeaking(false);
+        setTtsLoading(false);
     };
 
     const startListening = () => {
@@ -574,11 +568,12 @@ export default function AiChatWidget() {
                                         {message.type === 'ai' && (
                                             <div className="flex justify-end gap-2 mt-2">
                                                 <button
-                                                    onClick={() => speak(message.content)}
+                                                    onClick={() => isSpeaking ? stopSpeaking() : speak(message.content)}
                                                     className="p-1 rounded-full hover:bg-slate-300 transition-colors"
-                                                    title="השמע"
+                                                    title={isSpeaking ? 'עצור' : 'השמע'}
+                                                    disabled={ttsLoading}
                                                 >
-                                                    <Volume2 className="h-3 w-3 sm:h-4 sm:w-4 text-orange-500"/>
+                                                    {ttsLoading ? <Loader className="h-3 w-3 sm:h-4 sm:w-4 text-orange-400 animate-spin"/> : <Volume2 className="h-3 w-3 sm:h-4 sm:w-4 text-orange-500"/>}
                                                 </button>
                                                 {!feedbackGiven[message.id] && <>
                                                     <button onClick={() => handleFeedback(message.id, true)} className="p-1 rounded-full hover:bg-slate-300 transition-colors"><ThumbsUp className="h-3 w-3 sm:h-4 sm:w-4 text-slate-600"/></button>

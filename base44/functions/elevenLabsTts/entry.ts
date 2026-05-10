@@ -19,7 +19,7 @@ Deno.serve(async (req) => {
         return Response.json({ error: 'ELEVENLABS_API_KEY not set' }, { status: 500 });
     }
 
-    const clean = text.replace(/[*_#`~]/g, '').replace(/\n+/g, ' ').trim().slice(0, 500);
+    const clean = text.replace(/[*_#`~\[\]]/g, '').replace(/[\u{1F000}-\u{1FFFF}]/gu, '').replace(/[\u2600-\u27BF]/g, '').replace(/\n+/g, '. ').trim().slice(0, 2500);
 
     const res = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${VOICE_ID}`, {
         method: 'POST',
@@ -44,11 +44,6 @@ Deno.serve(async (req) => {
     }
 
     const audioBuffer = await res.arrayBuffer();
-    return new Response(audioBuffer, {
-        status: 200,
-        headers: {
-            'Content-Type': 'audio/mpeg',
-            'Cache-Control': 'no-cache',
-        }
-    });
+    const base64 = btoa(String.fromCharCode(...new Uint8Array(audioBuffer)));
+    return Response.json({ audio: base64 });
 });
