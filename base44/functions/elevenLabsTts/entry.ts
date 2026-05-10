@@ -1,6 +1,6 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 
-const VOICE_ID = 'onwK4e9ZLuTAKqWW03F9'; // Daniel - natural Hebrew-friendly voice
+const VOICE_ID = 'ErXwobaYiN019PkySvjV'; // Antoni - multilingual voice
 
 Deno.serve(async (req) => {
     const base44 = createClientFromRequest(req);
