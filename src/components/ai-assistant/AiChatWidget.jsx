@@ -27,6 +27,7 @@ export default function AiChatWidget() {
     const [inputValue, setInputValue] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [user, setUser] = useState(null);
+    const trainingStartRef = useRef(Date.now());
     const [feedbackGiven, setFeedbackGiven] = useState({});
     const [isListening, setIsListening] = useState(false);
     const [ttsEnabled, setTtsEnabled] = useState(true);
@@ -219,8 +220,17 @@ export default function AiChatWidget() {
 - הסבר התאמות מומלצות בין משקאות למנות האוכל.
 - סיים בקוויז גם על תפריט השתייה.
 
-בסוף כל תהליך לימוד מלא (כולל אלכוהול) כתוב סיכום בפורמט הבא בדיוק — זה חיוני למערכת:
-"🎓 TRAINING_COMPLETE | שם: [שם המלצר] | ציון אוכל: [0-100] | ציון שתייה: [0-100] | ציון כולל: [0-100] | רמה: [beginner/intermediate/advanced/expert] | הערות: [משפט קצר]"
+בסוף כל תהליך לימוד מלא (כולל אלכוהול) כתוב שני בלוקים נפרדים:
+
+**בלוק 1 — סיכום אישי למלצר** (מוצג בשיחה):
+כתוב סיכום מפורט ואישי למלצר בעברית:
+- מה הוא שולט בו היטב ✅
+- על אילו מנות / נושאים הוא חייב לחזור ⚠️
+- טיפים מעשיים לשיפור
+- ציון סיכום ידידותי
+
+**בלוק 2 — נתוני מערכת** (בשורה אחת, חיוני לשמירה אוטומטית):
+🎓 TRAINING_COMPLETE | שם: [שם המלצר] | ציון אוכל: [0-100] | ציון שתייה: [0-100] | ציון כולל: [0-100] | רמה: [beginner/intermediate/advanced/expert] | חלשים: [מנה1, מנה2] | חזקים: [מנה1, מנה2] | סיכום מנהל: [משפט קצר לדוח מנהל] | הערות: [משפט קצר]
 
 רמות ידע:
 - expert: ציון 90+
@@ -233,6 +243,11 @@ export default function AiChatWidget() {
 - שפה מעודדת, מלהיבה ומכירתית. לדוגמה: "המנה הזו היא הלהיט שלנו! 🔥"
 - אל תציף את המלצר. חלק לגושים קטנים וברורים.
 - שמור על רצף השיחה — אל תתחיל שלב חדש לפני שהשלמת את הקודם.`;
+
+                // אפס שעון לימוד כשמתחיל תהליך לימוד תפריט
+                if (/לימוד תפריט|למד אותי|תלמד אותי|הדרכה|רוצה ללמוד/i.test(currentInput)) {
+                    trainingStartRef.current = Date.now();
+                }
 
                 const geminiRes = await askGemini({
                     message: currentInput,
@@ -289,6 +304,9 @@ export default function AiChatWidget() {
                 const scoreDrinksMatch = aiResponseContent.match(/ציון שתייה:\s*(\d+)/);
                 const scoreOverallMatch = aiResponseContent.match(/ציון כולל:\s*(\d+)/);
                 const levelMatch = aiResponseContent.match(/רמה:\s*(beginner|intermediate|advanced|expert)/);
+                const weakMatch = aiResponseContent.match(/חלשים:\s*([^\|]+)/);
+                const strongMatch = aiResponseContent.match(/חזקים:\s*([^\|]+)/);
+                const managerSummaryMatch = aiResponseContent.match(/סיכום מנהל:\s*([^\|]+)/);
                 const notesMatch = aiResponseContent.match(/הערות:\s*([^\n]+)/);
 
                 const employeeName = nameMatch?.[1]?.trim() || user?.full_name || 'עובד';
@@ -296,7 +314,11 @@ export default function AiChatWidget() {
                 const scoreDrinks = parseInt(scoreDrinksMatch?.[1] || '0');
                 const scoreOverall = parseInt(scoreOverallMatch?.[1] || '0');
                 const level = levelMatch?.[1] || 'intermediate';
+                const weakAreas = weakMatch?.[1]?.trim().split(',').map(s => s.trim()).filter(Boolean) || [];
+                const strongAreas = strongMatch?.[1]?.trim().split(',').map(s => s.trim()).filter(Boolean) || [];
+                const managerSummary = managerSummaryMatch?.[1]?.trim() || '';
                 const notes = notesMatch?.[1]?.trim() || '';
+                const durationMinutes = Math.round((Date.now() - trainingStartRef.current) / 60000);
 
                 try {
                     await MenuTrainingResult.create({
@@ -310,13 +332,23 @@ export default function AiChatWidget() {
                         completed_drinks: true,
                         completed_full: true,
                         training_date: new Date().toISOString().split('T')[0],
+                        total_duration_minutes: durationMinutes,
+                        weak_areas: weakAreas,
+                        strong_areas: strongAreas,
+                        manager_summary: managerSummary,
                         notes
                     });
 
                     await pushoverOnMenuTrainingComplete({
                         employee_name: employeeName,
+                        score_food: scoreFood,
+                        score_drinks: scoreDrinks,
                         score_overall: scoreOverall,
-                        knowledge_level: level
+                        knowledge_level: level,
+                        total_duration_minutes: durationMinutes,
+                        weak_areas: weakAreas,
+                        strong_areas: strongAreas,
+                        manager_summary: managerSummary
                     });
                 } catch (e) {
                     console.error('Failed to save training result:', e);
