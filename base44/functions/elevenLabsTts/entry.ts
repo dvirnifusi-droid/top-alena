@@ -1,6 +1,6 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 
-const VOICE_ID = 'ErXwobaYiN019PkySvjV'; // Antoni - multilingual voice
+const VOICE_ID = 'onwK4e9ZLuTAKqWW03F9'; // דביר - Hebrew voice
 
 Deno.serve(async (req) => {
     const base44 = createClientFromRequest(req);
@@ -30,7 +30,7 @@ Deno.serve(async (req) => {
         },
         body: JSON.stringify({
             text: clean,
-            model_id: 'eleven_multilingual_v2',
+            model_id: 'eleven_v3',
             voice_settings: {
                 stability: 0.75,
                 similarity_boost: 0.85,
