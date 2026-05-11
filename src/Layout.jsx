@@ -4,7 +4,7 @@ import { createPageUrl } from "@/utils";
 import { base44 } from "@/api/base44Client";
 import {
   Users, GraduationCap, AlertTriangle, CheckSquare, Building, BarChart3,
-  LayoutGrid, Trophy, Menu, FileText, Utensils, Sparkles, Crown, Rocket, Map, Brain, Calendar, CalendarDays, Banknote, MessageSquare, Briefcase, QrCode, ClipboardCheck, Settings, TrendingUp, Zap, Megaphone, Bell, Package, Navigation, LogOut, Tablet
+  LayoutGrid, Trophy, Menu, FileText, Utensils, Sparkles, Crown, Rocket, Map, Brain, Calendar, CalendarDays, Banknote, MessageSquare, Briefcase, QrCode, ClipboardCheck, Settings, TrendingUp, Zap, Megaphone, Bell, Package, Navigation, LogOut, Tablet, Download
 } from "lucide-react";
 import {
   Sidebar, SidebarContent,
@@ -82,6 +82,7 @@ const adminLinks = [
   { title: "משלוחים", url: createPageUrl("Deliveries"), icon: Package },
   { title: "מועדון לקוחות משלוחים", url: createPageUrl("DeliveryCustomerClub"), icon: Users },
 
+  { title: "ייצוא דאטה", url: createPageUrl("DataExport"), icon: Download },
   { title: "שליחת Push ידני", url: createPageUrl("PushNotifications"), icon: Bell },
   { title: "ניהול חנות בגדים", url: createPageUrl("ApparelManagement"), icon: Trophy },
   { title: "סלון דמויות", url: createPageUrl("CharacterLounge"), icon: Trophy },
