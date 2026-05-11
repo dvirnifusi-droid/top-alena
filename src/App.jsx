@@ -20,6 +20,7 @@ import QueueFeedback from './pages/QueueFeedback';
 import MarketingCampaigns from './pages/MarketingCampaigns';
 import PrivacyAndAccessibility from './pages/PrivacyAndAccessibility';
 import DevicesDashboard from './pages/DevicesDashboard';
+import DataExport from './pages/DataExport';
 
 const { Pages, Layout, mainPage } = pagesConfig;
 const mainPageKey = mainPage ?? Object.keys(Pages)[0];
@@ -84,6 +85,7 @@ const AuthenticatedApp = () => {
       <Route path="/GamesAdmin" element={<LayoutWrapper currentPageName="GamesAdmin"><GamesAdmin /></LayoutWrapper>} />
       <Route path="/GameQuestionsAdmin" element={<LayoutWrapper currentPageName="GameQuestionsAdmin"><GameQuestionsAdmin /></LayoutWrapper>} />
       <Route path="/DevicesDashboard" element={<LayoutWrapper currentPageName="DevicesDashboard"><DevicesDashboard /></LayoutWrapper>} />
+      <Route path="/DataExport" element={<LayoutWrapper currentPageName="DataExport"><DataExport /></LayoutWrapper>} />
       <Route path="*" element={<PageNotFound />} />
     </Routes>
   );
