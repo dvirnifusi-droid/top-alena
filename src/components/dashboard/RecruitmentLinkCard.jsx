@@ -48,19 +48,27 @@ export default function RecruitmentLinkCard() {
         generateAndSave(false);
     }, []);
 
-    const fullMessage = `היי ברוך הבא לעלינא 🌿
+    const textOnly = `היי ברוך הבא לעלינא 🌿
 נשמח שתצטרפו אלינו לראיון התאמה בקישור הבא 👇
-מחכים לכם בצד השני 😊
+מחכים לכם בצד השני 😊`;
 
-${displayLink}`;
+    const fullMessage = `${textOnly}\n\n${displayLink}`;
 
     const [copiedMsg, setCopiedMsg] = useState(false);
+    const [copiedLink, setCopiedLink] = useState(false);
 
     const copyFullMsg = (e) => {
         e.stopPropagation();
         navigator.clipboard.writeText(fullMessage);
         setCopiedMsg(true);
         setTimeout(() => setCopiedMsg(false), 2500);
+    };
+
+    const copyLink = (e) => {
+        e.stopPropagation();
+        navigator.clipboard.writeText(displayLink);
+        setCopiedLink(true);
+        setTimeout(() => setCopiedLink(false), 2500);
     };
 
     return (
@@ -78,14 +86,43 @@ ${displayLink}`;
                     </div>
                 </div>
 
-                {/* תצוגת ההודעה */}
-                <div className="bg-white/10 rounded-lg p-3 mb-4 text-sm text-teal-100 whitespace-pre-line">
+                {/* תצוגת הטקסט בלבד */}
+                <div className="bg-white/10 rounded-lg p-3 mb-2 text-sm text-teal-100 whitespace-pre-line">
+                    {textOnly}
+                </div>
+
+                {/* קישור קליקבילי */}
+                <div className="bg-white/10 rounded-lg p-3 mb-4 flex items-center justify-between gap-2">
                     {loading ? (
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 text-teal-100 text-sm">
                             <Loader className="w-3 h-3 animate-spin flex-shrink-0" />
-                            <span>יוצר קישור מקוצר...</span>
+                            <span>יוצר קישור...</span>
                         </div>
-                    ) : fullMessage}
+                    ) : (
+                        <a
+                            href={displayLink}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-white underline text-sm truncate flex-1"
+                        >
+                            {displayLink}
+                        </a>
+                    )}
+                    <button
+                        onClick={copyLink}
+                        disabled={loading}
+                        className="flex-shrink-0 flex items-center gap-1 bg-white/20 hover:bg-white/30 text-white text-xs font-semibold py-1 px-2 rounded transition-colors disabled:opacity-50"
+                    >
+                        {copiedLink ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                    </button>
+                    <button
+                        onClick={() => generateAndSave(true)}
+                        disabled={loading || refreshing}
+                        title="רענן קישור"
+                        className="flex-shrink-0 flex items-center bg-white/20 hover:bg-white/30 text-white p-1 rounded transition-colors disabled:opacity-50"
+                    >
+                        <RefreshCw className={`w-3 h-3 ${refreshing ? 'animate-spin' : ''}`} />
+                    </button>
                 </div>
 
                 <div className="flex gap-2">
@@ -95,7 +132,7 @@ ${displayLink}`;
                         className="flex-1 flex items-center justify-center gap-2 bg-white/20 hover:bg-white/30 text-white font-semibold py-2 px-4 rounded-lg transition-colors text-sm disabled:opacity-50"
                     >
                         {copiedMsg ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-                        {copiedMsg ? 'הועתק!' : 'העתק הודעה'}
+                        {copiedMsg ? 'הועתק!' : 'העתק הודעה המלאה'}
                     </button>
                     <button
                         onClick={() => window.open(displayLink, '_blank')}
@@ -104,14 +141,6 @@ ${displayLink}`;
                     >
                         <ExternalLink className="w-4 h-4" />
                         פתח
-                    </button>
-                    <button
-                        onClick={() => generateAndSave(true)}
-                        disabled={loading || refreshing}
-                        title="רענן קישור"
-                        className="flex items-center justify-center bg-white/20 hover:bg-white/30 text-white p-2 rounded-lg transition-colors disabled:opacity-50"
-                    >
-                        <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
                     </button>
                 </div>
 
