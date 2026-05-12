@@ -17,7 +17,7 @@ export default function RecruitmentLinkCard() {
         const profiles = await base44.entities.RestaurantProfile.list();
         const profile = profiles[0];
 
-        if (profile?.recruitment_short_url && !force) {
+        if (profile?.recruitment_short_url && !force && profile.recruitment_short_url.length < 50) {
             setDisplayLink(profile.recruitment_short_url);
             setLoading(false);
             return;
@@ -105,7 +105,7 @@ export default function RecruitmentLinkCard() {
                             rel="noopener noreferrer"
                             className="text-white underline text-sm truncate flex-1"
                         >
-                            {displayLink}
+                            {displayLink.length > 40 ? `${displayLink.slice(0, 40)}...` : displayLink}
                         </a>
                     )}
                     <button
