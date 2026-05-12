@@ -4,7 +4,7 @@ import { DailyBrief } from '@/entities/DailyBrief';
 import { base44 } from '@/api/base44Client';
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Star, GraduationCap, CheckSquare, AlertTriangle, Calendar, CalendarDays, Utensils, Brain, Sparkles, FileText, Megaphone, Briefcase, MessageCircle, Camera } from 'lucide-react';
+import { Star, GraduationCap, CheckSquare, AlertTriangle, Calendar, CalendarDays, Utensils, Brain, Sparkles, FileText, Megaphone, Briefcase, MessageCircle, Camera, UserCircle, LogOut, ChevronDown } from 'lucide-react';
 import ShiftNotificationBell from '../components/shared/ShiftNotificationBell';
 import { Employee } from '@/entities/Employee';
 import { Link } from 'react-router-dom';
@@ -34,6 +34,8 @@ export default function EmployeeHome() {
     const [todayPosition, setTodayPosition] = useState(null);
     const [showConfetti, setShowConfetti] = useState(false);
     const [confettiMsg, setConfettiMsg] = useState('');
+    const [showSwitchUser, setShowSwitchUser] = useState(false);
+    const [allEmployees, setAllEmployees] = useState([]);
     const fileInputRef = useRef();
 
     useEffect(() => {
@@ -42,6 +44,7 @@ export default function EmployeeHome() {
             loadTodayBriefs();
             loadTodayPosition();
             const emps = await Employee.filter({ status: 'active' });
+            setAllEmployees(emps);
             const me = emps.find(e => e.email?.toLowerCase() === u.email?.toLowerCase());
             setCurrentEmployee(me || null);
         }).catch(() => setUser(null));
@@ -149,6 +152,14 @@ export default function EmployeeHome() {
                         <div className="flex items-center gap-3">
                             {currentEmployee && <CoinWidget employeeId={currentEmployee.id} employeeName={currentEmployee.full_name} />}
                             <ShiftNotificationBell currentEmployee={currentEmployee} isManager={false} />
+                            <button
+                                onClick={() => setShowSwitchUser(true)}
+                                className="flex items-center gap-1 bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-600 hover:bg-slate-50 shadow-sm"
+                            >
+                                <UserCircle className="w-4 h-4" />
+                                <span className="hidden sm:inline">החלף משתמש</span>
+                                <ChevronDown className="w-3 h-3" />
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -430,6 +441,72 @@ export default function EmployeeHome() {
                         employeeName={user?.full_name}
                         onReady={handleMarkAsRead}
                     />
+                </DialogContent>
+            </Dialog>
+
+            {/* דיאלוג החלפת משתמש */}
+            <Dialog open={showSwitchUser} onOpenChange={setShowSwitchUser}>
+                <DialogContent className="max-w-sm" dir="rtl">
+                    <DialogHeader>
+                        <DialogTitle className="text-center text-lg">החלפת משתמש</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4 p-2">
+                        {/* המשתמש הנוכחי */}
+                        <div className="bg-slate-50 rounded-xl p-3 border-2 border-indigo-200">
+                            <p className="text-xs text-slate-500 mb-1">מחובר כרגע:</p>
+                            <div className="flex items-center gap-2">
+                                <div className="w-8 h-8 bg-indigo-100 rounded-full flex items-center justify-center">
+                                    <span className="text-sm font-bold text-indigo-600">{user?.full_name?.charAt(0) || '?'}</span>
+                                </div>
+                                <div>
+                                    <p className="font-bold text-sm">{user?.full_name || 'משתמש'}</p>
+                                    <p className="text-xs text-slate-500">{user?.email}</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* כפתור התנתקות */}
+                        <button
+                            onClick={() => { base44.auth.logout(); }}
+                            className="w-full flex items-center justify-center gap-2 bg-red-50 border border-red-200 text-red-600 rounded-xl py-3 font-bold hover:bg-red-100 transition-colors"
+                        >
+                            <LogOut className="w-4 h-4" />
+                            התנתק והתחבר עם חשבון אחר
+                        </button>
+
+                        <div className="relative">
+                            <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-slate-200" /></div>
+                            <div className="relative flex justify-center text-xs text-slate-400 bg-white px-2">או בחר עובד קיים</div>
+                        </div>
+
+                        {/* רשימת עובדים */}
+                        <div className="space-y-2 max-h-60 overflow-y-auto">
+                            {allEmployees
+                                .filter(e => e.email && e.email !== user?.email)
+                                .map(emp => (
+                                <button
+                                    key={emp.id}
+                                    onClick={() => {
+                                        base44.auth.logout();
+                                    }}
+                                    className="w-full flex items-center gap-3 p-3 rounded-xl border border-slate-200 hover:bg-slate-50 text-right transition-colors"
+                                >
+                                    <div className="w-9 h-9 bg-gradient-to-br from-slate-400 to-slate-600 rounded-full flex items-center justify-center flex-shrink-0">
+                                        <span className="text-white font-bold text-sm">{emp.full_name?.charAt(0) || '?'}</span>
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <p className="font-semibold text-sm text-slate-800">{emp.full_name}</p>
+                                        <p className="text-xs text-slate-500 truncate">{emp.email}</p>
+                                    </div>
+                                    <LogOut className="w-4 h-4 text-slate-400 flex-shrink-0" />
+                                </button>
+                            ))}
+                            {allEmployees.filter(e => e.email && e.email !== user?.email).length === 0 && (
+                                <p className="text-center text-sm text-slate-400 py-4">אין עובדים נוספים עם מייל מוגדר</p>
+                            )}
+                        </div>
+                        <p className="text-xs text-slate-400 text-center">לאחר לחיצה תועבר לדף ההתחברות</p>
+                    </div>
                 </DialogContent>
             </Dialog>
 
