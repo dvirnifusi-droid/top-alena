@@ -6,7 +6,8 @@
       "entity_name": "JobCandidate",
       "allowed_operations": [
         "create",
-        "read"
+        "read",
+        "update"
       ]
     },
     {

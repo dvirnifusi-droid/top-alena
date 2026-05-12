@@ -55,6 +55,74 @@ const DEFAULT_FOLLOWUP_MESSAGE = `שלום {שם}! 😊
 
 – צוות עלינא ❤️`;
 
+const INTERVIEW_MESSAGE_TEMPLATE = `שלום {שם}! 🌿
+
+עברנו על הפרטים שלך ואנחנו מאוד מתרשמים!
+נשמח לזמן אותך לראיון פרונטלי במסעדת עלינא.
+
+📅 תאריכים אפשריים:
+{לוז}
+
+אנא עדכן/י אותנו מה מתאים לך — נאשר ונשלח כתובת 🙏
+
+– צוות עלינא ❤️`;
+
+function InterviewScheduleModal({ candidate, onClose }) {
+    const [schedule, setSchedule] = useState('');
+    const [sending, setSending] = useState(false);
+    const [sent, setSent] = useState(false);
+    const [error, setError] = useState('');
+
+    const handleSend = async () => {
+        if (!schedule.trim()) return;
+        setSending(true);
+        setError('');
+        const msg = INTERVIEW_MESSAGE_TEMPLATE
+            .replace('{שם}', candidate.full_name || 'מועמד')
+            .replace('{לוז}', schedule.trim());
+        const res = await sendDeliveryMessage({ channel: 'whatsapp', recipients: [{ phone: candidate.phone }], message: msg });
+        const result = res?.data?.results?.[0];
+        if (result?.status === 'sent') {
+            setSent(true);
+            setTimeout(() => onClose(), 2000);
+        } else {
+            setError(result?.error || 'שגיאה בשליחה');
+        }
+        setSending(false);
+    };
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
+            <div className="bg-white rounded-2xl shadow-2xl p-5 w-full max-w-sm mx-4" onClick={e => e.stopPropagation()}>
+                <h3 className="font-bold text-slate-800 mb-1 text-base">📅 תיאום ראיון פרונטלי</h3>
+                <p className="text-xs text-slate-500 mb-3">
+                    שליחת הצעת ראיון ל<b>{candidate.full_name}</b> ({candidate.phone})
+                </p>
+                <label className="text-xs font-semibold text-slate-600 block mb-1">הלוח זמנים המוצע (כתוב כל אפשרות בשורה נפרדת):</label>
+                <textarea
+                    value={schedule}
+                    onChange={e => setSchedule(e.target.value)}
+                    placeholder={`לדוגמה:\n• יום שלישי 20/5 בשעה 16:00\n• יום רביעי 21/5 בשעה 11:00\n• יום חמישי 22/5 בשעה 14:00`}
+                    className="w-full text-sm border border-slate-200 rounded-lg p-2 resize-none focus:outline-none focus:ring-2 focus:ring-indigo-300 h-28"
+                    autoFocus
+                />
+                {error && <p className="text-xs text-red-500 mt-1">{error}</p>}
+                <div className="flex gap-2 mt-3">
+                    <Button size="sm" onClick={onClose} variant="outline" className="flex-1">ביטול</Button>
+                    <Button
+                        size="sm"
+                        onClick={handleSend}
+                        disabled={sending || !schedule.trim() || sent}
+                        className="flex-1 bg-green-600 hover:bg-green-700 text-white"
+                    >
+                        {sent ? '✅ נשלח!' : sending ? 'שולח...' : '📲 שלח וואטסאפ'}
+                    </Button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
 function CandidateRow({ candidate, onRatingChange, onNoteChange, onSendPush }) {
     const [expanded, setExpanded] = useState(false);
     const [note, setNote] = useState(candidate.notes || '');
@@ -63,6 +131,7 @@ function CandidateRow({ candidate, onRatingChange, onNoteChange, onSendPush }) {
     const [waSending, setWaSending] = useState(false);
     const [waSent, setWaSent] = useState(false);
     const [waError, setWaError] = useState('');
+    const [showInterviewModal, setShowInterviewModal] = useState(false);
 
     const handleSendWhatsApp = async (e) => {
         e.stopPropagation();
@@ -199,8 +268,23 @@ function CandidateRow({ candidate, onRatingChange, onNoteChange, onSendPush }) {
                     </button>
                 )}
 
+                {/* תיאום ראיון פרונטלי - רק למועמדים מדורגים */}
+                {candidate._rating > 0 && candidate.phone && (
+                    <button
+                        onClick={e => { e.stopPropagation(); setShowInterviewModal(true); }}
+                        title="שלח הצעת ראיון פרונטלי"
+                        className="p-1.5 rounded-lg bg-indigo-50 text-indigo-700 hover:bg-indigo-100 transition-colors text-xs font-semibold flex items-center gap-1"
+                    >
+                        📅
+                    </button>
+                )}
+
                 {expanded ? <ChevronUp className="w-4 h-4 text-slate-400 flex-shrink-0" /> : <ChevronDown className="w-4 h-4 text-slate-400 flex-shrink-0" />}
             </div>
+
+            {showInterviewModal && (
+                <InterviewScheduleModal candidate={candidate} onClose={() => setShowInterviewModal(false)} />
+            )}
 
             {/* פרטים מורחבים */}
             {expanded && (
