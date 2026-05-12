@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Users, CheckCircle, Clock, XCircle, Star, MessageSquare, AlertTriangle, Bell, ChevronDown, ChevronUp, Send } from 'lucide-react';
+import { Users, CheckCircle, Clock, XCircle, Star, MessageSquare, AlertTriangle, Bell, ChevronDown, ChevronUp, Send, Phone } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import { sendPushoverNotification } from '@/functions/sendPushoverNotification';
 import { sendDeliveryMessage } from '@/functions/sendDeliveryMessage';
@@ -120,7 +120,26 @@ function CandidateRow({ candidate, onRatingChange, onNoteChange, onSendPush }) {
                             {candidate.full_name || <span className="text-slate-400 italic">ללא שם</span>}
                         </span>
                         {candidate.phone && (
-                            <span className="text-xs text-slate-500 font-mono">📱 {candidate.phone}</span>
+                            <span className="flex items-center gap-1">
+                                <a
+                                    href={`tel:${candidate.phone}`}
+                                    onClick={e => e.stopPropagation()}
+                                    className="text-xs text-blue-600 font-mono hover:underline flex items-center gap-0.5"
+                                    title="התקשר"
+                                >
+                                    <Phone className="w-3 h-3" />{candidate.phone}
+                                </a>
+                                <a
+                                    href={`https://wa.me/${candidate.phone.replace(/\D/g, '').replace(/^0/, '972')}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    onClick={e => e.stopPropagation()}
+                                    className="text-xs bg-green-100 text-green-700 hover:bg-green-200 rounded px-1 py-0.5 font-semibold"
+                                    title="פתח וואטסאפ"
+                                >
+                                    💬
+                                </a>
+                            </span>
                         )}
                         {candidate.role_applied && (
                             <span className="text-xs text-slate-500">· {candidate.role_applied}</span>
