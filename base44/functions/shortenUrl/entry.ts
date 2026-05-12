@@ -5,17 +5,21 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'URL required' }, { status: 400 });
     }
 
-    // Use is.gd for shorter URLs
-    const response = await fetch(`https://is.gd/?url=${encodeURIComponent(url)}&format=json`);
-    const data = await response.json();
-    
-    if (data.shorturl) {
-      return Response.json({ shortUrl: data.shorturl });
+    // is.gd simple GET API
+    const apiUrl = `https://is.gd/create.php?format=simple&url=${encodeURIComponent(url)}`;
+    const response = await fetch(apiUrl, {
+      headers: { 'Accept': 'text/plain' }
+    });
+    const text = await response.text();
+    console.log('is.gd response:', text);
+
+    if (text && text.startsWith('http') && !text.includes('Error')) {
+      return Response.json({ shortUrl: text.trim() });
     }
-    
+
     return Response.json({ shortUrl: url });
   } catch (error) {
-    console.error('Shorten error:', error);
-    return Response.json({ shortUrl: url }, { status: 200 });
+    console.error('Shorten error:', error.message);
+    return Response.json({ shortUrl: url });
   }
 });
