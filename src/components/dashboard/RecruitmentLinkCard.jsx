@@ -1,24 +1,44 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { MessageCircle, Copy, Check, ExternalLink } from 'lucide-react';
+import { MessageCircle, Copy, Check, ExternalLink, Loader } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
+import { shortenUrl } from '@/functions/shortenUrl';
 
 export default function RecruitmentLinkCard() {
     const [copied, setCopied] = useState(false);
+    const [shortLink, setShortLink] = useState('');
+    const [loadingShorten, setLoadingShorten] = useState(true);
 
     const rawLink = base44.agents.getWhatsAppConnectURL('recruitment_agent');
     const recruitmentLink = rawLink.startsWith('http') ? rawLink : `https://app.base44.com${rawLink}`;
 
+    useEffect(() => {
+        const generateShortLink = async () => {
+            try {
+                const result = await shortenUrl({ url: recruitmentLink });
+                setShortLink(result.shortUrl);
+            } catch (error) {
+                console.error('Failed to shorten URL:', error);
+                setShortLink(recruitmentLink);
+            } finally {
+                setLoadingShorten(false);
+            }
+        };
+        generateShortLink();
+    }, [recruitmentLink]);
+
+    const displayLink = shortLink || recruitmentLink;
+
     const copyLink = (e) => {
         e.stopPropagation();
-        navigator.clipboard.writeText(recruitmentLink);
+        navigator.clipboard.writeText(displayLink);
         setCopied(true);
         setTimeout(() => setCopied(false), 2500);
     };
 
     const openLink = () => {
-        window.open(recruitmentLink, '_blank');
+        window.open(displayLink, '_blank');
     };
 
     return (
@@ -36,8 +56,9 @@ export default function RecruitmentLinkCard() {
                     </div>
                 </div>
 
-                <div className="bg-white/10 rounded-lg p-3 mb-4 text-xs text-teal-100 break-all font-mono">
-                    {recruitmentLink}
+                <div className="bg-white/10 rounded-lg p-3 mb-4 text-xs text-teal-100 break-all font-mono flex items-center justify-between">
+                    <span>{loadingShorten ? 'יוצר קישור מקוצר...' : displayLink}</span>
+                    {loadingShorten && <Loader className="w-3 h-3 animate-spin ml-2" />}
                 </div>
 
                 <div className="flex gap-2">
