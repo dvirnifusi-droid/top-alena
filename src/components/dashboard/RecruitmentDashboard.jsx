@@ -91,6 +91,9 @@ function CandidateRow({ candidate, onRatingChange, onNoteChange, onSendPush }) {
                         <span className="font-semibold text-slate-800 text-sm">
                             {candidate.full_name || <span className="text-slate-400 italic">ללא שם</span>}
                         </span>
+                        {candidate.phone && (
+                            <span className="text-xs text-slate-500 font-mono">📱 {candidate.phone}</span>
+                        )}
                         {candidate.role_applied && (
                             <span className="text-xs text-slate-500">· {candidate.role_applied}</span>
                         )}
