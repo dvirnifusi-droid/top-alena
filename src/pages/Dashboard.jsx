@@ -23,7 +23,7 @@ import InventoryScanner from '../components/dashboard/InventoryScanner';
 import SurveyQRGenerator from '../components/dashboard/SurveyQRGenerator';
 import ActiveEmployeesWidget from '../components/dashboard/ActiveEmployeesWidget';
 import RecruitmentLinkCard from '../components/dashboard/RecruitmentLinkCard';
-import RecruitmentStats from '../components/dashboard/RecruitmentStats';
+import RecruitmentDashboard from '../components/dashboard/RecruitmentDashboard';
 import BriefReadersWidget from '../components/dashboard/BriefReadersWidget';
 import SalesChart from '../components/dashboard/SalesChart';
 
@@ -482,7 +482,7 @@ function DashboardInner() {
                     </h2>
                     <SmartToolsPanel />
                 <div className="mt-6">
-                    <RecruitmentStats />
+                    <RecruitmentDashboard />
                 </div>
                 </section>
 
