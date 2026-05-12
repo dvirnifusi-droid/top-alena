@@ -465,6 +465,15 @@ export default function EmployeeHome() {
                             </div>
                         </div>
 
+                        {/* כפתור התחברות עם Google */}
+                        <button
+                            onClick={() => base44.auth.redirectToLogin()}
+                            className="w-full flex items-center justify-center gap-2 bg-white border-2 border-blue-300 text-blue-700 rounded-xl py-3 font-bold hover:bg-blue-50 transition-colors shadow-sm"
+                        >
+                            <img src="https://www.google.com/favicon.ico" alt="Google" className="w-4 h-4" />
+                            התחבר עם חשבון Google
+                        </button>
+
                         {/* כפתור התנתקות */}
                         <button
                             onClick={() => { base44.auth.logout(); }}
