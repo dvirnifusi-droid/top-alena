@@ -2,9 +2,10 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Users, CheckCircle, Clock, XCircle, Star, MessageSquare, AlertTriangle, Bell, ChevronDown, ChevronUp } from 'lucide-react';
+import { Users, CheckCircle, Clock, XCircle, Star, MessageSquare, AlertTriangle, Bell, ChevronDown, ChevronUp, Send } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import { sendPushoverNotification } from '@/functions/sendPushoverNotification';
+import { sendDeliveryMessage } from '@/functions/sendDeliveryMessage';
 
 const STATUS_LABELS = {
     approved: { label: 'סיים בהצלחה', color: 'bg-green-100 text-green-800' },
@@ -47,11 +48,38 @@ function StarRating({ value, onChange }) {
     );
 }
 
+const DEFAULT_FOLLOWUP_MESSAGE = `שלום {שם}! 😊
+תודה שהשתתפת בראיון הדיגיטלי שלנו למסעדת עלינא.
+אנחנו בוחנים את המועמדות שלך ונחזור אליך בהקדם.
+אם יש לך שאלות, אל תהסס/י לכתוב כאן.
+
+– צוות עלינא ❤️`;
+
 function CandidateRow({ candidate, onRatingChange, onNoteChange, onSendPush }) {
     const [expanded, setExpanded] = useState(false);
     const [note, setNote] = useState(candidate.notes || '');
     const [saving, setSaving] = useState(false);
     const [pushSent, setPushSent] = useState(false);
+    const [waSending, setWaSending] = useState(false);
+    const [waSent, setWaSent] = useState(false);
+    const [waError, setWaError] = useState('');
+
+    const handleSendWhatsApp = async (e) => {
+        e.stopPropagation();
+        if (!candidate.phone) { setWaError('אין מספר טלפון'); return; }
+        setWaSending(true);
+        setWaError('');
+        const msg = DEFAULT_FOLLOWUP_MESSAGE.replace('{שם}', candidate.full_name || 'מועמד');
+        const res = await sendDeliveryMessage({ channel: 'whatsapp', recipients: [{ phone: candidate.phone }], message: msg });
+        const result = res?.data?.results?.[0];
+        if (result?.status === 'sent') {
+            setWaSent(true);
+            setTimeout(() => setWaSent(false), 4000);
+        } else {
+            setWaError(result?.error || 'שגיאה בשליחה');
+        }
+        setWaSending(false);
+    };
 
     const saveNote = async () => {
         setSaving(true);
@@ -135,6 +163,23 @@ function CandidateRow({ candidate, onRatingChange, onNoteChange, onSendPush }) {
                     </button>
                 )}
 
+                {/* שלח וואטסאפ לסיים ראיון */}
+                {candidate.status === 'approved' && candidate.phone && (
+                    <button
+                        onClick={handleSendWhatsApp}
+                        disabled={waSending}
+                        title="שלח הודעת וואטסאפ עדכון"
+                        className={`p-1.5 rounded-lg transition-colors text-xs flex items-center gap-1 ${
+                            waSent ? 'bg-green-100 text-green-700' :
+                            waError ? 'bg-red-100 text-red-600' :
+                            'bg-green-50 text-green-700 hover:bg-green-100'
+                        }`}
+                    >
+                        <Send className="w-4 h-4" />
+                        {waSending ? '...' : waSent ? '✓' : waError ? '!' : ''}
+                    </button>
+                )}
+
                 {expanded ? <ChevronUp className="w-4 h-4 text-slate-400 flex-shrink-0" /> : <ChevronDown className="w-4 h-4 text-slate-400 flex-shrink-0" />}
             </div>
 
@@ -193,6 +238,8 @@ export default function RecruitmentDashboard() {
     const [statusFilter, setStatusFilter] = useState('all');
     const [dateFrom, setDateFrom] = useState('');
     const [dateTo, setDateTo] = useState('');
+    const [bulkSending, setBulkSending] = useState(false);
+    const [bulkResult, setBulkResult] = useState('');
 
     const loadCandidates = useCallback(async () => {
         setLoading(true);
@@ -216,6 +263,23 @@ export default function RecruitmentDashboard() {
 
     const handleNoteChange = (id, note) => {
         setCandidates(prev => prev.map(c => c.id === id ? { ...c, notes: note } : c));
+    };
+
+    const handleBulkWhatsApp = async () => {
+        const toSend = candidates.filter(c => c.status === 'approved' && c.phone);
+        if (toSend.length === 0) { setBulkResult('אין מועמדים שסיימו עם מספר טלפון'); return; }
+        setBulkSending(true);
+        setBulkResult('');
+        let sent = 0, failed = 0;
+        for (const c of toSend) {
+            const msg = DEFAULT_FOLLOWUP_MESSAGE.replace('{שם}', c.full_name || 'מועמד');
+            const res = await sendDeliveryMessage({ channel: 'whatsapp', recipients: [{ phone: c.phone }], message: msg });
+            const result = res?.data?.results?.[0];
+            if (result?.status === 'sent') sent++; else failed++;
+        }
+        setBulkResult(`✅ נשלחו ${sent} הודעות${failed > 0 ? ` | ❌ ${failed} נכשלו` : ''}`);
+        setBulkSending(false);
+        setTimeout(() => setBulkResult(''), 6000);
     };
 
     const handleSendPush = async (candidate) => {
@@ -273,9 +337,23 @@ export default function RecruitmentDashboard() {
     return (
         <Card>
             <CardContent className="p-5">
-                <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2 text-base">
-                    📋 לוח בקרת גיוס – בוט וואטסאפ
-                </h3>
+                <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+                    <h3 className="font-bold text-slate-800 flex items-center gap-2 text-base">
+                        📋 לוח בקרת גיוס – בוט וואטסאפ
+                    </h3>
+                    <div className="flex items-center gap-2 flex-wrap">
+                        {bulkResult && <span className="text-xs text-slate-600 bg-slate-100 px-2 py-1 rounded-lg">{bulkResult}</span>}
+                        <Button
+                            size="sm"
+                            onClick={handleBulkWhatsApp}
+                            disabled={bulkSending}
+                            className="h-8 text-xs bg-green-600 hover:bg-green-700 text-white gap-1"
+                        >
+                            <Send className="w-3 h-3" />
+                            {bulkSending ? 'שולח...' : `📲 שלח וואטסאפ לכל שסיימו (${candidates.filter(c => c.status === 'approved' && c.phone).length})`}
+                        </Button>
+                    </div>
+                </div>
 
                 {/* סטטיסטיקות קליקביליות */}
                 <div className="grid grid-cols-3 sm:grid-cols-5 gap-2 mb-4">
