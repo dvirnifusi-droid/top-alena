@@ -206,6 +206,11 @@ function CandidateRow({ candidate, onRatingChange, onNoteChange, onSendPush }) {
             {expanded && (
                 <div className="p-3 bg-slate-50 border-t border-slate-200 space-y-3">
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-sm">
+                        {candidate.phone && (
+                            <span className="text-slate-600 col-span-2 sm:col-span-1">
+                                📱 טלפון: <a href={`tel:${candidate.phone}`} className="font-bold text-blue-600 hover:underline">{candidate.phone}</a>
+                            </span>
+                        )}
                         {candidate.age && <span className="text-slate-600">גיל: <b>{candidate.age}</b></span>}
                         {candidate.shifts_per_week && <span className="text-slate-600">משמרות/שבוע: <b>{candidate.shifts_per_week}</b></span>}
                         {candidate.weekend_availability !== undefined && candidate.weekend_availability !== null && (
