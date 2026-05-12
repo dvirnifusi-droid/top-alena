@@ -7,7 +7,8 @@ import { base44 } from '@/api/base44Client';
 export default function RecruitmentLinkCard() {
     const [copied, setCopied] = useState(false);
 
-    const recruitmentLink = base44.agents.getWhatsAppConnectURL('recruitment_agent');
+    const rawLink = base44.agents.getWhatsAppConnectURL('recruitment_agent');
+    const recruitmentLink = rawLink.startsWith('http') ? rawLink : `https://app.base44.com${rawLink}`;
 
     const copyLink = (e) => {
         e.stopPropagation();
