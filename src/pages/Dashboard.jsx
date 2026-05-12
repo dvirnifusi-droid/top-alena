@@ -23,6 +23,7 @@ import InventoryScanner from '../components/dashboard/InventoryScanner';
 import SurveyQRGenerator from '../components/dashboard/SurveyQRGenerator';
 import ActiveEmployeesWidget from '../components/dashboard/ActiveEmployeesWidget';
 import RecruitmentLinkCard from '../components/dashboard/RecruitmentLinkCard';
+import RecruitmentStats from '../components/dashboard/RecruitmentStats';
 import BriefReadersWidget from '../components/dashboard/BriefReadersWidget';
 import SalesChart from '../components/dashboard/SalesChart';
 
@@ -480,6 +481,9 @@ function DashboardInner() {
                         <Badge className="bg-indigo-100 text-indigo-800">AI</Badge>
                     </h2>
                     <SmartToolsPanel />
+                <div className="mt-6">
+                    <RecruitmentStats />
+                </div>
                 </section>
 
                 {/* 📊 סטטיסטיקות מהירות */}
