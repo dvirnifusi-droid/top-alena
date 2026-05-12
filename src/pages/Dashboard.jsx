@@ -22,6 +22,7 @@ import ManualSurveyTool from '../components/dashboard/ManualSurveyTool';
 import InventoryScanner from '../components/dashboard/InventoryScanner';
 import SurveyQRGenerator from '../components/dashboard/SurveyQRGenerator';
 import ActiveEmployeesWidget from '../components/dashboard/ActiveEmployeesWidget';
+import RecruitmentLinkCard from '../components/dashboard/RecruitmentLinkCard';
 import BriefReadersWidget from '../components/dashboard/BriefReadersWidget';
 import SalesChart from '../components/dashboard/SalesChart';
 
@@ -306,31 +307,7 @@ function SmartToolsPanel() {
                     </CardContent>
                 </Card>
 
-                <Card 
-                    className="bg-gradient-to-r from-green-600 to-teal-600 text-white cursor-pointer hover:shadow-xl transition-all duration-300 transform hover:scale-105"
-                    onClick={() => window.open(base44.agents.getWhatsAppConnectURL('recruitment_agent'), '_blank')}
-                >
-                    <CardContent className="p-6">
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <h3 className="text-xl font-bold mb-2">💬 גיוס קציני וואטסאפ</h3>
-                                <p className="text-teal-100 mb-4">
-                                    סוכן גיוס אוטומטי במסמס
-                                </p>
-                                <div className="flex items-center gap-2">
-                                    <Badge variant="secondary" className="bg-white/20 text-white">
-                                        📱 וואטסאפ
-                                    </Badge>
-                                </div>
-                            </div>
-                            <div className="flex flex-col items-center">
-                                <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center">
-                                    <MessageCircle className="w-8 h-8" />
-                                </div>
-                            </div>
-                        </div>
-                    </CardContent>
-                </Card>
+                <RecruitmentLinkCard />
             </div>
 
             <Dialog open={isOpen} onOpenChange={setIsOpen}>
