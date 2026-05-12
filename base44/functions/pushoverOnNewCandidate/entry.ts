@@ -5,12 +5,13 @@ Deno.serve(async (req) => {
     const base44 = createClientFromRequest(req);
     const body = await req.json();
 
-    const { full_name, age, role_applied, city, experience, shifts_per_week, weekend_availability, start_date, score } = body;
+    const { full_name, age, phone, role_applied, city, experience, shifts_per_week, weekend_availability, start_date, score } = body;
 
     const message = [
       `🎯 מועמד חדש מתאים נמצא!`,
       `👤 שם: ${full_name}`,
       `🎂 גיל: ${age}`,
+      phone ? `📱 טלפון: ${phone}` : null,
       `📍 עיר: ${city}`,
       `💼 תפקיד: ${role_applied}`,
       `📝 ניסיון: ${experience}`,
@@ -18,7 +19,7 @@ Deno.serve(async (req) => {
       `🗓️ סופ"ש: ${weekend_availability ? 'כן ✅' : 'לא ❌'}`,
       `🚀 יכול להתחיל: ${start_date}`,
       `⭐ ציון: ${score}/100`,
-    ].join('\n');
+    ].filter(Boolean).join('\n');
 
     const pushoverToken = Deno.env.get('PUSHOVER_API_TOKEN');
     // נסה לשלוח לכל המשתמשים עם pushover_user_key
