@@ -320,7 +320,7 @@ const DesktopSidebar = ({ userName, isCurrentViewAdmin, isOriginalAdmin, navigat
         </Button>
       )}
       <Button
-        onClick={() => base44.auth.logout('/')}
+        onClick={() => base44.auth.logout()}
         variant="outline"
         size="sm"
         className="w-full mt-2 border-red-200 text-red-600 hover:bg-red-50"
@@ -405,7 +405,7 @@ const MobileSidebar = ({ userName, isCurrentViewAdmin, isOriginalAdmin, navigati
         </Button>
       )}
       <Button
-        onClick={() => base44.auth.logout('/')}
+        onClick={() => base44.auth.logout()}
         variant="outline"
         size="sm"
         className="w-full mt-1 text-xs border-red-200 text-red-600 hover:bg-red-50"
