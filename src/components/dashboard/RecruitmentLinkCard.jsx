@@ -48,9 +48,22 @@ export default function RecruitmentLinkCard() {
         generateAndSave(false);
     }, []);
 
+    const fullMessage = `היי ברוך הבא לעלינא 🌿
+נשמח שתצטרפו אלינו לראיון התאמה בקישור הבא:
+${displayLink}
+
+מחכים לכם בצד השני 😊`;
+
     const copyLink = (e) => {
         e.stopPropagation();
         navigator.clipboard.writeText(displayLink);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2500);
+    };
+
+    const copyMessage = (e) => {
+        e.stopPropagation();
+        navigator.clipboard.writeText(fullMessage);
         setCopied(true);
         setTimeout(() => setCopied(false), 2500);
     };
@@ -70,25 +83,24 @@ export default function RecruitmentLinkCard() {
                     </div>
                 </div>
 
-                <div className="bg-white/10 rounded-lg p-3 mb-4 text-sm text-teal-100 font-mono flex items-center gap-2">
+                {/* תצוגת ההודעה המלאה */}
+                <div className="bg-white/10 rounded-lg p-3 mb-4 text-sm text-teal-100 whitespace-pre-line">
                     {loading ? (
-                        <>
+                        <div className="flex items-center gap-2">
                             <Loader className="w-3 h-3 animate-spin flex-shrink-0" />
                             <span>יוצר קישור מקוצר...</span>
-                        </>
-                    ) : (
-                        <span className="break-all">{displayLink}</span>
-                    )}
+                        </div>
+                    ) : fullMessage}
                 </div>
 
                 <div className="flex gap-2">
                     <button
-                        onClick={copyLink}
+                        onClick={copyMessage}
                         disabled={loading}
                         className="flex-1 flex items-center justify-center gap-2 bg-white/20 hover:bg-white/30 text-white font-semibold py-2 px-4 rounded-lg transition-colors text-sm disabled:opacity-50"
                     >
                         {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-                        {copied ? 'הועתק!' : 'העתק קישור'}
+                        {copied ? 'הועתק!' : 'העתק הודעה'}
                     </button>
                     <button
                         onClick={() => window.open(displayLink, '_blank')}
