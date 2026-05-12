@@ -48,26 +48,19 @@ export default function RecruitmentLinkCard() {
         generateAndSave(false);
     }, []);
 
-    const textMessage = `היי ברוך הבא לעלינא 🌿
+    const fullMessage = `היי ברוך הבא לעלינא 🌿
 נשמח שתצטרפו אלינו לראיון התאמה בקישור הבא 👇
+מחכים לכם בצד השני 😊
 
-מחכים לכם בצד השני 😊`;
+${displayLink}`;
 
-    const [copiedText, setCopiedText] = useState(false);
-    const [copiedLink, setCopiedLink] = useState(false);
+    const [copiedMsg, setCopiedMsg] = useState(false);
 
-    const copyTextMsg = (e) => {
+    const copyFullMsg = (e) => {
         e.stopPropagation();
-        navigator.clipboard.writeText(textMessage);
-        setCopiedText(true);
-        setTimeout(() => setCopiedText(false), 2500);
-    };
-
-    const copyLinkOnly = (e) => {
-        e.stopPropagation();
-        navigator.clipboard.writeText(displayLink);
-        setCopiedLink(true);
-        setTimeout(() => setCopiedLink(false), 2500);
+        navigator.clipboard.writeText(fullMessage);
+        setCopiedMsg(true);
+        setTimeout(() => setCopiedMsg(false), 2500);
     };
 
     return (
@@ -85,62 +78,45 @@ export default function RecruitmentLinkCard() {
                     </div>
                 </div>
 
-                {/* הודעה 1 - טקסט בלבד */}
-                <div className="mb-3">
-                    <p className="text-teal-200 text-xs mb-1 font-semibold">📝 הודעה 1 — טקסט</p>
-                    <div className="bg-white/10 rounded-lg p-3 text-sm text-teal-100 whitespace-pre-line mb-2">
-                        {textMessage}
-                    </div>
+                {/* תצוגת ההודעה */}
+                <div className="bg-white/10 rounded-lg p-3 mb-4 text-sm text-teal-100 whitespace-pre-line">
+                    {loading ? (
+                        <div className="flex items-center gap-2">
+                            <Loader className="w-3 h-3 animate-spin flex-shrink-0" />
+                            <span>יוצר קישור מקוצר...</span>
+                        </div>
+                    ) : fullMessage}
+                </div>
+
+                <div className="flex gap-2">
                     <button
-                        onClick={copyTextMsg}
-                        className="w-full flex items-center justify-center gap-2 bg-white/20 hover:bg-white/30 text-white font-semibold py-2 px-4 rounded-lg transition-colors text-sm"
+                        onClick={copyFullMsg}
+                        disabled={loading}
+                        className="flex-1 flex items-center justify-center gap-2 bg-white/20 hover:bg-white/30 text-white font-semibold py-2 px-4 rounded-lg transition-colors text-sm disabled:opacity-50"
                     >
-                        {copiedText ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-                        {copiedText ? 'הועתק!' : 'העתק הודעה'}
+                        {copiedMsg ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                        {copiedMsg ? 'הועתק!' : 'העתק הודעה'}
+                    </button>
+                    <button
+                        onClick={() => window.open(displayLink, '_blank')}
+                        disabled={loading}
+                        className="flex items-center justify-center gap-2 bg-white/20 hover:bg-white/30 text-white font-semibold py-2 px-4 rounded-lg transition-colors text-sm disabled:opacity-50"
+                    >
+                        <ExternalLink className="w-4 h-4" />
+                        פתח
+                    </button>
+                    <button
+                        onClick={() => generateAndSave(true)}
+                        disabled={loading || refreshing}
+                        title="רענן קישור"
+                        className="flex items-center justify-center bg-white/20 hover:bg-white/30 text-white p-2 rounded-lg transition-colors disabled:opacity-50"
+                    >
+                        <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
                     </button>
                 </div>
 
-                {/* הודעה 2 - קישור בלבד */}
-                <div className="mb-3">
-                    <p className="text-teal-200 text-xs mb-1 font-semibold">🔗 הודעה 2 — קישור (תיצור Preview)</p>
-                    <div className="bg-white/10 rounded-lg p-3 text-sm text-teal-100 font-mono break-all mb-2">
-                        {loading ? (
-                            <div className="flex items-center gap-2">
-                                <Loader className="w-3 h-3 animate-spin flex-shrink-0" />
-                                <span>יוצר קישור מקוצר...</span>
-                            </div>
-                        ) : displayLink}
-                    </div>
-                    <div className="flex gap-2">
-                        <button
-                            onClick={copyLinkOnly}
-                            disabled={loading}
-                            className="flex-1 flex items-center justify-center gap-2 bg-white/20 hover:bg-white/30 text-white font-semibold py-2 px-4 rounded-lg transition-colors text-sm disabled:opacity-50"
-                        >
-                            {copiedLink ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-                            {copiedLink ? 'הועתק!' : 'העתק קישור'}
-                        </button>
-                        <button
-                            onClick={() => window.open(displayLink, '_blank')}
-                            disabled={loading}
-                            className="flex items-center justify-center gap-2 bg-white/20 hover:bg-white/30 text-white font-semibold py-2 px-4 rounded-lg transition-colors text-sm disabled:opacity-50"
-                        >
-                            <ExternalLink className="w-4 h-4" />
-                            פתח
-                        </button>
-                        <button
-                            onClick={() => generateAndSave(true)}
-                            disabled={loading || refreshing}
-                            title="רענן קישור"
-                            className="flex items-center justify-center bg-white/20 hover:bg-white/30 text-white p-2 rounded-lg transition-colors disabled:opacity-50"
-                        >
-                            <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
-                        </button>
-                    </div>
-                </div>
-
-                <p className="text-teal-200 text-xs text-center">
-                    📩 שלח את שתי ההודעות בזו אחר זו למועמד
+                <p className="text-teal-200 text-xs mt-3 text-center">
+                    📩 שלח קישור זה לכל מועמד — הסוכן ישאל שאלות בעצמו ויסנן
                 </p>
             </CardContent>
         </Card>
