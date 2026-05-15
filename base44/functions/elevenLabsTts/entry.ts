@@ -42,7 +42,8 @@ Deno.serve(async (req) => {
 
     if (!res.ok) {
         const err = await res.text();
-        return Response.json({ error: err }, { status: 500 });
+        console.error('ElevenLabs API error:', res.status, err);
+        return Response.json({ error: `ElevenLabs error: ${res.status} - ${err}` }, { status: 500 });
     }
 
     const audioBuffer = await res.arrayBuffer();
