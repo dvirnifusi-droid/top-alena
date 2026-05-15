@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import {
   Users, BarChart3, GraduationCap, CheckSquare, Calendar, Banknote,
   MessageSquare, AlertTriangle, Package, ChevronDown, ChevronUp,
-  Play, BookOpen, Crown, Utensils, Clock, Star, Image, Upload
+  Play, BookOpen, Crown, Utensils, Clock, Star, Image, Upload, X, ZoomIn, Move
 } from "lucide-react";
 import { base44 } from "@/api/base44Client";
 
@@ -132,12 +132,47 @@ const sections = [
   },
 ];
 
-const MediaManager = ({ videoUrl, imageUrl, onSaveVideo, onSaveImage, isAdmin }) => {
+// Positions for image alignment inside the box
+const POSITIONS = [
+  { label: "מרכז", value: "center" },
+  { label: "למעלה", value: "top" },
+  { label: "למטה", value: "bottom" },
+  { label: "שמאל", value: "left" },
+  { label: "ימין", value: "right" },
+  { label: "שמאל-למעלה", value: "top left" },
+  { label: "ימין-למעלה", value: "top right" },
+  { label: "שמאל-למטה", value: "bottom left" },
+  { label: "ימין-למטה", value: "bottom right" },
+];
+
+const ImageLightbox = ({ src, onClose }) => (
+  <div
+    className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4"
+    onClick={onClose}
+  >
+    <button
+      onClick={onClose}
+      className="absolute top-4 left-4 text-white bg-black/50 rounded-full p-2 hover:bg-black/80 transition-colors"
+    >
+      <X className="w-6 h-6" />
+    </button>
+    <img
+      src={src}
+      alt="תמונה מלאה"
+      className="max-w-full max-h-full object-contain rounded-xl shadow-2xl"
+      onClick={e => e.stopPropagation()}
+    />
+  </div>
+);
+
+const MediaManager = ({ videoUrl, imageUrl, imagePosition, onSaveVideo, onSaveImage, onSaveImagePosition, isAdmin }) => {
   const [editingVideo, setEditingVideo] = useState(false);
   const [editingImage, setEditingImage] = useState(false);
+  const [editingPosition, setEditingPosition] = useState(false);
   const [videoInput, setVideoInput] = useState(videoUrl || "");
   const [imageInput, setImageInput] = useState(imageUrl || "");
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
 
   const getEmbedUrl = (rawUrl) => {
     if (!rawUrl) return null;
@@ -160,25 +195,68 @@ const MediaManager = ({ videoUrl, imageUrl, onSaveVideo, onSaveImage, isAdmin })
   };
 
   const embedUrl = getEmbedUrl(videoUrl);
+  const position = imagePosition || "center";
 
   return (
-    <div className="space-y-3 mt-2">
-      {/* תמונה */}
-      {imageUrl ? (
-        <div className="rounded-xl overflow-hidden border">
-          <img src={imageUrl} alt="תמונת הדרכה" className="w-full object-cover max-h-64" />
-          {isAdmin && (
-            <div className="p-2 bg-muted/30 flex gap-2">
-              <button onClick={() => setEditingImage(true)} className="text-xs text-muted-foreground underline">
-                החלף תמונה
-              </button>
-              <button onClick={() => { onSaveImage(""); setImageInput(""); }} className="text-xs text-red-500 underline">
-                הסר
-              </button>
+    <>
+      {lightboxOpen && <ImageLightbox src={imageUrl} onClose={() => setLightboxOpen(false)} />}
+      <div className="space-y-3 mt-2">
+        {/* תמונה */}
+        {imageUrl ? (
+          <div className="rounded-xl overflow-hidden border">
+            <div
+              className="relative cursor-zoom-in group"
+              onClick={() => setLightboxOpen(true)}
+            >
+              <img
+                src={imageUrl}
+                alt="תמונת הדרכה"
+                className="w-full object-cover max-h-64 transition-transform duration-200 group-hover:scale-[1.01]"
+                style={{ objectPosition: position }}
+              />
+              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+                <ZoomIn className="w-8 h-8 text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow-lg" />
+              </div>
             </div>
-          )}
-        </div>
-      ) : isAdmin && (
+            {isAdmin && (
+              <div className="p-2 bg-muted/30 flex flex-wrap gap-2 items-center">
+                <button onClick={() => setEditingImage(true)} className="text-xs text-muted-foreground underline">החלף תמונה</button>
+                <button onClick={() => setEditingPosition(p => !p)} className="flex items-center gap-1 text-xs text-blue-600 underline">
+                  <Move className="w-3 h-3" /> מיקום תמונה
+                </button>
+                <button onClick={() => { onSaveImage(""); setImageInput(""); }} className="text-xs text-red-500 underline">הסר</button>
+              </div>
+            )}
+            {isAdmin && editingPosition && (
+              <div className="p-3 bg-muted/20 border-t flex flex-wrap gap-1">
+                {POSITIONS.map(p => (
+                  <button
+                    key={p.value}
+                    onClick={() => { onSaveImagePosition(p.value); setEditingPosition(false); }}
+                    className={`px-2 py-1 rounded text-xs font-medium transition-colors ${position === p.value ? "bg-primary text-primary-foreground" : "bg-muted hover:bg-muted/80 text-muted-foreground"}`}
+                  >
+                    {p.label}
+                  </button>
+                ))}
+              </div>
+            )}
+            {isAdmin && editingImage && (
+              <div className="p-3 bg-muted/20 border-t space-y-2">
+                <label className="flex items-center gap-2 cursor-pointer bg-primary/10 hover:bg-primary/20 text-primary rounded-lg px-3 py-2 text-sm font-medium transition-colors w-fit">
+                  <Upload className="w-4 h-4" />
+                  {uploadingImage ? "מעלה..." : "העלה תמונה מהמכשיר"}
+                  <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} disabled={uploadingImage} />
+                </label>
+                <div className="flex gap-2 items-center">
+                  <span className="text-xs text-muted-foreground">או קישור:</span>
+                  <input value={imageInput} onChange={e => setImageInput(e.target.value)} placeholder="https://..." className="border rounded px-2 py-1 text-sm flex-1" />
+                  <button onClick={() => { onSaveImage(imageInput); setEditingImage(false); }} className="bg-primary text-primary-foreground px-3 py-1 rounded text-sm">שמור</button>
+                </div>
+                <button onClick={() => setEditingImage(false)} className="text-xs text-muted-foreground underline">ביטול</button>
+              </div>
+            )}
+          </div>
+        ) : isAdmin && (
         <div>
           {editingImage ? (
             <div className="border rounded-xl p-3 space-y-2 bg-muted/20">
@@ -266,10 +344,11 @@ const MediaManager = ({ videoUrl, imageUrl, onSaveVideo, onSaveImage, isAdmin })
         </div>
       )}
     </div>
+    </>
   );
 };
 
-const Section = ({ section, isAdmin, mediaData, onSaveVideo, onSaveImage }) => {
+const Section = ({ section, isAdmin, mediaData, onSaveVideo, onSaveImage, onSaveImagePosition }) => {
   const [open, setOpen] = useState(false);
   const Icon = section.icon;
 
@@ -297,8 +376,10 @@ const Section = ({ section, isAdmin, mediaData, onSaveVideo, onSaveImage }) => {
           <MediaManager
             videoUrl={mediaData[section.id]?.video || ""}
             imageUrl={mediaData[section.id]?.image || ""}
+            imagePosition={mediaData[section.id]?.imagePosition || "center"}
             onSaveVideo={(url) => onSaveVideo(section.id, url)}
             onSaveImage={(url) => onSaveImage(section.id, url)}
+            onSaveImagePosition={(pos) => onSaveImagePosition(section.id, pos)}
             isAdmin={isAdmin}
           />
           <div className="space-y-3 mt-4">
@@ -322,7 +403,7 @@ const Section = ({ section, isAdmin, mediaData, onSaveVideo, onSaveImage }) => {
 
 export default function UserGuide() {
   const [filter, setFilter] = useState("הכל");
-  const [mediaData, setMediaData] = useState({}); // sectionId -> { video, image, videoId, imageId }
+  const [mediaData, setMediaData] = useState({}); // sectionId -> { video, image, imagePosition, videoId, imageId }
   const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
@@ -340,6 +421,8 @@ export default function UserGuide() {
           if (r.thumbnail_url) {
             data[r.title].image = r.thumbnail_url;
             data[r.title].imageId = r.id;
+            // store position in description field
+            data[r.title].imagePosition = r.description || "center";
           } else {
             data[r.title].video = r.video_url;
             data[r.title].videoId = r.id;
@@ -377,6 +460,14 @@ export default function UserGuide() {
         title: sectionId, category: "user_guide", video_url: "_image_only_", thumbnail_url: url, is_active: true
       });
       setMediaData(prev => ({ ...prev, [sectionId]: { ...prev[sectionId], imageId: created.id } }));
+    }
+  };
+
+  const handleSaveImagePosition = async (sectionId, position) => {
+    setMediaData(prev => ({ ...prev, [sectionId]: { ...prev[sectionId], imagePosition: position } }));
+    const existing = mediaData[sectionId]?.imageId;
+    if (existing) {
+      await base44.entities.TrainingVideo.update(existing, { description: position });
     }
   };
 
@@ -429,6 +520,7 @@ export default function UserGuide() {
               mediaData={mediaData}
               onSaveVideo={handleSaveVideo}
               onSaveImage={handleSaveImage}
+              onSaveImagePosition={handleSaveImagePosition}
             />
           ))}
         </div>
