@@ -1,6 +1,6 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 
-const VOICE_ID = 'nPczCjzI2devNBz1zQrb'; // Bella - reliable voice
+const VOICE_ID = 'EunIQV7gPraNldqMcafo'; // דביר - Hebrew voice
 
 Deno.serve(async (req) => {
     try {
@@ -28,13 +28,16 @@ Deno.serve(async (req) => {
             headers: {
                 'xi-api-key': apiKey,
                 'Content-Type': 'application/json',
+                'Accept': 'audio/mpeg',
             },
             body: JSON.stringify({
                 text: clean,
-                model_id: 'eleven_monolingual_v1',
+                model_id: 'eleven_v3',
                 voice_settings: {
-                    stability: 0.5,
-                    similarity_boost: 0.75,
+                    stability: 0.75,
+                    similarity_boost: 0.85,
+                    style: 0.2,
+                    use_speaker_boost: true,
                 }
             })
         });
