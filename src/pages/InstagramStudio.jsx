@@ -8,8 +8,9 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Instagram, Sparkles, Image, Send, RefreshCw, Calendar, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
+import { Instagram, Sparkles, Image, Send, RefreshCw, Calendar, CheckCircle, AlertCircle, Loader2, Upload } from 'lucide-react';
 import { toast } from 'sonner';
+import DriveImagePicker from '@/components/instagram/DriveImagePicker';
 
 const TONES = [
   { value: 'חמים ומזמין', label: '😊 חמים ומזמין' },
@@ -43,6 +44,7 @@ export default function InstagramStudio() {
   const [published, setPublished] = useState(false);
   const [scheduledPosts, setScheduledPosts] = useState([]);
   const [profile, setProfile] = useState(null);
+  const [uploadingImage, setUploadingImage] = useState(false);
 
   useEffect(() => {
     base44.entities.RestaurantProfile.list().then(p => p[0] && setProfile(p[0]));
@@ -89,6 +91,20 @@ export default function InstagramStudio() {
       toast.error('שגיאה ביצירת התמונה');
     }
     setImageLoading(false);
+  };
+
+  const handleUploadImage = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setUploadingImage(true);
+    try {
+      const result = await base44.integrations.Core.UploadFile({ file });
+      setGeneratedImageUrl(result.file_url);
+      toast.success('התמונה הועלתה!');
+    } catch {
+      toast.error('שגיאה בהעלאת התמונה');
+    }
+    setUploadingImage(false);
   };
 
   const handlePublish = async () => {
@@ -179,6 +195,10 @@ export default function InstagramStudio() {
                 </Select>
               </div>
 
+              <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted/50 rounded-lg p-2">
+                <span>💡 AI ישתמש אוטומטית בפריטי התפריט מהמערכת</span>
+              </div>
+
               <Button onClick={handleGenerate} disabled={loading} className="w-full bg-gradient-to-r from-purple-500 to-pink-500 text-white">
                 {loading ? <><Loader2 className="w-4 h-4 ml-2 animate-spin" /> יוצר פוסט...</> : <><Sparkles className="w-4 h-4 ml-2" /> צור פוסט עם AI</>}
               </Button>
@@ -203,37 +223,57 @@ export default function InstagramStudio() {
 
         {/* Right - Image + Publish */}
         <div className="space-y-4">
-          {imagePrompt && (
-            <Card>
-              <CardHeader><CardTitle className="text-base">🖼️ תמונה לפוסט</CardTitle></CardHeader>
-              <CardContent className="space-y-3">
+          <Card>
+            <CardHeader><CardTitle className="text-base">🖼️ תמונה לפוסט</CardTitle></CardHeader>
+            <CardContent className="space-y-3">
+              {imagePrompt && (
                 <Textarea
                   value={imagePrompt}
                   onChange={e => setImagePrompt(e.target.value)}
                   className="text-sm min-h-[80px]"
                   placeholder="תיאור התמונה..."
                 />
-                <Button onClick={handleGenerateImage} disabled={imageLoading} variant="outline" className="w-full">
-                  {imageLoading ? <><Loader2 className="w-4 h-4 ml-2 animate-spin" /> יוצר תמונה...</> : <><Image className="w-4 h-4 ml-2" /> צור תמונה עם AI</>}
-                </Button>
+              )}
 
-                {generatedImageUrl && (
-                  <div className="rounded-xl overflow-hidden border">
-                    <img src={generatedImageUrl} alt="Generated" className="w-full aspect-square object-cover" />
-                  </div>
+              {/* Action buttons */}
+              <div className="flex flex-wrap gap-2">
+                {imagePrompt && (
+                  <Button onClick={handleGenerateImage} disabled={imageLoading} variant="outline" className="flex-1">
+                    {imageLoading ? <><Loader2 className="w-4 h-4 ml-2 animate-spin" /> יוצר...</> : <><Image className="w-4 h-4 ml-2" /> צור עם AI</>}
+                  </Button>
                 )}
+                <DriveImagePicker onSelect={(url) => setGeneratedImageUrl(url)} />
+                <label className="cursor-pointer">
+                  <input type="file" accept="image/*" className="hidden" onChange={handleUploadImage} disabled={uploadingImage} />
+                  <Button asChild variant="outline" size="sm" disabled={uploadingImage}>
+                    <span className="gap-1.5">
+                      {uploadingImage ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
+                      העלה תמונה
+                    </span>
+                  </Button>
+                </label>
+              </div>
 
-                {!generatedImageUrl && (
-                  <div className="border-2 border-dashed border-border rounded-xl aspect-square flex items-center justify-center text-muted-foreground text-sm">
-                    <div className="text-center">
-                      <Image className="w-8 h-8 mx-auto mb-2 opacity-30" />
-                      <p>לחץ "צור תמונה" לקבלת תמונה</p>
-                    </div>
+              {generatedImageUrl ? (
+                <div className="rounded-xl overflow-hidden border relative group">
+                  <img src={generatedImageUrl} alt="Post" className="w-full aspect-square object-cover" />
+                  <button
+                    onClick={() => setGeneratedImageUrl('')}
+                    className="absolute top-2 left-2 bg-black/50 text-white text-xs px-2 py-1 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"
+                  >
+                    החלף
+                  </button>
+                </div>
+              ) : (
+                <div className="border-2 border-dashed border-border rounded-xl aspect-square flex items-center justify-center text-muted-foreground text-sm">
+                  <div className="text-center space-y-2">
+                    <Image className="w-8 h-8 mx-auto opacity-30" />
+                    <p>בחר תמונה מ-Drive, העלה, או צור עם AI</p>
                   </div>
-                )}
-              </CardContent>
-            </Card>
-          )}
+                </div>
+              )}
+            </CardContent>
+          </Card>
 
           {/* Publish Button */}
           {generatedCaption && (
