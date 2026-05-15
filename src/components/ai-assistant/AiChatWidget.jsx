@@ -70,9 +70,9 @@ export default function AiChatWidget() {
         if (!clean) return;
         try {
             const res = await elevenLabsTts({ text: clean });
-            const base64 = res.data?.audio_base64;
+            const base64 = res?.data?.data?.audio_base64;
             if (base64) audioCacheRef.current[messageId] = base64ToObjUrl(base64);
-        } catch (_) {}
+        } catch (e) { console.error('Prefetch error:', e); }
     };
 
     const speak = async (text, messageId) => {
@@ -83,23 +83,19 @@ export default function AiChatWidget() {
         if (!clean) return;
 
         setLoadingAudioId(messageId || null);
-        // הערכת זמן טעינה לפי אורך הטקסט: ~1 שניה לכל 100 תווים, מינימום 3
         const estimatedSeconds = Math.max(3, Math.round(clean.length / 100));
         setAudioCountdown(estimatedSeconds);
         if (audioTimerRef.current) clearInterval(audioTimerRef.current);
         audioTimerRef.current = setInterval(() => {
-            setAudioCountdown(prev => {
-                if (prev <= 1) { clearInterval(audioTimerRef.current); return 0; }
-                return prev - 1;
-            });
+            setAudioCountdown(prev => prev <= 1 ? 0 : prev - 1);
         }, 1000);
-        setIsSpeaking(false);
+
         try {
             let objUrl = messageId && audioCacheRef.current[messageId];
             if (!objUrl) {
                 const res = await elevenLabsTts({ text: clean });
-                const base64 = res.data?.audio_base64;
-                if (!base64) throw new Error('No audio returned');
+                const base64 = res?.data?.data?.audio_base64;
+                if (!base64) throw new Error('No audio in response');
                 objUrl = base64ToObjUrl(base64);
                 if (messageId) audioCacheRef.current[messageId] = objUrl;
             }
@@ -110,8 +106,14 @@ export default function AiChatWidget() {
             const audio = new Audio(objUrl);
             currentAudioRef.current = audio;
             audio.onended = () => { setIsSpeaking(false); };
-            audio.onerror = () => { setIsSpeaking(false); };
-            await audio.play();
+            audio.onerror = (err) => { 
+                console.error('Audio error:', err);
+                setIsSpeaking(false); 
+            };
+            audio.play().catch(err => {
+                console.error('Play error:', err);
+                setIsSpeaking(false);
+            });
         } catch (e) {
             console.error('TTS error:', e);
             clearInterval(audioTimerRef.current);
