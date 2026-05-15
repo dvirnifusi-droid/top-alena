@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { KnowledgeBase, StaffQuestion, PendingQuestion, MenuItem, RestaurantInfo } from "@/entities/all";
 import { Plus, Search, Brain, MessageSquare, BookOpen, Shield, Users, Coffee, Settings, Trash2, Edit, Utensils, CheckCircle, Info, RefreshCw } from "lucide-react";
 import { refreshGeminiFiles } from "@/functions/refreshGeminiFiles";
+import AiDailySummaryWidget from "@/components/dashboard/AiDailySummaryWidget";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
@@ -435,6 +436,9 @@ function AiDashboardInner() {
                         )}
                     </div>
                 </div>
+
+                {/* AI Daily Summary */}
+                <AiDailySummaryWidget />
 
                 {/* Stats Cards */}
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-6">

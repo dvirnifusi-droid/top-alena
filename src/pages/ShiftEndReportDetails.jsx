@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Loader2, ArrowRight, Star, Users, ChefHat, Wine, FileText, DollarSign, ShoppingBag, UserX, BarChart2, Pencil, Save, X, Eye, Download, Camera, Smartphone } from 'lucide-react';
+import ShiftReportAiAnalysis from '@/components/ai/ShiftReportAiAnalysis';
 import { format } from 'date-fns';
 import { he } from 'date-fns/locale';
 import { CreateFileSignedUrl, UploadFile, ExtractDataFromUploadedFile } from "@/integrations/Core";
@@ -773,6 +774,8 @@ export default function ShiftEndReportDetailsPage() {
                         </Card>
                     ))}
                 </div>
+
+                <ShiftReportAiAnalysis reportId={reportId} />
 
                  <Card>
                     <CardHeader><CardTitle>הערות ואירועים</CardTitle></CardHeader>

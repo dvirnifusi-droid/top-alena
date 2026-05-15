@@ -22,6 +22,7 @@ import PrivacyAndAccessibility from './pages/PrivacyAndAccessibility';
 import DevicesDashboard from './pages/DevicesDashboard';
 import DataExport from './pages/DataExport';
 import UserGuide from './pages/UserGuide';
+import InstagramStudio from './pages/InstagramStudio';
 
 const { Pages, Layout, mainPage } = pagesConfig;
 const mainPageKey = mainPage ?? Object.keys(Pages)[0];
@@ -104,6 +105,7 @@ const AuthenticatedApp = () => {
       <Route path="/DevicesDashboard" element={<LayoutWrapper currentPageName="DevicesDashboard"><DevicesDashboard /></LayoutWrapper>} />
       <Route path="/DataExport" element={<LayoutWrapper currentPageName="DataExport"><DataExport /></LayoutWrapper>} />
       <Route path="/UserGuide" element={<LayoutWrapper currentPageName="UserGuide"><UserGuide /></LayoutWrapper>} />
+      <Route path="/InstagramStudio" element={<LayoutWrapper currentPageName="InstagramStudio"><InstagramStudio /></LayoutWrapper>} />
       <Route path="*" element={<PageNotFound />} />
     </Routes>
   );

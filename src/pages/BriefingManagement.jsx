@@ -14,6 +14,7 @@ import { Badge } from '@/components/ui/badge';
 import { MenuItem } from '@/entities/MenuItem';
 import { RestaurantProfile } from '@/entities/RestaurantProfile';
 import BriefEditor from '../components/briefing/BriefEditor';
+import BriefingAiGenerator from '@/components/ai/BriefingAiGenerator';
 
 export default function BriefingManagement() {
     const [briefs, setBriefs] = useState([]);
@@ -271,8 +272,16 @@ export default function BriefingManagement() {
 
                             {/* Editor area */}
                             <div className="lg:col-span-2">
+                                {!currentBriefData && (
+                                   <div className="mb-4">
+                                       <BriefingAiGenerator
+                                           shiftType="dinner"
+                                           onInsert={(text) => handleCreateNewBrief('dinner') || setCurrentBriefData(prev => prev ? {...prev, sales_focus: text} : null)}
+                                       />
+                                   </div>
+                                )}
                                 {currentBriefData ? (
-                                    <BriefEditor
+                                   <BriefEditor
                                         briefData={currentBriefData}
                                         onChange={handleBriefFieldChange}
                                         onSave={handleSaveBrief}
