@@ -50,5 +50,5 @@ Deno.serve(async (req) => {
     let binary = '';
     for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
     const base64 = btoa(binary);
-    return Response.json({ audio_base64: base64 });
+    return Response.json({ data: { audio_base64: base64 } });
 });
