@@ -6,7 +6,7 @@ Deno.serve(async (req) => {
     const user = await base44.auth.me();
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
 
-    const { topic, tone, restaurant_name, cuisine_style, unique_points, menu_context } = await req.json();
+    const { topic, tone, restaurant_name, cuisine_style, unique_points, menu_context, image_url } = await req.json();
 
     const [profile, menuItems] = await Promise.all([
       base44.asServiceRole.entities.RestaurantProfile.list(),
@@ -23,28 +23,41 @@ Deno.serve(async (req) => {
       ? menuItems.slice(0, 15).map(m => `${m.name}${m.price ? ` (₪${m.price})` : ''}${m.description ? ` - ${m.description}` : ''}`).join('\n')
       : '');
 
-    const prompt = `אתה מומחה שיווק דיגיטלי לעסקי מסעדנות. צור פוסט אינסטגרם מושלם.
+    const imageInstruction = image_url
+      ? `\nלפניך תמונה של מנה/מוצר/אווירה מהמסעדה. נתח אותה בקפידה: מה רואים? אילו מנות/חומרים/צבעים בולטים? מה האווירה? השתמש בניתוח זה כבסיס ראשי לכתיבת הפוסט - הפוסט חייב להתייחס לתמונה ולמה שרואים בה.`
+      : '';
+
+    const prompt = `אתה מומחה שיווק דיגיטלי לעסקי מסעדנות. צור פוסט אינסטגרם מושלם שמניע לפעולה.${imageInstruction}
 
 מסעדה: ${name}
 סגנון מטבח: ${cuisine}
 יתרונות ייחודיים: ${usp}
-נושא הפוסט: ${topic || 'קידום כללי'}
+נושא הפוסט: ${topic || (image_url ? 'מבוסס על התמונה' : 'קידום כללי')}
 טון: ${tone || 'חמים ומזמין'}
 ${menuSummary ? `\nפריטי תפריט לדוגמה:\n${menuSummary}` : ''}
 
+הנחיות:
+- אם יש תמונה — התחל מניתוח מה שרואים ובנה את הפוסט סביב זה
+- כלול קריאה לפעולה חזקה (הזמן שולחן, בוא לטעום, השאר לייק)
+- השתמש ב-10-15 האשטגים רלוונטיים בעברית ואנגלית
+- הפוסט יהיה עד 150 מילים, עם אימוג'ים
+
 החזר JSON בלבד:
 {
-  "caption": "טקסט הפוסט עם אימוג'ים (עד 150 מילים), כולל שורת תיאור, 2-3 נקודות עיקריות, קריאה לפעולה, ו-10-15 האשטגים רלוונטיים",
-  "image_prompt": "תיאור מפורט באנגלית לתמונה מקצועית שתלווה את הפוסט — אוכל, אווירה, מסעדה"
+  "caption": "טקסט הפוסט",
+  "image_prompt": "תיאור מפורט באנגלית לתמונה מקצועית שתלווה את הפוסט — אוכל, אווירה, מסעדה",
+  "image_analysis": "תיאור קצר של מה שראית בתמונה (רק אם סופקה תמונה, אחרת ריק)"
 }`;
 
     const result = await base44.asServiceRole.integrations.Core.InvokeLLM({
       prompt,
+      file_urls: image_url ? [image_url] : undefined,
       response_json_schema: {
         type: 'object',
         properties: {
           caption: { type: 'string' },
-          image_prompt: { type: 'string' }
+          image_prompt: { type: 'string' },
+          image_analysis: { type: 'string' }
         }
       }
     });

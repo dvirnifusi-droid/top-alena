@@ -8,7 +8,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Instagram, Sparkles, Image, Send, RefreshCw, Calendar, CheckCircle, AlertCircle, Loader2, Upload } from 'lucide-react';
+import { Instagram, Sparkles, Image, Send, RefreshCw, Calendar, CheckCircle, AlertCircle, Loader2, Upload, ScanSearch } from 'lucide-react';
 import { toast } from 'sonner';
 import DriveImagePicker from '@/components/instagram/DriveImagePicker';
 
@@ -45,6 +45,8 @@ export default function InstagramStudio() {
   const [scheduledPosts, setScheduledPosts] = useState([]);
   const [profile, setProfile] = useState(null);
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [analyzingImage, setAnalyzingImage] = useState(false);
+  const [imageAnalysis, setImageAnalysis] = useState('');
 
   useEffect(() => {
     base44.entities.RestaurantProfile.list().then(p => p[0] && setProfile(p[0]));
@@ -100,11 +102,36 @@ export default function InstagramStudio() {
     try {
       const result = await base44.integrations.Core.UploadFile({ file });
       setGeneratedImageUrl(result.file_url);
-      toast.success('התמונה הועלתה!');
+      setImageAnalysis('');
+      toast.success('התמונה הועלתה! לחץ "נתח וצור פוסט" לקבלת פוסט מותאם לתמונה');
     } catch {
       toast.error('שגיאה בהעלאת התמונה');
     }
     setUploadingImage(false);
+  };
+
+  const handleAnalyzeAndGenerate = async () => {
+    if (!generatedImageUrl) return;
+    const finalTopic = customTopic || topic;
+    setAnalyzingImage(true);
+    setPublished(false);
+    try {
+      const res = await generateInstagramPost({
+        topic: finalTopic || '',
+        tone,
+        restaurant_name: profile?.restaurant_name,
+        cuisine_style: profile?.cuisine_style,
+        unique_points: profile?.unique_selling_points?.join(', '),
+        image_url: generatedImageUrl
+      });
+      setGeneratedCaption(res.data.caption || '');
+      setImagePrompt(res.data.image_prompt || '');
+      if (res.data.image_analysis) setImageAnalysis(res.data.image_analysis);
+      toast.success('✨ הפוסט נוצר בהתאם לתמונה!');
+    } catch {
+      toast.error('שגיאה בניתוח התמונה');
+    }
+    setAnalyzingImage(false);
   };
 
   const handlePublish = async () => {
@@ -242,7 +269,7 @@ export default function InstagramStudio() {
                     {imageLoading ? <><Loader2 className="w-4 h-4 ml-2 animate-spin" /> יוצר...</> : <><Image className="w-4 h-4 ml-2" /> צור עם AI</>}
                   </Button>
                 )}
-                <DriveImagePicker onSelect={(url) => setGeneratedImageUrl(url)} />
+                <DriveImagePicker onSelect={(url) => { setGeneratedImageUrl(url); setImageAnalysis(''); toast.success('תמונה נבחרה! לחץ "נתח וצור פוסט" לקבלת פוסט מותאם'); }} />
                 <label className="cursor-pointer">
                   <input type="file" accept="image/*" className="hidden" onChange={handleUploadImage} disabled={uploadingImage} />
                   <Button asChild variant="outline" size="sm" disabled={uploadingImage}>
@@ -255,14 +282,33 @@ export default function InstagramStudio() {
               </div>
 
               {generatedImageUrl ? (
-                <div className="rounded-xl overflow-hidden border relative group">
-                  <img src={generatedImageUrl} alt="Post" className="w-full aspect-square object-cover" />
-                  <button
-                    onClick={() => setGeneratedImageUrl('')}
-                    className="absolute top-2 left-2 bg-black/50 text-white text-xs px-2 py-1 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"
+                <div className="space-y-3">
+                  <div className="rounded-xl overflow-hidden border relative group">
+                    <img src={generatedImageUrl} alt="Post" className="w-full aspect-square object-cover" />
+                    <button
+                      onClick={() => { setGeneratedImageUrl(''); setImageAnalysis(''); }}
+                      className="absolute top-2 left-2 bg-black/50 text-white text-xs px-2 py-1 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      החלף
+                    </button>
+                  </div>
+
+                  {imageAnalysis && (
+                    <div className="text-xs text-muted-foreground bg-purple-50 border border-purple-100 rounded-lg p-2">
+                      <span className="font-medium text-purple-700">🔍 ניתוח התמונה: </span>{imageAnalysis}
+                    </div>
+                  )}
+
+                  <Button
+                    onClick={handleAnalyzeAndGenerate}
+                    disabled={analyzingImage}
+                    className="w-full bg-gradient-to-r from-purple-500 to-pink-500 text-white"
                   >
-                    החלף
-                  </button>
+                    {analyzingImage
+                      ? <><Loader2 className="w-4 h-4 ml-2 animate-spin" /> מנתח תמונה ויוצר פוסט...</>
+                      : <><ScanSearch className="w-4 h-4 ml-2" /> נתח תמונה וצור פוסט מותאם</>
+                    }
+                  </Button>
                 </div>
               ) : (
                 <div className="border-2 border-dashed border-border rounded-xl aspect-square flex items-center justify-center text-muted-foreground text-sm">
