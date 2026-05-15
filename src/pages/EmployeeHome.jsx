@@ -4,7 +4,7 @@ import { DailyBrief } from '@/entities/DailyBrief';
 import { base44 } from '@/api/base44Client';
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Star, GraduationCap, CheckSquare, AlertTriangle, Calendar, CalendarDays, Utensils, Brain, Sparkles, FileText, Megaphone, Briefcase, MessageCircle, Camera, UserCircle, LogOut, ChevronDown } from 'lucide-react';
+import { Star, GraduationCap, CheckSquare, AlertTriangle, Calendar, CalendarDays, Utensils, Brain, Sparkles, FileText, Megaphone, Briefcase, MessageCircle, Camera, UserCircle, LogOut, ChevronDown, BookOpen } from 'lucide-react';
 import ShiftNotificationBell from '../components/shared/ShiftNotificationBell';
 import { Employee } from '@/entities/Employee';
 import { Link } from 'react-router-dom';
@@ -425,6 +425,20 @@ export default function EmployeeHome() {
                                     </div>
                                     <h3 className="font-semibold text-lg mb-2">צ'אט משמרת</h3>
                                     <p className="text-sm text-gray-600">תקשורת פנימית לצוות</p>
+                                </div>
+                            </CardContent>
+                        </Card>
+                    </Link>
+
+                    <Link to="/UserGuide">
+                        <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full border-2 border-green-200 bg-green-50">
+                            <CardContent className="p-6">
+                                <div className="flex flex-col items-center text-center">
+                                    <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-emerald-600 rounded-lg flex items-center justify-center mb-3">
+                                        <BookOpen className="w-6 h-6 text-white" />
+                                    </div>
+                                    <h3 className="font-semibold text-lg mb-2">מדריך שימוש</h3>
+                                    <p className="text-sm text-gray-600">הסברים וסרטוני הדרכה</p>
                                 </div>
                             </CardContent>
                         </Card>

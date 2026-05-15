@@ -3,7 +3,7 @@ import { User } from '@/entities/User';
 import PageGuard from '../components/shared/PageGuard';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Users, TrendingUp, CheckCircle, AlertTriangle, Star, Brain, Zap, ChevronRight, Bot, Sparkles, MessageCircle } from 'lucide-react';
+import { Users, TrendingUp, CheckCircle, AlertTriangle, Star, Brain, Zap, ChevronRight, Bot, Sparkles, MessageCircle, BookOpen } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
@@ -493,6 +493,22 @@ function DashboardInner() {
                     </h2>
                     <QuickStats />
                 </section>
+
+                {/* 📖 מדריך שימוש */}
+                <Link to="/UserGuide">
+                    <Card className="bg-gradient-to-r from-green-600 to-emerald-600 text-white cursor-pointer hover:shadow-xl transition-all duration-300 transform hover:scale-105">
+                        <CardContent className="p-6 flex items-center justify-between">
+                            <div>
+                                <h3 className="text-xl font-bold mb-1 flex items-center gap-2">
+                                    <BookOpen className="w-6 h-6" />
+                                    📖 מדריך שימוש במערכת
+                                </h3>
+                                <p className="text-green-100">הסברים מפורטים + סרטוני הדרכה לכל הכלים</p>
+                            </div>
+                            <ChevronRight className="w-8 h-8 opacity-70" />
+                        </CardContent>
+                    </Card>
+                </Link>
 
                 {/* 📈 מכירות וממשקים */}
                  <section>
