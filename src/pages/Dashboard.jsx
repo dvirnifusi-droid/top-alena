@@ -27,6 +27,15 @@ import BriefReadersWidget from '../components/dashboard/BriefReadersWidget';
 import SalesChart from '../components/dashboard/SalesChart';
 import DashboardCustomizer from '../components/dashboard/DashboardCustomizer';
 import { useDashboardLayout } from '../hooks/useDashboardLayout';
+import TodayTipsWidget from '../components/dashboard/TodayTipsWidget';
+import LowInventoryWidget from '../components/dashboard/LowInventoryWidget';
+import ActiveDeliveriesWidget from '../components/dashboard/ActiveDeliveriesWidget';
+import PendingRequestsWidget from '../components/dashboard/PendingRequestsWidget';
+import WeeklyLeaderboardWidget from '../components/dashboard/WeeklyLeaderboardWidget';
+import QueueStatusWidget from '../components/dashboard/QueueStatusWidget';
+import RecentFeedbackWidget from '../components/dashboard/RecentFeedbackWidget';
+import TodayReservationsWidget from '../components/dashboard/TodayReservationsWidget';
+import WeeklyPerformanceWidget from '../components/dashboard/WeeklyPerformanceWidget';
 
 function QuickStats() {
     const [realTimeData, setRealTimeData] = React.useState({ todaySales: 0, completedChecklists: 0, totalChecklists: 0, openIncidents: 0 });
@@ -300,6 +309,15 @@ function DashboardInner() {
         brief_readers: isVisible('brief_readers') && <BriefReadersWidget key="brief_readers" />,
         recent_incidents: isVisible('recent_incidents') && <RecentIncidents key="recent_incidents" />,
         checklist_status: isVisible('checklist_status') && <ChecklistStatus key="checklist_status" />,
+      today_tips: isVisible('today_tips') && <TodayTipsWidget key="today_tips" />,
+      low_inventory: isVisible('low_inventory') && <LowInventoryWidget key="low_inventory" />,
+      active_deliveries: isVisible('active_deliveries') && <ActiveDeliveriesWidget key="active_deliveries" />,
+      pending_requests: isVisible('pending_requests') && <PendingRequestsWidget key="pending_requests" />,
+      weekly_leaderboard: isVisible('weekly_leaderboard') && <WeeklyLeaderboardWidget key="weekly_leaderboard" />,
+      queue_status: isVisible('queue_status') && <QueueStatusWidget key="queue_status" />,
+      recent_feedback: isVisible('recent_feedback') && <RecentFeedbackWidget key="recent_feedback" />,
+      today_reservations: isVisible('today_reservations') && <TodayReservationsWidget key="today_reservations" />,
+      weekly_performance: isVisible('weekly_performance') && <WeeklyPerformanceWidget key="weekly_performance" />,
     };
 
     return (

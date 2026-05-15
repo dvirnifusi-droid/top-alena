@@ -6,11 +6,15 @@ export const EMPLOYEE_WIDGETS = [
   { id: 'daily_challenge', label: 'אתגר יומי', emoji: '🎯', defaultOn: true },
   { id: 'shift_clock', label: 'שעון משמרת', emoji: '⏱️', defaultOn: true },
   { id: 'weekly_schedule', label: 'סידור עבודה שבועי', emoji: '📅', defaultOn: true },
-  { id: 'assigned_tasks', label: 'משימות שמויכות', emoji: '✅', defaultOn: true },
+  { id: 'assigned_tasks', label: 'משימות משויכות', emoji: '✅', defaultOn: true },
   { id: 'daily_briefs', label: 'תדריכי היום', emoji: '📣', defaultOn: true },
   { id: 'delivery_button', label: 'כפתור הכנס משלוח', emoji: '📦', defaultOn: true },
   { id: 'smart_tools', label: 'כלי עבודה חכמים', emoji: '🤖', defaultOn: true },
   { id: 'quick_access', label: 'כרטיסי גישה מהירה', emoji: '🗂️', defaultOn: true },
+  { id: 'my_tips', label: 'הטיפים שלי השבוע', emoji: '💰', defaultOn: false },
+  { id: 'my_rank', label: 'הדירוג שלי', emoji: '🏆', defaultOn: false },
+  { id: 'my_notifications', label: 'הודעות אחרונות', emoji: '🔔', defaultOn: false },
+  { id: 'queue_status', label: 'תור נוכחי', emoji: '🎫', defaultOn: false },
 ];
 
 export const ADMIN_WIDGETS = [
@@ -24,6 +28,15 @@ export const ADMIN_WIDGETS = [
   { id: 'brief_readers', label: 'קוראי תדריכים', emoji: '📋', defaultOn: false },
   { id: 'recent_incidents', label: 'תקריות אחרונות', emoji: '⚠️', defaultOn: false },
   { id: 'checklist_status', label: 'סטטוס צ\'קליסטים', emoji: '☑️', defaultOn: false },
+  { id: 'today_tips', label: 'טיפים היום', emoji: '💰', defaultOn: true },
+  { id: 'low_inventory', label: 'התראות מלאי', emoji: '📦', defaultOn: true },
+  { id: 'active_deliveries', label: 'משלוחים פעילים', emoji: '🚚', defaultOn: false },
+  { id: 'pending_requests', label: 'בקשות ממתינות', emoji: '🔔', defaultOn: true },
+  { id: 'weekly_leaderboard', label: 'מובילי השבוע', emoji: '🏆', defaultOn: true },
+  { id: 'queue_status', label: 'תור נוכחי', emoji: '🎫', defaultOn: false },
+  { id: 'recent_feedback', label: 'סקרי לקוחות אחרונים', emoji: '📝', defaultOn: false },
+  { id: 'today_reservations', label: 'הזמנות שולחנות היום', emoji: '📅', defaultOn: false },
+  { id: 'weekly_performance', label: 'גרף ביצועים שבועי', emoji: '📊', defaultOn: false },
 ];
 
 function getStorageKey(userEmail, page) {

@@ -26,6 +26,10 @@ import StoriesBar from '../components/stories/StoriesBar';
 import MyAssignedTasks from '../components/checklists/MyAssignedTasks';
 import DashboardCustomizer from '../components/dashboard/DashboardCustomizer';
 import { useDashboardLayout } from '../hooks/useDashboardLayout';
+import MyTipsWidget from '../components/dashboard/MyTipsWidget';
+import MyRankWidget from '../components/dashboard/MyRankWidget';
+import MyNotificationsWidget from '../components/dashboard/MyNotificationsWidget';
+import QueueStatusWidget from '../components/dashboard/QueueStatusWidget';
 
 export default function EmployeeHome() {
     const [user, setUser] = useState(null);
@@ -194,6 +198,10 @@ export default function EmployeeHome() {
                 </Card>
             </div>
         ),
+        my_tips: isVisible('my_tips') && <MyTipsWidget key="my_tips" />,
+        my_rank: isVisible('my_rank') && <MyRankWidget key="my_rank" />,
+        my_notifications: isVisible('my_notifications') && <MyNotificationsWidget key="my_notifications" />,
+        queue_status: isVisible('queue_status') && <QueueStatusWidget key="queue_status" />,
         quick_access: isVisible('quick_access') && (
             <div key="quick_access" className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 {[
