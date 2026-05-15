@@ -37,6 +37,7 @@ export const ADMIN_WIDGETS = [
   { id: 'recent_feedback', label: 'סקרי לקוחות אחרונים', emoji: '📝', defaultOn: false },
   { id: 'today_reservations', label: 'הזמנות שולחנות היום', emoji: '📅', defaultOn: false },
   { id: 'weekly_performance', label: 'גרף ביצועים שבועי', emoji: '📊', defaultOn: false },
+  { id: 'changelog', label: 'יומן שינויים (White Label)', emoji: '📋', defaultOn: true },
 ];
 
 function getStorageKey(userEmail, page) {

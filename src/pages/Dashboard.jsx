@@ -36,6 +36,7 @@ import QueueStatusWidget from '../components/dashboard/QueueStatusWidget';
 import RecentFeedbackWidget from '../components/dashboard/RecentFeedbackWidget';
 import TodayReservationsWidget from '../components/dashboard/TodayReservationsWidget';
 import WeeklyPerformanceWidget from '../components/dashboard/WeeklyPerformanceWidget';
+import ChangelogWidget from '../components/dashboard/ChangelogWidget';
 
 function QuickStats() {
     const [realTimeData, setRealTimeData] = React.useState({ todaySales: 0, completedChecklists: 0, totalChecklists: 0, openIncidents: 0 });
@@ -318,6 +319,7 @@ function DashboardInner() {
       recent_feedback: isVisible('recent_feedback') && <RecentFeedbackWidget key="recent_feedback" />,
       today_reservations: isVisible('today_reservations') && <TodayReservationsWidget key="today_reservations" />,
       weekly_performance: isVisible('weekly_performance') && <WeeklyPerformanceWidget key="weekly_performance" />,
+      changelog: isVisible('changelog') && <ChangelogWidget key="changelog" />,
     };
 
     return (
