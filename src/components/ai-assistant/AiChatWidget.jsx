@@ -70,7 +70,7 @@ export default function AiChatWidget() {
         if (!clean) return;
         try {
             const res = await elevenLabsTts({ text: clean });
-            const base64 = res?.data?.data?.audio_base64;
+            const base64 = res?.data?.audio_base64 || res?.audio_base64;
             if (base64) audioCacheRef.current[messageId] = base64ToObjUrl(base64);
         } catch (e) { console.error('Prefetch error:', e); }
     };
@@ -94,7 +94,7 @@ export default function AiChatWidget() {
             let objUrl = messageId && audioCacheRef.current[messageId];
             if (!objUrl) {
                 const res = await elevenLabsTts({ text: clean });
-                const base64 = res?.data?.data?.audio_base64;
+                const base64 = res?.data?.audio_base64 || res?.audio_base64;
                 if (!base64) throw new Error('No audio in response');
                 objUrl = base64ToObjUrl(base64);
                 if (messageId) audioCacheRef.current[messageId] = objUrl;
