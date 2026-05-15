@@ -94,8 +94,10 @@ export default function AiChatWidget() {
             let objUrl = messageId && audioCacheRef.current[messageId];
             if (!objUrl) {
                 const res = await elevenLabsTts({ text: clean });
+                console.log('TTS Response:', res);
                 const base64 = res?.data?.audio_base64 || res?.audio_base64;
-                if (!base64) throw new Error('No audio in response');
+                console.log('Base64 extracted:', !!base64);
+                if (!base64) throw new Error('No audio in response: ' + JSON.stringify(res));
                 objUrl = base64ToObjUrl(base64);
                 if (messageId) audioCacheRef.current[messageId] = objUrl;
             }
