@@ -37,8 +37,7 @@ export default function AiChatWidget() {
     const [ttsEnabled, setTtsEnabled] = useState(true);
     const [isSpeaking, setIsSpeaking] = useState(false);
     const [loadingAudioId, setLoadingAudioId] = useState(null);
-    const [audioLoadStart, setAudioLoadStart] = useState(null);
-    const [audioLoadElapsed, setAudioLoadElapsed] = useState(0);
+    const [audioCountdown, setAudioCountdown] = useState(0);
     const audioTimerRef = useRef(null);
     const [trainingMode, setTrainingMode] = useState(false);
     const [coveredDishes, setCoveredDishes] = useState([]);
@@ -84,17 +83,16 @@ export default function AiChatWidget() {
         if (!clean) return;
 
         setLoadingAudioId(messageId || null);
-        setAudioLoadStart(Date.now());
-        setAudioLoadElapsed(0);
-        audioTimerRef.current = setInterval(() => {
-            setAudioLoadElapsed(Math.round((Date.now() - Date.now()) / 1000)); // placeholder updated below
-        }, 500);
-        // Use a closure-friendly approach
-        const startTime = Date.now();
+        // הערכת זמן טעינה לפי אורך הטקסט: ~1 שניה לכל 100 תווים, מינימום 3
+        const estimatedSeconds = Math.max(3, Math.round(clean.length / 100));
+        setAudioCountdown(estimatedSeconds);
         if (audioTimerRef.current) clearInterval(audioTimerRef.current);
         audioTimerRef.current = setInterval(() => {
-            setAudioLoadElapsed(Math.round((Date.now() - startTime) / 1000));
-        }, 500);
+            setAudioCountdown(prev => {
+                if (prev <= 1) { clearInterval(audioTimerRef.current); return 0; }
+                return prev - 1;
+            });
+        }, 1000);
         setIsSpeaking(false);
         try {
             let objUrl = messageId && audioCacheRef.current[messageId];
@@ -107,7 +105,7 @@ export default function AiChatWidget() {
             }
             clearInterval(audioTimerRef.current);
             setLoadingAudioId(null);
-            setAudioLoadElapsed(0);
+            setAudioCountdown(0);
             setIsSpeaking(true);
             const audio = new Audio(objUrl);
             currentAudioRef.current = audio;
@@ -118,7 +116,7 @@ export default function AiChatWidget() {
             console.error('TTS error:', e);
             clearInterval(audioTimerRef.current);
             setLoadingAudioId(null);
-            setAudioLoadElapsed(0);
+            setAudioCountdown(0);
             setIsSpeaking(false);
         }
     };
@@ -665,7 +663,7 @@ export default function AiChatWidget() {
                                                     {loadingAudioId === message.id ? (
                                                        <div className="flex items-center gap-1">
                                                            <div className="h-3 w-3 sm:h-4 sm:w-4 border-2 border-orange-400 border-t-transparent rounded-full animate-spin" />
-                                                           <span className="text-xs text-orange-500">{audioLoadElapsed}ש'</span>
+                                                           {audioCountdown > 0 && <span className="text-xs text-orange-500 font-bold">{audioCountdown}ש'</span>}
                                                        </div>
                                                     ) : (
                                                         <Volume2 className="h-3 w-3 sm:h-4 sm:w-4 text-orange-500"/>
@@ -718,7 +716,7 @@ export default function AiChatWidget() {
                             {loadingAudioId && (
                                 <div className="flex items-center gap-2 mt-2 text-xs text-amber-600">
                                     <div className="h-3 w-3 border-2 border-amber-500 border-t-transparent rounded-full animate-spin" />
-                                    <span>טוען קול... ({audioLoadElapsed} שניות)</span>
+                                    <span>טוען קול... {audioCountdown > 0 ? `עוד ~${audioCountdown} שניות` : 'כמעט מוכן...'}</span>
                                 </div>
                             )}
                             {isSpeaking && (
