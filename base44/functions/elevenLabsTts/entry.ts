@@ -45,15 +45,17 @@ Deno.serve(async (req) => {
             console.error('ElevenLabs error:', res.status, err);
             return Response.json({ error: `ElevenLabs: ${res.status} - ${err}` }, { status: 500 });
         }
+
+        const audioBuffer = await res.arrayBuffer();
+        const bytes = new Uint8Array(audioBuffer);
+        let binary = '';
+        for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+        const base64 = btoa(binary);
+        
+        console.log('TTS success - audio size:', audioBuffer.byteLength, 'base64 length:', base64.length);
+        return Response.json({ audio_base64: base64 });
     } catch (e) {
-        console.error('TTS function error:', e.message);
+        console.error('TTS function error:', e.message, e);
         return Response.json({ error: `Server error: ${e.message}` }, { status: 500 });
     }
-
-    const audioBuffer = await res.arrayBuffer();
-    const bytes = new Uint8Array(audioBuffer);
-    let binary = '';
-    for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
-    const base64 = btoa(binary);
-    return Response.json({ audio_base64: base64 });
 });
