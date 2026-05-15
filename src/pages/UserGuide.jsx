@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import {
   Users, BarChart3, GraduationCap, CheckSquare, Calendar, Banknote,
   MessageSquare, AlertTriangle, Package, ChevronDown, ChevronUp,
-  Play, BookOpen, Crown, Utensils, Clock, Star
+  Play, BookOpen, Crown, Utensils, Clock, Star, Image, Upload
 } from "lucide-react";
 import { base44 } from "@/api/base44Client";
 
@@ -15,8 +15,6 @@ const sections = [
     title: "מבוא למערכת TOP ALENA",
     color: "bg-green-100 text-green-700",
     audience: ["מנהל", "עובד"],
-    video: "",
-    image: "https://media.base44.com/images/public/68ac71d972dff18b98e30a21/c591d49b9_generated_image.png",
     content: [
       { title: "מה זה TOP ALENA?", text: "מערכת ניהול מסעדה כוללת — מעובדים, משמרות, טיפים, הכשרות, לקוחות ועוד. הכל במקום אחד." },
       { title: "איך נכנסים?", text: "נכנסים דרך הקישור של המסעדה. מנהלים יועברו ללוח הבקרה, עובדים לאזור האישי שלהם." },
@@ -29,8 +27,6 @@ const sections = [
     title: "לוח בקרה למנהל",
     color: "bg-blue-100 text-blue-700",
     audience: ["מנהל"],
-    video: "",
-    image: "https://media.base44.com/images/public/68ac71d972dff18b98e30a21/c591d49b9_generated_image.png",
     content: [
       { title: "סטטיסטיקות מהירות", text: "בחלק העליון רואים: הזמנות היום, הכנסות, סטטוס צ'קליסטים ותקריות פתוחות." },
       { title: "כלי AI", text: "הכפתורים הירוקים פותחים כלי AI: סריקת חשבוניות, עזרת הושבה, ויועץ שיווקי." },
@@ -43,8 +39,6 @@ const sections = [
     title: "סידור עבודה",
     color: "bg-purple-100 text-purple-700",
     audience: ["מנהל", "עובד"],
-    video: "",
-    image: "https://media.base44.com/images/public/68ac71d972dff18b98e30a21/49508c698_generated_image.png",
     content: [
       { title: "יצירת משמרת (מנהל)", text: "נכנסים לסידור עבודה → לחיצה על + → בוחרים תאריך, סוג משמרת (צהריים/ערב) ומוסיפים עובדים." },
       { title: "שיבוץ עובדים", text: "גוררים עובדים לתפקידים או לוחצים 'שיבוץ מהיר'. ניתן לראות את הזמינות שהגיש כל עובד." },
@@ -58,8 +52,6 @@ const sections = [
     title: "ניהול טיפים",
     color: "bg-yellow-100 text-yellow-700",
     audience: ["מנהל", "עובד"],
-    video: "",
-    image: "https://media.base44.com/images/public/68ac71d972dff18b98e30a21/eaf15ada1_generated_image.png",
     content: [
       { title: "פתיחת דוח טיפים", text: "נכנסים לניהול טיפים → בוחרים תאריך ומשמרת → מזינים סך הטיפים שנאספו." },
       { title: "חישוב אוטומטי", text: "המערכת מחשבת אוטומטית טיפ לשעה לפי שעות עבודה בפועל של כל עובד, בניכוי ארוחות ורנרים." },
@@ -72,8 +64,6 @@ const sections = [
     title: "הכשרות ואימונים",
     color: "bg-orange-100 text-orange-700",
     audience: ["מנהל", "עובד"],
-    video: "",
-    image: "https://media.base44.com/images/public/68ac71d972dff18b98e30a21/126bc570f_generated_image.png",
     content: [
       { title: "אימון תפריט עם AI", text: "בלוח הבקרה → לחיצה על 'דביר' (הבוט הירוק) → בוחרים 'אימון תפריט' → הבוט שואל שאלות על מנות." },
       { title: "סרטוני הדרכה", text: "בסרטוני הדרכה תמצאו סרטונים לפי קטגוריות. לחיצה על סרטון מפעילה אותו ישירות." },
@@ -87,8 +77,6 @@ const sections = [
     title: "צ'קליסטים",
     color: "bg-teal-100 text-teal-700",
     audience: ["מנהל", "עובד"],
-    video: "",
-    image: "https://media.base44.com/images/public/68ac71d972dff18b98e30a21/660ae1e13_generated_image.png",
     content: [
       { title: "ביצוע צ'קליסט (עובד)", text: "נכנסים לצ'קליסטים → בוחרים את הצ'קליסט המשויך אליכם → מסמנים כל משימה → שולחים." },
       { title: "יצירת צ'קליסט (מנהל)", text: "ניהול צ'קליסטים → + חדש → מוסיפים משימות, קובעים מי אחראי ומתי לבצע." },
@@ -101,8 +89,6 @@ const sections = [
     title: "ניהול תור",
     color: "bg-pink-100 text-pink-700",
     audience: ["מנהל", "עובד"],
-    video: "",
-    image: "https://media.base44.com/images/public/68ac71d972dff18b98e30a21/1569d0b1f_generated_image.png",
     content: [
       { title: "הרשמה לתור (לקוח)", text: "הלקוח סורק QR או נכנס לקישור → ממלא שם, טלפון וגודל קבוצה → מקבל SMS עם מיקום בתור." },
       { title: "דאשבורד מארחת", text: "בדאשבורד תור רואים את כל הממתינים. לחיצה על 'זמן!' שולחת SMS ללקוח שהשולחן מוכן." },
@@ -115,8 +101,6 @@ const sections = [
     title: "תקריות",
     color: "bg-red-100 text-red-700",
     audience: ["מנהל", "עובד"],
-    video: "",
-    image: "https://media.base44.com/images/public/68ac71d972dff18b98e30a21/cea0de44f_generated_image.png",
     content: [
       { title: "דיווח תקרית", text: "כל עובד יכול לדווח תקרית: נכנסים לתקריות → + חדשה → מתארים מה קרה, קטגוריה וחומרה." },
       { title: "מעקב", text: "מנהלים מקבלים התראה על כל תקרית חדשה. ניתן לעדכן סטטוס ולהוסיף פתרון." },
@@ -128,8 +112,6 @@ const sections = [
     title: "משלוחים",
     color: "bg-indigo-100 text-indigo-700",
     audience: ["מנהל", "עובד"],
-    video: "",
-    image: "https://media.base44.com/images/public/68ac71d972dff18b98e30a21/4465c2aeb_generated_image.png",
     content: [
       { title: "רישום משלוח", text: "נכנסים למשלוחים → + חדש → מזינים פרטי לקוח, כתובת ופלטפורמה (Wolt/תן ביס/וכד')." },
       { title: "מעקב שליח", text: "במעקב שליחים חי ניתן לראות היכן כל שליח נמצא על המפה בזמן אמת." },
@@ -142,8 +124,6 @@ const sections = [
     title: "גמיפיקציה ומטבעות",
     color: "bg-amber-100 text-amber-700",
     audience: ["עובד"],
-    video: "",
-    image: "https://media.base44.com/images/public/68ac71d972dff18b98e30a21/b8f7540dd_generated_image.png",
     content: [
       { title: "מטבעות עלינא", text: "צוברים מטבעות על: השלמת הכשרות, הגשת זמינות, ביצוע צ'קליסטים, ועוד." },
       { title: "חנות בגדים", text: "ניתן להשתמש במטבעות לקנות פריטי לבוש לדמות האישית שלכם." },
@@ -152,9 +132,12 @@ const sections = [
   },
 ];
 
-const VideoPlaceholder = ({ videoUrl, onSave, isAdmin }) => {
-  const [editing, setEditing] = useState(false);
-  const [url, setUrl] = useState(videoUrl || "");
+const MediaManager = ({ videoUrl, imageUrl, onSaveVideo, onSaveImage, isAdmin }) => {
+  const [editingVideo, setEditingVideo] = useState(false);
+  const [editingImage, setEditingImage] = useState(false);
+  const [videoInput, setVideoInput] = useState(videoUrl || "");
+  const [imageInput, setImageInput] = useState(imageUrl || "");
+  const [uploadingImage, setUploadingImage] = useState(false);
 
   const getEmbedUrl = (rawUrl) => {
     if (!rawUrl) return null;
@@ -165,73 +148,134 @@ const VideoPlaceholder = ({ videoUrl, onSave, isAdmin }) => {
     return rawUrl;
   };
 
-  const embedUrl = getEmbedUrl(url);
+  const handleImageUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingImage(true);
+    const { file_url } = await base44.integrations.Core.UploadFile({ file });
+    setImageInput(file_url);
+    onSaveImage(file_url);
+    setUploadingImage(false);
+    setEditingImage(false);
+  };
 
-  if (embedUrl) {
-    return (
-      <div className="mt-4">
-        <div className="rounded-xl overflow-hidden aspect-video bg-black">
-          <iframe src={embedUrl} className="w-full h-full" allowFullScreen title="סרטון הדרכה" />
-        </div>
-        {isAdmin && (
-          <button onClick={() => setEditing(true)} className="text-xs text-muted-foreground mt-1 underline">
-            החלף סרטון
-          </button>
-        )}
-        {editing && (
-          <div className="flex gap-2 mt-2">
-            <input
-              value={url}
-              onChange={e => setUrl(e.target.value)}
-              placeholder="הדבק קישור YouTube / Vimeo"
-              className="border rounded px-2 py-1 text-sm flex-1"
-            />
-            <button onClick={() => { onSave(url); setEditing(false); }} className="bg-primary text-primary-foreground px-3 py-1 rounded text-sm">שמור</button>
-            <button onClick={() => setEditing(false)} className="text-sm text-muted-foreground">ביטול</button>
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  if (!isAdmin) return null;
+  const embedUrl = getEmbedUrl(videoUrl);
 
   return (
-    <div className="mt-4">
-      {editing ? (
-        <div className="flex gap-2">
-          <input
-            value={url}
-            onChange={e => setUrl(e.target.value)}
-            placeholder="הדבק קישור YouTube / Vimeo"
-            className="border rounded px-2 py-1 text-sm flex-1"
-          />
-          <button onClick={() => { onSave(url); setEditing(false); }} className="bg-primary text-primary-foreground px-3 py-1 rounded text-sm">שמור</button>
-          <button onClick={() => setEditing(false)} className="text-sm text-muted-foreground">ביטול</button>
+    <div className="space-y-3 mt-2">
+      {/* תמונה */}
+      {imageUrl ? (
+        <div className="rounded-xl overflow-hidden border">
+          <img src={imageUrl} alt="תמונת הדרכה" className="w-full object-cover max-h-64" />
+          {isAdmin && (
+            <div className="p-2 bg-muted/30 flex gap-2">
+              <button onClick={() => setEditingImage(true)} className="text-xs text-muted-foreground underline">
+                החלף תמונה
+              </button>
+              <button onClick={() => { onSaveImage(""); setImageInput(""); }} className="text-xs text-red-500 underline">
+                הסר
+              </button>
+            </div>
+          )}
         </div>
-      ) : (
-        <button
-          onClick={() => setEditing(true)}
-          className="flex items-center gap-2 text-sm text-muted-foreground border-2 border-dashed border-muted rounded-xl px-4 py-3 w-full hover:border-primary hover:text-primary transition-colors"
-        >
-          <Play className="w-4 h-4" />
-          + הוסף סרטון הדרכה לנושא זה
-        </button>
+      ) : isAdmin && (
+        <div>
+          {editingImage ? (
+            <div className="border rounded-xl p-3 space-y-2 bg-muted/20">
+              <p className="text-xs font-semibold text-muted-foreground">הוסף תמונה:</p>
+              <label className="flex items-center gap-2 cursor-pointer bg-primary/10 hover:bg-primary/20 text-primary rounded-lg px-3 py-2 text-sm font-medium transition-colors w-fit">
+                <Upload className="w-4 h-4" />
+                {uploadingImage ? "מעלה..." : "העלה תמונה מהמכשיר"}
+                <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} disabled={uploadingImage} />
+              </label>
+              <div className="flex gap-2 items-center">
+                <span className="text-xs text-muted-foreground">או הדבק קישור:</span>
+                <input
+                  value={imageInput}
+                  onChange={e => setImageInput(e.target.value)}
+                  placeholder="https://..."
+                  className="border rounded px-2 py-1 text-sm flex-1"
+                />
+                <button onClick={() => { onSaveImage(imageInput); setEditingImage(false); }} className="bg-primary text-primary-foreground px-3 py-1 rounded text-sm">שמור</button>
+              </div>
+              <button onClick={() => setEditingImage(false)} className="text-xs text-muted-foreground underline">ביטול</button>
+            </div>
+          ) : (
+            <button
+              onClick={() => setEditingImage(true)}
+              className="flex items-center gap-2 text-sm text-muted-foreground border-2 border-dashed border-muted rounded-xl px-4 py-3 w-full hover:border-primary hover:text-primary transition-colors"
+            >
+              <Image className="w-4 h-4" />
+              + הוסף תמונת הדרכה לנושא זה
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* סרטון */}
+      {embedUrl ? (
+        <div>
+          <div className="rounded-xl overflow-hidden aspect-video bg-black">
+            <iframe src={embedUrl} className="w-full h-full" allowFullScreen title="סרטון הדרכה" />
+          </div>
+          {isAdmin && (
+            <div className="flex gap-3 mt-1">
+              <button onClick={() => setEditingVideo(true)} className="text-xs text-muted-foreground underline">
+                החלף סרטון
+              </button>
+              <button onClick={() => { onSaveVideo(""); setVideoInput(""); }} className="text-xs text-red-500 underline">
+                הסר
+              </button>
+            </div>
+          )}
+          {editingVideo && (
+            <div className="flex gap-2 mt-2">
+              <input
+                value={videoInput}
+                onChange={e => setVideoInput(e.target.value)}
+                placeholder="הדבק קישור YouTube / Vimeo"
+                className="border rounded px-2 py-1 text-sm flex-1"
+              />
+              <button onClick={() => { onSaveVideo(videoInput); setEditingVideo(false); }} className="bg-primary text-primary-foreground px-3 py-1 rounded text-sm">שמור</button>
+              <button onClick={() => setEditingVideo(false)} className="text-sm text-muted-foreground">ביטול</button>
+            </div>
+          )}
+        </div>
+      ) : isAdmin && (
+        <div>
+          {editingVideo ? (
+            <div className="flex gap-2">
+              <input
+                value={videoInput}
+                onChange={e => setVideoInput(e.target.value)}
+                placeholder="הדבק קישור YouTube / Vimeo"
+                className="border rounded px-2 py-1 text-sm flex-1"
+              />
+              <button onClick={() => { onSaveVideo(videoInput); setEditingVideo(false); }} className="bg-primary text-primary-foreground px-3 py-1 rounded text-sm">שמור</button>
+              <button onClick={() => setEditingVideo(false)} className="text-sm text-muted-foreground">ביטול</button>
+            </div>
+          ) : (
+            <button
+              onClick={() => setEditingVideo(true)}
+              className="flex items-center gap-2 text-sm text-muted-foreground border-2 border-dashed border-muted rounded-xl px-4 py-3 w-full hover:border-primary hover:text-primary transition-colors"
+            >
+              <Play className="w-4 h-4" />
+              + הוסף סרטון הדרכה לנושא זה
+            </button>
+          )}
+        </div>
       )}
     </div>
   );
 };
 
-const Section = ({ section, isAdmin, videoUrls, onSaveVideo }) => {
+const Section = ({ section, isAdmin, mediaData, onSaveVideo, onSaveImage }) => {
   const [open, setOpen] = useState(false);
   const Icon = section.icon;
 
   return (
     <Card className="overflow-hidden">
-      <button
-        className="w-full text-right"
-        onClick={() => setOpen(prev => !prev)}
-      >
+      <button className="w-full text-right" onClick={() => setOpen(prev => !prev)}>
         <CardHeader className="flex flex-row items-center gap-4 py-4 px-6">
           <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${section.color}`}>
             <Icon className="w-5 h-5" />
@@ -250,14 +294,11 @@ const Section = ({ section, isAdmin, videoUrls, onSaveVideo }) => {
 
       {open && (
         <CardContent className="pt-0 px-6 pb-6 space-y-4">
-          {section.image && (
-            <div className="rounded-xl overflow-hidden border mt-2">
-              <img src={section.image} alt={section.title} className="w-full object-cover max-h-56" />
-            </div>
-          )}
-          <VideoPlaceholder
-            videoUrl={videoUrls[section.id] || section.video}
-            onSave={(url) => onSaveVideo(section.id, url)}
+          <MediaManager
+            videoUrl={mediaData[section.id]?.video || ""}
+            imageUrl={mediaData[section.id]?.image || ""}
+            onSaveVideo={(url) => onSaveVideo(section.id, url)}
+            onSaveImage={(url) => onSaveImage(section.id, url)}
             isAdmin={isAdmin}
           />
           <div className="space-y-3 mt-4">
@@ -281,9 +322,8 @@ const Section = ({ section, isAdmin, videoUrls, onSaveVideo }) => {
 
 export default function UserGuide() {
   const [filter, setFilter] = useState("הכל");
-  const [videoUrls, setVideoUrls] = useState({});
+  const [mediaData, setMediaData] = useState({}); // sectionId -> { video, image, videoId, imageId }
   const [isAdmin, setIsAdmin] = useState(false);
-  const [videoRecords, setVideoRecords] = useState({}); // sectionId -> record id
 
   useEffect(() => {
     const load = async () => {
@@ -294,48 +334,55 @@ export default function UserGuide() {
 
       try {
         const records = await base44.entities.TrainingVideo.filter({ category: "user_guide" });
-        const urls = {};
-        const ids = {};
+        const data = {};
         records.forEach(r => {
-          urls[r.title] = r.video_url;
-          ids[r.title] = r.id;
+          if (!data[r.title]) data[r.title] = {};
+          if (r.thumbnail_url) {
+            data[r.title].image = r.thumbnail_url;
+            data[r.title].imageId = r.id;
+          } else {
+            data[r.title].video = r.video_url;
+            data[r.title].videoId = r.id;
+          }
         });
-        setVideoUrls(urls);
-        setVideoRecords(ids);
+        setMediaData(data);
       } catch {}
     };
     load();
   }, []);
 
   const filters = ["הכל", "מנהל", "עובד"];
-
-  const filtered = sections.filter(s =>
-    filter === "הכל" || s.audience.includes(filter)
-  );
+  const filtered = sections.filter(s => filter === "הכל" || s.audience.includes(filter));
 
   const handleSaveVideo = async (sectionId, url) => {
-    setVideoUrls(prev => ({ ...prev, [sectionId]: url }));
-    try {
-      if (videoRecords[sectionId]) {
-        await base44.entities.TrainingVideo.update(videoRecords[sectionId], { video_url: url });
-      } else {
-        const created = await base44.entities.TrainingVideo.create({
-          title: sectionId,
-          category: "user_guide",
-          video_url: url,
-          is_active: true
-        });
-        setVideoRecords(prev => ({ ...prev, [sectionId]: created.id }));
-      }
-    } catch (e) {
-      console.error("Failed to save video:", e);
+    setMediaData(prev => ({ ...prev, [sectionId]: { ...prev[sectionId], video: url } }));
+    const existing = mediaData[sectionId]?.videoId;
+    if (existing) {
+      await base44.entities.TrainingVideo.update(existing, { video_url: url });
+    } else {
+      const created = await base44.entities.TrainingVideo.create({
+        title: sectionId, category: "user_guide", video_url: url, is_active: true
+      });
+      setMediaData(prev => ({ ...prev, [sectionId]: { ...prev[sectionId], videoId: created.id } }));
+    }
+  };
+
+  const handleSaveImage = async (sectionId, url) => {
+    setMediaData(prev => ({ ...prev, [sectionId]: { ...prev[sectionId], image: url } }));
+    const existing = mediaData[sectionId]?.imageId;
+    if (existing) {
+      await base44.entities.TrainingVideo.update(existing, { thumbnail_url: url });
+    } else {
+      const created = await base44.entities.TrainingVideo.create({
+        title: sectionId, category: "user_guide", video_url: "_image_only_", thumbnail_url: url, is_active: true
+      });
+      setMediaData(prev => ({ ...prev, [sectionId]: { ...prev[sectionId], imageId: created.id } }));
     }
   };
 
   return (
     <div className="min-h-screen bg-background" dir="rtl">
       <div className="max-w-3xl mx-auto p-4 sm:p-8 space-y-6">
-        {/* Header */}
         <div className="text-center space-y-2">
           <div className="w-16 h-16 bg-gradient-to-br from-primary to-accent rounded-2xl flex items-center justify-center mx-auto shadow-lg">
             <BookOpen className="w-8 h-8 text-primary-foreground" />
@@ -344,16 +391,13 @@ export default function UserGuide() {
           <p className="text-muted-foreground">TOP ALENA — כל מה שצריך לדעת</p>
         </div>
 
-        {/* Filter */}
         <div className="flex gap-2 justify-center">
           {filters.map(f => (
             <button
               key={f}
               onClick={() => setFilter(f)}
               className={`px-4 py-2 rounded-xl text-sm font-semibold transition-colors ${
-                filter === f
-                  ? "bg-primary text-primary-foreground"
-                  : "bg-muted text-muted-foreground hover:bg-muted/70"
+                filter === f ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/70"
               }`}
             >
               {f}
@@ -361,7 +405,6 @@ export default function UserGuide() {
           ))}
         </div>
 
-        {/* Stats */}
         <div className="grid grid-cols-3 gap-3">
           <div className="bg-card border rounded-xl p-3 text-center">
             <p className="text-2xl font-black text-primary">{sections.length}</p>
@@ -372,20 +415,20 @@ export default function UserGuide() {
             <p className="text-xs text-muted-foreground">מדריכים</p>
           </div>
           <div className="bg-card border rounded-xl p-3 text-center">
-            <p className="text-2xl font-black text-primary">{Object.values(videoUrls).filter(Boolean).length}</p>
-            <p className="text-xs text-muted-foreground">סרטונים</p>
+            <p className="text-2xl font-black text-primary">{Object.values(mediaData).filter(d => d.video || d.image).length}</p>
+            <p className="text-xs text-muted-foreground">מדיה</p>
           </div>
         </div>
 
-        {/* Sections */}
         <div className="space-y-3">
           {filtered.map(section => (
             <Section
               key={section.id}
               section={section}
               isAdmin={isAdmin}
-              videoUrls={videoUrls}
+              mediaData={mediaData}
               onSaveVideo={handleSaveVideo}
+              onSaveImage={handleSaveImage}
             />
           ))}
         </div>
