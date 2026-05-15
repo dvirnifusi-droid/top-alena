@@ -6,6 +6,7 @@ import { Users, CheckCircle, Clock, XCircle, Star, MessageSquare, AlertTriangle,
 import { base44 } from '@/api/base44Client';
 import { sendPushoverNotification } from '@/functions/sendPushoverNotification';
 import { sendDeliveryMessage } from '@/functions/sendDeliveryMessage';
+import CandidateAiScore from '@/components/ai/CandidateAiScore';
 
 const STATUS_LABELS = {
     approved: { label: 'סיים בהצלחה', color: 'bg-green-100 text-green-800' },
@@ -288,7 +289,8 @@ function CandidateRow({ candidate, onRatingChange, onNoteChange, onSendPush }) {
 
             {/* פרטים מורחבים */}
             {expanded && (
-                <div className="p-3 bg-slate-50 border-t border-slate-200 space-y-3">
+            <div className="p-3 bg-slate-50 border-t border-slate-200 space-y-3">
+            <CandidateAiScore candidate={candidate} />
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-sm">
                         {candidate.phone && (
                             <span className="text-slate-600 col-span-2 sm:col-span-1">

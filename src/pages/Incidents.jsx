@@ -29,6 +29,7 @@ import {
   X
 } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
+import IncidentAiAnalysis from '@/components/ai/IncidentAiAnalysis';
 
 // קטגוריות עם אייקונים
 const categoryConfig = {
@@ -596,6 +597,8 @@ function IncidentsInner() {
             ))}
           </div>
         )}
+
+        {isAdmin && <div className="mb-6"><IncidentAiAnalysis /></div>}
 
         {filteredIncidents.length === 0 && !loading && (
           <div className="text-center py-12">
