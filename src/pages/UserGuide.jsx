@@ -16,6 +16,7 @@ const sections = [
     color: "bg-green-100 text-green-700",
     audience: ["מנהל", "עובד"],
     video: "",
+    image: "https://media.base44.com/images/public/68ac71d972dff18b98e30a21/c591d49b9_generated_image.png",
     content: [
       { title: "מה זה TOP ALENA?", text: "מערכת ניהול מסעדה כוללת — מעובדים, משמרות, טיפים, הכשרות, לקוחות ועוד. הכל במקום אחד." },
       { title: "איך נכנסים?", text: "נכנסים דרך הקישור של המסעדה. מנהלים יועברו ללוח הבקרה, עובדים לאזור האישי שלהם." },
@@ -29,6 +30,7 @@ const sections = [
     color: "bg-blue-100 text-blue-700",
     audience: ["מנהל"],
     video: "",
+    image: "https://media.base44.com/images/public/68ac71d972dff18b98e30a21/c591d49b9_generated_image.png",
     content: [
       { title: "סטטיסטיקות מהירות", text: "בחלק העליון רואים: הזמנות היום, הכנסות, סטטוס צ'קליסטים ותקריות פתוחות." },
       { title: "כלי AI", text: "הכפתורים הירוקים פותחים כלי AI: סריקת חשבוניות, עזרת הושבה, ויועץ שיווקי." },
@@ -42,6 +44,7 @@ const sections = [
     color: "bg-purple-100 text-purple-700",
     audience: ["מנהל", "עובד"],
     video: "",
+    image: "https://media.base44.com/images/public/68ac71d972dff18b98e30a21/49508c698_generated_image.png",
     content: [
       { title: "יצירת משמרת (מנהל)", text: "נכנסים לסידור עבודה → לחיצה על + → בוחרים תאריך, סוג משמרת (צהריים/ערב) ומוסיפים עובדים." },
       { title: "שיבוץ עובדים", text: "גוררים עובדים לתפקידים או לוחצים 'שיבוץ מהיר'. ניתן לראות את הזמינות שהגיש כל עובד." },
@@ -56,6 +59,7 @@ const sections = [
     color: "bg-yellow-100 text-yellow-700",
     audience: ["מנהל", "עובד"],
     video: "",
+    image: "https://media.base44.com/images/public/68ac71d972dff18b98e30a21/eaf15ada1_generated_image.png",
     content: [
       { title: "פתיחת דוח טיפים", text: "נכנסים לניהול טיפים → בוחרים תאריך ומשמרת → מזינים סך הטיפים שנאספו." },
       { title: "חישוב אוטומטי", text: "המערכת מחשבת אוטומטית טיפ לשעה לפי שעות עבודה בפועל של כל עובד, בניכוי ארוחות ורנרים." },
@@ -69,6 +73,7 @@ const sections = [
     color: "bg-orange-100 text-orange-700",
     audience: ["מנהל", "עובד"],
     video: "",
+    image: "https://media.base44.com/images/public/68ac71d972dff18b98e30a21/126bc570f_generated_image.png",
     content: [
       { title: "אימון תפריט עם AI", text: "בלוח הבקרה → לחיצה על 'דביר' (הבוט הירוק) → בוחרים 'אימון תפריט' → הבוט שואל שאלות על מנות." },
       { title: "סרטוני הדרכה", text: "בסרטוני הדרכה תמצאו סרטונים לפי קטגוריות. לחיצה על סרטון מפעילה אותו ישירות." },
@@ -83,6 +88,7 @@ const sections = [
     color: "bg-teal-100 text-teal-700",
     audience: ["מנהל", "עובד"],
     video: "",
+    image: "https://media.base44.com/images/public/68ac71d972dff18b98e30a21/660ae1e13_generated_image.png",
     content: [
       { title: "ביצוע צ'קליסט (עובד)", text: "נכנסים לצ'קליסטים → בוחרים את הצ'קליסט המשויך אליכם → מסמנים כל משימה → שולחים." },
       { title: "יצירת צ'קליסט (מנהל)", text: "ניהול צ'קליסטים → + חדש → מוסיפים משימות, קובעים מי אחראי ומתי לבצע." },
@@ -96,6 +102,7 @@ const sections = [
     color: "bg-pink-100 text-pink-700",
     audience: ["מנהל", "עובד"],
     video: "",
+    image: "https://media.base44.com/images/public/68ac71d972dff18b98e30a21/1569d0b1f_generated_image.png",
     content: [
       { title: "הרשמה לתור (לקוח)", text: "הלקוח סורק QR או נכנס לקישור → ממלא שם, טלפון וגודל קבוצה → מקבל SMS עם מיקום בתור." },
       { title: "דאשבורד מארחת", text: "בדאשבורד תור רואים את כל הממתינים. לחיצה על 'זמן!' שולחת SMS ללקוח שהשולחן מוכן." },
@@ -109,6 +116,7 @@ const sections = [
     color: "bg-red-100 text-red-700",
     audience: ["מנהל", "עובד"],
     video: "",
+    image: "https://media.base44.com/images/public/68ac71d972dff18b98e30a21/cea0de44f_generated_image.png",
     content: [
       { title: "דיווח תקרית", text: "כל עובד יכול לדווח תקרית: נכנסים לתקריות → + חדשה → מתארים מה קרה, קטגוריה וחומרה." },
       { title: "מעקב", text: "מנהלים מקבלים התראה על כל תקרית חדשה. ניתן לעדכן סטטוס ולהוסיף פתרון." },
@@ -121,6 +129,7 @@ const sections = [
     color: "bg-indigo-100 text-indigo-700",
     audience: ["מנהל", "עובד"],
     video: "",
+    image: "https://media.base44.com/images/public/68ac71d972dff18b98e30a21/4465c2aeb_generated_image.png",
     content: [
       { title: "רישום משלוח", text: "נכנסים למשלוחים → + חדש → מזינים פרטי לקוח, כתובת ופלטפורמה (Wolt/תן ביס/וכד')." },
       { title: "מעקב שליח", text: "במעקב שליחים חי ניתן לראות היכן כל שליח נמצא על המפה בזמן אמת." },
@@ -134,6 +143,7 @@ const sections = [
     color: "bg-amber-100 text-amber-700",
     audience: ["עובד"],
     video: "",
+    image: "https://media.base44.com/images/public/68ac71d972dff18b98e30a21/b8f7540dd_generated_image.png",
     content: [
       { title: "מטבעות עלינא", text: "צוברים מטבעות על: השלמת הכשרות, הגשת זמינות, ביצוע צ'קליסטים, ועוד." },
       { title: "חנות בגדים", text: "ניתן להשתמש במטבעות לקנות פריטי לבוש לדמות האישית שלכם." },
@@ -240,6 +250,11 @@ const Section = ({ section, isAdmin, videoUrls, onSaveVideo }) => {
 
       {open && (
         <CardContent className="pt-0 px-6 pb-6 space-y-4">
+          {section.image && (
+            <div className="rounded-xl overflow-hidden border mt-2">
+              <img src={section.image} alt={section.title} className="w-full object-cover max-h-56" />
+            </div>
+          )}
           <VideoPlaceholder
             videoUrl={videoUrls[section.id] || section.video}
             onSave={(url) => onSaveVideo(section.id, url)}
