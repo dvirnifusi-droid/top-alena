@@ -41,7 +41,21 @@ export const ADMIN_WIDGETS = [
 ];
 
 function getStorageKey(userEmail, page) {
-  return `dashboard_layout_${page}_${userEmail || 'guest'}`;
+  return `dashboard_layout_v2_${page}_${userEmail || 'guest'}`;
+}
+
+function buildLayout(widgets, saved) {
+  // saved = [{id, enabled}] ordered list
+  if (!saved || !Array.isArray(saved)) {
+    return widgets.map(w => ({ ...w, enabled: w.defaultOn }));
+  }
+  // Start with saved order, fill in missing new widgets at the end
+  const savedIds = saved.map(s => s.id);
+  const ordered = saved
+    .map(s => { const w = widgets.find(x => x.id === s.id); return w ? { ...w, enabled: s.enabled } : null; })
+    .filter(Boolean);
+  const newWidgets = widgets.filter(w => !savedIds.includes(w.id)).map(w => ({ ...w, enabled: w.defaultOn }));
+  return [...ordered, ...newWidgets];
 }
 
 export function useDashboardLayout(userEmail, page) {
@@ -51,40 +65,23 @@ export function useDashboardLayout(userEmail, page) {
   const [layout, setLayout] = useState(() => {
     try {
       const saved = localStorage.getItem(key);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        // merge with defaults to handle new widgets
-        return widgets.map(w => ({
-          ...w,
-          enabled: parsed[w.id] !== undefined ? parsed[w.id] : w.defaultOn,
-        }));
-      }
+      if (saved) return buildLayout(widgets, JSON.parse(saved));
     } catch {}
     return widgets.map(w => ({ ...w, enabled: w.defaultOn }));
   });
 
-  // re-load when user changes
   useEffect(() => {
     if (!userEmail) return;
-    const k = getStorageKey(userEmail, page);
     try {
-      const saved = localStorage.getItem(k);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        setLayout(widgets.map(w => ({
-          ...w,
-          enabled: parsed[w.id] !== undefined ? parsed[w.id] : w.defaultOn,
-        })));
-        return;
-      }
+      const saved = localStorage.getItem(getStorageKey(userEmail, page));
+      if (saved) { setLayout(buildLayout(widgets, JSON.parse(saved))); return; }
     } catch {}
     setLayout(widgets.map(w => ({ ...w, enabled: w.defaultOn })));
   }, [userEmail]);
 
   const saveLayout = (newLayout) => {
     setLayout(newLayout);
-    const toSave = {};
-    newLayout.forEach(w => { toSave[w.id] = w.enabled; });
+    const toSave = newLayout.map(w => ({ id: w.id, enabled: w.enabled }));
     localStorage.setItem(getStorageKey(userEmail, page), JSON.stringify(toSave));
   };
 
