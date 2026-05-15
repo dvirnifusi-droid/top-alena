@@ -4,7 +4,7 @@ import { DailyBrief } from '@/entities/DailyBrief';
 import { base44 } from '@/api/base44Client';
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Star, GraduationCap, CheckSquare, AlertTriangle, Calendar, CalendarDays, Utensils, Brain, Sparkles, FileText, Megaphone, Briefcase, MessageCircle, Camera, UserCircle, LogOut, ChevronDown, BookOpen } from 'lucide-react';
+import { Star, GraduationCap, CheckSquare, AlertTriangle, Calendar, CalendarDays, Utensils, Brain, Sparkles, FileText, Megaphone, Briefcase, MessageCircle, Camera, UserCircle, LogOut, ChevronDown, BookOpen, Settings2 } from 'lucide-react';
 import ShiftNotificationBell from '../components/shared/ShiftNotificationBell';
 import { Employee } from '@/entities/Employee';
 import { Link } from 'react-router-dom';
@@ -24,6 +24,8 @@ import DailyChallengeCard from '../components/gamification/DailyChallengeCard';
 import ConfettiEffect from '../components/gamification/ConfettiEffect';
 import StoriesBar from '../components/stories/StoriesBar';
 import MyAssignedTasks from '../components/checklists/MyAssignedTasks';
+import DashboardCustomizer from '../components/dashboard/DashboardCustomizer';
+import { useDashboardLayout } from '../hooks/useDashboardLayout';
 
 export default function EmployeeHome() {
     const [user, setUser] = useState(null);
@@ -36,7 +38,10 @@ export default function EmployeeHome() {
     const [confettiMsg, setConfettiMsg] = useState('');
     const [showSwitchUser, setShowSwitchUser] = useState(false);
     const [allEmployees, setAllEmployees] = useState([]);
+    const [showCustomizer, setShowCustomizer] = useState(false);
     const fileInputRef = useRef();
+
+    const { layout, saveLayout, isVisible } = useDashboardLayout(user?.email, 'employee');
 
     useEffect(() => {
         User.me().then(async u => {
@@ -61,16 +66,12 @@ export default function EmployeeHome() {
             const currentUser = await User.me();
             const today = format(new Date(), 'yyyy-MM-dd');
             const todayShifts = await base44.entities.WorkShift.filter({ date: today });
-            
             for (const shift of todayShifts) {
                 const assignment = (shift.assigned_staff || []).find(
-                    a => a.employee_name && currentUser.full_name && 
+                    a => a.employee_name && currentUser.full_name &&
                     a.employee_name.toLowerCase() === currentUser.full_name.toLowerCase()
                 );
-                if (assignment) {
-                    setTodayPosition(assignment.position);
-                    return;
-                }
+                if (assignment) { setTodayPosition(assignment.position); return; }
             }
         } catch (error) {
             console.error('Error loading today position:', error);
@@ -90,35 +91,142 @@ export default function EmployeeHome() {
     };
 
     const smartTools = [
-        {
-            component: InvoiceScanner,
-            title: "סריקת חשבוניות ספק",
-            description: "סרוק חשבונית ועדכן מלאי אוטומטית",
-            icon: FileText,
-            color: "from-blue-500 to-indigo-600"
-        },
-        {
-            component: ManualSurveyTool,
-            title: "שליחת סקר ללקוח",
-            description: "שלח סקר שביעות רצון בוואטסאפ",
-            icon: Star,
-            color: "from-green-500 to-emerald-600"
-        },
-        {
-            component: SeatingAiHelper,
-            title: "עוזר הושבה חכם",
-            description: "קבל המלצות הושבה מבוסס AI",
-            icon: Brain,
-            color: "from-blue-500 to-indigo-600"
-        },
-        {
-            component: AiQuickAdd,
-            title: "הוספת ידע לעוזר AI",
-            description: "הכנס מתכונים, נהלים ומידע חדש",
-            icon: Sparkles,
-            color: "from-purple-500 to-blue-600"
-        }
+        { component: InvoiceScanner, title: "סריקת חשבוניות ספק", description: "סרוק חשבונית ועדכן מלאי אוטומטית", icon: FileText, color: "from-blue-500 to-indigo-600" },
+        { component: ManualSurveyTool, title: "שליחת סקר ללקוח", description: "שלח סקר שביעות רצון בוואטסאפ", icon: Star, color: "from-green-500 to-emerald-600" },
+        { component: SeatingAiHelper, title: "עוזר הושבה חכם", description: "קבל המלצות הושבה מבוסס AI", icon: Brain, color: "from-blue-500 to-indigo-600" },
+        { component: AiQuickAdd, title: "הוספת ידע לעוזר AI", description: "הכנס מתכונים, נהלים ומידע חדש", icon: Sparkles, color: "from-purple-500 to-blue-600" }
     ];
+
+    // סדר הגאדג'טים לפי layout
+    const widgetOrder = layout.map(w => w.id);
+
+    const widgets = {
+        stories: isVisible('stories') && <StoriesBar key="stories" currentEmployee={currentEmployee} />,
+        daily_challenge: isVisible('daily_challenge') && currentEmployee && (
+            <div key="daily_challenge" className="mb-4">
+                <DailyChallengeCard
+                    employeeId={currentEmployee.id}
+                    employeeName={currentEmployee.full_name}
+                    onCoinsEarned={(amount, msg) => { setConfettiMsg(msg); setShowConfetti(true); }}
+                />
+            </div>
+        ),
+        shift_clock: isVisible('shift_clock') && <ShiftClockWidget key="shift_clock" />,
+        weekly_schedule: isVisible('weekly_schedule') && user && (
+            <WeeklyScheduleSummary key="weekly_schedule" userId={user.id} currentEmployee={currentEmployee} />
+        ),
+        assigned_tasks: isVisible('assigned_tasks') && currentEmployee && (
+            <MyAssignedTasks key="assigned_tasks" currentEmployee={currentEmployee} />
+        ),
+        daily_briefs: isVisible('daily_briefs') && todayBriefs.length > 0 && (
+            <div key="daily_briefs" className="mb-6 space-y-3">
+                <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                    <Megaphone className="w-5 h-5 text-orange-500" />
+                    תדריכי היום
+                </h2>
+                {todayBriefs.map(brief => {
+                    const isRead = brief.read_by?.includes(user?.id);
+                    return (
+                        <Card
+                            key={brief.id}
+                            className={`cursor-pointer transition-all border-2 hover:shadow-md ${isRead ? 'border-green-200 bg-green-50' : 'border-orange-200 bg-orange-50 animate-pulse-slow'}`}
+                            onClick={() => setSelectedBrief(brief)}
+                        >
+                            <CardContent className="p-4 flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-xl flex-shrink-0 ${isRead ? 'bg-green-100' : 'bg-orange-100'}`}>
+                                        {brief.shift_type === 'lunch' ? '☀️' : '🌙'}
+                                    </div>
+                                    <div>
+                                        <p className="font-bold text-gray-800">תדריך {brief.shift_type === 'lunch' ? 'צהריים' : 'ערב'}</p>
+                                        <p className="text-xs text-gray-500">מנהל/ת: {brief.created_by_name}</p>
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    {isRead
+                                        ? <Badge className="bg-green-500 text-white text-xs">✅ קראתי</Badge>
+                                        : <Badge className="bg-orange-500 text-white text-xs animate-bounce">📣 חדש!</Badge>
+                                    }
+                                </div>
+                            </CardContent>
+                        </Card>
+                    );
+                })}
+            </div>
+        ),
+        delivery_button: isVisible('delivery_button') && (
+            <div key="delivery_button" className="mb-4">
+                <Link to={createPageUrl("Deliveries") + "?autoScan=1"}>
+                    <button className="w-full bg-primary text-primary-foreground rounded-2xl py-5 flex flex-col items-center justify-center gap-2 shadow-lg active:scale-95 transition-transform hover:opacity-90">
+                        <Camera className="w-10 h-10" />
+                        <span className="text-xl font-bold">הכנס משלוח</span>
+                    </button>
+                </Link>
+            </div>
+        ),
+        smart_tools: isVisible('smart_tools') && (
+            <div key="smart_tools" className="mb-8">
+                <Card
+                    className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white cursor-pointer hover:shadow-xl transition-all duration-300 transform hover:scale-105"
+                    onClick={() => setShowSmartTools(true)}
+                >
+                    <CardContent className="p-6">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <h3 className="text-xl font-bold mb-2 flex items-center gap-2">
+                                    <Brain className="w-6 h-6" />
+                                    🤖 כלי עבודה חכמים
+                                </h3>
+                                <p className="text-indigo-100 mb-4">כלים מבוססי AI לחיסכון בזמן ושיפור היעילות</p>
+                                <div className="flex items-center gap-2">
+                                    <Badge variant="secondary" className="bg-white/20 text-white">{smartTools.length} כלים</Badge>
+                                    <Badge variant="secondary" className="bg-white/20 text-white">זמין עבורך!</Badge>
+                                </div>
+                            </div>
+                            <div className="flex flex-col items-center">
+                                <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center mb-2">
+                                    <Sparkles className="w-8 h-8" />
+                                </div>
+                                <span className="text-sm">לחץ לפתיחה</span>
+                            </div>
+                        </div>
+                    </CardContent>
+                </Card>
+            </div>
+        ),
+        quick_access: isVisible('quick_access') && (
+            <div key="quick_access" className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                {[
+                    { to: createPageUrl("Training"), icon: GraduationCap, color: "from-blue-500 to-blue-600", title: "הכשרות ואימונים", desc: "קורסים ומשחקים לשיפור הביצועים" },
+                    { to: createPageUrl("Checklists"), icon: CheckSquare, color: "from-green-500 to-green-600", title: "צ'קליסטים", desc: "בדיקות יומיות ומשימות" },
+                    { to: createPageUrl("Incidents"), icon: AlertTriangle, color: "from-orange-500 to-orange-600", title: "דיווח תקריות", desc: "דיווח מהיר על בעיות" },
+                    { to: createPageUrl("Leaderboard"), icon: Star, color: "from-purple-500 to-purple-600", title: "לוח מובילים", desc: "הישגים ונקודות" },
+                    { to: createPageUrl("WorkScheduling"), icon: Calendar, color: "from-cyan-500 to-cyan-600", title: "סידור העבודה", desc: "המשמרות שלך השבוע" },
+                    { to: createPageUrl("WaiterTables"), icon: Utensils, color: "from-pink-500 to-pink-600", title: "השולחנות שלי", desc: "ניהול שולחנות במשמרת" },
+                    { to: createPageUrl("MyPerformance"), icon: Star, color: "from-amber-500 to-amber-600", title: "הביצועים שלי", desc: "נתונים ודירוגים" },
+                    { to: createPageUrl("ShiftEndReport"), icon: CheckSquare, color: "from-teal-500 to-teal-600", title: "דוח סיום משמרת", desc: "סיכום המשמרת" },
+                    { to: createPageUrl("EmployeeReports"), icon: FileText, color: "from-red-500 to-rose-600", title: "דוחות עובדים", desc: "שעות, טיפים וביצועים" },
+                    { to: createPageUrl("LeaveRequests"), icon: CalendarDays, color: "from-blue-400 to-blue-600", title: "בקשות חופשה", desc: "הגש בקשת חופשה או מחלה" },
+                    { to: createPageUrl("ShiftChat"), icon: MessageCircle, color: "from-indigo-500 to-violet-600", title: "צ'אט משמרת", desc: "תקשורת פנימית לצוות" },
+                    { to: "/UserGuide", icon: BookOpen, color: "from-green-500 to-emerald-600", title: "מדריך שימוש", desc: "הסברים וסרטוני הדרכה", special: true },
+                ].map((item) => (
+                    <Link key={item.to} to={item.to}>
+                        <Card className={`hover:shadow-lg transition-shadow cursor-pointer h-full ${item.special ? 'border-2 border-green-200 bg-green-50' : ''}`}>
+                            <CardContent className="p-6">
+                                <div className="flex flex-col items-center text-center">
+                                    <div className={`w-12 h-12 bg-gradient-to-br ${item.color} rounded-lg flex items-center justify-center mb-3`}>
+                                        <item.icon className="w-6 h-6 text-white" />
+                                    </div>
+                                    <h3 className="font-semibold text-lg mb-2">{item.title}</h3>
+                                    <p className="text-sm text-gray-600">{item.desc}</p>
+                                </div>
+                            </CardContent>
+                        </Card>
+                    </Link>
+                ))}
+            </div>
+        ),
+    };
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-6" dir="rtl">
@@ -128,11 +236,7 @@ export default function EmployeeHome() {
                     <div className="flex items-start justify-between">
                         <div className="flex items-start gap-4">
                             {currentEmployee?.avatar_url && (
-                                <img 
-                                    src={currentEmployee.avatar_url} 
-                                    alt="avatar" 
-                                    className="w-16 h-16 rounded-full object-cover border-2 border-indigo-500 shadow-lg flex-shrink-0"
-                                />
+                                <img src={currentEmployee.avatar_url} alt="avatar" className="w-16 h-16 rounded-full object-cover border-2 border-indigo-500 shadow-lg flex-shrink-0" />
                             )}
                             <div>
                                 <h1 className="text-3xl font-bold text-slate-900 mb-2">
@@ -160,289 +264,22 @@ export default function EmployeeHome() {
                         <div className="flex items-center gap-3">
                             {currentEmployee && <CoinWidget employeeId={currentEmployee.id} employeeName={currentEmployee.full_name} />}
                             <ShiftNotificationBell currentEmployee={currentEmployee} isManager={false} />
+                            <button
+                                onClick={() => setShowCustomizer(true)}
+                                className="flex items-center gap-1.5 bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-600 hover:bg-slate-50 shadow-sm"
+                            >
+                                <Settings2 className="w-4 h-4" />
+                                <span className="hidden sm:inline">ערוך דשבורד</span>
+                            </button>
                         </div>
                     </div>
                 </div>
 
                 <ConfettiEffect trigger={showConfetti} message={confettiMsg} emoji="🎉" onDone={() => setShowConfetti(false)} />
 
-                {/* סטוריז */}
-                <StoriesBar currentEmployee={currentEmployee} />
-
-                {/* אתגר יומי */}
-                {currentEmployee && (
-                    <div className="mb-4">
-                        <DailyChallengeCard
-                            employeeId={currentEmployee.id}
-                            employeeName={currentEmployee.full_name}
-                            onCoinsEarned={(amount, msg) => { setConfettiMsg(msg); setShowConfetti(true); }}
-                        />
-                    </div>
-                )}
-
-                {/* שעון משמרת */}
-                <ShiftClockWidget />
-
-                {/* סידור עבודה שבועי */}
-                {user && <WeeklyScheduleSummary userId={user.id} currentEmployee={currentEmployee} />}
-
-                {/* משימות משויכות */}
-                {currentEmployee && <MyAssignedTasks currentEmployee={currentEmployee} />}
-
-                {/* תדריכי היום */}
-                {todayBriefs.length > 0 && (
-                    <div className="mb-6 space-y-3">
-                        <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
-                            <Megaphone className="w-5 h-5 text-orange-500" />
-                            תדריכי היום
-                        </h2>
-                        {todayBriefs.map(brief => {
-                            const isRead = brief.read_by?.includes(user?.id);
-                            return (
-                                <Card
-                                    key={brief.id}
-                                    className={`cursor-pointer transition-all border-2 hover:shadow-md ${isRead ? 'border-green-200 bg-green-50' : 'border-orange-200 bg-orange-50 animate-pulse-slow'}`}
-                                    onClick={() => setSelectedBrief(brief)}
-                                >
-                                    <CardContent className="p-4 flex items-center justify-between">
-                                        <div className="flex items-center gap-3">
-                                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-xl flex-shrink-0 ${isRead ? 'bg-green-100' : 'bg-orange-100'}`}>
-                                                {brief.shift_type === 'lunch' ? '☀️' : '🌙'}
-                                            </div>
-                                            <div>
-                                                <p className="font-bold text-gray-800">תדריך {brief.shift_type === 'lunch' ? 'צהריים' : 'ערב'}</p>
-                                                <p className="text-xs text-gray-500">מנהל/ת: {brief.created_by_name}</p>
-                                            </div>
-                                        </div>
-                                        <div className="flex items-center gap-2">
-                                            {isRead ? (
-                                                <Badge className="bg-green-500 text-white text-xs">✅ קראתי</Badge>
-                                            ) : (
-                                                <Badge className="bg-orange-500 text-white text-xs animate-bounce">📣 חדש!</Badge>
-                                            )}
-                                        </div>
-                                    </CardContent>
-                                </Card>
-                            );
-                        })}
-                    </div>
-                )}
-
-                {/* כפתור הכנס משלוח */}
-                <div className="mb-4">
-                    <Link to={createPageUrl("Deliveries") + "?autoScan=1"}>
-                        <button className="w-full bg-primary text-primary-foreground rounded-2xl py-5 flex flex-col items-center justify-center gap-2 shadow-lg active:scale-95 transition-transform hover:opacity-90">
-                            <Camera className="w-10 h-10" />
-                            <span className="text-xl font-bold">הכנס משלוח</span>
-                        </button>
-                    </Link>
-                </div>
-
-                {/* כרטיס כלי עבודה חכמים */}
-                <div className="mb-8">
-                    <Card 
-                        className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white cursor-pointer hover:shadow-xl transition-all duration-300 transform hover:scale-105"
-                        onClick={() => setShowSmartTools(true)}
-                    >
-                        <CardContent className="p-6">
-                            <div className="flex items-center justify-between">
-                                <div>
-                                    <h3 className="text-xl font-bold mb-2 flex items-center gap-2">
-                                        <Brain className="w-6 h-6" />
-                                        🤖 כלי עבודה חכמים
-                                    </h3>
-                                    <p className="text-indigo-100 mb-4">
-                                        כלים מבוססי AI לחיסכון בזמן ושיפור היעילות
-                                    </p>
-                                    <div className="flex items-center gap-2">
-                                        <Badge variant="secondary" className="bg-white/20 text-white">
-                                            {smartTools.length} כלים
-                                        </Badge>
-                                        <Badge variant="secondary" className="bg-white/20 text-white">
-                                            זמין עבורך!
-                                        </Badge>
-                                    </div>
-                                </div>
-                                <div className="flex flex-col items-center">
-                                    <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center mb-2">
-                                        <Sparkles className="w-8 h-8" />
-                                    </div>
-                                    <span className="text-sm">לחץ לפתיחה</span>
-                                </div>
-                            </div>
-                        </CardContent>
-                    </Card>
-                </div>
-
-                {/* כרטיסי גישה מהירה */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                    <Link to={createPageUrl("Training")}>
-                        <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full">
-                            <CardContent className="p-6">
-                                <div className="flex flex-col items-center text-center">
-                                    <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg flex items-center justify-center mb-3">
-                                        <GraduationCap className="w-6 h-6 text-white" />
-                                    </div>
-                                    <h3 className="font-semibold text-lg mb-2">הכשרות ואימונים</h3>
-                                    <p className="text-sm text-gray-600">קורסים ומשחקים לשיפור הביצועים</p>
-                                </div>
-                            </CardContent>
-                        </Card>
-                    </Link>
-
-                    <Link to={createPageUrl("Checklists")}>
-                        <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full">
-                            <CardContent className="p-6">
-                                <div className="flex flex-col items-center text-center">
-                                    <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-green-600 rounded-lg flex items-center justify-center mb-3">
-                                        <CheckSquare className="w-6 h-6 text-white" />
-                                    </div>
-                                    <h3 className="font-semibold text-lg mb-2">צ'קליסטים</h3>
-                                    <p className="text-sm text-gray-600">בדיקות יומיות ומשימות</p>
-                                </div>
-                            </CardContent>
-                        </Card>
-                    </Link>
-
-                    <Link to={createPageUrl("Incidents")}>
-                        <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full">
-                            <CardContent className="p-6">
-                                <div className="flex flex-col items-center text-center">
-                                    <div className="w-12 h-12 bg-gradient-to-br from-orange-500 to-orange-600 rounded-lg flex items-center justify-center mb-3">
-                                        <AlertTriangle className="w-6 h-6 text-white" />
-                                    </div>
-                                    <h3 className="font-semibold text-lg mb-2">דיווח תקריות</h3>
-                                    <p className="text-sm text-gray-600">דיווח מהיר על בעיות</p>
-                                </div>
-                            </CardContent>
-                        </Card>
-                    </Link>
-
-                    <Link to={createPageUrl("Leaderboard")}>
-                        <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full">
-                            <CardContent className="p-6">
-                                <div className="flex flex-col items-center text-center">
-                                    <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-purple-600 rounded-lg flex items-center justify-center mb-3">
-                                        <Star className="w-6 h-6 text-white" />
-                                    </div>
-                                    <h3 className="font-semibold text-lg mb-2">לוח מובילים</h3>
-                                    <p className="text-sm text-gray-600">הישגים ונקודות</p>
-                                </div>
-                            </CardContent>
-                        </Card>
-                    </Link>
-
-                    <Link to={createPageUrl("WorkScheduling")}>
-                        <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full">
-                            <CardContent className="p-6">
-                                <div className="flex flex-col items-center text-center">
-                                    <div className="w-12 h-12 bg-gradient-to-br from-cyan-500 to-cyan-600 rounded-lg flex items-center justify-center mb-3">
-                                        <Calendar className="w-6 h-6 text-white" />
-                                    </div>
-                                    <h3 className="font-semibold text-lg mb-2">סידור העבודה</h3>
-                                    <p className="text-sm text-gray-600">המשמרות שלך השבוע</p>
-                                </div>
-                            </CardContent>
-                        </Card>
-                    </Link>
-
-                    <Link to={createPageUrl("WaiterTables")}>
-                        <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full">
-                            <CardContent className="p-6">
-                                <div className="flex flex-col items-center text-center">
-                                    <div className="w-12 h-12 bg-gradient-to-br from-pink-500 to-pink-600 rounded-lg flex items-center justify-center mb-3">
-                                        <Utensils className="w-6 h-6 text-white" />
-                                    </div>
-                                    <h3 className="font-semibold text-lg mb-2">השולחנות שלי</h3>
-                                    <p className="text-sm text-gray-600">ניהול שולחנות במשמרת</p>
-                                </div>
-                            </CardContent>
-                        </Card>
-                    </Link>
-
-                    <Link to={createPageUrl("MyPerformance")}>
-                        <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full">
-                            <CardContent className="p-6">
-                                <div className="flex flex-col items-center text-center">
-                                    <div className="w-12 h-12 bg-gradient-to-br from-amber-500 to-amber-600 rounded-lg flex items-center justify-center mb-3">
-                                        <Star className="w-6 h-6 text-white" />
-                                    </div>
-                                    <h3 className="font-semibold text-lg mb-2">הביצועים שלי</h3>
-                                    <p className="text-sm text-gray-600">נתונים ודירוגים</p>
-                                </div>
-                            </CardContent>
-                        </Card>
-                    </Link>
-
-                    <Link to={createPageUrl("ShiftEndReport")}>
-                        <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full">
-                            <CardContent className="p-6">
-                                <div className="flex flex-col items-center text-center">
-                                    <div className="w-12 h-12 bg-gradient-to-br from-teal-500 to-teal-600 rounded-lg flex items-center justify-center mb-3">
-                                        <CheckSquare className="w-6 h-6 text-white" />
-                                    </div>
-                                    <h3 className="font-semibold text-lg mb-2">דוח סיום משמרת</h3>
-                                    <p className="text-sm text-gray-600">סיכום המשמרת</p>
-                                </div>
-                            </CardContent>
-                        </Card>
-                    </Link>
-
-                    <Link to={createPageUrl("EmployeeReports")}>
-                        <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full">
-                            <CardContent className="p-6">
-                                <div className="flex flex-col items-center text-center">
-                                    <div className="w-12 h-12 bg-gradient-to-br from-red-500 to-rose-600 rounded-lg flex items-center justify-center mb-3">
-                                        <FileText className="w-6 h-6 text-white" />
-                                    </div>
-                                    <h3 className="font-semibold text-lg mb-2">דוחות עובדים</h3>
-                                    <p className="text-sm text-gray-600">שעות, טיפים וביצועים</p>
-                                </div>
-                            </CardContent>
-                        </Card>
-                    </Link>
-
-                    <Link to={createPageUrl("LeaveRequests")}>
-                        <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full">
-                            <CardContent className="p-6">
-                                <div className="flex flex-col items-center text-center">
-                                    <div className="w-12 h-12 bg-gradient-to-br from-blue-400 to-blue-600 rounded-lg flex items-center justify-center mb-3">
-                                        <CalendarDays className="w-6 h-6 text-white" />
-                                    </div>
-                                    <h3 className="font-semibold text-lg mb-2">בקשות חופשה</h3>
-                                    <p className="text-sm text-gray-600">הגש בקשת חופשה או מחלה</p>
-                                </div>
-                            </CardContent>
-                        </Card>
-                    </Link>
-
-                    <Link to={createPageUrl("ShiftChat")}>
-                        <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full">
-                            <CardContent className="p-6">
-                                <div className="flex flex-col items-center text-center">
-                                    <div className="w-12 h-12 bg-gradient-to-br from-indigo-500 to-violet-600 rounded-lg flex items-center justify-center mb-3">
-                                        <MessageCircle className="w-6 h-6 text-white" />
-                                    </div>
-                                    <h3 className="font-semibold text-lg mb-2">צ'אט משמרת</h3>
-                                    <p className="text-sm text-gray-600">תקשורת פנימית לצוות</p>
-                                </div>
-                            </CardContent>
-                        </Card>
-                    </Link>
-
-                    <Link to="/UserGuide">
-                        <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full border-2 border-green-200 bg-green-50">
-                            <CardContent className="p-6">
-                                <div className="flex flex-col items-center text-center">
-                                    <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-emerald-600 rounded-lg flex items-center justify-center mb-3">
-                                        <BookOpen className="w-6 h-6 text-white" />
-                                    </div>
-                                    <h3 className="font-semibold text-lg mb-2">מדריך שימוש</h3>
-                                    <p className="text-sm text-gray-600">הסברים וסרטוני הדרכה</p>
-                                </div>
-                            </CardContent>
-                        </Card>
-                    </Link>
+                {/* גאדג'טים לפי סדר המשתמש */}
+                <div className="space-y-0">
+                    {widgetOrder.map(id => widgets[id] || null)}
                 </div>
             </div>
 
@@ -465,7 +302,6 @@ export default function EmployeeHome() {
                         <DialogTitle className="text-center text-lg">החלפת משתמש</DialogTitle>
                     </DialogHeader>
                     <div className="space-y-4 p-2">
-                        {/* המשתמש הנוכחי */}
                         <div className="bg-slate-50 rounded-xl p-3 border-2 border-indigo-200">
                             <p className="text-xs text-slate-500 mb-1">מחובר כרגע:</p>
                             <div className="flex items-center gap-2">
@@ -478,8 +314,6 @@ export default function EmployeeHome() {
                                 </div>
                             </div>
                         </div>
-
-                        {/* כפתור התחברות עם Google */}
                         <button
                             onClick={() => base44.auth.redirectToLogin()}
                             className="w-full flex items-center justify-center gap-2 bg-white border-2 border-blue-300 text-blue-700 rounded-xl py-3 font-bold hover:bg-blue-50 transition-colors shadow-sm"
@@ -487,8 +321,6 @@ export default function EmployeeHome() {
                             <img src="https://www.google.com/favicon.ico" alt="Google" className="w-4 h-4" />
                             התחבר עם חשבון Google
                         </button>
-
-                        {/* כפתור התנתקות */}
                         <button
                             onClick={() => { base44.auth.logout(); }}
                             className="w-full flex items-center justify-center gap-2 bg-red-50 border border-red-200 text-red-600 rounded-xl py-3 font-bold hover:bg-red-100 transition-colors"
@@ -496,22 +328,15 @@ export default function EmployeeHome() {
                             <LogOut className="w-4 h-4" />
                             התנתק והתחבר עם חשבון אחר
                         </button>
-
                         <div className="relative">
                             <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-slate-200" /></div>
                             <div className="relative flex justify-center text-xs text-slate-400 bg-white px-2">או בחר עובד קיים</div>
                         </div>
-
-                        {/* רשימת עובדים */}
                         <div className="space-y-2 max-h-60 overflow-y-auto">
-                            {allEmployees
-                                .filter(e => e.email && e.email !== user?.email)
-                                .map(emp => (
+                            {allEmployees.filter(e => e.email && e.email !== user?.email).map(emp => (
                                 <button
                                     key={emp.id}
-                                    onClick={() => {
-                                        base44.auth.logout();
-                                    }}
+                                    onClick={() => base44.auth.logout()}
                                     className="w-full flex items-center gap-3 p-3 rounded-xl border border-slate-200 hover:bg-slate-50 text-right transition-colors"
                                 >
                                     <div className="w-9 h-9 bg-gradient-to-br from-slate-400 to-slate-600 rounded-full flex items-center justify-center flex-shrink-0">
@@ -537,22 +362,24 @@ export default function EmployeeHome() {
             <Dialog open={showSmartTools} onOpenChange={setShowSmartTools}>
                 <DialogContent className="max-w-7xl max-h-[90vh] overflow-y-auto" dir="rtl">
                     <DialogHeader>
-                        <DialogTitle className="text-2xl text-center mb-4">
-                            🤖 כלי עבודה חכמים - פתרונות AI למסעדה
-                        </DialogTitle>
+                        <DialogTitle className="text-2xl text-center mb-4">🤖 כלי עבודה חכמים - פתרונות AI למסעדה</DialogTitle>
                     </DialogHeader>
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 p-4">
                         {smartTools.map((tool, index) => {
                             const ToolComponent = tool.component;
-                            return (
-                                <div key={index}>
-                                    <ToolComponent />
-                                </div>
-                            );
+                            return <div key={index}><ToolComponent /></div>;
                         })}
                     </div>
                 </DialogContent>
             </Dialog>
+
+            {/* דשבורד קסטומייזר */}
+            <DashboardCustomizer
+                open={showCustomizer}
+                onClose={() => setShowCustomizer(false)}
+                layout={layout}
+                onSave={saveLayout}
+            />
         </div>
     );
 }
