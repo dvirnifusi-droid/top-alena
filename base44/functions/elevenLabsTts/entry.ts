@@ -1,6 +1,6 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 
-const VOICE_ID = 'EunIQV7gPraNldqMcafo'; // דביר - Hebrew voice
+const VOICE_ID = 'pFZP5JQG7iQjIQuC4Bym'; // Base44 Hebrew - stable voice
 
 Deno.serve(async (req) => {
     try {
@@ -32,12 +32,10 @@ Deno.serve(async (req) => {
             },
             body: JSON.stringify({
                 text: clean,
-                model_id: 'eleven_v3',
+                model_id: 'eleven_multilingual_v2',
                 voice_settings: {
-                    stability: 0.75,
-                    similarity_boost: 0.85,
-                    style: 0.2,
-                    use_speaker_boost: true,
+                    stability: 0.5,
+                    similarity_boost: 0.75,
                 }
             })
         });
