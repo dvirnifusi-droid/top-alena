@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -6,6 +6,7 @@ import {
   MessageSquare, AlertTriangle, Package, ChevronDown, ChevronUp,
   Play, BookOpen, Crown, Utensils, Clock, Star
 } from "lucide-react";
+import { base44 } from "@/api/base44Client";
 
 const sections = [
   {
@@ -266,10 +267,30 @@ const Section = ({ section, isAdmin, videoUrls, onSaveVideo }) => {
 export default function UserGuide() {
   const [filter, setFilter] = useState("הכל");
   const [videoUrls, setVideoUrls] = useState({});
-  const [isAdmin] = useState(() => {
-    // Simple check — in real app use auth
-    return true;
-  });
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [videoRecords, setVideoRecords] = useState({}); // sectionId -> record id
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const user = await base44.auth.me();
+        setIsAdmin(user?.role === 'admin');
+      } catch {}
+
+      try {
+        const records = await base44.entities.TrainingVideo.filter({ category: "user_guide" });
+        const urls = {};
+        const ids = {};
+        records.forEach(r => {
+          urls[r.title] = r.video_url;
+          ids[r.title] = r.id;
+        });
+        setVideoUrls(urls);
+        setVideoRecords(ids);
+      } catch {}
+    };
+    load();
+  }, []);
 
   const filters = ["הכל", "מנהל", "עובד"];
 
@@ -277,8 +298,23 @@ export default function UserGuide() {
     filter === "הכל" || s.audience.includes(filter)
   );
 
-  const handleSaveVideo = (sectionId, url) => {
+  const handleSaveVideo = async (sectionId, url) => {
     setVideoUrls(prev => ({ ...prev, [sectionId]: url }));
+    try {
+      if (videoRecords[sectionId]) {
+        await base44.entities.TrainingVideo.update(videoRecords[sectionId], { video_url: url });
+      } else {
+        const created = await base44.entities.TrainingVideo.create({
+          title: sectionId,
+          category: "user_guide",
+          video_url: url,
+          is_active: true
+        });
+        setVideoRecords(prev => ({ ...prev, [sectionId]: created.id }));
+      }
+    } catch (e) {
+      console.error("Failed to save video:", e);
+    }
   };
 
   return (
