@@ -37,6 +37,9 @@ export default function AiChatWidget() {
     const [ttsEnabled, setTtsEnabled] = useState(true);
     const [isSpeaking, setIsSpeaking] = useState(false);
     const [loadingAudioId, setLoadingAudioId] = useState(null);
+    const [audioLoadStart, setAudioLoadStart] = useState(null);
+    const [audioLoadElapsed, setAudioLoadElapsed] = useState(0);
+    const audioTimerRef = useRef(null);
     const [trainingMode, setTrainingMode] = useState(false);
     const [coveredDishes, setCoveredDishes] = useState([]);
     const [showProgress, setShowProgress] = useState(false);
@@ -52,7 +55,7 @@ export default function AiChatWidget() {
         .replace(/\n+/g, '. ')
         .replace(/\s{2,}/g, ' ')
         .trim()
-        .slice(0, 500);
+        .slice(0, 2500);
 
     const base64ToObjUrl = (base64) => {
         const binary = atob(base64);
@@ -81,6 +84,17 @@ export default function AiChatWidget() {
         if (!clean) return;
 
         setLoadingAudioId(messageId || null);
+        setAudioLoadStart(Date.now());
+        setAudioLoadElapsed(0);
+        audioTimerRef.current = setInterval(() => {
+            setAudioLoadElapsed(Math.round((Date.now() - Date.now()) / 1000)); // placeholder updated below
+        }, 500);
+        // Use a closure-friendly approach
+        const startTime = Date.now();
+        if (audioTimerRef.current) clearInterval(audioTimerRef.current);
+        audioTimerRef.current = setInterval(() => {
+            setAudioLoadElapsed(Math.round((Date.now() - startTime) / 1000));
+        }, 500);
         setIsSpeaking(false);
         try {
             let objUrl = messageId && audioCacheRef.current[messageId];
@@ -91,7 +105,9 @@ export default function AiChatWidget() {
                 objUrl = base64ToObjUrl(base64);
                 if (messageId) audioCacheRef.current[messageId] = objUrl;
             }
+            clearInterval(audioTimerRef.current);
             setLoadingAudioId(null);
+            setAudioLoadElapsed(0);
             setIsSpeaking(true);
             const audio = new Audio(objUrl);
             currentAudioRef.current = audio;
@@ -100,7 +116,9 @@ export default function AiChatWidget() {
             await audio.play();
         } catch (e) {
             console.error('TTS error:', e);
+            clearInterval(audioTimerRef.current);
             setLoadingAudioId(null);
+            setAudioLoadElapsed(0);
             setIsSpeaking(false);
         }
     };
@@ -645,7 +663,10 @@ export default function AiChatWidget() {
                                                     disabled={loadingAudioId === message.id}
                                                 >
                                                     {loadingAudioId === message.id ? (
-                                                        <div className="h-3 w-3 sm:h-4 sm:w-4 border-2 border-orange-400 border-t-transparent rounded-full animate-spin" />
+                                                       <div className="flex items-center gap-1">
+                                                           <div className="h-3 w-3 sm:h-4 sm:w-4 border-2 border-orange-400 border-t-transparent rounded-full animate-spin" />
+                                                           <span className="text-xs text-orange-500">{audioLoadElapsed}ש'</span>
+                                                       </div>
                                                     ) : (
                                                         <Volume2 className="h-3 w-3 sm:h-4 sm:w-4 text-orange-500"/>
                                                     )}
@@ -694,6 +715,12 @@ export default function AiChatWidget() {
                                     <Send className="h-3 w-3 sm:h-4 sm:w-4" />
                                 </Button>
                             </form>
+                            {loadingAudioId && (
+                                <div className="flex items-center gap-2 mt-2 text-xs text-amber-600">
+                                    <div className="h-3 w-3 border-2 border-amber-500 border-t-transparent rounded-full animate-spin" />
+                                    <span>טוען קול... ({audioLoadElapsed} שניות)</span>
+                                </div>
+                            )}
                             {isSpeaking && (
                                 <div className="flex items-center gap-2 mt-2 text-xs text-orange-600">
                                     <Volume2 className="h-3 w-3 animate-pulse" />

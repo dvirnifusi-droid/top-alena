@@ -19,7 +19,7 @@ Deno.serve(async (req) => {
         return Response.json({ error: 'ELEVENLABS_API_KEY not set' }, { status: 500 });
     }
 
-    const clean = text.replace(/[*_#`~]/g, '').replace(/\n+/g, ' ').trim().slice(0, 500);
+    const clean = text.replace(/[*_#`~]/g, '').replace(/\n+/g, ' ').trim().slice(0, 2500);
 
     const res = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${VOICE_ID}`, {
         method: 'POST',
