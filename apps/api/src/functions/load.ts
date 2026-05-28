@@ -5,7 +5,7 @@
  * Functions marked TODO are stubs that need their original logic ported.
  */
 import { prisma } from '../db.js';
-import { registerFn } from './index.js';
+import { registerFn, functionHandlers } from './index.js';
 import { sendSms } from '../lib/twilio.js';
 import { pushover, pushoverToAdmins } from '../lib/pushover.js';
 import { sendTelegramMessage } from '../lib/telegram.js';
@@ -603,3 +603,123 @@ const driveStub = (name: string) => {
 };
 driveStub('getDriveImageUrl');
 driveStub('getDriveImages');
+
+/* ----- Public reservation flow (no auth; never returns other customers' PII) ----- */
+
+const RES_MAX_PER_SLOT = 36;
+const seatingDuration = (size: number) => (size >= 9 ? 165 : size >= 6 ? 150 : 120);
+const toMin = (t: string) => {
+  const [h, m] = String(t).split(':').map(Number);
+  return h * 60 + m;
+};
+
+// Public: restaurant reservation settings (config only — not PII).
+registerFn('getReservationSettings', async () => {
+  const s = await db.reservationSettings.findFirst();
+  return s ?? null;
+}, { public: true });
+
+// Public: check capacity + find an available table. Returns aggregate counts
+// and a single available table number — never any customer details.
+registerFn('searchReservationTable', async ({ body }) => {
+  const { date, time, party_size } = body as any;
+  if (!date || !time || !party_size) throw new Error('date, time, party_size required');
+  const size = parseInt(party_size);
+  const startMin = toMin(time);
+  const endMin = startMin + seatingDuration(size);
+
+  const reservations = await db.reservation.findMany({ where: { date } });
+  const active = (r: any) => r.status !== 'cancelled' && r.status !== 'no_show';
+
+  // Capacity within the 15-min slot
+  const slotCount = reservations
+    .filter((r: any) => active(r) && r.time && toMin(r.time) >= startMin && toMin(r.time) < startMin + 15)
+    .reduce((sum: number, r: any) => sum + (r.party_size || 0), 0);
+  const canAccommodate = slotCount + size <= RES_MAX_PER_SLOT;
+
+  let table: any = null;
+  if (canAccommodate) {
+    const layout = await db.seatingLayout.findFirst();
+    const tables: any[] = layout?.tables ?? [];
+    const activeSessions = await db.tableSession.findMany({ where: { status: 'active' } });
+    const occupied = new Set(activeSessions.map((s: any) => s.table_number));
+
+    const free = tables.filter((t: any) => {
+      if (occupied.has(t.table_number)) return false;
+      const conflicts = reservations.filter((r: any) => {
+        if (!active(r) || !r.assigned_table || !r.time) return false;
+        const at = Array.isArray(r.assigned_table) ? r.assigned_table : [r.assigned_table];
+        if (!at.includes(t.table_number)) return false;
+        const rs = toMin(r.time);
+        const re = rs + seatingDuration(r.party_size || 2);
+        return startMin < re && endMin > rs;
+      });
+      return conflicts.length === 0;
+    });
+    const fit = free.find((t: any) => t.min_capacity <= size && t.max_capacity >= size);
+    if (fit) table = { table_number: fit.table_number };
+  }
+
+  return {
+    canAccommodate,
+    currentCapacity: slotCount,
+    availableCapacity: Math.max(0, RES_MAX_PER_SLOT - slotCount),
+    table,
+  };
+}, { public: true });
+
+// Public: create a reservation. Re-validates server-side, upserts the customer
+// by phone, returns only a confirmation id.
+registerFn('createPublicReservation', async ({ body }) => {
+  const {
+    customer_name, customer_phone, date, time, party_size,
+    special_requests, special_occasion,
+  } = body as any;
+  if (!customer_name || !customer_phone || !date || !time || !party_size) {
+    throw new Error('missing_required_fields');
+  }
+  const size = parseInt(party_size);
+
+  // Re-find a table server-side (don't trust client).
+  const avail: any = await (functionHandlers['searchReservationTable'] as any)({
+    body: { date, time, party_size: size }, user: null, req: undefined,
+  });
+  if (!avail.canAccommodate || !avail.table) {
+    return { success: false, reason: 'no_availability' };
+  }
+
+  const endMin = toMin(time) + seatingDuration(size);
+  const end_time = `${String(Math.floor(endMin / 60) % 24).padStart(2, '0')}:${String(endMin % 60).padStart(2, '0')}`;
+
+  const reservation = await db.reservation.create({
+    data: {
+      customer_name: String(customer_name).trim(),
+      customer_phone: String(customer_phone).trim(),
+      date, time,
+      party_size: size,
+      status: 'confirmed',
+      special_requests: special_requests || null,
+      special_occasion: special_occasion || null,
+      reservation_end_time: end_time,
+      assigned_table: [avail.table.table_number],
+    },
+  });
+
+  // Upsert the customer club record by phone.
+  try {
+    const phone = String(customer_phone).trim();
+    const existing = await db.customer.findFirst({ where: { phone } });
+    if (existing) {
+      await db.customer.update({
+        where: { id: existing.id },
+        data: { last_visit: date, visit_count: (existing.visit_count ?? 0) + 1, name: existing.name ?? customer_name },
+      });
+    } else {
+      await db.customer.create({ data: { phone, name: customer_name, visit_count: 1, last_visit: date } });
+    }
+  } catch (e) {
+    console.warn('[createPublicReservation] customer upsert failed', e);
+  }
+
+  return { success: true, reservation_id: reservation.id, table_number: avail.table.table_number };
+}, { public: true });

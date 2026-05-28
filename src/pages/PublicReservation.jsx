@@ -8,35 +8,9 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Reservation } from '@/entities/Reservation';
-import { Customer } from '@/entities/Customer';
-import { SeatingLayout } from '@/entities/SeatingLayout';
-import { TableSession } from '@/entities/TableSession';
-import { ReservationSettings } from '@/entities/ReservationSettings'; // Added import for ReservationSettings
+import { invokePublic } from '@/lib/publicFetch';
 import { format, addMinutes, parse } from 'date-fns';
 import { Calendar, Clock, Users, Send, Loader2, AlertCircle, CheckCircle, PartyPopper, Search, Phone, Mail, MapPin, Utensils } from 'lucide-react'; // Added Phone, Mail, MapPin, Utensils icons
-
-const updateCustomerClub = async (phone, name, visitDate) => {
-    try {
-        const existingCustomers = await Customer.filter({ phone });
-        if (existingCustomers.length > 0) {
-            const customer = existingCustomers[0];
-            await Customer.update(customer.id, {
-                total_visits: (customer.total_visits || 0) + 1,
-                last_visit: visitDate,
-            });
-        } else {
-            await Customer.create({
-                phone, name,
-                total_visits: 1,
-                last_visit: visitDate,
-                is_new: true,
-            });
-        }
-    } catch (error) {
-        console.error("Failed to update customer club:", error);
-    }
-};
 
 const getOpeningHours = (selectedDate) => {
     const dayOfWeek = new Date(selectedDate).getDay();
@@ -85,89 +59,6 @@ const generateTimeSlots = (startTime, endTime) => {
     }
     
     return slots;
-};
-
-// Check capacity for time slot (36 people max per quarter hour)
-const checkTimeSlotCapacity = async (date, time, partySize, excludeReservationId = null) => {
-    try {
-        const dateString = format(date, 'yyyy-MM-dd');
-        const existingReservations = await Reservation.filter({ date: dateString });
-        
-        // Calculate time slot range (15 minutes)
-        const selectedTime = parse(`${dateString} ${time}`, 'yyyy-MM-dd HH:mm', new Date());
-        const slotStart = selectedTime;
-        const slotEnd = addMinutes(selectedTime, 15);
-        
-        // Find all reservations in this time slot
-        const overlappingReservations = existingReservations.filter(r => {
-            if (excludeReservationId && r.id === excludeReservationId) return false;
-            if (r.status === 'cancelled' || r.status === 'no_show') return false;
-            
-            const resTime = parse(`${r.date} ${r.time}`, 'yyyy-MM-dd HH:mm', new Date());
-            return resTime >= slotStart && resTime < slotEnd;
-        });
-        
-        const currentCapacity = overlappingReservations.reduce((sum, r) => sum + (r.party_size || 0), 0);
-        return {
-            currentCapacity,
-            availableCapacity: Math.max(0, 36 - currentCapacity),
-            canAccommodate: (currentCapacity + partySize) <= 36
-        };
-    } catch (error) {
-        console.error('Error checking time slot capacity:', error);
-        return { currentCapacity: 0, availableCapacity: 36, canAccommodate: true };
-    }
-};
-
-// Find available table - improved to check actual table sessions
-const findAvailableTable = async (date, time, partySize) => {
-    try {
-        const dateString = format(date, 'yyyy-MM-dd');
-        const reservationStartTime = parse(`${dateString} ${time}`, 'yyyy-MM-dd HH:mm', new Date());
-        const duration = getSeatingDuration(partySize);
-        const reservationEndTime = addMinutes(reservationStartTime, duration);
-
-        const [layouts, activeSessions, existingReservations] = await Promise.all([
-            SeatingLayout.list(),
-            TableSession.filter({ status: 'active' }),
-            Reservation.filter({ date: dateString })
-        ]);
-
-        if (!layouts || layouts.length === 0) return null;
-        
-        const allTables = layouts[0].tables;
-        
-        // Tables occupied by active sessions (immediate physical occupation)
-        const occupiedBySession = activeSessions.map(s => s.table_number);
-        
-        let availableTables = allTables.filter(t => !occupiedBySession.includes(t.table_number));
-
-        // Check for reservation conflicts
-        availableTables = availableTables.filter(table => {
-            const reservationsForTable = existingReservations.filter(r => {
-                if (!r.assigned_table || r.assigned_table.length === 0) return false;
-                if (r.status === 'cancelled' || r.status === 'no_show') return false;
-                
-                const assignedTables = Array.isArray(r.assigned_table) ? r.assigned_table : [r.assigned_table];
-                return assignedTables.includes(table.table_number);
-            });
-
-            for (const res of reservationsForTable) {
-                const resStart = parse(`${res.date} ${res.time}`, 'yyyy-MM-dd HH:mm', new Date());
-                const resEnd = addMinutes(resStart, getSeatingDuration(res.party_size));
-                if ((reservationStartTime < resEnd) && (reservationEndTime > resStart)) {
-                    return false; // Time conflict
-                }
-            }
-            return true;
-        });
-
-        // Find perfect fit table
-        return availableTables.find(t => t.min_capacity <= partySize && t.max_capacity >= partySize) || null;
-    } catch (error) {
-        console.error('Error finding table:', error);
-        return null;
-    }
 };
 
 export default function PublicReservationPage() {
@@ -222,9 +113,9 @@ export default function PublicReservationPage() {
 
     const loadSettings = async () => {
         try {
-            const existingSettings = await ReservationSettings.list();
-            if (existingSettings.length > 0) {
-                setSettings(existingSettings[0]);
+            const existingSettings = await invokePublic('getReservationSettings');
+            if (existingSettings) {
+                setSettings(existingSettings);
             }
         } catch (error) {
             console.error('Error loading settings:', error);
@@ -243,19 +134,20 @@ export default function PublicReservationPage() {
         setAvailableTable(null);
 
         try {
-            // Check time slot capacity first
-            const capacityInfo = await checkTimeSlotCapacity(date, time, partySize);
-            setTimeSlotInfo(capacityInfo);
+            const dateString = format(date, 'yyyy-MM-dd');
+            // Server-side capacity check + table finding (no customer data exposed)
+            const result = await invokePublic('searchReservationTable', {
+                date: dateString, time, party_size: partySize,
+            });
+            setTimeSlotInfo(result);
 
-            if (!capacityInfo.canAccommodate) {
-                setError(`השעה ${time} מלאה (${capacityInfo.currentCapacity}/36 אנשים). אנא בחר שעה אחרת.`);
+            if (!result.canAccommodate) {
+                setError(`השעה ${time} מלאה (${result.currentCapacity}/36 אנשים). אנא בחר שעה אחרת.`);
                 setIsSearching(false);
                 return;
             }
 
-            // Search for available table
-            const table = await findAvailableTable(date, time, partySize);
-            setAvailableTable(table);
+            setAvailableTable(result.table);
             setHasSearched(true);
 
         } catch (err) {
@@ -305,8 +197,21 @@ export default function PublicReservationPage() {
     const confirmReservation = async () => {
         setIsLoading(true);
         try {
-            const newReservation = await Reservation.create(reservationData);
-            await updateCustomerClub(reservationData.customer_phone, reservationData.customer_name, reservationData.date);
+            const res = await invokePublic('createPublicReservation', {
+                customer_name: reservationData.customer_name,
+                customer_phone: reservationData.customer_phone,
+                date: reservationData.date,
+                time: reservationData.time,
+                party_size: reservationData.party_size,
+                special_requests: reservationData.special_requests,
+                special_occasion: reservationData.special_occasion,
+            });
+            if (!res?.success) {
+                setError('השעה התמלאה זה עתה. אנא בחר שעה אחרת.');
+                setShowConfirmation(false);
+                setIsLoading(false);
+                return;
+            }
 
             setSuccess(`מעולה ${reservationData.customer_name}! ההזמנה שלך אושרה בהצלחה למקום בעלינא.`);
             setShowConfirmation(false);
