@@ -14,7 +14,7 @@ type InvokeArgs = {
 };
 
 export async function invokeLLM({ prompt, responseSchema, fileUrls, model }: InvokeArgs) {
-  const modelName = model ?? 'gemini-2.0-flash';
+  const modelName = model ?? 'gemini-2.5-flash';
   const parts: any[] = [{ text: prompt }];
 
   if (fileUrls?.length) {
