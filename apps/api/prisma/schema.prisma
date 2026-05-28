@@ -16,8 +16,8 @@ model User {
   passwordHash String
   fullName     String?
   role         String?  @default("user")
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  created_date    DateTime? @default(now())
+  updated_date    DateTime?
 }
 
 
@@ -29,9 +29,9 @@ model AccountantExport {
   end_date                     DateTime
   status                       String?  @default("pending")
   expires_at                   DateTime
-  createdBy  String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  created_by  String?
+  created_date  DateTime? @default(now())
+  updated_date  DateTime?
 }
 
 model Achievement {
@@ -41,9 +41,9 @@ model Achievement {
   icon                         String
   threshold_score              Int?
   type_                        String  @map("type")
-  createdBy  String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  created_by  String?
+  created_date  DateTime? @default(now())
+  updated_date  DateTime?
 }
 
 model AiSuggestion {
@@ -59,9 +59,9 @@ model AiSuggestion {
   estimated_effort             String?
   tags                         Json?
   notes                        String?
-  createdBy  String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  created_by  String?
+  created_date  DateTime? @default(now())
+  updated_date  DateTime?
 }
 
 model Apparel {
@@ -74,9 +74,9 @@ model Apparel {
   description                  String?
   is_active                    Boolean?  @default(true)
   rarity                       String?  @default("common")
-  createdBy  String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  created_by  String?
+  created_date  DateTime? @default(now())
+  updated_date  DateTime?
 }
 
 model AvailabilityFormSettings {
@@ -86,9 +86,9 @@ model AvailabilityFormSettings {
   shift_options                Json?
   default_days_unavailable     Json?
   week_starts_offset           Int?  @default(7)
-  createdBy  String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  created_by  String?
+  created_date  DateTime? @default(now())
+  updated_date  DateTime?
 }
 
 model BeecommConfig {
@@ -99,9 +99,9 @@ model BeecommConfig {
   token_expires                DateTime?
   api_base_url                 String?  @default("https://biapp.beecomm.co.il:8094")
   active                       Boolean?  @default(false)
-  createdBy  String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  created_by  String?
+  created_date  DateTime? @default(now())
+  updated_date  DateTime?
 }
 
 model BeecommOrder {
@@ -116,9 +116,8 @@ model BeecommOrder {
   delivery_address             String?
   status                       String?  @default("sent")
   created_date                 DateTime?
-  createdBy  String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  created_by  String?
+  updated_date  DateTime?
 }
 
 model BrainstormSession {
@@ -136,9 +135,9 @@ model BrainstormSession {
   success_probability          Float?
   session_date                 DateTime?
   follow_up_required           Boolean?  @default(false)
-  createdBy  String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  created_by  String?
+  created_date  DateTime? @default(now())
+  updated_date  DateTime?
 }
 
 model CampaignLog {
@@ -158,9 +157,9 @@ model CampaignLog {
   failed_count                 Int?
   template_name                String?
   sent_at                      DateTime
-  createdBy  String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  created_by  String?
+  created_date  DateTime? @default(now())
+  updated_date  DateTime?
 }
 
 model Checklist {
@@ -176,9 +175,8 @@ model Checklist {
   status                       String?  @default("draft")
   version                      String?
   created_by                   String?
-  createdBy  String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  created_date  DateTime? @default(now())
+  updated_date  DateTime?
 }
 
 model ChecklistExecution {
@@ -194,9 +192,9 @@ model ChecklistExecution {
   notes                        String?
   follow_up_required           Boolean?  @default(false)
   completion_time_minutes      Float?
-  createdBy  String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  created_by  String?
+  created_date  DateTime? @default(now())
+  updated_date  DateTime?
 }
 
 model ChecklistExecutionArchive {
@@ -218,9 +216,9 @@ model ChecklistExecutionArchive {
   general_notes                String?
   follow_up_required           Boolean?
   issues_summary               String?
-  createdBy  String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  created_by  String?
+  created_date  DateTime? @default(now())
+  updated_date  DateTime?
 }
 
 model CoinTransaction {
@@ -235,23 +233,23 @@ model CoinTransaction {
   redemption_reward            String?
   manager_notes                String?
   approved_by                  String?
-  createdBy  String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  created_by  String?
+  created_date  DateTime? @default(now())
+  updated_date  DateTime?
 }
 
 model ConversationScript {
   id        String   @id @default(cuid())
-  script_id                    String
+  script_id  String?
   situation_name               String
   role                         String
   customer_prompt              String
   correct_response             String
   incorrect_response           String?
   feedback_note                String?
-  createdBy  String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  created_by  String?
+  created_date  DateTime? @default(now())
+  updated_date  DateTime?
 }
 
 model Courier {
@@ -261,9 +259,9 @@ model Courier {
   status                       String?  @default("active")
   bank_account                 String?
   notes                        String?
-  createdBy  String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  created_by  String?
+  created_date  DateTime? @default(now())
+  updated_date  DateTime?
 }
 
 model Customer {
@@ -277,9 +275,9 @@ model Customer {
   group_size_preference        Int?
   tags                         Json?
   rating_received              Int?
-  createdBy  String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  created_by  String?
+  created_date  DateTime? @default(now())
+  updated_date  DateTime?
 }
 
 model CustomerBenefit {
@@ -289,9 +287,9 @@ model CustomerBenefit {
   type_                        String  @map("type")
   status                       String?  @default("active")
   expiry_date                  DateTime?
-  createdBy  String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  created_by  String?
+  created_date  DateTime? @default(now())
+  updated_date  DateTime?
 }
 
 model CustomerFeedback {
@@ -308,9 +306,9 @@ model CustomerFeedback {
   incident_created             Boolean?  @default(false)
   table_number                 String?
   customer_phone               String?
-  createdBy  String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  created_by  String?
+  created_date  DateTime? @default(now())
+  updated_date  DateTime?
 }
 
 model DailyBrief {
@@ -331,9 +329,9 @@ model DailyBrief {
   station_assignments          Json?
   closing_tasks                Json?
   read_by                      Json?
-  createdBy  String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  created_by  String?
+  created_date  DateTime? @default(now())
+  updated_date  DateTime?
 }
 
 model DailyChallenge {
@@ -345,9 +343,9 @@ model DailyChallenge {
   emoji                        String?  @default("🎯")
   completed_by                 Json?
   is_active                    Boolean?  @default(true)
-  createdBy  String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  created_by  String?
+  created_date  DateTime? @default(now())
+  updated_date  DateTime?
 }
 
 model DailySales {
@@ -368,9 +366,9 @@ model DailySales {
   cost_of_goods                Float?
   labor_cost                   Float?
   profit_margin                Float?
-  createdBy  String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  created_by  String?
+  created_date  DateTime? @default(now())
+  updated_date  DateTime?
 }
 
 model Delivery {
@@ -394,9 +392,9 @@ model Delivery {
   delivery_status              String?  @default("pending")
   picked_up_at                 DateTime?
   delivered_at                 DateTime?
-  createdBy  String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  created_by  String?
+  created_date  DateTime? @default(now())
+  updated_date  DateTime?
 }
 
 model DeliveryCustomer {
@@ -411,9 +409,9 @@ model DeliveryCustomer {
   total_orders                 Float?  @default(0)
   total_spent                  Float?  @default(0)
   last_order_date              DateTime?
-  createdBy  String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  created_by  String?
+  created_date  DateTime? @default(now())
+  updated_date  DateTime?
 }
 
 model DeviceAsset {
@@ -429,9 +427,9 @@ model DeviceAsset {
   return_photo_url             String?
   return_notes                 String?
   returned_at                  DateTime?
-  createdBy  String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  created_by  String?
+  created_date  DateTime? @default(now())
+  updated_date  DateTime?
 }
 
 model Employee {
@@ -447,9 +445,9 @@ model Employee {
   pushover_user_key            String?
   manager_quality_rating       Float?
   manager_rating_notes         String?
-  createdBy  String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  created_by  String?
+  created_date  DateTime? @default(now())
+  updated_date  DateTime?
 }
 
 model EmployeeApparel {
@@ -464,9 +462,9 @@ model EmployeeApparel {
   outerwear_id                 String?
   owned_apparel                Json?
   avatar_url                   String?
-  createdBy  String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  created_by  String?
+  created_date  DateTime? @default(now())
+  updated_date  DateTime?
 }
 
 model EmployeeAvailability {
@@ -482,9 +480,9 @@ model EmployeeAvailability {
   positions                    Json?
   admin_notes                  String?
   department                   String?
-  createdBy  String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  created_by  String?
+  created_date  DateTime? @default(now())
+  updated_date  DateTime?
 }
 
 model EmployeePerformance {
@@ -492,9 +490,9 @@ model EmployeePerformance {
   employee_id                  String
   employee_name                String
   total_points                 Int?  @default(0)
-  createdBy  String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  created_by  String?
+  created_date  DateTime? @default(now())
+  updated_date  DateTime?
 }
 
 model EmployeeRiskAnalysis {
@@ -512,9 +510,9 @@ model EmployeeRiskAnalysis {
   motivation_strategy          String?
   alert_sent                   Boolean?  @default(false)
   last_analysis_date           DateTime?
-  createdBy  String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  created_by  String?
+  created_date  DateTime? @default(now())
+  updated_date  DateTime?
 }
 
 model EmployeeStory {
@@ -535,9 +533,9 @@ model EmployeeStory {
   poll                         Json?
   questions                    Json?
   expires_at                   DateTime?
-  createdBy  String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  created_by  String?
+  created_date  DateTime? @default(now())
+  updated_date  DateTime?
 }
 
 model Event {
@@ -559,9 +557,9 @@ model Event {
   decorations                  String?
   status                       String?  @default("inquiry")
   assigned_staff               Json?
-  createdBy  String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  created_by  String?
+  created_date  DateTime? @default(now())
+  updated_date  DateTime?
 }
 
 model GameQuestion {
@@ -570,18 +568,18 @@ model GameQuestion {
   category                     String
   game_type                    String
   is_active                    Boolean?  @default(true)
-  createdBy  String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  created_by  String?
+  created_date  DateTime? @default(now())
+  updated_date  DateTime?
 }
 
 model GamificationRule {
   id        String   @id @default(cuid())
   action                       String
   points                       Int
-  createdBy  String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  created_by  String?
+  created_date  DateTime? @default(now())
+  updated_date  DateTime?
 }
 
 model GeminiFileCache {
@@ -591,9 +589,9 @@ model GeminiFileCache {
   gemini_file_uri              String
   mime_type                    String?
   last_uploaded                DateTime?
-  createdBy  String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  created_by  String?
+  created_date  DateTime? @default(now())
+  updated_date  DateTime?
 }
 
 model Incident {
@@ -616,9 +614,9 @@ model Incident {
   resolution_date              DateTime?
   follow_up_required           Boolean?  @default(false)
   prevention_measures          String?
-  createdBy  String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  created_by  String?
+  created_date  DateTime? @default(now())
+  updated_date  DateTime?
 }
 
 model Inventory {
@@ -635,9 +633,9 @@ model Inventory {
   location                     String?
   last_updated                 DateTime?
   reorder_quantity             Float?
-  createdBy  String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  created_by  String?
+  created_date  DateTime? @default(now())
+  updated_date  DateTime?
 }
 
 model InventoryAlert {
@@ -651,23 +649,23 @@ model InventoryAlert {
   reasoning                    String?
   photo_analysis               String?
   status                       String?  @default("pending")
-  createdBy  String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  created_by  String?
+  created_date  DateTime? @default(now())
+  updated_date  DateTime?
 }
 
 model Invoice {
   id        String   @id @default(cuid())
   supplier_id                  String
   invoice_number               String?
-  invoice_date                 DateTime
+  invoice_date  DateTime?
   total_amount                 Float
   file_url                     String?
   status                       String?  @default("pending_review")
   payment_status               String?  @default("unpaid")
-  createdBy  String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  created_by  String?
+  created_date  DateTime? @default(now())
+  updated_date  DateTime?
 }
 
 model InvoiceItem {
@@ -677,9 +675,9 @@ model InvoiceItem {
   product_name                 String
   quantity                     Float
   unit_price                   Float
-  createdBy  String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  created_by  String?
+  created_date  DateTime? @default(now())
+  updated_date  DateTime?
 }
 
 model JobCandidate {
@@ -698,9 +696,9 @@ model JobCandidate {
   notes                        String?
   source                       String?  @default("whatsapp")
   u_notified_abandoned         Boolean?  @default(false)  @map("_notified_abandoned")
-  createdBy  String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  created_by  String?
+  created_date  DateTime? @default(now())
+  updated_date  DateTime?
 }
 
 model KnowledgeBase {
@@ -712,9 +710,9 @@ model KnowledgeBase {
   priority                     String?  @default("medium")
   last_updated                 DateTime?
   updated_by                   String?
-  createdBy  String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  created_by  String?
+  created_date  DateTime? @default(now())
+  updated_date  DateTime?
 }
 
 model LeaveRequest {
@@ -727,9 +725,9 @@ model LeaveRequest {
   reason                       String?
   status                       String?  @default("pending")
   manager_notes                String?
-  createdBy  String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  created_by  String?
+  created_date  DateTime? @default(now())
+  updated_date  DateTime?
 }
 
 model ManualSurvey {
@@ -740,9 +738,9 @@ model ManualSurvey {
   survey_id                    String
   status                       String?  @default("sent")
   notes                        String?
-  createdBy  String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  created_by  String?
+  created_date  DateTime? @default(now())
+  updated_date  DateTime?
 }
 
 model MarketingGoal {
@@ -758,9 +756,9 @@ model MarketingGoal {
   progress_percentage          Float?
   related_tasks                Json?
   success_factors              Json?
-  createdBy  String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  created_by  String?
+  created_date  DateTime? @default(now())
+  updated_date  DateTime?
 }
 
 model MarketingInsight {
@@ -776,9 +774,9 @@ model MarketingInsight {
   urgency                      String?
   related_metrics              Json?
   implementation_difficulty    String?
-  createdBy  String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  created_by  String?
+  created_date  DateTime? @default(now())
+  updated_date  DateTime?
 }
 
 model MarketingTask {
@@ -801,9 +799,9 @@ model MarketingTask {
   detailed_steps               Json?
   is_starred                   Boolean?  @default(false)
   progress_percentage          Float?  @default(0)
-  createdBy  String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  created_by  String?
+  created_date  DateTime? @default(now())
+  updated_date  DateTime?
 }
 
 model MenuItem {
@@ -823,9 +821,9 @@ model MenuItem {
   seasonal                     Boolean?  @default(false)
   image_url                    String?
   upsell_suggestions           Json?
-  createdBy  String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  created_by  String?
+  created_date  DateTime? @default(now())
+  updated_date  DateTime?
 }
 
 model MenuItemAnalysis {
@@ -840,9 +838,9 @@ model MenuItemAnalysis {
   ingredients_to_stock         Json?
   peak_days                    Json?
   analysis_period              DateTime?
-  createdBy  String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  created_by  String?
+  created_date  DateTime? @default(now())
+  updated_date  DateTime?
 }
 
 model MenuTrainingResult {
@@ -864,9 +862,9 @@ model MenuTrainingResult {
   manager_summary              String?
   waiter_summary               String?
   notes                        String?
-  createdBy  String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  created_by  String?
+  created_date  DateTime? @default(now())
+  updated_date  DateTime?
 }
 
 model MessageTemplate {
@@ -875,17 +873,17 @@ model MessageTemplate {
   type_                        String  @map("type")
   subject                      String?
   body                         String
-  createdBy  String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  created_by  String?
+  created_date  DateTime? @default(now())
+  updated_date  DateTime?
 }
 
 model Order {
   id        String   @id @default(cuid())
-  order_number                 String
-  table_id                     String
-  waiter_id                    String
-  items                        Json
+  order_number  String?
+  table_id  String?
+  waiter_id  String?
+  items  Json?
   status                       String?  @default("new")
   order_time                   String?
   ready_time                   String?
@@ -897,18 +895,18 @@ model Order {
   total                        Float?
   payment_method               String?
   special_requests             String?
-  createdBy  String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  created_by  String?
+  created_date  DateTime? @default(now())
+  updated_date  DateTime?
 }
 
 model PagePermission {
   id        String   @id @default(cuid())
   page_name                    String
   allowed_roles                Json
-  createdBy  String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  created_by  String?
+  created_date  DateTime? @default(now())
+  updated_date  DateTime?
 }
 
 model PendingInvitation {
@@ -919,9 +917,9 @@ model PendingInvitation {
   invitation_code              String
   invited_by                   String?
   status                       String?  @default("pending")
-  createdBy  String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  created_by  String?
+  created_date  DateTime? @default(now())
+  updated_date  DateTime?
 }
 
 model PendingQuestion {
@@ -933,9 +931,9 @@ model PendingQuestion {
   admin_answer                 String?
   whatsapp_sent                Boolean?  @default(false)
   knowledge_base_id            String?
-  createdBy  String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  created_by  String?
+  created_date  DateTime? @default(now())
+  updated_date  DateTime?
 }
 
 model PredictionSettings {
@@ -951,9 +949,9 @@ model PredictionSettings {
   event_radius_km              Float?  @default(5)
   historical_data_weight       Float?  @default(0.6)
   external_factors_weight      Float?  @default(0.4)
-  createdBy  String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  created_by  String?
+  created_date  DateTime? @default(now())
+  updated_date  DateTime?
 }
 
 model Product {
@@ -965,9 +963,9 @@ model Product {
   unit                         String
   current_stock                Float
   desired_stock                Float
-  createdBy  String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  created_by  String?
+  created_date  DateTime? @default(now())
+  updated_date  DateTime?
 }
 
 model QueueEntry {
@@ -1001,9 +999,9 @@ model QueueEntry {
   estimated_wait_time          Int?
   customer_notes               String?
   table_duration_preference    String?  @default("any")
-  createdBy  String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  created_by  String?
+  created_date  DateTime? @default(now())
+  updated_date  DateTime?
 }
 
 model QueueGameSession {
@@ -1013,20 +1011,20 @@ model QueueGameSession {
   score                        Int?  @default(0)
   answers                      Json?
   finished                     Boolean?  @default(false)
-  createdBy  String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  created_by  String?
+  created_date  DateTime? @default(now())
+  updated_date  DateTime?
 }
 
 model Quiz {
   id        String   @id @default(cuid())
-  quiz_id                      String
+  quiz_id  String?
   title                        String
   description                  String?
   passing_score                Float?  @default(80)
-  createdBy  String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  created_by  String?
+  created_date  DateTime? @default(now())
+  updated_date  DateTime?
 }
 
 model QuizQuestion {
@@ -1036,15 +1034,15 @@ model QuizQuestion {
   options                      Json
   correct_answer               String
   explanation                  String?
-  createdBy  String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  created_by  String?
+  created_date  DateTime? @default(now())
+  updated_date  DateTime?
 }
 
 model Reservation {
   id        String   @id @default(cuid())
   customer_id                  String?
-  customer_name                String
+  customer_name  String?
   customer_phone               String?
   date                         DateTime
   time                         String
@@ -1055,9 +1053,9 @@ model Reservation {
   special_requests             String?
   assigned_table               Json?
   reservation_end_time         String?
-  createdBy  String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  created_by  String?
+  created_date  DateTime? @default(now())
+  updated_date  DateTime?
 }
 
 model ReservationSettings {
@@ -1079,9 +1077,9 @@ model ReservationSettings {
   show_location_map            Boolean?  @default(true)
   theme_color                  String?  @default("#059669")
   reservations_enabled         Boolean?  @default(true)
-  createdBy  String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  created_by  String?
+  created_date  DateTime? @default(now())
+  updated_date  DateTime?
 }
 
 model RestaurantInfo {
@@ -1092,9 +1090,9 @@ model RestaurantInfo {
   is_active                    Boolean?  @default(true)
   priority                     String?  @default("medium")
   keywords                     Json?
-  createdBy  String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  created_by  String?
+  created_date  DateTime? @default(now())
+  updated_date  DateTime?
 }
 
 model RestaurantProfile {
@@ -1114,9 +1112,9 @@ model RestaurantProfile {
   logo_url                     String?
   geofencing_enabled           Boolean?  @default(true)
   recruitment_short_url        String?
-  createdBy  String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  created_by  String?
+  created_date  DateTime? @default(now())
+  updated_date  DateTime?
 }
 
 model Reward {
@@ -1127,9 +1125,9 @@ model Reward {
   cost                         Float
   is_active                    Boolean?  @default(true)
   in_lootbox                   Boolean?  @default(false)
-  createdBy  String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  created_by  String?
+  created_date  DateTime? @default(now())
+  updated_date  DateTime?
 }
 
 model Role {
@@ -1139,9 +1137,9 @@ model Role {
   permissions                  Json?
   level                        String
   is_active                    Boolean?  @default(true)
-  createdBy  String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  created_by  String?
+  created_date  DateTime? @default(now())
+  updated_date  DateTime?
 }
 
 model SeatingLayout {
@@ -1149,9 +1147,9 @@ model SeatingLayout {
   layout_name                  String
   tables                       Json
   facilities                   Json?
-  createdBy  String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  created_by  String?
+  created_date  DateTime? @default(now())
+  updated_date  DateTime?
 }
 
 model ServiceStep {
@@ -1163,9 +1161,9 @@ model ServiceStep {
   estimated_duration           Int?
   requires_pos                 Boolean?  @default(false)
   requires_kitchen             Boolean?  @default(false)
-  createdBy  String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  created_by  String?
+  created_date  DateTime? @default(now())
+  updated_date  DateTime?
 }
 
 model Shift {
@@ -1180,9 +1178,9 @@ model Shift {
   customer_service_rating      Float?
   area                         String?
   notes                        String?
-  createdBy  String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  created_by  String?
+  created_date  DateTime? @default(now())
+  updated_date  DateTime?
 }
 
 model ShiftEndReport {
@@ -1225,9 +1223,9 @@ model ShiftEndReport {
   cash_paid_out                Float?
   actual_cash_in_register      Float?
   cash_difference              Float?
-  createdBy  String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  created_by  String?
+  created_date  DateTime? @default(now())
+  updated_date  DateTime?
 }
 
 model ShiftMessage {
@@ -1240,9 +1238,9 @@ model ShiftMessage {
   shift_type                   String
   message_type                 String?  @default("text")
   read_by                      Json?
-  createdBy  String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  created_by  String?
+  created_date  DateTime? @default(now())
+  updated_date  DateTime?
 }
 
 model ShiftSwapRequest {
@@ -1259,9 +1257,9 @@ model ShiftSwapRequest {
   status                       String?  @default("pending")
   message                      String?
   manager_notes                String?
-  createdBy  String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  created_by  String?
+  created_date  DateTime? @default(now())
+  updated_date  DateTime?
 }
 
 model ShiftTracking {
@@ -1282,9 +1280,9 @@ model ShiftTracking {
   sales_feeling_rating         Float?
   effort_rating                Float?
   personal_notes               String?
-  createdBy  String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  created_by  String?
+  created_date  DateTime? @default(now())
+  updated_date  DateTime?
 }
 
 model ShoutOut {
@@ -1296,9 +1294,9 @@ model ShoutOut {
   reactions                    Json?
   auto_generated               Boolean?  @default(false)
   trigger                      String?
-  createdBy  String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  created_by  String?
+  created_date  DateTime? @default(now())
+  updated_date  DateTime?
 }
 
 model StaffingPrediction {
@@ -1316,9 +1314,9 @@ model StaffingPrediction {
   preparation_notes            String?
   revenue_prediction           Float?
   risk_factors                 Json?
-  createdBy  String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  created_by  String?
+  created_date  DateTime? @default(now())
+  updated_date  DateTime?
 }
 
 model StaffPerformance {
@@ -1338,9 +1336,9 @@ model StaffPerformance {
   goals_met                    Boolean?
   training_hours               Float?
   notes                        String?
-  createdBy  String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  created_by  String?
+  created_date  DateTime? @default(now())
+  updated_date  DateTime?
 }
 
 model StaffQuestion {
@@ -1352,9 +1350,9 @@ model StaffQuestion {
   satisfaction_rating          Int?
   was_helpful                  Boolean?
   follow_up_needed             Boolean?  @default(false)
-  createdBy  String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  created_by  String?
+  created_date  DateTime? @default(now())
+  updated_date  DateTime?
 }
 
 model Supplier {
@@ -1373,16 +1371,16 @@ model Supplier {
   contract_end                 DateTime?
   payment_terms                String?
   notes                        String?
-  createdBy  String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  created_by  String?
+  created_date  DateTime? @default(now())
+  updated_date  DateTime?
 }
 
 model Table {
   id        String   @id @default(cuid())
-  table_number                 String
-  capacity                     Int
-  location                     String
+  table_number  String?
+  capacity  Int?
+  location  String?
   status                       String?  @default("available")
   current_waiter               String?
   occupied_since               String?
@@ -1391,9 +1389,9 @@ model Table {
   reservation_id               String?
   notes                        String?
   vip                          Boolean?  @default(false)
-  createdBy  String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  created_by  String?
+  created_date  DateTime? @default(now())
+  updated_date  DateTime?
 }
 
 model TableSession {
@@ -1414,9 +1412,9 @@ model TableSession {
   special_requests             String?
   ai_recommendations_used      Json?
   survey_sent                  Boolean?  @default(false)
-  createdBy  String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  created_by  String?
+  created_date  DateTime? @default(now())
+  updated_date  DateTime?
 }
 
 model TimeTreat {
@@ -1426,9 +1424,9 @@ model TimeTreat {
   cost                         Int
   emoji                        String?
   is_active                    Boolean?  @default(true)
-  createdBy  String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  created_by  String?
+  created_date  DateTime? @default(now())
+  updated_date  DateTime?
 }
 
 model TipReport {
@@ -1448,9 +1446,9 @@ model TipReport {
   notes                        String?
   opening_employee_ids         Json?
   closing_employee_ids         Json?
-  createdBy  String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  created_by  String?
+  created_date  DateTime? @default(now())
+  updated_date  DateTime?
 }
 
 model ToneScenario {
@@ -1459,9 +1457,9 @@ model ToneScenario {
   customer_says                String
   responses                    Json
   order                        Int?
-  createdBy  String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  created_by  String?
+  created_date  DateTime? @default(now())
+  updated_date  DateTime?
 }
 
 model TrainingCourse {
@@ -1474,34 +1472,34 @@ model TrainingCourse {
   instructor                   String?
   status                       String?  @default("draft")
   assigned_role                String?
-  createdBy  String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  created_by  String?
+  created_date  DateTime? @default(now())
+  updated_date  DateTime?
 }
 
 model TrainingEnrollment {
   id        String   @id @default(cuid())
   employee_id                  String
-  course_code                  String
+  course_code  String?
   enrollment_date              DateTime?
   status                       String?  @default("enrolled")
   completed_lessons            Json?
-  createdBy  String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  created_by  String?
+  created_date  DateTime? @default(now())
+  updated_date  DateTime?
 }
 
 model TrainingLesson {
   id        String   @id @default(cuid())
-  lesson_id                    String
+  lesson_id  String?
   course_code                  String
   title                        String
   content_type                 String
   content                      String?
   order                        Int
-  createdBy  String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  created_by  String?
+  created_date  DateTime? @default(now())
+  updated_date  DateTime?
 }
 
 model TrainingVideo {
@@ -1514,9 +1512,9 @@ model TrainingVideo {
   duration_minutes             Float?
   is_active                    Boolean?  @default(true)
   order                        Float?
-  createdBy  String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  created_by  String?
+  created_date  DateTime? @default(now())
+  updated_date  DateTime?
 }
 
 model TriviaQuestion {
@@ -1525,9 +1523,9 @@ model TriviaQuestion {
   options                      Json
   answer                       Int
   is_active                    Boolean?  @default(true)
-  createdBy  String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  created_by  String?
+  created_date  DateTime? @default(now())
+  updated_date  DateTime?
 }
 
 model UserAchievement {
@@ -1536,9 +1534,9 @@ model UserAchievement {
   achievement_id               String
   achievement_name             String
   achievement_icon             String
-  createdBy  String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  created_by  String?
+  created_date  DateTime? @default(now())
+  updated_date  DateTime?
 }
 
 model WorkPosition {
@@ -1555,14 +1553,14 @@ model WorkPosition {
   max_hours_per_day            Int?  @default(12)
   color                        String?
   is_active                    Boolean?  @default(true)
-  createdBy  String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  created_by  String?
+  created_date  DateTime? @default(now())
+  updated_date  DateTime?
 }
 
 model WorkShift {
   id        String   @id @default(cuid())
-  date                         DateTime
+  date  DateTime?
   shift_type                   String
   start_time                   String
   end_time                     String
@@ -1570,7 +1568,6 @@ model WorkShift {
   assigned_staff               Json?
   notes                        String?
   created_by                   String?
-  createdBy  String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  created_date  DateTime? @default(now())
+  updated_date  DateTime?
 }

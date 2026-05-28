@@ -15,7 +15,7 @@ function calcHours(start, end) {
     return mins / 60;
 }
 
-export default function ScheduleInsights({ week, employees, tipReports }) {
+export default function ScheduleInsights({ week = [], employees = [], tipReports = [] }) {
     const [monthFilter, setMonthFilter] = useState('all');
     const [weekFilter, setWeekFilter] = useState('all');
 
@@ -94,7 +94,7 @@ export default function ScheduleInsights({ week, employees, tipReports }) {
 
         // ספירת שיבוצים ושעות — משמרת ייחודית לפי תאריך+סוג לכל עובד
         filteredShifts.forEach(shift => {
-            if (!shift.assigned_staff?.length) return;
+            if (!shift.assigned_staff?.length || !shift.date) return;
             const dayOfWeek = getDay(parseISO(shift.date));
 
             // מזהה ייחודי של המשמרת

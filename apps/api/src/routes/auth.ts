@@ -44,7 +44,7 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
     const u = req.user!;
     const full = await prisma.user.findUnique({
       where: { id: u.id },
-      select: { id: true, email: true, role: true, fullName: true, createdAt: true },
+      select: { id: true, email: true, role: true, fullName: true, created_date: true },
     });
     return full;
   });

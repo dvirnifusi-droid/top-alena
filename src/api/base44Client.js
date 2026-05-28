@@ -64,20 +64,25 @@ function buildQuery(params) {
 
 function makeEntity(name, { prefix = '/entities' } = {}) {
   return {
-    list: (sort, limit) =>
-      http(`${prefix}/${name}${buildQuery({ sort, limit })}`),
-    filter: (where, sort, limit) =>
+    list: (sort, limit, skip) =>
+      http(`${prefix}/${name}${buildQuery({ sort, limit, skip })}`),
+    filter: (where, sort, limit, skip) =>
       http(
         `${prefix}/${name}${buildQuery({
           where: where && Object.keys(where).length ? JSON.stringify(where) : undefined,
           sort,
           limit,
+          skip,
         })}`,
       ),
     get: (id) => http(`${prefix}/${name}/${id}`),
     create: (data) => http(`${prefix}/${name}`, { method: 'POST', body: data }),
     update: (id, data) => http(`${prefix}/${name}/${id}`, { method: 'PUT', body: data }),
     delete: (id) => http(`${prefix}/${name}/${id}`, { method: 'DELETE' }),
+    // Base44 had realtime subscriptions; the self-hosted API doesn't (yet).
+    // No-op that returns an unsubscribe fn so pages don't crash; data still
+    // loads via list/filter on mount.
+    subscribe: (_cb) => () => {},
   };
 }
 

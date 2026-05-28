@@ -24,14 +24,15 @@ import DataExport from './pages/DataExport';
 import UserGuide from './pages/UserGuide';
 import InstagramStudio from './pages/InstagramStudio';
 import Login from './pages/Login';
+import ErrorBoundary from '@/components/shared/ErrorBoundary';
 
 const { Pages, Layout, mainPage } = pagesConfig;
 const mainPageKey = mainPage ?? Object.keys(Pages)[0];
 const MainPage = mainPageKey ? Pages[mainPageKey] : <></>;
 
 const LayoutWrapper = ({ children, currentPageName }) => Layout ?
-  <Layout currentPageName={currentPageName}>{children}</Layout>
-  : <>{children}</>;
+  <Layout currentPageName={currentPageName}><ErrorBoundary label={currentPageName}>{children}</ErrorBoundary></Layout>
+  : <ErrorBoundary label={currentPageName}>{children}</ErrorBoundary>;
 
 const RoleBasedHome = () => {
   const [role, setRole] = React.useState(null);

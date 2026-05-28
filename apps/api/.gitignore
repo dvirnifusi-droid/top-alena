@@ -4,3 +4,7 @@ dist
 .env.*
 !.env.example
 *.log
+
+# Base44 data dumps contain real customer PII — never commit
+scripts/seed-data/*.json
+*.bak

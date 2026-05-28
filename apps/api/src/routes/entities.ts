@@ -1,4 +1,5 @@
 import type { FastifyPluginAsync } from 'fastify';
+import { Prisma } from '@prisma/client';
 import { prisma } from '../db.js';
 import { requireAuth } from '../middleware/auth.js';
 
@@ -13,12 +14,86 @@ function modelDelegate(name: string): any {
   return delegate ?? null;
 }
 
-function parseSort(sort: string | undefined) {
+// --- Field metadata, built once from the Prisma schema ---
+const FIELD_TYPE: Record<string, Record<string, string>> = {};
+for (const model of Prisma.dmmf.datamodel.models) {
+  FIELD_TYPE[model.name] = {};
+  for (const f of model.fields) FIELD_TYPE[model.name][f.name] = f.type;
+}
+function fieldsOf(modelName: string) {
+  return FIELD_TYPE[modelName] ?? {};
+}
+
+// Mongo-style operators (Base44 SDK) -> Prisma operators.
+const OP_MAP: Record<string, string> = {
+  $gte: 'gte', $gt: 'gt', $lte: 'lte', $lt: 'lt',
+  $ne: 'not', $eq: 'equals', $in: 'in', $nin: 'notIn',
+  $contains: 'contains', $startsWith: 'startsWith', $endsWith: 'endsWith',
+};
+
+function coerceDate(v: unknown): unknown {
+  if (typeof v !== 'string') return v;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(v)) return new Date(`${v}T00:00:00.000Z`);
+  if (/^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}/.test(v)) {
+    const d = new Date(v.replace(' ', 'T'));
+    return isNaN(d.getTime()) ? v : d;
+  }
+  return v;
+}
+
+// Normalize a Base44-style `where` object into a valid Prisma filter:
+// - drops keys that aren't real fields on the model (schema-drift tolerance)
+// - translates $-prefixed operators
+// - coerces date strings on DateTime fields
+function normalizeWhere(modelName: string, raw: Record<string, unknown>): Record<string, unknown> {
+  const types = fieldsOf(modelName);
+  const out: Record<string, unknown> = {};
+  for (const [key, val] of Object.entries(raw)) {
+    if (key === 'AND' || key === 'OR' || key === 'NOT') {
+      const arr = Array.isArray(val) ? val : [val];
+      out[key] = arr.map((c) => normalizeWhere(modelName, c as Record<string, unknown>));
+      continue;
+    }
+    const ftype = types[key];
+    if (!ftype) continue; // unknown field -> drop
+    const isDate = ftype === 'DateTime';
+    if (val && typeof val === 'object' && !Array.isArray(val)) {
+      const cond: Record<string, unknown> = {};
+      for (const [opRaw, opVal] of Object.entries(val as Record<string, unknown>)) {
+        const op = OP_MAP[opRaw] ?? (opRaw.startsWith('$') ? null : opRaw);
+        if (!op) continue; // unknown operator -> skip
+        let coerced: unknown = opVal;
+        if (isDate) {
+          coerced = Array.isArray(opVal) ? opVal.map(coerceDate) : coerceDate(opVal);
+        }
+        cond[op] = coerced;
+      }
+      out[key] = cond;
+    } else {
+      out[key] = isDate ? coerceDate(val) : val;
+    }
+  }
+  return out;
+}
+
+function parseSort(modelName: string, sort: string | undefined) {
   if (!sort) return undefined;
   // Base44 SDK convention: "-field" means desc, "field" means asc.
   const desc = sort.startsWith('-');
   const field = desc ? sort.slice(1) : sort;
+  if (!fieldsOf(modelName)[field]) return undefined; // unknown sort field -> skip
   return { [field]: desc ? 'desc' : 'asc' } as const;
+}
+
+// Coerce date-string values in create/update payloads for DateTime fields.
+function coerceData(modelName: string, data: Record<string, unknown>): Record<string, unknown> {
+  const types = fieldsOf(modelName);
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(data)) {
+    if (!(k in types)) { out[k] = v; continue; }
+    out[k] = types[k] === 'DateTime' ? coerceDate(v) : v;
+  }
+  return out;
 }
 
 export const entitiesRoutes: FastifyPluginAsync = async (app) => {
@@ -32,10 +107,10 @@ export const entitiesRoutes: FastifyPluginAsync = async (app) => {
 
     const q = req.query as Record<string, string | undefined>;
     const { limit, skip, sort, where: whereStr, ...rest } = q;
-    let where: Record<string, unknown> = {};
+    let rawWhere: Record<string, unknown> = {};
     if (whereStr) {
       try {
-        where = JSON.parse(whereStr);
+        rawWhere = JSON.parse(whereStr);
       } catch {
         return reply.code(400).send({ error: 'invalid_where_json' });
       }
@@ -43,12 +118,13 @@ export const entitiesRoutes: FastifyPluginAsync = async (app) => {
     // Allow simple equality filters as bare query params too (back-compat)
     for (const [k, v] of Object.entries(rest)) {
       if (v === undefined) continue;
-      where[k] = v;
+      rawWhere[k] = v;
     }
+    const where = normalizeWhere(name, rawWhere);
 
     const items = await delegate.findMany({
       where,
-      orderBy: parseSort(sort),
+      orderBy: parseSort(name, sort),
       take: limit ? Number(limit) : undefined,
       skip: skip ? Number(skip) : undefined,
     });
@@ -70,7 +146,7 @@ export const entitiesRoutes: FastifyPluginAsync = async (app) => {
     const { name } = req.params as { name: string };
     const delegate = modelDelegate(name);
     if (!delegate) return reply.code(404).send({ error: 'unknown_entity' });
-    const created = await delegate.create({ data: req.body as object });
+    const created = await delegate.create({ data: coerceData(name, req.body as Record<string, unknown>) });
     return reply.code(201).send(created);
   });
 
@@ -79,7 +155,7 @@ export const entitiesRoutes: FastifyPluginAsync = async (app) => {
     const { name, id } = req.params as { name: string; id: string };
     const delegate = modelDelegate(name);
     if (!delegate) return reply.code(404).send({ error: 'unknown_entity' });
-    const updated = await delegate.update({ where: { id }, data: req.body as object });
+    const updated = await delegate.update({ where: { id }, data: coerceData(name, req.body as Record<string, unknown>) });
     return updated;
   });
 
