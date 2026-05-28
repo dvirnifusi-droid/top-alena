@@ -173,6 +173,12 @@ const auth = {
     setToken(res.token);
     return res.user;
   },
+  // Sign in with a Google ID token (credential from Google Identity Services).
+  googleLogin: async (credential) => {
+    const res = await http('/auth/google', { method: 'POST', body: { credential } });
+    setToken(res.token);
+    return res.user;
+  },
   logout: (redirectTo) => {
     setToken(null);
     if (redirectTo && typeof window !== 'undefined') window.location.href = redirectTo;

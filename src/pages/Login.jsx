@@ -1,5 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
+
+const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
 
 export default function Login() {
   const params = new URLSearchParams(window.location.search);
@@ -10,6 +12,55 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [showPassword, setShowPassword] = useState(false);
+  const googleBtnRef = useRef(null);
+
+  // Load Google Identity Services and render the "Sign in with Google" button.
+  useEffect(() => {
+    if (!GOOGLE_CLIENT_ID) return;
+    const handleCredential = async (response) => {
+      setError(null);
+      setLoading(true);
+      try {
+        await base44.auth.googleLogin(response.credential);
+        window.location.href = from;
+      } catch (err) {
+        const msg = err?.data?.error || err.message;
+        setError(
+          msg === 'not_registered'
+            ? 'המייל הזה לא רשום במערכת. פנה למנהל כדי שיוסיף אותך.'
+            : msg || 'התחברות Google נכשלה',
+        );
+        setLoading(false);
+      }
+    };
+
+    const init = () => {
+      if (!window.google?.accounts?.id || !googleBtnRef.current) return;
+      window.google.accounts.id.initialize({
+        client_id: GOOGLE_CLIENT_ID,
+        callback: handleCredential,
+      });
+      window.google.accounts.id.renderButton(googleBtnRef.current, {
+        theme: 'outline',
+        size: 'large',
+        width: 300,
+        text: 'signin_with',
+        locale: 'he',
+      });
+    };
+
+    if (window.google?.accounts?.id) {
+      init();
+    } else {
+      const s = document.createElement('script');
+      s.src = 'https://accounts.google.com/gsi/client';
+      s.async = true;
+      s.defer = true;
+      s.onload = init;
+      document.head.appendChild(s);
+    }
+  }, [from]);
 
   const submit = async (e) => {
     e.preventDefault();
@@ -41,6 +92,17 @@ export default function Login() {
             {mode === 'login' ? 'התחבר כדי להמשיך' : 'יצירת חשבון חדש'}
           </p>
         </div>
+
+        {GOOGLE_CLIENT_ID && (
+          <div className="space-y-3">
+            <div className="flex justify-center" ref={googleBtnRef}></div>
+            <div className="flex items-center gap-3 text-slate-400 text-xs">
+              <span className="flex-1 h-px bg-slate-200"></span>
+              או
+              <span className="flex-1 h-px bg-slate-200"></span>
+            </div>
+          </div>
+        )}
 
         <div className="space-y-3">
           <input
