@@ -3,7 +3,11 @@ WORKDIR /app
 COPY package.json package-lock.json* ./
 RUN npm install --no-audit --no-fund
 COPY . .
-ENV VITE_API_BASE_URL=/api
+# Vite bakes these in at build time, so they must be present here.
+ARG VITE_API_BASE_URL=/api
+ARG VITE_GOOGLE_CLIENT_ID=
+ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
+ENV VITE_GOOGLE_CLIENT_ID=$VITE_GOOGLE_CLIENT_ID
 RUN npm run build
 
 FROM nginx:1.27-alpine
