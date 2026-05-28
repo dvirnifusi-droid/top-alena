@@ -1,20 +1,7 @@
 services:
-  postgres:
-    image: postgres:16-alpine
-    restart: unless-stopped
-    environment:
-      POSTGRES_USER: ${POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
-      POSTGRES_DB: ${POSTGRES_DB:-topalena}
-    volumes:
-      - pgdata:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-postgres}"]
-      interval: 5s
-      timeout: 3s
-      retries: 10
+  # Database is hosted on Supabase (DATABASE_URL in apps/api/.env).
+  # To self-host Postgres instead, add a postgres service here and point
+  # DATABASE_URL at it, then seed from scripts/seed-data.
 
   minio:
     image: minio/minio:latest
@@ -35,14 +22,13 @@ services:
       dockerfile: Dockerfile
     restart: unless-stopped
     depends_on:
-      postgres:
-        condition: service_healthy
       minio:
         condition: service_started
     env_file:
+      # DATABASE_URL (Supabase) + JWT_SECRET + GOOGLE_CLIENT_ID + GEMINI_API_KEY
+      # + integration keys all come from here. Do NOT override DATABASE_URL.
       - ./apps/api/.env
     environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-topalena}?schema=public
       S3_ENDPOINT: http://minio:9000
     ports:
       - "3001:3001"
@@ -72,7 +58,6 @@ services:
       - caddyconfig:/config
 
 volumes:
-  pgdata:
   miniodata:
   caddydata:
   caddyconfig:
