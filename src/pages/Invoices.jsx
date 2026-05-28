@@ -151,8 +151,8 @@ export default function InvoicesPage() {
                                         <TableRow key={invoice.id}>
                                             <TableCell className="font-medium">{supplier?.company_name || 'לא ידוע'}</TableCell>
                                             <TableCell>{invoice.invoice_number || '---'}</TableCell>
-                                            <TableCell>{format(new Date(invoice.invoice_date), 'dd/MM/yyyy')}</TableCell>
-                                            <TableCell>₪{invoice.total_amount.toLocaleString()}</TableCell>
+                                            <TableCell>{invoice.invoice_date && !isNaN(new Date(invoice.invoice_date)) ? format(new Date(invoice.invoice_date), 'dd/MM/yyyy') : '—'}</TableCell>
+                                            <TableCell>₪{(invoice.total_amount ?? 0).toLocaleString()}</TableCell>
                                             <TableCell>
                                                 <Badge variant="outline" className={`flex items-center gap-2 ${statusColor}`}>
                                                     <StatusIcon className="w-4 h-4" />

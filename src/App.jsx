@@ -31,8 +31,8 @@ const mainPageKey = mainPage ?? Object.keys(Pages)[0];
 const MainPage = mainPageKey ? Pages[mainPageKey] : <></>;
 
 const LayoutWrapper = ({ children, currentPageName }) => Layout ?
-  <Layout currentPageName={currentPageName}><ErrorBoundary label={currentPageName}>{children}</ErrorBoundary></Layout>
-  : <ErrorBoundary label={currentPageName}>{children}</ErrorBoundary>;
+  <Layout currentPageName={currentPageName}><ErrorBoundary key={currentPageName} label={currentPageName}>{children}</ErrorBoundary></Layout>
+  : <ErrorBoundary key={currentPageName} label={currentPageName}>{children}</ErrorBoundary>;
 
 const RoleBasedHome = () => {
   const [role, setRole] = React.useState(null);
