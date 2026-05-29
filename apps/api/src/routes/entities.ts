@@ -90,7 +90,10 @@ function coerceData(modelName: string, data: Record<string, unknown>): Record<st
   const types = fieldsOf(modelName);
   const out: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(data)) {
-    if (!(k in types)) { out[k] = v; continue; }
+    // Drop UI-only fields that aren't columns on this model. Base44 tolerated
+    // extra fields; Prisma rejects them, which broke admin create/update forms
+    // (e.g. Incident.photo_url). Silently ignore unknown keys instead.
+    if (!(k in types)) continue;
     out[k] = types[k] === 'DateTime' ? coerceDate(v) : v;
   }
   return out;

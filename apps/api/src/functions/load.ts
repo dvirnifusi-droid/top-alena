@@ -571,14 +571,25 @@ const awardCoins = async (employee_id: string, amount: number, reason: string) =
     data: { coin_balance: (emp.coin_balance ?? 0) + amount },
   });
   await db.coinTransaction.create({
-    data: { employee_id, amount, reason, date: new Date().toISOString() },
+    data: {
+      employee_id,
+      employee_name: emp.full_name ?? emp.name ?? '',
+      amount,
+      reason,
+      type_: 'earned',
+    },
   });
-  return { ok: true };
+  return { ok: true, coinsAwarded: amount };
 };
 
-registerFn('awardAvailabilityCoins', async ({ body }) =>
-  awardCoins((body as any).employee_id, (body as any).amount ?? 5, 'availability'),
-);
+registerFn('awardAvailabilityCoins', async ({ body }) => {
+  const b = body as any;
+  const amount = b.coinsToAward ?? b.amount ?? 5;
+  const reason = b.availableShifts
+    ? `הגשת סידור זמינות - ${b.availableShifts} משמרות פנויות`
+    : 'הגשת סידור זמינות';
+  return awardCoins(b.employee_id, amount, reason);
+});
 registerFn('awardBriefingCoins', async ({ body }) =>
   awardCoins((body as any).employee_id, (body as any).amount ?? 3, 'briefing_read'),
 );
