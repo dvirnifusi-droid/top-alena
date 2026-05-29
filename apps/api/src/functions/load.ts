@@ -6,7 +6,7 @@
  */
 import { prisma } from '../db.js';
 import { registerFn, functionHandlers } from './index.js';
-import { sendSms } from '../lib/twilio.js';
+import { sendSms, sendWhatsApp } from '../lib/twilio.js';
 import { pushover, pushoverToAdmins } from '../lib/pushover.js';
 import { sendTelegramMessage } from '../lib/telegram.js';
 import { sendEmail } from '../lib/email.js';
@@ -319,8 +319,24 @@ registerFn('sendAbandonedReminder', async ({ body }) => {
 });
 
 registerFn('sendDeliveryMessage', async ({ body }) => {
-  const { phone, message } = body as any;
-  return sendSms(phone, message);
+  const { channel, recipients, message, phone } = body as any;
+  // Accept both the bulk form ({channel, recipients:[{phone}], message}) used by
+  // delivery/recruitment, and a single {phone, message}.
+  const list = Array.isArray(recipients) ? recipients : phone ? [{ phone }] : [];
+  if (!list.length) throw new Error('no recipients');
+  if (!message) throw new Error('message required');
+  const results: any[] = [];
+  for (const r of list) {
+    const p = r?.phone;
+    if (!p) { results.push({ phone: p, status: 'skipped', reason: 'no phone' }); continue; }
+    try {
+      const out = channel === 'whatsapp' ? await sendWhatsApp(p, message) : await sendSms(p, message);
+      results.push({ phone: p, status: (out as any)?.skipped ? 'skipped' : 'sent', sid: (out as any)?.sid });
+    } catch (e: any) {
+      results.push({ phone: p, status: 'failed', error: e?.message });
+    }
+  }
+  return { results };
 });
 
 /* ----- Pushover (admin notifications) ----- */
@@ -431,7 +447,12 @@ registerFn('sendDeliveryToTelegram', async ({ body }) => {
 });
 
 registerFn('sendDeliveryViaTelegramClient', async ({ body }) => {
-  return sendTelegramMessage(JSON.stringify(body));
+  const { phone, address } = body as any;
+  if (!address) throw new Error('address required');
+  // The original posted from a personal Telegram (MTProto) account via a
+  // session token; here we send the same formatted delivery command to the
+  // group through the bot, which works without per-user session setup.
+  return sendTelegramMessage(`/${address}${phone ? '&' + phone : ''}`);
 });
 
 /* ----- AI / Gemini ----- */
@@ -513,14 +534,40 @@ registerFn('aiAnalyzeIncident', async ({ body }) => {
 });
 
 registerFn('aiAnalyzeShiftReport', async ({ body }) => {
-  const { report } = body as any;
+  const { report_id, report: reportArg } = body as any;
+  let report = reportArg;
+  if (!report && report_id) report = await db.shiftEndReport.findUnique({ where: { id: report_id } });
+  if (!report) throw new Error('Report not found');
+
+  const prompt = `אתה מנהל מסעדה מנוסה. נתח את דוח סיום המשמרת הבא וספק תובנות:
+
+תאריך: ${report.shift_date} | משמרת: ${report.shift_type === 'lunch' ? 'צהריים' : 'ערב'}
+מנהל: ${report.manager_name}
+סועדים: ${report.total_covers || 0} | הכנסות: ₪${report.total_revenue || 0}
+אשראי: ₪${report.total_credit_card || 0} | מזומן: ₪${report.total_cash || 0}
+טיפים: ₪${report.total_credit_card_tips || 0} | טיפ לשעה: ₪${report.tip_per_hour_waiter || 0}
+משלוחים: ${report.total_deliveries || 0} | שווי: ₪${report.total_deliveries_amount || 0}
+ממוצע לסועד: ₪${report.avg_spend_dine_in || 0}
+ביטולים: ${report.canceled_items_count || 0} פריטים (₪${report.canceled_items_value || 0})
+הפרש קופה: ₪${report.cash_difference || 0}
+ביצועי צוות: ${JSON.stringify(report.staff_performance || [])}
+אירועים מרכזיים: ${(report.key_incidents || []).join?.(', ') || ''}
+פידבק לקוחות: ${report.customer_feedback || 'לא צוין'}
+
+ספק ניתוח ב-JSON עם השדות: overall_assessment, revenue_analysis, top_issue, staff_highlights, recommendations (מערך), forecast_next_shift, score (מספר).`;
+
   return invokeLLM({
-    prompt: `נתח את דוח המשמרת ותן תובנות:\n${JSON.stringify(report)}`,
+    prompt,
     responseSchema: {
       type: 'object',
       properties: {
-        insights: { type: 'string' },
-        recommendations: { type: 'string' },
+        overall_assessment: { type: 'string' },
+        revenue_analysis: { type: 'string' },
+        top_issue: { type: 'string' },
+        staff_highlights: { type: 'string' },
+        recommendations: { type: 'array', items: { type: 'string' } },
+        forecast_next_shift: { type: 'string' },
+        score: { type: 'number' },
       },
     },
   });
@@ -529,8 +576,8 @@ registerFn('aiAnalyzeShiftReport', async ({ body }) => {
 registerFn('aiDailySummary', async ({ body }) => {
   const { date } = body as any;
   const today = date ?? new Date().toISOString().slice(0, 10);
-  // gather a few signals; expand as needed
-  const incidents = await db.incident.findMany({ where: { date: today } });
+  // incident_date is stored as an ISO string; match by date prefix.
+  const incidents = await db.incident.findMany({ where: { incident_date: { startsWith: today } } });
   return invokeLLM({
     prompt: `סכם את היום ${today}. תקריות: ${JSON.stringify(incidents)}`,
   });
