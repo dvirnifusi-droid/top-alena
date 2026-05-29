@@ -40,6 +40,7 @@ services:
       args:
         VITE_API_BASE_URL: /api
         VITE_GOOGLE_CLIENT_ID: ${VITE_GOOGLE_CLIENT_ID:-}
+        VITE_VAPID_PUBLIC_KEY: ${VITE_VAPID_PUBLIC_KEY:-}
     restart: unless-stopped
     depends_on:
       - api

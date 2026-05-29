@@ -12,6 +12,16 @@ import { sendTelegramMessage } from '../lib/telegram.js';
 import { sendEmail } from '../lib/email.js';
 import { invokeLLM } from '../lib/llm.js';
 import { driveAccessToken, listDriveFiles, downloadDriveFile } from '../lib/gdrive.js';
+import webpush from 'web-push';
+
+// Configure VAPID once (free browser/PWA push). Keys from env.
+if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
+  webpush.setVapidDetails(
+    process.env.VAPID_SUBJECT || 'mailto:noreply@alenabepita.co.il',
+    process.env.VAPID_PUBLIC_KEY,
+    process.env.VAPID_PRIVATE_KEY,
+  );
+}
 
 const db = prisma as any; // generic delegate access
 
@@ -246,10 +256,21 @@ registerFn('sendPushoverOnDeliveryStatus', async ({ body }) => {
   return pushover(user_key ?? '', '🛵 עדכון משלוח', `הזמנה ${order_id}: ${status}`);
 });
 
+// Free web push to a queue customer's browser/PWA (saved on the QueueEntry).
 registerFn('sendQueuePush', async ({ body }) => {
-  const { user_key, message } = body as any;
-  return pushover(user_key, '⏰ התור שלך', message);
-});
+  const { entryId, title, body: text, message } = body as any;
+  if (!process.env.VAPID_PUBLIC_KEY) return { skipped: true, reason: 'VAPID not configured' };
+  if (!entryId) throw new Error('entryId required');
+  const entry = await db.queueEntry.findUnique({ where: { id: entryId } });
+  if (!entry?.push_subscription) return { skipped: true, reason: 'no subscription' };
+  const payload = JSON.stringify({ title: title || '⏰ התור שלך', body: text || message || '' });
+  try {
+    await webpush.sendNotification(entry.push_subscription as any, payload);
+    return { success: true };
+  } catch (e: any) {
+    return { success: false, error: e?.message };
+  }
+}, { public: true });
 
 /* ----- Telegram ----- */
 
