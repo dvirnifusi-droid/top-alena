@@ -24,6 +24,41 @@ function fieldsOf(modelName: string) {
   return FIELD_TYPE[modelName] ?? {};
 }
 
+// Bidirectional alias maps for @map'd fields. The frontend (Base44) uses the
+// DB column name (e.g. "type"), while the Prisma client field is "type_".
+// ALIAS_IN: frontend name -> prisma name (for write data, where, sort).
+// ALIAS_OUT: prisma name -> frontend name (to rename in responses).
+const ALIAS_IN: Record<string, Record<string, string>> = {};
+const ALIAS_OUT: Record<string, Record<string, string>> = {};
+for (const model of Prisma.dmmf.datamodel.models) {
+  ALIAS_IN[model.name] = {};
+  ALIAS_OUT[model.name] = {};
+  for (const f of model.fields) {
+    if (f.dbName && f.dbName !== f.name) {
+      ALIAS_IN[model.name][f.dbName] = f.name;
+      ALIAS_OUT[model.name][f.name] = f.dbName;
+    }
+  }
+}
+function aliasInKey(modelName: string, key: string): string {
+  return ALIAS_IN[modelName]?.[key] ?? key;
+}
+// Rename prisma field names back to the frontend (Base44) names in a row.
+function toFrontend(modelName: string, row: any): any {
+  const out = ALIAS_OUT[modelName];
+  if (!row || typeof row !== 'object' || !out || !Object.keys(out).length) return row;
+  const r: any = { ...row };
+  for (const [prismaName, frontendName] of Object.entries(out)) {
+    if (prismaName in r) { r[frontendName] = r[prismaName]; delete r[prismaName]; }
+  }
+  return r;
+}
+function toFrontendMany(modelName: string, rows: any[]): any[] {
+  const out = ALIAS_OUT[modelName];
+  if (!out || !Object.keys(out).length) return rows;
+  return rows.map((r) => toFrontend(modelName, r));
+}
+
 // Mongo-style operators (Base44 SDK) -> Prisma operators.
 const OP_MAP: Record<string, string> = {
   $gte: 'gte', $gt: 'gt', $lte: 'lte', $lt: 'lt',
@@ -48,12 +83,13 @@ function coerceDate(v: unknown): unknown {
 function normalizeWhere(modelName: string, raw: Record<string, unknown>): Record<string, unknown> {
   const types = fieldsOf(modelName);
   const out: Record<string, unknown> = {};
-  for (const [key, val] of Object.entries(raw)) {
-    if (key === 'AND' || key === 'OR' || key === 'NOT') {
+  for (const [rawKey, val] of Object.entries(raw)) {
+    if (rawKey === 'AND' || rawKey === 'OR' || rawKey === 'NOT') {
       const arr = Array.isArray(val) ? val : [val];
-      out[key] = arr.map((c) => normalizeWhere(modelName, c as Record<string, unknown>));
+      out[rawKey] = arr.map((c) => normalizeWhere(modelName, c as Record<string, unknown>));
       continue;
     }
+    const key = aliasInKey(modelName, rawKey); // type -> type_
     const ftype = types[key];
     if (!ftype) continue; // unknown field -> drop
     const isDate = ftype === 'DateTime';
@@ -80,7 +116,8 @@ function parseSort(modelName: string, sort: string | undefined) {
   if (!sort) return undefined;
   // Base44 SDK convention: "-field" means desc, "field" means asc.
   const desc = sort.startsWith('-');
-  const field = desc ? sort.slice(1) : sort;
+  const rawField = desc ? sort.slice(1) : sort;
+  const field = aliasInKey(modelName, rawField); // type -> type_
   if (!fieldsOf(modelName)[field]) return undefined; // unknown sort field -> skip
   return { [field]: desc ? 'desc' : 'asc' } as const;
 }
@@ -89,7 +126,8 @@ function parseSort(modelName: string, sort: string | undefined) {
 function coerceData(modelName: string, data: Record<string, unknown>): Record<string, unknown> {
   const types = fieldsOf(modelName);
   const out: Record<string, unknown> = {};
-  for (const [k, v] of Object.entries(data)) {
+  for (const [rawK, v] of Object.entries(data)) {
+    const k = aliasInKey(modelName, rawK); // type -> type_, _notified_abandoned -> u_notified_abandoned
     // Drop UI-only fields that aren't columns on this model. Base44 tolerated
     // extra fields; Prisma rejects them, which broke admin create/update forms
     // (e.g. Incident.photo_url). Silently ignore unknown keys instead.
@@ -131,7 +169,7 @@ export const entitiesRoutes: FastifyPluginAsync = async (app) => {
       take: limit ? Number(limit) : undefined,
       skip: skip ? Number(skip) : undefined,
     });
-    return items;
+    return toFrontendMany(name, items);
   });
 
   // Get by id: GET /api/entities/:name/:id
@@ -141,7 +179,7 @@ export const entitiesRoutes: FastifyPluginAsync = async (app) => {
     if (!delegate) return reply.code(404).send({ error: 'unknown_entity' });
     const item = await delegate.findUnique({ where: { id } });
     if (!item) return reply.code(404).send({ error: 'not_found' });
-    return item;
+    return toFrontend(name, item);
   });
 
   // Create: POST /api/entities/:name
@@ -150,7 +188,7 @@ export const entitiesRoutes: FastifyPluginAsync = async (app) => {
     const delegate = modelDelegate(name);
     if (!delegate) return reply.code(404).send({ error: 'unknown_entity' });
     const created = await delegate.create({ data: coerceData(name, req.body as Record<string, unknown>) });
-    return reply.code(201).send(created);
+    return reply.code(201).send(toFrontend(name, created));
   });
 
   // Update: PUT /api/entities/:name/:id
@@ -159,7 +197,7 @@ export const entitiesRoutes: FastifyPluginAsync = async (app) => {
     const delegate = modelDelegate(name);
     if (!delegate) return reply.code(404).send({ error: 'unknown_entity' });
     const updated = await delegate.update({ where: { id }, data: coerceData(name, req.body as Record<string, unknown>) });
-    return updated;
+    return toFrontend(name, updated);
   });
 
   // Delete: DELETE /api/entities/:name/:id
