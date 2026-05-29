@@ -6,6 +6,7 @@ import { BrowserRouter as Router, Route, Routes, Navigate } from 'react-router-d
 import PageNotFound from './lib/PageNotFound';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
+import InstallPrompt from '@/components/InstallPrompt';
 import { base44 } from '@/api/base44Client';
 import React from 'react';
 import TrainingVideos from './pages/TrainingVideos';
@@ -137,6 +138,7 @@ function App() {
           } />
         </Routes>
         <Toaster />
+        <InstallPrompt />
       </Router>
     </QueryClientProvider>
   )
