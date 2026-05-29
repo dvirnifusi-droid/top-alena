@@ -1035,8 +1035,11 @@ export async function sendRestroomReminder() {
 
   const matches = (e: any) => {
     if (!targets.length) return true; // empty target ⇒ everyone on shift
-    const pos: string[] = Array.isArray(e.positions) ? e.positions : [];
-    return targets.includes(e.role) || pos.some((p) => targets.includes(p));
+    // positions are objects like { position_name } (or sometimes strings)
+    const posNames: string[] = (Array.isArray(e.positions) ? e.positions : [])
+      .map((p: any) => (typeof p === 'string' ? p : p?.position_name || p?.name))
+      .filter(Boolean);
+    return targets.includes(e.role) || posNames.some((p) => targets.includes(p));
   };
 
   const recipients = employees.filter((e: any) => matches(e) && e.push_subscription);

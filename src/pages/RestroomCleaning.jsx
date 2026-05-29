@@ -63,8 +63,12 @@ export default function RestroomCleaning() {
           const emps = await base44.entities.Employee.list('-created_date', 500);
           const set = new Set();
           (emps || []).forEach((e) => {
-            if (e.role) set.add(e.role);
-            (Array.isArray(e.positions) ? e.positions : []).forEach((p) => p && set.add(p));
+            if (typeof e.role === 'string' && e.role) set.add(e.role);
+            (Array.isArray(e.positions) ? e.positions : []).forEach((p) => {
+              // positions are objects like { position_name, rate } (or sometimes strings)
+              const name = typeof p === 'string' ? p : (p?.position_name || p?.name);
+              if (name) set.add(name);
+            });
           });
           setAllPositions([...set]);
         } catch (e) { console.warn(e); }
