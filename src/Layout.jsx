@@ -56,6 +56,8 @@ const adminLinks = [
   { title: "צ'אט משמרת", url: createPageUrl("ShiftChat"), icon: MessageSquare, isSubItem: true },
   { title: "הגדרות הגשת זמינות", url: createPageUrl("AvailabilityFormSettings"), icon: Settings, isSubItem: true },
   { title: "משוב עובדים", url: createPageUrl("EmployeeFeedback"), icon: MessageSquare, isSubItem: true },
+  { title: "ראיונות וגיוס 🎯", url: createPageUrl("RecruitmentInterviews"), icon: Users, isSubItem: true },
+  { title: "סלוטים לראיונות", url: createPageUrl("InterviewSettings"), icon: Calendar, isSubItem: true },
 
   // הכשרות ואיכות
   { title: "הכשרות ואיכות", url: "#", icon: GraduationCap, isCategory: true },

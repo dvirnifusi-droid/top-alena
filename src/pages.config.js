@@ -75,6 +75,7 @@ import Employees from './pages/Employees';
 import GamificationAdmin from './pages/GamificationAdmin';
 import GamificationCenter from './pages/GamificationCenter';
 import Incidents from './pages/Incidents';
+import InterviewSettings from './pages/InterviewSettings';
 import InvoiceDetails from './pages/InvoiceDetails';
 import Invoices from './pages/Invoices';
 import Leaderboard from './pages/Leaderboard';
@@ -87,6 +88,7 @@ import PositionsManagement from './pages/PositionsManagement';
 import PublicReservation from './pages/PublicReservation';
 import PublicReservationSettings from './pages/PublicReservationSettings';
 import PushNotifications from './pages/PushNotifications';
+import RecruitmentInterviews from './pages/RecruitmentInterviews';
 import Reports from './pages/Reports';
 import RestroomCleaning from './pages/RestroomCleaning';
 import RevenueForecasting from './pages/RevenueForecasting';
@@ -141,6 +143,7 @@ export const PAGES = {
     "GamificationAdmin": GamificationAdmin,
     "GamificationCenter": GamificationCenter,
     "Incidents": Incidents,
+    "InterviewSettings": InterviewSettings,
     "InvoiceDetails": InvoiceDetails,
     "Invoices": Invoices,
     "Leaderboard": Leaderboard,
@@ -153,6 +156,7 @@ export const PAGES = {
     "PublicReservation": PublicReservation,
     "PublicReservationSettings": PublicReservationSettings,
     "PushNotifications": PushNotifications,
+    "RecruitmentInterviews": RecruitmentInterviews,
     "Reports": Reports,
     "RestroomCleaning": RestroomCleaning,
     "RevenueForecasting": RevenueForecasting,
