@@ -1,6 +1,6 @@
 // TOP ALENA service worker: Web Push + offline app shell.
-const CACHE = 'topalena-v1';
-const SHELL = ['/', '/manifest.json', '/icons/icon-192.png', '/icons/icon-512.png'];
+const CACHE = 'topalena-v2';
+const SHELL = ['/', '/manifest.json', '/icons/icon-192.png?v=1', '/icons/icon-512.png'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).catch(() => {}));
@@ -57,8 +57,8 @@ self.addEventListener('push', (event) => {
   event.waitUntil(
     self.registration.showNotification(data.title || 'עלינא', {
       body: data.body || data.message || '',
-      icon: '/icons/icon-192.png',
-      badge: '/icons/icon-192.png',
+      icon: '/icons/icon-192.png?v=1',
+      badge: '/icons/icon-192.png?v=1',
       dir: 'rtl',
       lang: 'he',
       data: { url: data.url || '/QueueJoin' },
