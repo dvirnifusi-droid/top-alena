@@ -114,17 +114,21 @@ function buildEntitiesProxy({ prefix = '/entities' } = {}) {
 }
 
 function buildFunctionsProxy({ prefix = '/fn' } = {}) {
+  // Base44 SDK returns function results as an axios-style { data, status }.
+  // Components across the app read `res.data.<x>`, so wrap the raw body in
+  // { data } to stay compatible.
+  const call = (name, payload = {}) =>
+    http(`${prefix}/${name}`, { method: 'POST', body: payload }).then((body) => ({
+      data: body,
+      status: 200,
+    }));
   return new Proxy(
     {},
     {
       get: (cache, name) => {
         if (typeof name !== 'string') return undefined;
-        if (name === 'invoke') return (fnName, payload = {}) =>
-          http(`${prefix}/${fnName}`, { method: 'POST', body: payload });
-        if (!cache[name]) {
-          cache[name] = (payload = {}) =>
-            http(`${prefix}/${name}`, { method: 'POST', body: payload });
-        }
+        if (name === 'invoke') return (fnName, payload = {}) => call(fnName, payload);
+        if (!cache[name]) cache[name] = (payload = {}) => call(name, payload);
         return cache[name];
       },
     },

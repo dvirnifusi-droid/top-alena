@@ -11,6 +11,7 @@ import { pushover, pushoverToAdmins } from '../lib/pushover.js';
 import { sendTelegramMessage } from '../lib/telegram.js';
 import { sendEmail } from '../lib/email.js';
 import { invokeLLM } from '../lib/llm.js';
+import { driveAccessToken, listDriveFiles, downloadDriveFile } from '../lib/gdrive.js';
 
 const db = prisma as any; // generic delegate access
 
@@ -263,10 +264,43 @@ registerFn('sendDeliveryViaTelegramClient', async ({ body }) => {
 
 /* ----- AI / Gemini ----- */
 
+// Dvir AI chat. Includes the Drive files cached in GeminiFileCache so Gemini
+// can answer from the team's uploaded documents. Matches the original Base44
+// contract: { message, history, systemPrompt } -> { reply }.
 registerFn('askGemini', async ({ body }) => {
-  const { prompt, model } = body as any;
-  const result = await invokeLLM({ prompt, model });
-  return { result };
+  const { message, history, systemPrompt, prompt } = body as any;
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) throw new Error('GEMINI_API_KEY not set');
+  const userMessage = message ?? prompt ?? '';
+
+  const cached: any[] = await db.geminiFileCache.findMany();
+  const supported = new Set([
+    'application/pdf', 'text/plain', 'text/html', 'text/csv', 'text/markdown',
+    'image/jpeg', 'image/png', 'image/gif', 'image/webp',
+    'video/mp4', 'audio/mpeg', 'audio/wav',
+  ]);
+  const fileParts = cached
+    .filter((f) => f.gemini_file_uri && supported.has(f.mime_type))
+    .map((f) => ({ file_data: { mime_type: f.mime_type, file_uri: f.gemini_file_uri } }));
+
+  const contents: any[] = [];
+  if (Array.isArray(history)) {
+    for (const m of history) {
+      contents.push({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] });
+    }
+  }
+  contents.push({ role: 'user', parts: [...fileParts, { text: userMessage }] });
+
+  const reqBody: any = { contents, generationConfig: { temperature: 0.2, maxOutputTokens: 2048 } };
+  if (systemPrompt) reqBody.system_instruction = { parts: [{ text: systemPrompt }] };
+
+  const res = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+    { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(reqBody) },
+  );
+  const data: any = await res.json();
+  if (!res.ok) throw new Error(data.error?.message || 'Gemini API error');
+  return { reply: data.candidates?.[0]?.content?.parts?.[0]?.text || '' };
 });
 
 registerFn('aiAnalyzeIncident', async ({ body }) => {
@@ -546,9 +580,65 @@ registerFn('listGeminiModels', async () => {
   return res.json();
 });
 
+// Sync the team's Google Drive folder into Gemini's File API and cache the
+// resulting file URIs in GeminiFileCache (used by askGemini). Run on demand
+// (admin) or from a daily cron. Requires GOOGLE_SERVICE_ACCOUNT_JSON and the
+// Drive folder shared with the service-account email.
 registerFn('refreshGeminiFiles', async () => {
-  // The original function manages the GeminiFileCache entity; safe no-op here.
-  return { ok: true, refreshed: 0 };
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) throw new Error('GEMINI_API_KEY not set');
+  const folderId = process.env.DRIVE_FOLDER_ID || '19gPH0jJT8BdbzYvx-sSiFXRhWqo-z_bA';
+
+  const token = await driveAccessToken();
+  const mimeTypes = [
+    'application/pdf',
+    'text/plain',
+    'text/csv',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'application/msword',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'application/vnd.ms-excel',
+  ];
+  const files = await listDriveFiles(folderId, token, mimeTypes);
+  const results: any[] = [];
+
+  for (const file of files) {
+    try {
+      const buf = await downloadDriveFile(file.id, token);
+      const up = await fetch(
+        `https://generativelanguage.googleapis.com/upload/v1beta/files?key=${apiKey}`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': file.mimeType,
+            'X-Goog-Upload-Command': 'upload, finalize',
+            'X-Goog-Upload-Header-Content-Length': String(buf.byteLength),
+            'X-Goog-Upload-Header-Content-Type': file.mimeType,
+          },
+          body: buf,
+        },
+      );
+      const upData: any = await up.json();
+      const uri = upData.file?.uri;
+      if (!uri) { results.push({ file: file.name, status: 'error', detail: upData }); continue; }
+
+      const existing = await db.geminiFileCache.findFirst({ where: { drive_file_id: file.id } });
+      const data = {
+        gemini_file_uri: uri,
+        mime_type: file.mimeType,
+        last_uploaded: new Date().toISOString(),
+      };
+      if (existing) {
+        await db.geminiFileCache.update({ where: { id: existing.id }, data });
+      } else {
+        await db.geminiFileCache.create({ data: { drive_file_id: file.id, file_name: file.name, ...data } });
+      }
+      results.push({ file: file.name, status: 'ok' });
+    } catch (e: any) {
+      results.push({ file: file.name, status: 'error', detail: e?.message });
+    }
+  }
+  return { success: true, count: results.length, files: results };
 });
 
 /* ----- Game seeding (admin-only conveniences) ----- */
