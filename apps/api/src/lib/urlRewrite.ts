@@ -5,11 +5,16 @@
 const BUCKET = process.env.S3_BUCKET ?? 'top-alena';
 const INTERNAL_FILE_RE = new RegExp(`^https?://([^/]+)/${BUCKET}/(.+)$`, 'i');
 const INTERNAL_HOST_RE = /(localhost|127\.0\.0\.1|minio|:9000)/i;
+// Earlier uploads also stored URLs as /storage/<key> (a path Caddy never
+// proxied), so the browser got a 404. Rewrite those to /api/files/<key> too.
+const STORAGE_PATH_RE = /^(?:https?:\/\/[^/]+)?\/storage\/(.+)$/i;
 
 export function rewriteFileUrl(v: any): any {
   if (typeof v !== 'string' || v.length < 8) return v;
-  const m = v.match(INTERNAL_FILE_RE);
-  if (m && INTERNAL_HOST_RE.test(m[1])) return `/api/files/${m[2]}`;
+  const m1 = v.match(INTERNAL_FILE_RE);
+  if (m1 && INTERNAL_HOST_RE.test(m1[1])) return `/api/files/${m1[2]}`;
+  const m2 = v.match(STORAGE_PATH_RE);
+  if (m2) return `/api/files/${m2[1]}`;
   return v;
 }
 
