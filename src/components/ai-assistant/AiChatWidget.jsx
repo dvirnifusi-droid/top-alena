@@ -75,6 +75,26 @@ export default function AiChatWidget() {
         } catch (e) { console.error('Prefetch error:', e); }
     };
 
+    // Free, unlimited Hebrew TTS via the browser's built-in speech engine.
+    // Used by default (no cost); ElevenLabs is only used when PREMIUM_VOICE is on.
+    const speakBrowser = (text) => {
+        try {
+            const synth = window.speechSynthesis;
+            if (!synth) return false;
+            synth.cancel();
+            const u = new SpeechSynthesisUtterance(text);
+            u.lang = 'he-IL';
+            const voices = synth.getVoices() || [];
+            const he = voices.find(v => /he|iw/i.test(v.lang));
+            if (he) u.voice = he;
+            u.onstart = () => { setLoadingAudioId(null); setAudioCountdown(0); setIsSpeaking(true); };
+            u.onend = () => setIsSpeaking(false);
+            u.onerror = () => setIsSpeaking(false);
+            synth.speak(u);
+            return true;
+        } catch { return false; }
+    };
+
     const speak = async (text, messageId) => {
         if (!ttsEnabled) return;
         stopSpeaking();
@@ -89,6 +109,14 @@ export default function AiChatWidget() {
         audioTimerRef.current = setInterval(() => {
             setAudioCountdown(prev => prev <= 1 ? 0 : prev - 1);
         }, 1000);
+
+        // Default: free browser voice (no cost, never runs out). Flip to true for ElevenLabs.
+        const PREMIUM_VOICE = false;
+        if (!PREMIUM_VOICE) {
+            clearInterval(audioTimerRef.current);
+            if (speakBrowser(clean)) return;
+            // browser TTS unavailable -> fall through to ElevenLabs below
+        }
 
         try {
             let objUrl = messageId && audioCacheRef.current[messageId];
@@ -117,11 +145,12 @@ export default function AiChatWidget() {
                 setIsSpeaking(false);
             });
         } catch (e) {
-            console.error('TTS error:', e);
+            console.error('TTS error (falling back to free browser voice):', e);
             clearInterval(audioTimerRef.current);
             setLoadingAudioId(null);
             setAudioCountdown(0);
-            setIsSpeaking(false);
+            // ElevenLabs failed/quota exhausted -> free browser voice so audio never stops
+            if (!speakBrowser(clean)) setIsSpeaking(false);
         }
     };
 
@@ -130,6 +159,7 @@ export default function AiChatWidget() {
             currentAudioRef.current.pause();
             currentAudioRef.current = null;
         }
+        try { window.speechSynthesis?.cancel(); } catch { /* ignore */ }
         setIsSpeaking(false);
     };
 
