@@ -29,7 +29,17 @@ const db = prisma as any; // generic delegate access
 
 // Public deploy marker — lets us confirm which build is live (and that
 // auto-deploy is working) without server access. Bump on each deploy test.
-registerFn('deployInfo', async () => ({ version: 'autodeploy-test-1', ts: new Date().toISOString() }), { public: true });
+registerFn('deployInfo', async () => ({ version: 'v2-url-rewrite', ts: new Date().toISOString() }), { public: true });
+
+// TEMP diagnostic: tells whether a given file URL would be rewritten by the
+// preSerialization hook. Lets us confirm both that the deploy is live and
+// that the stored URL format actually matches our regex. Safe to remove.
+registerFn('debugRewrite', async ({ body }) => {
+  const { url } = body as any;
+  // import lazily so this stays a no-op cost when unused
+  const { rewriteFileUrl } = await import('../lib/urlRewrite.js');
+  return { input: url, rewritten: rewriteFileUrl(url) };
+}, { public: true });
 
 /* ----- Queue ----- */
 
