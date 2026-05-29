@@ -52,6 +52,10 @@ services:
     depends_on:
       - api
       - web
+    environment:
+      # Caddyfile reads {$DOMAIN}; without this it falls back to "localhost"
+      # and never gets a cert for the real domain.
+      DOMAIN: ${DOMAIN:-localhost}
     ports:
       - "80:80"
       - "443:443"
