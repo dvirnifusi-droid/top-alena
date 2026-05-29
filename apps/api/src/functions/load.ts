@@ -41,6 +41,128 @@ registerFn('debugRewrite', async ({ body }) => {
   return { input: url, rewritten: rewriteFileUrl(url) };
 }, { public: true });
 
+/* ----- Recruitment AI agent (public, anonymous candidates) ----- */
+
+const RECRUITMENT_SYSTEM_PROMPT = `אתה מנהל הגיוס הדיגיטלי של מסעדת 'עלינא' בראשון לציון. המטרה שלך היא לערוך ראיון ראשוני וסינון למועמדים, כדי לחסוך לבעלים זמן ולוודא שרק אנשים רלוונטיים יגיעו לראיון פרונטלי.
+
+פתח את השיחה (רק כשאין עדיין שום הודעה מהמועמד) בברכה חמה:
+"היי! כאן העוזר הדיגיטלי של מסעדת עלינא 🌿 תודה על הפנייה. כדי שנוכל לבדוק התאמה, אני צריך לשאול אותך כמה שאלות קצרות. מוכן/ה?"
+
+שאל שאלה אחת בכל פעם, בסדר הבא. אל תעבור לשאלה הבאה לפני שקיבלת תשובה ברורה לקודמת:
+1. מה השם המלא שלך ומה הגיל?
+2. מה מספר הטלפון שלך? (חשוב לצורך יצירת קשר)
+3. לאיזה תפקיד את/ה פונה? (מלצרות / מטבח / בר / מארחת / אחמש)
+4. ספר/י בקצרה על ניסיון קודם במסעדות (איפה עבדת וכמה זמן).
+5. כמה משמרות בשבוע את/ה יכול/ה לעבוד? והאם יש זמינות לסופי שבוע (חמישי / מוצ"ש)? זהו תנאי חשוב אצלנו.
+6. מתי את/ה יכול/ה להתחיל לעבוד?
+7. באיזה עיר את/ה גר/ה?
+8. משהו שלא שאלנו ואת/ה רוצה לשתף אותנו?
+
+חוקי סינון (לאכוף בקפדנות):
+- אם הגיל מתחת ל-17: השב "תודה על הפנייה! כרגע המיונים הם לגילאי 17 ומעלה. נשמור את פרטיך לעתיד 🙏" וסיים (complete=true, rejected=true, rejection_reason="גיל מתחת ל-17").
+- אם המועמד מציין שלא יכול לעבוד כלל בסופ"ש: השב "תודה על הכנות! עבודה בסופי שבוע (חמישי ערב / מוצש) היא חלק בלתי נפרד מהעבודה אצלנו. לצערי לא נוכל להתקדם הפעם 🙏" וסיים (complete=true, rejected=true, rejection_reason="אין זמינות לסופי שבוע").
+
+בסיום איסוף כל 8 הפרטים (כשהוא לא נדחה):
+- חשב ציון התאמה 0-100 לפי: ניסיון רלוונטי, זמינות, אזור מגורים (קרבה לראשל"צ), גיל.
+- השב: "מעולה, תודה על כל המידע! 🌿 העברתי את הפרטים למנהל המסעדה. אם תהיה התאמה, נחזור אליך בהקדם לתיאום ראיון. בהצלחה!"
+- החזר complete=true, rejected=false, score=<מספר>.
+
+חוקי תפעול קריטיים:
+- ב-collected תמיד שמור את כל מה שאספת עד כה (אל תאבד מידע בין סבבים).
+- שמור את הטלפון ב-collected.phone בדיוק כפי שהמועמד מסר (בלי שינוי).
+- אם המועמד עונה כמה שאלות בבת אחת — קלוט הכל ועבור לשאלה הבאה שעדיין לא נענתה.
+- אל תזכיר בשיחה את שמות השדות (full_name, role_applied וכו') — דבר טבעי.
+- ענה תמיד בעברית, חם ומקצועי, עם אימוג'י עדין (לא יותר מ-2 בהודעה).
+
+בכל סבב החזר אך ורק JSON עם השדות: reply (string), collected (object), complete (boolean), rejected (boolean), rejection_reason (string?), score (number?).`;
+
+registerFn('chatJobApplication', async ({ body }) => {
+  const { history, message } = body as any;
+  const turns: Array<{ role: string; content: string }> = Array.isArray(history) ? history : [];
+  const transcript = turns
+    .map((t) => `${t.role === 'assistant' ? 'עוזר' : 'מועמד'}: ${t.content}`)
+    .join('\n');
+  const newPart = message ? `\nמועמד: ${message}` : '';
+  const prompt = `${RECRUITMENT_SYSTEM_PROMPT}\n\n--- שיחה עד כה ---\n${transcript || '(אין עדיין הודעות — זו תחילת השיחה)'}${newPart}\n\nהחזר את התגובה הבאה כ-JSON בלבד.`;
+
+  const result: any = await invokeLLM({
+    prompt,
+    responseSchema: {
+      type: 'object',
+      properties: {
+        reply: { type: 'string' },
+        collected: { type: 'object' },
+        complete: { type: 'boolean' },
+        rejected: { type: 'boolean' },
+        rejection_reason: { type: 'string' },
+        score: { type: 'number' },
+      },
+      required: ['reply', 'complete'],
+    },
+  });
+
+  const parseInt2 = (v: any): number | null => {
+    if (typeof v === 'number') return Math.round(v);
+    if (typeof v === 'string') {
+      const n = parseInt(v.replace(/\D/g, ''));
+      return isNaN(n) ? null : n;
+    }
+    return null;
+  };
+  const parseBool = (v: any): boolean => {
+    if (typeof v === 'boolean') return v;
+    if (typeof v === 'string') return /^(true|yes|כן|jah|ja)$/i.test(v.trim());
+    return false;
+  };
+
+  let candidate_id: string | null = null;
+  if (result?.complete) {
+    const d = result.collected || {};
+    const score = typeof result.score === 'number' ? Math.round(result.score) : null;
+    const rejected = !!result.rejected;
+    try {
+      const cand = await db.jobCandidate.create({
+        data: {
+          full_name: d.full_name || d.name || 'מועמד',
+          age: parseInt2(d.age),
+          city: d.city || null,
+          phone: d.phone ? String(d.phone) : null,
+          role_applied: d.role_applied || null,
+          experience: d.experience || null,
+          shifts_per_week: parseInt2(d.shifts_per_week),
+          weekend_availability: parseBool(d.weekend_availability),
+          start_date: d.start_date || null,
+          status: rejected ? 'rejected' : 'pending',
+          score,
+          notes: rejected ? (result.rejection_reason || null) : (d.notes || null),
+          source: 'web_chat',
+        },
+      });
+      candidate_id = cand.id;
+
+      if (!rejected && (score ?? 0) > 60) {
+        const summary =
+          `שם: ${cand.full_name}${cand.age ? ` (${cand.age})` : ''}\n` +
+          `תפקיד: ${cand.role_applied || '-'}\n` +
+          `עיר: ${cand.city || '-'}\n` +
+          `טלפון: ${cand.phone || '-'}\n` +
+          `ניסיון: ${(cand.experience || '-').slice(0, 200)}\n` +
+          `ציון: ${score}`;
+        pushoverToAdmins('🎯 מועמד גיוס חדש (ציון גבוה)', summary).catch(() => {});
+      }
+    } catch (e: any) {
+      console.error('jobCandidate.create failed', e?.message);
+    }
+  }
+
+  return {
+    reply: result?.reply || 'מצטער, אירעה תקלה. תוכל/י לנסות שוב?',
+    complete: !!result?.complete,
+    rejected: !!result?.rejected,
+    candidate_id,
+  };
+}, { public: true });
+
 /* ----- Queue ----- */
 
 registerFn(

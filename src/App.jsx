@@ -10,6 +10,7 @@ import InstallPrompt from '@/components/InstallPrompt';
 import { base44 } from '@/api/base44Client';
 import React from 'react';
 import TrainingVideos from './pages/TrainingVideos';
+import JobApplication from './pages/JobApplication';
 import QueueJoin from './pages/QueueJoin';
 import QueueDashboard from './pages/QueueDashboard';
 import QueueHistory from './pages/QueueHistory';
@@ -128,6 +129,8 @@ function App() {
           <Route path="/QueueFeedback" element={<QueueFeedback />} />
           <Route path="/PublicReservation" element={<PublicReservation />} />
           <Route path="/PrivacyAndAccessibility" element={<PrivacyAndAccessibility />} />
+          <Route path="/JobApplication" element={<JobApplication />} />
+          <Route path="/apply" element={<JobApplication />} />
           
           {/* דורש התחברות */}
           <Route path="/MarketingCampaigns" element={<MarketingCampaigns />} />
