@@ -5,7 +5,12 @@ import { JWT } from 'google-auth-library';
 function serviceAccount(): { client_email: string; private_key: string } {
   const raw = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
   if (!raw) throw new Error('GOOGLE_SERVICE_ACCOUNT_JSON not set');
-  const sa = JSON.parse(raw);
+  // Accept either raw JSON or base64-encoded JSON (base64 avoids .env escaping issues).
+  let text = raw.trim();
+  if (!text.startsWith('{')) {
+    try { text = Buffer.from(text, 'base64').toString('utf8'); } catch { /* keep as-is */ }
+  }
+  const sa = JSON.parse(text);
   if (!sa.client_email || !sa.private_key) throw new Error('invalid service account json');
   return sa;
 }
