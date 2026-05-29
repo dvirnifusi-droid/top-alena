@@ -53,10 +53,11 @@ const RECRUITMENT_SYSTEM_PROMPT = `אתה מנהל הגיוס הדיגיטלי �
 2. מה מספר הטלפון שלך? (חשוב לצורך יצירת קשר)
 3. לאיזה תפקיד את/ה פונה? (מלצרות / מטבח / בר / מארחת / אחמש)
 4. ספר/י בקצרה על ניסיון קודם במסעדות (איפה עבדת וכמה זמן).
-5. כמה משמרות בשבוע את/ה יכול/ה לעבוד? והאם יש זמינות לסופי שבוע (חמישי / מוצ"ש)? זהו תנאי חשוב אצלנו.
-6. מתי את/ה יכול/ה להתחיל לעבוד?
-7. באיזה עיר את/ה גר/ה?
-8. משהו שלא שאלנו ואת/ה רוצה לשתף אותנו?
+5. כמה משמרות בשבוע את/ה יכול/ה לעבוד? **חייב לקבל מספר** (1–7). אם המועמד עונה במילים ("כמה", "הרבה", "תלוי"), שאל שוב בעדינות עד שתקבל מספר ספציפי. אל תעבור לשאלה 6 לפני שיש לך מספר.
+6. האם את/ה זמין/ה לעבוד בסופי שבוע — חמישי בערב ומוצ"ש? זהו תנאי חשוב אצלנו. (זאת שאלה נפרדת מהקודמת — אל תאחד אותן.)
+7. מתי את/ה יכול/ה להתחיל לעבוד?
+8. באיזה עיר את/ה גר/ה?
+9. משהו שלא שאלנו ואת/ה רוצה לשתף אותנו?
 
 חוקי סינון (לאכוף בקפדנות):
 - אם הגיל מתחת ל-17: השב "תודה על הפנייה! כרגע המיונים הם לגילאי 17 ומעלה. נשמור את פרטיך לעתיד 🙏" וסיים (complete=true, rejected=true, rejection_reason="גיל מתחת ל-17").
@@ -136,7 +137,8 @@ registerFn('chatJobApplication', async ({ body }) => {
         prompt:
           `מצורף תמלול של ראיון גיוס בעברית. חלץ את הפרטים הבאים מהדברים שהמועמד אמר.\n` +
           `אם פרט לא נאמר במפורש — החזר null. שמור טלפון בדיוק כפי שנאמר (כולל מקפים אם היו).\n` +
-          `weekend_availability=true אם המועמד אמר שהוא זמין לסופ"ש (אפילו חלקית), false אם אמר שאינו זמין.\n\n` +
+          `weekend_availability=true אם המועמד אמר שהוא זמין לסופ"ש (אפילו חלקית), false אם אמר שאינו זמין.\n` +
+          `ai_summary: סיכום 2-3 משפטים על המועמד למנהל (חוזקות, חולשות, התרשמות כללית).\n\n` +
           `--- תמלול ---\n${fullTranscript}\n--- סוף ---\n\nהחזר JSON בלבד.`,
         responseSchema: {
           type: 'object',
@@ -151,6 +153,7 @@ registerFn('chatJobApplication', async ({ body }) => {
             start_date: { type: 'string' },
             city: { type: 'string' },
             notes: { type: 'string' },
+            ai_summary: { type: 'string' },
           },
         },
       }) as any;
@@ -191,6 +194,7 @@ registerFn('chatJobApplication', async ({ body }) => {
           status: rejected ? 'rejected' : 'pending',
           score,
           notes: rejected ? (result.rejection_reason || d.notes) : d.notes,
+          ai_summary: extracted.ai_summary || null,
           source: 'web_chat',
         },
       });
@@ -220,8 +224,165 @@ registerFn('chatJobApplication', async ({ body }) => {
     complete: !!result?.complete,
     rejected: !!result?.rejected,
     candidate_id,
+    score: result?.complete ? (typeof result.score === 'number' ? Math.round(result.score) : null) : null,
   };
 }, { public: true });
+
+/* ----- Interview scheduling ----- */
+
+const WEEKDAY_NAMES = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'];
+
+// PUBLIC — candidate sees available slots for the next 2 weeks.
+registerFn('getAvailableInterviewSlots', async ({ body }) => {
+  const { candidate_id } = body as any;
+  if (!candidate_id) throw new Error('candidate_id required');
+  const cand = await db.jobCandidate.findUnique({ where: { id: candidate_id } });
+  if (!cand) throw new Error('candidate_not_found');
+  if ((cand.score ?? 0) < 80) return { slots: [], reason: 'below_threshold' };
+  if (cand.status === 'rejected') return { slots: [], reason: 'rejected' };
+
+  const templates = await db.interviewSlotTemplate.findMany({ where: { active: true } });
+  if (!templates.length) return { slots: [], reason: 'no_templates' };
+
+  // Already-booked: collect (date,time) of non-cancelled interviews in next 21 days
+  const booked = await db.interview.findMany({
+    where: { status: { in: ['scheduled', 'showed', 'completed'] } },
+  });
+  const bookedKey = new Set(booked.map((b: any) => `${b.scheduled_date}|${b.scheduled_time}`));
+
+  const out: any[] = [];
+  const now = new Date();
+  for (let i = 1; i <= 14; i++) {
+    const d = new Date(now.getTime() + i * 86400000);
+    const weekday = d.getDay();
+    const dateStr = d.toISOString().slice(0, 10);
+    for (const t of templates) {
+      if (t.weekday !== weekday) continue;
+      const key = `${dateStr}|${t.time}`;
+      if (bookedKey.has(key)) continue;
+      out.push({
+        date: dateStr,
+        time: t.time,
+        weekday_name: WEEKDAY_NAMES[weekday],
+        duration_minutes: t.duration_minutes ?? 30,
+      });
+    }
+  }
+  out.sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time));
+  return { slots: out.slice(0, 16) }; // cap at 16 to keep the list digestible
+}, { public: true });
+
+// PUBLIC — candidate books a slot from the chat.
+registerFn('bookInterview', async ({ body }) => {
+  const { candidate_id, date, time } = body as any;
+  if (!candidate_id || !date || !time) throw new Error('missing_params');
+  const cand = await db.jobCandidate.findUnique({ where: { id: candidate_id } });
+  if (!cand) throw new Error('candidate_not_found');
+  if ((cand.score ?? 0) < 80) throw new Error('below_threshold');
+
+  // Race-safe-ish: re-check the slot isn't taken
+  const taken = await db.interview.findFirst({
+    where: { scheduled_date: date, scheduled_time: time, status: { in: ['scheduled', 'showed', 'completed'] } },
+  });
+  if (taken) throw new Error('slot_taken');
+
+  const tpl = await db.interviewSlotTemplate.findFirst({ where: { time } });
+  const interview = await db.interview.create({
+    data: {
+      candidate_id,
+      candidate_name: cand.full_name,
+      candidate_phone: cand.phone,
+      scheduled_date: date,
+      scheduled_time: time,
+      duration_minutes: tpl?.duration_minutes ?? 30,
+      status: 'scheduled',
+    },
+  });
+
+  await db.jobCandidate.update({ where: { id: candidate_id }, data: { status: 'interview_scheduled' } });
+
+  // Notify the owner immediately
+  const summary =
+    `${cand.full_name || 'מועמד'} (${cand.role_applied || '-'})\n` +
+    `📅 ${date} בשעה ${time}\n` +
+    `📞 ${cand.phone || '-'}\n` +
+    `ציון: ${cand.score ?? '-'}`;
+  pushoverToAdmins('📅 ראיון חדש נקבע', summary).catch(() => {});
+
+  return { interview };
+}, { public: true });
+
+// AUTH — owner sets the weekly recurring slot template.
+registerFn('getInterviewSlotTemplates', async () => {
+  const templates = await db.interviewSlotTemplate.findMany({ orderBy: [{ weekday: 'asc' }, { time: 'asc' }] });
+  return { templates };
+});
+registerFn('saveInterviewSlotTemplates', async ({ body }) => {
+  const { templates } = body as any;
+  if (!Array.isArray(templates)) throw new Error('templates array required');
+  // Replace the whole set (simple and predictable for the owner)
+  await db.interviewSlotTemplate.deleteMany({});
+  if (templates.length) {
+    await db.interviewSlotTemplate.createMany({
+      data: templates.map((t: any) => ({
+        weekday: parseInt(t.weekday),
+        time: String(t.time),
+        duration_minutes: typeof t.duration_minutes === 'number' ? t.duration_minutes : 30,
+        active: t.active !== false,
+      })),
+    });
+  }
+  return { ok: true, count: templates.length };
+});
+
+// AUTH — recruitment dashboard: upcoming interviews, candidates to call back.
+registerFn('getRecruitmentInbox', async () => {
+  const today = new Date().toISOString().slice(0, 10);
+  const upcoming = await db.interview.findMany({
+    where: { scheduled_date: { gte: today } },
+    orderBy: [{ scheduled_date: 'asc' }, { scheduled_time: 'asc' }],
+    take: 50,
+  });
+  const recent = await db.interview.findMany({
+    where: { scheduled_date: { lt: today }, status: { in: ['scheduled', 'showed', 'no_show'] } },
+    orderBy: [{ scheduled_date: 'desc' }, { scheduled_time: 'desc' }],
+    take: 20,
+  });
+  const toCallBack = await db.jobCandidate.findMany({
+    where: { status: 'pending', score: { gte: 50, lt: 80 } },
+    orderBy: { created_date: 'desc' },
+    take: 50,
+  });
+  return { upcoming, recent, toCallBack };
+});
+
+registerFn('markInterviewStatus', async ({ body }) => {
+  const { id, status, notes } = body as any;
+  if (!id || !status) throw new Error('id and status required');
+  const data: any = { status };
+  if (notes !== undefined) data.notes = notes;
+  const interview = await db.interview.update({ where: { id }, data });
+  // If candidate showed → mark candidate accordingly; if no_show, mark candidate as no_show too
+  if (status === 'no_show') {
+    await db.jobCandidate.update({ where: { id: interview.candidate_id }, data: { status: 'no_show' } }).catch(() => {});
+  } else if (status === 'showed' || status === 'completed') {
+    await db.jobCandidate.update({ where: { id: interview.candidate_id }, data: { status: 'interviewed' } }).catch(() => {});
+  }
+  return { interview };
+});
+
+// AUTH — move a candidate through training pipeline.
+// Stages: 'hired' -> 'trainee_tables' -> 'trainee_bar' -> 'trainee_kitchen' -> 'active_waiter'
+registerFn('advanceCandidateStage', async ({ body }) => {
+  const { candidate_id, stage } = body as any;
+  if (!candidate_id || !stage) throw new Error('missing_params');
+  const updates: any = { training_stage: stage };
+  if (stage === 'hired' || stage === 'trainee_tables') updates.hired_at = new Date().toISOString();
+  if (stage === 'active_waiter') updates.status = 'active';
+  else updates.status = 'trainee';
+  const cand = await db.jobCandidate.update({ where: { id: candidate_id }, data: updates });
+  return { candidate: cand };
+});
 
 /* ----- Queue ----- */
 
