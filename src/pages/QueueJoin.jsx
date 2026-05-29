@@ -33,8 +33,9 @@ async function registerPushAndSave(entryId) {
       applicationServerKey: VAPID_PUBLIC_KEY,
     });
 
-    await base44.entities.QueueEntry.update(entryId, {
-      push_subscription: sub.toJSON(),
+    await invokePublic('updateQueueEntry', {
+      entryId,
+      data: { push_subscription: sub.toJSON() },
     });
   } catch (e) {
     console.warn('Push registration failed:', e);
@@ -93,7 +94,7 @@ function QueueJoinInner() {
   // טען את רשימת כל הממתינים כשמודאל נפתח
   useEffect(() => {
     if (showQueueList) {
-      base44.entities.QueueEntry.filter({ status: 'pending' }, '-timestamp_register', 100)
+      base44.asServiceRole.entities.QueueEntry.filter({ status: 'pending' }, '-timestamp_register', 100)
         .then(entries => setAllQueueEntries(entries))
         .catch(() => setAllQueueEntries([]));
     }
@@ -165,10 +166,13 @@ function QueueJoinInner() {
     const sendLocation = () => {
       navigator.geolocation.getCurrentPosition(
         (pos) => {
-          base44.entities.QueueEntry.update(entryId, {
-            last_lat: pos.coords.latitude,
-            last_lng: pos.coords.longitude,
-            last_location_at: new Date().toISOString(),
+          invokePublic('updateQueueEntry', {
+            entryId,
+            data: {
+              last_lat: pos.coords.latitude,
+              last_lng: pos.coords.longitude,
+              last_location_at: new Date().toISOString(),
+            },
           }).catch(() => {});
         },
         () => {},
@@ -367,24 +371,17 @@ function QueueJoinInner() {
   const handleDeleteMyData = async () => {
     setDeleteLoading(true);
     try {
-      // מחק את כניסת התור
-      await base44.entities.QueueEntry.update(entryId, {
-        status: 'abandoned',
-        timestamp_end: new Date().toISOString(),
-        customer_name: '[נמחק]',
-        phone: '[נמחק]',
-        notes: 'בקשת מחיקת מידע מהלקוח',
+      // מחק את כניסת התור (דרך פונקציה ציבורית — הלקוח אנונימי)
+      await invokePublic('updateQueueEntry', {
+        entryId,
+        data: {
+          status: 'abandoned',
+          timestamp_end: new Date().toISOString(),
+          customer_name: '[נמחק]',
+          phone: '[נמחק]',
+          notes: 'בקשת מחיקת מידע מהלקוח',
+        },
       });
-      // מחק את רשומת הלקוח
-      try {
-        const customers = await base44.entities.Customer.filter({ phone: entry?.phone });
-        if (customers.length > 0) {
-          await base44.entities.Customer.update(customers[0].id, {
-            phone: '[נמחק]',
-            name: '[נמחק]',
-          });
-        }
-      } catch (_) {}
       setShowDeleteModal(false);
       setPhase('done');
     } catch (e) {
@@ -410,7 +407,7 @@ function QueueJoinInner() {
       // בדוק אם יש כניסה עם אותו מספר טלפון
       let existing = [];
       try {
-        existing = await base44.entities.QueueEntry.filter({ phone: form.phone.trim() });
+        existing = await base44.asServiceRole.entities.QueueEntry.filter({ phone: form.phone.trim() });
       } catch (e) {
         console.warn('Cannot check existing entries:', e);
       }
@@ -987,17 +984,10 @@ function QueueJoinInner() {
     setActionLoading(true);
     try {
       if (answer === 'no') {
-        await base44.entities.QueueEntry.update(entryId, {
-          status: 'abandoned',
-          proximity_response: 'no',
-          timestamp_end: new Date().toISOString(),
-          notes: 'לא בסביבה — בדיקת קרבה',
-        });
+        await invokePublic('updateProximityResponse', { entryId, response: 'no' });
         setEntry(prev => ({ ...prev, status: 'abandoned', proximity_response: 'no' }));
       } else {
-        await base44.entities.QueueEntry.update(entryId, {
-          proximity_response: 'yes',
-        });
+        await invokePublic('updateProximityResponse', { entryId, response: 'yes' });
         setEntry(prev => ({ ...prev, proximity_response: 'yes' }));
       }
     } catch (e) {
@@ -1436,10 +1426,13 @@ function QueueJoinInner() {
                 const reason = abandonReason === 'other'
                   ? `אחר: ${abandonOther}`
                   : ABANDON_REASONS.find(r => r.id === abandonReason)?.label;
-                await base44.entities.QueueEntry.update(entryId, {
-                  status: 'abandoned',
-                  timestamp_end: new Date().toISOString(),
-                  notes: reason,
+                await invokePublic('updateQueueEntry', {
+                  entryId,
+                  data: {
+                    status: 'abandoned',
+                    timestamp_end: new Date().toISOString(),
+                    notes: reason,
+                  },
                 });
                 setAbandonLoading(false);
                 setShowAbandonModal(false);

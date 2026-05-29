@@ -12,6 +12,8 @@ import { sendTelegramMessage } from '../lib/telegram.js';
 import { sendEmail } from '../lib/email.js';
 import { invokeLLM } from '../lib/llm.js';
 import { driveAccessToken, listDriveFiles, downloadDriveFile } from '../lib/gdrive.js';
+import { uploadStreamToS3 } from '../lib/storage.js';
+import { Readable } from 'node:stream';
 import webpush from 'web-push';
 
 // Configure VAPID once (free browser/PWA push). Keys from env.
@@ -66,10 +68,18 @@ registerFn(
 registerFn(
   'getQueueEntry',
   async ({ body }) => {
-    const { id, phone } = body as any;
-    if (id) return db.queueEntry.findUnique({ where: { id } });
-    if (phone) return db.queueEntry.findFirst({ where: { phone, status: 'pending' } });
-    throw new Error('id or phone required');
+    const { entryId, id, phone } = body as any;
+    const key = entryId || id;
+    if (key) {
+      const entry = await db.queueEntry.findUnique({ where: { id: key } });
+      if (!entry) throw new Error('Entry not found');
+      return { entry };
+    }
+    if (phone) {
+      const entry = await db.queueEntry.findFirst({ where: { phone, status: 'pending' } });
+      return { entry };
+    }
+    throw new Error('Missing entryId');
   },
   { public: true },
 );
@@ -77,27 +87,126 @@ registerFn(
 registerFn(
   'getQueuePosition',
   async ({ body }) => {
-    const { id } = body as any;
-    const entry = await db.queueEntry.findUnique({ where: { id } });
-    if (!entry) throw new Error('not_found');
-    const ahead = await db.queueEntry.count({
-      where: {
-        status: 'pending',
-        timestamp_register: { lt: entry.timestamp_register },
-      },
+    const { entryId, id } = body as any;
+    const key = entryId || id;
+    if (!key) throw new Error('Missing entryId');
+
+    // Pull the recent queue (same as Base44: newest 300 by registration)
+    const all = await db.queueEntry.findMany({
+      orderBy: { timestamp_register: 'desc' },
+      take: 300,
     });
-    return { position: ahead + 1 };
+
+    // Position within the active queue (ordered by sort_order)
+    const activeQueue = all
+      .filter((e: any) => e.status === 'active')
+      .sort((a: any, b: any) => (a.sort_order ?? 9999) - (b.sort_order ?? 9999));
+    const activePos = activeQueue.findIndex((e: any) => e.id === key);
+    if (activePos >= 0) {
+      const mine = activeQueue[activePos];
+      const samePartyAhead = activeQueue
+        .slice(0, activePos)
+        .filter((e: any) => e.party_size === mine.party_size).length;
+      return { position: activePos + 1, status: 'active', total: activeQueue.length, samePartyAhead, partySize: mine.party_size };
+    }
+
+    // Otherwise position within the pending queue (ordered by registration time)
+    const pendingQueue = all
+      .filter((e: any) => e.status === 'pending')
+      .sort((a: any, b: any) => new Date(a.timestamp_register).getTime() - new Date(b.timestamp_register).getTime());
+    const pendingPos = pendingQueue.findIndex((e: any) => e.id === key);
+    if (pendingPos >= 0) {
+      const mine = pendingQueue[pendingPos];
+      const samePartyAhead = pendingQueue
+        .slice(0, pendingPos)
+        .filter((e: any) => e.party_size === mine.party_size).length;
+      return { position: pendingPos + 1, status: 'pending', total: pendingQueue.length, samePartyAhead, partySize: mine.party_size };
+    }
+
+    return { position: null, status: 'not_found' };
   },
   { public: true },
 );
 
+// Public: limited self-service updates a customer makes to their OWN queue entry
+// from the anonymous /QueueJoin page (push subscription, live location, leaving
+// the queue, privacy deletion). Whitelisted fields only — never status->seated etc.
+registerFn('updateQueueEntry', async ({ body }) => {
+  const { entryId, data } = body as any;
+  if (!entryId || !data || typeof data !== 'object') throw new Error('Missing entryId or data');
+
+  const ALLOWED = new Set([
+    'push_subscription',
+    'last_lat',
+    'last_lng',
+    'last_location_at',
+    'proximity_response',
+    'customer_notes',
+    'notes',
+    'customer_name', // only used by privacy deletion ('[נמחק]')
+    'phone', // only used by privacy deletion ('[נמחק]')
+    'timestamp_end',
+  ]);
+  const clean: any = {};
+  for (const [k, v] of Object.entries(data)) {
+    if (ALLOWED.has(k)) clean[k] = v;
+  }
+  // The only status transition a customer may trigger is leaving the queue.
+  if (data.status === 'abandoned') clean.status = 'abandoned';
+
+  const entry = await db.queueEntry.update({ where: { id: entryId }, data: clean });
+  return { success: true, entry };
+}, { public: true });
+
 registerFn('seatGuest', async ({ body }) => {
-  const { id, table_id } = body as any;
-  return db.queueEntry.update({
-    where: { id },
-    data: { status: 'seated', table_id, timestamp_seated: new Date().toISOString() },
+  const { entryId, id } = body as any;
+  const key = entryId || id;
+  if (!key) throw new Error('Missing entryId');
+
+  const entry = await db.queueEntry.findUnique({ where: { id: key } });
+  const now = new Date().toISOString();
+  const seatedEntry = await db.queueEntry.update({
+    where: { id: key },
+    data: {
+      status: 'seated',
+      proximity_response: 'yes',
+      timestamp_end: now,
+      timestamp_seated: now,
+      seat_called_at: null,
+    },
   });
-});
+
+  // Persist earned credits to the Customer record (loyalty balance)
+  if (entry?.phone && (entry.time_credits_earned ?? 0) > 0) {
+    try {
+      const customer = await db.customer.findFirst({ where: { phone: entry.phone } });
+      if (customer) {
+        await db.customer.update({
+          where: { id: customer.id },
+          data: {
+            coin_balance: (customer.coin_balance || 0) + entry.time_credits_earned,
+            last_visit: now,
+            visit_count: (customer.visit_count || 0) + 1,
+          },
+        });
+      } else {
+        await db.customer.create({
+          data: {
+            phone: entry.phone,
+            name: entry.customer_name,
+            coin_balance: entry.time_credits_earned,
+            visit_count: 1,
+            last_visit: now,
+          },
+        });
+      }
+    } catch (e) {
+      console.warn('Could not save credits to Customer:', e);
+    }
+  }
+
+  return { success: true, entry: seatedEntry };
+}, { public: true });
 
 /* ----- SMS ----- */
 
@@ -544,16 +653,37 @@ registerFn('publishInstagramPost', async ({ body }) => {
 
 registerFn('getAnonymousCustomerHistory', async ({ body }) => {
   const { phone } = body as any;
-  if (!phone) throw new Error('phone required');
-  const c = await db.customer.findFirst({ where: { phone: phone.trim() } });
-  if (!c) return { visit_count: 0, last_visit: null };
+  if (!phone) throw new Error('Missing phone');
+
+  const entries = await db.queueEntry.findMany({
+    where: { phone: phone.trim() },
+    orderBy: { timestamp_register: 'desc' },
+    take: 1000,
+  });
+
+  if (entries.length === 0) {
+    return { isNewCustomer: true, visitCount: 0, totalCredits: 0, previousEntriesCount: 0 };
+  }
+
+  const visitCount = entries.length;
+  const seatedCount = entries.filter((e: any) => e.status === 'seated').length;
+  const abandonedCount = entries.filter((e: any) => e.status === 'abandoned').length;
+  const lastEntry = entries[0];
+  const totalCredits = lastEntry.time_credits_earned || 0;
+  const previousTreat = entries.find((e: any) => e.selected_treat_id);
+
   return {
-    visit_count: c.visit_count ?? 0,
-    last_visit: c.last_visit,
-    loyalty_tier: c.loyalty_tier,
-    coin_balance: c.coin_balance ?? 0,
+    isNewCustomer: false,
+    visitCount,
+    seatedCount,
+    abandonedCount,
+    totalCredits,
+    previousTreat: previousTreat
+      ? { treatId: previousTreat.selected_treat_id, timestamp: previousTreat.timestamp_register }
+      : null,
+    lastVisit: lastEntry.timestamp_register,
   };
-});
+}, { public: true });
 
 registerFn('syncQueueToCustomer', async ({ body }) => {
   const { phone, name } = body as any;
@@ -680,16 +810,31 @@ registerFn('seedAdditionalGameQuestions', async ({ body }) => {
 /* ----- Treats / Newsletter / Drive (lighter stubs) ----- */
 
 registerFn('getTreats', async () => {
-  return db.apparel?.findMany?.({ where: { type: 'treat' } }) ?? [];
-});
+  const treats = await db.timeTreat.findMany({ where: { is_active: true } });
+  return { treats };
+}, { public: true });
 
-registerFn('selectTreat', async ({ body, user }) => {
-  const { treat_id } = body as any;
-  if (!user) throw new Error('auth required');
-  return db.employeeApparel.create({
-    data: { employee_email: user.email, apparel_id: treat_id, acquired_at: new Date().toISOString() },
+registerFn('selectTreat', async ({ body }) => {
+  const { entryId, treatId, treatCost } = body as any;
+  if (!entryId || !treatId || treatCost === undefined) throw new Error('Missing parameters');
+
+  const entry = await db.queueEntry.findUnique({ where: { id: entryId } });
+  if (!entry) throw new Error('Entry not found');
+
+  const currentCredits = entry.time_credits_earned || 0;
+  if (currentCredits < treatCost) throw new Error('Not enough credits');
+
+  const remainingCredits = currentCredits - treatCost;
+  await db.queueEntry.update({
+    where: { id: entryId },
+    data: {
+      selected_treat_id: treatId,
+      time_credits_spent: (entry.time_credits_spent || 0) + treatCost,
+      time_credits_earned: remainingCredits,
+    },
   });
-});
+  return { success: true, remainingCredits };
+}, { public: true });
 
 registerFn('sendWeeklyNewsletter', async ({ body }) => {
   const { to, subject, html } = body as any;
@@ -697,23 +842,52 @@ registerFn('sendWeeklyNewsletter', async ({ body }) => {
 });
 
 registerFn('updateProximityResponse', async ({ body }) => {
-  const { queue_entry_id, response } = body as any;
-  return db.queueEntry.update({
-    where: { id: queue_entry_id },
-    data: { proximity_response: response, proximity_response_at: new Date().toISOString() },
-  });
+  const { entryId, response } = body as any;
+  if (!entryId || !response) throw new Error('Missing entryId or response');
+  const data: any = { proximity_response: response };
+  if (response === 'no') {
+    data.status = 'abandoned';
+    data.timestamp_end = new Date().toISOString();
+  }
+  await db.queueEntry.update({ where: { id: entryId }, data });
+  return { success: true };
+}, { public: true });
+
+/* ----- Google Drive image picker (Instagram) — uses the service account ----- */
+
+// List image files + subfolders inside a Drive folder the service account can see.
+registerFn('getDriveImages', async ({ body }) => {
+  const folderId = (body as any)?.folder_id || 'root';
+  const token = await driveAccessToken();
+
+  const imgUrl =
+    `https://www.googleapis.com/drive/v3/files?` +
+    `q=${encodeURIComponent(`'${folderId}' in parents and mimeType contains 'image/' and trashed=false`)}` +
+    `&fields=${encodeURIComponent('files(id,name,mimeType,thumbnailLink,webContentLink,webViewLink,modifiedTime)')}` +
+    `&pageSize=50&orderBy=modifiedTime desc`;
+  const imgRes = await fetch(imgUrl, { headers: { Authorization: `Bearer ${token}` } });
+  if (!imgRes.ok) throw new Error(`drive_images_${imgRes.status}: ${await imgRes.text()}`);
+  const imgData: any = await imgRes.json();
+
+  const folderUrl =
+    `https://www.googleapis.com/drive/v3/files?` +
+    `q=${encodeURIComponent(`'${folderId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`)}` +
+    `&fields=${encodeURIComponent('files(id,name)')}&pageSize=20`;
+  const folderRes = await fetch(folderUrl, { headers: { Authorization: `Bearer ${token}` } });
+  const folderData: any = folderRes.ok ? await folderRes.json() : { files: [] };
+
+  return { images: imgData.files || [], folders: folderData.files || [] };
 });
 
-/* ----- Google Drive (requires service account, left as placeholders) ----- */
-const driveStub = (name: string) => {
-  registerFn(name, async () => {
-    throw new Error(
-      `${name}: configure a Google service account and implement Drive API access. See base44/functions/${name}/entry.ts for original behavior.`,
-    );
-  });
-};
-driveStub('getDriveImageUrl');
-driveStub('getDriveImages');
+// Download a Drive image and re-host it in our own storage; return the public URL.
+registerFn('getDriveImageUrl', async ({ body }) => {
+  const fileId = (body as any)?.file_id;
+  if (!fileId) throw new Error('file_id required');
+  const token = await driveAccessToken();
+  const buf = await downloadDriveFile(fileId, token);
+  const { url } = await uploadStreamToS3(`${fileId}.jpg`, 'image/jpeg', Readable.from(buf));
+  return { url };
+});
 
 /* ----- Public reservation flow (no auth; never returns other customers' PII) ----- */
 
