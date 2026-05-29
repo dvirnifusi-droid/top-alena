@@ -5,7 +5,12 @@ import type { Readable } from 'node:stream';
 
 const endpoint = new URL(process.env.S3_ENDPOINT ?? 'http://localhost:9000');
 const bucket = process.env.S3_BUCKET ?? 'top-alena';
-const publicUrl = process.env.S3_PUBLIC_URL ?? `${endpoint.origin}/${bucket}`;
+// Public base for uploaded files. An internal/localhost/minio value isn't
+// reachable from the browser, so fall back to the domain-relative API streamer
+// (/api/files/<key>), which Caddy serves over HTTPS via the api service.
+const rawPublic = process.env.S3_PUBLIC_URL;
+const publicUrl =
+  rawPublic && !/localhost|127\.0\.0\.1|minio:|:9000/.test(rawPublic) ? rawPublic : '/api/files';
 
 export const minio = new MinioClient({
   endPoint: endpoint.hostname,
