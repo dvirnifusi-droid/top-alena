@@ -27,6 +27,10 @@ if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
 
 const db = prisma as any; // generic delegate access
 
+// Public deploy marker — lets us confirm which build is live (and that
+// auto-deploy is working) without server access. Bump on each deploy test.
+registerFn('deployInfo', async () => ({ version: 'autodeploy-test-1', ts: new Date().toISOString() }), { public: true });
+
 /* ----- Queue ----- */
 
 registerFn(
