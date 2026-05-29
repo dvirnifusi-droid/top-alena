@@ -146,6 +146,7 @@ registerFn('updateQueueEntry', async ({ body }) => {
     'customer_name', // only used by privacy deletion ('[נמחק]')
     'phone', // only used by privacy deletion ('[נמחק]')
     'timestamp_end',
+    'feedback_rating', // customer star rating from QueueFeedback
   ]);
   const clean: any = {};
   for (const [k, v] of Object.entries(data)) {
@@ -156,6 +157,43 @@ registerFn('updateQueueEntry', async ({ body }) => {
 
   const entry = await db.queueEntry.update({ where: { id: entryId }, data: clean });
   return { success: true, entry };
+}, { public: true });
+
+/* ----- Waiting-room trivia game (public, anonymous customers) ----- */
+
+registerFn('createGameSession', async ({ body }) => {
+  const { player_name, queue_entry_id } = body as any;
+  const session = await db.queueGameSession.create({
+    data: {
+      player_name: player_name || 'אורח',
+      queue_entry_id: queue_entry_id || null,
+      score: 0,
+      answers: [],
+      finished: false,
+    },
+  });
+  return { session };
+}, { public: true });
+
+registerFn('updateGameSession', async ({ body }) => {
+  const { sessionId, score, answers, finished } = body as any;
+  if (!sessionId) throw new Error('Missing sessionId');
+  const data: any = {};
+  if (score !== undefined) data.score = score;
+  if (answers !== undefined) data.answers = answers;
+  if (finished !== undefined) data.finished = finished;
+  const session = await db.queueGameSession.update({ where: { id: sessionId }, data });
+  return { session };
+}, { public: true });
+
+registerFn('getGameLeaderboard', async () => {
+  const sessions = await db.queueGameSession.findMany({
+    where: { finished: true },
+    orderBy: { score: 'desc' },
+    take: 10,
+  });
+  // Only expose nickname + score (no entry linkage) to the public leaderboard.
+  return { leaderboard: sessions.map((s: any) => ({ id: s.id, player_name: s.player_name, score: s.score })) };
 }, { public: true });
 
 registerFn('seatGuest', async ({ body }) => {

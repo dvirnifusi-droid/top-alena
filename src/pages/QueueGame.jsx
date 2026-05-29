@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
+import { invokePublic } from '@/lib/publicFetch';
 import TicTacToe from '@/components/games/TicTacToe';
 import GameSetup from '@/components/games/GameSetup';
 import FortuneWheel from '@/components/games/FortuneWheel';
@@ -34,18 +35,16 @@ function TriviaGame({ playerName, entryId, allQuestions }) {
   const timerRef = useRef(null);
 
   const fetchLeaderboard = async () => {
-    const sessions = await base44.entities.QueueGameSession.filter({ finished: true });
-    setLeaderboard(sessions.sort((a, b) => b.score - a.score).slice(0, 10));
+    try {
+      const res = await invokePublic('getGameLeaderboard', {});
+      setLeaderboard(res?.leaderboard || []);
+    } catch { /* leaderboard is best-effort */ }
   };
 
   useEffect(() => {
-    base44.entities.QueueGameSession.create({
-      player_name: playerName,
-      queue_entry_id: entryId,
-      score: 0,
-      answers: [],
-      finished: false,
-    }).then(s => setSessionId(s.id));
+    invokePublic('createGameSession', { player_name: playerName, queue_entry_id: entryId })
+      .then(res => setSessionId(res?.session?.id || null))
+      .catch(() => {});
     fetchLeaderboard();
     const iv = setInterval(fetchLeaderboard, 8000);
     return () => clearInterval(iv);
@@ -77,7 +76,7 @@ function TriviaGame({ playerName, entryId, allQuestions }) {
     setAnswers(newAnswers);
     await new Promise(r => setTimeout(r, 900));
     if (qIndex + 1 >= TOTAL_Q) {
-      if (sessionId) await base44.entities.QueueGameSession.update(sessionId, { score: newScore, answers: newAnswers, finished: true });
+      if (sessionId) await invokePublic('updateGameSession', { sessionId, score: newScore, answers: newAnswers, finished: true });
       setPhase('done');
     } else {
       setSelected(null);
@@ -179,8 +178,8 @@ export default function QueueGame() {
   const [gameConfig, setGameConfig] = useState(null);
 
   useEffect(() => {
-    base44.entities.TriviaQuestion.filter({ is_active: true }).then(qs => setQuestions(qs));
-    base44.entities.GameQuestion.filter({ is_active: true }).then(qs => setGameQuestions(qs));
+    base44.asServiceRole.entities.TriviaQuestion.filter({ is_active: true }).then(qs => setQuestions(qs)).catch(() => setQuestions([]));
+    base44.asServiceRole.entities.GameQuestion.filter({ is_active: true }).then(qs => setGameQuestions(qs)).catch(() => setGameQuestions([]));
   }, []);
 
   const shareUrl = `${window.location.origin}/QueueGame?entry=${entryId}&name=${encodeURIComponent(playerName)}`;

@@ -104,7 +104,7 @@ function QueueJoinInner() {
   // טעינת הגדרות מסעדה (ללא בדיקת התחברות)
   useEffect(() => {
     if (isPublicMode) {
-      base44.entities.RestaurantProfile.list()
+      base44.asServiceRole.entities.RestaurantProfile.list()
         .then(profiles => {
           if (profiles.length > 0) {
             setGeofencingEnabled(profiles[0].geofencing_enabled !== false);

@@ -13,6 +13,8 @@ const PUBLIC_READ_ENTITIES = new Set([
   'ReservationSettings',
   'AvailabilityFormSettings',
   'GameQuestion',
+  'TriviaQuestion',
+  'QueueGameSession',
   'Apparel',
   'MenuItem',
 ]);

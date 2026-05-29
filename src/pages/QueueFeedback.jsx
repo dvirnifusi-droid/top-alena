@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { base44 } from '@/api/base44Client';
+import { invokePublic } from '@/lib/publicFetch';
 
 const GOOGLE_MAPS_URL = 'https://g.page/r/YOUR_GOOGLE_PLACE_ID/review'; // ← עדכן כאן
 
@@ -14,16 +14,15 @@ export default function QueueFeedback() {
 
   useEffect(() => {
     if (!entryId) { setLoading(false); return; }
-    base44.entities.QueueEntry.filter({}).then(all => {
-      const found = all.find(e => e.id === entryId);
-      setEntry(found || null);
-      setLoading(false);
-    });
+    invokePublic('getQueueEntry', { entryId })
+      .then(res => setEntry(res?.entry || null))
+      .catch(() => setEntry(null))
+      .finally(() => setLoading(false));
   }, [entryId]);
 
   const submitRating = async (stars) => {
     setRating(stars);
-    await base44.entities.QueueEntry.update(entryId, { feedback_rating: stars });
+    await invokePublic('updateQueueEntry', { entryId, data: { feedback_rating: stars } });
 
     // אם דירוג גבוה - הפנה ל-Google Maps
     if (stars === 5) {
