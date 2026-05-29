@@ -27,7 +27,7 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
       data: { email, passwordHash, role: 'user' },
     });
     const token = await reply.jwtSign({ id: user.id, email: user.email, role: user.role });
-    return { token, user: { id: user.id, email: user.email, role: user.role } };
+    return { token, user: { id: user.id, email: user.email, role: user.role, full_name: user.fullName } };
   });
 
   app.post('/login', async (req, reply) => {
@@ -41,7 +41,7 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
     if (!ok) return reply.code(401).send({ error: 'invalid_credentials' });
 
     const token = await reply.jwtSign({ id: user.id, email: user.email, role: user.role });
-    return { token, user: { id: user.id, email: user.email, role: user.role } };
+    return { token, user: { id: user.id, email: user.email, role: user.role, full_name: user.fullName } };
   });
 
   // Sign in with Google. Frontend sends the Google ID token ("credential").
@@ -85,7 +85,7 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
     }
 
     const token = await reply.jwtSign({ id: user.id, email: user.email, role: user.role });
-    return { token, user: { id: user.id, email: user.email, role: user.role, fullName: user.fullName } };
+    return { token, user: { id: user.id, email: user.email, role: user.role, fullName: user.fullName, full_name: user.fullName } };
   });
 
   app.get('/me', { preHandler: requireAuth }, async (req) => {
@@ -94,7 +94,11 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
       where: { id: u.id },
       select: { id: true, email: true, role: true, fullName: true, created_date: true },
     });
-    return full;
+    if (!full) return null;
+    // The Base44 frontend reads `full_name` (snake_case); the column is fullName.
+    // Fall back to email so downstream required fields (e.g. ShiftTracking
+    // .employee_name) are never null.
+    return { ...full, full_name: full.fullName || full.email };
   });
 
   app.post('/logout', async () => ({ ok: true }));
