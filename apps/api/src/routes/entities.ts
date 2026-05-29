@@ -44,6 +44,8 @@ function aliasInKey(modelName: string, key: string): string {
   return ALIAS_IN[modelName]?.[key] ?? key;
 }
 // Rename prisma field names back to the frontend (Base44) names in a row.
+// (Internal-file-URL rewriting is applied app-wide in a preSerialization hook,
+// so it covers entities, functions and public function responses uniformly.)
 function toFrontend(modelName: string, row: any): any {
   const out = ALIAS_OUT[modelName];
   if (!row || typeof row !== 'object' || !out || !Object.keys(out).length) return row;

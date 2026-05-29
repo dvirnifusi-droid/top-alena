@@ -12,6 +12,7 @@ import { publicFunctionsRoutes } from './routes/publicFunctions.js';
 import { importRoutes } from './routes/import.js';
 import { cronRoutes } from './routes/cron.js';
 import { filesRoutes } from './routes/files.js';
+import { rewriteFileUrlsDeep } from './lib/urlRewrite.js';
 
 const app = Fastify({ logger: true, bodyLimit: 50 * 1024 * 1024 });
 
@@ -29,6 +30,16 @@ await app.register(multipart, {
 });
 
 app.get('/health', async () => ({ ok: true, ts: Date.now() }));
+
+// Rewrite legacy internal-MinIO/localhost file URLs in every JSON response so
+// stored images (avatars, photos, incident attachments, etc.) load via the
+// public /api/files path even though they were saved with the wrong host.
+app.addHook('preSerialization', async (_req, _reply, payload) => {
+  if (payload === null || payload === undefined) return payload;
+  if (typeof payload === 'string' || typeof payload === 'number' || typeof payload === 'boolean') return payload;
+  if (Buffer.isBuffer(payload)) return payload;
+  return rewriteFileUrlsDeep(payload);
+});
 
 await app.register(authRoutes, { prefix: '/api/auth' });
 await app.register(entitiesRoutes, { prefix: '/api/entities' });
