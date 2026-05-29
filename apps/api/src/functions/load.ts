@@ -291,7 +291,7 @@ registerFn('askGemini', async ({ body }) => {
   }
   contents.push({ role: 'user', parts: [...fileParts, { text: userMessage }] });
 
-  const reqBody: any = { contents, generationConfig: { temperature: 0.2, maxOutputTokens: 2048 } };
+  const reqBody: any = { contents, generationConfig: { temperature: 0.2, maxOutputTokens: 8192 } };
   if (systemPrompt) reqBody.system_instruction = { parts: [{ text: systemPrompt }] };
 
   const res = await fetch(
