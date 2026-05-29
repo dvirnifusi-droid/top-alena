@@ -31,10 +31,13 @@ EOF
 chmod +x "$WORKER"
 echo "==> installed worker: $WORKER"
 
-# 3) Install the cron entry (every 2 minutes), de-duplicated
+# 3) Install the cron entry (every 2 minutes), de-duplicated.
+# Build the new crontab in a variable first — piping `crontab -l` directly is
+# fragile when no crontab exists yet (grep returns non-zero and aborts set -e).
 CRON_LINE="*/2 * * * * $WORKER"
-( crontab -l 2>/dev/null | grep -v "topalena-autodeploy.sh" ; echo "$CRON_LINE" ) | crontab -
-echo "==> cron installed:"; crontab -l | grep topalena-autodeploy.sh
+EXISTING="$(crontab -l 2>/dev/null | grep -v 'topalena-autodeploy.sh' || true)"
+printf '%s\n%s\n' "$EXISTING" "$CRON_LINE" | sed '/^$/d' | crontab -
+echo "==> cron installed:"; crontab -l | grep topalena-autodeploy.sh || true
 
 # 4) Run one deploy right now (this pulls the latest fixes and rebuilds)
 echo "==> running first deploy now (a few minutes)..."
