@@ -39,6 +39,23 @@ EXISTING="$(crontab -l 2>/dev/null | grep -v 'topalena-autodeploy.sh' || true)"
 printf '%s\n%s\n' "$EXISTING" "$CRON_LINE" | sed '/^$/d' | crontab -
 echo "==> cron installed:"; crontab -l | grep topalena-autodeploy.sh || true
 
+# 3b) Ensure a CRON_SECRET in the API env, and install the hourly restroom
+# reminder cron (round hour) that hits the secret-guarded endpoint.
+ENVFILE="$APP/apps/api/.env"
+touch "$ENVFILE"
+if ! grep -q '^CRON_SECRET=' "$ENVFILE"; then
+  SECRET="$(openssl rand -hex 24)"
+  printf 'CRON_SECRET=%s\n' "$SECRET" >> "$ENVFILE"
+  echo "==> generated CRON_SECRET"
+else
+  SECRET="$(grep '^CRON_SECRET=' "$ENVFILE" | head -1 | cut -d= -f2-)"
+  echo "==> reusing existing CRON_SECRET"
+fi
+RESTROOM_LINE="0 * * * * curl -fsS -m 30 -X POST http://localhost:3001/api/cron/restroom-reminder -H 'x-cron-secret: ${SECRET}' >/dev/null 2>&1"
+EXISTING2="$(crontab -l 2>/dev/null | grep -v 'restroom-reminder' || true)"
+printf '%s\n%s\n' "$EXISTING2" "$RESTROOM_LINE" | sed '/^$/d' | crontab -
+echo "==> restroom reminder cron installed:"; crontab -l | grep restroom-reminder || true
+
 # 4) Run one deploy right now (this pulls the latest fixes and rebuilds)
 echo "==> running first deploy now (a few minutes)..."
 cd "$APP"

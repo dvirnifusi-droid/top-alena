@@ -953,6 +953,116 @@ registerFn('updateProximityResponse', async ({ body }) => {
   return { success: true };
 }, { public: true });
 
+/* ----- Restroom cleaning checks (staff-facing) ----- */
+
+const todayStr = () => new Date().toISOString().slice(0, 10);
+
+// Save the caller's Web Push subscription onto their Employee record so the
+// hourly restroom reminder can reach them.
+registerFn('enableStaffPush', async ({ body, user }) => {
+  if (!user?.email) throw new Error('auth required');
+  const { subscription } = body as any;
+  if (!subscription) throw new Error('subscription required');
+  const emp = await db.employee.findFirst({ where: { email: user.email } });
+  if (!emp) throw new Error('employee_not_found');
+  await db.employee.update({ where: { id: emp.id }, data: { push_subscription: subscription } });
+  return { success: true };
+});
+
+// Record a restroom check (optional photo) by the logged-in employee.
+registerFn('recordRestroomCheck', async ({ body, user }) => {
+  const { photo_url, notes } = body as any;
+  let emp: any = null;
+  if (user?.email) emp = await db.employee.findFirst({ where: { email: user.email } });
+  const check = await db.restroomCheck.create({
+    data: {
+      checked_by_id: emp?.id ?? null,
+      checked_by_name: emp?.full_name ?? user?.email ?? 'צוות',
+      checked_at: new Date().toISOString(),
+      photo_url: photo_url ?? null,
+      notes: notes ?? null,
+      shift_date: todayStr(),
+    },
+  });
+  return { check };
+});
+
+// Today's checks + whether the current round hour is already covered.
+registerFn('getRestroomStatus', async () => {
+  const checks = await db.restroomCheck.findMany({
+    where: { shift_date: todayStr() },
+    orderBy: { checked_at: 'desc' },
+    take: 50,
+  });
+  const hourKey = new Date().toISOString().slice(0, 13); // yyyy-MM-ddTHH
+  const currentHourCovered = checks.some((c: any) => (c.checked_at || '').slice(0, 13) === hourKey);
+  return { checks, currentHourCovered };
+});
+
+registerFn('getRestroomSettings', async () => {
+  const s = await db.restroomSettings.findFirst();
+  return { settings: s ?? { enabled: true, target_positions: [] } };
+});
+
+registerFn('saveRestroomSettings', async ({ body }) => {
+  const { enabled, target_positions } = body as any;
+  const existing = await db.restroomSettings.findFirst();
+  const data = {
+    enabled: enabled ?? true,
+    target_positions: Array.isArray(target_positions) ? target_positions : [],
+  };
+  const settings = existing
+    ? await db.restroomSettings.update({ where: { id: existing.id }, data })
+    : await db.restroomSettings.create({ data });
+  return { settings };
+});
+
+// Hourly reminder: push to on-shift staff whose role/position is targeted.
+// Called by the cron route (secret-guarded), not by end users.
+export async function sendRestroomReminder() {
+  const settings = await db.restroomSettings.findFirst();
+  if (settings && settings.enabled === false) return { skipped: 'disabled' };
+  const targets: string[] = Array.isArray(settings?.target_positions) ? settings.target_positions : [];
+
+  const today = todayStr();
+  const active = await db.shiftTracking.findMany({
+    where: { status: 'active', date: { startsWith: today } },
+  });
+  if (!active.length) return { skipped: 'no_one_on_shift' };
+
+  const ids = [...new Set(active.map((a: any) => a.employee_id).filter(Boolean))];
+  const employees = await db.employee.findMany({ where: { id: { in: ids } } });
+
+  const matches = (e: any) => {
+    if (!targets.length) return true; // empty target ⇒ everyone on shift
+    const pos: string[] = Array.isArray(e.positions) ? e.positions : [];
+    return targets.includes(e.role) || pos.some((p) => targets.includes(p));
+  };
+
+  const recipients = employees.filter((e: any) => matches(e) && e.push_subscription);
+  if (!recipients.length) return { skipped: 'no_targeted_recipients', onShift: employees.length };
+
+  const payload = JSON.stringify({
+    title: '🚽 בדיקת שירותים',
+    body: 'הגיעה השעה לבדוק את השירותים. סמנו בדיקה באפליקציה (אפשר עם תמונה).',
+    url: '/RestroomCleaning',
+  });
+
+  let sent = 0;
+  for (const e of recipients) {
+    try {
+      await webpush.sendNotification(e.push_subscription as any, payload);
+      sent++;
+    } catch (err: any) {
+      // 404/410 ⇒ stale subscription; clear it so we stop trying.
+      if (err?.statusCode === 404 || err?.statusCode === 410) {
+        await db.employee.update({ where: { id: e.id }, data: { push_subscription: null } }).catch(() => {});
+      }
+    }
+  }
+  return { sent, targeted: recipients.length };
+}
+
 /* ----- Google Drive image picker (Instagram) — uses the service account ----- */
 
 // List image files + subfolders inside a Drive folder the service account can see.

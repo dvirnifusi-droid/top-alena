@@ -10,6 +10,7 @@ import { integrationsRoutes } from './routes/integrations.js';
 import { functionsRoutes } from './routes/functions.js';
 import { publicFunctionsRoutes } from './routes/publicFunctions.js';
 import { importRoutes } from './routes/import.js';
+import { cronRoutes } from './routes/cron.js';
 
 const app = Fastify({ logger: true, bodyLimit: 50 * 1024 * 1024 });
 
@@ -34,6 +35,7 @@ await app.register(integrationsRoutes, { prefix: '/api/integrations' });
 await app.register(functionsRoutes, { prefix: '/api/fn' });
 await app.register(publicFunctionsRoutes, { prefix: '/api/public' });
 await app.register(importRoutes, { prefix: '/api/import' });
+await app.register(cronRoutes, { prefix: '/api/cron' });
 
 // Auto-load all ported function handlers
 await import('./functions/load.js');

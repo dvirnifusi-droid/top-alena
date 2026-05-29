@@ -31,6 +31,7 @@ const adminLinks = [
   { title: "ניהול תדריכים", url: createPageUrl("BriefingManagement"), icon: Megaphone, isSubItem: true },
   { title: "ניהול שולחנות", url: createPageUrl("TablesManagement"), icon: Utensils, isSubItem: true },
   { title: "ניהול הושבה", url: createPageUrl("SeatingSetup"), icon: Map, isSubItem: true },
+  { title: "ניקיון שירותים 🚽", url: createPageUrl("RestroomCleaning"), icon: ClipboardCheck, isSubItem: true },
   { title: "הגדרות הזמנות", url: createPageUrl("PublicReservationSettings"), icon: Settings, isSubItem: true },
 
   // כספים ודוחות

@@ -88,6 +88,7 @@ import PublicReservation from './pages/PublicReservation';
 import PublicReservationSettings from './pages/PublicReservationSettings';
 import PushNotifications from './pages/PushNotifications';
 import Reports from './pages/Reports';
+import RestroomCleaning from './pages/RestroomCleaning';
 import RevenueForecasting from './pages/RevenueForecasting';
 import SeatingSetup from './pages/SeatingSetup';
 import ShiftChat from './pages/ShiftChat';
@@ -153,6 +154,7 @@ export const PAGES = {
     "PublicReservationSettings": PublicReservationSettings,
     "PushNotifications": PushNotifications,
     "Reports": Reports,
+    "RestroomCleaning": RestroomCleaning,
     "RevenueForecasting": RevenueForecasting,
     "SeatingSetup": SeatingSetup,
     "ShiftChat": ShiftChat,

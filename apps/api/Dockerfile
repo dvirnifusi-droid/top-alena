@@ -20,5 +20,6 @@ COPY --from=build /app/dist ./dist
 COPY --from=build /app/prisma ./prisma
 COPY --from=build /app/package.json ./package.json
 EXPOSE 3001
-# DB schema is already applied to Supabase (via db push), so just run the server.
-CMD ["node", "dist/index.js"]
+# Apply additive schema changes to Supabase on start (idempotent; non-fatal so
+# a transient DB hiccup never blocks boot), then run the server.
+CMD ["sh", "-c", "npx prisma db push --skip-generate || echo 'prisma db push skipped/failed, continuing'; node dist/index.js"]

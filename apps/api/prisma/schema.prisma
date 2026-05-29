@@ -443,11 +443,34 @@ model Employee {
   department                   String?
   positions                    Json?
   pushover_user_key            String?
+  push_subscription            Json?
   manager_quality_rating       Float?
   manager_rating_notes         String?
   created_by  String?
   created_date  String?
   updated_date  String?
+}
+
+model RestroomCheck {
+  id              String   @id @default(cuid())
+  checked_by_id   String?
+  checked_by_name String?
+  checked_at      String
+  photo_url       String?
+  notes           String?
+  shift_date      String?
+  created_by      String?
+  created_date    String?
+  updated_date    String?
+}
+
+model RestroomSettings {
+  id               String   @id @default(cuid())
+  enabled          Boolean? @default(true)
+  target_positions Json?
+  created_by       String?
+  created_date     String?
+  updated_date     String?
 }
 
 model EmployeeApparel {
