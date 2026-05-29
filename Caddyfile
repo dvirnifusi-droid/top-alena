@@ -2,6 +2,11 @@
 # For local dev, use `:80` instead.
 
 {$DOMAIN:localhost} {
+    # Cloudflare (proxied) terminates the public TLS with a trusted cert and
+    # connects to this origin over HTTPS in "Full" mode, which accepts Caddy's
+    # internal self-signed cert. This avoids relying on Let's Encrypt issuance
+    # on the origin (which was failing for this host).
+    tls internal
     @api path /api/*
     handle @api {
         reverse_proxy api:3001
