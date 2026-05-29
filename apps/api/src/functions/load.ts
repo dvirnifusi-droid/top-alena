@@ -117,38 +117,98 @@ registerFn('chatJobApplication', async ({ body }) => {
 
   let candidate_id: string | null = null;
   if (result?.complete) {
-    const d = result.collected || {};
-    const score = typeof result.score === 'number' ? Math.round(result.score) : null;
     const rejected = !!result.rejected;
+    const score = typeof result.score === 'number' ? Math.round(result.score) : null;
+
+    // Final extraction pass: re-read the FULL transcript with a strict schema,
+    // because the per-turn `collected` from the chat model is often lossy
+    // (forgets the name on the closing turn, etc.). The transcript is truth.
+    const fullTranscript = [
+      ...turns,
+      { role: 'user', content: message || '' },
+      { role: 'assistant', content: result?.reply || '' },
+    ]
+      .map((t: any) => `${t.role === 'assistant' ? 'עוזר' : 'מועמד'}: ${t.content}`)
+      .join('\n');
+    let extracted: any = {};
+    try {
+      extracted = await invokeLLM({
+        prompt:
+          `מצורף תמלול של ראיון גיוס בעברית. חלץ את הפרטים הבאים מהדברים שהמועמד אמר.\n` +
+          `אם פרט לא נאמר במפורש — החזר null. שמור טלפון בדיוק כפי שנאמר (כולל מקפים אם היו).\n` +
+          `weekend_availability=true אם המועמד אמר שהוא זמין לסופ"ש (אפילו חלקית), false אם אמר שאינו זמין.\n\n` +
+          `--- תמלול ---\n${fullTranscript}\n--- סוף ---\n\nהחזר JSON בלבד.`,
+        responseSchema: {
+          type: 'object',
+          properties: {
+            full_name: { type: 'string' },
+            age: { type: 'integer' },
+            phone: { type: 'string' },
+            role_applied: { type: 'string' },
+            experience: { type: 'string' },
+            shifts_per_week: { type: 'integer' },
+            weekend_availability: { type: 'boolean' },
+            start_date: { type: 'string' },
+            city: { type: 'string' },
+            notes: { type: 'string' },
+          },
+        },
+      }) as any;
+    } catch (e: any) {
+      console.error('extraction failed', e?.message);
+    }
+
+    // Merge: extracted (truth) wins; fall back to the chat-model's collected.
+    const c = (result.collected || {}) as any;
+    const d: any = {
+      full_name: extracted.full_name || c.full_name || c.name || null,
+      age: extracted.age ?? parseInt2(c.age),
+      phone: extracted.phone || (c.phone ? String(c.phone) : null),
+      role_applied: extracted.role_applied || c.role_applied || null,
+      experience: extracted.experience || c.experience || null,
+      shifts_per_week: extracted.shifts_per_week ?? parseInt2(c.shifts_per_week),
+      weekend_availability:
+        typeof extracted.weekend_availability === 'boolean'
+          ? extracted.weekend_availability
+          : parseBool(c.weekend_availability),
+      start_date: extracted.start_date || c.start_date || null,
+      city: extracted.city || c.city || null,
+      notes: extracted.notes || c.notes || null,
+    };
+
     try {
       const cand = await db.jobCandidate.create({
         data: {
-          full_name: d.full_name || d.name || 'מועמד',
-          age: parseInt2(d.age),
-          city: d.city || null,
-          phone: d.phone ? String(d.phone) : null,
-          role_applied: d.role_applied || null,
-          experience: d.experience || null,
-          shifts_per_week: parseInt2(d.shifts_per_week),
-          weekend_availability: parseBool(d.weekend_availability),
-          start_date: d.start_date || null,
+          full_name: d.full_name || 'מועמד',
+          age: d.age,
+          city: d.city,
+          phone: d.phone,
+          role_applied: d.role_applied,
+          experience: d.experience,
+          shifts_per_week: d.shifts_per_week,
+          weekend_availability: d.weekend_availability,
+          start_date: d.start_date,
           status: rejected ? 'rejected' : 'pending',
           score,
-          notes: rejected ? (result.rejection_reason || null) : (d.notes || null),
+          notes: rejected ? (result.rejection_reason || d.notes) : d.notes,
           source: 'web_chat',
         },
       });
       candidate_id = cand.id;
 
       if (!rejected && (score ?? 0) > 60) {
-        const summary =
-          `שם: ${cand.full_name}${cand.age ? ` (${cand.age})` : ''}\n` +
-          `תפקיד: ${cand.role_applied || '-'}\n` +
-          `עיר: ${cand.city || '-'}\n` +
-          `טלפון: ${cand.phone || '-'}\n` +
-          `ניסיון: ${(cand.experience || '-').slice(0, 200)}\n` +
-          `ציון: ${score}`;
-        pushoverToAdmins('🎯 מועמד גיוס חדש (ציון גבוה)', summary).catch(() => {});
+        const lines = [
+          `שם: ${cand.full_name}${cand.age ? ` (${cand.age})` : ''}`,
+          `תפקיד: ${cand.role_applied || '-'}`,
+          `עיר: ${cand.city || '-'}`,
+          `טלפון: ${cand.phone || '-'}`,
+          `משמרות/שבוע: ${cand.shifts_per_week ?? '-'}`,
+          `סופ"ש: ${cand.weekend_availability ? 'כן' : 'לא'}`,
+          `יכול להתחיל: ${cand.start_date || '-'}`,
+          `ניסיון: ${(cand.experience || '-').slice(0, 220)}`,
+          `ציון: ${score}`,
+        ];
+        pushoverToAdmins('🎯 מועמד גיוס חדש (ציון גבוה)', lines.join('\n')).catch(() => {});
       }
     } catch (e: any) {
       console.error('jobCandidate.create failed', e?.message);
