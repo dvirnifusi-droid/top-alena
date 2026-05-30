@@ -44,10 +44,15 @@ function fmtDate(d) {
 }
 
 export default function RecruitmentInterviews() {
-  const [inbox, setInbox] = useState({ upcoming: [], recent: [], toCallBack: [] });
+  const [inbox, setInbox] = useState({ upcoming: [], recent: [], toCallBack: [], topUnscheduled: [] });
   const [trainees, setTrainees] = useState([]);
   const [loading, setLoading] = useState(true);
   const [actionId, setActionId] = useState(null);
+
+  // Inline slot picker state (per candidate row)
+  const [openSlotCand, setOpenSlotCand] = useState(null); // candidate_id whose slots are showing
+  const [slots, setSlots] = useState([]);
+  const [slotsLoading, setSlotsLoading] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -56,8 +61,7 @@ export default function RecruitmentInterviews() {
         base44.functions.getRecruitmentInbox({}),
         base44.entities.JobCandidate.filter({ status: 'trainee' }, '-created_date', 100),
       ]);
-      setInbox(inboxRes?.data || { upcoming: [], recent: [], toCallBack: [] });
-      // Also include active waiters for visibility
+      setInbox(inboxRes?.data || { upcoming: [], recent: [], toCallBack: [], topUnscheduled: [] });
       const active = await base44.entities.JobCandidate.filter({ status: 'active' }, '-created_date', 50).catch(() => []);
       setTrainees([...(trainees || []), ...(active || [])]);
     } catch (e) {
@@ -65,6 +69,28 @@ export default function RecruitmentInterviews() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const openSlots = async (candId) => {
+    if (openSlotCand === candId) { setOpenSlotCand(null); return; }
+    setOpenSlotCand(candId);
+    setSlotsLoading(true);
+    try {
+      const res = await base44.functions.getInterviewSlotsForManager({});
+      setSlots(res?.data?.slots || []);
+    } catch { setSlots([]); }
+    finally { setSlotsLoading(false); }
+  };
+
+  const bookForCandidate = async (candId, slot) => {
+    setActionId(candId);
+    try {
+      await base44.functions.bookInterviewByManager({ candidate_id: candId, date: slot.date, time: slot.time });
+      setOpenSlotCand(null);
+      await load();
+    } catch (e) {
+      alert(e?.message === 'slot_taken' ? 'המועד נתפס. בחר אחר.' : 'שגיאה בקביעת הראיון');
+    } finally { setActionId(null); }
   };
 
   useEffect(() => { load(); }, []);
@@ -146,6 +172,74 @@ export default function RecruitmentInterviews() {
                 )}
               </div>
             ))}
+          </div>
+        )}
+      </section>
+
+      {/* Top candidates (80+) not yet scheduled */}
+      <section className="bg-white rounded-2xl shadow border border-amber-200 p-4">
+        <p className="font-black text-slate-800 mb-1">🌟 מועמדים מעולים — לשבץ ({inbox.topUnscheduled?.length || 0})</p>
+        <p className="text-xs text-slate-500 mb-3">מועמדים עם 80+ שעדיין לא נכנסו לראיון. תוכל לקבוע להם ראיון או לפנות בוואטסאפ.</p>
+        {(inbox.topUnscheduled || []).length === 0 ? (
+          <p className="text-slate-400 text-sm">אין כרגע מועמדים ממתינים.</p>
+        ) : (
+          <div className="space-y-2">
+            {(inbox.topUnscheduled || []).map((c) => {
+              const phone = normalizePhoneIL(c.phone);
+              const waText = encodeURIComponent(`היי ${c.full_name} 🌿\nראיתי את הפניה שלך לעלינא, התרשמנו ממך 🙏 בא לקבוע ראיון?`);
+              const open = openSlotCand === c.id;
+              return (
+                <div key={c.id} className="border-2 border-amber-200 rounded-xl p-3 bg-amber-50/30">
+                  <div className="flex flex-wrap items-center gap-3">
+                    <div className="flex-1 min-w-[160px]">
+                      <p className="font-bold text-slate-800">{c.full_name} {c.age && <span className="text-slate-400 text-xs">({c.age})</span>}</p>
+                      <p className="text-xs text-slate-500">{c.role_applied || '—'} · {c.city || '-'}</p>
+                    </div>
+                    <div className="text-xs bg-emerald-100 text-emerald-700 px-2 py-1 rounded-full font-bold">ציון: {c.score ?? '-'}</div>
+                    <button
+                      onClick={() => openSlots(c.id)}
+                      disabled={actionId === c.id}
+                      className="text-xs bg-slate-800 hover:bg-slate-900 disabled:opacity-50 text-white font-bold px-2.5 py-1.5 rounded-lg"
+                    >
+                      📅 {open ? 'סגור' : 'קבע ראיון'}
+                    </button>
+                    {phone && (
+                      <a href={`https://wa.me/${phone}?text=${waText}`} target="_blank" rel="noreferrer" className="text-xs bg-emerald-500 hover:bg-emerald-600 text-white font-bold px-2.5 py-1.5 rounded-lg">
+                        📱 פנייה בוואטסאפ
+                      </a>
+                    )}
+                  </div>
+                  {c.ai_summary && (
+                    <p className="mt-2 text-xs text-slate-600 italic border-r-2 border-amber-200 pr-2">{c.ai_summary}</p>
+                  )}
+                  {open && (
+                    <div className="mt-3 bg-white rounded-xl p-3 border border-slate-200">
+                      {slotsLoading ? (
+                        <p className="text-slate-400 text-sm">טוען מועדים…</p>
+                      ) : slots.length === 0 ? (
+                        <p className="text-slate-500 text-sm">
+                          אין מועדים פנויים — הגדר סלוטים ב<a href={createPageUrl('InterviewSettings')} className="underline text-emerald-700"> הגדרות סלוטים</a>.
+                        </p>
+                      ) : (
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-60 overflow-y-auto">
+                          {slots.map((s, i) => (
+                            <button
+                              key={i}
+                              onClick={() => bookForCandidate(c.id, s)}
+                              disabled={actionId === c.id}
+                              className="rounded-lg border border-emerald-200 hover:border-emerald-500 hover:bg-emerald-50 disabled:opacity-50 transition p-2 text-right text-xs"
+                            >
+                              <p className="font-bold text-slate-800">יום {s.weekday_name}</p>
+                              <p className="text-slate-500">{fmtDate(s.date)} · {s.time}</p>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         )}
       </section>

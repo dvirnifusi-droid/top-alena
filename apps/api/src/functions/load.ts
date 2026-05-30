@@ -335,7 +335,8 @@ registerFn('saveInterviewSlotTemplates', async ({ body }) => {
   return { ok: true, count: templates.length };
 });
 
-// AUTH — recruitment dashboard: upcoming interviews, candidates to call back.
+// AUTH — recruitment dashboard: upcoming interviews, top candidates not yet
+// scheduled (80+, still pending), candidates 50-79 to call back.
 registerFn('getRecruitmentInbox', async () => {
   const today = new Date().toISOString().slice(0, 10);
   const upcoming = await db.interview.findMany({
@@ -353,7 +354,69 @@ registerFn('getRecruitmentInbox', async () => {
     orderBy: { created_date: 'desc' },
     take: 50,
   });
-  return { upcoming, recent, toCallBack };
+  const topUnscheduled = await db.jobCandidate.findMany({
+    where: { status: 'pending', score: { gte: 80 } },
+    orderBy: { created_date: 'desc' },
+    take: 50,
+  });
+  return { upcoming, recent, toCallBack, topUnscheduled };
+});
+
+// AUTH — manager-side slot helpers (no candidate-score check).
+registerFn('getInterviewSlotsForManager', async () => {
+  const templates = await db.interviewSlotTemplate.findMany({ where: { active: true } });
+  if (!templates.length) return { slots: [] };
+  const booked = await db.interview.findMany({
+    where: { status: { in: ['scheduled', 'showed', 'completed'] } },
+  });
+  const bookedKey = new Set(booked.map((b: any) => `${b.scheduled_date}|${b.scheduled_time}`));
+  const out: any[] = [];
+  const now = new Date();
+  for (let i = 1; i <= 21; i++) {
+    const d = new Date(now.getTime() + i * 86400000);
+    const weekday = d.getDay();
+    const dateStr = d.toISOString().slice(0, 10);
+    for (const t of templates) {
+      if (t.weekday !== weekday) continue;
+      const key = `${dateStr}|${t.time}`;
+      if (bookedKey.has(key)) continue;
+      out.push({
+        date: dateStr,
+        time: t.time,
+        weekday_name: WEEKDAY_NAMES[weekday],
+        duration_minutes: t.duration_minutes ?? 30,
+      });
+    }
+  }
+  out.sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time));
+  return { slots: out };
+});
+
+registerFn('bookInterviewByManager', async ({ body }) => {
+  const { candidate_id, date, time } = body as any;
+  if (!candidate_id || !date || !time) throw new Error('missing_params');
+  const cand = await db.jobCandidate.findUnique({ where: { id: candidate_id } });
+  if (!cand) throw new Error('candidate_not_found');
+
+  const taken = await db.interview.findFirst({
+    where: { scheduled_date: date, scheduled_time: time, status: { in: ['scheduled', 'showed', 'completed'] } },
+  });
+  if (taken) throw new Error('slot_taken');
+
+  const tpl = await db.interviewSlotTemplate.findFirst({ where: { time } });
+  const interview = await db.interview.create({
+    data: {
+      candidate_id,
+      candidate_name: cand.full_name,
+      candidate_phone: cand.phone,
+      scheduled_date: date,
+      scheduled_time: time,
+      duration_minutes: tpl?.duration_minutes ?? 30,
+      status: 'scheduled',
+    },
+  });
+  await db.jobCandidate.update({ where: { id: candidate_id }, data: { status: 'interview_scheduled' } });
+  return { interview };
 });
 
 registerFn('markInterviewStatus', async ({ body }) => {
@@ -373,6 +436,56 @@ registerFn('markInterviewStatus', async ({ body }) => {
 
 // AUTH — move a candidate through training pipeline.
 // Stages: 'hired' -> 'trainee_tables' -> 'trainee_bar' -> 'trainee_kitchen' -> 'active_waiter'
+// ----- Internal scheduler: send Pushover ~3h before each interview -----
+// Runs every 15 minutes inside the API process. Idempotent via reminder_sent_at.
+export async function checkInterviewReminders() {
+  try {
+    const now = new Date();
+    const today = now.toISOString().slice(0, 10);
+    // Look at today + tomorrow (covers reminders for tomorrow-early interviews)
+    const tomorrow = new Date(now.getTime() + 86400000).toISOString().slice(0, 10);
+    const candidates = await db.interview.findMany({
+      where: {
+        status: 'scheduled',
+        scheduled_date: { in: [today, tomorrow] },
+        reminder_sent_at: null,
+      },
+    });
+    for (const iv of candidates) {
+      const dt = new Date(`${iv.scheduled_date}T${iv.scheduled_time}:00`);
+      const diffMs = dt.getTime() - now.getTime();
+      // Window: 2h45m–3h15m before. Tightens to ~30min span so we hit it once.
+      if (diffMs < 2.75 * 3600 * 1000 || diffMs > 3.25 * 3600 * 1000) continue;
+
+      const cand = await db.jobCandidate.findUnique({ where: { id: iv.candidate_id } });
+      const lines = [
+        `${iv.candidate_name || cand?.full_name || 'מועמד'} (${cand?.role_applied || '-'})`,
+        `📅 היום בשעה ${iv.scheduled_time}`,
+        `📞 ${iv.candidate_phone || cand?.phone || '-'}`,
+        `🏙️ ${cand?.city || '-'}`,
+        cand?.score ? `ציון: ${cand.score}` : '',
+        cand?.ai_summary ? `\n${cand.ai_summary}` : '',
+      ].filter(Boolean).join('\n');
+      await pushoverToAdmins('⏰ ראיון עבודה בעוד ~3 שעות', lines).catch((e) =>
+        console.error('reminder push failed', e?.message),
+      );
+      await db.interview.update({ where: { id: iv.id }, data: { reminder_sent_at: new Date().toISOString() } });
+    }
+  } catch (e: any) {
+    console.error('interview reminder scan failed', e?.message);
+  }
+}
+
+// Start the scheduler on import. Runs every 15 min; first run after 30s so the
+// API doesn't block boot if the DB isn't ready immediately.
+if (!(globalThis as any).__interviewReminderTimer) {
+  (globalThis as any).__interviewReminderTimer = setTimeout(function loop() {
+    checkInterviewReminders().finally(() => {
+      (globalThis as any).__interviewReminderTimer = setTimeout(loop, 15 * 60 * 1000);
+    });
+  }, 30 * 1000);
+}
+
 registerFn('advanceCandidateStage', async ({ body }) => {
   const { candidate_id, stage } = body as any;
   if (!candidate_id || !stage) throw new Error('missing_params');
