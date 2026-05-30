@@ -1190,13 +1190,45 @@ const awardCoins = async (employee_id: string, amount: number, reason: string) =
   return { ok: true, coinsAwarded: amount };
 };
 
+// Faithful port of the original Base44 awardAvailabilityCoins. Takes
+// employee_name straight from the request (so a missing Employee row never
+// crashes the whole submit) and sets trigger + status exactly as Base44 did.
+// The Employee.coin_balance update is kept as a non-fatal side effect so the
+// UI badge stays in sync.
 registerFn('awardAvailabilityCoins', async ({ body }) => {
   const b = body as any;
-  const amount = b.coinsToAward ?? b.amount ?? 5;
-  const reason = b.availableShifts
-    ? `הגשת סידור זמינות - ${b.availableShifts} משמרות פנויות`
-    : 'הגשת סידור זמינות';
-  return awardCoins(b.employee_id, amount, reason);
+  const { employee_id, employee_name, availableShifts, coinsToAward } = b;
+  if (!employee_id || !employee_name) {
+    return { success: false, error: 'Missing required fields' };
+  }
+  const coins = coinsToAward || (availableShifts ? availableShifts * 5 : 0);
+  if (coins <= 0) return { success: true, coinsAwarded: 0 };
+  try {
+    await db.coinTransaction.create({
+      data: {
+        employee_id,
+        employee_name,
+        amount: coins,
+        reason: `הגשת סידור זמינות - ${availableShifts} משמרות פנויות`,
+        type_: 'earned',
+        trigger: 'availability_submitted',
+        status: 'approved',
+      },
+    });
+  } catch (e: any) {
+    console.error('[availabilityCoins] CoinTransaction.create failed:', e?.message);
+    return { success: false, error: 'transaction_failed', detail: e?.message };
+  }
+  // Keep Employee.coin_balance cached on the row (best-effort).
+  try {
+    await db.employee.update({
+      where: { id: employee_id },
+      data: { coin_balance: { increment: coins } },
+    });
+  } catch (e: any) {
+    console.warn('[availabilityCoins] employee.coin_balance update skipped:', e?.message);
+  }
+  return { success: true, coinsAwarded: coins };
 });
 registerFn('awardBriefingCoins', async ({ body }) =>
   awardCoins((body as any).employee_id, (body as any).amount ?? 3, 'briefing_read'),
