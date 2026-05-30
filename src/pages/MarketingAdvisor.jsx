@@ -673,19 +673,6 @@ function TasksView({ tasks, onChange, hasProfile, strategy }) {
           {generatingTopup ? '🤔 מייצר…' : '✨ עוד 7 משימות לחודש הזה'}
         </button>
       </div>
-      {completed.length > 0 && (
-        <details className="bg-white border border-slate-200 rounded-2xl p-3">
-          <summary className="font-bold text-slate-700 cursor-pointer text-sm">✅ הושלמו ({completed.length})</summary>
-          <div className="mt-3 space-y-2">
-            {completed.slice(0, 20).map(t => (
-              <div key={t.id} className="border border-slate-100 rounded-xl p-2 bg-slate-50 text-xs opacity-70">
-                <p className="font-bold line-through">{t.title}</p>
-                <p className="text-slate-500">{t.completion_date}</p>
-              </div>
-            ))}
-          </div>
-        </details>
-      )}
     </div>
   );
 }
