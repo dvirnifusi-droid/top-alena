@@ -78,7 +78,12 @@ const RECRUITMENT_SYSTEM_PROMPT = `אתה מנהל הגיוס הדיגיטלי �
 בכל סבב החזר אך ורק JSON עם השדות: reply (string), collected (object), complete (boolean), rejected (boolean), rejection_reason (string?), score (number?).`;
 
 registerFn('chatJobApplication', async ({ body }) => {
-  const { history, message } = body as any;
+  const { history, message, source } = body as any;
+  // Normalize utm_source to a short token we save on the candidate.
+  const candidateSource =
+    typeof source === 'string' && source.trim()
+      ? source.trim().slice(0, 40).toLowerCase()
+      : 'web_chat';
   const turns: Array<{ role: string; content: string }> = Array.isArray(history) ? history : [];
   const transcript = turns
     .map((t) => `${t.role === 'assistant' ? 'עוזר' : 'מועמד'}: ${t.content}`)
@@ -195,7 +200,7 @@ registerFn('chatJobApplication', async ({ body }) => {
           score,
           notes: rejected ? (result.rejection_reason || d.notes) : d.notes,
           ai_summary: extracted.ai_summary || null,
-          source: 'web_chat',
+          source: candidateSource,
         },
       });
       candidate_id = cand.id;
@@ -211,6 +216,7 @@ registerFn('chatJobApplication', async ({ body }) => {
           `יכול להתחיל: ${cand.start_date || '-'}`,
           `ניסיון: ${(cand.experience || '-').slice(0, 220)}`,
           `ציון: ${score}`,
+          `מקור: ${candidateSource}`,
         ];
         pushoverToAdmins('🎯 מועמד גיוס חדש (ציון גבוה)', lines.join('\n')).catch(() => {});
       }

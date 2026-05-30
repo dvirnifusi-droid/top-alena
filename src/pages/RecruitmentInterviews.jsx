@@ -220,6 +220,9 @@ export default function RecruitmentInterviews() {
                       <p className="text-xs text-slate-500">{c.role_applied || '—'} · {c.city || '-'}</p>
                     </div>
                     <div className="text-xs bg-emerald-100 text-emerald-700 px-2 py-1 rounded-full font-bold">ציון: {c.score ?? '-'}</div>
+                    {c.source && c.source !== 'web_chat' && (
+                      <div className="text-xs bg-slate-200 text-slate-700 px-2 py-1 rounded-full font-bold">מ‑{c.source}</div>
+                    )}
                     <button
                       onClick={() => openSlots(c.id)}
                       disabled={actionId === c.id}
@@ -286,6 +289,9 @@ export default function RecruitmentInterviews() {
                     <p className="text-xs text-slate-500">{c.role_applied || '—'} · {c.city || '-'}</p>
                   </div>
                   <div className="text-xs bg-amber-100 text-amber-700 px-2 py-1 rounded-full font-bold">ציון: {c.score ?? '-'}</div>
+                  {c.source && c.source !== 'web_chat' && (
+                    <div className="text-xs bg-slate-200 text-slate-700 px-2 py-1 rounded-full font-bold">מ‑{c.source}</div>
+                  )}
                   {c.ai_summary && (
                     <p className="basis-full text-xs text-slate-500 italic border-r-2 border-slate-200 pr-2">{c.ai_summary}</p>
                   )}

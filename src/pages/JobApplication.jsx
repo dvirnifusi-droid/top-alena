@@ -1,7 +1,17 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { invokePublic } from '@/lib/publicFetch';
 
+// Read ?utm_source=... from the URL so we tag the candidate with where they
+// came from (Facebook / Instagram / QR / etc.).
+function readUtmSource() {
+  try {
+    const p = new URLSearchParams(window.location.search);
+    return p.get('utm_source') || null;
+  } catch { return null; }
+}
+
 export default function JobApplication() {
+  const [utmSource] = useState(readUtmSource);
   const [messages, setMessages] = useState([]); // {role, content}
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
@@ -44,7 +54,7 @@ export default function JobApplication() {
     const history = text ? [...messages, { role: 'user', content: text }] : messages;
     if (text) setMessages(history);
     try {
-      const res = await invokePublic('chatJobApplication', { history, message: text });
+      const res = await invokePublic('chatJobApplication', { history, message: text, source: utmSource });
       setMessages([...history, { role: 'assistant', content: res?.reply || '...' }]);
       if (res?.complete) {
         setDone(true);
