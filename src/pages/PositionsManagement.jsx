@@ -26,6 +26,7 @@ function PositionForm({ position, onSave, onCancel }) {
         color: position?.color || '#3b82f6',
         hourly_rate: position?.hourly_rate || 0,
         is_active: position?.is_active !== false,
+        requires_kashrut: position?.requires_kashrut === true,
     });
 
     const handleSubmit = (e) => {
@@ -198,6 +199,25 @@ function PositionForm({ position, onSave, onCancel }) {
                         onChange={(e) => setFormData({ ...formData, hourly_rate: parseFloat(e.target.value) || 0 })}
                     />
                 </div>
+            </div>
+
+            {/* Kashrut requirement (cooking-side positions) */}
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+                <label className="flex items-start gap-3 cursor-pointer">
+                    <input
+                        type="checkbox"
+                        checked={!!formData.requires_kashrut}
+                        onChange={(e) => setFormData({ ...formData, requires_kashrut: e.target.checked })}
+                        className="mt-0.5 w-5 h-5 accent-amber-600"
+                    />
+                    <div className="flex-1">
+                        <p className="font-bold text-amber-900 text-sm">🍽️ דורש עמידה בדיני בישול גויים (כשרות)</p>
+                        <p className="text-xs text-amber-700 mt-1">
+                            סמן עבור תפקידים במטבח בלבד (טבח, סו שף וכו'). הסוכן יוסיף שאלה מפורשת על כך לכל מועמד לתפקיד הזה — מי שעונה "לא" יורד 21 נקודות ויעבור לסקירה ידנית במקום קביעה אוטומטית.
+                            לתפקידי מלצרות/מארחת/קופה/שטיפה — אין צורך לסמן.
+                        </p>
+                    </div>
+                </label>
             </div>
 
             <div className="flex justify-end gap-3 pt-4 border-t">

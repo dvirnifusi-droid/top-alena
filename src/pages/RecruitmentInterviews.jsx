@@ -310,6 +310,11 @@ export default function RecruitmentInterviews() {
                   {c.source && c.source !== 'web_chat' && (
                     <div className="text-xs bg-slate-200 text-slate-700 px-2 py-1 rounded-full font-bold">מ‑{c.source}</div>
                   )}
+                  {c.kashrut_required && c.kashrut_capable === false && (
+                    <div className="text-xs bg-orange-100 text-orange-800 px-2 py-1 rounded-full font-bold border border-orange-300" title="ענה שאינו עומד בדרישות בישול גויים">
+                      🍽️ לא לכשרות
+                    </div>
+                  )}
                   {c.ai_summary && (
                     <p className="basis-full text-xs text-slate-500 italic border-r-2 border-slate-200 pr-2">{c.ai_summary}</p>
                   )}

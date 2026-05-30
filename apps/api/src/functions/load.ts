@@ -84,12 +84,26 @@ registerFn('chatJobApplication', async ({ body }) => {
     typeof source === 'string' && source.trim()
       ? source.trim().slice(0, 40).toLowerCase()
       : 'web_chat';
+
+  // Cooking-side positions defined by the manager. The bot asks every
+  // applicant to one of these the explicit bishul-akum question.
+  const kashrutPositions = await db.workPosition
+    .findMany({ where: { requires_kashrut: true, is_active: true }, select: { position_name: true } })
+    .catch(() => [] as any[]);
+  const kashrutPositionNames: string[] = kashrutPositions.map((p: any) => p.position_name).filter(Boolean);
   const turns: Array<{ role: string; content: string }> = Array.isArray(history) ? history : [];
   const transcript = turns
     .map((t) => `${t.role === 'assistant' ? 'עוזר' : 'מועמד'}: ${t.content}`)
     .join('\n');
   const newPart = message ? `\nמועמד: ${message}` : '';
-  const prompt = `${RECRUITMENT_SYSTEM_PROMPT}\n\n--- שיחה עד כה ---\n${transcript || '(אין עדיין הודעות — זו תחילת השיחה)'}${newPart}\n\nהחזר את התגובה הבאה כ-JSON בלבד.`;
+
+  // Conditional kashrut instruction — added only when the manager has marked
+  // at least one position as requires_kashrut. Otherwise the bot never asks.
+  const kashrutClause = kashrutPositionNames.length
+    ? `\n\n--- שאלת כשרות חובה ---\nהתפקידים הבאים במסעדה דורשים עמידה בדיני בישול גויים: ${kashrutPositionNames.join(', ')}.\nאם המועמד בחר אחד מהתפקידים האלה בשאלה 3 (או הזכיר אותו), **לפני שאתה ממשיך לשאלה הבאה** הוסף את השאלה הזו, מילה במילה (פעם אחת בלבד):\n"במסעדה שלנו המטבח כשר עם הקפדה על בישול גויים — חלק מהתפקיד דורש הפעלת הכיריים והתנור ראשון. האם תוכל/י לעמוד בדרישה הזו?"\nאחרי שתקבל תשובה: שמור את הערך (true/false) ב-collected.kashrut_capable, ועבור לשאלה הבאה.\nלתפקידים שלא ברשימה (מלצר/מארחת/קופה/וכו') — אל תשאל את השאלה הזו בכלל.`
+    : '';
+
+  const prompt = `${RECRUITMENT_SYSTEM_PROMPT}${kashrutClause}\n\n--- שיחה עד כה ---\n${transcript || '(אין עדיין הודעות — זו תחילת השיחה)'}${newPart}\n\nהחזר את התגובה הבאה כ-JSON בלבד.`;
 
   const result: any = await invokeLLM({
     prompt,
@@ -124,7 +138,7 @@ registerFn('chatJobApplication', async ({ body }) => {
   let candidate_id: string | null = null;
   if (result?.complete) {
     const rejected = !!result.rejected;
-    const score = typeof result.score === 'number' ? Math.round(result.score) : null;
+    let score = typeof result.score === 'number' ? Math.round(result.score) : null;
 
     // Final extraction pass: re-read the FULL transcript with a strict schema,
     // because the per-turn `collected` from the chat model is often lossy
@@ -143,6 +157,7 @@ registerFn('chatJobApplication', async ({ body }) => {
           `מצורף תמלול של ראיון גיוס בעברית. חלץ את הפרטים הבאים מהדברים שהמועמד אמר.\n` +
           `אם פרט לא נאמר במפורש — החזר null. שמור טלפון בדיוק כפי שנאמר (כולל מקפים אם היו).\n` +
           `weekend_availability=true אם המועמד אמר שהוא זמין לסופ"ש (אפילו חלקית), false אם אמר שאינו זמין.\n` +
+          `kashrut_capable: אם נשאלה השאלה על דיני בישול גויים — true אם ענה כן, false אם ענה לא, null אם לא נשאל או לא ברור.\n` +
           `ai_summary: סיכום 2-3 משפטים על המועמד למנהל (חוזקות, חולשות, התרשמות כללית).\n\n` +
           `--- תמלול ---\n${fullTranscript}\n--- סוף ---\n\nהחזר JSON בלבד.`,
         responseSchema: {
@@ -158,6 +173,7 @@ registerFn('chatJobApplication', async ({ body }) => {
             start_date: { type: 'string' },
             city: { type: 'string' },
             notes: { type: 'string' },
+            kashrut_capable: { type: 'boolean' },
             ai_summary: { type: 'string' },
           },
         },
@@ -166,8 +182,31 @@ registerFn('chatJobApplication', async ({ body }) => {
       console.error('extraction failed', e?.message);
     }
 
-    // Merge: extracted (truth) wins; fall back to the chat-model's collected.
+    // Kashrut screening: if the role applied is one the manager flagged as
+    // requires_kashrut AND the candidate said "no" to bishul akum, drop the
+    // score by 21 (capped to 79) so they go through manual review instead of
+    // auto-booking a slot. Applies uniformly to anyone applying to that role,
+    // regardless of name.
     const c = (result.collected || {}) as any;
+    const appliedRole = String(extracted.role_applied || c.role_applied || '').toLowerCase();
+    const kashrutRequiredForRole =
+      kashrutPositionNames.length > 0 &&
+      kashrutPositionNames.some((p) => {
+        const pn = String(p).toLowerCase();
+        return pn === appliedRole || appliedRole.includes(pn) || pn.includes(appliedRole);
+      });
+    const kashrutCapable =
+      typeof extracted.kashrut_capable === 'boolean'
+        ? extracted.kashrut_capable
+        : typeof c.kashrut_capable === 'boolean'
+          ? c.kashrut_capable
+          : null;
+    if (!rejected && kashrutRequiredForRole && kashrutCapable === false && typeof score === 'number') {
+      const penalized = Math.max(0, score - 21);
+      score = Math.min(penalized, 79);
+    }
+
+    // Merge: extracted (truth) wins; fall back to the chat-model's collected.
     const d: any = {
       full_name: extracted.full_name || c.full_name || c.name || null,
       age: extracted.age ?? parseInt2(c.age),
@@ -200,6 +239,8 @@ registerFn('chatJobApplication', async ({ body }) => {
           score,
           notes: rejected ? (result.rejection_reason || d.notes) : d.notes,
           ai_summary: extracted.ai_summary || null,
+          kashrut_required: kashrutRequiredForRole || null,
+          kashrut_capable: kashrutCapable,
           source: candidateSource,
         },
       });

@@ -724,6 +724,9 @@ model JobCandidate {
   hired_at                     String?
   training_sessions_completed  Int?     @default(0)
   menu_exam_attempts           Int?     @default(0)
+  // Kashrut screening (only applies to cooking-side positions; see WorkPosition.requires_kashrut)
+  kashrut_required             Boolean?
+  kashrut_capable              Boolean?
   created_by  String?
   created_date  String?
   updated_date  String?
@@ -1581,6 +1584,10 @@ model WorkPosition {
   max_hours_per_day            Int?  @default(12)
   color                        String?
   is_active                    Boolean?  @default(true)
+  // Marks a position as cooking-side, requiring the candidate to be able to
+  // satisfy bishul akum (kashrut). The bot asks the candidate directly during
+  // the chat; "no" answer reduces the score so they go through manual review.
+  requires_kashrut             Boolean?  @default(false)
   created_by  String?
   created_date  String?
   updated_date  String?
