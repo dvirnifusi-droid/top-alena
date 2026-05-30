@@ -34,7 +34,7 @@ export default function DevicePreviewToggle() {
       {/* Floating launcher */}
       <button
         onClick={() => { setSrc(withMarker()); setOpen(true); }}
-        className="fixed bottom-5 left-5 z-[9990] w-12 h-12 rounded-full bg-slate-900 hover:bg-slate-800 text-white text-2xl shadow-2xl flex items-center justify-center"
+        className="fixed bottom-5 left-5 z-[9990] w-12 h-12 rounded-full bg-slate-900 hover:bg-slate-800 text-white text-2xl shadow-2xl hidden lg:flex items-center justify-center"
         title="תצוגה במכשיר"
         aria-label="תצוגה במכשיר"
       >
