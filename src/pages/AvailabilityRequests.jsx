@@ -362,14 +362,35 @@ function AvailabilityRequestsInner() {
     const currentDeptLabel = settings?.departments?.find(d => d.key === selectedDepartment)?.label;
 
     // Active employees in the current department who haven't submitted this week.
+    // Department membership is determined by:
+    //   1. Employee.department (explicit), OR
+    //   2. Employee.role / Employee.positions[] overlapping the selected
+    //      department's positions list (so e.g. role "טבח" appears only under
+    //      a department whose positions include "טבח").
+    // If neither matches → the employee is hidden from this department's roster.
+    const currentDept = settings?.departments?.find(d => d.key === selectedDepartment);
+    const currentDeptPositions = new Set(
+        (currentDept?.positions || [])
+            .map(p => (typeof p === 'string' ? p : (p?.position_name || p?.name)))
+            .filter(Boolean)
+    );
+    const empBelongsToCurrentDept = (e) => {
+        if (e.department) return e.department === selectedDepartment;
+        if (!currentDeptPositions.size) return true; // no settings yet — fall back to show all
+        const empPosNames = [];
+        if (typeof e.role === 'string' && e.role) empPosNames.push(e.role);
+        (Array.isArray(e.positions) ? e.positions : []).forEach((p) => {
+            const n = typeof p === 'string' ? p : (p?.position_name || p?.name);
+            if (n) empPosNames.push(n);
+        });
+        return empPosNames.some((p) => currentDeptPositions.has(p));
+    };
+
     const submittedIds = new Set(weekAvailabilities.map(a => a.employee_id));
     const notSubmittedEmployees = employees.filter(e => {
         if (e.status !== 'active') return false;
         if (submittedIds.has(e.id)) return false;
-        // department match: employee.department, or any of their positions matches the dept key
-        const empDept = e.department;
-        if (empDept && empDept !== selectedDepartment) return false;
-        return true;
+        return empBelongsToCurrentDept(e);
     });
 
     const groupByDepartment = (dayAvail) => {
