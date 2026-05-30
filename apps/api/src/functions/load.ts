@@ -223,27 +223,41 @@ registerFn('chatJobApplication', async ({ body }) => {
       notes: extracted.notes || c.notes || null,
     };
 
+    const baseData: any = {
+      full_name: d.full_name || 'מועמד',
+      age: d.age,
+      city: d.city,
+      phone: d.phone,
+      role_applied: d.role_applied,
+      experience: d.experience,
+      shifts_per_week: d.shifts_per_week,
+      weekend_availability: d.weekend_availability,
+      start_date: d.start_date,
+      status: rejected ? 'rejected' : 'pending',
+      score,
+      notes: rejected ? (result.rejection_reason || d.notes) : d.notes,
+      ai_summary: extracted.ai_summary || null,
+      source: candidateSource,
+    };
+    const optionalKashrut = { kashrut_required: kashrutRequiredForRole || null, kashrut_capable: kashrutCapable };
+
+    let cand: any = null;
     try {
-      const cand = await db.jobCandidate.create({
-        data: {
-          full_name: d.full_name || 'מועמד',
-          age: d.age,
-          city: d.city,
-          phone: d.phone,
-          role_applied: d.role_applied,
-          experience: d.experience,
-          shifts_per_week: d.shifts_per_week,
-          weekend_availability: d.weekend_availability,
-          start_date: d.start_date,
-          status: rejected ? 'rejected' : 'pending',
-          score,
-          notes: rejected ? (result.rejection_reason || d.notes) : d.notes,
-          ai_summary: extracted.ai_summary || null,
-          kashrut_required: kashrutRequiredForRole || null,
-          kashrut_capable: kashrutCapable,
-          source: candidateSource,
-        },
-      });
+      cand = await db.jobCandidate.create({ data: { ...baseData, ...optionalKashrut } });
+    } catch (e: any) {
+      const msg = String(e?.message || '');
+      // Most common cause: db push hasn't added the new kashrut_* columns yet.
+      // Retry without them so the candidate still lands in the dashboard.
+      if (msg.toLowerCase().includes('kashrut') || /unknown (arg|column)/i.test(msg)) {
+        console.warn('[jobCandidate.create] retrying without kashrut fields:', msg);
+        try { cand = await db.jobCandidate.create({ data: baseData }); }
+        catch (e2: any) { console.error('[jobCandidate.create] retry also failed:', e2?.message); }
+      } else {
+        console.error('[jobCandidate.create] failed:', msg);
+      }
+    }
+
+    if (cand) {
       candidate_id = cand.id;
 
       if (!rejected && (score ?? 0) > 60) {
@@ -261,8 +275,6 @@ registerFn('chatJobApplication', async ({ body }) => {
         ];
         pushoverToAdmins('🎯 מועמד גיוס חדש (ציון גבוה)', lines.join('\n')).catch(() => {});
       }
-    } catch (e: any) {
-      console.error('jobCandidate.create failed', e?.message);
     }
   }
 
