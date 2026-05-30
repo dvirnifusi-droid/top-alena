@@ -14,6 +14,7 @@ import {
 import { Button } from "@/components/ui/button";
 
 import AiChatWidget from "./components/ai-assistant/AiChatWidget";
+import DevicePreviewToggle from "./components/DevicePreviewToggle";
 
 // Color presets for the per-category accent. Tailwind purges by content scan
 // so the full class names must appear literally in the file.
@@ -289,6 +290,13 @@ export default function Layout({ children, currentPageName }) {
         <div className="ai-chat-widget fixed bottom-6 left-1/2 -translate-x-1/2 z-50 lg:left-[calc(50%-10rem)]" style={{width: 'min(600px, calc(100vw - 2rem))'}}>
           <AiChatWidget />
         </div>
+      )}
+
+      {/* Owner-only device preview — hidden inside the iframe itself via the
+          ?devpreview=1 marker so it doesn't recurse. */}
+      {isOriginalAdmin && typeof window !== 'undefined' &&
+        !new URLSearchParams(window.location.search).has('devpreview') && (
+          <DevicePreviewToggle />
       )}
     </div>
   );
