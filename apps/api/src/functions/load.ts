@@ -86,8 +86,17 @@ const MARKETING_ADVISOR_PERSONA = `
 - ענה תמיד בעברית, חם אבל מקצועי.
 - כל המלצה חייבת להתחשב במגבלות העסק (כשרות, שעות פתיחה, תקציב, משאבי זמן/צוות).
 - אל תציע פעולות שמנוגדות לאופי העסק (למשל קידום שעות שאינן פתוחות, מנות שאינן כשרות לעסק כשר).
+- אם העסק מוכר אלכוהול/טבק — סמן אזהרות על הגבלות פרסום ממומן (Meta/Google חוסמים) ועקוף עם ערוצים מותרים.
 - שלב פעולות ONLINE (סושיאל / ממומן / מייל) עם פעולות OFFLINE (שלטים / שיתופי פעולה מקומיים / נטוורקינג).
 - כל משימה חייבת לכלול: כותרת קצרה, פירוט "איך לעשות בפועל" צעד אחר צעד, זמן משוער, ערוץ/פלטפורמה, עלות משוערת (אם רלוונטי), KPI שניתן למדוד.
+
+לוגיקת תקציב (חובה לפעול לפיה):
+- 0–1,500 ₪ בחודש: 90% מהמשימות אורגניות — סושיאל אורגני, שיווק שותפים מקומיים, שלוט פיזי, מהלכי קהילה. הימנע מקמפיינים ממומנים שדורשים תקציב כבד.
+- 1,500–3,000 ₪: שילוב — חלק ממומן (Meta Boosted) + רוב אורגני. הנחה לבדוק תוצאות שבוע-שבוע.
+- 3,000 ₪ ומעלה: הקם קמפיינים ממומנים אמיתיים בפייסבוק/אינסטגרם/גוגל, חשב כמה לידים/חשיפות התקציב אמור להניב לפי עלויות שוק ממוצעות בישראל (CPM ~₪25-50, CPC ~₪1.5-4 למסעדנות), והנחה אופטימיזציה שבועית.
+- אם אתה רואה שהיעד שהבעלים הציב (הכפלת מחזור תוך 6 חודשים) **לא ריאלי בתקציב הקיים** — תגיד לו ישירות, אל תחסוך ממנו: כתוב "התקציב הזה לא יספיק להכפיל את המחזור. ההמלצה שלי: להגדיל ל-X₪ בחודש לפחות". זה חלק מתפקידך.
+
+נתונים שצריך לקחת בחשבון אם זמינים: דוחות סיום משמרת אחרונים (הכנסות בפועל, סועדים בפועל, פידבק לקוחות, אירועים מרכזיים). השתמש בהם כדי להתאים המלצות (למשל אם פידבק לקוחות מציין שירות איטי — אל תציע קמפיין שיביא עוד עומס לפני שהבעיה התפעולית נפתרה).
 `.trim();
 
 function pickStr(o: any, ...keys: string[]) {
@@ -128,16 +137,34 @@ registerFn('getBusinessProfile', async () => {
   return { profile: p ?? null };
 });
 
+// Helper: pull last 30 days of ShiftEndReport summaries to give AI real context.
+async function recentShiftContext() {
+  try {
+    const since = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
+    const reports = await db.shiftEndReport.findMany({
+      where: { shift_date: { gte: since } },
+      orderBy: { shift_date: 'desc' },
+      take: 60,
+    });
+    if (!reports.length) return '';
+    const summary = reports.map((r: any) =>
+      `${r.shift_date} ${r.shift_type === 'lunch' ? 'צהריים' : 'ערב'} · סועדים: ${r.total_covers ?? '-'} · הכנסות: ₪${r.total_revenue ?? '-'}${r.customer_feedback ? ` · פידבק: ${String(r.customer_feedback).slice(0, 80)}` : ''}`,
+    ).join('\n');
+    return `\n--- נתוני 30 הימים האחרונים מדוחות סיום משמרת ---\n${summary}\n`;
+  } catch { return ''; }
+}
+
 // Generate 6-month strategy + initial tasks based on the saved profile.
 registerFn('generateMarketingStrategy', async () => {
   const profile = await db.businessProfile.findFirst();
   if (!profile?.profile_data) throw new Error('profile_not_found');
+  const shiftContext = await recentShiftContext();
 
   const result: any = await invokeLLM({
     prompt:
       MARKETING_ADVISOR_PERSONA +
       `\n\nמטרת השיחה: לבנות אסטרטגיית שיווק ל-6 חודשים שמטרתה להכפיל את המחזור החודשי של העסק.\n\n` +
-      `--- פרופיל העסק ---\n${JSON.stringify(profile.profile_data, null, 2)}\n--- סוף ---\n\n` +
+      `--- פרופיל העסק ---\n${JSON.stringify(profile.profile_data, null, 2)}\n--- סוף פרופיל ---${shiftContext}\n` +
       `החזר JSON בלבד עם השדות:\n` +
       `- goal_summary (string): משפט אחד שמתאר את היעד.\n` +
       `- monthly_plan: מערך של 6 חודשים, לכל חודש: { month: 1-6, focus: "...", theme: "...", expected_outcomes: ["..."], milestones: ["..."] }.\n` +
@@ -228,6 +255,7 @@ registerFn('generateNextMarketingTasks', async ({ body }) => {
   const profile = await db.businessProfile.findFirst();
   if (!profile?.profile_data) throw new Error('profile_not_found');
   const strategy = await db.marketingStrategy.findFirst({ where: { active: true } });
+  const shiftContext = await recentShiftContext();
   const recent = await db.marketingTask.findMany({
     orderBy: { created_date: 'desc' },
     take: 30,
@@ -239,7 +267,7 @@ registerFn('generateNextMarketingTasks', async ({ body }) => {
       MARKETING_ADVISOR_PERSONA +
       `\n\nצור ${count} משימות שיווק חדשות לעסק על בסיס הפרופיל והאסטרטגיה.\n` +
       `אל תחזור על משימות שכבר קיימות (להלן רשימת הקיימות).\n\n` +
-      `--- פרופיל ---\n${JSON.stringify(profile.profile_data)}\n--- אסטרטגיה ---\n${JSON.stringify(strategy?.months_plan || [])}\n--- משימות קיימות (לא לחזור) ---\n${recent.map((t: any) => `- ${t.title}`).join('\n')}\n\n` +
+      `--- פרופיל ---\n${JSON.stringify(profile.profile_data)}\n--- אסטרטגיה ---\n${JSON.stringify(strategy?.months_plan || [])}\n${shiftContext}--- משימות קיימות (לא לחזור) ---\n${recent.map((t: any) => `- ${t.title}`).join('\n')}\n\n` +
       `החזר JSON: { tasks: [{ title, description, task_type, platform, priority, estimated_time, budget_required, due_date_offset_days, ai_reasoning }] }`,
     responseSchema: {
       type: 'object',
@@ -289,6 +317,45 @@ registerFn('generateNextMarketingTasks', async ({ body }) => {
     } catch (e: any) { console.error('[marketingTask.create]', e?.message); }
   }
   return { tasks_created: created };
+});
+
+// Read menu / drinks photos with Gemini vision and extract structured items
+// (name, price, category) so the AI advisor knows the real catalog.
+registerFn('extractMenuFromPhotos', async ({ body }) => {
+  const urls = (body as any)?.urls;
+  if (!Array.isArray(urls) || !urls.length) throw new Error('urls required');
+
+  // The image URLs we store are relative (/api/files/...). Gemini needs them
+  // reachable; the file-rewrite layer keeps them domain-relative so we let
+  // invokeLLM forward them. Some Gemini wrappers want absolute — accept both.
+  const result: any = await invokeLLM({
+    prompt:
+      `מצורפות תמונות של תפריט מסעדה (אוכל / שתייה / קוקטיילים).\n` +
+      `חלץ ממנהן רשימה מובנית של פריטים. שמור על שמות הפריטים בעברית בדיוק כפי שהם בתפריט, וזהה מחיר אם נראה.\n` +
+      `קטגוריות אפשריות: מנות פתיחה, ראשונות, עיקריות, צמחוני, ילדים, קינוחים, שתייה קלה, יין, בירה, אלכוהול, קוקטיילים, חמים, אחר.\n` +
+      `החזר JSON בלבד.`,
+    fileUrls: urls,
+    responseSchema: {
+      type: 'object',
+      properties: {
+        summary: { type: 'string' },
+        items: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              name: { type: 'string' },
+              price: { type: 'number' },
+              category: { type: 'string' },
+              description: { type: 'string' },
+            },
+          },
+        },
+      },
+    },
+  });
+
+  return { menu: result };
 });
 
 // Expand a task into a detailed step-by-step plan (owner asks "how do I do this?").
