@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 
 import AiChatWidget from "./components/ai-assistant/AiChatWidget";
 import DevicePreviewToggle from "./components/DevicePreviewToggle";
+import EnableStaffPush from "./components/EnableStaffPush";
 
 // Color presets for the per-category accent. Tailwind purges by content scan
 // so the full class names must appear literally in the file.
@@ -281,7 +282,11 @@ export default function Layout({ children, currentPageName }) {
         {/* תוכן ראשי - עם padding מהצד הימני במחשב */}
         <div className="h-screen overflow-y-auto lg:pr-80">
           <MobileHeader isCurrentViewAdmin={isCurrentViewAdmin} />
-          <main className="p-2 sm:p-4 lg:p-8">{children}</main>
+          <main className="p-2 sm:p-4 lg:p-8">
+            {/* "Enable free notifications" prompt for the logged-in user */}
+            {user && <EnableStaffPush />}
+            {children}
+          </main>
         </div>
       </SidebarProvider>
 
@@ -503,7 +508,15 @@ const MobileSidebar = ({ userName, isCurrentViewAdmin, isOriginalAdmin, navigati
 );
 
 const MobileHeader = ({ isCurrentViewAdmin }) => (
-  <header className="sticky top-0 z-40 flex h-16 items-center justify-between border-b border-border bg-card px-3 lg:hidden min-w-0">
+  <header
+    className="sticky top-0 z-40 flex items-center justify-between border-b border-border bg-card px-3 lg:hidden min-w-0"
+    style={{
+      // Push the bar below the iPhone notch / status bar so the hamburger is tappable.
+      paddingTop: 'env(safe-area-inset-top)',
+      paddingLeft: 'max(env(safe-area-inset-left), 0.75rem)',
+      paddingRight: 'max(env(safe-area-inset-right), 0.75rem)',
+      minHeight: 'calc(4rem + env(safe-area-inset-top))',
+    }}>
     <SidebarTrigger className="p-3 rounded-xl bg-primary/10 hover:bg-primary/20 active:bg-primary/30 min-w-[56px] min-h-[56px] flex items-center justify-center" style={{minWidth:'56px',minHeight:'56px'}}>
       <Menu style={{width:'44px',height:'44px',color:'var(--primary)',flexShrink:0}} />
     </SidebarTrigger>
