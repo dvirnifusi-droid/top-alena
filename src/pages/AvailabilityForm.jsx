@@ -88,6 +88,32 @@ export default function AvailabilityForm() {
          // Surface the custom value as a chip on next renders too.
          setSystemPositions(prev => prev.includes(name) ? prev : [...prev, name]);
      };
+
+     // Curated default chips per department label. Only these show by default;
+     // everything else lives behind the "+ עוד תפקידים" toggle.
+     const DEFAULT_DEPT_POSITIONS = {
+         'פלור':  ['מלצר', 'מארחת', 'קופה ואריזות', 'מנהל משמרת'],
+         'מטבח':  ['טבח', 'שטיפת כלים', 'מנהל מטבח'],
+         'בר':    ['ברמן', 'ברמנית', 'אחראי בר'],
+     };
+     const [showExtraPositions, setShowExtraPositions] = React.useState(false);
+     const currentDeptLabel = settings?.departments?.find(d => d.key === selectedDepartment)?.label;
+     const VISIBLE_POSITIONS = React.useMemo(() => {
+         const baseline = DEFAULT_DEPT_POSITIONS[currentDeptLabel];
+         if (baseline && baseline.length) return baseline;
+         return POSITIONS; // no curated list -> show everything
+     }, [currentDeptLabel, POSITIONS]);
+     const EXTRA_POSITIONS = React.useMemo(() => {
+         if (VISIBLE_POSITIONS === POSITIONS) return [];
+         return POSITIONS.filter(p => !VISIBLE_POSITIONS.includes(p));
+     }, [POSITIONS, VISIBLE_POSITIONS]);
+     // Make sure roles the employee has selected from EXTRA are still rendered
+     // in the main row (so they see what's selected without expanding).
+     const PRIMARY_CHIPS = React.useMemo(() => {
+         const merged = [...VISIBLE_POSITIONS];
+         myRoles.forEach(r => { if (!merged.includes(r)) merged.push(r); });
+         return merged;
+     }, [VISIBLE_POSITIONS, myRoles]);
      
      const AVAILABILITY_TYPES = settings ? Object.fromEntries(settings.availability_types.map(t => [t.key, { label: t.label, color: t.color }])) : DEFAULT_AVAILABILITY_TYPES;
      const SHIFT_OPTIONS = settings?.shift_options || DEFAULT_SHIFT_OPTIONS;
@@ -325,6 +351,7 @@ export default function AvailabilityForm() {
             return;
         }
         setSaving(true);
+        const weekDates = getWeekDays(selectedWeekOffset).map(d => format(d, 'yyyy-MM-dd'));
         try {
             for (const dateStr of weekDates) {
                 const data = dayData[dateStr];
@@ -621,7 +648,7 @@ export default function AvailabilityForm() {
                             בחירה חד‑פעמית — תחול אוטומטית על כל הימים שאת/ה זמין/ה בהם.
                         </p>
                         <div className="flex flex-wrap gap-2">
-                            {POSITIONS.map(pos => (
+                            {PRIMARY_CHIPS.map(pos => (
                                 <button
                                     key={pos}
                                     onClick={() => toggleMyRole(pos)}
@@ -634,14 +661,42 @@ export default function AvailabilityForm() {
                                     {pos}
                                 </button>
                             ))}
+                            {EXTRA_POSITIONS.length > 0 && (
+                                <button
+                                    onClick={() => setShowExtraPositions(v => !v)}
+                                    className="px-3 py-1.5 rounded-full border-2 border-dashed border-blue-400 text-blue-700 hover:bg-blue-100 text-sm font-bold transition-all"
+                                >
+                                    {showExtraPositions ? '▲ הסתר תפקידים נוספים' : `➕ עוד ${EXTRA_POSITIONS.length} תפקידים`}
+                                </button>
+                            )}
                             <button
                                 onClick={addCustomRole}
                                 title="הוסף תפקיד שלא ברשימה"
-                                className="px-3 py-1.5 rounded-full border-2 border-dashed border-blue-400 text-blue-700 hover:bg-blue-100 text-sm font-bold transition-all"
+                                className="px-3 py-1.5 rounded-full border-2 border-dashed border-emerald-400 text-emerald-700 hover:bg-emerald-50 text-sm font-bold transition-all"
                             >
-                                ➕ הוסף תפקיד
+                                ✏️ תפקיד מותאם
                             </button>
                         </div>
+                        {showExtraPositions && EXTRA_POSITIONS.length > 0 && (
+                            <div className="mt-3 pt-3 border-t border-blue-200">
+                                <p className="text-xs text-gray-600 mb-2">תפקידים נוספים מהמערכת:</p>
+                                <div className="flex flex-wrap gap-2">
+                                    {EXTRA_POSITIONS.map(pos => (
+                                        <button
+                                            key={pos}
+                                            onClick={() => toggleMyRole(pos)}
+                                            className={`px-3 py-1.5 rounded-full border-2 text-sm font-bold transition-all ${
+                                                myRoles.includes(pos)
+                                                    ? 'bg-blue-600 text-white border-blue-600 shadow'
+                                                    : 'bg-white border-gray-300 text-gray-700 hover:border-blue-400'
+                                            }`}
+                                        >
+                                            {pos}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
                         {myRoles.length === 0 && (
                             <p className="text-xs text-red-500 mt-2">⚠️ צריך לבחור לפחות תפקיד אחד לפני שליחה</p>
                         )}
