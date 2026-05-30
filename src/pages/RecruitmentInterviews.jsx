@@ -144,6 +144,16 @@ export default function RecruitmentInterviews() {
     finally { setActionId(null); }
   };
 
+  const deleteCandidate = async (cand) => {
+    if (!window.confirm(`למחוק את "${cand.full_name}" לצמיתות? פעולה זו תסיר גם את כל הראיונות המקושרים שלו.`)) return;
+    setActionId(cand.id);
+    try {
+      await base44.functions.deleteCandidate({ candidate_id: cand.id });
+      await load();
+    } catch { alert('שגיאה במחיקה'); }
+    finally { setActionId(null); }
+  };
+
   return (
     <div dir="rtl" className="max-w-5xl mx-auto p-4 space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -235,6 +245,14 @@ export default function RecruitmentInterviews() {
                         📱 פנייה בוואטסאפ
                       </a>
                     )}
+                    <button
+                      disabled={actionId === c.id}
+                      onClick={() => deleteCandidate(c)}
+                      title="מחק מועמד"
+                      className="text-xs bg-white border border-red-200 hover:bg-red-50 text-red-600 font-bold px-2.5 py-1.5 rounded-lg disabled:opacity-50"
+                    >
+                      🗑️
+                    </button>
                   </div>
                   {c.ai_summary && (
                     <p className="mt-2 text-xs text-slate-600 italic border-r-2 border-amber-200 pr-2">{c.ai_summary}</p>
@@ -300,6 +318,14 @@ export default function RecruitmentInterviews() {
                       📱 פנייה בוואטסאפ
                     </a>
                   )}
+                  <button
+                    disabled={actionId === c.id}
+                    onClick={() => deleteCandidate(c)}
+                    title="מחק מועמד"
+                    className="text-xs bg-white border border-red-200 hover:bg-red-50 text-red-600 font-bold px-2.5 py-1.5 rounded-lg disabled:opacity-50"
+                  >
+                    🗑️
+                  </button>
                 </div>
               );
             })}
@@ -329,6 +355,7 @@ export default function RecruitmentInterviews() {
                 onExamResult={setExamResult}
                 onAddTraining={addTrainingSession}
                 onAdvance={advance}
+                onDelete={deleteCandidate}
               />
             ))}
           </div>
@@ -343,7 +370,7 @@ export default function RecruitmentInterviews() {
   );
 }
 
-function TraineeCard({ cand, actionId, openSlotCand, slots, slotsLoading, onOpenSlots, onScheduleMenuExam, onExamResult, onAddTraining, onAdvance }) {
+function TraineeCard({ cand, actionId, openSlotCand, slots, slotsLoading, onOpenSlots, onScheduleMenuExam, onExamResult, onAddTraining, onAdvance, onDelete }) {
   const stage = cand.training_stage || 'hired';
   const sessions = cand.training_sessions_completed || 0;
   const attempts = cand.menu_exam_attempts || 0;
@@ -432,6 +459,14 @@ function TraineeCard({ cand, actionId, openSlotCand, slots, slotsLoading, onOpen
             📱 וואטסאפ
           </a>
         )}
+        <button
+          disabled={busy}
+          onClick={() => onDelete?.(cand)}
+          title="מחק מועמד"
+          className="text-xs bg-white border border-red-200 hover:bg-red-50 text-red-600 font-bold px-2.5 py-1.5 rounded-lg disabled:opacity-50"
+        >
+          🗑️
+        </button>
       </div>
 
       {/* Inline slot picker for menu exam */}

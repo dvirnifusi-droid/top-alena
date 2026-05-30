@@ -485,6 +485,15 @@ registerFn('setMenuExamResult', async ({ body }) => {
 
 // Manager completed one training shift for the candidate. Increments counter;
 // moving to 'active_waiter' is a separate explicit action (advanceCandidateStage).
+// Manager removes a candidate (and any attached interview/menu-exam rows).
+registerFn('deleteCandidate', async ({ body }) => {
+  const { candidate_id } = body as any;
+  if (!candidate_id) throw new Error('candidate_id required');
+  await db.interview.deleteMany({ where: { candidate_id } }).catch(() => {});
+  await db.jobCandidate.delete({ where: { id: candidate_id } });
+  return { ok: true };
+});
+
 registerFn('completeTrainingSession', async ({ body }) => {
   const { candidate_id } = body as any;
   if (!candidate_id) throw new Error('candidate_id required');
