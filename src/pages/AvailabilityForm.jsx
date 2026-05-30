@@ -241,8 +241,21 @@ export default function AvailabilityForm() {
 
     const handleSubmit = async () => {
         if (!selectedEmployee) return;
-        setSaving(true);
         const weekDates = getWeekDays(selectedWeekOffset).map(d => format(d, 'yyyy-MM-dd'));
+        // Require a role on every day the employee says they're available — saves
+        // the manager from setting positions manually after the fact.
+        const missingRole = weekDates.find(ds => {
+            const d = dayData[ds];
+            if (!d) return false;
+            if (d.availability_type === 'unavailable') return false;
+            return !Array.isArray(d.positions) || d.positions.length === 0;
+        });
+        if (missingRole) {
+            const dayLabel = format(new Date(missingRole), 'EEEE dd/MM', { locale: he });
+            alert(`לפני שליחה — בחר/י תפקיד ליום ${dayLabel}.`);
+            return;
+        }
+        setSaving(true);
         try {
             for (const dateStr of weekDates) {
                 const data = dayData[dateStr];
@@ -591,13 +604,15 @@ export default function AvailabilityForm() {
                                         </div>
 
                                         <div>
-                                            <Label className="mb-2 block">תפקידים שאני יכול/ה למלא (אופציונלי)</Label>
+                                            <Label className="mb-2 block">
+                                                התפקיד/ים שלי ליום זה <span className="text-red-500">*</span>
+                                            </Label>
                                             <div className="flex flex-wrap gap-2">
                                                 {POSITIONS.map(pos => (
                                                     <button
                                                         key={pos}
                                                         onClick={() => togglePosition(dateStr, pos)}
-                                                        className={`px-3 py-1 rounded-full border text-sm transition-all ${
+                                                        className={`px-3 py-1.5 rounded-full border-2 text-sm font-bold transition-all ${
                                                             data.positions.includes(pos)
                                                                 ? 'bg-blue-600 text-white border-blue-600'
                                                                 : 'bg-white border-gray-300 text-gray-600 hover:border-blue-400'
@@ -607,6 +622,9 @@ export default function AvailabilityForm() {
                                                     </button>
                                                 ))}
                                             </div>
+                                            {(!data.positions || data.positions.length === 0) && (
+                                                <p className="text-xs text-red-500 mt-1.5">⚠️ צריך לבחור לפחות תפקיד אחד</p>
+                                            )}
                                         </div>
                                     </>
                                 )}

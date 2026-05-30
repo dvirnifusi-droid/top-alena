@@ -40,6 +40,14 @@ function AvailabilityRequestsInner() {
      const [singleAssignModal, setSingleAssignModal] = useState(null);
      const [singleAssignLoading, setSingleAssignLoading] = useState(false);
 
+     // ---- filters ----
+     const [filterSearch, setFilterSearch] = useState('');
+     const [filterShift, setFilterShift] = useState('all');   // all | lunch | dinner
+     const [filterStatus, setFilterStatus] = useState('all'); // all | available | partial | unavailable | preferred_off
+     const [filterRole, setFilterRole] = useState('all');
+     const clearFilters = () => { setFilterSearch(''); setFilterShift('all'); setFilterStatus('all'); setFilterRole('all'); };
+     const filtersActive = filterSearch.trim() || filterShift !== 'all' || filterStatus !== 'all' || filterRole !== 'all';
+
     const weekStart = startOfWeek(addDays(new Date(), weekOffset * 7), { weekStartsOn: 0 });
     const weekEnd = endOfWeek(weekStart, { weekStartsOn: 0 });
     const weekDays = eachDayOfInterval({ start: weekStart, end: weekEnd });
@@ -223,6 +231,76 @@ function AvailabilityRequestsInner() {
         return availabilities.filter(a => a.department === selectedDepartment);
     };
 
+    // Pull every position label from current employees (handles both string and {position_name} shapes).
+    const allRoleOptions = React.useMemo(() => {
+        const set = new Set();
+        for (const e of employees) {
+            if (typeof e.role === 'string' && e.role) set.add(e.role);
+            const pos = Array.isArray(e.positions) ? e.positions : [];
+            for (const p of pos) {
+                const name = typeof p === 'string' ? p : (p?.position_name || p?.name);
+                if (name) set.add(name);
+            }
+        }
+        return [...set];
+    }, [employees]);
+
+    const applyFilters = (avails) => {
+        let r = avails;
+        const q = filterSearch.trim().toLowerCase();
+        if (q) r = r.filter(a => (a.employee_name || '').toLowerCase().includes(q));
+        if (filterShift !== 'all') {
+            r = r.filter(a => a.shift_preference === filterShift || a.shift_preference === 'both');
+        }
+        if (filterStatus !== 'all') r = r.filter(a => a.availability_type === filterStatus);
+        if (filterRole !== 'all') {
+            r = r.filter(a => {
+                const availPositions = Array.isArray(a.positions) ? a.positions : [];
+                if (availPositions.includes(filterRole)) return true;
+                const emp = employees.find(e => e.id === a.employee_id);
+                if (!emp) return false;
+                if (emp.role === filterRole) return true;
+                const empPos = (Array.isArray(emp.positions) ? emp.positions : [])
+                    .map(p => typeof p === 'string' ? p : (p?.position_name || p?.name));
+                return empPos.includes(filterRole);
+            });
+        }
+        return r;
+    };
+
+    // ---- WhatsApp reminder / deactivate helpers ----
+    const normalizeWa = (p) => {
+        if (!p) return null;
+        let n = String(p).replace(/\D/g, '');
+        if (n.startsWith('0')) n = '972' + n.slice(1);
+        else if (!n.startsWith('972')) n = '972' + n;
+        return n;
+    };
+    const reminderTextFor = (emp) => {
+        const range = `${format(weekStart, 'dd/MM')}–${format(weekEnd, 'dd/MM')}`;
+        return (
+            `היי ${emp.full_name || ''} 🌿\n` +
+            `הזכיר/ה לך — עדיין לא הוגש סידור זמינות לשבוע ${range}.\n` +
+            `שלח/י כשתוכל/י, תודה!`
+        );
+    };
+    const openReminderWa = (emp) => {
+        const phone = normalizeWa(emp.phone);
+        if (!phone) { toast.error('אין טלפון לעובד'); return; }
+        const text = encodeURIComponent(reminderTextFor(emp));
+        window.open(`https://wa.me/${phone}?text=${text}`, '_blank');
+    };
+    const deactivateEmployee = async (emp) => {
+        if (!window.confirm(`להפוך את ${emp.full_name} ללא פעיל? הוא לא יופיע יותר ברשימות.`)) return;
+        try {
+            await base44.entities.Employee.update(emp.id, { status: 'inactive' });
+            toast.success('העובד הועבר לסטטוס "לא פעיל"');
+            await loadData();
+        } catch {
+            toast.error('שגיאה בעדכון');
+        }
+    };
+
     if (loading) return (
         <div className="flex items-center justify-center h-64">
             <Loader2 className="w-10 h-10 animate-spin" />
@@ -266,6 +344,17 @@ function AvailabilityRequestsInner() {
 
     const uniqueEmployeesSubmitted = new Set(weekAvailabilities.map(a => a.employee_id)).size;
     const currentDeptLabel = settings?.departments?.find(d => d.key === selectedDepartment)?.label;
+
+    // Active employees in the current department who haven't submitted this week.
+    const submittedIds = new Set(weekAvailabilities.map(a => a.employee_id));
+    const notSubmittedEmployees = employees.filter(e => {
+        if (e.status !== 'active') return false;
+        if (submittedIds.has(e.id)) return false;
+        // department match: employee.department, or any of their positions matches the dept key
+        const empDept = e.department;
+        if (empDept && empDept !== selectedDepartment) return false;
+        return true;
+    });
 
     const groupByDepartment = (dayAvail) => {
         const grouped = {};
@@ -323,6 +412,62 @@ function AvailabilityRequestsInner() {
                 </div>
             </div>
 
+            {/* ---------- Filter bar ---------- */}
+            <Card className="mb-4 p-3">
+                <div className="flex flex-wrap items-center gap-2">
+                    <input
+                        type="text"
+                        value={filterSearch}
+                        onChange={(e) => setFilterSearch(e.target.value)}
+                        placeholder="🔎 חפש בשם..."
+                        className="flex-1 min-w-[160px] border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-300"
+                    />
+                    <select value={filterShift} onChange={(e) => setFilterShift(e.target.value)} className="border border-slate-200 rounded-lg px-2 py-2 text-sm bg-white">
+                        <option value="all">כל המשמרות</option>
+                        <option value="lunch">צהריים</option>
+                        <option value="dinner">ערב</option>
+                    </select>
+                    <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="border border-slate-200 rounded-lg px-2 py-2 text-sm bg-white">
+                        <option value="all">כל הסטטוסים</option>
+                        <option value="available">✅ פנוי</option>
+                        <option value="partial">⏰ חלקית</option>
+                        <option value="preferred_off">🙏 מעדיף לא</option>
+                        <option value="unavailable">❌ לא פנוי</option>
+                    </select>
+                    <select value={filterRole} onChange={(e) => setFilterRole(e.target.value)} className="border border-slate-200 rounded-lg px-2 py-2 text-sm bg-white">
+                        <option value="all">כל התפקידים</option>
+                        {allRoleOptions.map((r) => <option key={r} value={r}>{r}</option>)}
+                    </select>
+                    {filtersActive && (
+                        <button onClick={clearFilters} className="text-xs px-2 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold">
+                            נקה ✕
+                        </button>
+                    )}
+                </div>
+            </Card>
+
+            {/* ---------- Not submitted yet ---------- */}
+            {notSubmittedEmployees.length > 0 && (
+                <Card className="mb-4 p-4 border-amber-300 bg-amber-50/40">
+                    <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+                        <p className="font-black text-amber-800">⏰ עובדים פעילים שעדיין לא הגישו ({notSubmittedEmployees.length})</p>
+                        <p className="text-xs text-amber-700">שלח תזכורת בוואטסאפ בלחיצה — או הפוך ללא פעיל</p>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                        {notSubmittedEmployees.map((emp) => (
+                            <div key={emp.id} className="flex items-center gap-2 bg-white rounded-lg border border-amber-200 p-2.5">
+                                <div className="flex-1 min-w-0">
+                                    <p className="font-bold text-slate-800 text-sm truncate">{emp.full_name}</p>
+                                    <p className="text-xs text-slate-500 truncate">{emp.phone || '—'} · {emp.role || ''}</p>
+                                </div>
+                                <button onClick={() => openReminderWa(emp)} title="שלח תזכורת בוואטסאפ" className="text-xs bg-emerald-500 hover:bg-emerald-600 text-white font-bold px-2 py-1.5 rounded-lg">📱</button>
+                                <button onClick={() => deactivateEmployee(emp)} title="הפוך ללא פעיל" className="text-xs bg-white border border-red-200 hover:bg-red-50 text-red-600 font-bold px-2 py-1.5 rounded-lg">🚫</button>
+                            </div>
+                        ))}
+                    </div>
+                </Card>
+            )}
+
             {weekAvailabilities.length === 0 ? (
                 <Card className="text-center p-12">
                     <p className="text-xl text-gray-400">אין בקשות זמינות לשבוע זה עדיין</p>
@@ -332,7 +477,7 @@ function AvailabilityRequestsInner() {
                 <div className="space-y-6">
                     {weekDays.map(day => {
                         const dateStr = format(day, 'yyyy-MM-dd');
-                        const dayAvail = getAvailForDay(dateStr);
+                        const dayAvail = applyFilters(getAvailForDay(dateStr));
                         const unavailableCount = dayAvail.filter(a => a.availability_type === 'unavailable').length;
                         const availableCount = dayAvail.filter(a => a.availability_type !== 'unavailable').length;
 
