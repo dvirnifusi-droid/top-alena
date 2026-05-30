@@ -77,6 +77,281 @@ const RECRUITMENT_SYSTEM_PROMPT = `אתה מנהל הגיוס הדיגיטלי �
 
 בכל סבב החזר אך ורק JSON עם השדות: reply (string), collected (object), complete (boolean), rejected (boolean), rejection_reason (string?), score (number?).`;
 
+/* ----- Marketing AI advisor ----- */
+
+const MARKETING_ADVISOR_PERSONA = `
+אתה יועץ שיווק בכיר במסעדנות וקמעונאות מקומית בישראל. אתה שואל שאלות חכמות, מבין דאטה, ומפרק כל אסטרטגיה לפעולות יומיות מאוד קונקרטיות שניתן לבצע — לא הצהרות כלליות.
+
+חוקי תפעול:
+- ענה תמיד בעברית, חם אבל מקצועי.
+- כל המלצה חייבת להתחשב במגבלות העסק (כשרות, שעות פתיחה, תקציב, משאבי זמן/צוות).
+- אל תציע פעולות שמנוגדות לאופי העסק (למשל קידום שעות שאינן פתוחות, מנות שאינן כשרות לעסק כשר).
+- שלב פעולות ONLINE (סושיאל / ממומן / מייל) עם פעולות OFFLINE (שלטים / שיתופי פעולה מקומיים / נטוורקינג).
+- כל משימה חייבת לכלול: כותרת קצרה, פירוט "איך לעשות בפועל" צעד אחר צעד, זמן משוער, ערוץ/פלטפורמה, עלות משוערת (אם רלוונטי), KPI שניתן למדוד.
+`.trim();
+
+function pickStr(o: any, ...keys: string[]) {
+  for (const k of keys) {
+    const v = o?.[k];
+    if (typeof v === 'string' && v.trim()) return v.trim();
+  }
+  return '';
+}
+
+// Save / load the deep business profile (questionnaire answers).
+registerFn('saveBusinessProfile', async ({ body }) => {
+  const p = (body as any)?.profile || {};
+  const existing = await db.businessProfile.findFirst();
+  const data = {
+    business_name: pickStr(p, 'business_name', 'businessName'),
+    business_type: pickStr(p, 'business_type', 'businessType'),
+    logo_url: pickStr(p, 'logo_url', 'logoUrl') || null,
+    profile_data: p,
+    brand_persona: pickStr(p, 'brand_persona', 'persona'),
+    target_audience: pickStr(p, 'target_audience', 'audience'),
+    primary_offering: pickStr(p, 'primary_offering', 'offering'),
+    is_kosher: typeof p.is_kosher === 'boolean' ? p.is_kosher : null,
+    monthly_budget: typeof p.monthly_budget === 'number' ? p.monthly_budget : null,
+    weekly_owner_time_hours:
+      typeof p.weekly_owner_time_hours === 'number' ? p.weekly_owner_time_hours : null,
+    completed: p.completed === true,
+    completed_at: p.completed ? new Date().toISOString() : null,
+  };
+  const saved = existing
+    ? await db.businessProfile.update({ where: { id: existing.id }, data })
+    : await db.businessProfile.create({ data });
+  return { profile: saved };
+});
+
+registerFn('getBusinessProfile', async () => {
+  const p = await db.businessProfile.findFirst();
+  return { profile: p ?? null };
+});
+
+// Generate 6-month strategy + initial tasks based on the saved profile.
+registerFn('generateMarketingStrategy', async () => {
+  const profile = await db.businessProfile.findFirst();
+  if (!profile?.profile_data) throw new Error('profile_not_found');
+
+  const result: any = await invokeLLM({
+    prompt:
+      MARKETING_ADVISOR_PERSONA +
+      `\n\nמטרת השיחה: לבנות אסטרטגיית שיווק ל-6 חודשים שמטרתה להכפיל את המחזור החודשי של העסק.\n\n` +
+      `--- פרופיל העסק ---\n${JSON.stringify(profile.profile_data, null, 2)}\n--- סוף ---\n\n` +
+      `החזר JSON בלבד עם השדות:\n` +
+      `- goal_summary (string): משפט אחד שמתאר את היעד.\n` +
+      `- monthly_plan: מערך של 6 חודשים, לכל חודש: { month: 1-6, focus: "...", theme: "...", expected_outcomes: ["..."], milestones: ["..."] }.\n` +
+      `- initial_tasks: 10-15 משימות לחודש הראשון בלבד. כל משימה כוללת: title, description (3-6 משפטים מפורטים על איך לבצע), task_type ('online' / 'offline'), platform (facebook/instagram/tiktok/google/email/sms/whatsapp/sign/event/local_partner/none), priority (high/medium/low), estimated_time (דקות), budget_required (₪), due_date_offset_days (כמה ימים מהיום), ai_reasoning (למה זה רלוונטי דווקא לעסק הזה).`,
+    responseSchema: {
+      type: 'object',
+      properties: {
+        goal_summary: { type: 'string' },
+        monthly_plan: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              month: { type: 'integer' },
+              focus: { type: 'string' },
+              theme: { type: 'string' },
+              expected_outcomes: { type: 'array', items: { type: 'string' } },
+              milestones: { type: 'array', items: { type: 'string' } },
+            },
+          },
+        },
+        initial_tasks: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              title: { type: 'string' },
+              description: { type: 'string' },
+              task_type: { type: 'string' },
+              platform: { type: 'string' },
+              priority: { type: 'string' },
+              estimated_time: { type: 'integer' },
+              budget_required: { type: 'number' },
+              due_date_offset_days: { type: 'integer' },
+              ai_reasoning: { type: 'string' },
+            },
+          },
+        },
+      },
+    },
+  });
+
+  const existing = await db.marketingStrategy.findFirst({ where: { active: true } });
+  if (existing) await db.marketingStrategy.update({ where: { id: existing.id }, data: { active: false } });
+
+  const strategy = await db.marketingStrategy.create({
+    data: {
+      goal_summary: result?.goal_summary || 'הכפלת המחזור החודשי תוך 6 חודשים',
+      months_plan: result?.monthly_plan || [],
+      generated_at: new Date().toISOString(),
+      generated_by: 'gemini',
+      active: true,
+    },
+  });
+
+  // Materialize the initial tasks
+  const today = new Date();
+  const initialTasks = Array.isArray(result?.initial_tasks) ? result.initial_tasks : [];
+  let created = 0;
+  for (const t of initialTasks) {
+    try {
+      const due = new Date(today.getTime() + ((t.due_date_offset_days ?? 1) * 86400000));
+      await db.marketingTask.create({
+        data: {
+          task_type: t.task_type || 'online',
+          title: String(t.title || '').slice(0, 200),
+          description: String(t.description || ''),
+          priority: t.priority || 'medium',
+          platform: t.platform || null,
+          estimated_time: typeof t.estimated_time === 'number' ? t.estimated_time : null,
+          budget_required: typeof t.budget_required === 'number' ? t.budget_required : null,
+          due_date: due.toISOString().slice(0, 10),
+          status: 'pending',
+          ai_reasoning: t.ai_reasoning || null,
+        },
+      });
+      created++;
+    } catch (e: any) {
+      console.error('[marketingTask.create]', e?.message);
+    }
+  }
+
+  return { strategy, tasks_created: created };
+});
+
+// Generate a fresh batch of N tasks (when the owner finishes the current pile).
+registerFn('generateNextMarketingTasks', async ({ body }) => {
+  const profile = await db.businessProfile.findFirst();
+  if (!profile?.profile_data) throw new Error('profile_not_found');
+  const strategy = await db.marketingStrategy.findFirst({ where: { active: true } });
+  const recent = await db.marketingTask.findMany({
+    orderBy: { created_date: 'desc' },
+    take: 30,
+  });
+  const count = Math.min(Math.max(parseInt(String((body as any)?.count || 7)) || 7, 3), 15);
+
+  const result: any = await invokeLLM({
+    prompt:
+      MARKETING_ADVISOR_PERSONA +
+      `\n\nצור ${count} משימות שיווק חדשות לעסק על בסיס הפרופיל והאסטרטגיה.\n` +
+      `אל תחזור על משימות שכבר קיימות (להלן רשימת הקיימות).\n\n` +
+      `--- פרופיל ---\n${JSON.stringify(profile.profile_data)}\n--- אסטרטגיה ---\n${JSON.stringify(strategy?.months_plan || [])}\n--- משימות קיימות (לא לחזור) ---\n${recent.map((t: any) => `- ${t.title}`).join('\n')}\n\n` +
+      `החזר JSON: { tasks: [{ title, description, task_type, platform, priority, estimated_time, budget_required, due_date_offset_days, ai_reasoning }] }`,
+    responseSchema: {
+      type: 'object',
+      properties: {
+        tasks: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              title: { type: 'string' },
+              description: { type: 'string' },
+              task_type: { type: 'string' },
+              platform: { type: 'string' },
+              priority: { type: 'string' },
+              estimated_time: { type: 'integer' },
+              budget_required: { type: 'number' },
+              due_date_offset_days: { type: 'integer' },
+              ai_reasoning: { type: 'string' },
+            },
+          },
+        },
+      },
+    },
+  });
+
+  const today = new Date();
+  const list = Array.isArray(result?.tasks) ? result.tasks : [];
+  let created = 0;
+  for (const t of list) {
+    try {
+      const due = new Date(today.getTime() + ((t.due_date_offset_days ?? 1) * 86400000));
+      await db.marketingTask.create({
+        data: {
+          task_type: t.task_type || 'online',
+          title: String(t.title || '').slice(0, 200),
+          description: String(t.description || ''),
+          priority: t.priority || 'medium',
+          platform: t.platform || null,
+          estimated_time: typeof t.estimated_time === 'number' ? t.estimated_time : null,
+          budget_required: typeof t.budget_required === 'number' ? t.budget_required : null,
+          due_date: due.toISOString().slice(0, 10),
+          status: 'pending',
+          ai_reasoning: t.ai_reasoning || null,
+        },
+      });
+      created++;
+    } catch (e: any) { console.error('[marketingTask.create]', e?.message); }
+  }
+  return { tasks_created: created };
+});
+
+// Expand a task into a detailed step-by-step plan (owner asks "how do I do this?").
+registerFn('expandMarketingTask', async ({ body }) => {
+  const { task_id } = body as any;
+  if (!task_id) throw new Error('task_id required');
+  const task = await db.marketingTask.findUnique({ where: { id: task_id } });
+  if (!task) throw new Error('task_not_found');
+  const profile = await db.businessProfile.findFirst();
+
+  const result: any = await invokeLLM({
+    prompt:
+      MARKETING_ADVISOR_PERSONA +
+      `\n\nהמשתמש לחץ "הסבר לי בפירוט איך לעשות את המשימה הזו".\nכתוב מדריך מעשי, צעד אחר צעד, מאוד קונקרטי. אם זה ממומן — כלול הצעות לקהל יעד מדויק, ניסוח מודעה, ותקציב מומלץ.\n\n` +
+      `--- משימה ---\n${JSON.stringify({ title: task.title, description: task.description, platform: task.platform, task_type: task.task_type, ai_reasoning: task.ai_reasoning })}\n` +
+      `--- פרופיל ---\n${JSON.stringify(profile?.profile_data || {})}\n\n` +
+      `החזר JSON: { steps: ["צעד 1...", "צעד 2..."], copy: "הצעת ניסוח/קופי אם רלוונטי", warnings: ["אזהרות חשובות"], success_metric: "איך נדע שהצלחנו" }`,
+    responseSchema: {
+      type: 'object',
+      properties: {
+        steps: { type: 'array', items: { type: 'string' } },
+        copy: { type: 'string' },
+        warnings: { type: 'array', items: { type: 'string' } },
+        success_metric: { type: 'string' },
+      },
+    },
+  });
+  return { expansion: result };
+});
+
+// Open chat with the marketing advisor — for ad-hoc questions.
+registerFn('marketingAdvisorChat', async ({ body }) => {
+  const { history, message } = body as any;
+  const turns: Array<{ role: string; content: string }> = Array.isArray(history) ? history : [];
+  const profile = await db.businessProfile.findFirst();
+  const strategy = await db.marketingStrategy.findFirst({ where: { active: true } });
+
+  const transcript = turns
+    .map((t) => `${t.role === 'assistant' ? 'יועץ' : 'בעלים'}: ${t.content}`)
+    .join('\n');
+
+  const result: any = await invokeLLM({
+    prompt:
+      MARKETING_ADVISOR_PERSONA +
+      `\n\nאתה משוחח עם בעל העסק על שיווק. שמור על קשר עם הפרופיל והאסטרטגיה, ותן עצות קונקרטיות.\n\n` +
+      `--- פרופיל ---\n${JSON.stringify(profile?.profile_data || {})}\n--- אסטרטגיה ---\n${JSON.stringify(strategy?.months_plan || [])}\n--- שיחה עד כה ---\n${transcript || '(תחילת השיחה)'}\nבעלים: ${message || ''}\n\nענה ב-JSON: { reply: "התשובה לבעל העסק" }`,
+    responseSchema: {
+      type: 'object',
+      properties: { reply: { type: 'string' } },
+    },
+  });
+
+  // Persist both sides
+  if (message) {
+    await db.marketingAdvisorMessage.create({ data: { role: 'user', content: String(message) } }).catch(() => {});
+  }
+  if (result?.reply) {
+    await db.marketingAdvisorMessage.create({ data: { role: 'assistant', content: String(result.reply) } }).catch(() => {});
+  }
+
+  return { reply: result?.reply || 'מצטער, אירעה תקלה. נסה שוב.' };
+});
+
 registerFn('chatJobApplication', async ({ body }) => {
   const { history, message, source } = body as any;
   // Normalize utm_source to a short token we save on the candidate.

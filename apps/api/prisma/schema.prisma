@@ -1634,3 +1634,52 @@ model Interview {
   created_date      String?
   updated_date      String?
 }
+
+// Marketing AI advisor — owner-driven business profile (filled once), the
+// 6-month growth strategy the AI builds from it, and the running chat
+// history the owner uses to ask ad-hoc questions.
+model BusinessProfile {
+  id               String   @id @default(cuid())
+  business_name    String?
+  business_type    String?   // restaurant / kiosk / wine_bar / cafe / bar / catering / other
+  logo_url         String?
+  // Full questionnaire stored as JSON so we can keep adding fields without
+  // schema churn. The frontend serializes everything from the form into this.
+  profile_data     Json?
+  // Computed by AI from the answers
+  brand_persona    String?
+  target_audience  String?
+  primary_offering String?
+  is_kosher        Boolean?  @default(false)
+  monthly_budget   Float?
+  weekly_owner_time_hours Int?
+  completed        Boolean?  @default(false)
+  completed_at     String?
+  created_by       String?
+  created_date     String?
+  updated_date     String?
+}
+
+model MarketingStrategy {
+  id              String   @id @default(cuid())
+  goal_summary    String?  // "double revenue in 6 months", etc.
+  goal_metric     String?  // 'revenue' | 'avg_order' | 'frequency' | 'new_customers'
+  goal_value      Float?
+  months_plan     Json?    // array of 6 monthly plans
+  generated_at    String?
+  generated_by    String?  // model name / version
+  active          Boolean? @default(true)
+  created_by      String?
+  created_date    String?
+  updated_date    String?
+}
+
+model MarketingAdvisorMessage {
+  id            String   @id @default(cuid())
+  role          String   // 'user' | 'assistant'
+  content       String
+  context_json  Json?    // anchor / task references
+  created_by    String?
+  created_date  String?
+  updated_date  String?
+}
