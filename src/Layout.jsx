@@ -43,6 +43,7 @@ const adminLinks = [
   { title: "מרכז בקרת AI", url: createPageUrl("AiDashboard"), icon: Sparkles, isSubItem: true, color: "violet" },
   { title: "חיזוי עומסים AI", url: createPageUrl("SmartPrediction"), icon: Brain, isSubItem: true, color: "violet" },
   { title: "יועץ שיווק AI", url: createPageUrl("MarketingAI"), icon: Rocket, isSubItem: true, color: "violet" },
+  { title: "יועץ שיווק חכם 🚀", url: createPageUrl("MarketingAdvisor"), icon: Rocket, isSubItem: true, color: "violet" },
   { title: "תחזיות ותובנות AI", url: createPageUrl("RevenueForecasting"), icon: Brain, isSubItem: true, color: "violet" },
 
   { title: "תפעול המסעדה", url: "#", icon: Utensils, isCategory: true, color: "orange" },

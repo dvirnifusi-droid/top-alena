@@ -80,6 +80,7 @@ import InvoiceDetails from './pages/InvoiceDetails';
 import Invoices from './pages/Invoices';
 import Leaderboard from './pages/Leaderboard';
 import LeaveRequests from './pages/LeaveRequests';
+import MarketingAdvisor from './pages/MarketingAdvisor';
 import MarketingAI from './pages/MarketingAI';
 import MarketingDashboard from './pages/MarketingDashboard';
 import MessageTemplates from './pages/MessageTemplates';
@@ -148,6 +149,7 @@ export const PAGES = {
     "Invoices": Invoices,
     "Leaderboard": Leaderboard,
     "LeaveRequests": LeaveRequests,
+    "MarketingAdvisor": MarketingAdvisor,
     "MarketingAI": MarketingAI,
     "MarketingDashboard": MarketingDashboard,
     "MessageTemplates": MessageTemplates,
