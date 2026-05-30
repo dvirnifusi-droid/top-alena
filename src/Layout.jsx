@@ -15,125 +15,164 @@ import { Button } from "@/components/ui/button";
 
 import AiChatWidget from "./components/ai-assistant/AiChatWidget";
 
-// תפריט למנהלים - מחולק לקטגוריות
+// Color presets for the per-category accent. Tailwind purges by content scan
+// so the full class names must appear literally in the file.
+const COLOR_CLASSES = {
+  violet:  { cat: 'text-violet-700',  bar: 'bg-violet-500',  active: 'bg-violet-100 text-violet-900',   hover: 'hover:bg-violet-50/60' },
+  orange:  { cat: 'text-orange-700',  bar: 'bg-orange-500',  active: 'bg-orange-100 text-orange-900',   hover: 'hover:bg-orange-50/60' },
+  cyan:    { cat: 'text-cyan-700',    bar: 'bg-cyan-500',    active: 'bg-cyan-100 text-cyan-900',       hover: 'hover:bg-cyan-50/60' },
+  emerald: { cat: 'text-emerald-700', bar: 'bg-emerald-500', active: 'bg-emerald-100 text-emerald-900', hover: 'hover:bg-emerald-50/60' },
+  blue:    { cat: 'text-blue-700',    bar: 'bg-blue-500',    active: 'bg-blue-100 text-blue-900',       hover: 'hover:bg-blue-50/60' },
+  indigo:  { cat: 'text-indigo-700',  bar: 'bg-indigo-500',  active: 'bg-indigo-100 text-indigo-900',   hover: 'hover:bg-indigo-50/60' },
+  amber:   { cat: 'text-amber-700',   bar: 'bg-amber-500',   active: 'bg-amber-100 text-amber-900',     hover: 'hover:bg-amber-50/60' },
+  pink:    { cat: 'text-pink-700',    bar: 'bg-pink-500',    active: 'bg-pink-100 text-pink-900',       hover: 'hover:bg-pink-50/60' },
+  rose:    { cat: 'text-rose-700',    bar: 'bg-rose-500',    active: 'bg-rose-100 text-rose-900',       hover: 'hover:bg-rose-50/60' },
+  slate:   { cat: 'text-slate-700',   bar: 'bg-slate-500',   active: 'bg-slate-100 text-slate-900',     hover: 'hover:bg-slate-50/60' },
+};
+const colorOf = (key) => COLOR_CLASSES[key] || COLOR_CLASSES.slate;
+
+// Admin menu — flat list (compatible with existing render) but reorganised
+// into fewer, color-coded categories. Every sub item carries its category
+// color so the active/hover styling matches.
 const adminLinks = [
-  // דף הבית
-  { title: "לוח בקרה", url: createPageUrl("Dashboard"), icon: LayoutGrid },
+  { title: "לוח בקרה", url: createPageUrl("Dashboard"), icon: LayoutGrid, color: "slate" },
 
-  // כלי AI
-  { title: "כלי AI", url: "#", icon: Sparkles, isCategory: true },
-  { title: "מרכז בקרת AI", url: createPageUrl("AiDashboard"), icon: Sparkles, isSubItem: true },
-  { title: "חיזוי עומסים AI", url: createPageUrl("SmartPrediction"), icon: Brain, isSubItem: true },
-  { title: "יועץ שיווק AI", url: createPageUrl("MarketingAI"), icon: Rocket, isSubItem: true },
+  { title: "כלי AI", url: "#", icon: Sparkles, isCategory: true, color: "violet" },
+  { title: "מרכז בקרת AI", url: createPageUrl("AiDashboard"), icon: Sparkles, isSubItem: true, color: "violet" },
+  { title: "חיזוי עומסים AI", url: createPageUrl("SmartPrediction"), icon: Brain, isSubItem: true, color: "violet" },
+  { title: "יועץ שיווק AI", url: createPageUrl("MarketingAI"), icon: Rocket, isSubItem: true, color: "violet" },
+  { title: "תחזיות ותובנות AI", url: createPageUrl("RevenueForecasting"), icon: Brain, isSubItem: true, color: "violet" },
 
-  // ניהול מסעדה
-  { title: "ניהול מסעדה", url: "#", icon: Utensils, isCategory: true },
-  { title: "ניהול תדריכים", url: createPageUrl("BriefingManagement"), icon: Megaphone, isSubItem: true },
-  { title: "ניהול שולחנות", url: createPageUrl("TablesManagement"), icon: Utensils, isSubItem: true },
-  { title: "ניהול הושבה", url: createPageUrl("SeatingSetup"), icon: Map, isSubItem: true },
-  { title: "ניקיון שירותים 🚽", url: createPageUrl("RestroomCleaning"), icon: ClipboardCheck, isSubItem: true },
-  { title: "הגדרות הזמנות", url: createPageUrl("PublicReservationSettings"), icon: Settings, isSubItem: true },
+  { title: "תפעול המסעדה", url: "#", icon: Utensils, isCategory: true, color: "orange" },
+  { title: "ניהול תדריכים", url: createPageUrl("BriefingManagement"), icon: Megaphone, isSubItem: true, color: "orange" },
+  { title: "ניהול שולחנות", url: createPageUrl("TablesManagement"), icon: Utensils, isSubItem: true, color: "orange" },
+  { title: "ניהול הושבה", url: createPageUrl("SeatingSetup"), icon: Map, isSubItem: true, color: "orange" },
+  { title: "ניקיון שירותים 🚽", url: createPageUrl("RestroomCleaning"), icon: ClipboardCheck, isSubItem: true, color: "orange" },
+  { title: "צ'קליסטים", url: createPageUrl("Checklists"), icon: CheckSquare, isSubItem: true, color: "orange" },
+  { title: "תקריות", url: createPageUrl("Incidents"), icon: AlertTriangle, isSubItem: true, color: "orange" },
+  { title: "דוח סיום משמרת", url: createPageUrl("ShiftEndReport"), icon: ClipboardCheck, isSubItem: true, color: "orange" },
 
-  // כספים ודוחות
-  { title: "כספים ודוחות", url: "#", icon: TrendingUp, isCategory: true },
-  { title: "דוחות", url: createPageUrl("Reports"), icon: BarChart3, isSubItem: true },
-  { title: "תחזיות ותובנות AI", url: createPageUrl("RevenueForecasting"), icon: Brain, isSubItem: true },
-  { title: "ניהול טיפים", url: createPageUrl("Tips"), icon: Banknote, isSubItem: true },
-  { title: "דוח סיום משמרת", url: createPageUrl("ShiftEndReport"), icon: ClipboardCheck, isSubItem: true },
-  { title: "חשבוניות", url: createPageUrl("Invoices"), icon: FileText, isSubItem: true },
-  { title: "ספקים", url: createPageUrl("Suppliers"), icon: Building, isSubItem: true },
+  { title: "תור והזמנות", url: "#", icon: QrCode, isCategory: true, color: "cyan" },
+  { title: "דאשבורד מארחת", url: createPageUrl("QueueDashboard"), icon: Users, isSubItem: true, color: "cyan" },
+  { title: "היסטוריית תור", url: createPageUrl("QueueHistory"), icon: Users, isSubItem: true, color: "cyan" },
+  { title: "ניתוח תור", url: createPageUrl("QueueAnalytics"), icon: BarChart3, isSubItem: true, color: "cyan" },
+  { title: "ניהול משחקי ממתינים", url: createPageUrl("GamesAdmin"), icon: Trophy, isSubItem: true, color: "cyan" },
+  { title: "שאלות משחקים", url: createPageUrl("GameQuestionsAdmin"), icon: FileText, isSubItem: true, color: "cyan" },
+  { title: "הגדרות הזמנות", url: createPageUrl("PublicReservationSettings"), icon: Settings, isSubItem: true, color: "cyan" },
 
-  // עובדים
-  { title: "עובדים", url: "#", icon: Users, isCategory: true },
-  { title: "רשימת עובדים", url: createPageUrl("Employees"), icon: Users, isSubItem: true },
-  { title: "ניהול תפקידים", url: createPageUrl("PositionsManagement"), icon: Briefcase, isSubItem: true },
-  { title: "ניהול שליחים", url: createPageUrl("Couriers"), icon: Package, isSubItem: true },
-  { title: "ניהול ציוד (אייפדים/מסופונים)", url: createPageUrl("DevicesDashboard"), icon: Tablet, isSubItem: true },
-  { title: "מעקב שליחים חי 🗺️", url: createPageUrl("CourierTracking"), icon: Navigation, isSubItem: true },
-  { title: "סידור עבודה", url: createPageUrl("WorkScheduling"), icon: Calendar, isSubItem: true },
-  { title: "בקשות זמינות", url: createPageUrl("AvailabilityRequests"), icon: Calendar, isSubItem: true },
-  { title: "בקשות חופשה", url: createPageUrl("LeaveRequests"), icon: CalendarDays, isSubItem: true },
-  { title: "צ'אט משמרת", url: createPageUrl("ShiftChat"), icon: MessageSquare, isSubItem: true },
-  { title: "הגדרות הגשת זמינות", url: createPageUrl("AvailabilityFormSettings"), icon: Settings, isSubItem: true },
-  { title: "משוב עובדים", url: createPageUrl("EmployeeFeedback"), icon: MessageSquare, isSubItem: true },
-  { title: "ראיונות וגיוס 🎯", url: createPageUrl("RecruitmentInterviews"), icon: Users, isSubItem: true },
-  { title: "סלוטים לראיונות", url: createPageUrl("InterviewSettings"), icon: Calendar, isSubItem: true },
+  { title: "כספים ודוחות", url: "#", icon: TrendingUp, isCategory: true, color: "emerald" },
+  { title: "דוחות", url: createPageUrl("Reports"), icon: BarChart3, isSubItem: true, color: "emerald" },
+  { title: "ניהול טיפים", url: createPageUrl("Tips"), icon: Banknote, isSubItem: true, color: "emerald" },
+  { title: "חשבוניות", url: createPageUrl("Invoices"), icon: FileText, isSubItem: true, color: "emerald" },
+  { title: "ספקים", url: createPageUrl("Suppliers"), icon: Building, isSubItem: true, color: "emerald" },
 
-  // הכשרות ואיכות
-  { title: "הכשרות ואיכות", url: "#", icon: GraduationCap, isCategory: true },
-  { title: "הכשרות ואימונים", url: createPageUrl("Training"), icon: GraduationCap, isSubItem: true },
-  { title: "סרטוני הדרכה", url: createPageUrl("TrainingVideos"), icon: GraduationCap, isSubItem: true },
-  { title: "לוח המובילים", url: createPageUrl("Leaderboard"), icon: Trophy, isSubItem: true },
-  { title: "מרכז גמיפיקציה", url: createPageUrl("GamificationAdmin"), icon: Trophy, isSubItem: true },
-  { title: "צ'קליסטים", url: createPageUrl("Checklists"), icon: CheckSquare, isSubItem: true },
-  { title: "תקריות", url: createPageUrl("Incidents"), icon: AlertTriangle, isSubItem: true },
-  { title: "ארכיון סטוריז", url: createPageUrl("StoriesArchive"), icon: FileText, isSubItem: true },
-  { title: "לוח דירוג סטוריז", url: createPageUrl("StoriesLeaderboard"), icon: Trophy, isSubItem: true },
-  { title: "ניתוח סטוריז", url: createPageUrl("StoriesAnalytics"), icon: BarChart3, isSubItem: true },
-  { title: "הודעות סטוריז", url: createPageUrl("StoriesNotifications"), icon: Bell, isSubItem: true },
+  { title: "עובדים וסידור", url: "#", icon: Users, isCategory: true, color: "blue" },
+  { title: "רשימת עובדים", url: createPageUrl("Employees"), icon: Users, isSubItem: true, color: "blue" },
+  { title: "ניהול תפקידים", url: createPageUrl("PositionsManagement"), icon: Briefcase, isSubItem: true, color: "blue" },
+  { title: "סידור עבודה", url: createPageUrl("WorkScheduling"), icon: Calendar, isSubItem: true, color: "blue" },
+  { title: "בקשות זמינות", url: createPageUrl("AvailabilityRequests"), icon: Calendar, isSubItem: true, color: "blue" },
+  { title: "בקשות חופשה", url: createPageUrl("LeaveRequests"), icon: CalendarDays, isSubItem: true, color: "blue" },
+  { title: "צ'אט משמרת", url: createPageUrl("ShiftChat"), icon: MessageSquare, isSubItem: true, color: "blue" },
+  { title: "משוב עובדים", url: createPageUrl("EmployeeFeedback"), icon: MessageSquare, isSubItem: true, color: "blue" },
+  { title: "הגדרות הגשת זמינות", url: createPageUrl("AvailabilityFormSettings"), icon: Settings, isSubItem: true, color: "blue" },
 
-  // לקוחות ושיווק
-  { title: "לקוחות ושיווק", url: "#", icon: MessageSquare, isCategory: true },
-  { title: "מועדון לקוחות", url: createPageUrl("CustomerClub"), icon: Users, isSubItem: true },
-  { title: "דאשבורד שיווקי", url: createPageUrl("MarketingDashboard"), icon: TrendingUp, isSubItem: true },
-  { title: "קמפיינים (ידנוי)", url: "/MarketingCampaigns", icon: Megaphone, isSubItem: true },
-  { title: "Instagram Studio 📸", url: "/InstagramStudio", icon: Megaphone, isSubItem: true },
-  { title: "תבניות הודעה", url: createPageUrl("MessageTemplates"), icon: FileText, isSubItem: true },
-  { title: "סקרי לקוחות", url: createPageUrl("CustomerSurveys"), icon: MessageSquare, isSubItem: true },
-  { title: "ברקודי סקרים", url: createPageUrl("SurveyQRCodes"), icon: QrCode, isSubItem: true },
+  { title: "גיוס והכשרה", url: "#", icon: GraduationCap, isCategory: true, color: "indigo" },
+  { title: "ראיונות וגיוס 🎯", url: createPageUrl("RecruitmentInterviews"), icon: Users, isSubItem: true, color: "indigo" },
+  { title: "סלוטים לראיונות", url: createPageUrl("InterviewSettings"), icon: Calendar, isSubItem: true, color: "indigo" },
+  { title: "הכשרות ואימונים", url: createPageUrl("Training"), icon: GraduationCap, isSubItem: true, color: "indigo" },
+  { title: "סרטוני הדרכה", url: createPageUrl("TrainingVideos"), icon: GraduationCap, isSubItem: true, color: "indigo" },
 
-  // חנות בגדים וגמיפיקציה
-  { title: "משלוחים", url: createPageUrl("Deliveries"), icon: Package },
-  { title: "מועדון לקוחות משלוחים", url: createPageUrl("DeliveryCustomerClub"), icon: Users },
+  { title: "משלוחים", url: "#", icon: Package, isCategory: true, color: "amber" },
+  { title: "ניהול משלוחים", url: createPageUrl("Deliveries"), icon: Package, isSubItem: true, color: "amber" },
+  { title: "ניהול שליחים", url: createPageUrl("Couriers"), icon: Package, isSubItem: true, color: "amber" },
+  { title: "מעקב שליחים חי 🗺️", url: createPageUrl("CourierTracking"), icon: Navigation, isSubItem: true, color: "amber" },
+  { title: "מועדון לקוחות משלוחים", url: createPageUrl("DeliveryCustomerClub"), icon: Users, isSubItem: true, color: "amber" },
+  { title: "ניהול ציוד (אייפדים/מסופונים)", url: createPageUrl("DevicesDashboard"), icon: Tablet, isSubItem: true, color: "amber" },
 
-  { title: "ייצוא דאטה", url: createPageUrl("DataExport"), icon: Download },
-  { title: "שליחת Push ידני", url: createPageUrl("PushNotifications"), icon: Bell },
-  { title: "ניהול חנות בגדים", url: createPageUrl("ApparelManagement"), icon: Trophy },
-  { title: "סלון דמויות", url: createPageUrl("CharacterLounge"), icon: Trophy },
+  { title: "שיווק ולקוחות", url: "#", icon: Megaphone, isCategory: true, color: "pink" },
+  { title: "מועדון לקוחות", url: createPageUrl("CustomerClub"), icon: Users, isSubItem: true, color: "pink" },
+  { title: "דאשבורד שיווקי", url: createPageUrl("MarketingDashboard"), icon: TrendingUp, isSubItem: true, color: "pink" },
+  { title: "קמפיינים", url: "/MarketingCampaigns", icon: Megaphone, isSubItem: true, color: "pink" },
+  { title: "Instagram Studio 📸", url: "/InstagramStudio", icon: Megaphone, isSubItem: true, color: "pink" },
+  { title: "תבניות הודעה", url: createPageUrl("MessageTemplates"), icon: FileText, isSubItem: true, color: "pink" },
+  { title: "סקרי לקוחות", url: createPageUrl("CustomerSurveys"), icon: MessageSquare, isSubItem: true, color: "pink" },
+  { title: "ברקודי סקרים", url: createPageUrl("SurveyQRCodes"), icon: QrCode, isSubItem: true, color: "pink" },
 
-  // תור
-  { title: "ניהול תור", url: "#", icon: Users, isCategory: true },
-  { title: "דאשבורד מארחת", url: createPageUrl("QueueDashboard"), icon: Users, isSubItem: true },
-  { title: "היסטוריית תור + קשרים", url: createPageUrl("QueueHistory"), icon: Users, isSubItem: true },
-  { title: "ניתוח תור", url: createPageUrl("QueueAnalytics"), icon: BarChart3, isSubItem: true },
-  { title: "ניהול משחקי ממתינים", url: createPageUrl("GamesAdmin"), icon: Trophy, isSubItem: true },
-  { title: "ניהול שאלות משחקים", url: createPageUrl("GameQuestionsAdmin"), icon: FileText, isSubItem: true },
-  ];
+  { title: "גמיפיקציה וסטוריז", url: "#", icon: Trophy, isCategory: true, color: "rose" },
+  { title: "לוח המובילים", url: createPageUrl("Leaderboard"), icon: Trophy, isSubItem: true, color: "rose" },
+  { title: "מרכז גמיפיקציה", url: createPageUrl("GamificationAdmin"), icon: Trophy, isSubItem: true, color: "rose" },
+  { title: "ניהול חנות בגדים", url: createPageUrl("ApparelManagement"), icon: Trophy, isSubItem: true, color: "rose" },
+  { title: "סלון דמויות", url: createPageUrl("CharacterLounge"), icon: Trophy, isSubItem: true, color: "rose" },
+  { title: "ארכיון סטוריז", url: createPageUrl("StoriesArchive"), icon: FileText, isSubItem: true, color: "rose" },
+  { title: "לוח דירוג סטוריז", url: createPageUrl("StoriesLeaderboard"), icon: Trophy, isSubItem: true, color: "rose" },
+  { title: "ניתוח סטוריז", url: createPageUrl("StoriesAnalytics"), icon: BarChart3, isSubItem: true, color: "rose" },
+  { title: "הודעות סטוריז", url: createPageUrl("StoriesNotifications"), icon: Bell, isSubItem: true, color: "rose" },
 
-// תפריט לעובדים רגילים - מחולק לקטגוריות
-const employeeLinks = [
-  { title: "בית", url: createPageUrl("EmployeeHome"), icon: LayoutGrid },
-
-  // כלי עבודה יומיים
-  { title: "כלי עבודה יומיים", url: "#", icon: Zap, isCategory: true },
-  { title: "דאשבורד תור", url: createPageUrl("QueueDashboard"), icon: Users, isSubItem: true },
-  { title: "משלוחים", url: createPageUrl("Deliveries"), icon: Package, isSubItem: true },
-  { title: "אפליקציית שליח", url: createPageUrl("CourierDashboard"), icon: Package, isSubItem: true },
-  { title: "מועדון לקוחות משלוחים", url: createPageUrl("DeliveryCustomerClub"), icon: Users, isSubItem: true },
-  { title: "תדריכים", url: createPageUrl("BriefingManagement"), icon: Megaphone, isSubItem: true },
-  { title: "השולחנות שלי", url: createPageUrl("WaiterTables"), icon: Utensils, isSubItem: true },
-  { title: "ניהול הושבה", url: createPageUrl("SeatingSetup"), icon: Map, isSubItem: true },
-  { title: "צ'קליסטים", url: createPageUrl("Checklists"), icon: CheckSquare, isSubItem: true },
-  { title: "דיווח תקרית", url: createPageUrl("Incidents"), icon: AlertTriangle, isSubItem: true },
-  { title: "דוח סיום משמרת", url: createPageUrl("ShiftEndReport"), icon: ClipboardCheck, isSubItem: true },
-
-  // מעקב אישי
-  { title: "מעקב אישי", url: "#", icon: BarChart3, isCategory: true },
-  { title: "הביצועים שלי", url: createPageUrl("MyPerformance"), icon: BarChart3, isSubItem: true },
-  { title: "ניהול טיפים", url: createPageUrl("Tips"), icon: Banknote, isSubItem: true },
-  { title: "סידור עבודה", url: createPageUrl("WorkScheduling"), icon: Calendar, isSubItem: true },
-  { title: "הגשת זמינות", url: createPageUrl("AvailabilityForm"), icon: Calendar, isSubItem: true },
-  { title: "בקשות חופשה", url: createPageUrl("LeaveRequests"), icon: CalendarDays, isSubItem: true },
-  { title: "צ'אט משמרת", url: createPageUrl("ShiftChat"), icon: MessageSquare, isSubItem: true },
-
-  // פיתוח מקצועי
-  { title: "פיתוח מקצועי", url: "#", icon: GraduationCap, isCategory: true },
-  { title: "הכשרות ואימונים", url: createPageUrl("Training"), icon: GraduationCap, isSubItem: true },
-  { title: "סרטוני הדרכה", url: createPageUrl("TrainingVideos"), icon: GraduationCap, isSubItem: true },
-  { title: "לוח המובילים", url: createPageUrl("Leaderboard"), icon: Trophy, isSubItem: true },
-  { title: "סלון דמויות", url: createPageUrl("CharacterLounge"), icon: Trophy, isSubItem: true },
-  { title: "🪙 המטבעות שלי", url: createPageUrl("GamificationCenter"), icon: Trophy, isSubItem: true },
+  { title: "כלים נוספים", url: "#", icon: Settings, isCategory: true, color: "slate" },
+  { title: "ייצוא דאטה", url: createPageUrl("DataExport"), icon: Download, isSubItem: true, color: "slate" },
+  { title: "שליחת Push ידני", url: createPageUrl("PushNotifications"), icon: Bell, isSubItem: true, color: "slate" },
 ];
+
+// Employee menu — same flat format, reorganised and color-coded.
+const employeeLinks = [
+  { title: "בית", url: createPageUrl("EmployeeHome"), icon: LayoutGrid, color: "slate" },
+
+  { title: "כלי עבודה יומיים", url: "#", icon: Zap, isCategory: true, color: "cyan" },
+  { title: "דאשבורד תור", url: createPageUrl("QueueDashboard"), icon: Users, isSubItem: true, color: "cyan" },
+  { title: "השולחנות שלי", url: createPageUrl("WaiterTables"), icon: Utensils, isSubItem: true, color: "cyan" },
+  { title: "ניהול הושבה", url: createPageUrl("SeatingSetup"), icon: Map, isSubItem: true, color: "cyan" },
+  { title: "תדריכים", url: createPageUrl("BriefingManagement"), icon: Megaphone, isSubItem: true, color: "cyan" },
+  { title: "צ'קליסטים", url: createPageUrl("Checklists"), icon: CheckSquare, isSubItem: true, color: "cyan" },
+  { title: "דיווח תקרית", url: createPageUrl("Incidents"), icon: AlertTriangle, isSubItem: true, color: "cyan" },
+  { title: "דוח סיום משמרת", url: createPageUrl("ShiftEndReport"), icon: ClipboardCheck, isSubItem: true, color: "cyan" },
+
+  { title: "משלוחים", url: "#", icon: Package, isCategory: true, color: "amber" },
+  { title: "משלוחים", url: createPageUrl("Deliveries"), icon: Package, isSubItem: true, color: "amber" },
+  { title: "אפליקציית שליח", url: createPageUrl("CourierDashboard"), icon: Package, isSubItem: true, color: "amber" },
+  { title: "מועדון לקוחות משלוחים", url: createPageUrl("DeliveryCustomerClub"), icon: Users, isSubItem: true, color: "amber" },
+
+  { title: "מעקב אישי וזמינות", url: "#", icon: BarChart3, isCategory: true, color: "blue" },
+  { title: "הביצועים שלי", url: createPageUrl("MyPerformance"), icon: BarChart3, isSubItem: true, color: "blue" },
+  { title: "ניהול טיפים", url: createPageUrl("Tips"), icon: Banknote, isSubItem: true, color: "blue" },
+  { title: "סידור עבודה", url: createPageUrl("WorkScheduling"), icon: Calendar, isSubItem: true, color: "blue" },
+  { title: "הגשת זמינות", url: createPageUrl("AvailabilityForm"), icon: Calendar, isSubItem: true, color: "blue" },
+  { title: "בקשות חופשה", url: createPageUrl("LeaveRequests"), icon: CalendarDays, isSubItem: true, color: "blue" },
+  { title: "צ'אט משמרת", url: createPageUrl("ShiftChat"), icon: MessageSquare, isSubItem: true, color: "blue" },
+
+  { title: "פיתוח וגמיפיקציה", url: "#", icon: GraduationCap, isCategory: true, color: "rose" },
+  { title: "הכשרות ואימונים", url: createPageUrl("Training"), icon: GraduationCap, isSubItem: true, color: "rose" },
+  { title: "סרטוני הדרכה", url: createPageUrl("TrainingVideos"), icon: GraduationCap, isSubItem: true, color: "rose" },
+  { title: "לוח המובילים", url: createPageUrl("Leaderboard"), icon: Trophy, isSubItem: true, color: "rose" },
+  { title: "סלון דמויות", url: createPageUrl("CharacterLounge"), icon: Trophy, isSubItem: true, color: "rose" },
+  { title: "🪙 המטבעות שלי", url: createPageUrl("GamificationCenter"), icon: Trophy, isSubItem: true, color: "rose" },
+];
+
+// Real-time search filter. If empty, returns the list as-is. Otherwise hides
+// categories whose children don't match the query, and keeps only matching
+// children inside the ones that do.
+function filterNav(items, query) {
+  const q = (query || '').trim().toLowerCase();
+  if (!q) return items;
+  const out = [];
+  let i = 0;
+  while (i < items.length) {
+    const item = items[i];
+    if (item.isCategory) {
+      const matches = [];
+      let j = i + 1;
+      while (j < items.length && items[j].isSubItem) {
+        if (items[j].title.toLowerCase().includes(q)) matches.push(items[j]);
+        j++;
+      }
+      if (matches.length) { out.push(item); out.push(...matches); }
+      i = j;
+    } else if (!item.isSubItem) {
+      if (item.title.toLowerCase().includes(q)) out.push(item);
+      i++;
+    } else { i++; }
+  }
+  return out;
+}
 
 // CSS Variables per theme - applied globally
 const THEME_VARS = {
@@ -203,7 +242,8 @@ export default function Layout({ children, currentPageName }) {
   const isCurrentViewAdmin = user?.role === 'admin';
   const isOriginalAdmin = originalUserRole === 'admin';
 
-  const navigationItems = isCurrentViewAdmin ? adminLinks : employeeLinks;
+  const [navFilter, setNavFilter] = React.useState('');
+  const navigationItems = filterNav(isCurrentViewAdmin ? adminLinks : employeeLinks, navFilter);
   const userName = user?.full_name || user?.email?.split('@')[0] || 'משתמש';
 
   const commonSidebarProps = {
@@ -214,7 +254,9 @@ export default function Layout({ children, currentPageName }) {
     navigationItems,
     location,
     setUser,
-    hasUnreadChat
+    hasUnreadChat,
+    navFilter,
+    setNavFilter,
   };
 
   const themeVars = THEME_VARS[appTheme] || '';
@@ -254,47 +296,64 @@ export default function Layout({ children, currentPageName }) {
 
 // --- Sub-components for cleaner structure ---
 
-const DesktopSidebar = ({ userName, isCurrentViewAdmin, isOriginalAdmin, navigationItems, location, user, setUser, hasUnreadChat }) => (
+const DesktopSidebar = ({ userName, isCurrentViewAdmin, isOriginalAdmin, navigationItems, location, user, setUser, hasUnreadChat, navFilter, setNavFilter }) => (
   <div className="fixed top-0 bottom-0 right-0 w-80 bg-card border-l border-border z-40">
-    <div className="border-b border-border p-8">
-      <div className="flex items-center gap-5">
-        <div className="w-16 h-16 bg-gradient-to-br from-primary to-accent rounded-xl flex items-center justify-center shadow-xl">
-          <Crown className="w-8 h-8 text-primary-foreground" />
+    <div className="border-b border-border p-6">
+      <div className="flex items-center gap-4 mb-4">
+        <div className="w-14 h-14 bg-gradient-to-br from-primary to-accent rounded-xl flex items-center justify-center shadow-xl">
+          <Crown className="w-7 h-7 text-primary-foreground" />
         </div>
         <div>
-          <h2 className="font-black text-2xl text-foreground">TOP ALENA</h2>
-          <p className="text-base text-muted-foreground font-semibold">{isCurrentViewAdmin ? 'מערכת ניהול' : 'אזור אישי'}</p>
+          <h2 className="font-black text-xl text-foreground">TOP ALENA</h2>
+          <p className="text-sm text-muted-foreground font-semibold">{isCurrentViewAdmin ? 'מערכת ניהול' : 'אזור אישי'}</p>
         </div>
       </div>
+      {/* Inline menu search */}
+      <input
+        type="text"
+        value={navFilter}
+        onChange={(e) => setNavFilter(e.target.value)}
+        placeholder="🔎 חפש בתפריט..."
+        className="w-full rounded-xl border border-border bg-muted/40 px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+      />
     </div>
 
-    <div className="p-6 overflow-y-auto h-[calc(100%-14rem-14rem)] pb-24">
-      <div className="space-y-3">
-        {navigationItems.map((item) => (
-          item.isCategory ? (
-            <div key={item.title} className="pt-4">
-              <div className="flex items-center gap-4 px-6 py-2 text-primary font-bold text-sm">
-                <item.icon className="w-5 h-5" />
+    <div className="p-4 overflow-y-auto h-[calc(100%-14rem-14rem)] pb-24">
+      {navigationItems.length === 0 ? (
+        <p className="text-center text-sm text-muted-foreground py-8">לא נמצאו התאמות לחיפוש</p>
+      ) : (
+      <div className="space-y-1.5">
+        {navigationItems.map((item) => {
+          const c = colorOf(item.color);
+          return item.isCategory ? (
+            <div key={item.title} className="pt-4 first:pt-0">
+              <div className={`flex items-center gap-3 px-4 py-1.5 font-bold text-xs uppercase tracking-wider ${c.cat}`}>
+                <span className={`w-1 h-4 rounded-full ${c.bar}`} />
+                <item.icon className="w-4 h-4" />
                 <span>{item.title}</span>
               </div>
             </div>
           ) : (
             <Link
-              key={item.title}
+              key={item.url + item.title}
               to={item.url}
-              className={`group hover:bg-muted transition-all duration-200 rounded-xl h-14 flex items-center gap-4 px-6 py-4 w-full ${
-                item.isSubItem ? 'mr-4' : ''
-              } ${location.pathname === item.url ? 'bg-muted text-primary font-bold shadow-md' : 'text-foreground/70 hover:text-foreground'}`}
+              className={`group relative transition-all duration-150 rounded-xl flex items-center gap-3 px-4 py-2.5 w-full ${
+                item.isSubItem ? 'mr-2' : ''
+              } ${location.pathname === item.url
+                  ? `${c.active} font-bold shadow-sm`
+                  : `${c.hover} text-foreground/80 hover:text-foreground`
+              }`}
             >
-              <item.icon className="w-6 h-6 flex-shrink-0" />
-              <span className="text-base font-semibold">{item.title}</span>
+              <item.icon className="w-4.5 h-4.5 flex-shrink-0" />
+              <span className="text-sm font-semibold">{item.title}</span>
               {item.title === 'צ\'אט משמרת' && hasUnreadChat && (
-                <div className="absolute right-6 w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse" />
+                <div className="absolute right-3 w-2 h-2 bg-red-500 rounded-full animate-pulse" />
               )}
             </Link>
-          )
-        ))}
+          );
+        })}
       </div>
+      )}
     </div>
 
     <div className="absolute bottom-0 left-0 right-0 border-t border-border p-6 bg-card">
@@ -336,10 +395,10 @@ const DesktopSidebar = ({ userName, isCurrentViewAdmin, isOriginalAdmin, navigat
   </div>
 );
 
-const MobileSidebar = ({ userName, isCurrentViewAdmin, isOriginalAdmin, navigationItems, location, user, setUser, hasUnreadChat }) => (
+const MobileSidebar = ({ userName, isCurrentViewAdmin, isOriginalAdmin, navigationItems, location, user, setUser, hasUnreadChat, navFilter, setNavFilter }) => (
   <Sidebar className="bg-card z-50">
     <SidebarHeader className="border-b border-border p-3">
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 mb-2">
         <div className="w-8 h-8 bg-gradient-to-br from-primary to-accent rounded-lg flex items-center justify-center shadow-lg">
           <Crown className="w-4 h-4 text-primary-foreground" />
         </div>
@@ -348,27 +407,41 @@ const MobileSidebar = ({ userName, isCurrentViewAdmin, isOriginalAdmin, navigati
           <p className="text-xs text-muted-foreground truncate">{isCurrentViewAdmin ? 'מערכת ניהול' : 'אזור אישי'}</p>
         </div>
       </div>
+      <input
+        type="text"
+        value={navFilter}
+        onChange={(e) => setNavFilter(e.target.value)}
+        placeholder="🔎 חפש בתפריט..."
+        className="w-full rounded-lg border border-border bg-muted/40 px-2.5 py-1.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+      />
     </SidebarHeader>
 
     <SidebarContent className="p-2">
-      <SidebarMenu className="space-y-1">
-        {navigationItems.map((item) => (
-          item.isCategory ? (
-            <div key={item.title} className="pt-2">
-              <div className="flex items-center gap-3 px-3 py-2 text-primary font-bold text-xs">
-                <item.icon className="w-4 h-4" />
+      <SidebarMenu className="space-y-0.5">
+        {navigationItems.length === 0 ? (
+          <p className="text-center text-xs text-muted-foreground py-6">אין התאמות</p>
+        ) : navigationItems.map((item) => {
+          const c = colorOf(item.color);
+          return item.isCategory ? (
+            <div key={item.title} className="pt-3 first:pt-0">
+              <div className={`flex items-center gap-2 px-2.5 py-1.5 font-bold text-[11px] uppercase tracking-wider ${c.cat}`}>
+                <span className={`w-1 h-3 rounded-full ${c.bar}`} />
+                <item.icon className="w-3.5 h-3.5" />
                 <span className="truncate">{item.title}</span>
               </div>
             </div>
           ) : (
-            <SidebarMenuItem key={item.title}>
+            <SidebarMenuItem key={item.url + item.title}>
               <SidebarMenuButton
                 asChild
-                className={`group hover:bg-muted transition-colors rounded-lg ${
-                  item.isSubItem ? 'mr-3' : ''
-                } ${location.pathname === item.url ? 'bg-muted text-primary font-semibold' : 'text-foreground/70 hover:text-foreground'}`}
+                className={`group transition-colors rounded-lg ${
+                  item.isSubItem ? 'mr-2' : ''
+                } ${location.pathname === item.url
+                    ? `${c.active} font-semibold`
+                    : `${c.hover} text-foreground/80 hover:text-foreground`
+                }`}
               >
-                <Link to={item.url} className="flex items-center gap-3 px-3 py-2.5 w-full min-w-0 relative">
+                <Link to={item.url} className="flex items-center gap-3 px-3 py-2 w-full min-w-0 relative">
                   <item.icon className="w-4 h-4 flex-shrink-0" />
                   <span className="text-sm font-medium truncate">{item.title}</span>
                   {item.title === 'צ\'אט משמרת' && hasUnreadChat && (
@@ -377,8 +450,8 @@ const MobileSidebar = ({ userName, isCurrentViewAdmin, isOriginalAdmin, navigati
                 </Link>
               </SidebarMenuButton>
             </SidebarMenuItem>
-          )
-        ))}
+          );
+        })}
       </SidebarMenu>
     </SidebarContent>
 
