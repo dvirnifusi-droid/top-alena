@@ -2,6 +2,7 @@ import type { FastifyPluginAsync } from 'fastify';
 import { Prisma } from '@prisma/client';
 import { prisma } from '../db.js';
 import { requireAuth } from '../middleware/auth.js';
+import { fireTriggers } from '../lib/triggers.js';
 
 // Generic CRUD over any Prisma model. The entity name in the URL is the
 // PascalCase model name as it appears in schema.prisma (e.g. Customer,
@@ -190,6 +191,8 @@ export const entitiesRoutes: FastifyPluginAsync = async (app) => {
     const delegate = modelDelegate(name);
     if (!delegate) return reply.code(404).send({ error: 'unknown_entity' });
     const created = await delegate.create({ data: coerceData(name, req.body as Record<string, unknown>) });
+    // Fire automation triggers fire-and-forget so we never block the response.
+    fireTriggers(name, 'created', created).catch((e) => req.log.warn({ err: e }, 'trigger failed'));
     return reply.code(201).send(toFrontend(name, created));
   });
 
@@ -198,7 +201,11 @@ export const entitiesRoutes: FastifyPluginAsync = async (app) => {
     const { name, id } = req.params as { name: string; id: string };
     const delegate = modelDelegate(name);
     if (!delegate) return reply.code(404).send({ error: 'unknown_entity' });
+    // Snapshot the previous state so update triggers can compare and only fire
+    // on real status transitions (e.g. status -> completed).
+    const prev = await delegate.findUnique({ where: { id } }).catch(() => null);
     const updated = await delegate.update({ where: { id }, data: coerceData(name, req.body as Record<string, unknown>) });
+    fireTriggers(name, 'updated', updated, prev).catch((e) => req.log.warn({ err: e }, 'trigger failed'));
     return toFrontend(name, updated);
   });
 
