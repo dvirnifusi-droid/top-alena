@@ -64,11 +64,64 @@ export default function AvailabilityForm() {
      const [dayData, setDayData] = useState(() => initDayData(getWeekDays(7)));
      const [selectedDepartment, setSelectedDepartment] = useState(null);
      const [loginDepartment, setLoginDepartment] = useState(null);
+     // Roles I can fill — picked once, applied to every available day.
+     const [myRoles, setMyRoles] = useState([]);
      
      const AVAILABILITY_TYPES = settings ? Object.fromEntries(settings.availability_types.map(t => [t.key, { label: t.label, color: t.color }])) : DEFAULT_AVAILABILITY_TYPES;
      const SHIFT_OPTIONS = settings?.shift_options || DEFAULT_SHIFT_OPTIONS;
      const DEPARTMENTS = settings?.departments || [];
-     const POSITIONS = selectedDepartment ? settings?.departments?.find(d => d.key === selectedDepartment)?.positions || [] : [];
+     // Build the chip list: department's positions + every position name the
+     // employee already has on their record (so something always shows up even
+     // if the AvailabilityFormSettings department is sparse).
+     const POSITIONS = React.useMemo(() => {
+         const set = new Set();
+         const deptPositions = selectedDepartment ? (settings?.departments?.find(d => d.key === selectedDepartment)?.positions || []) : [];
+         deptPositions.forEach(p => {
+             const name = typeof p === 'string' ? p : (p?.position_name || p?.name);
+             if (name) set.add(name);
+         });
+         if (selectedEmployee) {
+             if (typeof selectedEmployee.role === 'string' && selectedEmployee.role) set.add(selectedEmployee.role);
+             (Array.isArray(selectedEmployee.positions) ? selectedEmployee.positions : []).forEach(p => {
+                 const name = typeof p === 'string' ? p : (p?.position_name || p?.name);
+                 if (name) set.add(name);
+             });
+         }
+         return [...set];
+     }, [settings, selectedDepartment, selectedEmployee]);
+
+     // Seed myRoles from the employee record on first load (so returning users
+     // see their previously-saved positions already selected).
+     React.useEffect(() => {
+         if (!selectedEmployee) { setMyRoles([]); return; }
+         const seed = [];
+         if (typeof selectedEmployee.role === 'string' && selectedEmployee.role) seed.push(selectedEmployee.role);
+         (Array.isArray(selectedEmployee.positions) ? selectedEmployee.positions : []).forEach(p => {
+             const name = typeof p === 'string' ? p : (p?.position_name || p?.name);
+             if (name && !seed.includes(name)) seed.push(name);
+         });
+         setMyRoles(seed);
+     }, [selectedEmployee?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+     // Propagate myRoles into every day's positions so the per-day field is
+     // always in sync with the global choice.
+     React.useEffect(() => {
+         setDayData(prev => {
+             const next = { ...prev };
+             let changed = false;
+             for (const ds of Object.keys(next)) {
+                 if (!Array.isArray(next[ds].positions) || next[ds].positions.join('|') !== myRoles.join('|')) {
+                     next[ds] = { ...next[ds], positions: [...myRoles] };
+                     changed = true;
+                 }
+             }
+             return changed ? next : prev;
+         });
+     }, [myRoles]);
+
+     const toggleMyRole = (pos) => {
+         setMyRoles(prev => prev.includes(pos) ? prev.filter(p => p !== pos) : [...prev, pos]);
+     };
 
      useEffect(() => {
          loadData();
@@ -241,18 +294,10 @@ export default function AvailabilityForm() {
 
     const handleSubmit = async () => {
         if (!selectedEmployee) return;
-        const weekDates = getWeekDays(selectedWeekOffset).map(d => format(d, 'yyyy-MM-dd'));
-        // Require a role on every day the employee says they're available — saves
-        // the manager from setting positions manually after the fact.
-        const missingRole = weekDates.find(ds => {
-            const d = dayData[ds];
-            if (!d) return false;
-            if (d.availability_type === 'unavailable') return false;
-            return !Array.isArray(d.positions) || d.positions.length === 0;
-        });
-        if (missingRole) {
-            const dayLabel = format(new Date(missingRole), 'EEEE dd/MM', { locale: he });
-            alert(`לפני שליחה — בחר/י תפקיד ליום ${dayLabel}.`);
+        // Roles are now global. If none picked AND any day is available -> block.
+        const anyAvailableDay = Object.values(dayData).some(d => d && d.availability_type !== 'unavailable');
+        if (anyAvailableDay && myRoles.length === 0) {
+            alert('לפני שליחה — בחר/י לפחות תפקיד אחד שאת/ה יודע/ת למלא (חלק עליון של הטופס).');
             return;
         }
         setSaving(true);
@@ -542,6 +587,38 @@ export default function AvailabilityForm() {
                 ))}
             </div>
 
+            {/* Global role picker — one-shot, applies to every available day */}
+            {POSITIONS.length > 0 && (
+                <Card className="mb-4 border-2 border-blue-200 bg-blue-50/50">
+                    <CardContent className="p-4">
+                        <Label className="block font-bold mb-1">
+                            🎯 התפקידים שאני יודע/ת למלא <span className="text-red-500">*</span>
+                        </Label>
+                        <p className="text-xs text-gray-600 mb-3">
+                            בחירה חד‑פעמית — תחול אוטומטית על כל הימים שאת/ה זמין/ה בהם.
+                        </p>
+                        <div className="flex flex-wrap gap-2">
+                            {POSITIONS.map(pos => (
+                                <button
+                                    key={pos}
+                                    onClick={() => toggleMyRole(pos)}
+                                    className={`px-3 py-1.5 rounded-full border-2 text-sm font-bold transition-all ${
+                                        myRoles.includes(pos)
+                                            ? 'bg-blue-600 text-white border-blue-600 shadow'
+                                            : 'bg-white border-gray-300 text-gray-700 hover:border-blue-400'
+                                    }`}
+                                >
+                                    {pos}
+                                </button>
+                            ))}
+                        </div>
+                        {myRoles.length === 0 && (
+                            <p className="text-xs text-red-500 mt-2">⚠️ צריך לבחור לפחות תפקיד אחד לפני שליחה</p>
+                        )}
+                    </CardContent>
+                </Card>
+            )}
+
             <div className="space-y-4">
                 {weekDays.map(day => {
                     const dateStr = format(day, 'yyyy-MM-dd');
@@ -603,29 +680,6 @@ export default function AvailabilityForm() {
                                             </div>
                                         </div>
 
-                                        <div>
-                                            <Label className="mb-2 block">
-                                                התפקיד/ים שלי ליום זה <span className="text-red-500">*</span>
-                                            </Label>
-                                            <div className="flex flex-wrap gap-2">
-                                                {POSITIONS.map(pos => (
-                                                    <button
-                                                        key={pos}
-                                                        onClick={() => togglePosition(dateStr, pos)}
-                                                        className={`px-3 py-1.5 rounded-full border-2 text-sm font-bold transition-all ${
-                                                            data.positions.includes(pos)
-                                                                ? 'bg-blue-600 text-white border-blue-600'
-                                                                : 'bg-white border-gray-300 text-gray-600 hover:border-blue-400'
-                                                        }`}
-                                                    >
-                                                        {pos}
-                                                    </button>
-                                                ))}
-                                            </div>
-                                            {(!data.positions || data.positions.length === 0) && (
-                                                <p className="text-xs text-red-500 mt-1.5">⚠️ צריך לבחור לפחות תפקיד אחד</p>
-                                            )}
-                                        </div>
                                     </>
                                 )}
 
