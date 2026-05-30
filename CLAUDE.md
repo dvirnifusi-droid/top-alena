@@ -4,6 +4,21 @@ This file is auto-loaded by Claude Code at session start. **Read every section b
 
 ---
 
+## 0. ⚠️ FIRST: verify you're in the right repo
+
+The owner has **two checkouts** on the same machine and they are NOT interchangeable:
+
+| Path | Branch | Purpose |
+|---|---|---|
+| `C:\Users\97253\top-alena-migration` | `migration` | ✅ **THIS IS THE PROJECT.** All live code, all features built post-migration. |
+| `C:\Users\97253\TOP ALENA` | `main` | ❌ Old checkout. Base44-reverted placeholder. **Do not edit.** |
+
+If you opened in `TOP ALENA`, **stop immediately** and ask the user to reopen Claude from `C:\Users\97253\top-alena-migration`. Don't try to edit files there — you'll be working in the wrong tree and nothing will reach production.
+
+First action of every session: `cd /c/Users/97253/top-alena-migration && git status -sb && git log --oneline -1`. If `git status` shows `## migration...origin/migration`, you're in the right place. Production is at https://topalena.com on branch `migration`; pushes auto-deploy in ~2 min.
+
+---
+
 ## 1. What this is
 
 **TOP ALENA / עלינא** — a multi-page restaurant management web app for a kosher restaurant in Rishon LeZion, Israel. The owner is Dvir Nifusi (dvirnifusi@gmail.com).
