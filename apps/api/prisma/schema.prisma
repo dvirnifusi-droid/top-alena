@@ -830,6 +830,14 @@ model MarketingTask {
   detailed_steps               Json?
   is_starred                   Boolean?  @default(false)
   progress_percentage          Float?  @default(0)
+  // Strategy alignment — which month / week of the 6-month plan this task
+  // belongs to. Lets the UI render by Month → Week → Day instead of a flat
+  // list, and lets the AI generate later batches that pick up where the
+  // previous month left off.
+  strategy_id                  String?
+  month_number                 Int?
+  week_in_month                Int?
+  monthly_theme                String?
   created_by  String?
   created_date  String?
   updated_date  String?

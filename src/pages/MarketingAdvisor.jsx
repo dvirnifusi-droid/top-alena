@@ -212,7 +212,7 @@ export default function MarketingAdvisor() {
         />
       )}
       {!loading && tab === 'tasks' && (
-        <TasksView tasks={tasks} onChange={loadAll} hasProfile={!!profile?.completed} />
+        <TasksView tasks={tasks} strategy={strategy} onChange={loadAll} hasProfile={!!profile?.completed} />
       )}
       {!loading && tab === 'chat' && (
         <ChatView chat={chat} setChat={setChat} input={chatInput} setInput={setChatInput} sending={chatSending} setSending={setChatSending} />
@@ -492,17 +492,45 @@ function StrategyView({ profile, strategy, generating, onGenerate }) {
 }
 
 // ─── Tasks tab ───
-function TasksView({ tasks, onChange, hasProfile }) {
-  const [expanded, setExpanded] = useState(null); // task id whose expansion is loading/showing
+function TasksView({ tasks, onChange, hasProfile, strategy }) {
+  const monthsPlan = Array.isArray(strategy?.months_plan) ? strategy.months_plan : [];
+
+  // Default to the month that has the most pending tasks (= "current" month)
+  const initialMonth = (() => {
+    const counts = {};
+    tasks.forEach(t => {
+      const m = t.month_number || 1;
+      if (t.status !== 'completed') counts[m] = (counts[m] || 0) + 1;
+    });
+    const ks = Object.keys(counts).map(Number).sort((a, b) => counts[b] - counts[a]);
+    return ks[0] || 1;
+  })();
+  const [selectedMonth, setSelectedMonth] = useState(initialMonth);
+  const [expanded, setExpanded] = useState(null);
   const [expansionCache, setExpansionCache] = useState({});
   const [loadingExp, setLoadingExp] = useState(false);
-  const [generatingMore, setGeneratingMore] = useState(false);
+  const [generatingNext, setGeneratingNext] = useState(false);
+  const [generatingTopup, setGeneratingTopup] = useState(false);
+
+  const monthTasks = tasks.filter(t => (t.month_number || 1) === selectedMonth);
+  const monthInfo = monthsPlan.find(m => Number(m.month) === selectedMonth) || monthsPlan[selectedMonth - 1] || null;
+  const monthCompleted = monthTasks.filter(t => t.status === 'completed').length;
+  const monthPct = monthTasks.length ? Math.round((monthCompleted / monthTasks.length) * 100) : 0;
 
   const todayStr = new Date().toISOString().slice(0, 10);
-  const pending = tasks.filter(t => t.status !== 'completed');
-  const completed = tasks.filter(t => t.status === 'completed');
-  const today = pending.filter(t => (t.due_date || '') <= todayStr);
-  const upcoming = pending.filter(t => (t.due_date || '') > todayStr);
+
+  // Group by week_in_month then by day
+  const weeks = [1, 2, 3, 4].map(w => {
+    const wTasks = monthTasks.filter(t => (t.week_in_month || 1) === w);
+    const byDay = {};
+    wTasks.forEach(t => {
+      const d = t.due_date || 'אין תאריך';
+      if (!byDay[d]) byDay[d] = [];
+      byDay[d].push(t);
+    });
+    const days = Object.keys(byDay).sort();
+    return { week: w, days, byDay, completed: wTasks.filter(t => t.status === 'completed').length, total: wTasks.length };
+  });
 
   const markComplete = async (t) => {
     try {
@@ -523,13 +551,23 @@ function TasksView({ tasks, onChange, hasProfile }) {
     finally { setLoadingExp(false); }
   };
 
-  const generateMore = async () => {
-    setGeneratingMore(true);
+  const generateNextMonth = async () => {
+    setGeneratingNext(true);
+    try {
+      await base44.functions.generateMonthTasks({ month_number: selectedMonth + 1 });
+      await onChange();
+      setSelectedMonth(selectedMonth + 1);
+    } catch { alert('שגיאה ביצירת חודש'); }
+    finally { setGeneratingNext(false); }
+  };
+
+  const generateTopup = async () => {
+    setGeneratingTopup(true);
     try {
       await base44.functions.generateNextMarketingTasks({ count: 7 });
       await onChange();
-    } catch (e) { alert('שגיאה ביצירת משימות'); }
-    finally { setGeneratingMore(false); }
+    } catch { alert('שגיאה ביצירת משימות'); }
+    finally { setGeneratingTopup(false); }
   };
 
   if (!hasProfile) {
@@ -540,21 +578,101 @@ function TasksView({ tasks, onChange, hasProfile }) {
     );
   }
 
+  const monthCounts = {};
+  tasks.forEach(t => { const m = t.month_number || 1; monthCounts[m] = (monthCounts[m] || 0) + 1; });
+  const canGenerateNextMonth = selectedMonth < 6 && (monthCounts[selectedMonth + 1] || 0) === 0 && monthTasks.length > 0;
+
   return (
     <div className="space-y-4">
-      <Section title={`📍 היום + עבר (${today.length})`} empty="כל הכבוד, אתה עדכני 👏">
-        {today.map(t => (
-          <TaskCard key={t.id} t={t} onComplete={markComplete} onExpand={expand} expanded={expanded === t.id} expansion={expansionCache[t.id]} loadingExp={loadingExp && expanded === t.id} />
-        ))}
-      </Section>
-      <Section title={`📅 הבאות בתור (${upcoming.length})`} empty="אין משימות מתוזמנות. צור עוד למטה.">
-        {upcoming.slice(0, 20).map(t => (
-          <TaskCard key={t.id} t={t} onComplete={markComplete} onExpand={expand} expanded={expanded === t.id} expansion={expansionCache[t.id]} loadingExp={loadingExp && expanded === t.id} />
-        ))}
-      </Section>
-      <button onClick={generateMore} disabled={generatingMore} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-2xl disabled:opacity-50">
-        {generatingMore ? '🤔 מייצר…' : '✨ ייצר 7 משימות חדשות'}
-      </button>
+      {/* Month selector */}
+      <div className="bg-white border border-slate-200 rounded-2xl p-3">
+        <p className="text-xs text-slate-500 mb-2">📅 בחר חודש בתכנית:</p>
+        <div className="grid grid-cols-6 gap-1.5">
+          {[1, 2, 3, 4, 5, 6].map(m => {
+            const cnt = monthCounts[m] || 0;
+            const isCurrent = m === selectedMonth;
+            return (
+              <button
+                key={m}
+                onClick={() => setSelectedMonth(m)}
+                className={`py-2 rounded-xl text-sm font-black transition ${
+                  isCurrent ? 'bg-indigo-600 text-white shadow' : cnt > 0 ? 'bg-slate-100 text-slate-700 hover:bg-slate-200' : 'bg-slate-50 text-slate-400'
+                }`}
+              >
+                <div>חודש {m}</div>
+                <div className={`text-[10px] ${isCurrent ? 'opacity-80' : ''}`}>{cnt} משימות</div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Month context card */}
+      {monthInfo && (
+        <div className="bg-gradient-to-l from-indigo-500 to-purple-600 text-white rounded-2xl p-4">
+          <p className="text-xs opacity-80">חודש {selectedMonth} · {monthInfo.theme || ''}</p>
+          <p className="font-black text-base mt-0.5">{monthInfo.focus || 'מיקוד החודש'}</p>
+          <div className="mt-2 h-2 bg-white/30 rounded-full overflow-hidden">
+            <div className="h-full bg-white transition-all" style={{ width: `${monthPct}%` }} />
+          </div>
+          <p className="text-xs opacity-90 mt-1">{monthCompleted}/{monthTasks.length} הושלמו · {monthPct}%</p>
+        </div>
+      )}
+
+      {monthTasks.length === 0 ? (
+        <div className="bg-white border border-slate-200 rounded-2xl p-6 text-center">
+          <p className="text-slate-400 text-sm mb-3">אין עדיין משימות לחודש זה</p>
+          {selectedMonth > 1 && (
+            <button onClick={generateNextMonth} disabled={generatingNext} className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-bold px-5 py-2.5 rounded-xl">
+              {generatingNext ? '🤔 מייצר…' : `✨ ייצר את חודש ${selectedMonth}`}
+            </button>
+          )}
+        </div>
+      ) : (
+        <>
+          {weeks.map(w => w.total > 0 && (
+            <div key={w.week} className="bg-white border border-slate-200 rounded-2xl p-3">
+              <div className="flex items-center justify-between mb-2">
+                <p className="font-black text-slate-800 text-sm">📍 שבוע {w.week}</p>
+                <span className="text-xs bg-slate-100 text-slate-600 px-2 py-1 rounded-full font-bold">
+                  {w.completed}/{w.total}
+                </span>
+              </div>
+              <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden mb-3">
+                <div className="h-full bg-emerald-500 transition-all" style={{ width: `${w.total ? (w.completed / w.total) * 100 : 0}%` }} />
+              </div>
+              <div className="space-y-3">
+                {w.days.map(day => (
+                  <div key={day}>
+                    <p className="text-xs font-bold text-slate-500 mb-1.5">
+                      {day === todayStr ? '📍 היום · ' : ''}
+                      {day}
+                    </p>
+                    <div className="space-y-2">
+                      {w.byDay[day].map(t => (
+                        <TaskCard key={t.id} t={t} onComplete={markComplete} onExpand={expand}
+                          expanded={expanded === t.id} expansion={expansionCache[t.id]}
+                          loadingExp={loadingExp && expanded === t.id} />
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </>
+      )}
+
+      <div className="flex flex-col sm:flex-row gap-2">
+        {canGenerateNextMonth && (
+          <button onClick={generateNextMonth} disabled={generatingNext} className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-2xl disabled:opacity-50">
+            {generatingNext ? '🤔 מייצר…' : `🚀 התחל חודש ${selectedMonth + 1}`}
+          </button>
+        )}
+        <button onClick={generateTopup} disabled={generatingTopup} className="flex-1 bg-white hover:bg-slate-50 border-2 border-slate-200 text-slate-700 font-bold py-3 rounded-2xl disabled:opacity-50">
+          {generatingTopup ? '🤔 מייצר…' : '✨ עוד 7 משימות לחודש הזה'}
+        </button>
+      </div>
       {completed.length > 0 && (
         <details className="bg-white border border-slate-200 rounded-2xl p-3">
           <summary className="font-bold text-slate-700 cursor-pointer text-sm">✅ הושלמו ({completed.length})</summary>

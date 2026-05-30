@@ -168,7 +168,13 @@ registerFn('generateMarketingStrategy', async () => {
       `החזר JSON בלבד עם השדות:\n` +
       `- goal_summary (string): משפט אחד שמתאר את היעד.\n` +
       `- monthly_plan: מערך של 6 חודשים, לכל חודש: { month: 1-6, focus: "...", theme: "...", expected_outcomes: ["..."], milestones: ["..."] }.\n` +
-      `- initial_tasks: 10-15 משימות לחודש הראשון בלבד. כל משימה כוללת: title, description (3-6 משפטים מפורטים על איך לבצע), task_type ('online' / 'offline'), platform (facebook/instagram/tiktok/google/email/sms/whatsapp/sign/event/local_partner/none), priority (high/medium/low), estimated_time (דקות), budget_required (₪), due_date_offset_days (כמה ימים מהיום), ai_reasoning (למה זה רלוונטי דווקא לעסק הזה).`,
+      `- initial_tasks: 12-16 משימות לחודש הראשון בלבד, **מפוזרות על פני 4 השבועות של החודש**:\n` +
+      `  - בשבוע 1: 3-4 משימות התנעה ובסיס (אופטימיזציה, הקמת קמפיינים, חזרה לבסיס).\n` +
+      `  - בשבוע 2: 3-4 משימות פעילות שוטפת + תוכן.\n` +
+      `  - בשבוע 3: 3-4 משימות לחיזוק מומנטום ובדיקת תוצאות.\n` +
+      `  - בשבוע 4: 2-4 משימות מתקדמות / ניתוח חודש + הכנה לחודש הבא.\n` +
+      `  כל משימה חייבת לכלול week_in_month (1-4), day_offset_in_week (1-7 — איזה יום בתוך השבוע), monthly_theme (שכפול ה-theme של החודש 1 שכבר נתת ב-monthly_plan), וגם: title, description (3-6 משפטים מפורטים על איך לבצע בפועל), task_type ('online' / 'offline'), platform (facebook/instagram/tiktok/google/email/sms/whatsapp/sign/event/local_partner/none), priority (high/medium/low), estimated_time (דקות), budget_required (₪), ai_reasoning (למה זה רלוונטי דווקא לעסק הזה ולחודש הזה).\n\n` +
+      `**קריטי: כל משימה חייבת לתמוך באבני הדרך של החודש הראשון.** אם אבן דרך אומרת "השקת קמפיין ממומן", חייבת להיות משימה ספציפית להקמת הקמפיין בשבוע 1.`,
     responseSchema: {
       type: 'object',
       properties: {
@@ -198,7 +204,9 @@ registerFn('generateMarketingStrategy', async () => {
               priority: { type: 'string' },
               estimated_time: { type: 'integer' },
               budget_required: { type: 'number' },
-              due_date_offset_days: { type: 'integer' },
+              week_in_month: { type: 'integer' },        // 1-4
+              day_offset_in_week: { type: 'integer' },   // 1-7
+              monthly_theme: { type: 'string' },
               ai_reasoning: { type: 'string' },
             },
           },
@@ -220,27 +228,42 @@ registerFn('generateMarketingStrategy', async () => {
     },
   });
 
-  // Materialize the initial tasks
+  // Materialize the initial tasks — distribute them across the 4 weeks of
+  // month 1, computing the actual due_date from week_in_month + day_offset.
   const today = new Date();
+  const monthStart = today; // month 1 starts today
   const initialTasks = Array.isArray(result?.initial_tasks) ? result.initial_tasks : [];
   let created = 0;
   for (const t of initialTasks) {
     try {
-      const due = new Date(today.getTime() + ((t.due_date_offset_days ?? 1) * 86400000));
-      await db.marketingTask.create({
-        data: {
-          task_type: t.task_type || 'online',
-          title: String(t.title || '').slice(0, 200),
-          description: String(t.description || ''),
-          priority: t.priority || 'medium',
-          platform: t.platform || null,
-          estimated_time: typeof t.estimated_time === 'number' ? t.estimated_time : null,
-          budget_required: typeof t.budget_required === 'number' ? t.budget_required : null,
-          due_date: due.toISOString().slice(0, 10),
-          status: 'pending',
-          ai_reasoning: t.ai_reasoning || null,
-        },
-      });
+      const week = Math.max(1, Math.min(4, parseInt(String(t.week_in_month ?? 1)) || 1));
+      const day = Math.max(1, Math.min(7, parseInt(String(t.day_offset_in_week ?? 1)) || 1));
+      const offsetDays = (week - 1) * 7 + (day - 1);
+      const due = new Date(monthStart.getTime() + offsetDays * 86400000);
+      const baseData: any = {
+        task_type: t.task_type || 'online',
+        title: String(t.title || '').slice(0, 200),
+        description: String(t.description || ''),
+        priority: t.priority || 'medium',
+        platform: t.platform || null,
+        estimated_time: typeof t.estimated_time === 'number' ? t.estimated_time : null,
+        budget_required: typeof t.budget_required === 'number' ? t.budget_required : null,
+        due_date: due.toISOString().slice(0, 10),
+        status: 'pending',
+        ai_reasoning: t.ai_reasoning || null,
+      };
+      const opt: any = {
+        strategy_id: strategy.id,
+        month_number: 1,
+        week_in_month: week,
+        monthly_theme: t.monthly_theme || (Array.isArray(result?.monthly_plan) ? result.monthly_plan[0]?.theme : null) || null,
+      };
+      try { await db.marketingTask.create({ data: { ...baseData, ...opt } }); }
+      catch (e: any) {
+        if (/unknown (arg|column)/i.test(String(e?.message))) {
+          await db.marketingTask.create({ data: baseData }); // schema not pushed yet — keep going
+        } else { throw e; }
+      }
       created++;
     } catch (e: any) {
       console.error('[marketingTask.create]', e?.message);
@@ -248,6 +271,105 @@ registerFn('generateMarketingStrategy', async () => {
   }
 
   return { strategy, tasks_created: created };
+});
+
+// Generate a full month of tasks (12-16) for months 2-6 of the strategy.
+// Picks up where the previous month left off, based on what got done.
+registerFn('generateMonthTasks', async ({ body }) => {
+  const monthNumber = Math.max(2, Math.min(6, parseInt(String((body as any)?.month_number || 2)) || 2));
+  const profile = await db.businessProfile.findFirst();
+  if (!profile?.profile_data) throw new Error('profile_not_found');
+  const strategy = await db.marketingStrategy.findFirst({ where: { active: true } });
+  if (!strategy) throw new Error('strategy_not_found');
+  const shiftContext = await recentShiftContext();
+  const monthsPlan = Array.isArray(strategy.months_plan) ? strategy.months_plan : [];
+  const targetMonth = monthsPlan.find((m: any) => Number(m.month) === monthNumber) || monthsPlan[monthNumber - 1] || {};
+
+  // Snapshot what got done in the previous month so we can build on it.
+  const previousMonthTasks = await db.marketingTask.findMany({
+    where: { strategy_id: strategy.id, month_number: monthNumber - 1 },
+    take: 50,
+  }).catch(() => []);
+  const completed = previousMonthTasks.filter((t: any) => t.status === 'completed');
+  const skipped = previousMonthTasks.filter((t: any) => t.status !== 'completed');
+
+  const result: any = await invokeLLM({
+    prompt:
+      MARKETING_ADVISOR_PERSONA +
+      `\n\nאתה מייצר משימות לחודש ${monthNumber} מתוך 6 בתכנית של 6 חודשים.\n\n` +
+      `--- פרופיל ---\n${JSON.stringify(profile.profile_data)}\n` +
+      `--- אסטרטגיה כללית (6 חודשים) ---\n${JSON.stringify(monthsPlan)}\n` +
+      `--- חודש זה ---\n${JSON.stringify(targetMonth)}\n` +
+      `${shiftContext}` +
+      `--- מה הושלם בחודש הקודם (חודש ${monthNumber - 1}) ---\n${completed.map((t: any) => `✓ ${t.title}`).join('\n') || '(אין נתונים)'}\n` +
+      `--- מה לא הושלם בחודש הקודם (נדלג בחודש הזה) ---\n${skipped.map((t: any) => `× ${t.title}`).join('\n') || '(הכל הושלם)'}\n\n` +
+      `החזר 12-16 משימות לחודש ${monthNumber}, מפוזרות על פני 4 השבועות. כל משימה: title, description, task_type, platform, priority, estimated_time, budget_required, week_in_month (1-4), day_offset_in_week (1-7), monthly_theme, ai_reasoning. JSON בלבד.`,
+    responseSchema: {
+      type: 'object',
+      properties: {
+        tasks: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              title: { type: 'string' },
+              description: { type: 'string' },
+              task_type: { type: 'string' },
+              platform: { type: 'string' },
+              priority: { type: 'string' },
+              estimated_time: { type: 'integer' },
+              budget_required: { type: 'number' },
+              week_in_month: { type: 'integer' },
+              day_offset_in_week: { type: 'integer' },
+              monthly_theme: { type: 'string' },
+              ai_reasoning: { type: 'string' },
+            },
+          },
+        },
+      },
+    },
+  });
+
+  // The month starts (monthNumber-1)*30 days from "now" (the strategy start).
+  // We use today as the reference and offset from there.
+  const today = new Date();
+  const monthStart = new Date(today.getTime() + (monthNumber - 1) * 30 * 86400000);
+  const list = Array.isArray(result?.tasks) ? result.tasks : [];
+  let created = 0;
+  for (const t of list) {
+    try {
+      const week = Math.max(1, Math.min(4, parseInt(String(t.week_in_month ?? 1)) || 1));
+      const day = Math.max(1, Math.min(7, parseInt(String(t.day_offset_in_week ?? 1)) || 1));
+      const offsetDays = (week - 1) * 7 + (day - 1);
+      const due = new Date(monthStart.getTime() + offsetDays * 86400000);
+      const baseData: any = {
+        task_type: t.task_type || 'online',
+        title: String(t.title || '').slice(0, 200),
+        description: String(t.description || ''),
+        priority: t.priority || 'medium',
+        platform: t.platform || null,
+        estimated_time: typeof t.estimated_time === 'number' ? t.estimated_time : null,
+        budget_required: typeof t.budget_required === 'number' ? t.budget_required : null,
+        due_date: due.toISOString().slice(0, 10),
+        status: 'pending',
+        ai_reasoning: t.ai_reasoning || null,
+      };
+      const opt: any = {
+        strategy_id: strategy.id,
+        month_number: monthNumber,
+        week_in_month: week,
+        monthly_theme: t.monthly_theme || targetMonth?.theme || null,
+      };
+      try { await db.marketingTask.create({ data: { ...baseData, ...opt } }); }
+      catch (e: any) {
+        if (/unknown (arg|column)/i.test(String(e?.message))) {
+          await db.marketingTask.create({ data: baseData });
+        } else { throw e; }
+      }
+      created++;
+    } catch (e: any) { console.error('[marketingTask.create]', e?.message); }
+  }
+  return { tasks_created: created, month_number: monthNumber };
 });
 
 // Generate a fresh batch of N tasks (when the owner finishes the current pile).
