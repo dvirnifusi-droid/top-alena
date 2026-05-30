@@ -48,6 +48,10 @@ function AvailabilityRequestsInner() {
      const clearFilters = () => { setFilterSearch(''); setFilterShift('all'); setFilterStatus('all'); setFilterRole('all'); };
      const filtersActive = filterSearch.trim() || filterShift !== 'all' || filterStatus !== 'all' || filterRole !== 'all';
 
+     // Roster panel: collapsed by default. Holds both "didn't submit" and inactive lists.
+     const [rosterOpen, setRosterOpen] = useState(false);
+     const [inactiveEmployees, setInactiveEmployees] = useState([]);
+
     const weekStart = startOfWeek(addDays(new Date(), weekOffset * 7), { weekStartsOn: 0 });
     const weekEnd = endOfWeek(weekStart, { weekStartsOn: 0 });
     const weekDays = eachDayOfInterval({ start: weekStart, end: weekEnd });
@@ -59,13 +63,15 @@ function AvailabilityRequestsInner() {
     const loadData = async () => {
         setLoading(true);
         try {
-            const [allAvail, allEmps, sett] = await Promise.all([
+            const [allAvail, allEmps, inactiveEmps, sett] = await Promise.all([
                 base44.entities.EmployeeAvailability.list(),
                 base44.entities.Employee.filter({ status: 'active' }),
+                base44.entities.Employee.filter({ status: 'inactive' }).catch(() => []),
                 base44.entities.AvailabilityFormSettings.list(),
             ]);
             setAvailabilities(allAvail);
             setEmployees(allEmps);
+            setInactiveEmployees(inactiveEmps || []);
             setSettings(sett[0] || null);
         } catch (e) {
             console.error(e);
@@ -300,6 +306,16 @@ function AvailabilityRequestsInner() {
             toast.error('שגיאה בעדכון');
         }
     };
+    const reactivateEmployee = async (emp) => {
+        if (!window.confirm(`להחזיר את ${emp.full_name} לפעיל?`)) return;
+        try {
+            await base44.entities.Employee.update(emp.id, { status: 'active' });
+            toast.success('העובד הוחזר לפעיל');
+            await loadData();
+        } catch {
+            toast.error('שגיאה בעדכון');
+        }
+    };
 
     if (loading) return (
         <div className="flex items-center justify-center h-64">
@@ -446,27 +462,73 @@ function AvailabilityRequestsInner() {
                 </div>
             </Card>
 
-            {/* ---------- Not submitted yet ---------- */}
-            {notSubmittedEmployees.length > 0 && (
-                <Card className="mb-4 p-4 border-amber-300 bg-amber-50/40">
-                    <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-                        <p className="font-black text-amber-800">⏰ עובדים פעילים שעדיין לא הגישו ({notSubmittedEmployees.length})</p>
-                        <p className="text-xs text-amber-700">שלח תזכורת בוואטסאפ בלחיצה — או הפוך ללא פעיל</p>
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                        {notSubmittedEmployees.map((emp) => (
-                            <div key={emp.id} className="flex items-center gap-2 bg-white rounded-lg border border-amber-200 p-2.5">
-                                <div className="flex-1 min-w-0">
-                                    <p className="font-bold text-slate-800 text-sm truncate">{emp.full_name}</p>
-                                    <p className="text-xs text-slate-500 truncate">{emp.phone || '—'} · {emp.role || ''}</p>
-                                </div>
-                                <button onClick={() => openReminderWa(emp)} title="שלח תזכורת בוואטסאפ" className="text-xs bg-emerald-500 hover:bg-emerald-600 text-white font-bold px-2 py-1.5 rounded-lg">📱</button>
-                                <button onClick={() => deactivateEmployee(emp)} title="הפוך ללא פעיל" className="text-xs bg-white border border-red-200 hover:bg-red-50 text-red-600 font-bold px-2 py-1.5 rounded-lg">🚫</button>
+            {/* ---------- Roster toggle (not-submitted + inactive) ---------- */}
+            <div className="mb-4">
+                <button
+                    onClick={() => setRosterOpen((v) => !v)}
+                    className="w-full flex items-center justify-between gap-3 bg-white border-2 border-amber-300 hover:bg-amber-50 transition rounded-2xl px-4 py-3"
+                >
+                    <span className="font-black text-amber-800 text-base">
+                        👥 ניהול עובדים — לא הגישו ({notSubmittedEmployees.length}) · לא פעילים ({inactiveEmployees.length})
+                    </span>
+                    {rosterOpen
+                        ? <ChevronUp className="w-5 h-5 text-amber-700" />
+                        : <ChevronDown className="w-5 h-5 text-amber-700" />}
+                </button>
+
+                {rosterOpen && (
+                    <div className="mt-3 space-y-3">
+                        {/* --- Not submitted --- */}
+                        <Card className="p-4 border-amber-300 bg-amber-50/40">
+                            <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+                                <p className="font-black text-amber-800">⏰ עובדים פעילים שעדיין לא הגישו ({notSubmittedEmployees.length})</p>
+                                <p className="text-xs text-amber-700">📱 שולח תזכורת בוואטסאפ · 🚫 מעביר ללא פעיל</p>
                             </div>
-                        ))}
+                            {notSubmittedEmployees.length === 0 ? (
+                                <p className="text-slate-400 text-sm text-center py-3">כל העובדים הפעילים בחטיבה הזו הגישו ✓</p>
+                            ) : (
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                                    {notSubmittedEmployees.map((emp) => (
+                                        <div key={emp.id} className="flex items-center gap-2 bg-white rounded-lg border border-amber-200 p-2.5">
+                                            <div className="flex-1 min-w-0">
+                                                <p className="font-bold text-slate-800 text-sm truncate">{emp.full_name}</p>
+                                                <p className="text-xs text-slate-500 truncate">{emp.phone || '—'} · {emp.role || ''}</p>
+                                            </div>
+                                            <button onClick={() => openReminderWa(emp)} title="שלח תזכורת בוואטסאפ" className="text-xs bg-emerald-500 hover:bg-emerald-600 text-white font-bold px-2 py-1.5 rounded-lg">📱</button>
+                                            <button onClick={() => deactivateEmployee(emp)} title="הפוך ללא פעיל" className="text-xs bg-white border border-red-200 hover:bg-red-50 text-red-600 font-bold px-2 py-1.5 rounded-lg">🚫</button>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </Card>
+
+                        {/* --- Inactive employees --- */}
+                        <Card className="p-4 border-slate-300 bg-slate-50/60">
+                            <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+                                <p className="font-black text-slate-700">🚫 עובדים לא פעילים ({inactiveEmployees.length})</p>
+                                <p className="text-xs text-slate-500">✅ מחזיר לפעיל</p>
+                            </div>
+                            {inactiveEmployees.length === 0 ? (
+                                <p className="text-slate-400 text-sm text-center py-3">אין עובדים לא פעילים</p>
+                            ) : (
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                                    {inactiveEmployees.map((emp) => (
+                                        <div key={emp.id} className="flex items-center gap-2 bg-white rounded-lg border border-slate-200 p-2.5">
+                                            <div className="flex-1 min-w-0">
+                                                <p className="font-bold text-slate-800 text-sm truncate">{emp.full_name}</p>
+                                                <p className="text-xs text-slate-500 truncate">{emp.phone || '—'} · {emp.role || ''}</p>
+                                            </div>
+                                            <button onClick={() => reactivateEmployee(emp)} title="החזר לפעיל" className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-2.5 py-1.5 rounded-lg">
+                                                ✅ הפעל
+                                            </button>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </Card>
                     </div>
-                </Card>
-            )}
+                )}
+            </div>
 
             {weekAvailabilities.length === 0 ? (
                 <Card className="text-center p-12">
