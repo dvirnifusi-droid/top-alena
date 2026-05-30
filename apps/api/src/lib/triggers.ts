@@ -5,7 +5,7 @@
 
 import { prisma } from '../db.js';
 import { pushoverToAdmins } from './pushover.js';
-import { sendSms } from './twilio.js';
+import { notifyEmployee } from './notifications.js';
 
 const db = prisma as any;
 
@@ -128,43 +128,37 @@ on('LeaveRequest', 'updated', async (row, prev) => {
   );
 });
 
-// ─────────────────── SMS (to the affected employee) ───────────────────
-
-// Helper: look up an Employee by id and return their phone if any.
-async function phoneOfEmployee(employee_id?: string | null): Promise<string | null> {
-  if (!employee_id) return null;
-  const emp = await db.employee.findUnique({ where: { id: employee_id } }).catch(() => null);
-  return emp?.phone || null;
-}
+// ─────────────────── Web Push (to the affected employee, free) ──────
+// Uses the same Employee.push_subscription the staff page already populates.
+// No SMS, no Twilio cost. Employees who haven't enabled notifications simply
+// won't receive these — they'll still see updates when they open the app.
 
 on('LeaveRequest', 'updated', async (row, prev) => {
   if (prev?.status === row.status) return;
-  const phone = row.employee_phone || row.phone || await phoneOfEmployee(row.employee_id);
-  if (!phone) return;
-  const name = row.employee_name || '';
-  await sendSms(
-    phone,
-    `שלום ${name}, בקשת החופשה שלך ל-${row.start_date || ''}${row.end_date ? `–${row.end_date}` : ''} ${statusLabel(row.status)}.`
+  await notifyEmployee(
+    row.employee_id,
+    `🌴 בקשת החופשה ${statusLabel(row.status)}`,
+    `${row.start_date || ''}${row.end_date ? `–${row.end_date}` : ''}`,
+    '/LeaveRequests',
   );
 });
 
 on('WorkShift', 'created', async (row) => {
   const staff = Array.isArray(row.assigned_staff) ? row.assigned_staff : [];
   for (const s of staff) {
-    const phone = await phoneOfEmployee(s?.employee_id);
-    if (!phone) continue;
-    const text = `שלום ${s.employee_name || ''}, שובצת למשמרת ${row.date || ''} ${s.start_time ? `· ${s.start_time}-${s.end_time || ''}` : ''} ${s.position ? `· ${s.position}` : ''}.`;
-    await sendSms(phone, text).catch(() => {});
+    if (!s?.employee_id) continue;
+    const body = `${row.date || ''}${s.start_time ? ` · ${s.start_time}-${s.end_time || ''}` : ''}${s.position ? ` · ${s.position}` : ''}`;
+    await notifyEmployee(s.employee_id, '📅 שובצת למשמרת חדשה', body, '/WorkScheduling');
   }
 });
 
 on('ShiftSwapRequest', 'updated', async (row, prev) => {
   if (prev?.status === row.status) return;
-  const phone = row.requester_phone || await phoneOfEmployee(row.requester_id);
-  if (!phone) return;
-  await sendSms(
-    phone,
-    `שלום ${row.requester_name || ''}, בקשת החלפת המשמרת שלך ${statusLabel(row.status)}.`
+  await notifyEmployee(
+    row.requester_id,
+    `🔄 בקשת ההחלפה ${statusLabel(row.status)}`,
+    `המשמרת בתאריך ${row.original_date || row.shift_date || '-'}`,
+    '/EmployeeHome',
   );
 });
 

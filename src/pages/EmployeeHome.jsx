@@ -6,6 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Star, GraduationCap, CheckSquare, AlertTriangle, Calendar, CalendarDays, Utensils, Brain, Sparkles, FileText, Megaphone, Briefcase, MessageCircle, Camera, UserCircle, LogOut, ChevronDown, BookOpen, Settings2 } from 'lucide-react';
 import ShiftNotificationBell from '../components/shared/ShiftNotificationBell';
+import EnableStaffPush from '../components/EnableStaffPush';
 import { Employee } from '@/entities/Employee';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
@@ -239,6 +240,7 @@ export default function EmployeeHome() {
     return (
         <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-6" dir="rtl">
             <div className="max-w-7xl mx-auto">
+                <EnableStaffPush />
                 {/* כותרת עם אוואטר */}
                 <div className="mb-8">
                     <div className="flex items-start justify-between">
