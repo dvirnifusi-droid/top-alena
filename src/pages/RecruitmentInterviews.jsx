@@ -4,21 +4,18 @@ import { createPageUrl } from '@/utils';
 
 // Manager-facing: upcoming interviews + status + WhatsApp reminders + training pipeline.
 
-const STAGES = [
-  { key: 'hired', label: 'נקלט' },
-  { key: 'trainee_tables', label: 'מתלמד שולחנות' },
-  { key: 'trainee_bar', label: 'מתלמד בר' },
-  { key: 'trainee_kitchen', label: 'מתלמד מטבח' },
-  { key: 'active_waiter', label: 'מלצר פעיל' },
-];
-
-const stageIndex = (s) => STAGES.findIndex((x) => x.key === s);
-const nextStage = (s) => {
-  const i = stageIndex(s);
-  if (i < 0) return STAGES[0]?.key;
-  return STAGES[Math.min(i + 1, STAGES.length - 1)].key;
+const STAGE_LABELS = {
+  hired: 'נקלט',
+  learning_menu: 'לומד תפריט 📖',
+  menu_exam_scheduled: 'מבחן תפריט מתוזמן 📅',
+  menu_exam_passed: 'עבר מבחן תפריט ✓',
+  menu_exam_failed: 'נכשל במבחן ✕',
+  training: 'בהתלמדויות',
+  active_waiter: 'מלצר פעיל ⭐',
 };
-const stageLabel = (s) => STAGES.find((x) => x.key === s)?.label || s;
+const stageLabel = (s) => STAGE_LABELS[s] || s || '—';
+
+const FLOW_TEXT = 'נקלט → לומד תפריט → תיאום מבחן → (עבר → התלמדות 1, 2, 3, ... → מלצר פעיל) / (נכשל → תיאום מבחן חדש)';
 
 function normalizePhoneIL(p) {
   if (!p) return null;
@@ -44,8 +41,7 @@ function fmtDate(d) {
 }
 
 export default function RecruitmentInterviews() {
-  const [inbox, setInbox] = useState({ upcoming: [], recent: [], toCallBack: [], topUnscheduled: [] });
-  const [trainees, setTrainees] = useState([]);
+  const [inbox, setInbox] = useState({ upcoming: [], recent: [], toCallBack: [], topUnscheduled: [], trainees: [] });
   const [loading, setLoading] = useState(true);
   const [actionId, setActionId] = useState(null);
 
@@ -57,13 +53,8 @@ export default function RecruitmentInterviews() {
   const load = async () => {
     setLoading(true);
     try {
-      const [inboxRes, trainees] = await Promise.all([
-        base44.functions.getRecruitmentInbox({}),
-        base44.entities.JobCandidate.filter({ status: 'trainee' }, '-created_date', 100),
-      ]);
-      setInbox(inboxRes?.data || { upcoming: [], recent: [], toCallBack: [], topUnscheduled: [] });
-      const active = await base44.entities.JobCandidate.filter({ status: 'active' }, '-created_date', 50).catch(() => []);
-      setTrainees([...(trainees || []), ...(active || [])]);
+      const inboxRes = await base44.functions.getRecruitmentInbox({});
+      setInbox(inboxRes?.data || { upcoming: [], recent: [], toCallBack: [], topUnscheduled: [], trainees: [] });
     } catch (e) {
       console.warn('load failed', e);
     } finally {
@@ -117,6 +108,39 @@ export default function RecruitmentInterviews() {
       await base44.functions.advanceCandidateStage({ candidate_id: cand.id, stage });
       await load();
     } catch { alert('שגיאה בקידום השלב'); }
+    finally { setActionId(null); }
+  };
+
+  const scheduleMenuExam = async (candId, slot) => {
+    setActionId(candId);
+    try {
+      await base44.functions.bookInterviewByManager({ candidate_id: candId, date: slot.date, time: slot.time, type: 'menu_exam' });
+      setOpenSlotCand(null);
+      await load();
+    } catch (e) {
+      alert(e?.message === 'slot_taken' ? 'המועד נתפס. בחר אחר.' : 'שגיאה בקביעת המבחן');
+    } finally { setActionId(null); }
+  };
+
+  const setExamResult = async (cand, passed) => {
+    setActionId(cand.id);
+    try {
+      await base44.functions.setMenuExamResult({
+        candidate_id: cand.id,
+        interview_id: cand.next_menu_exam?.id || null,
+        passed,
+      });
+      await load();
+    } catch { alert('שגיאה בעדכון התוצאה'); }
+    finally { setActionId(null); }
+  };
+
+  const addTrainingSession = async (cand) => {
+    setActionId(cand.id);
+    try {
+      await base44.functions.completeTrainingSession({ candidate_id: cand.id });
+      await load();
+    } catch { alert('שגיאה'); }
     finally { setActionId(null); }
   };
 
@@ -279,44 +303,158 @@ export default function RecruitmentInterviews() {
 
       {/* Training pipeline */}
       <section className="bg-white rounded-2xl shadow border border-slate-200 p-4">
-        <p className="font-black text-slate-800 mb-1">🎓 ציר ההתלמדות</p>
-        <p className="text-xs text-slate-500 mb-3">
-          {STAGES.map((s, i) => (
-            <span key={s.key}>{s.label}{i < STAGES.length - 1 ? ' → ' : ''}</span>
-          ))}
-        </p>
-        {trainees.length === 0 ? (
+        <p className="font-black text-slate-800 mb-1">🎓 ציר ההתלמדות ({(inbox.trainees || []).length})</p>
+        <p className="text-xs text-slate-500 mb-3">{FLOW_TEXT}</p>
+
+        {(inbox.trainees || []).length === 0 ? (
           <p className="text-slate-400 text-sm">אין כרגע מתלמדים. אחרי שתסמן "הגיע" בראיון, תוכל לקלוט אותו כאן.</p>
         ) : (
-          <div className="space-y-2">
-            {trainees.map((c) => {
-              const stage = c.training_stage || 'hired';
-              const next = nextStage(stage);
-              const isFinal = stage === 'active_waiter';
-              return (
-                <div key={c.id} className="border border-slate-200 rounded-xl p-3 flex flex-wrap items-center gap-3">
-                  <div className="flex-1 min-w-[160px]">
-                    <p className="font-bold text-slate-800">{c.full_name}</p>
-                    <p className="text-xs text-slate-500">{c.role_applied || '—'} · {c.phone || '-'}</p>
-                  </div>
-                  <span className="text-xs px-2 py-1 rounded-full font-bold bg-indigo-100 text-indigo-700">{stageLabel(stage)}</span>
-                  {!isFinal && (
-                    <button disabled={actionId===c.id} onClick={() => advance(c, next)} className="text-xs bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-bold px-2.5 py-1.5 rounded-lg">
-                      קדם ל‑{stageLabel(next)} ↩
-                    </button>
-                  )}
-                </div>
-              );
-            })}
+          <div className="space-y-3">
+            {(inbox.trainees || []).map((c) => (
+              <TraineeCard
+                key={c.id}
+                cand={c}
+                actionId={actionId}
+                openSlotCand={openSlotCand}
+                slots={slots}
+                slotsLoading={slotsLoading}
+                onOpenSlots={openSlots}
+                onScheduleMenuExam={scheduleMenuExam}
+                onExamResult={setExamResult}
+                onAddTraining={addTrainingSession}
+                onAdvance={advance}
+              />
+            ))}
           </div>
         )}
-        <p className="text-xs text-slate-500 mt-3">
-          💡 קלט מועמד חדש שעבר ראיון: סמן "הגיע" בראיון שלו → ייכנס לשלב הראשון (נקלט) ומשם תקדם ביד.
-        </p>
+
+        <p className="text-xs text-slate-500 mt-4">💡 קלט מועמד חדש: סמן "הגיע" בראיון שלו → ייכנס לשלב "נקלט" ומשם תקדם דרך השלבים.</p>
 
         {/* Quick-hire shortcut for candidates already marked interviewed */}
         <InterviewedQuickHire onChange={load} />
       </section>
+    </div>
+  );
+}
+
+function TraineeCard({ cand, actionId, openSlotCand, slots, slotsLoading, onOpenSlots, onScheduleMenuExam, onExamResult, onAddTraining, onAdvance }) {
+  const stage = cand.training_stage || 'hired';
+  const sessions = cand.training_sessions_completed || 0;
+  const attempts = cand.menu_exam_attempts || 0;
+  const exam = cand.next_menu_exam;
+  const open = openSlotCand === cand.id;
+  const busy = actionId === cand.id;
+
+  const phone = cand.phone;
+  const wa = phone && (() => {
+    const n = String(phone).replace(/\D/g, '');
+    return (n.startsWith('0') ? '972' + n.slice(1) : (n.startsWith('972') ? n : '972' + n));
+  })();
+
+  return (
+    <div className="border-2 border-indigo-100 rounded-xl p-3 bg-indigo-50/30">
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="flex-1 min-w-[160px]">
+          <p className="font-bold text-slate-800">{cand.full_name}</p>
+          <p className="text-xs text-slate-500">{cand.role_applied || '—'} · {phone || '-'}</p>
+        </div>
+        <span className="text-xs px-2 py-1 rounded-full font-bold bg-indigo-100 text-indigo-700">{stageLabel(stage)}</span>
+        {stage === 'training' && (
+          <span className="text-xs px-2 py-1 rounded-full font-bold bg-emerald-100 text-emerald-700">
+            התלמדות #{sessions}
+          </span>
+        )}
+        {attempts > 0 && (
+          <span className="text-xs px-2 py-1 rounded-full font-bold bg-slate-100 text-slate-600">
+            מבחני תפריט: {attempts}
+          </span>
+        )}
+      </div>
+
+      {/* Stage-specific actions */}
+      <div className="mt-3 flex flex-wrap gap-2">
+        {stage === 'hired' && (
+          <button disabled={busy} onClick={() => onAdvance(cand, 'learning_menu')} className="text-xs bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-bold px-3 py-1.5 rounded-lg">
+            📖 התחל ללמד תפריט
+          </button>
+        )}
+
+        {(stage === 'learning_menu' || stage === 'menu_exam_failed') && (
+          <>
+            <button disabled={busy} onClick={() => onOpenSlots(cand.id)} className="text-xs bg-slate-800 hover:bg-slate-900 disabled:opacity-50 text-white font-bold px-3 py-1.5 rounded-lg">
+              📅 {open ? 'סגור' : 'תאם מבחן תפריט'}
+            </button>
+            {stage === 'menu_exam_failed' && (
+              <span className="text-xs text-red-600 self-center">⚠️ נכשל במבחן הקודם — תאם חדש</span>
+            )}
+          </>
+        )}
+
+        {stage === 'menu_exam_scheduled' && exam && (
+          <>
+            <span className="text-xs bg-amber-50 border border-amber-200 px-2 py-1.5 rounded-lg text-amber-700 font-bold">
+              🗓️ {exam.scheduled_date} בשעה {exam.scheduled_time}
+            </span>
+            <button disabled={busy} onClick={() => onExamResult(cand, true)} className="text-xs bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold px-3 py-1.5 rounded-lg">
+              ✓ עבר
+            </button>
+            <button disabled={busy} onClick={() => onExamResult(cand, false)} className="text-xs bg-red-500 hover:bg-red-600 disabled:opacity-50 text-white font-bold px-3 py-1.5 rounded-lg">
+              ✕ לא עבר
+            </button>
+          </>
+        )}
+
+        {stage === 'menu_exam_passed' && (
+          <button disabled={busy} onClick={() => onAdvance(cand, 'training')} className="text-xs bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold px-3 py-1.5 rounded-lg">
+            🎓 התחל התלמדויות
+          </button>
+        )}
+
+        {stage === 'training' && (
+          <>
+            <button disabled={busy} onClick={() => onAddTraining(cand)} className="text-xs bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-bold px-3 py-1.5 rounded-lg">
+              ✓ סיים התלמדות #{sessions + 1}
+            </button>
+            <button disabled={busy} onClick={() => onAdvance(cand, 'active_waiter')} className="text-xs bg-slate-800 hover:bg-slate-900 disabled:opacity-50 text-white font-bold px-3 py-1.5 rounded-lg">
+              ⭐ מלצר פעיל
+            </button>
+          </>
+        )}
+
+        {wa && (
+          <a href={`https://wa.me/${wa}`} target="_blank" rel="noreferrer" className="text-xs bg-emerald-500 hover:bg-emerald-600 text-white font-bold px-2.5 py-1.5 rounded-lg mr-auto">
+            📱 וואטסאפ
+          </a>
+        )}
+      </div>
+
+      {/* Inline slot picker for menu exam */}
+      {open && (
+        <div className="mt-3 bg-white rounded-xl p-3 border border-slate-200">
+          <p className="text-xs font-bold text-slate-700 mb-2">📅 בחר מועד למבחן תפריט:</p>
+          {slotsLoading ? (
+            <p className="text-slate-400 text-sm">טוען…</p>
+          ) : slots.length === 0 ? (
+            <p className="text-slate-500 text-sm">
+              אין מועדים פנויים — הגדר סלוטים ב<a href={createPageUrl('InterviewSettings')} className="underline text-emerald-700">הגדרות סלוטים</a>.
+            </p>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-60 overflow-y-auto">
+              {slots.map((s, i) => (
+                <button
+                  key={i}
+                  onClick={() => onScheduleMenuExam(cand.id, s)}
+                  disabled={busy}
+                  className="rounded-lg border border-emerald-200 hover:border-emerald-500 hover:bg-emerald-50 disabled:opacity-50 transition p-2 text-right text-xs"
+                >
+                  <p className="font-bold text-slate-800">יום {s.weekday_name}</p>
+                  <p className="text-slate-500">{s.date} · {s.time}</p>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

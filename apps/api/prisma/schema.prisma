@@ -722,6 +722,8 @@ model JobCandidate {
   ai_summary                   String?
   training_stage               String?
   hired_at                     String?
+  training_sessions_completed  Int?     @default(0)
+  menu_exam_attempts           Int?     @default(0)
   created_by  String?
   created_date  String?
   updated_date  String?
@@ -1618,6 +1620,7 @@ model Interview {
   scheduled_time    String   // "HH:mm"
   duration_minutes  Int?     @default(30)
   status            String?  @default("scheduled") // scheduled, showed, no_show, cancelled, completed
+  type_             String?  @default("interview") @map("type") // 'interview' | 'menu_exam'
   notes             String?
   reminder_sent_at  String?
   created_by        String?

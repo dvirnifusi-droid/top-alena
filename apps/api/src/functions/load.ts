@@ -359,7 +359,33 @@ registerFn('getRecruitmentInbox', async () => {
     orderBy: { created_date: 'desc' },
     take: 50,
   });
-  return { upcoming, recent, toCallBack, topUnscheduled };
+
+  // For each trainee, attach their next scheduled menu exam (if any) so the
+  // pipeline UI can show the date/time and "passed/failed" buttons.
+  const trainees = await db.jobCandidate.findMany({
+    where: { status: { in: ['trainee', 'active'] } },
+    orderBy: { created_date: 'desc' },
+    take: 100,
+  });
+  const traineeIds = trainees.map((t: any) => t.id);
+  const menuExams = traineeIds.length
+    ? await db.interview.findMany({
+        where: { candidate_id: { in: traineeIds }, type_: 'menu_exam' },
+        orderBy: [{ scheduled_date: 'desc' }, { scheduled_time: 'desc' }],
+      })
+    : [];
+  // Map candidate -> latest open menu exam (status=scheduled), else null
+  const latestExamByCand: Record<string, any> = {};
+  for (const ex of menuExams) {
+    if (latestExamByCand[ex.candidate_id]) continue;
+    if (ex.status === 'scheduled') latestExamByCand[ex.candidate_id] = ex;
+  }
+  const traineesEnriched = trainees.map((t: any) => ({
+    ...t,
+    next_menu_exam: latestExamByCand[t.id] || null,
+  }));
+
+  return { upcoming, recent, toCallBack, topUnscheduled, trainees: traineesEnriched };
 });
 
 // AUTH — manager-side slot helpers (no candidate-score check).
@@ -393,10 +419,11 @@ registerFn('getInterviewSlotsForManager', async () => {
 });
 
 registerFn('bookInterviewByManager', async ({ body }) => {
-  const { candidate_id, date, time } = body as any;
+  const { candidate_id, date, time, type } = body as any;
   if (!candidate_id || !date || !time) throw new Error('missing_params');
   const cand = await db.jobCandidate.findUnique({ where: { id: candidate_id } });
   if (!cand) throw new Error('candidate_not_found');
+  const t = type === 'menu_exam' ? 'menu_exam' : 'interview';
 
   const taken = await db.interview.findFirst({
     where: { scheduled_date: date, scheduled_time: time, status: { in: ['scheduled', 'showed', 'completed'] } },
@@ -413,10 +440,59 @@ registerFn('bookInterviewByManager', async ({ body }) => {
       scheduled_time: time,
       duration_minutes: tpl?.duration_minutes ?? 30,
       status: 'scheduled',
+      type_: t,
     },
   });
-  await db.jobCandidate.update({ where: { id: candidate_id }, data: { status: 'interview_scheduled' } });
+
+  if (t === 'menu_exam') {
+    await db.jobCandidate.update({
+      where: { id: candidate_id },
+      data: { training_stage: 'menu_exam_scheduled' },
+    });
+  } else {
+    await db.jobCandidate.update({ where: { id: candidate_id }, data: { status: 'interview_scheduled' } });
+  }
   return { interview };
+});
+
+// Manager marks the menu exam result. On pass -> menu_exam_passed (ready to
+// start training shifts). On fail -> menu_exam_failed (manager can schedule
+// another exam). Either way the Interview row is closed.
+registerFn('setMenuExamResult', async ({ body }) => {
+  const { candidate_id, interview_id, passed } = body as any;
+  if (!candidate_id || typeof passed !== 'boolean') throw new Error('missing_params');
+  if (interview_id) {
+    await db.interview.update({
+      where: { id: interview_id },
+      data: { status: 'completed', notes: passed ? 'עבר מבחן תפריט' : 'נכשל במבחן תפריט' },
+    }).catch(() => {});
+  }
+  const cand = await db.jobCandidate.findUnique({ where: { id: candidate_id } });
+  const attempts = (cand?.menu_exam_attempts ?? 0) + 1;
+  const stage = passed ? 'menu_exam_passed' : 'menu_exam_failed';
+  const updated = await db.jobCandidate.update({
+    where: { id: candidate_id },
+    data: { training_stage: stage, menu_exam_attempts: attempts },
+  });
+  return { candidate: updated };
+});
+
+// Manager completed one training shift for the candidate. Increments counter;
+// moving to 'active_waiter' is a separate explicit action (advanceCandidateStage).
+registerFn('completeTrainingSession', async ({ body }) => {
+  const { candidate_id } = body as any;
+  if (!candidate_id) throw new Error('candidate_id required');
+  const cand = await db.jobCandidate.findUnique({ where: { id: candidate_id } });
+  const sessions = (cand?.training_sessions_completed ?? 0) + 1;
+  const updated = await db.jobCandidate.update({
+    where: { id: candidate_id },
+    data: {
+      training_sessions_completed: sessions,
+      training_stage: cand?.training_stage === 'menu_exam_passed' ? 'training' : (cand?.training_stage || 'training'),
+      status: 'trainee',
+    },
+  });
+  return { candidate: updated };
 });
 
 registerFn('markInterviewStatus', async ({ body }) => {
