@@ -66,13 +66,36 @@ export default function AvailabilityForm() {
      const [loginDepartment, setLoginDepartment] = useState(null);
      // Roles I can fill — picked once, applied to every available day.
      const [myRoles, setMyRoles] = useState([]);
+     // Catalog of all positions defined in the system (PositionsManagement).
+     const [systemPositions, setSystemPositions] = useState([]);
+
+     React.useEffect(() => {
+         base44.entities.WorkPosition.list?.()
+             .then(arr => {
+                 const names = (arr || [])
+                     .map(p => p?.position_name || p?.name || p?.title)
+                     .filter(Boolean);
+                 setSystemPositions(names);
+             })
+             .catch(() => {});
+     }, []);
+
+     const addCustomRole = () => {
+         const name = (window.prompt('שם התפקיד החדש להוספה:') || '').trim();
+         if (!name) return;
+         if (myRoles.includes(name)) return;
+         setMyRoles(prev => [...prev, name]);
+         // Surface the custom value as a chip on next renders too.
+         setSystemPositions(prev => prev.includes(name) ? prev : [...prev, name]);
+     };
      
      const AVAILABILITY_TYPES = settings ? Object.fromEntries(settings.availability_types.map(t => [t.key, { label: t.label, color: t.color }])) : DEFAULT_AVAILABILITY_TYPES;
      const SHIFT_OPTIONS = settings?.shift_options || DEFAULT_SHIFT_OPTIONS;
      const DEPARTMENTS = settings?.departments || [];
-     // Build the chip list: department's positions + every position name the
-     // employee already has on their record (so something always shows up even
-     // if the AvailabilityFormSettings department is sparse).
+     // Build the chip list from: AvailabilityFormSettings department positions
+     // + every position name on the employee record + the full WorkPosition
+     // catalog (PositionsManagement). Ensures every role defined anywhere in
+     // the system is selectable here.
      const POSITIONS = React.useMemo(() => {
          const set = new Set();
          const deptPositions = selectedDepartment ? (settings?.departments?.find(d => d.key === selectedDepartment)?.positions || []) : [];
@@ -87,8 +110,9 @@ export default function AvailabilityForm() {
                  if (name) set.add(name);
              });
          }
+         systemPositions.forEach(name => name && set.add(name));
          return [...set];
-     }, [settings, selectedDepartment, selectedEmployee]);
+     }, [settings, selectedDepartment, selectedEmployee, systemPositions]);
 
      // Seed myRoles from the employee record on first load (so returning users
      // see their previously-saved positions already selected).
@@ -588,8 +612,7 @@ export default function AvailabilityForm() {
             </div>
 
             {/* Global role picker — one-shot, applies to every available day */}
-            {POSITIONS.length > 0 && (
-                <Card className="mb-4 border-2 border-blue-200 bg-blue-50/50">
+            <Card className="mb-4 border-2 border-blue-200 bg-blue-50/50">
                     <CardContent className="p-4">
                         <Label className="block font-bold mb-1">
                             🎯 התפקידים שאני יודע/ת למלא <span className="text-red-500">*</span>
@@ -611,13 +634,19 @@ export default function AvailabilityForm() {
                                     {pos}
                                 </button>
                             ))}
+                            <button
+                                onClick={addCustomRole}
+                                title="הוסף תפקיד שלא ברשימה"
+                                className="px-3 py-1.5 rounded-full border-2 border-dashed border-blue-400 text-blue-700 hover:bg-blue-100 text-sm font-bold transition-all"
+                            >
+                                ➕ הוסף תפקיד
+                            </button>
                         </div>
                         {myRoles.length === 0 && (
                             <p className="text-xs text-red-500 mt-2">⚠️ צריך לבחור לפחות תפקיד אחד לפני שליחה</p>
                         )}
                     </CardContent>
                 </Card>
-            )}
 
             <div className="space-y-4">
                 {weekDays.map(day => {
