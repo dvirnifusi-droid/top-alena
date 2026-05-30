@@ -89,6 +89,32 @@ export default function AvailabilityForm() {
          setSystemPositions(prev => prev.includes(name) ? prev : [...prev, name]);
      };
 
+     const AVAILABILITY_TYPES = settings ? Object.fromEntries(settings.availability_types.map(t => [t.key, { label: t.label, color: t.color }])) : DEFAULT_AVAILABILITY_TYPES;
+     const SHIFT_OPTIONS = settings?.shift_options || DEFAULT_SHIFT_OPTIONS;
+     const DEPARTMENTS = settings?.departments || [];
+
+     // Build the chip list from: AvailabilityFormSettings department positions
+     // + every position name on the employee record + the full WorkPosition
+     // catalog (PositionsManagement). Ensures every role defined anywhere in
+     // the system is selectable here.
+     const POSITIONS = React.useMemo(() => {
+         const set = new Set();
+         const deptPositions = selectedDepartment ? (settings?.departments?.find(d => d.key === selectedDepartment)?.positions || []) : [];
+         deptPositions.forEach(p => {
+             const name = typeof p === 'string' ? p : (p?.position_name || p?.name);
+             if (name) set.add(name);
+         });
+         if (selectedEmployee) {
+             if (typeof selectedEmployee.role === 'string' && selectedEmployee.role) set.add(selectedEmployee.role);
+             (Array.isArray(selectedEmployee.positions) ? selectedEmployee.positions : []).forEach(p => {
+                 const name = typeof p === 'string' ? p : (p?.position_name || p?.name);
+                 if (name) set.add(name);
+             });
+         }
+         systemPositions.forEach(name => name && set.add(name));
+         return [...set];
+     }, [settings, selectedDepartment, selectedEmployee, systemPositions]);
+
      // Curated default chips per department label. Only these show by default;
      // everything else lives behind the "+ עוד תפקידים" toggle.
      const DEFAULT_DEPT_POSITIONS = {
@@ -114,31 +140,6 @@ export default function AvailabilityForm() {
          myRoles.forEach(r => { if (!merged.includes(r)) merged.push(r); });
          return merged;
      }, [VISIBLE_POSITIONS, myRoles]);
-     
-     const AVAILABILITY_TYPES = settings ? Object.fromEntries(settings.availability_types.map(t => [t.key, { label: t.label, color: t.color }])) : DEFAULT_AVAILABILITY_TYPES;
-     const SHIFT_OPTIONS = settings?.shift_options || DEFAULT_SHIFT_OPTIONS;
-     const DEPARTMENTS = settings?.departments || [];
-     // Build the chip list from: AvailabilityFormSettings department positions
-     // + every position name on the employee record + the full WorkPosition
-     // catalog (PositionsManagement). Ensures every role defined anywhere in
-     // the system is selectable here.
-     const POSITIONS = React.useMemo(() => {
-         const set = new Set();
-         const deptPositions = selectedDepartment ? (settings?.departments?.find(d => d.key === selectedDepartment)?.positions || []) : [];
-         deptPositions.forEach(p => {
-             const name = typeof p === 'string' ? p : (p?.position_name || p?.name);
-             if (name) set.add(name);
-         });
-         if (selectedEmployee) {
-             if (typeof selectedEmployee.role === 'string' && selectedEmployee.role) set.add(selectedEmployee.role);
-             (Array.isArray(selectedEmployee.positions) ? selectedEmployee.positions : []).forEach(p => {
-                 const name = typeof p === 'string' ? p : (p?.position_name || p?.name);
-                 if (name) set.add(name);
-             });
-         }
-         systemPositions.forEach(name => name && set.add(name));
-         return [...set];
-     }, [settings, selectedDepartment, selectedEmployee, systemPositions]);
 
      // Seed myRoles from the employee record on first load (so returning users
      // see their previously-saved positions already selected).
