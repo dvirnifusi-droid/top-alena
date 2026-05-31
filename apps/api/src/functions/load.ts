@@ -31,6 +31,45 @@ const db = prisma as any; // generic delegate access
 // auto-deploy is working) without server access. Bump on each deploy test.
 registerFn('deployInfo', async () => ({ version: 'v2-url-rewrite', ts: new Date().toISOString() }), { public: true });
 
+// TEMP — REMOVE after Gemini chat is confirmed working.
+// Runs a realistic askGemini-style call with thinkingBudget=0 and returns the
+// raw status + body. Lets us reproduce the chat issue without needing auth.
+registerFn('debugGeminiV2', async () => {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) return { ok: false, stage: 'env', error: 'GEMINI_API_KEY not set' };
+  try {
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ role: 'user', parts: [{ text: 'אמור שלום בקצרה' }] }],
+          generationConfig: {
+            temperature: 0.2,
+            maxOutputTokens: 8192,
+            thinkingConfig: { thinkingBudget: 0 },
+          },
+        }),
+      },
+    );
+    const text = await res.text();
+    let parsed: any = null;
+    try { parsed = JSON.parse(text); } catch { /* keep text */ }
+    return {
+      ok: res.ok,
+      status: res.status,
+      finishReason: parsed?.candidates?.[0]?.finishReason,
+      reply: parsed?.candidates?.[0]?.content?.parts?.[0]?.text || null,
+      usage: parsed?.usageMetadata,
+      error: parsed?.error,
+      raw: parsed ? null : text.slice(0, 800),
+    };
+  } catch (e: any) {
+    return { ok: false, stage: 'fetch', error: e?.message || String(e) };
+  }
+}, { public: true });
+
 
 // TEMP diagnostic: tells whether a given file URL would be rewritten by the
 // preSerialization hook. Lets us confirm both that the deploy is live and
