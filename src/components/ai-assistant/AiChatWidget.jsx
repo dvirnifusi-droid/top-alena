@@ -396,13 +396,17 @@ export default function AiChatWidget() {
                 aiResponseContent = geminiRes.data?.reply || '';
             } catch (geminiErr) {
                 console.error('Gemini error:', geminiErr);
-                const errMsg = geminiErr?.response?.data?.error || geminiErr?.message || '';
+                // The API returns { error: 'function_error', message: <real reason> }
+                // so we want .message, not .error (which is just the error code).
+                const errMsg =
+                  geminiErr?.response?.data?.message ||
+                  geminiErr?.response?.data?.error ||
+                  geminiErr?.message ||
+                  '';
                 if (errMsg.includes('quota') || errMsg.includes('429')) {
                     aiResponseContent = `אני קצת עמוס כרגע 😅 נסה שוב בעוד כמה שניות.`;
                 } else if (errMsg) {
-                    // Show the real error (admins / managers debug; regular
-                    // users get a hint they can pass on).
-                    aiResponseContent = `יש לי שגיאה כרגע — נסה שוב בעוד רגע.\n\n_פרטים טכניים: ${errMsg.slice(0, 200)}_`;
+                    aiResponseContent = `יש לי שגיאה כרגע — נסה שוב בעוד רגע.\n\n_פרטים טכניים: ${errMsg.slice(0, 300)}_`;
                 }
             }
 
