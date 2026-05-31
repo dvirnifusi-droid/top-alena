@@ -29,7 +29,65 @@ const db = prisma as any; // generic delegate access
 
 // Public deploy marker — lets us confirm which build is live (and that
 // auto-deploy is working) without server access. Bump on each deploy test.
-registerFn('deployInfo', async () => ({ version: 'v2-url-rewrite', ts: new Date().toISOString() }), { public: true });
+registerFn('deployInfo', async () => ({ version: 'v3-gemini-self-heal', ts: new Date().toISOString() }), { public: true });
+
+// TEMP — REMOVE after Gemini chat is confirmed working.
+// Runs the SAME path as askGemini (including file cache + self-heal), so we
+// can see exactly what happens without needing a logged-in browser session.
+registerFn('debugGeminiV3', async () => {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) return { ok: false, stage: 'env', error: 'GEMINI_API_KEY not set' };
+
+  const cacheBefore = await db.geminiFileCache.count().catch(() => -1);
+  const cached: any[] = await db.geminiFileCache.findMany().catch(() => []);
+  const supported = new Set([
+    'application/pdf', 'text/plain', 'text/html', 'text/csv', 'text/markdown',
+    'image/jpeg', 'image/png', 'image/gif', 'image/webp',
+    'video/mp4', 'audio/mpeg', 'audio/wav',
+  ]);
+  const fileParts = cached
+    .filter((f) => f.gemini_file_uri && supported.has(f.mime_type))
+    .map((f) => ({ file_data: { mime_type: f.mime_type, file_uri: f.gemini_file_uri } }));
+
+  const call = async (parts: any[]) => {
+    const r = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ role: 'user', parts: [...parts, { text: 'אמור שלום בקצרה' }] }],
+          generationConfig: { temperature: 0.2, maxOutputTokens: 8192, thinkingConfig: { thinkingBudget: 0 } },
+        }),
+      },
+    );
+    const t = await r.text();
+    let p: any = null; try { p = JSON.parse(t); } catch {}
+    return { ok: r.ok, status: r.status, parsed: p, raw: p ? null : t.slice(0, 400) };
+  };
+
+  let res = await call(fileParts);
+  let purged = 0;
+  if (!res.ok && /permission to access the File|may not exist|PERMISSION_DENIED/i.test(JSON.stringify(res.parsed?.error || ''))) {
+    purged = await db.geminiFileCache.deleteMany({}).then(r => r.count).catch(() => -1);
+    res = await call([]);
+  }
+
+  const cacheAfter = await db.geminiFileCache.count().catch(() => -1);
+
+  return {
+    cache_before: cacheBefore,
+    cache_after: cacheAfter,
+    purged,
+    file_parts_attached_first_try: fileParts.length,
+    final_ok: res.ok,
+    final_status: res.status,
+    final_finishReason: res.parsed?.candidates?.[0]?.finishReason,
+    final_reply: res.parsed?.candidates?.[0]?.content?.parts?.[0]?.text || null,
+    final_error: res.parsed?.error,
+    raw: res.raw,
+  };
+}, { public: true });
 
 
 
