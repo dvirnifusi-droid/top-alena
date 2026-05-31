@@ -31,6 +31,39 @@ const db = prisma as any; // generic delegate access
 // auto-deploy is working) without server access. Bump on each deploy test.
 registerFn('deployInfo', async () => ({ version: 'v2-url-rewrite', ts: new Date().toISOString() }), { public: true });
 
+// TEMP diagnostic — REMOVE once Gemini issue is solved. Returns the raw HTTP
+// status and body from a minimal Gemini API call, so we can see why the
+// chat widget is failing without needing a logged-in browser session.
+registerFn('debugGemini', async () => {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) return { ok: false, stage: 'env', error: 'GEMINI_API_KEY not set' };
+  try {
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ role: 'user', parts: [{ text: 'say "ok" in one word' }] }],
+          generationConfig: { temperature: 0, maxOutputTokens: 16 },
+        }),
+      },
+    );
+    const text = await res.text();
+    let parsed: any = null;
+    try { parsed = JSON.parse(text); } catch { /* keep text */ }
+    return {
+      ok: res.ok,
+      status: res.status,
+      key_prefix: apiKey.slice(0, 6) + '...',
+      key_length: apiKey.length,
+      body: parsed || text.slice(0, 500),
+    };
+  } catch (e: any) {
+    return { ok: false, stage: 'fetch', error: e?.message || String(e) };
+  }
+}, { public: true });
+
 // TEMP diagnostic: tells whether a given file URL would be rewritten by the
 // preSerialization hook. Lets us confirm both that the deploy is live and
 // that the stored URL format actually matches our regex. Safe to remove.
