@@ -2330,6 +2330,14 @@ registerFn('createPublicReservation', async ({ body }) => {
 
 // ── Popup system ─────────────────────────────────────────────────────────────
 
+// Admin/manager/owner only — anything else throws.
+function assertPopupAdmin(user: any) {
+  const role = user?.role;
+  if (role !== 'admin' && role !== 'manager' && role !== 'owner') {
+    throw new Error('אין הרשאה לנהל פופ-אפים');
+  }
+}
+
 // Returns all popups the current user should see right now.
 // The frontend handles "seen" filtering by passing viewed popup IDs.
 registerFn('getActivePopups', async ({ user }) => {
@@ -2339,10 +2347,21 @@ registerFn('getActivePopups', async ({ user }) => {
   const dayOfWeek = now.getDay(); // 0=Sun
   const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 
-  const all = await db.popup.findMany({
-    where: { is_active: true },
-    include: { views: { where: { user_id: user.id as string } } },
-  });
+  // The Popup table may not exist yet immediately after a deploy that adds it,
+  // before `prisma db push` has run inside the container. Fail silently so the
+  // app keeps working — the next poll (60s later) will succeed.
+  let all: any[];
+  try {
+    all = await db.popup.findMany({
+      where: { is_active: true },
+      include: { views: { where: { user_id: user.id as string } } },
+    });
+  } catch (e: any) {
+    if (/does not exist|relation .* does not exist|Unknown arg/i.test(String(e?.message))) {
+      return [];
+    }
+    throw e;
+  }
 
   const result: any[] = [];
   for (const popup of all) {
@@ -2414,6 +2433,7 @@ registerFn('dismissPopup', async ({ body, user }) => {
 
 // Admin: create popup
 registerFn('createPopup', async ({ body, user }) => {
+  assertPopupAdmin(user);
   const data = body as any;
   const popup = await db.popup.create({
     data: {
@@ -2427,7 +2447,8 @@ registerFn('createPopup', async ({ body, user }) => {
 });
 
 // Admin: update popup
-registerFn('updatePopup', async ({ body }) => {
+registerFn('updatePopup', async ({ body, user }) => {
+  assertPopupAdmin(user);
   const { id, ...data } = body as any;
   if (!id) throw new Error('id required');
   const popup = await db.popup.update({
@@ -2438,7 +2459,8 @@ registerFn('updatePopup', async ({ body }) => {
 });
 
 // Admin: delete popup
-registerFn('deletePopup', async ({ body }) => {
+registerFn('deletePopup', async ({ body, user }) => {
+  assertPopupAdmin(user);
   const { id } = body as any;
   if (!id) throw new Error('id required');
   await db.popup.delete({ where: { id } });
@@ -2446,7 +2468,8 @@ registerFn('deletePopup', async ({ body }) => {
 });
 
 // Admin: list all popups with view counts
-registerFn('listPopups', async () => {
+registerFn('listPopups', async ({ user }) => {
+  assertPopupAdmin(user);
   const popups = await db.popup.findMany({
     orderBy: { created_date: 'desc' },
     include: { _count: { select: { views: true } } },

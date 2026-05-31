@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Plus, Edit2, Trash2, Eye, EyeOff, Bell, Megaphone, Square } from 'lucide-react';
+import PageGuard from '@/components/shared/PageGuard';
 
 const DISPLAY_TYPES = [
   { value: 'modal', label: 'מודאל (חוסם מסך)', icon: '🪟' },
@@ -35,6 +36,14 @@ const EMPTY = {
 };
 
 export default function Popups() {
+  return (
+    <PageGuard pageName="Popups" pageTitle="פופ-אפים מתוזמנים">
+      <PopupsInner />
+    </PageGuard>
+  );
+}
+
+function PopupsInner() {
   const [popups, setPopups] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
