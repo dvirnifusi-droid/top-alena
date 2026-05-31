@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { base44 } from '@/api/base44Client';
-import { Plus, Edit2, Trash2, Eye, EyeOff, Bell, Megaphone, Square } from 'lucide-react';
+import { Plus, Edit2, Trash2, Eye, EyeOff, Bell, Upload, Search } from 'lucide-react';
 import PageGuard from '@/components/shared/PageGuard';
 
 const DISPLAY_TYPES = [
@@ -27,13 +27,59 @@ const TARGET_AUDIENCE = [
 ];
 const WEEKDAYS = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'];
 
+const ROLE_OPTIONS = [
+  { value: 'owner', label: 'בעלים' },
+  { value: 'admin', label: 'מנהל מערכת' },
+  { value: 'manager', label: 'מנהל משמרת' },
+  { value: 'employee', label: 'עובד' },
+];
+
+// Curated list of common pages with Hebrew labels.
+// Page name must match a key in src/pages.config.js so /Page navigates correctly.
+const PAGE_OPTIONS = [
+  { value: '/Dashboard', label: 'לוח בקרה' },
+  { value: '/EmployeeHome', label: 'דף הבית של העובד' },
+  { value: '/AvailabilityForm', label: 'טופס זמינות' },
+  { value: '/WorkScheduling', label: 'סידור עבודה' },
+  { value: '/Checklists', label: 'צ\'קליסטים' },
+  { value: '/ShiftEndReport', label: 'דוח סיום משמרת' },
+  { value: '/ShiftChat', label: 'צ\'אט משמרת' },
+  { value: '/Tips', label: 'ניהול טיפים' },
+  { value: '/Incidents', label: 'תקריות' },
+  { value: '/BriefingManagement', label: 'תדריכים' },
+  { value: '/TablesManagement', label: 'ניהול שולחנות' },
+  { value: '/RestroomCleaning', label: 'ניקיון שירותים' },
+  { value: '/MarketingAdvisor', label: 'יועץ שיווק AI' },
+  { value: '/Employees', label: 'רשימת עובדים' },
+  { value: '/Reports', label: 'דוחות' },
+  { value: '/Invoices', label: 'חשבוניות' },
+  { value: '/Suppliers', label: 'ספקים' },
+  { value: '/Deliveries', label: 'משלוחים' },
+  { value: '/CustomerClub', label: 'מועדון לקוחות' },
+  { value: '/RecruitmentInterviews', label: 'ראיונות וגיוס' },
+  { value: '/Training', label: 'הכשרות' },
+  { value: '/Leaderboard', label: 'טבלת מובילים' },
+  { value: '/GamificationCenter', label: 'מרכז גיימיפיקציה' },
+  { value: '/MyPerformance', label: 'הביצועים שלי' },
+  { value: '/AvailabilityRequests', label: 'בקשות זמינות' },
+  { value: '/LeaveRequests', label: 'בקשות חופשה' },
+  { value: '/AiDashboard', label: 'מרכז בקרת AI' },
+  { value: '/Popups', label: 'ניהול פופ-אפים' },
+];
+
 const EMPTY = {
   title: '', content: '', image_url: '', cta_text: '', cta_url: '',
   display_type: 'modal', schedule_type: 'immediate',
   scheduled_at: '', daily_time: '', weekly_day: 0, weekly_time: '',
-  target_audience: 'all', target_roles: '', target_user_ids: '', target_page: '',
+  target_audience: 'all', target_roles: [], target_user_ids: [], target_page: '',
   seen_behavior: 'once', snooze_minutes: 60, is_active: true,
 };
+
+function parseList(v) {
+  if (Array.isArray(v)) return v;
+  if (!v) return [];
+  try { const p = JSON.parse(v); return Array.isArray(p) ? p : []; } catch { return []; }
+}
 
 export default function Popups() {
   return (
@@ -50,6 +96,9 @@ function PopupsInner() {
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState(EMPTY);
   const [saving, setSaving] = useState(false);
+  const [employees, setEmployees] = useState([]);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [employeeSearch, setEmployeeSearch] = useState('');
 
   const load = async () => {
     try {
@@ -60,7 +109,25 @@ function PopupsInner() {
     }
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    load();
+    // Pre-load active employees for the "specific users" picker
+    base44.entities.Employee.filter({ status: 'active' })
+      .then(list => setEmployees(Array.isArray(list) ? list : []))
+      .catch(() => setEmployees([]));
+  }, []);
+
+  // Group employees by position (Hebrew labels come from Employee.position field)
+  const employeesByPosition = useMemo(() => {
+    const groups = {};
+    const filter = employeeSearch.trim().toLowerCase();
+    for (const emp of employees) {
+      if (filter && !(emp.full_name || '').toLowerCase().includes(filter)) continue;
+      const pos = emp.position || 'ללא תפקיד';
+      (groups[pos] = groups[pos] || []).push(emp);
+    }
+    return groups;
+  }, [employees, employeeSearch]);
 
   const openNew = () => { setEditing(null); setForm(EMPTY); setShowForm(true); };
   const openEdit = (p) => {
@@ -69,13 +136,30 @@ function PopupsInner() {
       ...EMPTY, ...p,
       weekly_day: p.weekly_day ?? 0,
       snooze_minutes: p.snooze_minutes ?? 60,
-      target_roles: Array.isArray(p.target_roles) ? p.target_roles.join(', ') : (p.target_roles || ''),
-      target_user_ids: Array.isArray(p.target_user_ids) ? p.target_user_ids.join(', ') : (p.target_user_ids || ''),
+      target_roles: parseList(p.target_roles),
+      target_user_ids: parseList(p.target_user_ids),
     });
     setShowForm(true);
   };
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+  const toggleInArray = (key, value) => setForm(f => {
+    const arr = Array.isArray(f[key]) ? f[key] : [];
+    return { ...f, [key]: arr.includes(value) ? arr.filter(v => v !== value) : [...arr, value] };
+  });
+
+  const handleImageUpload = async (file) => {
+    if (!file) return;
+    setUploadingImage(true);
+    try {
+      const { file_url } = await base44.integrations.Core.UploadFile({ file });
+      if (file_url) set('image_url', file_url);
+    } catch (e) {
+      alert('שגיאה בהעלאת התמונה');
+    } finally {
+      setUploadingImage(false);
+    }
+  };
 
   const save = async () => {
     if (!form.title || !form.content) return alert('כותרת ותוכן הם שדות חובה');
@@ -83,8 +167,8 @@ function PopupsInner() {
     try {
       const payload = {
         ...form,
-        target_roles: form.target_roles ? JSON.stringify(form.target_roles.split(',').map(s => s.trim()).filter(Boolean)) : null,
-        target_user_ids: form.target_user_ids ? JSON.stringify(form.target_user_ids.split(',').map(s => s.trim()).filter(Boolean)) : null,
+        target_roles: form.target_roles?.length ? JSON.stringify(form.target_roles) : null,
+        target_user_ids: form.target_user_ids?.length ? JSON.stringify(form.target_user_ids) : null,
         weekly_day: Number(form.weekly_day),
         snooze_minutes: Number(form.snooze_minutes),
       };
@@ -197,8 +281,31 @@ function PopupsInner() {
                     <textarea value={form.content} onChange={e => set('content', e.target.value)} rows={3} className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" placeholder="טקסט ההודעה" />
                   </div>
                   <div>
-                    <label className="text-sm text-gray-600 block mb-1">תמונה (URL)</label>
-                    <input value={form.image_url} onChange={e => set('image_url', e.target.value)} className="w-full border rounded-lg px-3 py-2 text-sm" placeholder="https://..." />
+                    <label className="text-sm text-gray-600 block mb-1">תמונה</label>
+                    <div className="flex gap-2">
+                      <input
+                        value={form.image_url}
+                        onChange={e => set('image_url', e.target.value)}
+                        className="flex-1 border rounded-lg px-3 py-2 text-sm"
+                        placeholder="הדבק קישור או העלה קובץ"
+                      />
+                      <label className={`flex items-center gap-1 px-3 py-2 rounded-lg border text-sm cursor-pointer ${uploadingImage ? 'bg-gray-100 text-gray-400' : 'bg-blue-50 text-blue-700 hover:bg-blue-100 border-blue-200'}`}>
+                        <Upload size={14} /> {uploadingImage ? 'מעלה...' : 'העלה'}
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          disabled={uploadingImage}
+                          onChange={e => handleImageUpload(e.target.files?.[0])}
+                        />
+                      </label>
+                    </div>
+                    {form.image_url && (
+                      <div className="mt-2 flex items-center gap-2">
+                        <img src={form.image_url} alt="" className="h-16 w-16 object-cover rounded-lg border" />
+                        <button onClick={() => set('image_url', '')} className="text-xs text-red-500 hover:underline">הסר תמונה</button>
+                      </div>
+                    )}
                   </div>
                   <div className="flex gap-3">
                     <div className="flex-1">
@@ -275,13 +382,85 @@ function PopupsInner() {
                   ))}
                 </div>
                 {form.target_audience === 'roles' && (
-                  <input value={form.target_roles} onChange={e => set('target_roles', e.target.value)} className="w-full border rounded-lg px-3 py-2 text-sm" placeholder="תפקידים מופרדים בפסיק: admin, manager" />
+                  <div className="border rounded-lg p-3 bg-gray-50">
+                    <div className="text-xs text-gray-500 mb-2">בחר תפקיד אחד או יותר:</div>
+                    <div className="grid grid-cols-2 gap-2">
+                      {ROLE_OPTIONS.map(r => {
+                        const checked = form.target_roles?.includes(r.value);
+                        return (
+                          <label key={r.value} className={`flex items-center gap-2 border rounded-lg px-3 py-2 text-sm cursor-pointer transition-colors ${checked ? 'border-blue-500 bg-blue-50 font-medium' : 'border-gray-200 bg-white hover:border-gray-300'}`}>
+                            <input
+                              type="checkbox"
+                              checked={!!checked}
+                              onChange={() => toggleInArray('target_roles', r.value)}
+                              className="accent-blue-600"
+                            />
+                            {r.label}
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
                 )}
                 {form.target_audience === 'users' && (
-                  <input value={form.target_user_ids} onChange={e => set('target_user_ids', e.target.value)} className="w-full border rounded-lg px-3 py-2 text-sm" placeholder="מזהי משתמשים מופרדים בפסיק" />
+                  <div className="border rounded-lg p-3 bg-gray-50">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Search size={14} className="text-gray-400" />
+                      <input
+                        value={employeeSearch}
+                        onChange={e => setEmployeeSearch(e.target.value)}
+                        placeholder="חפש עובד לפי שם..."
+                        className="flex-1 border rounded-md px-2 py-1 text-sm bg-white"
+                      />
+                      <span className="text-xs text-gray-500">
+                        נבחרו {form.target_user_ids?.length || 0}
+                      </span>
+                    </div>
+                    <div className="max-h-64 overflow-y-auto space-y-3">
+                      {Object.keys(employeesByPosition).length === 0 ? (
+                        <div className="text-center text-sm text-gray-400 py-4">
+                          {employees.length === 0 ? 'טוען עובדים...' : 'אין עובדים שתואמים לחיפוש'}
+                        </div>
+                      ) : (
+                        Object.entries(employeesByPosition).map(([position, emps]) => (
+                          <div key={position}>
+                            <div className="text-xs font-semibold text-gray-500 mb-1">{position} ({emps.length})</div>
+                            <div className="grid grid-cols-2 gap-1">
+                              {emps.map(emp => {
+                                const checked = form.target_user_ids?.includes(emp.id);
+                                return (
+                                  <label key={emp.id} className={`flex items-center gap-2 border rounded-md px-2 py-1 text-sm cursor-pointer transition-colors ${checked ? 'border-blue-500 bg-blue-50 font-medium' : 'border-gray-200 bg-white hover:border-gray-300'}`}>
+                                    <input
+                                      type="checkbox"
+                                      checked={!!checked}
+                                      onChange={() => toggleInArray('target_user_ids', emp.id)}
+                                      className="accent-blue-600"
+                                    />
+                                    <span className="truncate">{emp.full_name || emp.id}</span>
+                                  </label>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
                 )}
                 {form.target_audience === 'page' && (
-                  <input value={form.target_page} onChange={e => set('target_page', e.target.value)} className="w-full border rounded-lg px-3 py-2 text-sm" placeholder="/Dashboard" />
+                  <div className="border rounded-lg p-3 bg-gray-50">
+                    <div className="text-xs text-gray-500 mb-2">בחר את העמוד בו הפופ-אפ יופיע:</div>
+                    <select
+                      value={form.target_page}
+                      onChange={e => set('target_page', e.target.value)}
+                      className="w-full border rounded-lg px-3 py-2 text-sm bg-white"
+                    >
+                      <option value="">-- בחר עמוד --</option>
+                      {PAGE_OPTIONS.map(p => (
+                        <option key={p.value} value={p.value}>{p.label}</option>
+                      ))}
+                    </select>
+                  </div>
                 )}
               </section>
 
