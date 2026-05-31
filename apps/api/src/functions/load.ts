@@ -31,66 +31,6 @@ const db = prisma as any; // generic delegate access
 // auto-deploy is working) without server access. Bump on each deploy test.
 registerFn('deployInfo', async () => ({ version: 'v2-url-rewrite', ts: new Date().toISOString() }), { public: true });
 
-// TEMP — REMOVE after Gemini chat is confirmed working.
-// Reproduces the real askGemini path: loads cached file URIs from the DB and
-// includes them in the request, so we can see if expired/broken file_uris are
-// what's killing the chat.
-registerFn('debugGeminiV2', async () => {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) return { ok: false, stage: 'env', error: 'GEMINI_API_KEY not set' };
-
-  let cached: any[] = [];
-  let cacheCount = 0;
-  try {
-    cached = await db.geminiFileCache.findMany();
-    cacheCount = cached.length;
-  } catch (e: any) {
-    return { ok: false, stage: 'db.geminiFileCache', error: e?.message };
-  }
-
-  const supported = new Set([
-    'application/pdf', 'text/plain', 'text/html', 'text/csv', 'text/markdown',
-    'image/jpeg', 'image/png', 'image/gif', 'image/webp',
-    'video/mp4', 'audio/mpeg', 'audio/wav',
-  ]);
-  const fileParts = cached
-    .filter((f) => f.gemini_file_uri && supported.has(f.mime_type))
-    .map((f) => ({ file_data: { mime_type: f.mime_type, file_uri: f.gemini_file_uri } }));
-
-  try {
-    const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ role: 'user', parts: [...fileParts, { text: 'אמור שלום בקצרה' }] }],
-          generationConfig: {
-            temperature: 0.2,
-            maxOutputTokens: 8192,
-            thinkingConfig: { thinkingBudget: 0 },
-          },
-        }),
-      },
-    );
-    const text = await res.text();
-    let parsed: any = null;
-    try { parsed = JSON.parse(text); } catch { /* keep text */ }
-    return {
-      ok: res.ok,
-      status: res.status,
-      cache_total: cacheCount,
-      file_parts_attached: fileParts.length,
-      finishReason: parsed?.candidates?.[0]?.finishReason,
-      reply: parsed?.candidates?.[0]?.content?.parts?.[0]?.text || null,
-      usage: parsed?.usageMetadata,
-      error: parsed?.error,
-      raw: parsed ? null : text.slice(0, 800),
-    };
-  } catch (e: any) {
-    return { ok: false, stage: 'fetch', error: e?.message || String(e), cache_total: cacheCount, file_parts_attached: fileParts.length };
-  }
-}, { public: true });
 
 
 // TEMP diagnostic: tells whether a given file URL would be rewritten by the
@@ -1635,17 +1575,35 @@ registerFn('askGemini', async ({ body }) => {
   };
   if (systemPrompt) reqBody.system_instruction = { parts: [{ text: systemPrompt }] };
 
-  const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
-    { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(reqBody) },
-  );
-  const data: any = await res.json();
-  if (!res.ok) throw new Error(data.error?.message || 'Gemini API error');
-  const reply = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+  const callGemini = async (body: any) => {
+    const r = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+      { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) },
+    );
+    const d: any = await r.json();
+    return { ok: r.ok, status: r.status, data: d };
+  };
+
+  let res = await callGemini(reqBody);
+
+  // Files in GeminiFileCache expire after 48h on Gemini's side. When that
+  // happens, every chat call returns 403 PERMISSION_DENIED for the missing
+  // file URI. Purge the stale cache and retry once WITHOUT file parts so the
+  // chat keeps working — the cache will be re-populated next time someone
+  // runs the sync function (resyncGeminiFiles / Drive sync).
+  if (!res.ok && /permission to access the File|File .* may not exist|PERMISSION_DENIED/i.test(JSON.stringify(res.data?.error || ''))) {
+    try { await db.geminiFileCache.deleteMany({}); } catch { /* ignore */ }
+    const retryBody = {
+      ...reqBody,
+      contents: [...contents.slice(0, -1), { role: 'user', parts: [{ text: userMessage }] }],
+    };
+    res = await callGemini(retryBody);
+  }
+
+  if (!res.ok) throw new Error(res.data?.error?.message || 'Gemini API error');
+  const reply = res.data.candidates?.[0]?.content?.parts?.[0]?.text || '';
   if (!reply) {
-    // Surface the real reason instead of silently returning empty (which the
-    // widget would interpret as "no answer" and show a generic error).
-    const finish = data.candidates?.[0]?.finishReason || 'UNKNOWN';
+    const finish = res.data.candidates?.[0]?.finishReason || 'UNKNOWN';
     throw new Error(`Gemini returned empty reply (finishReason: ${finish})`);
   }
   return { reply };
