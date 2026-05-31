@@ -32,11 +32,31 @@ const db = prisma as any; // generic delegate access
 registerFn('deployInfo', async () => ({ version: 'v2-url-rewrite', ts: new Date().toISOString() }), { public: true });
 
 // TEMP — REMOVE after Gemini chat is confirmed working.
-// Runs a realistic askGemini-style call with thinkingBudget=0 and returns the
-// raw status + body. Lets us reproduce the chat issue without needing auth.
+// Reproduces the real askGemini path: loads cached file URIs from the DB and
+// includes them in the request, so we can see if expired/broken file_uris are
+// what's killing the chat.
 registerFn('debugGeminiV2', async () => {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) return { ok: false, stage: 'env', error: 'GEMINI_API_KEY not set' };
+
+  let cached: any[] = [];
+  let cacheCount = 0;
+  try {
+    cached = await db.geminiFileCache.findMany();
+    cacheCount = cached.length;
+  } catch (e: any) {
+    return { ok: false, stage: 'db.geminiFileCache', error: e?.message };
+  }
+
+  const supported = new Set([
+    'application/pdf', 'text/plain', 'text/html', 'text/csv', 'text/markdown',
+    'image/jpeg', 'image/png', 'image/gif', 'image/webp',
+    'video/mp4', 'audio/mpeg', 'audio/wav',
+  ]);
+  const fileParts = cached
+    .filter((f) => f.gemini_file_uri && supported.has(f.mime_type))
+    .map((f) => ({ file_data: { mime_type: f.mime_type, file_uri: f.gemini_file_uri } }));
+
   try {
     const res = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
@@ -44,7 +64,7 @@ registerFn('debugGeminiV2', async () => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          contents: [{ role: 'user', parts: [{ text: 'אמור שלום בקצרה' }] }],
+          contents: [{ role: 'user', parts: [...fileParts, { text: 'אמור שלום בקצרה' }] }],
           generationConfig: {
             temperature: 0.2,
             maxOutputTokens: 8192,
@@ -59,6 +79,8 @@ registerFn('debugGeminiV2', async () => {
     return {
       ok: res.ok,
       status: res.status,
+      cache_total: cacheCount,
+      file_parts_attached: fileParts.length,
       finishReason: parsed?.candidates?.[0]?.finishReason,
       reply: parsed?.candidates?.[0]?.content?.parts?.[0]?.text || null,
       usage: parsed?.usageMetadata,
@@ -66,7 +88,7 @@ registerFn('debugGeminiV2', async () => {
       raw: parsed ? null : text.slice(0, 800),
     };
   } catch (e: any) {
-    return { ok: false, stage: 'fetch', error: e?.message || String(e) };
+    return { ok: false, stage: 'fetch', error: e?.message || String(e), cache_total: cacheCount, file_parts_attached: fileParts.length };
   }
 }, { public: true });
 
