@@ -31,38 +31,6 @@ const db = prisma as any; // generic delegate access
 // auto-deploy is working) without server access. Bump on each deploy test.
 registerFn('deployInfo', async () => ({ version: 'v2-url-rewrite', ts: new Date().toISOString() }), { public: true });
 
-// TEMP diagnostic — REMOVE once Gemini issue is solved. Returns the raw HTTP
-// status and body from a minimal Gemini API call, so we can see why the
-// chat widget is failing without needing a logged-in browser session.
-registerFn('debugGemini', async () => {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) return { ok: false, stage: 'env', error: 'GEMINI_API_KEY not set' };
-  try {
-    const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ role: 'user', parts: [{ text: 'say "ok" in one word' }] }],
-          generationConfig: { temperature: 0, maxOutputTokens: 16 },
-        }),
-      },
-    );
-    const text = await res.text();
-    let parsed: any = null;
-    try { parsed = JSON.parse(text); } catch { /* keep text */ }
-    return {
-      ok: res.ok,
-      status: res.status,
-      key_prefix: apiKey.slice(0, 6) + '...',
-      key_length: apiKey.length,
-      body: parsed || text.slice(0, 500),
-    };
-  } catch (e: any) {
-    return { ok: false, stage: 'fetch', error: e?.message || String(e) };
-  }
-}, { public: true });
 
 // TEMP diagnostic: tells whether a given file URL would be rewritten by the
 // preSerialization hook. Lets us confirm both that the deploy is live and
@@ -1591,7 +1559,19 @@ registerFn('askGemini', async ({ body }) => {
   }
   contents.push({ role: 'user', parts: [...fileParts, { text: userMessage }] });
 
-  const reqBody: any = { contents, generationConfig: { temperature: 0.2, maxOutputTokens: 8192 } };
+  // Gemini 2.5-flash uses "thinking tokens" by default — for chat workloads
+  // with large system prompts (menu PDFs etc.) the thinking phase can consume
+  // the entire maxOutputTokens budget and leave 0 tokens for the actual
+  // textual reply (finishReason: MAX_TOKENS, empty content). Disable thinking
+  // for the conversational assistant and give a healthy budget.
+  const reqBody: any = {
+    contents,
+    generationConfig: {
+      temperature: 0.2,
+      maxOutputTokens: 8192,
+      thinkingConfig: { thinkingBudget: 0 },
+    },
+  };
   if (systemPrompt) reqBody.system_instruction = { parts: [{ text: systemPrompt }] };
 
   const res = await fetch(
@@ -1600,7 +1580,14 @@ registerFn('askGemini', async ({ body }) => {
   );
   const data: any = await res.json();
   if (!res.ok) throw new Error(data.error?.message || 'Gemini API error');
-  return { reply: data.candidates?.[0]?.content?.parts?.[0]?.text || '' };
+  const reply = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+  if (!reply) {
+    // Surface the real reason instead of silently returning empty (which the
+    // widget would interpret as "no answer" and show a generic error).
+    const finish = data.candidates?.[0]?.finishReason || 'UNKNOWN';
+    throw new Error(`Gemini returned empty reply (finishReason: ${finish})`);
+  }
+  return { reply };
 });
 
 registerFn('aiAnalyzeIncident', async ({ body }) => {

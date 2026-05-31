@@ -399,6 +399,10 @@ export default function AiChatWidget() {
                 const errMsg = geminiErr?.response?.data?.error || geminiErr?.message || '';
                 if (errMsg.includes('quota') || errMsg.includes('429')) {
                     aiResponseContent = `אני קצת עמוס כרגע 😅 נסה שוב בעוד כמה שניות.`;
+                } else if (errMsg) {
+                    // Show the real error (admins / managers debug; regular
+                    // users get a hint they can pass on).
+                    aiResponseContent = `יש לי שגיאה כרגע — נסה שוב בעוד רגע.\n\n_פרטים טכניים: ${errMsg.slice(0, 200)}_`;
                 }
             }
 
