@@ -91,7 +91,12 @@ export default function PageGuard({ pageName, pageTitle, children }) {
 
   const allowedRoles = permission ? permission.allowed_roles : ["employee", "manager", "owner"];
   const userRole = mapUserRole(user?.role);
-  const hasAccess = isAdmin || allowedRoles.includes(userRole);
+  // Department managers (e.g. kitchen manager) bypass the per-page allowlist for
+  // pages they need to do their job (scheduling, availability, employees) — the
+  // page itself handles scoping to their department.
+  const isDepartmentManager = !!user?.managed_department;
+  const isDeptManagedPage = ["WorkScheduling", "AvailabilityRequests", "Employees"].includes(pageName);
+  const hasAccess = isAdmin || allowedRoles.includes(userRole) || (isDepartmentManager && isDeptManagedPage);
 
   if (!hasAccess) {
     return (

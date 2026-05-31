@@ -27,6 +27,7 @@ const SHIFT_PREF = {
 };
 
 function AvailabilityRequestsInner() {
+     const [currentUser, setCurrentUser] = useState(null);
      const [availabilities, setAvailabilities] = useState([]);
      const [employees, setEmployees] = useState([]);
      const [settings, setSettings] = useState(null);
@@ -37,6 +38,11 @@ function AvailabilityRequestsInner() {
      const [editData, setEditData] = useState(null);
      const [expandedUnavailable, setExpandedUnavailable] = useState(false);
      const [selectedDepartment, setSelectedDepartment] = useState(null);
+     // Department managers are auto-locked to their own department.
+     const managedDept = currentUser?.managed_department || null;
+     useEffect(() => {
+       if (managedDept && selectedDepartment !== managedDept) setSelectedDepartment(managedDept);
+     }, [managedDept]); // eslint-disable-line react-hooks/exhaustive-deps
      const [singleAssignModal, setSingleAssignModal] = useState(null);
      const [singleAssignLoading, setSingleAssignLoading] = useState(false);
 
@@ -63,12 +69,14 @@ function AvailabilityRequestsInner() {
     const loadData = async () => {
         setLoading(true);
         try {
-            const [allAvail, allEmps, inactiveEmps, sett] = await Promise.all([
+            const [me, allAvail, allEmps, inactiveEmps, sett] = await Promise.all([
+                base44.auth.me().catch(() => null),
                 base44.entities.EmployeeAvailability.list(),
                 base44.entities.Employee.filter({ status: 'active' }),
                 base44.entities.Employee.filter({ status: 'inactive' }).catch(() => []),
                 base44.entities.AvailabilityFormSettings.list(),
             ]);
+            setCurrentUser(me);
             setAvailabilities(allAvail);
             setEmployees(allEmps);
             setInactiveEmployees(inactiveEmps || []);

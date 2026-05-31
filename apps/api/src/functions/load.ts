@@ -2328,6 +2328,48 @@ registerFn('createPublicReservation', async ({ body }) => {
   return { success: true, reservation_id: reservation.id, table_number: avail.table.table_number };
 }, { public: true });
 
+// ── User role / department manager (admin only) ──────────────────────────────
+// Set a user's system role and/or managed_department by email. If the User row
+// doesn't exist yet (the employee hasn't logged in for the first time), create
+// a stub so the values stick when they do log in.
+registerFn('setUserRoleAndDepartment', async ({ body, user }) => {
+  if ((user as any)?.role !== 'admin') throw new Error('admin only');
+  const { email, role, managed_department } = body as any;
+  if (!email) throw new Error('email required');
+  const normalizedEmail = String(email).toLowerCase();
+
+  const data: any = {};
+  if (role !== undefined) data.role = role;
+  if (managed_department !== undefined) data.managed_department = managed_department || null;
+  if (!Object.keys(data).length) throw new Error('nothing to update');
+
+  // Tolerate the schema not being pushed yet (CLAUDE.md §4.7) — strip the new
+  // field and retry once.
+  const tryUpdate = async (payload: any) => {
+    try {
+      return await db.user.update({ where: { email: normalizedEmail }, data: payload });
+    } catch (e: any) {
+      if (/Record to update not found|RecordNotFound|NotFound/i.test(String(e?.message))) {
+        return await db.user.create({
+          data: { email: normalizedEmail, role: payload.role || 'user', ...(payload.managed_department !== undefined ? { managed_department: payload.managed_department } : {}) },
+        });
+      }
+      throw e;
+    }
+  };
+
+  try {
+    return await tryUpdate(data);
+  } catch (e: any) {
+    if (/unknown (arg|column)|managed_department/i.test(String(e?.message))) {
+      const { managed_department: _drop, ...without } = data;
+      if (Object.keys(without).length) return await tryUpdate(without);
+      throw new Error('managed_department column not yet available — wait ~1 minute and retry');
+    }
+    throw e;
+  }
+});
+
 // ── Popup system ─────────────────────────────────────────────────────────────
 
 // Admin/manager/owner only — anything else throws.

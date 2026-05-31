@@ -359,6 +359,19 @@ export default function WorkScheduling() {
 
     // Filter states
     const [filters, setFilters] = useState({ shiftType: 'all', department: 'all', employee: 'all' });
+
+    // Department managers (e.g. kitchen manager) get admin-equivalent powers
+    // here, but the page UI auto-scopes them to their department further below.
+    const managedDept = currentUser?.managed_department || null;
+    const isAdminLike = currentUser?.role === 'admin' || !!managedDept;
+
+    // Once we know this user manages a department, force the department filter
+    // to it and don't let them switch (the Select is also disabled below).
+    useEffect(() => {
+      if (managedDept && filters.department !== managedDept) {
+        setFilters(f => ({ ...f, department: managedDept }));
+      }
+    }, [managedDept]); // eslint-disable-line react-hooks/exhaustive-deps
     const [copied, setCopied] = useState(false);
     const [managerPhone, setManagerPhone] = useState('');
     const [managerPhoneInput, setManagerPhoneInput] = useState('');
@@ -886,8 +899,8 @@ export default function WorkScheduling() {
                                 </Select>
                             </div>
                             <div>
-                                <Label className="font-medium mb-2 block">מחלקה</Label>
-                                <Select value={filters.department} onValueChange={(value) => handleFilterChange('department', value)}>
+                                <Label className="font-medium mb-2 block">מחלקה {managedDept && <span className="text-xs text-gray-400 mr-1">(נעול למחלקה שלך)</span>}</Label>
+                                <Select value={filters.department} onValueChange={(value) => handleFilterChange('department', value)} disabled={!!managedDept}>
                                     <SelectTrigger><SelectValue placeholder="כל המחלקות" /></SelectTrigger>
                                     <SelectContent>
                                         <SelectItem value="all">כל המחלקות</SelectItem>
@@ -930,7 +943,7 @@ export default function WorkScheduling() {
                         <CardTitle className="flex items-center gap-2">
                             <CalendarIcon className="w-6 h-6" />
                             סידור עבודה
-                            {currentUser?.role === 'admin' && (
+                            {isAdminLike && (
                                 <>
                                     <ShiftNotificationBell currentEmployee={currentEmployee} isManager={true} />
                                     <button
@@ -973,8 +986,8 @@ export default function WorkScheduling() {
                     <div className="grid grid-cols-[200px_repeat(7,1fr)] min-w-[1200px]">
                         <div className="sticky top-0 bg-gray-100 z-10"></div>
                         {days.map(day => {
-                            const lunchStrength = currentUser?.role === 'admin' ? strengthLabel(getShiftStrength(day, 'lunch')) : null;
-                            const dinnerStrength = currentUser?.role === 'admin' ? strengthLabel(getShiftStrength(day, 'dinner')) : null;
+                            const lunchStrength = isAdminLike ? strengthLabel(getShiftStrength(day, 'lunch')) : null;
+                            const dinnerStrength = isAdminLike ? strengthLabel(getShiftStrength(day, 'dinner')) : null;
                             return (
                             <div key={day.toISOString()} className={`text-center font-bold p-2 border-b sticky top-0 bg-gray-100 z-10 ${isToday(day) ? 'border-2 border-orange-400' : ''}`}>
                                 <div>{format(day, 'EEEE', { locale: he })}</div>
@@ -1064,7 +1077,7 @@ export default function WorkScheduling() {
                                                                     className={`p-1 rounded text-center cursor-pointer transition-colors relative ${cardClass}`}
                                                                     onClick={() => handleEditAssignment(day, type, position.position_name, assignment)}
                                                                 >
-                                                                    {currentUser?.role === 'admin' && (
+                                                                    {isAdminLike && (
                                                                         <button
                                                                             onClick={(e) => { e.stopPropagation(); setRatingDialog({ employee: emp || { id: assignment.employee_id, full_name: assignment.employee_name } }); }}
                                                                             className="absolute top-0.5 left-0.5 opacity-0 group-hover:opacity-100 transition-opacity z-10"
@@ -1117,7 +1130,7 @@ export default function WorkScheduling() {
                     onAssignmentClick={handleEditAssignment}
                     currentEmployeeId={currentEmployee?.id}
                     tipReports={tipReports}
-                    isAdmin={currentUser?.role === 'admin'}
+                    isAdmin={isAdminLike}
                     strengthLabel={strengthLabel}
                 />
                 <Sheet>
@@ -1148,7 +1161,7 @@ export default function WorkScheduling() {
                         <MessageCircle className="h-6 w-6" />
                     </Button>
                 </div>
-                {currentUser?.role === 'admin' && (
+                {isAdminLike && (
                     <div className="fixed bottom-4 right-4 z-20">
                         <ShiftNotificationBell currentEmployee={currentEmployee} isManager={true} />
                     </div>
@@ -1285,7 +1298,7 @@ export default function WorkScheduling() {
                 </DialogContent>
             </Dialog>
 
-            {currentUser?.role === 'admin' && (
+            {isAdminLike && (
                 <ScheduleInsights
                     week={week}
                     employees={employees}

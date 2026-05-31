@@ -305,48 +305,36 @@ function AccessCodeDialog({ isOpen, onClose, employee, onRefresh }) {
 function PermissionsDialog({ isOpen, onClose, employee, onRefresh }) {
    const [loading, setLoading] = useState(false);
    const [result, setResult] = useState(null);
+   const [managedDept, setManagedDept] = useState('');
 
-  const handleGrantAdmin = async () => {
+  // Reset the dropdown when the dialog re-opens for a different employee.
+  useEffect(() => {
+    if (isOpen) setManagedDept('');
+  }, [isOpen, employee?.id]);
+
+  const callSetRole = async ({ role, managed_department }) => {
     setLoading(true);
     setResult(null);
     try {
-      await base44.auth.updateUser(employee.email, { role: 'admin' });
-      setResult({ type: 'success', message: 'הרשאות Admin הוענקו בהצלחה!' });
-      setTimeout(() => {
-        onClose();
-        onRefresh();
-      }, 2000);
+      const payload = { email: employee.email };
+      if (role !== undefined) payload.role = role;
+      if (managed_department !== undefined) payload.managed_department = managed_department;
+      const res = await base44.functions.setUserRoleAndDepartment(payload);
+      const ok = res?.status === 200 || res?.data;
+      if (!ok) throw new Error(res?.data?.error || 'failed');
+      setResult({ type: 'success', message: 'הרשאות עודכנו בהצלחה!' });
+      setTimeout(() => { onClose(); onRefresh(); }, 1500);
     } catch (error) {
-      console.error('Error granting admin:', error);
-      setResult({ 
-        type: 'error', 
-        message: 'לא ניתן לעדכן הרשאות דרך הקוד. יש לעדכן דרך Dashboard של Base44.' 
-      });
+      console.error('Error updating role:', error);
+      setResult({ type: 'error', message: error?.message || 'שגיאה בעדכון ההרשאות' });
     } finally {
       setLoading(false);
     }
   };
 
-  const handleRevokeAdmin = async () => {
-    setLoading(true);
-    setResult(null);
-    try {
-      await base44.auth.updateUser(employee.email, { role: 'user' });
-      setResult({ type: 'success', message: 'הרשאות Admin הוסרו בהצלחה!' });
-      setTimeout(() => {
-        onClose();
-        onRefresh();
-      }, 2000);
-    } catch (error) {
-      console.error('Error revoking admin:', error);
-      setResult({ 
-        type: 'error', 
-        message: 'לא ניתן לעדכן הרשאות דרך הקוד. יש לעדכן דרך Dashboard של Base44.' 
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
+  const handleGrantAdmin = () => callSetRole({ role: 'admin' });
+  const handleRevokeAdmin = () => callSetRole({ role: 'user', managed_department: null });
+  const handleSetDeptManager = () => callSetRole({ managed_department: managedDept || null });
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -383,13 +371,41 @@ function PermissionsDialog({ isOpen, onClose, employee, onRefresh }) {
               <li>✅ יכולת לערוך הגדרות מערכת</li>
             </ul>
           </div>
+
+          {/* Department-manager assignment — partial admin scoped to one
+              department (kitchen / floor). Suitable for shift managers. */}
+          <div className="border-t pt-4 mt-4">
+            <h4 className="font-semibold mb-2">👔 מנהל מחלקה (אופציונלי)</h4>
+            <p className="text-xs text-gray-500 mb-2">
+              העובד יקבל גישה ל"רשימת עובדים", "בקשות זמינות" ו"שיבוץ סידור עבודה" — אבל יראה רק את המחלקה שנבחרת כאן.
+            </p>
+            <div className="flex gap-2 items-center">
+              <select
+                value={managedDept}
+                onChange={(e) => setManagedDept(e.target.value)}
+                className="flex-1 border rounded-lg px-3 py-2 text-sm"
+              >
+                <option value="">-- ללא ניהול מחלקה --</option>
+                <option value="kitchen">מנהל מטבח</option>
+                <option value="floor">מנהל פלור</option>
+              </select>
+              <Button
+                onClick={handleSetDeptManager}
+                disabled={loading}
+                variant="outline"
+                className="border-emerald-300 text-emerald-700 hover:bg-emerald-50"
+              >
+                שמור
+              </Button>
+            </div>
+          </div>
         </div>
 
         <DialogFooter>
           <Button variant="outline" onClick={onClose} disabled={loading}>
             סגור
           </Button>
-          <Button 
+          <Button
             onClick={handleRevokeAdmin}
             disabled={loading}
             variant="outline"
@@ -397,7 +413,7 @@ function PermissionsDialog({ isOpen, onClose, employee, onRefresh }) {
           >
             הסר הרשאות Admin
           </Button>
-          <Button 
+          <Button
             onClick={handleGrantAdmin}
             disabled={loading}
             className="bg-blue-600 hover:bg-blue-700"
@@ -465,7 +481,7 @@ function PushoverKeyDialog({ isOpen, onClose, employee, onRefresh }) {
 }
 
 function EmployeesInner() {
-   const [employees, setEmployees] = useState([]);
+   const [allEmployees, setAllEmployees] = useState([]);
    const [loading, setLoading] = useState(true);
    const [editingEmployee, setEditingEmployee] = useState(null);
    const [isFormOpen, setIsFormOpen] = useState(false);
@@ -476,8 +492,17 @@ function EmployeesInner() {
    const [isAccessCodeOpen, setIsAccessCodeOpen] = useState(false);
    const [pushoverEmployee, setPushoverEmployee] = useState(null);
    const [isPushoverOpen, setIsPushoverOpen] = useState(false);
+   const [currentUser, setCurrentUser] = useState(null);
+
+   // Department managers (e.g. kitchen manager) see only employees in their
+   // department. Admin sees everyone.
+   const managedDept = currentUser?.managed_department || null;
+   const employees = managedDept
+     ? allEmployees.filter(e => (e.department || '').toLowerCase() === managedDept.toLowerCase())
+     : allEmployees;
 
   useEffect(() => {
+    User.me().then(setCurrentUser).catch(() => setCurrentUser(null));
     loadEmployees();
   }, []);
 
@@ -485,7 +510,7 @@ function EmployeesInner() {
     setLoading(true);
     try {
       const data = await Employee.list('-created_date');
-      setEmployees(data);
+      setAllEmployees(data);
     } catch (error) {
       console.error("שגיאה בטעינת עובדים:", error);
     }
@@ -529,12 +554,19 @@ function EmployeesInner() {
         base_hourly_wage: employeeData.base_hourly_wage !== '' ? parseFloat(employeeData.base_hourly_wage) : null,
       };
 
+      // Department managers can only create/edit employees in their department.
+      // Force-stamp the department so a kitchen manager can't accidentally
+      // create a floor employee (and vice versa).
+      if (managedDept) {
+        normalizedEmployeeData.department = managedDept;
+      }
+
       if (editingEmployee) {
         await Employee.update(editingEmployee.id, normalizedEmployeeData);
         savedEmployee = { ...editingEmployee, ...normalizedEmployeeData };
       } else {
         savedEmployee = await Employee.create(normalizedEmployeeData);
-        
+
         const invitationDetails = await createInvitation(normalizedEmployeeData);
         if (invitationDetails) {
           setInvitationSuccess(invitationDetails);

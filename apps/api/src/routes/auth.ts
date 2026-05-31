@@ -90,10 +90,23 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
 
   app.get('/me', { preHandler: requireAuth }, async (req) => {
     const u = req.user!;
-    const full = await prisma.user.findUnique({
-      where: { id: u.id },
-      select: { id: true, email: true, role: true, fullName: true, created_date: true },
-    });
+    // managed_department is a recent addition — tolerate the column being
+    // absent for the brief window before `prisma db push` runs in the container
+    // (see CLAUDE.md §4.7).
+    let full: any;
+    try {
+      full = await prisma.user.findUnique({
+        where: { id: u.id },
+        select: { id: true, email: true, role: true, fullName: true, managed_department: true, created_date: true },
+      });
+    } catch (e: any) {
+      if (/unknown (arg|column)|managed_department/i.test(String(e?.message))) {
+        full = await prisma.user.findUnique({
+          where: { id: u.id },
+          select: { id: true, email: true, role: true, fullName: true, created_date: true },
+        });
+      } else { throw e; }
+    }
     if (!full) return null;
     // The Base44 frontend reads `full_name` (snake_case); the column is fullName.
     // Fall back to email so downstream required fields (e.g. ShiftTracking

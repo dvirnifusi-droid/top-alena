@@ -246,8 +246,22 @@ export default function Layout({ children, currentPageName }) {
   const isCurrentViewAdmin = user?.role === 'admin';
   const isOriginalAdmin = originalUserRole === 'admin';
 
+  // Department managers (e.g. kitchen manager) see the employee sidebar plus
+  // a small admin-style section scoped to their managed department.
+  const managedDept = user?.managed_department;
+  const departmentLabel = managedDept === 'kitchen' ? 'מטבח' : managedDept === 'floor' ? 'פלור' : null;
+  const departmentManagerExtras = (managedDept && !isCurrentViewAdmin)
+    ? [
+        { title: `ניהול ${departmentLabel || 'מחלקה'}`, url: "#", icon: Settings, isCategory: true, color: "emerald" },
+        { title: "רשימת עובדים", url: createPageUrl("Employees"), icon: Users, isSubItem: true, color: "emerald" },
+        { title: "בקשות זמינות", url: createPageUrl("AvailabilityRequests"), icon: Calendar, isSubItem: true, color: "emerald" },
+        { title: "שיבוץ סידור עבודה", url: createPageUrl("WorkScheduling"), icon: Calendar, isSubItem: true, color: "emerald" },
+      ]
+    : [];
+
   const [navFilter, setNavFilter] = React.useState('');
-  const navigationItems = filterNav(isCurrentViewAdmin ? adminLinks : employeeLinks, navFilter);
+  const baseLinks = isCurrentViewAdmin ? adminLinks : [...employeeLinks, ...departmentManagerExtras];
+  const navigationItems = filterNav(baseLinks, navFilter);
   const userName = user?.full_name || user?.email?.split('@')[0] || 'משתמש';
 
   const commonSidebarProps = {
