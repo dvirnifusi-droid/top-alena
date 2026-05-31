@@ -227,6 +227,9 @@ Line ending warnings (`LF will be replaced by CRLF`) on commit are normal and ha
 - **Interview slot system**: weekly recurring templates → actual `Interview` rows with show/no-show status, WhatsApp reminder buttons in dashboard, training pipeline (`hired → learning_menu → menu_exam_scheduled → menu_exam_passed/failed → training (with session counter) → active_waiter`).
 - **Position-level kashrut requirement** (`WorkPosition.requires_kashrut`): when the candidate picks one of those positions, the bot asks a single explicit question; "no" answer → score -21 capped at 79 → manual review only. Applied uniformly, not name-based.
 - **Marketing AI advisor** (`/MarketingAdvisor`): 8-section business profile → Gemini-generated 6-month strategy + materialized MarketingTasks with full how-to / copy / warnings / KPI. Pulls last 30 days of `ShiftEndReport` data into every prompt for grounded advice. Budget tiers in the persona (0–1.5k / 1.5–3k / 3k+). Menu-photo upload uses Gemini vision to extract structured items.
+  - **Strategy ↔ Tasks alignment** (most recent work): every `MarketingTask` carries `strategy_id`, `month_number` (1–6), `week_in_month` (1–4), and `monthly_theme`. The Gemini prompt is forced to distribute 12–16 tasks per month across the 4 weeks (week 1 = launch tasks, week 2 = ongoing content/operations, week 3 = momentum + result-checks, week 4 = advanced + monthly review + next-month prep) and every task must support one of that month's milestones.
+  - **Per-month task generation**: separate `generateMonthTasks(month_number)` function. The owner clicks "🚀 התחל חודש N" to materialize the next month's tasks; the function loads what was completed/skipped in the prior month and feeds both lists to Gemini so the next plan is aware of carry-over work.
+  - **TasksView** (`src/pages/MarketingAdvisor.jsx`) renders Month selector → Month context card → Week cards with progress bars → Day groups → Task cards. Most recent fix: commit `4512d2d` removed a stale `completed.length` block left over from the refactor (was causing `completed is not defined` runtime error caught by ErrorBoundary).
 - **Sidebar**: 10 color-coded categories, real-time search box (Hebrew), iOS notch-safe header, EnableStaffPush banner above `<main>`.
 - **Device preview** (admin desktop only): floating 📱 button opens an iframe at iPhone/Android/iPad widths for layout QA.
 - **Entity-event triggers** + **free Web Push for staff** replacing SMS (see §4.10).
@@ -239,6 +242,7 @@ Line ending warnings (`LF will be replaced by CRLF`) on commit are normal and ha
 - The legacy `pages/MarketingAI.jsx` (and its 9 components in `src/components/marketing/`) is still in the repo but **removed from the sidebar**. Eventually fold the still-useful pieces (MarketingPostLab, GoalsTracker) into MarketingAdvisor as tabs.
 - DMARC for alenabepita.co.il for email deliverability is unset.
 - iOS web push only works after the PWA is installed (iOS 16.4+); the EnableStaffPush banner shows install instructions, but the owner himself hadn't installed it at last check.
+- **Verify the `completed`-error fix actually landed**: commit `4512d2d` was pushed at the end of the last session but the owner hadn't confirmed yet whether the Month → Week → Day TasksView now renders cleanly in production. First thing to do next session: load `/MarketingAdvisor` → tasks tab → confirm no ErrorBoundary banner.
 
 ---
 
