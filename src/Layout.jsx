@@ -216,7 +216,9 @@ export default function Layout({ children, currentPageName }) {
         setOriginalUserRole(currentUser?.role);
 
         // Pull Employee record by email so we can read both full_name AND
-        // position (used to filter the sidebar to role-relevant pages).
+        // the job title (used to filter the sidebar to role-relevant pages).
+        // Note: in this schema Employee.role holds the JOB TITLE (e.g. "טבח",
+        // "מנהל מטבח"), not the system role — that's on User.role.
         if (currentUser?.email) {
           try {
             const employees = await base44.entities.Employee.filter({ email: currentUser.email });
@@ -225,7 +227,7 @@ export default function Layout({ children, currentPageName }) {
               setUser(prev => prev ? {
                 ...prev,
                 full_name: activeEmployee.full_name || prev.full_name,
-                employee_position: activeEmployee.position || null,
+                employee_position: activeEmployee.role || null,
                 employee_department: activeEmployee.department || null,
               } : null);
             }
