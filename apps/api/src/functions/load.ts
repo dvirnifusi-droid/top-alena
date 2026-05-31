@@ -69,7 +69,7 @@ registerFn('debugGeminiV3', async () => {
   let res = await call(fileParts);
   let purged = 0;
   if (!res.ok && /permission to access the File|may not exist|PERMISSION_DENIED/i.test(JSON.stringify(res.parsed?.error || ''))) {
-    purged = await db.geminiFileCache.deleteMany({}).then(r => r.count).catch(() => -1);
+    purged = await db.geminiFileCache.deleteMany({}).then((r: { count: number }) => r.count).catch(() => -1);
     res = await call([]);
   }
 
