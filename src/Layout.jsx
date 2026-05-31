@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import AiChatWidget from "./components/ai-assistant/AiChatWidget";
 import DevicePreviewToggle from "./components/DevicePreviewToggle";
 import EnableStaffPush from "./components/EnableStaffPush";
+import PopupManager from "./components/PopupManager";
 
 // Color presets for the per-category accent. Tailwind purges by content scan
 // so the full class names must appear literally in the file.
@@ -113,6 +114,7 @@ const adminLinks = [
   { title: "כלים נוספים", url: "#", icon: Settings, isCategory: true, color: "slate" },
   { title: "ייצוא דאטה", url: createPageUrl("DataExport"), icon: Download, isSubItem: true, color: "slate" },
   { title: "שליחת Push ידני", url: createPageUrl("PushNotifications"), icon: Bell, isSubItem: true, color: "slate" },
+  { title: "פופ-אפים מתוזמנים 🔔", url: createPageUrl("Popups"), icon: Megaphone, isSubItem: true, color: "slate" },
 ];
 
 // Employee menu — same flat format, reorganised and color-coded.
@@ -285,6 +287,7 @@ export default function Layout({ children, currentPageName }) {
           <main className="p-2 sm:p-4 lg:p-8">
             {/* "Enable free notifications" prompt for the logged-in user */}
             {user && <EnableStaffPush />}
+            {user && <PopupManager user={user} />}
             {children}
           </main>
         </div>

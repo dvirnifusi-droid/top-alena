@@ -1691,3 +1691,53 @@ model MarketingAdvisorMessage {
   created_date  String?
   updated_date  String?
 }
+
+
+// ── Popup system ────────────────────────────────────────────────────────────
+model Popup {
+  id              String      @id @default(cuid())
+  title           String
+  content         String
+  image_url       String?
+  cta_text        String?
+  cta_url         String?
+
+  // modal | toast | banner
+  display_type    String      @default("modal")
+
+  // immediate | once | daily | weekly
+  schedule_type   String      @default("immediate")
+  scheduled_at    String?     // ISO date-time for "once"
+  daily_time      String?     // "HH:mm"
+  weekly_day      Int?        // 0=Sun … 6=Sat
+  weekly_time     String?     // "HH:mm"
+
+  // all | roles | users | page
+  target_audience String      @default("all")
+  target_roles    String?     // JSON array of role strings
+  target_user_ids String?     // JSON array of user IDs
+  target_page     String?     // e.g. "/Dashboard"
+
+  // once | always | snooze
+  seen_behavior   String      @default("once")
+  snooze_minutes  Int?
+
+  is_active       Boolean     @default(true)
+  created_by      String?
+  created_date    String?
+  updated_date    String?
+
+  views           PopupView[]
+}
+
+model PopupView {
+  id            String   @id @default(cuid())
+  popup_id      String
+  user_id       String
+  viewed_at     String
+  snoozed_until String?
+
+  Popup         Popup    @relation(fields: [popup_id], references: [id], onDelete: Cascade)
+
+  @@unique([popup_id, user_id])
+}

@@ -2327,3 +2327,129 @@ registerFn('createPublicReservation', async ({ body }) => {
 
   return { success: true, reservation_id: reservation.id, table_number: avail.table.table_number };
 }, { public: true });
+
+// ── Popup system ─────────────────────────────────────────────────────────────
+
+// Returns all popups the current user should see right now.
+// The frontend handles "seen" filtering by passing viewed popup IDs.
+registerFn('getActivePopups', async ({ user }) => {
+  if (!user) return [];
+  const now = new Date();
+  const nowISO = now.toISOString();
+  const dayOfWeek = now.getDay(); // 0=Sun
+  const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+
+  const all = await db.popup.findMany({
+    where: { is_active: true },
+    include: { views: { where: { user_id: user.id as string } } },
+  });
+
+  const result: any[] = [];
+  for (const popup of all) {
+    // Schedule filter
+    const { schedule_type, scheduled_at, daily_time, weekly_day, weekly_time } = popup;
+    if (schedule_type === 'once') {
+      if (!scheduled_at) continue;
+      const target = new Date(scheduled_at);
+      // Show within a 24h window after the scheduled time
+      if (now < target || now.getTime() - target.getTime() > 86400_000) continue;
+    } else if (schedule_type === 'daily') {
+      if (!daily_time || timeStr < daily_time || timeStr > addMinutes(daily_time, 59)) continue;
+    } else if (schedule_type === 'weekly') {
+      if (weekly_day !== dayOfWeek) continue;
+      if (!weekly_time || timeStr < weekly_time || timeStr > addMinutes(weekly_time, 59)) continue;
+    }
+    // "immediate" passes through
+
+    // Audience filter
+    const { target_audience, target_roles, target_user_ids, target_page } = popup;
+    if (target_audience === 'roles' && target_roles) {
+      const roles: string[] = JSON.parse(target_roles);
+      if (!roles.includes((user as any).role)) continue;
+    } else if (target_audience === 'users' && target_user_ids) {
+      const ids: string[] = JSON.parse(target_user_ids);
+      if (!ids.includes(user.id as string)) continue;
+    }
+    // "page" filtering is done client-side (server doesn't know current route)
+
+    // Seen-behavior filter
+    const view = popup.views[0];
+    if (view) {
+      if (popup.seen_behavior === 'once') continue;
+      if (popup.seen_behavior === 'snooze' && view.snoozed_until && nowISO < view.snoozed_until) continue;
+    }
+
+    const { views, ...rest } = popup;
+    result.push({ ...rest, _viewed: !!view });
+  }
+
+  return result;
+});
+
+function addMinutes(time: string, mins: number): string {
+  const [h, m] = time.split(':').map(Number);
+  const total = h * 60 + m + mins;
+  return `${String(Math.floor(total / 60) % 24).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
+}
+
+// Mark a popup as viewed / snoozed for the current user.
+registerFn('dismissPopup', async ({ body, user }) => {
+  const { popup_id, snooze_minutes } = body as any;
+  if (!popup_id) throw new Error('popup_id required');
+
+  const snooze_until = snooze_minutes
+    ? new Date(Date.now() + snooze_minutes * 60_000).toISOString()
+    : null;
+
+  const uid = (user as any)?.id as string;
+  if (!uid) throw new Error('not authenticated');
+  await db.popupView.upsert({
+    where: { popup_id_user_id: { popup_id, user_id: uid } },
+    create: { popup_id, user_id: uid, viewed_at: new Date().toISOString(), snoozed_until: snooze_until },
+    update: { viewed_at: new Date().toISOString(), snoozed_until: snooze_until },
+  });
+
+  return { ok: true };
+});
+
+// Admin: create popup
+registerFn('createPopup', async ({ body, user }) => {
+  const data = body as any;
+  const popup = await db.popup.create({
+    data: {
+      ...data,
+      created_by: (user as any)?.id ?? null,
+      created_date: new Date().toISOString(),
+      updated_date: new Date().toISOString(),
+    },
+  });
+  return popup;
+});
+
+// Admin: update popup
+registerFn('updatePopup', async ({ body }) => {
+  const { id, ...data } = body as any;
+  if (!id) throw new Error('id required');
+  const popup = await db.popup.update({
+    where: { id },
+    data: { ...data, updated_date: new Date().toISOString() },
+  });
+  return popup;
+});
+
+// Admin: delete popup
+registerFn('deletePopup', async ({ body }) => {
+  const { id } = body as any;
+  if (!id) throw new Error('id required');
+  await db.popup.delete({ where: { id } });
+  return { ok: true };
+});
+
+// Admin: list all popups with view counts
+registerFn('listPopups', async () => {
+  const popups = await db.popup.findMany({
+    orderBy: { created_date: 'desc' },
+    include: { _count: { select: { views: true } } },
+  });
+  return popups;
+});

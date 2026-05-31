@@ -88,6 +88,7 @@ import MyPerformance from './pages/MyPerformance';
 import PositionsManagement from './pages/PositionsManagement';
 import PublicReservation from './pages/PublicReservation';
 import PublicReservationSettings from './pages/PublicReservationSettings';
+import Popups from './pages/Popups';
 import PushNotifications from './pages/PushNotifications';
 import RecruitmentInterviews from './pages/RecruitmentInterviews';
 import Reports from './pages/Reports';
@@ -157,6 +158,7 @@ export const PAGES = {
     "PositionsManagement": PositionsManagement,
     "PublicReservation": PublicReservation,
     "PublicReservationSettings": PublicReservationSettings,
+    "Popups": Popups,
     "PushNotifications": PushNotifications,
     "RecruitmentInterviews": RecruitmentInterviews,
     "Reports": Reports,
