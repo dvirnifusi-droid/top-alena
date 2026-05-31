@@ -214,14 +214,20 @@ export default function Layout({ children, currentPageName }) {
         const currentUser = await base44.auth.me();
         setUser(currentUser);
         setOriginalUserRole(currentUser?.role);
-        
-        // סנכרן שם מ-Employee אם קיים
+
+        // Pull Employee record by email so we can read both full_name AND
+        // position (used to filter the sidebar to role-relevant pages).
         if (currentUser?.email) {
           try {
             const employees = await base44.entities.Employee.filter({ email: currentUser.email });
-            const activeEmployee = employees.find(emp => emp.full_name);
+            const activeEmployee = employees.find(emp => emp.full_name) || employees[0];
             if (activeEmployee) {
-              setUser(prev => prev ? { ...prev, full_name: activeEmployee.full_name } : null);
+              setUser(prev => prev ? {
+                ...prev,
+                full_name: activeEmployee.full_name || prev.full_name,
+                employee_position: activeEmployee.position || null,
+                employee_department: activeEmployee.department || null,
+              } : null);
             }
           } catch (err) {
             console.error("Failed to fetch employee:", err);
@@ -259,8 +265,52 @@ export default function Layout({ children, currentPageName }) {
       ]
     : [];
 
+  // ── Position-based sidebar overrides ───────────────────────────────────────
+  // For specific job positions we hand-pick exactly which sidebar items show.
+  // Anything not listed here falls through to the default employeeLinks.
+  // Add a new position by creating a links array and registering it below.
+  const cookLinks = [
+    { title: "בית", url: createPageUrl("EmployeeHome"), icon: LayoutGrid, color: "slate" },
+    { title: "כלי עבודה יומיים", url: "#", icon: Zap, isCategory: true, color: "cyan" },
+    { title: "צ'קליסטים", url: createPageUrl("Checklists"), icon: CheckSquare, isSubItem: true, color: "cyan" },
+    { title: "דיווח תקרית", url: createPageUrl("Incidents"), icon: AlertTriangle, isSubItem: true, color: "cyan" },
+    { title: "ספקים", url: createPageUrl("Suppliers"), icon: Building, isSubItem: true, color: "cyan" },
+    { title: "סידור וזמינות", url: "#", icon: Calendar, isCategory: true, color: "blue" },
+    { title: "סידור עבודה", url: createPageUrl("WorkScheduling"), icon: Calendar, isSubItem: true, color: "blue" },
+    { title: "הגשת זמינות", url: createPageUrl("AvailabilityForm"), icon: Calendar, isSubItem: true, color: "blue" },
+    { title: "בקשות חופשה", url: createPageUrl("LeaveRequests"), icon: CalendarDays, isSubItem: true, color: "blue" },
+    { title: "הדרכה", url: "#", icon: GraduationCap, isCategory: true, color: "rose" },
+    { title: "סרטוני הדרכה", url: createPageUrl("TrainingVideos"), icon: GraduationCap, isSubItem: true, color: "rose" },
+  ];
+
+  const kitchenManagerLinks = [
+    ...cookLinks,
+    { title: "ניהול מטבח", url: "#", icon: Settings, isCategory: true, color: "emerald" },
+    { title: "רשימת עובדים", url: createPageUrl("Employees"), icon: Users, isSubItem: true, color: "emerald" },
+    { title: "בקשות זמינות", url: createPageUrl("AvailabilityRequests"), icon: Calendar, isSubItem: true, color: "emerald" },
+    { title: "שיבוץ סידור עבודה", url: createPageUrl("WorkScheduling"), icon: Calendar, isSubItem: true, color: "emerald" },
+  ];
+
+  const POSITION_SIDEBAR = {
+    'טבח': cookLinks,
+    'מנהל מטבח': kitchenManagerLinks,
+    // 'מלצר', 'ברמן' etc. — add when the owner asks.
+  };
+
+  const employeePosition = user?.employee_position;
+  const positionSidebar = employeePosition ? POSITION_SIDEBAR[employeePosition] : null;
+
+  // Sidebar selection order:
+  //   1. Admin → full adminLinks
+  //   2. Recognized position → its hand-picked list
+  //   3. Has managed_department (legacy fallback) → employeeLinks + extras
+  //   4. Default → employeeLinks
   const [navFilter, setNavFilter] = React.useState('');
-  const baseLinks = isCurrentViewAdmin ? adminLinks : [...employeeLinks, ...departmentManagerExtras];
+  const baseLinks = isCurrentViewAdmin
+    ? adminLinks
+    : positionSidebar
+      ? positionSidebar
+      : [...employeeLinks, ...departmentManagerExtras];
   const navigationItems = filterNav(baseLinks, navFilter);
   const userName = user?.full_name || user?.email?.split('@')[0] || 'משתמש';
 
