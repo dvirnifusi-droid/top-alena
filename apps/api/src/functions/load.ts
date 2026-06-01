@@ -1650,13 +1650,16 @@ async function uploadBufferToGemini(buf: ArrayBuffer | Buffer, mime: string): Pr
 // etc. — falls back to using everything after the LAST '/files/' segment.
 function extractMinioKey(fileUrl: string): string | null {
   if (!fileUrl) return null;
-  // strip any query string
   const noQuery = fileUrl.split('?')[0];
-  // most common: contains "/files/" somewhere — take everything after the last
-  // occurrence (handles /api/files/2026/abc.pdf, https://x.com/files/abc, etc.)
-  const idx = noQuery.lastIndexOf('/files/');
-  if (idx >= 0) return noQuery.slice(idx + '/files/'.length);
-  // legacy: contains "<bucket>/" — strip everything up to and including bucket
+  // Every storage URL we've ever generated puts the MinIO key after one of
+  // these prefixes — try each in order. /storage/ is the legacy public URL
+  // (https://topalena.com/storage/<key>), /files/ is the current internal
+  // streamer (/api/files/<key>), /<bucket>/ is the raw MinIO/S3 form.
+  const prefixes = ['/storage/', '/files/'];
+  for (const p of prefixes) {
+    const idx = noQuery.lastIndexOf(p);
+    if (idx >= 0) return noQuery.slice(idx + p.length);
+  }
   const bucket = process.env.S3_BUCKET ?? 'top-alena';
   const bIdx = noQuery.indexOf(`/${bucket}/`);
   if (bIdx >= 0) return noQuery.slice(bIdx + bucket.length + 2);
