@@ -230,6 +230,41 @@ Line ending warnings (`LF will be replaced by CRLF`) on commit are normal and ha
   - **Strategy ↔ Tasks alignment** (most recent work): every `MarketingTask` carries `strategy_id`, `month_number` (1–6), `week_in_month` (1–4), and `monthly_theme`. The Gemini prompt is forced to distribute 12–16 tasks per month across the 4 weeks (week 1 = launch tasks, week 2 = ongoing content/operations, week 3 = momentum + result-checks, week 4 = advanced + monthly review + next-month prep) and every task must support one of that month's milestones.
   - **Per-month task generation**: separate `generateMonthTasks(month_number)` function. The owner clicks "🚀 התחל חודש N" to materialize the next month's tasks; the function loads what was completed/skipped in the prior month and feeds both lists to Gemini so the next plan is aware of carry-over work.
   - **TasksView** (`src/pages/MarketingAdvisor.jsx`) renders Month selector → Month context card → Week cards with progress bars → Day groups → Task cards. Most recent fix: commit `4512d2d` removed a stale `completed.length` block left over from the refactor (was causing `completed is not defined` runtime error caught by ErrorBoundary).
+
+- **Dvir AI chat (`AiChatWidget`)** + **AI knowledge files pipeline** — replaces the Drive-based pipeline that broke every 48h.
+  - `AiAssistantFile` entity in schema: owner uploads PDF/Word/Excel/images/text via `/AiDashboard` → tab "📚 ידע של דביר" → MinIO. Each row carries `gemini_file_uri` + `gemini_uploaded_at` as a lazy cache.
+  - `askGemini` reads active `AiAssistantFile` rows, and for each one it reuses the cached Gemini URI if `< 47h` old; otherwise it pulls the bytes from MinIO (`extractMinioKey` handles `/storage/`, `/files/`, and `/<bucket>/` URL shapes), re-uploads to Gemini's Files API, caches the new URI. Falls back to the legacy `GeminiFileCache` for files not yet migrated.
+  - Self-heal: if a Gemini call returns 403 PERMISSION_DENIED for a missing file URI, `askGemini` purges `GeminiFileCache` and retries without files so the chat keeps working.
+  - `migrateDriveToAiAssistantFiles` (admin button) pulls every file from the configured Drive folder into MinIO + DB. Idempotent by `file_name`.
+  - Important: `gemini-2.5-flash` uses "thinking tokens" by default. We send `thinkingConfig.thinkingBudget: 0` in every call (`askGemini`, `runCeoDailyBrief`, `runAgent`) so the whole `maxOutputTokens` budget goes to the textual reply instead of getting eaten by silent thinking.
+
+- **Popups system** (`/Popups`, admin only via `PageGuard`) — `Popup` + `PopupView` schema, modal/toast/banner display, scheduling (immediate/once/daily/weekly), targeting (roles/users/pages), seen-behaviour (once/always/snooze). `PopupManager` mounted in `Layout.jsx` polls every 60s. Listing/CRUD gated by `assertPopupAdmin`.
+
+- **Department managers** — partial admin powers scoped to one department (`User.managed_department`: `kitchen` | `floor`).
+  - Granted via the `PermissionsDialog` on `/Employees` → "👔 מנהל מחלקה" dropdown. Backend fn `setUserRoleAndDepartment` (admin-only) handles the User upsert.
+  - Sidebar gets a green "ניהול <מחלקה>" section with Employees / AvailabilityRequests / WorkScheduling.
+  - `PageGuard` bypasses the per-page allowlist for those 3 pages when a department manager visits. Pages then auto-scope their content to the manager's department.
+
+- **Position-based sidebar** — for non-admin users the sidebar is hand-picked per `Employee.role` (the job title field, e.g. "טבח" or "מנהל מטבח"). Look in `src/Layout.jsx` for `POSITION_SIDEBAR`. Currently configured: `טבח` (cook) → limited 8-item menu; `מנהל מטבח` → cook items + the green dept-manager extras. Add new positions there.
+
+- **Recruitment / interviews polish**:
+  - "🗑️ בטל ראיון" button on every scheduled interview — `cancelInterview(id)` deletes the row (frees the time slot, removes from upcoming list) and reverts the candidate from `scheduled` back to `pending` so they reappear in "top candidates".
+  - Slot pickers (both the regular booking and the menu-exam scheduling) now show the full date and a colour-coded "בעוד N ימים" urgency chip (green=today/tomorrow, blue=2-3d, cyan=4-7d, amber=8-14d, red=15+d ⚠️) so the owner doesn't accidentally schedule far-out interviews that get no-show'd.
+  - `InterviewSettings` rows accept a per-row specific date that overrides the weekly recurrence — pick a date in the input and the slot becomes a one-off on that exact date (purple highlight + ↺ to revert). Schema: `InterviewSlotTemplate.specific_date String?`.
+
+- **Alina CEO Agent ecosystem** (`/AgentInbox`, admin only) — Phase A infrastructure + Phase B slice 1 are live. The big-picture design (23 agents, locked decisions, Campaign Units, ₪500/month cap, daily briefs at 09:00/17:00/00:00 Asia/Jerusalem) lives in the personal memory file `project_alina_ceo_agent.md`. Always read that file before extending this system.
+  - Schema: `Agent`, `AgentRun`, `AgentInboxItem`, `CampaignUnit`. Spend tracking on Agent (`spend_cap_monthly`, `spend_used_month`). Cost tracked per `AgentRun`.
+  - Backend (all in `load.ts`):
+    - `assertCeoAdmin(user)` gate (admin/owner only)
+    - `AGENT_TREE` constant — canonical 23 agents per the locked design
+    - `seedDefaultAgents()` — idempotent population
+    - `runAgent({agent_id, input, trigger})` — generic Gemini runner (uses `thinkingBudget:0`); falls back to a Phase-A stub when an agent has no `system_prompt`
+    - `runCeoDailyBrief({trigger})` — pulls today's snapshot via `buildCeoBriefContext()` (reservations / shift report / incidents / interviews / marketing tasks / low inventory), feeds it to Gemini with `CEO_BRIEF_PROMPT`, writes a short Hebrew brief into the inbox. Auto-elevates priority to `high` when there are incidents or low-stock items.
+    - `listAgentInbox` / `actOnInboxItem` / `listAgents` / `updateAgent`
+    - `executeApprovedAction(payload)` — when the owner approves an inbox item that has `requires_action` + `payload`, the payload's `kind` is executed: `delegate_run` (run another agent), `pushover_owner` (notify), `update_agent`, `update_campaign_unit`. Result is logged as a follow-up inbox item (`✅ בוצע` or `❌ ביצוע נכשל`).
+    - In-process scheduler `checkCeoDailyBriefs` (top of `load.ts`, alongside `checkInterviewReminders`) fires the brief at 09:00/17:00/00:00 Asia/Jerusalem windows, idempotent per window per day.
+  - Frontend: `src/pages/AgentInbox.jsx` — list of inbox items (priority-coloured, type-badged, approve/reject/dismiss) + right-rail org chart with run/toggle controls and a "seed 23 agents" button when empty. Sidebar link "תיבת הסוכן 🧠" under `כלי AI`.
+  - **Phase B slice 2 (not yet built):** real `system_prompt`s for VP_MARKETING + the 5-agent EVENTS crew; CampaignUnit creation UI; `SALES_CLOSER_EVENTS` sales-kit intake (the missing pieces are tracked in memory files `project_sales_closer_events_inputs.md` and `project_alina_event_menus.md`).
 - **Sidebar**: 10 color-coded categories, real-time search box (Hebrew), iOS notch-safe header, EnableStaffPush banner above `<main>`.
 - **Device preview** (admin desktop only): floating 📱 button opens an iframe at iPhone/Android/iPad widths for layout QA.
 - **Entity-event triggers** + **free Web Push for staff** replacing SMS (see §4.10).
@@ -243,6 +278,14 @@ Line ending warnings (`LF will be replaced by CRLF`) on commit are normal and ha
 - DMARC for alenabepita.co.il for email deliverability is unset.
 - iOS web push only works after the PWA is installed (iOS 16.4+); the EnableStaffPush banner shows install instructions, but the owner himself hadn't installed it at last check.
 - **Verify the `completed`-error fix actually landed**: commit `4512d2d` was pushed at the end of the last session but the owner hadn't confirmed yet whether the Month → Week → Day TasksView now renders cleanly in production. First thing to do next session: load `/MarketingAdvisor` → tasks tab → confirm no ErrorBoundary banner.
+
+- **CEO Agent — Phase B slice 2 (next chunk of work, when owner says go):** real `system_prompt`s for `VP_MARKETING` + the 5-agent EVENTS crew (`DESIGNER`, `CREATIVE`, `AUDIENCE_ROUTER`, `CAMPAIGN_BUILDER`, `OPTIMIZER`). The prompts must respect the locked decisions in `project_alina_ceo_agent.md` (₪500 monthly cap, Hebrew owner output, Meta as first platform, owner channel = topalena webhook). Also: build a CampaignUnit creation UI inside `/AgentInbox` (or a sub-route) so the owner can spin up "UNIT_EVENTS_PRIVATE" as the first concrete unit.
+
+- **`SALES_CLOSER_EVENTS` sales-kit intake** — still blocked on the owner supplying the missing pieces (prices per person, T&Cs, gallery, additional menus beyond the existing breakfast buffet). Tracked in memory files `project_sales_closer_events_inputs.md` and `project_alina_event_menus.md`. Once the owner provides them, store as JSON on `CampaignUnit.promoted_thing.sales_kit` and reference verbatim in the agent's system prompt.
+
+- **Beecom POS integration** — deferred until the CEO Agent's CFO leg needs real revenue data. Will plug into existing `BeecommConfig` / `BeecommOrder` entities (already in schema).
+
+- **Drive sync deprecation** — `refreshGeminiFiles` and `GeminiFileCache` are still in the codebase as a transitional fallback inside `askGemini`. Safe to delete after the owner has fully migrated to `AiAssistantFile` (use the "ייבוא חד-פעמי מ-Drive" button on `/AiDashboard` → "📚 ידע של דביר" and then verify there are no chat regressions).
 
 ---
 
