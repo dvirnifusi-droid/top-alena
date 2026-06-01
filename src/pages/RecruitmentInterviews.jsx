@@ -40,6 +40,37 @@ function fmtDate(d) {
   catch { return d; }
 }
 
+function fmtFullDate(d) {
+  try { return new Date(d + 'T00:00').toLocaleDateString('he-IL', { day: '2-digit', month: '2-digit', year: '2-digit' }); }
+  catch { return d; }
+}
+
+// Returns { label, tone } describing how far a slot is from today.
+// tone is one of 'today' | 'soon' | 'this_week' | 'next_week' | 'far'
+function daysFromNow(d) {
+  try {
+    const target = new Date(d + 'T00:00');
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const diff = Math.round((target.getTime() - today.getTime()) / 86400000);
+    if (diff === 0) return { days: 0, label: 'היום', tone: 'today' };
+    if (diff === 1) return { days: 1, label: 'מחר', tone: 'today' };
+    if (diff < 0) return { days: diff, label: `לפני ${-diff} ימים`, tone: 'far' };
+    if (diff <= 3) return { days: diff, label: `בעוד ${diff} ימים`, tone: 'soon' };
+    if (diff <= 7) return { days: diff, label: `בעוד ${diff} ימים`, tone: 'this_week' };
+    if (diff <= 14) return { days: diff, label: `בעוד ${diff} ימים`, tone: 'next_week' };
+    return { days: diff, label: `בעוד ${diff} ימים ⚠️`, tone: 'far' };
+  } catch { return { days: 0, label: '', tone: 'far' }; }
+}
+
+const TONE_CLASSES = {
+  today:     'bg-emerald-100 text-emerald-800 border-emerald-300',
+  soon:      'bg-blue-100 text-blue-800 border-blue-300',
+  this_week: 'bg-cyan-100 text-cyan-800 border-cyan-300',
+  next_week: 'bg-amber-100 text-amber-800 border-amber-300',
+  far:       'bg-red-100 text-red-800 border-red-300',
+};
+
 export default function RecruitmentInterviews() {
   const [inbox, setInbox] = useState({ upcoming: [], recent: [], toCallBack: [], topUnscheduled: [], trainees: [] });
   const [loading, setLoading] = useState(true);
@@ -285,17 +316,23 @@ export default function RecruitmentInterviews() {
                         </p>
                       ) : (
                         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-60 overflow-y-auto">
-                          {slots.map((s, i) => (
-                            <button
-                              key={i}
-                              onClick={() => bookForCandidate(c.id, s)}
-                              disabled={actionId === c.id}
-                              className="rounded-lg border border-emerald-200 hover:border-emerald-500 hover:bg-emerald-50 disabled:opacity-50 transition p-2 text-right text-xs"
-                            >
-                              <p className="font-bold text-slate-800">יום {s.weekday_name}</p>
-                              <p className="text-slate-500">{fmtDate(s.date)} · {s.time}</p>
-                            </button>
-                          ))}
+                          {slots.map((s, i) => {
+                            const t = daysFromNow(s.date);
+                            return (
+                              <button
+                                key={i}
+                                onClick={() => bookForCandidate(c.id, s)}
+                                disabled={actionId === c.id}
+                                className="rounded-lg border border-emerald-200 hover:border-emerald-500 hover:bg-emerald-50 disabled:opacity-50 transition p-2 text-right text-xs"
+                              >
+                                <div className="flex items-center justify-between gap-1 mb-1">
+                                  <span className="font-bold text-slate-800">יום {s.weekday_name}</span>
+                                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${TONE_CLASSES[t.tone]}`}>{t.label}</span>
+                                </div>
+                                <p className="text-slate-600 font-semibold">{fmtFullDate(s.date)} · {s.time}</p>
+                              </button>
+                            );
+                          })}
                         </div>
                       )}
                     </div>
@@ -504,17 +541,23 @@ function TraineeCard({ cand, actionId, openSlotCand, slots, slotsLoading, onOpen
             </p>
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-60 overflow-y-auto">
-              {slots.map((s, i) => (
-                <button
-                  key={i}
-                  onClick={() => onScheduleMenuExam(cand.id, s)}
-                  disabled={busy}
-                  className="rounded-lg border border-emerald-200 hover:border-emerald-500 hover:bg-emerald-50 disabled:opacity-50 transition p-2 text-right text-xs"
-                >
-                  <p className="font-bold text-slate-800">יום {s.weekday_name}</p>
-                  <p className="text-slate-500">{s.date} · {s.time}</p>
-                </button>
-              ))}
+              {slots.map((s, i) => {
+                const t = daysFromNow(s.date);
+                return (
+                  <button
+                    key={i}
+                    onClick={() => onScheduleMenuExam(cand.id, s)}
+                    disabled={busy}
+                    className="rounded-lg border border-emerald-200 hover:border-emerald-500 hover:bg-emerald-50 disabled:opacity-50 transition p-2 text-right text-xs"
+                  >
+                    <div className="flex items-center justify-between gap-1 mb-1">
+                      <span className="font-bold text-slate-800">יום {s.weekday_name}</span>
+                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${TONE_CLASSES[t.tone]}`}>{t.label}</span>
+                    </div>
+                    <p className="text-slate-600 font-semibold">{fmtFullDate(s.date)} · {s.time}</p>
+                  </button>
+                );
+              })}
             </div>
           )}
         </div>
