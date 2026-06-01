@@ -191,17 +191,28 @@ function BookingsCard() {
 export default function EventsPrivatePage() {
   const [leads, setLeads] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
+  const [diag, setDiag] = useState(null);
 
   const loadAll = useCallback(async () => {
     setLoading(true);
+    setLoadError(null);
     try {
       const res = await base44.functions.listEventLeads({});
       setLeads(res?.leads || []);
     } catch (e) {
+      setLoadError(e?.message || String(e));
       setLeads([]);
     } finally {
       setLoading(false);
     }
+    // Always fetch diagnostics in parallel so we can confirm DB state.
+    try {
+      const r = await fetch('/api/public/fn/eventsDiagnostics', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}',
+      });
+      if (r.ok) setDiag(await r.json());
+    } catch { /* ignore */ }
   }, []);
 
   useEffect(() => { loadAll(); }, [loadAll]);
@@ -213,6 +224,17 @@ export default function EventsPrivatePage() {
 
   return (
     <div className="p-4 md:p-6 space-y-6" dir="rtl">
+      {loadError && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-800">
+          ⚠️ טעינת לידים נכשלה: <code className="bg-white px-1 rounded">{loadError}</code>
+          {diag && <div className="mt-1 text-xs text-red-700">למרות זאת ב-DB יש {diag.leads?.total ?? '?'} לידים + {diag.bookings?.total ?? '?'} bookings — בעיית הרשאה / סשן.</div>}
+        </div>
+      )}
+      {!loadError && leads.length === 0 && diag && (diag.leads?.total > 0 || diag.bookings?.total > 0) && (
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-900">
+          ⚠️ הדף מציג 0 לידים אבל ב-DB יש {diag.leads?.total} לידים + {diag.bookings?.total} bookings. ייתכן שאתה רואה JS ישן — לחץ <strong>Ctrl+Shift+R</strong> לרענון חזק.
+        </div>
+      )}
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">
