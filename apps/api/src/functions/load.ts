@@ -3297,6 +3297,55 @@ registerFn('runCeoDailyBrief', async ({ body }) => {
 
 /* ----- Events private inquiry AI agent (public, separate from recruitment) ----- */
 
+/**
+ * Events-only Pushover dispatcher. Bypasses the admin↔employee email-match
+ * requirement of pushoverToAdmins (which silently sent to zero recipients
+ * when emails didn't match exactly) — here we send to every Employee with
+ * a pushover_user_key, plus every User with role='admin' that has a
+ * matching employee row. Logs results so we can see what happened.
+ */
+async function pushoverEventsOwners(title: string, message: string) {
+  try {
+    const emps = await (prisma as any).employee.findMany({ where: { pushover_user_key: { not: null } } });
+    let sent = 0;
+    for (const emp of emps) {
+      if (!emp.pushover_user_key) continue;
+      try {
+        await pushover(emp.pushover_user_key, title, message, 1);
+        sent++;
+      } catch (err: any) {
+        console.error('[events-pushover] send failed for', emp.email, err?.message);
+      }
+    }
+    console.log(`[events-pushover] "${title}" sent to ${sent}/${emps.length} employees`);
+    if (sent === 0) {
+      console.warn('[events-pushover] no recipients — check Employee.pushover_user_key + PUSHOVER_APP_TOKEN env');
+    }
+    return { sent, total: emps.length };
+  } catch (e: any) {
+    console.error('[events-pushover] dispatcher failed', e?.message);
+    return { sent: 0, total: 0, error: e?.message };
+  }
+}
+
+// Diagnostic: call this to verify the Pushover pipe is alive. Returns the count of
+// employees with pushover_user_key, whether the env token is present, and how many
+// devices got the test message.
+registerFn('testEventsPushover', async () => {
+  const tokenPresent = !!(process.env.PUSHOVER_APP_TOKEN || process.env.PUSHOVER_API_TOKEN);
+  const emps = await (prisma as any).employee.findMany({ where: { pushover_user_key: { not: null } } });
+  const result = await pushoverEventsOwners(
+    '🔔 בדיקת התראות אירועים',
+    `אם קיבלת הודעה זו — Pushover לאירועים עובד תקין.\nנשלח בתאריך: ${new Date().toLocaleString('he-IL', { timeZone: 'Asia/Jerusalem' })}`,
+  );
+  return {
+    pushover_token_in_env: tokenPresent,
+    employees_with_pushover_key: emps.length,
+    employee_emails_with_key: emps.map((e: any) => e.email),
+    dispatch_result: result,
+  };
+});
+
 const EVENTS_SYSTEM_PROMPT = `אתה סוכן הסיווג של מסעדת 'עלינא' לאירועים פרטיים. אתה מדבר בעברית טבעית, חמה וקצרה.
 
 המטרה: לאסוף 5 פרטים מאדם שמתעניין באירוע, לתת ציון 0-100, ולסכם בצורה מובנית. אתה לא סוגר עסקה, לא מצטט מחירים, ולא מבטיח תאריך — את זה המנהל עושה.
@@ -3471,7 +3520,7 @@ registerFn('chatEventsInquiry', async ({ body }) => {
         currentLead.budget_per_person ? `💰 ₪${currentLead.budget_per_person}/סועד` : null,
         `📥 מקור: ${currentLead.source || 'web_chat'}`,
       ].filter(Boolean).join('\n');
-      pushoverToAdmins('✨ ליד אירוע חדש — שיחה פעילה', lines).catch(() => {});
+      pushoverEventsOwners('✨ ליד אירוע חדש — שיחה פעילה', lines).catch(() => {});
       await db.eventLead.update({
         where: { id: currentLead.id },
         data: { notes: `${currentLead.notes || ''}${currentLead.notes ? ' | ' : ''}intent_alerted:${new Date().toISOString()}` },
@@ -3588,7 +3637,7 @@ registerFn('chatEventsInquiry', async ({ body }) => {
           '',
           '🔗 לאישור ב-/EventsPrivate',
         ].filter(Boolean).join('\n');
-        pushoverToAdmins('🎯 אירוע נסגר — התקשר ללקוח', lines).catch(() => {});
+        pushoverEventsOwners('🎯 אירוע נסגר — התקשר ללקוח', lines).catch(() => {});
       } catch { /* ignore */ }
     } catch (e: any) {
       console.error('[eventBooking.create]', e?.message);
@@ -3759,7 +3808,7 @@ registerFn('confirmEventPayment', async ({ body }) => {
       `💳 פיקדון שולם: ₪${paid.deposit_amount_ils || 0}`,
       `🔗 פתח /EventsPrivate לאישור`,
     ];
-    pushoverToAdmins(paid.short_notice ? '⚡ אירוע same-day נסגר!' : '🎉 אירוע נסגר — אישור מנהל', lines.join('\n')).catch(() => {});
+    pushoverEventsOwners(paid.short_notice ? '⚡ אירוע same-day נסגר!' : '🎉 אירוע נסגר — אישור מנהל', lines.join('\n')).catch(() => {});
   } catch { /* ignore */ }
 
   return { booking: paid, reservation };
@@ -3867,7 +3916,7 @@ export async function checkStuckEventLeads() {
         `📥 מקור: ${lead.source || 'web_chat'}`,
         `⏰ עזב לפני ~${STUCK_THRESHOLD_MIN} דק׳ באמצע השיחה`,
       ].filter(Boolean).join('\n');
-      try { await pushoverToAdmins('⚠️ ליד אירוע נטוש', summary); } catch { /* ignore */ }
+      try { await pushoverEventsOwners('⚠️ ליד אירוע נטוש', summary); } catch { /* ignore */ }
       try {
         await db.eventLead.update({
           where: { id: lead.id },
