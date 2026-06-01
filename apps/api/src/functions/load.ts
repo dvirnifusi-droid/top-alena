@@ -3499,9 +3499,46 @@ registerFn('chatEventsInquiry', async ({ body }) => {
   const replyRaw = String(result?.reply || '');
   const endsWithQuestion = /[?؟]\s*$/.test(replyRaw.trim()) || /[?؟]\s*$/m.test(replyRaw.trim().split('\n').pop() || '');
   const customerLastTurn = String(message || '').trim();
-  const closeRegex = /(^|[\s,.!])(כן\s*(סגור|מאשר|סוגר|בוא|אישור|מצוין)?|סגור(\s*עלי)?|אני\s*מאשר|מאשר[ת]?|בוא\s*נסגור|בואו\s*נסגור|סוגר[ת]?(\s*עסקה)?|סוגרים|אוקי?\s*סגור|מצוין\s*סגור|נשמע\s*טוב\s*(סגור|בוא|סוגר)|מאה\s*אחוז\s*סגור|קיבלתי(\s*תודה)?|אישור[,.\s]|חותם[ת]?|מסכים[ה]?|let.?s\s*close|deal|confirmed?)\s*[.,!]?\s*$/i;
-  const customerExplicitClose = closeRegex.test(customerLastTurn);
+  // Wide positive-close detection: any of these tokens appearing ANYWHERE in the customer's reply
+  // counts as "agreement to close" — provided the prior agent turn was asking for confirmation.
+  // Word boundaries are crude in Hebrew (no \b for non-Latin), so we look for whole-word matches
+  // bracketed by start/end of string or whitespace/punctuation.
+  const closeTokens = [
+    'סגור','סוגר','סוגרת','סוגרים','סגרנו',
+    'מאשר','מאשרת','מסכים','מסכימה','חותם','חותמת','אישור','מאשרים',
+    'אשמח','נשמח','אשמחה',
+    'מעולה','מושלם','נהדר','בטוח','יאללה','אוקי','אוקיי','בוא','בואו','נסגור','נסגרת',
+    'deal','confirmed','confirm','yes','sure','great','okay','ok',
+  ];
+  const tokenRe = new RegExp('(^|[\\s,.!?:;])(' + closeTokens.map(t => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|') + ')([\\s,.!?:;]|$)', 'i');
+  // "כן" alone is also a close if the agent's previous turn was a close-confirmation question.
+  const customerSaidYes = /^\s*כן\b/i.test(customerLastTurn) || /(^|\s)כן(\s|$|[.,!?])/i.test(customerLastTurn);
+  const agentAskedToClose = /(לסגור|לסגירה|להתקדם|נסגור|סוגרים|נמשיך|לאישור)/.test(replyRaw + ' ' + (turns.length ? String((turns[turns.length - 1] as any)?.content || '') : ''));
+  const customerExplicitClose = tokenRe.test(customerLastTurn) || (customerSaidYes && agentAskedToClose);
+
+  // Best-effort: extract an Israeli mobile number from the entire transcript if the LLM forgot
+  // to put it in `collected`. Matches 05X-XXXXXXX with or without dashes/spaces.
+  if (!c.contact_phone) {
+    const fullTextForPhone = [...turns.map((t: any) => t.content), message || ''].join(' ');
+    const phoneMatch = fullTextForPhone.match(/0\s?5\d[\s-]?\d{3}[\s-]?\d{4}/);
+    if (phoneMatch) c.contact_phone = phoneMatch[0].replace(/[\s-]/g, '');
+  }
+
   const hasMinInfo = !!(c.event_date || c.event_date_iso) && !!c.guest_count && !!c.contact_phone;
+
+  // Diagnostic — these show up in server logs so we can see why a close did or didn't fire.
+  console.log('[chatEventsInquiry]', JSON.stringify({
+    msg: customerLastTurn.slice(0, 60),
+    llm_complete: result?.complete,
+    llm_stage: result?.stage,
+    customerExplicitClose,
+    customerSaidYes,
+    agentAskedToClose,
+    hasMinInfo,
+    has_date: !!(c.event_date || c.event_date_iso),
+    has_guests: !!c.guest_count,
+    has_phone: !!c.contact_phone,
+  }));
   // Force close when customer says yes AND we have enough info to call them back. This is the
   // critical anti-stall guard — the LLM tends to keep asking confirmations forever otherwise.
   const forcedClose = customerExplicitClose && hasMinInfo;
