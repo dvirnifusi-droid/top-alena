@@ -1044,6 +1044,31 @@ registerFn('markInterviewStatus', async ({ body }) => {
   return { interview };
 });
 
+// Cancel a scheduled interview entirely: delete the row (frees the time
+// slot and removes it from "upcoming interviews"), and bump the candidate
+// back to a re-schedulable state so they reappear in "top candidates".
+registerFn('cancelInterview', async ({ body }) => {
+  const { id } = body as any;
+  if (!id) throw new Error('id required');
+  const iv = await db.interview.findUnique({ where: { id } });
+  if (!iv) throw new Error('interview not found');
+
+  await db.interview.delete({ where: { id } }).catch(() => {});
+
+  // Reset candidate status if it was bumped by scheduling. We don't touch
+  // candidates that already passed an earlier stage (hired, trainee, etc).
+  if (iv.candidate_id) {
+    const cand = await db.jobCandidate.findUnique({ where: { id: iv.candidate_id } });
+    if (cand && (cand.status === 'scheduled' || cand.status === 'interview_scheduled')) {
+      await db.jobCandidate.update({
+        where: { id: iv.candidate_id },
+        data: { status: 'pending' },
+      }).catch(() => {});
+    }
+  }
+  return { ok: true };
+});
+
 // AUTH — move a candidate through training pipeline.
 // Stages: 'hired' -> 'trainee_tables' -> 'trainee_bar' -> 'trainee_kitchen' -> 'active_waiter'
 // ----- Internal scheduler: send Pushover ~3h before each interview -----

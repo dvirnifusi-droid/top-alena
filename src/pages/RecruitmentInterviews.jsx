@@ -102,6 +102,16 @@ export default function RecruitmentInterviews() {
     finally { setActionId(null); }
   };
 
+  const cancelInterview = async (iv) => {
+    if (!confirm(`לבטל את הראיון של ${iv.candidate_name || 'המועמד'} בתאריך ${fmtDate(iv.scheduled_date)} ${iv.scheduled_time}?\n\nהמועד יתפנה לאחרים והמועמד יחזור לרשימת ההמתנה.`)) return;
+    setActionId(iv.id);
+    try {
+      await base44.functions.cancelInterview({ id: iv.id });
+      await load();
+    } catch { alert('שגיאה בביטול'); }
+    finally { setActionId(null); }
+  };
+
   const advance = async (cand, stage) => {
     setActionId(cand.id);
     try {
@@ -204,6 +214,14 @@ export default function RecruitmentInterviews() {
                     </button>
                   </>
                 )}
+                <button
+                  disabled={actionId===iv.id}
+                  onClick={() => cancelInterview(iv)}
+                  title="בטל ראיון ופתח את התאריך"
+                  className="text-xs bg-slate-500 hover:bg-slate-600 text-white font-bold px-2.5 py-1.5 rounded-lg disabled:opacity-50"
+                >
+                  🗑️ בטל ראיון
+                </button>
               </div>
             ))}
           </div>
