@@ -3409,14 +3409,22 @@ registerFn('chatEventsInquiry', async ({ body }) => {
 
   const c = result?.collected || {};
 
-  // Server-side guard against premature closure: if the assistant ended with a question
-  // (Hebrew/English question mark), it's mid-conversation regardless of what the model said.
-  // We treat complete as false so the frontend keeps the chat open and the LLM can continue.
+  // Server-side closure logic with both directions:
+  // (a) Guard against premature closure: if the assistant ended with a question and the customer
+  //     hasn't explicitly said close, treat complete as false so the frontend keeps chat open.
+  // (b) FORCE closure: if the customer explicitly said close ("כן סגור", "אני מאשר", "סגור עליי",
+  //     "קיבלתי", "מצוין", etc.) AND we have minimum identifying info, we mark complete=true even
+  //     if the LLM kept stalling — the customer's words are the source of truth.
   const replyRaw = String(result?.reply || '');
   const endsWithQuestion = /[?؟]\s*$/.test(replyRaw.trim()) || /[?؟]\s*$/m.test(replyRaw.trim().split('\n').pop() || '');
-  const customerLastTurn = String(message || '').trim().toLowerCase();
-  const customerExplicitClose = /(^|\s)(כן[,.\s]*סגור|כן[,.\s]*מאשר|אני מאשר|סגור[,.\s]|מאשר[ת]?\s*תשלום|בוא נסגור|let.?s close)/i.test(customerLastTurn);
-  const effectiveComplete = !!result?.complete && (!endsWithQuestion || customerExplicitClose);
+  const customerLastTurn = String(message || '').trim();
+  const closeRegex = /(^|[\s,.!])(כן\s*(סגור|מאשר|סוגר|בוא|אישור|מצוין)?|סגור(\s*עלי)?|אני\s*מאשר|מאשר[ת]?|בוא\s*נסגור|בואו\s*נסגור|סוגר[ת]?(\s*עסקה)?|סוגרים|אוקי?\s*סגור|מצוין\s*סגור|נשמע\s*טוב\s*(סגור|בוא|סוגר)|מאה\s*אחוז\s*סגור|קיבלתי(\s*תודה)?|אישור[,.\s]|חותם[ת]?|מסכים[ה]?|let.?s\s*close|deal|confirmed?)\s*[.,!]?\s*$/i;
+  const customerExplicitClose = closeRegex.test(customerLastTurn);
+  const hasMinInfo = !!(c.event_date || c.event_date_iso) && !!c.guest_count && !!c.contact_phone;
+  // Force close when customer says yes AND we have enough info to call them back. This is the
+  // critical anti-stall guard — the LLM tends to keep asking confirmations forever otherwise.
+  const forcedClose = customerExplicitClose && hasMinInfo;
+  const effectiveComplete = forcedClose || (!!result?.complete && (!endsWithQuestion || customerExplicitClose));
 
   const fullLog = [
     ...turns,
@@ -3486,7 +3494,11 @@ registerFn('chatEventsInquiry', async ({ body }) => {
   const stageSignal = /(send_payment|agreed|completed|closing|closed|final|ready_to_pay|payment)/i.test(stage);
   const wantsPayment = (stageSignal || effectiveComplete || looksLikeSendingPaymentInReply)
     && (!!c.event_date || !!c.event_date_iso) && !!c.guest_count;
-  let finalReply = result?.reply || 'מצטערת, אירעה תקלה. תוכלו לנסות שוב?';
+  // If we forced the close server-side because the customer said "yes/סגור" but the LLM kept stalling,
+  // override the assistant reply with a clean closing instead of leaving the LLM's leftover question.
+  let finalReply = forcedClose
+    ? `מעולה! 🌿 רשמתי לעצמי את ההזמנה.`
+    : (result?.reply || 'מצטערת, אירעה תקלה. תוכלו לנסות שוב?');
   if (wantsPayment) {
     const guests = Number(c.guest_count) || 1;
     const totalFromLLM = typeof c.total_ils === 'number' ? Math.round(c.total_ils) : null;
