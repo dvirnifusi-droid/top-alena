@@ -3347,6 +3347,23 @@ registerFn('chatEventsInquiry', async ({ body }) => {
   const transcript = turns.map((t) => `${t.role === 'assistant' ? 'עוזר' : 'לקוח'}: ${t.content}`).join('\n');
   const newPart = message ? `\nלקוח: ${message}` : '';
 
+  // Date context the LLM needs to translate Hebrew relative dates ("מחרתיים", "מחר בערב") into ISO.
+  const now = new Date();
+  const tzNow = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Jerusalem' }));
+  const HE_DAYS = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'];
+  const todayISO = `${tzNow.getFullYear()}-${String(tzNow.getMonth() + 1).padStart(2, '0')}-${String(tzNow.getDate()).padStart(2, '0')}`;
+  const tomorrowISO = (() => { const d = new Date(tzNow.getTime() + 86400000); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; })();
+  const dayAfterISO = (() => { const d = new Date(tzNow.getTime() + 2 * 86400000); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; })();
+  const todayDay = HE_DAYS[tzNow.getDay()];
+
+  const dateContext =
+    `\n--- DATE CONTEXT (תמיד השתמש בזה לחישוב תאריכים יחסיים) ---\n` +
+    `TODAY: ${todayISO} (יום ${todayDay})\n` +
+    `מחר: ${tomorrowISO}\n` +
+    `מחרתיים: ${dayAfterISO}\n` +
+    `כשאתה מקבל תאריך יחסי מהלקוח (היום/מחר/מחרתיים/בעוד שבוע/יום רביעי הבא) — תמיד חשב לפי TODAY והחזר ב-collected.event_date_iso בפורמט YYYY-MM-DD, וגם ציין את שם היום בעברית בתוך reply (למשל: "יום רביעי, ${dayAfterISO}"). לעולם אל תניח שמשהו "מחרתיים" הוא תאריך אחר.\n` +
+    `--- סוף DATE CONTEXT ---\n`;
+
   const kitContext =
     `\n--- SALES KIT (מקור האמת לכל מחיר/תפריט/תנאי — אל תמציא כלום מחוץ לזה) ---\n` +
     `MENUS: ${JSON.stringify(kit.menus || [], null, 0)}\n` +
@@ -3358,7 +3375,14 @@ registerFn('chatEventsInquiry', async ({ body }) => {
     `MAX_ADVANCE_MONTHS: ${kit.max_advance_months ?? 6}\n` +
     `--- סוף SALES KIT ---\n`;
 
-  const prompt = `${systemPrompt}${kitContext}\n--- שיחה עד כה ---\n${transcript || '(אין עדיין הודעות — זו תחילת השיחה)'}${newPart}\n\nהחזר JSON בלבד.`;
+  const closingInstructions =
+    `\n--- חשוב מאוד ---\n` +
+    `1. לעולם אל תכתוב "[לינק לתשלום]" או "[link]" כפלייסהולדר בתוך הודעה. אל תזכיר בכלל את הלינק בטקסט שלך — המערכת תוסיף אותו אוטומטית מתחת להודעה ברגע ש-stage=send_payment.\n` +
+    `2. ברגע שיש הסכמה על מחיר → הצב stage='send_payment' ו-complete=true. גם הצב את כל השדות ב-collected: contact_name, contact_phone, event_date_iso, event_time, guest_count, selected_menu_name, selected_menu_id, selected_dishes (אם נבחרו), selected_upsells (אם נבחרו), subtotal_ils, discount_pct_requested, total_ils. בלי השדות האלה לא נוצרת הזמנה.\n` +
+    `3. נסה תמיד לסגור עד הסוף — אל תוותר כי "התקציב גבוה" או "אין תאריך". הצע חלופות. עד שהלקוח אומר ברור "לא".\n` +
+    `4. ההזמנה תמיד מותנת באישור סופי של מנהל המסעדה אחרי תשלום הפיקדון — ציין את זה כשאתה סוגר.\n`;
+
+  const prompt = `${systemPrompt}${dateContext}${kitContext}${closingInstructions}\n--- שיחה עד כה ---\n${transcript || '(אין עדיין הודעות — זו תחילת השיחה)'}${newPart}\n\nהחזר JSON בלבד.`;
 
   const result: any = await invokeLLM({
     prompt,
@@ -3415,7 +3439,7 @@ registerFn('chatEventsInquiry', async ({ body }) => {
   let payment_url: string | null = null;
   const stage = String(result?.stage || '').toLowerCase();
   const wantsPayment = (stage === 'send_payment' || stage === 'agreed' || stage === 'completed' || result?.complete === true)
-    && !!c.event_date && !!c.guest_count;
+    && (!!c.event_date || !!c.event_date_iso) && !!c.guest_count;
   let finalReply = result?.reply || 'מצטערת, אירעה תקלה. תוכלו לנסות שוב?';
   if (wantsPayment) {
     const guests = Number(c.guest_count) || 1;
@@ -3423,7 +3447,13 @@ registerFn('chatEventsInquiry', async ({ body }) => {
     const total = totalFromLLM ?? (guests * 250); // placeholder pricing if LLM didn't compute
     const depositPct = kit.deposit_pct ?? 20;
     const deposit = Math.round((total * depositPct) / 100);
-    const eventDateStr = String(c.event_date).slice(0, 10);
+    // Prefer the LLM-computed ISO date. Fall back to event_date string if it already looks like ISO.
+    // If neither is usable, fall back to today + 7 days so the booking still saves and the owner can fix.
+    const isoLike = /^\d{4}-\d{2}-\d{2}$/;
+    const llmIso = typeof c.event_date_iso === 'string' && isoLike.test(c.event_date_iso.slice(0, 10)) ? c.event_date_iso.slice(0, 10) : null;
+    const llmRaw = typeof c.event_date === 'string' && isoLike.test(c.event_date.slice(0, 10)) ? c.event_date.slice(0, 10) : null;
+    const fallbackIso = (() => { const d = new Date(Date.now() + 7 * 86400000); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; })();
+    const eventDateStr = llmIso || llmRaw || fallbackIso;
     const shortNotice = eventDateStr <= new Date(Date.now() + 2 * 86400000).toISOString().slice(0, 10);
 
     const bookingData: any = {
@@ -3695,3 +3725,59 @@ registerFn('rejectEventBooking', async ({ body }) => {
   }
   return { booking: updated };
 });
+
+// ── Stuck-event-lead scanner ────────────────────────────────────────────────
+// Every 10 min, find EventLead rows that engaged (have a conversation_log) but
+// got stuck mid-funnel and haven't been pinged yet, and notify the owner so
+// they can recover the lead manually before it cools down.
+const STUCK_THRESHOLD_MIN = 10;
+
+export async function checkStuckEventLeads() {
+  try {
+    const cutoff = new Date(Date.now() - STUCK_THRESHOLD_MIN * 60 * 1000).toISOString();
+    const candidates = await db.eventLead.findMany({
+      where: {
+        OR: [{ status: 'new' }, { status: 'warm' }],
+        updated_date: { lt: cutoff },
+      },
+      orderBy: { updated_date: 'desc' },
+      take: 50,
+    });
+    for (const lead of candidates) {
+      const notes = String(lead.notes || '');
+      if (notes.includes('abandoned_alerted:')) continue;
+      const log = Array.isArray(lead.conversation_log) ? lead.conversation_log : [];
+      if (log.length < 2) continue; // didn't engage past greeting
+      const q: any = {};
+      // Best-effort extract last-known fields from the row directly
+      const summary = [
+        '⚠️ ליד אירוע נתקע באמצע — חזור ללקוח',
+        `👤 ${lead.contact_name || 'ללא שם'} · ${lead.contact_phone || '-'}`,
+        lead.event_date ? `📅 ${lead.event_date}` : null,
+        lead.event_type ? `🎉 ${lead.event_type}` : null,
+        lead.guest_count ? `👥 ${lead.guest_count} אורחים` : null,
+        lead.budget_per_person ? `💰 ₪${lead.budget_per_person}/סועד` : null,
+        `📊 ציון: ${lead.score ?? '?'}/100 · סטטוס: ${lead.status || 'new'}`,
+        `📥 מקור: ${lead.source || 'web_chat'}`,
+        `⏰ עזב לפני ~${STUCK_THRESHOLD_MIN} דק׳ באמצע השיחה`,
+      ].filter(Boolean).join('\n');
+      try { await pushoverToAdmins('⚠️ ליד אירוע נטוש', summary); } catch { /* ignore */ }
+      try {
+        await db.eventLead.update({
+          where: { id: lead.id },
+          data: { notes: `${notes}${notes ? ' | ' : ''}abandoned_alerted:${new Date().toISOString()}` },
+        });
+      } catch { /* ignore */ }
+    }
+  } catch (e: any) {
+    console.error('checkStuckEventLeads failed', e?.message);
+  }
+}
+
+if (!(globalThis as any).__stuckEventLeadTimer) {
+  (globalThis as any).__stuckEventLeadTimer = setTimeout(function loop() {
+    checkStuckEventLeads().finally(() => {
+      (globalThis as any).__stuckEventLeadTimer = setTimeout(loop, 10 * 60 * 1000);
+    });
+  }, 60 * 1000);
+}

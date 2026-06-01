@@ -97,7 +97,7 @@ export default function EventsInquiry() {
           </div>
         )}
 
-        {paymentUrl && !done && (
+        {paymentUrl && (
           <a href={paymentUrl} target="_blank" rel="noreferrer"
              className="block rounded-2xl p-4 my-3 bg-gradient-to-br from-emerald-600 to-teal-600 text-white shadow-lg hover:shadow-xl transition">
             <div className="flex items-center justify-between gap-3">
