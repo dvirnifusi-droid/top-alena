@@ -1171,7 +1171,7 @@ export async function checkCeoDailyBriefs() {
 
     // Already ran for this window today?
     const ceo = await db.agent.findUnique({ where: { name: 'CEO' } });
-    if (!ceo) return; // not seeded yet
+    if (!ceo) return;
     const existing = await db.agentRun.findFirst({
       where: {
         agent_id: ceo.id,
@@ -1181,28 +1181,9 @@ export async function checkCeoDailyBriefs() {
     });
     if (existing) return;
 
-    const start = new Date();
-    const run = await db.agentRun.create({
-      data: {
-        agent_id: ceo.id,
-        trigger,
-        status: 'completed',
-        started_at: start.toISOString(),
-        finished_at: start.toISOString(),
-        output: `(Phase A stub) daily brief ${trigger} for ${todayLocal}`,
-      },
-    });
-    await db.agentInboxItem.create({
-      data: {
-        agent_run_id: run.id,
-        agent_name: 'CEO',
-        type: 'brief',
-        priority: 'normal',
-        title: `תדריך CEO · ${trigger === 'cron_morning' ? 'בוקר' : trigger === 'cron_afternoon' ? 'אחר הצהריים' : 'סוף יום'}`,
-        body: '(Phase A) שלד התדריך נוצר. התוכן המלא יוטמע ב-Phase B.',
-        created_date: new Date().toISOString(),
-      },
-    });
+    // Fire the real brief by reusing the registered handler.
+    const handler = functionHandlers['runCeoDailyBrief'];
+    if (handler) await handler({ body: { trigger }, user: null as any, req: null as any });
   } catch (e: any) {
     console.error('CEO daily brief scan failed', e?.message);
   }
@@ -3064,12 +3045,67 @@ registerFn('listAgentInbox', async ({ body, user }) => {
   });
 });
 
+// Execute a single approved action. Each `kind` is a small, well-scoped
+// capability that the owner explicitly approves before it runs. The set is
+// deliberately tiny in Phase B and will grow as more agents need it.
+async function executeApprovedAction(payload: any, item: any, user: any) {
+  const kind = payload?.kind;
+  const args = payload?.args || {};
+  switch (kind) {
+    case 'delegate_run': {
+      // Run another agent with the given input
+      const target = await db.agent.findFirst({ where: { name: args.agent_name } });
+      if (!target) throw new Error(`agent not found: ${args.agent_name}`);
+      const handler = functionHandlers['runAgent'];
+      if (!handler) throw new Error('runAgent handler missing');
+      return await handler({ body: { agent_id: target.id, input: args.input, trigger: 'delegation', campaign_unit_id: args.campaign_unit_id }, user, req: null as any });
+    }
+    case 'pushover_owner': {
+      await pushoverToAdmins(args.title || 'התראת סוכן', String(args.message || '').slice(0, 1024));
+      return { ok: true, kind };
+    }
+    case 'update_agent': {
+      if (!args.name) throw new Error('args.name required');
+      const a = await db.agent.findFirst({ where: { name: args.name } });
+      if (!a) throw new Error(`agent not found: ${args.name}`);
+      const { name: _drop, ...patch } = args;
+      return await db.agent.update({ where: { id: a.id }, data: { ...patch, updated_date: new Date().toISOString() } });
+    }
+    case 'update_campaign_unit': {
+      if (!args.name) throw new Error('args.name required');
+      const u = await db.campaignUnit.findFirst({ where: { name: args.name } });
+      if (!u) throw new Error(`campaign unit not found: ${args.name}`);
+      const { name: _drop, ...patch } = args;
+      return await db.campaignUnit.update({ where: { id: u.id }, data: { ...patch, updated_date: new Date().toISOString() } });
+    }
+    default:
+      throw new Error(`unknown action kind: ${kind || '(none)'}`);
+  }
+}
+
 registerFn('actOnInboxItem', async ({ body, user }) => {
   assertCeoAdmin(user);
   const { id, action } = body as any;
   if (!id || !action) throw new Error('id and action required');
   if (!['approved', 'rejected', 'dismissed'].includes(action)) throw new Error('invalid_action');
-  return await db.agentInboxItem.update({
+
+  const item = await db.agentInboxItem.findUnique({ where: { id } });
+  if (!item) throw new Error('item_not_found');
+  if (item.status !== 'open') throw new Error('item_already_acted');
+
+  let executionResult: any = null;
+  let executionError: string | null = null;
+  // Only execute the payload when the owner approves and the item carries one
+  if (action === 'approved' && item.payload && item.requires_action) {
+    try {
+      const payload = JSON.parse(item.payload);
+      executionResult = await executeApprovedAction(payload, item, user);
+    } catch (e: any) {
+      executionError = e?.message || String(e);
+    }
+  }
+
+  const updated = await db.agentInboxItem.update({
     where: { id },
     data: {
       status: action,
@@ -3077,6 +3113,23 @@ registerFn('actOnInboxItem', async ({ body, user }) => {
       acted_at: new Date().toISOString(),
     },
   });
+
+  // Log the execution as an inbox item too, so the owner sees the result
+  if (executionResult || executionError) {
+    await db.agentInboxItem.create({
+      data: {
+        agent_run_id: item.agent_run_id,
+        agent_name: item.agent_name,
+        type: executionError ? 'alert' : 'result',
+        priority: executionError ? 'high' : 'normal',
+        title: executionError ? `❌ ביצוע נכשל: ${item.title}` : `✅ בוצע: ${item.title}`,
+        body: executionError ? executionError : `הפעולה בוצעה בהצלחה.\n${typeof executionResult === 'object' ? '```json\n' + JSON.stringify(executionResult, null, 2).slice(0, 1500) + '\n```' : String(executionResult).slice(0, 1500)}`,
+        created_date: new Date().toISOString(),
+      },
+    });
+  }
+
+  return { item: updated, executed: !!executionResult, error: executionError };
 });
 
 registerFn('listAgents', async ({ user }) => {
@@ -3097,34 +3150,147 @@ registerFn('updateAgent', async ({ body, user }) => {
   });
 });
 
-// Cron-callable: fires the CEO with a daily trigger window. Phase A stub —
-// Phase B swaps in the real briefing logic.
+// Pulls a snapshot of today's operational data for the CEO brief.
+async function buildCeoBriefContext() {
+  const today = new Date().toISOString().slice(0, 10);
+  const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+  const next7 = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
+
+  const safe = async <T>(p: Promise<T>, fallback: T): Promise<T> => p.catch(() => fallback);
+
+  const [
+    reservationsToday,
+    reservationsNext7,
+    shiftReportYesterday,
+    openIncidents,
+    upcomingInterviews,
+    activeMarketingTasks,
+    lowInventory,
+  ] = await Promise.all([
+    safe(db.reservation.findMany({ where: { date: today } }), []),
+    safe(db.reservation.findMany({ where: { date: { gte: today, lte: next7 } } }), []),
+    safe(db.shiftEndReport.findMany({ where: { date: yesterday } }), []),
+    safe(db.incident.findMany({ where: { status: { in: ['open', 'in_progress'] } as any } }), []),
+    safe(db.interview.findMany({ where: { scheduled_date: { gte: today, lte: next7 }, status: 'scheduled' } }), []),
+    safe(db.marketingTask.findMany({ where: { status: { in: ['pending', 'in_progress'] } as any } }), []),
+    safe(db.inventoryItem.findMany({ where: { current_quantity: { lt: 5 } as any } }), []),
+  ]);
+
+  return {
+    date: today,
+    yesterday,
+    reservations_today_count: reservationsToday.length,
+    reservations_today_people: reservationsToday.reduce((s: number, r: any) => s + (r.party_size || 0), 0),
+    reservations_next_7_count: reservationsNext7.length,
+    yesterday_revenue: shiftReportYesterday.reduce((s: number, r: any) => s + (r.total_revenue || 0), 0),
+    yesterday_tips: shiftReportYesterday.reduce((s: number, r: any) => s + (r.total_tips || 0), 0),
+    open_incidents_count: openIncidents.length,
+    open_incidents_top: openIncidents.slice(0, 3).map((i: any) => ({ title: i.title, severity: i.severity })),
+    upcoming_interviews_count: upcomingInterviews.length,
+    upcoming_interviews_next_3: upcomingInterviews.slice(0, 3).map((i: any) => ({
+      name: i.candidate_name, date: i.scheduled_date, time: i.scheduled_time,
+    })),
+    active_marketing_tasks_count: activeMarketingTasks.length,
+    low_inventory_items: lowInventory.slice(0, 5).map((i: any) => ({ name: i.item_name, qty: i.current_quantity })),
+  };
+}
+
+const CEO_BRIEF_PROMPT = `You are the autonomous CEO of "Alina" (עלינא), a Jerusalem-Chic sharing-plates restaurant in Rishon LeZion with a Josper charcoal oven.
+
+You will receive a JSON snapshot of today's operational state. Write a SHORT, ACTIONABLE daily brief in HEBREW for the owner (Dvir).
+
+Structure the brief as:
+🌅 פתיחה — מה הכי חשוב היום בשורה אחת
+📊 מצב נוכחי — הזמנות, הכנסות אתמול, טיפים (מספרים קצרים)
+🚨 התראות — אם יש תקריות פתוחות / מלאי נמוך / ראיונות קרובים — תציין במפורש
+🎯 המלצה אחת — פעולה אחת קונקרטית שכדאי שיעשה היום (לא יותר!)
+
+חוקים:
+- עברית בלבד. ישיר, ענייני, בלי משפטים מנופחים.
+- אל תמציא מספרים. אם שדה ריק/0 — תכתוב "אין נתונים" או דלג.
+- מקסימום 12 שורות סך הכל.
+- אם המצב שקט — תגיד "יום שקט, אין דרישה לפעולה".`;
+
 registerFn('runCeoDailyBrief', async ({ body }) => {
   const trigger = (body as any)?.trigger || 'cron_morning';
   const ceo = await db.agent.findUnique({ where: { name: 'CEO' } });
   if (!ceo) return { ok: false, error: 'CEO agent not seeded yet' };
+  if (!ceo.is_active) return { ok: false, error: 'CEO agent is disabled' };
+
   const start = new Date();
   const run = await db.agentRun.create({
     data: {
       agent_id: ceo.id,
       trigger,
       input: null,
-      status: 'completed',
+      status: 'running',
       started_at: start.toISOString(),
-      finished_at: start.toISOString(),
-      output: `(Phase A stub) Daily brief ${trigger} — pending Phase B briefing logic.`,
     },
   });
+
+  let body_text = '';
+  let priority = 'normal';
+  let status = 'completed';
+  let error: string | null = null;
+  let cost = 0;
+
+  try {
+    const context = await buildCeoBriefContext();
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) throw new Error('GEMINI_API_KEY not set');
+    const triggerHebrew = trigger === 'cron_morning' ? 'בוקר (09:00)'
+      : trigger === 'cron_afternoon' ? 'אחר הצהריים (17:00)'
+      : 'סוף יום (00:00)';
+
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          system_instruction: { parts: [{ text: CEO_BRIEF_PROMPT }] },
+          contents: [{ role: 'user', parts: [{ text: `Window: ${triggerHebrew}\nData:\n${JSON.stringify(context, null, 2)}` }] }],
+          generationConfig: { temperature: 0.3, maxOutputTokens: 1024, thinkingConfig: { thinkingBudget: 0 } },
+        }),
+      },
+    );
+    const d: any = await res.json();
+    if (!res.ok) throw new Error(d.error?.message || 'gemini failed');
+    body_text = d.candidates?.[0]?.content?.parts?.[0]?.text || '(אין תשובה מ-Gemini)';
+    const u = d.usageMetadata || {};
+    cost = ((u.promptTokenCount || 0) * 0.075 + (u.candidatesTokenCount || 0) * 0.30) / 1_000_000;
+
+    // Mark high priority if there are open incidents OR low inventory
+    if (context.open_incidents_count > 0 || context.low_inventory_items.length > 0) priority = 'high';
+  } catch (e: any) {
+    status = 'failed';
+    error = e?.message || String(e);
+    body_text = `❌ שגיאה בהפקת התדריך: ${error}`;
+  }
+
+  const finishedAt = new Date();
+  await db.agentRun.update({
+    where: { id: run.id },
+    data: {
+      status,
+      output: body_text,
+      error,
+      cost_usd: cost,
+      duration_ms: finishedAt.getTime() - start.getTime(),
+      finished_at: finishedAt.toISOString(),
+    },
+  });
+
   await db.agentInboxItem.create({
     data: {
       agent_run_id: run.id,
       agent_name: 'CEO',
       type: 'brief',
-      priority: 'normal',
-      title: `תדריך CEO · ${trigger.replace('cron_', '')}`,
-      body: '(Phase A stub) תוכן התדריך יתמלא ב-Phase B.',
+      priority,
+      title: `תדריך CEO · ${trigger === 'cron_morning' ? 'בוקר' : trigger === 'cron_afternoon' ? 'אחר הצהריים' : 'סוף יום'}`,
+      body: body_text,
       created_date: new Date().toISOString(),
     },
   });
-  return { ok: true, run_id: run.id };
+  return { ok: status !== 'failed', run_id: run.id, body: body_text };
 }, { public: true });
