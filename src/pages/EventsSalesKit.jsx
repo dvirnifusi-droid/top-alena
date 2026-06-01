@@ -36,7 +36,8 @@ export default function EventsSalesKit() {
     setLoadError(null);
     try {
       const res = await base44.functions.getEventSalesKit({});
-      setKit(res?.kit || { ...DEFAULT_KIT });
+      // base44Client wraps as { data, status }.
+      setKit(res?.data?.kit || res?.kit || { ...DEFAULT_KIT });
     } catch (e) {
       console.error('getEventSalesKit failed', e);
       setLoadError(e?.message || String(e));
@@ -50,7 +51,7 @@ export default function EventsSalesKit() {
     setSaving(true);
     try {
       const res = await base44.functions.saveEventSalesKit({ kit });
-      setKit(res?.kit || kit);
+      setKit(res?.data?.kit || res?.kit || kit);
       toast.success('נשמר ✓');
     } catch (e) { toast.error('שמירה נכשלה: ' + (e?.message || '')); }
     finally { setSaving(false); }

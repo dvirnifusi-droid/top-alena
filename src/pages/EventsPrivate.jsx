@@ -102,7 +102,8 @@ function BookingsCard() {
     setLoading(true);
     try {
       const r = await base44.functions.listEventBookings({});
-      setBookings(r?.bookings || []);
+      // base44Client wraps as { data, status } — same axios shape used across the app.
+      setBookings(r?.data?.bookings || r?.bookings || []);
     } catch { setBookings([]); }
     finally { setLoading(false); }
   }, []);
@@ -199,7 +200,8 @@ export default function EventsPrivatePage() {
     setLoadError(null);
     try {
       const res = await base44.functions.listEventLeads({});
-      setLeads(res?.leads || []);
+      // base44Client wraps as { data, status }.
+      setLeads(res?.data?.leads || res?.leads || []);
     } catch (e) {
       setLoadError(e?.message || String(e));
       setLeads([]);
