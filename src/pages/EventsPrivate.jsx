@@ -3,10 +3,9 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Loader2, RefreshCw, Sparkles, CalendarHeart, AlertTriangle, CheckCircle2, Flame, MessageCircle, Copy, Check, ExternalLink } from 'lucide-react';
+import { Loader2, RefreshCw, Sparkles, CalendarHeart, AlertTriangle, CheckCircle2, Flame, Copy, Check, ExternalLink, QrCode } from 'lucide-react';
 import { CampaignUnit, Lead, Agent } from '@/entities/all';
 import { base44 } from '@/api/base44Client';
-import { shortenUrl } from '@/functions/shortenUrl';
 import toast from 'react-hot-toast';
 
 const UNIT_ID = 'UNIT_EVENTS_PRIVATE';
@@ -34,82 +33,117 @@ function scoreBadge(score) {
   return <Badge className="bg-slate-100 text-slate-600">קר {score}</Badge>;
 }
 
+const UTM_SOURCES = [
+  { key: 'general',   label: 'כללי (בלי תיוג)',  utm: '' },
+  { key: 'facebook',  label: 'פייסבוק',           utm: 'facebook' },
+  { key: 'instagram', label: 'אינסטגרם',          utm: 'instagram' },
+  { key: 'google',    label: 'גוגל',              utm: 'google' },
+  { key: 'tiktok',    label: 'טיקטוק',            utm: 'tiktok' },
+  { key: 'whatsapp',  label: 'וואטסאפ אישי',      utm: 'whatsapp' },
+  { key: 'qr',        label: 'QR במסעדה',          utm: 'qr_print' },
+];
+
+const PUBLIC_BASE_URL = 'https://topalena.com/EventsInquiry';
+
+function withUtm(utm) {
+  return utm ? `${PUBLIC_BASE_URL}?utm_source=${encodeURIComponent(utm)}` : PUBLIC_BASE_URL;
+}
+
 function QualifierLinkCard() {
-  const [link, setLink] = useState('');
-  const [loading, setLoading] = useState(true);
-  const [copiedMsg, setCopiedMsg] = useState(false);
+  const [sourceKey, setSourceKey] = useState('general');
   const [copiedLink, setCopiedLink] = useState(false);
+  const [copiedMsg, setCopiedMsg] = useState(false);
+  const [showQr, setShowQr] = useState(false);
 
-  useEffect(() => {
-    (async () => {
-      try {
-        const raw = base44.agents?.getWhatsAppConnectURL?.('events_qualifier_agent') || '';
-        const full = raw.startsWith('http') ? raw : (raw ? `https://app.base44.com${raw}` : '');
-        if (!full) { setLoading(false); return; }
-        try {
-          const r = await shortenUrl({ url: full });
-          setLink(r.shortUrl || full);
-        } catch {
-          setLink(full);
-        }
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, []);
+  const src = UTM_SOURCES.find((s) => s.key === sourceKey) || UTM_SOURCES[0];
+  const link = withUtm(src.utm);
 
-  const promoText = `היי 🌿 מסעדת עלינא — אירועים פרטיים\nרוצים לחגוג אצלנו? לחצו על הקישור ותדברו עם העוזרת הדיגיטלית שלנו (5 שאלות קצרות).\nנחזור אליכם עם הצעה מותאמת ⤵️`;
-  const fullMessage = `${promoText}\n\n${link}`;
+  const message =
+    `היי 🌿 מסעדת עלינא — אירועים פרטיים\n` +
+    `שמחים לארח אצלנו את האירוע שלכם. דברו עם העוזרת הדיגיטלית (5 שאלות קצרות) ונחזור אליכם עם הצעה מותאמת:\n\n` +
+    `${link}`;
 
   const copy = (text, setter) => {
-    navigator.clipboard.writeText(text);
+    try { navigator.clipboard.writeText(text); } catch {}
     setter(true);
-    setTimeout(() => setter(false), 2500);
+    setTimeout(() => setter(false), 2200);
   };
 
+  const qrSrc = `https://api.qrserver.com/v1/create-qr-code/?size=240x240&margin=10&data=${encodeURIComponent(link)}`;
+
   return (
-    <Card className="bg-gradient-to-r from-emerald-600 to-teal-600 text-white">
+    <Card className="bg-gradient-to-br from-emerald-600 to-teal-700 text-white" dir="rtl">
       <CardContent className="p-6">
         <div className="flex items-start justify-between mb-4">
           <div>
-            <h3 className="text-xl font-bold mb-1">💬 סוכן Qualifier ב-WhatsApp</h3>
-            <p className="text-teal-100 text-sm">שתף את הקישור הזה במודעות / סטוריז / סיפנים — לחיצה פותחת ישירות שיחה עם הסוכן.</p>
+            <h3 className="text-xl font-bold mb-1">🌿 סוכן אירועים של עלינא</h3>
+            <p className="text-emerald-100 text-sm">
+              שתפו את הקישור במודעות/סטוריז/QR — הסוכן בדפדפן מנהל את שיחת הסיווג ושומר את הפרטים.
+            </p>
           </div>
-          <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center"><MessageCircle className="w-6 h-6" /></div>
+          <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center flex-shrink-0">
+            <Sparkles className="w-6 h-6" />
+          </div>
         </div>
 
-        <div className="bg-white/10 rounded-lg p-3 mb-2 text-sm text-teal-100 whitespace-pre-line">{promoText}</div>
+        <label className="block text-xs text-emerald-100 mb-1">מקור הפנייה (לתיוג קמפיין):</label>
+        <select
+          value={sourceKey}
+          onChange={(e) => setSourceKey(e.target.value)}
+          className="w-full bg-white/15 border border-white/30 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-white/50 mb-3"
+        >
+          {UTM_SOURCES.map((s) => (
+            <option key={s.key} value={s.key} className="text-slate-800">{s.label}</option>
+          ))}
+        </select>
 
-        <div className="bg-white/10 rounded-lg p-3 mb-4 flex items-center justify-between gap-2">
-          {loading ? (
-            <span className="text-teal-100 text-sm flex items-center gap-2"><Loader2 className="w-3 h-3 animate-spin" /> יוצר קישור…</span>
-          ) : link ? (
-            <a href={link} target="_blank" rel="noreferrer" className="text-white underline text-sm truncate flex-1">
-              {link.length > 40 ? `${link.slice(0, 40)}…` : link}
-            </a>
-          ) : (
-            <span className="text-teal-100 text-sm">קישור לא זמין — ודא שהסוכן deployed</span>
-          )}
-          {link && (
-            <button onClick={() => copy(link, setCopiedLink)} className="bg-white/20 hover:bg-white/30 text-white text-xs py-1 px-2 rounded">
-              {copiedLink ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
-            </button>
-          )}
+        <div className="bg-white/10 rounded-lg p-3 mb-3 flex items-center gap-2">
+          <a href={link} target="_blank" rel="noopener noreferrer" className="text-white underline text-sm truncate flex-1 text-left" dir="ltr">
+            {link}
+          </a>
+          <button
+            onClick={() => copy(link, setCopiedLink)}
+            className="flex-shrink-0 flex items-center gap-1 bg-white/20 hover:bg-white/30 text-white text-xs font-bold py-1.5 px-2 rounded"
+            title="העתק קישור"
+          >
+            {copiedLink ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+          </button>
         </div>
 
-        {link && (
-          <div className="flex gap-2">
-            <button onClick={() => copy(fullMessage, setCopiedMsg)} className="flex-1 flex items-center justify-center gap-2 bg-white/20 hover:bg-white/30 text-white font-semibold py-2 px-4 rounded-lg text-sm">
-              {copiedMsg ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-              {copiedMsg ? 'הועתק!' : 'העתק הודעה מלאה'}
-            </button>
-            <button onClick={() => window.open(link, '_blank')} className="flex items-center justify-center gap-2 bg-white/20 hover:bg-white/30 text-white font-semibold py-2 px-4 rounded-lg text-sm">
-              <ExternalLink className="w-4 h-4" /> פתח
-            </button>
+        <div className="flex gap-2 mb-3 flex-wrap">
+          <button
+            onClick={() => copy(message, setCopiedMsg)}
+            className="flex-1 min-w-[140px] flex items-center justify-center gap-2 bg-white/20 hover:bg-white/30 text-white font-bold py-2 px-3 rounded-lg text-sm"
+          >
+            {copiedMsg ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+            {copiedMsg ? 'הועתק!' : 'העתק הודעה מוכנה'}
+          </button>
+          <button
+            onClick={() => window.open(link, '_blank')}
+            className="flex items-center justify-center gap-2 bg-white/20 hover:bg-white/30 text-white font-bold py-2 px-3 rounded-lg text-sm"
+            title="פתח בדפדפן"
+          >
+            <ExternalLink className="w-4 h-4" /> פתח
+          </button>
+          <button
+            onClick={() => setShowQr((v) => !v)}
+            className="flex items-center justify-center gap-2 bg-white/20 hover:bg-white/30 text-white font-bold py-2 px-3 rounded-lg text-sm"
+            title="הצג QR להדפסה"
+          >
+            <QrCode className="w-4 h-4" /> QR
+          </button>
+        </div>
+
+        {showQr && (
+          <div className="bg-white rounded-xl p-4 flex flex-col items-center mb-2">
+            <img src={qrSrc} alt="QR" className="w-48 h-48" />
+            <div className="text-xs text-slate-600 mt-2 text-center">סרקו את הקוד כדי להגיע ישירות לסוכן</div>
           </div>
         )}
 
-        <p className="text-teal-200 text-xs mt-3 text-center">קוד-סם: <code className="bg-white/10 px-1 rounded">events_qualifier_agent</code></p>
+        <p className="text-emerald-200 text-xs mt-2 text-center">
+          💡 כל מקור שונה — לינק נפרד עם <code className="bg-white/10 px-1 rounded">utm_source</code>. המקור נשמר אוטומטית על כל ליד נכנס.
+        </p>
       </CardContent>
     </Card>
   );

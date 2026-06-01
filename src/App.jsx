@@ -24,14 +24,17 @@ import DataExport from './pages/DataExport';
 import UserGuide from './pages/UserGuide';
 import InstagramStudio from './pages/InstagramStudio';
 import Login from './pages/Login';
+import PublicReservation from './pages/PublicReservation';
+import EventsInquiry from './pages/EventsInquiry';
+import ErrorBoundary from '@/components/shared/ErrorBoundary';
 
 const { Pages, Layout, mainPage } = pagesConfig;
 const mainPageKey = mainPage ?? Object.keys(Pages)[0];
 const MainPage = mainPageKey ? Pages[mainPageKey] : <></>;
 
 const LayoutWrapper = ({ children, currentPageName }) => Layout ?
-  <Layout currentPageName={currentPageName}>{children}</Layout>
-  : <>{children}</>;
+  <Layout currentPageName={currentPageName}><ErrorBoundary key={currentPageName} label={currentPageName}>{children}</ErrorBoundary></Layout>
+  : <ErrorBoundary key={currentPageName} label={currentPageName}>{children}</ErrorBoundary>;
 
 const RoleBasedHome = () => {
   const [role, setRole] = React.useState(null);
@@ -123,6 +126,8 @@ function App() {
           <Route path="/QueueJoin" element={<QueueJoin />} />
           <Route path="/QueueGame" element={<QueueGame />} />
           <Route path="/QueueFeedback" element={<QueueFeedback />} />
+          <Route path="/PublicReservation" element={<PublicReservation />} />
+          <Route path="/EventsInquiry" element={<EventsInquiry />} />
           <Route path="/PrivacyAndAccessibility" element={<PrivacyAndAccessibility />} />
           
           {/* דורש התחברות */}
