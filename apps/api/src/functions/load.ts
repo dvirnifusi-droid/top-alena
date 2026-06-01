@@ -1153,6 +1153,69 @@ if (!(globalThis as any).__interviewReminderTimer) {
   }, 30 * 1000);
 }
 
+// ── CEO daily brief scheduler (Asia/Jerusalem) ───────────────────────────────
+// Fires at 09:00, 17:00, 00:00 local time. Idempotent: only fires once per
+// window per day, even if the loop hits the same minute twice.
+export async function checkCeoDailyBriefs() {
+  try {
+    const tz = 'Asia/Jerusalem';
+    const fmt = new Intl.DateTimeFormat('en-CA', { timeZone: tz, hour: '2-digit', minute: '2-digit', hour12: false });
+    const [hh, mm] = fmt.format(new Date()).split(':');
+    const dateFmt = new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' });
+    const todayLocal = dateFmt.format(new Date());
+
+    const windows: Record<string, string> = { '09': 'cron_morning', '17': 'cron_afternoon', '00': 'cron_night' };
+    const trigger = windows[hh];
+    if (!trigger) return;
+    if (parseInt(mm) > 14) return; // only fire in the first 15 minutes of the window
+
+    // Already ran for this window today?
+    const ceo = await db.agent.findUnique({ where: { name: 'CEO' } });
+    if (!ceo) return; // not seeded yet
+    const existing = await db.agentRun.findFirst({
+      where: {
+        agent_id: ceo.id,
+        trigger,
+        started_at: { gte: `${todayLocal}T00:00:00`, lt: `${todayLocal}T23:59:59` },
+      },
+    });
+    if (existing) return;
+
+    const start = new Date();
+    const run = await db.agentRun.create({
+      data: {
+        agent_id: ceo.id,
+        trigger,
+        status: 'completed',
+        started_at: start.toISOString(),
+        finished_at: start.toISOString(),
+        output: `(Phase A stub) daily brief ${trigger} for ${todayLocal}`,
+      },
+    });
+    await db.agentInboxItem.create({
+      data: {
+        agent_run_id: run.id,
+        agent_name: 'CEO',
+        type: 'brief',
+        priority: 'normal',
+        title: `תדריך CEO · ${trigger === 'cron_morning' ? 'בוקר' : trigger === 'cron_afternoon' ? 'אחר הצהריים' : 'סוף יום'}`,
+        body: '(Phase A) שלד התדריך נוצר. התוכן המלא יוטמע ב-Phase B.',
+        created_date: new Date().toISOString(),
+      },
+    });
+  } catch (e: any) {
+    console.error('CEO daily brief scan failed', e?.message);
+  }
+}
+
+if (!(globalThis as any).__ceoDailyBriefTimer) {
+  (globalThis as any).__ceoDailyBriefTimer = setTimeout(function loop() {
+    checkCeoDailyBriefs().finally(() => {
+      (globalThis as any).__ceoDailyBriefTimer = setTimeout(loop, 5 * 60 * 1000);
+    });
+  }, 60 * 1000);
+}
+
 registerFn('advanceCandidateStage', async ({ body }) => {
   const { candidate_id, stage } = body as any;
   if (!candidate_id || !stage) throw new Error('missing_params');
@@ -2827,3 +2890,241 @@ registerFn('listPopups', async ({ user }) => {
   });
   return popups;
 });
+
+// ── Alina CEO Agent ecosystem (Phase A: infrastructure) ─────────────────────
+// See memory/project_alina_ceo_agent.md for the locked decisions.
+
+function assertCeoAdmin(user: any) {
+  const role = user?.role;
+  if (role !== 'admin' && role !== 'owner') {
+    throw new Error('No permission for CEO Agent management');
+  }
+}
+
+const AGENT_TREE: Array<{ name: string; display_name: string; role: string; parent: string | null }> = [
+  { name: 'CEO',              display_name: 'מנכל הסוכן',          role: 'executive',     parent: null },
+  { name: 'CFO',              display_name: 'סוכן CFO',            role: 'executive',     parent: 'CEO' },
+  { name: 'CRISIS',           display_name: 'סוכן חירום',           role: 'executive',     parent: 'CEO' },
+
+  { name: 'VP_MARKETING',     display_name: 'VP שיווק',            role: 'vp',            parent: 'CEO' },
+  { name: 'DESIGNER',         display_name: 'מעצב',                role: 'campaign_crew', parent: 'VP_MARKETING' },
+  { name: 'CREATIVE',         display_name: 'קופירייטר',           role: 'campaign_crew', parent: 'VP_MARKETING' },
+  { name: 'AUDIENCE_ROUTER',  display_name: 'נתב קהלים',           role: 'campaign_crew', parent: 'VP_MARKETING' },
+  { name: 'CAMPAIGN_BUILDER', display_name: 'בונה קמפיינים',       role: 'campaign_crew', parent: 'VP_MARKETING' },
+  { name: 'OPTIMIZER',        display_name: 'מאופטם קמפיינים',     role: 'campaign_crew', parent: 'VP_MARKETING' },
+  { name: 'CONTENT_CALENDAR', display_name: 'יומן תוכן',           role: 'support',       parent: 'VP_MARKETING' },
+  { name: 'INFLUENCERS',      display_name: 'אינפלואנסרים',        role: 'support',       parent: 'VP_MARKETING' },
+  { name: 'COMMUNITY',        display_name: 'קהילה',               role: 'support',       parent: 'VP_MARKETING' },
+  { name: 'SEO_GBP',          display_name: 'SEO ו-Google Business', role: 'support',     parent: 'VP_MARKETING' },
+  { name: 'CUSTOMER_CLUB',    display_name: 'מועדון לקוחות',       role: 'support',       parent: 'VP_MARKETING' },
+  { name: 'SALES_CLOSER_EVENTS', display_name: 'סוגר אירועים',     role: 'support',       parent: 'VP_MARKETING' },
+  { name: 'PR_REPUTATION',    display_name: 'יחסי ציבור ומוניטין', role: 'support',       parent: 'VP_MARKETING' },
+  { name: 'TREND_SCANNER',    display_name: 'סורק טרנדים',         role: 'support',       parent: 'VP_MARKETING' },
+  { name: 'INSIGHTS',         display_name: 'תובנות שיווק',        role: 'support',       parent: 'VP_MARKETING' },
+
+  { name: 'VP_OPERATIONS',    display_name: 'VP תפעול',            role: 'vp',            parent: 'CEO' },
+  { name: 'INVENTORY',        display_name: 'מלאי',                role: 'operations',    parent: 'VP_OPERATIONS' },
+  { name: 'KITCHEN',          display_name: 'מטבח',                role: 'operations',    parent: 'VP_OPERATIONS' },
+  { name: 'SUPPLIERS',        display_name: 'ספקים',               role: 'operations',    parent: 'VP_OPERATIONS' },
+  { name: 'SCHEDULING',       display_name: 'סידור עבודה',         role: 'operations',    parent: 'VP_OPERATIONS' },
+  { name: 'GUEST_OPS',        display_name: 'חוויית אורח',         role: 'operations',    parent: 'VP_OPERATIONS' },
+  { name: 'POS_HEALTH',       display_name: 'תקינות קופה (Beecom)', role: 'operations',   parent: 'VP_OPERATIONS' },
+];
+
+// One-time seed: ensures every agent in AGENT_TREE exists. Idempotent.
+registerFn('seedDefaultAgents', async ({ user }) => {
+  assertCeoAdmin(user);
+  const existing = await db.agent.findMany();
+  const byName = new Map(existing.map((a: any) => [a.name, a]));
+  let created = 0;
+
+  for (const a of AGENT_TREE) {
+    if (byName.has(a.name)) continue;
+    const row = await db.agent.create({
+      data: {
+        name: a.name,
+        display_name: a.display_name,
+        role: a.role,
+        is_active: true,
+        spend_cap_monthly: 0,
+        created_date: new Date().toISOString(),
+        updated_date: new Date().toISOString(),
+      },
+    });
+    byName.set(a.name, row);
+    created++;
+  }
+  for (const a of AGENT_TREE) {
+    if (!a.parent) continue;
+    const me: any = byName.get(a.name);
+    const parent: any = byName.get(a.parent);
+    if (!me || !parent || me.parent_agent_id === parent.id) continue;
+    await db.agent.update({ where: { id: me.id }, data: { parent_agent_id: parent.id } });
+  }
+  return { ok: true, total: AGENT_TREE.length, created };
+});
+
+// Generic agent runner. Calls Gemini if system_prompt is set; otherwise
+// records a Phase-A stub run. Always creates an inbox item.
+registerFn('runAgent', async ({ body, user }) => {
+  assertCeoAdmin(user);
+  const { agent_id, input, trigger, campaign_unit_id } = body as any;
+  const agent = await db.agent.findUnique({ where: { id: agent_id } });
+  if (!agent) throw new Error('agent_not_found');
+  if (!agent.is_active) throw new Error('agent_inactive');
+
+  const startedAt = new Date();
+  const run = await db.agentRun.create({
+    data: {
+      agent_id: agent.id,
+      trigger: trigger || 'manual',
+      triggered_by: (user as any)?.id ?? null,
+      input: input ? JSON.stringify(input) : null,
+      status: 'running',
+      started_at: startedAt.toISOString(),
+      campaign_unit_id: campaign_unit_id || null,
+    },
+  });
+
+  let output = '';
+  let status = 'completed';
+  let error: string | null = null;
+  let cost = 0;
+
+  try {
+    if (agent.system_prompt && agent.system_prompt.trim()) {
+      const apiKey = process.env.GEMINI_API_KEY;
+      if (!apiKey) throw new Error('GEMINI_API_KEY not set');
+      const res = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            system_instruction: { parts: [{ text: agent.system_prompt }] },
+            contents: [{ role: 'user', parts: [{ text: JSON.stringify(input || {}) }] }],
+            generationConfig: { temperature: 0.2, maxOutputTokens: 4096, thinkingConfig: { thinkingBudget: 0 } },
+          }),
+        },
+      );
+      const d: any = await res.json();
+      if (!res.ok) throw new Error(d.error?.message || 'gemini failed');
+      output = d.candidates?.[0]?.content?.parts?.[0]?.text || '';
+      const u = d.usageMetadata || {};
+      cost = ((u.promptTokenCount || 0) * 0.075 + (u.candidatesTokenCount || 0) * 0.30) / 1_000_000;
+    } else {
+      output = `(Phase A) ${agent.display_name} ran without a system_prompt. Will be filled in Phase B.`;
+    }
+  } catch (e: any) {
+    status = 'failed';
+    error = e?.message || String(e);
+  }
+
+  const finishedAt = new Date();
+  await db.agentRun.update({
+    where: { id: run.id },
+    data: {
+      status,
+      output,
+      error,
+      cost_usd: cost,
+      duration_ms: finishedAt.getTime() - startedAt.getTime(),
+      finished_at: finishedAt.toISOString(),
+    },
+  });
+
+  await db.agentInboxItem.create({
+    data: {
+      agent_run_id: run.id,
+      agent_name: agent.name,
+      type: status === 'failed' ? 'alert' : 'result',
+      priority: status === 'failed' ? 'high' : 'normal',
+      title: `${agent.display_name}: ${trigger || 'manual'}`,
+      body: error ? `❌ Error:\n${error}` : output.slice(0, 4000),
+      requires_action: false,
+      status: 'open',
+      created_date: new Date().toISOString(),
+    },
+  });
+
+  return { ok: status !== 'failed', run_id: run.id, output, error };
+});
+
+registerFn('listAgentInbox', async ({ body, user }) => {
+  assertCeoAdmin(user);
+  const { status, type, agent_name, limit } = (body || {}) as any;
+  const where: any = {};
+  if (status) where.status = status;
+  if (type) where.type = type;
+  if (agent_name) where.agent_name = agent_name;
+  return await db.agentInboxItem.findMany({
+    where,
+    orderBy: { created_date: 'desc' },
+    take: Math.min(parseInt(String(limit || 100)) || 100, 500),
+  });
+});
+
+registerFn('actOnInboxItem', async ({ body, user }) => {
+  assertCeoAdmin(user);
+  const { id, action } = body as any;
+  if (!id || !action) throw new Error('id and action required');
+  if (!['approved', 'rejected', 'dismissed'].includes(action)) throw new Error('invalid_action');
+  return await db.agentInboxItem.update({
+    where: { id },
+    data: {
+      status: action,
+      acted_by: (user as any)?.id ?? null,
+      acted_at: new Date().toISOString(),
+    },
+  });
+});
+
+registerFn('listAgents', async ({ user }) => {
+  assertCeoAdmin(user);
+  return await db.agent.findMany({
+    orderBy: [{ role: 'asc' }, { name: 'asc' }],
+    include: { _count: { select: { runs: true } } },
+  });
+});
+
+registerFn('updateAgent', async ({ body, user }) => {
+  assertCeoAdmin(user);
+  const { id, ...data } = body as any;
+  if (!id) throw new Error('id required');
+  return await db.agent.update({
+    where: { id },
+    data: { ...data, updated_date: new Date().toISOString() },
+  });
+});
+
+// Cron-callable: fires the CEO with a daily trigger window. Phase A stub —
+// Phase B swaps in the real briefing logic.
+registerFn('runCeoDailyBrief', async ({ body }) => {
+  const trigger = (body as any)?.trigger || 'cron_morning';
+  const ceo = await db.agent.findUnique({ where: { name: 'CEO' } });
+  if (!ceo) return { ok: false, error: 'CEO agent not seeded yet' };
+  const start = new Date();
+  const run = await db.agentRun.create({
+    data: {
+      agent_id: ceo.id,
+      trigger,
+      input: null,
+      status: 'completed',
+      started_at: start.toISOString(),
+      finished_at: start.toISOString(),
+      output: `(Phase A stub) Daily brief ${trigger} — pending Phase B briefing logic.`,
+    },
+  });
+  await db.agentInboxItem.create({
+    data: {
+      agent_run_id: run.id,
+      agent_name: 'CEO',
+      type: 'brief',
+      priority: 'normal',
+      title: `תדריך CEO · ${trigger.replace('cron_', '')}`,
+      body: '(Phase A stub) תוכן התדריך יתמלא ב-Phase B.',
+      created_date: new Date().toISOString(),
+    },
+  });
+  return { ok: true, run_id: run.id };
+}, { public: true });

@@ -41,6 +41,7 @@ const adminLinks = [
   { title: "לוח בקרה", url: createPageUrl("Dashboard"), icon: LayoutGrid, color: "slate" },
 
   { title: "כלי AI", url: "#", icon: Sparkles, isCategory: true, color: "violet" },
+  { title: "תיבת הסוכן 🧠", url: createPageUrl("AgentInbox"), icon: Brain, isSubItem: true, color: "violet" },
   { title: "מרכז בקרת AI", url: createPageUrl("AiDashboard"), icon: Sparkles, isSubItem: true, color: "violet" },
   { title: "חיזוי עומסים AI", url: createPageUrl("SmartPrediction"), icon: Brain, isSubItem: true, color: "violet" },
   { title: "יועץ שיווק AI 🚀", url: createPageUrl("MarketingAdvisor"), icon: Rocket, isSubItem: true, color: "violet" },
