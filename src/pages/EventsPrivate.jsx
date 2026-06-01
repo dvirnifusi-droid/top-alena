@@ -107,6 +107,10 @@ function BookingsCard() {
     finally { setLoading(false); }
   }, []);
   React.useEffect(() => { load(); }, [load]);
+  React.useEffect(() => {
+    const id = setInterval(() => { load(); }, 20000);
+    return () => clearInterval(id);
+  }, [load]);
 
   const act = async (booking, action) => {
     const notes = action === 'reject' ? (window.prompt('סיבת דחייה (אופציונלי):') || '') : '';
@@ -187,6 +191,11 @@ export default function EventsPrivatePage() {
   }, []);
 
   useEffect(() => { loadAll(); }, [loadAll]);
+  // Auto-refresh every 20 seconds so new leads / closed events show up without manual click.
+  useEffect(() => {
+    const id = setInterval(() => { loadAll(); }, 20000);
+    return () => clearInterval(id);
+  }, [loadAll]);
 
   return (
     <div className="p-4 md:p-6 space-y-6" dir="rtl">

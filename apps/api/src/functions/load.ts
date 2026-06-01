@@ -3377,10 +3377,13 @@ registerFn('chatEventsInquiry', async ({ body }) => {
 
   const closingInstructions =
     `\n--- חשוב מאוד ---\n` +
-    `1. לעולם אל תכתוב "[לינק לתשלום]" או "[link]" כפלייסהולדר בתוך הודעה. אל תזכיר בכלל את הלינק בטקסט שלך — המערכת תוסיף אותו אוטומטית מתחת להודעה ברגע ש-stage=send_payment.\n` +
-    `2. ברגע שיש הסכמה על מחיר → הצב stage='send_payment' ו-complete=true. גם הצב את כל השדות ב-collected: contact_name, contact_phone, event_date_iso, event_time, guest_count, selected_menu_name, selected_menu_id, selected_dishes (אם נבחרו), selected_upsells (אם נבחרו), subtotal_ils, discount_pct_requested, total_ils. בלי השדות האלה לא נוצרת הזמנה.\n` +
-    `3. נסה תמיד לסגור עד הסוף — אל תוותר כי "התקציב גבוה" או "אין תאריך". הצע חלופות. עד שהלקוח אומר ברור "לא".\n` +
-    `4. ההזמנה תמיד מותנת באישור סופי של מנהל המסעדה אחרי תשלום הפיקדון — ציין את זה כשאתה סוגר.\n`;
+    `1. לעולם אל תכתוב "[לינק לתשלום]" או "[link]" או "אני שולחת לך מיד" כפלייסהולדר. אל תזכיר בכלל את הלינק בטקסט שלך — המערכת מוסיפה אותו אוטומטית מתחת להודעה ברגע ש-stage='send_payment'.\n` +
+    `2. ברגע שהלקוח אמר "כן" / "סגור" / "אני מאשר/ת" על הצעת מחיר → **חובה** להציב stage='send_payment' ו-complete=true בתשובה זו. אסור להגיד "סגרנו! שולחת לינק" עם stage='collecting' או 'quoting'. החוק הזה לא ניתן לעקיפה.\n` +
+    `3. **שדות חובה ב-collected כשאתה סוגר** (stage='send_payment'): contact_name, contact_phone, event_date_iso (YYYY-MM-DD), event_time (HH:MM — חובה!), guest_count, hours_window, selected_menu_name, total_ils. בלי השדות האלה לא נוצרת הזמנה.\n` +
+    `4. **שאלת שעה חובה**: לפני שאתה סוגר — חובה לקבל שעת התחלה ספציפית (למשל "19:30"). אם לא צוין, שאל: "באיזו שעה תרצו שהאירוע יתחיל?"\n` +
+    `5. **הודע על משך השולחן**: כשאתה מסכם את ההזמנה, ציין במפורש כמה זמן השולחן/המקום עומד לרשות הלקוחות. ברירת מחדל: 3 שעות מהשעה שביקשו (אלא אם TERMS מגדיר אחרת).\n` +
+    `6. נסה תמיד לסגור עד הסוף — אל תוותר כי "התקציב גבוה" או "אין תאריך". הצע חלופות. אגרסיביות חיובית: כל פעם שלקוח מסכים על משהו (חבילה/תאריך) — תקדם אותו לשלב הבא מיד, לא תחכה.\n` +
+    `7. ההזמנה תמיד מותנת באישור סופי של מנהל המסעדה אחרי תשלום הפיקדון — ציין את זה כשאתה סוגר.\n`;
 
   const prompt = `${systemPrompt}${dateContext}${kitContext}${closingInstructions}\n--- שיחה עד כה ---\n${transcript || '(אין עדיין הודעות — זו תחילת השיחה)'}${newPart}\n\nהחזר JSON בלבד.`;
 
@@ -3423,14 +3426,36 @@ registerFn('chatEventsInquiry', async ({ body }) => {
     source: leadSource,
   };
   let currentLeadId: string | null = lead_id || null;
+  let currentLead: any = null;
   try {
     if (currentLeadId) {
-      await db.eventLead.update({ where: { id: currentLeadId }, data: leadData });
+      currentLead = await db.eventLead.update({ where: { id: currentLeadId }, data: leadData });
     } else {
-      const created = await db.eventLead.create({ data: leadData });
-      currentLeadId = created.id;
+      currentLead = await db.eventLead.create({ data: leadData });
+      currentLeadId = currentLead.id;
     }
   } catch (e: any) { console.error('[eventLead.upsert]', e?.message); }
+
+  // Fire a Pushover the FIRST time we capture real intent (phone or guest_count) on this lead.
+  // One alert per lead — tracked via a marker inside notes so we don't need a new column.
+  try {
+    if (currentLead && currentLead.contact_phone && !String(currentLead.notes || '').includes('intent_alerted:')) {
+      const lines = [
+        '✨ ליד אירוע חדש פעיל — שיחה בעיצומה',
+        `👤 ${currentLead.contact_name || 'ללא שם'} · ${currentLead.contact_phone}`,
+        currentLead.event_date ? `📅 ${currentLead.event_date}` : null,
+        currentLead.event_type ? `🎉 ${currentLead.event_type}` : null,
+        currentLead.guest_count ? `👥 ${currentLead.guest_count} אורחים` : null,
+        currentLead.budget_per_person ? `💰 ₪${currentLead.budget_per_person}/סועד` : null,
+        `📥 מקור: ${currentLead.source || 'web_chat'}`,
+      ].filter(Boolean).join('\n');
+      pushoverToAdmins('✨ ליד אירוע חדש — שיחה פעילה', lines).catch(() => {});
+      await db.eventLead.update({
+        where: { id: currentLead.id },
+        data: { notes: `${currentLead.notes || ''}${currentLead.notes ? ' | ' : ''}intent_alerted:${new Date().toISOString()}` },
+      }).catch(() => {});
+    }
+  } catch { /* ignore */ }
 
   // Lower threshold for creating a draft booking — the moment we have a date + guest_count + the
   // agent is past the qualification stage, we have enough to push the customer to checkout. Missing
@@ -3438,7 +3463,14 @@ registerFn('chatEventsInquiry', async ({ body }) => {
   let booking_id: string | null = incoming_booking_id || null;
   let payment_url: string | null = null;
   const stage = String(result?.stage || '').toLowerCase();
-  const wantsPayment = (stage === 'send_payment' || stage === 'agreed' || stage === 'completed' || result?.complete === true)
+  // Detect "agent thinks we should send a payment link" from MULTIPLE signals so we never
+  // miss a closing turn just because the LLM picked an off-script stage label.
+  const replyText = String(result?.reply || '');
+  const looksLikeSendingPaymentInReply =
+    /(שולח[א-ת]?|מעביר[א-ת]?|הנה|מקבל)[\s\S]{0,40}(לינק|קישור|תשלום|פיקדון|מאובטח)/i.test(replyText) ||
+    /(תשלום\s*הפיקדון|payment\s*link)/i.test(replyText);
+  const stageSignal = /(send_payment|agreed|completed|closing|closed|final|ready_to_pay|payment)/i.test(stage);
+  const wantsPayment = (stageSignal || result?.complete === true || looksLikeSendingPaymentInReply)
     && (!!c.event_date || !!c.event_date_iso) && !!c.guest_count;
   let finalReply = result?.reply || 'מצטערת, אירעה תקלה. תוכלו לנסות שוב?';
   if (wantsPayment) {
