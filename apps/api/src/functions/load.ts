@@ -3737,25 +3737,29 @@ registerFn('chatEventsInquiry', async ({ body }) => {
     /(שולח[א-ת]?|מעביר[א-ת]?|הנה|מקבל)[\s\S]{0,40}(לינק|קישור|תשלום|פיקדון|מאובטח)/i.test(replyText) ||
     /(תשלום\s*הפיקדון|payment\s*link)/i.test(replyText);
   const stageSignal = /(send_payment|agreed|completed|closing|closed|final|ready_to_pay|payment)/i.test(stage);
-  const wantsPayment = (stageSignal || effectiveComplete || looksLikeSendingPaymentInReply)
-    && (!!c.event_date || !!c.event_date_iso) && !!c.guest_count;
+  // Booking creation is now MUCH more permissive: as long as we have a phone (so the owner
+  // can call back) AND any agreement signal, we create a booking. Date/guests fall back to
+  // sane placeholders (tomorrow / 20 guests) and the owner fills in the real values during
+  // the manual callback. This is intentional — a partial booking the owner can recover from
+  // beats a "perfect" zero-booking-ever flow that drops every conversation.
+  const anyAgreementSignal = stageSignal || effectiveComplete || looksLikeSendingPaymentInReply || customerExplicitClose;
+  const wantsPayment = anyAgreementSignal && !!c.contact_phone;
   // If we forced the close server-side because the customer said "yes/סגור" but the LLM kept stalling,
   // override the assistant reply with a clean closing instead of leaving the LLM's leftover question.
   let finalReply = forcedClose
     ? `מעולה! 🌿 רשמתי לעצמי את ההזמנה.`
     : (result?.reply || 'מצטערת, אירעה תקלה. תוכלו לנסות שוב?');
   if (wantsPayment) {
-    const guests = Number(c.guest_count) || 1;
+    const guests = Number(c.guest_count) || 20; // placeholder so booking always saves
     const totalFromLLM = typeof c.total_ils === 'number' ? Math.round(c.total_ils) : null;
     const total = totalFromLLM ?? (guests * 250); // placeholder pricing if LLM didn't compute
     const depositPct = kit.deposit_pct ?? 20;
     const deposit = Math.round((total * depositPct) / 100);
-    // Prefer the LLM-computed ISO date. Fall back to event_date string if it already looks like ISO.
-    // If neither is usable, fall back to today + 7 days so the booking still saves and the owner can fix.
+    // Prefer ISO date. Fallbacks: event_date string if ISO-shaped, or tomorrow (manager will confirm).
     const isoLike = /^\d{4}-\d{2}-\d{2}$/;
     const llmIso = typeof c.event_date_iso === 'string' && isoLike.test(c.event_date_iso.slice(0, 10)) ? c.event_date_iso.slice(0, 10) : null;
     const llmRaw = typeof c.event_date === 'string' && isoLike.test(c.event_date.slice(0, 10)) ? c.event_date.slice(0, 10) : null;
-    const fallbackIso = (() => { const d = new Date(Date.now() + 7 * 86400000); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; })();
+    const fallbackIso = (() => { const d = new Date(Date.now() + 86400000); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; })();
     const eventDateStr = llmIso || llmRaw || fallbackIso;
     const shortNotice = eventDateStr <= new Date(Date.now() + 2 * 86400000).toISOString().slice(0, 10);
 
