@@ -3,7 +3,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Loader2, RefreshCw, Sparkles, CalendarHeart, Copy, Check, ExternalLink, QrCode, Flame, CheckCircle2 } from 'lucide-react';
+import { Loader2, RefreshCw, Sparkles, CalendarHeart, Copy, Check, ExternalLink, QrCode, Flame, CheckCircle2, Trash2, Search, Filter } from 'lucide-react';
+import { Input } from '@/components/ui/input';
 import { base44 } from '@/api/base44Client';
 
 const UTM_SOURCES = [
@@ -194,6 +195,21 @@ export default function EventsPrivatePage() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
   const [diag, setDiag] = useState(null);
+  const [filterStatus, setFilterStatus] = useState('all');
+  const [filterSource, setFilterSource] = useState('all');
+  const [filterSearch, setFilterSearch] = useState('');
+  const [busyDelete, setBusyDelete] = useState(null);
+
+  const deleteLead = async (lead) => {
+    if (!window.confirm(`למחוק ליד של ${lead.contact_name || lead.contact_phone || lead.id}?`)) return;
+    setBusyDelete(lead.id);
+    try {
+      await base44.functions.deleteEventLead({ lead_id: lead.id });
+      setLeads((arr) => arr.filter((x) => x.id !== lead.id));
+    } catch (e) {
+      window.alert('מחיקה נכשלה: ' + (e?.message || ''));
+    } finally { setBusyDelete(null); }
+  };
 
   const loadAll = useCallback(async () => {
     setLoading(true);
@@ -218,9 +234,10 @@ export default function EventsPrivatePage() {
   }, []);
 
   useEffect(() => { loadAll(); }, [loadAll]);
-  // Auto-refresh every 20 seconds so new leads / closed events show up without manual click.
+  // Auto-refresh every 2 minutes — frequent enough for new leads to surface,
+  // not so frequent it spams the network / blinks the UI while owner is working.
   useEffect(() => {
-    const id = setInterval(() => { loadAll(); }, 20000);
+    const id = setInterval(() => { loadAll(); }, 120000);
     return () => clearInterval(id);
   }, [loadAll]);
 
@@ -252,48 +269,101 @@ export default function EventsPrivatePage() {
       <Card>
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2"><Flame className="w-4 h-4 text-red-500" /> לידים אחרונים</CardTitle>
-          <CardDescription>לידים שעברו בצ׳אט הסוכן. לחץ על מספר טלפון כדי לחייג.</CardDescription>
+          <CardDescription>לידים שעברו בצ׳אט הסוכן. לחץ על מספר טלפון כדי לחייג, על פח כדי למחוק.</CardDescription>
         </CardHeader>
         <CardContent>
+          {/* Filters */}
+          <div className="flex items-center gap-2 flex-wrap mb-3 pb-3 border-b">
+            <div className="flex items-center gap-1 text-xs text-slate-500"><Filter className="w-3 h-3" /> סינון:</div>
+            <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="border rounded px-2 py-1 text-xs">
+              <option value="all">כל הסטטוסים</option>
+              <option value="qualified">מסווג / חם</option>
+              <option value="warm">חמים</option>
+              <option value="new">חדש</option>
+              <option value="cold">קר</option>
+              <option value="booked">נסגר</option>
+            </select>
+            <select value={filterSource} onChange={(e) => setFilterSource(e.target.value)} className="border rounded px-2 py-1 text-xs">
+              <option value="all">כל המקורות</option>
+              <option value="web_chat">web_chat (כללי)</option>
+              <option value="facebook">פייסבוק</option>
+              <option value="instagram">אינסטגרם</option>
+              <option value="google">גוגל</option>
+              <option value="tiktok">טיקטוק</option>
+              <option value="whatsapp">וואטסאפ</option>
+              <option value="qr_print">QR</option>
+            </select>
+            <div className="relative flex-1 min-w-[160px]">
+              <Search className="w-3 h-3 absolute right-2 top-2 text-slate-400" />
+              <Input value={filterSearch} onChange={(e) => setFilterSearch(e.target.value)} placeholder="חיפוש שם / טלפון / סוג אירוע…" className="pr-7 text-xs h-8" />
+            </div>
+            {(filterStatus !== 'all' || filterSource !== 'all' || filterSearch) && (
+              <Button size="sm" variant="ghost" onClick={() => { setFilterStatus('all'); setFilterSource('all'); setFilterSearch(''); }} className="text-xs h-8">נקה</Button>
+            )}
+          </div>
+
           {loading ? (
             <div className="flex items-center justify-center py-8"><Loader2 className="w-5 h-5 animate-spin text-slate-400" /></div>
-          ) : leads.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              עדיין אין לידים. שתפו את הקישור למעלה — כשמישהו ישלים את הצ׳אט, הוא יופיע כאן.
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {leads.map((l) => {
-                const status = STATUS[l.status] || { label: l.status || '—', cls: '' };
-                return (
-                  <div key={l.id} className="border rounded-lg p-3 bg-white hover:bg-slate-50/50 transition">
-                    <div className="flex items-start justify-between gap-3 flex-wrap">
-                      <div className="text-sm flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <strong>{l.contact_name || 'ללא שם'}</strong>
-                          {l.contact_phone && <a href={`tel:${l.contact_phone}`} className="text-blue-600 hover:underline">📞 {l.contact_phone}</a>}
-                          {scoreBadge(l.score)}
-                          <Badge className={status.cls}>{status.label}</Badge>
-                        </div>
-                        <div className="text-xs text-slate-600 mt-1">
-                          {l.event_date && <>📅 {l.event_date}{l.hours_window ? ` · ${l.hours_window}` : ''} · </>}
-                          {l.event_type && <>🎉 {l.event_type} · </>}
-                          {l.guest_count != null && <>👥 {l.guest_count} · </>}
-                          {l.budget_per_person && <>💰 ₪{l.budget_per_person}/סועד · </>}
-                          📥 {l.source || '—'} · {fmt(l.created_date)}
-                        </div>
-                        {l.ai_summary && (
-                          <div className="mt-2 p-2 bg-emerald-50 border border-emerald-100 rounded text-xs text-emerald-900">
-                            <span className="font-bold">🧠 סיכום שיחה: </span>{l.ai_summary}
+          ) : (() => {
+            const q = filterSearch.trim().toLowerCase();
+            const filtered = leads.filter((l) => {
+              if (filterStatus !== 'all' && (l.status || 'new') !== filterStatus) return false;
+              if (filterSource !== 'all' && (l.source || 'web_chat') !== filterSource) return false;
+              if (q && !`${l.contact_name || ''} ${l.contact_phone || ''} ${l.event_type || ''} ${l.ai_summary || ''}`.toLowerCase().includes(q)) return false;
+              return true;
+            });
+            if (filtered.length === 0) {
+              return (
+                <div className="text-center py-8 text-muted-foreground text-sm">
+                  {leads.length === 0
+                    ? 'עדיין אין לידים. שתפו את הקישור למעלה — כשמישהו ישלים את הצ׳אט, הוא יופיע כאן.'
+                    : `אין לידים שתואמים את הסינון (סה״כ ${leads.length} לידים).`}
+                </div>
+              );
+            }
+            return (
+              <div className="space-y-2">
+                <div className="text-xs text-slate-500">מוצגים {filtered.length} מתוך {leads.length} לידים</div>
+                {filtered.map((l) => {
+                  const status = STATUS[l.status] || { label: l.status || '—', cls: '' };
+                  return (
+                    <div key={l.id} className="border rounded-lg p-3 bg-white hover:bg-slate-50/50 transition">
+                      <div className="flex items-start justify-between gap-3 flex-wrap">
+                        <div className="text-sm flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <strong>{l.contact_name || 'ללא שם'}</strong>
+                            {l.contact_phone && <a href={`tel:${l.contact_phone}`} className="text-blue-600 hover:underline">📞 {l.contact_phone}</a>}
+                            {scoreBadge(l.score)}
+                            <Badge className={status.cls}>{status.label}</Badge>
                           </div>
-                        )}
+                          <div className="text-xs text-slate-600 mt-1">
+                            {l.event_date && <>📅 {l.event_date}{l.hours_window ? ` · ${l.hours_window}` : ''} · </>}
+                            {l.event_type && <>🎉 {l.event_type} · </>}
+                            {l.guest_count != null && <>👥 {l.guest_count} · </>}
+                            {l.budget_per_person && <>💰 ₪{l.budget_per_person}/סועד · </>}
+                            📥 {l.source || '—'} · {fmt(l.created_date)}
+                          </div>
+                          {l.ai_summary && (
+                            <div className="mt-2 p-2 bg-emerald-50 border border-emerald-100 rounded text-xs text-emerald-900">
+                              <span className="font-bold">🧠 סיכום שיחה: </span>{l.ai_summary}
+                            </div>
+                          )}
+                        </div>
+                        <button
+                          onClick={() => deleteLead(l)}
+                          disabled={busyDelete === l.id}
+                          className="text-slate-400 hover:text-red-600 transition flex-shrink-0 p-1"
+                          title="מחק ליד"
+                        >
+                          {busyDelete === l.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                        </button>
                       </div>
                     </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
+                  );
+                })}
+              </div>
+            );
+          })()}
         </CardContent>
       </Card>
 

@@ -4113,6 +4113,33 @@ registerFn('approveEventBooking', async ({ body, user }) => {
   return { booking: updated };
 });
 
+// AUTH — owner deletes a lead (and any related booking) from the dashboard.
+registerFn('deleteEventLead', async ({ body }) => {
+  const { lead_id } = body as any;
+  if (!lead_id) throw new Error('lead_id required');
+  // Cascade-ish: drop any booking referencing this lead, then the lead.
+  await db.eventBooking.deleteMany({ where: { lead_id } }).catch(() => {});
+  await db.eventLead.delete({ where: { id: lead_id } });
+  return { ok: true };
+});
+
+// AUTH — bulk delete (cleanup of test leads). Takes an array of ids.
+registerFn('deleteEventLeads', async ({ body }) => {
+  const ids = (body as any)?.lead_ids;
+  if (!Array.isArray(ids) || !ids.length) throw new Error('lead_ids[] required');
+  await db.eventBooking.deleteMany({ where: { lead_id: { in: ids } } }).catch(() => {});
+  const r = await db.eventLead.deleteMany({ where: { id: { in: ids } } });
+  return { deleted: r.count };
+});
+
+// AUTH — owner deletes a booking too (rare, mostly for testing).
+registerFn('deleteEventBooking', async ({ body }) => {
+  const { booking_id } = body as any;
+  if (!booking_id) throw new Error('booking_id required');
+  await db.eventBooking.delete({ where: { id: booking_id } });
+  return { ok: true };
+});
+
 registerFn('rejectEventBooking', async ({ body }) => {
   const { booking_id, notes } = body as any;
   if (!booking_id) throw new Error('booking_id required');
