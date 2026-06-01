@@ -3328,6 +3328,52 @@ async function pushoverEventsOwners(title: string, message: string) {
   }
 }
 
+// Public diagnostics dump — call this from anywhere to see exactly what's wrong
+// without needing auth. Returns infrastructure state + recent records.
+registerFn('eventsDiagnostics', async () => {
+  const tokenPresent = !!(process.env.PUSHOVER_APP_TOKEN || process.env.PUSHOVER_API_TOKEN);
+  const empsWithKey = await (prisma as any).employee.findMany({ where: { pushover_user_key: { not: null } } });
+  const totalLeads = await (prisma as any).eventLead.count();
+  const recentLeads = await (prisma as any).eventLead.findMany({ orderBy: { created_date: 'desc' }, take: 5 });
+  const totalBookings = await (prisma as any).eventBooking.count();
+  const recentBookings = await (prisma as any).eventBooking.findMany({ orderBy: { created_date: 'desc' }, take: 5 });
+  return {
+    pushover_infra: {
+      token_in_env: tokenPresent,
+      employees_with_pushover_key: empsWithKey.length,
+      employee_emails: empsWithKey.map((e: any) => e.email),
+    },
+    leads: {
+      total: totalLeads,
+      last_5: recentLeads.map((l: any) => ({
+        id: l.id, name: l.contact_name, phone: l.contact_phone,
+        date: l.event_date, guests: l.guest_count, score: l.score, status: l.status,
+        has_ai_summary: !!l.ai_summary, created: l.created_date,
+        notes_marker: String(l.notes || '').slice(0, 80),
+      })),
+    },
+    bookings: {
+      total: totalBookings,
+      last_5: recentBookings.map((b: any) => ({
+        id: b.id, name: b.customer_name, phone: b.customer_phone,
+        date: b.event_date, time: b.event_time, guests: b.guest_count,
+        menu: (b.selected_menu as any)?.name, total: b.total_ils,
+        status: b.status, approval: b.approval_status, payment: b.payment_status,
+        created: b.created_date,
+      })),
+    },
+  };
+}, { public: true });
+
+// Public Pushover test fire — proves the pipe end-to-end without auth.
+registerFn('firePushoverTest', async () => {
+  const result = await pushoverEventsOwners(
+    '🔔 בדיקה ידנית של Pushover',
+    `אם קיבלת — הצינור עובד.\nשעון: ${new Date().toLocaleString('he-IL', { timeZone: 'Asia/Jerusalem' })}`,
+  );
+  return result;
+}, { public: true });
+
 // Diagnostic: call this to verify the Pushover pipe is alive. Returns the count of
 // employees with pushover_user_key, whether the env token is present, and how many
 // devices got the test message.
