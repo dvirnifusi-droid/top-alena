@@ -3330,13 +3330,18 @@ async function pushoverEventsOwners(title: string, message: string) {
 
 // Public diagnostics dump — call this from anywhere to see exactly what's wrong
 // without needing auth. Returns infrastructure state + recent records.
-registerFn('eventsDiagnostics', async () => {
+registerFn('eventsDiagnostics', async ({ body }) => {
   const tokenPresent = !!(process.env.PUSHOVER_APP_TOKEN || process.env.PUSHOVER_API_TOKEN);
   const empsWithKey = await (prisma as any).employee.findMany({ where: { pushover_user_key: { not: null } } });
   const totalLeads = await (prisma as any).eventLead.count();
-  const recentLeads = await (prisma as any).eventLead.findMany({ orderBy: { created_date: 'desc' }, take: 5 });
+  // cuid ids are time-sortable; we use them as fallback because created_date was being left null.
+  const recentLeads = await (prisma as any).eventLead.findMany({ orderBy: { id: 'desc' }, take: 5 });
   const totalBookings = await (prisma as any).eventBooking.count();
-  const recentBookings = await (prisma as any).eventBooking.findMany({ orderBy: { created_date: 'desc' }, take: 5 });
+  const recentBookings = await (prisma as any).eventBooking.findMany({ orderBy: { id: 'desc' }, take: 5 });
+  // Optional: inspect a specific lead by id
+  const focusLeadId = (body as any)?.lead_id;
+  let focusLead: any = null;
+  if (focusLeadId) focusLead = await (prisma as any).eventLead.findUnique({ where: { id: focusLeadId } });
   return {
     pushover_infra: {
       token_in_env: tokenPresent,
@@ -3362,6 +3367,22 @@ registerFn('eventsDiagnostics', async () => {
         created: b.created_date,
       })),
     },
+    focus_lead: focusLead ? {
+      id: focusLead.id,
+      name: focusLead.contact_name,
+      phone: focusLead.contact_phone,
+      date: focusLead.event_date,
+      type: focusLead.event_type,
+      guests: focusLead.guest_count,
+      hours: focusLead.hours_window,
+      budget: focusLead.budget_per_person,
+      score: focusLead.score,
+      status: focusLead.status,
+      source: focusLead.source,
+      ai_summary: focusLead.ai_summary,
+      notes: focusLead.notes,
+      log_len: Array.isArray(focusLead.conversation_log) ? focusLead.conversation_log.length : 0,
+    } : null,
   };
 }, { public: true });
 
@@ -3672,11 +3693,12 @@ registerFn('chatEventsInquiry', async ({ body }) => {
   };
   let currentLeadId: string | null = lead_id || null;
   let currentLead: any = null;
+  const nowIso = new Date().toISOString();
   try {
     if (currentLeadId) {
-      currentLead = await db.eventLead.update({ where: { id: currentLeadId }, data: leadData });
+      currentLead = await db.eventLead.update({ where: { id: currentLeadId }, data: { ...leadData, updated_date: nowIso } });
     } else {
-      currentLead = await db.eventLead.create({ data: leadData });
+      currentLead = await db.eventLead.create({ data: { ...leadData, created_date: nowIso, updated_date: nowIso } });
       currentLeadId = currentLead.id;
     }
   } catch (e: any) { console.error('[eventLead.upsert]', e?.message); }
@@ -3766,9 +3788,9 @@ registerFn('chatEventsInquiry', async ({ body }) => {
     try {
       let booking: any = null;
       if (booking_id) {
-        booking = await db.eventBooking.update({ where: { id: booking_id }, data: bookingData });
+        booking = await db.eventBooking.update({ where: { id: booking_id }, data: { ...bookingData, updated_date: nowIso } });
       } else {
-        booking = await db.eventBooking.create({ data: bookingData });
+        booking = await db.eventBooking.create({ data: { ...bookingData, created_date: nowIso, updated_date: nowIso } });
       }
       booking_id = booking.id;
       // No payment URL — chat closes with a "manager will call" promise. Frontend hides any leftover CTA.
