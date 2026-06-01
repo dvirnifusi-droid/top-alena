@@ -26,6 +26,7 @@ const adminLinks = [
   { title: "חיזוי עומסים AI", url: createPageUrl("SmartPrediction"), icon: Brain, isSubItem: true },
   { title: "יועץ שיווק AI", url: createPageUrl("MarketingAI"), icon: Rocket, isSubItem: true },
   { title: "תיבת הסוכן (CEO)", url: createPageUrl("AgentInbox"), icon: Inbox, isSubItem: true },
+  { title: "אירועים פרטיים", url: createPageUrl("EventsPrivate"), icon: CalendarDays, isSubItem: true },
 
   // ניהול מסעדה
   { title: "ניהול מסעדה", url: "#", icon: Utensils, isCategory: true },
