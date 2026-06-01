@@ -3408,12 +3408,19 @@ registerFn('chatEventsInquiry', async ({ body }) => {
     }
   } catch (e: any) { console.error('[eventLead.upsert]', e?.message); }
 
-  // If the model says we're at send_payment / complete with full quote details → create EventBooking
+  // Lower threshold for creating a draft booking — the moment we have a date + guest_count + the
+  // agent is past the qualification stage, we have enough to push the customer to checkout. Missing
+  // total_ils gets a sensible placeholder (guest_count × 250 ₪) so the stub flow always completes.
   let booking_id: string | null = incoming_booking_id || null;
   let payment_url: string | null = null;
-  const wantsPayment = (result?.stage === 'send_payment' || result?.complete === true) && !!c.total_ils && !!c.event_date && !!c.guest_count;
+  const stage = String(result?.stage || '').toLowerCase();
+  const wantsPayment = (stage === 'send_payment' || stage === 'agreed' || stage === 'completed' || result?.complete === true)
+    && !!c.event_date && !!c.guest_count;
+  let finalReply = result?.reply || 'מצטערת, אירעה תקלה. תוכלו לנסות שוב?';
   if (wantsPayment) {
-    const total = Number(c.total_ils) || 0;
+    const guests = Number(c.guest_count) || 1;
+    const totalFromLLM = typeof c.total_ils === 'number' ? Math.round(c.total_ils) : null;
+    const total = totalFromLLM ?? (guests * 250); // placeholder pricing if LLM didn't compute
     const depositPct = kit.deposit_pct ?? 20;
     const deposit = Math.round((total * depositPct) / 100);
     const eventDateStr = String(c.event_date).slice(0, 10);
@@ -3425,14 +3432,14 @@ registerFn('chatEventsInquiry', async ({ body }) => {
       customer_phone: c.contact_phone ? String(c.contact_phone) : null,
       event_date: eventDateStr,
       event_time: c.event_time || null,
-      guest_count: Number(c.guest_count) || 1,
+      guest_count: guests,
       hours_window: c.hours_window || null,
       selected_menu: c.selected_menu_name ? { id: c.selected_menu_id, name: c.selected_menu_name } : null,
       selected_dishes: Array.isArray(c.selected_dishes) ? c.selected_dishes : [],
       selected_upsells: Array.isArray(c.selected_upsells) ? c.selected_upsells : [],
       subtotal_ils: typeof c.subtotal_ils === 'number' ? Math.round(c.subtotal_ils) : null,
       discount_pct: typeof c.discount_pct_requested === 'number' ? Math.min(c.discount_pct_requested, kit.max_discount_pct ?? 5) : 0,
-      total_ils: Math.round(total),
+      total_ils: total,
       deposit_amount_ils: deposit,
       payment_status: 'pending',
       status: 'pending_payment',
@@ -3442,21 +3449,43 @@ registerFn('chatEventsInquiry', async ({ body }) => {
     };
 
     try {
+      let booking: any = null;
       if (booking_id) {
-        const upd = await db.eventBooking.update({ where: { id: booking_id }, data: bookingData });
-        booking_id = upd.id;
+        booking = await db.eventBooking.update({ where: { id: booking_id }, data: bookingData });
       } else {
-        const created = await db.eventBooking.create({ data: bookingData });
-        booking_id = created.id;
+        booking = await db.eventBooking.create({ data: bookingData });
       }
-      payment_url = `/EventsPayment?booking=${booking_id}`;
+      booking_id = booking.id;
+      // Build an absolute payment URL so the link works whether the chat is embedded or shared
+      const origin = (process.env.PUBLIC_APP_URL || 'https://topalena.com').replace(/\/$/, '');
+      payment_url = `${origin}/EventsPayment?booking=${booking_id}`;
+
+      // Always append a clear payment CTA to the assistant reply — the LLM cannot know the booking id
+      // ahead of time, so we inject it here. The frontend also renders a visual button.
+      finalReply = `${finalReply}\n\n💳 לתשלום פיקדון של ₪${deposit} (מתוך ₪${total}):\n${payment_url}`;
+
+      // Notify the admin the moment a deal reaches the payment stage — even before payment is captured.
+      // This is the "intent-to-close" signal the owner asked for.
+      try {
+        const lines = [
+          '🎯 ליד אירוע הגיע לשלב תשלום פיקדון',
+          `👤 ${booking.customer_name || '-'} · ${booking.customer_phone || '-'}`,
+          `📅 ${booking.event_date} ${booking.event_time || ''}`,
+          `👥 ${booking.guest_count} אורחים`,
+          booking.selected_menu ? `🍽 ${(booking.selected_menu as any).name || '-'}` : null,
+          `💰 סה"כ: ₪${total} · פיקדון נדרש: ₪${deposit}`,
+          shortNotice ? '⚡ Short-notice (עד 48h)' : null,
+          `🔗 ${payment_url}`,
+        ].filter(Boolean).join('\n');
+        pushoverToAdmins('🎯 אירוע — ממתין לתשלום פיקדון', lines).catch(() => {});
+      } catch { /* ignore */ }
     } catch (e: any) {
       console.error('[eventBooking.create]', e?.message);
     }
   }
 
   return {
-    reply: result?.reply || 'מצטערת, אירעה תקלה. תוכלו לנסות שוב?',
+    reply: finalReply,
     complete: !!result?.complete,
     stage: result?.stage || null,
     rejected: !!(result?.complete && score !== null && score < 30),

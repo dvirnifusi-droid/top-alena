@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { invokePublic } from '@/lib/publicFetch';
-import { Send, Sparkles, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Send, Sparkles, CheckCircle2, AlertCircle, CreditCard } from 'lucide-react';
 
 function readUtmSource() {
   try { return new URLSearchParams(window.location.search).get('utm_source') || null; }
@@ -15,6 +15,8 @@ export default function EventsInquiry() {
   const [done, setDone] = useState(false);
   const [rejected, setRejected] = useState(false);
   const [leadId, setLeadId] = useState(null);
+  const [bookingId, setBookingId] = useState(null);
+  const [paymentUrl, setPaymentUrl] = useState(null);
   const [error, setError] = useState(null);
   const scrollRef = useRef(null);
 
@@ -25,10 +27,12 @@ export default function EventsInquiry() {
     if (text) setMessages(history);
     try {
       const res = await invokePublic('chatEventsInquiry', {
-        history, message: text, source: utmSource, lead_id: leadId,
+        history, message: text, source: utmSource, lead_id: leadId, booking_id: bookingId,
       });
       setMessages([...history, { role: 'assistant', content: res?.reply || '...' }]);
       if (res?.lead_id) setLeadId(res.lead_id);
+      if (res?.booking_id) setBookingId(res.booking_id);
+      if (res?.payment_url) setPaymentUrl(res.payment_url);
       if (res?.complete) { setDone(true); setRejected(!!res.rejected); }
     } catch (e) {
       setError(e?.message || 'בעיה זמנית');
@@ -91,6 +95,22 @@ export default function EventsInquiry() {
               </div>
             </div>
           </div>
+        )}
+
+        {paymentUrl && !done && (
+          <a href={paymentUrl} target="_blank" rel="noreferrer"
+             className="block rounded-2xl p-4 my-3 bg-gradient-to-br from-emerald-600 to-teal-600 text-white shadow-lg hover:shadow-xl transition">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <CreditCard className="w-6 h-6 flex-shrink-0" />
+                <div>
+                  <div className="font-bold">💳 לתשלום פיקדון</div>
+                  <div className="text-xs text-emerald-100 mt-0.5">לאחר התשלום ההזמנה תאושר סופית ע״י המנהל</div>
+                </div>
+              </div>
+              <div className="text-sm font-bold bg-white/20 rounded-lg px-3 py-1">פתח</div>
+            </div>
+          </a>
         )}
 
         {error && <div className="rounded-xl p-3 my-2 bg-red-50 border border-red-200 text-red-800 text-sm">{error}</div>}
