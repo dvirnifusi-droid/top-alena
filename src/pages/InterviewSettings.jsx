@@ -61,6 +61,7 @@ export default function InterviewSettings() {
         time: t.time,
         duration_minutes: t.duration_minutes ?? 30,
         active: t.active !== false,
+        specific_date: t.specific_date || '',
       })));
     } catch {
       setRows([]);
@@ -71,7 +72,7 @@ export default function InterviewSettings() {
 
   useEffect(() => { load(); }, []);
 
-  const addRow = () => setRows((r) => [...r, { weekday: 0, time: '16:00', duration_minutes: 30, active: true }]);
+  const addRow = () => setRows((r) => [...r, { weekday: 0, time: '16:00', duration_minutes: 30, active: true, specific_date: '' }]);
   const updateRow = (i, patch) => setRows((r) => r.map((x, idx) => idx === i ? { ...x, ...patch } : x));
   const deleteRow = (i) => setRows((r) => r.filter((_, idx) => idx !== i));
 
@@ -112,14 +113,18 @@ export default function InterviewSettings() {
         ) : (
           <div className="space-y-2">
             {rows.map((r, i) => {
-              const next = nextOccurrence(r.weekday, r.time);
-              const chip = next && r.active ? chipFor(next) : null;
+              const effectiveDate = r.specific_date
+                ? new Date(r.specific_date + 'T00:00')
+                : nextOccurrence(r.weekday, r.time);
+              const chip = effectiveDate && r.active ? chipFor(effectiveDate) : null;
+              const isOneOff = !!r.specific_date;
               return (
                 <div key={i} className="flex flex-wrap items-center gap-2 bg-slate-50 rounded-xl p-2.5">
                   <select
                     value={r.weekday}
-                    onChange={(e) => updateRow(i, { weekday: parseInt(e.target.value) })}
-                    className="border border-slate-300 rounded-lg px-2 py-1.5 text-sm bg-white"
+                    onChange={(e) => updateRow(i, { weekday: parseInt(e.target.value), specific_date: '' })}
+                    disabled={isOneOff}
+                    className="border border-slate-300 rounded-lg px-2 py-1.5 text-sm bg-white disabled:bg-slate-100 disabled:text-slate-400"
                   >
                     {WEEKDAYS.map((w) => <option key={w.value} value={w.value}>יום {w.label}</option>)}
                   </select>
@@ -139,13 +144,35 @@ export default function InterviewSettings() {
                     <option value={45}>45 דק׳</option>
                     <option value={60}>60 דק׳</option>
                   </select>
-                  {next && r.active && (
-                    <div className="flex items-center gap-1.5 text-xs">
-                      <span className="text-slate-500">→ הבא:</span>
-                      <span className="font-semibold text-slate-700">{fmtDate(next)}</span>
+
+                  {/* Editable date — switching this turns the slot into a one-off */}
+                  <div className="flex items-center gap-1.5 text-xs">
+                    <span className="text-slate-500">{isOneOff ? '🎯 תאריך:' : '→ הבא:'}</span>
+                    <input
+                      type="date"
+                      value={r.specific_date || (effectiveDate ? effectiveDate.toISOString().slice(0,10) : '')}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        if (!v) { updateRow(i, { specific_date: '' }); return; }
+                        const wd = new Date(v + 'T00:00').getDay();
+                        updateRow(i, { specific_date: v, weekday: wd });
+                      }}
+                      className={`border rounded-lg px-2 py-1 text-xs ${isOneOff ? 'border-purple-400 bg-purple-50 font-semibold' : 'border-slate-300 bg-white'}`}
+                    />
+                    {chip && (
                       <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${chip.cls}`}>{chip.text}</span>
-                    </div>
-                  )}
+                    )}
+                    {isOneOff && (
+                      <button
+                        onClick={() => updateRow(i, { specific_date: '' })}
+                        title="חזור לחזרה שבועית"
+                        className="text-slate-400 hover:text-slate-700 text-xs px-1"
+                      >
+                        ↺
+                      </button>
+                    )}
+                  </div>
+
                   <label className="text-xs flex items-center gap-1.5 text-slate-600 mr-1">
                     <input type="checkbox" checked={r.active} onChange={(e) => updateRow(i, { active: e.target.checked })} />
                     פעיל

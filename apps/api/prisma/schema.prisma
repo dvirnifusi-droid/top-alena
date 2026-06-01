@@ -1642,6 +1642,7 @@ model InterviewSlotTemplate {
   time             String   // "HH:mm"
   duration_minutes Int?     @default(30)
   active           Boolean? @default(true)
+  specific_date    String?  // "YYYY-MM-DD" — when set, treated as one-off on this date (overrides weekly recurrence)
   created_by       String?
   created_date     String?
   updated_date     String?

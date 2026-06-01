@@ -777,11 +777,33 @@ registerFn('getAvailableInterviewSlots', async ({ body }) => {
 
   const out: any[] = [];
   const now = new Date();
+  const todayStr = now.toISOString().slice(0, 10);
+  const horizon = new Date(now.getTime() + 14 * 86400000).toISOString().slice(0, 10);
+
+  // 1) One-off templates with a specific_date — emit only on that date.
+  for (const t of templates) {
+    const spec = (t as any).specific_date;
+    if (!spec) continue;
+    if (spec < todayStr || spec > horizon) continue;
+    const key = `${spec}|${t.time}`;
+    if (bookedKey.has(key)) continue;
+    const wd = new Date(spec + 'T00:00').getDay();
+    out.push({
+      date: spec,
+      time: t.time,
+      weekday_name: WEEKDAY_NAMES[wd],
+      duration_minutes: t.duration_minutes ?? 30,
+    });
+  }
+
+  // 2) Weekly-recurring templates (no specific_date) — emit for each matching
+  //    weekday in the next 14 days.
   for (let i = 1; i <= 14; i++) {
     const d = new Date(now.getTime() + i * 86400000);
     const weekday = d.getDay();
     const dateStr = d.toISOString().slice(0, 10);
     for (const t of templates) {
+      if ((t as any).specific_date) continue;
       if (t.weekday !== weekday) continue;
       const key = `${dateStr}|${t.time}`;
       if (bookedKey.has(key)) continue;
@@ -848,14 +870,24 @@ registerFn('saveInterviewSlotTemplates', async ({ body }) => {
   // Replace the whole set (simple and predictable for the owner)
   await db.interviewSlotTemplate.deleteMany({});
   if (templates.length) {
-    await db.interviewSlotTemplate.createMany({
-      data: templates.map((t: any) => ({
-        weekday: parseInt(t.weekday),
-        time: String(t.time),
-        duration_minutes: typeof t.duration_minutes === 'number' ? t.duration_minutes : 30,
-        active: t.active !== false,
-      })),
-    });
+    // Try with specific_date; if column doesn't exist yet, retry without
+    // (see CLAUDE.md §4.7 — db push lag).
+    const payload = templates.map((t: any) => ({
+      weekday: parseInt(t.weekday),
+      time: String(t.time),
+      duration_minutes: typeof t.duration_minutes === 'number' ? t.duration_minutes : 30,
+      active: t.active !== false,
+      specific_date: t.specific_date && /^\d{4}-\d{2}-\d{2}$/.test(t.specific_date) ? t.specific_date : null,
+    }));
+    try {
+      await db.interviewSlotTemplate.createMany({ data: payload });
+    } catch (e: any) {
+      if (/unknown (arg|column)|specific_date/i.test(String(e?.message))) {
+        await db.interviewSlotTemplate.createMany({
+          data: payload.map(({ specific_date: _drop, ...rest }) => rest),
+        });
+      } else { throw e; }
+    }
   }
   return { ok: true, count: templates.length };
 });
