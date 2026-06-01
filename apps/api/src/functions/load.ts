@@ -3329,18 +3329,36 @@ const EVENTS_SYSTEM_PROMPT = `אתה סוכן הסיווג של מסעדת 'על
 חישוב ציון: +25 אם תאריך מולא ובעוד 14+ ימים. +25 אם 10≤אורחים≤80. +25 אם תקציב לסועד ≥150. +25 אם סוג אירוע תואם ולא הסלמה. -30 אם הסלמה.`;
 
 registerFn('chatEventsInquiry', async ({ body }) => {
-  const { history, message, source, lead_id } = body as any;
+  const { history, message, source, lead_id, booking_id: incoming_booking_id } = body as any;
   const leadSource = typeof source === 'string' && source.trim()
     ? source.trim().slice(0, 40).toLowerCase()
     : 'web_chat';
 
+  // Load live Sales Kit
+  let kit = await db.eventSalesKit.findFirst({ where: { singleton: true } });
+  if (!kit) {
+    kit = await db.eventSalesKit.create({
+      data: { singleton: true, menus: [], upsells: [], terms: {}, system_prompt: DEFAULT_EVENTS_PROMPT, payment_mode: 'stub', deposit_pct: 20, max_discount_pct: 5, short_notice_allowed: true, max_advance_months: 6 },
+    });
+  }
+  const systemPrompt = (kit.system_prompt && kit.system_prompt.trim()) || DEFAULT_EVENTS_PROMPT;
+
   const turns: Array<{ role: string; content: string }> = Array.isArray(history) ? history : [];
-  const transcript = turns
-    .map((t) => `${t.role === 'assistant' ? 'עוזר' : 'לקוח'}: ${t.content}`)
-    .join('\n');
+  const transcript = turns.map((t) => `${t.role === 'assistant' ? 'עוזר' : 'לקוח'}: ${t.content}`).join('\n');
   const newPart = message ? `\nלקוח: ${message}` : '';
 
-  const prompt = `${EVENTS_SYSTEM_PROMPT}\n\n--- שיחה עד כה ---\n${transcript || '(אין עדיין הודעות — זו תחילת השיחה)'}${newPart}\n\nהחזר JSON בלבד.`;
+  const kitContext =
+    `\n--- SALES KIT (מקור האמת לכל מחיר/תפריט/תנאי — אל תמציא כלום מחוץ לזה) ---\n` +
+    `MENUS: ${JSON.stringify(kit.menus || [], null, 0)}\n` +
+    `UPSELLS: ${JSON.stringify(kit.upsells || [], null, 0)}\n` +
+    `TERMS: ${JSON.stringify(kit.terms || {}, null, 0)}\n` +
+    `DEPOSIT_PCT: ${kit.deposit_pct ?? 20}\n` +
+    `MAX_DISCOUNT_PCT: ${kit.max_discount_pct ?? 5}\n` +
+    `SHORT_NOTICE_ALLOWED: ${kit.short_notice_allowed ? 'YES' : 'NO'}\n` +
+    `MAX_ADVANCE_MONTHS: ${kit.max_advance_months ?? 6}\n` +
+    `--- סוף SALES KIT ---\n`;
+
+  const prompt = `${systemPrompt}${kitContext}\n--- שיחה עד כה ---\n${transcript || '(אין עדיין הודעות — זו תחילת השיחה)'}${newPart}\n\nהחזר JSON בלבד.`;
 
   const result: any = await invokeLLM({
     prompt,
@@ -3348,23 +3366,13 @@ registerFn('chatEventsInquiry', async ({ body }) => {
       type: 'object',
       properties: {
         reply: { type: 'string' },
-        collected: {
-          type: 'object',
-          properties: {
-            contact_name: { type: 'string' },
-            contact_phone: { type: 'string' },
-            event_date: { type: 'string' },
-            event_type: { type: 'string' },
-            guest_count: { type: 'integer' },
-            budget_per_person: { type: 'integer' },
-            hours_window: { type: 'string' },
-          },
-        },
+        collected: { type: 'object' },
+        stage: { type: 'string' },
         complete: { type: 'boolean' },
         escalation: { type: 'boolean' },
         score: { type: 'number' },
       },
-      required: ['reply', 'complete'],
+      required: ['reply'],
     },
   });
 
@@ -3375,10 +3383,10 @@ registerFn('chatEventsInquiry', async ({ body }) => {
     { role: 'assistant', content: result?.reply || '', timestamp: new Date().toISOString() },
   ];
 
+  // Persist/upsert the EventLead row
   const score = result?.complete && typeof result.score === 'number' ? Math.round(result.score) : null;
   const status = !result?.complete ? 'new' : score === null ? 'new' : score >= 60 ? 'qualified' : score < 30 ? 'cold' : 'warm';
-
-  const baseData: any = {
+  const leadData: any = {
     contact_name: c.contact_name || null,
     contact_phone: c.contact_phone ? String(c.contact_phone) : null,
     event_date: c.event_date || null,
@@ -3387,46 +3395,74 @@ registerFn('chatEventsInquiry', async ({ body }) => {
     budget_per_person: typeof c.budget_per_person === 'number' ? c.budget_per_person : null,
     hours_window: c.hours_window || null,
     conversation_log: fullLog as any,
-    status,
-    score,
+    status, score,
     source: leadSource,
   };
-
   let currentLeadId: string | null = lead_id || null;
   try {
     if (currentLeadId) {
-      await db.eventLead.update({ where: { id: currentLeadId }, data: baseData });
+      await db.eventLead.update({ where: { id: currentLeadId }, data: leadData });
     } else {
-      const created = await db.eventLead.create({ data: baseData });
+      const created = await db.eventLead.create({ data: leadData });
       currentLeadId = created.id;
     }
-  } catch (e: any) {
-    console.error('[eventLead.upsert] failed:', e?.message);
-  }
+  } catch (e: any) { console.error('[eventLead.upsert]', e?.message); }
 
-  // Hot lead → push to admins (best-effort, never blocks reply)
-  if (result?.complete && score !== null && score >= 60) {
+  // If the model says we're at send_payment / complete with full quote details → create EventBooking
+  let booking_id: string | null = incoming_booking_id || null;
+  let payment_url: string | null = null;
+  const wantsPayment = (result?.stage === 'send_payment' || result?.complete === true) && !!c.total_ils && !!c.event_date && !!c.guest_count;
+  if (wantsPayment) {
+    const total = Number(c.total_ils) || 0;
+    const depositPct = kit.deposit_pct ?? 20;
+    const deposit = Math.round((total * depositPct) / 100);
+    const eventDateStr = String(c.event_date).slice(0, 10);
+    const shortNotice = eventDateStr <= new Date(Date.now() + 2 * 86400000).toISOString().slice(0, 10);
+
+    const bookingData: any = {
+      lead_id: currentLeadId,
+      customer_name: c.contact_name || null,
+      customer_phone: c.contact_phone ? String(c.contact_phone) : null,
+      event_date: eventDateStr,
+      event_time: c.event_time || null,
+      guest_count: Number(c.guest_count) || 1,
+      hours_window: c.hours_window || null,
+      selected_menu: c.selected_menu_name ? { id: c.selected_menu_id, name: c.selected_menu_name } : null,
+      selected_dishes: Array.isArray(c.selected_dishes) ? c.selected_dishes : [],
+      selected_upsells: Array.isArray(c.selected_upsells) ? c.selected_upsells : [],
+      subtotal_ils: typeof c.subtotal_ils === 'number' ? Math.round(c.subtotal_ils) : null,
+      discount_pct: typeof c.discount_pct_requested === 'number' ? Math.min(c.discount_pct_requested, kit.max_discount_pct ?? 5) : 0,
+      total_ils: Math.round(total),
+      deposit_amount_ils: deposit,
+      payment_status: 'pending',
+      status: 'pending_payment',
+      approval_status: 'none',
+      short_notice: shortNotice,
+      source: leadSource,
+    };
+
     try {
-      const lines = [
-        `שם: ${baseData.contact_name || '-'}`,
-        `טלפון: ${baseData.contact_phone || '-'}`,
-        `📅 תאריך: ${baseData.event_date || '-'}`,
-        `🎉 סוג: ${baseData.event_type || '-'}`,
-        `👥 אורחים: ${baseData.guest_count ?? '-'}`,
-        `💰 תקציב/סועד: ${baseData.budget_per_person ? `₪${baseData.budget_per_person}` : '-'}`,
-        `🕒 שעות: ${baseData.hours_window || '-'}`,
-        `📊 ציון: ${score}`,
-        `📥 מקור: ${leadSource}`,
-      ];
-      pushoverToAdmins('🔥 ליד אירוע חם — עלינא', lines.join('\n')).catch(() => {});
-    } catch (e) { /* ignore */ }
+      if (booking_id) {
+        const upd = await db.eventBooking.update({ where: { id: booking_id }, data: bookingData });
+        booking_id = upd.id;
+      } else {
+        const created = await db.eventBooking.create({ data: bookingData });
+        booking_id = created.id;
+      }
+      payment_url = `/EventsPayment?booking=${booking_id}`;
+    } catch (e: any) {
+      console.error('[eventBooking.create]', e?.message);
+    }
   }
 
   return {
     reply: result?.reply || 'מצטערת, אירעה תקלה. תוכלו לנסות שוב?',
     complete: !!result?.complete,
+    stage: result?.stage || null,
     rejected: !!(result?.complete && score !== null && score < 30),
     lead_id: currentLeadId,
+    booking_id,
+    payment_url,
     score,
   };
 }, { public: true });
@@ -3438,4 +3474,195 @@ registerFn('listEventLeads', async () => {
     take: 200,
   });
   return { leads };
+});
+
+/* ----- Events Sales Kit (singleton) ----- */
+
+const DEFAULT_EVENTS_PROMPT = `אתה הסוכן הדיגיטלי של מסעדת 'עלינא' לאירועים פרטיים. אתה מדבר בעברית טבעית, חמה וביטחונית. אתה גם מסווג וגם סוגר עסקה — מצטט מחיר, מנהל מו"מ בתוך התקרה שהוגדרה, ומגיע לסגירה.
+
+פתח רק אם זו ההודעה הראשונה (אין שיחה קודמת):
+"היי 🌿 אני העוזרת הדיגיטלית של עלינא — מסעדת השרינג פלייטס בראשון לציון. שמחה שאתם חושבים עלינו לאירוע. ספרו לי קצת מה אתם רוצים ונמצא יחד התאמה מושלמת."
+
+איסוף מידע (שאל אחת-אחת, לא הכל ביחד):
+1. שם פרטי וטלפון.
+2. תאריך + שעה (חלון שעות OK: בוקר/צהריים/ערב). זמנים קצרים מותרים — היום בערב, מחר בצהריים — אין מינימום ימים.
+3. סוג אירוע (יום הולדת/חברה/אירועי משפחה/חינה/אחר).
+4. כמות אורחים.
+
+ברגע שיש לך תאריך + כמות אורחים → הצג חבילות מתאימות מ-MENUS עם המחיר/סועד. בקש בחירה.
+
+חוקי תהליך מכירה:
+- מצטט רק מחירים שמופיעים ב-MENUS / UPSELLS שאני נותן לך בכל turn (בכל הודעת מערכת אקבל את ה-Sales Kit המעודכן).
+- מחושב סכום סופי = מחיר/סועד × כמות + סכום אפסיילים נבחרים.
+- אם הלקוח רוצה הנחה — אפשר עד MAX_DISCOUNT_PCT שאני אתן. מעל זה — אומר "אצטרך לבדוק עם המנהל ולחזור".
+- בסגירה: מסכם בקצרה (תאריך, חבילה, אפסיילים, סכום סופי, פיקדון נדרש) ושולח לינק תשלום פיקדון.
+- לאירוע same-day / next-day: מבקש אישור שהלקוח מבין שזה מותנה באישור מנהל סופי.
+- אם מקרה הסלמה (מעל 80 אורחים, קייטרינג חוץ, כשר בלבד, אירועי משפיענים/מדיה) — סיים בנימוס: "אעביר את הפרטים למנהל ויחזור אליכם".
+
+החזר תמיד JSON בלבד:
+- reply: string
+- collected: { contact_name, contact_phone, event_date, event_time, event_type, guest_count, hours_window, selected_menu_id, selected_menu_name, selected_dishes (array of dish names), selected_upsells (array of {name, price}), discount_pct_requested, subtotal_ils, total_ils, deposit_ils }
+- stage: 'collecting' | 'quoting' | 'agreed' | 'send_payment' | 'completed' | 'escalated'
+- complete: boolean — true רק כשהלקוח אישר את הסכום הסופי וצריך לקבל לינק תשלום
+- escalation: boolean
+- score: number 0-100 (רק אם complete=true)`;
+
+registerFn('getEventSalesKit', async () => {
+  let kit = await db.eventSalesKit.findFirst({ where: { singleton: true } });
+  if (!kit) {
+    kit = await db.eventSalesKit.create({
+      data: {
+        singleton: true,
+        menus: [],
+        upsells: [],
+        terms: { deposit_pct: 20, cancellation_days: 14, headcount_deadline_days: 3 },
+        system_prompt: DEFAULT_EVENTS_PROMPT,
+        payment_mode: 'stub',
+        deposit_pct: 20,
+        max_discount_pct: 5,
+        short_notice_allowed: true,
+        max_advance_months: 6,
+      },
+    });
+  }
+  return { kit };
+});
+
+registerFn('saveEventSalesKit', async ({ body, user }) => {
+  const incoming = (body as any)?.kit || {};
+  const existing = await db.eventSalesKit.findFirst({ where: { singleton: true } });
+  const data: any = {
+    menus: incoming.menus ?? existing?.menus ?? [],
+    upsells: incoming.upsells ?? existing?.upsells ?? [],
+    terms: incoming.terms ?? existing?.terms ?? {},
+    system_prompt: incoming.system_prompt ?? existing?.system_prompt ?? DEFAULT_EVENTS_PROMPT,
+    payment_mode: incoming.payment_mode ?? existing?.payment_mode ?? 'stub',
+    deposit_pct: typeof incoming.deposit_pct === 'number' ? incoming.deposit_pct : (existing?.deposit_pct ?? 20),
+    max_discount_pct: typeof incoming.max_discount_pct === 'number' ? incoming.max_discount_pct : (existing?.max_discount_pct ?? 5),
+    short_notice_allowed: typeof incoming.short_notice_allowed === 'boolean' ? incoming.short_notice_allowed : (existing?.short_notice_allowed ?? true),
+    max_advance_months: typeof incoming.max_advance_months === 'number' ? incoming.max_advance_months : (existing?.max_advance_months ?? 6),
+    updated_by: (user as any)?.email || null,
+    updated_date: new Date().toISOString(),
+  };
+  const saved = existing
+    ? await db.eventSalesKit.update({ where: { id: existing.id }, data })
+    : await db.eventSalesKit.create({ data: { singleton: true, ...data } });
+  return { kit: saved };
+});
+
+/* ----- Event Bookings (the actual sale) ----- */
+
+registerFn('listEventBookings', async () => {
+  const bookings = await db.eventBooking.findMany({ orderBy: { created_date: 'desc' }, take: 200 });
+  return { bookings };
+});
+
+registerFn('getEventBooking', async ({ body }) => {
+  const { booking_id } = body as any;
+  if (!booking_id) throw new Error('booking_id required');
+  const booking = await db.eventBooking.findUnique({ where: { id: booking_id } });
+  if (!booking) throw new Error('booking_not_found');
+  return { booking };
+}, { public: true });
+
+// PUBLIC — stub "I paid" button on the EventsPayment page calls this.
+// Real Stripe webhook will replace this when payment_mode flips to 'stripe'.
+registerFn('confirmEventPayment', async ({ body }) => {
+  const { booking_id, mock = true } = body as any;
+  if (!booking_id) throw new Error('booking_id required');
+  const booking = await db.eventBooking.findUnique({ where: { id: booking_id } });
+  if (!booking) throw new Error('booking_not_found');
+  if (booking.payment_status === 'paid') return { booking, already: true };
+
+  // Mark paid
+  const paid = await db.eventBooking.update({
+    where: { id: booking_id },
+    data: {
+      payment_status: 'paid',
+      payment_method: mock ? 'stub' : 'stripe',
+      payment_ref: mock ? `stub_${Date.now()}` : (body as any).payment_ref || null,
+      status: 'pending_owner_approval',
+      updated_date: new Date().toISOString(),
+    },
+  });
+
+  // Create the Reservation row that SeatingSetup picks up
+  let reservation: any = null;
+  try {
+    reservation = await db.reservation.create({
+      data: {
+        customer_name: paid.customer_name || 'אירוע פרטי',
+        customer_phone: paid.customer_phone || null,
+        date: paid.event_date,
+        time: paid.event_time || '20:00',
+        party_size: paid.guest_count || 1,
+        status: 'pending_owner_approval',
+        special_occasion: 'private_event',
+        special_requests: `אירוע פרטי — חבילה: ${(paid.selected_menu as any)?.name || '-'} · סכום: ₪${paid.total_ils || 0} · פיקדון שולם: ₪${paid.deposit_amount_ils || 0}` + (paid.short_notice ? ' · ⚠️ Short-notice' : ''),
+      },
+    });
+    await db.eventBooking.update({ where: { id: booking_id }, data: { reservation_id: reservation.id } });
+  } catch (e: any) {
+    console.error('reservation create failed', e?.message);
+  }
+
+  // Pushover to admin
+  try {
+    const urgentTag = paid.short_notice ? '⚡ URGENT — Short-notice  ' : '';
+    const lines = [
+      `${urgentTag}אירוע חדש נסגר — דורש אישור מנהל`,
+      `שם: ${paid.customer_name || '-'} (${paid.customer_phone || '-'})`,
+      `📅 ${paid.event_date} ${paid.event_time || ''}`,
+      `👥 ${paid.guest_count} אורחים`,
+      `🍽 ${(paid.selected_menu as any)?.name || '-'}`,
+      `💰 סכום: ₪${paid.total_ils || 0}`,
+      `💳 פיקדון שולם: ₪${paid.deposit_amount_ils || 0}`,
+      `🔗 פתח /EventsPrivate לאישור`,
+    ];
+    pushoverToAdmins(paid.short_notice ? '⚡ אירוע same-day נסגר!' : '🎉 אירוע נסגר — אישור מנהל', lines.join('\n')).catch(() => {});
+  } catch { /* ignore */ }
+
+  return { booking: paid, reservation };
+}, { public: true });
+
+registerFn('approveEventBooking', async ({ body, user }) => {
+  const { booking_id, notes } = body as any;
+  if (!booking_id) throw new Error('booking_id required');
+  const booking = await db.eventBooking.findUnique({ where: { id: booking_id } });
+  if (!booking) throw new Error('booking_not_found');
+  const updated = await db.eventBooking.update({
+    where: { id: booking_id },
+    data: {
+      approval_status: 'approved',
+      status: 'confirmed',
+      approval_notes: notes || null,
+      updated_date: new Date().toISOString(),
+    },
+  });
+  if (booking.reservation_id) {
+    await db.reservation.update({ where: { id: booking.reservation_id }, data: { status: 'confirmed' } }).catch(() => {});
+  }
+  return { booking: updated };
+});
+
+registerFn('rejectEventBooking', async ({ body }) => {
+  const { booking_id, notes } = body as any;
+  if (!booking_id) throw new Error('booking_id required');
+  const booking = await db.eventBooking.findUnique({ where: { id: booking_id } });
+  if (!booking) throw new Error('booking_not_found');
+  // Refund stub: in stub mode we just mark refunded. In stripe mode this is where a real refund call would go.
+  const updated = await db.eventBooking.update({
+    where: { id: booking_id },
+    data: {
+      approval_status: 'rejected',
+      status: 'rejected',
+      approval_notes: notes || null,
+      payment_status: booking.payment_method === 'stub' ? 'refunded_stub' : 'refund_pending',
+      updated_date: new Date().toISOString(),
+    },
+  });
+  if (booking.reservation_id) {
+    await db.reservation.update({ where: { id: booking.reservation_id }, data: { status: 'cancelled' } }).catch(() => {});
+  }
+  return { booking: updated };
 });

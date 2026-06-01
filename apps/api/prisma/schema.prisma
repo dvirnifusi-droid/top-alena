@@ -773,6 +773,53 @@ model EventLead {
   updated_date        String?
 }
 
+model EventSalesKit {
+  id              String   @id @default(cuid())
+  singleton       Boolean  @default(true) @unique
+  menus           Json?
+  upsells         Json?
+  terms           Json?
+  system_prompt   String?
+  payment_mode    String?  @default("stub")
+  deposit_pct     Int?     @default(20)
+  max_discount_pct Int?    @default(5)
+  short_notice_allowed Boolean? @default(true)
+  max_advance_months Int?  @default(6)
+  updated_by      String?
+  updated_date    String?
+}
+
+model EventBooking {
+  id                String   @id @default(cuid())
+  lead_id           String?
+  reservation_id    String?
+  customer_name     String?
+  customer_phone    String?
+  event_date        String
+  event_time        String?
+  guest_count       Int
+  hours_window      String?
+  selected_menu     Json?
+  selected_dishes   Json?
+  selected_upsells  Json?
+  subtotal_ils      Int?
+  discount_pct      Int?     @default(0)
+  total_ils         Int?
+  deposit_amount_ils Int?
+  payment_status    String?  @default("pending")
+  payment_method    String?
+  payment_ref       String?
+  status            String?  @default("pending_payment")
+  approval_status   String?  @default("none")
+  approval_notes    String?
+  short_notice      Boolean? @default(false)
+  source            String?
+  notes             String?
+  created_by        String?
+  created_date      String?
+  updated_date      String?
+}
+
 model KnowledgeBase {
   id        String   @id @default(cuid())
   category                     String

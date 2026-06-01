@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Loader2, RefreshCw, Sparkles, CalendarHeart, Copy, Check, ExternalLink, QrCode, Flame } from 'lucide-react';
+import { Loader2, RefreshCw, Sparkles, CalendarHeart, Copy, Check, ExternalLink, QrCode, Flame, CheckCircle2 } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 
 const UTM_SOURCES = [
@@ -93,6 +93,83 @@ const STATUS = {
   booked: { label: 'נסגר ✓', cls: 'bg-green-100 text-green-800' },
 };
 
+function BookingsCard() {
+  const [bookings, setBookings] = React.useState([]);
+  const [loading, setLoading] = React.useState(true);
+  const [busy, setBusy] = React.useState(null);
+
+  const load = React.useCallback(async () => {
+    setLoading(true);
+    try {
+      const r = await base44.functions.listEventBookings({});
+      setBookings(r?.bookings || []);
+    } catch { setBookings([]); }
+    finally { setLoading(false); }
+  }, []);
+  React.useEffect(() => { load(); }, [load]);
+
+  const act = async (booking, action) => {
+    const notes = action === 'reject' ? (window.prompt('סיבת דחייה (אופציונלי):') || '') : '';
+    setBusy(booking.id);
+    try {
+      const fn = action === 'approve' ? 'approveEventBooking' : 'rejectEventBooking';
+      await base44.functions[fn]({ booking_id: booking.id, notes });
+      await load();
+    } catch (e) { alert('פעולה נכשלה: ' + (e?.message || '')); }
+    finally { setBusy(null); }
+  };
+
+  const pending = bookings.filter((b) => b.approval_status !== 'approved' && b.approval_status !== 'rejected' && b.payment_status === 'paid');
+  const decided = bookings.filter((b) => b.approval_status === 'approved' || b.approval_status === 'rejected');
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-emerald-500" /> אירועים שנסגרו — דרושים אישור</CardTitle>
+        <CardDescription>הזמנות שהפיקדון שולם והן ממתינות לאישור המנהל הסופי. ה-Reservation כבר נחסם ב-SeatingSetup.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        {loading ? (
+          <div className="flex justify-center py-6"><Loader2 className="w-5 h-5 animate-spin text-slate-400" /></div>
+        ) : pending.length === 0 ? (
+          <p className="text-sm text-muted-foreground text-center py-4">אין אירועים ממתינים לאישור.</p>
+        ) : (
+          <div className="space-y-2">
+            {pending.map((b) => (
+              <div key={b.id} className="border rounded-lg p-3 bg-emerald-50/40">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <div className="text-sm">
+                    <div><strong>{b.customer_name || '-'}</strong> · {b.customer_phone || '-'}</div>
+                    <div className="text-xs text-slate-600">📅 {b.event_date} {b.event_time || ''} · 👥 {b.guest_count} · 🍽 {b.selected_menu?.name || '-'} · 💰 ₪{b.total_ils || 0} (פיקדון: ₪{b.deposit_amount_ils || 0})</div>
+                    {b.short_notice && <Badge className="bg-amber-100 text-amber-800 mt-1">Short-notice</Badge>}
+                  </div>
+                  <div className="flex gap-2">
+                    <Button size="sm" disabled={busy === b.id} onClick={() => act(b, 'approve')} className="bg-emerald-600 hover:bg-emerald-700">אשר</Button>
+                    <Button size="sm" disabled={busy === b.id} variant="outline" onClick={() => act(b, 'reject')} className="text-red-600">דחה והחזר</Button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+        {decided.length > 0 && (
+          <details className="mt-4">
+            <summary className="text-xs text-muted-foreground cursor-pointer">היסטוריה ({decided.length})</summary>
+            <div className="space-y-1 mt-2">
+              {decided.slice(0, 20).map((b) => (
+                <div key={b.id} className="text-xs flex items-center justify-between border-b py-1">
+                  <span>{b.customer_name} — {b.event_date} — ₪{b.total_ils}</span>
+                  <Badge className={b.approval_status === 'approved' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}>{b.approval_status === 'approved' ? 'אושר' : 'נדחה'}</Badge>
+                </div>
+              ))}
+            </div>
+          </details>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function EventsPrivatePage() {
   const [leads, setLeads] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -171,6 +248,8 @@ export default function EventsPrivatePage() {
           )}
         </CardContent>
       </Card>
+
+      <BookingsCard />
     </div>
   );
 }

@@ -73,6 +73,7 @@ import EmployeeHome from './pages/EmployeeHome';
 import EmployeeReports from './pages/EmployeeReports';
 import Employees from './pages/Employees';
 import EventsPrivate from './pages/EventsPrivate';
+import EventsSalesKit from './pages/EventsSalesKit';
 import GamificationAdmin from './pages/GamificationAdmin';
 import GamificationCenter from './pages/GamificationCenter';
 import Incidents from './pages/Incidents';
@@ -145,6 +146,7 @@ export const PAGES = {
     "EmployeeReports": EmployeeReports,
     "Employees": Employees,
     "EventsPrivate": EventsPrivate,
+    "EventsSalesKit": EventsSalesKit,
     "GamificationAdmin": GamificationAdmin,
     "GamificationCenter": GamificationCenter,
     "Incidents": Incidents,
