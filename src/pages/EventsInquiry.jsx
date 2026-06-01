@@ -84,15 +84,11 @@ export default function EventsInquiry() {
           )}
         </div>
 
-        {done && (
-          <div className={`rounded-xl p-4 my-3 ${rejected ? 'bg-amber-50 border border-amber-200' : 'bg-emerald-50 border border-emerald-200'}`}>
+        {done && !paymentUrl && (
+          <div className="rounded-xl p-4 my-3 bg-emerald-50 border border-emerald-200">
             <div className="flex items-start gap-3">
-              {rejected ? <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" /> : <CheckCircle2 className="w-5 h-5 text-emerald-600 flex-shrink-0 mt-0.5" />}
-              <div className="text-sm">
-                {rejected
-                  ? <span className="text-amber-900">תודה רבה! לפי מה שתיארתם, אנחנו ניצור איתכם קשר אם זה מתאים לפורמט שלנו.</span>
-                  : <span className="text-emerald-900">הפרטים שלכם נשמרו — המנהל יחזור אליכם תוך כמה שעות עם הצעה מותאמת 🌿</span>}
-              </div>
+              <CheckCircle2 className="w-5 h-5 text-emerald-600 flex-shrink-0 mt-0.5" />
+              <span className="text-sm text-emerald-900">הפרטים שלכם נשמרו — המנהל יחזור אליכם תוך כמה שעות 🌿</span>
             </div>
           </div>
         )}
@@ -115,18 +111,16 @@ export default function EventsInquiry() {
 
         {error && <div className="rounded-xl p-3 my-2 bg-red-50 border border-red-200 text-red-800 text-sm">{error}</div>}
 
-        {!done && (
-          <div className="bg-white border border-emerald-200 rounded-2xl p-2 flex items-end gap-2 shadow-sm">
-            <textarea value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={onKey}
-              placeholder="הקלידו את התשובה ולחצו שלח…" disabled={sending} rows={1}
-              className="flex-1 resize-none bg-transparent px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none disabled:opacity-50"
-              style={{ minHeight: '36px', maxHeight: '120px' }} />
-            <button onClick={send} disabled={!input.trim() || sending}
-              className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white rounded-xl px-4 py-2 flex items-center gap-1 text-sm font-medium">
-              שלח <Send className="w-4 h-4" />
-            </button>
-          </div>
-        )}
+        <div className="bg-white border border-emerald-200 rounded-2xl p-2 flex items-end gap-2 shadow-sm">
+          <textarea value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={onKey}
+            placeholder="הקלידו את התשובה ולחצו שלח…" disabled={sending} rows={1}
+            className="flex-1 resize-none bg-transparent px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none disabled:opacity-50"
+            style={{ minHeight: '36px', maxHeight: '120px' }} />
+          <button onClick={send} disabled={!input.trim() || sending}
+            className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white rounded-xl px-4 py-2 flex items-center gap-1 text-sm font-medium">
+            שלח <Send className="w-4 h-4" />
+          </button>
+        </div>
       </main>
 
       <footer className="text-center text-xs text-emerald-700/70 p-3">

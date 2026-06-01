@@ -3376,14 +3376,17 @@ registerFn('chatEventsInquiry', async ({ body }) => {
     `--- סוף SALES KIT ---\n`;
 
   const closingInstructions =
-    `\n--- חשוב מאוד ---\n` +
-    `1. לעולם אל תכתוב "[לינק לתשלום]" או "[link]" או "אני שולחת לך מיד" כפלייסהולדר. אל תזכיר בכלל את הלינק בטקסט שלך — המערכת מוסיפה אותו אוטומטית מתחת להודעה ברגע ש-stage='send_payment'.\n` +
-    `2. ברגע שהלקוח אמר "כן" / "סגור" / "אני מאשר/ת" על הצעת מחיר → **חובה** להציב stage='send_payment' ו-complete=true בתשובה זו. אסור להגיד "סגרנו! שולחת לינק" עם stage='collecting' או 'quoting'. החוק הזה לא ניתן לעקיפה.\n` +
-    `3. **שדות חובה ב-collected כשאתה סוגר** (stage='send_payment'): contact_name, contact_phone, event_date_iso (YYYY-MM-DD), event_time (HH:MM — חובה!), guest_count, hours_window, selected_menu_name, total_ils. בלי השדות האלה לא נוצרת הזמנה.\n` +
-    `4. **שאלת שעה חובה**: לפני שאתה סוגר — חובה לקבל שעת התחלה ספציפית (למשל "19:30"). אם לא צוין, שאל: "באיזו שעה תרצו שהאירוע יתחיל?"\n` +
-    `5. **הודע על משך השולחן**: כשאתה מסכם את ההזמנה, ציין במפורש כמה זמן השולחן/המקום עומד לרשות הלקוחות. ברירת מחדל: 3 שעות מהשעה שביקשו (אלא אם TERMS מגדיר אחרת).\n` +
-    `6. נסה תמיד לסגור עד הסוף — אל תוותר כי "התקציב גבוה" או "אין תאריך". הצע חלופות. אגרסיביות חיובית: כל פעם שלקוח מסכים על משהו (חבילה/תאריך) — תקדם אותו לשלב הבא מיד, לא תחכה.\n` +
-    `7. ההזמנה תמיד מותנת באישור סופי של מנהל המסעדה אחרי תשלום הפיקדון — ציין את זה כשאתה סוגר.\n`;
+    `\n--- חוקי שיחה (קריטיים — חובה) ---\n` +
+    `0. **complete=true רק במקרים מאוד ספציפיים**: (א) הלקוח אמר במפורש "כן, סגור, מאשר/ת לתשלום הפיקדון" על מחיר סופי שהצעת. (ב) הלקוח אמר במפורש "לא, תודה, לא מתאים". בכל שאר המקרים — **complete=false תמיד**. אסור לך לסיים שיחה רק כי הצגת חבילה ושאלת "מה דעתך?". זה אמצע שיחה!\n` +
+    `1. **כשאתה שואל את הלקוח שאלה** (גם אם זה "מה דעתך?" או "האם להתקדם?"), חובה complete=false ו-stage='quoting' או 'collecting'. אתה ממתין לתשובה — לא סוגר.\n` +
+    `2. לעולם אל תכתוב "תודה רבה! ליצור איתכם קשר אם זה מתאים לפורמט" באמצע שיחה. ביטוי כזה רק אם הלקוח אמר במפורש לא.\n` +
+    `3. לעולם אל תכתוב "[לינק לתשלום]" או "אני שולחת מיד" כפלייסהולדר. אל תזכיר בכלל את הלינק בטקסט שלך — המערכת מוסיפה אותו אוטומטית מתחת להודעה ברגע ש-stage='send_payment'.\n` +
+    `4. ברגע שהלקוח אמר "כן/סגור/מאשר" על מחיר סופי → **חובה** stage='send_payment' ו-complete=true בתשובה זו.\n` +
+    `5. **שדות חובה ב-collected כשאתה סוגר**: contact_name, contact_phone, event_date_iso (YYYY-MM-DD), event_time (HH:MM), guest_count, hours_window, selected_menu_name, total_ils. בלי השדות האלה לא נוצרת הזמנה.\n` +
+    `6. **שאלת שעה חובה**: לפני שאתה סוגר — חובה לקבל שעת התחלה ספציפית (למשל "19:30"). אם לא צוין, שאל: "באיזו שעה תרצו שהאירוע יתחיל?"\n` +
+    `7. **הודע על משך השולחן**: כשאתה מסכם את ההזמנה לפני הסכמה, ציין במפורש כמה זמן השולחן/המקום עומד לרשות הלקוחות. ברירת מחדל: 3 שעות מהשעה שביקשו (אלא אם TERMS מגדיר אחרת).\n` +
+    `8. נסה תמיד לסגור עד הסוף — אל תוותר כי "התקציב גבוה". הצע חלופות. אגרסיביות חיובית: כל פעם שלקוח מסכים על משהו (חבילה/תאריך) — תקדם לשלב הבא מיד.\n` +
+    `9. ההזמנה תמיד מותנת באישור סופי של מנהל המסעדה אחרי תשלום הפיקדון — ציין את זה כשאתה סוגר.\n`;
 
   const prompt = `${systemPrompt}${dateContext}${kitContext}${closingInstructions}\n--- שיחה עד כה ---\n${transcript || '(אין עדיין הודעות — זו תחילת השיחה)'}${newPart}\n\nהחזר JSON בלבד.`;
 
@@ -3404,6 +3407,16 @@ registerFn('chatEventsInquiry', async ({ body }) => {
   });
 
   const c = result?.collected || {};
+
+  // Server-side guard against premature closure: if the assistant ended with a question
+  // (Hebrew/English question mark), it's mid-conversation regardless of what the model said.
+  // We treat complete as false so the frontend keeps the chat open and the LLM can continue.
+  const replyRaw = String(result?.reply || '');
+  const endsWithQuestion = /[?؟]\s*$/.test(replyRaw.trim()) || /[?؟]\s*$/m.test(replyRaw.trim().split('\n').pop() || '');
+  const customerLastTurn = String(message || '').trim().toLowerCase();
+  const customerExplicitClose = /(^|\s)(כן[,.\s]*סגור|כן[,.\s]*מאשר|אני מאשר|סגור[,.\s]|מאשר[ת]?\s*תשלום|בוא נסגור|let.?s close)/i.test(customerLastTurn);
+  const effectiveComplete = !!result?.complete && (!endsWithQuestion || customerExplicitClose);
+
   const fullLog = [
     ...turns,
     ...(message ? [{ role: 'user', content: message, timestamp: new Date().toISOString() }] : []),
@@ -3411,8 +3424,8 @@ registerFn('chatEventsInquiry', async ({ body }) => {
   ];
 
   // Persist/upsert the EventLead row
-  const score = result?.complete && typeof result.score === 'number' ? Math.round(result.score) : null;
-  const status = !result?.complete ? 'new' : score === null ? 'new' : score >= 60 ? 'qualified' : score < 30 ? 'cold' : 'warm';
+  const score = effectiveComplete && typeof result?.score === 'number' ? Math.round(result.score) : null;
+  const status = !effectiveComplete ? 'new' : score === null ? 'new' : score >= 60 ? 'qualified' : score < 30 ? 'cold' : 'warm';
   const leadData: any = {
     contact_name: c.contact_name || null,
     contact_phone: c.contact_phone ? String(c.contact_phone) : null,
@@ -3470,7 +3483,7 @@ registerFn('chatEventsInquiry', async ({ body }) => {
     /(שולח[א-ת]?|מעביר[א-ת]?|הנה|מקבל)[\s\S]{0,40}(לינק|קישור|תשלום|פיקדון|מאובטח)/i.test(replyText) ||
     /(תשלום\s*הפיקדון|payment\s*link)/i.test(replyText);
   const stageSignal = /(send_payment|agreed|completed|closing|closed|final|ready_to_pay|payment)/i.test(stage);
-  const wantsPayment = (stageSignal || result?.complete === true || looksLikeSendingPaymentInReply)
+  const wantsPayment = (stageSignal || effectiveComplete || looksLikeSendingPaymentInReply)
     && (!!c.event_date || !!c.event_date_iso) && !!c.guest_count;
   let finalReply = result?.reply || 'מצטערת, אירעה תקלה. תוכלו לנסות שוב?';
   if (wantsPayment) {
@@ -3548,9 +3561,9 @@ registerFn('chatEventsInquiry', async ({ body }) => {
 
   return {
     reply: finalReply,
-    complete: !!result?.complete,
+    complete: effectiveComplete,
     stage: result?.stage || null,
-    rejected: !!(result?.complete && score !== null && score < 30),
+    rejected: false, // never auto-reject — frontend keeps chat open until customer pays or explicitly leaves
     lead_id: currentLeadId,
     booking_id,
     payment_url,
