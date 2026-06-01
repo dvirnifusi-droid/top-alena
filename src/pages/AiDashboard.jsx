@@ -10,6 +10,7 @@ import { KnowledgeBase, StaffQuestion, PendingQuestion, MenuItem, RestaurantInfo
 import { Plus, Search, Brain, MessageSquare, BookOpen, Shield, Users, Coffee, Settings, Trash2, Edit, Utensils, CheckCircle, Info, RefreshCw } from "lucide-react";
 import { refreshGeminiFiles } from "@/functions/refreshGeminiFiles";
 import AiDailySummaryWidget from "@/components/dashboard/AiDailySummaryWidget";
+import AiAssistantFilesManager from "@/components/ai-assistant/AiAssistantFilesManager";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
@@ -552,12 +553,15 @@ function AiDashboardInner() {
 
                 {/* Management Tabs */}
                 <Tabs defaultValue="menu" className="w-full">
-                    <TabsList className="grid w-full grid-cols-2 bg-gradient-to-r from-white/80 via-white/60 to-white/80 backdrop-blur-xl p-2 h-auto rounded-2xl border border-white/20 shadow-xl">
+                    <TabsList className="grid w-full grid-cols-3 bg-gradient-to-r from-white/80 via-white/60 to-white/80 backdrop-blur-xl p-2 h-auto rounded-2xl border border-white/20 shadow-xl">
                         <TabsTrigger value="menu" className="py-3 px-6 text-sm font-bold rounded-xl data-[state=active]:bg-gradient-to-r data-[state=active]:from-green-500 data-[state=active]:to-emerald-500 data-[state=active]:text-white transition-all duration-300">
                             🍽️ ניהול תפריט
                         </TabsTrigger>
                         <TabsTrigger value="info" className="py-3 px-6 text-sm font-bold rounded-xl data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-500 data-[state=active]:to-cyan-500 data-[state=active]:text-white transition-all duration-300">
                             📋 מידע כללי על המסעדה
+                        </TabsTrigger>
+                        <TabsTrigger value="files" className="py-3 px-6 text-sm font-bold rounded-xl data-[state=active]:bg-gradient-to-r data-[state=active]:from-purple-500 data-[state=active]:to-fuchsia-500 data-[state=active]:text-white transition-all duration-300">
+                            📚 ידע של דביר
                         </TabsTrigger>
                     </TabsList>
 
@@ -677,6 +681,10 @@ function AiDashboardInner() {
                                 </div>
                             </CardContent>
                         </Card>
+                    </TabsContent>
+
+                    <TabsContent value="files" className="mt-8">
+                        <AiAssistantFilesManager />
                     </TabsContent>
                 </Tabs>
 

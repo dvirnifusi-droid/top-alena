@@ -1533,24 +1533,218 @@ registerFn('sendDeliveryViaTelegramClient', async ({ body }) => {
 
 /* ----- AI / Gemini ----- */
 
-// Dvir AI chat. Includes the Drive files cached in GeminiFileCache so Gemini
-// can answer from the team's uploaded documents. Matches the original Base44
-// contract: { message, history, systemPrompt } -> { reply }.
+// ── AI Assistant knowledge files (replaces Drive pipeline) ──────────────────
+// Owner uploads files via the UI → MinIO. askGemini lazily uploads each
+// active file to Gemini's Files API and refreshes the URI whenever it goes
+// stale (48h server-side TTL).
+
+function assertAiFilesAdmin(user: any) {
+  const role = user?.role;
+  if (role !== 'admin' && role !== 'manager' && role !== 'owner') {
+    throw new Error('אין הרשאה לנהל קבצי AI');
+  }
+}
+
+const AI_FILE_MAX_MB = 50;
+const GEMINI_FILE_REFRESH_MS = 47 * 60 * 60 * 1000; // refresh before the 48h expiry
+
+// Upload a buffer to Gemini's Files API and return the file_uri (or null on
+// failure). Shared between the lazy refresh path and the Drive migration.
+async function uploadBufferToGemini(buf: ArrayBuffer | Buffer, mime: string): Promise<string | null> {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) return null;
+  const r = await fetch(
+    `https://generativelanguage.googleapis.com/upload/v1beta/files?key=${apiKey}`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': mime,
+        'X-Goog-Upload-Command': 'upload, finalize',
+        'X-Goog-Upload-Header-Content-Length': String((buf as Buffer).byteLength ?? (buf as ArrayBuffer).byteLength),
+        'X-Goog-Upload-Header-Content-Type': mime,
+      },
+      body: buf as any,
+    },
+  );
+  const d: any = await r.json().catch(() => null);
+  return d?.file?.uri || null;
+}
+
+// Pull file bytes back from MinIO given a /api/files/<key> URL.
+async function fetchMinioBuffer(fileUrl: string): Promise<Buffer | null> {
+  try {
+    const { minio } = await import('../lib/storage.js');
+    const bucket = process.env.S3_BUCKET ?? 'top-alena';
+    const m = fileUrl.match(/\/api\/files\/(.+)$/);
+    if (!m) return null;
+    const key = m[1];
+    const stream = await minio.getObject(bucket, key);
+    const chunks: Buffer[] = [];
+    for await (const chunk of stream as any) chunks.push(chunk as Buffer);
+    return Buffer.concat(chunks);
+  } catch (e) {
+    return null;
+  }
+}
+
+// List active + inactive files for admin UI (admin/manager/owner only).
+registerFn('listAiAssistantFiles', async ({ user }) => {
+  assertAiFilesAdmin(user);
+  try {
+    return await db.aiAssistantFile.findMany({ orderBy: { created_date: 'desc' } });
+  } catch (e: any) {
+    if (/does not exist|Unknown arg/i.test(String(e?.message))) return [];
+    throw e;
+  }
+});
+
+// Save metadata after frontend uploads via base44.integrations.Core.UploadFile.
+registerFn('createAiAssistantFile', async ({ body, user }) => {
+  assertAiFilesAdmin(user);
+  const { file_name, mime_type, file_url, file_size, description } = body as any;
+  if (!file_name || !mime_type || !file_url) throw new Error('file_name, mime_type, file_url required');
+  return await db.aiAssistantFile.create({
+    data: {
+      file_name,
+      mime_type,
+      file_url,
+      file_size: file_size ? Number(file_size) : null,
+      description: description || null,
+      is_active: true,
+      source: 'manual',
+      created_by: (user as any)?.id ?? null,
+      created_date: new Date().toISOString(),
+      updated_date: new Date().toISOString(),
+    },
+  });
+});
+
+registerFn('updateAiAssistantFile', async ({ body, user }) => {
+  assertAiFilesAdmin(user);
+  const { id, ...data } = body as any;
+  if (!id) throw new Error('id required');
+  return await db.aiAssistantFile.update({
+    where: { id },
+    data: { ...data, updated_date: new Date().toISOString() },
+  });
+});
+
+registerFn('deleteAiAssistantFile', async ({ body, user }) => {
+  assertAiFilesAdmin(user);
+  const { id } = body as any;
+  if (!id) throw new Error('id required');
+  await db.aiAssistantFile.delete({ where: { id } });
+  return { ok: true };
+});
+
+// One-time migration: pull every file from the Drive folder, push to MinIO,
+// create matching AiAssistantFile rows. Safe to run multiple times — skips
+// files whose name already exists.
+registerFn('migrateDriveToAiAssistantFiles', async ({ user }) => {
+  assertAiFilesAdmin(user);
+  const folderId = process.env.DRIVE_FOLDER_ID || '19gPH0jJT8BdbzYvx-sSiFXRhWqo-z_bA';
+  const token = await driveAccessToken();
+  const mimeTypes = [
+    'application/pdf',
+    'text/plain', 'text/csv', 'text/markdown', 'text/html',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'application/msword',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'application/vnd.ms-excel',
+    'image/jpeg', 'image/png', 'image/gif', 'image/webp',
+  ];
+  const files = await listDriveFiles(folderId, token, mimeTypes);
+  const { uploadStreamToS3 } = await import('../lib/storage.js');
+  const { Readable } = await import('node:stream');
+
+  const results: any[] = [];
+  for (const file of files) {
+    try {
+      const existing = await db.aiAssistantFile.findFirst({ where: { file_name: file.name } });
+      if (existing) { results.push({ file: file.name, status: 'skipped (already exists)' }); continue; }
+
+      const buf = await downloadDriveFile(file.id, token);
+      const stream = Readable.from(Buffer.from(buf));
+      const { url } = await uploadStreamToS3(file.name, file.mimeType, stream);
+
+      await db.aiAssistantFile.create({
+        data: {
+          file_name: file.name,
+          mime_type: file.mimeType,
+          file_url: url,
+          file_size: (buf as Buffer).byteLength,
+          is_active: true,
+          source: 'drive_migration',
+          created_by: (user as any)?.id ?? null,
+          created_date: new Date().toISOString(),
+          updated_date: new Date().toISOString(),
+        },
+      });
+      results.push({ file: file.name, status: 'migrated' });
+    } catch (e: any) {
+      results.push({ file: file.name, status: 'error', error: e?.message });
+    }
+  }
+  return { migrated: results.filter(r => r.status === 'migrated').length, skipped: results.filter(r => r.status === 'skipped (already exists)').length, errors: results.filter(r => r.status === 'error').length, details: results };
+});
+
+// ── askGemini ────────────────────────────────────────────────────────────────
+// Dvir AI chat. Reads active AiAssistantFile rows (the new pipeline) AND falls
+// back to GeminiFileCache (Drive era) for files that haven't been migrated.
+// Lazily re-uploads each file to Gemini's Files API when the cached URI is
+// older than 47h.
 registerFn('askGemini', async ({ body }) => {
   const { message, history, systemPrompt, prompt } = body as any;
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) throw new Error('GEMINI_API_KEY not set');
   const userMessage = message ?? prompt ?? '';
 
-  const cached: any[] = await db.geminiFileCache.findMany();
   const supported = new Set([
     'application/pdf', 'text/plain', 'text/html', 'text/csv', 'text/markdown',
     'image/jpeg', 'image/png', 'image/gif', 'image/webp',
     'video/mp4', 'audio/mpeg', 'audio/wav',
   ]);
-  const fileParts = cached
-    .filter((f) => f.gemini_file_uri && supported.has(f.mime_type))
-    .map((f) => ({ file_data: { mime_type: f.mime_type, file_uri: f.gemini_file_uri } }));
+
+  // Primary source: AiAssistantFile (new pipeline, lazy auto-refresh).
+  let aiFiles: any[] = [];
+  try {
+    aiFiles = await db.aiAssistantFile.findMany({ where: { is_active: true } });
+  } catch (e: any) {
+    if (!/does not exist|Unknown arg/i.test(String(e?.message))) throw e;
+  }
+  const now = Date.now();
+  const fileParts: any[] = [];
+  for (const f of aiFiles) {
+    if (!supported.has(f.mime_type)) continue;
+    const cachedAt = f.gemini_uploaded_at ? new Date(f.gemini_uploaded_at).getTime() : 0;
+    const fresh = f.gemini_file_uri && now - cachedAt < GEMINI_FILE_REFRESH_MS;
+    let uri = fresh ? f.gemini_file_uri : null;
+    if (!uri) {
+      const buf = await fetchMinioBuffer(f.file_url);
+      if (buf) {
+        uri = await uploadBufferToGemini(buf, f.mime_type);
+        if (uri) {
+          await db.aiAssistantFile.update({
+            where: { id: f.id },
+            data: { gemini_file_uri: uri, gemini_uploaded_at: new Date().toISOString(), updated_date: new Date().toISOString() },
+          });
+        }
+      }
+    }
+    if (uri) fileParts.push({ file_data: { mime_type: f.mime_type, file_uri: uri } });
+  }
+
+  // Fallback (until everyone's migrated): files still only in GeminiFileCache.
+  // Skip names already covered by aiFiles to avoid duplicates.
+  try {
+    const seenNames = new Set(aiFiles.map(f => f.file_name));
+    const cached: any[] = await db.geminiFileCache.findMany();
+    for (const f of cached) {
+      if (!f.gemini_file_uri || !supported.has(f.mime_type)) continue;
+      if (seenNames.has(f.file_name)) continue;
+      fileParts.push({ file_data: { mime_type: f.mime_type, file_uri: f.gemini_file_uri } });
+    }
+  } catch { /* ignore — table may not exist */ }
 
   const contents: any[] = [];
   if (Array.isArray(history)) {

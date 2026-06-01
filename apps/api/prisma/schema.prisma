@@ -618,6 +618,26 @@ model GeminiFileCache {
   updated_date  String?
 }
 
+// Owner-uploaded knowledge files for the "דביר עוזר פנימי" chat. Replaces the
+// Drive-based pipeline (which broke every 48h when Gemini Files expired).
+// askGemini reads `is_active` rows and lazily re-uploads to Gemini whenever
+// `gemini_uploaded_at` is older than 47h.
+model AiAssistantFile {
+  id                String   @id @default(cuid())
+  file_name         String
+  description       String?
+  mime_type         String
+  file_url          String     // /api/files/<key> served from MinIO
+  file_size         Int?
+  gemini_file_uri   String?    // populated lazily; expires after 48h Gemini-side
+  gemini_uploaded_at String?   // ISO date when we last uploaded to Gemini
+  is_active         Boolean    @default(true)
+  source            String?    // 'manual' | 'drive_migration'
+  created_by        String?
+  created_date      String?
+  updated_date      String?
+}
+
 model Incident {
   id        String   @id @default(cuid())
   incident_number              String?
