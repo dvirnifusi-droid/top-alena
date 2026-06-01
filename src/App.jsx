@@ -11,6 +11,7 @@ import { base44 } from '@/api/base44Client';
 import React from 'react';
 import TrainingVideos from './pages/TrainingVideos';
 import JobApplication from './pages/JobApplication';
+import EventsInquiry from './pages/EventsInquiry';
 import QueueJoin from './pages/QueueJoin';
 import QueueDashboard from './pages/QueueDashboard';
 import QueueHistory from './pages/QueueHistory';
@@ -131,7 +132,9 @@ function App() {
           <Route path="/PrivacyAndAccessibility" element={<PrivacyAndAccessibility />} />
           <Route path="/JobApplication" element={<JobApplication />} />
           <Route path="/apply" element={<JobApplication />} />
-          
+          <Route path="/EventsInquiry" element={<EventsInquiry />} />
+          <Route path="/events" element={<EventsInquiry />} />
+
           {/* דורש התחברות */}
           <Route path="/MarketingCampaigns" element={<MarketingCampaigns />} />
           <Route path="/*" element={

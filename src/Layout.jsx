@@ -4,7 +4,7 @@ import { createPageUrl } from "@/utils";
 import { base44 } from "@/api/base44Client";
 import {
   Users, GraduationCap, AlertTriangle, CheckSquare, Building, BarChart3,
-  LayoutGrid, Trophy, Menu, FileText, Utensils, Sparkles, Crown, Rocket, Map, Brain, Calendar, CalendarDays, Banknote, MessageSquare, Briefcase, QrCode, ClipboardCheck, Settings, TrendingUp, Zap, Megaphone, Bell, Package, Navigation, LogOut, Tablet, Download
+  LayoutGrid, Trophy, Menu, FileText, Utensils, Sparkles, Crown, Rocket, Map, Brain, Calendar, CalendarDays, CalendarHeart, Banknote, MessageSquare, Briefcase, QrCode, ClipboardCheck, Settings, TrendingUp, Zap, Megaphone, Bell, Package, Navigation, LogOut, Tablet, Download
 } from "lucide-react";
 import {
   Sidebar, SidebarContent,
@@ -85,6 +85,7 @@ const adminLinks = [
   { title: "סלוטים לראיונות", url: createPageUrl("InterviewSettings"), icon: Calendar, isSubItem: true, color: "indigo" },
   { title: "הכשרות ואימונים", url: createPageUrl("Training"), icon: GraduationCap, isSubItem: true, color: "indigo" },
   { title: "סרטוני הדרכה", url: createPageUrl("TrainingVideos"), icon: GraduationCap, isSubItem: true, color: "indigo" },
+  { title: "אירועים פרטיים 🌿", url: createPageUrl("EventsPrivate"), icon: CalendarHeart, isSubItem: true, color: "indigo" },
 
   { title: "משלוחים", url: "#", icon: Package, isCategory: true, color: "amber" },
   { title: "ניהול משלוחים", url: createPageUrl("Deliveries"), icon: Package, isSubItem: true, color: "amber" },

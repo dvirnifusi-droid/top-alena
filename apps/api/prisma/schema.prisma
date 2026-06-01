@@ -753,6 +753,26 @@ model JobCandidate {
   updated_date  String?
 }
 
+model EventLead {
+  id                  String   @id @default(cuid())
+  contact_name        String?
+  contact_phone       String?
+  event_date          String?
+  event_type          String?
+  guest_count         Int?
+  budget_per_person   Int?
+  hours_window        String?
+  status              String?  @default("new")
+  score               Int?
+  source              String?  @default("web_chat")
+  conversation_log    Json?
+  ai_summary          String?
+  notes               String?
+  created_by          String?
+  created_date        String?
+  updated_date        String?
+}
+
 model KnowledgeBase {
   id        String   @id @default(cuid())
   category                     String

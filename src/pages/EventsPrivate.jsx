@@ -1,0 +1,176 @@
+import React, { useState, useEffect, useCallback } from 'react';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Loader2, RefreshCw, Sparkles, CalendarHeart, Copy, Check, ExternalLink, QrCode, Flame } from 'lucide-react';
+import { base44 } from '@/api/base44Client';
+
+const UTM_SOURCES = [
+  { key: 'general',   label: 'כללי (בלי תיוג)', utm: '' },
+  { key: 'facebook',  label: 'פייסבוק',          utm: 'facebook' },
+  { key: 'instagram', label: 'אינסטגרם',         utm: 'instagram' },
+  { key: 'google',    label: 'גוגל',             utm: 'google' },
+  { key: 'tiktok',    label: 'טיקטוק',           utm: 'tiktok' },
+  { key: 'whatsapp',  label: 'וואטסאפ אישי',     utm: 'whatsapp' },
+  { key: 'qr',        label: 'QR במסעדה',         utm: 'qr_print' },
+];
+const PUBLIC_BASE_URL = 'https://topalena.com/EventsInquiry';
+const withUtm = (utm) => utm ? `${PUBLIC_BASE_URL}?utm_source=${encodeURIComponent(utm)}` : PUBLIC_BASE_URL;
+
+function EventsLinkCard() {
+  const [sourceKey, setSourceKey] = useState('general');
+  const [copiedLink, setCopiedLink] = useState(false);
+  const [copiedMsg, setCopiedMsg] = useState(false);
+  const [showQr, setShowQr] = useState(false);
+  const src = UTM_SOURCES.find((s) => s.key === sourceKey) || UTM_SOURCES[0];
+  const link = withUtm(src.utm);
+  const message =
+    `היי 🌿 מסעדת עלינא — אירועים פרטיים\n` +
+    `שמחים לארח אצלנו את האירוע שלכם. דברו עם העוזרת הדיגיטלית (5 שאלות קצרות) ונחזור אליכם עם הצעה מותאמת:\n\n${link}`;
+  const copy = (text, setter) => {
+    try { navigator.clipboard.writeText(text); } catch {}
+    setter(true); setTimeout(() => setter(false), 2200);
+  };
+  const qrSrc = `https://api.qrserver.com/v1/create-qr-code/?size=240x240&margin=10&data=${encodeURIComponent(link)}`;
+
+  return (
+    <Card className="bg-gradient-to-br from-emerald-600 to-teal-700 text-white" dir="rtl">
+      <CardContent className="p-6">
+        <div className="flex items-start justify-between mb-4">
+          <div>
+            <h3 className="text-xl font-bold mb-1">🌿 סוכן אירועים של עלינא</h3>
+            <p className="text-emerald-100 text-sm">שתפו את הקישור — הסוכן בדפדפן מנהל את שיחת הסיווג ושומר את הפרטים.</p>
+          </div>
+          <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center flex-shrink-0"><Sparkles className="w-6 h-6" /></div>
+        </div>
+        <label className="block text-xs text-emerald-100 mb-1">מקור הפנייה (לתיוג קמפיין):</label>
+        <select value={sourceKey} onChange={(e) => setSourceKey(e.target.value)}
+          className="w-full bg-white/15 border border-white/30 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-white/50 mb-3">
+          {UTM_SOURCES.map((s) => <option key={s.key} value={s.key} className="text-slate-800">{s.label}</option>)}
+        </select>
+        <div className="bg-white/10 rounded-lg p-3 mb-3 flex items-center gap-2">
+          <a href={link} target="_blank" rel="noopener noreferrer" className="text-white underline text-sm truncate flex-1 text-left" dir="ltr">{link}</a>
+          <button onClick={() => copy(link, setCopiedLink)} className="flex-shrink-0 bg-white/20 hover:bg-white/30 text-white text-xs font-bold py-1.5 px-2 rounded">
+            {copiedLink ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+          </button>
+        </div>
+        <div className="flex gap-2 mb-3 flex-wrap">
+          <button onClick={() => copy(message, setCopiedMsg)} className="flex-1 min-w-[140px] flex items-center justify-center gap-2 bg-white/20 hover:bg-white/30 text-white font-bold py-2 px-3 rounded-lg text-sm">
+            {copiedMsg ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />} {copiedMsg ? 'הועתק!' : 'העתק הודעה מוכנה'}
+          </button>
+          <button onClick={() => window.open(link, '_blank')} className="flex items-center justify-center gap-2 bg-white/20 hover:bg-white/30 text-white font-bold py-2 px-3 rounded-lg text-sm"><ExternalLink className="w-4 h-4" /> פתח</button>
+          <button onClick={() => setShowQr((v) => !v)} className="flex items-center justify-center gap-2 bg-white/20 hover:bg-white/30 text-white font-bold py-2 px-3 rounded-lg text-sm"><QrCode className="w-4 h-4" /> QR</button>
+        </div>
+        {showQr && (
+          <div className="bg-white rounded-xl p-4 flex flex-col items-center mb-2">
+            <img src={qrSrc} alt="QR" className="w-48 h-48" />
+            <div className="text-xs text-slate-600 mt-2 text-center">סרקו להגיע ישירות לסוכן</div>
+          </div>
+        )}
+        <p className="text-emerald-200 text-xs mt-2 text-center">💡 כל מקור — לינק נפרד עם <code className="bg-white/10 px-1 rounded">utm_source</code>. נשמר אוטומטית על כל ליד.</p>
+      </CardContent>
+    </Card>
+  );
+}
+
+function fmt(iso) {
+  if (!iso) return '—';
+  try { return new Date(iso).toLocaleString('he-IL', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }); }
+  catch { return iso; }
+}
+function scoreBadge(score) {
+  if (score == null) return <Badge variant="outline">—</Badge>;
+  if (score >= 60) return <Badge className="bg-red-100 text-red-700"><Flame className="w-3 h-3 ml-1 inline" />חם {score}</Badge>;
+  if (score >= 30) return <Badge className="bg-amber-100 text-amber-800">חמים {score}</Badge>;
+  return <Badge className="bg-slate-100 text-slate-600">קר {score}</Badge>;
+}
+const STATUS = {
+  new: { label: 'חדש', cls: 'bg-slate-100 text-slate-700' },
+  qualified: { label: 'מסווג', cls: 'bg-orange-100 text-orange-800' },
+  warm: { label: 'חמים', cls: 'bg-amber-100 text-amber-800' },
+  cold: { label: 'קר', cls: 'bg-slate-100 text-slate-500' },
+  booked: { label: 'נסגר ✓', cls: 'bg-green-100 text-green-800' },
+};
+
+export default function EventsPrivatePage() {
+  const [leads, setLeads] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const loadAll = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await base44.functions.listEventLeads({});
+      setLeads(res?.leads || []);
+    } catch (e) {
+      setLeads([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { loadAll(); }, [loadAll]);
+
+  return (
+    <div className="p-4 md:p-6 space-y-6" dir="rtl">
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div>
+          <h1 className="text-2xl font-bold flex items-center gap-2">
+            <CalendarHeart className="w-6 h-6 text-emerald-600" /> אירועים פרטיים — עלינא
+          </h1>
+          <p className="text-sm text-muted-foreground mt-1">סוכן סיווג לאירועים פרטיים. לידים שמגיעים דרך הקישור מופיעים כאן.</p>
+        </div>
+        <Button variant="outline" onClick={loadAll} disabled={loading}><RefreshCw className="w-4 h-4 ml-1" /> רענן</Button>
+      </div>
+
+      <EventsLinkCard />
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2"><Flame className="w-4 h-4 text-red-500" /> לידים אחרונים</CardTitle>
+          <CardDescription>לידים שעברו בצ׳אט הסוכן. לחץ על מספר טלפון כדי לחייג.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {loading ? (
+            <div className="flex items-center justify-center py-8"><Loader2 className="w-5 h-5 animate-spin text-slate-400" /></div>
+          ) : leads.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              עדיין אין לידים. שתפו את הקישור למעלה — כשמישהו ישלים את הצ׳אט, הוא יופיע כאן.
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>שם</TableHead><TableHead>טלפון</TableHead><TableHead>תאריך</TableHead>
+                  <TableHead>סוג</TableHead><TableHead>אורחים</TableHead><TableHead>תקציב/סועד</TableHead>
+                  <TableHead>ציון</TableHead><TableHead>סטטוס</TableHead><TableHead>מקור</TableHead><TableHead>נכנס</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {leads.map((l) => {
+                  const status = STATUS[l.status] || { label: l.status || '—', cls: '' };
+                  return (
+                    <TableRow key={l.id}>
+                      <TableCell>{l.contact_name || '—'}</TableCell>
+                      <TableCell>
+                        {l.contact_phone ? <a href={`tel:${l.contact_phone}`} className="text-blue-600 hover:underline">{l.contact_phone}</a> : '—'}
+                      </TableCell>
+                      <TableCell>{l.event_date || '—'}</TableCell>
+                      <TableCell>{l.event_type || '—'}</TableCell>
+                      <TableCell>{l.guest_count ?? '—'}</TableCell>
+                      <TableCell>{l.budget_per_person ? `₪${l.budget_per_person}` : '—'}</TableCell>
+                      <TableCell>{scoreBadge(l.score)}</TableCell>
+                      <TableCell><Badge className={status.cls}>{status.label}</Badge></TableCell>
+                      <TableCell className="text-xs text-muted-foreground">{l.source || '—'}</TableCell>
+                      <TableCell className="text-xs text-muted-foreground">{fmt(l.created_date)}</TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}

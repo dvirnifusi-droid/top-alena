@@ -3294,3 +3294,148 @@ registerFn('runCeoDailyBrief', async ({ body }) => {
   });
   return { ok: status !== 'failed', run_id: run.id, body: body_text };
 }, { public: true });
+
+/* ----- Events private inquiry AI agent (public, separate from recruitment) ----- */
+
+const EVENTS_SYSTEM_PROMPT = `אתה סוכן הסיווג של מסעדת 'עלינא' לאירועים פרטיים. אתה מדבר בעברית טבעית, חמה וקצרה.
+
+המטרה: לאסוף 5 פרטים מאדם שמתעניין באירוע, לתת ציון 0-100, ולסכם בצורה מובנית. אתה לא סוגר עסקה, לא מצטט מחירים, ולא מבטיח תאריך — את זה המנהל עושה.
+
+פתח רק אם זו ההודעה הראשונה (אין שיחה קודמת):
+"היי 🌿 אני העוזרת הדיגיטלית של עלינא — מסעדת השרינג פלייטס בראשון לציון. שמחה שאתם חושבים עלינו לאירוע. כדי להמליץ לכם בצורה הטובה ביותר, אני צריכה לשאול 5 שאלות קצרות. מתחילים?"
+
+שאל את 5 השאלות אחת-אחת (לעולם לא ביחד):
+1. שם פרטי וטלפון ליצירת קשר.
+2. לאיזה תאריך אתם מתכננים? (חלון של שבוע OK)
+3. סוג אירוע — יום הולדת / יום נישואין / אירוע עסקי / חינה / משפחתי / אחר?
+4. כמה אורחים בערך?
+5. תקציב משוער לסועד (טווח OK), וחלון שעות — בוקר/צהריים/ערב — והאם השכרה מלאה של המקום או חלק ממנו?
+
+אחרי שאספת את כל 5 השדות, סיים: "מעולה, תודה רבה! העברתי את הפרטים למנהל המסעדה — הוא יחזור אליכם תוך כמה שעות עם הצעה מותאמת 🙏"
+
+חוקים קריטיים:
+- לעולם אל תצטט מחיר ספציפי.
+- לעולם אל תאשר תאריך כפנוי.
+- אם הלקוח שואל "כמה זה עולה?" או "התאריך פנוי?" — ענה "אני אעביר את הפרטים שלכם למנהל המסעדה — הוא יחזור אליכם עם הצעה מותאמת תוך כמה שעות 🙏" וחזור לשאלות.
+- אם הלקוח מציין מקרה הסלמה (משפיענים/מדיה, קייטרינג מחוץ למסעדה, כשר בלבד, מעל 80 אורחים, פחות מ-14 ימים מהיום) — סיים מהר וציין שזה דורש מנהל.
+
+החזר תמיד JSON בלבד עם:
+- reply (string) - התשובה שלך בעברית
+- collected (object) - { contact_name, contact_phone, event_date, event_type, guest_count, budget_per_person, hours_window }
+- complete (boolean) - true אם כל 5 השדות נאספו או הלקוח עזב
+- escalation (boolean) - true אם מקרה הסלמה
+- score (number) - 0-100 אם complete=true (אחרת null)
+
+חישוב ציון: +25 אם תאריך מולא ובעוד 14+ ימים. +25 אם 10≤אורחים≤80. +25 אם תקציב לסועד ≥150. +25 אם סוג אירוע תואם ולא הסלמה. -30 אם הסלמה.`;
+
+registerFn('chatEventsInquiry', async ({ body }) => {
+  const { history, message, source, lead_id } = body as any;
+  const leadSource = typeof source === 'string' && source.trim()
+    ? source.trim().slice(0, 40).toLowerCase()
+    : 'web_chat';
+
+  const turns: Array<{ role: string; content: string }> = Array.isArray(history) ? history : [];
+  const transcript = turns
+    .map((t) => `${t.role === 'assistant' ? 'עוזר' : 'לקוח'}: ${t.content}`)
+    .join('\n');
+  const newPart = message ? `\nלקוח: ${message}` : '';
+
+  const prompt = `${EVENTS_SYSTEM_PROMPT}\n\n--- שיחה עד כה ---\n${transcript || '(אין עדיין הודעות — זו תחילת השיחה)'}${newPart}\n\nהחזר JSON בלבד.`;
+
+  const result: any = await invokeLLM({
+    prompt,
+    responseSchema: {
+      type: 'object',
+      properties: {
+        reply: { type: 'string' },
+        collected: {
+          type: 'object',
+          properties: {
+            contact_name: { type: 'string' },
+            contact_phone: { type: 'string' },
+            event_date: { type: 'string' },
+            event_type: { type: 'string' },
+            guest_count: { type: 'integer' },
+            budget_per_person: { type: 'integer' },
+            hours_window: { type: 'string' },
+          },
+        },
+        complete: { type: 'boolean' },
+        escalation: { type: 'boolean' },
+        score: { type: 'number' },
+      },
+      required: ['reply', 'complete'],
+    },
+  });
+
+  const c = result?.collected || {};
+  const fullLog = [
+    ...turns,
+    ...(message ? [{ role: 'user', content: message, timestamp: new Date().toISOString() }] : []),
+    { role: 'assistant', content: result?.reply || '', timestamp: new Date().toISOString() },
+  ];
+
+  const score = result?.complete && typeof result.score === 'number' ? Math.round(result.score) : null;
+  const status = !result?.complete ? 'new' : score === null ? 'new' : score >= 60 ? 'qualified' : score < 30 ? 'cold' : 'warm';
+
+  const baseData: any = {
+    contact_name: c.contact_name || null,
+    contact_phone: c.contact_phone ? String(c.contact_phone) : null,
+    event_date: c.event_date || null,
+    event_type: c.event_type || null,
+    guest_count: typeof c.guest_count === 'number' ? c.guest_count : null,
+    budget_per_person: typeof c.budget_per_person === 'number' ? c.budget_per_person : null,
+    hours_window: c.hours_window || null,
+    conversation_log: fullLog as any,
+    status,
+    score,
+    source: leadSource,
+  };
+
+  let currentLeadId: string | null = lead_id || null;
+  try {
+    if (currentLeadId) {
+      await db.eventLead.update({ where: { id: currentLeadId }, data: baseData });
+    } else {
+      const created = await db.eventLead.create({ data: baseData });
+      currentLeadId = created.id;
+    }
+  } catch (e: any) {
+    console.error('[eventLead.upsert] failed:', e?.message);
+  }
+
+  // Hot lead → push to admins (best-effort, never blocks reply)
+  if (result?.complete && score !== null && score >= 60) {
+    try {
+      const lines = [
+        `שם: ${baseData.contact_name || '-'}`,
+        `טלפון: ${baseData.contact_phone || '-'}`,
+        `📅 תאריך: ${baseData.event_date || '-'}`,
+        `🎉 סוג: ${baseData.event_type || '-'}`,
+        `👥 אורחים: ${baseData.guest_count ?? '-'}`,
+        `💰 תקציב/סועד: ${baseData.budget_per_person ? `₪${baseData.budget_per_person}` : '-'}`,
+        `🕒 שעות: ${baseData.hours_window || '-'}`,
+        `📊 ציון: ${score}`,
+        `📥 מקור: ${leadSource}`,
+      ];
+      pushoverToAdmins('🔥 ליד אירוע חם — עלינא', lines.join('\n')).catch(() => {});
+    } catch (e) { /* ignore */ }
+  }
+
+  return {
+    reply: result?.reply || 'מצטערת, אירעה תקלה. תוכלו לנסות שוב?',
+    complete: !!result?.complete,
+    rejected: !!(result?.complete && score !== null && score < 30),
+    lead_id: currentLeadId,
+    score,
+  };
+}, { public: true });
+
+// AUTH — admin pulls all event leads for the dashboard
+registerFn('listEventLeads', async () => {
+  const leads = await db.eventLead.findMany({
+    orderBy: { created_date: 'desc' },
+    take: 200,
+  });
+  return { leads };
+});
