@@ -3516,12 +3516,39 @@ registerFn('chatEventsInquiry', async ({ body }) => {
   const agentAskedToClose = /(לסגור|לסגירה|להתקדם|נסגור|סוגרים|נמשיך|לאישור)/.test(replyRaw + ' ' + (turns.length ? String((turns[turns.length - 1] as any)?.content || '') : ''));
   const customerExplicitClose = tokenRe.test(customerLastTurn) || (customerSaidYes && agentAskedToClose);
 
-  // Best-effort: extract an Israeli mobile number from the entire transcript if the LLM forgot
-  // to put it in `collected`. Matches 05X-XXXXXXX with or without dashes/spaces.
+  // Server-side fallback extraction from the FULL transcript when the LLM forgot to fill
+  // a field. Phone (Israeli mobile), guest count (ל-N איש/אורחים/סועדים), and date (in
+  // Hebrew "N בחודש" form or ISO YYYY-MM-DD).
+  const fullText = [...turns.map((t: any) => t.content), message || ''].join(' ');
   if (!c.contact_phone) {
-    const fullTextForPhone = [...turns.map((t: any) => t.content), message || ''].join(' ');
-    const phoneMatch = fullTextForPhone.match(/0\s?5\d[\s-]?\d{3}[\s-]?\d{4}/);
+    const phoneMatch = fullText.match(/0\s?5\d[\s-]?\d{3}[\s-]?\d{4}/);
     if (phoneMatch) c.contact_phone = phoneMatch[0].replace(/[\s-]/g, '');
+  }
+  if (!c.guest_count) {
+    const guestsMatch = fullText.match(/(?:ל-?|ל\s*-?|\s)(\d{2,3})\s*(?:איש|אורחים|סועדים|נפש|אנשים)/);
+    if (guestsMatch) c.guest_count = parseInt(guestsMatch[1]);
+  }
+  if (!c.event_date && !c.event_date_iso) {
+    const HE_MONTHS: Record<string, number> = {
+      'ינואר': 1, 'פברואר': 2, 'מרץ': 3, 'מרס': 3, 'אפריל': 4, 'מאי': 5, 'יוני': 6,
+      'יולי': 7, 'אוגוסט': 8, 'ספטמבר': 9, 'אוקטובר': 10, 'נובמבר': 11, 'דצמבר': 12,
+    };
+    const heDateMatch = fullText.match(/(\d{1,2})\s*ב(ינואר|פברואר|מרץ|מרס|אפריל|מאי|יוני|יולי|אוגוסט|ספטמבר|אוקטובר|נובמבר|דצמבר)/);
+    if (heDateMatch) {
+      const day = parseInt(heDateMatch[1]);
+      const month = HE_MONTHS[heDateMatch[2]];
+      const year = tzNow.getFullYear();
+      const iso = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+      c.event_date_iso = iso;
+      c.event_date = iso;
+    } else {
+      const isoMatch = fullText.match(/(\d{4}-\d{2}-\d{2})/);
+      if (isoMatch) { c.event_date_iso = isoMatch[1]; c.event_date = isoMatch[1]; }
+    }
+  }
+  if (!c.event_time) {
+    const timeMatch = fullText.match(/(?:בשעה|ב-?\s*)(\d{1,2}[:.]\d{2})/) || fullText.match(/\b(\d{1,2}[:.]\d{2})\b/);
+    if (timeMatch) c.event_time = timeMatch[1].replace('.', ':');
   }
 
   const hasMinInfo = !!(c.event_date || c.event_date_iso) && !!c.guest_count && !!c.contact_phone;
