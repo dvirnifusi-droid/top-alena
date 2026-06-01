@@ -29,7 +29,82 @@ const db = prisma as any; // generic delegate access
 
 // Public deploy marker — lets us confirm which build is live (and that
 // auto-deploy is working) without server access. Bump on each deploy test.
-registerFn('deployInfo', async () => ({ version: 'v3-gemini-self-heal', ts: new Date().toISOString() }), { public: true });
+registerFn('deployInfo', async () => ({ version: 'v4-ai-files-pipeline', ts: new Date().toISOString() }), { public: true });
+
+// TEMP — REMOVE after Dvir chat is confirmed reading from files.
+// Returns the state of the AI assistant file pipeline + attempts to upload
+// the first active file to Gemini so we can see exactly where it breaks.
+registerFn('debugAiFiles', async () => {
+  let aiFiles: any[] = [];
+  let aiFilesErr: string | null = null;
+  try { aiFiles = await db.aiAssistantFile.findMany(); }
+  catch (e: any) { aiFilesErr = e?.message; }
+
+  let geminiCache: any[] = [];
+  try { geminiCache = await db.geminiFileCache.findMany(); } catch {}
+
+  // Try refreshing the first active file to see where the pipeline fails.
+  const first = aiFiles.find(f => f.is_active);
+  let probe: any = null;
+  if (first) {
+    const fileUrlMatch = first.file_url?.match(/\/api\/files\/(.+)$/);
+    let bufLength = -1;
+    let uploadErr: string | null = null;
+    let uri: string | null = null;
+    if (!fileUrlMatch) {
+      uploadErr = 'file_url not in /api/files/<key> format';
+    } else {
+      try {
+        const { minio } = await import('../lib/storage.js');
+        const bucket = process.env.S3_BUCKET ?? 'top-alena';
+        const stream = await minio.getObject(bucket, fileUrlMatch[1]);
+        const chunks: Buffer[] = [];
+        for await (const chunk of stream as any) chunks.push(chunk as Buffer);
+        const buf = Buffer.concat(chunks);
+        bufLength = buf.byteLength;
+
+        const apiKey = process.env.GEMINI_API_KEY;
+        const r = await fetch(
+          `https://generativelanguage.googleapis.com/upload/v1beta/files?key=${apiKey}`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': first.mime_type,
+              'X-Goog-Upload-Command': 'upload, finalize',
+              'X-Goog-Upload-Header-Content-Length': String(buf.byteLength),
+              'X-Goog-Upload-Header-Content-Type': first.mime_type,
+            },
+            body: buf,
+          },
+        );
+        const d: any = await r.json();
+        uri = d?.file?.uri || null;
+        if (!uri) uploadErr = `Gemini ${r.status}: ${JSON.stringify(d).slice(0, 300)}`;
+      } catch (e: any) { uploadErr = e?.message; }
+    }
+    probe = {
+      file_name: first.file_name,
+      file_url: first.file_url,
+      mime_type: first.mime_type,
+      file_url_key_parsed: fileUrlMatch ? fileUrlMatch[1] : null,
+      minio_bytes_read: bufLength,
+      gemini_uri: uri,
+      upload_error: uploadErr,
+    };
+  }
+
+  return {
+    ai_files_count: aiFiles.length,
+    ai_files_active: aiFiles.filter(f => f.is_active).length,
+    ai_files_err: aiFilesErr,
+    ai_files_list: aiFiles.map(f => ({
+      name: f.file_name, mime: f.mime_type, active: f.is_active, source: f.source,
+      gemini_uri_cached: !!f.gemini_file_uri, gemini_uploaded_at: f.gemini_uploaded_at, url: f.file_url,
+    })),
+    gemini_cache_legacy_count: geminiCache.length,
+    probe,
+  };
+}, { public: true });
 
 
 
