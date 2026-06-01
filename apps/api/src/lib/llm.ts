@@ -3,7 +3,10 @@
 // Switch by setting LLM_PROVIDER=anthropic and ANTHROPIC_API_KEY in env.
 // ---------------------------------------------------------------------------
 
+import { minio } from './storage.js';
+
 const PROVIDER = (process.env.LLM_PROVIDER || 'gemini').toLowerCase();
+const S3_BUCKET = process.env.S3_BUCKET ?? 'top-alena';
 
 const GEMINI_BASE = 'https://generativelanguage.googleapis.com/v1beta';
 const ANTHROPIC_BASE = 'https://api.anthropic.com/v1';
@@ -42,7 +45,30 @@ function sanitizeSchemaForGemini(schema: any): any {
   return out;
 }
 
+// Stream a MinIO object to a Buffer.
+async function streamToBuffer(stream: any): Promise<Buffer> {
+  const chunks: Buffer[] = [];
+  for await (const chunk of stream) {
+    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+  }
+  return Buffer.concat(chunks);
+}
+
 async function fetchFileAsBase64(url: string) {
+  // Uploaded files are stored with a relative URL of the form `/api/files/<key>`
+  // (see lib/storage.ts). Node's fetch() can't parse relative URLs, and the
+  // file route is served by this same API server — so read directly from MinIO
+  // instead of looping back through HTTP.
+  const relMatch = url.match(/^\/api\/files\/(.+)$/);
+  if (relMatch) {
+    const key = relMatch[1];
+    const stat = await minio.statObject(S3_BUCKET, key);
+    const stream = await minio.getObject(S3_BUCKET, key);
+    const buf = await streamToBuffer(stream);
+    const mime = (stat.metaData?.['content-type'] as string) || 'application/octet-stream';
+    return { mime, data: buf.toString('base64') };
+  }
+
   const res = await fetch(url);
   if (!res.ok) throw new Error(`Failed to fetch file (${res.status})`);
   const mime = res.headers.get('content-type') ?? 'application/octet-stream';
