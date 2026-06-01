@@ -13,16 +13,35 @@ import toast from 'react-hot-toast';
 const blankMenu = () => ({ id: `m_${Date.now()}`, name: '', description: '', price_per_person_ils: 0, min_guests: 10, max_guests: 60, dishes: [] });
 const blankUpsell = () => ({ id: `u_${Date.now()}`, name: '', price_ils: 0, unit: 'per_event' });
 
+const DEFAULT_KIT = {
+  menus: [],
+  upsells: [],
+  terms: { cancellation_days: 14, headcount_deadline_days: 3 },
+  system_prompt: '',
+  payment_mode: 'stub',
+  deposit_pct: 20,
+  max_discount_pct: 5,
+  short_notice_allowed: true,
+  max_advance_months: 6,
+};
+
 export default function EventsSalesKit() {
   const [kit, setKit] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [loadError, setLoadError] = useState(null);
 
   const load = useCallback(async () => {
     setLoading(true);
+    setLoadError(null);
     try {
       const res = await base44.functions.getEventSalesKit({});
-      setKit(res?.kit || null);
+      setKit(res?.kit || { ...DEFAULT_KIT });
+    } catch (e) {
+      console.error('getEventSalesKit failed', e);
+      setLoadError(e?.message || String(e));
+      // Initialize with empty kit so the editor still renders and user can save (creates the row)
+      setKit({ ...DEFAULT_KIT });
     } finally { setLoading(false); }
   }, []);
   useEffect(() => { load(); }, [load]);
@@ -37,8 +56,18 @@ export default function EventsSalesKit() {
     finally { setSaving(false); }
   };
 
-  if (loading || !kit) {
+  if (loading) {
     return <div className="flex items-center justify-center min-h-[40vh]"><Loader2 className="w-6 h-6 animate-spin text-slate-400" /></div>;
+  }
+  if (!kit) {
+    return (
+      <div className="p-6" dir="rtl">
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-sm text-red-800">
+          טעינת ה-Sales Kit נכשלה.{loadError ? ` שגיאה: ${loadError}` : ''}
+          <Button onClick={load} className="mt-3">נסה שוב</Button>
+        </div>
+      </div>
+    );
   }
 
   const menus = Array.isArray(kit.menus) ? kit.menus : [];
@@ -53,6 +82,12 @@ export default function EventsSalesKit() {
 
   return (
     <div className="p-4 md:p-6 space-y-4" dir="rtl">
+      {loadError && (
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-900 flex items-center justify-between gap-2">
+          <span>⚠️ טעינת ה-kit הקיים נכשלה — מציג עורך ריק. שמירה תיצור שורה חדשה. שגיאה: {loadError}</span>
+          <Button size="sm" variant="outline" onClick={load}>טען מחדש</Button>
+        </div>
+      )}
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2"><Utensils className="w-6 h-6 text-emerald-600" /> Sales Kit לאירועים</h1>
