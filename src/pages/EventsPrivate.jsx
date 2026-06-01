@@ -155,6 +155,11 @@ function BookingsCard() {
                       <div className="text-xs text-slate-500 mt-0.5">✨ {b.selected_upsells.map((u) => u.name).join(', ')}</div>
                     )}
                     {b.short_notice && <Badge className="bg-amber-100 text-amber-800 mt-1">Short-notice</Badge>}
+                    {b.notes && (
+                      <div className="mt-2 p-2 bg-emerald-50 border border-emerald-100 rounded text-xs text-emerald-900">
+                        <span className="font-bold">🧠 סיכום שיחה: </span>{b.notes}
+                      </div>
+                    )}
                   </div>
                   <div className="flex gap-2">
                     <Button size="sm" disabled={busy === b.id} onClick={() => act(b, 'approve')} className="bg-emerald-600 hover:bg-emerald-700">אשר וחסום שולחן</Button>
@@ -233,36 +238,37 @@ export default function EventsPrivatePage() {
               עדיין אין לידים. שתפו את הקישור למעלה — כשמישהו ישלים את הצ׳אט, הוא יופיע כאן.
             </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>שם</TableHead><TableHead>טלפון</TableHead><TableHead>תאריך</TableHead>
-                  <TableHead>סוג</TableHead><TableHead>אורחים</TableHead><TableHead>תקציב/סועד</TableHead>
-                  <TableHead>ציון</TableHead><TableHead>סטטוס</TableHead><TableHead>מקור</TableHead><TableHead>נכנס</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {leads.map((l) => {
-                  const status = STATUS[l.status] || { label: l.status || '—', cls: '' };
-                  return (
-                    <TableRow key={l.id}>
-                      <TableCell>{l.contact_name || '—'}</TableCell>
-                      <TableCell>
-                        {l.contact_phone ? <a href={`tel:${l.contact_phone}`} className="text-blue-600 hover:underline">{l.contact_phone}</a> : '—'}
-                      </TableCell>
-                      <TableCell>{l.event_date || '—'}</TableCell>
-                      <TableCell>{l.event_type || '—'}</TableCell>
-                      <TableCell>{l.guest_count ?? '—'}</TableCell>
-                      <TableCell>{l.budget_per_person ? `₪${l.budget_per_person}` : '—'}</TableCell>
-                      <TableCell>{scoreBadge(l.score)}</TableCell>
-                      <TableCell><Badge className={status.cls}>{status.label}</Badge></TableCell>
-                      <TableCell className="text-xs text-muted-foreground">{l.source || '—'}</TableCell>
-                      <TableCell className="text-xs text-muted-foreground">{fmt(l.created_date)}</TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
+            <div className="space-y-2">
+              {leads.map((l) => {
+                const status = STATUS[l.status] || { label: l.status || '—', cls: '' };
+                return (
+                  <div key={l.id} className="border rounded-lg p-3 bg-white hover:bg-slate-50/50 transition">
+                    <div className="flex items-start justify-between gap-3 flex-wrap">
+                      <div className="text-sm flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <strong>{l.contact_name || 'ללא שם'}</strong>
+                          {l.contact_phone && <a href={`tel:${l.contact_phone}`} className="text-blue-600 hover:underline">📞 {l.contact_phone}</a>}
+                          {scoreBadge(l.score)}
+                          <Badge className={status.cls}>{status.label}</Badge>
+                        </div>
+                        <div className="text-xs text-slate-600 mt-1">
+                          {l.event_date && <>📅 {l.event_date}{l.hours_window ? ` · ${l.hours_window}` : ''} · </>}
+                          {l.event_type && <>🎉 {l.event_type} · </>}
+                          {l.guest_count != null && <>👥 {l.guest_count} · </>}
+                          {l.budget_per_person && <>💰 ₪{l.budget_per_person}/סועד · </>}
+                          📥 {l.source || '—'} · {fmt(l.created_date)}
+                        </div>
+                        {l.ai_summary && (
+                          <div className="mt-2 p-2 bg-emerald-50 border border-emerald-100 rounded text-xs text-emerald-900">
+                            <span className="font-bold">🧠 סיכום שיחה: </span>{l.ai_summary}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           )}
         </CardContent>
       </Card>

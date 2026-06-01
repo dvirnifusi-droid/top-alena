@@ -3456,7 +3456,39 @@ registerFn('chatEventsInquiry', async ({ body }) => {
     },
   });
 
-  const c = result?.collected || {};
+  const cRaw = result?.collected || {};
+
+  // Normalize the freeform `collected` object — the LLM keeps inventing field names
+  // (event_date / date / booking_date / event_iso, guest_count / guests / num_guests, etc.)
+  // so we map every plausible alias to the canonical name before any logic touches it.
+  const pickFirst = (...keys: string[]) => {
+    for (const k of keys) {
+      const v = cRaw?.[k];
+      if (v !== undefined && v !== null && v !== '') return v;
+    }
+    return undefined;
+  };
+  const c: any = {
+    contact_name: pickFirst('contact_name', 'name', 'customer_name', 'full_name', 'first_name'),
+    contact_phone: pickFirst('contact_phone', 'phone', 'mobile', 'tel', 'phone_number'),
+    event_date: pickFirst('event_date', 'date', 'booking_date'),
+    event_date_iso: pickFirst('event_date_iso', 'date_iso', 'iso_date', 'event_date'),
+    event_time: pickFirst('event_time', 'time', 'start_time', 'time_of_day'),
+    event_type: pickFirst('event_type', 'type', 'occasion'),
+    guest_count: pickFirst('guest_count', 'guests', 'num_guests', 'people_count', 'attendees', 'pax'),
+    budget_per_person: pickFirst('budget_per_person', 'budget', 'price_per_person', 'budget_pp'),
+    hours_window: pickFirst('hours_window', 'window', 'time_window', 'shift'),
+    selected_menu_id: pickFirst('selected_menu_id', 'menu_id', 'package_id'),
+    selected_menu_name: pickFirst('selected_menu_name', 'menu_name', 'menu', 'package', 'package_name'),
+    selected_dishes: pickFirst('selected_dishes', 'dishes', 'items'),
+    selected_upsells: pickFirst('selected_upsells', 'upsells', 'add_ons', 'addons', 'extras'),
+    subtotal_ils: pickFirst('subtotal_ils', 'subtotal'),
+    discount_pct_requested: pickFirst('discount_pct_requested', 'discount', 'discount_pct'),
+    total_ils: pickFirst('total_ils', 'total', 'amount', 'final_price', 'price'),
+  };
+  if (typeof c.guest_count === 'string') c.guest_count = parseInt(c.guest_count.replace(/\D/g, '')) || undefined;
+  if (typeof c.total_ils === 'string') c.total_ils = parseInt(c.total_ils.replace(/[^\d]/g, '')) || undefined;
+  if (typeof c.budget_per_person === 'string') c.budget_per_person = parseInt(c.budget_per_person.replace(/\D/g, '')) || undefined;
 
   // Server-side closure logic with both directions:
   // (a) Guard against premature closure: if the assistant ended with a question and the customer
@@ -3614,7 +3646,36 @@ registerFn('chatEventsInquiry', async ({ body }) => {
       ].filter(Boolean).join('\n');
       finalReply = `${finalReply}${summaryLines.startsWith('\n') ? '' : '\n'}${summaryLines}`;
 
-      // FULL Pushover to the manager — everything they need to call the customer back.
+      // Generate a 2-3 sentence AI summary of the whole conversation so the manager
+      // sees the customer's voice + key context at a glance — both in the Pushover
+      // and on /EventsPrivate. Best-effort, won't block.
+      let aiSummary = '';
+      try {
+        const transcriptForSummary = fullLog
+          .map((m: any) => `${m.role === 'assistant' ? 'סוכן' : 'לקוח'}: ${m.content}`)
+          .join('\n')
+          .slice(-4000);
+        const summaryRes: any = await invokeLLM({
+          prompt:
+            `אתה מסכם שיחת מכירה בעברית למנהל מסעדה. כתוב 2-3 משפטים על השיחה: מה הלקוח רצה, איך הוא נשמע (התלהבות / היסוס / מחיר רגיש), אם היו דרישות מיוחדות, ומה דחוף לדעת לפני שיחת טלפון. אל תחזור על הנתונים המבניים (שם/טלפון/תאריך) — תתמקד בטון, ברצונות, ובמה שלא מובן מאליו.\n\n--- תמלול ---\n${transcriptForSummary}\n--- סוף ---\n\nהחזר JSON: { summary: "..." }`,
+          responseSchema: { type: 'object', properties: { summary: { type: 'string' } } },
+        });
+        aiSummary = String(summaryRes?.summary || '').trim();
+      } catch (e: any) {
+        console.warn('[ai_summary] failed', e?.message);
+      }
+
+      // Persist the summary on both the booking and the lead so /EventsPrivate can show it.
+      try {
+        if (aiSummary) {
+          await db.eventBooking.update({ where: { id: booking.id }, data: { notes: aiSummary } }).catch(() => {});
+          if (currentLeadId) {
+            await db.eventLead.update({ where: { id: currentLeadId }, data: { ai_summary: aiSummary } }).catch(() => {});
+          }
+        }
+      } catch { /* ignore */ }
+
+      // FULL Pushover to the manager — everything they need to call the customer back, with the AI summary.
       try {
         const menuName = (booking.selected_menu as any)?.name || '-';
         const upsellsList = Array.isArray(booking.selected_upsells) && booking.selected_upsells.length
@@ -3634,6 +3695,7 @@ registerFn('chatEventsInquiry', async ({ body }) => {
           `💰 סה"כ משוער: ₪${total}`,
           shortNotice ? '⚡ Short-notice (עד 48h) — דחוף' : null,
           `📥 מקור: ${booking.source || '-'}`,
+          aiSummary ? `\n🧠 סיכום שיחה:\n${aiSummary}` : null,
           '',
           '🔗 לאישור ב-/EventsPrivate',
         ].filter(Boolean).join('\n');
