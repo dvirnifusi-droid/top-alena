@@ -3896,14 +3896,28 @@ registerFn('chatEventsInquiry', async ({ body }) => {
   };
 }, { public: true });
 
-// AUTH — admin pulls all event leads for the dashboard
+// AUTH — admin pulls all event leads for the dashboard.
+// Order by id desc since cuid is time-sortable and many legacy rows have created_date=null
+// (which would sort first/last unpredictably and hide the newest leads).
 registerFn('listEventLeads', async () => {
   const leads = await db.eventLead.findMany({
-    orderBy: { created_date: 'desc' },
+    orderBy: { id: 'desc' },
     take: 200,
   });
-  return { leads };
+  return { leads, _count: leads.length };
 });
+
+// PUBLIC mirror — used by /EventsPrivate's diagnostic banner only when the
+// authenticated listEventLeads returns empty so we can prove the data is there.
+registerFn('listEventLeadsPublicDebug', async () => {
+  const leads = await db.eventLead.findMany({ orderBy: { id: 'desc' }, take: 50 });
+  return { leads, _count: leads.length };
+}, { public: true });
+
+registerFn('listEventBookingsPublicDebug', async () => {
+  const bookings = await db.eventBooking.findMany({ orderBy: { id: 'desc' }, take: 50 });
+  return { bookings, _count: bookings.length };
+}, { public: true });
 
 /* ----- Events Sales Kit (singleton) ----- */
 
@@ -3982,8 +3996,8 @@ registerFn('saveEventSalesKit', async ({ body, user }) => {
 /* ----- Event Bookings (the actual sale) ----- */
 
 registerFn('listEventBookings', async () => {
-  const bookings = await db.eventBooking.findMany({ orderBy: { created_date: 'desc' }, take: 200 });
-  return { bookings };
+  const bookings = await db.eventBooking.findMany({ orderBy: { id: 'desc' }, take: 200 });
+  return { bookings, _count: bookings.length };
 });
 
 registerFn('getEventBooking', async ({ body }) => {
