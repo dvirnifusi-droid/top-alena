@@ -23,6 +23,7 @@ import DevicesDashboard from './pages/DevicesDashboard';
 import DataExport from './pages/DataExport';
 import UserGuide from './pages/UserGuide';
 import InstagramStudio from './pages/InstagramStudio';
+import Login from './pages/Login';
 
 const { Pages, Layout, mainPage } = pagesConfig;
 const mainPageKey = mainPage ?? Object.keys(Pages)[0];
@@ -118,6 +119,7 @@ function App() {
       <Router>
         <Routes>
           {/* ציבורי - ללא התחברות */}
+          <Route path="/login" element={<Login />} />
           <Route path="/QueueJoin" element={<QueueJoin />} />
           <Route path="/QueueGame" element={<QueueGame />} />
           <Route path="/QueueFeedback" element={<QueueFeedback />} />

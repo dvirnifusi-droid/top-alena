@@ -4,7 +4,7 @@ import { createPageUrl } from "@/utils";
 import { base44 } from "@/api/base44Client";
 import {
   Users, GraduationCap, AlertTriangle, CheckSquare, Building, BarChart3,
-  LayoutGrid, Trophy, Menu, FileText, Utensils, Sparkles, Crown, Rocket, Map, Brain, Calendar, CalendarDays, Banknote, MessageSquare, Briefcase, QrCode, ClipboardCheck, Settings, TrendingUp, Zap, Megaphone, Bell, Package, Navigation, LogOut, Tablet, Download
+  LayoutGrid, Trophy, Menu, FileText, Utensils, Sparkles, Crown, Rocket, Map, Brain, Calendar, CalendarDays, Banknote, MessageSquare, Briefcase, QrCode, ClipboardCheck, Settings, TrendingUp, Zap, Megaphone, Bell, Package, Navigation, LogOut, Tablet, Download, Inbox
 } from "lucide-react";
 import {
   Sidebar, SidebarContent,
@@ -25,6 +25,7 @@ const adminLinks = [
   { title: "מרכז בקרת AI", url: createPageUrl("AiDashboard"), icon: Sparkles, isSubItem: true },
   { title: "חיזוי עומסים AI", url: createPageUrl("SmartPrediction"), icon: Brain, isSubItem: true },
   { title: "יועץ שיווק AI", url: createPageUrl("MarketingAI"), icon: Rocket, isSubItem: true },
+  { title: "תיבת הסוכן (CEO)", url: createPageUrl("AgentInbox"), icon: Inbox, isSubItem: true },
 
   // ניהול מסעדה
   { title: "ניהול מסעדה", url: "#", icon: Utensils, isCategory: true },

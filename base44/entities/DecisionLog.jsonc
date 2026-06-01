@@ -1,0 +1,64 @@
+{
+  "name": "DecisionLog",
+  "type": "object",
+  "properties": {
+    "trigger_agent": {
+      "type": "string",
+      "description": "Agent that raised the signal"
+    },
+    "trigger_msg_id": {
+      "type": "string",
+      "description": "Link to AgentMessage that triggered the decision"
+    },
+    "decision": {
+      "type": "string",
+      "description": "Short slug for the decision"
+    },
+    "decision_summary": {
+      "type": "string",
+      "description": "1-2 lines human-readable"
+    },
+    "priority_tier": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 6,
+      "default": 4
+    },
+    "ils_impact_estimate": {
+      "type": "number"
+    },
+    "ils_impact_actual": {
+      "type": "number",
+      "description": "Filled later when outcome is known"
+    },
+    "owner_notified": {
+      "type": "boolean",
+      "default": false
+    },
+    "owner_approved": {
+      "type": "boolean",
+      "description": "Null if not required, true/false after owner answered"
+    },
+    "outcome": {
+      "type": "string",
+      "enum": [
+        "PENDING",
+        "SUCCESS",
+        "FAILED",
+        "CANCELLED"
+      ],
+      "default": "PENDING"
+    },
+    "outcome_note": {
+      "type": "string"
+    },
+    "resolved_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "required": [
+    "trigger_agent",
+    "decision"
+  ]
+}

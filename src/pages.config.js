@@ -48,6 +48,7 @@
  * The mainPage value must match a key in the PAGES object exactly.
  */
 import AccountantExportView from './pages/AccountantExportView';
+import AgentInbox from './pages/AgentInbox';
 import AiDashboard from './pages/AiDashboard';
 import ApparelManagement from './pages/ApparelManagement';
 import AvailabilityForm from './pages/AvailabilityForm';
@@ -113,6 +114,7 @@ import __Layout from './Layout.jsx';
 
 export const PAGES = {
     "AccountantExportView": AccountantExportView,
+    "AgentInbox": AgentInbox,
     "AiDashboard": AiDashboard,
     "ApparelManagement": ApparelManagement,
     "AvailabilityForm": AvailabilityForm,

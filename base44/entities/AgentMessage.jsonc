@@ -1,0 +1,89 @@
+{
+  "name": "AgentMessage",
+  "type": "object",
+  "properties": {
+    "msg_id": {
+      "type": "string",
+      "description": "UUID of this message"
+    },
+    "from_agent": {
+      "type": "string",
+      "description": "Sender agent codename or SYSTEM"
+    },
+    "to_agent": {
+      "type": "string",
+      "description": "Recipient: codename, CEO, BROADCAST, or OWNER"
+    },
+    "msg_type": {
+      "type": "string",
+      "enum": [
+        "SIGNAL",
+        "REQUEST",
+        "DIRECTIVE",
+        "REPORT",
+        "ACK"
+      ],
+      "description": "Message semantic type"
+    },
+    "priority_tier": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 6,
+      "default": 4,
+      "description": "1=safety, 2=cash, 3=brand, 4=margin, 5=growth, 6=efficiency"
+    },
+    "topic": {
+      "type": "string",
+      "description": "Short slug for grouping"
+    },
+    "payload": {
+      "type": "object",
+      "description": "Structured payload: {summary, data, ils_impact_estimate, confidence, sources, expires_at}"
+    },
+    "requires_response": {
+      "type": "boolean",
+      "default": false
+    },
+    "qa_passed": {
+      "type": "boolean",
+      "default": false
+    },
+    "owner_visible": {
+      "type": "boolean",
+      "default": false,
+      "description": "If true, renders in Agent Inbox UI"
+    },
+    "owner_template": {
+      "type": "string",
+      "enum": [
+        "A",
+        "B",
+        "C",
+        "D"
+      ],
+      "description": "A=daily brief, B=approval request, C=crisis, D=win"
+    },
+    "owner_response": {
+      "type": "object",
+      "description": "Owner's answer: {answer: yes|no|comment, note}"
+    },
+    "responded_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "parent_msg_id": {
+      "type": "string",
+      "description": "For ACK/reply chains"
+    },
+    "processed": {
+      "type": "boolean",
+      "default": false,
+      "description": "CEO marks true after handling a SIGNAL"
+    }
+  },
+  "required": [
+    "from_agent",
+    "to_agent",
+    "msg_type"
+  ]
+}

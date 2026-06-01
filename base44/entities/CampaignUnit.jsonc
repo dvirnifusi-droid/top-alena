@@ -1,0 +1,112 @@
+{
+  "name": "CampaignUnit",
+  "type": "object",
+  "properties": {
+    "unit_id": {
+      "type": "string",
+      "description": "Unique unit id, e.g. UNIT_EVENTS_PRIVATE"
+    },
+    "unit_name": {
+      "type": "string",
+      "description": "Human-readable name"
+    },
+    "promoted_thing": {
+      "type": "object",
+      "description": "What this unit promotes: {type, name, hero_margin_pct, hero_price_ils, ...}"
+    },
+    "target_outcome": {
+      "type": "object",
+      "description": "{primary_kpi, kpi_target_monthly, max_cpa_ils}"
+    },
+    "budget": {
+      "type": "object",
+      "description": "{monthly_ils, daily_default_ils, daily_ceiling_ils, spent_mtd_ils}"
+    },
+    "audience_seed": {
+      "type": "object",
+      "description": "{primary_geo, primary_demo, primary_interest_clusters, exclude_segments}"
+    },
+    "language_policy": {
+      "type": "object",
+      "description": "{primary, secondary, ratio}"
+    },
+    "landing_destinations": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      },
+      "description": "Array of {name, url, use_for}"
+    },
+    "brand_guardrails": {
+      "type": "object",
+      "description": "{voice, forbidden, required_visual_motifs}"
+    },
+    "crew": {
+      "type": "object",
+      "description": "{designer, creative_strategist, audience_router, campaign_builder, optimizer, sales_closer}"
+    },
+    "launch_platforms": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "DRAFT",
+        "PENDING_APPROVAL",
+        "LIVE",
+        "PAUSED",
+        "RETIRED"
+      ],
+      "default": "DRAFT"
+    },
+    "kpi_actual_mtd": {
+      "type": "number",
+      "default": 0
+    },
+    "creatives": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      },
+      "description": "Asset refs from Designer"
+    },
+    "copy_variants": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      },
+      "description": "From Creative-Strategist"
+    },
+    "audience_matrix": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      },
+      "description": "From Audience-Router"
+    },
+    "external_campaign_ids": {
+      "type": "object",
+      "description": "{meta: [...], google: [...]}"
+    },
+    "health": {
+      "type": "string",
+      "enum": [
+        "GREEN",
+        "YELLOW",
+        "RED"
+      ],
+      "default": "GREEN"
+    },
+    "last_optimizer_run": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "required": [
+    "unit_id",
+    "unit_name"
+  ]
+}
