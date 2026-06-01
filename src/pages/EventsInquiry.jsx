@@ -17,6 +17,7 @@ export default function EventsInquiry() {
   const [leadId, setLeadId] = useState(null);
   const [bookingId, setBookingId] = useState(null);
   const [paymentUrl, setPaymentUrl] = useState(null);
+  const [showConfirm, setShowConfirm] = useState(false);
   const [error, setError] = useState(null);
   const scrollRef = useRef(null);
 
@@ -33,6 +34,7 @@ export default function EventsInquiry() {
       if (res?.lead_id) setLeadId(res.lead_id);
       if (res?.booking_id) setBookingId(res.booking_id);
       if (res?.payment_url) setPaymentUrl(res.payment_url);
+      setShowConfirm(!!res?.show_confirm_buttons);
       if (res?.complete) { setDone(true); setRejected(!!res.rejected); }
     } catch (e) {
       setError(e?.message || 'בעיה זמנית');
@@ -107,6 +109,25 @@ export default function EventsInquiry() {
               <div className="text-sm font-bold bg-white/20 rounded-lg px-3 py-1">פתח</div>
             </div>
           </a>
+        )}
+
+        {showConfirm && !done && (
+          <div className="my-3 grid grid-cols-2 gap-2">
+            <button
+              onClick={() => { setShowConfirm(false); sendTurn('כן, אני מאשר את ההזמנה — סגור'); }}
+              disabled={sending}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl py-3 px-4 font-bold shadow-md transition disabled:opacity-50"
+            >
+              ✅ אני מאשר את ההזמנה
+            </button>
+            <button
+              onClick={() => { setShowConfirm(false); sendTurn('אני לא בטוח/ה — אשמח לחלופה'); }}
+              disabled={sending}
+              className="bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 rounded-2xl py-3 px-4 font-bold shadow-sm transition disabled:opacity-50"
+            >
+              💭 רגע, רוצה לבדוק
+            </button>
+          </div>
         )}
 
         {error && <div className="rounded-xl p-3 my-2 bg-red-50 border border-red-200 text-red-800 text-sm">{error}</div>}

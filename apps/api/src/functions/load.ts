@@ -3874,6 +3874,15 @@ registerFn('chatEventsInquiry', async ({ body }) => {
     }
   }
 
+  // Show explicit confirm/decline buttons in the chat UI whenever the agent has put a number
+  // in front of the customer — far more reliable than asking them to type "סגור". A click
+  // sends a deterministic message that our close-detection always recognizes.
+  const showConfirmButtons = !booking_id && !effectiveComplete && (
+    stageSignal ||
+    /(stage|שלב)\s*['":\s]*(agreed|quoting|send_payment|negotiation)/i.test(JSON.stringify(result || {})) ||
+    /(₪|ש["״]?ח|סה["״]?כ|מחיר|לסועד|לסוכם|סגור\?)/.test(replyRaw)
+  );
+
   return {
     reply: finalReply,
     complete: effectiveComplete,
@@ -3883,6 +3892,7 @@ registerFn('chatEventsInquiry', async ({ body }) => {
     booking_id,
     payment_url,
     score,
+    show_confirm_buttons: showConfirmButtons,
   };
 }, { public: true });
 
