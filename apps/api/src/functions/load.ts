@@ -47,17 +47,17 @@ registerFn('debugAiFiles', async () => {
   const first = aiFiles.find(f => f.is_active);
   let probe: any = null;
   if (first) {
-    const fileUrlMatch = first.file_url?.match(/\/api\/files\/(.+)$/);
+    const parsedKey = extractMinioKey(first.file_url);
     let bufLength = -1;
     let uploadErr: string | null = null;
     let uri: string | null = null;
-    if (!fileUrlMatch) {
-      uploadErr = 'file_url not in /api/files/<key> format';
+    if (!parsedKey) {
+      uploadErr = `could not parse key from file_url: ${first.file_url}`;
     } else {
       try {
         const { minio } = await import('../lib/storage.js');
         const bucket = process.env.S3_BUCKET ?? 'top-alena';
-        const stream = await minio.getObject(bucket, fileUrlMatch[1]);
+        const stream = await minio.getObject(bucket, parsedKey);
         const chunks: Buffer[] = [];
         for await (const chunk of stream as any) chunks.push(chunk as Buffer);
         const buf = Buffer.concat(chunks);
@@ -86,7 +86,7 @@ registerFn('debugAiFiles', async () => {
       file_name: first.file_name,
       file_url: first.file_url,
       mime_type: first.mime_type,
-      file_url_key_parsed: fileUrlMatch ? fileUrlMatch[1] : null,
+      file_url_key_parsed: parsedKey,
       minio_bytes_read: bufLength,
       gemini_uri: uri,
       upload_error: uploadErr,
@@ -1645,14 +1645,30 @@ async function uploadBufferToGemini(buf: ArrayBuffer | Buffer, mime: string): Pr
   return d?.file?.uri || null;
 }
 
-// Pull file bytes back from MinIO given a /api/files/<key> URL.
+// Pull file bytes back from MinIO given a file_url. Handles every shape we've
+// ever produced: /api/files/<key>, full URLs, http://minio:9000/bucket/<key>,
+// etc. — falls back to using everything after the LAST '/files/' segment.
+function extractMinioKey(fileUrl: string): string | null {
+  if (!fileUrl) return null;
+  // strip any query string
+  const noQuery = fileUrl.split('?')[0];
+  // most common: contains "/files/" somewhere — take everything after the last
+  // occurrence (handles /api/files/2026/abc.pdf, https://x.com/files/abc, etc.)
+  const idx = noQuery.lastIndexOf('/files/');
+  if (idx >= 0) return noQuery.slice(idx + '/files/'.length);
+  // legacy: contains "<bucket>/" — strip everything up to and including bucket
+  const bucket = process.env.S3_BUCKET ?? 'top-alena';
+  const bIdx = noQuery.indexOf(`/${bucket}/`);
+  if (bIdx >= 0) return noQuery.slice(bIdx + bucket.length + 2);
+  return null;
+}
+
 async function fetchMinioBuffer(fileUrl: string): Promise<Buffer | null> {
   try {
+    const key = extractMinioKey(fileUrl);
+    if (!key) return null;
     const { minio } = await import('../lib/storage.js');
     const bucket = process.env.S3_BUCKET ?? 'top-alena';
-    const m = fileUrl.match(/\/api\/files\/(.+)$/);
-    if (!m) return null;
-    const key = m[1];
     const stream = await minio.getObject(bucket, key);
     const chunks: Buffer[] = [];
     for await (const chunk of stream as any) chunks.push(chunk as Buffer);
