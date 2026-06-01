@@ -14,6 +14,39 @@ const WEEKDAYS = [
   { value: 6, label: 'שבת' },
 ];
 
+// Compute the next calendar date for a (weekday, time) recurring slot.
+function nextOccurrence(weekday, time) {
+  try {
+    const [h, m] = (time || '00:00').split(':').map(Number);
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate(), h, m);
+    let diff = weekday - now.getDay();
+    if (diff < 0) diff += 7;                       // weekday already passed this week
+    if (diff === 0 && today.getTime() < now.getTime()) diff = 7; // today but past the time
+    const next = new Date(today.getTime() + diff * 86400000);
+    return next;
+  } catch { return null; }
+}
+
+function fmtDate(date) {
+  return date.toLocaleDateString('he-IL', { day: '2-digit', month: '2-digit', year: '2-digit' });
+}
+
+function daysUntil(date) {
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const d = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  return Math.round((d.getTime() - today.getTime()) / 86400000);
+}
+
+function chipFor(date) {
+  const n = daysUntil(date);
+  if (n === 0) return { text: 'היום', cls: 'bg-emerald-100 text-emerald-800 border-emerald-300' };
+  if (n === 1) return { text: 'מחר', cls: 'bg-emerald-100 text-emerald-800 border-emerald-300' };
+  if (n <= 3) return { text: `בעוד ${n} ימים`, cls: 'bg-blue-100 text-blue-800 border-blue-300' };
+  if (n <= 7) return { text: `בעוד ${n} ימים`, cls: 'bg-cyan-100 text-cyan-800 border-cyan-300' };
+  return { text: `בעוד ${n} ימים`, cls: 'bg-amber-100 text-amber-800 border-amber-300' };
+}
+
 export default function InterviewSettings() {
   const [rows, setRows] = useState([]); // [{weekday, time, duration_minutes, active}]
   const [loading, setLoading] = useState(true);
@@ -78,40 +111,51 @@ export default function InterviewSettings() {
           <p className="text-slate-400 text-sm text-center py-6">עדיין לא הוגדרו מועדים — הוסף מועד אחד לפחות.</p>
         ) : (
           <div className="space-y-2">
-            {rows.map((r, i) => (
-              <div key={i} className="flex flex-wrap items-center gap-2 bg-slate-50 rounded-xl p-2.5">
-                <select
-                  value={r.weekday}
-                  onChange={(e) => updateRow(i, { weekday: parseInt(e.target.value) })}
-                  className="border border-slate-300 rounded-lg px-2 py-1.5 text-sm bg-white"
-                >
-                  {WEEKDAYS.map((w) => <option key={w.value} value={w.value}>יום {w.label}</option>)}
-                </select>
-                <input
-                  type="time"
-                  value={r.time}
-                  onChange={(e) => updateRow(i, { time: e.target.value })}
-                  className="border border-slate-300 rounded-lg px-2 py-1.5 text-sm bg-white"
-                />
-                <select
-                  value={r.duration_minutes}
-                  onChange={(e) => updateRow(i, { duration_minutes: parseInt(e.target.value) })}
-                  className="border border-slate-300 rounded-lg px-2 py-1.5 text-sm bg-white"
-                >
-                  <option value={15}>15 דק׳</option>
-                  <option value={30}>30 דק׳</option>
-                  <option value={45}>45 דק׳</option>
-                  <option value={60}>60 דק׳</option>
-                </select>
-                <label className="text-xs flex items-center gap-1.5 text-slate-600 mr-1">
-                  <input type="checkbox" checked={r.active} onChange={(e) => updateRow(i, { active: e.target.checked })} />
-                  פעיל
-                </label>
-                <button onClick={() => deleteRow(i)} className="text-red-500 hover:text-red-700 text-sm font-bold mr-auto px-2">
-                  ✕ הסר
-                </button>
-              </div>
-            ))}
+            {rows.map((r, i) => {
+              const next = nextOccurrence(r.weekday, r.time);
+              const chip = next && r.active ? chipFor(next) : null;
+              return (
+                <div key={i} className="flex flex-wrap items-center gap-2 bg-slate-50 rounded-xl p-2.5">
+                  <select
+                    value={r.weekday}
+                    onChange={(e) => updateRow(i, { weekday: parseInt(e.target.value) })}
+                    className="border border-slate-300 rounded-lg px-2 py-1.5 text-sm bg-white"
+                  >
+                    {WEEKDAYS.map((w) => <option key={w.value} value={w.value}>יום {w.label}</option>)}
+                  </select>
+                  <input
+                    type="time"
+                    value={r.time}
+                    onChange={(e) => updateRow(i, { time: e.target.value })}
+                    className="border border-slate-300 rounded-lg px-2 py-1.5 text-sm bg-white"
+                  />
+                  <select
+                    value={r.duration_minutes}
+                    onChange={(e) => updateRow(i, { duration_minutes: parseInt(e.target.value) })}
+                    className="border border-slate-300 rounded-lg px-2 py-1.5 text-sm bg-white"
+                  >
+                    <option value={15}>15 דק׳</option>
+                    <option value={30}>30 דק׳</option>
+                    <option value={45}>45 דק׳</option>
+                    <option value={60}>60 דק׳</option>
+                  </select>
+                  {next && r.active && (
+                    <div className="flex items-center gap-1.5 text-xs">
+                      <span className="text-slate-500">→ הבא:</span>
+                      <span className="font-semibold text-slate-700">{fmtDate(next)}</span>
+                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${chip.cls}`}>{chip.text}</span>
+                    </div>
+                  )}
+                  <label className="text-xs flex items-center gap-1.5 text-slate-600 mr-1">
+                    <input type="checkbox" checked={r.active} onChange={(e) => updateRow(i, { active: e.target.checked })} />
+                    פעיל
+                  </label>
+                  <button onClick={() => deleteRow(i)} className="text-red-500 hover:text-red-700 text-sm font-bold mr-auto px-2">
+                    ✕ הסר
+                  </button>
+                </div>
+              );
+            })}
           </div>
         )}
 
