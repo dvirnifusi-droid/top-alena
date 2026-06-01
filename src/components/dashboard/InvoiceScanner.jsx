@@ -153,11 +153,13 @@ export default function InvoiceScanner() {
         setIsLoading(true);
         setResult(null);
 
+        let stage = 'upload';
         try {
             // 1. Upload file
             const { file_url } = await UploadFile({ file });
 
             // 2. Extract data
+            stage = 'extract';
             const extractionResult = await ExtractDataFromUploadedFile({
                 file_url: file_url,
                 json_schema: {
@@ -211,8 +213,12 @@ export default function InvoiceScanner() {
             }
 
         } catch (err) {
-            setResult({ type: 'error', message: err.message });
             console.error(err);
+            const stageLabel = stage === 'upload' ? 'העלאת הקובץ' : 'חילוץ הנתונים מהחשבונית';
+            const detail = err?.message && err.message !== 'Internal Server Error'
+                ? err.message
+                : 'אירעה שגיאה בשרת. נסה תמונה חדה יותר של החשבונית, או קובץ PDF במקום JPEG.';
+            setResult({ type: 'error', message: `שגיאה בשלב: ${stageLabel}\n${detail}` });
         } finally {
             setIsLoading(false);
         }
