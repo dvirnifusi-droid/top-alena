@@ -141,35 +141,102 @@ function BookingsCard() {
         ) : pending.length === 0 ? (
           <p className="text-sm text-muted-foreground text-center py-4">אין אירועים ממתינים.</p>
         ) : (
-          <div className="space-y-2">
-            {pending.map((b) => (
-              <div key={b.id} className="border rounded-lg p-3 bg-emerald-50/40">
-                <div className="flex items-center justify-between flex-wrap gap-2">
-                  <div className="text-sm">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <strong>{b.customer_name || '-'}</strong>
+          <div className="space-y-3">
+            {pending.map((b) => {
+              const weekday = (() => {
+                if (!b.event_date) return null;
+                try {
+                  const d = new Date(b.event_date + 'T00:00');
+                  return ['ראשון','שני','שלישי','רביעי','חמישי','שישי','שבת'][d.getDay()];
+                } catch { return null; }
+              })();
+              const tableDuration = b.selected_menu?.table_duration_hours || 3;
+              const tableEndTime = (() => {
+                if (!b.event_time) return null;
+                try {
+                  const [h, m] = b.event_time.split(':').map(Number);
+                  const endH = (h + tableDuration) % 24;
+                  return `${String(endH).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+                } catch { return null; }
+              })();
+              return (
+                <div key={b.id} className="border-2 border-emerald-300 rounded-xl p-4 bg-emerald-50/50">
+                  {/* Header — customer identity */}
+                  <div className="flex items-start justify-between gap-2 flex-wrap mb-3 pb-2 border-b border-emerald-200">
+                    <div>
+                      <div className="text-lg font-bold text-emerald-900">
+                        👤 {b.customer_name || 'ללא שם — שאל בטלפון'}
+                      </div>
                       {b.customer_phone && (
-                        <a href={`tel:${b.customer_phone}`} className="text-blue-600 hover:underline">📞 {b.customer_phone}</a>
+                        <a href={`tel:${b.customer_phone}`} className="text-blue-700 font-semibold hover:underline text-base">
+                          📞 {b.customer_phone}
+                        </a>
                       )}
                     </div>
-                    <div className="text-xs text-slate-600 mt-1">📅 {b.event_date} {b.event_time || ''} · 👥 {b.guest_count} · 🍽 {b.selected_menu?.name || '-'} · 💰 ₪{b.total_ils || 0}</div>
-                    {Array.isArray(b.selected_upsells) && b.selected_upsells.length > 0 && (
-                      <div className="text-xs text-slate-500 mt-0.5">✨ {b.selected_upsells.map((u) => u.name).join(', ')}</div>
-                    )}
-                    {b.short_notice && <Badge className="bg-amber-100 text-amber-800 mt-1">Short-notice</Badge>}
-                    {b.notes && (
-                      <div className="mt-2 p-2 bg-emerald-50 border border-emerald-100 rounded text-xs text-emerald-900">
-                        <span className="font-bold">🧠 סיכום שיחה: </span>{b.notes}
-                      </div>
-                    )}
+                    {b.short_notice && <Badge className="bg-amber-100 text-amber-900 font-bold">⚡ Short-notice</Badge>}
                   </div>
-                  <div className="flex gap-2">
-                    <Button size="sm" disabled={busy === b.id} onClick={() => act(b, 'approve')} className="bg-emerald-600 hover:bg-emerald-700">אשר וחסום שולחן</Button>
-                    <Button size="sm" disabled={busy === b.id} variant="outline" onClick={() => act(b, 'reject')} className="text-red-600">דחה</Button>
+
+                  {/* Event details grid */}
+                  <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 text-sm mb-3">
+                    <div><span className="text-slate-500">📅 תאריך:</span> <strong>{b.event_date}{weekday ? ` (יום ${weekday})` : ''}</strong></div>
+                    <div><span className="text-slate-500">🕒 שעה:</span> <strong>{b.event_time || '—'}{tableEndTime ? ` עד ${tableEndTime}` : ''}</strong></div>
+                    <div><span className="text-slate-500">👥 כמות אורחים:</span> <strong>{b.guest_count}</strong></div>
+                    <div><span className="text-slate-500">⏱ משך שולחן:</span> <strong>{tableDuration} שעות</strong></div>
+                    <div className="col-span-2"><span className="text-slate-500">🍽 חבילה נבחרה:</span> <strong>{b.selected_menu?.name || '— לא צוין, ברר בטלפון'}</strong></div>
+                    {b.hours_window && <div className="col-span-2"><span className="text-slate-500">🕓 חלון זמן:</span> {b.hours_window}</div>}
+                  </div>
+
+                  {/* Upsells */}
+                  {Array.isArray(b.selected_upsells) && b.selected_upsells.length > 0 && (
+                    <div className="mb-3 p-2 bg-white rounded border border-slate-200 text-sm">
+                      <div className="text-xs text-slate-500 mb-1">✨ תוספות נבחרו:</div>
+                      <ul className="space-y-0.5">
+                        {b.selected_upsells.map((u, i) => (
+                          <li key={i} className="text-xs">• {u.name}{u.price ? <span className="text-slate-600"> — ₪{u.price}</span> : ''}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {/* Selected dishes if any */}
+                  {Array.isArray(b.selected_dishes) && b.selected_dishes.length > 0 && (
+                    <div className="mb-3 p-2 bg-white rounded border border-slate-200 text-xs">
+                      <div className="text-slate-500 mb-1">🍴 מנות שנבחרו:</div>
+                      <div>{b.selected_dishes.join(' · ')}</div>
+                    </div>
+                  )}
+
+                  {/* Money summary */}
+                  <div className="mb-3 p-2 bg-white rounded border border-slate-200 text-sm flex items-center justify-between">
+                    <span><span className="text-slate-500">💰 סה"כ:</span> <strong className="text-emerald-700">₪{b.total_ils || 0}</strong></span>
+                    {b.discount_pct ? <span className="text-xs text-amber-700">הנחה {b.discount_pct}%</span> : null}
+                    {b.deposit_amount_ils ? <span className="text-xs text-slate-600">פיקדון לגבייה: ₪{b.deposit_amount_ils}</span> : null}
+                  </div>
+
+                  {/* Meta */}
+                  <div className="text-xs text-slate-500 mb-3">
+                    📥 מקור: <strong>{b.source || '—'}</strong> · 🆔 {b.id.slice(-8)} · נסגר ב-{fmt(b.created_date)}
+                  </div>
+
+                  {/* AI summary */}
+                  {b.notes && (
+                    <div className="mb-3 p-2 bg-emerald-100 border border-emerald-200 rounded text-xs text-emerald-900">
+                      <span className="font-bold">🧠 סיכום שיחה: </span>{b.notes}
+                    </div>
+                  )}
+
+                  {/* Actions */}
+                  <div className="flex gap-2 pt-2 border-t border-emerald-200">
+                    <Button size="sm" disabled={busy === b.id} onClick={() => act(b, 'approve')} className="bg-emerald-600 hover:bg-emerald-700 flex-1">
+                      {busy === b.id ? <Loader2 className="w-4 h-4 animate-spin" /> : '✅ אשר וחסום שולחן'}
+                    </Button>
+                    <Button size="sm" disabled={busy === b.id} variant="outline" onClick={() => act(b, 'reject')} className="text-red-600 border-red-300">
+                      ❌ דחה
+                    </Button>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
         {decided.length > 0 && (

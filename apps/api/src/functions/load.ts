@@ -3583,10 +3583,12 @@ registerFn('chatEventsInquiry', async ({ body }) => {
   const agentAskedToClose = /(לסגור|לסגירה|להתקדם|נסגור|סוגרים|נמשיך|לאישור)/.test(replyRaw + ' ' + (turns.length ? String((turns[turns.length - 1] as any)?.content || '') : ''));
   const customerExplicitClose = tokenRe.test(customerLastTurn) || (customerSaidYes && agentAskedToClose);
 
-  // Server-side fallback extraction from the FULL transcript when the LLM forgot to fill
-  // a field. Phone (Israeli mobile), guest count (ל-N איש/אורחים/סועדים), and date (in
-  // Hebrew "N בחודש" form or ISO YYYY-MM-DD).
-  const fullText = [...turns.map((t: any) => t.content), message || ''].join(' ');
+  // Server-side fallback extraction. CRITICAL: scan only the CUSTOMER's messages,
+  // not the agent's — otherwise the extractor picks up the agent introducing itself
+  // ("אני העוזרת הדיגיטלית של עלינא") and saves "העוזרת" as the customer's name.
+  const customerTurns = turns.filter((t: any) => t.role !== 'assistant').map((t: any) => t.content);
+  const customerText = [...customerTurns, message || ''].join(' ');
+  const fullText = [...turns.map((t: any) => t.content), message || ''].join(' '); // used only for phone/date/guests (where it doesn't matter)
   if (!c.contact_phone) {
     const phoneMatch = fullText.match(/0\s?5\d[\s-]?\d{3}[\s-]?\d{4}/);
     if (phoneMatch) c.contact_phone = phoneMatch[0].replace(/[\s-]/g, '');
@@ -3645,9 +3647,15 @@ registerFn('chatEventsInquiry', async ({ body }) => {
     else if (/בבוקר/.test(fullText)) c.event_time = '10:00';
   }
   if (!c.contact_name) {
-    // First word after greeting introducer
-    const nameMatch = fullText.match(/(?:אני|שמי|השם שלי|קוראים לי)\s+([א-ת]{2,15})/);
-    if (nameMatch) c.contact_name = nameMatch[1];
+    // Only scan CUSTOMER messages (not the agent's intro "אני העוזרת").
+    // Also blacklist the bot's known self-references so a stray match can't slip through.
+    const BANNED = ['העוזרת', 'הסוכן', 'הסוכנת', 'עלינא', 'אלינא', 'בוט'];
+    const nameMatch = customerText.match(/(?:אני|שמי|השם שלי|קוראים לי)\s+([א-ת]{2,15})/);
+    if (nameMatch && !BANNED.includes(nameMatch[1])) c.contact_name = nameMatch[1];
+  }
+  // Always sanitize: if c.contact_name slipped in as a banned agent self-reference, drop it.
+  if (c.contact_name && ['העוזרת', 'הסוכן', 'הסוכנת', 'עלינא', 'אלינא', 'בוט'].some((b) => String(c.contact_name).includes(b))) {
+    c.contact_name = null;
   }
 
   const hasMinInfo = !!(c.event_date || c.event_date_iso) && !!c.guest_count && !!c.contact_phone;
