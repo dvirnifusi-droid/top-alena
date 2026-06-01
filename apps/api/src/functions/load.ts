@@ -3571,7 +3571,8 @@ registerFn('chatEventsInquiry', async ({ body }) => {
     if (phoneMatch) c.contact_phone = phoneMatch[0].replace(/[\s-]/g, '');
   }
   if (!c.guest_count) {
-    const guestsMatch = fullText.match(/(?:ל-?|ל\s*-?|\s)(\d{2,3})\s*(?:איש|אורחים|סועדים|נפש|אנשים)/);
+    // Broader patterns: 'ל-30 איש', '30 אורחים', 'כ-30 איש', 'בערך 30 איש', '30 נפש'
+    const guestsMatch = fullText.match(/(?:ל-?\s*|כ-?\s*|בערך\s*|סביבות\s*|בסביבות\s*|\s|^)(\d{1,3})\s*(?:איש|אורחים|סועדים|נפש|אנשים|מוזמנים)/);
     if (guestsMatch) c.guest_count = parseInt(guestsMatch[1]);
   }
   if (!c.event_date && !c.event_date_iso) {
@@ -3590,11 +3591,42 @@ registerFn('chatEventsInquiry', async ({ body }) => {
     } else {
       const isoMatch = fullText.match(/(\d{4}-\d{2}-\d{2})/);
       if (isoMatch) { c.event_date_iso = isoMatch[1]; c.event_date = isoMatch[1]; }
+      else {
+        // DD/MM, DD.MM, DD-MM (with optional year)
+        const dmMatch = fullText.match(/(\d{1,2})[\/.\-](\d{1,2})(?:[\/.\-](\d{2,4}))?/);
+        if (dmMatch) {
+          const d = parseInt(dmMatch[1]);
+          const m = parseInt(dmMatch[2]);
+          let y = dmMatch[3] ? parseInt(dmMatch[3]) : tzNow.getFullYear();
+          if (y < 100) y += 2000;
+          if (d >= 1 && d <= 31 && m >= 1 && m <= 12) {
+            const iso = `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+            c.event_date_iso = iso;
+            c.event_date = iso;
+          }
+        }
+      }
+    }
+    // Hebrew relative dates as a last resort
+    if (!c.event_date_iso) {
+      if (/היום|הערב/.test(fullText)) c.event_date_iso = todayISO;
+      else if (/מחרתיים/.test(fullText)) c.event_date_iso = dayAfterISO;
+      else if (/מחר/.test(fullText)) c.event_date_iso = tomorrowISO;
+      if (c.event_date_iso) c.event_date = c.event_date_iso;
     }
   }
   if (!c.event_time) {
     const timeMatch = fullText.match(/(?:בשעה|ב-?\s*)(\d{1,2}[:.]\d{2})/) || fullText.match(/\b(\d{1,2}[:.]\d{2})\b/);
     if (timeMatch) c.event_time = timeMatch[1].replace('.', ':');
+    // Hebrew time-of-day → reasonable defaults
+    else if (/בערב|בלילה/.test(fullText)) c.event_time = '20:00';
+    else if (/בצהריים|בצהרים/.test(fullText)) c.event_time = '13:00';
+    else if (/בבוקר/.test(fullText)) c.event_time = '10:00';
+  }
+  if (!c.contact_name) {
+    // First word after greeting introducer
+    const nameMatch = fullText.match(/(?:אני|שמי|השם שלי|קוראים לי)\s+([א-ת]{2,15})/);
+    if (nameMatch) c.contact_name = nameMatch[1];
   }
 
   const hasMinInfo = !!(c.event_date || c.event_date_iso) && !!c.guest_count && !!c.contact_phone;
