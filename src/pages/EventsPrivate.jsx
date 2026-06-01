@@ -123,33 +123,42 @@ function BookingsCard() {
     finally { setBusy(null); }
   };
 
-  const pending = bookings.filter((b) => b.approval_status !== 'approved' && b.approval_status !== 'rejected' && b.payment_status === 'paid');
+  // Manual-callback flow: any booking that hasn't been approved or rejected yet needs the manager's attention.
+  const pending = bookings.filter((b) => b.approval_status !== 'approved' && b.approval_status !== 'rejected');
   const decided = bookings.filter((b) => b.approval_status === 'approved' || b.approval_status === 'rejected');
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-emerald-500" /> אירועים שנסגרו — דרושים אישור</CardTitle>
-        <CardDescription>הזמנות שהפיקדון שולם והן ממתינות לאישור המנהל הסופי. ה-Reservation כבר נחסם ב-SeatingSetup.</CardDescription>
+        <CardTitle className="text-base flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-emerald-500" /> אירועים שנסגרו — דרוש מנהל</CardTitle>
+        <CardDescription>הלקוח הסכים על מחיר וסיים שיחה בצ׳אט. התקשר, גבה ידנית, ואז סמן <strong>"אשר"</strong> — זה יחסום את השולחן ב-SeatingSetup. <strong>"דחה"</strong> = לבטל את ההזמנה.</CardDescription>
       </CardHeader>
       <CardContent>
         {loading ? (
           <div className="flex justify-center py-6"><Loader2 className="w-5 h-5 animate-spin text-slate-400" /></div>
         ) : pending.length === 0 ? (
-          <p className="text-sm text-muted-foreground text-center py-4">אין אירועים ממתינים לאישור.</p>
+          <p className="text-sm text-muted-foreground text-center py-4">אין אירועים ממתינים.</p>
         ) : (
           <div className="space-y-2">
             {pending.map((b) => (
               <div key={b.id} className="border rounded-lg p-3 bg-emerald-50/40">
                 <div className="flex items-center justify-between flex-wrap gap-2">
                   <div className="text-sm">
-                    <div><strong>{b.customer_name || '-'}</strong> · {b.customer_phone || '-'}</div>
-                    <div className="text-xs text-slate-600">📅 {b.event_date} {b.event_time || ''} · 👥 {b.guest_count} · 🍽 {b.selected_menu?.name || '-'} · 💰 ₪{b.total_ils || 0} (פיקדון: ₪{b.deposit_amount_ils || 0})</div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <strong>{b.customer_name || '-'}</strong>
+                      {b.customer_phone && (
+                        <a href={`tel:${b.customer_phone}`} className="text-blue-600 hover:underline">📞 {b.customer_phone}</a>
+                      )}
+                    </div>
+                    <div className="text-xs text-slate-600 mt-1">📅 {b.event_date} {b.event_time || ''} · 👥 {b.guest_count} · 🍽 {b.selected_menu?.name || '-'} · 💰 ₪{b.total_ils || 0}</div>
+                    {Array.isArray(b.selected_upsells) && b.selected_upsells.length > 0 && (
+                      <div className="text-xs text-slate-500 mt-0.5">✨ {b.selected_upsells.map((u) => u.name).join(', ')}</div>
+                    )}
                     {b.short_notice && <Badge className="bg-amber-100 text-amber-800 mt-1">Short-notice</Badge>}
                   </div>
                   <div className="flex gap-2">
-                    <Button size="sm" disabled={busy === b.id} onClick={() => act(b, 'approve')} className="bg-emerald-600 hover:bg-emerald-700">אשר</Button>
-                    <Button size="sm" disabled={busy === b.id} variant="outline" onClick={() => act(b, 'reject')} className="text-red-600">דחה והחזר</Button>
+                    <Button size="sm" disabled={busy === b.id} onClick={() => act(b, 'approve')} className="bg-emerald-600 hover:bg-emerald-700">אשר וחסום שולחן</Button>
+                    <Button size="sm" disabled={busy === b.id} variant="outline" onClick={() => act(b, 'reject')} className="text-red-600">דחה</Button>
                   </div>
                 </div>
               </div>

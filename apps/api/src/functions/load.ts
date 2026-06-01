@@ -3377,16 +3377,17 @@ registerFn('chatEventsInquiry', async ({ body }) => {
 
   const closingInstructions =
     `\n--- חוקי שיחה (קריטיים — חובה) ---\n` +
-    `0. **complete=true רק במקרים מאוד ספציפיים**: (א) הלקוח אמר במפורש "כן, סגור, מאשר/ת לתשלום הפיקדון" על מחיר סופי שהצעת. (ב) הלקוח אמר במפורש "לא, תודה, לא מתאים". בכל שאר המקרים — **complete=false תמיד**. אסור לך לסיים שיחה רק כי הצגת חבילה ושאלת "מה דעתך?". זה אמצע שיחה!\n` +
+    `0. **complete=true רק במקרים מאוד ספציפיים**: (א) הלקוח אמר במפורש "כן, סגור, מאשר/ת" על מחיר סופי שהצעת. (ב) הלקוח אמר במפורש "לא, תודה, לא מתאים". בכל שאר המקרים — **complete=false תמיד**. אסור לך לסיים שיחה רק כי הצגת חבילה ושאלת "מה דעתך?". זה אמצע שיחה!\n` +
     `1. **כשאתה שואל את הלקוח שאלה** (גם אם זה "מה דעתך?" או "האם להתקדם?"), חובה complete=false ו-stage='quoting' או 'collecting'. אתה ממתין לתשובה — לא סוגר.\n` +
     `2. לעולם אל תכתוב "תודה רבה! ליצור איתכם קשר אם זה מתאים לפורמט" באמצע שיחה. ביטוי כזה רק אם הלקוח אמר במפורש לא.\n` +
-    `3. לעולם אל תכתוב "[לינק לתשלום]" או "אני שולחת מיד" כפלייסהולדר. אל תזכיר בכלל את הלינק בטקסט שלך — המערכת מוסיפה אותו אוטומטית מתחת להודעה ברגע ש-stage='send_payment'.\n` +
-    `4. ברגע שהלקוח אמר "כן/סגור/מאשר" על מחיר סופי → **חובה** stage='send_payment' ו-complete=true בתשובה זו.\n` +
+    `3. **אסור להזכיר תשלום אונליין / לינק / Stripe / כרטיס אשראי בצ׳אט.** התשלום מתבצע בשיחה טלפונית עם המנהל, לא בצ׳אט. כשאתה סוגר עסקה — אומר "המנהל ייצור איתכם קשר תוך כמה שעות לאישור סופי ולתיאום תשלום". זהו. בלי לינק. בלי "אני שולחת תשלום".\n` +
+    `4. ברגע שהלקוח אמר "כן/סגור/מאשר" על מחיר סופי → **חובה** stage='send_payment' ו-complete=true בתשובה זו. הסוכן מסכם בקצרה את ההזמנה (תאריך, שעה, אורחים, חבילה, סכום) ומבטיח שהמנהל יתקשר.\n` +
     `5. **שדות חובה ב-collected כשאתה סוגר**: contact_name, contact_phone, event_date_iso (YYYY-MM-DD), event_time (HH:MM), guest_count, hours_window, selected_menu_name, total_ils. בלי השדות האלה לא נוצרת הזמנה.\n` +
     `6. **שאלת שעה חובה**: לפני שאתה סוגר — חובה לקבל שעת התחלה ספציפית (למשל "19:30"). אם לא צוין, שאל: "באיזו שעה תרצו שהאירוע יתחיל?"\n` +
     `7. **הודע על משך השולחן**: כשאתה מסכם את ההזמנה לפני הסכמה, ציין במפורש כמה זמן השולחן/המקום עומד לרשות הלקוחות. ברירת מחדל: 3 שעות מהשעה שביקשו (אלא אם TERMS מגדיר אחרת).\n` +
-    `8. נסה תמיד לסגור עד הסוף — אל תוותר כי "התקציב גבוה". הצע חלופות. אגרסיביות חיובית: כל פעם שלקוח מסכים על משהו (חבילה/תאריך) — תקדם לשלב הבא מיד.\n` +
-    `9. ההזמנה תמיד מותנת באישור סופי של מנהל המסעדה אחרי תשלום הפיקדון — ציין את זה כשאתה סוגר.\n`;
+    `8. **אפסיילים**: אם יש UPSELLS ב-SALES KIT, הצע אותם בעדינות אחרי שהלקוח בחר חבילה — לא להפציץ. לדוגמה: "האם תרצו להוסיף בר פתוח (תוספת 50 ש"ח לסועד)?". אם הלקוח לא מתעניין — תמשיך.\n` +
+    `9. נסה תמיד לסגור עד הסוף — אל תוותר כי "התקציב גבוה". הצע חלופות. אגרסיביות חיובית: כל פעם שלקוח מסכים על משהו (חבילה/תאריך) — תקדם לשלב הבא מיד.\n` +
+    `10. ההזמנה תמיד מותנת באישור סופי של מנהל המסעדה. ציין את זה כשאתה סוגר: "ההזמנה מותנת באישור סופי של מנהל המסעדה לאחר שיחה איתכם".\n`;
 
   const prompt = `${systemPrompt}${dateContext}${kitContext}${closingInstructions}\n--- שיחה עד כה ---\n${transcript || '(אין עדיין הודעות — זו תחילת השיחה)'}${newPart}\n\nהחזר JSON בלבד.`;
 
@@ -3523,6 +3524,10 @@ registerFn('chatEventsInquiry', async ({ body }) => {
       source: leadSource,
     };
 
+    // Owner asked to drop online payment for now — manager calls and charges manually.
+    bookingData.status = 'pending_manager_callback';
+    bookingData.payment_status = 'manual_pending';
+
     try {
       let booking: any = null;
       if (booking_id) {
@@ -3531,28 +3536,47 @@ registerFn('chatEventsInquiry', async ({ body }) => {
         booking = await db.eventBooking.create({ data: bookingData });
       }
       booking_id = booking.id;
-      // Build an absolute payment URL so the link works whether the chat is embedded or shared
-      const origin = (process.env.PUBLIC_APP_URL || 'https://topalena.com').replace(/\/$/, '');
-      payment_url = `${origin}/EventsPayment?booking=${booking_id}`;
+      // No payment URL — chat closes with a "manager will call" promise. Frontend hides any leftover CTA.
+      payment_url = null;
 
-      // Always append a clear payment CTA to the assistant reply — the LLM cannot know the booking id
-      // ahead of time, so we inject it here. The frontend also renders a visual button.
-      finalReply = `${finalReply}\n\n💳 לתשלום פיקדון של ₪${deposit} (מתוך ₪${total}):\n${payment_url}`;
+      // Append a clean closing line so the customer always sees the final summary in the chat
+      // regardless of what the LLM phrased on its own.
+      const summaryLines = [
+        '',
+        '📋 סיכום ההזמנה:',
+        `📅 ${booking.event_date}${booking.event_time ? ` בשעה ${booking.event_time}` : ''}`,
+        `👥 ${booking.guest_count} אורחים`,
+        booking.selected_menu ? `🍽 חבילה: ${(booking.selected_menu as any).name || '-'}` : null,
+        `💰 סכום משוער: ₪${total}`,
+        '',
+        '📞 מנהל המסעדה ייצור איתכם קשר בהקדם לאישור סופי ולתיאום התשלום. ההזמנה מותנית באישור המנהל.',
+      ].filter(Boolean).join('\n');
+      finalReply = `${finalReply}${summaryLines.startsWith('\n') ? '' : '\n'}${summaryLines}`;
 
-      // Notify the admin the moment a deal reaches the payment stage — even before payment is captured.
-      // This is the "intent-to-close" signal the owner asked for.
+      // FULL Pushover to the manager — everything they need to call the customer back.
       try {
+        const menuName = (booking.selected_menu as any)?.name || '-';
+        const upsellsList = Array.isArray(booking.selected_upsells) && booking.selected_upsells.length
+          ? booking.selected_upsells.map((u: any) => `${u.name}${u.price ? ` (₪${u.price})` : ''}`).join(', ')
+          : '—';
         const lines = [
-          '🎯 ליד אירוע הגיע לשלב תשלום פיקדון',
-          `👤 ${booking.customer_name || '-'} · ${booking.customer_phone || '-'}`,
-          `📅 ${booking.event_date} ${booking.event_time || ''}`,
+          '🎯 ליד אירוע סגר — צריך להתקשר ולגבות',
+          '',
+          `👤 ${booking.customer_name || 'ללא שם'}`,
+          `📞 ${booking.customer_phone || '-'}`,
+          '',
+          `📅 ${booking.event_date}${booking.event_time ? ` בשעה ${booking.event_time}` : ''}`,
+          booking.hours_window ? `🕒 חלון שעות: ${booking.hours_window}` : null,
           `👥 ${booking.guest_count} אורחים`,
-          booking.selected_menu ? `🍽 ${(booking.selected_menu as any).name || '-'}` : null,
-          `💰 סה"כ: ₪${total} · פיקדון נדרש: ₪${deposit}`,
-          shortNotice ? '⚡ Short-notice (עד 48h)' : null,
-          `🔗 ${payment_url}`,
+          `🍽 חבילה: ${menuName}`,
+          `✨ אפסיילים: ${upsellsList}`,
+          `💰 סה"כ משוער: ₪${total}`,
+          shortNotice ? '⚡ Short-notice (עד 48h) — דחוף' : null,
+          `📥 מקור: ${booking.source || '-'}`,
+          '',
+          '🔗 לאישור ב-/EventsPrivate',
         ].filter(Boolean).join('\n');
-        pushoverToAdmins('🎯 אירוע — ממתין לתשלום פיקדון', lines).catch(() => {});
+        pushoverToAdmins('🎯 אירוע נסגר — התקשר ללקוח', lines).catch(() => {});
       } catch { /* ignore */ }
     } catch (e: any) {
       console.error('[eventBooking.create]', e?.message);
@@ -3734,18 +3758,43 @@ registerFn('approveEventBooking', async ({ body, user }) => {
   if (!booking_id) throw new Error('booking_id required');
   const booking = await db.eventBooking.findUnique({ where: { id: booking_id } });
   if (!booking) throw new Error('booking_not_found');
+
+  // Manual-callback flow: the Reservation is created only here, when the manager has actually
+  // called the customer and confirmed the deal. This is what "blocks" the table in SeatingSetup.
+  let reservationId = booking.reservation_id || null;
+  if (!reservationId) {
+    try {
+      const reservation = await db.reservation.create({
+        data: {
+          customer_name: booking.customer_name || 'אירוע פרטי',
+          customer_phone: booking.customer_phone || null,
+          date: booking.event_date,
+          time: booking.event_time || '20:00',
+          party_size: booking.guest_count || 1,
+          status: 'confirmed',
+          special_occasion: 'private_event',
+          special_requests: `אירוע פרטי — חבילה: ${(booking.selected_menu as any)?.name || '-'} · סכום: ₪${booking.total_ils || 0}` + (booking.short_notice ? ' · ⚡ Short-notice' : ''),
+        },
+      });
+      reservationId = reservation.id;
+    } catch (e: any) {
+      console.error('approve→reservation create failed', e?.message);
+    }
+  } else {
+    await db.reservation.update({ where: { id: reservationId }, data: { status: 'confirmed' } }).catch(() => {});
+  }
+
   const updated = await db.eventBooking.update({
     where: { id: booking_id },
     data: {
       approval_status: 'approved',
       status: 'confirmed',
+      payment_status: 'manual_charged',
+      reservation_id: reservationId,
       approval_notes: notes || null,
       updated_date: new Date().toISOString(),
     },
   });
-  if (booking.reservation_id) {
-    await db.reservation.update({ where: { id: booking.reservation_id }, data: { status: 'confirmed' } }).catch(() => {});
-  }
   return { booking: updated };
 });
 
