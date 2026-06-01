@@ -3822,31 +3822,71 @@ registerFn('chatEventsInquiry', async ({ body }) => {
       ].filter(Boolean).join('\n');
       finalReply = `${finalReply}${summaryLines.startsWith('\n') ? '' : '\n'}${summaryLines}`;
 
-      // Generate a 2-3 sentence AI summary of the whole conversation so the manager
-      // sees the customer's voice + key context at a glance — both in the Pushover
-      // and on /EventsPrivate. Best-effort, won't block.
+      // Final extraction pass (mirrors what chatJobApplication does for candidates):
+      // re-read the FULL transcript with a strict schema to pull out the customer's name
+      // and any fields the per-turn LLM missed. The transcript is truth; the per-turn
+      // collected object is often lossy. Also generates the AI summary in the same call
+      // to save a round-trip. Best-effort, won't block on failure.
       let aiSummary = '';
+      let extractedName: string | null = null;
+      let extractedTotal: number | null = null;
+      let extractedMenuName: string | null = null;
       try {
         const transcriptForSummary = fullLog
           .map((m: any) => `${m.role === 'assistant' ? 'סוכן' : 'לקוח'}: ${m.content}`)
           .join('\n')
-          .slice(-4000);
-        const summaryRes: any = await invokeLLM({
+          .slice(-6000);
+        const extractRes: any = await invokeLLM({
           prompt:
-            `אתה מסכם שיחת מכירה בעברית למנהל מסעדה. כתוב 2-3 משפטים על השיחה: מה הלקוח רצה, איך הוא נשמע (התלהבות / היסוס / מחיר רגיש), אם היו דרישות מיוחדות, ומה דחוף לדעת לפני שיחת טלפון. אל תחזור על הנתונים המבניים (שם/טלפון/תאריך) — תתמקד בטון, ברצונות, ובמה שלא מובן מאליו.\n\n--- תמלול ---\n${transcriptForSummary}\n--- סוף ---\n\nהחזר JSON: { summary: "..." }`,
-          responseSchema: { type: 'object', properties: { summary: { type: 'string' } } },
+            `אתה מנתח שיחת מכירה בעברית למנהל מסעדה. החזר אך ורק JSON עם השדות הבאים, חלץ אותם מתוך התמלול:\n` +
+            `- customer_name (string או null): שם פרטי של הלקוח כפי שהוא הציג את עצמו. **חשוב**: לעולם אל תחזיר 'העוזרת', 'הסוכן', 'הסוכנת', 'עלינא', 'בוט' — אלה השמות של הסוכן הדיגיטלי. אם הלקוח לא נתן שם — null.\n` +
+            `- selected_menu_name (string או null): שם החבילה / התפריט שהלקוח בחר (אם בחר).\n` +
+            `- total_ils (integer או null): הסכום הסופי שהוסכם בש"ח.\n` +
+            `- summary (string): 2-3 משפטים על השיחה — מה הלקוח רצה, הטון שלו (התלהבות/היסוס/רגישות למחיר), דרישות מיוחדות, מה דחוף לדעת לפני שיחת הטלפון. אל תחזור על נתונים מבניים.\n\n` +
+            `--- תמלול ---\n${transcriptForSummary}\n--- סוף ---\n\nהחזר JSON בלבד.`,
+          responseSchema: {
+            type: 'object',
+            properties: {
+              customer_name: { type: 'string' },
+              selected_menu_name: { type: 'string' },
+              total_ils: { type: 'integer' },
+              summary: { type: 'string' },
+            },
+          },
         });
-        aiSummary = String(summaryRes?.summary || '').trim();
+        aiSummary = String(extractRes?.summary || '').trim();
+        const BANNED = ['העוזרת', 'הסוכן', 'הסוכנת', 'עלינא', 'אלינא', 'בוט'];
+        const nm = String(extractRes?.customer_name || '').trim();
+        if (nm && !BANNED.some((b) => nm.includes(b))) extractedName = nm;
+        if (extractRes?.selected_menu_name) extractedMenuName = String(extractRes.selected_menu_name).trim();
+        if (typeof extractRes?.total_ils === 'number') extractedTotal = Math.round(extractRes.total_ils);
       } catch (e: any) {
-        console.warn('[ai_summary] failed', e?.message);
+        console.warn('[ai_extract] failed', e?.message);
       }
 
-      // Persist the summary on both the booking and the lead so /EventsPrivate can show it.
+      // Persist the extracted info on both the booking and the lead so /EventsPrivate can show it.
       try {
-        if (aiSummary) {
-          await db.eventBooking.update({ where: { id: booking.id }, data: { notes: aiSummary } }).catch(() => {});
+        const bookingUpdate: any = {};
+        if (aiSummary) bookingUpdate.notes = aiSummary;
+        if (extractedName) bookingUpdate.customer_name = extractedName;
+        if (extractedMenuName && !(booking.selected_menu as any)?.name) bookingUpdate.selected_menu = { name: extractedMenuName };
+        if (extractedTotal && (!booking.total_ils || booking.total_ils !== extractedTotal)) {
+          bookingUpdate.total_ils = extractedTotal;
+          const depositPctNow = kit.deposit_pct ?? 20;
+          bookingUpdate.deposit_amount_ils = Math.round((extractedTotal * depositPctNow) / 100);
+        }
+        if (Object.keys(bookingUpdate).length > 0) {
+          await db.eventBooking.update({ where: { id: booking.id }, data: bookingUpdate }).catch(() => {});
+          // Reload booking so the Pushover sees the corrected values
+          const refreshed = await db.eventBooking.findUnique({ where: { id: booking.id } }).catch(() => null);
+          if (refreshed) booking = refreshed;
+        }
+        if (aiSummary || extractedName) {
+          const leadUpdate: any = {};
+          if (aiSummary) leadUpdate.ai_summary = aiSummary;
+          if (extractedName) leadUpdate.contact_name = extractedName;
           if (currentLeadId) {
-            await db.eventLead.update({ where: { id: currentLeadId }, data: { ai_summary: aiSummary } }).catch(() => {});
+            await db.eventLead.update({ where: { id: currentLeadId }, data: leadUpdate }).catch(() => {});
           }
         }
       } catch { /* ignore */ }
