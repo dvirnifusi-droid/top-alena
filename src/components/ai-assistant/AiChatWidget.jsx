@@ -580,7 +580,7 @@ export default function AiChatWidget() {
 
     return (
         <div className="w-full">
-            <Card className={`w-full shadow-2xl border-0 bg-white/95 backdrop-blur-sm ${isMinimized ? 'h-16' : 'h-[500px]'}`}>
+            <Card className={`w-full shadow-2xl border-0 bg-white/95 backdrop-blur-sm flex flex-col ${isMinimized ? 'h-16' : 'h-[600px] sm:h-[640px] lg:h-[min(80vh,720px)]'}`}>
                 <CardHeader className="flex flex-row items-center justify-between bg-gradient-to-r from-orange-600 to-red-600 text-white p-3 sm:p-4 rounded-t-lg">
                     <div className="flex items-center gap-2">
                         <img 
@@ -638,7 +638,7 @@ export default function AiChatWidget() {
                 )}
 
                 {!isMinimized && (
-                    <CardContent className="p-0 flex flex-col h-full relative">
+                    <CardContent className="p-0 flex flex-col flex-1 min-h-0 relative">
 
                         {/* מד התקדמות לימוד תפריט */}
                         {showProgress && trainingMode && (
@@ -664,7 +664,7 @@ export default function AiChatWidget() {
                             </button>
                         )}
 
-                        <div ref={chatContainerRef} className="flex-1 p-3 sm:p-4 space-y-3 sm:space-y-4 overflow-y-auto max-h-[350px] sm:max-h-[430px] lg:max-h-[470px]">
+                        <div ref={chatContainerRef} className="flex-1 min-h-0 p-3 sm:p-4 space-y-3 sm:space-y-4 overflow-y-auto">
                             {messages.map((message) => (
                                 <div key={message.id} className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}>
                                     {message.type === 'training_summary' ? (
