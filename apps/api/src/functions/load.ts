@@ -4071,6 +4071,18 @@ registerFn('listEventBookings', async () => {
   return { bookings, _count: bookings.length };
 });
 
+// AUTH — confirmed-events timeline for /EventsPrivate.
+// Returns approved bookings sorted by event_date ascending, only future or today.
+registerFn('listUpcomingConfirmedEvents', async () => {
+  const today = new Date().toISOString().slice(0, 10);
+  const bookings = await db.eventBooking.findMany({
+    where: { approval_status: 'approved', event_date: { gte: today } },
+    orderBy: [{ event_date: 'asc' }, { event_time: 'asc' }],
+    take: 100,
+  });
+  return { events: bookings, _count: bookings.length };
+});
+
 registerFn('getEventBooking', async ({ body }) => {
   const { booking_id } = body as any;
   if (!booking_id) throw new Error('booking_id required');

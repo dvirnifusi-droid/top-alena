@@ -3,8 +3,9 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Loader2, RefreshCw, Sparkles, CalendarHeart, Copy, Check, ExternalLink, QrCode, Flame, CheckCircle2, Trash2, Search, Filter } from 'lucide-react';
+import { Loader2, RefreshCw, Sparkles, CalendarHeart, Copy, Check, ExternalLink, QrCode, Flame, CheckCircle2, Trash2, Search, Filter, MessageCircle, Phone, X, CalendarDays } from 'lucide-react';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { base44 } from '@/api/base44Client';
 
 const UTM_SOURCES = [
@@ -98,19 +99,19 @@ function BookingsCard() {
   const [bookings, setBookings] = React.useState([]);
   const [loading, setLoading] = React.useState(true);
   const [busy, setBusy] = React.useState(null);
+  const [confirmModal, setConfirmModal] = React.useState(null); // approved booking awaiting customer notification
 
   const load = React.useCallback(async () => {
     setLoading(true);
     try {
       const r = await base44.functions.listEventBookings({});
-      // base44Client wraps as { data, status } — same axios shape used across the app.
       setBookings(r?.data?.bookings || r?.bookings || []);
     } catch { setBookings([]); }
     finally { setLoading(false); }
   }, []);
   React.useEffect(() => { load(); }, [load]);
   React.useEffect(() => {
-    const id = setInterval(() => { load(); }, 20000);
+    const id = setInterval(() => { load(); }, 120000); // 2 minutes, matches the parent
     return () => clearInterval(id);
   }, [load]);
 
@@ -121,6 +122,8 @@ function BookingsCard() {
       const fn = action === 'approve' ? 'approveEventBooking' : 'rejectEventBooking';
       await base44.functions[fn]({ booking_id: booking.id, notes });
       await load();
+      // On approve: open the customer-message modal so the manager can send a confirmation.
+      if (action === 'approve') setConfirmModal(booking);
     } catch (e) { alert('פעולה נכשלה: ' + (e?.message || '')); }
     finally { setBusy(null); }
   };
@@ -251,6 +254,169 @@ function BookingsCard() {
               ))}
             </div>
           </details>
+        )}
+      </CardContent>
+      {confirmModal && <CustomerConfirmModal booking={confirmModal} onClose={() => setConfirmModal(null)} />}
+    </Card>
+  );
+}
+
+// Modal that opens after the manager approves a booking. Pre-fills a Hebrew confirmation
+// message with the event details and offers one-click sending via WhatsApp or SMS, or
+// copy-to-clipboard. wa.me / sms: are native deep links — no backend integration needed.
+function CustomerConfirmModal({ booking, onClose }) {
+  const phoneClean = (booking.customer_phone || '').replace(/\D/g, '');
+  const waNumber = phoneClean.startsWith('0') ? '972' + phoneClean.slice(1) : phoneClean;
+  const weekday = (() => {
+    if (!booking.event_date) return '';
+    try {
+      const d = new Date(booking.event_date + 'T00:00');
+      return ['ראשון','שני','שלישי','רביעי','חמישי','שישי','שבת'][d.getDay()];
+    } catch { return ''; }
+  })();
+  const defaultMsg =
+    `שלום ${booking.customer_name || ''} 🌿\n\n` +
+    `ההזמנה שלכם אצלנו אושרה ✅\n\n` +
+    `📅 ${booking.event_date}${weekday ? ` (יום ${weekday})` : ''}\n` +
+    `🕒 ${booking.event_time || ''}\n` +
+    `👥 ${booking.guest_count} אורחים\n` +
+    `🍽 ${booking.selected_menu?.name || ''}\n` +
+    `💰 סה"כ: ₪${booking.total_ils || 0}` +
+    (booking.deposit_amount_ils ? `\n💳 פיקדון לגבייה: ₪${booking.deposit_amount_ils}` : '') +
+    `\n\nנשמח לראותכם!\n— צוות עלינא`;
+  const [msg, setMsg] = React.useState(defaultMsg);
+  const [copied, setCopied] = React.useState(false);
+  const copy = () => {
+    try { navigator.clipboard.writeText(msg); } catch {}
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+  const waLink = `https://wa.me/${waNumber}?text=${encodeURIComponent(msg)}`;
+  const smsLink = `sms:${booking.customer_phone}?body=${encodeURIComponent(msg)}`;
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto" dir="rtl" onClick={(e) => e.stopPropagation()}>
+        <div className="p-4 border-b flex items-center justify-between">
+          <h3 className="font-bold text-lg">📩 שליחת אישור ללקוח</h3>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-700"><X className="w-5 h-5" /></button>
+        </div>
+        <div className="p-4 space-y-3">
+          <div className="text-sm text-slate-600">
+            ההזמנה אושרה, השולחן נחסם ב-SeatingSetup. עכשיו שלח/י ללקוח אישור — אפשר לערוך את הטקסט:
+          </div>
+          <Textarea value={msg} onChange={(e) => setMsg(e.target.value)} rows={10} className="text-sm font-mono" />
+          <div className="grid grid-cols-2 gap-2">
+            <a href={waLink} target="_blank" rel="noreferrer"
+               className="flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white rounded-lg py-3 px-4 font-bold transition">
+              <MessageCircle className="w-4 h-4" /> WhatsApp
+            </a>
+            <a href={smsLink}
+               className="flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg py-3 px-4 font-bold transition">
+              <Phone className="w-4 h-4" /> SMS
+            </a>
+          </div>
+          <button onClick={copy} className="w-full flex items-center justify-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg py-2 font-medium text-sm transition">
+            {copied ? <><Check className="w-4 h-4" /> הועתק!</> : <><Copy className="w-4 h-4" /> העתק טקסט</>}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Timeline of approved upcoming events. Sorted by date ascending. Owner sees what's coming.
+function UpcomingEventsTimeline() {
+  const [events, setEvents] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const r = await base44.functions.listUpcomingConfirmedEvents({});
+      setEvents(r?.data?.events || r?.events || []);
+    } catch { setEvents([]); }
+    finally { setLoading(false); }
+  }, []);
+  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    const id = setInterval(() => { load(); }, 120000);
+    return () => clearInterval(id);
+  }, [load]);
+
+  // Group events by date so the timeline reads naturally
+  const byDate = events.reduce((acc, e) => {
+    const k = e.event_date || 'ללא תאריך';
+    (acc[k] = acc[k] || []).push(e);
+    return acc;
+  }, {});
+  const dateKeys = Object.keys(byDate).sort();
+  const today = new Date().toISOString().slice(0, 10);
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base flex items-center gap-2"><CalendarDays className="w-4 h-4 text-blue-500" /> אירועים מאושרים — הבאים בתור</CardTitle>
+        <CardDescription>אירועים שאישרת. ה-Reservation שלהם חסום ב-SeatingSetup. סדר כרונולוגי.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        {loading ? (
+          <div className="flex justify-center py-6"><Loader2 className="w-5 h-5 animate-spin text-slate-400" /></div>
+        ) : dateKeys.length === 0 ? (
+          <p className="text-sm text-muted-foreground text-center py-4">אין אירועים מאושרים קדימה.</p>
+        ) : (
+          <div className="space-y-4">
+            {dateKeys.map((date) => {
+              const weekday = (() => {
+                try { return ['ראשון','שני','שלישי','רביעי','חמישי','שישי','שבת'][new Date(date + 'T00:00').getDay()]; }
+                catch { return ''; }
+              })();
+              const isToday = date === today;
+              return (
+                <div key={date}>
+                  <div className={`text-xs font-bold mb-1 pb-1 border-b ${isToday ? 'text-emerald-700 border-emerald-300' : 'text-slate-500 border-slate-200'}`}>
+                    📅 {date} {weekday && `(יום ${weekday})`} {isToday && '· היום ⚡'}
+                  </div>
+                  <div className="space-y-1.5">
+                    {byDate[date].map((e) => {
+                      const dur = e.selected_menu?.table_duration_hours || 3;
+                      const endTime = (() => {
+                        if (!e.event_time) return null;
+                        try {
+                          const [h, m] = e.event_time.split(':').map(Number);
+                          return `${String((h + dur) % 24).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+                        } catch { return null; }
+                      })();
+                      const phoneClean = (e.customer_phone || '').replace(/\D/g, '');
+                      const waNum = phoneClean.startsWith('0') ? '972' + phoneClean.slice(1) : phoneClean;
+                      return (
+                        <div key={e.id} className="flex items-center gap-3 p-2 bg-blue-50 border border-blue-200 rounded-lg text-sm">
+                          <div className="font-mono text-blue-900 font-bold text-xs whitespace-nowrap">
+                            {e.event_time || '—'}{endTime ? `-${endTime}` : ''}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="font-bold truncate">{e.customer_name || 'ללא שם'}</div>
+                            <div className="text-xs text-slate-600 truncate">
+                              👥 {e.guest_count} · 🍽 {e.selected_menu?.name || '-'} · ₪{e.total_ils || 0}
+                            </div>
+                          </div>
+                          {e.customer_phone && (
+                            <div className="flex gap-1 flex-shrink-0">
+                              <a href={`tel:${e.customer_phone}`} className="bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 rounded p-1.5" title="חייג">
+                                <Phone className="w-3.5 h-3.5" />
+                              </a>
+                              <a href={`https://wa.me/${waNum}`} target="_blank" rel="noreferrer" className="bg-white border border-green-300 hover:bg-green-50 text-green-700 rounded p-1.5" title="WhatsApp">
+                                <MessageCircle className="w-3.5 h-3.5" />
+                              </a>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         )}
       </CardContent>
     </Card>
@@ -435,6 +601,7 @@ export default function EventsPrivatePage() {
       </Card>
 
       <BookingsCard />
+      <UpcomingEventsTimeline />
     </div>
   );
 }
