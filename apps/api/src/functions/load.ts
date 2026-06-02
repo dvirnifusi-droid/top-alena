@@ -6344,11 +6344,10 @@ registerFn('scrubNullBytesAllTables', async () => {
   `;
   const results: Array<{ stmt: string; ok: boolean; affected?: number; error?: string }> = [];
   for (const c of cols) {
-    // Only update where 0x00 is actually present — skips clean columns.
-    const isJson = false; // skip JSON until needed; PG handles it as text-like
-    const stmt = isJson
-      ? `UPDATE "${c.table_name}" SET "${c.column_name}" = REPLACE("${c.column_name}"::text, E'\\x00', '')::jsonb WHERE "${c.column_name}"::text LIKE '%' || E'\\x00' || '%'`
-      : `UPDATE "${c.table_name}" SET "${c.column_name}" = REPLACE("${c.column_name}", E'\\x00', '') WHERE "${c.column_name}" LIKE '%' || E'\\x00' || '%'`;
+    // Use chr(0) (server-side function call) — embedding the literal byte
+    // 0x00 in the query body would cause PG to reject the whole statement
+    // with errcode 22021 ("invalid byte sequence for encoding UTF8").
+    const stmt = `UPDATE "${c.table_name}" SET "${c.column_name}" = replace("${c.column_name}", chr(0), '') WHERE strpos("${c.column_name}", chr(0)) > 0`;
     try {
       const n = await (prisma as any).$executeRawUnsafe(stmt);
       if (n > 0) results.push({ stmt, ok: true, affected: Number(n) });
