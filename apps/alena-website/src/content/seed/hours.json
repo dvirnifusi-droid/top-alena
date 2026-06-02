@@ -1,0 +1,9 @@
+[
+  { "_type": "hours", "_id": "hours-sun", "day": "sun", "closed": false, "ranges": [{ "open": "12:00", "close": "00:00", "label": "Burger Night" }] },
+  { "_type": "hours", "_id": "hours-mon", "day": "mon", "closed": false, "ranges": [{ "open": "12:00", "close": "00:00", "label": "Wine Evening" }] },
+  { "_type": "hours", "_id": "hours-tue", "day": "tue", "closed": false, "ranges": [{ "open": "12:00", "close": "00:00", "label": "Butcher Night" }] },
+  { "_type": "hours", "_id": "hours-wed", "day": "wed", "closed": false, "ranges": [{ "open": "12:00", "close": "00:00" }] },
+  { "_type": "hours", "_id": "hours-thu", "day": "thu", "closed": false, "ranges": [{ "open": "12:00", "close": "02:00" }] },
+  { "_type": "hours", "_id": "hours-fri", "day": "fri", "closed": true, "ranges": [] },
+  { "_type": "hours", "_id": "hours-sat", "day": "sat", "closed": false, "ranges": [{ "open": "20:15", "close": "02:00", "label": "מוצ\"ש" }] }
+]

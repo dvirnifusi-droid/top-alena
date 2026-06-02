@@ -1,0 +1,7 @@
+[
+  { "_type": "review", "_id": "rev-1", "author": "אריאל ב.", "rating": 5, "body": "אווירה מעולה, בשר מצוין, שירות אישי. נחזור.", "source": "Direct", "date": "2026-05-10" },
+  { "_type": "review", "_id": "rev-2", "author": "מיכל ה.", "rating": 5, "body": "ארוחה מושלמת לזוגות, ההמבורגר מצוין.", "source": "Direct", "date": "2026-04-22" },
+  { "_type": "review", "_id": "rev-3", "author": "יוסי ק.", "rating": 4, "body": "תפריט מגוון, המחירים הוגנים. ה-Butcher Night ביום שלישי שווה הגעה.", "source": "Direct", "date": "2026-04-12" },
+  { "_type": "review", "_id": "rev-4", "author": "דנה ל.", "rating": 5, "body": "ארגנו אצלם אירוע חברה ל-40 איש — מקצועיות מלאה, אוכל מעולה.", "source": "Direct", "date": "2026-03-18" },
+  { "_type": "review", "_id": "rev-5", "author": "אבי ש.", "rating": 5, "body": "חמארה ים-תיכונית במלוא מובן המילה. החומוס פצצה.", "source": "Direct", "date": "2026-03-02" }
+]
