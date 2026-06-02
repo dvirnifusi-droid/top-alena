@@ -10,7 +10,7 @@ import { sendSms, sendWhatsApp } from '../lib/twilio.js';
 import { pushover, pushoverToAdmins } from '../lib/pushover.js';
 import { sendTelegramMessage } from '../lib/telegram.js';
 import { sendEmail } from '../lib/email.js';
-import { invokeLLM } from '../lib/llm.js';
+import { invokeLLM, generateImage } from '../lib/llm.js';
 import { driveAccessToken, listDriveFiles, downloadDriveFile } from '../lib/gdrive.js';
 import { uploadStreamToS3 } from '../lib/storage.js';
 import { Readable } from 'node:stream';
@@ -4737,19 +4737,26 @@ registerFn('deleteWaiterOrder', async ({ body }) => {
 
 const ALINA_BRAND_VOICE = `אתה כותב בשם המסעדה "עלינא" בירושלים — Jerusalem-Chic, smoky, אנרגטי, חם, לא קלישאתי. עברית טבעית בלבד, בלי אימוג'ים מוגזמים. דגש על אש, ג'וספר, חוויה, סיפור.`;
 
+// Pita Alena ad account (provided by owner). Token still comes from env.
+const META_AD_ACCOUNT_ID = process.env.META_AD_ACCOUNT_ID || '1678566132326169';
+const META_TOKEN = () => process.env.META_ADS_ACCESS_TOKEN;
+
 const AGENT_REGISTRY: Record<string, { label: string; needs?: string[] }> = {
   copywriter:           { label: 'Copywriter' },
   storyteller:          { label: 'Storyteller / Newsletter' },
   trend_spotter:        { label: 'Trend-Spotter' },
   menu_engineer:        { label: 'Menu Engineer' },
   conversational:       { label: 'Conversational (DM responder)' },
-  visual_designer:      { label: 'Visual Designer', needs: ['MIDJOURNEY_API_KEY or IDEOGRAM_API_KEY', 'CANVA_API_KEY (optional)'] },
-  main_media_buyer:     { label: 'Main Media Buyer', needs: ['META_ADS_ACCESS_TOKEN', 'META_AD_ACCOUNT_ID'] },
-  event_campaigns:      { label: 'Event Campaigns', needs: ['META_ADS_ACCESS_TOKEN', 'META_AD_ACCOUNT_ID'] },
-  lunch_campaigns:      { label: 'Lunch Campaigns', needs: ['META_ADS_ACCESS_TOKEN', 'META_AD_ACCOUNT_ID'] },
-  evening_campaigns:    { label: 'Evening/Delivery Campaigns', needs: ['META_ADS_ACCESS_TOKEN', 'META_AD_ACCOUNT_ID'] },
-  optimization_analyst: { label: 'Optimization Analyst', needs: ['META_ADS_ACCESS_TOKEN', 'META_AD_ACCOUNT_ID'] },
+  visual_designer:      { label: 'Visual Designer' }, // Uses Google Imagen via existing GEMINI_API_KEY — live.
+  main_media_buyer:     { label: 'Main Media Buyer' },
+  event_campaigns:      { label: 'Event Campaigns' },
+  lunch_campaigns:      { label: 'Lunch Campaigns' },
+  evening_campaigns:    { label: 'Evening/Delivery Campaigns' },
+  optimization_analyst: { label: 'Optimization Analyst' },
 };
+
+// Ad-account is hardcoded; only the access token is gated.
+const META_AGENTS = new Set(['main_media_buyer', 'event_campaigns', 'lunch_campaigns', 'evening_campaigns', 'optimization_analyst']);
 
 async function runCopywriter(input: any) {
   const { topic, channel = 'instagram', length = 'short', cta } = input || {};
@@ -4818,6 +4825,64 @@ async function runMenuEngineer(input: any) {
   return result;
 }
 
+async function runVisualDesigner(input: any) {
+  const { brief, style = 'food photography, smoky, warm light, Jerusalem-Chic, josper fire, shallow depth of field' } = input || {};
+  if (!brief) throw new Error('brief required');
+  const fullPrompt = `${brief}. Style: ${style}. Hyper-realistic, professional restaurant photography for Alina restaurant in Jerusalem.`;
+  const img = await generateImage({ prompt: fullPrompt });
+  return {
+    prompt_used: fullPrompt,
+    image_base64: img.image_base64,
+    note: img.image_base64 ? 'תמונה נוצרה דרך Google Imagen' : 'Imagen לא החזיר תמונה — נסה שוב או שנה ניסוח',
+  };
+}
+
+async function metaApi(path: string, method: 'GET' | 'POST' = 'GET', body?: any) {
+  const token = META_TOKEN();
+  if (!token) throw new Error('META_ADS_ACCESS_TOKEN not configured');
+  const url = `https://graph.facebook.com/v21.0${path}${path.includes('?') ? '&' : '?'}access_token=${encodeURIComponent(token)}`;
+  const res = await fetch(url, {
+    method,
+    headers: { 'Content-Type': 'application/json' },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const data: any = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(`Meta API ${res.status}: ${JSON.stringify(data?.error || data)}`);
+  return data;
+}
+
+async function runMetaAgent(agentKey: string, input: any) {
+  // For now all Meta agents share the same primitive: pull recent campaigns +
+  // their insights, then ask the LLM to give recommendations scoped to the
+  // agent's focus (events / lunch / evening / overall / optimization).
+  const focusMap: Record<string, string> = {
+    main_media_buyer: 'אסטרטגיה כוללת של תקציבי מדיה — הקצאה בין קמפיינים שונים',
+    event_campaigns: 'קמפיינים לאירועים פרטיים (חתונות, ימי הולדת, חברות)',
+    lunch_campaigns: 'ארוחת צהריים/עסקית — מנות מרג\'ין גבוה',
+    evening_campaigns: 'ערב ומשלוחים — Wolt, Tabit, שעות 18:00-22:00',
+    optimization_analyst: 'אופטימיזציה רציפה — להעלות תקציב למוצלחים, לכבות מודעות לא יעילות',
+  };
+  const focus = focusMap[agentKey] || 'מדיה כללית';
+
+  // Pull live data from Meta
+  const campaigns = await metaApi(
+    `/act_${META_AD_ACCOUNT_ID}/campaigns?fields=id,name,status,objective,daily_budget,lifetime_budget,insights{spend,impressions,clicks,ctr,cpc,actions}&limit=25`,
+  );
+
+  const result: any = await invokeLLM({
+    prompt: `${ALINA_BRAND_VOICE}\n\nאתה ${focusMap[agentKey] ? `סוכן מדיה עם פוקוס על: ${focus}` : 'סוכן מדיה כללי'}.\nלהלן ${campaigns?.data?.length || 0} קמפיינים פעילים/אחרונים של עלינא במטא:\n${JSON.stringify(campaigns?.data || [], null, 2)}\n\n${input?.goal ? `מטרת ההרצה הספציפית: ${input.goal}` : ''}\n\nתן ניתוח קצר + 3-5 פעולות קונקרטיות. החזר JSON: { analysis, actions: [{ campaign_id?, action, reason, expected_impact }] }`,
+    responseSchema: {
+      type: 'object',
+      properties: {
+        analysis: { type: 'string' },
+        actions: { type: 'array', items: { type: 'object', properties: { campaign_id: { type: 'string' }, action: { type: 'string' }, reason: { type: 'string' }, expected_impact: { type: 'string' } } } },
+      },
+    },
+  });
+
+  return { ad_account_id: META_AD_ACCOUNT_ID, focus, campaigns_count: campaigns?.data?.length || 0, ...result };
+}
+
 async function runConversational(input: any) {
   const { incoming_message, customer_context = '', channel = 'instagram_dm' } = input || {};
   if (!incoming_message) throw new Error('incoming_message required');
@@ -4849,14 +4914,18 @@ registerFn('runMarketingAgent', async ({ body }) => {
     },
   });
 
-  // API-dependent agents: not flipping live without keys.
-  if (meta.needs && meta.needs.length) {
+  // Meta agents need the access token. If missing, return needs_integration
+  // with the exact key — but ad-account ID is already wired so it's not listed.
+  if (META_AGENTS.has(agent_type) && !META_TOKEN()) {
     const updated = await db.marketingAgentRun.update({
       where: { id: run.id },
       data: {
         status: 'needs_integration',
-        needs_integration: meta.needs,
-        output: { message: `סוכן ${meta.label} מוכן לעבודה אבל דורש מפתחות API כדי לרוץ באמת.`, integrations_required: meta.needs },
+        needs_integration: ['META_ADS_ACCESS_TOKEN'],
+        output: {
+          message: `סוכן ${meta.label} מוכן. Ad account "pita alena" (${META_AD_ACCOUNT_ID}) כבר מוגדר. חסר רק META_ADS_ACCESS_TOKEN ב-env.`,
+          how_to_get: 'developers.facebook.com → Tools → Graph API Explorer → בחר את האפליקציה והדף, סמן הרשאות ads_read + ads_management, וצור Long-Lived Token (60 יום) או System User Token (לא פג).',
+        },
       },
     });
     return { run: updated };
@@ -4870,6 +4939,13 @@ registerFn('runMarketingAgent', async ({ body }) => {
       case 'trend_spotter':  output = await runTrendSpotter(input); break;
       case 'menu_engineer':  output = await runMenuEngineer(input); break;
       case 'conversational': output = await runConversational(input); break;
+      case 'visual_designer': output = await runVisualDesigner(input); break;
+      case 'main_media_buyer':
+      case 'event_campaigns':
+      case 'lunch_campaigns':
+      case 'evening_campaigns':
+      case 'optimization_analyst':
+        output = await runMetaAgent(agent_type, input); break;
       default: throw new Error(`No handler for ${agent_type}`);
     }
     const updated = await db.marketingAgentRun.update({

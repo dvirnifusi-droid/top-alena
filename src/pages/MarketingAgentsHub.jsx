@@ -66,13 +66,26 @@ function AgentInputForm({ agentKey, onChange, value }) {
           <Input placeholder="קונטקסט לקוח (אופציונלי)" value={value.customer_context || ''} onChange={(e) => set('customer_context', e.target.value)} />
         </div>
       );
-    default:
+    case 'visual_designer':
       return (
-        <div className="text-sm text-amber-700 bg-amber-50 p-3 rounded border border-amber-200 flex gap-2">
-          <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
-          <div>סוכן זה מחובר לפלטפורמות חיצוניות (Meta Ads / Midjourney). הרצה תיצור Run עם סטטוס "דורש מפתח API" — לחיים אמיתיים יש להגדיר את המפתחות שיופיעו ברשימה.</div>
+        <div className="space-y-2">
+          <Textarea placeholder="תאר את התמונה הרצויה (למשל: צלחת פרגית ג'וספר עם רוטב טחינה, אש ברקע)" value={value.brief || ''} onChange={(e) => set('brief', e.target.value)} />
+          <Input placeholder="סגנון (אופציונלי — ברירת מחדל: food photography Jerusalem-Chic)" value={value.style || ''} onChange={(e) => set('style', e.target.value)} />
         </div>
       );
+    case 'main_media_buyer':
+    case 'event_campaigns':
+    case 'lunch_campaigns':
+    case 'evening_campaigns':
+    case 'optimization_analyst':
+      return (
+        <div className="space-y-2">
+          <Textarea placeholder="מטרה ספציפית להרצה (אופציונלי — למשל: 'תקציב קמפיין אירועים נגמר תוך 3 ימים, מה לעשות?')" value={value.goal || ''} onChange={(e) => set('goal', e.target.value)} />
+          <div className="text-xs text-slate-500">חשבון: "pita alena" (1678566132326169). דורש META_ADS_ACCESS_TOKEN ב-env.</div>
+        </div>
+      );
+    default:
+      return null;
   }
 }
 
@@ -91,7 +104,15 @@ function RunOutputView({ run }) {
   if (run.status === 'failed') {
     return <div className="text-sm text-red-700">שגיאה: {run.error}</div>;
   }
-  return <pre className="text-xs bg-slate-50 p-3 rounded overflow-auto max-h-96 whitespace-pre-wrap break-words">{JSON.stringify(run.output, null, 2)}</pre>;
+  const out = run.output || {};
+  return (
+    <div className="space-y-2">
+      {out.image_base64 && (
+        <img src={`data:image/png;base64,${out.image_base64}`} alt="generated" className="rounded border max-h-96" />
+      )}
+      <pre className="text-xs bg-slate-50 p-3 rounded overflow-auto max-h-96 whitespace-pre-wrap break-words">{JSON.stringify({ ...out, image_base64: out.image_base64 ? '[image rendered above]' : undefined }, null, 2)}</pre>
+    </div>
+  );
 }
 
 export default function MarketingAgentsHub() {
