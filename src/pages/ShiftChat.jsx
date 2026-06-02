@@ -40,16 +40,17 @@ export default function ShiftChat() {
 
     useEffect(() => {
         // subscribe to real-time updates
+        const sameDay = (d) => (typeof d === 'string' ? d.slice(0, 10) : d) === today;
         const unsub = base44.entities.ShiftMessage.subscribe((event) => {
-            if (event.type === 'create' && event.data.shift_date === today && event.data.shift_type === selectedShift) {
+            if (event.type === 'create' && sameDay(event.data.shift_date) && event.data.shift_type === selectedShift) {
                 setMessages(prev => [...prev, event.data]);
                 markAsRead(event.data, user?.id);
             }
-            if (event.type === 'update' && event.data.shift_date === today && event.data.shift_type === selectedShift) {
+            if (event.type === 'update' && sameDay(event.data.shift_date) && event.data.shift_type === selectedShift) {
                 setMessages(prev => prev.map(msg => msg.id === event.id ? event.data : msg));
             }
             // Check for new messages not from current user
-            if (event.type === 'create' && event.data.shift_date === today && event.data.sender_id !== user?.id) {
+            if (event.type === 'create' && sameDay(event.data.shift_date) && event.data.sender_id !== user?.id) {
                 setHasNewMessages(true);
             }
         });

@@ -18,7 +18,9 @@ export default function WeeklyPerformanceWidget() {
           const d = new Date(); d.setDate(d.getDate() - i);
           days.push(d.toISOString().split('T')[0]);
         }
-        const reports = await base44.entities.ShiftEndReport.list('-shift_date', 20);
+        const rawReports = await base44.entities.ShiftEndReport.list('-shift_date', 20);
+        // Normalize ISO shift_date to YYYY-MM-DD for the equality compare below.
+        const reports = rawReports.map(r => ({ ...r, shift_date: typeof r.shift_date === 'string' ? r.shift_date.slice(0, 10) : r.shift_date }));
         const dayLabels = ['א', 'ב', 'ג', 'ד', 'ה', 'ו', 'ש'];
         const chartData = days.map(date => {
           const dayReports = reports.filter(r => r.shift_date === date);
