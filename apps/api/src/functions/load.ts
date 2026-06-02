@@ -4904,12 +4904,35 @@ async function runConversational(input: any) {
   return result;
 }
 
+let agentRunTableReady = false;
+async function ensureAgentRunTable() {
+  if (agentRunTableReady) return;
+  await (prisma as any).$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "MarketingAgentRun" (
+      "id" TEXT NOT NULL PRIMARY KEY,
+      "agent_type" TEXT NOT NULL,
+      "title" TEXT,
+      "status" TEXT NOT NULL DEFAULT 'pending',
+      "input" JSONB,
+      "output" JSONB,
+      "needs_integration" JSONB,
+      "error" TEXT,
+      "ran_at" TIMESTAMP(3),
+      "createdBy" TEXT,
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
+  agentRunTableReady = true;
+}
+
 registerFn('runMarketingAgent', async ({ body }) => {
   const { agent_type, input } = (body || {}) as any;
   if (!agent_type || !AGENT_REGISTRY[agent_type]) {
     throw new Error(`Unknown agent_type: ${agent_type}`);
   }
   const meta = AGENT_REGISTRY[agent_type];
+  await ensureAgentRunTable();
 
   // Create run record up front so we always have history.
   const run = await db.marketingAgentRun.create({
@@ -4972,6 +4995,7 @@ registerFn('runMarketingAgent', async ({ body }) => {
 
 registerFn('listMarketingAgentRuns', async ({ body }) => {
   const { agent_type, limit = 20 } = (body || {}) as any;
+  await ensureAgentRunTable();
   const where: any = {};
   if (agent_type) where.agent_type = agent_type;
   const runs = await db.marketingAgentRun.findMany({
