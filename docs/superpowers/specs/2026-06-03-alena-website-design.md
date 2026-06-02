@@ -157,7 +157,7 @@ Each of the 7 SEO landing pages uses the same structure but unique content:
 | Google Business Profile | Hours, reviews, photo sync | Needs owner-claim verification |
 | Google Maps Embed | Map + navigation | Address: רוטשילד 104, ראשון לציון |
 | Waze deep-link | Mobile navigation CTA | `https://waze.com/ul?ll=...` from address |
-| Instagram Basic Display API | Pull 12 latest from @alena.hamara | Needs Instagram app + access token |
+| Instagram Basic Display API | Pull 12 latest from [@alena.hamara](https://instagram.com/alena.hamara) | Needs Instagram app + access token |
 | Wolt / 10bis / תן ביס | Delivery link-out | Owner to confirm active services |
 | Resend | Event-lead emails | New Resend account on alena domain |
 | GA4 | Analytics + conversion goals | New property |
