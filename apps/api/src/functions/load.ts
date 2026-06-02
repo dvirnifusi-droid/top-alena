@@ -6309,7 +6309,11 @@ registerFn('repairDateColumnsToTimestamp', async () => {
   for (const r of rows) {
     const key = `${r.table_name}.${r.column_name}`;
     if (!want.has(key)) continue;
-    const stmt = `ALTER TABLE "${r.table_name}" ALTER COLUMN "${r.column_name}" TYPE TIMESTAMP(3) USING NULLIF(TRIM("${r.column_name}"::text), '')::timestamp`;
+    // Defensive USING: only convert values whose text form starts with
+    // YYYY-MM-DD; substring to first 10 chars to tolerate appended junk like
+    // "2025-10-10-27"; anything else becomes NULL. Avoids one corrupted row
+    // blocking the whole column conversion.
+    const stmt = `ALTER TABLE "${r.table_name}" ALTER COLUMN "${r.column_name}" TYPE TIMESTAMP(3) USING (CASE WHEN "${r.column_name}"::text ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}' THEN substring("${r.column_name}"::text, 1, 10)::timestamp ELSE NULL END)`;
     try {
       await (prisma as any).$executeRawUnsafe(stmt);
       results.push({ stmt, from: r.data_type, ok: true });
