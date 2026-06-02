@@ -4742,7 +4742,8 @@ registerFn('deleteWaiterOrder', async ({ body }) => {
 // owner sees exactly what's missing to flip them live.
 // =====================================================================
 
-const ALINA_BRAND_VOICE = `אתה כותב בשם המסעדה "עלינא" בירושלים — Jerusalem-Chic, smoky, אנרגטי, חם, לא קלישאתי. עברית טבעית בלבד, בלי אימוג'ים מוגזמים. דגש על אש, ג'וספר, חוויה, סיפור.`;
+const ALINA_BRAND_VOICE = `אתה כותב בשם המסעדה "עלינא" — ראשון לציון, רוטשילד 104 (סגנון Jerusalem-Chic, smoky, אנרגטי, חם, לא קלישאתי). עברית טבעית בלבד, בלי אימוג'ים מוגזמים. דגש על אש, ג'וספר, חוויה, סיפור.`;
+const ALINA_DEFAULT_CITIES = ['Rishon LeZion', 'Jerusalem'];
 
 // Pita Alena ad account (provided by owner). Token comes from DB (set via UI)
 // with env fallback for legacy setups.
@@ -4824,7 +4825,7 @@ async function runStoryteller(input: any) {
 async function runTrendSpotter(input: any) {
   const { niche = 'restaurant_jerusalem' } = input || {};
   const result: any = await invokeLLM({
-    prompt: `${ALINA_BRAND_VOICE}\n\nאתה Trend-Spotter. צור 5 זוויות תוכן טרנדיות שמתאימות לעלינא (ירושלים, ג'וספר, אש) על בסיס דפוסים שראית ב-TikTok/Instagram Reels בקטגוריית ${niche}. לכל זווית — תאר רעיון לסרטון/פוסט ולמה זה ידבר. החזר JSON: { trends: [{ title, hook, why_it_works, suggested_format }] }`,
+    prompt: `${ALINA_BRAND_VOICE}\n\nאתה Trend-Spotter. צור 5 זוויות תוכן טרנדיות שמתאימות לעלינא (ראשון לציון, ג'וספר, אש) על בסיס דפוסים שראית ב-TikTok/Instagram Reels בקטגוריית ${niche}. לכל זווית — תאר רעיון לסרטון/פוסט ולמה זה ידבר. החזר JSON: { trends: [{ title, hook, why_it_works, suggested_format }] }`,
     responseSchema: {
       type: 'object',
       properties: {
@@ -5197,7 +5198,7 @@ async function runVpMarketing(input: any) {
     .join('\n');
 
   const result: any = await invokeLLM({
-    prompt: `אתה VP Marketing של מסעדת עלינא (ירושלים, ג'וספר, אש). הבעלים (דביר) נתן לך יעד עסקי, ויש לך 11 סוכנים תחת אחריותך. תפקידך: לנתח את היעד, להעריך את המצב הנוכחי, ולבנות תוכנית פעולה ברורה שמחלקת את העבודה בין הסוכנים בסדר הנכון.
+    prompt: `אתה VP Marketing של מסעדת עלינא (ראשון לציון, רוטשילד 104. ג'וספר, אש). הבעלים (דביר) נתן לך יעד עסקי, ויש לך 11 סוכנים תחת אחריותך. תפקידך: לנתח את היעד, להעריך את המצב הנוכחי, ולבנות תוכנית פעולה ברורה שמחלקת את העבודה בין הסוכנים בסדר הנכון.
 
 יעד מהבעלים: "${goal}"
 
@@ -5479,14 +5480,14 @@ registerFn('createCampaignBrief', async ({ body }) => {
   // Generate brief structure via LLM (audience, objective, suggested budget,
   // headline title). Copy + image come from prior chain if provided.
   const draft: any = await invokeLLM({
-    prompt: `אתה מתכנן קמפיין פרסום במטא עבור מסעדת עלינא בירושלים.
+    prompt: `אתה מתכנן קמפיין פרסום במטא עבור מסעדת עלינא — ראשון לציון, רוטשילד 104.
 יעד עסקי: "${goal}"
 ${audience_hint ? `הצעת קהל יעד מהבעלים: ${audience_hint}` : ''}
 
 החזר JSON עם:
 - "title": שם קמפיין קצר (עד 50 תווים, ללא מירכאות)
 - "objective": אחד מהבאים בלבד — OUTCOME_LEADS / OUTCOME_TRAFFIC / OUTCOME_AWARENESS / OUTCOME_ENGAGEMENT
-- "audience": אובייקט { age_min (18-65), age_max (18-65), genders (מערך של "male"/"female", או שניהם), geo_locations_cities (מערך — לדוגמה ["Jerusalem", "Tel Aviv"]), interests_text (תיאור חופשי של תחומי עניין רלוונטיים) }
+- "audience": אובייקט { age_min (18-65), age_max (18-65), genders (מערך של "male"/"female", או שניהם), geo_locations_cities (מערך באנגלית — לרוב Rishon LeZion + ערים סמוכות כמו Ness Ziona, Rehovot, Holon, Bat Yam, Tel Aviv. הוסף Jerusalem רק אם רלוונטי לקהל), interests_text (תיאור חופשי של תחומי עניין רלוונטיים) }
 - "suggested_daily_budget_ils": תקציב יומי מומלץ בש"ח (מספר)
 - "rationale": משפט אחד למה הקהל והתקציב הזה`,
     responseSchema: {
@@ -5593,7 +5594,10 @@ registerFn('launchCampaignBrief', async ({ body }) => {
   if (brief.status !== 'approved') throw new Error(`brief must be approved before launch (current: ${brief.status})`);
 
   try {
-    // 1. Create campaign (PAUSED, with special_ad_categories=[] which Meta requires)
+    // 1. Create campaign (PAUSED).
+    // Meta requires either CBO (campaign-level budget) with explicit
+    // is_adset_budget_sharing_enabled, or no campaign budget at all so AdSets
+    // own their budget. We use the latter — daily_budget lives on the AdSet.
     const campaignRes = await metaApi(
       `/act_${META_AD_ACCOUNT_ID}/campaigns`,
       'POST',
@@ -5603,6 +5607,7 @@ registerFn('launchCampaignBrief', async ({ body }) => {
         status: 'PAUSED',
         special_ad_categories: [],
         buying_type: 'AUCTION',
+        is_adset_budget_sharing_enabled: false,
       },
     );
     const campaignId = campaignRes?.id;
@@ -5612,7 +5617,7 @@ registerFn('launchCampaignBrief', async ({ body }) => {
     const audience = (brief.audience as any) || {};
     const cities = Array.isArray(audience.geo_locations_cities) && audience.geo_locations_cities.length
       ? audience.geo_locations_cities
-      : ['Jerusalem'];
+      : ALINA_DEFAULT_CITIES;
     const targeting: any = {
       age_min: audience.age_min || 22,
       age_max: audience.age_max || 55,
