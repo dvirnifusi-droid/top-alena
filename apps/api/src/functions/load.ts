@@ -4445,15 +4445,17 @@ registerFn('chatWaiter', async ({ body }) => {
 
   const prompt = `${systemPrompt}${kitContext}\n--- שיחה עד כה ---\n${transcript || '(תחילת השיחה — קבל את הלקוח בברכה חמה ושאל כמה הם)'}${newPart}\n\nהחזר JSON בלבד.`;
 
-  // Claude Haiku 4.5 via Anthropic — chosen for waiter chat because it's consistently
-  // 1-3s, never flakes on Hebrew, and respects structured output reliably. Gemini Pro
-  // was 14-30s with intermittent 524s; Gemini Flash variants either hung or returned
-  // unreliable output. Falls back to Gemini if ANTHROPIC_API_KEY isn't set in env.
-  const callOnce = (forceProvider?: 'gemini' | 'anthropic') => invokeLLM({
+  // Best-effort LLM call with aggressive resilience:
+  //   1. Try Anthropic Claude Haiku (fastest + most reliable). If no API key OR it fails — fallback.
+  //   2. Fallback: 4 attempts to Gemini with 18s timeout each. Total worst case ~72s,
+  //      safely under Cloudflare's 100s.
+  //   3. If EVERYTHING fails — return a graceful canned response instead of throwing.
+  //      Customer sees a friendly nudge, NEVER the "סליחה, יש בעיה זמנית" bubble.
+  const callOnce = (forceProvider: 'gemini' | 'anthropic', toMs: number) => invokeLLM({
     prompt,
-    provider: forceProvider || 'anthropic',
-    model: 'claude-haiku-4-5',
-    timeoutMs: 25_000,
+    provider: forceProvider,
+    model: forceProvider === 'anthropic' ? 'claude-haiku-4-5' : undefined,
+    timeoutMs: toMs,
     maxOutputTokens: 1500,
     responseSchema: {
       type: 'object',
@@ -4469,20 +4471,47 @@ registerFn('chatWaiter', async ({ body }) => {
   });
 
   let result: any = null;
+  const errors: string[] = [];
+
+  // Attempt 1: Anthropic (will throw immediately if no ANTHROPIC_API_KEY → cheap to try)
   try {
-    result = await callOnce('anthropic');
+    result = await callOnce('anthropic', 25_000);
+    if (!result?.reply) { result = null; throw new Error('anthropic_empty'); }
   } catch (e: any) {
-    console.warn('[chatWaiter] anthropic call failed, falling back to gemini:', e?.message);
-    // Fallback to Gemini if Anthropic key isn't configured or the API is down
-    try {
-      result = await callOnce('gemini');
-    } catch (e2: any) {
-      console.error('[chatWaiter] both providers failed:', e?.message, e2?.message);
-      throw new Error('llm_unavailable');
+    errors.push(`anthropic: ${e?.message}`);
+  }
+
+  // Attempts 2-5: Gemini retries with 18s timeout each
+  if (!result?.reply) {
+    for (let attempt = 1; attempt <= 4; attempt++) {
+      try {
+        const r = await callOnce('gemini', 18_000);
+        if (r?.reply && String(r.reply).trim().length > 1) {
+          result = r;
+          break;
+        }
+        errors.push(`gemini#${attempt}: empty`);
+      } catch (e: any) {
+        errors.push(`gemini#${attempt}: ${e?.message}`);
+      }
     }
   }
-  if (!result || !result.reply) {
-    throw new Error('llm_empty_response');
+
+  // FINAL FALLBACK: never let the customer see a broken apology. Return a friendly
+  // canned reply that keeps the conversation alive. They can resend their last
+  // message and the next call will likely succeed.
+  if (!result?.reply) {
+    console.error('[chatWaiter] ALL attempts failed:', errors.join(' | '));
+    const turn = turns.length;
+    result = {
+      reply: turn === 0
+        ? 'שלום וברוכים הבאים לעלינא 🌿 רק רגע — אני מתחילה לעבוד, תכתבו לי שוב את ההודעה ואני מיד עונה.'
+        : 'רגע אחד 🌿 אני בודקת את התפריט בשבילכם. תכתבו לי שוב את ההודעה ואני מיד עונה.',
+      stage: 'collecting',
+      collected: {},
+      complete: false,
+      summary: '',
+    };
   }
 
   const c = result?.collected || {};
