@@ -81,6 +81,9 @@ type InvokeArgs = {
   responseSchema?: Record<string, unknown>;
   fileUrls?: string[];
   model?: string;
+  provider?: 'gemini' | 'anthropic';
+  maxOutputTokens?: number;
+  timeoutMs?: number;
 };
 
 // ---------------------------------------------------------------------------
@@ -145,7 +148,8 @@ async function geminiInvoke({ prompt, responseSchema, fileUrls, model }: InvokeA
 // Anthropic (Claude) — used when LLM_PROVIDER=anthropic
 // ---------------------------------------------------------------------------
 
-async function anthropicInvoke({ prompt, responseSchema, fileUrls, model }: InvokeArgs) {
+async function anthropicInvoke(args: InvokeArgs) {
+  const { prompt, responseSchema, fileUrls, model } = args;
   const modelName = model ?? DEFAULT_ANTHROPIC_MODEL;
   const content: any[] = [];
 
@@ -163,7 +167,7 @@ async function anthropicInvoke({ prompt, responseSchema, fileUrls, model }: Invo
 
   const body: any = {
     model: modelName,
-    max_tokens: 4096,
+    max_tokens: args.maxOutputTokens || 4096,
     messages: [{ role: 'user', content }],
   };
 
@@ -179,15 +183,27 @@ async function anthropicInvoke({ prompt, responseSchema, fileUrls, model }: Invo
     body.tool_choice = { type: 'tool', name: 'return_data' };
   }
 
-  const res = await fetch(`${ANTHROPIC_BASE}/messages`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': anthropicKey(),
-      'anthropic-version': '2023-06-01',
-    },
-    body: JSON.stringify(body),
-  });
+  const timeoutMs = args.timeoutMs || 60_000;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  let res: Response;
+  try {
+    res = await fetch(`${ANTHROPIC_BASE}/messages`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': anthropicKey(),
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
+  } catch (e: any) {
+    clearTimeout(timer);
+    if (e?.name === 'AbortError') throw new Error('llm_timeout');
+    throw e;
+  }
+  clearTimeout(timer);
   if (!res.ok) throw new Error(`Anthropic error ${res.status}: ${await res.text()}`);
   const data: any = await res.json();
 
@@ -209,7 +225,8 @@ async function anthropicInvoke({ prompt, responseSchema, fileUrls, model }: Invo
 // ---------------------------------------------------------------------------
 
 export async function invokeLLM(args: InvokeArgs) {
-  if (PROVIDER === 'anthropic') return anthropicInvoke(args);
+  const provider = (args as any).provider || PROVIDER;
+  if (provider === 'anthropic') return anthropicInvoke(args);
   return geminiInvoke(args);
 }
 

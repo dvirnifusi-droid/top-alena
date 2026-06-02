@@ -4445,12 +4445,16 @@ registerFn('chatWaiter', async ({ body }) => {
 
   const prompt = `${systemPrompt}${kitContext}\n--- שיחה עד כה ---\n${transcript || '(תחילת השיחה — קבל את הלקוח בברכה חמה ושאל כמה הם)'}${newPart}\n\nהחזר JSON בלבד.`;
 
-  // Same invokeLLM signature as events, wrapped in a silent retry. Gemini occasionally
-  // flakes (500 / timeout / empty response) — retrying once silently means the customer
-  // sees a slight delay instead of "סליחה, יש בעיה זמנית". The retry is cheap because
-  // the prompt is cached on Gemini's side.
-  const callOnce = () => invokeLLM({
+  // Claude Haiku 4.5 via Anthropic — chosen for waiter chat because it's consistently
+  // 1-3s, never flakes on Hebrew, and respects structured output reliably. Gemini Pro
+  // was 14-30s with intermittent 524s; Gemini Flash variants either hung or returned
+  // unreliable output. Falls back to Gemini if ANTHROPIC_API_KEY isn't set in env.
+  const callOnce = (forceProvider?: 'gemini' | 'anthropic') => invokeLLM({
     prompt,
+    provider: forceProvider || 'anthropic',
+    model: 'claude-haiku-4-5',
+    timeoutMs: 25_000,
+    maxOutputTokens: 1500,
     responseSchema: {
       type: 'object',
       properties: {
@@ -4465,25 +4469,20 @@ registerFn('chatWaiter', async ({ body }) => {
   });
 
   let result: any = null;
-  let lastErr: any = null;
-  for (let attempt = 1; attempt <= 3; attempt++) {
+  try {
+    result = await callOnce('anthropic');
+  } catch (e: any) {
+    console.warn('[chatWaiter] anthropic call failed, falling back to gemini:', e?.message);
+    // Fallback to Gemini if Anthropic key isn't configured or the API is down
     try {
-      result = await callOnce();
-      // Treat empty/missing reply as a soft failure and retry
-      if (!result || !result.reply || String(result.reply).trim().length < 2) {
-        lastErr = new Error('empty_reply');
-        result = null;
-        continue;
-      }
-      break;
-    } catch (e: any) {
-      lastErr = e;
-      console.warn(`[chatWaiter] attempt ${attempt} failed:`, e?.message);
+      result = await callOnce('gemini');
+    } catch (e2: any) {
+      console.error('[chatWaiter] both providers failed:', e?.message, e2?.message);
+      throw new Error('llm_unavailable');
     }
   }
-  if (!result) {
-    console.error('[chatWaiter] all 3 attempts failed:', lastErr?.message);
-    throw new Error('llm_unavailable_after_retries');
+  if (!result || !result.reply) {
+    throw new Error('llm_empty_response');
   }
 
   const c = result?.collected || {};
