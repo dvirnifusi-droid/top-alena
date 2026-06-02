@@ -5636,9 +5636,12 @@ registerFn('launchCampaignBrief', async ({ body }) => {
       const n = Number(v);
       return Number.isFinite(n) ? Math.round(n) : fallback;
     };
+    // Advantage Audience is the new Meta default (as of Q2 2026). Required
+    // for nearly every AdSet now. When enabled, age_max MUST be 65 — Meta
+    // treats lower max ages as a "suggestion" only.
     const targeting: any = {
       age_min: toInt(audience.age_min, 22),
-      age_max: toInt(audience.age_max, 55),
+      age_max: 65,
       geo_locations: {
         cities: cities.map((c: string) => ({
           name: c,
@@ -5647,6 +5650,7 @@ registerFn('launchCampaignBrief', async ({ body }) => {
           distance_unit: 'kilometer',
         })),
       },
+      targeting_automation: { advantage_audience: 1 },
     };
     if (Array.isArray(audience.genders) && audience.genders.length) {
       const g = audience.genders.map((x: string) => (x === 'female' ? 2 : 1));
@@ -5666,6 +5670,13 @@ registerFn('launchCampaignBrief', async ({ body }) => {
       : safeObjective === 'OUTCOME_AWARENESS' ? 'REACH'
       : safeObjective === 'OUTCOME_ENGAGEMENT' ? 'POST_ENGAGEMENT'
       : 'LINK_CLICKS';
+    // Meta now requires end_time on any daily_budget AdSet (otherwise its
+    // internal budget calc gets NULL and rejects with sub-error 1885097).
+    // Default: 7 days from now. Owner can change end_date on the brief.
+    const endTime = brief.end_date
+      ? Math.floor(new Date(brief.end_date).getTime() / 1000)
+      : Math.floor(Date.now() / 1000) + 7 * 24 * 60 * 60;
+
     const adsetPayload: any = {
       name: `${brief.title} — AdSet`,
       campaign_id: campaignId,
@@ -5673,6 +5684,7 @@ registerFn('launchCampaignBrief', async ({ body }) => {
       billing_event: 'IMPRESSIONS',
       optimization_goal: optimizationGoal,
       bid_strategy: 'LOWEST_COST_WITHOUT_CAP',
+      end_time: endTime,
       targeting,
       status: 'PAUSED',
     };
