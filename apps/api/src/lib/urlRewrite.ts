@@ -20,10 +20,20 @@ export function rewriteFileUrl(v: any): any {
 
 // Walks an arbitrary JSON value and rewrites any matching strings in place.
 // Used as a Fastify preSerialization hook so it covers every JSON response.
+//
+// CRITICAL: only recurse into PLAIN objects. Non-plain objects (Date, Buffer,
+// Prisma.Decimal etc.) have no enumerable own keys, so the previous version
+// silently replaced them with `{}` — which broke every entity response that
+// included a DateTime column once those columns were converted from TEXT to
+// TIMESTAMP (Prisma then returns Date instances instead of strings).
 export function rewriteFileUrlsDeep(v: any): any {
   if (typeof v === 'string') return rewriteFileUrl(v);
   if (Array.isArray(v)) return v.map(rewriteFileUrlsDeep);
   if (v && typeof v === 'object') {
+    // Preserve Date, Buffer, and any custom-class instance unchanged. Only
+    // plain object literals (prototype Object.prototype / null) get walked.
+    const proto = Object.getPrototypeOf(v);
+    if (proto !== Object.prototype && proto !== null) return v;
     const out: any = {};
     for (const k of Object.keys(v)) out[k] = rewriteFileUrlsDeep(v[k]);
     return out;
