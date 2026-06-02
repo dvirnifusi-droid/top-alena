@@ -109,11 +109,25 @@ async function geminiInvoke({ prompt, responseSchema, fileUrls, model }: InvokeA
     body.generationConfig = { maxOutputTokens: (args as any).maxOutputTokens };
   }
 
-  const res = await fetch(`${GEMINI_BASE}/models/${modelName}:generateContent?key=${geminiKey()}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
+  // Hard timeout — Cloudflare drops requests at 100s. We give up at 60s and surface a clean
+  // error so the frontend can show a retry button instead of a generic HTTP 524.
+  const timeoutMs = (args as any).timeoutMs || 60_000;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  let res: Response;
+  try {
+    res = await fetch(`${GEMINI_BASE}/models/${modelName}:generateContent?key=${geminiKey()}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
+  } catch (e: any) {
+    clearTimeout(timer);
+    if (e?.name === 'AbortError') throw new Error('llm_timeout');
+    throw e;
+  }
+  clearTimeout(timer);
   if (!res.ok) throw new Error(`Gemini error ${res.status}: ${await res.text()}`);
   const data: any = await res.json();
   const text = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? '';

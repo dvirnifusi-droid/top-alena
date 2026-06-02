@@ -4420,23 +4420,65 @@ registerFn('chatWaiter', async ({ body }) => {
     activeMenu = normalizedMenus.lunch;
   }
 
+  // Compact the menu for the LLM context: strip descriptions/notes/long text — only what's
+  // needed to recommend (name | price | allergens). The full descriptions live in the DB
+  // and the agent can refer to them if asked, but they bloat the prompt and slow generation.
+  const compactMenu = (m: any) => {
+    const cats = Array.isArray(m?.categories) ? m.categories : [];
+    return cats
+      .filter((c: any) => (c.items || []).length > 0)
+      .map((c: any) => {
+        const items = (c.items || [])
+          .map((it: any) => {
+            const allerg = Array.isArray(it.allergens) && it.allergens.length ? ` [${it.allergens.join(',')}]` : '';
+            return `${it.name}=₪${it.price_ils || 0}${allerg}`;
+          })
+          .join(' · ');
+        return `${c.name}: ${items}`;
+      })
+      .join('\n');
+  };
+
+  const compactSpecials = (s: any) => {
+    const arr = Array.isArray(s) ? s : [];
+    if (!arr.length) return '(אין)';
+    return arr.map((x: any) => `${x.name || ''}=₪${x.price_ils || 0}${x.description ? ` (${x.description})` : ''}`).join(' · ');
+  };
+
+  const compactInfo = (info: any) => {
+    if (!info || typeof info !== 'object') return '';
+    const parts: string[] = [];
+    if (info.kashrut) parts.push(`כשרות: ${info.kashrut}`);
+    if (info.wifi) parts.push(`WiFi: ${info.wifi}`);
+    if (info.parking) parts.push(`חניה: ${info.parking}`);
+    if (info.hours) parts.push(`שעות: ${info.hours}`);
+    if (Array.isArray(info.faq) && info.faq.length) {
+      parts.push(`FAQ: ${info.faq.map((q: any) => `${q.q}→${q.a}`).join(' | ')}`);
+    }
+    return parts.join(' · ');
+  };
+
+  const outOfStockList = Array.isArray(kit.out_of_stock) ? kit.out_of_stock.join(', ') : '';
+
   const kitContext =
-    `\n--- ${activeMenuLabel} (מקור האמת — אסור להמציא) ---\n` +
-    `${JSON.stringify(activeMenu || {}, null, 0)}\n` +
-    `--- DAILY_SPECIALS ---\n${JSON.stringify(kit.daily_specials || [], null, 0)}\n` +
-    `--- OUT_OF_STOCK ---\n${JSON.stringify(kit.out_of_stock || [], null, 0)}\n` +
-    `--- GENERAL_INFO ---\n${JSON.stringify(kit.general_info || {}, null, 0)}\n` +
-    `--- TIME: ${hourNow}:00 IL · TARGET_DISHES: 4-5 לזוג ---\n`;
+    `\n--- ${activeMenuLabel} (מקור האמת — אסור להמציא, פורמט קומפקטי שם=מחיר [אלרגנים]) ---\n` +
+    `${compactMenu(activeMenu)}\n` +
+    (outOfStockList ? `--- חסר היום: ${outOfStockList}\n` : '') +
+    `--- ספיישלים: ${compactSpecials(kit.daily_specials)}\n` +
+    (compactInfo(kit.general_info) ? `--- מידע: ${compactInfo(kit.general_info)}\n` : '') +
+    `--- שעה ${hourNow}:00 · יעד 4-5 מנות לזוג ---\n`;
 
   const prompt = `${systemPrompt}${kitContext}\n--- שיחה ---\n${transcript || '(תחילת שיחה — קבל את הלקוח בברכה חמה וקצרה ושאל כמה הם)'}${message ? `\nלקוח: ${message}` : ''}\n\nהחזר JSON בלבד.`;
 
   // Chat replies stay short (≤ ~300 tokens of Hebrew). gemini-2.5-flash is 3-5x faster
   // than the default pro model and plenty smart for short customer-service dialogue —
   // we save pro for the menu extractor (multi-page PDF) where reasoning quality matters.
+  // 45s timeout gives Cloudflare (100s ceiling) a comfortable buffer.
   const result: any = await invokeLLM({
     prompt,
     model: 'gemini-2.5-flash',
     maxOutputTokens: 1500,
+    timeoutMs: 45_000,
     responseSchema: {
       type: 'object',
       properties: {
