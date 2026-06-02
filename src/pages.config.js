@@ -114,6 +114,8 @@ import TipReportDetails from './pages/TipReportDetails';
 import Tips from './pages/Tips';
 import Training from './pages/Training';
 import UploadChecklists from './pages/UploadChecklists';
+import Waiter from './pages/Waiter';
+import WaiterAdmin from './pages/WaiterAdmin';
 import WaiterTables from './pages/WaiterTables';
 import WorkScheduling from './pages/WorkScheduling';
 import __Layout from './Layout.jsx';
@@ -187,6 +189,8 @@ export const PAGES = {
     "Tips": Tips,
     "Training": Training,
     "UploadChecklists": UploadChecklists,
+    "Waiter": Waiter,
+    "WaiterAdmin": WaiterAdmin,
     "WaiterTables": WaiterTables,
     "WorkScheduling": WorkScheduling,
 }

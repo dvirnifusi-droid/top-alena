@@ -13,6 +13,7 @@ import TrainingVideos from './pages/TrainingVideos';
 import JobApplication from './pages/JobApplication';
 import EventsInquiry from './pages/EventsInquiry';
 import EventsPayment from './pages/EventsPayment';
+import Waiter from './pages/Waiter';
 import QueueJoin from './pages/QueueJoin';
 import QueueDashboard from './pages/QueueDashboard';
 import QueueHistory from './pages/QueueHistory';
@@ -136,6 +137,8 @@ function App() {
           <Route path="/EventsInquiry" element={<EventsInquiry />} />
           <Route path="/events" element={<EventsInquiry />} />
           <Route path="/EventsPayment" element={<EventsPayment />} />
+          <Route path="/Waiter" element={<Waiter />} />
+          <Route path="/menu" element={<Waiter />} />
 
           {/* דורש התחברות */}
           <Route path="/MarketingCampaigns" element={<MarketingCampaigns />} />
