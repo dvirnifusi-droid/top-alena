@@ -5605,7 +5605,11 @@ registerFn('rejectCampaignBrief', async ({ body }) => {
 // nothing spends until the owner flips it to ACTIVE in Meta's UI.
 registerFn('launchCampaignBrief', async ({ body }) => {
   await ensureCampaignBriefTable();
-  const { id } = (body || {}) as any;
+  const { id, active } = (body || {}) as any;
+  // active=true makes all three entities (Campaign/AdSet/Ad) ACTIVE on
+  // creation, so Meta moves them through review and starts spending as
+  // soon as review passes (usually <24h). active=false keeps PAUSED.
+  const targetStatus = active ? 'ACTIVE' : 'PAUSED';
   if (!id) throw new Error('id required');
   const token = await META_TOKEN();
   if (!token) throw new Error('META_ADS_ACCESS_TOKEN לא מוגדר — הגדר אותו במסך מפתחות API');
@@ -5627,7 +5631,7 @@ registerFn('launchCampaignBrief', async ({ body }) => {
       {
         name: brief.title,
         objective: campaignObjective,
-        status: 'PAUSED',
+        status: targetStatus,
         special_ad_categories: [],
         buying_type: 'AUCTION',
         is_adset_budget_sharing_enabled: false,
@@ -5716,7 +5720,7 @@ registerFn('launchCampaignBrief', async ({ body }) => {
       bid_strategy: 'LOWEST_COST_WITHOUT_CAP',
       end_time: endTime,
       targeting,
-      status: 'PAUSED',
+      status: targetStatus,
     };
     if (safeObjective === 'OUTCOME_TRAFFIC') adsetPayload.destination_type = 'WEBSITE';
     let adsetRes: any;
@@ -5787,13 +5791,15 @@ registerFn('launchCampaignBrief', async ({ body }) => {
         const creativeRes = await metaApi(`/act_${META_AD_ACCOUNT_ID}/adcreatives`, 'POST', creativePayload);
         creativeId = creativeRes?.id || null;
 
-        // 3c. Create the Ad (PAUSED — never auto-active).
+        // 3c. Create the Ad. Status follows the launch's targetStatus —
+        // ACTIVE means Meta queues it for review and starts spending after
+        // approval (~24h); PAUSED keeps it fully off-air.
         if (creativeId) {
           const adRes = await metaApi(`/act_${META_AD_ACCOUNT_ID}/ads`, 'POST', {
             name: `${brief.title} — Ad`,
             adset_id: adsetId,
             creative: { creative_id: creativeId },
-            status: 'PAUSED',
+            status: targetStatus,
           });
           adId = adRes?.id || null;
         }
@@ -5819,14 +5825,15 @@ registerFn('launchCampaignBrief', async ({ body }) => {
         launch_error: creativeWarning,
       },
     });
+    const statusWord = active ? 'ACTIVE — בבדיקת Meta, יעלה לאוויר אחרי אישור (עד 24 שעות)' : 'PAUSED';
     return {
       brief: updated,
       meta_url: `https://business.facebook.com/adsmanager/manage/campaigns?act=${META_AD_ACCOUNT_ID}&selected_campaign_ids=${campaignId}`,
       message: adId
         ? (downgradedFromLeads
-          ? 'הקמפיין + AdSet + מודעה נוצרו ב-Meta במצב PAUSED. שיניתי OUTCOME_LEADS ל-OUTCOME_TRAFFIC כי טופס לידים עוד לא הוגדר.'
-          : 'הקמפיין + AdSet + מודעה נוצרו ב-Meta במצב PAUSED. תפעיל אותם ידנית כשתהיה מוכן.')
-        : (creativeWarning || 'הקמפיין נוצר במטא במצב PAUSED. הוסף קריאייטיב (תמונה+טקסט) ב-Meta Ads Manager והפעל ידנית.'),
+          ? `הקמפיין + AdSet + מודעה נוצרו ב-Meta במצב ${statusWord}. שיניתי OUTCOME_LEADS ל-OUTCOME_TRAFFIC כי טופס לידים עוד לא הוגדר.`
+          : `הקמפיין + AdSet + מודעה נוצרו ב-Meta במצב ${statusWord}.`)
+        : (creativeWarning || `הקמפיין נוצר במטא במצב ${statusWord}. הוסף קריאייטיב (תמונה+טקסט) ב-Meta Ads Manager.`),
     };
   } catch (e: any) {
     const updated = await db.campaignBrief.update({
@@ -5835,6 +5842,21 @@ registerFn('launchCampaignBrief', async ({ body }) => {
     });
     return { brief: updated, error: String(e?.message || e) };
   }
+});
+
+// One-click "approve + launch ACTIVE" used by the review dialog. Owner
+// reviews everything (copy, image, landing, audience, budget) and a single
+// confirm flips the brief approved+launched and creates the Meta entities
+// already in ACTIVE state so Meta moves into review and starts spending.
+registerFn('approveAndLaunchCampaignBrief', async ({ body }) => {
+  await ensureCampaignBriefTable();
+  const { id } = (body || {}) as any;
+  if (!id) throw new Error('id required');
+  await db.campaignBrief.update({
+    where: { id },
+    data: { status: 'approved', approved_at: new Date() },
+  });
+  return (functionHandlers as any).launchCampaignBrief({ body: { id, active: true } });
 });
 
 /* ----- Shift geofence (clock-in proximity + auto-close on leave) ----- */

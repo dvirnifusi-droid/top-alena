@@ -432,6 +432,34 @@ export default function MarketingAgentsHub() {
     } finally { setBriefBusy(false); }
   };
 
+  const approveAndLaunchBrief = async () => {
+    if (!activeBrief) return;
+    const budget = Number(activeBrief.daily_budget_ils || 0);
+    const landing = activeBrief.landing_url || 'topalena.com/EventsInquiry';
+    const confirmMsg = [
+      `אישור והשקה LIVE של הקמפיין "${activeBrief.title}"?`,
+      '',
+      `תקציב יומי: ₪${budget}`,
+      `דף נחיתה: ${landing}`,
+      '',
+      'הקמפיין יישלח ל-Meta במצב ACTIVE. Meta תבדוק אותו (עד 24 שעות) ואז הוא יעלה לאוויר ויתחיל להוציא כסף.',
+      '',
+      'להמשיך?',
+    ].join('\n');
+    if (!window.confirm(confirmMsg)) return;
+    setBriefBusy(true);
+    try {
+      const res = await base44.functions.approveAndLaunchCampaignBrief({ id: activeBrief.id });
+      const updated = res?.data?.brief;
+      if (updated) setActiveBrief(updated);
+      if (res?.data?.error) toast.error(`שיגור נכשל: ${res.data.error}`);
+      else toast.success('הקמפיין שוגר ב-ACTIVE. ייכנס לבדיקה ב-Meta ויעלה אוטומטית.');
+      loadBriefs();
+    } catch (e) {
+      toast.error(`שגיאה: ${e?.message || e}`);
+    } finally { setBriefBusy(false); }
+  };
+
   const updateBriefField = (field, value) => {
     setActiveBrief((b) => b ? { ...b, [field]: value } : b);
   };
@@ -728,6 +756,14 @@ export default function MarketingAgentsHub() {
                 </div>
               )}
 
+              {/* Landing URL */}
+              {activeBrief.landing_url && (
+                <div className="border rounded p-3 bg-blue-50">
+                  <div className="text-xs font-semibold mb-1 text-blue-900">דף נחיתה (לאן המודעה תפנה)</div>
+                  <a href={activeBrief.landing_url} target="_blank" rel="noreferrer" className="text-sm text-blue-700 underline break-all">{activeBrief.landing_url}</a>
+                </div>
+              )}
+
               {/* Audience */}
               {activeBrief.audience && (
                 <div className="border rounded p-3">
@@ -765,16 +801,21 @@ export default function MarketingAgentsHub() {
               )}
 
               {/* Action buttons */}
-              <div className="flex flex-wrap gap-2 pt-3 border-t">
+              <div className="flex flex-col gap-2 pt-3 border-t">
                 {activeBrief.status === 'pending_approval' && (
                   <>
-                    <Button onClick={approveBrief} disabled={briefBusy} className="bg-emerald-600 hover:bg-emerald-700 flex-1">
-                      {briefBusy ? <Loader2 className="w-4 h-4 animate-spin ml-1" /> : <CheckCircle2 className="w-4 h-4 ml-1" />}
-                      אשר Brief
+                    <Button onClick={approveAndLaunchBrief} disabled={briefBusy} className="bg-fuchsia-600 hover:bg-fuchsia-700 w-full text-base py-6">
+                      {briefBusy ? <Loader2 className="w-5 h-5 animate-spin ml-2" /> : <Rocket className="w-5 h-5 ml-2" />}
+                      אשר והשק LIVE (Meta תבדוק עד 24 שעות ואז המודעה רצה)
                     </Button>
-                    <Button onClick={rejectBrief} disabled={briefBusy} variant="outline">
-                      <XIcon className="w-4 h-4 ml-1" /> דחה
-                    </Button>
+                    <div className="flex gap-2">
+                      <Button onClick={approveBrief} disabled={briefBusy} variant="outline" className="flex-1">
+                        <CheckCircle2 className="w-4 h-4 ml-1" /> אשר בלבד (PAUSED, השק ידנית בהמשך)
+                      </Button>
+                      <Button onClick={rejectBrief} disabled={briefBusy} variant="outline">
+                        <XIcon className="w-4 h-4 ml-1" /> דחה
+                      </Button>
+                    </div>
                   </>
                 )}
                 {activeBrief.status === 'approved' && (
