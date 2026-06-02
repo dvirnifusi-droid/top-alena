@@ -242,29 +242,49 @@ export async function generateImage({ prompt }: { prompt: string }) {
     'imagen-3.0-generate-001',
   ].filter(Boolean) as string[];
 
+  // Google AI Studio (generativelanguage.googleapis.com) serves Imagen via
+  // the :predict endpoint with instances/parameters shape — NOT the older
+  // :generateImages variant. Try a list of (model, endpoint, body) recipes
+  // until one succeeds.
+  const recipes = candidates.flatMap((model) => [
+    {
+      url: `${GEMINI_BASE}/models/${model}:predict?key=${geminiKey()}`,
+      body: { instances: [{ prompt }], parameters: { sampleCount: 1 } },
+      extract: (d: any) =>
+        d?.predictions?.[0]?.bytesBase64Encoded ||
+        d?.predictions?.[0]?.image?.bytesBase64Encoded ||
+        null,
+      tag: `${model}:predict`,
+    },
+    {
+      url: `${GEMINI_BASE}/models/${model}:generateImages?key=${geminiKey()}`,
+      body: { prompt: { text: prompt }, sampleCount: 1 },
+      extract: (d: any) => d?.generatedImages?.[0]?.image?.imageBytes || null,
+      tag: `${model}:generateImages`,
+    },
+  ]);
+
   let lastErr: string = '';
-  for (const model of candidates) {
-    const res = await fetch(
-      `${GEMINI_BASE}/models/${model}:generateImages?key=${geminiKey()}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: { text: prompt }, sampleCount: 1 }),
-      },
-    );
+  for (const r of recipes) {
+    const res = await fetch(r.url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(r.body),
+    });
     if (res.ok) {
       const data: any = await res.json();
-      const b64 = data?.generatedImages?.[0]?.image?.imageBytes;
-      return { image_base64: b64 ?? null, model };
+      const b64 = r.extract(data);
+      if (b64) return { image_base64: b64, model: r.tag };
+      lastErr = `${r.tag}: 200 but no image bytes in response`;
+      continue;
     }
-    lastErr = `${res.status} ${await res.text().catch(() => '')}`;
-    // 404 = model name retired by Google; try the next candidate. Any other
-    // status means real failure (auth, quota, bad prompt) — bail out.
-    if (res.status !== 404) {
-      throw new Error(`Imagen ${model} error ${lastErr}`);
+    lastErr = `${r.tag} ${res.status} ${(await res.text().catch(() => '')).slice(0, 200)}`;
+    // Auth/quota/permission errors are real — stop walking the list.
+    if ([401, 403, 429].includes(res.status)) {
+      throw new Error(`Imagen ${lastErr}`);
     }
   }
-  throw new Error(`Imagen: all model IDs returned 404. Last: ${lastErr}. Set GEMINI_IMAGE_MODEL env to a valid id.`);
+  throw new Error(`Imagen: no recipe worked. Last: ${lastErr}. Set GEMINI_IMAGE_MODEL env or switch to Vertex AI.`);
 }
 
 // Returns the Base44-compatible envelope { status, output, details } so the
