@@ -5697,7 +5697,17 @@ registerFn('markAutoCloseNoticeSeen', async ({ user, body }) => {
 // triggered with a single curl when `prisma db push` declines to run (e.g.,
 // when it detects unrelated drift). Remove after the columns exist.
 registerFn('applyShiftGeofenceMigration', async () => {
+  // Tables that need the standard Prisma triplet (createdBy/createdAt/updatedAt)
+  // because the DB drift means RestaurantProfile etc. were imported from base44
+  // without these. Adds them as nullable / defaulted so existing rows stay valid.
+  const tripletTables = ['RestaurantProfile', 'Employee', 'ShiftTracking', 'JobCandidate'];
+  const tripletStmts = tripletTables.flatMap((t) => [
+    `ALTER TABLE "${t}" ADD COLUMN IF NOT EXISTS "createdBy" TEXT`,
+    `ALTER TABLE "${t}" ADD COLUMN IF NOT EXISTS "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP`,
+    `ALTER TABLE "${t}" ADD COLUMN IF NOT EXISTS "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP`,
+  ]);
   const statements = [
+    ...tripletStmts,
     `ALTER TABLE "RestaurantProfile" ADD COLUMN IF NOT EXISTS "restaurant_lat" DOUBLE PRECISION`,
     `ALTER TABLE "RestaurantProfile" ADD COLUMN IF NOT EXISTS "restaurant_lng" DOUBLE PRECISION`,
     `ALTER TABLE "RestaurantProfile" ADD COLUMN IF NOT EXISTS "shift_geofence_required" BOOLEAN DEFAULT false`,
