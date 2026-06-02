@@ -25,18 +25,4 @@ export default defineConfig({
       },
     },
   },
-  // Memory-frugal build for 2GB VPS — split vendor chunks so rollup
-  // doesn't have to hold one giant bundle in memory.
-  build: {
-    rollupOptions: {
-      output: {
-        manualChunks: {
-          'react-vendor': ['react', 'react-dom', 'react-router-dom'],
-          'ui-vendor': ['lucide-react', '@radix-ui/react-dialog', '@radix-ui/react-select', '@radix-ui/react-tabs', '@radix-ui/react-tooltip'],
-          'chart-vendor': ['recharts'],
-          'date-vendor': ['date-fns'],
-        },
-      },
-    },
-  },
 });
