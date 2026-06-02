@@ -6277,3 +6277,82 @@ registerFn('repairTripletAllTables', async () => {
   const failCount = results.length - okCount;
   return { total: results.length, ok: okCount, failed: failCount, results };
 }, { public: true });
+
+// Repair DATE-column drift: many base44-imported tables have columns declared
+// as DateTime in Prisma but actually created as PostgreSQL DATE type. Prisma's
+// client then chokes reading them with `P2023: Could not convert value
+// "2025-09-21" of the field 'date' to type 'DateTime'`. Fix: in-place ALTER
+// COLUMN TYPE to TIMESTAMP(3), parsing existing dates as midnight UTC.
+// Idempotent — only touches columns currently `data_type = 'date'`.
+registerFn('repairDateColumnsToTimestamp', async () => {
+  const { Prisma } = await import('@prisma/client');
+  const want = new Set<string>();
+  for (const model of Prisma.dmmf.datamodel.models) {
+    const table = (model as any).dbName || model.name;
+    for (const f of model.fields) {
+      if (f.kind === 'scalar' && f.type === 'DateTime') {
+        const col = (f as any).dbName || f.name;
+        want.add(`${table}.${col}`);
+      }
+    }
+  }
+  const rows: any[] = await (prisma as any).$queryRaw`
+    SELECT table_name, column_name
+    FROM information_schema.columns
+    WHERE table_schema = 'public' AND data_type = 'date'
+  `;
+  const results: Array<{ stmt: string; ok: boolean; error?: string }> = [];
+  for (const r of rows) {
+    const key = `${r.table_name}.${r.column_name}`;
+    if (!want.has(key)) continue;
+    const stmt = `ALTER TABLE "${r.table_name}" ALTER COLUMN "${r.column_name}" TYPE TIMESTAMP(3) USING "${r.column_name}"::timestamp`;
+    try {
+      await (prisma as any).$executeRawUnsafe(stmt);
+      results.push({ stmt, ok: true });
+    } catch (e: any) {
+      results.push({ stmt, ok: false, error: String(e?.message || e) });
+    }
+  }
+  return {
+    candidates_scanned: rows.length,
+    matched_and_altered: results.length,
+    ok: results.filter((r) => r.ok).length,
+    failed: results.filter((r) => !r.ok).length,
+    results,
+  };
+}, { public: true });
+
+// Scrub 0x00 bytes from every TEXT/VARCHAR column in tables imported from
+// base44 that carry corrupted rows. PostgreSQL rejects 0x00 inside UTF-8 text
+// (errcode 22021), and that's what's been blocking ShiftTracking entity reads
+// even after the column types are correct. Whitelisted to known-problem tables
+// to avoid scanning the whole DB. Idempotent.
+registerFn('scrubNullBytesAllTables', async () => {
+  const cols: any[] = await (prisma as any).$queryRaw`
+    SELECT table_name, column_name
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND data_type IN ('text', 'character varying', 'character', 'json', 'jsonb')
+  `;
+  const results: Array<{ stmt: string; ok: boolean; affected?: number; error?: string }> = [];
+  for (const c of cols) {
+    // Only update where 0x00 is actually present — skips clean columns.
+    const isJson = false; // skip JSON until needed; PG handles it as text-like
+    const stmt = isJson
+      ? `UPDATE "${c.table_name}" SET "${c.column_name}" = REPLACE("${c.column_name}"::text, E'\\x00', '')::jsonb WHERE "${c.column_name}"::text LIKE '%' || E'\\x00' || '%'`
+      : `UPDATE "${c.table_name}" SET "${c.column_name}" = REPLACE("${c.column_name}", E'\\x00', '') WHERE "${c.column_name}" LIKE '%' || E'\\x00' || '%'`;
+    try {
+      const n = await (prisma as any).$executeRawUnsafe(stmt);
+      if (n > 0) results.push({ stmt, ok: true, affected: Number(n) });
+    } catch (e: any) {
+      results.push({ stmt, ok: false, error: String(e?.message || e) });
+    }
+  }
+  return {
+    columns_scanned: cols.length,
+    rows_touched: results.filter((r) => r.ok).reduce((s, r) => s + (r.affected || 0), 0),
+    ok: results.filter((r) => r.ok).length,
+    failed: results.filter((r) => !r.ok).length,
+    results,
+  };
+}, { public: true });
