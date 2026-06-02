@@ -6424,3 +6424,40 @@ registerFn('backfillRequiredNulls', async () => {
     results,
   };
 }, { public: true });
+
+// Emergency: refill NULL values in required-DateTime columns. The tolerant
+// USING clause in repairDateColumnsToTimestamp set malformed date strings
+// (like "2025-10-10-27", "15/03/26") to NULL. Frontend code then crashes on
+// `.startsWith`/`.substring`/`.split` of those nulls. This restores a value
+// using the row's createdAt (or current time as fallback) so renders stop
+// crashing. Only touches columns Prisma declares as required + DateTime.
+registerFn('backfillNullDateTimes', async () => {
+  const { Prisma } = await import('@prisma/client');
+  const results: Array<{ stmt: string; ok: boolean; affected?: number; error?: string }> = [];
+  for (const model of Prisma.dmmf.datamodel.models) {
+    const table = (model as any).dbName || model.name;
+    const fieldNames = new Set(model.fields.map((f) => f.name));
+    const hasCreatedAt = fieldNames.has('createdAt');
+    for (const f of model.fields) {
+      if (f.kind !== 'scalar') continue;
+      if (f.type !== 'DateTime') continue;
+      if (f.isRequired === false) continue;
+      if (f.isId) continue;
+      const col = (f as any).dbName || f.name;
+      const expr = hasCreatedAt ? 'COALESCE("createdAt", NOW())' : 'NOW()';
+      const stmt = `UPDATE "${table}" SET "${col}" = ${expr} WHERE "${col}" IS NULL`;
+      try {
+        const n = await (prisma as any).$executeRawUnsafe(stmt);
+        if (n > 0) results.push({ stmt, ok: true, affected: Number(n) });
+      } catch (e: any) {
+        results.push({ stmt, ok: false, error: String(e?.message || e) });
+      }
+    }
+  }
+  return {
+    rows_touched: results.filter((r) => r.ok).reduce((s, r) => s + (r.affected || 0), 0),
+    ok: results.filter((r) => r.ok).length,
+    failed: results.filter((r) => !r.ok).length,
+    results,
+  };
+}, { public: true });
