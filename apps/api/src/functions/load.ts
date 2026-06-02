@@ -6432,8 +6432,17 @@ registerFn('backfillRequiredNulls', async () => {
 // `.startsWith`/`.substring`/`.split` of those nulls. This restores a value
 // using the row's createdAt (or current time as fallback) so renders stop
 // crashing. Only touches columns Prisma declares as required + DateTime.
-// Diagnostic — lists table names matching a pattern and their columns. Public
-// so it can be invoked without a token during emergency debugging.
+// Diagnostic — column types for a given table. Used to derive Prisma schema
+// for tables Prisma doesn't know about yet.
+registerFn('describeTable', async ({ body }) => {
+  const t = String((body as any)?.table || '').replace(/[^A-Za-z0-9_]/g, '');
+  if (!t) return { error: 'missing table' };
+  const cols: any[] = await (prisma as any).$queryRawUnsafe(
+    `SELECT column_name, data_type, is_nullable FROM information_schema.columns WHERE table_schema='public' AND table_name='${t}' ORDER BY ordinal_position`,
+  );
+  return cols;
+}, { public: true });
+
 registerFn('listMatchingTables', async ({ body }) => {
   const pattern = String((body as any)?.pattern || '%').toLowerCase();
   const tables: any[] = await (prisma as any).$queryRawUnsafe(
