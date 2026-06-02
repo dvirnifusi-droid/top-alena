@@ -6236,3 +6236,44 @@ registerFn('applyShiftGeofenceMigration', async () => {
   }
   return { results };
 }, { public: true });
+
+// Broad triplet repair — introspects Prisma DMMF for every model declaring
+// createdAt/updatedAt/createdBy and adds the missing columns idempotently.
+// Needed because the original base44 import only covered 4 tables, leaving
+// the rest (WorkShift, DailyBrief, Checklist, DailyChallenge, CoinTransaction,
+// ShiftSwapRequest, Shift, Incident, LeaveRequest, Customer, etc.) broken on
+// every Prisma read with `P2022: column "createdBy" does not exist`.
+// Idempotent (uses IF NOT EXISTS); safe to re-run.
+registerFn('repairTripletAllTables', async () => {
+  const { Prisma } = await import('@prisma/client');
+  const stmts: string[] = [];
+  for (const model of Prisma.dmmf.datamodel.models) {
+    const fields = new Set(model.fields.map((f) => f.name));
+    const table = (model as any).dbName || model.name;
+    if (fields.has('createdBy')) {
+      stmts.push(`ALTER TABLE "${table}" ADD COLUMN IF NOT EXISTS "createdBy" TEXT`);
+    }
+    if (fields.has('createdAt')) {
+      stmts.push(
+        `ALTER TABLE "${table}" ADD COLUMN IF NOT EXISTS "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP`,
+      );
+    }
+    if (fields.has('updatedAt')) {
+      stmts.push(
+        `ALTER TABLE "${table}" ADD COLUMN IF NOT EXISTS "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP`,
+      );
+    }
+  }
+  const results: Array<{ stmt: string; ok: boolean; error?: string }> = [];
+  for (const stmt of stmts) {
+    try {
+      await (prisma as any).$executeRawUnsafe(stmt);
+      results.push({ stmt, ok: true });
+    } catch (e: any) {
+      results.push({ stmt, ok: false, error: String(e?.message || e) });
+    }
+  }
+  const okCount = results.filter((r) => r.ok).length;
+  const failCount = results.length - okCount;
+  return { total: results.length, ok: okCount, failed: failCount, results };
+}, { public: true });
