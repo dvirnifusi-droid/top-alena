@@ -4300,3 +4300,217 @@ if (!(globalThis as any).__stuckEventLeadTimer) {
     });
   }, 60 * 1000);
 }
+
+/* ─────────────────────────────────────────────────────────────────────────── */
+/* ─── WAITER AGENT (Digital head waiter via QR on table) ──────────────────── */
+/* ─────────────────────────────────────────────────────────────────────────── */
+
+const WAITER_DEFAULT_PROMPT = `אתה ראש המלצרים הדיגיטלי של מסעדת "עלינא" ברישון לציון — בסטייל burger-bar, מנות שיתוף בשריות, ירקות מהגוספר, סלטים, ועיקריות יחידניות בצלחת. **במסעדה אין דגים בכלל**. אתה מדבר בעברית טבעית, חמה, מקצועית, מוכרת — בגובה העיניים.
+
+המטרה שלך: להוביל זוג לקוחות לחוויה מלאה של 4-5 מנות (3-4 חלוקה + 1-2 בצלחת אם רוצים), אלכוהול תואם, צ׳ייסר באמצע, ובילד-אפ לקינוח. אתה לא מציע — אתה ממליץ בביטחון של מקצוען.
+
+--- חוקי ברזל (אל תעבור) ---
+1. אסור להמציא: שמות מנות, רכיבים, ומחירים — הכל אך ורק מתוך MENU ש-System נותן לך כל סבב. אם פריט לא ב-MENU — אסור להזכיר אותו.
+2. אסור להמליץ על פריט שמופיע ב-OUT_OF_STOCK (חסר היום).
+3. דגים: לא מציעים, לא רומזים. אם הלקוח שואל "יש דגים?" — "לצערי לא, אבל יש לנו ירקות מהגוספר בלתי נשכחים ומנות בשר שיתוף שייעשו לך את הערב."
+4. אלכוהול: רק אחרי שאישרת שהלקוח/ה מעל גיל 18. בפעם הראשונה שאתה מציע אלכוהול — חובה לשאול: "לפני שאני ממליץ על משהו אלכוהולי — אתם מעל גיל 18, נכון?". אם ענו לא → ממליץ קוקטיילים ללא אלכוהול וקרפצ׳ו פירות. אם ענו כן → ממשיך כרגיל.
+5. אלרגיות וכשרות: בכל תחילת שיחה — שאל. אם הלקוח ציין רגישות, הסתמך על שדה allergens של כל פריט ב-MENU.
+
+--- תסריט השיחה ---
+שלב 1 — קבלת פנים ופרופיל (3 שאלות, אחת-אחת, לא הכל ביחד):
+א. "ברוכים הבאים לעלינא 🌿 כמה אתם הערב?"
+ב. "פעם ראשונה אצלנו? (כדי שאדע אם להסביר את הסטייל)"
+ג. "יש משהו שאתם לא אוכלים — אלרגיות, כשרות, גלוטן?"
+
+שלב 2 — העדפות (2 שאלות):
+ד. "אתם אוכלי בשר? אם כן — איזה רמת פיקנטיות אתם אוהבים?"
+ה. "מצב רוח של הערב — קליל ומנות שיתוף, או כל אחד עיקרית משלו בצלחת?"
+
+שלב 3 — בניית הארוחה (אתה מוביל, לא מציע):
+על בסיס TARGET_DISHES (4-5 לזוג): המלצה ב-3 חלקים, מהקטגוריות הקיימות ב-MENU:
+- 1-2 סלטים (פתיחה רעננה)
+- 1-2 מנות חלוקה (מנות חלוקה בשריות / ירקות מהגוספר) — זה הלב של החוויה, דחוף לכאן
+- אם בחרו "חלוקה" → עוד מנת חלוקה במקום עיקרית. אם בחרו "בצלחת" → עיקרית אחת לכל אחד מ"עיקריות בצלחת" (פרגית/קבב/נתחים)
+
+ניסוח לדוגמה (התאם לפי MENU בפועל):
+"לפי מה שאמרתם — זוג אוהבי בשר ופיקנטיות בינונית — אני בונה לכם חוויה: נפתח עם [סלט A] לרעננות, נמשיך עם [מנת חלוקה — ירק גוספר X] לטעם עשן, ולמרכז השולחן [מנת חלוקה בשרית Y] שייעשה לכם את הערב. מה דעתכם, זה הכיוון?"
+
+שלב 4 — אלכוהול וצ׳ייסר (אחרי שהאוכל אושר):
+ז. **שאל גיל 18+ אם עוד לא שאלת**
+ח. התאם משקה למנות: בירה בלגית למנה בשרית, יין אדום למנת חלוקה, קוקטייל סיגנייצ׳ר לרעננות.
+ט. בלי לחכות לתשובה — "ולערב מטורף — אני מציע גם צ׳ייסר אחד בהתחלה (פטרון/ג׳יימסון) שירים את האנרגיה. אתם בעניין?"
+
+שלב 5 — בילד-אפ לקינוח:
+"רשמתי הכל, אתם מסודרים. רק תשאירו פינה קטנה בסוף — ה[שם קינוח מוביל מה-MENU] שלנו זה משהו שאתם תזכרו. נחכה עם זה לסוף, אבל תדעו שאני מחכה לרגע הזה."
+
+שלב 6 — סיכום ואישור:
+"לסיכום ההזמנה שלכם:
+- [סלטים]
+- [מנות חלוקה]
+- [עיקריות אם יש]
+- [משקאות אלכוהוליים + צ׳ייסר]
+- [התראה על הקינוח]
+
+סה"כ מוערך: ₪X לזוג.
+
+זה נראה לכם טוב? תעלו עם זה למלצר/ית כשהם יבואו אליכם — הם יודעים את הזרימה."
+
+--- פלט JSON אחיד ---
+תמיד החזר JSON אך ורק במבנה:
+{
+  "reply": "<התשובה לעברית>",
+  "stage": "greeting|profiling|building|alcohol|chaser|dessert_buildup|summary|completed",
+  "collected": {
+    "party_size": <int או null>,
+    "is_first_visit": <bool או null>,
+    "dietary_flags": { "allergies": [], "kosher": <bool או null>, "gluten_free": <bool או null> },
+    "preferences": { "loves_meat": <bool>, "spice_level": "low|med|high|null", "style": "sharing|individual|null" },
+    "age_18_plus_confirmed": <bool או null>,
+    "recommended_items": [ { "name": "<from MENU>", "category": "<from MENU>", "price_ils": <int>, "qty": <int> } ],
+    "total_ils": <int או null>
+  },
+  "complete": <true רק כשהלקוח אישר במפורש את הסיכום הסופי>,
+  "summary": "<2-3 משפטים על השיחה: טעמים, דרישות מיוחדות, מה לא לשכוח>"
+}`;
+
+registerFn('getWaiterKit', async () => {
+  let kit = await (prisma as any).waiterKit.findFirst({ where: { singleton: true } });
+  if (!kit) {
+    kit = await (prisma as any).waiterKit.create({
+      data: {
+        singleton: true,
+        menu: { categories: [] },
+        daily_specials: [],
+        out_of_stock: [],
+        general_info: {
+          kashrut: '', wifi: '', parking: '', hours: '', address: '', faq: [],
+        },
+        system_prompt: WAITER_DEFAULT_PROMPT,
+        updated_date: new Date().toISOString(),
+      },
+    });
+  }
+  return { kit };
+});
+
+registerFn('saveWaiterKit', async ({ body, user }) => {
+  const incoming = (body as any)?.kit || {};
+  const existing = await (prisma as any).waiterKit.findFirst({ where: { singleton: true } });
+  const data: any = {
+    menu: incoming.menu ?? existing?.menu ?? { categories: [] },
+    daily_specials: incoming.daily_specials ?? existing?.daily_specials ?? [],
+    out_of_stock: incoming.out_of_stock ?? existing?.out_of_stock ?? [],
+    general_info: incoming.general_info ?? existing?.general_info ?? {},
+    system_prompt: incoming.system_prompt ?? existing?.system_prompt ?? WAITER_DEFAULT_PROMPT,
+    updated_by: (user as any)?.email || null,
+    updated_date: new Date().toISOString(),
+  };
+  const saved = existing
+    ? await (prisma as any).waiterKit.update({ where: { id: existing.id }, data })
+    : await (prisma as any).waiterKit.create({ data: { singleton: true, ...data } });
+  return { kit: saved };
+});
+
+// PUBLIC — main chat. session_id ties multiple turns together (frontend persists it).
+registerFn('chatWaiter', async ({ body }) => {
+  const { session_id, table_hint, history, message } = body as any;
+  if (!session_id) throw new Error('session_id required');
+
+  let kit = await (prisma as any).waiterKit.findFirst({ where: { singleton: true } });
+  if (!kit) {
+    kit = await (prisma as any).waiterKit.create({
+      data: { singleton: true, menu: { categories: [] }, daily_specials: [], out_of_stock: [], general_info: {}, system_prompt: WAITER_DEFAULT_PROMPT, updated_date: new Date().toISOString() },
+    });
+  }
+  const systemPrompt = (kit.system_prompt && kit.system_prompt.trim()) || WAITER_DEFAULT_PROMPT;
+
+  const turns: Array<{ role: string; content: string }> = Array.isArray(history) ? history : [];
+  const transcript = turns.map((t) => `${t.role === 'assistant' ? 'מלצר' : 'לקוח'}: ${t.content}`).join('\n');
+
+  const kitContext =
+    `\n--- MENU (מקור האמת לכל מנה ומחיר — אסור להמציא) ---\n` +
+    `${JSON.stringify(kit.menu || {}, null, 0)}\n` +
+    `--- DAILY_SPECIALS (הספיישלים של היום, להציע בעדיפות) ---\n` +
+    `${JSON.stringify(kit.daily_specials || [], null, 0)}\n` +
+    `--- OUT_OF_STOCK (אסור להמליץ על אלה) ---\n` +
+    `${JSON.stringify(kit.out_of_stock || [], null, 0)}\n` +
+    `--- GENERAL_INFO (כשרות, WiFi, חניה, שעות, FAQ) ---\n` +
+    `${JSON.stringify(kit.general_info || {}, null, 0)}\n` +
+    `--- TARGET_DISHES: 4-5 לזוג (3-4 חלוקה + 0-2 עיקריות בצלחת) ---\n`;
+
+  const prompt = `${systemPrompt}${kitContext}\n--- שיחה עד כה ---\n${transcript || '(אין עדיין הודעות — קבל את הלקוח בברכה)'}${message ? `\nלקוח: ${message}` : ''}\n\nהחזר JSON בלבד.`;
+
+  const result: any = await invokeLLM({
+    prompt,
+    responseSchema: {
+      type: 'object',
+      properties: {
+        reply: { type: 'string' },
+        stage: { type: 'string' },
+        collected: { type: 'object' },
+        complete: { type: 'boolean' },
+        summary: { type: 'string' },
+      },
+      required: ['reply'],
+    },
+  });
+
+  const c = result?.collected || {};
+  const items = Array.isArray(c.recommended_items) ? c.recommended_items : [];
+  const total = typeof c.total_ils === 'number'
+    ? Math.round(c.total_ils)
+    : items.reduce((s: number, it: any) => s + (Number(it.price_ils) || 0) * (Number(it.qty) || 1), 0);
+
+  const fullLog = [
+    ...turns,
+    ...(message ? [{ role: 'user', content: message, timestamp: new Date().toISOString() }] : []),
+    { role: 'assistant', content: result?.reply || '', timestamp: new Date().toISOString() },
+  ];
+
+  const nowIso = new Date().toISOString();
+  const orderData: any = {
+    session_id,
+    table_hint: table_hint || null,
+    party_size: typeof c.party_size === 'number' ? c.party_size : null,
+    is_first_visit: typeof c.is_first_visit === 'boolean' ? c.is_first_visit : null,
+    dietary_flags: c.dietary_flags || null,
+    preferences: c.preferences || null,
+    recommended_items: items,
+    total_ils: total || null,
+    conversation_log: fullLog as any,
+    ai_summary: result?.summary || null,
+    status: result?.complete ? 'closed_to_self' : 'in_progress',
+    source: table_hint ? 'qr_table' : 'qr_generic',
+  };
+
+  let order: any = null;
+  try {
+    const existing = await (prisma as any).waiterOrder.findFirst({ where: { session_id } });
+    if (existing) {
+      order = await (prisma as any).waiterOrder.update({ where: { id: existing.id }, data: { ...orderData, updated_date: nowIso } });
+    } else {
+      order = await (prisma as any).waiterOrder.create({ data: { ...orderData, created_date: nowIso, updated_date: nowIso } });
+    }
+  } catch (e: any) { console.error('[waiterOrder.upsert]', e?.message); }
+
+  return {
+    reply: result?.reply || 'סליחה, יש תקלה קטנה — תוכלו לנסות שוב?',
+    stage: result?.stage || null,
+    complete: !!result?.complete,
+    order_id: order?.id || null,
+    total_ils: total,
+    recommended_items: items,
+  };
+}, { public: true });
+
+registerFn('listWaiterOrders', async () => {
+  const orders = await (prisma as any).waiterOrder.findMany({ orderBy: { id: 'desc' }, take: 100 });
+  return { orders, _count: orders.length };
+});
+
+registerFn('deleteWaiterOrder', async ({ body }) => {
+  const { order_id } = body as any;
+  if (!order_id) throw new Error('order_id required');
+  await (prisma as any).waiterOrder.delete({ where: { id: order_id } });
+  return { ok: true };
+});
