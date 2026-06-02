@@ -1,6 +1,9 @@
 import "./globals.css";
 import type { Metadata } from "next";
 import { heebo, frankRuhl, inter } from "@/lib/fonts";
+import { Header } from "@/components/layout/Header";
+import { Footer } from "@/components/layout/Footer";
+import { StickyMobileCTA } from "@/components/layout/StickyMobileCTA";
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "https://alenabepita.co.il"),
@@ -15,7 +18,12 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="he" dir="rtl" className={`${heebo.variable} ${frankRuhl.variable} ${inter.variable}`}>
-      <body className="font-body bg-cream text-charcoal antialiased">{children}</body>
+      <body className="font-body bg-cream text-charcoal antialiased pb-20 md:pb-0">
+        <Header />
+        {children}
+        <Footer />
+        <StickyMobileCTA />
+      </body>
     </html>
   );
 }
