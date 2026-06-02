@@ -4430,10 +4430,12 @@ registerFn('chatWaiter', async ({ body }) => {
 
   const prompt = `${systemPrompt}${kitContext}\n--- שיחה ---\n${transcript || '(תחילת שיחה — קבל את הלקוח בברכה חמה וקצרה ושאל כמה הם)'}${message ? `\nלקוח: ${message}` : ''}\n\nהחזר JSON בלבד.`;
 
-  // Chat replies stay short (≤ ~300 tokens of Hebrew); cap output so Gemini doesn't waste
-  // time generating filler. Reduces typical turn latency from 6-10s to 2-3s.
+  // Chat replies stay short (≤ ~300 tokens of Hebrew). gemini-2.5-flash is 3-5x faster
+  // than the default pro model and plenty smart for short customer-service dialogue —
+  // we save pro for the menu extractor (multi-page PDF) where reasoning quality matters.
   const result: any = await invokeLLM({
     prompt,
+    model: 'gemini-2.5-flash',
     maxOutputTokens: 1500,
     responseSchema: {
       type: 'object',

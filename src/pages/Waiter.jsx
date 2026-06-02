@@ -56,7 +56,15 @@ export default function Waiter() {
     } finally { setSending(false); }
   };
 
-  useEffect(() => { sendTurn(''); /* eslint-disable-next-line */ }, []);
+  // Instant hardcoded welcome — no LLM round-trip — so the customer sees a friendly
+  // message the second the page loads. The first user reply triggers the real model.
+  useEffect(() => {
+    setMessages([{
+      role: 'assistant',
+      content: 'ברוכים הבאים לעלינא 🌿 אני המלצר הדיגיטלי שלכם. אעזור לכם לבנות ארוחה מושלמת — סלטים, מנות חלוקה בשריות, ירקות מהגוספר, אלכוהול ועוד. כדי להתחיל — כמה אתם הערב?',
+    }]);
+    /* eslint-disable-next-line */
+  }, []);
   useEffect(() => {
     const el = scrollRef.current;
     if (el) el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
