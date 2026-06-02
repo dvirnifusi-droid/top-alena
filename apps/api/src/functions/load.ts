@@ -5493,7 +5493,7 @@ async function ensureCampaignBriefTable() {
 // LLM drafts a complete brief from a goal + optional inputs from prior chain.
 registerFn('createCampaignBrief', async ({ body }) => {
   await ensureCampaignBriefTable();
-  const { goal, copy_variants, image_base64, image_url, audience_hint, daily_budget_ils, lifetime_budget_ils, end_date } = (body || {}) as any;
+  const { goal, copy_variants, image_base64, image_url, audience_hint, daily_budget_ils, lifetime_budget_ils, end_date, landing_url } = (body || {}) as any;
   if (!goal) throw new Error('goal required');
 
   // Generate brief structure via LLM (audience, objective, suggested budget,
@@ -5546,6 +5546,7 @@ ${audience_hint ? `הצעת קהל יעד מהבעלים: ${audience_hint}` : ''
       copy_variants: Array.isArray(copy_variants) ? copy_variants : null,
       image_base64: image_base64 || null,
       image_url: image_url || null,
+      landing_url: landing_url || ALINA_DEFAULT_LANDING_URL,
       status: 'pending_approval',
     },
   });
@@ -5728,22 +5729,104 @@ registerFn('launchCampaignBrief', async ({ body }) => {
     }
     const adsetId = adsetRes?.id;
 
+    // ---- 3. Try to build the Ad itself (image + creative + ad).
+    // Requires:
+    //   (a) The System User is assigned to a Facebook Page with Advertise
+    //       permission (Business Manager → Pages → Assign people).
+    //   (b) The brief carries an image (base64 or url).
+    // If either is missing, we leave the Campaign+AdSet PAUSED so the owner
+    // finishes the creative in Meta Ads Manager. No crash.
+    let pageId: string | null = null;
+    let creativeId: string | null = null;
+    let adId: string | null = null;
+    let imageHash: string | null = null;
+    let creativeWarning: string | null = null;
+    try {
+      const pages = await metaApi(`/me/accounts?fields=id,name&limit=10`);
+      pageId = pages?.data?.[0]?.id || null;
+    } catch (e: any) {
+      creativeWarning = `Could not list pages (${String(e?.message || e).slice(0, 100)}). Assign the System User to the עלינא Page in Business Manager → Pages → Assign people.`;
+    }
+
+    const landingUrl = (brief as any).landing_url || ALINA_DEFAULT_LANDING_URL;
+    const firstCopy = Array.isArray(brief.copy_variants) && brief.copy_variants[0] as any;
+    const adMessage = firstCopy?.body || firstCopy?.hook || brief.title;
+    const adHeadline = (firstCopy?.hook || brief.title || '').slice(0, 40);
+
+    if (pageId && (brief.image_base64 || brief.image_url)) {
+      try {
+        // 3a. Upload the image to /adimages — returns an image_hash.
+        if (brief.image_base64) {
+          const form = new URLSearchParams();
+          form.append('bytes', String(brief.image_base64));
+          const upRes = await fetch(
+            `https://graph.facebook.com/v21.0/act_${META_AD_ACCOUNT_ID}/adimages?access_token=${encodeURIComponent(token)}`,
+            { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: form.toString() },
+          );
+          const upData: any = await upRes.json().catch(() => ({}));
+          if (!upRes.ok) throw new Error(`adimages: ${JSON.stringify(upData?.error || upData)}`);
+          // Response shape: { images: { <filename>: { hash, url, ... } } }
+          const imgs = upData?.images || {};
+          imageHash = Object.values(imgs)[0] ? (Object.values(imgs)[0] as any).hash : null;
+        }
+
+        // 3b. Create the AdCreative.
+        const creativePayload: any = {
+          name: `${brief.title} — Creative`,
+          object_story_spec: {
+            page_id: pageId,
+            link_data: {
+              link: landingUrl,
+              message: adMessage,
+              name: adHeadline,
+              ...(imageHash ? { image_hash: imageHash } : {}),
+            },
+          },
+          degrees_of_freedom_spec: { creative_features_spec: { standard_enhancements: { enroll_status: 'OPT_OUT' } } },
+        };
+        const creativeRes = await metaApi(`/act_${META_AD_ACCOUNT_ID}/adcreatives`, 'POST', creativePayload);
+        creativeId = creativeRes?.id || null;
+
+        // 3c. Create the Ad (PAUSED — never auto-active).
+        if (creativeId) {
+          const adRes = await metaApi(`/act_${META_AD_ACCOUNT_ID}/ads`, 'POST', {
+            name: `${brief.title} — Ad`,
+            adset_id: adsetId,
+            creative: { creative_id: creativeId },
+            status: 'PAUSED',
+          });
+          adId = adRes?.id || null;
+        }
+      } catch (e: any) {
+        creativeWarning = `Creative/Ad creation failed: ${String(e?.message || e).slice(0, 200)}`;
+      }
+    } else if (!pageId && !creativeWarning) {
+      creativeWarning = 'אין דף פייסבוק זמין ל-System User. שייך אותו לדף עלינא ב-Business Manager → Pages → Assign people כדי שמודעות יווצרו אוטומטית.';
+    } else if (!brief.image_base64 && !brief.image_url) {
+      creativeWarning = 'אין תמונה ב-Brief. הרץ Visual Designer לפני יצירת Brief כדי שהמודעה תיווצר אוטומטית.';
+    }
+
     const updated = await db.campaignBrief.update({
       where: { id },
       data: {
         status: 'launched',
         meta_campaign_id: campaignId,
         meta_adset_id: adsetId || null,
+        meta_ad_id: adId,
+        meta_creative_id: creativeId,
+        meta_image_hash: imageHash,
         launched_at: new Date(),
-        launch_error: null,
+        launch_error: creativeWarning,
       },
     });
     return {
       brief: updated,
       meta_url: `https://business.facebook.com/adsmanager/manage/campaigns?act=${META_AD_ACCOUNT_ID}&selected_campaign_ids=${campaignId}`,
-      message: downgradedFromLeads
-        ? 'הקמפיין נוצר במצב PAUSED. שיניתי OUTCOME_LEADS ל-OUTCOME_TRAFFIC כי טופס לידים עוד לא הוגדר ב-Meta. כדי לחזור ל-Leads — הגדר Lead Form ב-Forms Library ועדכן את הקמפיין ב-Ads Manager.'
-        : 'הקמפיין נוצר במטא במצב PAUSED. הוסף קריאייטיב (תמונה+טקסט) ב-Meta Ads Manager והפעל ידנית.',
+      message: adId
+        ? (downgradedFromLeads
+          ? 'הקמפיין + AdSet + מודעה נוצרו ב-Meta במצב PAUSED. שיניתי OUTCOME_LEADS ל-OUTCOME_TRAFFIC כי טופס לידים עוד לא הוגדר.'
+          : 'הקמפיין + AdSet + מודעה נוצרו ב-Meta במצב PAUSED. תפעיל אותם ידנית כשתהיה מוכן.')
+        : (creativeWarning || 'הקמפיין נוצר במטא במצב PAUSED. הוסף קריאייטיב (תמונה+טקסט) ב-Meta Ads Manager והפעל ידנית.'),
     };
   } catch (e: any) {
     const updated = await db.campaignBrief.update({

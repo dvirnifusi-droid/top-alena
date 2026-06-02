@@ -38,6 +38,13 @@
     },
     "image_url": { "type": "string" },
     "image_base64": { "type": "string" },
+    "landing_url": {
+      "type": "string",
+      "description": "Destination URL the ad clicks send users to"
+    },
+    "meta_ad_id": { "type": "string" },
+    "meta_creative_id": { "type": "string" },
+    "meta_image_hash": { "type": "string" },
     "status": {
       "type": "string",
       "enum": ["draft", "pending_approval", "approved", "rejected", "launched", "launch_failed"],
