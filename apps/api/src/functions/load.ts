@@ -4744,6 +4744,7 @@ registerFn('deleteWaiterOrder', async ({ body }) => {
 
 const ALINA_BRAND_VOICE = `אתה כותב בשם המסעדה "עלינא" — סניף יחיד בראשון לציון, רוטשילד 104 (סגנון Jerusalem-Chic, smoky, אנרגטי, חם, לא קלישאתי). עברית טבעית בלבד, בלי אימוג'ים מוגזמים. דגש על אש, ג'וספר, חוויה, סיפור. בכל אזכור מיקום פיזי — ראשון לציון בלבד.`;
 const ALINA_DEFAULT_CITIES = ['Rishon LeZion'];
+const ALINA_DEFAULT_LANDING_URL = 'https://topalena.com/EventsInquiry?utm_source=facebook';
 
 // Pita Alena ad account (provided by owner). Token comes from DB (set via UI)
 // with env fallback for legacy setups.
@@ -5477,6 +5478,15 @@ async function ensureCampaignBriefTable() {
       "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
   `);
+  // Additive columns for the full ad-creation flow — safe to run repeatedly.
+  for (const sql of [
+    `ALTER TABLE "CampaignBrief" ADD COLUMN IF NOT EXISTS "landing_url" TEXT`,
+    `ALTER TABLE "CampaignBrief" ADD COLUMN IF NOT EXISTS "meta_ad_id" TEXT`,
+    `ALTER TABLE "CampaignBrief" ADD COLUMN IF NOT EXISTS "meta_creative_id" TEXT`,
+    `ALTER TABLE "CampaignBrief" ADD COLUMN IF NOT EXISTS "meta_image_hash" TEXT`,
+  ]) {
+    try { await (prisma as any).$executeRawUnsafe(sql); } catch {}
+  }
   campaignBriefTableReady = true;
 }
 
@@ -5913,6 +5923,85 @@ registerFn('clockInWithLocation', async ({ user, body }) => {
     last_lat: lastLat, last_lng: lastLng, last_location_at: lastAt,
   };
   return { shift, already_active: false };
+});
+
+// Read the caller's currently-active (or on-break) shift via raw SQL.
+// Bypasses Prisma findMany/findUnique which crash on this table due to
+// schema drift — DateTime parse failures and 0x00 byte errors. We need
+// this so ShiftClockWidget can detect an open shift after page refresh.
+registerFn('getMyActiveShift', async ({ user }) => {
+  if (!user?.id) throw new Error('unauthorized');
+  const rows: any[] = await (prisma as any).$queryRaw`
+    SELECT id, employee_id, employee_name,
+           date::text AS date,
+           shift_start, shift_end, status,
+           breaks, total_break_minutes, had_meal, meal_details,
+           total_hours, effective_hours
+    FROM "ShiftTracking"
+    WHERE employee_id = ${user.id}
+      AND (status = 'active' OR status = 'on_break')
+    ORDER BY shift_start DESC
+    LIMIT 1
+  `;
+  return { shift: rows?.[0] || null };
+});
+
+// Update a subset of ShiftTracking fields via raw SQL. Same reason as above:
+// Prisma update/findUnique crash on this table. Whitelist of writable fields
+// keeps us safe; ownership check enforces that only the shift's employee
+// (or its owner) can patch. Strings are stripped of 0x00 defensively.
+registerFn('patchShiftRaw', async ({ user, body }) => {
+  if (!user?.id) throw new Error('unauthorized');
+  const { shift_id, fields } = (body || {}) as { shift_id?: string; fields?: Record<string, unknown> };
+  if (!shift_id || !fields || typeof fields !== 'object') {
+    throw new Error('shift_id and fields required');
+  }
+  const own: any[] = await (prisma as any).$queryRaw`
+    SELECT employee_id FROM "ShiftTracking" WHERE id = ${shift_id} LIMIT 1
+  `;
+  if (!own?.[0]) throw new Error('shift_not_found');
+  if (own[0].employee_id !== user.id) throw new Error('not your shift');
+
+  const stripNuls = (s: unknown) => (typeof s === 'string' ? s.replace(/\x00/g, '') : s);
+
+  for (const k of Object.keys(fields)) {
+    const v = (fields as any)[k];
+    if (k === 'status') {
+      const s = String(stripNuls(v) ?? '');
+      await (prisma as any).$executeRaw`UPDATE "ShiftTracking" SET status = ${s}, "updatedAt" = NOW() WHERE id = ${shift_id}`;
+    } else if (k === 'breaks') {
+      const json = JSON.stringify(Array.isArray(v) ? v : []);
+      await (prisma as any).$executeRaw`UPDATE "ShiftTracking" SET breaks = ${json}::jsonb, "updatedAt" = NOW() WHERE id = ${shift_id}`;
+    } else if (k === 'total_break_minutes') {
+      const n = Number(v) || 0;
+      await (prisma as any).$executeRaw`UPDATE "ShiftTracking" SET total_break_minutes = ${n}, "updatedAt" = NOW() WHERE id = ${shift_id}`;
+    } else if (k === 'had_meal') {
+      await (prisma as any).$executeRaw`UPDATE "ShiftTracking" SET had_meal = ${!!v}, "updatedAt" = NOW() WHERE id = ${shift_id}`;
+    } else if (k === 'meal_details') {
+      const s = String(stripNuls(v) ?? '');
+      await (prisma as any).$executeRaw`UPDATE "ShiftTracking" SET meal_details = ${s}, "updatedAt" = NOW() WHERE id = ${shift_id}`;
+    } else if (k === 'shift_end') {
+      const d = v ? new Date(v as string) : null;
+      await (prisma as any).$executeRaw`UPDATE "ShiftTracking" SET shift_end = ${d}, "updatedAt" = NOW() WHERE id = ${shift_id}`;
+    } else if (k === 'total_hours') {
+      const n = Number(v) || 0;
+      await (prisma as any).$executeRaw`UPDATE "ShiftTracking" SET total_hours = ${n}, "updatedAt" = NOW() WHERE id = ${shift_id}`;
+    } else if (k === 'effective_hours') {
+      const n = Number(v) || 0;
+      await (prisma as any).$executeRaw`UPDATE "ShiftTracking" SET effective_hours = ${n}, "updatedAt" = NOW() WHERE id = ${shift_id}`;
+    }
+    // unknown keys silently ignored
+  }
+
+  const rows: any[] = await (prisma as any).$queryRaw`
+    SELECT id, employee_id, employee_name,
+           date::text AS date,
+           shift_start, shift_end, status,
+           breaks, total_break_minutes, had_meal, meal_details,
+           total_hours, effective_hours
+    FROM "ShiftTracking" WHERE id = ${shift_id} LIMIT 1
+  `;
+  return { shift: rows?.[0] || null };
 });
 
 // Authed — heartbeat from the active shift widget. Debounce: requires

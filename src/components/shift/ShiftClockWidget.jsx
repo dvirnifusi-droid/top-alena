@@ -99,21 +99,12 @@ export default function ShiftClockWidget() {
     const loadActiveShift = async (u) => {
         if (!u) { setLoading(false); return; }
         try {
-            const today = format(new Date(), 'yyyy-MM-dd');
-            const yesterday = format(new Date(Date.now() - 86400000), 'yyyy-MM-dd');
-
-            // חפש גם ביום הנוכחי וגם אתמול (לכיסוי משמרות לילה שעוברות חצות)
-            const [todayShifts, yesterdayShifts] = await Promise.all([
-                base44.entities.ShiftTracking.filter({ employee_id: u.id, date: today }).catch(() => []),
-                base44.entities.ShiftTracking.filter({ employee_id: u.id, date: yesterday }).catch(() => []),
-            ]);
-
-            const allShifts = [...(todayShifts || []), ...(yesterdayShifts || [])];
-            const active = allShifts.find(s => s.status === 'active' || s.status === 'on_break');
-            setActiveShift(active || null);
+            // Use raw-SQL function — Prisma findMany on ShiftTracking crashes
+            // due to schema drift (0x00 bytes, DateTime parse failures).
+            const res = await base44.functions.getMyActiveShift({});
+            setActiveShift(res?.data?.shift || null);
         } catch (e) {
             console.error('loadActiveShift failed:', e);
-            // Treat as no active shift so the clock-in button still renders.
             setActiveShift(null);
         } finally {
             setLoading(false);
@@ -134,58 +125,34 @@ export default function ShiftClockWidget() {
     const startShift = async () => {
         setActionLoading(true);
         try {
-            // OPTIONAL geofence pre-check — best-effort. If config call or GPS
-            // fails, we DO NOT block clock-in. Only blocks if config explicitly
-            // says required AND we can confirm the user is outside the radius.
+            // Best-effort coords — server-side clockInWithLocation enforces
+            // geofence when configured and uses raw SQL to insert (bypasses
+            // Prisma drift on ShiftTracking that crashes direct .create()).
+            let lat = null, lng = null;
             try {
-                const cfgRes = await base44.functions.getGeofenceConfig({});
-                const cfg = cfgRes?.data || {};
-                if (cfg.tracking_required && !cfg.my_tracking_disabled
-                    && cfg.restaurant_lat != null && cfg.restaurant_lng != null) {
-                    let coords;
-                    try {
-                        coords = await readPosition();
-                    } catch (e) {
-                        alert(e.message === 'denied'
-                            ? 'צריך לאשר הרשאת מיקום כדי להיכנס למשמרת'
-                            : 'המיקום לא זמין כרגע. פנה למנהל.');
-                        setActionLoading(false);
-                        return;
-                    }
-                    // client-side haversine
-                    const R = 6371000;
-                    const toRad = (d) => d * Math.PI / 180;
-                    const dLat = toRad(cfg.restaurant_lat - coords.lat);
-                    const dLng = toRad(cfg.restaurant_lng - coords.lng);
-                    const h = Math.sin(dLat/2)**2 + Math.cos(toRad(coords.lat)) * Math.cos(toRad(cfg.restaurant_lat)) * Math.sin(dLng/2)**2;
-                    const dist = 2 * R * Math.asin(Math.sqrt(h));
-                    const limit = cfg.in_radius_m || 30;
-                    if (dist > limit) {
-                        alert(`אתה במרחק ${Math.round(dist)} מ' מהעסק — לא ניתן להיכנס מכאן.`);
-                        setActionLoading(false);
-                        return;
-                    }
-                }
-            } catch {
-                // Geofence is best-effort; never block the original flow on its failure.
-            }
+                const coords = await readPosition();
+                lat = coords.lat; lng = coords.lng;
+            } catch { /* fall through; server blocks if geofence required */ }
 
-            // ORIGINAL FLOW — direct entity create. Strip any null bytes from
-            // strings before insert — PostgreSQL rejects 0x00 in text columns
-            // and a corrupted user field would otherwise blow up the whole flow.
-            const clean = (s) => (typeof s === 'string' ? s.replace(/\x00/g, '').trim() : s);
+            let shift;
+            try {
+                const res = await base44.functions.clockInWithLocation({ lat, lng });
+                shift = res?.data?.shift;
+            } catch (err) {
+                const code = err?.data?.code || err?.code;
+                if (code === 'location_required') {
+                    alert('צריך לאשר הרשאת מיקום כדי להיכנס למשמרת');
+                } else if (code === 'outside_geofence') {
+                    const d = err?.data?.distance_m;
+                    alert(d ? `אתה במרחק ${d} מ' מהעסק — לא ניתן להיכנס מכאן.` : 'אתה מחוץ לטווח המסעדה.');
+                } else {
+                    alert('שגיאה בכניסה למשמרת: ' + (err?.data?.message || err?.message || 'בלתי ידועה'));
+                }
+                setActionLoading(false);
+                return;
+            }
             const now = new Date().toISOString();
             const today = format(new Date(), 'yyyy-MM-dd');
-            const shift = await base44.entities.ShiftTracking.create({
-                employee_id: clean(user.id),
-                employee_name: clean(user.full_name) || 'עובד',
-                date: today,
-                shift_start: now,
-                status: 'active',
-                breaks: [],
-                total_break_minutes: 0,
-                had_meal: false,
-            });
 
             // ORIGINAL schedule bookkeeping (wrapped in try/catch so unrelated
             // WorkShift drift never prevents the gear-up dialog from opening).
@@ -268,49 +235,61 @@ export default function ShiftClockWidget() {
         setMyDevices({ ipad, terminal });
     };
 
+    // All ShiftTracking writes go through patchShiftRaw — direct Prisma
+    // .update() on this table currently crashes (schema drift / 0x00 bytes).
+    const patchShift = async (fields) => {
+        const res = await base44.functions.patchShiftRaw({ shift_id: activeShift.id, fields });
+        return res?.data?.shift || null;
+    };
+
     const startBreak = async () => {
         setActionLoading(true);
-        const now = new Date().toISOString();
-        const breaks = [...(activeShift.breaks || []), { break_start: now }];
-        const updated = await base44.entities.ShiftTracking.update(activeShift.id, {
-            status: 'on_break',
-            breaks,
-        });
-        setActiveShift(updated);
-        setActionLoading(false);
+        try {
+            const now = new Date().toISOString();
+            const breaks = [...(activeShift.breaks || []), { break_start: now }];
+            const updated = await patchShift({ status: 'on_break', breaks });
+            if (updated) setActiveShift(updated);
+        } catch (e) {
+            alert('שגיאה בתחילת הפסקה: ' + (e?.data?.message || e?.message || ''));
+        } finally {
+            setActionLoading(false);
+        }
     };
 
     const endBreak = async () => {
         setActionLoading(true);
-        const now = new Date().toISOString();
-        const breaks = [...(activeShift.breaks || [])];
-        const lastBreak = breaks[breaks.length - 1];
-        if (lastBreak && !lastBreak.break_end) {
-            const startMs = new Date(lastBreak.break_start).getTime();
-            const endMs = new Date(now).getTime();
-            lastBreak.break_end = now;
-            lastBreak.duration_minutes = Math.round((endMs - startMs) / 60000);
+        try {
+            const now = new Date().toISOString();
+            const breaks = [...(activeShift.breaks || [])];
+            const lastBreak = breaks[breaks.length - 1];
+            if (lastBreak && !lastBreak.break_end) {
+                const startMs = new Date(lastBreak.break_start).getTime();
+                const endMs = new Date(now).getTime();
+                lastBreak.break_end = now;
+                lastBreak.duration_minutes = Math.round((endMs - startMs) / 60000);
+            }
+            const totalBreakMinutes = breaks.reduce((sum, b) => sum + (b.duration_minutes || 0), 0);
+            const updated = await patchShift({ status: 'active', breaks, total_break_minutes: totalBreakMinutes });
+            if (updated) setActiveShift(updated);
+        } catch (e) {
+            alert('שגיאה בסיום הפסקה: ' + (e?.data?.message || e?.message || ''));
+        } finally {
+            setActionLoading(false);
         }
-        const totalBreakMinutes = breaks.reduce((sum, b) => sum + (b.duration_minutes || 0), 0);
-        const updated = await base44.entities.ShiftTracking.update(activeShift.id, {
-            status: 'active',
-            breaks,
-            total_break_minutes: totalBreakMinutes,
-        });
-        setActiveShift(updated);
-        setActionLoading(false);
     };
 
     const saveMeal = async () => {
         setActionLoading(true);
-        const updated = await base44.entities.ShiftTracking.update(activeShift.id, {
-            had_meal: true,
-            meal_details: mealDetails,
-        });
-        setActiveShift(updated);
-        setShowMealDialog(false);
-        setMealDetails('');
-        setActionLoading(false);
+        try {
+            const updated = await patchShift({ had_meal: true, meal_details: mealDetails });
+            if (updated) setActiveShift(updated);
+            setShowMealDialog(false);
+            setMealDetails('');
+        } catch (e) {
+            alert('שגיאה בשמירת ארוחה: ' + (e?.data?.message || e?.message || ''));
+        } finally {
+            setActionLoading(false);
+        }
     };
 
     const endShift = async () => {
@@ -341,8 +320,8 @@ export default function ShiftClockWidget() {
         const finalBreakMinutes = breakEditUnlocked && editBreakMinutes !== '' ? parseInt(editBreakMinutes) : (activeShift.total_break_minutes || 0);
         const finalEffectiveHours = Math.max(0, totalHours - finalBreakMinutes / 60);
 
-        // 1. עדכון ShiftTracking
-        await base44.entities.ShiftTracking.update(activeShift.id, {
+        // 1. עדכון ShiftTracking via raw SQL (Prisma update broken on this table)
+        await patchShift({
             shift_end: now,
             status: 'completed',
             total_hours: Math.round(totalHours * 100) / 100,
@@ -357,11 +336,14 @@ export default function ShiftClockWidget() {
         console.log('[EndShift] user.id:', user.id, '| employeeRecord.id:', employeeRecord?.id, '| employeeName:', employeeName);
 
         // 3. עדכון WorkShift - חפש גם ביום הנוכחי וגם בתאריך תחילת המשמרת (לכיסוי משמרות לילה)
+        // Wrapped: WorkShift entity is currently broken (schema drift — missing
+        // createdAt column). Failure here must not block shift-end.
         const shiftDate = format(new Date(activeShift.shift_start), 'yyyy-MM-dd');
         const today2 = format(new Date(), 'yyyy-MM-dd');
         const datesToSearch = [...new Set([shiftDate, today2])];
-        
+
         let workShiftUpdated = false;
+        try {
         const shiftStartHour = new Date(activeShift.shift_start).getHours() + new Date(activeShift.shift_start).getMinutes() / 60;
         // קבע את סוג המשמרת לפי שעת הכניסה (UTC+3 ישראל)
         const shiftStartLocalHour = (new Date(activeShift.shift_start).getHours() + 3) % 24;
@@ -402,8 +384,12 @@ export default function ShiftClockWidget() {
                 }
             }
         }
+        } catch (e) {
+            console.warn('WorkShift bookkeeping failed (non-fatal):', e);
+        }
 
-        // 4. שמירה בטיפים (Shift entity)
+        // 4. שמירה בטיפים (Shift entity) — non-fatal
+        try {
         await base44.entities.Shift.create({
             employee_id: employeeId,
             employee_name: user.full_name,
@@ -413,9 +399,13 @@ export default function ShiftClockWidget() {
             area: '',
             notes: `כניסה: ${format(new Date(activeShift.shift_start), 'HH:mm')} | יציאה: ${format(new Date(now), 'HH:mm')} | הפסקות: ${finalBreakMinutes} דק'${breakEditUnlocked ? ' (עודכן מנהל)' : ''}`,
         });
+        } catch (e) {
+            console.warn('Shift tip-row create failed (non-fatal):', e);
+        }
 
-        // 5. שמירת משוב עובד
+        // 5. שמירת משוב עובד — non-fatal
         if (feedbackRatings.atmosphere > 0 || feedbackRatings.sales > 0 || feedbackRatings.effort > 0) {
+            try {
             await base44.entities.Incident.create({
                 incident_number: `FEEDBACK-${Date.now()}`,
                 title: `משוב עובד: ${user.full_name} - ${today}`,
@@ -427,6 +417,9 @@ export default function ShiftClockWidget() {
                 reported_by: user.full_name,
                 incident_date: now,
             });
+            } catch (e) {
+                console.warn('Feedback Incident create failed (non-fatal):', e);
+            }
         }
 
         setFeedbackRatings({ atmosphere: 0, sales: 0, effort: 0 });
