@@ -125,6 +125,22 @@ function parseSort(modelName: string, sort: string | undefined) {
   return { [field]: desc ? 'desc' : 'asc' } as const;
 }
 
+// Strip PostgreSQL-illegal null bytes (0x00) from any string deep inside a
+// value. PG rejects them with code 22021 ("invalid byte sequence for encoding
+// UTF8: 0x00"), and corrupted source rows (legacy base44 imports) sometimes
+// carry them in user.full_name etc. Done at the route boundary so EVERY entity
+// create/update is protected regardless of caller.
+function stripNulls(v: unknown): unknown {
+  if (typeof v === 'string') return v.replace(/\x00/g, '');
+  if (Array.isArray(v)) return v.map(stripNulls);
+  if (v && typeof v === 'object') {
+    const out: Record<string, unknown> = {};
+    for (const [k, val] of Object.entries(v as Record<string, unknown>)) out[k] = stripNulls(val);
+    return out;
+  }
+  return v;
+}
+
 // Coerce date-string values in create/update payloads for DateTime fields.
 function coerceData(modelName: string, data: Record<string, unknown>): Record<string, unknown> {
   const types = fieldsOf(modelName);
@@ -135,7 +151,7 @@ function coerceData(modelName: string, data: Record<string, unknown>): Record<st
     // extra fields; Prisma rejects them, which broke admin create/update forms
     // (e.g. Incident.photo_url). Silently ignore unknown keys instead.
     if (!(k in types)) continue;
-    out[k] = types[k] === 'DateTime' ? coerceDate(v) : v;
+    out[k] = types[k] === 'DateTime' ? coerceDate(v) : stripNulls(v);
   }
   return out;
 }
