@@ -13,6 +13,23 @@ import GearUpDialog from './GearUpDialog';
 import GearReturnDialog from './GearReturnDialog';
 import { format } from 'date-fns';
 
+// Promise wrapper around navigator.geolocation. Resolves with {lat,lng} or
+// rejects with a short code: 'denied' | 'unavailable' | 'timeout'.
+function readPosition() {
+    return new Promise((resolve, reject) => {
+        if (!navigator.geolocation) return reject(new Error('unavailable'));
+        navigator.geolocation.getCurrentPosition(
+            (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+            (err) => {
+                if (err.code === 1) reject(new Error('denied'));
+                else if (err.code === 2) reject(new Error('unavailable'));
+                else reject(new Error('timeout'));
+            },
+            { timeout: 8000, maximumAge: 15000, enableHighAccuracy: true },
+        );
+    });
+}
+
 export default function ShiftClockWidget() {
     const [user, setUser] = useState(null);
     const [activeShift, setActiveShift] = useState(null);
@@ -49,6 +66,36 @@ export default function ShiftClockWidget() {
         }).catch(() => setLoading(false));
     }, []);
 
+    // Geofence heartbeat — only while a shift is active. Server auto-closes
+    // when the employee strays past 500m. We don't show errors to the user
+    // for missed pings (e.g. permission revoked) — the worst case is the
+    // shift stays open and a manager closes it.
+    useEffect(() => {
+        if (!activeShift || activeShift.status !== 'active') return;
+        let cancelled = false;
+        const sendPing = async () => {
+            if (cancelled || !navigator.geolocation) return;
+            try {
+                const pos = await readPosition();
+                const res = await base44.functions.shiftHeartbeat({
+                    shift_id: activeShift.id,
+                    lat: pos.lat,
+                    lng: pos.lng,
+                });
+                if (res?.data?.closed) {
+                    setActiveShift(null);
+                    alert('המשמרת שלך נסגרה אוטומטית — התרחקת מהעסק.');
+                }
+            } catch {
+                /* silent */
+            }
+        };
+        // First ping 30s after mount, then every 2 min.
+        const t0 = setTimeout(sendPing, 30_000);
+        const interval = setInterval(sendPing, 120_000);
+        return () => { cancelled = true; clearTimeout(t0); clearInterval(interval); };
+    }, [activeShift?.id, activeShift?.status]);
+
     const loadActiveShift = async (u) => {
         if (!u) { setLoading(false); return; }
         const today = format(new Date(), 'yyyy-MM-dd');
@@ -79,23 +126,59 @@ export default function ShiftClockWidget() {
 
     const startShift = async () => {
         setActionLoading(true);
-        const now = new Date().toISOString();
-        const today = format(new Date(), 'yyyy-MM-dd');
+        try {
+            // 1. Geofence config — do we need GPS for this user?
+            let coords = null;
+            try {
+                const cfgRes = await base44.functions.getGeofenceConfig({});
+                const cfg = cfgRes?.data || {};
+                if (cfg.tracking_required && !cfg.my_tracking_disabled) {
+                    try {
+                        coords = await readPosition();
+                    } catch (e) {
+                        const msg = e.message === 'denied'
+                            ? 'צריך לאשר הרשאת מיקום כדי להיכנס למשמרת'
+                            : 'המיקום לא זמין כרגע. פנה למנהל לכניסה ידנית.';
+                        alert(msg);
+                        setActionLoading(false);
+                        return;
+                    }
+                }
+            } catch {
+                // Config call failed — fall through to attempt clock-in without coords.
+                // Backend will accept if tracking isn't required.
+            }
 
-        // יצירת ShiftTracking
-        const shift = await base44.entities.ShiftTracking.create({
-            employee_id: user.id,
-            employee_name: user.full_name,
-            date: today,
-            shift_start: now,
-            status: 'active',
-            breaks: [],
-            total_break_minutes: 0,
-            had_meal: false,
-        });
+            // 2. Clock in via backend (handles geofence + ShiftTracking creation)
+            let shift;
+            try {
+                const res = await base44.functions.clockInWithLocation({
+                    lat: coords?.lat ?? null,
+                    lng: coords?.lng ?? null,
+                });
+                shift = res?.data?.shift;
+                if (!shift) {
+                    alert('שגיאה: לא נוצרה משמרת');
+                    setActionLoading(false);
+                    return;
+                }
+            } catch (err) {
+                const data = err?.response?.data || err?.data || {};
+                if (data?.code === 'outside_geofence' || /outside_geofence/.test(err?.message || '')) {
+                    alert(`אתה במרחק ${data.distance_m || '?'} מ' מהעסק — לא ניתן להיכנס מכאן.`);
+                } else if (data?.code === 'location_required') {
+                    alert('צריך מיקום כדי להיכנס למשמרת.');
+                } else {
+                    alert('שגיאה בכניסה למשמרת: ' + (err?.message || 'unknown'));
+                }
+                setActionLoading(false);
+                return;
+            }
 
-        // בדוק אם העובד מופיע בסידור עבודה של היום
-        const employeeRecord = await findEmployeeRecord(user);
+            // 3. Schedule bookkeeping (copied from original — only ShiftTracking.create above changed)
+            const now = shift.shift_start;
+            const today = format(new Date(), 'yyyy-MM-dd');
+            const employeeRecord = await findEmployeeRecord(user);
         const employeeId = employeeRecord?.id || user.id;
         const employeeName = employeeRecord?.full_name || user.full_name;
 
@@ -122,9 +205,9 @@ export default function ShiftClockWidget() {
             const hour = new Date().getHours();
             const shiftType = hour < 16 ? 'lunch' : 'dinner';
 
-            let shift = workShifts.find(ws => ws.shift_type === shiftType);
-            if (!shift) {
-                shift = await base44.entities.WorkShift.create({
+            let ws = workShifts.find(w => w.shift_type === shiftType);
+            if (!ws) {
+                ws = await base44.entities.WorkShift.create({
                     date: today,
                     shift_type: shiftType,
                     start_time: shiftType === 'lunch' ? '12:00' : '17:00',
@@ -134,7 +217,7 @@ export default function ShiftClockWidget() {
                 });
             }
 
-            const updatedStaff = [...(shift.assigned_staff || []), {
+            const updatedStaff = [...(ws.assigned_staff || []), {
                 employee_id: employeeId,
                 employee_name: user.full_name,
                 position: 'בלתם',
@@ -146,7 +229,7 @@ export default function ShiftClockWidget() {
                 meal_details: '',
                 total_break_minutes: 0,
             }];
-            await base44.entities.WorkShift.update(shift.id, { assigned_staff: updatedStaff });
+            await base44.entities.WorkShift.update(ws.id, { assigned_staff: updatedStaff });
         } else if (assignmentFound.position === 'בלתם' || !assignmentFound.start_time) {
             // עדכן את שעת ההתחלה של העובד בסידור אם הוא בתפקיד "בלתם" או ללא שעה
             const updatedStaff = [...(targetShift.assigned_staff || [])].map(a =>
@@ -157,10 +240,12 @@ export default function ShiftClockWidget() {
             await base44.entities.WorkShift.update(targetShift.id, { assigned_staff: updatedStaff });
         }
 
-        setActiveShift(shift);
-        setActionLoading(false);
-        // פתח דיאלוג קבלת ציוד לאחר כניסה למשמרת
-        setShowGearUp(true);
+            setActiveShift(shift);
+            // פתח דיאלוג קבלת ציוד לאחר כניסה למשמרת
+            setShowGearUp(true);
+        } finally {
+            setActionLoading(false);
+        }
     };
 
     const handleGearUpDone = (devices) => {

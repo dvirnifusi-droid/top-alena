@@ -17,6 +17,7 @@ import AiChatWidget from "./components/ai-assistant/AiChatWidget";
 import DevicePreviewToggle from "./components/DevicePreviewToggle";
 import EnableStaffPush from "./components/EnableStaffPush";
 import PopupManager from "./components/PopupManager";
+import AutoCloseNoticeBanner from "./components/shift/AutoCloseNoticeBanner";
 
 // Color presets for the per-category accent. Tailwind purges by content scan
 // so the full class names must appear literally in the file.
@@ -80,6 +81,7 @@ const adminLinks = [
   { title: "צ'אט משמרת", url: createPageUrl("ShiftChat"), icon: MessageSquare, isSubItem: true, color: "blue" },
   { title: "משוב עובדים", url: createPageUrl("EmployeeFeedback"), icon: MessageSquare, isSubItem: true, color: "blue" },
   { title: "הגדרות הגשת זמינות", url: createPageUrl("AvailabilityFormSettings"), icon: Settings, isSubItem: true, color: "blue" },
+  { title: "מיקום העסק וגיאופנס", url: createPageUrl("LocationSettings"), icon: Navigation, isSubItem: true, color: "blue" },
 
   { title: "גיוס והכשרה", url: "#", icon: GraduationCap, isCategory: true, color: "indigo" },
   { title: "ראיונות וגיוס 🎯", url: createPageUrl("RecruitmentInterviews"), icon: Users, isSubItem: true, color: "indigo" },
@@ -359,6 +361,7 @@ export default function Layout({ children, currentPageName }) {
             {/* "Enable free notifications" prompt for the logged-in user */}
             {user && <EnableStaffPush />}
             {user && <PopupManager user={user} />}
+            {user && <AutoCloseNoticeBanner />}
             {children}
           </main>
         </div>
