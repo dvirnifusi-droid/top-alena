@@ -6432,6 +6432,23 @@ registerFn('backfillRequiredNulls', async () => {
 // `.startsWith`/`.substring`/`.split` of those nulls. This restores a value
 // using the row's createdAt (or current time as fallback) so renders stop
 // crashing. Only touches columns Prisma declares as required + DateTime.
+// Diagnostic — lists table names matching a pattern and their columns. Public
+// so it can be invoked without a token during emergency debugging.
+registerFn('listMatchingTables', async ({ body }) => {
+  const pattern = String((body as any)?.pattern || '%').toLowerCase();
+  const tables: any[] = await (prisma as any).$queryRawUnsafe(
+    `SELECT table_name FROM information_schema.tables WHERE table_schema='public' AND LOWER(table_name) LIKE '${pattern.replace(/'/g, "''")}'`,
+  );
+  const out: Record<string, string[]> = {};
+  for (const t of tables) {
+    const cols: any[] = await (prisma as any).$queryRawUnsafe(
+      `SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name='${t.table_name.replace(/'/g, "''")}' ORDER BY ordinal_position`,
+    );
+    out[t.table_name] = cols.map((c) => c.column_name);
+  }
+  return out;
+}, { public: true });
+
 registerFn('backfillNullDateTimes', async () => {
   const { Prisma } = await import('@prisma/client');
   const results: Array<{ stmt: string; ok: boolean; affected?: number; error?: string }> = [];
