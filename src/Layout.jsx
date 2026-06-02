@@ -87,6 +87,7 @@ const adminLinks = [
   { title: "סרטוני הדרכה", url: createPageUrl("TrainingVideos"), icon: GraduationCap, isSubItem: true, color: "indigo" },
   { title: "אירועים פרטיים 🌿", url: createPageUrl("EventsPrivate"), icon: CalendarHeart, isSubItem: true, color: "indigo" },
   { title: "Sales Kit לאירועים", url: createPageUrl("EventsSalesKit"), icon: Utensils, isSubItem: true, color: "indigo" },
+  { title: "ראש מלצרים דיגיטלי 🍷", url: createPageUrl("WaiterAdmin"), icon: Utensils, isSubItem: true, color: "indigo" },
 
   { title: "משלוחים", url: "#", icon: Package, isCategory: true, color: "amber" },
   { title: "ניהול משלוחים", url: createPageUrl("Deliveries"), icon: Package, isSubItem: true, color: "amber" },
