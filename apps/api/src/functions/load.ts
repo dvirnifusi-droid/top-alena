@@ -4382,105 +4382,49 @@ registerFn('saveWaiterKit', async ({ body, user }) => {
 });
 
 // PUBLIC — main chat. session_id ties multiple turns together (frontend persists it).
+// Clean rebuild of chatWaiter. Mirrors chatEventsInquiry's exact pattern
+// (which runs in 5.7s reliably in production). No model override, no maxOutputTokens,
+// no timeoutMs, no retry, no compact-menu trickery. Just: load kit → build prompt with
+// JSON menu → invokeLLM → save WaiterOrder → return reply. Same signature events uses.
 registerFn('chatWaiter', async ({ body }) => {
   const { session_id, table_hint, history, message } = body as any;
   if (!session_id) throw new Error('session_id required');
 
+  // Load the kit (creates on first call). Same shape as before — no migrations needed.
   let kit = await (prisma as any).waiterKit.findFirst({ where: { singleton: true } });
   if (!kit) {
     kit = await (prisma as any).waiterKit.create({
-      data: { singleton: true, menu: { categories: [] }, daily_specials: [], out_of_stock: [], general_info: {}, system_prompt: WAITER_DEFAULT_PROMPT, updated_date: new Date().toISOString() },
+      data: {
+        singleton: true,
+        menu: { categories: [] },
+        daily_specials: [],
+        out_of_stock: [],
+        general_info: {},
+        system_prompt: WAITER_DEFAULT_PROMPT,
+        updated_date: new Date().toISOString(),
+      },
     });
   }
   const systemPrompt = (kit.system_prompt && kit.system_prompt.trim()) || WAITER_DEFAULT_PROMPT;
 
-  // Keep only the last 8 turns (4 user + 4 assistant) — old context bloats the prompt
-  // and makes Gemini slower / less reliable. The agent has the AI summary + collected
-  // state to remember what was discussed earlier.
-  const allTurns: Array<{ role: string; content: string }> = Array.isArray(history) ? history : [];
-  const turns = allTurns.slice(-8);
+  const turns: Array<{ role: string; content: string }> = Array.isArray(history) ? history : [];
   const transcript = turns.map((t) => `${t.role === 'assistant' ? 'מלצר' : 'לקוח'}: ${t.content}`).join('\n');
+  const newPart = message ? `\nלקוח: ${message}` : '';
 
-  // Multi-menu support with context-aware filtering: only inject the menu(s) the agent
-  // will actually need this turn — saves a lot of input tokens and makes the LLM faster.
-  const rawMenu: any = kit.menu || {};
-  const normalizedMenus: any = Array.isArray(rawMenu.categories)
-    ? { evening: rawMenu, lunch: { categories: [] }, delivery: { categories: [] } }
-    : { evening: rawMenu.evening || { categories: [] }, lunch: rawMenu.lunch || { categories: [] }, delivery: rawMenu.delivery || { categories: [] } };
-
-  const hourNow = parseInt(new Date().toLocaleString('en-US', { timeZone: 'Asia/Jerusalem', hour: '2-digit', hour12: false }), 10);
-  const fullConversationText = (transcript + ' ' + (message || '')).toLowerCase();
-  const mentionsDelivery = /(משלוח|טייק\s*אווי|טייק\s*אוויי|לקחת\s*הביתה|delivery|takeaway|take\s*away)/i.test(fullConversationText);
-  const mentionsLunch = /(עסקיות|עסקית|צהריים|business\s*lunch)/i.test(fullConversationText);
-  const isLunchHour = hourNow >= 11 && hourNow < 16;
-
-  let activeMenuLabel = 'MENU_EVENING (תפריט ערב)';
-  let activeMenu: any = normalizedMenus.evening;
-  if (mentionsDelivery && (normalizedMenus.delivery?.categories?.length || 0) > 0) {
-    activeMenuLabel = 'MENU_DELIVERY (תפריט משלוחים)';
-    activeMenu = normalizedMenus.delivery;
-  } else if ((mentionsLunch || isLunchHour) && (normalizedMenus.lunch?.categories?.length || 0) > 0) {
-    activeMenuLabel = 'MENU_LUNCH (תפריט עסקיות צהריים)';
-    activeMenu = normalizedMenus.lunch;
-  }
-
-  // Compact the menu for the LLM context: strip descriptions/notes/long text — only what's
-  // needed to recommend (name | price | allergens). The full descriptions live in the DB
-  // and the agent can refer to them if asked, but they bloat the prompt and slow generation.
-  const compactMenu = (m: any) => {
-    const cats = Array.isArray(m?.categories) ? m.categories : [];
-    return cats
-      .filter((c: any) => (c.items || []).length > 0)
-      .map((c: any) => {
-        const items = (c.items || [])
-          .map((it: any) => {
-            const allerg = Array.isArray(it.allergens) && it.allergens.length ? ` [${it.allergens.join(',')}]` : '';
-            return `${it.name}=₪${it.price_ils || 0}${allerg}`;
-          })
-          .join(' · ');
-        return `${c.name}: ${items}`;
-      })
-      .join('\n');
-  };
-
-  const compactSpecials = (s: any) => {
-    const arr = Array.isArray(s) ? s : [];
-    if (!arr.length) return '(אין)';
-    return arr.map((x: any) => `${x.name || ''}=₪${x.price_ils || 0}${x.description ? ` (${x.description})` : ''}`).join(' · ');
-  };
-
-  const compactInfo = (info: any) => {
-    if (!info || typeof info !== 'object') return '';
-    const parts: string[] = [];
-    if (info.kashrut) parts.push(`כשרות: ${info.kashrut}`);
-    if (info.wifi) parts.push(`WiFi: ${info.wifi}`);
-    if (info.parking) parts.push(`חניה: ${info.parking}`);
-    if (info.hours) parts.push(`שעות: ${info.hours}`);
-    if (Array.isArray(info.faq) && info.faq.length) {
-      parts.push(`FAQ: ${info.faq.map((q: any) => `${q.q}→${q.a}`).join(' | ')}`);
-    }
-    return parts.join(' · ');
-  };
-
-  const outOfStockList = Array.isArray(kit.out_of_stock) ? kit.out_of_stock.join(', ') : '';
-
+  // Inject the kit as JSON exactly the way events injects its sales kit — proven fast.
   const kitContext =
-    `\n--- ${activeMenuLabel} (מקור האמת — אסור להמציא, פורמט קומפקטי שם=מחיר [אלרגנים]) ---\n` +
-    `${compactMenu(activeMenu)}\n` +
-    (outOfStockList ? `--- חסר היום: ${outOfStockList}\n` : '') +
-    `--- ספיישלים: ${compactSpecials(kit.daily_specials)}\n` +
-    (compactInfo(kit.general_info) ? `--- מידע: ${compactInfo(kit.general_info)}\n` : '') +
-    `--- שעה ${hourNow}:00 · יעד 4-5 מנות לזוג ---\n`;
+    `\n--- MENU (מקור האמת לכל מחיר/פריט — אל תמציא כלום) ---\n` +
+    `${JSON.stringify(kit.menu || {}, null, 0)}\n` +
+    `--- DAILY_SPECIALS ---\n${JSON.stringify(kit.daily_specials || [], null, 0)}\n` +
+    `--- OUT_OF_STOCK ---\n${JSON.stringify(kit.out_of_stock || [], null, 0)}\n` +
+    `--- GENERAL_INFO ---\n${JSON.stringify(kit.general_info || {}, null, 0)}\n` +
+    `--- TARGET: 4-5 מנות לזוג (3-4 חלוקה + 0-2 בצלחת) ---\n`;
 
-  const prompt = `${systemPrompt}${kitContext}\n--- שיחה ---\n${transcript || '(תחילת שיחה — קבל את הלקוח בברכה חמה וקצרה ושאל כמה הם)'}${message ? `\nלקוח: ${message}` : ''}\n\nהחזר JSON בלבד.`;
+  const prompt = `${systemPrompt}${kitContext}\n--- שיחה עד כה ---\n${transcript || '(תחילת השיחה — קבל את הלקוח בברכה חמה ושאל כמה הם)'}${newPart}\n\nהחזר JSON בלבד.`;
 
-  // Backend-level retry: Pro has flaky latency. If the first call times out, we retry
-  // ONCE with the same settings. The frontend won't see a 524 unless both attempts hang.
-  const callOnce = () => invokeLLM({
+  // EXACT same invokeLLM signature as chatEventsInquiry — no overrides, period.
+  const result: any = await invokeLLM({
     prompt,
-    model: 'gemini-2.0-flash-exp',
-    timeoutMs: 25_000,
-    maxOutputTokens: 1500,
     responseSchema: {
       type: 'object',
       properties: {
@@ -4494,17 +4438,6 @@ registerFn('chatWaiter', async ({ body }) => {
     },
   });
 
-  let result: any;
-  try {
-    result = await callOnce();
-  } catch (e: any) {
-    if (String(e?.message || '').includes('llm_timeout') || String(e?.message || '').includes('Gemini error')) {
-      console.warn('[chatWaiter] first attempt failed, retrying once', e?.message);
-      result = await callOnce();
-    } else {
-      throw e;
-    }
-  }
   const c = result?.collected || {};
   const items = Array.isArray(c.recommended_items) ? c.recommended_items : [];
   const total = typeof c.total_ils === 'number'
