@@ -232,19 +232,39 @@ export async function invokeLLM(args: InvokeArgs) {
 }
 
 export async function generateImage({ prompt }: { prompt: string }) {
-  // Imagen via Gemini API (Anthropic doesn't generate images).
-  const res = await fetch(
-    `${GEMINI_BASE}/models/imagen-3.0-generate-002:generateImages?key=${geminiKey()}`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt: { text: prompt }, sampleCount: 1 }),
-    },
-  );
-  if (!res.ok) throw new Error(`Imagen error ${res.status}: ${await res.text()}`);
-  const data: any = await res.json();
-  const b64 = data?.generatedImages?.[0]?.image?.imageBytes;
-  return { image_base64: b64 ?? null };
+  // Imagen via Gemini API. Google rotates model IDs — try the env override
+  // first, then a list of currently-known model IDs in order.
+  const candidates = [
+    process.env.GEMINI_IMAGE_MODEL,
+    'imagen-4.0-generate-preview-06-06',
+    'imagen-4.0-generate-001',
+    'imagen-3.0-generate-002',
+    'imagen-3.0-generate-001',
+  ].filter(Boolean) as string[];
+
+  let lastErr: string = '';
+  for (const model of candidates) {
+    const res = await fetch(
+      `${GEMINI_BASE}/models/${model}:generateImages?key=${geminiKey()}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt: { text: prompt }, sampleCount: 1 }),
+      },
+    );
+    if (res.ok) {
+      const data: any = await res.json();
+      const b64 = data?.generatedImages?.[0]?.image?.imageBytes;
+      return { image_base64: b64 ?? null, model };
+    }
+    lastErr = `${res.status} ${await res.text().catch(() => '')}`;
+    // 404 = model name retired by Google; try the next candidate. Any other
+    // status means real failure (auth, quota, bad prompt) — bail out.
+    if (res.status !== 404) {
+      throw new Error(`Imagen ${model} error ${lastErr}`);
+    }
+  }
+  throw new Error(`Imagen: all model IDs returned 404. Last: ${lastErr}. Set GEMINI_IMAGE_MODEL env to a valid id.`);
 }
 
 // Returns the Base44-compatible envelope { status, output, details } so the
