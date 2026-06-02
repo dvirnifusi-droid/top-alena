@@ -85,6 +85,7 @@ import LeaveRequests from './pages/LeaveRequests';
 import MarketingAdvisor from './pages/MarketingAdvisor';
 import MarketingAI from './pages/MarketingAI';
 import MarketingDashboard from './pages/MarketingDashboard';
+import MarketingAgentsHub from './pages/MarketingAgentsHub';
 import MessageTemplates from './pages/MessageTemplates';
 import MyPerformance from './pages/MyPerformance';
 import PositionsManagement from './pages/PositionsManagement';
@@ -160,6 +161,7 @@ export const PAGES = {
     "MarketingAdvisor": MarketingAdvisor,
     "MarketingAI": MarketingAI,
     "MarketingDashboard": MarketingDashboard,
+    "MarketingAgentsHub": MarketingAgentsHub,
     "MessageTemplates": MessageTemplates,
     "MyPerformance": MyPerformance,
     "PositionsManagement": PositionsManagement,

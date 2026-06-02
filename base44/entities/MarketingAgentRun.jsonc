@@ -1,0 +1,53 @@
+{
+  "name": "MarketingAgentRun",
+  "type": "object",
+  "properties": {
+    "agent_type": {
+      "type": "string",
+      "enum": [
+        "copywriter",
+        "visual_designer",
+        "trend_spotter",
+        "storyteller",
+        "menu_engineer",
+        "main_media_buyer",
+        "event_campaigns",
+        "lunch_campaigns",
+        "evening_campaigns",
+        "optimization_analyst",
+        "conversational"
+      ],
+      "description": "Which marketing agent executed"
+    },
+    "title": {
+      "type": "string",
+      "description": "Short label for this run (shown in UI)"
+    },
+    "status": {
+      "type": "string",
+      "enum": ["pending", "running", "completed", "needs_integration", "failed"],
+      "default": "pending"
+    },
+    "input": {
+      "type": "object",
+      "description": "Raw input payload"
+    },
+    "output": {
+      "type": "object",
+      "description": "Agent output (text variants, image URLs, recommendations, etc.)"
+    },
+    "needs_integration": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "List of API keys/integrations required before this can run for real"
+    },
+    "error": {
+      "type": "string"
+    },
+    "ran_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "required": ["agent_type", "status"]
+}

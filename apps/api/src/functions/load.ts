@@ -4714,3 +4714,185 @@ registerFn('deleteWaiterOrder', async ({ body }) => {
   await (prisma as any).waiterOrder.delete({ where: { id: order_id } });
   return { ok: true };
 });
+
+// =====================================================================
+// VP MARKETING — 11-agent ecosystem
+// All runs are persisted in MarketingAgentRun for history + dashboard.
+// LLM-driven agents return real output via Gemini.
+// API-dependent agents (Meta Ads, Midjourney, Instagram Graph) return
+// status='needs_integration' with the list of secrets required, so the
+// owner sees exactly what's missing to flip them live.
+// =====================================================================
+
+const ALINA_BRAND_VOICE = `אתה כותב בשם המסעדה "עלינא" בירושלים — Jerusalem-Chic, smoky, אנרגטי, חם, לא קלישאתי. עברית טבעית בלבד, בלי אימוג'ים מוגזמים. דגש על אש, ג'וספר, חוויה, סיפור.`;
+
+const AGENT_REGISTRY: Record<string, { label: string; needs?: string[] }> = {
+  copywriter:           { label: 'Copywriter' },
+  storyteller:          { label: 'Storyteller / Newsletter' },
+  trend_spotter:        { label: 'Trend-Spotter' },
+  menu_engineer:        { label: 'Menu Engineer' },
+  conversational:       { label: 'Conversational (DM responder)' },
+  visual_designer:      { label: 'Visual Designer', needs: ['MIDJOURNEY_API_KEY or IDEOGRAM_API_KEY', 'CANVA_API_KEY (optional)'] },
+  main_media_buyer:     { label: 'Main Media Buyer', needs: ['META_ADS_ACCESS_TOKEN', 'META_AD_ACCOUNT_ID'] },
+  event_campaigns:      { label: 'Event Campaigns', needs: ['META_ADS_ACCESS_TOKEN', 'META_AD_ACCOUNT_ID'] },
+  lunch_campaigns:      { label: 'Lunch Campaigns', needs: ['META_ADS_ACCESS_TOKEN', 'META_AD_ACCOUNT_ID'] },
+  evening_campaigns:    { label: 'Evening/Delivery Campaigns', needs: ['META_ADS_ACCESS_TOKEN', 'META_AD_ACCOUNT_ID'] },
+  optimization_analyst: { label: 'Optimization Analyst', needs: ['META_ADS_ACCESS_TOKEN', 'META_AD_ACCOUNT_ID'] },
+};
+
+async function runCopywriter(input: any) {
+  const { topic, channel = 'instagram', length = 'short', cta } = input || {};
+  if (!topic) throw new Error('topic required');
+  const result: any = await invokeLLM({
+    prompt: `${ALINA_BRAND_VOICE}\n\nכתוב 3 וריאציות קופי ל-${channel} בנושא: "${topic}".\nאורך: ${length}. ${cta ? `Call-to-action: ${cta}.` : ''}\nהחזר JSON: { variants: [{ hook, body, hashtags: [..] }, ...] }`,
+    responseSchema: {
+      type: 'object',
+      properties: {
+        variants: {
+          type: 'array',
+          items: { type: 'object', properties: { hook: { type: 'string' }, body: { type: 'string' }, hashtags: { type: 'array', items: { type: 'string' } } } },
+        },
+      },
+    },
+  });
+  return result;
+}
+
+async function runStoryteller(input: any) {
+  const { period = 'week', highlights = '' } = input || {};
+  const result: any = await invokeLLM({
+    prompt: `${ALINA_BRAND_VOICE}\n\nכתוב טיוטה לניוזלטר ${period === 'month' ? 'חודשי' : 'שבועי'} ללקוחות המועדון של עלינא. נקודות בולטות מהשטח: ${highlights || '(אין — בחר זוויות מעניינות בעצמך: מנות עונתיות, סיפורי שף, אירועי החודש)'}.\nהחזר JSON: { subject, intro, sections: [{ heading, body }], closing }`,
+    responseSchema: {
+      type: 'object',
+      properties: {
+        subject: { type: 'string' },
+        intro: { type: 'string' },
+        sections: { type: 'array', items: { type: 'object', properties: { heading: { type: 'string' }, body: { type: 'string' } } } },
+        closing: { type: 'string' },
+      },
+    },
+  });
+  return result;
+}
+
+async function runTrendSpotter(input: any) {
+  const { niche = 'restaurant_jerusalem' } = input || {};
+  const result: any = await invokeLLM({
+    prompt: `${ALINA_BRAND_VOICE}\n\nאתה Trend-Spotter. צור 5 זוויות תוכן טרנדיות שמתאימות לעלינא (ירושלים, ג'וספר, אש) על בסיס דפוסים שראית ב-TikTok/Instagram Reels בקטגוריית ${niche}. לכל זווית — תאר רעיון לסרטון/פוסט ולמה זה ידבר. החזר JSON: { trends: [{ title, hook, why_it_works, suggested_format }] }`,
+    responseSchema: {
+      type: 'object',
+      properties: {
+        trends: { type: 'array', items: { type: 'object', properties: { title: { type: 'string' }, hook: { type: 'string' }, why_it_works: { type: 'string' }, suggested_format: { type: 'string' } } } },
+      },
+    },
+  });
+  return result;
+}
+
+async function runMenuEngineer(input: any) {
+  const { sales_data = '' } = input || {};
+  if (!sales_data) {
+    return { recommendations: [], note: 'הדבק נתוני מכירות (מנה, כמות שנמכרה, מחיר, עלות) כדי לקבל המלצות.' };
+  }
+  const result: any = await invokeLLM({
+    prompt: `אתה Menu Engineer במסעדת עלינא. נתח את נתוני המכירות הבאים וסווג כל מנה לאחת מ-4 קטגוריות BCG: Star (פופולרי+רווחי), Plowhorse (פופולרי+לא רווחי), Puzzle (לא פופולרי+רווחי), Dog (לא פופולרי+לא רווחי). תן המלצה קונקרטית לכל מנה.\n\nנתונים:\n${sales_data}\n\nהחזר JSON: { items: [{ name, category, margin_estimate, popularity, recommendation }], summary }`,
+    responseSchema: {
+      type: 'object',
+      properties: {
+        items: { type: 'array', items: { type: 'object', properties: { name: { type: 'string' }, category: { type: 'string' }, margin_estimate: { type: 'string' }, popularity: { type: 'string' }, recommendation: { type: 'string' } } } },
+        summary: { type: 'string' },
+      },
+    },
+  });
+  return result;
+}
+
+async function runConversational(input: any) {
+  const { incoming_message, customer_context = '', channel = 'instagram_dm' } = input || {};
+  if (!incoming_message) throw new Error('incoming_message required');
+  const result: any = await invokeLLM({
+    prompt: `${ALINA_BRAND_VOICE}\n\nאתה עונה ל-DM/תגובה ב-${channel}. ענה קצר, חם, ענייני. אם השאלה דורשת מידע שאין לך (זמינות אירוע, מחיר ספציפי), הצע להעביר לבן אדם.\n\nקונטקסט לקוח: ${customer_context || '(לא ידוע)'}\nהודעה נכנסת: "${incoming_message}"\n\nהחזר JSON: { reply, needs_human_handoff: boolean, suggested_tag }`,
+    responseSchema: {
+      type: 'object',
+      properties: { reply: { type: 'string' }, needs_human_handoff: { type: 'boolean' }, suggested_tag: { type: 'string' } },
+    },
+  });
+  return result;
+}
+
+registerFn('runMarketingAgent', async ({ body }) => {
+  const { agent_type, input } = (body || {}) as any;
+  if (!agent_type || !AGENT_REGISTRY[agent_type]) {
+    throw new Error(`Unknown agent_type: ${agent_type}`);
+  }
+  const meta = AGENT_REGISTRY[agent_type];
+
+  // Create run record up front so we always have history.
+  const run = await db.marketingAgentRun.create({
+    data: {
+      agent_type,
+      title: `${meta.label} — ${new Date().toLocaleString('he-IL')}`,
+      status: 'running',
+      input: input || {},
+      ran_at: new Date(),
+    },
+  });
+
+  // API-dependent agents: not flipping live without keys.
+  if (meta.needs && meta.needs.length) {
+    const updated = await db.marketingAgentRun.update({
+      where: { id: run.id },
+      data: {
+        status: 'needs_integration',
+        needs_integration: meta.needs,
+        output: { message: `סוכן ${meta.label} מוכן לעבודה אבל דורש מפתחות API כדי לרוץ באמת.`, integrations_required: meta.needs },
+      },
+    });
+    return { run: updated };
+  }
+
+  try {
+    let output: any;
+    switch (agent_type) {
+      case 'copywriter':     output = await runCopywriter(input); break;
+      case 'storyteller':    output = await runStoryteller(input); break;
+      case 'trend_spotter':  output = await runTrendSpotter(input); break;
+      case 'menu_engineer':  output = await runMenuEngineer(input); break;
+      case 'conversational': output = await runConversational(input); break;
+      default: throw new Error(`No handler for ${agent_type}`);
+    }
+    const updated = await db.marketingAgentRun.update({
+      where: { id: run.id },
+      data: { status: 'completed', output },
+    });
+    return { run: updated };
+  } catch (e: any) {
+    const updated = await db.marketingAgentRun.update({
+      where: { id: run.id },
+      data: { status: 'failed', error: String(e?.message || e) },
+    });
+    return { run: updated };
+  }
+});
+
+registerFn('listMarketingAgentRuns', async ({ body }) => {
+  const { agent_type, limit = 20 } = (body || {}) as any;
+  const where: any = {};
+  if (agent_type) where.agent_type = agent_type;
+  const runs = await db.marketingAgentRun.findMany({
+    where,
+    orderBy: { createdAt: 'desc' },
+    take: Math.min(Number(limit) || 20, 100),
+  });
+  return { runs };
+});
+
+registerFn('getMarketingAgentsCatalog', async () => {
+  return {
+    agents: Object.entries(AGENT_REGISTRY).map(([key, v]) => ({
+      key,
+      label: v.label,
+      needs_integration: v.needs || null,
+    })),
+  };
+});
