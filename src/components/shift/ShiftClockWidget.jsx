@@ -154,18 +154,29 @@ export default function ShiftClockWidget() {
             const now = new Date().toISOString();
             const today = format(new Date(), 'yyyy-MM-dd');
 
-            // ORIGINAL schedule bookkeeping (wrapped in try/catch so unrelated
-            // WorkShift drift never prevents the gear-up dialog from opening).
+            // Schedule bookkeeping — only touches the WorkShift matching the
+            // current shift_type (lunch < 16:00 IL, dinner otherwise). This is
+            // critical: an employee can work lunch + evening on the same day,
+            // and we must NEVER overwrite the lunch assignment when they clock
+            // into the evening (and vice versa). Wrapped in try/catch so any
+            // WorkShift drift doesn't prevent the gear-up dialog from opening.
             try {
                 const employeeRecord = await findEmployeeRecord(user);
                 const employeeId = employeeRecord?.id || user.id;
                 const employeeName = employeeRecord?.full_name || user.full_name;
 
+                // Israel local hour (server already runs UTC; add +3 with mod
+                // 24 to handle wrap). Lunch < 16:00 IL, dinner otherwise.
+                const ilHour = (new Date().getUTCHours() + 3) % 24;
+                const currentShiftType = ilHour < 16 ? 'lunch' : 'dinner';
+
                 const workShifts = await base44.entities.WorkShift.filter({ date: today });
+                // STRICT: only consider WorkShift records of the current type.
+                const shiftsOfThisType = workShifts.filter(w => w.shift_type === currentShiftType);
 
                 let assignmentFound = null;
                 let targetShift = null;
-                for (const ws of workShifts) {
+                for (const ws of shiftsOfThisType) {
                     const assignment = (ws.assigned_staff || []).find(a =>
                         a.employee_id === employeeId ||
                         (a.employee_name && employeeName && a.employee_name.toLowerCase() === employeeName.toLowerCase())
@@ -174,15 +185,16 @@ export default function ShiftClockWidget() {
                 }
 
                 if (!assignmentFound) {
-                    const hour = new Date().getHours();
-                    const shiftType = hour < 16 ? 'lunch' : 'dinner';
-                    let ws = workShifts.find(w => w.shift_type === shiftType);
+                    // No assignment in this shift_type — create or extend a
+                    // WorkShift of THIS type. Lunch-shift assignments stay
+                    // untouched (and vice versa).
+                    let ws = shiftsOfThisType[0];
                     if (!ws) {
                         ws = await base44.entities.WorkShift.create({
                             date: today,
-                            shift_type: shiftType,
-                            start_time: shiftType === 'lunch' ? '12:00' : '17:00',
-                            end_time: shiftType === 'lunch' ? '17:00' : '23:00',
+                            shift_type: currentShiftType,
+                            start_time: currentShiftType === 'lunch' ? '12:00' : '17:00',
+                            end_time: currentShiftType === 'lunch' ? '17:00' : '23:00',
                             assigned_staff: [],
                             positions_needed: {},
                         });
@@ -346,21 +358,20 @@ export default function ShiftClockWidget() {
         try {
         const shiftStartHour = new Date(activeShift.shift_start).getHours() + new Date(activeShift.shift_start).getMinutes() / 60;
         // קבע את סוג המשמרת לפי שעת הכניסה (UTC+3 ישראל)
-        const shiftStartLocalHour = (new Date(activeShift.shift_start).getHours() + 3) % 24;
-        const expectedShiftType = shiftStartLocalHour < 15 ? 'lunch' : 'dinner';
+        const shiftStartLocalHour = (new Date(activeShift.shift_start).getUTCHours() + 3) % 24;
+        const expectedShiftType = shiftStartLocalHour < 16 ? 'lunch' : 'dinner';
 
         for (const dateToSearch of datesToSearch) {
             if (workShiftUpdated) break;
             const workShifts = await base44.entities.WorkShift.filter({ date: dateToSearch });
-            
-            // מיין: תעדוף את המשמרת שתואמת לסוג לפי שעת הכניסה
-            const sortedShifts = [...workShifts].sort((a, b) => {
-                if (a.shift_type === expectedShiftType && b.shift_type !== expectedShiftType) return -1;
-                if (b.shift_type === expectedShiftType && a.shift_type !== expectedShiftType) return 1;
-                return 0;
-            });
 
-            for (const ws of sortedShifts) {
+            // STRICT: only update the WorkShift matching this ShiftTracking's
+            // shift_type. An employee can have a separate lunch and dinner
+            // assignment on the same day — closing the evening shift must not
+            // overwrite the lunch assignment's hours.
+            const matchingShifts = workShifts.filter(w => w.shift_type === expectedShiftType);
+
+            for (const ws of matchingShifts) {
                 const staff = ws.assigned_staff || [];
                 const idx = staff.findIndex(s =>
                     s.employee_id === employeeId ||
