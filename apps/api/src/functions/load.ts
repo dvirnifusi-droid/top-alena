@@ -5669,17 +5669,22 @@ registerFn('launchCampaignBrief', async ({ body }) => {
     const adsetPayload: any = {
       name: `${brief.title} — AdSet`,
       campaign_id: campaignId,
-      daily_budget: toInt((brief.daily_budget_ils || 40) * 100, 4000), // Meta uses minor units (agorot)
+      daily_budget: toInt((brief.daily_budget_ils || 40) * 100, 4000), // minor units
       billing_event: 'IMPRESSIONS',
       optimization_goal: optimizationGoal,
+      bid_strategy: 'LOWEST_COST_WITHOUT_CAP',
       targeting,
       status: 'PAUSED',
     };
-    const adsetRes = await metaApi(
-      `/act_${META_AD_ACCOUNT_ID}/adsets`,
-      'POST',
-      adsetPayload,
-    );
+    if (safeObjective === 'OUTCOME_TRAFFIC') adsetPayload.destination_type = 'WEBSITE';
+    let adsetRes: any;
+    try {
+      adsetRes = await metaApi(`/act_${META_AD_ACCOUNT_ID}/adsets`, 'POST', adsetPayload);
+    } catch (e: any) {
+      // Surface the payload we sent so the next launch attempt can see which
+      // field Meta is rejecting. Stored on the brief as launch_error.
+      throw new Error(`AdSet creation failed. Payload: ${JSON.stringify(adsetPayload)}. Meta: ${String(e?.message || e)}`);
+    }
     const adsetId = adsetRes?.id;
 
     const updated = await db.campaignBrief.update({
