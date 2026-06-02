@@ -97,12 +97,13 @@ export default function AvailabilityFormSettings() {
 
     const addPosition = () => {
          const dept = settings.departments.find(d => d.key === selectedDeptKey);
-         if (newPosition.trim() && !dept.positions.includes(newPosition.trim())) {
+         const existing = dept?.positions || [];
+         if (newPosition.trim() && !existing.includes(newPosition.trim())) {
              setSettings({
                  ...settings,
-                 departments: settings.departments.map(d => 
-                     d.key === selectedDeptKey 
-                         ? { ...d, positions: [...d.positions, newPosition.trim()] }
+                 departments: settings.departments.map(d =>
+                     d.key === selectedDeptKey
+                         ? { ...d, positions: [...(d.positions || []), newPosition.trim()] }
                          : d
                  )
              });
@@ -113,9 +114,9 @@ export default function AvailabilityFormSettings() {
      const removePosition = (pos) => {
          setSettings({
              ...settings,
-             departments: settings.departments.map(d => 
-                 d.key === selectedDeptKey 
-                     ? { ...d, positions: d.positions.filter(p => p !== pos) }
+             departments: settings.departments.map(d =>
+                 d.key === selectedDeptKey
+                     ? { ...d, positions: (d.positions || []).filter(p => p !== pos) }
                      : d
              )
          });
@@ -218,7 +219,7 @@ export default function AvailabilityFormSettings() {
                                                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
                                              >
                                                  <option value="">בחר תפקיד</option>
-                                                 {dept.positions.map(pos => (
+                                                 {(dept.positions || []).map(pos => (
                                                      <option key={pos} value={pos}>{pos}</option>
                                                  ))}
                                              </select>
@@ -226,7 +227,7 @@ export default function AvailabilityFormSettings() {
                                          <div>
                                              <Label className="text-sm mb-2 block font-semibold">תפקידים זמינים</Label>
                                              <div className="flex flex-wrap gap-2">
-                                                 {dept.positions.map(pos => (
+                                                 {(dept.positions || []).map(pos => (
                                                      <Badge key={pos} variant="outline">{pos}</Badge>
                                                  ))}
                                              </div>
@@ -285,7 +286,7 @@ export default function AvailabilityFormSettings() {
                                  <div>
                                      <Label className="mb-3 block font-semibold">התפקידים ל{settings.departments.find(d => d.key === selectedDeptKey)?.label}</Label>
                                      <div className="space-y-2">
-                                         {settings.departments.find(d => d.key === selectedDeptKey)?.positions.map((pos) => (
+                                         {(settings.departments.find(d => d.key === selectedDeptKey)?.positions || []).map((pos) => (
                                              <div
                                                  key={pos}
                                                  className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200"
