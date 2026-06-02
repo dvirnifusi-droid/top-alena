@@ -820,6 +820,37 @@ model EventBooking {
   updated_date      String?
 }
 
+model WaiterKit {
+  id                String   @id @default(cuid())
+  singleton         Boolean  @default(true) @unique
+  menu              Json?
+  daily_specials    Json?
+  out_of_stock      Json?
+  general_info      Json?
+  system_prompt     String?
+  updated_by        String?
+  updated_date      String?
+}
+
+model WaiterOrder {
+  id                String   @id @default(cuid())
+  session_id        String
+  table_hint        String?
+  party_size        Int?
+  is_first_visit    Boolean?
+  dietary_flags     Json?
+  preferences       Json?
+  recommended_items Json?
+  total_ils         Int?
+  status            String?  @default("in_progress")
+  conversation_log  Json?
+  ai_summary        String?
+  source            String?  @default("qr_table")
+  created_by        String?
+  created_date      String?
+  updated_date      String?
+}
+
 model KnowledgeBase {
   id        String   @id @default(cuid())
   category                     String
