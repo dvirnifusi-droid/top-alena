@@ -80,8 +80,25 @@ function AgentInputForm({ agentKey, onChange, value }) {
     case 'optimization_analyst':
       return (
         <div className="space-y-2">
+          <div>
+            <label className="text-xs font-semibold mb-1 block">תקופת ניתוח</label>
+            <select
+              value={value.date_preset || 'last_7d'}
+              onChange={(e) => set('date_preset', e.target.value)}
+              className="w-full border rounded p-2 text-sm bg-white"
+            >
+              <option value="today">היום</option>
+              <option value="yesterday">אתמול</option>
+              <option value="last_7d">7 ימים אחרונים</option>
+              <option value="last_14d">14 ימים אחרונים</option>
+              <option value="last_30d">30 ימים אחרונים</option>
+              <option value="this_month">החודש (מתחילתו)</option>
+              <option value="last_month">החודש הקודם</option>
+              <option value="lifetime">כל הזמן (lifetime)</option>
+            </select>
+          </div>
           <Textarea placeholder="מטרה ספציפית להרצה (אופציונלי — למשל: 'תקציב קמפיין אירועים נגמר תוך 3 ימים, מה לעשות?')" value={value.goal || ''} onChange={(e) => set('goal', e.target.value)} />
-          <div className="text-xs text-slate-500">חשבון: "pita alena" (1678566132326169). דורש META_ADS_ACCESS_TOKEN ב-env.</div>
+          <div className="text-xs text-slate-500">חשבון: "pita alena" (1678566132326169)</div>
         </div>
       );
     default:
@@ -113,7 +130,7 @@ function RunOutputView({ run }) {
       <div className="space-y-4">
         {out.headline && (
           <div className="bg-slate-900 text-white p-3 rounded">
-            <div className="text-xs text-slate-400 mb-1">מצב</div>
+            <div className="text-xs text-slate-400 mb-1">מצב {out.period ? `· ${out.period}` : ''}</div>
             <div className="font-semibold">{out.headline}</div>
           </div>
         )}

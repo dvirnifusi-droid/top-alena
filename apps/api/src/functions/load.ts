@@ -4960,6 +4960,8 @@ ${JSON.stringify(summary, null, 2)}
   return {
     ad_account_id: META_AD_ACCOUNT_ID,
     focus,
+    period: periodHebrew,
+    date_preset: datePreset,
     campaigns_count: summary.length,
     raw_data: summary,
     ...result,
