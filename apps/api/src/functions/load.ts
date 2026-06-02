@@ -4427,16 +4427,36 @@ registerFn('chatWaiter', async ({ body }) => {
   const turns: Array<{ role: string; content: string }> = Array.isArray(history) ? history : [];
   const transcript = turns.map((t) => `${t.role === 'assistant' ? 'מלצר' : 'לקוח'}: ${t.content}`).join('\n');
 
+  // Multi-menu support: kit.menu can be EITHER the legacy { categories: [...] } single shape
+  // OR the new { evening: {...}, lunch: {...}, delivery: {...} } shape. Normalize on the way in.
+  const rawMenu: any = kit.menu || {};
+  const normalizedMenus: any = Array.isArray(rawMenu.categories)
+    ? { evening: rawMenu, lunch: { categories: [] }, delivery: { categories: [] } }
+    : { evening: rawMenu.evening || { categories: [] }, lunch: rawMenu.lunch || { categories: [] }, delivery: rawMenu.delivery || { categories: [] } };
+
+  // Light time-of-day hint (Asia/Jerusalem). The agent decides which menu to use.
+  const hourNow = parseInt(new Date().toLocaleString('en-US', { timeZone: 'Asia/Jerusalem', hour: '2-digit', hour12: false }), 10);
+  const timeOfDayHint = hourNow >= 12 && hourNow < 16 ? 'lunch' : hourNow >= 18 ? 'evening' : 'between';
+
   const kitContext =
-    `\n--- MENU (מקור האמת לכל מנה ומחיר — אסור להמציא) ---\n` +
-    `${JSON.stringify(kit.menu || {}, null, 0)}\n` +
+    `\n--- MENU_EVENING (תפריט ערב — ברירת המחדל בשעות הערב) ---\n` +
+    `${JSON.stringify(normalizedMenus.evening || {}, null, 0)}\n` +
+    `--- MENU_LUNCH (תפריט עסקיות צהריים — להציע רק בשעות 12:00-16:00 או אם הלקוח שאל) ---\n` +
+    `${JSON.stringify(normalizedMenus.lunch || {}, null, 0)}\n` +
+    `--- MENU_DELIVERY (תפריט משלוחים וטייק אווי — להציע רק אם הלקוח שואל על משלוח / טייק אווי) ---\n` +
+    `${JSON.stringify(normalizedMenus.delivery || {}, null, 0)}\n` +
+    `--- TIME_OF_DAY: ${timeOfDayHint} (השעה כרגע ${hourNow}:00 בישראל) ---\n` +
     `--- DAILY_SPECIALS (הספיישלים של היום, להציע בעדיפות) ---\n` +
     `${JSON.stringify(kit.daily_specials || [], null, 0)}\n` +
     `--- OUT_OF_STOCK (אסור להמליץ על אלה) ---\n` +
     `${JSON.stringify(kit.out_of_stock || [], null, 0)}\n` +
     `--- GENERAL_INFO (כשרות, WiFi, חניה, שעות, FAQ) ---\n` +
     `${JSON.stringify(kit.general_info || {}, null, 0)}\n` +
-    `--- TARGET_DISHES: 4-5 לזוג (3-4 חלוקה + 0-2 עיקריות בצלחת) ---\n`;
+    `--- TARGET_DISHES: 4-5 לזוג (3-4 חלוקה + 0-2 עיקריות בצלחת) ---\n` +
+    `--- כלל בחירת תפריט ---\n` +
+    `ברירת מחדל: אם השעה היא ערב (אחרי 18:00) או הלקוח לא הזכיר כלום — השתמש ב-MENU_EVENING.\n` +
+    `אם השעה היא 12:00-16:00 — שאל אם הם בעניין של "עסקיות צהריים" (פחות פריטים, מחיר משולב). אם כן — השתמש ב-MENU_LUNCH.\n` +
+    `אם הלקוח אמר "משלוח" / "טייק אווי" / "לקחת הביתה" — השתמש ב-MENU_DELIVERY בלבד.\n`;
 
   const prompt = `${systemPrompt}${kitContext}\n--- שיחה עד כה ---\n${transcript || '(אין עדיין הודעות — קבל את הלקוח בברכה)'}${message ? `\nלקוח: ${message}` : ''}\n\nהחזר JSON בלבד.`;
 
@@ -4516,10 +4536,17 @@ registerFn('extractWaiterMenuFromFile', async ({ body }) => {
       : 'התפריט עשוי להכיל גם אוכל וגם משקאות.';
 
   const result: any = await invokeLLM({
+    maxOutputTokens: 16000,
     prompt:
       `מצורף קובץ תפריט (PDF או תמונה) של מסעדת עלינא בראשון לציון. סטייל burger-bar — מנות שיתוף בשריות, ירקות מהגוספר, סלטים, ועיקריות בצלחת. **אין דגים במסעדה.**\n` +
       `${kindLabel}\n\n` +
-      `המשימה: חלץ את **כל** הפריטים המופיעים בתפריט והחזר אותם מסווגים לקטגוריות הבאות בלבד:\n` +
+      `# המשימה: חילוץ מקסימליסטי\n` +
+      `**חובה לחלץ את כל הפריטים בתפריט — אסור לדלג, אסור לסכם, אסור להוסיף "ועוד..."**.\n` +
+      `אם יש 30 מנות בתפריט — תחזיר 30. אם יש 70 — תחזיר 70. עבור על כל עמוד, כל קטגוריה, כל פריט.\n` +
+      `סרוק בשיטתיות: עמוד אחד אחרי השני, קטגוריה אחר קטגוריה, מימין לשמאל ומלמעלה למטה.\n` +
+      `אם רואים פריט בלי מחיר — עדיין החזר אותו (price_ils=0).\n` +
+      `אם רואים פריט שמופיע פעמיים בגדלים שונים — החזר את שני הוואריאנטים בנפרד.\n\n` +
+      `# קטגוריות מותרות בלבד (category_id)\n` +
       `- salads (סלטים)\n` +
       `- sharing_veg (מנות חלוקה — ירקות מהגוספר)\n` +
       `- sharing_meat (מנות חלוקה — בשר)\n` +
@@ -4529,15 +4556,15 @@ registerFn('extractWaiterMenuFromFile', async ({ body }) => {
       `- beer (בירה)\n` +
       `- chasers (צ׳ייסרים / שוטים)\n` +
       `- soft_drinks (שתייה קלה / מים)\n` +
-      `- desserts (קינוחים)\n\n` +
-      `**לכל פריט חלץ**:\n` +
-      `- name: השם בדיוק כפי שמופיע בתפריט (שמור על האיות והפיסוק)\n` +
-      `- description: הרכיבים / אופן ההגשה כפי שהתפריט מתאר (טקסט חופשי, יכול להיות ריק אם לא מצוין)\n` +
-      `- price_ils: המחיר בש"ח כמספר שלם (אם לא מופיע — 0)\n` +
-      `- allergens: רשימה של אלרגנים מהרשימה הזו בלבד: ["גלוטן", "אגוזים", "לקטוז", "ביצים", "סויה", "שומשום", "סולפיטים"]. אם לא מצוין — מערך ריק.\n` +
-      `- notes: הערה שירותית אם רלוונטית — "פיקנטית", "מנה גדולה לחלוקה", "סיגנייצ׳ר", "צמחוני".\n\n` +
-      `אם פריט לא מתאים לאף קטגוריה — שים אותו ב-category_id="other".\n\n` +
-      `החזר JSON בלבד.`,
+      `- desserts (קינוחים)\n` +
+      `- other (כל פריט שלא מתאים)\n\n` +
+      `# לכל פריט חלץ\n` +
+      `- name: השם בדיוק כפי שכתוב (שמור איות ופיסוק; אל תתרגם)\n` +
+      `- description: רכיבים / אופן הגשה / גודל מנה — בדיוק כפי שהתפריט מתאר\n` +
+      `- price_ils: מחיר ש"ח כמספר שלם (0 אם לא מצוין)\n` +
+      `- allergens: מהרשימה הסגורה ["גלוטן","אגוזים","לקטוז","ביצים","סויה","שומשום","סולפיטים"] — רק אם התפריט מציין במפורש\n` +
+      `- notes: "פיקנטית" / "מנה גדולה לחלוקה" / "סיגנייצ׳ר" / "צמחוני" / "חדש" / "מומלץ" — רק אם מצוין\n\n` +
+      `החזר JSON בלבד — items עם כל הפריטים. אסור להחזיר מערך עם פחות פריטים ממה שיש בתפריט.`,
     fileUrls: [url],
     responseSchema: {
       type: 'object',

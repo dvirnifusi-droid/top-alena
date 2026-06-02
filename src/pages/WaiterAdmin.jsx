@@ -133,7 +133,30 @@ function MenuUploader({ menu, setMenu }) {
   );
 }
 
-function MenuTab({ menu, setMenu }) {
+const MENU_TIERS = [
+  { id: 'evening',  label: '🌙 ערב',                    hint: 'התפריט הראשי של עלינא — סטייל burger-bar, מנות שיתוף.' },
+  { id: 'lunch',    label: '☀️ עסקיות צהריים',           hint: 'תפריט יום צהריים — בדרך כלל מנה + תוספת במחיר משולב.' },
+  { id: 'delivery', label: '🛵 משלוחים וטייק אווי',      hint: 'תפריט למשלוח וטייק אווי — בלי מנות שלא טסות טוב.' },
+];
+
+// Normalize the legacy single-menu shape ({categories:[...]}) to the new tier map.
+function normalizeMenus(rawMenu) {
+  if (!rawMenu || typeof rawMenu !== 'object') return { evening: { categories: [] }, lunch: { categories: [] }, delivery: { categories: [] } };
+  if (Array.isArray(rawMenu.categories)) {
+    return { evening: rawMenu, lunch: { categories: [] }, delivery: { categories: [] } };
+  }
+  return {
+    evening:  rawMenu.evening  || { categories: [] },
+    lunch:    rawMenu.lunch    || { categories: [] },
+    delivery: rawMenu.delivery || { categories: [] },
+  };
+}
+
+function MenuTab({ menu: rawMenu, setMenu: setRawMenu }) {
+  const [activeTier, setActiveTier] = React.useState('evening');
+  const menus = normalizeMenus(rawMenu);
+  const menu = menus[activeTier] || { categories: [] };
+  const setMenu = (next) => setRawMenu({ ...menus, [activeTier]: next });
   const categories = Array.isArray(menu?.categories) ? menu.categories : [];
   const updateCat = (idx, patch) => setMenu({ ...menu, categories: categories.map((c, i) => i === idx ? { ...c, ...patch } : c) });
   const addCat = () => setMenu({ ...menu, categories: [...categories, { id: `cat_${Date.now()}`, name: 'קטגוריה חדשה', items: [] }] });
@@ -156,8 +179,40 @@ function MenuTab({ menu, setMenu }) {
     setMenu({ ...menu, categories: [...categories, ...toAdd] });
   };
 
+  const activeTierMeta = MENU_TIERS.find((t) => t.id === activeTier) || MENU_TIERS[0];
+  const itemCount = categories.reduce((s, c) => s + (c.items?.length || 0), 0);
+
   return (
     <div className="space-y-3">
+      {/* Menu-tier selector */}
+      <div className="flex flex-col gap-2">
+        <div className="flex gap-1 flex-wrap">
+          {MENU_TIERS.map((t) => {
+            const count = (menus[t.id]?.categories || []).reduce((s, c) => s + (c.items?.length || 0), 0);
+            const active = t.id === activeTier;
+            return (
+              <button
+                key={t.id}
+                onClick={() => setActiveTier(t.id)}
+                className={`px-3 py-2 rounded-lg border-2 text-sm font-bold transition ${
+                  active
+                    ? 'bg-amber-600 text-white border-amber-700 shadow'
+                    : 'bg-white text-slate-700 border-slate-300 hover:border-amber-400'
+                }`}
+              >
+                {t.label}
+                {count > 0 && (
+                  <span className={`mr-2 text-xs ${active ? 'bg-white/20' : 'bg-slate-100'} px-1.5 py-0.5 rounded-full`}>
+                    {count}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+        <p className="text-xs text-slate-600">{activeTierMeta.hint} — כרגע {itemCount} פריטים בתפריט הזה.</p>
+      </div>
+
       <MenuUploader menu={menu} setMenu={setMenu} />
       {categories.length === 0 && (
         <Card className="bg-amber-50 border-amber-200">

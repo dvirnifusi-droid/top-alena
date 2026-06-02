@@ -103,7 +103,10 @@ async function geminiInvoke({ prompt, responseSchema, fileUrls, model }: InvokeA
     body.generationConfig = {
       responseMimeType: 'application/json',
       responseSchema: sanitizeSchemaForGemini(responseSchema),
+      maxOutputTokens: (args as any).maxOutputTokens || 8192,
     };
+  } else if ((args as any).maxOutputTokens) {
+    body.generationConfig = { maxOutputTokens: (args as any).maxOutputTokens };
   }
 
   const res = await fetch(`${GEMINI_BASE}/models/${modelName}:generateContent?key=${geminiKey()}`, {
