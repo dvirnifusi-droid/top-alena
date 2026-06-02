@@ -5166,6 +5166,8 @@ async function runVpMarketing(input: any) {
   const { goal } = input || {};
   if (!goal || !String(goal).trim()) throw new Error('goal required — תאר מה אתה רוצה להשיג');
 
+  // Compact Meta snapshot — full campaign array bloats the prompt and pushes
+  // Gemini past its 60s ceiling. We pass totals + the top 3 by spend only.
   let metaSnapshot: any = null;
   if (await META_TOKEN()) {
     try {
@@ -5176,17 +5178,23 @@ async function runVpMarketing(input: any) {
         const ins = c?.insights?.data?.[0] || {};
         const leads = (ins.actions || []).find((a: any) => a.action_type === 'lead')?.value || '0';
         return {
-          name: c.name, status: c.status, objective: c.objective,
-          daily_budget_ils: c.daily_budget ? parseFloat(c.daily_budget) / 100 : null,
-          spend_ils_last_7d: parseFloat(ins.spend || '0'),
-          clicks_last_7d: parseInt(ins.clicks || '0'),
-          ctr_pct_last_7d: parseFloat(ins.ctr || '0'),
-          leads_last_7d: parseInt(leads),
+          name: c.name,
+          status: c.status,
+          spend_7d: Math.round(parseFloat(ins.spend || '0')),
+          ctr_pct_7d: Math.round(parseFloat(ins.ctr || '0') * 100) / 100,
+          leads_7d: parseInt(leads),
         };
       });
-      const totalSpend = data.reduce((s: number, c: any) => s + c.spend_ils_last_7d, 0);
-      const totalLeads = data.reduce((s: number, c: any) => s + c.leads_last_7d, 0);
-      metaSnapshot = { campaigns: data, total_spend_last_7d_ils: Math.round(totalSpend), total_leads_last_7d: totalLeads };
+      const totalSpend = data.reduce((s: number, c: any) => s + c.spend_7d, 0);
+      const totalLeads = data.reduce((s: number, c: any) => s + c.leads_7d, 0);
+      const top3 = [...data].sort((a, b) => b.spend_7d - a.spend_7d).slice(0, 3);
+      metaSnapshot = {
+        total_spend_last_7d_ils: totalSpend,
+        total_leads_last_7d: totalLeads,
+        active_campaigns: data.filter((c: any) => c.status === 'ACTIVE').length,
+        total_campaigns: data.length,
+        top_3_campaigns_by_spend: top3,
+      };
     } catch {
       metaSnapshot = { error: 'לא הצלחתי למשוך נתונים מ-Meta — אתכנן בלי קונטקסט קמפיינים.' };
     }
@@ -5198,6 +5206,7 @@ async function runVpMarketing(input: any) {
     .join('\n');
 
   const result: any = await invokeLLM({
+    timeoutMs: 90_000,
     prompt: `אתה VP Marketing של מסעדת עלינא (ראשון לציון, רוטשילד 104. ג'וספר, אש). הבעלים (דביר) נתן לך יעד עסקי, ויש לך 11 סוכנים תחת אחריותך. תפקידך: לנתח את היעד, להעריך את המצב הנוכחי, ולבנות תוכנית פעולה ברורה שמחלקת את העבודה בין הסוכנים בסדר הנכון.
 
 יעד מהבעלים: "${goal}"
