@@ -5799,13 +5799,23 @@ registerFn('clockInWithLocation', async ({ user, body }) => {
   if (!user?.id) throw new Error('unauthorized');
   const { lat, lng, manager_override } = body as any;
 
-  const profile = await db.restaurantProfile.findFirst();
+  // Read restaurant profile via raw SQL — sidesteps any Prisma drift on this table.
+  const profRows: any[] = await (prisma as any).$queryRaw`
+    SELECT restaurant_lat, restaurant_lng, shift_geofence_required
+    FROM "RestaurantProfile" LIMIT 1
+  `;
+  const profile = profRows?.[0] || null;
   const trackingOn =
     !!profile?.shift_geofence_required &&
     profile?.restaurant_lat != null &&
     profile?.restaurant_lng != null;
 
-  const emp = await db.employee.findUnique({ where: { id: user.id } }).catch(() => null);
+  // Read this employee's disable flag via raw SQL too.
+  const empRows: any[] = await (prisma as any).$queryRaw`
+    SELECT full_name, location_tracking_disabled
+    FROM "Employee" WHERE id = ${user.id} LIMIT 1
+  `;
+  const emp = empRows?.[0] || null;
   const empDisabled = !!emp?.location_tracking_disabled;
   const skipCheck =
     !trackingOn || empDisabled || (manager_override && isAdminRole((user as any)?.role));
@@ -5818,7 +5828,7 @@ registerFn('clockInWithLocation', async ({ user, body }) => {
     }
     const d = distanceMeters(
       { lat, lng },
-      { lat: profile!.restaurant_lat as number, lng: profile!.restaurant_lng as number },
+      { lat: profile.restaurant_lat as number, lng: profile.restaurant_lng as number },
     );
     if (d > GEOFENCE_IN_RADIUS_M) {
       const err: any = new Error('outside_geofence');
@@ -5830,41 +5840,42 @@ registerFn('clockInWithLocation', async ({ user, body }) => {
   }
 
   // Don't double clock-in.
-  const open = await db.shiftTracking.findFirst({
-    where: { employee_id: user.id, status: 'active' },
-  });
-  if (open) return { shift: open, already_active: true };
+  const openRows: any[] = await (prisma as any).$queryRaw`
+    SELECT id, shift_start, status FROM "ShiftTracking"
+    WHERE employee_id = ${user.id} AND status = 'active'
+    LIMIT 1
+  `;
+  if (openRows && openRows.length > 0) {
+    return { shift: openRows[0], already_active: true };
+  }
 
   const now = new Date();
-  const today = now.toISOString().slice(0, 10);
+  const today = new Date(now.toISOString().slice(0, 10));
+  const employeeName = (user as any).full_name || emp?.full_name || (user as any).email || 'עובד';
+  const newId = `c${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`;
+  const lastLat = typeof lat === 'number' ? lat : null;
+  const lastLng = typeof lng === 'number' ? lng : null;
+  const lastAt = lastLat !== null ? now : null;
 
-  const base: any = {
-    employee_id: user.id,
-    employee_name: (user as any).full_name || emp?.full_name || (user as any).email || 'עובד',
-    date: new Date(today),
-    shift_start: now,
-    status: 'active',
-    breaks: [],
-    total_break_minutes: 0,
-    had_meal: false,
+  await (prisma as any).$executeRaw`
+    INSERT INTO "ShiftTracking" (
+      id, employee_id, employee_name, date, shift_start, status,
+      breaks, total_break_minutes, had_meal,
+      last_lat, last_lng, last_location_at,
+      "createdAt", "updatedAt"
+    ) VALUES (
+      ${newId}, ${user.id}, ${employeeName}, ${today}, ${now}, 'active',
+      ${'[]'}::jsonb, 0, false,
+      ${lastLat}, ${lastLng}, ${lastAt},
+      NOW(), NOW()
+    )
+  `;
+  const shift: any = {
+    id: newId, employee_id: user.id, employee_name: employeeName,
+    date: today, shift_start: now, status: 'active',
+    breaks: [], total_break_minutes: 0, had_meal: false,
+    last_lat: lastLat, last_lng: lastLng, last_location_at: lastAt,
   };
-  const optionalLoc =
-    typeof lat === 'number' && typeof lng === 'number'
-      ? { last_lat: lat, last_lng: lng, last_location_at: now }
-      : {};
-
-  let shift: any = null;
-  try {
-    shift = await db.shiftTracking.create({ data: { ...base, ...optionalLoc } });
-  } catch (e: any) {
-    const msg = String(e?.message || '');
-    if (/unknown (arg|column)/i.test(msg) || msg.toLowerCase().includes('last_lat')) {
-      console.warn('[clockInWithLocation] retrying without location fields:', msg);
-      shift = await db.shiftTracking.create({ data: base });
-    } else {
-      throw e;
-    }
-  }
   return { shift, already_active: false };
 });
 
