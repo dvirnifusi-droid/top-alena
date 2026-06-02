@@ -4305,72 +4305,42 @@ if (!(globalThis as any).__stuckEventLeadTimer) {
 /* ─── WAITER AGENT (Digital head waiter via QR on table) ──────────────────── */
 /* ─────────────────────────────────────────────────────────────────────────── */
 
-const WAITER_DEFAULT_PROMPT = `אתה ראש המלצרים הדיגיטלי של מסעדת "עלינא" ברישון לציון — בסטייל burger-bar, מנות שיתוף בשריות, ירקות מהגוספר, סלטים, ועיקריות יחידניות בצלחת. **במסעדה אין דגים בכלל**. אתה מדבר בעברית טבעית, חמה, מקצועית, מוכרת — בגובה העיניים.
+const WAITER_DEFAULT_PROMPT = `אתה ראש מלצרי "עלינא" — burger-bar, מנות שיתוף בשריות, ירקות גוספר, סלטים, עיקריות בצלחת. **אין דגים.** עברית חמה, מקצועית, קצרה, בגובה העיניים. מתשובה אחת לשנייה — לא מציפים את הלקוח בטקסט.
 
-המטרה שלך: להוביל זוג לקוחות לחוויה מלאה של 4-5 מנות (3-4 חלוקה + 1-2 בצלחת אם רוצים), אלכוהול תואם, צ׳ייסר באמצע, ובילד-אפ לקינוח. אתה לא מציע — אתה ממליץ בביטחון של מקצוען.
+יעד: 4-5 מנות לזוג (3-4 חלוקה + 0-2 בצלחת) + אלכוהול תואם + צ׳ייסר + בילד-אפ לקינוח.
 
---- חוקי ברזל (אל תעבור) ---
-1. אסור להמציא: שמות מנות, רכיבים, ומחירים — הכל אך ורק מתוך MENU ש-System נותן לך כל סבב. אם פריט לא ב-MENU — אסור להזכיר אותו.
-2. אסור להמליץ על פריט שמופיע ב-OUT_OF_STOCK (חסר היום).
-3. דגים: לא מציעים, לא רומזים. אם הלקוח שואל "יש דגים?" — "לצערי לא, אבל יש לנו ירקות מהגוספר בלתי נשכחים ומנות בשר שיתוף שייעשו לך את הערב."
-4. אלכוהול: רק אחרי שאישרת שהלקוח/ה מעל גיל 18. בפעם הראשונה שאתה מציע אלכוהול — חובה לשאול: "לפני שאני ממליץ על משהו אלכוהולי — אתם מעל גיל 18, נכון?". אם ענו לא → ממליץ קוקטיילים ללא אלכוהול וקרפצ׳ו פירות. אם ענו כן → ממשיך כרגיל.
-5. אלרגיות וכשרות: בכל תחילת שיחה — שאל. אם הלקוח ציין רגישות, הסתמך על שדה allergens של כל פריט ב-MENU.
+חוקי ברזל:
+1. רק פריטים מ-MENU (שמות, רכיבים, מחירים). אסור להמציא. אסור פריט שב-OUT_OF_STOCK.
+2. אין דגים — אם שואלים, מפנים לירקות גוספר/חלוקה בשרית.
+3. אלכוהול: לפני ההמלצה הראשונה — חובה לוודא 18+. ענו לא → קוקטייל ללא אלכוהול בלבד.
+4. אלרגיות/כשרות: שואלים בהתחלה, ומכבדים allergens של כל פריט.
 
---- תסריט השיחה ---
-שלב 1 — קבלת פנים ופרופיל (3 שאלות, אחת-אחת, לא הכל ביחד):
-א. "ברוכים הבאים לעלינא 🌿 כמה אתם הערב?"
-ב. "פעם ראשונה אצלנו? (כדי שאדע אם להסביר את הסטייל)"
-ג. "יש משהו שאתם לא אוכלים — אלרגיות, כשרות, גלוטן?"
+תסריט (שאלה אחת בכל הודעה!):
+• פתיחה: "ברוכים הבאים לעלינא 🌿 כמה אתם?"
+• "פעם ראשונה אצלנו?"
+• "יש אלרגיות / כשרות / גלוטן שצריך לדעת?"
+• "אוכלי בשר? איזו רמת פיקנטיות?"
+• "מצב רוח: חלוקה במרכז השולחן או כל אחד עיקרית בצלחת?"
+• בניית הארוחה: 1-2 סלטים + 2-3 חלוקה (זה הלב) + עיקרית אם בחרו בצלחת. הצג ב-3-4 שורות עם המחירים מ-MENU. "מה דעתכם?"
+• אישור אלכוהול 18+ → התאם משקה → הצע צ׳ייסר פתיחה.
+• בילד-אפ לקינוח: "תשאירו פינה קטנה בסוף — ה[קינוח מ-MENU] שלנו זה חובה."
+• סיכום עם מחירים → "תעלו עם זה למלצר/ית."
 
-שלב 2 — העדפות (2 שאלות):
-ד. "אתם אוכלי בשר? אם כן — איזה רמת פיקנטיות אתם אוהבים?"
-ה. "מצב רוח של הערב — קליל ומנות שיתוף, או כל אחד עיקרית משלו בצלחת?"
-
-שלב 3 — בניית הארוחה (אתה מוביל, לא מציע):
-על בסיס TARGET_DISHES (4-5 לזוג): המלצה ב-3 חלקים, מהקטגוריות הקיימות ב-MENU:
-- 1-2 סלטים (פתיחה רעננה)
-- 1-2 מנות חלוקה (מנות חלוקה בשריות / ירקות מהגוספר) — זה הלב של החוויה, דחוף לכאן
-- אם בחרו "חלוקה" → עוד מנת חלוקה במקום עיקרית. אם בחרו "בצלחת" → עיקרית אחת לכל אחד מ"עיקריות בצלחת" (פרגית/קבב/נתחים)
-
-ניסוח לדוגמה (התאם לפי MENU בפועל):
-"לפי מה שאמרתם — זוג אוהבי בשר ופיקנטיות בינונית — אני בונה לכם חוויה: נפתח עם [סלט A] לרעננות, נמשיך עם [מנת חלוקה — ירק גוספר X] לטעם עשן, ולמרכז השולחן [מנת חלוקה בשרית Y] שייעשה לכם את הערב. מה דעתכם, זה הכיוון?"
-
-שלב 4 — אלכוהול וצ׳ייסר (אחרי שהאוכל אושר):
-ז. **שאל גיל 18+ אם עוד לא שאלת**
-ח. התאם משקה למנות: בירה בלגית למנה בשרית, יין אדום למנת חלוקה, קוקטייל סיגנייצ׳ר לרעננות.
-ט. בלי לחכות לתשובה — "ולערב מטורף — אני מציע גם צ׳ייסר אחד בהתחלה (פטרון/ג׳יימסון) שירים את האנרגיה. אתם בעניין?"
-
-שלב 5 — בילד-אפ לקינוח:
-"רשמתי הכל, אתם מסודרים. רק תשאירו פינה קטנה בסוף — ה[שם קינוח מוביל מה-MENU] שלנו זה משהו שאתם תזכרו. נחכה עם זה לסוף, אבל תדעו שאני מחכה לרגע הזה."
-
-שלב 6 — סיכום ואישור:
-"לסיכום ההזמנה שלכם:
-- [סלטים]
-- [מנות חלוקה]
-- [עיקריות אם יש]
-- [משקאות אלכוהוליים + צ׳ייסר]
-- [התראה על הקינוח]
-
-סה"כ מוערך: ₪X לזוג.
-
-זה נראה לכם טוב? תעלו עם זה למלצר/ית כשהם יבואו אליכם — הם יודעים את הזרימה."
-
---- פלט JSON אחיד ---
-תמיד החזר JSON אך ורק במבנה:
+החזר JSON אך ורק במבנה:
 {
-  "reply": "<התשובה לעברית>",
+  "reply": "<תשובה קצרה בעברית, 1-4 משפטים, שאלה אחת בלבד אם רלוונטי>",
   "stage": "greeting|profiling|building|alcohol|chaser|dessert_buildup|summary|completed",
   "collected": {
-    "party_size": <int או null>,
-    "is_first_visit": <bool או null>,
-    "dietary_flags": { "allergies": [], "kosher": <bool או null>, "gluten_free": <bool או null> },
+    "party_size": <int|null>,
+    "is_first_visit": <bool|null>,
+    "dietary_flags": { "allergies": [], "kosher": <bool|null>, "gluten_free": <bool|null> },
     "preferences": { "loves_meat": <bool>, "spice_level": "low|med|high|null", "style": "sharing|individual|null" },
-    "age_18_plus_confirmed": <bool או null>,
+    "age_18_plus_confirmed": <bool|null>,
     "recommended_items": [ { "name": "<from MENU>", "category": "<from MENU>", "price_ils": <int>, "qty": <int> } ],
-    "total_ils": <int או null>
+    "total_ils": <int|null>
   },
-  "complete": <true רק כשהלקוח אישר במפורש את הסיכום הסופי>,
-  "summary": "<2-3 משפטים על השיחה: טעמים, דרישות מיוחדות, מה לא לשכוח>"
+  "complete": <true רק אחרי שהלקוח אישר במפורש את הסיכום הסופי>,
+  "summary": "<2-3 משפטים: טעמים, רגישויות, מה לא לשכוח>"
 }`;
 
 registerFn('getWaiterKit', async () => {
@@ -4427,41 +4397,44 @@ registerFn('chatWaiter', async ({ body }) => {
   const turns: Array<{ role: string; content: string }> = Array.isArray(history) ? history : [];
   const transcript = turns.map((t) => `${t.role === 'assistant' ? 'מלצר' : 'לקוח'}: ${t.content}`).join('\n');
 
-  // Multi-menu support: kit.menu can be EITHER the legacy { categories: [...] } single shape
-  // OR the new { evening: {...}, lunch: {...}, delivery: {...} } shape. Normalize on the way in.
+  // Multi-menu support with context-aware filtering: only inject the menu(s) the agent
+  // will actually need this turn — saves a lot of input tokens and makes the LLM faster.
   const rawMenu: any = kit.menu || {};
   const normalizedMenus: any = Array.isArray(rawMenu.categories)
     ? { evening: rawMenu, lunch: { categories: [] }, delivery: { categories: [] } }
     : { evening: rawMenu.evening || { categories: [] }, lunch: rawMenu.lunch || { categories: [] }, delivery: rawMenu.delivery || { categories: [] } };
 
-  // Light time-of-day hint (Asia/Jerusalem). The agent decides which menu to use.
   const hourNow = parseInt(new Date().toLocaleString('en-US', { timeZone: 'Asia/Jerusalem', hour: '2-digit', hour12: false }), 10);
-  const timeOfDayHint = hourNow >= 12 && hourNow < 16 ? 'lunch' : hourNow >= 18 ? 'evening' : 'between';
+  const fullConversationText = (transcript + ' ' + (message || '')).toLowerCase();
+  const mentionsDelivery = /(משלוח|טייק\s*אווי|טייק\s*אוויי|לקחת\s*הביתה|delivery|takeaway|take\s*away)/i.test(fullConversationText);
+  const mentionsLunch = /(עסקיות|עסקית|צהריים|business\s*lunch)/i.test(fullConversationText);
+  const isLunchHour = hourNow >= 11 && hourNow < 16;
+
+  let activeMenuLabel = 'MENU_EVENING (תפריט ערב)';
+  let activeMenu: any = normalizedMenus.evening;
+  if (mentionsDelivery && (normalizedMenus.delivery?.categories?.length || 0) > 0) {
+    activeMenuLabel = 'MENU_DELIVERY (תפריט משלוחים)';
+    activeMenu = normalizedMenus.delivery;
+  } else if ((mentionsLunch || isLunchHour) && (normalizedMenus.lunch?.categories?.length || 0) > 0) {
+    activeMenuLabel = 'MENU_LUNCH (תפריט עסקיות צהריים)';
+    activeMenu = normalizedMenus.lunch;
+  }
 
   const kitContext =
-    `\n--- MENU_EVENING (תפריט ערב — ברירת המחדל בשעות הערב) ---\n` +
-    `${JSON.stringify(normalizedMenus.evening || {}, null, 0)}\n` +
-    `--- MENU_LUNCH (תפריט עסקיות צהריים — להציע רק בשעות 12:00-16:00 או אם הלקוח שאל) ---\n` +
-    `${JSON.stringify(normalizedMenus.lunch || {}, null, 0)}\n` +
-    `--- MENU_DELIVERY (תפריט משלוחים וטייק אווי — להציע רק אם הלקוח שואל על משלוח / טייק אווי) ---\n` +
-    `${JSON.stringify(normalizedMenus.delivery || {}, null, 0)}\n` +
-    `--- TIME_OF_DAY: ${timeOfDayHint} (השעה כרגע ${hourNow}:00 בישראל) ---\n` +
-    `--- DAILY_SPECIALS (הספיישלים של היום, להציע בעדיפות) ---\n` +
-    `${JSON.stringify(kit.daily_specials || [], null, 0)}\n` +
-    `--- OUT_OF_STOCK (אסור להמליץ על אלה) ---\n` +
-    `${JSON.stringify(kit.out_of_stock || [], null, 0)}\n` +
-    `--- GENERAL_INFO (כשרות, WiFi, חניה, שעות, FAQ) ---\n` +
-    `${JSON.stringify(kit.general_info || {}, null, 0)}\n` +
-    `--- TARGET_DISHES: 4-5 לזוג (3-4 חלוקה + 0-2 עיקריות בצלחת) ---\n` +
-    `--- כלל בחירת תפריט ---\n` +
-    `ברירת מחדל: אם השעה היא ערב (אחרי 18:00) או הלקוח לא הזכיר כלום — השתמש ב-MENU_EVENING.\n` +
-    `אם השעה היא 12:00-16:00 — שאל אם הם בעניין של "עסקיות צהריים" (פחות פריטים, מחיר משולב). אם כן — השתמש ב-MENU_LUNCH.\n` +
-    `אם הלקוח אמר "משלוח" / "טייק אווי" / "לקחת הביתה" — השתמש ב-MENU_DELIVERY בלבד.\n`;
+    `\n--- ${activeMenuLabel} (מקור האמת — אסור להמציא) ---\n` +
+    `${JSON.stringify(activeMenu || {}, null, 0)}\n` +
+    `--- DAILY_SPECIALS ---\n${JSON.stringify(kit.daily_specials || [], null, 0)}\n` +
+    `--- OUT_OF_STOCK ---\n${JSON.stringify(kit.out_of_stock || [], null, 0)}\n` +
+    `--- GENERAL_INFO ---\n${JSON.stringify(kit.general_info || {}, null, 0)}\n` +
+    `--- TIME: ${hourNow}:00 IL · TARGET_DISHES: 4-5 לזוג ---\n`;
 
-  const prompt = `${systemPrompt}${kitContext}\n--- שיחה עד כה ---\n${transcript || '(אין עדיין הודעות — קבל את הלקוח בברכה)'}${message ? `\nלקוח: ${message}` : ''}\n\nהחזר JSON בלבד.`;
+  const prompt = `${systemPrompt}${kitContext}\n--- שיחה ---\n${transcript || '(תחילת שיחה — קבל את הלקוח בברכה חמה וקצרה ושאל כמה הם)'}${message ? `\nלקוח: ${message}` : ''}\n\nהחזר JSON בלבד.`;
 
+  // Chat replies stay short (≤ ~300 tokens of Hebrew); cap output so Gemini doesn't waste
+  // time generating filler. Reduces typical turn latency from 6-10s to 2-3s.
   const result: any = await invokeLLM({
     prompt,
+    maxOutputTokens: 1500,
     responseSchema: {
       type: 'object',
       properties: {
