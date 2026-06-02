@@ -6,7 +6,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Loader2, Sparkles, Image as ImgIcon, TrendingUp, BookOpen, ChefHat, MessageCircle, DollarSign, CalendarHeart, UtensilsCrossed, Moon, BarChart3, Megaphone, AlertTriangle, CheckCircle2, Key, ArrowLeft, Crown } from 'lucide-react';
+import { Loader2, Sparkles, Image as ImgIcon, TrendingUp, BookOpen, ChefHat, MessageCircle, DollarSign, CalendarHeart, UtensilsCrossed, Moon, BarChart3, Megaphone, AlertTriangle, CheckCircle2, Key, ArrowLeft, Crown, Rocket, FileCheck, X as XIcon, ExternalLink } from 'lucide-react';
 import { toast } from 'sonner';
 
 const AGENTS = [
@@ -348,6 +348,112 @@ export default function MarketingAgentsHub() {
   const [metaToken, setMetaToken] = useState('');
   const [metaTokenSet, setMetaTokenSet] = useState(false);
   const [savingToken, setSavingToken] = useState(false);
+  const [briefDialogOpen, setBriefDialogOpen] = useState(false);
+  const [activeBrief, setActiveBrief] = useState(null);
+  const [briefBusy, setBriefBusy] = useState(false);
+  const [briefs, setBriefs] = useState([]);
+  const [showBriefs, setShowBriefs] = useState(false);
+
+  const loadBriefs = useCallback(async () => {
+    try {
+      const res = await base44.functions.listCampaignBriefs({ limit: 50 });
+      setBriefs(res?.data?.briefs || []);
+    } catch (e) { console.error('listCampaignBriefs failed', e); }
+  }, []);
+
+  useEffect(() => { loadBriefs(); }, [loadBriefs]);
+
+  const createBriefFromRun = async () => {
+    if (!latestRun) return;
+    setBriefBusy(true);
+    try {
+      const out = latestRun.output || {};
+      const goal = out.goal_understood || activeAgent?.label || 'קמפיין חדש';
+      const copy_variants = Array.isArray(out.variants) ? out.variants : null;
+      const image_base64 = out.image_base64 || null;
+      const audience_hint = out.context_assessed || out.strategy || null;
+      const res = await base44.functions.createCampaignBrief({ goal, copy_variants, image_base64, audience_hint });
+      const brief = res?.data?.brief;
+      if (brief) {
+        setActiveBrief(brief);
+        setBriefDialogOpen(true);
+        loadBriefs();
+        toast.success('Brief נוצר — סקור ואשר');
+      }
+    } catch (e) {
+      toast.error(`שגיאה: ${e?.message || e}`);
+    } finally {
+      setBriefBusy(false);
+    }
+  };
+
+  const approveBrief = async () => {
+    if (!activeBrief) return;
+    setBriefBusy(true);
+    try {
+      const res = await base44.functions.approveCampaignBrief({ id: activeBrief.id });
+      setActiveBrief(res?.data?.brief || activeBrief);
+      loadBriefs();
+      toast.success('Brief אושר — אפשר לשגר ל-Meta');
+    } catch (e) {
+      toast.error(`שגיאה: ${e?.message || e}`);
+    } finally { setBriefBusy(false); }
+  };
+
+  const rejectBrief = async () => {
+    if (!activeBrief) return;
+    const reason = window.prompt('סיבת דחייה (אופציונלי):') || '';
+    setBriefBusy(true);
+    try {
+      const res = await base44.functions.rejectCampaignBrief({ id: activeBrief.id, reason });
+      setActiveBrief(res?.data?.brief || activeBrief);
+      loadBriefs();
+      toast.info('Brief נדחה');
+    } catch (e) {
+      toast.error(`שגיאה: ${e?.message || e}`);
+    } finally { setBriefBusy(false); }
+  };
+
+  const launchBrief = async () => {
+    if (!activeBrief) return;
+    if (!window.confirm(`לשגר את הקמפיין "${activeBrief.title}" ל-Meta? הוא ייווצר במצב PAUSED — לא יוציא כסף עד שתפעיל ידנית במטא.`)) return;
+    setBriefBusy(true);
+    try {
+      const res = await base44.functions.launchCampaignBrief({ id: activeBrief.id });
+      const updated = res?.data?.brief;
+      if (updated) setActiveBrief(updated);
+      if (res?.data?.error) toast.error(`שיגור נכשל: ${res.data.error}`);
+      else if (res?.data?.meta_url) {
+        toast.success('הקמפיין נוצר ב-Meta (PAUSED). פתח את Meta Ads Manager להוסיף יצירתי ולהפעיל.');
+      }
+      loadBriefs();
+    } catch (e) {
+      toast.error(`שגיאה: ${e?.message || e}`);
+    } finally { setBriefBusy(false); }
+  };
+
+  const updateBriefField = (field, value) => {
+    setActiveBrief((b) => b ? { ...b, [field]: value } : b);
+  };
+
+  const saveBriefEdits = async () => {
+    if (!activeBrief) return;
+    setBriefBusy(true);
+    try {
+      const patch = {
+        title: activeBrief.title,
+        daily_budget_ils: Number(activeBrief.daily_budget_ils),
+        objective: activeBrief.objective,
+        audience: activeBrief.audience,
+      };
+      const res = await base44.functions.updateCampaignBrief({ id: activeBrief.id, patch });
+      if (res?.data?.brief) setActiveBrief(res.data.brief);
+      toast.success('עריכה נשמרה');
+      loadBriefs();
+    } catch (e) {
+      toast.error(`שגיאה: ${e?.message || e}`);
+    } finally { setBriefBusy(false); }
+  };
 
   useEffect(() => {
     base44.functions.hasIntegrationSecret({ key: 'META_ADS_ACCESS_TOKEN' })
@@ -414,9 +520,12 @@ export default function MarketingAgentsHub() {
           <h1 className="text-2xl font-bold flex items-center gap-2"><Megaphone className="w-6 h-6" /> VP Marketing — 11 סוכנים</h1>
           <p className="text-slate-600 text-sm mt-1">צוות שיווק אוטונומי תחת סגן השיווק. סוכנים מבוססי-LLM פעילים מיד; סוכני מדיה ועיצוב חזותי דורשים מפתחות API.</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           <Button variant="outline" onClick={() => setShowSecrets(true)}>
             <Key className="w-4 h-4 ml-1" /> מפתחות API {metaTokenSet ? '✅' : '⚠️'}
+          </Button>
+          <Button variant="outline" onClick={() => setShowBriefs(true)}>
+            <Rocket className="w-4 h-4 ml-1" /> Briefs ({briefs.length})
           </Button>
           <Button variant="outline" onClick={() => setShowHistory(true)}>היסטוריית הרצות ({runs.length})</Button>
         </div>
@@ -466,9 +575,17 @@ export default function MarketingAgentsHub() {
               </Button>
               {latestRun && (
                 <div className="border rounded p-3 bg-white">
-                  <div className="flex items-center gap-2 mb-2">
-                    {latestRun.status === 'completed' && <CheckCircle2 className="w-4 h-4 text-emerald-600" />}
-                    <Badge variant={STATUS_BADGE[latestRun.status]?.variant}>{STATUS_BADGE[latestRun.status]?.label}</Badge>
+                  <div className="flex items-center justify-between gap-2 mb-2">
+                    <div className="flex items-center gap-2">
+                      {latestRun.status === 'completed' && <CheckCircle2 className="w-4 h-4 text-emerald-600" />}
+                      <Badge variant={STATUS_BADGE[latestRun.status]?.variant}>{STATUS_BADGE[latestRun.status]?.label}</Badge>
+                    </div>
+                    {latestRun.status === 'completed' && (
+                      <Button size="sm" variant="default" onClick={createBriefFromRun} disabled={briefBusy} className="bg-fuchsia-600 hover:bg-fuchsia-700">
+                        {briefBusy ? <Loader2 className="w-3 h-3 animate-spin ml-1" /> : <FileCheck className="w-3 h-3 ml-1" />}
+                        צור Brief לשיגור ל-Meta
+                      </Button>
+                    )}
                   </div>
                   <RunOutputView run={latestRun} />
                   {Array.isArray(latestRun.output?.next_steps) && latestRun.output.next_steps.length > 0 && (
@@ -508,6 +625,176 @@ export default function MarketingAgentsHub() {
                   )}
                 </div>
               )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showBriefs} onOpenChange={setShowBriefs}>
+        <DialogContent className="max-w-3xl" dir="rtl">
+          <DialogHeader><DialogTitle>Campaign Briefs</DialogTitle></DialogHeader>
+          <div className="space-y-2 max-h-[60vh] overflow-auto">
+            {briefs.length === 0 && <p className="text-sm text-slate-500">אין Briefs עדיין. אחרי שתריץ סוכן ותקבל תוצאה — תופיע כפתור "צור Brief".</p>}
+            {briefs.map((b) => {
+              const statusColor = {
+                pending_approval: 'bg-amber-100 text-amber-900',
+                approved: 'bg-emerald-100 text-emerald-900',
+                rejected: 'bg-slate-200 text-slate-700',
+                launched: 'bg-fuchsia-100 text-fuchsia-900',
+                launch_failed: 'bg-red-100 text-red-900',
+                draft: 'bg-slate-100 text-slate-600',
+              }[b.status] || 'bg-slate-100';
+              const statusLabel = {
+                pending_approval: 'ממתין לאישור',
+                approved: 'אושר',
+                rejected: 'נדחה',
+                launched: 'שוגר ל-Meta',
+                launch_failed: 'שיגור נכשל',
+                draft: 'טיוטה',
+              }[b.status] || b.status;
+              return (
+                <button key={b.id} onClick={() => { setActiveBrief(b); setBriefDialogOpen(true); setShowBriefs(false); }} className="w-full text-right border rounded p-3 hover:shadow transition bg-white">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="font-semibold">{b.title}</span>
+                    <span className={`text-xs px-2 py-0.5 rounded ${statusColor}`}>{statusLabel}</span>
+                  </div>
+                  <div className="text-xs text-slate-500">תקציב יומי: ₪{b.daily_budget_ils} · יעד: {b.objective} · {new Date(b.createdAt).toLocaleString('he-IL')}</div>
+                  {b.meta_campaign_id && <div className="text-xs text-fuchsia-700 mt-1">Meta Campaign ID: {b.meta_campaign_id}</div>}
+                </button>
+              );
+            })}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={briefDialogOpen} onOpenChange={setBriefDialogOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-auto" dir="rtl">
+          <DialogHeader><DialogTitle>{activeBrief?.title || 'Campaign Brief'}</DialogTitle></DialogHeader>
+          {activeBrief && (
+            <div className="space-y-4">
+              {/* Status banner */}
+              <div className={`p-3 rounded ${
+                activeBrief.status === 'launched' ? 'bg-fuchsia-50 border border-fuchsia-300' :
+                activeBrief.status === 'approved' ? 'bg-emerald-50 border border-emerald-300' :
+                activeBrief.status === 'rejected' ? 'bg-slate-100 border border-slate-300' :
+                activeBrief.status === 'launch_failed' ? 'bg-red-50 border border-red-300' :
+                'bg-amber-50 border border-amber-300'
+              }`}>
+                <div className="text-sm font-semibold">
+                  {{
+                    pending_approval: '⏳ ממתין לאישור שלך',
+                    approved: '✅ אושר — מוכן לשיגור ל-Meta',
+                    rejected: '🗑 נדחה' + (activeBrief.reject_reason ? `: ${activeBrief.reject_reason}` : ''),
+                    launched: '🚀 שוגר ל-Meta במצב PAUSED',
+                    launch_failed: '❌ שיגור נכשל',
+                    draft: 'טיוטה',
+                  }[activeBrief.status] || activeBrief.status}
+                </div>
+                {activeBrief.meta_campaign_id && (
+                  <a
+                    href={`https://business.facebook.com/adsmanager/manage/campaigns?act=1678566132326169&selected_campaign_ids=${activeBrief.meta_campaign_id}`}
+                    target="_blank" rel="noreferrer"
+                    className="text-xs text-fuchsia-700 underline flex items-center gap-1 mt-1"
+                  >
+                    פתח ב-Meta Ads Manager <ExternalLink className="w-3 h-3" />
+                  </a>
+                )}
+                {activeBrief.launch_error && <div className="text-xs text-red-700 mt-1">{activeBrief.launch_error}</div>}
+              </div>
+
+              {/* Editable fields — only before launch */}
+              {activeBrief.status === 'pending_approval' && (
+                <div className="space-y-3 bg-slate-50 p-3 rounded">
+                  <div>
+                    <label className="text-xs font-semibold block mb-1">שם קמפיין</label>
+                    <Input value={activeBrief.title || ''} onChange={(e) => updateBriefField('title', e.target.value)} />
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="text-xs font-semibold block mb-1">תקציב יומי (₪)</label>
+                      <Input type="number" value={activeBrief.daily_budget_ils || 0} onChange={(e) => updateBriefField('daily_budget_ils', e.target.value)} />
+                    </div>
+                    <div>
+                      <label className="text-xs font-semibold block mb-1">יעד Meta</label>
+                      <select className="w-full border rounded p-2 text-sm bg-white" value={activeBrief.objective || 'OUTCOME_LEADS'} onChange={(e) => updateBriefField('objective', e.target.value)}>
+                        <option value="OUTCOME_LEADS">לידים</option>
+                        <option value="OUTCOME_TRAFFIC">תנועה לאתר</option>
+                        <option value="OUTCOME_AWARENESS">חשיפה</option>
+                        <option value="OUTCOME_ENGAGEMENT">אינטראקציה</option>
+                      </select>
+                    </div>
+                  </div>
+                  <Button size="sm" variant="outline" onClick={saveBriefEdits} disabled={briefBusy}>שמור עריכה</Button>
+                </div>
+              )}
+
+              {/* Audience */}
+              {activeBrief.audience && (
+                <div className="border rounded p-3">
+                  <div className="text-xs font-semibold mb-2">קהל יעד</div>
+                  <div className="text-sm space-y-1">
+                    {activeBrief.audience.age_min && <div>גיל: {activeBrief.audience.age_min}-{activeBrief.audience.age_max}</div>}
+                    {Array.isArray(activeBrief.audience.genders) && activeBrief.audience.genders.length > 0 && <div>מגדר: {activeBrief.audience.genders.join(', ')}</div>}
+                    {Array.isArray(activeBrief.audience.geo_locations_cities) && <div>ערים: {activeBrief.audience.geo_locations_cities.join(', ')}</div>}
+                    {activeBrief.audience.interests_text && <div className="text-xs text-slate-600">תחומי עניין: {activeBrief.audience.interests_text}</div>}
+                  </div>
+                </div>
+              )}
+
+              {/* Copy */}
+              {Array.isArray(activeBrief.copy_variants) && activeBrief.copy_variants.length > 0 && (
+                <div>
+                  <div className="text-xs font-semibold mb-2">קופי ({activeBrief.copy_variants.length} וריאציות)</div>
+                  <div className="space-y-2">
+                    {activeBrief.copy_variants.map((v, i) => (
+                      <div key={i} className="bg-slate-50 border rounded p-2">
+                        {v.hook && <div className="font-semibold text-sm">{v.hook}</div>}
+                        {v.body && <div className="text-xs whitespace-pre-wrap">{v.body}</div>}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Image */}
+              {(activeBrief.image_base64 || activeBrief.image_url) && (
+                <div>
+                  <div className="text-xs font-semibold mb-2">תמונה</div>
+                  <img src={activeBrief.image_base64 ? `data:image/png;base64,${activeBrief.image_base64}` : activeBrief.image_url} alt="brief" className="rounded border max-h-64 mx-auto" />
+                </div>
+              )}
+
+              {/* Action buttons */}
+              <div className="flex flex-wrap gap-2 pt-3 border-t">
+                {activeBrief.status === 'pending_approval' && (
+                  <>
+                    <Button onClick={approveBrief} disabled={briefBusy} className="bg-emerald-600 hover:bg-emerald-700 flex-1">
+                      {briefBusy ? <Loader2 className="w-4 h-4 animate-spin ml-1" /> : <CheckCircle2 className="w-4 h-4 ml-1" />}
+                      אשר Brief
+                    </Button>
+                    <Button onClick={rejectBrief} disabled={briefBusy} variant="outline">
+                      <XIcon className="w-4 h-4 ml-1" /> דחה
+                    </Button>
+                  </>
+                )}
+                {activeBrief.status === 'approved' && (
+                  <Button onClick={launchBrief} disabled={briefBusy} className="bg-fuchsia-600 hover:bg-fuchsia-700 w-full">
+                    {briefBusy ? <Loader2 className="w-4 h-4 animate-spin ml-1" /> : <Rocket className="w-4 h-4 ml-1" />}
+                    שגר ל-Meta (PAUSED — לא יוציא כסף עד שתפעיל ידנית)
+                  </Button>
+                )}
+                {activeBrief.status === 'launched' && activeBrief.meta_campaign_id && (
+                  <a
+                    href={`https://business.facebook.com/adsmanager/manage/campaigns?act=1678566132326169&selected_campaign_ids=${activeBrief.meta_campaign_id}`}
+                    target="_blank" rel="noreferrer"
+                    className="w-full"
+                  >
+                    <Button className="w-full bg-fuchsia-600 hover:bg-fuchsia-700">
+                      <ExternalLink className="w-4 h-4 ml-1" /> פתח ב-Meta Ads Manager (הוסף יצירתי + הפעל)
+                    </Button>
+                  </a>
+                )}
+              </div>
             </div>
           )}
         </DialogContent>

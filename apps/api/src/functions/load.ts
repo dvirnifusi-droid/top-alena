@@ -5434,6 +5434,237 @@ registerFn('getMarketingAgentsCatalog', async () => {
   };
 });
 
+// =====================================================================
+// Campaign Brief — owner-approved Meta launch pipeline
+// =====================================================================
+
+let campaignBriefTableReady = false;
+async function ensureCampaignBriefTable() {
+  if (campaignBriefTableReady) return;
+  await (prisma as any).$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "CampaignBrief" (
+      "id" TEXT NOT NULL PRIMARY KEY,
+      "title" TEXT NOT NULL,
+      "goal_text" TEXT,
+      "objective" TEXT NOT NULL,
+      "daily_budget_ils" DOUBLE PRECISION NOT NULL,
+      "lifetime_budget_ils" DOUBLE PRECISION,
+      "start_date" TIMESTAMP(3),
+      "end_date" TIMESTAMP(3),
+      "audience" JSONB,
+      "copy_variants" JSONB,
+      "image_url" TEXT,
+      "image_base64" TEXT,
+      "status" TEXT NOT NULL DEFAULT 'pending_approval',
+      "reject_reason" TEXT,
+      "meta_campaign_id" TEXT,
+      "meta_adset_id" TEXT,
+      "launch_error" TEXT,
+      "launched_at" TIMESTAMP(3),
+      "approved_at" TIMESTAMP(3),
+      "createdBy" TEXT,
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
+  campaignBriefTableReady = true;
+}
+
+// LLM drafts a complete brief from a goal + optional inputs from prior chain.
+registerFn('createCampaignBrief', async ({ body }) => {
+  await ensureCampaignBriefTable();
+  const { goal, copy_variants, image_base64, image_url, audience_hint, daily_budget_ils, lifetime_budget_ils, end_date } = (body || {}) as any;
+  if (!goal) throw new Error('goal required');
+
+  // Generate brief structure via LLM (audience, objective, suggested budget,
+  // headline title). Copy + image come from prior chain if provided.
+  const draft: any = await invokeLLM({
+    prompt: `אתה מתכנן קמפיין פרסום במטא עבור מסעדת עלינא בירושלים.
+יעד עסקי: "${goal}"
+${audience_hint ? `הצעת קהל יעד מהבעלים: ${audience_hint}` : ''}
+
+החזר JSON עם:
+- "title": שם קמפיין קצר (עד 50 תווים, ללא מירכאות)
+- "objective": אחד מהבאים בלבד — OUTCOME_LEADS / OUTCOME_TRAFFIC / OUTCOME_AWARENESS / OUTCOME_ENGAGEMENT
+- "audience": אובייקט { age_min (18-65), age_max (18-65), genders (מערך של "male"/"female", או שניהם), geo_locations_cities (מערך — לדוגמה ["Jerusalem", "Tel Aviv"]), interests_text (תיאור חופשי של תחומי עניין רלוונטיים) }
+- "suggested_daily_budget_ils": תקציב יומי מומלץ בש"ח (מספר)
+- "rationale": משפט אחד למה הקהל והתקציב הזה`,
+    responseSchema: {
+      type: 'object',
+      properties: {
+        title: { type: 'string' },
+        objective: { type: 'string' },
+        audience: {
+          type: 'object',
+          properties: {
+            age_min: { type: 'number' },
+            age_max: { type: 'number' },
+            genders: { type: 'array', items: { type: 'string' } },
+            geo_locations_cities: { type: 'array', items: { type: 'string' } },
+            interests_text: { type: 'string' },
+          },
+        },
+        suggested_daily_budget_ils: { type: 'number' },
+        rationale: { type: 'string' },
+      },
+    },
+  });
+
+  const validObjectives = new Set(['OUTCOME_LEADS', 'OUTCOME_TRAFFIC', 'OUTCOME_AWARENESS', 'OUTCOME_ENGAGEMENT', 'OUTCOME_SALES', 'OUTCOME_APP_PROMOTION']);
+  const objective = validObjectives.has(draft?.objective) ? draft.objective : 'OUTCOME_LEADS';
+  const finalDaily = Number(daily_budget_ils) > 0 ? Number(daily_budget_ils) : (Number(draft?.suggested_daily_budget_ils) || 40);
+
+  const brief = await db.campaignBrief.create({
+    data: {
+      title: (draft?.title || 'קמפיין חדש').slice(0, 80),
+      goal_text: goal,
+      objective,
+      daily_budget_ils: finalDaily,
+      lifetime_budget_ils: lifetime_budget_ils ? Number(lifetime_budget_ils) : null,
+      end_date: end_date ? new Date(end_date) : null,
+      audience: draft?.audience || null,
+      copy_variants: Array.isArray(copy_variants) ? copy_variants : null,
+      image_base64: image_base64 || null,
+      image_url: image_url || null,
+      status: 'pending_approval',
+    },
+  });
+  return { brief, rationale: draft?.rationale || null };
+});
+
+registerFn('listCampaignBriefs', async ({ body }) => {
+  await ensureCampaignBriefTable();
+  const { status, limit = 30 } = (body || {}) as any;
+  const where: any = {};
+  if (status) where.status = status;
+  const briefs = await db.campaignBrief.findMany({ where, orderBy: { createdAt: 'desc' }, take: Math.min(Number(limit) || 30, 100) });
+  return { briefs };
+});
+
+registerFn('updateCampaignBrief', async ({ body }) => {
+  await ensureCampaignBriefTable();
+  const { id, patch } = (body || {}) as any;
+  if (!id) throw new Error('id required');
+  // Forbid status transitions other than via approve/reject/launch.
+  const safePatch: any = { ...(patch || {}) };
+  delete safePatch.status;
+  delete safePatch.meta_campaign_id;
+  delete safePatch.meta_adset_id;
+  delete safePatch.launched_at;
+  delete safePatch.approved_at;
+  const updated = await db.campaignBrief.update({ where: { id }, data: safePatch });
+  return { brief: updated };
+});
+
+registerFn('approveCampaignBrief', async ({ body }) => {
+  await ensureCampaignBriefTable();
+  const { id } = (body || {}) as any;
+  if (!id) throw new Error('id required');
+  const updated = await db.campaignBrief.update({
+    where: { id },
+    data: { status: 'approved', approved_at: new Date() },
+  });
+  return { brief: updated };
+});
+
+registerFn('rejectCampaignBrief', async ({ body }) => {
+  await ensureCampaignBriefTable();
+  const { id, reason } = (body || {}) as any;
+  if (!id) throw new Error('id required');
+  const updated = await db.campaignBrief.update({
+    where: { id },
+    data: { status: 'rejected', reject_reason: reason || null },
+  });
+  return { brief: updated };
+});
+
+// Actual launch — creates Campaign + AdSet on Meta in PAUSED status.
+// Ad creative is intentionally NOT auto-created so the owner finalizes the
+// image+copy attachment manually in Meta Ads Manager. PAUSED status means
+// nothing spends until the owner flips it to ACTIVE in Meta's UI.
+registerFn('launchCampaignBrief', async ({ body }) => {
+  await ensureCampaignBriefTable();
+  const { id } = (body || {}) as any;
+  if (!id) throw new Error('id required');
+  const token = await META_TOKEN();
+  if (!token) throw new Error('META_ADS_ACCESS_TOKEN לא מוגדר — הגדר אותו במסך מפתחות API');
+  const brief = await db.campaignBrief.findUnique({ where: { id } });
+  if (!brief) throw new Error('brief not found');
+  if (brief.status !== 'approved') throw new Error(`brief must be approved before launch (current: ${brief.status})`);
+
+  try {
+    // 1. Create campaign (PAUSED, with special_ad_categories=[] which Meta requires)
+    const campaignRes = await metaApi(
+      `/act_${META_AD_ACCOUNT_ID}/campaigns`,
+      'POST',
+      {
+        name: brief.title,
+        objective: brief.objective,
+        status: 'PAUSED',
+        special_ad_categories: [],
+        buying_type: 'AUCTION',
+      },
+    );
+    const campaignId = campaignRes?.id;
+    if (!campaignId) throw new Error(`Meta did not return campaign id: ${JSON.stringify(campaignRes)}`);
+
+    // 2. Create ad set with audience + budget
+    const audience = (brief.audience as any) || {};
+    const cities = Array.isArray(audience.geo_locations_cities) && audience.geo_locations_cities.length
+      ? audience.geo_locations_cities
+      : ['Jerusalem'];
+    const targeting: any = {
+      age_min: audience.age_min || 22,
+      age_max: audience.age_max || 55,
+      geo_locations: { cities: cities.map((c: string) => ({ name: c, country: 'IL', radius: 25, distance_unit: 'kilometer' })) },
+    };
+    if (Array.isArray(audience.genders) && audience.genders.length) {
+      targeting.genders = audience.genders.map((g: string) => g === 'female' ? 2 : 1);
+    }
+    const optimizationGoal = brief.objective === 'OUTCOME_LEADS' ? 'LEAD_GENERATION'
+      : brief.objective === 'OUTCOME_TRAFFIC' ? 'LINK_CLICKS'
+      : brief.objective === 'OUTCOME_AWARENESS' ? 'REACH'
+      : 'POST_ENGAGEMENT';
+    const adsetRes = await metaApi(
+      `/act_${META_AD_ACCOUNT_ID}/adsets`,
+      'POST',
+      {
+        name: `${brief.title} — AdSet`,
+        campaign_id: campaignId,
+        daily_budget: Math.round((brief.daily_budget_ils || 40) * 100), // Meta uses minor units (agorot)
+        billing_event: 'IMPRESSIONS',
+        optimization_goal: optimizationGoal,
+        bid_strategy: 'LOWEST_COST_WITHOUT_CAP',
+        targeting,
+        status: 'PAUSED',
+      },
+    );
+    const adsetId = adsetRes?.id;
+
+    const updated = await db.campaignBrief.update({
+      where: { id },
+      data: {
+        status: 'launched',
+        meta_campaign_id: campaignId,
+        meta_adset_id: adsetId || null,
+        launched_at: new Date(),
+        launch_error: null,
+      },
+    });
+    return {
+      brief: updated,
+      meta_url: `https://business.facebook.com/adsmanager/manage/campaigns?act=${META_AD_ACCOUNT_ID}&selected_campaign_ids=${campaignId}`,
+      message: 'הקמפיין נוצר במטא במצב PAUSED. הוסף קריאייטיב (תמונה+טקסט) ב-Meta Ads Manager והפעל ידנית.',
+    };
+  } catch (e: any) {
+    const updated = await db.campaignBrief.update({
+      where: { id },
+      data: { status: 'launch_failed', launch_error: String(e?.message || e) },
+    });
+    return { brief: updated, error: String(e?.message || e) };
+  }
+});
+
 /* ----- Shift geofence (clock-in proximity + auto-close on leave) ----- */
 
 function isAdminRole(role: any): boolean {
@@ -5467,31 +5698,43 @@ registerFn('getGeofenceConfig', async ({ user }) => {
 });
 
 // Admin-only — save restaurant lat/lng on the single RestaurantProfile row.
+// Uses raw SQL so we sidestep any unrelated Prisma drift on this table — we
+// only need to touch the two columns we own.
 registerFn('setRestaurantLocation', async ({ user, body }) => {
   if (!isAdminRole((user as any)?.role)) throw new Error('admin only');
   const { lat, lng } = body as any;
   if (typeof lat !== 'number' || typeof lng !== 'number') {
     throw new Error('lat/lng required as numbers');
   }
-  const existing = await db.restaurantProfile.findFirst();
-  const data = { restaurant_lat: lat, restaurant_lng: lng };
-  const saved = existing
-    ? await db.restaurantProfile.update({ where: { id: existing.id }, data })
-    : await db.restaurantProfile.create({ data: { restaurant_name: 'עלינא', ...data } });
-  return { restaurant_lat: saved.restaurant_lat, restaurant_lng: saved.restaurant_lng };
+  const rows: any[] = await (prisma as any).$queryRaw`SELECT id FROM "RestaurantProfile" LIMIT 1`;
+  if (rows && rows.length > 0) {
+    await (prisma as any).$executeRaw`
+      UPDATE "RestaurantProfile"
+      SET restaurant_lat = ${lat}, restaurant_lng = ${lng}, "updatedAt" = NOW()
+      WHERE id = ${rows[0].id}
+    `;
+    return { restaurant_lat: lat, restaurant_lng: lng };
+  }
+  const newId = `c${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`;
+  await (prisma as any).$executeRaw`
+    INSERT INTO "RestaurantProfile" (id, restaurant_name, restaurant_lat, restaurant_lng, "createdAt", "updatedAt")
+    VALUES (${newId}, ${'עלינא'}, ${lat}, ${lng}, NOW(), NOW())
+  `;
+  return { restaurant_lat: lat, restaurant_lng: lng };
 });
 
 // Admin-only — flip global "shift geofence required" switch.
 registerFn('setGlobalLocationTracking', async ({ user, body }) => {
   if (!isAdminRole((user as any)?.role)) throw new Error('admin only');
   const { enabled } = body as any;
-  const existing = await db.restaurantProfile.findFirst();
-  if (!existing) throw new Error('restaurant profile not set — set location first');
-  const saved = await db.restaurantProfile.update({
-    where: { id: existing.id },
-    data: { shift_geofence_required: !!enabled },
-  });
-  return { shift_geofence_required: saved.shift_geofence_required };
+  const rows: any[] = await (prisma as any).$queryRaw`SELECT id FROM "RestaurantProfile" LIMIT 1`;
+  if (!rows || rows.length === 0) throw new Error('restaurant profile not set — set location first');
+  await (prisma as any).$executeRaw`
+    UPDATE "RestaurantProfile"
+    SET shift_geofence_required = ${!!enabled}, "updatedAt" = NOW()
+    WHERE id = ${rows[0].id}
+  `;
+  return { shift_geofence_required: !!enabled };
 });
 
 // Admin-only — per-employee opt-out.
@@ -5499,11 +5742,12 @@ registerFn('setEmployeeLocationToggle', async ({ user, body }) => {
   if (!isAdminRole((user as any)?.role)) throw new Error('admin only');
   const { employee_id, disabled } = body as any;
   if (!employee_id) throw new Error('employee_id required');
-  const saved = await db.employee.update({
-    where: { id: employee_id },
-    data: { location_tracking_disabled: !!disabled },
-  });
-  return { employee_id: saved.id, location_tracking_disabled: saved.location_tracking_disabled };
+  await (prisma as any).$executeRaw`
+    UPDATE "Employee"
+    SET location_tracking_disabled = ${!!disabled}, "updatedAt" = NOW()
+    WHERE id = ${employee_id}
+  `;
+  return { employee_id, location_tracking_disabled: !!disabled };
 });
 
 // Authed — gated clock-in. Replaces the frontend's direct ShiftTracking.create

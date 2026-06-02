@@ -1,0 +1,54 @@
+{
+  "name": "CampaignBrief",
+  "type": "object",
+  "properties": {
+    "title": { "type": "string" },
+    "goal_text": {
+      "type": "string",
+      "description": "Original business goal from owner — kept for audit"
+    },
+    "objective": {
+      "type": "string",
+      "enum": ["OUTCOME_LEADS", "OUTCOME_TRAFFIC", "OUTCOME_AWARENESS", "OUTCOME_ENGAGEMENT", "OUTCOME_SALES", "OUTCOME_APP_PROMOTION"],
+      "description": "Meta campaign objective"
+    },
+    "daily_budget_ils": { "type": "number" },
+    "lifetime_budget_ils": { "type": "number" },
+    "start_date": { "type": "string", "format": "date-time" },
+    "end_date": { "type": "string", "format": "date-time" },
+    "audience": {
+      "type": "object",
+      "properties": {
+        "age_min": { "type": "integer" },
+        "age_max": { "type": "integer" },
+        "genders": { "type": "array", "items": { "type": "string" } },
+        "geo_locations_cities": { "type": "array", "items": { "type": "string" } },
+        "interests_text": { "type": "string" }
+      }
+    },
+    "copy_variants": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "hook": { "type": "string" },
+          "body": { "type": "string" }
+        }
+      }
+    },
+    "image_url": { "type": "string" },
+    "image_base64": { "type": "string" },
+    "status": {
+      "type": "string",
+      "enum": ["draft", "pending_approval", "approved", "rejected", "launched", "launch_failed"],
+      "default": "pending_approval"
+    },
+    "reject_reason": { "type": "string" },
+    "meta_campaign_id": { "type": "string" },
+    "meta_adset_id": { "type": "string" },
+    "launch_error": { "type": "string" },
+    "launched_at": { "type": "string", "format": "date-time" },
+    "approved_at": { "type": "string", "format": "date-time" }
+  },
+  "required": ["title", "objective", "daily_budget_ils", "status"]
+}

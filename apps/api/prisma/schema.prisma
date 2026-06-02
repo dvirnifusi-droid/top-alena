@@ -144,6 +144,31 @@ model BrainstormSession {
   updatedAt  DateTime @updatedAt
 }
 
+model CampaignBrief {
+  id        String   @id @default(cuid())
+  title                        String
+  goal_text                    String?
+  objective                    String
+  daily_budget_ils             Float
+  lifetime_budget_ils          Float?
+  start_date                   DateTime?
+  end_date                     DateTime?
+  audience                     Json?
+  copy_variants                Json?
+  image_url                    String?
+  image_base64                 String?
+  status                       String  @default("pending_approval")
+  reject_reason                String?
+  meta_campaign_id             String?
+  meta_adset_id                String?
+  launch_error                 String?
+  launched_at                  DateTime?
+  approved_at                  DateTime?
+  createdBy  String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
 model CampaignLog {
   id        String   @id @default(cuid())
   type_                        String  @map("type")
