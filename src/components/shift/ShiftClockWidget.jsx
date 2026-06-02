@@ -170,12 +170,15 @@ export default function ShiftClockWidget() {
                 // Geofence is best-effort; never block the original flow on its failure.
             }
 
-            // ORIGINAL FLOW — direct entity create (unchanged from working version).
+            // ORIGINAL FLOW — direct entity create. Strip any null bytes from
+            // strings before insert — PostgreSQL rejects 0x00 in text columns
+            // and a corrupted user field would otherwise blow up the whole flow.
+            const clean = (s) => (typeof s === 'string' ? s.replace(/\x00/g, '').trim() : s);
             const now = new Date().toISOString();
             const today = format(new Date(), 'yyyy-MM-dd');
             const shift = await base44.entities.ShiftTracking.create({
-                employee_id: user.id,
-                employee_name: user.full_name,
+                employee_id: clean(user.id),
+                employee_name: clean(user.full_name) || 'עובד',
                 date: today,
                 shift_start: now,
                 status: 'active',
