@@ -689,6 +689,37 @@ registerFn('chatJobApplication', async ({ body }) => {
       notes: extracted.notes || c.notes || null,
     };
 
+    // Server-side completion guard: Gemini sometimes marks complete=true and
+    // emits a score before all required fields are actually in the transcript.
+    // If a non-rejected candidate is missing one of the must-have fields, we
+    // override completion, ask for the missing field, and skip persistence so
+    // the interview continues until the data is real.
+    if (!rejected) {
+      const hasWeekendAnswer =
+        typeof extracted.weekend_availability === 'boolean' ||
+        typeof c.weekend_availability === 'boolean' ||
+        (typeof c.weekend_availability === 'string' && c.weekend_availability.trim() !== '');
+      const missingPrompts: Array<[boolean, string]> = [
+        [!d.full_name || d.full_name === 'מועמד', 'רק שאוודא — מה השם המלא שלך?'],
+        [d.age == null, 'ומה הגיל שלך?'],
+        [!d.phone, 'מה מספר הטלפון שלך? (חשוב לצורך יצירת קשר)'],
+        [!d.role_applied, 'לאיזה תפקיד את/ה פונה? (מלצרות / מטבח / בר / מארחת / אחמש)'],
+        [!d.experience, 'ספר/י בקצרה על ניסיון קודם במסעדות — איפה עבדת וכמה זמן.'],
+        [d.shifts_per_week == null, 'כמה משמרות בשבוע את/ה יכול/ה לעבוד? (מספר בין 1 ל-7)'],
+        [!hasWeekendAnswer, 'האם את/ה זמין/ה לעבוד בסופי שבוע — חמישי בערב ומוצ"ש?'],
+      ];
+      const nextMissing = missingPrompts.find(([isMissing]) => isMissing);
+      if (nextMissing) {
+        return {
+          reply: `כמעט סיימנו — חסר לי עוד פרט אחד 🌿\n${nextMissing[1]}`,
+          complete: false,
+          rejected: false,
+          candidate_id: null,
+          score: null,
+        };
+      }
+    }
+
     const baseData: any = {
       full_name: d.full_name || 'מועמד',
       age: d.age,
