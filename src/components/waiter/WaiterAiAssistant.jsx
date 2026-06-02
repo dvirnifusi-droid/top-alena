@@ -66,15 +66,16 @@ export default function WaiterAiAssistant({ session, currentStep, onClose }) {
             });
 
             setResponse(aiResponse);
+            setLoading(false);
 
-            // שמירת השימוש בהמלצות AI
+            // Background write — don't block the spinner on a DB round-trip the user can't see.
             if (session.ai_recommendations_used) {
-                await TableSession.update(session.id, {
+                TableSession.update(session.id, {
                     ...session,
                     ai_recommendations_used: [...session.ai_recommendations_used, userQuestion]
-                });
+                }).catch((e) => console.error('TableSession.update failed', e));
             }
-
+            return;
         } catch (error) {
             console.error('Error getting AI advice:', error);
             setResponse('מצטער, יש לי בעיה טכנית כרגע. נסה שוב בעוד רגע.');

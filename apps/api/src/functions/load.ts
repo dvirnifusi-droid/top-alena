@@ -3714,25 +3714,29 @@ registerFn('chatEventsInquiry', async ({ body }) => {
   // Cheap dedicated name-extraction pass on EVERY turn where we have a phone but no name yet.
   // Runs once per lead (until name is captured) so /EventsPrivate shows the customer name
   // the moment they introduce themselves — not only after the deal closes.
-  try {
-    if (currentLead && currentLead.contact_phone && !currentLead.contact_name) {
-      const customerOnly = turns.filter((t: any) => t.role !== 'assistant').map((t: any) => t.content).concat([message || '']).join('\n');
-      if (customerOnly.trim().length > 5) {
-        const nameRes: any = await invokeLLM({
-          prompt:
-            `חלץ את השם הפרטי של הלקוח מתוך הודעותיו (לא של הסוכן). הלקוח עשוי לכתוב 'אני X' / 'שמי X' / 'קוראים לי X' / 'X מדבר/ת' / 'X' בלבד. אם לא הוצג שם — החזר null. **לעולם אל תחזיר**: 'העוזרת', 'הסוכן', 'הסוכנת', 'עלינא', 'אלינא', 'בוט'.\n\n--- הודעות הלקוח ---\n${customerOnly.slice(-1500)}\n--- סוף ---\n\nהחזר JSON בלבד.`,
-          responseSchema: { type: 'object', properties: { name: { type: 'string' } } },
-        });
-        const BANNED = ['העוזרת', 'הסוכן', 'הסוכנת', 'עלינא', 'אלינא', 'בוט'];
-        const nm = String(nameRes?.name || '').trim();
-        if (nm && nm.length >= 2 && nm.length <= 30 && !BANNED.some((b) => nm.includes(b))) {
-          await db.eventLead.update({ where: { id: currentLead.id }, data: { contact_name: nm } }).catch(() => {});
-          currentLead.contact_name = nm;
-          c.contact_name = c.contact_name || nm;
-        }
-      }
+  // PERF: dispatched as a background side-effect so the extra Gemini round-trip (~1-3s)
+  // never blocks the user-facing reply. The close-time AI extraction pass is the
+  // authoritative one; this is a "nice-to-have" earlier update of /EventsPrivate.
+  if (currentLead && currentLead.contact_phone && !currentLead.contact_name) {
+    const customerOnly = turns.filter((t: any) => t.role !== 'assistant').map((t: any) => t.content).concat([message || '']).join('\n');
+    if (customerOnly.trim().length > 5) {
+      const leadIdForBg = currentLead.id;
+      void (async () => {
+        try {
+          const nameRes: any = await invokeLLM({
+            prompt:
+              `חלץ את השם הפרטי של הלקוח מתוך הודעותיו (לא של הסוכן). הלקוח עשוי לכתוב 'אני X' / 'שמי X' / 'קוראים לי X' / 'X מדבר/ת' / 'X' בלבד. אם לא הוצג שם — החזר null. **לעולם אל תחזיר**: 'העוזרת', 'הסוכן', 'הסוכנת', 'עלינא', 'אלינא', 'בוט'.\n\n--- הודעות הלקוח ---\n${customerOnly.slice(-1500)}\n--- סוף ---\n\nהחזר JSON בלבד.`,
+            responseSchema: { type: 'object', properties: { name: { type: 'string' } } },
+          });
+          const BANNED = ['העוזרת', 'הסוכן', 'הסוכנת', 'עלינא', 'אלינא', 'בוט'];
+          const nm = String(nameRes?.name || '').trim();
+          if (nm && nm.length >= 2 && nm.length <= 30 && !BANNED.some((b) => nm.includes(b))) {
+            await db.eventLead.update({ where: { id: leadIdForBg }, data: { contact_name: nm } }).catch(() => {});
+          }
+        } catch (e: any) { console.warn('[name-extract bg] failed', e?.message); }
+      })();
     }
-  } catch (e: any) { console.warn('[name-extract] failed', e?.message); }
+  }
 
   // Fire a Pushover the FIRST time we capture real intent (phone or guest_count) on this lead.
   // One alert per lead — tracked via a marker inside notes so we don't need a new column.
@@ -3748,7 +3752,8 @@ registerFn('chatEventsInquiry', async ({ body }) => {
         `📥 מקור: ${currentLead.source || 'web_chat'}`,
       ].filter(Boolean).join('\n');
       pushoverEventsOwners('✨ ליד אירוע חדש — שיחה פעילה', lines).catch(() => {});
-      await db.eventLead.update({
+      // PERF: don't block the user-facing reply on this housekeeping write.
+      db.eventLead.update({
         where: { id: currentLead.id },
         data: { notes: `${currentLead.notes || ''}${currentLead.notes ? ' | ' : ''}intent_alerted:${new Date().toISOString()}` },
       }).catch(() => {});
