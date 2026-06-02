@@ -1741,3 +1741,200 @@ model WaiterOrder {
   created_date      String?
   updated_date      String?
 }
+
+model BusinessProfile {
+  id                       String   @id @default(cuid())
+  business_name            String?
+  business_type            String?
+  logo_url                 String?
+  profile_data             Json?
+  brand_persona            String?
+  target_audience          String?
+  primary_offering         String?
+  is_kosher                Boolean?
+  monthly_budget           Float?
+  weekly_owner_time_hours  Int?
+  completed                Boolean?
+  completed_at             String?
+  created_by               String?
+  created_date             String?
+  updated_date             String?
+}
+
+model MarketingStrategy {
+  id            String   @id @default(cuid())
+  goal_summary  String?
+  goal_metric   String?
+  goal_value    Float?
+  months_plan   Json?
+  generated_at  String?
+  generated_by  String?
+  active        Boolean?
+  created_by    String?
+  created_date  String?
+  updated_date  String?
+}
+
+model MarketingAdvisorMessage {
+  id           String   @id @default(cuid())
+  role         String
+  content      String
+  context_json Json?
+  created_by   String?
+  created_date String?
+  updated_date String?
+}
+
+model Interview {
+  id                String   @id @default(cuid())
+  candidate_id      String
+  candidate_name    String?
+  candidate_phone   String?
+  scheduled_date    String
+  scheduled_time    String
+  duration_minutes  Int?
+  status            String?
+  notes             String?
+  reminder_sent_at  String?
+  created_by        String?
+  created_date      String?
+  updated_date      String?
+  type              String?
+}
+
+model InterviewSlotTemplate {
+  id               String   @id @default(cuid())
+  weekday          Int
+  time             String
+  duration_minutes Int?
+  active           Boolean?
+  created_by       String?
+  created_date     String?
+  updated_date     String?
+  specific_date    String?
+}
+
+model Agent {
+  id                 String   @id @default(cuid())
+  name               String
+  display_name       String
+  role               String
+  parent_agent_id    String?
+  system_prompt      String?
+  is_active          Boolean
+  spend_cap_monthly  Float?
+  spend_used_month   Float?
+  notes              String?
+  created_date       String?
+  updated_date       String?
+}
+
+model AgentRun {
+  id                String   @id @default(cuid())
+  agent_id          String
+  trigger           String
+  triggered_by      String?
+  input             String?
+  output            String?
+  status            String
+  cost_usd          Float?
+  duration_ms       Int?
+  error             String?
+  started_at        String
+  finished_at       String?
+  campaign_unit_id  String?
+}
+
+model AgentInboxItem {
+  id              String   @id @default(cuid())
+  agent_run_id    String?
+  agent_name      String
+  type            String
+  priority        String
+  title           String
+  body            String?
+  payload         String?
+  requires_action Boolean
+  status          String
+  acted_by        String?
+  acted_at        String?
+  created_date    String
+}
+
+model CampaignUnit {
+  id               String   @id @default(cuid())
+  name             String
+  display_name     String
+  status           String
+  promoted_thing   String?
+  monthly_budget   Float?
+  monthly_spent    Float?
+  primary_platform String?
+  vp_owner         String
+  notes            String?
+  created_date     String?
+  updated_date     String?
+}
+
+model AiAssistantFile {
+  id                  String   @id @default(cuid())
+  file_name           String
+  description         String?
+  mime_type           String
+  file_url            String
+  file_size           Int?
+  gemini_file_uri     String?
+  gemini_uploaded_at  String?
+  is_active           Boolean
+  source              String?
+  created_by          String?
+  created_date        String?
+  updated_date        String?
+}
+
+model RestroomCheck {
+  id              String   @id @default(cuid())
+  checked_by_id   String?
+  checked_by_name String?
+  checked_at      String
+  photo_url       String?
+  notes           String?
+  shift_date      String?
+  created_by      String?
+  created_date    String?
+  updated_date    String?
+}
+
+model RestroomSettings {
+  id               String   @id @default(cuid())
+  enabled          Boolean?
+  target_positions Json?
+  created_by       String?
+  created_date     String?
+  updated_date     String?
+}
+
+model Popup {
+  id              String   @id @default(cuid())
+  title           String
+  content         String
+  image_url       String?
+  cta_text        String?
+  cta_url         String?
+  display_type    String
+  schedule_type   String
+  scheduled_at    String?
+  daily_time      String?
+  weekly_day      Int?
+  weekly_time     String?
+  target_audience String
+  target_roles    String?
+  target_user_ids String?
+  target_page     String?
+  seen_behavior   String
+  snooze_minutes  Int?
+  is_active       Boolean
+  created_by      String?
+  created_date    String?
+  updated_date    String?
+}
