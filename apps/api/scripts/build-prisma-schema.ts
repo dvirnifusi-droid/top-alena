@@ -145,9 +145,12 @@ datasource db {
 model User {
   id           String   @id @default(cuid())
   email        String   @unique
-  passwordHash String
+  passwordHash String?
   fullName     String?
   role         String?  @default("user")
+  managed_department String?  // 'kitchen' | 'floor' — gives partial admin powers scoped to one department
+  created_date  String?
+  updated_date  String?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 }
