@@ -90,7 +90,8 @@ type InvokeArgs = {
 // Gemini
 // ---------------------------------------------------------------------------
 
-async function geminiInvoke({ prompt, responseSchema, fileUrls, model }: InvokeArgs) {
+async function geminiInvoke(args: InvokeArgs) {
+  const { prompt, responseSchema, fileUrls, model } = args;
   const modelName = model ?? DEFAULT_GEMINI_MODEL;
   const parts: any[] = [{ text: prompt }];
 
@@ -106,15 +107,15 @@ async function geminiInvoke({ prompt, responseSchema, fileUrls, model }: InvokeA
     body.generationConfig = {
       responseMimeType: 'application/json',
       responseSchema: sanitizeSchemaForGemini(responseSchema),
-      maxOutputTokens: (args as any).maxOutputTokens || 8192,
+      maxOutputTokens: args.maxOutputTokens || 8192,
     };
-  } else if ((args as any).maxOutputTokens) {
-    body.generationConfig = { maxOutputTokens: (args as any).maxOutputTokens };
+  } else if (args.maxOutputTokens) {
+    body.generationConfig = { maxOutputTokens: args.maxOutputTokens };
   }
 
   // Hard timeout — Cloudflare drops requests at 100s. We give up at 60s and surface a clean
   // error so the frontend can show a retry button instead of a generic HTTP 524.
-  const timeoutMs = (args as any).timeoutMs || 60_000;
+  const timeoutMs = args.timeoutMs || 60_000;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   let res: Response;
