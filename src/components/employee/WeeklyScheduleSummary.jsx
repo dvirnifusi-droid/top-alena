@@ -39,7 +39,8 @@ async function loadShiftsForWeek(weekStart) {
 
     allShifts.forEach(shift => {
         if (!shift.date) return;
-        if (shift.date >= weekStartStr && shift.date <= weekEndStr) {
+        const shiftDateStr = String(shift.date).slice(0, 10);
+        if (shiftDateStr >= weekStartStr && shiftDateStr <= weekEndStr) {
             if (shift.assigned_staff && shift.assigned_staff.length > 0) {
                 console.log('Shift on', shift.date, 'has staff:', shift.assigned_staff.map(a => a.employee_name));
             }
@@ -49,9 +50,12 @@ async function loadShiftsForWeek(weekStart) {
             );
             if (userAssignment) {
                 console.log('Found assignment:', userAssignment.employee_name, 'on', shift.date);
+                // shift.date may be "YYYY-MM-DD" (legacy text) or full ISO
+                // after the DateTime migration — normalize to first 10 chars.
+                const dateStr = String(shift.date).slice(0, 10);
                 weekShifts.push({
-                    date: new Date(shift.date + 'T00:00:00'),
-                    dateStr: shift.date,
+                    date: new Date(dateStr + 'T00:00:00'),
+                    dateStr,
                     shift_type: shift.shift_type,
                     start_time: userAssignment.start_time || shift.start_time,
                     end_time: userAssignment.end_time || shift.end_time,
