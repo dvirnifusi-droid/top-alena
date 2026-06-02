@@ -434,6 +434,10 @@ export default function WorkScheduling() {
             const employeeMap = Object.fromEntries(allEmployees.map(e => [e.id, e.full_name]));
             const syncedShifts = shifts.map(shift => ({
                 ...shift,
+                // After the DateTime migration the API returns ISO strings here
+                // ("YYYY-MM-DDTHH:mm:ss.sssZ"); every grid comparison below uses
+                // YYYY-MM-DD form, so normalize once at load.
+                date: typeof shift.date === 'string' ? shift.date.slice(0, 10) : shift.date,
                 assigned_staff: (shift.assigned_staff || []).map(assignment => ({
                     ...assignment,
                     employee_name: employeeMap[assignment.employee_id] || assignment.employee_name
