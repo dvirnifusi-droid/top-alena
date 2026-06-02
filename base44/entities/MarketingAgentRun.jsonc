@@ -5,6 +5,7 @@
     "agent_type": {
       "type": "string",
       "enum": [
+        "vp_marketing",
         "copywriter",
         "visual_designer",
         "trend_spotter",

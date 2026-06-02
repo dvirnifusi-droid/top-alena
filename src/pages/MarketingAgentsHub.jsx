@@ -6,10 +6,11 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Loader2, Sparkles, Image as ImgIcon, TrendingUp, BookOpen, ChefHat, MessageCircle, DollarSign, CalendarHeart, UtensilsCrossed, Moon, BarChart3, Megaphone, AlertTriangle, CheckCircle2, Key, ArrowLeft } from 'lucide-react';
+import { Loader2, Sparkles, Image as ImgIcon, TrendingUp, BookOpen, ChefHat, MessageCircle, DollarSign, CalendarHeart, UtensilsCrossed, Moon, BarChart3, Megaphone, AlertTriangle, CheckCircle2, Key, ArrowLeft, Crown } from 'lucide-react';
 import { toast } from 'sonner';
 
 const AGENTS = [
+  { key: 'vp_marketing',         label: 'VP Marketing (מנהל שיווק)',   group: 'leadership', icon: Crown,         desc: 'תגיד לו יעד עסקי — הוא ינתח מצב, יבנה תוכנית, ויחלק עבודה לכל הסוכנים' },
   { key: 'copywriter',           label: 'Copywriter',                  group: 'creative', icon: Sparkles,         desc: 'קופי לפוסטים/מודעות/ניוזלטר בקול עלינא' },
   { key: 'visual_designer',      label: 'Visual Designer',             group: 'creative', icon: ImgIcon,          desc: 'תמונות וסרטונים (Midjourney/Ideogram + Canva)' },
   { key: 'trend_spotter',        label: 'Trend-Spotter',               group: 'creative', icon: TrendingUp,       desc: 'זוויות תוכן טרנדיות מ-TikTok/Reels' },
@@ -24,6 +25,7 @@ const AGENTS = [
 ];
 
 const GROUPS = [
+  { key: 'leadership', label: 'הנהלת שיווק', color: 'bg-gradient-to-br from-violet-50 to-fuchsia-50 border-violet-300' },
   { key: 'creative', label: 'צוות קריאייטיב', color: 'bg-purple-50 border-purple-200' },
   { key: 'media',    label: 'צוות מדיה',     color: 'bg-amber-50 border-amber-200' },
   { key: 'sales',    label: 'מכירות וצמיחה', color: 'bg-emerald-50 border-emerald-200' },
@@ -40,6 +42,19 @@ const STATUS_BADGE = {
 function AgentInputForm({ agentKey, onChange, value }) {
   const set = (k, v) => onChange({ ...value, [k]: v });
   switch (agentKey) {
+    case 'vp_marketing':
+      return (
+        <div className="space-y-2">
+          <Textarea
+            rows={4}
+            placeholder={`תאר את היעד העסקי במילים שלך. דוגמאות:\n• "אני רוצה לקבל 20 הזמנות לערב שישי הקרוב"\n• "השבוע צריך לדחוף את הפרגית בצהריים"\n• "תקציב הקמפיינים נגמר תוך 5 ימים — מה הכי דחוף?"\n• "אני רוצה להתחיל למכור אירועים פרטיים"`}
+            value={value.goal || ''}
+            onChange={(e) => set('goal', e.target.value)}
+            className="min-h-[120px]"
+          />
+          <div className="text-xs text-slate-500">המנהל יבדוק את הקמפיינים הפעילים שלך (7 ימים אחרונים), ינתח את היעד, ויחליט בעצמו אילו סוכנים להפעיל ובאיזה סדר.</div>
+        </div>
+      );
     case 'copywriter':
       return (
         <div className="space-y-2">
@@ -122,6 +137,57 @@ function RunOutputView({ run }) {
     return <div className="text-sm text-red-700">שגיאה: {run.error}</div>;
   }
   const out = run.output || {};
+
+  // VP Marketing: strategy + numbered plan
+  if (out.goal_understood || Array.isArray(out.plan)) {
+    return (
+      <div className="space-y-4">
+        {out.goal_understood && (
+          <div className="bg-gradient-to-br from-violet-600 to-fuchsia-600 text-white p-3 rounded">
+            <div className="text-xs opacity-80 mb-1">היעד כפי שהמנהל מבין אותו</div>
+            <div className="font-semibold">{out.goal_understood}</div>
+          </div>
+        )}
+        {out.context_assessed && (
+          <div className="bg-slate-50 border border-slate-200 rounded p-3">
+            <div className="text-xs text-slate-500 mb-1">ניתוח מצב נוכחי</div>
+            <div className="text-sm">{out.context_assessed}</div>
+          </div>
+        )}
+        {out.strategy && (
+          <div className="bg-amber-50 border border-amber-300 rounded p-3">
+            <div className="text-xs text-amber-700 mb-1 font-semibold">אסטרטגיה</div>
+            <div className="text-sm">{out.strategy}</div>
+          </div>
+        )}
+        {Array.isArray(out.plan) && out.plan.length > 0 && (
+          <div>
+            <div className="font-semibold mb-2 text-sm">תוכנית פעולה ({out.plan.length} צעדים)</div>
+            <div className="space-y-2">
+              {out.plan.map((s, i) => (
+                <div key={i} className="border-r-4 border-violet-400 bg-white pr-3 pl-2 py-2 rounded-l">
+                  <div className="flex items-start gap-2">
+                    <div className="bg-violet-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold shrink-0">{s.step || i + 1}</div>
+                    <div className="flex-1">
+                      <div className="font-semibold text-sm">{s.title}</div>
+                      <div className="text-xs text-slate-500 mb-1">סוכן: <strong>{s.agent_type}</strong>{s.depends_on ? ` · אחרי צעד ${s.depends_on}` : ''}</div>
+                      {s.reason && <div className="text-xs text-slate-700">{s.reason}</div>}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+        {out.expected_outcome && (
+          <div className="bg-emerald-50 border border-emerald-300 rounded p-3">
+            <div className="text-xs text-emerald-700 mb-1 font-semibold">תוצאה צפויה</div>
+            <div className="text-sm">{out.expected_outcome}</div>
+          </div>
+        )}
+      </div>
+    );
+  }
 
   // Media-buying agents return structured headline/key_metrics/actions.
   if (out.headline || Array.isArray(out.actions)) {
