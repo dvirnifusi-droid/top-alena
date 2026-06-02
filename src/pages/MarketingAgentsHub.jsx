@@ -135,19 +135,26 @@ function RunOutputView({ run }) {
           </div>
         )}
         {out.key_metrics && (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-center">
-            {out.key_metrics.total_spend_ils != null && (
-              <div className="bg-white border rounded p-2"><div className="text-xs text-slate-500">הוצאה</div><div className="font-bold">₪{Number(out.key_metrics.total_spend_ils).toFixed(0)}</div></div>
-            )}
-            {out.key_metrics.total_clicks != null && (
-              <div className="bg-white border rounded p-2"><div className="text-xs text-slate-500">קליקים</div><div className="font-bold">{out.key_metrics.total_clicks}</div></div>
-            )}
-            {out.key_metrics.avg_ctr_pct != null && (
-              <div className="bg-white border rounded p-2"><div className="text-xs text-slate-500">CTR ממוצע</div><div className="font-bold">{Number(out.key_metrics.avg_ctr_pct).toFixed(2)}%</div></div>
-            )}
-            {out.key_metrics.top_campaign_name && (
-              <div className="bg-white border rounded p-2"><div className="text-xs text-slate-500">המוצלח ביותר</div><div className="font-semibold text-xs truncate" title={out.key_metrics.top_campaign_name}>{out.key_metrics.top_campaign_name}</div></div>
-            )}
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-center">
+            <div className="bg-white border rounded p-2"><div className="text-xs text-slate-500">הוצאה</div><div className="font-bold">₪{Number(out.key_metrics.total_spend_ils || 0).toFixed(0)}</div></div>
+            <div className="bg-white border rounded p-2"><div className="text-xs text-slate-500">קליקים</div><div className="font-bold">{out.key_metrics.total_clicks || 0}</div></div>
+            <div className="bg-white border rounded p-2"><div className="text-xs text-slate-500">לידים</div><div className="font-bold">{out.key_metrics.total_leads || 0}</div></div>
+            <div className="bg-white border rounded p-2"><div className="text-xs text-slate-500">CTR ממוצע</div><div className="font-bold">{Number(out.key_metrics.avg_ctr_pct || 0).toFixed(2)}%</div></div>
+            <div className="bg-white border rounded p-2"><div className="text-xs text-slate-500">CPC</div><div className="font-bold">₪{Number(out.key_metrics.cpc_ils || 0).toFixed(2)}</div></div>
+            <div className="bg-white border rounded p-2"><div className="text-xs text-slate-500">עלות לליד</div><div className="font-bold">{out.key_metrics.cost_per_lead_ils ? `₪${Number(out.key_metrics.cost_per_lead_ils).toFixed(0)}` : '—'}</div></div>
+          </div>
+        )}
+        {(out.key_metrics?.top_campaign_name || out.key_metrics?.best_ctr_campaign || out.key_metrics?.cheapest_lead_campaign) && (
+          <div className="text-xs text-slate-600 space-y-0.5 bg-slate-50 border rounded p-2">
+            {out.key_metrics.top_campaign_name && <div>💰 הכי הרבה הוצאה: <strong>{out.key_metrics.top_campaign_name}</strong></div>}
+            {out.key_metrics.best_ctr_campaign && <div>🎯 הכי CTR גבוה: <strong>{out.key_metrics.best_ctr_campaign}</strong></div>}
+            {out.key_metrics.cheapest_lead_campaign && <div>🏆 הליד הזול ביותר: <strong>{out.key_metrics.cheapest_lead_campaign}</strong></div>}
+          </div>
+        )}
+        {out.campaigns_count != null && (
+          <div className="text-xs text-slate-500">
+            מבוסס על {out.campaigns_count} קמפיינים ({out.campaigns_with_data || 0} עם נתונים בתקופה)
+            {out.dropped_hallucinated_actions > 0 && ` · ${out.dropped_hallucinated_actions} המלצות נחסמו (שמות קמפיינים לא קיימים)`}
           </div>
         )}
         {Array.isArray(out.actions) && out.actions.length > 0 && (

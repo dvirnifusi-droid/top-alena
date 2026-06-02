@@ -4891,37 +4891,117 @@ async function runMetaAgent(agentKey: string, input: any) {
   };
   const periodHebrew = periodLabel[datePreset] || datePreset;
 
+  const insightFields = 'spend,impressions,clicks,ctr,cpc,cpm,reach,frequency,actions,cost_per_action_type';
   const campaigns = await metaApi(
-    `/act_${META_AD_ACCOUNT_ID}/campaigns?fields=id,name,status,objective,daily_budget,lifetime_budget,insights.date_preset(${datePreset}){spend,impressions,clicks,ctr,cpc,actions}&limit=25`,
+    `/act_${META_AD_ACCOUNT_ID}/campaigns?fields=id,name,status,objective,daily_budget,lifetime_budget,start_time,stop_time,insights.date_preset(${datePreset}){${insightFields}}&limit=50`,
   );
 
-  // Pre-compute simple metrics so the LLM doesn't have to do arithmetic.
-  const summary = (campaigns?.data || []).map((c: any) => {
+  // Pre-compute ALL metrics deterministically. The LLM may only reference
+  // values from this object — it is NOT allowed to do arithmetic or estimate.
+  const perCampaign = (campaigns?.data || []).map((c: any) => {
     const ins = c?.insights?.data?.[0] || {};
     const spend = parseFloat(ins.spend || '0');
     const clicks = parseInt(ins.clicks || '0');
+    const impressions = parseInt(ins.impressions || '0');
     const ctr = parseFloat(ins.ctr || '0');
     const cpc = parseFloat(ins.cpc || '0');
+    const cpm = parseFloat(ins.cpm || '0');
+    const reach = parseInt(ins.reach || '0');
+    const frequency = parseFloat(ins.frequency || '0');
+    const actions = Array.isArray(ins.actions) ? ins.actions : [];
+    const costPerActions = Array.isArray(ins.cost_per_action_type) ? ins.cost_per_action_type : [];
+    const findAction = (t: string) => parseInt(actions.find((a: any) => a.action_type === t)?.value || '0');
+    const findCost = (t: string) => parseFloat(costPerActions.find((a: any) => a.action_type === t)?.value || '0');
+    const leads = findAction('lead');
+    const link_clicks = findAction('link_click');
+    const messaging_conversations = findAction('onsite_conversion.messaging_conversation_started_7d');
+    const post_engagements = findAction('post_engagement');
+    const cost_per_lead = findCost('lead');
+    const cost_per_link_click = findCost('link_click');
     return {
-      id: c.id, name: c.name, status: c.status, objective: c.objective,
+      id: c.id,
+      name: c.name,
+      status: c.status,
+      objective: c.objective,
       daily_budget_ils: c.daily_budget ? parseFloat(c.daily_budget) / 100 : null,
-      spend_ils: spend, clicks, ctr_pct: ctr, cpc_ils: cpc,
+      lifetime_budget_ils: c.lifetime_budget ? parseFloat(c.lifetime_budget) / 100 : null,
+      start_time: c.start_time || null,
+      stop_time: c.stop_time || null,
+      has_insights_data: !!ins.spend,
+      spend_ils: spend,
+      clicks,
+      link_clicks,
+      impressions,
+      reach,
+      frequency,
+      ctr_pct: ctr,
+      cpc_ils: cpc,
+      cpm_ils: cpm,
+      leads,
+      cost_per_lead_ils: cost_per_lead,
+      cost_per_link_click_ils: cost_per_link_click,
+      messaging_conversations,
+      post_engagements,
     };
   });
 
-  const result: any = await invokeLLM({
-    prompt: `אתה אנליסט מדיה דיגיטלית קר ומבוסס-נתונים. אסור לך לכתוב במשפטים פיוטיים, סיסמאות, או "קדימה/יאללה". כל משפט חייב להכיל מספר או פעולה ספציפית. עברית עניינית, סגנון CFO.
+  // Deterministic aggregates — LLM uses these, never recomputes.
+  const withData = perCampaign.filter((c: any) => c.has_insights_data);
+  const totalSpend = perCampaign.reduce((s: number, c: any) => s + c.spend_ils, 0);
+  const totalClicks = perCampaign.reduce((s: number, c: any) => s + c.clicks, 0);
+  const totalImpressions = perCampaign.reduce((s: number, c: any) => s + c.impressions, 0);
+  const totalLeads = perCampaign.reduce((s: number, c: any) => s + c.leads, 0);
+  const avgCtr = totalImpressions > 0 ? (totalClicks / totalImpressions) * 100 : 0;
+  const blendedCpc = totalClicks > 0 ? totalSpend / totalClicks : 0;
+  const blendedCpl = totalLeads > 0 ? totalSpend / totalLeads : 0;
+  const sortedBySpend = [...withData].sort((a, b) => b.spend_ils - a.spend_ils);
+  const sortedByCtr = [...withData].filter(c => c.impressions >= 100).sort((a, b) => b.ctr_pct - a.ctr_pct);
+  const sortedByCpl = [...withData].filter(c => c.leads > 0).sort((a, b) => a.cost_per_lead_ils - b.cost_per_lead_ils);
 
-⚠️ הנתונים הם אך ורק לתקופה: **${periodHebrew}** (date_preset=${datePreset}). אל תכתוב "החודש" או "השבוע" אם זה לא תואם. תמיד התייחס לתקופה כ-"${periodHebrew}".
+  const facts = {
+    period: periodHebrew,
+    campaign_count: perCampaign.length,
+    campaigns_with_data: withData.length,
+    totals: {
+      spend_ils: Math.round(totalSpend * 100) / 100,
+      clicks: totalClicks,
+      impressions: totalImpressions,
+      leads: totalLeads,
+    },
+    blended_metrics: {
+      avg_ctr_pct: Math.round(avgCtr * 100) / 100,
+      cpc_ils: Math.round(blendedCpc * 100) / 100,
+      cost_per_lead_ils: Math.round(blendedCpl * 100) / 100,
+    },
+    highest_spender: sortedBySpend[0] ? { name: sortedBySpend[0].name, spend_ils: sortedBySpend[0].spend_ils } : null,
+    best_ctr: sortedByCtr[0] ? { name: sortedByCtr[0].name, ctr_pct: sortedByCtr[0].ctr_pct } : null,
+    worst_ctr: sortedByCtr[sortedByCtr.length - 1] && sortedByCtr.length > 1 ? { name: sortedByCtr[sortedByCtr.length - 1].name, ctr_pct: sortedByCtr[sortedByCtr.length - 1].ctr_pct } : null,
+    cheapest_lead: sortedByCpl[0] ? { name: sortedByCpl[0].name, cost_per_lead_ils: sortedByCpl[0].cost_per_lead_ils } : null,
+    most_expensive_lead: sortedByCpl[sortedByCpl.length - 1] && sortedByCpl.length > 1 ? { name: sortedByCpl[sortedByCpl.length - 1].name, cost_per_lead_ils: sortedByCpl[sortedByCpl.length - 1].cost_per_lead_ils } : null,
+  };
+  const summary = perCampaign;
+
+  const result: any = await invokeLLM({
+    prompt: `אתה אנליסט מדיה דיגיטלית. אתה כותב כמו CFO: יבש, מספרי, ענייני. אסור פיוטיקה, אסור "קדימה/יאללה", אסור מבוא, אסור סיום.
+
+🛑 חוקים קשיחים — הפרה = פסילה:
+1. אל תמציא מספרים. כל מספר שתכתוב חייב להיות זהה בדיוק למספר ב-FACTS או PER_CAMPAIGN למטה.
+2. אל תמציא שמות קמפיינים. אם תכתוב campaign_name — חייב להיות אחד מהשמות המדויקים ב-PER_CAMPAIGN.
+3. אם אין מספיק נתונים לקמפיין מסוים (has_insights_data=false) — אל תכתוב עליו כלום או כתוב "אין מספיק נתונים".
+4. אל תחשב אחוזים בעצמך. השתמש אך ורק בערכים מ-FACTS.
+5. תקופת הנתונים: **${periodHebrew}**. כל אזכור זמן חייב להיות "${periodHebrew}". לעולם לא "החודש" / "השבוע" אם זה לא תואם.
 
 פוקוס הסוכן: ${focus}.
 ${input?.goal ? `שאלה ספציפית מהבעלים: "${input.goal}"` : ''}
 
-נתונים (${summary.length} קמפיינים, תקופה: ${periodHebrew}):
+FACTS (אלה האמת — השתמש אך ורק במספרים האלה):
+${JSON.stringify(facts, null, 2)}
+
+PER_CAMPAIGN (נתונים גולמיים לכל קמפיין — שמות קמפיינים חייבים להיות בדיוק כפי שמופיעים בשדה "name"):
 ${JSON.stringify(summary, null, 2)}
 
 החזר JSON עם:
-- "headline": משפט אחד (עד 20 מילים) שמתאר את המצב הכולל **לתקופה ${periodHebrew}**. דוגמה: "ב-${periodHebrew} הוצאת 1,100₪ על 3 קמפיינים; CTR ממוצע 3.2% — מעל הבנצ'מארק של 2%."
+- "headline": משפט אחד (עד 20 מילים) שמתאר את המצב **לתקופה ${periodHebrew}**, משתמש במספרים מ-FACTS בלבד. דוגמה: "ב-${periodHebrew} הוצאת ${facts.totals.spend_ils}₪ על ${facts.campaign_count} קמפיינים; CTR ממוצע ${facts.blended_metrics.avg_ctr_pct}%."
 - "key_metrics": אובייקט עם total_spend_ils, total_clicks, avg_ctr_pct, top_campaign_name, weakest_campaign_name.
 - "actions": מערך של 3-5 פעולות. כל פעולה היא אובייקט עם: campaign_name (השם המדויק מהנתונים), action (טקסט קצר ופעיל כמו "העלה תקציב יומי מ-40₪ ל-60₪" או "כבה את הקמפיין"), why (1-2 משפטי הסבר עם המספרים), priority ("high"/"medium"/"low"), expected_impact (טקסט עם הערכה כמותית כמו "+30% leads בחודש").
 
@@ -4957,14 +5037,38 @@ ${JSON.stringify(summary, null, 2)}
     },
   });
 
+  // Post-validation: drop any LLM action that references a campaign_name
+  // not in the actual data. Replace key_metrics with deterministic facts so
+  // displayed totals are always authoritative.
+  const validNames = new Set(perCampaign.map((c: any) => c.name));
+  const cleanedActions = Array.isArray(result?.actions)
+    ? result.actions.filter((a: any) => !a?.campaign_name || validNames.has(a.campaign_name))
+    : [];
+  const droppedActions = Array.isArray(result?.actions) ? result.actions.length - cleanedActions.length : 0;
+
   return {
     ad_account_id: META_AD_ACCOUNT_ID,
     focus,
     period: periodHebrew,
     date_preset: datePreset,
-    campaigns_count: summary.length,
+    campaigns_count: facts.campaign_count,
+    campaigns_with_data: facts.campaigns_with_data,
+    headline: result?.headline || '',
+    key_metrics: {
+      total_spend_ils: facts.totals.spend_ils,
+      total_clicks: facts.totals.clicks,
+      total_leads: facts.totals.leads,
+      avg_ctr_pct: facts.blended_metrics.avg_ctr_pct,
+      cpc_ils: facts.blended_metrics.cpc_ils,
+      cost_per_lead_ils: facts.blended_metrics.cost_per_lead_ils,
+      top_campaign_name: facts.highest_spender?.name || null,
+      best_ctr_campaign: facts.best_ctr?.name || null,
+      cheapest_lead_campaign: facts.cheapest_lead?.name || null,
+    },
+    actions: cleanedActions,
+    dropped_hallucinated_actions: droppedActions,
+    facts,
     raw_data: summary,
-    ...result,
   };
 }
 
