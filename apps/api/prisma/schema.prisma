@@ -1340,6 +1340,13 @@ model ShiftTracking {
   sales_feeling_rating         Float?
   effort_rating                Float?
   personal_notes               String?
+  // Geofence columns — added via applyShiftGeofenceMigration; declared here so
+  // the Prisma client knows about them (getMyAutoCloseNotice etc).
+  last_lat                     Float?
+  last_lng                     Float?
+  last_location_at             DateTime?
+  auto_close_reason            String?
+  auto_close_seen_at           DateTime?
   createdBy  String?
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt

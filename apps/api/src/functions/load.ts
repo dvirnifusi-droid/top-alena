@@ -2796,12 +2796,13 @@ registerFn('getActivePopups', async ({ user }) => {
   // app keeps working — the next poll (60s later) will succeed.
   let all: any[];
   try {
+    if (!db.popup) return [];
     all = await db.popup.findMany({
       where: { is_active: true },
       include: { views: { where: { user_id: user.id as string } } },
     });
   } catch (e: any) {
-    if (/does not exist|relation .* does not exist|Unknown arg/i.test(String(e?.message))) {
+    if (/does not exist|relation .* does not exist|Unknown arg|Cannot read properties of undefined/i.test(String(e?.message))) {
       return [];
     }
     throw e;
