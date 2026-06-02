@@ -4343,6 +4343,29 @@ const WAITER_DEFAULT_PROMPT = `אתה ראש מלצרי "עלינא" — burger-
   "summary": "<2-3 משפטים: טעמים, רגישויות, מה לא לשכוח>"
 }`;
 
+// Public diagnostic: returns kit size + system prompt length so we can see if
+// a huge menu / huge prompt is what's making the LLM slow.
+registerFn('waiterDiagnostics', async () => {
+  const kit = await (prisma as any).waiterKit.findFirst({ where: { singleton: true } });
+  if (!kit) return { exists: false };
+  const menuJson = JSON.stringify(kit.menu || {});
+  const promptLen = String(kit.system_prompt || '').length;
+  let menuItemCount = 0;
+  try {
+    const cats = (kit.menu as any)?.categories || (kit.menu as any)?.evening?.categories || [];
+    for (const c of cats) menuItemCount += ((c.items || []).length);
+  } catch {}
+  return {
+    exists: true,
+    menu_json_chars: menuJson.length,
+    menu_item_count: menuItemCount,
+    daily_specials_count: Array.isArray(kit.daily_specials) ? kit.daily_specials.length : 0,
+    out_of_stock_count: Array.isArray(kit.out_of_stock) ? kit.out_of_stock.length : 0,
+    system_prompt_chars: promptLen,
+    estimated_total_input_chars: menuJson.length + promptLen + 1000,
+  };
+}, { public: true });
+
 registerFn('getWaiterKit', async () => {
   let kit = await (prisma as any).waiterKit.findFirst({ where: { singleton: true } });
   if (!kit) {
