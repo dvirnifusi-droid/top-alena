@@ -4982,9 +4982,31 @@ registerFn('listMarketingAgentRuns', async ({ body }) => {
   return { runs };
 });
 
+// Self-heal: prisma db push runs at container start but is silenced — if it
+// failed (transient Supabase hiccup, schema race), the table won't exist and
+// findFirst will 500. CREATE TABLE IF NOT EXISTS is cheap and idempotent.
+let secretsTableReady = false;
+async function ensureSecretsTable() {
+  if (secretsTableReady) return;
+  await (prisma as any).$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "IntegrationSecret" (
+      "id" TEXT NOT NULL PRIMARY KEY,
+      "key" TEXT NOT NULL,
+      "value" TEXT NOT NULL,
+      "note" TEXT,
+      "updated_at" TIMESTAMP(3),
+      "createdBy" TEXT,
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
+  secretsTableReady = true;
+}
+
 registerFn('setIntegrationSecret', async ({ body }) => {
   const { key, value, note } = (body || {}) as any;
   if (!key || !value) throw new Error('key and value required');
+  await ensureSecretsTable();
   const existing = await db.integrationSecret.findFirst({ where: { key } });
   if (existing) {
     await db.integrationSecret.update({ where: { id: existing.id }, data: { value, note, updated_at: new Date() } });
@@ -4997,6 +5019,7 @@ registerFn('setIntegrationSecret', async ({ body }) => {
 registerFn('hasIntegrationSecret', async ({ body }) => {
   const { key } = (body || {}) as any;
   if (!key) throw new Error('key required');
+  await ensureSecretsTable();
   const row = await db.integrationSecret.findFirst({ where: { key }, select: { id: true, updated_at: true } });
   return { present: !!row, updated_at: row?.updated_at || null };
 });
