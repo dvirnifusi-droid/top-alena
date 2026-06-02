@@ -4,7 +4,63 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { InvokeLLM, UploadFile } from "@/integrations/Core";
+import { UploadFile } from "@/integrations/Core";
+
+const API_BASE = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, '') || '/api';
+
+// Streams Gemini advice via /api/llm-stream/waiter-advice. Calls onChunk with
+// the full accumulated text on every delta so the caller can render it
+// progressively. Resolves with the final text; throws on transport error.
+async function streamWaiterAdvice({ prompt, fileUrl, onChunk, onFirstChunk }) {
+    const token = typeof window !== 'undefined'
+        ? window.localStorage.getItem('auth_token')
+        : null;
+    const res = await fetch(`${API_BASE}/llm-stream/waiter-advice`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ prompt, file_url: fileUrl || undefined }),
+    });
+    if (!res.ok || !res.body) {
+        const txt = await res.text().catch(() => '');
+        throw new Error(`stream_failed_${res.status}${txt ? `: ${txt.slice(0, 200)}` : ''}`);
+    }
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = '';
+    let accumulated = '';
+    let sawFirst = false;
+    while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+        let idx;
+        while ((idx = buf.indexOf('\n\n')) !== -1) {
+            const frame = buf.slice(0, idx).trim();
+            buf = buf.slice(idx + 2);
+            if (!frame.startsWith('data:')) continue;
+            const json = frame.slice(5).trim();
+            if (!json) continue;
+            try {
+                const obj = JSON.parse(json);
+                if (obj.error) throw new Error(obj.error);
+                if (obj.chunk) {
+                    accumulated += obj.chunk;
+                    if (!sawFirst) {
+                        sawFirst = true;
+                        onFirstChunk?.();
+                    }
+                    onChunk(accumulated);
+                }
+            } catch (e) {
+                if (e?.message && e.message !== 'stream_error') throw e;
+            }
+        }
+    }
+    return accumulated;
+}
 import { TableSession } from "@/entities/TableSession";
 import { Camera, Send, Lightbulb, Loader2, MessageCircle } from 'lucide-react';
 
@@ -60,21 +116,26 @@ export default function WaiterAiAssistant({ session, currentStep, onClose }) {
             const contextPrompt = getContextualPrompt();
             const userQuestion = question || "מה אתה יכול לראות בתמונה הזו? איך זה עוזר לי לתת שירות טוב יותר?";
 
-            const aiResponse = await InvokeLLM({
+            setResponse('');
+            const finalText = await streamWaiterAdvice({
                 prompt: `${contextPrompt}\n\nשאלת המלצר: ${userQuestion}`,
-                file_urls: fileUrl ? [fileUrl] : undefined
+                fileUrl,
+                onChunk: (acc) => setResponse(acc),
+                // Drop the spinner as soon as the first token arrives — the user
+                // immediately sees the answer starting to type.
+                onFirstChunk: () => setLoading(false),
             });
-
-            setResponse(aiResponse);
+            // Stream ended; make sure spinner is off even if no chunk ever arrived.
             setLoading(false);
 
-            // Background write — don't block the spinner on a DB round-trip the user can't see.
+            // Background write — don't block on a DB round-trip the user can't see.
             if (session.ai_recommendations_used) {
                 TableSession.update(session.id, {
                     ...session,
                     ai_recommendations_used: [...session.ai_recommendations_used, userQuestion]
                 }).catch((e) => console.error('TableSession.update failed', e));
             }
+            void finalText;
             return;
         } catch (error) {
             console.error('Error getting AI advice:', error);

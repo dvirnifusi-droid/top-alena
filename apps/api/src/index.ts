@@ -12,6 +12,7 @@ import { publicFunctionsRoutes } from './routes/publicFunctions.js';
 import { importRoutes } from './routes/import.js';
 import { cronRoutes } from './routes/cron.js';
 import { filesRoutes } from './routes/files.js';
+import { llmStreamRoutes } from './routes/llmStream.js';
 import { rewriteFileUrlsDeep } from './lib/urlRewrite.js';
 
 const app = Fastify({ logger: true, bodyLimit: 50 * 1024 * 1024 });
@@ -49,6 +50,7 @@ await app.register(publicFunctionsRoutes, { prefix: '/api/public' });
 await app.register(importRoutes, { prefix: '/api/import' });
 await app.register(cronRoutes, { prefix: '/api/cron' });
 await app.register(filesRoutes, { prefix: '/api/files' });
+await app.register(llmStreamRoutes, { prefix: '/api/llm-stream' });
 
 // Auto-load all ported function handlers
 await import('./functions/load.js');
