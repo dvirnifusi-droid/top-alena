@@ -737,16 +737,27 @@ registerFn('chatJobApplication', async ({ body }) => {
       source: candidateSource,
     };
     const optionalKashrut = { kashrut_required: kashrutRequiredForRole || null, kashrut_capable: kashrutCapable };
+    // Full conversation snapshot so future bad records can be recovered manually.
+    // Saved as an optional spread — if `prisma db push` hasn't added the column
+    // yet, the retry below drops it and the candidate still lands in the dashboard.
+    const optionalTranscript = {
+      transcript: [
+        ...turns,
+        ...(message ? [{ role: 'user', content: String(message) }] : []),
+        ...(result?.reply ? [{ role: 'assistant', content: String(result.reply) }] : []),
+      ],
+    };
 
     let cand: any = null;
     try {
-      cand = await db.jobCandidate.create({ data: { ...baseData, ...optionalKashrut } });
+      cand = await db.jobCandidate.create({ data: { ...baseData, ...optionalKashrut, ...optionalTranscript } });
     } catch (e: any) {
       const msg = String(e?.message || '');
-      // Most common cause: db push hasn't added the new kashrut_* columns yet.
-      // Retry without them so the candidate still lands in the dashboard.
-      if (msg.toLowerCase().includes('kashrut') || /unknown (arg|column)/i.test(msg)) {
-        console.warn('[jobCandidate.create] retrying without kashrut fields:', msg);
+      // Most common cause: db push hasn't added a newly added column yet
+      // (kashrut_* / transcript). Retry without optional spreads so the
+      // candidate still lands in the dashboard.
+      if (msg.toLowerCase().includes('kashrut') || msg.toLowerCase().includes('transcript') || /unknown (arg|column)/i.test(msg)) {
+        console.warn('[jobCandidate.create] retrying without optional fields:', msg);
         try { cand = await db.jobCandidate.create({ data: baseData }); }
         catch (e2: any) { console.error('[jobCandidate.create] retry also failed:', e2?.message); }
       } else {
