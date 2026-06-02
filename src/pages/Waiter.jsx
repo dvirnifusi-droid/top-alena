@@ -2,6 +2,41 @@ import React, { useState, useEffect, useRef } from 'react';
 import { invokePublic } from '@/lib/publicFetch';
 import { Send, Sparkles, CheckCircle2, AlertCircle, Utensils } from 'lucide-react';
 
+// Progressive "thinking" indicator. The first 3s feel snappy with "מקליד…",
+// past 3s we rotate reassuring messages so 13s doesn't feel like a stall.
+function ThinkingBubble() {
+  const [elapsed, setElapsed] = React.useState(0);
+  React.useEffect(() => {
+    const t0 = Date.now();
+    const id = setInterval(() => setElapsed(Math.floor((Date.now() - t0) / 1000)), 500);
+    return () => clearInterval(id);
+  }, []);
+  const messages = [
+    'מקליד…',
+    'חושב על ההמלצה המושלמת בשבילכם…',
+    'בודק את התפריט וההתאמות…',
+    'מתאים את הארוחה לטעם שלכם…',
+    'עוד רגע — אני סוגר את הפרטים האחרונים…',
+  ];
+  const msg = elapsed < 3 ? messages[0]
+    : elapsed < 6 ? messages[1]
+    : elapsed < 10 ? messages[2]
+    : elapsed < 14 ? messages[3]
+    : messages[4];
+  return (
+    <div className="flex justify-end">
+      <div className="bg-white text-slate-600 rounded-2xl rounded-bl-sm px-4 py-2.5 shadow-sm text-sm border border-amber-100 flex items-center gap-2">
+        <span className="flex gap-0.5">
+          <span className="w-1.5 h-1.5 bg-amber-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+          <span className="w-1.5 h-1.5 bg-amber-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+          <span className="w-1.5 h-1.5 bg-amber-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+        </span>
+        <span>{msg}</span>
+      </div>
+    </div>
+  );
+}
+
 function readTableHint() {
   try {
     const p = new URLSearchParams(window.location.search);
@@ -103,11 +138,7 @@ export default function Waiter() {
               }`}>{m.content}</div>
             </div>
           ))}
-          {sending && (
-            <div className="flex justify-end">
-              <div className="bg-white text-slate-500 rounded-2xl rounded-bl-sm px-4 py-2 shadow-sm text-sm border border-amber-100">מקליד…</div>
-            </div>
-          )}
+          {sending && <ThinkingBubble />}
         </div>
 
         {/* Running order summary — visible whenever there are recommended items */}
