@@ -1639,3 +1639,74 @@ model WorkShift {
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 }
+
+// Tables that exist in DB (from base44 import) but weren't declared here.
+// Column types verified via describeTable diagnostic — all date columns are
+// stored as text strings (YYYY-MM-DD), so they're declared String here to
+// match the DB exactly. Misdeclaring them as DateTime triggers P2023 on read.
+model EventLead {
+  id                String   @id @default(cuid())
+  contact_name      String?
+  contact_phone     String?
+  event_date        String?
+  event_type        String?
+  guest_count       Int?
+  budget_per_person Int?
+  hours_window      String?
+  status            String?
+  score             Int?
+  source            String?
+  conversation_log  Json?
+  ai_summary        String?
+  notes             String?
+  created_by        String?
+  created_date      String?
+  updated_date      String?
+}
+
+model EventBooking {
+  id                  String   @id @default(cuid())
+  lead_id             String?
+  reservation_id      String?
+  customer_name       String?
+  customer_phone      String?
+  event_date          String
+  event_time          String?
+  guest_count         Int
+  hours_window        String?
+  selected_menu       Json?
+  selected_dishes     Json?
+  selected_upsells    Json?
+  subtotal_ils        Int?
+  discount_pct        Int?
+  total_ils           Int?
+  deposit_amount_ils  Int?
+  payment_status      String?
+  payment_method      String?
+  payment_ref         String?
+  status              String?
+  approval_status     String?
+  approval_notes      String?
+  short_notice        Boolean?
+  source              String?
+  notes               String?
+  created_by          String?
+  created_date        String?
+  updated_date        String?
+}
+
+model EventSalesKit {
+  id                   String   @id @default(cuid())
+  singleton            Boolean
+  menus                Json?
+  upsells              Json?
+  terms                Json?
+  system_prompt        String?
+  payment_mode         String?
+  deposit_pct          Int?
+  max_discount_pct     Int?
+  short_notice_allowed Boolean?
+  max_advance_months   Int?
+  updated_by           String?
+  updated_date         String?
+}
