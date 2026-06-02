@@ -450,6 +450,7 @@ model Employee {
   pushover_user_key            String?
   manager_quality_rating       Float?
   manager_rating_notes         String?
+  location_tracking_disabled   Boolean?  @default(false)
   createdBy  String?
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
@@ -1143,6 +1144,9 @@ model RestaurantProfile {
   logo_url                     String?
   geofencing_enabled           Boolean?  @default(true)
   recruitment_short_url        String?
+  restaurant_lat               Float?
+  restaurant_lng               Float?
+  shift_geofence_required      Boolean?  @default(false)
   createdBy  String?
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
@@ -1311,6 +1315,11 @@ model ShiftTracking {
   sales_feeling_rating         Float?
   effort_rating                Float?
   personal_notes               String?
+  last_lat                     Float?
+  last_lng                     Float?
+  last_location_at             DateTime?
+  auto_close_reason            String?
+  auto_close_seen_at           DateTime?
   createdBy  String?
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
