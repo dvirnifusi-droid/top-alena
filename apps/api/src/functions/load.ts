@@ -4470,35 +4470,24 @@ registerFn('chatWaiter', async ({ body }) => {
 
   const prompt = `${systemPrompt}${kitContext}\n--- שיחה ---\n${transcript || '(תחילת שיחה — קבל את הלקוח בברכה חמה וקצרה ושאל כמה הם)'}${message ? `\nלקוח: ${message}` : ''}\n\nהחזר JSON בלבד.`;
 
-  // No responseSchema — Gemini's structured-output mode adds significant latency,
-  // especially with nested object schemas. We instruct JSON output in the prompt and
-  // parse it ourselves with a tolerant fallback. Brings typical latency from 12-20s
-  // down to 2-4s.
-  const promptWithJsonHint = prompt + `\n\nתחזיר אך ורק JSON תקין (בלי backticks, בלי טקסט מסביב), עם השדות: reply, stage, collected, complete, summary.`;
-  const rawResult: any = await invokeLLM({
-    prompt: promptWithJsonHint,
-    model: 'gemini-2.0-flash',
-    maxOutputTokens: 1500,
-    timeoutMs: 30_000,
+  // Match EXACTLY what chatEventsInquiry does (no model override, no maxOutputTokens,
+  // no timeoutMs, with responseSchema). Events runs in 5.7s with this config. Anything
+  // different (custom model, custom tokens) was making waiter hang at 30s+.
+  const result: any = await invokeLLM({
+    prompt,
+    responseSchema: {
+      type: 'object',
+      properties: {
+        reply: { type: 'string' },
+        stage: { type: 'string' },
+        collected: { type: 'object' },
+        complete: { type: 'boolean' },
+        summary: { type: 'string' },
+      },
+      required: ['reply'],
+    },
   });
 
-  // Tolerant JSON parse: strip code fences, find the first {...} block, parse.
-  const parseLlmJson = (text: any): any => {
-    if (text && typeof text === 'object') return text; // already parsed
-    const s = String(text || '').trim()
-      .replace(/^```json\s*/i, '')
-      .replace(/^```\s*/i, '')
-      .replace(/```\s*$/i, '');
-    try { return JSON.parse(s); } catch {}
-    // Find the first { and the matching } and parse just that
-    const start = s.indexOf('{');
-    const end = s.lastIndexOf('}');
-    if (start >= 0 && end > start) {
-      try { return JSON.parse(s.slice(start, end + 1)); } catch {}
-    }
-    return { reply: String(text || 'מצטערת, יש תקלה זמנית.') };
-  };
-  const result = parseLlmJson(rawResult);
   const c = result?.collected || {};
   const items = Array.isArray(c.recommended_items) ? c.recommended_items : [];
   const total = typeof c.total_ils === 'number'
