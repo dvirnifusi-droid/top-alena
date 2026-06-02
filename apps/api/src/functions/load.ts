@@ -4788,7 +4788,13 @@ async function runCopywriter(input: any) {
       },
     },
   });
-  return result;
+  return {
+    ...result,
+    next_steps: [
+      { agent_type: 'visual_designer', reason: 'יש לך 3 וריאציות קופי — צריך תמונה תואמת לכל אחת.', priority: 'high', input: { brief: `תמונה לפוסט בנושא: ${topic}`, style: 'Jerusalem-Chic, smoky, food photography' } },
+      { agent_type: 'storyteller', reason: 'אפשר לקחת את הקופי הזה ולהרחיב אותו לסיפור בניוזלטר.', priority: 'low', input: { period: 'week', highlights: topic } },
+    ],
+  };
 }
 
 async function runStoryteller(input: any) {
@@ -4805,7 +4811,13 @@ async function runStoryteller(input: any) {
       },
     },
   });
-  return result;
+  return {
+    ...result,
+    next_steps: [
+      { agent_type: 'copywriter', reason: 'תזעיר את הניוזלטר לפוסט אינסטגרם קצר.', priority: 'medium', input: { topic: result?.subject || 'ניוזלטר השבוע', channel: 'instagram', length: 'short' } },
+      { agent_type: 'visual_designer', reason: 'תמונת כותרת לניוזלטר.', priority: 'low', input: { brief: result?.subject || 'תמונה לניוזלטר', style: 'Jerusalem-Chic, warm light' } },
+    ],
+  };
 }
 
 async function runTrendSpotter(input: any) {
@@ -4819,7 +4831,14 @@ async function runTrendSpotter(input: any) {
       },
     },
   });
-  return result;
+  const firstTrend = result?.trends?.[0];
+  return {
+    ...result,
+    next_steps: firstTrend ? [
+      { agent_type: 'copywriter', reason: `הטרנד "${firstTrend.title}" הכי חזק — בוא נכתוב קופי שמיישם אותו.`, priority: 'high', input: { topic: firstTrend.title, channel: 'instagram', length: 'short' } },
+      { agent_type: 'visual_designer', reason: `לתת לטרנד תמונה תואמת.`, priority: 'medium', input: { brief: firstTrend.hook || firstTrend.title, style: 'Jerusalem-Chic, smoky' } },
+    ] : [],
+  };
 }
 
 async function runMenuEngineer(input: any) {
@@ -4837,7 +4856,15 @@ async function runMenuEngineer(input: any) {
       },
     },
   });
-  return result;
+  const stars = (result?.items || []).filter((i: any) => i.category === 'Star');
+  const topStar = stars[0];
+  return {
+    ...result,
+    next_steps: topStar ? [
+      { agent_type: 'copywriter', reason: `"${topStar.name}" היא Star — שווה לדחוף אותה במודעה.`, priority: 'high', input: { topic: `מנת ${topStar.name} — Star של התפריט`, channel: 'instagram', length: 'short' } },
+      { agent_type: 'lunch_campaigns', reason: 'בדוק אם אפשר לקדם את המנות הרווחיות בקמפיין צהריים.', priority: 'medium', input: { goal: `דחיפה למנות עם מרג'ין גבוה — במיוחד ${topStar.name}` } },
+    ] : [],
+  };
 }
 
 async function runVisualDesigner(input: any) {
@@ -4849,6 +4876,10 @@ async function runVisualDesigner(input: any) {
     prompt_used: fullPrompt,
     image_base64: img.image_base64,
     note: img.image_base64 ? 'תמונה נוצרה דרך Google Imagen' : 'Imagen לא החזיר תמונה — נסה שוב או שנה ניסוח',
+    next_steps: img.image_base64 ? [
+      { agent_type: 'copywriter', reason: 'יש תמונה — בוא נכתוב לה קופי שמלווה.', priority: 'high', input: { topic: brief, channel: 'instagram', length: 'short' } },
+      { agent_type: 'main_media_buyer', reason: 'אחרי שיש תמונה + קופי, אפשר לבדוק איך לשלב במודעה חיה.', priority: 'low', input: { date_preset: 'last_7d', goal: 'איפה לשלב יצירתי חדש' } },
+    ] : [],
   };
 }
 
@@ -5002,6 +5033,7 @@ ${JSON.stringify(summary, null, 2)}
 
 החזר JSON עם:
 - "headline": משפט אחד (עד 20 מילים) שמתאר את המצב **לתקופה ${periodHebrew}**, משתמש במספרים מ-FACTS בלבד. דוגמה: "ב-${periodHebrew} הוצאת ${facts.totals.spend_ils}₪ על ${facts.campaign_count} קמפיינים; CTR ממוצע ${facts.blended_metrics.avg_ctr_pct}%."
+- "next_steps": מערך של 1-3 פעולות שכדאי לעשות אחרי הניתוח הזה. כל פעולה היא אובייקט עם: agent_type (אחד מ: copywriter / visual_designer / event_campaigns / lunch_campaigns / evening_campaigns / optimization_analyst), reason (משפט שמסביר למה כדאי להפעיל את הסוכן הבא הזה דווקא עכשיו), priority ("high"/"medium"/"low"), input (אובייקט עם פרמטרים שמתאימים לסוכן היעד — למשל ל-copywriter: {topic, channel}, ל-visual_designer: {brief, style}).
 - "key_metrics": אובייקט עם total_spend_ils, total_clicks, avg_ctr_pct, top_campaign_name, weakest_campaign_name.
 - "actions": מערך של 3-5 פעולות. כל פעולה היא אובייקט עם: campaign_name (השם המדויק מהנתונים), action (טקסט קצר ופעיל כמו "העלה תקציב יומי מ-40₪ ל-60₪" או "כבה את הקמפיין"), why (1-2 משפטי הסבר עם המספרים), priority ("high"/"medium"/"low"), expected_impact (טקסט עם הערכה כמותית כמו "+30% leads בחודש").
 
@@ -5033,6 +5065,18 @@ ${JSON.stringify(summary, null, 2)}
             },
           },
         },
+        next_steps: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              agent_type: { type: 'string' },
+              reason: { type: 'string' },
+              priority: { type: 'string' },
+              input: { type: 'object' },
+            },
+          },
+        },
       },
     },
   });
@@ -5045,6 +5089,49 @@ ${JSON.stringify(summary, null, 2)}
     ? result.actions.filter((a: any) => !a?.campaign_name || validNames.has(a.campaign_name))
     : [];
   const droppedActions = Array.isArray(result?.actions) ? result.actions.length - cleanedActions.length : 0;
+
+  // Deterministic next_steps based on metrics — these are added to whatever
+  // the LLM suggests, then de-duped + validated against AGENT_REGISTRY.
+  const deterministic_steps: any[] = [];
+  const wastefulCampaigns = perCampaign.filter((c: any) => c.spend_ils > 50 && c.leads === 0 && c.has_insights_data);
+  if (wastefulCampaigns.length > 0) {
+    deterministic_steps.push({
+      agent_type: 'visual_designer',
+      reason: `${wastefulCampaigns.length} קמפיינים הוציאו מעל ₪50 בלי ליד אחד — סימן לרענון יצירתי.`,
+      priority: 'high',
+      input: { brief: `מודעת ${wastefulCampaigns[0].objective || 'תוכן'} חדשה לקמפיין "${wastefulCampaigns[0].name}", סגנון food photography אש וג'וספר`, style: 'Jerusalem-Chic, smoky' },
+    });
+  }
+  if (facts.blended_metrics.avg_ctr_pct > 0 && facts.blended_metrics.avg_ctr_pct < 1.0) {
+    deterministic_steps.push({
+      agent_type: 'copywriter',
+      reason: `CTR ממוצע ${facts.blended_metrics.avg_ctr_pct}% — מתחת לבנצ'מארק 1.5% של מסעדות. צריך hooks חזקים יותר.`,
+      priority: 'high',
+      input: { topic: input?.goal || 'מודעה לקמפיין הראשי — הוק חזק', channel: 'instagram', length: 'short' },
+    });
+  }
+  if (facts.campaigns_with_data >= 2 && facts.cheapest_lead && facts.most_expensive_lead) {
+    const ratio = (facts.most_expensive_lead?.cost_per_lead_ils || 0) / (facts.cheapest_lead?.cost_per_lead_ils || 1);
+    if (ratio > 2) {
+      deterministic_steps.push({
+        agent_type: 'optimization_analyst',
+        reason: `פער של פי ${ratio.toFixed(1)} בעלות ליד בין הקמפיין הכי זול ליקר — שווה אופטימיזציה.`,
+        priority: 'medium',
+        input: { date_preset: datePreset, goal: 'בדוק אם להעביר תקציב מהיקר לזול' },
+      });
+    }
+  }
+
+  const llmSteps = Array.isArray(result?.next_steps) ? result.next_steps : [];
+  const validAgents = new Set(Object.keys(AGENT_REGISTRY));
+  const allSteps = [...deterministic_steps, ...llmSteps].filter((s: any) => s?.agent_type && validAgents.has(s.agent_type) && s.agent_type !== agentKey);
+  // De-dupe by agent_type — first occurrence wins (deterministic > llm).
+  const seenAgents = new Set<string>();
+  const cleanedSteps = allSteps.filter((s: any) => {
+    if (seenAgents.has(s.agent_type)) return false;
+    seenAgents.add(s.agent_type);
+    return true;
+  }).slice(0, 4);
 
   return {
     ad_account_id: META_AD_ACCOUNT_ID,
@@ -5067,6 +5154,7 @@ ${JSON.stringify(summary, null, 2)}
     },
     actions: cleanedActions,
     dropped_hallucinated_actions: droppedActions,
+    next_steps: cleanedSteps,
     facts,
     raw_data: summary,
   };

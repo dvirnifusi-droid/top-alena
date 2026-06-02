@@ -6,7 +6,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Loader2, Sparkles, Image as ImgIcon, TrendingUp, BookOpen, ChefHat, MessageCircle, DollarSign, CalendarHeart, UtensilsCrossed, Moon, BarChart3, Megaphone, AlertTriangle, CheckCircle2, Key } from 'lucide-react';
+import { Loader2, Sparkles, Image as ImgIcon, TrendingUp, BookOpen, ChefHat, MessageCircle, DollarSign, CalendarHeart, UtensilsCrossed, Moon, BarChart3, Megaphone, AlertTriangle, CheckCircle2, Key, ArrowLeft } from 'lucide-react';
 import { toast } from 'sonner';
 
 const AGENTS = [
@@ -405,6 +405,41 @@ export default function MarketingAgentsHub() {
                     <Badge variant={STATUS_BADGE[latestRun.status]?.variant}>{STATUS_BADGE[latestRun.status]?.label}</Badge>
                   </div>
                   <RunOutputView run={latestRun} />
+                  {Array.isArray(latestRun.output?.next_steps) && latestRun.output.next_steps.length > 0 && (
+                    <div className="mt-4 pt-3 border-t">
+                      <div className="text-sm font-semibold mb-2 flex items-center gap-1">
+                        <ArrowLeft className="w-4 h-4" /> פעולות המשך מומלצות
+                      </div>
+                      <div className="space-y-2">
+                        {latestRun.output.next_steps.map((step, i) => {
+                          const targetAgent = AGENTS.find((a) => a.key === step.agent_type);
+                          if (!targetAgent) return null;
+                          const Icon = targetAgent.icon;
+                          const pColor = step.priority === 'high' ? 'border-red-300 bg-red-50' : step.priority === 'medium' ? 'border-amber-300 bg-amber-50' : 'border-slate-200 bg-slate-50';
+                          return (
+                            <button
+                              key={i}
+                              onClick={() => {
+                                setActiveAgent(targetAgent);
+                                setInput(step.input || {});
+                                setLatestRun(null);
+                              }}
+                              className={`w-full text-right border rounded p-2 hover:shadow transition ${pColor}`}
+                            >
+                              <div className="flex items-start gap-2">
+                                <Icon className="w-4 h-4 mt-0.5 shrink-0" />
+                                <div className="flex-1">
+                                  <div className="font-semibold text-sm">{targetAgent.label}</div>
+                                  <div className="text-xs text-slate-700">{step.reason}</div>
+                                </div>
+                                <span className="text-xs font-bold whitespace-nowrap">{step.priority === 'high' ? 'דחוף' : step.priority === 'medium' ? 'בינוני' : 'רגיל'}</span>
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
