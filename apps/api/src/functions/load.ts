@@ -4737,9 +4737,17 @@ registerFn('deleteWaiterOrder', async ({ body }) => {
 
 const ALINA_BRAND_VOICE = `אתה כותב בשם המסעדה "עלינא" בירושלים — Jerusalem-Chic, smoky, אנרגטי, חם, לא קלישאתי. עברית טבעית בלבד, בלי אימוג'ים מוגזמים. דגש על אש, ג'וספר, חוויה, סיפור.`;
 
-// Pita Alena ad account (provided by owner). Token still comes from env.
+// Pita Alena ad account (provided by owner). Token comes from DB (set via UI)
+// with env fallback for legacy setups.
 const META_AD_ACCOUNT_ID = process.env.META_AD_ACCOUNT_ID || '1678566132326169';
-const META_TOKEN = () => process.env.META_ADS_ACCESS_TOKEN;
+async function getSecret(key: string): Promise<string | null> {
+  try {
+    const row = await db.integrationSecret.findFirst({ where: { key } });
+    if (row?.value) return row.value;
+  } catch {}
+  return process.env[key] || null;
+}
+const META_TOKEN = () => getSecret('META_ADS_ACCESS_TOKEN');
 
 const AGENT_REGISTRY: Record<string, { label: string; needs?: string[] }> = {
   copywriter:           { label: 'Copywriter' },
@@ -4838,7 +4846,7 @@ async function runVisualDesigner(input: any) {
 }
 
 async function metaApi(path: string, method: 'GET' | 'POST' = 'GET', body?: any) {
-  const token = META_TOKEN();
+  const token = await META_TOKEN();
   if (!token) throw new Error('META_ADS_ACCESS_TOKEN not configured');
   const url = `https://graph.facebook.com/v21.0${path}${path.includes('?') ? '&' : '?'}access_token=${encodeURIComponent(token)}`;
   const res = await fetch(url, {
@@ -4916,7 +4924,7 @@ registerFn('runMarketingAgent', async ({ body }) => {
 
   // Meta agents need the access token. If missing, return needs_integration
   // with the exact key — but ad-account ID is already wired so it's not listed.
-  if (META_AGENTS.has(agent_type) && !META_TOKEN()) {
+  if (META_AGENTS.has(agent_type) && !(await META_TOKEN())) {
     const updated = await db.marketingAgentRun.update({
       where: { id: run.id },
       data: {
@@ -4972,6 +4980,25 @@ registerFn('listMarketingAgentRuns', async ({ body }) => {
     take: Math.min(Number(limit) || 20, 100),
   });
   return { runs };
+});
+
+registerFn('setIntegrationSecret', async ({ body }) => {
+  const { key, value, note } = (body || {}) as any;
+  if (!key || !value) throw new Error('key and value required');
+  const existing = await db.integrationSecret.findFirst({ where: { key } });
+  if (existing) {
+    await db.integrationSecret.update({ where: { id: existing.id }, data: { value, note, updated_at: new Date() } });
+  } else {
+    await db.integrationSecret.create({ data: { key, value, note, updated_at: new Date() } });
+  }
+  return { ok: true };
+});
+
+registerFn('hasIntegrationSecret', async ({ body }) => {
+  const { key } = (body || {}) as any;
+  if (!key) throw new Error('key required');
+  const row = await db.integrationSecret.findFirst({ where: { key }, select: { id: true, updated_at: true } });
+  return { present: !!row, updated_at: row?.updated_at || null };
 });
 
 registerFn('getMarketingAgentsCatalog', async () => {

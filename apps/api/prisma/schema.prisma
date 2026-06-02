@@ -621,6 +621,17 @@ model Incident {
   updatedAt  DateTime @updatedAt
 }
 
+model IntegrationSecret {
+  id        String   @id @default(cuid())
+  key                          String
+  value                        String
+  note                         String?
+  updated_at                   DateTime?
+  createdBy  String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
 model Inventory {
   id        String   @id @default(cuid())
   item_name                    String
@@ -698,7 +709,6 @@ model JobCandidate {
   notes                        String?
   source                       String?  @default("whatsapp")
   u_notified_abandoned         Boolean?  @default(false)  @map("_notified_abandoned")
-  transcript                   Json?
   createdBy  String?
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt

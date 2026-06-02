@@ -6,7 +6,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Loader2, Sparkles, Image as ImgIcon, TrendingUp, BookOpen, ChefHat, MessageCircle, DollarSign, CalendarHeart, UtensilsCrossed, Moon, BarChart3, Megaphone, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { Loader2, Sparkles, Image as ImgIcon, TrendingUp, BookOpen, ChefHat, MessageCircle, DollarSign, CalendarHeart, UtensilsCrossed, Moon, BarChart3, Megaphone, AlertTriangle, CheckCircle2, Key } from 'lucide-react';
 import { toast } from 'sonner';
 
 const AGENTS = [
@@ -122,6 +122,32 @@ export default function MarketingAgentsHub() {
   const [latestRun, setLatestRun] = useState(null);
   const [runs, setRuns] = useState([]);
   const [showHistory, setShowHistory] = useState(false);
+  const [showSecrets, setShowSecrets] = useState(false);
+  const [metaToken, setMetaToken] = useState('');
+  const [metaTokenSet, setMetaTokenSet] = useState(false);
+  const [savingToken, setSavingToken] = useState(false);
+
+  useEffect(() => {
+    base44.functions.hasIntegrationSecret({ key: 'META_ADS_ACCESS_TOKEN' })
+      .then((r) => setMetaTokenSet(!!r?.present))
+      .catch(() => {});
+  }, []);
+
+  const saveMetaToken = async () => {
+    if (!metaToken.trim()) return;
+    setSavingToken(true);
+    try {
+      await base44.functions.setIntegrationSecret({ key: 'META_ADS_ACCESS_TOKEN', value: metaToken.trim(), note: 'pita alena Ad Account (1678566132326169)' });
+      setMetaTokenSet(true);
+      setMetaToken('');
+      toast.success('הטוקן נשמר. סוכני המדיה פעילים.');
+      setShowSecrets(false);
+    } catch (e) {
+      toast.error(`שגיאה: ${e?.message || e}`);
+    } finally {
+      setSavingToken(false);
+    }
+  };
 
   const loadRuns = useCallback(async () => {
     try {
@@ -165,7 +191,12 @@ export default function MarketingAgentsHub() {
           <h1 className="text-2xl font-bold flex items-center gap-2"><Megaphone className="w-6 h-6" /> VP Marketing — 11 סוכנים</h1>
           <p className="text-slate-600 text-sm mt-1">צוות שיווק אוטונומי תחת סגן השיווק. סוכנים מבוססי-LLM פעילים מיד; סוכני מדיה ועיצוב חזותי דורשים מפתחות API.</p>
         </div>
-        <Button variant="outline" onClick={() => setShowHistory(true)}>היסטוריית הרצות ({runs.length})</Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setShowSecrets(true)}>
+            <Key className="w-4 h-4 ml-1" /> מפתחות API {metaTokenSet ? '✅' : '⚠️'}
+          </Button>
+          <Button variant="outline" onClick={() => setShowHistory(true)}>היסטוריית הרצות ({runs.length})</Button>
+        </div>
       </div>
 
       {GROUPS.map((g) => (
@@ -221,6 +252,32 @@ export default function MarketingAgentsHub() {
               )}
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showSecrets} onOpenChange={setShowSecrets}>
+        <DialogContent className="max-w-xl" dir="rtl">
+          <DialogHeader><DialogTitle>מפתחות API</DialogTitle></DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-sm font-semibold">META Ads Access Token</label>
+                {metaTokenSet && <Badge variant="default" className="text-xs">מוגדר</Badge>}
+              </div>
+              <p className="text-xs text-slate-500 mb-2">חשבון "pita alena" (1678566132326169). הטוקן נשמר ב-DB ומוצפן ברמת השרת. {metaTokenSet ? 'אפשר להחליף אותו כאן כשצריך.' : 'בלעדיו 5 סוכני המדיה לא פעילים.'}</p>
+              <Textarea
+                rows={3}
+                placeholder="EAA..."
+                value={metaToken}
+                onChange={(e) => setMetaToken(e.target.value)}
+                className="font-mono text-xs"
+              />
+              <Button onClick={saveMetaToken} disabled={savingToken || !metaToken.trim()} className="mt-2 w-full">
+                {savingToken ? <Loader2 className="w-4 h-4 animate-spin ml-2" /> : <Key className="w-4 h-4 ml-2" />}
+                שמור טוקן
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
 
