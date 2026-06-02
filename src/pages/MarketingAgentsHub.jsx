@@ -129,7 +129,7 @@ export default function MarketingAgentsHub() {
 
   useEffect(() => {
     base44.functions.hasIntegrationSecret({ key: 'META_ADS_ACCESS_TOKEN' })
-      .then((r) => setMetaTokenSet(!!r?.present))
+      .then((r) => setMetaTokenSet(!!r?.data?.present))
       .catch(() => {});
   }, []);
 
@@ -152,7 +152,7 @@ export default function MarketingAgentsHub() {
   const loadRuns = useCallback(async () => {
     try {
       const res = await base44.functions.listMarketingAgentRuns({ limit: 50 });
-      setRuns(res?.runs || []);
+      setRuns(res?.data?.runs || []);
     } catch (e) {
       console.error('listMarketingAgentRuns failed', e);
     }
@@ -172,10 +172,11 @@ export default function MarketingAgentsHub() {
     setLatestRun(null);
     try {
       const res = await base44.functions.runMarketingAgent({ agent_type: activeAgent.key, input });
-      setLatestRun(res?.run || null);
-      if (res?.run?.status === 'completed') toast.success(`${activeAgent.label} סיים`);
-      else if (res?.run?.status === 'needs_integration') toast.info('הסוכן דורש מפתחות API');
-      else if (res?.run?.status === 'failed') toast.error('הסוכן נכשל');
+      const runResult = res?.data?.run || null;
+      setLatestRun(runResult);
+      if (runResult?.status === 'completed') toast.success(`${activeAgent.label} סיים`);
+      else if (runResult?.status === 'needs_integration') toast.info('הסוכן דורש מפתחות API');
+      else if (runResult?.status === 'failed') toast.error('הסוכן נכשל');
       loadRuns();
     } catch (e) {
       toast.error(`שגיאה: ${e?.message || e}`);
