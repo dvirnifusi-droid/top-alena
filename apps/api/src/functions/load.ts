@@ -4552,10 +4552,23 @@ registerFn('extractWaiterMenuFromFile', async ({ body }) => {
       ? 'התפריט הוא של מנות אוכל בלבד.'
       : 'התפריט עשוי להכיל גם אוכל וגם משקאות.';
 
-  const result: any = await invokeLLM({
-    maxOutputTokens: 16000,
-    prompt:
+  const buildPrompt = (priorItems: any[] = []) => {
+    const priorSection = priorItems.length
+      ? `\n\n# חשוב — סבב חוזר\n` +
+        `החזרת כבר את ${priorItems.length} הפריטים הבאים מהקובץ:\n${priorItems.map((p: any) => `- ${p.name} (${p.category_id})`).join('\n')}\n` +
+        `**אל תחזיר אותם שוב.** סרוק שוב את הקובץ, ותחזיר רק פריטים שדילגת עליהם בסבב הקודם. סרוק עמוד-עמוד, קטגוריה-קטגוריה. גם פריטים קטנים, גם תוספות, גם וריאנטים. אם באמת חיברת את כולם — החזר items=[].\n`
+      : '';
+    return (
       `מצורף קובץ תפריט (PDF או תמונה) של מסעדת עלינא בראשון לציון. סטייל burger-bar — מנות שיתוף בשריות, ירקות מהגוספר, סלטים, ועיקריות בצלחת. **אין דגים במסעדה.**\n` +
+      priorSection
+    );
+  };
+
+  const callOnce = async (priorItems: any[] = []) => invokeLLM({
+    maxOutputTokens: 32000,
+    timeoutMs: 90_000,
+    prompt:
+      buildPrompt(priorItems) +
       `${kindLabel}\n\n` +
       `# המשימה: חילוץ מקסימליסטי\n` +
       `**חובה לחלץ את כל הפריטים בתפריט — אסור לדלג, אסור לסכם, אסור להוסיף "ועוד..."**.\n` +
@@ -4604,7 +4617,32 @@ registerFn('extractWaiterMenuFromFile', async ({ body }) => {
     },
   });
 
-  return { items: Array.isArray(result?.items) ? result.items : [] };
+  // Two-pass extraction: if the first pass returned fewer items than expected, do a second
+  // pass with the prior items as 'do not return these again' context. Catches Gemini's
+  // tendency to be lazy on long PDFs by giving it an explicit nudge for what was missed.
+  const pass1: any = await callOnce([]);
+  const items1 = Array.isArray(pass1?.items) ? pass1.items : [];
+  let allItems = [...items1];
+  if (items1.length > 0 && items1.length < 60) {
+    try {
+      const pass2: any = await callOnce(items1);
+      const items2 = Array.isArray(pass2?.items) ? pass2.items : [];
+      // Dedupe by name (case-insensitive) so we don't double-count anything Gemini repeated
+      const seen = new Set(items1.map((i: any) => String(i.name || '').toLowerCase().trim()));
+      for (const it of items2) {
+        const key = String(it?.name || '').toLowerCase().trim();
+        if (key && !seen.has(key)) {
+          allItems.push(it);
+          seen.add(key);
+        }
+      }
+      console.log(`[extractWaiterMenu] pass1=${items1.length} pass2=${items2.length} merged=${allItems.length}`);
+    } catch (e: any) {
+      console.warn('[extractWaiterMenu] pass2 failed', e?.message);
+    }
+  }
+
+  return { items: allItems, _pass1: items1.length, _final: allItems.length };
 });
 
 registerFn('listWaiterOrders', async () => {
