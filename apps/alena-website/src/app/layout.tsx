@@ -4,6 +4,9 @@ import { heebo, frankRuhl, inter } from "@/lib/fonts";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
 import { StickyMobileCTA } from "@/components/layout/StickyMobileCTA";
+import { Analytics as GA } from "@/lib/analytics";
+import { Analytics as VercelAnalytics } from "@vercel/analytics/react";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "https://alenabepita.co.il"),
@@ -23,6 +26,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         {children}
         <Footer />
         <StickyMobileCTA />
+        <GA />
+        <VercelAnalytics />
+        <SpeedInsights />
       </body>
     </html>
   );
