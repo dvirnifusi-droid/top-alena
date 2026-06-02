@@ -4757,6 +4757,7 @@ async function getSecret(key: string): Promise<string | null> {
 const META_TOKEN = () => getSecret('META_ADS_ACCESS_TOKEN');
 
 const AGENT_REGISTRY: Record<string, { label: string; needs?: string[] }> = {
+  vp_marketing:         { label: 'VP Marketing (מנהל שיווק)' },
   copywriter:           { label: 'Copywriter' },
   storyteller:          { label: 'Storyteller / Newsletter' },
   trend_spotter:        { label: 'Trend-Spotter' },
@@ -5584,3 +5585,32 @@ registerFn('markAutoCloseNoticeSeen', async ({ user, body }) => {
   });
   return { ok: true };
 });
+
+// One-off migration helper — runs idempotent ALTER TABLE statements for the
+// shift-geofence columns. Safe to call multiple times. Public so it can be
+// triggered with a single curl when `prisma db push` declines to run (e.g.,
+// when it detects unrelated drift). Remove after the columns exist.
+registerFn('applyShiftGeofenceMigration', async () => {
+  const statements = [
+    `ALTER TABLE "RestaurantProfile" ADD COLUMN IF NOT EXISTS "restaurant_lat" DOUBLE PRECISION`,
+    `ALTER TABLE "RestaurantProfile" ADD COLUMN IF NOT EXISTS "restaurant_lng" DOUBLE PRECISION`,
+    `ALTER TABLE "RestaurantProfile" ADD COLUMN IF NOT EXISTS "shift_geofence_required" BOOLEAN DEFAULT false`,
+    `ALTER TABLE "Employee" ADD COLUMN IF NOT EXISTS "location_tracking_disabled" BOOLEAN DEFAULT false`,
+    `ALTER TABLE "ShiftTracking" ADD COLUMN IF NOT EXISTS "last_lat" DOUBLE PRECISION`,
+    `ALTER TABLE "ShiftTracking" ADD COLUMN IF NOT EXISTS "last_lng" DOUBLE PRECISION`,
+    `ALTER TABLE "ShiftTracking" ADD COLUMN IF NOT EXISTS "last_location_at" TIMESTAMP(3)`,
+    `ALTER TABLE "ShiftTracking" ADD COLUMN IF NOT EXISTS "auto_close_reason" TEXT`,
+    `ALTER TABLE "ShiftTracking" ADD COLUMN IF NOT EXISTS "auto_close_seen_at" TIMESTAMP(3)`,
+    `ALTER TABLE "JobCandidate" ADD COLUMN IF NOT EXISTS "transcript" JSONB`,
+  ];
+  const results: Array<{ stmt: string; ok: boolean; error?: string }> = [];
+  for (const stmt of statements) {
+    try {
+      await (prisma as any).$executeRawUnsafe(stmt);
+      results.push({ stmt, ok: true });
+    } catch (e: any) {
+      results.push({ stmt, ok: false, error: String(e?.message || e) });
+    }
+  }
+  return { results };
+}, { public: true });
