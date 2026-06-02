@@ -368,17 +368,31 @@ export default function MarketingAgentsHub() {
     setBriefBusy(true);
     try {
       const out = latestRun.output || {};
-      const goal = out.goal_understood || activeAgent?.label || 'קמפיין חדש';
-      const copy_variants = Array.isArray(out.variants) ? out.variants : null;
-      const image_base64 = out.image_base64 || null;
-      const audience_hint = out.context_assessed || out.strategy || null;
+      // Pull copy / image / audience from the current run first. Whatever's
+      // missing — backfill from the most recent successful runs of the
+      // matching agent so a Brief always has a complete creative kit no
+      // matter which agent the owner triggered 'Create Brief' from.
+      const lastSuccessfulWith = (predicate) =>
+        runs.find((r) => r.status === 'completed' && r.output && predicate(r.output));
+      const copy_variants = Array.isArray(out.variants)
+        ? out.variants
+        : lastSuccessfulWith((o) => Array.isArray(o.variants))?.output?.variants || null;
+      const image_base64 = out.image_base64
+        || lastSuccessfulWith((o) => !!o.image_base64)?.output?.image_base64
+        || null;
+      const goal = out.goal_understood
+        || (lastSuccessfulWith((o) => o.goal_understood))?.output?.goal_understood
+        || activeAgent?.label
+        || 'קמפיין חדש';
+      const audience_hint = out.context_assessed || out.strategy || out.headline || null;
       const res = await base44.functions.createCampaignBrief({ goal, copy_variants, image_base64, audience_hint });
       const brief = res?.data?.brief;
       if (brief) {
         setActiveBrief(brief);
         setBriefDialogOpen(true);
         loadBriefs();
-        toast.success('Brief נוצר — סקור ואשר');
+        const note = (copy_variants ? '✓ קופי ' : '') + (image_base64 ? '✓ תמונה ' : '');
+        toast.success(`Brief נוצר${note ? ` — ${note}` : ''}`);
       }
     } catch (e) {
       toast.error(`שגיאה: ${e?.message || e}`);
