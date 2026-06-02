@@ -6,7 +6,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Loader2, Sparkles, Image as ImgIcon, TrendingUp, BookOpen, ChefHat, MessageCircle, DollarSign, CalendarHeart, UtensilsCrossed, Moon, BarChart3, Megaphone, AlertTriangle, CheckCircle2, Key, ArrowLeft, Crown, Rocket, FileCheck, X as XIcon, ExternalLink } from 'lucide-react';
+import { Loader2, Sparkles, Image as ImgIcon, TrendingUp, BookOpen, ChefHat, MessageCircle, DollarSign, CalendarHeart, UtensilsCrossed, Moon, BarChart3, Megaphone, AlertTriangle, CheckCircle2, Key, ArrowLeft, Crown, Rocket, FileCheck, X as XIcon, ExternalLink, Zap } from 'lucide-react';
 import { toast } from 'sonner';
 
 const AGENTS = [
@@ -474,6 +474,51 @@ export default function MarketingAgentsHub() {
     } finally { setBriefBusy(false); }
   };
 
+  const [showPipeline, setShowPipeline] = useState(false);
+  const [pipelineGoal, setPipelineGoal] = useState('');
+  const [pipelineBudget, setPipelineBudget] = useState(40);
+  const [pipelineStage, setPipelineStage] = useState(null); // 'copy' | 'image' | 'brief' | null
+
+  const runPipeline = async () => {
+    if (!pipelineGoal.trim()) {
+      toast.error('כתוב יעד עסקי');
+      return;
+    }
+    setPipelineStage('starting');
+    try {
+      // Stage indicators — these are advisory, the backend runs synchronously
+      // so we just bump them at fixed intervals to show life.
+      const stages = ['copy', 'image', 'brief'];
+      let i = 0;
+      const tick = setInterval(() => {
+        if (i < stages.length) setPipelineStage(stages[i++]);
+      }, 15000);
+      const res = await base44.functions.runFullPipeline({
+        goal: pipelineGoal.trim(),
+        daily_budget_ils: Number(pipelineBudget) || 40,
+      });
+      clearInterval(tick);
+      const data = res?.data || {};
+      if (!data.ok) {
+        toast.error(`כשל בשרשרת: ${data.error || 'unknown'}`);
+        setPipelineStage(null);
+        return;
+      }
+      toast.success('Brief מוכן — סקור ואשר להשקה');
+      setShowPipeline(false);
+      setPipelineStage(null);
+      if (data.brief) {
+        setActiveBrief(data.brief);
+        setBriefDialogOpen(true);
+        loadBriefs();
+        loadRuns();
+      }
+    } catch (e) {
+      toast.error(`שגיאה: ${e?.message || e}`);
+      setPipelineStage(null);
+    }
+  };
+
   const updateBriefField = (field, value) => {
     setActiveBrief((b) => b ? { ...b, [field]: value } : b);
   };
@@ -563,6 +608,9 @@ export default function MarketingAgentsHub() {
           <p className="text-slate-600 text-sm mt-1">צוות שיווק אוטונומי תחת סגן השיווק. סוכנים מבוססי-LLM פעילים מיד; סוכני מדיה ועיצוב חזותי דורשים מפתחות API.</p>
         </div>
         <div className="flex gap-2 flex-wrap">
+          <Button onClick={() => setShowPipeline(true)} className="bg-gradient-to-l from-fuchsia-600 to-violet-600 hover:from-fuchsia-700 hover:to-violet-700 text-white">
+            <Zap className="w-4 h-4 ml-1" /> בנה קמפיין אוטומטי
+          </Button>
           <Button variant="outline" onClick={() => setShowSecrets(true)}>
             <Key className="w-4 h-4 ml-1" /> מפתחות API {metaTokenSet ? '✅' : '⚠️'}
           </Button>
@@ -669,6 +717,58 @@ export default function MarketingAgentsHub() {
               )}
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showPipeline} onOpenChange={(o) => { if (!pipelineStage) setShowPipeline(o); }}>
+        <DialogContent className="max-w-xl" dir="rtl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Zap className="w-5 h-5 text-fuchsia-600" /> בנה קמפיין מקצה לקצה
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="text-sm text-slate-600">
+              כתוב יעד עסקי. השרשרת תרוץ אוטומטית: <strong>Copywriter → Visual Designer → Brief</strong>.
+              בסוף תקבל Brief מוכן לאישור — לחיצה אחת ויעלה ל-Meta.
+            </div>
+            <div>
+              <label className="text-xs font-semibold block mb-1">יעד עסקי</label>
+              <Textarea
+                rows={3}
+                placeholder='דוגמה: "אני רוצה 10 לידים לאירועים פרטיים השבוע"'
+                value={pipelineGoal}
+                onChange={(e) => setPipelineGoal(e.target.value)}
+                disabled={!!pipelineStage}
+              />
+            </div>
+            <div>
+              <label className="text-xs font-semibold block mb-1">תקציב יומי (₪)</label>
+              <Input
+                type="number"
+                value={pipelineBudget}
+                onChange={(e) => setPipelineBudget(e.target.value)}
+                disabled={!!pipelineStage}
+              />
+            </div>
+            <Button
+              onClick={runPipeline}
+              disabled={!!pipelineStage}
+              className="bg-gradient-to-l from-fuchsia-600 to-violet-600 hover:from-fuchsia-700 hover:to-violet-700 w-full text-base py-6"
+            >
+              {pipelineStage ? <Loader2 className="w-5 h-5 animate-spin ml-2" /> : <Zap className="w-5 h-5 ml-2" />}
+              {pipelineStage === 'copy' ? '1/3 כותב קופי…'
+                : pipelineStage === 'image' ? '2/3 יוצר תמונה…'
+                : pipelineStage === 'brief' ? '3/3 בונה Brief…'
+                : pipelineStage === 'starting' ? 'מתחיל…'
+                : 'התחל את השרשרת'}
+            </Button>
+            {pipelineStage && (
+              <div className="text-xs text-slate-500 text-center">
+                לוקח 60-90 שניות. אל תסגור את החלון.
+              </div>
+            )}
+          </div>
         </DialogContent>
       </Dialog>
 

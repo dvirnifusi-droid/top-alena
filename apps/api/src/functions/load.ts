@@ -5860,6 +5860,52 @@ registerFn('approveAndLaunchCampaignBrief', async ({ body }) => {
   return (functionHandlers as any).launchCampaignBrief({ body: { id, active: true } });
 });
 
+// Owner gives a goal once. Pipeline runs Copywriter → Visual Designer →
+// createCampaignBrief, packaging the copy variants + generated image into
+// a Brief that's ready to approve & launch. No per-step clicking.
+registerFn('runFullPipeline', async ({ body }) => {
+  await ensureAgentRunTable();
+  await ensureCampaignBriefTable();
+  const { goal, channel = 'instagram', daily_budget_ils, landing_url } = (body || {}) as any;
+  if (!goal || !String(goal).trim()) throw new Error('goal required');
+
+  const stages: any = { goal, started_at: new Date().toISOString() };
+  try {
+    // 1. Copywriter
+    const copyOut: any = await runCopywriter({ topic: goal, channel, length: 'short' });
+    stages.copy_variants = Array.isArray(copyOut?.variants) ? copyOut.variants : [];
+    await db.marketingAgentRun.create({
+      data: { agent_type: 'copywriter', title: `Pipeline: ${goal.slice(0, 40)}`, status: 'completed', input: { topic: goal, channel }, output: copyOut, ran_at: new Date() },
+    }).catch(() => {});
+
+    // 2. Visual Designer
+    const visualOut: any = await runVisualDesigner({ brief: goal });
+    stages.image_base64 = visualOut?.image_base64 || null;
+    await db.marketingAgentRun.create({
+      data: { agent_type: 'visual_designer', title: `Pipeline: ${goal.slice(0, 40)}`, status: 'completed', input: { brief: goal }, output: visualOut, ran_at: new Date() },
+    }).catch(() => {});
+
+    // 3. Brief
+    const briefRes: any = await (functionHandlers as any).createCampaignBrief({
+      body: {
+        goal,
+        copy_variants: stages.copy_variants,
+        image_base64: stages.image_base64,
+        audience_hint: `Pipeline run for: ${goal}`,
+        daily_budget_ils,
+        landing_url,
+      },
+    });
+    stages.brief = briefRes?.brief || null;
+    stages.finished_at = new Date().toISOString();
+    return { ok: true, ...stages };
+  } catch (e: any) {
+    stages.error = String(e?.message || e);
+    stages.finished_at = new Date().toISOString();
+    return { ok: false, ...stages };
+  }
+});
+
 /* ----- Shift geofence (clock-in proximity + auto-close on leave) ----- */
 
 function isAdminRole(role: any): boolean {
