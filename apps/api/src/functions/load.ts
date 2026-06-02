@@ -4445,8 +4445,11 @@ registerFn('chatWaiter', async ({ body }) => {
 
   const prompt = `${systemPrompt}${kitContext}\n--- שיחה עד כה ---\n${transcript || '(תחילת השיחה — קבל את הלקוח בברכה חמה ושאל כמה הם)'}${newPart}\n\nהחזר JSON בלבד.`;
 
-  // EXACT same invokeLLM signature as chatEventsInquiry — no overrides, period.
-  const result: any = await invokeLLM({
+  // Same invokeLLM signature as events, wrapped in a silent retry. Gemini occasionally
+  // flakes (500 / timeout / empty response) — retrying once silently means the customer
+  // sees a slight delay instead of "סליחה, יש בעיה זמנית". The retry is cheap because
+  // the prompt is cached on Gemini's side.
+  const callOnce = () => invokeLLM({
     prompt,
     responseSchema: {
       type: 'object',
@@ -4460,6 +4463,28 @@ registerFn('chatWaiter', async ({ body }) => {
       required: ['reply'],
     },
   });
+
+  let result: any = null;
+  let lastErr: any = null;
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      result = await callOnce();
+      // Treat empty/missing reply as a soft failure and retry
+      if (!result || !result.reply || String(result.reply).trim().length < 2) {
+        lastErr = new Error('empty_reply');
+        result = null;
+        continue;
+      }
+      break;
+    } catch (e: any) {
+      lastErr = e;
+      console.warn(`[chatWaiter] attempt ${attempt} failed:`, e?.message);
+    }
+  }
+  if (!result) {
+    console.error('[chatWaiter] all 3 attempts failed:', lastErr?.message);
+    throw new Error('llm_unavailable_after_retries');
+  }
 
   const c = result?.collected || {};
   const items = Array.isArray(c.recommended_items) ? c.recommended_items : [];
