@@ -154,9 +154,12 @@ function EmployeeReportsInner() {
                 base44.entities.TipReport.list(),
                 base44.entities.WorkShift.list('-date', 500),
             ]);
-            setShifts(allShifts);
-            setTipReports(allTipReports);
-            setWorkShifts(allWorkShifts);
+            // Normalize ISO date strings to YYYY-MM-DD across all three sets
+            // so the equality-based filtering below still works.
+            const sliceDate = (x) => (typeof x === 'string' ? x.slice(0, 10) : x);
+            setShifts(allShifts.map(s => ({ ...s, date: sliceDate(s.date) })));
+            setTipReports(allTipReports.map(t => ({ ...t, date: sliceDate(t.date) })));
+            setWorkShifts(allWorkShifts.map(w => ({ ...w, date: sliceDate(w.date) })));
         } catch (error) {
             console.error('Error loading report data:', error);
         }

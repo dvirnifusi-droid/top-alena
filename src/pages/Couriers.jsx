@@ -36,7 +36,9 @@ export default function Couriers() {
       base44.entities.Delivery.list(),
     ]);
     setCouriers(courierData);
-    setDeliveries(deliveryData);
+    // Normalize Delivery.date (ISO post-migration) to YYYY-MM-DD so the
+    // `d.date === today` comparison below still matches.
+    setDeliveries(deliveryData.map(d => ({ ...d, date: typeof d.date === 'string' ? d.date.slice(0, 10) : d.date })));
     setLoading(false);
   };
 

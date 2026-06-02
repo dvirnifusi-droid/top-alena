@@ -21,7 +21,9 @@ export default function MyTipsWidget() {
         const weekAgo = new Date(); weekAgo.setDate(weekAgo.getDate() - 7);
         const weekAgoStr = weekAgo.toISOString().split('T')[0];
 
-        const reports = await base44.entities.TipReport.list('-date', 20);
+        const rawReports = await base44.entities.TipReport.list('-date', 20);
+        // API returns ISO datetime strings post-migration; slice to YYYY-MM-DD.
+        const reports = rawReports.map(r => ({ ...r, date: typeof r.date === 'string' ? r.date.slice(0, 10) : r.date }));
         const recent = reports.filter(r => r.date >= weekAgoStr);
 
         let weekTotal = 0, todayTotal = 0;

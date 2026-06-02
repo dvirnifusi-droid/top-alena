@@ -311,7 +311,7 @@ export default function SeatingSetup() {
             
             setActiveSessions(sessions);
             setServiceSteps(steps);
-            setReservations(dateReservations);
+            setReservations((dateReservations || []).map(r => ({ ...r, date: typeof r.date === 'string' ? r.date.slice(0, 10) : r.date })));
             setCustomers(allCustomers);
         } catch (error) {
             console.error('Error loading layout:', error);
@@ -330,7 +330,7 @@ export default function SeatingSetup() {
                 Customer.list()
             ]);
             setActiveSessions(sessions);
-            setReservations(dateReservations);
+            setReservations((dateReservations || []).map(r => ({ ...r, date: typeof r.date === 'string' ? r.date.slice(0, 10) : r.date })));
             setCustomers(allCustomers);
         } catch (error) {
             console.error('Error loading live data:', error);

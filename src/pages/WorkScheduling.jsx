@@ -427,8 +427,11 @@ export default function WorkScheduling() {
                 base44.entities.TipReport.list('-date', 200),
                 base44.entities.EmployeeAvailability.list(),
             ]);
-            setTipReports(allTipReports);
-            setAvailabilities(allAvailabilities);
+            // Normalize date fields once — API returns ISO strings post-migration
+            // but every comparison site below uses YYYY-MM-DD form.
+            const sliceDate = (x) => (typeof x === 'string' ? x.slice(0, 10) : x);
+            setTipReports(allTipReports.map(r => ({ ...r, date: sliceDate(r.date) })));
+            setAvailabilities(allAvailabilities.map(a => ({ ...a, date: sliceDate(a.date) })));
 
             // סנכרן שמות עובדים בשיבוצים עם הנתונים הנוכחיים
             const employeeMap = Object.fromEntries(allEmployees.map(e => [e.id, e.full_name]));

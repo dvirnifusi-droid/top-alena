@@ -19,7 +19,8 @@ export default function AiDailySummaryWidget() {
     try {
       const today = new Date().toISOString().split('T')[0];
       const suggestions = await base44.entities.AiSuggestion.filter({ type: 'daily_summary' });
-      const todaySummary = suggestions.find(s => s.date === today);
+      // AiSuggestion.date is ISO string post-migration; slice to YYYY-MM-DD.
+      const todaySummary = suggestions.find(s => (typeof s.date === 'string' ? s.date.slice(0, 10) : s.date) === today);
       if (todaySummary) {
         setSummary(JSON.parse(todaySummary.content));
         setLastUpdated(new Date(todaySummary.updated_date).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' }));

@@ -77,7 +77,8 @@ function AvailabilityRequestsInner() {
                 base44.entities.AvailabilityFormSettings.list(),
             ]);
             setCurrentUser(me);
-            setAvailabilities(allAvail);
+            // Normalize ISO date strings to YYYY-MM-DD for downstream comparisons.
+            setAvailabilities(allAvail.map(a => ({ ...a, date: typeof a.date === 'string' ? a.date.slice(0, 10) : a.date })));
             setEmployees(allEmps);
             setInactiveEmployees(inactiveEmps || []);
             setSettings(sett[0] || null);

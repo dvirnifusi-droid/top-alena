@@ -291,7 +291,10 @@ export default function AvailabilityForm() {
              const dept = loginDepartment || emp.department || DEPARTMENTS[0]?.key || null;
              setSelectedDepartment(dept);
 
-             const existing = await base44.entities.EmployeeAvailability.filter({ employee_id: emp.id });
+             const rawExisting = await base44.entities.EmployeeAvailability.filter({ employee_id: emp.id });
+             // API returns date as ISO string post-migration — normalize to YYYY-MM-DD
+             // so the .find(a => a.date === dateStr) checks below still match.
+             const existing = rawExisting.map(a => ({ ...a, date: typeof a.date === 'string' ? a.date.slice(0, 10) : a.date }));
                   setExistingAvailabilities(existing);
                   const currentWeekDays = getWeekDays(selectedWeekOffset);
                   const newDayData = initDayData(currentWeekDays);
