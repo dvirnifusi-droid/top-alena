@@ -105,14 +105,146 @@ function RunOutputView({ run }) {
     return <div className="text-sm text-red-700">שגיאה: {run.error}</div>;
   }
   const out = run.output || {};
-  return (
-    <div className="space-y-2">
-      {out.image_base64 && (
-        <img src={`data:image/png;base64,${out.image_base64}`} alt="generated" className="rounded border max-h-96" />
-      )}
-      <pre className="text-xs bg-slate-50 p-3 rounded overflow-auto max-h-96 whitespace-pre-wrap break-words">{JSON.stringify({ ...out, image_base64: out.image_base64 ? '[image rendered above]' : undefined }, null, 2)}</pre>
-    </div>
-  );
+
+  // Media-buying agents return structured headline/key_metrics/actions.
+  if (out.headline || Array.isArray(out.actions)) {
+    const priorityColor = { high: 'bg-red-50 border-red-300 text-red-900', medium: 'bg-amber-50 border-amber-300 text-amber-900', low: 'bg-slate-50 border-slate-300 text-slate-700' };
+    return (
+      <div className="space-y-4">
+        {out.headline && (
+          <div className="bg-slate-900 text-white p-3 rounded">
+            <div className="text-xs text-slate-400 mb-1">מצב</div>
+            <div className="font-semibold">{out.headline}</div>
+          </div>
+        )}
+        {out.key_metrics && (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-center">
+            {out.key_metrics.total_spend_ils != null && (
+              <div className="bg-white border rounded p-2"><div className="text-xs text-slate-500">הוצאה</div><div className="font-bold">₪{Number(out.key_metrics.total_spend_ils).toFixed(0)}</div></div>
+            )}
+            {out.key_metrics.total_clicks != null && (
+              <div className="bg-white border rounded p-2"><div className="text-xs text-slate-500">קליקים</div><div className="font-bold">{out.key_metrics.total_clicks}</div></div>
+            )}
+            {out.key_metrics.avg_ctr_pct != null && (
+              <div className="bg-white border rounded p-2"><div className="text-xs text-slate-500">CTR ממוצע</div><div className="font-bold">{Number(out.key_metrics.avg_ctr_pct).toFixed(2)}%</div></div>
+            )}
+            {out.key_metrics.top_campaign_name && (
+              <div className="bg-white border rounded p-2"><div className="text-xs text-slate-500">המוצלח ביותר</div><div className="font-semibold text-xs truncate" title={out.key_metrics.top_campaign_name}>{out.key_metrics.top_campaign_name}</div></div>
+            )}
+          </div>
+        )}
+        {Array.isArray(out.actions) && out.actions.length > 0 && (
+          <div>
+            <div className="font-semibold mb-2 text-sm">פעולות מומלצות ({out.actions.length})</div>
+            <div className="space-y-2">
+              {out.actions.map((a, i) => (
+                <div key={i} className={`border rounded p-3 ${priorityColor[a.priority] || priorityColor.medium}`}>
+                  <div className="flex items-start justify-between gap-2 mb-1">
+                    <div className="font-semibold text-sm">{i + 1}. {a.action}</div>
+                    <span className="text-xs font-bold whitespace-nowrap">{a.priority === 'high' ? 'דחוף' : a.priority === 'medium' ? 'בינוני' : 'רגיל'}</span>
+                  </div>
+                  {a.campaign_name && <div className="text-xs opacity-70 mb-1">קמפיין: {a.campaign_name}</div>}
+                  {a.why && <div className="text-sm mb-1"><strong>למה:</strong> {a.why}</div>}
+                  {a.expected_impact && <div className="text-sm"><strong>צפי השפעה:</strong> {a.expected_impact}</div>}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // Copywriter: variants
+  if (Array.isArray(out.variants)) {
+    return (
+      <div className="space-y-3">
+        {out.variants.map((v, i) => (
+          <div key={i} className="border rounded p-3 bg-white">
+            <div className="text-xs text-slate-500 mb-1">וריאציה {i + 1}</div>
+            {v.hook && <div className="font-bold mb-1">{v.hook}</div>}
+            {v.body && <div className="text-sm whitespace-pre-wrap mb-2">{v.body}</div>}
+            {Array.isArray(v.hashtags) && <div className="text-xs text-blue-600">{v.hashtags.join(' ')}</div>}
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  // Storyteller / Newsletter
+  if (out.sections) {
+    return (
+      <div className="space-y-3">
+        {out.subject && <div className="font-bold text-lg">{out.subject}</div>}
+        {out.intro && <div className="text-sm">{out.intro}</div>}
+        {Array.isArray(out.sections) && out.sections.map((s, i) => (
+          <div key={i} className="border-r-2 border-violet-300 pr-3">
+            <div className="font-semibold">{s.heading}</div>
+            <div className="text-sm whitespace-pre-wrap">{s.body}</div>
+          </div>
+        ))}
+        {out.closing && <div className="text-sm italic mt-2">{out.closing}</div>}
+      </div>
+    );
+  }
+
+  // Trend-Spotter
+  if (Array.isArray(out.trends)) {
+    return (
+      <div className="space-y-2">
+        {out.trends.map((t, i) => (
+          <div key={i} className="border rounded p-3 bg-purple-50">
+            <div className="font-bold">{i + 1}. {t.title}</div>
+            {t.hook && <div className="text-sm mt-1">{t.hook}</div>}
+            {t.why_it_works && <div className="text-xs mt-1 text-slate-600">למה זה עובד: {t.why_it_works}</div>}
+            {t.suggested_format && <div className="text-xs mt-1 text-slate-600">פורמט מומלץ: {t.suggested_format}</div>}
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  // Menu Engineer
+  if (Array.isArray(out.items)) {
+    return (
+      <div className="space-y-2">
+        {out.summary && <div className="bg-amber-50 border border-amber-200 rounded p-2 text-sm">{out.summary}</div>}
+        {out.items.map((it, i) => (
+          <div key={i} className="border rounded p-2 text-sm">
+            <div className="font-semibold flex justify-between">{it.name} <span className="text-xs">{it.category}</span></div>
+            {it.recommendation && <div className="text-xs mt-1">{it.recommendation}</div>}
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  // Conversational
+  if (out.reply) {
+    return (
+      <div className="space-y-2">
+        <div className="bg-emerald-50 border border-emerald-300 rounded p-3">
+          <div className="text-xs text-slate-500 mb-1">תשובה מוצעת</div>
+          <div className="whitespace-pre-wrap">{out.reply}</div>
+        </div>
+        {out.needs_human_handoff && <div className="text-xs text-red-700">⚠️ ממליץ להעביר לבן אדם</div>}
+        {out.suggested_tag && <div className="text-xs text-slate-500">תיוג מוצע: {out.suggested_tag}</div>}
+      </div>
+    );
+  }
+
+  // Visual Designer
+  if (out.image_base64) {
+    return (
+      <div className="space-y-2">
+        <img src={`data:image/png;base64,${out.image_base64}`} alt="generated" className="rounded border max-h-96 mx-auto" />
+        {out.prompt_used && <div className="text-xs text-slate-500">Prompt: {out.prompt_used}</div>}
+      </div>
+    );
+  }
+
+  // Fallback — raw JSON only as last resort
+  return <pre className="text-xs bg-slate-50 p-3 rounded overflow-auto max-h-96 whitespace-pre-wrap break-words">{JSON.stringify(out, null, 2)}</pre>;
 }
 
 export default function MarketingAgentsHub() {

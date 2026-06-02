@@ -4860,35 +4860,86 @@ async function metaApi(path: string, method: 'GET' | 'POST' = 'GET', body?: any)
 }
 
 async function runMetaAgent(agentKey: string, input: any) {
-  // For now all Meta agents share the same primitive: pull recent campaigns +
-  // their insights, then ask the LLM to give recommendations scoped to the
-  // agent's focus (events / lunch / evening / overall / optimization).
   const focusMap: Record<string, string> = {
-    main_media_buyer: 'אסטרטגיה כוללת של תקציבי מדיה — הקצאה בין קמפיינים שונים',
-    event_campaigns: 'קמפיינים לאירועים פרטיים (חתונות, ימי הולדת, חברות)',
-    lunch_campaigns: 'ארוחת צהריים/עסקית — מנות מרג\'ין גבוה',
-    evening_campaigns: 'ערב ומשלוחים — Wolt, Tabit, שעות 18:00-22:00',
-    optimization_analyst: 'אופטימיזציה רציפה — להעלות תקציב למוצלחים, לכבות מודעות לא יעילות',
+    main_media_buyer: 'אסטרטגיית מדיה כוללת — הקצאת תקציב בין קמפיינים',
+    event_campaigns: 'קמפיינים לאירועים פרטיים',
+    lunch_campaigns: 'ארוחת צהריים/עסקית',
+    evening_campaigns: 'ערב ומשלוחים (Wolt/Tabit, שעות 18-22)',
+    optimization_analyst: 'אופטימיזציה רציפה — תקציבים והשבתת מודעות חלשות',
   };
   const focus = focusMap[agentKey] || 'מדיה כללית';
 
-  // Pull live data from Meta
   const campaigns = await metaApi(
     `/act_${META_AD_ACCOUNT_ID}/campaigns?fields=id,name,status,objective,daily_budget,lifetime_budget,insights{spend,impressions,clicks,ctr,cpc,actions}&limit=25`,
   );
 
+  // Pre-compute simple metrics so the LLM doesn't have to do arithmetic.
+  const summary = (campaigns?.data || []).map((c: any) => {
+    const ins = c?.insights?.data?.[0] || {};
+    const spend = parseFloat(ins.spend || '0');
+    const clicks = parseInt(ins.clicks || '0');
+    const ctr = parseFloat(ins.ctr || '0');
+    const cpc = parseFloat(ins.cpc || '0');
+    return {
+      id: c.id, name: c.name, status: c.status, objective: c.objective,
+      daily_budget_ils: c.daily_budget ? parseFloat(c.daily_budget) / 100 : null,
+      spend_ils: spend, clicks, ctr_pct: ctr, cpc_ils: cpc,
+    };
+  });
+
   const result: any = await invokeLLM({
-    prompt: `${ALINA_BRAND_VOICE}\n\nאתה ${focusMap[agentKey] ? `סוכן מדיה עם פוקוס על: ${focus}` : 'סוכן מדיה כללי'}.\nלהלן ${campaigns?.data?.length || 0} קמפיינים פעילים/אחרונים של עלינא במטא:\n${JSON.stringify(campaigns?.data || [], null, 2)}\n\n${input?.goal ? `מטרת ההרצה הספציפית: ${input.goal}` : ''}\n\nתן ניתוח קצר + 3-5 פעולות קונקרטיות. החזר JSON: { analysis, actions: [{ campaign_id?, action, reason, expected_impact }] }`,
+    prompt: `אתה אנליסט מדיה דיגיטלית קר ומבוסס-נתונים. אסור לך לכתוב במשפטים פיוטיים, סיסמאות, או "קדימה/יאללה". כל משפט חייב להכיל מספר או פעולה ספציפית. עברית עניינית, סגנון CFO.
+
+פוקוס הסוכן: ${focus}.
+${input?.goal ? `שאלה ספציפית מהבעלים: "${input.goal}"` : ''}
+
+נתונים (${summary.length} קמפיינים):
+${JSON.stringify(summary, null, 2)}
+
+החזר JSON עם:
+- "headline": משפט אחד (עד 20 מילים) שמתאר את המצב הכולל. דוגמה: "החודש הוצאת 6,020₪ על 3 קמפיינים; CTR ממוצע 3.2% — מעל הבנצ'מארק של 2%."
+- "key_metrics": אובייקט עם total_spend_ils, total_clicks, avg_ctr_pct, top_campaign_name, weakest_campaign_name.
+- "actions": מערך של 3-5 פעולות. כל פעולה היא אובייקט עם: campaign_name (השם המדויק מהנתונים), action (טקסט קצר ופעיל כמו "העלה תקציב יומי מ-40₪ ל-60₪" או "כבה את הקמפיין"), why (1-2 משפטי הסבר עם המספרים), priority ("high"/"medium"/"low"), expected_impact (טקסט עם הערכה כמותית כמו "+30% leads בחודש").
+
+מותר אורך כולל של עד 400 מילים בכל הפלט. אל תחזור על מילים. אל תכתוב מבוא או סיום.`,
     responseSchema: {
       type: 'object',
       properties: {
-        analysis: { type: 'string' },
-        actions: { type: 'array', items: { type: 'object', properties: { campaign_id: { type: 'string' }, action: { type: 'string' }, reason: { type: 'string' }, expected_impact: { type: 'string' } } } },
+        headline: { type: 'string' },
+        key_metrics: {
+          type: 'object',
+          properties: {
+            total_spend_ils: { type: 'number' },
+            total_clicks: { type: 'number' },
+            avg_ctr_pct: { type: 'number' },
+            top_campaign_name: { type: 'string' },
+            weakest_campaign_name: { type: 'string' },
+          },
+        },
+        actions: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              campaign_name: { type: 'string' },
+              action: { type: 'string' },
+              why: { type: 'string' },
+              priority: { type: 'string' },
+              expected_impact: { type: 'string' },
+            },
+          },
+        },
       },
     },
   });
 
-  return { ad_account_id: META_AD_ACCOUNT_ID, focus, campaigns_count: campaigns?.data?.length || 0, ...result };
+  return {
+    ad_account_id: META_AD_ACCOUNT_ID,
+    focus,
+    campaigns_count: summary.length,
+    raw_data: summary,
+    ...result,
+  };
 }
 
 async function runConversational(input: any) {
