@@ -5161,6 +5161,111 @@ ${JSON.stringify(summary, null, 2)}
   };
 }
 
+async function runVpMarketing(input: any) {
+  const { goal } = input || {};
+  if (!goal || !String(goal).trim()) throw new Error('goal required — תאר מה אתה רוצה להשיג');
+
+  let metaSnapshot: any = null;
+  if (await META_TOKEN()) {
+    try {
+      const campaigns = await metaApi(
+        `/act_${META_AD_ACCOUNT_ID}/campaigns?fields=id,name,status,objective,daily_budget,insights.date_preset(last_7d){spend,clicks,ctr,actions}&limit=25`,
+      );
+      const data = (campaigns?.data || []).map((c: any) => {
+        const ins = c?.insights?.data?.[0] || {};
+        const leads = (ins.actions || []).find((a: any) => a.action_type === 'lead')?.value || '0';
+        return {
+          name: c.name, status: c.status, objective: c.objective,
+          daily_budget_ils: c.daily_budget ? parseFloat(c.daily_budget) / 100 : null,
+          spend_ils_last_7d: parseFloat(ins.spend || '0'),
+          clicks_last_7d: parseInt(ins.clicks || '0'),
+          ctr_pct_last_7d: parseFloat(ins.ctr || '0'),
+          leads_last_7d: parseInt(leads),
+        };
+      });
+      const totalSpend = data.reduce((s: number, c: any) => s + c.spend_ils_last_7d, 0);
+      const totalLeads = data.reduce((s: number, c: any) => s + c.leads_last_7d, 0);
+      metaSnapshot = { campaigns: data, total_spend_last_7d_ils: Math.round(totalSpend), total_leads_last_7d: totalLeads };
+    } catch {
+      metaSnapshot = { error: 'לא הצלחתי למשוך נתונים מ-Meta — אתכנן בלי קונטקסט קמפיינים.' };
+    }
+  }
+
+  const agentMenu = Object.entries(AGENT_REGISTRY)
+    .filter(([k]) => k !== 'vp_marketing')
+    .map(([k, v]) => `- ${k}: ${v.label}`)
+    .join('\n');
+
+  const result: any = await invokeLLM({
+    prompt: `אתה VP Marketing של מסעדת עלינא (ירושלים, ג'וספר, אש). הבעלים (דביר) נתן לך יעד עסקי, ויש לך 11 סוכנים תחת אחריותך. תפקידך: לנתח את היעד, להעריך את המצב הנוכחי, ולבנות תוכנית פעולה ברורה שמחלקת את העבודה בין הסוכנים בסדר הנכון.
+
+יעד מהבעלים: "${goal}"
+
+מצב נוכחי במדיה (7 ימים אחרונים):
+${metaSnapshot ? JSON.stringify(metaSnapshot, null, 2) : '(אין חיבור ל-Meta — אתכנן ללא קונטקסט קמפיינים)'}
+
+הסוכנים הזמינים תחת אחריותך:
+${agentMenu}
+
+כללים:
+1. אסור להמליץ על vp_marketing בתוכנית (לא לקרוא לעצמך).
+2. כל צעד חייב להיות agent_type אחד מהרשימה למעלה — מילה במילה.
+3. הסבר ב-strategy למה כל סוכן נמצא בתוכנית.
+4. עברית עניינית, בלי "קדימה/יאללה". משפטים מספריים ופעולתיים.
+
+החזר JSON עם:
+- "goal_understood": איך אתה מבין את היעד (משפט אחד)
+- "context_assessed": ניתוח המצב הנוכחי על בסיס נתוני המדיה (2-3 משפטים)
+- "strategy": אסטרטגיה כוללת (3-5 משפטים)
+- "plan": מערך של 3-6 צעדים ממוספרים, כל אחד עם: step (מספר), agent_type, title (משפט קצר), reason, input (אובייקט פרמטרים לסוכן), depends_on (מספר הצעד שצריך לרוץ קודם, או null)
+- "expected_outcome": מה צפוי לקרות אם הבעלים יבצע הכל`,
+    responseSchema: {
+      type: 'object',
+      properties: {
+        goal_understood: { type: 'string' },
+        context_assessed: { type: 'string' },
+        strategy: { type: 'string' },
+        plan: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              step: { type: 'number' },
+              agent_type: { type: 'string' },
+              title: { type: 'string' },
+              reason: { type: 'string' },
+              input: { type: 'object' },
+              depends_on: { type: 'number' },
+            },
+          },
+        },
+        expected_outcome: { type: 'string' },
+      },
+    },
+  });
+
+  const validAgents = new Set(Object.keys(AGENT_REGISTRY));
+  const cleanedPlan = (Array.isArray(result?.plan) ? result.plan : [])
+    .filter((s: any) => s?.agent_type && validAgents.has(s.agent_type) && s.agent_type !== 'vp_marketing');
+
+  const next_steps = cleanedPlan.slice(0, 5).map((s: any) => ({
+    agent_type: s.agent_type,
+    reason: s.reason || s.title,
+    priority: s.step <= 2 ? 'high' : 'medium',
+    input: s.input || {},
+  }));
+
+  return {
+    goal_understood: result?.goal_understood || '',
+    context_assessed: result?.context_assessed || '',
+    strategy: result?.strategy || '',
+    plan: cleanedPlan,
+    expected_outcome: result?.expected_outcome || '',
+    meta_snapshot: metaSnapshot,
+    next_steps,
+  };
+}
+
 async function runConversational(input: any) {
   const { incoming_message, customer_context = '', channel = 'instagram_dm' } = input || {};
   if (!incoming_message) throw new Error('incoming_message required');
@@ -5235,6 +5340,7 @@ registerFn('runMarketingAgent', async ({ body }) => {
   try {
     let output: any;
     switch (agent_type) {
+      case 'vp_marketing':   output = await runVpMarketing(input); break;
       case 'copywriter':     output = await runCopywriter(input); break;
       case 'storyteller':    output = await runStoryteller(input); break;
       case 'trend_spotter':  output = await runTrendSpotter(input); break;
