@@ -741,6 +741,18 @@ model JobCandidate {
   notes                        String?
   source                       String?  @default("whatsapp")
   u_notified_abandoned         Boolean?  @default(false)  @map("_notified_abandoned")
+  // Legacy base44 columns (still used by function code for sorting/filtering)
+  created_by                   String?
+  created_date                 String?
+  updated_date                 String?
+  ai_summary                   String?
+  hired_at                     String?
+  training_stage               String?
+  menu_exam_attempts           Int?
+  training_sessions_completed  Int?
+  kashrut_capable              Boolean?
+  kashrut_required             Boolean?
+  transcript                   Json?
   createdBy  String?
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
