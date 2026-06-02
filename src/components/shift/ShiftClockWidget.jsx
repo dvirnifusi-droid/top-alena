@@ -134,122 +134,120 @@ export default function ShiftClockWidget() {
     const startShift = async () => {
         setActionLoading(true);
         try {
-            // 1. Geofence config — do we need GPS for this user?
-            let coords = null;
+            // OPTIONAL geofence pre-check — best-effort. If config call or GPS
+            // fails, we DO NOT block clock-in. Only blocks if config explicitly
+            // says required AND we can confirm the user is outside the radius.
             try {
                 const cfgRes = await base44.functions.getGeofenceConfig({});
                 const cfg = cfgRes?.data || {};
-                if (cfg.tracking_required && !cfg.my_tracking_disabled) {
+                if (cfg.tracking_required && !cfg.my_tracking_disabled
+                    && cfg.restaurant_lat != null && cfg.restaurant_lng != null) {
+                    let coords;
                     try {
                         coords = await readPosition();
                     } catch (e) {
-                        const msg = e.message === 'denied'
+                        alert(e.message === 'denied'
                             ? 'צריך לאשר הרשאת מיקום כדי להיכנס למשמרת'
-                            : 'המיקום לא זמין כרגע. פנה למנהל לכניסה ידנית.';
-                        alert(msg);
+                            : 'המיקום לא זמין כרגע. פנה למנהל.');
+                        setActionLoading(false);
+                        return;
+                    }
+                    // client-side haversine
+                    const R = 6371000;
+                    const toRad = (d) => d * Math.PI / 180;
+                    const dLat = toRad(cfg.restaurant_lat - coords.lat);
+                    const dLng = toRad(cfg.restaurant_lng - coords.lng);
+                    const h = Math.sin(dLat/2)**2 + Math.cos(toRad(coords.lat)) * Math.cos(toRad(cfg.restaurant_lat)) * Math.sin(dLng/2)**2;
+                    const dist = 2 * R * Math.asin(Math.sqrt(h));
+                    const limit = cfg.in_radius_m || 30;
+                    if (dist > limit) {
+                        alert(`אתה במרחק ${Math.round(dist)} מ' מהעסק — לא ניתן להיכנס מכאן.`);
                         setActionLoading(false);
                         return;
                     }
                 }
             } catch {
-                // Config call failed — fall through to attempt clock-in without coords.
-                // Backend will accept if tracking isn't required.
+                // Geofence is best-effort; never block the original flow on its failure.
             }
 
-            // 2. Clock in via backend (handles geofence + ShiftTracking creation)
-            let shift;
-            try {
-                const res = await base44.functions.clockInWithLocation({
-                    lat: coords?.lat ?? null,
-                    lng: coords?.lng ?? null,
-                });
-                shift = res?.data?.shift;
-                if (!shift) {
-                    alert('שגיאה: לא נוצרה משמרת');
-                    setActionLoading(false);
-                    return;
-                }
-            } catch (err) {
-                const data = err?.response?.data || err?.data || {};
-                if (data?.code === 'outside_geofence' || /outside_geofence/.test(err?.message || '')) {
-                    alert(`אתה במרחק ${data.distance_m || '?'} מ' מהעסק — לא ניתן להיכנס מכאן.`);
-                } else if (data?.code === 'location_required') {
-                    alert('צריך מיקום כדי להיכנס למשמרת.');
-                } else {
-                    alert('שגיאה בכניסה למשמרת: ' + (err?.message || 'unknown'));
-                }
-                setActionLoading(false);
-                return;
-            }
-
-            // 3. Schedule bookkeeping (copied from original — only ShiftTracking.create above changed)
-            const now = shift.shift_start;
+            // ORIGINAL FLOW — direct entity create (unchanged from working version).
+            const now = new Date().toISOString();
             const today = format(new Date(), 'yyyy-MM-dd');
-            const employeeRecord = await findEmployeeRecord(user);
-        const employeeId = employeeRecord?.id || user.id;
-        const employeeName = employeeRecord?.full_name || user.full_name;
-
-        const workShifts = await base44.entities.WorkShift.filter({ date: today });
-        
-        // מצא את השיבוץ של העובד (בכל משמרה)
-        let assignmentFound = null;
-        let targetShift = null;
-        
-        for (const ws of workShifts) {
-            const assignment = (ws.assigned_staff || []).find(a =>
-                a.employee_id === employeeId ||
-                (a.employee_name && employeeName && a.employee_name.toLowerCase() === employeeName.toLowerCase())
-            );
-            if (assignment) {
-                assignmentFound = assignment;
-                targetShift = ws;
-                break;
-            }
-        }
-
-        // אם העובד לא בסידור, הוסף אותו תחת "בלתם"
-        if (!assignmentFound) {
-            const hour = new Date().getHours();
-            const shiftType = hour < 16 ? 'lunch' : 'dinner';
-
-            let ws = workShifts.find(w => w.shift_type === shiftType);
-            if (!ws) {
-                ws = await base44.entities.WorkShift.create({
-                    date: today,
-                    shift_type: shiftType,
-                    start_time: shiftType === 'lunch' ? '12:00' : '17:00',
-                    end_time: shiftType === 'lunch' ? '17:00' : '23:00',
-                    assigned_staff: [],
-                    positions_needed: {},
-                });
-            }
-
-            const updatedStaff = [...(ws.assigned_staff || []), {
-                employee_id: employeeId,
+            const shift = await base44.entities.ShiftTracking.create({
+                employee_id: user.id,
                 employee_name: user.full_name,
-                position: 'בלתם',
-                start_time: format(new Date(now), 'HH:mm'),
-                end_time: '',
+                date: today,
+                shift_start: now,
+                status: 'active',
                 breaks: [],
-                notes: 'נוסף אוטומטית',
-                had_meal: false,
-                meal_details: '',
                 total_break_minutes: 0,
-            }];
-            await base44.entities.WorkShift.update(ws.id, { assigned_staff: updatedStaff });
-        } else if (assignmentFound.position === 'בלתם' || !assignmentFound.start_time) {
-            // עדכן את שעת ההתחלה של העובד בסידור אם הוא בתפקיד "בלתם" או ללא שעה
-            const updatedStaff = [...(targetShift.assigned_staff || [])].map(a =>
-                (a.employee_id === employeeId || (a.employee_name && employeeName && a.employee_name.toLowerCase() === employeeName.toLowerCase()))
-                    ? { ...a, employee_id: employeeId, start_time: format(new Date(now), 'HH:mm') }
-                    : a
-            );
-            await base44.entities.WorkShift.update(targetShift.id, { assigned_staff: updatedStaff });
-        }
+                had_meal: false,
+            });
+
+            // ORIGINAL schedule bookkeeping (wrapped in try/catch so unrelated
+            // WorkShift drift never prevents the gear-up dialog from opening).
+            try {
+                const employeeRecord = await findEmployeeRecord(user);
+                const employeeId = employeeRecord?.id || user.id;
+                const employeeName = employeeRecord?.full_name || user.full_name;
+
+                const workShifts = await base44.entities.WorkShift.filter({ date: today });
+
+                let assignmentFound = null;
+                let targetShift = null;
+                for (const ws of workShifts) {
+                    const assignment = (ws.assigned_staff || []).find(a =>
+                        a.employee_id === employeeId ||
+                        (a.employee_name && employeeName && a.employee_name.toLowerCase() === employeeName.toLowerCase())
+                    );
+                    if (assignment) { assignmentFound = assignment; targetShift = ws; break; }
+                }
+
+                if (!assignmentFound) {
+                    const hour = new Date().getHours();
+                    const shiftType = hour < 16 ? 'lunch' : 'dinner';
+                    let ws = workShifts.find(w => w.shift_type === shiftType);
+                    if (!ws) {
+                        ws = await base44.entities.WorkShift.create({
+                            date: today,
+                            shift_type: shiftType,
+                            start_time: shiftType === 'lunch' ? '12:00' : '17:00',
+                            end_time: shiftType === 'lunch' ? '17:00' : '23:00',
+                            assigned_staff: [],
+                            positions_needed: {},
+                        });
+                    }
+                    const updatedStaff = [...(ws.assigned_staff || []), {
+                        employee_id: employeeId,
+                        employee_name: user.full_name,
+                        position: 'בלתם',
+                        start_time: format(new Date(now), 'HH:mm'),
+                        end_time: '',
+                        breaks: [],
+                        notes: 'נוסף אוטומטית',
+                        had_meal: false,
+                        meal_details: '',
+                        total_break_minutes: 0,
+                    }];
+                    await base44.entities.WorkShift.update(ws.id, { assigned_staff: updatedStaff });
+                } else if (assignmentFound.position === 'בלתם' || !assignmentFound.start_time) {
+                    const updatedStaff = [...(targetShift.assigned_staff || [])].map(a =>
+                        (a.employee_id === employeeId || (a.employee_name && employeeName && a.employee_name.toLowerCase() === employeeName.toLowerCase()))
+                            ? { ...a, employee_id: employeeId, start_time: format(new Date(now), 'HH:mm') }
+                            : a
+                    );
+                    await base44.entities.WorkShift.update(targetShift.id, { assigned_staff: updatedStaff });
+                }
+            } catch (e) {
+                console.warn('schedule bookkeeping failed (non-fatal):', e);
+            }
 
             setActiveShift(shift);
-            // פתח דיאלוג קבלת ציוד לאחר כניסה למשמרת
             setShowGearUp(true);
+        } catch (err) {
+            // If even ShiftTracking.create fails, surface a real error to the user.
+            const data = err?.data || {};
+            alert('שגיאה בכניסה למשמרת: ' + (data?.message || err?.message || 'בלתי ידועה'));
         } finally {
             setActionLoading(false);
         }
