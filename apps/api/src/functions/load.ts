@@ -6385,3 +6385,42 @@ registerFn('scrubNullBytesAllTables', async () => {
     results,
   };
 }, { public: true });
+
+// Backfill NULLs in columns declared NOT NULL in Prisma. Required because the
+// base44 import left some rows with NULL in fields the schema now demands
+// (e.g. Reservation.customer_name, Order.order_number). Prisma findMany then
+// crashes with P2032 trying to coerce NULL to a non-nullable type.
+// Strings -> '', Int/Float -> 0, Boolean -> false. Idempotent (no-op when no
+// NULLs remain). Skips columns with @default — those should be filled by DB.
+registerFn('backfillRequiredNulls', async () => {
+  const { Prisma } = await import('@prisma/client');
+  const results: Array<{ stmt: string; ok: boolean; affected?: number; error?: string }> = [];
+  for (const model of Prisma.dmmf.datamodel.models) {
+    const table = (model as any).dbName || model.name;
+    for (const f of model.fields) {
+      if (f.kind !== 'scalar') continue;
+      if (f.isRequired === false) continue;
+      if (f.isId) continue;
+      if ((f as any).hasDefaultValue) continue;
+      const col = (f as any).dbName || f.name;
+      let defaultLit: string | null = null;
+      if (f.type === 'String') defaultLit = `''`;
+      else if (f.type === 'Int' || f.type === 'BigInt' || f.type === 'Float' || f.type === 'Decimal') defaultLit = `0`;
+      else if (f.type === 'Boolean') defaultLit = `false`;
+      else continue;
+      const stmt = `UPDATE "${table}" SET "${col}" = ${defaultLit} WHERE "${col}" IS NULL`;
+      try {
+        const n = await (prisma as any).$executeRawUnsafe(stmt);
+        if (n > 0) results.push({ stmt, ok: true, affected: Number(n) });
+      } catch (e: any) {
+        results.push({ stmt, ok: false, error: String(e?.message || e) });
+      }
+    }
+  }
+  return {
+    rows_touched: results.filter((r) => r.ok).reduce((s, r) => s + (r.affected || 0), 0),
+    ok: results.filter((r) => r.ok).length,
+    failed: results.filter((r) => !r.ok).length,
+    results,
+  };
+}, { public: true });
