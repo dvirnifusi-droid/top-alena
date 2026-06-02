@@ -15,6 +15,13 @@ import { driveAccessToken, listDriveFiles, downloadDriveFile } from '../lib/gdri
 import { uploadStreamToS3 } from '../lib/storage.js';
 import { Readable } from 'node:stream';
 import webpush from 'web-push';
+import {
+  distanceMeters,
+  GEOFENCE_IN_RADIUS_M,
+  GEOFENCE_OUT_RADIUS_M,
+  GEOFENCE_WARMUP_SECONDS,
+  HEARTBEAT_INTERVAL_SECONDS,
+} from '../lib/geofence.js';
 
 // Configure VAPID once (free browser/PWA push). Keys from env.
 if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
@@ -4869,8 +4876,23 @@ async function runMetaAgent(agentKey: string, input: any) {
   };
   const focus = focusMap[agentKey] || 'מדיה כללית';
 
+  // Date window — default last 7 days. Override via input.date_preset:
+  //   today | yesterday | last_7d | last_14d | last_30d | this_month | last_month | lifetime
+  const datePreset = (input?.date_preset && String(input.date_preset)) || 'last_7d';
+  const periodLabel: Record<string, string> = {
+    today: 'היום',
+    yesterday: 'אתמול',
+    last_7d: '7 הימים האחרונים',
+    last_14d: '14 הימים האחרונים',
+    last_30d: '30 הימים האחרונים',
+    this_month: 'החודש (מתחילתו)',
+    last_month: 'החודש הקודם',
+    lifetime: 'כל הזמן (מאז תחילת הקמפיין)',
+  };
+  const periodHebrew = periodLabel[datePreset] || datePreset;
+
   const campaigns = await metaApi(
-    `/act_${META_AD_ACCOUNT_ID}/campaigns?fields=id,name,status,objective,daily_budget,lifetime_budget,insights{spend,impressions,clicks,ctr,cpc,actions}&limit=25`,
+    `/act_${META_AD_ACCOUNT_ID}/campaigns?fields=id,name,status,objective,daily_budget,lifetime_budget,insights.date_preset(${datePreset}){spend,impressions,clicks,ctr,cpc,actions}&limit=25`,
   );
 
   // Pre-compute simple metrics so the LLM doesn't have to do arithmetic.
@@ -4890,14 +4912,16 @@ async function runMetaAgent(agentKey: string, input: any) {
   const result: any = await invokeLLM({
     prompt: `אתה אנליסט מדיה דיגיטלית קר ומבוסס-נתונים. אסור לך לכתוב במשפטים פיוטיים, סיסמאות, או "קדימה/יאללה". כל משפט חייב להכיל מספר או פעולה ספציפית. עברית עניינית, סגנון CFO.
 
+⚠️ הנתונים הם אך ורק לתקופה: **${periodHebrew}** (date_preset=${datePreset}). אל תכתוב "החודש" או "השבוע" אם זה לא תואם. תמיד התייחס לתקופה כ-"${periodHebrew}".
+
 פוקוס הסוכן: ${focus}.
 ${input?.goal ? `שאלה ספציפית מהבעלים: "${input.goal}"` : ''}
 
-נתונים (${summary.length} קמפיינים):
+נתונים (${summary.length} קמפיינים, תקופה: ${periodHebrew}):
 ${JSON.stringify(summary, null, 2)}
 
 החזר JSON עם:
-- "headline": משפט אחד (עד 20 מילים) שמתאר את המצב הכולל. דוגמה: "החודש הוצאת 6,020₪ על 3 קמפיינים; CTR ממוצע 3.2% — מעל הבנצ'מארק של 2%."
+- "headline": משפט אחד (עד 20 מילים) שמתאר את המצב הכולל **לתקופה ${periodHebrew}**. דוגמה: "ב-${periodHebrew} הוצאת 1,100₪ על 3 קמפיינים; CTR ממוצע 3.2% — מעל הבנצ'מארק של 2%."
 - "key_metrics": אובייקט עם total_spend_ils, total_clicks, avg_ctr_pct, top_campaign_name, weakest_campaign_name.
 - "actions": מערך של 3-5 פעולות. כל פעולה היא אובייקט עם: campaign_name (השם המדויק מהנתונים), action (טקסט קצר ופעיל כמו "העלה תקציב יומי מ-40₪ ל-60₪" או "כבה את הקמפיין"), why (1-2 משפטי הסבר עם המספרים), priority ("high"/"medium"/"low"), expected_impact (טקסט עם הערכה כמותית כמו "+30% leads בחודש").
 
@@ -5107,4 +5131,262 @@ registerFn('getMarketingAgentsCatalog', async () => {
       needs_integration: v.needs || null,
     })),
   };
+});
+
+/* ----- Shift geofence (clock-in proximity + auto-close on leave) ----- */
+
+function isAdminRole(role: any): boolean {
+  return role === 'admin' || role === 'owner' || role === 'manager';
+}
+
+// Authed — anyone logged in can read config (frontend uses it to know whether
+// to ask for GPS). Per-employee disable flag resolved server-side.
+registerFn('getGeofenceConfig', async ({ user }) => {
+  const profile = await db.restaurantProfile.findFirst();
+  const restaurant_lat = profile?.restaurant_lat ?? null;
+  const restaurant_lng = profile?.restaurant_lng ?? null;
+  const flagOn = !!profile?.shift_geofence_required;
+  const hasLocation = restaurant_lat != null && restaurant_lng != null;
+
+  let my_tracking_disabled = false;
+  if (user?.id) {
+    const emp = await db.employee.findUnique({ where: { id: user.id } }).catch(() => null);
+    my_tracking_disabled = !!emp?.location_tracking_disabled;
+  }
+
+  return {
+    restaurant_lat,
+    restaurant_lng,
+    tracking_required: flagOn && hasLocation,
+    my_tracking_disabled,
+    in_radius_m: GEOFENCE_IN_RADIUS_M,
+    out_radius_m: GEOFENCE_OUT_RADIUS_M,
+    heartbeat_seconds: HEARTBEAT_INTERVAL_SECONDS,
+  };
+});
+
+// Admin-only — save restaurant lat/lng on the single RestaurantProfile row.
+registerFn('setRestaurantLocation', async ({ user, body }) => {
+  if (!isAdminRole((user as any)?.role)) throw new Error('admin only');
+  const { lat, lng } = body as any;
+  if (typeof lat !== 'number' || typeof lng !== 'number') {
+    throw new Error('lat/lng required as numbers');
+  }
+  const existing = await db.restaurantProfile.findFirst();
+  const data = { restaurant_lat: lat, restaurant_lng: lng };
+  const saved = existing
+    ? await db.restaurantProfile.update({ where: { id: existing.id }, data })
+    : await db.restaurantProfile.create({ data: { restaurant_name: 'עלינא', ...data } });
+  return { restaurant_lat: saved.restaurant_lat, restaurant_lng: saved.restaurant_lng };
+});
+
+// Admin-only — flip global "shift geofence required" switch.
+registerFn('setGlobalLocationTracking', async ({ user, body }) => {
+  if (!isAdminRole((user as any)?.role)) throw new Error('admin only');
+  const { enabled } = body as any;
+  const existing = await db.restaurantProfile.findFirst();
+  if (!existing) throw new Error('restaurant profile not set — set location first');
+  const saved = await db.restaurantProfile.update({
+    where: { id: existing.id },
+    data: { shift_geofence_required: !!enabled },
+  });
+  return { shift_geofence_required: saved.shift_geofence_required };
+});
+
+// Admin-only — per-employee opt-out.
+registerFn('setEmployeeLocationToggle', async ({ user, body }) => {
+  if (!isAdminRole((user as any)?.role)) throw new Error('admin only');
+  const { employee_id, disabled } = body as any;
+  if (!employee_id) throw new Error('employee_id required');
+  const saved = await db.employee.update({
+    where: { id: employee_id },
+    data: { location_tracking_disabled: !!disabled },
+  });
+  return { employee_id: saved.id, location_tracking_disabled: saved.location_tracking_disabled };
+});
+
+// Authed — gated clock-in. Replaces the frontend's direct ShiftTracking.create
+// when the geofence is active; returns the same shape so callers can drop in.
+registerFn('clockInWithLocation', async ({ user, body }) => {
+  if (!user?.id) throw new Error('unauthorized');
+  const { lat, lng, manager_override } = body as any;
+
+  const profile = await db.restaurantProfile.findFirst();
+  const trackingOn =
+    !!profile?.shift_geofence_required &&
+    profile?.restaurant_lat != null &&
+    profile?.restaurant_lng != null;
+
+  const emp = await db.employee.findUnique({ where: { id: user.id } }).catch(() => null);
+  const empDisabled = !!emp?.location_tracking_disabled;
+  const skipCheck =
+    !trackingOn || empDisabled || (manager_override && isAdminRole((user as any)?.role));
+
+  if (!skipCheck) {
+    if (typeof lat !== 'number' || typeof lng !== 'number') {
+      const err: any = new Error('location_required');
+      err.code = 'location_required';
+      throw err;
+    }
+    const d = distanceMeters(
+      { lat, lng },
+      { lat: profile!.restaurant_lat as number, lng: profile!.restaurant_lng as number },
+    );
+    if (d > GEOFENCE_IN_RADIUS_M) {
+      const err: any = new Error('outside_geofence');
+      err.code = 'outside_geofence';
+      err.distance_m = Math.round(d);
+      err.allowed_m = GEOFENCE_IN_RADIUS_M;
+      throw err;
+    }
+  }
+
+  // Don't double clock-in.
+  const open = await db.shiftTracking.findFirst({
+    where: { employee_id: user.id, status: 'active' },
+  });
+  if (open) return { shift: open, already_active: true };
+
+  const now = new Date();
+  const today = now.toISOString().slice(0, 10);
+
+  const base: any = {
+    employee_id: user.id,
+    employee_name: (user as any).full_name || emp?.full_name || (user as any).email || 'עובד',
+    date: new Date(today),
+    shift_start: now,
+    status: 'active',
+    breaks: [],
+    total_break_minutes: 0,
+    had_meal: false,
+  };
+  const optionalLoc =
+    typeof lat === 'number' && typeof lng === 'number'
+      ? { last_lat: lat, last_lng: lng, last_location_at: now }
+      : {};
+
+  let shift: any = null;
+  try {
+    shift = await db.shiftTracking.create({ data: { ...base, ...optionalLoc } });
+  } catch (e: any) {
+    const msg = String(e?.message || '');
+    if (/unknown (arg|column)/i.test(msg) || msg.toLowerCase().includes('last_lat')) {
+      console.warn('[clockInWithLocation] retrying without location fields:', msg);
+      shift = await db.shiftTracking.create({ data: base });
+    } else {
+      throw e;
+    }
+  }
+  return { shift, already_active: false };
+});
+
+// Authed — heartbeat from the active shift widget. Debounce: requires
+// (a) past warm-up window AND (b) previous reading was also over threshold
+// before auto-closing. Kills GPS jitter false positives.
+registerFn('shiftHeartbeat', async ({ user, body }) => {
+  if (!user?.id) throw new Error('unauthorized');
+  const { shift_id, lat, lng } = body as any;
+  if (!shift_id || typeof lat !== 'number' || typeof lng !== 'number') {
+    throw new Error('shift_id, lat, lng required');
+  }
+
+  const shift = await db.shiftTracking.findUnique({ where: { id: shift_id } });
+  if (!shift) throw new Error('shift_not_found');
+  if (shift.employee_id !== user.id) throw new Error('not your shift');
+  if (shift.status !== 'active') return { status: shift.status, closed: true };
+
+  const profile = await db.restaurantProfile.findFirst();
+  const trackingOn =
+    !!profile?.shift_geofence_required &&
+    profile?.restaurant_lat != null &&
+    profile?.restaurant_lng != null;
+  const emp = await db.employee.findUnique({ where: { id: user.id } }).catch(() => null);
+  const empDisabled = !!emp?.location_tracking_disabled;
+
+  const now = new Date();
+  const prevLat = shift.last_lat as number | null;
+  const prevLng = shift.last_lng as number | null;
+  const shiftStartMs = new Date(shift.shift_start).getTime();
+  const ageSeconds = (now.getTime() - shiftStartMs) / 1000;
+
+  let willClose = false;
+  if (trackingOn && !empDisabled && ageSeconds >= GEOFENCE_WARMUP_SECONDS) {
+    const cur = distanceMeters(
+      { lat, lng },
+      { lat: profile!.restaurant_lat as number, lng: profile!.restaurant_lng as number },
+    );
+    if (cur > GEOFENCE_OUT_RADIUS_M && prevLat != null && prevLng != null) {
+      const prev = distanceMeters(
+        { lat: prevLat, lng: prevLng },
+        { lat: profile!.restaurant_lat as number, lng: profile!.restaurant_lng as number },
+      );
+      if (prev > GEOFENCE_OUT_RADIUS_M) willClose = true;
+    }
+  }
+
+  if (!willClose) {
+    await db.shiftTracking.update({
+      where: { id: shift_id },
+      data: { last_lat: lat, last_lng: lng, last_location_at: now },
+    });
+    return { closed: false };
+  }
+
+  const totalHours = Math.max(
+    0,
+    (now.getTime() - shiftStartMs) / 3_600_000 - (shift.total_break_minutes || 0) / 60,
+  );
+  await db.shiftTracking.update({
+    where: { id: shift_id },
+    data: {
+      shift_end: now,
+      status: 'auto_closed',
+      auto_close_reason: 'left_geofence',
+      total_hours: totalHours,
+      effective_hours: totalHours,
+      last_lat: lat,
+      last_lng: lng,
+      last_location_at: now,
+    },
+  });
+
+  const empName = shift.employee_name || emp?.full_name || 'עובד';
+  const hhmm = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+  pushoverToAdmins(
+    '🚪 משמרת נסגרה אוטומטית',
+    `${empName} התרחק 500m+ מהעסק. נסגרה ב-${hhmm}.`,
+  ).catch(() => {});
+
+  return { closed: true, reason: 'left_geofence' };
+});
+
+// Authed — "did anything auto-close on me that I haven't seen?"
+registerFn('getMyAutoCloseNotice', async ({ user }) => {
+  if (!user?.id) return { notice: null };
+  const shift = await db.shiftTracking.findFirst({
+    where: {
+      employee_id: user.id,
+      auto_close_reason: 'left_geofence',
+      auto_close_seen_at: null,
+    },
+    orderBy: { shift_end: 'desc' },
+  });
+  if (!shift) return { notice: null };
+  return {
+    notice: { shift_id: shift.id, shift_end: shift.shift_end, reason: shift.auto_close_reason },
+  };
+});
+
+// Authed — mark the banner as dismissed.
+registerFn('markAutoCloseNoticeSeen', async ({ user, body }) => {
+  if (!user?.id) throw new Error('unauthorized');
+  const { shift_id } = body as any;
+  if (!shift_id) throw new Error('shift_id required');
+  const shift = await db.shiftTracking.findUnique({ where: { id: shift_id } });
+  if (!shift || shift.employee_id !== user.id) throw new Error('not found');
+  await db.shiftTracking.update({
+    where: { id: shift_id },
+    data: { auto_close_seen_at: new Date() },
+  });
+  return { ok: true };
 });
