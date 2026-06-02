@@ -6296,25 +6296,29 @@ registerFn('repairDateColumnsToTimestamp', async () => {
       }
     }
   }
+  // Match anything that isn't already a timestamp — covers DATE, TEXT, VARCHAR,
+  // CHAR (the base44 import varied). We attempt ALTER per column; rows with
+  // non-parseable values will surface as failures in `results`.
   const rows: any[] = await (prisma as any).$queryRaw`
-    SELECT table_name, column_name
+    SELECT table_name, column_name, data_type
     FROM information_schema.columns
-    WHERE table_schema = 'public' AND data_type = 'date'
+    WHERE table_schema = 'public'
+      AND data_type NOT IN ('timestamp without time zone','timestamp with time zone')
   `;
-  const results: Array<{ stmt: string; ok: boolean; error?: string }> = [];
+  const results: Array<{ stmt: string; from: string; ok: boolean; error?: string }> = [];
   for (const r of rows) {
     const key = `${r.table_name}.${r.column_name}`;
     if (!want.has(key)) continue;
-    const stmt = `ALTER TABLE "${r.table_name}" ALTER COLUMN "${r.column_name}" TYPE TIMESTAMP(3) USING "${r.column_name}"::timestamp`;
+    const stmt = `ALTER TABLE "${r.table_name}" ALTER COLUMN "${r.column_name}" TYPE TIMESTAMP(3) USING NULLIF(TRIM("${r.column_name}"::text), '')::timestamp`;
     try {
       await (prisma as any).$executeRawUnsafe(stmt);
-      results.push({ stmt, ok: true });
+      results.push({ stmt, from: r.data_type, ok: true });
     } catch (e: any) {
-      results.push({ stmt, ok: false, error: String(e?.message || e) });
+      results.push({ stmt, from: r.data_type, ok: false, error: String(e?.message || e) });
     }
   }
   return {
-    candidates_scanned: rows.length,
+    db_columns_scanned: rows.length,
     matched_and_altered: results.length,
     ok: results.filter((r) => r.ok).length,
     failed: results.filter((r) => !r.ok).length,
