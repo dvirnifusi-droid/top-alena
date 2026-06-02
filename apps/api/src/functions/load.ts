@@ -4394,7 +4394,11 @@ registerFn('chatWaiter', async ({ body }) => {
   }
   const systemPrompt = (kit.system_prompt && kit.system_prompt.trim()) || WAITER_DEFAULT_PROMPT;
 
-  const turns: Array<{ role: string; content: string }> = Array.isArray(history) ? history : [];
+  // Keep only the last 8 turns (4 user + 4 assistant) — old context bloats the prompt
+  // and makes Gemini slower / less reliable. The agent has the AI summary + collected
+  // state to remember what was discussed earlier.
+  const allTurns: Array<{ role: string; content: string }> = Array.isArray(history) ? history : [];
+  const turns = allTurns.slice(-8);
   const transcript = turns.map((t) => `${t.role === 'assistant' ? 'מלצר' : 'לקוח'}: ${t.content}`).join('\n');
 
   // Multi-menu support with context-aware filtering: only inject the menu(s) the agent
@@ -4470,11 +4474,13 @@ registerFn('chatWaiter', async ({ body }) => {
 
   const prompt = `${systemPrompt}${kitContext}\n--- שיחה ---\n${transcript || '(תחילת שיחה — קבל את הלקוח בברכה חמה וקצרה ושאל כמה הם)'}${message ? `\nלקוח: ${message}` : ''}\n\nהחזר JSON בלבד.`;
 
-  // Match EXACTLY what chatEventsInquiry does (no model override, no maxOutputTokens,
-  // no timeoutMs, with responseSchema). Events runs in 5.7s with this config. Anything
-  // different (custom model, custom tokens) was making waiter hang at 30s+.
-  const result: any = await invokeLLM({
+  // Backend-level retry: Pro has flaky latency. If the first call times out, we retry
+  // ONCE with the same settings. The frontend won't see a 524 unless both attempts hang.
+  const callOnce = () => invokeLLM({
     prompt,
+    model: 'gemini-2.0-flash-exp',
+    timeoutMs: 25_000,
+    maxOutputTokens: 1500,
     responseSchema: {
       type: 'object',
       properties: {
@@ -4488,6 +4494,17 @@ registerFn('chatWaiter', async ({ body }) => {
     },
   });
 
+  let result: any;
+  try {
+    result = await callOnce();
+  } catch (e: any) {
+    if (String(e?.message || '').includes('llm_timeout') || String(e?.message || '').includes('Gemini error')) {
+      console.warn('[chatWaiter] first attempt failed, retrying once', e?.message);
+      result = await callOnce();
+    } else {
+      throw e;
+    }
+  }
   const c = result?.collected || {};
   const items = Array.isArray(c.recommended_items) ? c.recommended_items : [];
   const total = typeof c.total_ils === 'number'
