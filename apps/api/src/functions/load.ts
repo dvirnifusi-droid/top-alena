@@ -4742,8 +4742,8 @@ registerFn('deleteWaiterOrder', async ({ body }) => {
 // owner sees exactly what's missing to flip them live.
 // =====================================================================
 
-const ALINA_BRAND_VOICE = `אתה כותב בשם המסעדה "עלינא" — ראשון לציון, רוטשילד 104 (סגנון Jerusalem-Chic, smoky, אנרגטי, חם, לא קלישאתי). עברית טבעית בלבד, בלי אימוג'ים מוגזמים. דגש על אש, ג'וספר, חוויה, סיפור.`;
-const ALINA_DEFAULT_CITIES = ['Rishon LeZion', 'Jerusalem'];
+const ALINA_BRAND_VOICE = `אתה כותב בשם המסעדה "עלינא" — סניף יחיד בראשון לציון, רוטשילד 104 (סגנון Jerusalem-Chic, smoky, אנרגטי, חם, לא קלישאתי). עברית טבעית בלבד, בלי אימוג'ים מוגזמים. דגש על אש, ג'וספר, חוויה, סיפור. בכל אזכור מיקום פיזי — ראשון לציון בלבד.`;
+const ALINA_DEFAULT_CITIES = ['Rishon LeZion'];
 
 // Pita Alena ad account (provided by owner). Token comes from DB (set via UI)
 // with env fallback for legacy setups.
@@ -5496,7 +5496,7 @@ ${audience_hint ? `הצעת קהל יעד מהבעלים: ${audience_hint}` : ''
 החזר JSON עם:
 - "title": שם קמפיין קצר (עד 50 תווים, ללא מירכאות)
 - "objective": אחד מהבאים בלבד — OUTCOME_LEADS / OUTCOME_TRAFFIC / OUTCOME_AWARENESS / OUTCOME_ENGAGEMENT
-- "audience": אובייקט { age_min (18-65), age_max (18-65), genders (מערך של "male"/"female", או שניהם), geo_locations_cities (מערך באנגלית — לרוב Rishon LeZion + ערים סמוכות כמו Ness Ziona, Rehovot, Holon, Bat Yam, Tel Aviv. הוסף Jerusalem רק אם רלוונטי לקהל), interests_text (תיאור חופשי של תחומי עניין רלוונטיים) }
+- "audience": אובייקט { age_min (18-65), age_max (18-65), genders (מערך של "male"/"female", או שניהם), geo_locations_cities (מערך באנגלית — ברירת מחדל ["Rishon LeZion"] בלבד; הוסף Ness Ziona / Rehovot / Holon / Bat Yam / Tel Aviv רק אם הקהל באמת רחב יותר. אסור Jerusalem — אין שם סניף.), interests_text (תיאור חופשי של תחומי עניין רלוונטיים) }
 - "suggested_daily_budget_ils": תקציב יומי מומלץ בש"ח (מספר)
 - "rationale": משפט אחד למה הקהל והתקציב הזה`,
     responseSchema: {
@@ -5627,9 +5627,35 @@ registerFn('launchCampaignBrief', async ({ body }) => {
 
     // 2. Create ad set with audience + budget
     const audience = (brief.audience as any) || {};
-    const cities = Array.isArray(audience.geo_locations_cities) && audience.geo_locations_cities.length
+    const cityNames = Array.isArray(audience.geo_locations_cities) && audience.geo_locations_cities.length
       ? audience.geo_locations_cities
       : ALINA_DEFAULT_CITIES;
+    // Resolve city names → Meta city keys. Meta rejects {name,country} pairs
+    // with sub-error 1885097 ('integer expected, NULL'); only {key,radius}
+    // is accepted. Hard-code Rishon LeZion (sole branch) + look up extras
+    // via /search if the LLM proposed others.
+    const KNOWN_CITY_KEYS: Record<string, string> = {
+      'Rishon LeZion': '1014800',
+      'Jerusalem': '1013481',
+      'Tel Aviv': '2421',
+    };
+    const cityEntries: any[] = [];
+    for (const cname of cityNames) {
+      let key = KNOWN_CITY_KEYS[cname];
+      if (!key) {
+        try {
+          const search = await metaApi(
+            `/search?location_types=["city"]&q=${encodeURIComponent(cname)}&type=adgeolocation&country_code=IL`,
+          );
+          key = search?.data?.[0]?.key;
+        } catch {}
+      }
+      if (key) cityEntries.push({ key, radius: 25, distance_unit: 'kilometer' });
+    }
+    if (cityEntries.length === 0) {
+      // Last-resort fallback so launch never silently targets nowhere.
+      cityEntries.push({ key: '1014800', radius: 25, distance_unit: 'kilometer' });
+    }
     // Hard-cast every numeric field. Meta rejects with 1885097 if any
     // integer arrives as null/NaN/string.
     const toInt = (v: any, fallback: number) => {
@@ -5642,14 +5668,7 @@ registerFn('launchCampaignBrief', async ({ body }) => {
     const targeting: any = {
       age_min: toInt(audience.age_min, 22),
       age_max: 65,
-      geo_locations: {
-        cities: cities.map((c: string) => ({
-          name: c,
-          country: 'IL',
-          radius: 25,
-          distance_unit: 'kilometer',
-        })),
-      },
+      geo_locations: { cities: cityEntries },
       targeting_automation: { advantage_audience: 1 },
     };
     if (Array.isArray(audience.genders) && audience.genders.length) {
