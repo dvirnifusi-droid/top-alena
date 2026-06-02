@@ -4470,15 +4470,15 @@ registerFn('chatWaiter', async ({ body }) => {
 
   const prompt = `${systemPrompt}${kitContext}\n--- שיחה ---\n${transcript || '(תחילת שיחה — קבל את הלקוח בברכה חמה וקצרה ושאל כמה הם)'}${message ? `\nלקוח: ${message}` : ''}\n\nהחזר JSON בלבד.`;
 
-  // Live timing test showed waiter hanging at 2:05 (Cloudflare 524) while the events
-  // agent (same llm.ts) replies in 5.7s. The only difference was an explicit model
-  // override to gemini-2.5-flash. Reverted to default (whatever the deployment ships)
-  // — Pro is "slower" in theory but reliably 3-7s, which is fine. Compact menu + 1500
-  // token cap + single-tier filtering already reduced the payload enough.
+  // gemini-2.0-flash is GA, low-latency (1-3s typical), and plenty capable for
+  // short Hebrew customer-service replies. 2.5-flash was hanging at 2min;
+  // default pro was hanging at 50s even on a bare 'hello'. 2.0-flash should
+  // give consistent sub-5s latency.
   const result: any = await invokeLLM({
     prompt,
+    model: 'gemini-2.0-flash',
     maxOutputTokens: 1500,
-    timeoutMs: 45_000,
+    timeoutMs: 30_000,
     responseSchema: {
       type: 'object',
       properties: {
