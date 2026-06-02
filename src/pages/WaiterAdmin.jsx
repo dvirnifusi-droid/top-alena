@@ -6,7 +6,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Loader2, Plus, Trash2, Save, Utensils, Sparkles, Settings, MessageSquareCode, AlertCircle, RefreshCw, X } from 'lucide-react';
+import { Loader2, Plus, Trash2, Save, Utensils, Sparkles, Settings, MessageSquareCode, AlertCircle, RefreshCw, X, Upload, FileText, Wine } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import toast from 'react-hot-toast';
 
@@ -25,7 +25,113 @@ const DEFAULT_CATEGORIES = [
 
 const ALLERGEN_OPTIONS = ['גלוטן', 'אגוזים', 'לקטוז', 'ביצים', 'סויה', 'שומשום', 'סולפיטים'];
 
+const CATEGORY_NAME_BY_ID = {
+  salads:        'סלטים',
+  sharing_veg:   'מנות חלוקה — ירקות מהגוספר',
+  sharing_meat:  'מנות חלוקה — בשר',
+  mains_plate:   'עיקריות בצלחת',
+  wine:          'יין',
+  cocktails:     'קוקטיילים',
+  beer:          'בירה',
+  chasers:       'צ׳ייסרים',
+  soft_drinks:   'שתייה קלה',
+  desserts:      'קינוחים',
+  other:         'אחר',
+};
+
 const blankItem = () => ({ id: `i_${Date.now()}_${Math.random().toString(36).slice(2,5)}`, name: '', description: '', price_ils: 0, allergens: [], notes: '' });
+
+function MenuUploader({ menu, setMenu }) {
+  const [uploading, setUploading] = React.useState(null); // 'food' | 'drinks' | null
+  const [lastResult, setLastResult] = React.useState(null);
+
+  const handleUpload = async (kind, file) => {
+    if (!file) return;
+    setUploading(kind);
+    setLastResult(null);
+    try {
+      // 1) Upload the file (PDF or image) to get a stable URL
+      const upRes = await base44.integrations.Core.UploadFile({ file });
+      const url = upRes?.data?.file_url || upRes?.file_url || upRes?.url || upRes?.data?.url;
+      if (!url) throw new Error('העלאה הצליחה אבל לא חזר URL');
+
+      // 2) Send the URL to Gemini for extraction
+      const exRes = await base44.functions.extractWaiterMenuFromFile({ url, kind });
+      const items = exRes?.data?.items || exRes?.items || [];
+      if (items.length === 0) {
+        toast.error('לא נמצאו פריטים בקובץ. תוכל למלא ידנית או לנסות קובץ אחר.');
+        return;
+      }
+
+      // 3) Merge into menu.categories — group by category_id, append items to existing or
+      // create category if missing.
+      const existingCats = Array.isArray(menu?.categories) ? [...menu.categories] : [];
+      const catByKey = new Map(existingCats.map((c) => [c.id || c.name, c]));
+      let added = 0;
+      for (const it of items) {
+        const catId = it.category_id || 'other';
+        const catName = CATEGORY_NAME_BY_ID[catId] || it.category_id || 'אחר';
+        let cat = catByKey.get(catId);
+        if (!cat) {
+          cat = { id: catId, name: catName, items: [] };
+          existingCats.push(cat);
+          catByKey.set(catId, cat);
+        }
+        cat.items = [
+          ...(cat.items || []),
+          {
+            id: `i_${Date.now()}_${Math.random().toString(36).slice(2, 5)}_${added}`,
+            name: String(it.name || '').slice(0, 200),
+            description: String(it.description || '').slice(0, 600),
+            price_ils: typeof it.price_ils === 'number' ? Math.round(it.price_ils) : 0,
+            allergens: Array.isArray(it.allergens) ? it.allergens.filter((a) => ALLERGEN_OPTIONS.includes(a)) : [],
+            notes: String(it.notes || '').slice(0, 200),
+          },
+        ];
+        added++;
+      }
+      setMenu({ ...menu, categories: existingCats });
+      setLastResult({ kind, added });
+      toast.success(`✓ נוספו ${added} פריטים מהקובץ — אל תשכח לשמור!`);
+    } catch (e) {
+      toast.error('שגיאה: ' + (e?.message || ''));
+    } finally {
+      setUploading(null);
+    }
+  };
+
+  return (
+    <Card className="bg-gradient-to-br from-amber-50 to-orange-50 border-amber-200">
+      <CardContent className="p-4 space-y-3">
+        <div>
+          <div className="font-bold flex items-center gap-2 text-amber-900"><Upload className="w-4 h-4" /> העלאת תפריט מקובץ</div>
+          <p className="text-xs text-amber-800 mt-1">
+            תעלה PDF (או תמונה) של תפריט אוכל ו/או תפריט שתייה — Gemini יקרא את הקובץ, יסווג לקטגוריות, ויוסיף את הפריטים לרשימה למטה. אחר כך תוכל לערוך / להוסיף הערות / לתקן מחירים.
+          </p>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <label className={`flex flex-col items-center justify-center gap-2 bg-white border-2 border-dashed border-amber-300 hover:border-amber-500 hover:bg-amber-50 rounded-xl p-4 cursor-pointer transition ${uploading === 'food' ? 'opacity-50 pointer-events-none' : ''}`}>
+            {uploading === 'food' ? <Loader2 className="w-6 h-6 animate-spin text-amber-700" /> : <FileText className="w-6 h-6 text-amber-700" />}
+            <span className="font-bold text-sm">תפריט אוכל</span>
+            <span className="text-xs text-amber-700">{uploading === 'food' ? 'קורא וממיין…' : 'PDF / תמונה'}</span>
+            <input type="file" accept=".pdf,image/*" className="hidden" onChange={(e) => handleUpload('food', e.target.files?.[0])} />
+          </label>
+          <label className={`flex flex-col items-center justify-center gap-2 bg-white border-2 border-dashed border-amber-300 hover:border-amber-500 hover:bg-amber-50 rounded-xl p-4 cursor-pointer transition ${uploading === 'drinks' ? 'opacity-50 pointer-events-none' : ''}`}>
+            {uploading === 'drinks' ? <Loader2 className="w-6 h-6 animate-spin text-amber-700" /> : <Wine className="w-6 h-6 text-amber-700" />}
+            <span className="font-bold text-sm">תפריט שתייה</span>
+            <span className="text-xs text-amber-700">{uploading === 'drinks' ? 'קורא וממיין…' : 'PDF / תמונה'}</span>
+            <input type="file" accept=".pdf,image/*" className="hidden" onChange={(e) => handleUpload('drinks', e.target.files?.[0])} />
+          </label>
+        </div>
+        {lastResult && (
+          <div className="text-xs text-emerald-800 bg-emerald-50 border border-emerald-200 rounded p-2">
+            ✓ {lastResult.kind === 'food' ? 'תפריט האוכל' : 'תפריט השתייה'} נטען בהצלחה — נוספו {lastResult.added} פריטים. <strong>לחץ "שמור"</strong> למעלה לאישור.
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
 
 function MenuTab({ menu, setMenu }) {
   const categories = Array.isArray(menu?.categories) ? menu.categories : [];
@@ -52,11 +158,12 @@ function MenuTab({ menu, setMenu }) {
 
   return (
     <div className="space-y-3">
+      <MenuUploader menu={menu} setMenu={setMenu} />
       {categories.length === 0 && (
         <Card className="bg-amber-50 border-amber-200">
           <CardContent className="p-4 text-center">
-            <p className="text-sm text-amber-900 mb-3">אין עדיין קטגוריות. רוצה להתחיל מהמבנה המומלץ של עלינא (סלטים / חלוקה — ירק / חלוקה — בשר / עיקריות בצלחת / אלכוהול / קינוחים)?</p>
-            <Button onClick={seedDefaults}><Plus className="w-4 h-4 ml-1" /> טען מבנה מומלץ</Button>
+            <p className="text-sm text-amber-900 mb-3">או — התחל ממבנה ריק של עלינא (סלטים / חלוקה — ירק / חלוקה — בשר / עיקריות בצלחת / אלכוהול / קינוחים) ותוסיף ידנית.</p>
+            <Button variant="outline" onClick={seedDefaults}><Plus className="w-4 h-4 ml-1" /> טען מבנה ריק</Button>
           </CardContent>
         </Card>
       )}

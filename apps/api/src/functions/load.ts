@@ -4503,6 +4503,66 @@ registerFn('chatWaiter', async ({ body }) => {
   };
 }, { public: true });
 
+// AUTH — accept a PDF (or image) URL and extract a structured Alena menu from it.
+// Uses Gemini's file pipeline via invokeLLM(fileUrls=[...]). Returns items grouped
+// into the 10 Alena categories so the frontend can merge them straight into kit.menu.
+registerFn('extractWaiterMenuFromFile', async ({ body }) => {
+  const { url, kind } = body as any; // kind: 'food' | 'drinks' | 'both'
+  if (!url) throw new Error('url required');
+  const kindLabel = kind === 'drinks'
+    ? 'התפריט הוא של משקאות / אלכוהול בלבד.'
+    : kind === 'food'
+      ? 'התפריט הוא של מנות אוכל בלבד.'
+      : 'התפריט עשוי להכיל גם אוכל וגם משקאות.';
+
+  const result: any = await invokeLLM({
+    prompt:
+      `מצורף קובץ תפריט (PDF או תמונה) של מסעדת עלינא בראשון לציון. סטייל burger-bar — מנות שיתוף בשריות, ירקות מהגוספר, סלטים, ועיקריות בצלחת. **אין דגים במסעדה.**\n` +
+      `${kindLabel}\n\n` +
+      `המשימה: חלץ את **כל** הפריטים המופיעים בתפריט והחזר אותם מסווגים לקטגוריות הבאות בלבד:\n` +
+      `- salads (סלטים)\n` +
+      `- sharing_veg (מנות חלוקה — ירקות מהגוספר)\n` +
+      `- sharing_meat (מנות חלוקה — בשר)\n` +
+      `- mains_plate (עיקריות בצלחת — פרגית/קבב/נתחים)\n` +
+      `- wine (יין)\n` +
+      `- cocktails (קוקטיילים)\n` +
+      `- beer (בירה)\n` +
+      `- chasers (צ׳ייסרים / שוטים)\n` +
+      `- soft_drinks (שתייה קלה / מים)\n` +
+      `- desserts (קינוחים)\n\n` +
+      `**לכל פריט חלץ**:\n` +
+      `- name: השם בדיוק כפי שמופיע בתפריט (שמור על האיות והפיסוק)\n` +
+      `- description: הרכיבים / אופן ההגשה כפי שהתפריט מתאר (טקסט חופשי, יכול להיות ריק אם לא מצוין)\n` +
+      `- price_ils: המחיר בש"ח כמספר שלם (אם לא מופיע — 0)\n` +
+      `- allergens: רשימה של אלרגנים מהרשימה הזו בלבד: ["גלוטן", "אגוזים", "לקטוז", "ביצים", "סויה", "שומשום", "סולפיטים"]. אם לא מצוין — מערך ריק.\n` +
+      `- notes: הערה שירותית אם רלוונטית — "פיקנטית", "מנה גדולה לחלוקה", "סיגנייצ׳ר", "צמחוני".\n\n` +
+      `אם פריט לא מתאים לאף קטגוריה — שים אותו ב-category_id="other".\n\n` +
+      `החזר JSON בלבד.`,
+    fileUrls: [url],
+    responseSchema: {
+      type: 'object',
+      properties: {
+        items: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              category_id: { type: 'string' },
+              name: { type: 'string' },
+              description: { type: 'string' },
+              price_ils: { type: 'integer' },
+              allergens: { type: 'array', items: { type: 'string' } },
+              notes: { type: 'string' },
+            },
+          },
+        },
+      },
+    },
+  });
+
+  return { items: Array.isArray(result?.items) ? result.items : [] };
+});
+
 registerFn('listWaiterOrders', async () => {
   const orders = await (prisma as any).waiterOrder.findMany({ orderBy: { id: 'desc' }, take: 100 });
   return { orders, _count: orders.length };
