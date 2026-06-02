@@ -5607,12 +5607,15 @@ registerFn('launchCampaignBrief', async ({ body }) => {
     // Meta requires either CBO (campaign-level budget) with explicit
     // is_adset_budget_sharing_enabled, or no campaign budget at all so AdSets
     // own their budget. We use the latter — daily_budget lives on the AdSet.
+    // Campaign objective must agree with what we actually send to the AdSet,
+    // so apply the same downgrade rule here before creating the Campaign.
+    const campaignObjective = brief.objective === 'OUTCOME_LEADS' ? 'OUTCOME_TRAFFIC' : brief.objective;
     const campaignRes = await metaApi(
       `/act_${META_AD_ACCOUNT_ID}/campaigns`,
       'POST',
       {
         name: brief.title,
-        objective: brief.objective,
+        objective: campaignObjective,
         status: 'PAUSED',
         special_ad_categories: [],
         buying_type: 'AUCTION',
@@ -5627,31 +5630,55 @@ registerFn('launchCampaignBrief', async ({ body }) => {
     const cities = Array.isArray(audience.geo_locations_cities) && audience.geo_locations_cities.length
       ? audience.geo_locations_cities
       : ALINA_DEFAULT_CITIES;
+    // Hard-cast every numeric field. Meta rejects with 1885097 if any
+    // integer arrives as null/NaN/string.
+    const toInt = (v: any, fallback: number) => {
+      const n = Number(v);
+      return Number.isFinite(n) ? Math.round(n) : fallback;
+    };
     const targeting: any = {
-      age_min: audience.age_min || 22,
-      age_max: audience.age_max || 55,
-      geo_locations: { cities: cities.map((c: string) => ({ name: c, country: 'IL', radius: 25, distance_unit: 'kilometer' })) },
+      age_min: toInt(audience.age_min, 22),
+      age_max: toInt(audience.age_max, 55),
+      geo_locations: {
+        cities: cities.map((c: string) => ({
+          name: c,
+          country: 'IL',
+          radius: 25,
+          distance_unit: 'kilometer',
+        })),
+      },
     };
     if (Array.isArray(audience.genders) && audience.genders.length) {
-      targeting.genders = audience.genders.map((g: string) => g === 'female' ? 2 : 1);
+      const g = audience.genders.map((x: string) => (x === 'female' ? 2 : 1));
+      // Meta wants targeting.genders only when filtering to one — both genders = omit.
+      if (g.length === 1) targeting.genders = g;
     }
-    const optimizationGoal = brief.objective === 'OUTCOME_LEADS' ? 'LEAD_GENERATION'
-      : brief.objective === 'OUTCOME_TRAFFIC' ? 'LINK_CLICKS'
-      : brief.objective === 'OUTCOME_AWARENESS' ? 'REACH'
-      : 'POST_ENGAGEMENT';
+    // OUTCOME_LEADS requires a Lead Form (promoted_object). Until forms are
+    // configured in this account, downgrade to OUTCOME_TRAFFIC so the launch
+    // succeeds and the owner finishes wiring the form in Meta Ads Manager.
+    let safeObjective = brief.objective;
+    let downgradedFromLeads = false;
+    if (safeObjective === 'OUTCOME_LEADS') {
+      safeObjective = 'OUTCOME_TRAFFIC';
+      downgradedFromLeads = true;
+    }
+    const optimizationGoal = safeObjective === 'OUTCOME_TRAFFIC' ? 'LINK_CLICKS'
+      : safeObjective === 'OUTCOME_AWARENESS' ? 'REACH'
+      : safeObjective === 'OUTCOME_ENGAGEMENT' ? 'POST_ENGAGEMENT'
+      : 'LINK_CLICKS';
+    const adsetPayload: any = {
+      name: `${brief.title} — AdSet`,
+      campaign_id: campaignId,
+      daily_budget: toInt((brief.daily_budget_ils || 40) * 100, 4000), // Meta uses minor units (agorot)
+      billing_event: 'IMPRESSIONS',
+      optimization_goal: optimizationGoal,
+      targeting,
+      status: 'PAUSED',
+    };
     const adsetRes = await metaApi(
       `/act_${META_AD_ACCOUNT_ID}/adsets`,
       'POST',
-      {
-        name: `${brief.title} — AdSet`,
-        campaign_id: campaignId,
-        daily_budget: Math.round((brief.daily_budget_ils || 40) * 100), // Meta uses minor units (agorot)
-        billing_event: 'IMPRESSIONS',
-        optimization_goal: optimizationGoal,
-        bid_strategy: 'LOWEST_COST_WITHOUT_CAP',
-        targeting,
-        status: 'PAUSED',
-      },
+      adsetPayload,
     );
     const adsetId = adsetRes?.id;
 
@@ -5668,7 +5695,9 @@ registerFn('launchCampaignBrief', async ({ body }) => {
     return {
       brief: updated,
       meta_url: `https://business.facebook.com/adsmanager/manage/campaigns?act=${META_AD_ACCOUNT_ID}&selected_campaign_ids=${campaignId}`,
-      message: 'הקמפיין נוצר במטא במצב PAUSED. הוסף קריאייטיב (תמונה+טקסט) ב-Meta Ads Manager והפעל ידנית.',
+      message: downgradedFromLeads
+        ? 'הקמפיין נוצר במצב PAUSED. שיניתי OUTCOME_LEADS ל-OUTCOME_TRAFFIC כי טופס לידים עוד לא הוגדר ב-Meta. כדי לחזור ל-Leads — הגדר Lead Form ב-Forms Library ועדכן את הקמפיין ב-Ads Manager.'
+        : 'הקמפיין נוצר במטא במצב PAUSED. הוסף קריאייטיב (תמונה+טקסט) ב-Meta Ads Manager והפעל ידנית.',
     };
   } catch (e: any) {
     const updated = await db.campaignBrief.update({
