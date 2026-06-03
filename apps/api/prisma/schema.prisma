@@ -142,7 +142,6 @@ model BeecommOrder {
   total_amount                 Float?
   delivery_address             String?
   status                       String?  @default("sent")
-  created_date                 DateTime?
   // Legacy base44 columns — exist in DB; declared so frontend code that
   // reads record.created_date / record.updated_date still gets a value.
   created_date String?
@@ -917,10 +916,6 @@ model JobCandidate {
   kashrut_capable              Boolean?
   kashrut_required             Boolean?
   transcript                   Json?
-  // Legacy base44 columns — exist in DB; declared so frontend code that
-  // reads record.created_date / record.updated_date still gets a value.
-  created_date String?
-  updated_date String?
   createdBy  String?
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
