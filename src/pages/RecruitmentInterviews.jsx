@@ -80,6 +80,15 @@ export default function RecruitmentInterviews() {
   const [openSlotCand, setOpenSlotCand] = useState(null); // candidate_id whose slots are showing
   const [slots, setSlots] = useState([]);
   const [slotsLoading, setSlotsLoading] = useState(false);
+  const [transcriptCand, setTranscriptCand] = useState(null); // candidate object to show transcript for
+
+  const restoreRejected = async (cand) => {
+    if (!confirm(`להחזיר את ${cand.full_name || 'המועמד'} למעמד "ממתין"?`)) return;
+    try {
+      await base44.functions.unrejectCandidate({ candidate_id: cand.id });
+      await load();
+    } catch (e) { alert('שגיאה בהחזרה: ' + (e?.message || '')); }
+  };
 
   const load = async () => {
     setLoading(true);
@@ -209,15 +218,16 @@ export default function RecruitmentInterviews() {
 
       {loading && <p className="text-slate-400 text-center py-6">טוען…</p>}
 
-      {/* Funnel dashboard — application pipeline at a glance */}
+      {/* Funnel dashboard — application pipeline with conversion % */}
       {inbox.funnel && (
         <section className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-2xl shadow border border-indigo-200 p-4">
           <div className="flex items-center justify-between mb-3">
             <p className="font-black text-slate-800">📊 משפך הגיוס</p>
             <span className="text-xs text-slate-500">סה"כ במאגר: {inbox.funnel.total}</span>
           </div>
-          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-2">
-            {[
+          {/* Conversion-aware funnel — each step shows % vs previous step */}
+          {(() => {
+            const steps = [
               { label: 'התחילו', icon: '👋', val: inbox.funnel.started, color: 'bg-slate-100 text-slate-700' },
               { label: 'נתנו טלפון', icon: '📞', val: inbox.funnel.gave_phone, color: 'bg-blue-100 text-blue-700' },
               { label: 'בחרו תפקיד', icon: '💼', val: inbox.funnel.gave_role, color: 'bg-cyan-100 text-cyan-700' },
@@ -225,13 +235,25 @@ export default function RecruitmentInterviews() {
               { label: 'מועמדים מעולים', icon: '🌟', val: inbox.funnel.approved, color: 'bg-amber-100 text-amber-700' },
               { label: 'ראיון נקבע', icon: '📅', val: inbox.funnel.interview_scheduled, color: 'bg-purple-100 text-purple-700' },
               { label: 'התקבלו', icon: '🎉', val: inbox.funnel.hired, color: 'bg-green-200 text-green-800' },
-            ].map((s, i) => (
-              <div key={i} className={`rounded-xl px-3 py-2 ${s.color}`}>
-                <p className="text-xs font-medium flex items-center gap-1"><span>{s.icon}</span><span>{s.label}</span></p>
-                <p className="text-2xl font-black mt-1">{s.val}</p>
+            ];
+            return (
+              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-2">
+                {steps.map((s, i) => {
+                  const prev = i === 0 ? null : steps[i - 1].val;
+                  const pct = prev && prev > 0 ? Math.round((s.val / prev) * 100) : null;
+                  return (
+                    <div key={i} className={`rounded-xl px-3 py-2 ${s.color}`}>
+                      <p className="text-xs font-medium flex items-center gap-1"><span>{s.icon}</span><span>{s.label}</span></p>
+                      <p className="text-2xl font-black mt-1">{s.val}</p>
+                      {pct !== null && (
+                        <p className="text-[10px] opacity-70 mt-0.5">{pct}% מהשלב הקודם</p>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
-            ))}
-          </div>
+            );
+          })()}
           <div className="flex gap-2 mt-3">
             <div className="flex-1 rounded-xl px-3 py-2 bg-orange-100 text-orange-700">
               <p className="text-xs font-medium">🚪 נטשו באמצע</p>
@@ -242,6 +264,108 @@ export default function RecruitmentInterviews() {
               <p className="text-2xl font-black mt-1">{inbox.funnel.rejected}</p>
             </div>
           </div>
+
+          {/* Source breakdown — where the leads are coming from */}
+          {inbox.source_counts && Object.keys(inbox.source_counts).length > 0 && (
+            <div className="mt-4 pt-3 border-t border-indigo-200">
+              <p className="text-xs font-semibold text-slate-600 mb-2">📥 לפי מקור</p>
+              <div className="flex flex-wrap gap-2">
+                {Object.entries(inbox.source_counts).map(([src, n]) => {
+                  const icon = src === 'facebook' ? '📘' : src === 'whatsapp' ? '💬' : src === 'web_chat' ? '🌐' : src === 'instagram' ? '📷' : '📥';
+                  return (
+                    <span key={src} className="text-xs bg-white border border-slate-200 rounded-lg px-2.5 py-1.5">
+                      <span className="mr-1">{icon}</span><b>{src}:</b> {n}
+                    </span>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* 30-day trend mini-bar chart */}
+          {Array.isArray(inbox.trend_30) && inbox.trend_30.length > 0 && (() => {
+            const max = Math.max(1, ...inbox.trend_30.map((t) => t.count));
+            return (
+              <div className="mt-4 pt-3 border-t border-indigo-200">
+                <p className="text-xs font-semibold text-slate-600 mb-2">📈 פניות ב-30 הימים האחרונים</p>
+                <div className="flex items-end gap-0.5 h-16">
+                  {inbox.trend_30.map((t) => (
+                    <div
+                      key={t.date}
+                      title={`${t.date}: ${t.count}`}
+                      className="flex-1 bg-indigo-300 hover:bg-indigo-500 transition-colors rounded-t"
+                      style={{ height: `${(t.count / max) * 100}%`, minHeight: t.count > 0 ? '4px' : '0' }}
+                    />
+                  ))}
+                </div>
+                <div className="flex justify-between text-[10px] text-slate-400 mt-1">
+                  <span>{inbox.trend_30[0]?.date.slice(5)}</span>
+                  <span>{inbox.trend_30[inbox.trend_30.length - 1]?.date.slice(5)}</span>
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* Rejection reasons breakdown */}
+          {inbox.rejection_reasons && Object.keys(inbox.rejection_reasons).length > 0 && (
+            <div className="mt-4 pt-3 border-t border-indigo-200">
+              <p className="text-xs font-semibold text-slate-600 mb-2">❌ סיבות דחיה</p>
+              <div className="flex flex-wrap gap-2">
+                {Object.entries(inbox.rejection_reasons).map(([reason, n]) => {
+                  const label = {
+                    test: '🧪 בדיקה',
+                    age: '🔞 גיל',
+                    kashrut: '✡️ כשרות',
+                    weekend: '🌙 סופ"ש',
+                    location: '📍 מיקום',
+                    experience: '📚 ניסיון',
+                    availability: '⏰ זמינות',
+                    other: '❔ אחר',
+                  }[reason] || reason;
+                  return (
+                    <span key={reason} className="text-xs bg-white border border-red-200 rounded-lg px-2.5 py-1.5">
+                      {label}: <b>{n}</b>
+                    </span>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Goals progress (only shown if owner set targets) */}
+          {Array.isArray(inbox.goals_progress) && inbox.goals_progress.length > 0 && (
+            <div className="mt-4 pt-3 border-t border-indigo-200">
+              <p className="text-xs font-semibold text-slate-600 mb-2">🎯 יעדי גיוס החודש</p>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                {inbox.goals_progress.map((g) => {
+                  const pct = g.target > 0 ? Math.min(100, Math.round((g.hired / g.target) * 100)) : 0;
+                  return (
+                    <div key={g.role} className="bg-white border border-slate-200 rounded-lg p-2">
+                      <p className="text-xs font-semibold text-slate-700">{g.role}</p>
+                      <p className="text-lg font-black">{g.hired}/{g.target}</p>
+                      <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden mt-1">
+                        <div className="h-full bg-emerald-500" style={{ width: `${pct}%` }} />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Duplicate phones warning */}
+          {Array.isArray(inbox.duplicates) && inbox.duplicates.length > 0 && (
+            <div className="mt-4 pt-3 border-t border-indigo-200">
+              <p className="text-xs font-semibold text-orange-600 mb-2">⚠️ טלפונים כפולים ({inbox.duplicates.length})</p>
+              <div className="space-y-1">
+                {inbox.duplicates.slice(0, 5).map((d) => (
+                  <p key={d.phone} className="text-xs text-slate-600">
+                    📱 {d.phone} — {d.count} רשומות (אחרון: <b>{d.latest_name}</b>, {d.latest_status})
+                  </p>
+                ))}
+              </div>
+            </div>
+          )}
         </section>
       )}
 
@@ -520,10 +644,15 @@ export default function RecruitmentInterviews() {
                     <div className="flex-1 min-w-[160px]">
                       <p className="font-bold text-slate-800">{c.full_name || 'ללא שם'} {c.age && <span className="text-slate-400 text-xs">({c.age})</span>}</p>
                       <p className="text-xs text-slate-500">{c.role_applied || '—'} · {c.city || '-'} · 📞 {c.phone || '-'}</p>
+                      {c.ai_summary && <p className="text-xs text-indigo-700 bg-indigo-50 px-2 py-1 mt-1 rounded">🤖 {String(c.ai_summary).slice(0, 200)}</p>}
                       {c.notes && <p className="text-xs text-slate-600 mt-1 line-clamp-2">💬 {c.notes}</p>}
                     </div>
                     {c.score != null && <span className="text-xs font-bold bg-slate-200 text-slate-700 px-2 py-1 rounded-full">ציון: {c.score}</span>}
                     <span className="text-xs px-2 py-1 rounded-full font-bold bg-red-100 text-red-700">נדחה</span>
+                    {Array.isArray(c.transcript) && c.transcript.length > 0 && (
+                      <button onClick={() => setTranscriptCand(c)} className="text-xs bg-slate-500 hover:bg-slate-600 text-white font-bold px-2.5 py-1.5 rounded-lg">💬 ראה שיחה</button>
+                    )}
+                    <button onClick={() => restoreRejected(c)} className="text-xs bg-amber-500 hover:bg-amber-600 text-white font-bold px-2.5 py-1.5 rounded-lg">🔄 החזר ל-pending</button>
                     {phone && (
                       <a href={`https://wa.me/${phone}?text=${waText}`} target="_blank" rel="noreferrer" className="text-xs bg-emerald-500 hover:bg-emerald-600 text-white font-bold px-2.5 py-1.5 rounded-lg">📱 וואטסאפ</a>
                     )}
@@ -534,6 +663,29 @@ export default function RecruitmentInterviews() {
           </div>
         )}
       </section>
+
+      {/* Transcript modal — overlays the whole chat for any candidate row */}
+      {transcriptCand && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setTranscriptCand(null)}>
+          <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[80vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-4 py-3 border-b">
+              <div>
+                <p className="font-black text-slate-800">💬 שיחת ה-AI עם {transcriptCand.full_name || 'מועמד'}</p>
+                <p className="text-xs text-slate-500">{transcriptCand.transcript?.length || 0} הודעות · ציון: {transcriptCand.score ?? '—'} · {transcriptCand.status}</p>
+              </div>
+              <button onClick={() => setTranscriptCand(null)} className="text-2xl text-slate-400 hover:text-slate-700">×</button>
+            </div>
+            <div className="overflow-y-auto p-4 space-y-2 flex-1">
+              {(transcriptCand.transcript || []).map((m, i) => (
+                <div key={i} className={`p-3 rounded-xl text-sm ${m.role === 'user' ? 'bg-blue-50 mr-12' : 'bg-slate-50 ml-12'}`}>
+                  <p className="text-[10px] uppercase font-bold text-slate-400 mb-1">{m.role === 'user' ? 'המועמד' : 'הסוכן'}</p>
+                  <p className="whitespace-pre-wrap text-slate-800">{m.content}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

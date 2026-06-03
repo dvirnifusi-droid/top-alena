@@ -1,5 +1,5 @@
 import type { FastifyPluginAsync } from 'fastify';
-import { sendRestroomReminder } from '../functions/load.js';
+import { sendRestroomReminder, sendAbandonedReminder } from '../functions/load.js';
 
 // Internal cron endpoints, guarded by a shared secret (x-cron-secret header or
 // ?secret=). Called by the server crontab — never by end users.
@@ -17,5 +17,9 @@ export const cronRoutes: FastifyPluginAsync = async (app) => {
 
   app.post('/restroom-reminder', async () => {
     return sendRestroomReminder();
+  });
+
+  app.post('/abandoned-reminder', async () => {
+    return sendAbandonedReminder();
   });
 };

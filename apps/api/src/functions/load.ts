@@ -998,6 +998,11 @@ registerFn('getRecruitmentInbox', async () => {
     next_menu_exam: latestExamByCand[t.id] || null,
   }));
 
+  // Read recruitment knobs from RestaurantProfile (owner-tunable).
+  const profile = await db.restaurantProfile.findFirst().catch(() => null);
+  const minScore = profile?.recruitment_min_score ?? 80;
+  const monthlyTargets = profile?.recruitment_monthly_targets || null;
+
   // Rejected candidates — LLM decided not to pursue. Keep visible so the
   // owner can audit AI decisions and recover false negatives.
   const rejected = await db.jobCandidate.findMany({
@@ -1048,14 +1053,176 @@ registerFn('getRecruitmentInbox', async () => {
     total: totalCount,
   };
 
+  // Source breakdown — how each lead landed (facebook/whatsapp/web_chat/...).
+  const sourceCounts: Record<string, number> = {};
+  allRecent.forEach((c: any) => {
+    const s = c.source || 'unknown';
+    sourceCounts[s] = (sourceCounts[s] || 0) + 1;
+  });
+
+  // 30-day trend — counts per day for the last 30 days.
+  const now = new Date();
+  const trend30: Array<{ date: string; count: number }> = [];
+  for (let i = 29; i >= 0; i--) {
+    const d = new Date(now.getTime() - i * 86400000);
+    trend30.push({ date: d.toISOString().slice(0, 10), count: 0 });
+  }
+  const trendIdx: Record<string, number> = {};
+  trend30.forEach((t, i) => { trendIdx[t.date] = i; });
+  allRecent.forEach((c: any) => {
+    const d = String(c.createdAt || '').slice(0, 10);
+    if (d in trendIdx) trend30[trendIdx[d]].count++;
+  });
+
+  // Rejection reason categorization — parse notes/ai_summary for keywords.
+  const reasonOf = (c: any): string => {
+    const txt = String((c.notes || '') + ' ' + (c.ai_summary || '')).toLowerCase();
+    if (/test|בדיקה|מבחן/.test(txt)) return 'test';
+    if (/גיל|מתחת|17|18|צעיר/.test(txt)) return 'age';
+    if (/כשרות|שבת|דתי|שומר/.test(txt)) return 'kashrut';
+    if (/סופ.?ש|שישי|שבת/.test(txt)) return 'weekend';
+    if (/מיקום|רחוק|ירושלים|תל ?אביב|חיפה/.test(txt)) return 'location';
+    if (/ניסיון|חסר/.test(txt)) return 'experience';
+    if (/זמינ|שעות/.test(txt)) return 'availability';
+    return 'other';
+  };
+  const rejectionReasons: Record<string, number> = {};
+  rejected.forEach((c: any) => {
+    const r = reasonOf(c);
+    rejectionReasons[r] = (rejectionReasons[r] || 0) + 1;
+  });
+
+  // Duplicate detection — same phone (normalized) used by 2+ candidates.
+  // Returns the phone + count + first/last candidate so owner can merge.
+  const byPhone: Record<string, any[]> = {};
+  allRecent.forEach((c: any) => {
+    if (!c.phone) return;
+    const norm = String(c.phone).replace(/\D/g, '').replace(/^0/, '+972');
+    if (!byPhone[norm]) byPhone[norm] = [];
+    byPhone[norm].push(c);
+  });
+  const duplicates = Object.entries(byPhone)
+    .filter(([, arr]) => arr.length > 1)
+    .map(([phone, arr]) => ({
+      phone,
+      count: arr.length,
+      latest_name: arr[0]?.full_name,
+      latest_id: arr[0]?.id,
+      latest_status: arr[0]?.status,
+      candidate_ids: arr.map((c) => c.id),
+    }));
+
+  // Hiring goals progress — for each role in `recruitment_monthly_targets`,
+  // count how many were hired this month from JobCandidate.status='active'/'trainee'.
+  const goalsProgress: Array<{ role: string; target: number; hired: number }> = [];
+  if (monthlyTargets && typeof monthlyTargets === 'object') {
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+    for (const [role, target] of Object.entries(monthlyTargets)) {
+      if (typeof target !== 'number') continue;
+      const hired = allRecent.filter((c: any) =>
+        ['hired', 'trainee', 'active'].includes(c.status) &&
+        c.role_applied === role &&
+        String(c.createdAt || '') >= monthStart,
+      ).length;
+      goalsProgress.push({ role, target, hired });
+    }
+  }
+
   return {
     upcoming, recent, toCallBack, topUnscheduled,
     trainees: traineesEnriched,
     rejected,
     abandoned: abandonedEnriched,
     funnel,
+    // New analytics surfaces:
+    source_counts: sourceCounts,
+    trend_30: trend30,
+    rejection_reasons: rejectionReasons,
+    duplicates,
+    settings: {
+      min_score: minScore,
+      monthly_targets: monthlyTargets,
+    },
+    goals_progress: goalsProgress,
   };
 });
+
+// One-click recovery: take a rejected candidate back to pending so a manager
+// can reach out manually or re-evaluate.
+registerFn('unrejectCandidate', async ({ body }) => {
+  const { candidate_id } = (body || {}) as any;
+  if (!candidate_id) throw new Error('candidate_id required');
+  const cand = await db.jobCandidate.findUnique({ where: { id: candidate_id } });
+  if (!cand) throw new Error('candidate_not_found');
+  if (cand.status !== 'rejected') throw new Error('not_rejected');
+  await db.jobCandidate.update({
+    where: { id: candidate_id },
+    data: {
+      status: 'pending',
+      notes: `${cand.notes || ''}${cand.notes ? '\n' : ''}[manager_override] החזרה מ-rejected ב-${new Date().toISOString()}`,
+    },
+  });
+  return { ok: true, candidate_id };
+});
+
+// Owner-tunable AI minimum score for the "top candidates" bucket.
+registerFn('updateRecruitmentMinScore', async ({ body }) => {
+  const { score } = (body || {}) as any;
+  const n = Number(score);
+  if (!Number.isFinite(n) || n < 0 || n > 100) throw new Error('score_out_of_range');
+  const profile = await db.restaurantProfile.findFirst();
+  if (!profile) throw new Error('no_profile');
+  await db.restaurantProfile.update({ where: { id: profile.id }, data: { recruitment_min_score: Math.round(n) } });
+  return { ok: true, recruitment_min_score: Math.round(n) };
+});
+
+// Owner-tunable monthly hiring targets, e.g. {waiter: 3, kitchen: 2, runner: 1}
+registerFn('updateRecruitmentTargets', async ({ body }) => {
+  const { targets } = (body || {}) as any;
+  if (!targets || typeof targets !== 'object') throw new Error('targets_object_required');
+  const profile = await db.restaurantProfile.findFirst();
+  if (!profile) throw new Error('no_profile');
+  await db.restaurantProfile.update({ where: { id: profile.id }, data: { recruitment_monthly_targets: targets } });
+  return { ok: true, recruitment_monthly_targets: targets };
+});
+
+// Cron handler — fires a WhatsApp nudge (well, queues a `wa.me` URL log) for
+// each abandoned candidate > 24h that hasn't been nudged yet. Marks them
+// with u_notified_abandoned=true so the same candidate isn't nudged twice.
+// Triggered by /api/cron/abandoned-reminder.
+export async function sendAbandonedReminder() {
+  const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  const candidates = await db.jobCandidate.findMany({
+    where: {
+      status: 'pending',
+      score: null,
+      u_notified_abandoned: { not: true },
+      createdAt: { lte: cutoff },
+      phone: { not: null },
+    },
+    take: 50,
+  });
+  const results: Array<{ id: string; name: string; phone: string; ok: boolean; err?: string }> = [];
+  for (const c of candidates) {
+    try {
+      // Pushover to owner so they can ping back manually.
+      await pushoverToAdmins(
+        `🚪 ליד גיוס נטוש > 24h — ${c.full_name || '-'}`,
+        [
+          `📱 ${c.phone || '-'}`,
+          `💼 ${c.role_applied || '-'}${c.city ? ' · ' + c.city : ''}`,
+          c.ai_summary ? `🤖 ${String(c.ai_summary).slice(0, 120)}` : null,
+          `🔗 https://wa.me/${String(c.phone).replace(/\D/g, '').replace(/^0/, '972')}`,
+        ].filter(Boolean).join('\n'),
+      );
+      await db.jobCandidate.update({ where: { id: c.id }, data: { u_notified_abandoned: true } });
+      results.push({ id: c.id, name: c.full_name || '-', phone: c.phone, ok: true });
+    } catch (e: any) {
+      results.push({ id: c.id, name: c.full_name || '-', phone: c.phone, ok: false, err: e?.message });
+    }
+  }
+  return { reminded: results.filter((r) => r.ok).length, attempted: candidates.length, results };
+}
 
 // AUTH — manager-side slot helpers (no candidate-score check).
 registerFn('getInterviewSlotsForManager', async () => {
