@@ -478,6 +478,7 @@ export default function MarketingAgentsHub() {
   const [pipelineGoal, setPipelineGoal] = useState('');
   const [pipelineBudget, setPipelineBudget] = useState(40);
   const [pipelineStage, setPipelineStage] = useState(null); // 'copy' | 'image' | 'brief' | null
+  const [pipelineImageSource, setPipelineImageSource] = useState('instagram'); // 'instagram' | 'ai' | 'auto'
 
   const runPipeline = async () => {
     if (!pipelineGoal.trim()) {
@@ -496,6 +497,7 @@ export default function MarketingAgentsHub() {
       const res = await base44.functions.runFullPipeline({
         goal: pipelineGoal.trim(),
         daily_budget_ils: Number(pipelineBudget) || 40,
+        image_source: pipelineImageSource,
       });
       clearInterval(tick);
       const data = res?.data || {};
@@ -750,6 +752,22 @@ export default function MarketingAgentsHub() {
                 onChange={(e) => setPipelineBudget(e.target.value)}
                 disabled={!!pipelineStage}
               />
+            </div>
+            <div>
+              <label className="text-xs font-semibold block mb-1">מקור התמונה</label>
+              <select
+                value={pipelineImageSource}
+                onChange={(e) => setPipelineImageSource(e.target.value)}
+                disabled={!!pipelineStage}
+                className="w-full border rounded p-2 text-sm bg-white"
+              >
+                <option value="instagram">אינסטגרם של עלינא (תמונה אמיתית, אותנטית)</option>
+                <option value="ai">AI (Google Imagen — תמונה גנרית, פחות מומלץ)</option>
+                <option value="auto">אוטומטי (נסה אינסטגרם, נפילה ל-AI אם אין)</option>
+              </select>
+              <div className="text-xs text-slate-500 mt-1">
+                המערכת תבחר את התמונה הכי מתאימה ליעד מתוך 15 התמונות האחרונות שלך באינסטגרם.
+              </div>
             </div>
             <Button
               onClick={runPipeline}
