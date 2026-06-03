@@ -15,12 +15,14 @@ export async function generateStaticParams() {
   }
 }
 
+type LandingWithSeo = LandingDoc & { seoTitle?: string; seoDescription?: string };
+
 export async function generateMetadata({ params }: { params: Promise<{ landingSlug: string }> }) {
   const { landingSlug } = await params;
   const slug = decodeURIComponent(landingSlug);
-  let doc: (LandingDoc & { seoTitle?: string; seoDescription?: string }) | null = null;
+  let doc: LandingWithSeo | null = null;
   try {
-    doc = (await sanity.fetch(landingBySlugQuery, { slug })) as typeof doc;
+    doc = (await sanity.fetch(landingBySlugQuery, { slug })) as LandingWithSeo | null;
   } catch {
     doc = null;
   }

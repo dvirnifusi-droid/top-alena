@@ -1,12 +1,12 @@
 export const routes = {
   home: "/",
-  menu: "/תפריט",
-  events: "/אירועים",
-  delivery: "/משלוחים",
-  gallery: "/גלריה",
-  about: "/אודות",
-  contact: "/צור-קשר",
-  blog: "/בלוג",
+  menu: "/menu",
+  events: "/events",
+  delivery: "/delivery",
+  gallery: "/gallery",
+  about: "/about",
+  contact: "/contact",
+  blog: "/blog",
   studio: "/studio",
 } as const;
 
