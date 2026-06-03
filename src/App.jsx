@@ -114,6 +114,12 @@ const AuthenticatedApp = () => {
       <Route path="/DataExport" element={<LayoutWrapper currentPageName="DataExport"><DataExport /></LayoutWrapper>} />
       <Route path="/UserGuide" element={<LayoutWrapper currentPageName="UserGuide"><UserGuide /></LayoutWrapper>} />
       <Route path="/InstagramStudio" element={<LayoutWrapper currentPageName="InstagramStudio"><InstagramStudio /></LayoutWrapper>} />
+      {/* Short URL aliases — for QR codes, ads, and easy sharing.
+          /r → reservation, /j → job, /e → events, /q → queue. */}
+      <Route path="/r" element={<Navigate to="/PublicReservation" replace />} />
+      <Route path="/j" element={<Navigate to="/apply" replace />} />
+      <Route path="/e" element={<Navigate to="/EventsInquiry" replace />} />
+      <Route path="/q" element={<Navigate to="/QueueJoin" replace />} />
       <Route path="*" element={<PageNotFound />} />
     </Routes>
   );
