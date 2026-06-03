@@ -1339,6 +1339,7 @@ export default function WorkScheduling() {
                 week={week}
                 days={days}
                 availabilities={availabilities}
+                onSaved={loadScheduleData}
             />
 
             {/* Employee Rating Dialog */}

@@ -6,7 +6,8 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { format } from 'date-fns';
 import { he } from 'date-fns/locale';
-import { MessageCircle, Copy, Check, Clock, Lock, Star } from 'lucide-react';
+import { MessageCircle, Copy, Check, Clock, Lock, Star, Save } from 'lucide-react';
+import { base44 } from '@/api/base44Client';
 
 const DINNER_POSITIONS_ORDER = [
     'מנהל משמרת', 'ברמן', 'מלצר', 'ראנר', 'מארח/ת', 'מתלמד פלור',
@@ -77,10 +78,12 @@ function buildMessage(shift, selectedDay, shiftType, staffOverrides) {
     return msg;
 }
 
-export default function SendScheduleWhatsAppDialog({ open, onClose, week, days, availabilities = [] }) {
+export default function SendScheduleWhatsAppDialog({ open, onClose, week, days, availabilities = [], onSaved }) {
     const [selectedDate, setSelectedDate] = useState('');
     const [shiftType, setShiftType] = useState('dinner');
     const [copied, setCopied] = useState(false);
+    const [saving, setSaving] = useState(false);
+    const [savedFlash, setSavedFlash] = useState(false);
     // staffOverrides: { [employee_id]: { start_time, isClosing, isPromoter } }
     const [staffOverrides, setStaffOverrides] = useState({});
 
@@ -119,8 +122,47 @@ export default function SendScheduleWhatsAppDialog({ open, onClose, week, days, 
         setTimeout(() => setCopied(false), 2000);
     };
 
-    const handleSendWhatsApp = () => {
+    // Persist edited start_times back to the WorkShift row so they sync with the
+    // schedule grid and NextShiftCountdown widget. Only updates entries whose
+    // start_time actually changed; closing/promoter flags stay dialog-local.
+    const persistOverrides = async () => {
+        if (!shift) return false;
+        const updatedStaff = (shift.assigned_staff || []).map(a => {
+            const ov = staffOverrides[a.employee_id];
+            if (!ov) return a;
+            const newStart = (ov.start_time || '').slice(0, 5);
+            const oldStart = (a.start_time || '').slice(0, 5);
+            if (!newStart || newStart === oldStart) return a;
+            return { ...a, start_time: newStart };
+        });
+        const changed = updatedStaff.some((a, i) => a.start_time !== shift.assigned_staff[i].start_time);
+        if (!changed) return true;
+        try {
+            setSaving(true);
+            await base44.entities.WorkShift.update(shift.id, { assigned_staff: updatedStaff });
+            if (onSaved) await onSaved();
+            return true;
+        } catch (e) {
+            console.error('Failed to persist schedule overrides', e);
+            alert('שגיאה בשמירת שעות הכניסה. נסה שוב.');
+            return false;
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const handleSaveOnly = async () => {
+        const ok = await persistOverrides();
+        if (ok) {
+            setSavedFlash(true);
+            setTimeout(() => setSavedFlash(false), 2000);
+        }
+    };
+
+    const handleSendWhatsApp = async () => {
         if (!message) return;
+        const ok = await persistOverrides();
+        if (!ok) return;
         const encoded = encodeURIComponent(message);
         window.open(`https://wa.me/?text=${encoded}`, '_blank');
     };
@@ -273,17 +315,21 @@ export default function SendScheduleWhatsAppDialog({ open, onClose, week, days, 
                     )}
                 </div>
 
-                <DialogFooter className="flex gap-2">
-                    <Button variant="outline" onClick={onClose}>סגור</Button>
+                <DialogFooter className="flex gap-2 flex-wrap">
+                    <Button variant="outline" onClick={onClose} disabled={saving}>סגור</Button>
                     {message && (
                         <>
-                            <Button variant="outline" onClick={handleCopy}>
+                            <Button variant="outline" onClick={handleCopy} disabled={saving}>
                                 {copied ? <Check className="w-4 h-4 ml-1 text-green-600" /> : <Copy className="w-4 h-4 ml-1" />}
                                 {copied ? 'הועתק!' : 'העתק'}
                             </Button>
-                            <Button onClick={handleSendWhatsApp} className="bg-green-600 hover:bg-green-700 text-white">
+                            <Button variant="outline" onClick={handleSaveOnly} disabled={saving} className="border-blue-300 text-blue-700 hover:bg-blue-50">
+                                {savedFlash ? <Check className="w-4 h-4 ml-1 text-green-600" /> : <Save className="w-4 h-4 ml-1" />}
+                                {savedFlash ? 'נשמר!' : 'שמור שעות בסידור'}
+                            </Button>
+                            <Button onClick={handleSendWhatsApp} disabled={saving} className="bg-green-600 hover:bg-green-700 text-white">
                                 <MessageCircle className="w-4 h-4 ml-2" />
-                                שלח בוואטסאפ
+                                {saving ? 'שומר...' : 'שמור ושלח בוואטסאפ'}
                             </Button>
                         </>
                     )}
