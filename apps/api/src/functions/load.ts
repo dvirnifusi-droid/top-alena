@@ -6457,6 +6457,46 @@ registerFn('applyShiftGeofenceMigration', async () => {
   return { results };
 }, { public: true });
 
+// End-to-end push test. Reports what was attempted and the env state so we
+// can tell *why* it failed if it didn't arrive. Locked to dvirnifusi@gmail.com.
+registerFn('testAllPushPaths', async ({ user }) => {
+  if (!user?.email) throw new Error('unauthorized');
+  if (String(user.email).toLowerCase() !== 'dvirnifusi@gmail.com') {
+    throw new Error('owner_only');
+  }
+  const report: any = {
+    env_PUSHOVER_APP_TOKEN: !!(process.env.PUSHOVER_APP_TOKEN || process.env.PUSHOVER_API_TOKEN),
+    env_TELEGRAM_BOT_TOKEN: !!process.env.TELEGRAM_BOT_TOKEN,
+    env_TWILIO_ACCOUNT_SID: !!process.env.TWILIO_ACCOUNT_SID,
+    env_VAPID_PUBLIC_KEY: !!process.env.VAPID_PUBLIC_KEY,
+  };
+  // 1. Admin user lookup
+  const admins = await (prisma as any).user.findMany({ where: { role: 'admin' } });
+  report.admin_users = admins.length;
+  // 2. Linked employee with pushover_user_key
+  const adminEmployees = [];
+  for (const admin of admins) {
+    const emp = await (prisma as any).employee.findFirst({
+      where: { email: admin.email, pushover_user_key: { not: null } },
+    });
+    if (emp) adminEmployees.push({ name: emp.full_name, has_key: !!emp.pushover_user_key });
+  }
+  report.admin_employees_with_pushover_key = adminEmployees;
+  // 3. Actually fire each push path
+  const ts = new Date().toLocaleTimeString('he-IL');
+  const r1 = await pushoverToAdmins(
+    '🧪 בדיקה — pushoverToAdmins',
+    `אם הגעת — פוש למנהלים עובד ✅\nשעה: ${ts}`,
+  ).catch((e: any) => ({ error: String(e?.message || e) }));
+  report.pushoverToAdmins = r1;
+  const r2 = await pushoverEventsOwners(
+    '🧪 בדיקה — אירועים',
+    `אם הגעת — פוש לידי אירועים עובד ✅\nשעה: ${ts}`,
+  ).catch((e: any) => ({ error: String(e?.message || e) }));
+  report.pushoverEventsOwners = r2;
+  return report;
+});
+
 // One-off: promote the caller's User record to role='admin' so pushoverToAdmins
 // has a non-empty recipient list. Idempotent. Locked to dvirnifusi@gmail.com
 // (the owner) to avoid privilege escalation.
