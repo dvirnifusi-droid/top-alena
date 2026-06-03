@@ -18,6 +18,7 @@ import SeatingAiHelper from '../components/dashboard/SeatingAiHelper';
 import AiQuickAdd from '../components/dashboard/AiQuickAdd';
 import DailyBriefView from '../components/briefing/DailyBriefView';
 import ShiftClockWidget from '../components/shift/ShiftClockWidget';
+import NextShiftCountdown from '../components/employee/NextShiftCountdown';
 import WeeklyScheduleSummary from '../components/employee/WeeklyScheduleSummary';
 import CoinWidget from '../components/gamification/CoinWidget';
 import DailyChallengeCard from '../components/gamification/DailyChallengeCard';
@@ -116,6 +117,9 @@ export default function EmployeeHome() {
             </div>
         ),
         shift_clock: isVisible('shift_clock') && <ShiftClockWidget key="shift_clock" />,
+        next_shift: isVisible('next_shift') && user && (
+            <NextShiftCountdown key="next_shift" currentEmployee={currentEmployee} user={user} />
+        ),
         weekly_schedule: isVisible('weekly_schedule') && user && (
             <WeeklyScheduleSummary key="weekly_schedule" userId={user.id} currentEmployee={currentEmployee} />
         ),

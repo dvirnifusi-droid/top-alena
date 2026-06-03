@@ -5,6 +5,7 @@ export const EMPLOYEE_WIDGETS = [
   { id: 'stories', label: 'סטוריז', emoji: '📸', defaultOn: true },
   { id: 'daily_challenge', label: 'אתגר יומי', emoji: '🎯', defaultOn: true },
   { id: 'shift_clock', label: 'שעון משמרת', emoji: '⏱️', defaultOn: true },
+  { id: 'next_shift', label: 'המשמרת הבאה שלי', emoji: '⏰', defaultOn: true },
   { id: 'weekly_schedule', label: 'סידור עבודה שבועי', emoji: '📅', defaultOn: true },
   { id: 'assigned_tasks', label: 'משימות משויכות', emoji: '✅', defaultOn: true },
   { id: 'daily_briefs', label: 'תדריכי היום', emoji: '📣', defaultOn: true },
