@@ -7,36 +7,20 @@ import { InstagramStrip, type StripImage } from "@/components/home/InstagramStri
 import { JsonLd } from "@/components/seo/JsonLd";
 import { restaurantSchema } from "@/components/seo/schemas";
 import { env } from "@/lib/env";
-import { sanity } from "../../sanity/lib/client";
-import { featuredGalleryQuery } from "../../sanity/lib/queries";
-import { urlFor } from "../../sanity/lib/image";
+import { heroPhoto, featuredPhotos } from "@/lib/gallery";
 
 export const revalidate = 600;
 
-type GalleryDoc = { _id: string; image: unknown; alt: string; instagramUrl?: string };
-
-export default async function HomePage() {
-  let gallery: GalleryDoc[] = [];
-  try {
-    gallery = ((await sanity.fetch(featuredGalleryQuery)) as GalleryDoc[]) ?? [];
-  } catch {
-    gallery = [];
-  }
-
-  const stripImages: StripImage[] = gallery.map((g) => ({
-    _id: g._id,
-    url: urlFor(g.image).width(800).url(),
-    alt: g.alt,
-    href: g.instagramUrl,
+export default function HomePage() {
+  const stripImages: StripImage[] = featuredPhotos.map((p, i) => ({
+    _id: `local-${i}`,
+    url: p.src,
+    alt: p.alt,
   }));
-
-  const heroImage = gallery[0]
-    ? { url: urlFor(gallery[0].image).width(1200).url(), alt: gallery[0].alt }
-    : undefined;
 
   return (
     <>
-      <Hero heroImageUrl={heroImage?.url} heroAlt={heroImage?.alt} />
+      <Hero heroImageUrl={heroPhoto.src} heroAlt={heroPhoto.alt} />
       <MenuTeaser />
       <InstagramStrip images={stripImages} />
       <EventsTeaser />
