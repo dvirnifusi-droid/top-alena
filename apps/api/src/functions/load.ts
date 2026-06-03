@@ -5868,6 +5868,52 @@ registerFn('approveAndLaunchCampaignBrief', async ({ body }) => {
   return (functionHandlers as any).launchCampaignBrief({ body: { id, active: true } });
 });
 
+// Pick the best photo for a goal out of a Google Drive folder. Owner stores
+// the folder id under IntegrationSecret('DRIVE_AD_PHOTOS_FOLDER_ID') once,
+// and any subsequent campaign pipeline reads from there. Service account
+// must have at least Viewer access on the folder.
+async function pickBestDrivePhoto(goal: string): Promise<{ buffer: Buffer; name: string } | null> {
+  const folderId = await getSecret('DRIVE_AD_PHOTOS_FOLDER_ID');
+  if (!folderId) return null;
+  let token: string;
+  try { token = await driveAccessToken(); } catch { return null; }
+  const files = await listDriveFiles(folderId, token, [
+    'image/jpeg', 'image/jpg', 'image/png', 'image/webp',
+  ]).catch(() => [] as any[]);
+  if (!files.length) return null;
+  if (files.length === 1) {
+    const buf = await downloadDriveFile(files[0].id, token);
+    return { buffer: buf, name: files[0].name };
+  }
+  const list = files.map((f: any, i: number) => `${i}: ${f.name}`).join('\n');
+  let pickedIdx = 0;
+  try {
+    const result: any = await invokeLLM({
+      prompt: `אתה בוחר את התמונה הכי מתאימה למודעת פרסום בפייסבוק/אינסטגרם.\nיעד הקמפיין: "${goal}".\nלהלן ${files.length} שמות קובצי תמונות. החזר JSON: { idx: <מספר 0-${files.length - 1}>, why: "סיבה קצרה" }.\n\n${list}`,
+      responseSchema: { type: 'object', properties: { idx: { type: 'number' }, why: { type: 'string' } } },
+    });
+    const n = Number(result?.idx);
+    if (Number.isFinite(n) && n >= 0 && n < files.length) pickedIdx = n;
+  } catch {}
+  const chosen = files[pickedIdx];
+  const buf = await downloadDriveFile(chosen.id, token);
+  return { buffer: buf, name: chosen.name };
+}
+
+registerFn('listDriveAdPhotos', async () => {
+  const folderId = await getSecret('DRIVE_AD_PHOTOS_FOLDER_ID');
+  if (!folderId) return { configured: false, files: [] };
+  try {
+    const token = await driveAccessToken();
+    const files = await listDriveFiles(folderId, token, [
+      'image/jpeg', 'image/jpg', 'image/png', 'image/webp',
+    ]);
+    return { configured: true, folder_id: folderId, files };
+  } catch (e: any) {
+    return { configured: true, folder_id: folderId, files: [], error: String(e?.message || e) };
+  }
+});
+
 // Pull the most recent photos from the FB Page's linked Instagram Business
 // account. Returns an array of { id, media_url, permalink, caption, timestamp }.
 // Requires the System User token to carry the instagram_basic permission and
@@ -5935,18 +5981,30 @@ registerFn('runFullPipeline', async ({ body }) => {
       data: { agent_type: 'copywriter', title: `Pipeline: ${goal.slice(0, 40)}`, status: 'completed', input: { topic: goal, channel }, output: copyOut, ran_at: new Date() },
     }).catch(() => {});
 
-    // 2. Image — prefer Instagram (authentic, on-brand), fall back to AI.
+    // 2. Image. Priority order:
+    //    'drive'     → Google Drive folder (owner-curated, best quality)
+    //    'instagram' → linked IG Business account
+    //    'ai'        → Imagen
+    //    'auto'      → drive → instagram → ai (first non-empty wins)
     let imageBase64: string | null = null;
     let imageUrl: string | null = null;
     let imageOriginNote = '';
-    if (image_source === 'instagram' || image_source === 'auto') {
+
+    if (image_source === 'drive' || image_source === 'auto') {
+      const drivePick = await pickBestDrivePhoto(goal);
+      if (drivePick?.buffer) {
+        imageBase64 = drivePick.buffer.toString('base64');
+        imageOriginNote = `Drive: ${drivePick.name}`;
+      }
+    }
+    if (!imageBase64 && (image_source === 'instagram' || image_source === 'auto')) {
       const igPick = await pickBestInstagramPhoto(goal);
       if (igPick?.url) {
         imageUrl = igPick.url;
         imageOriginNote = `Instagram${igPick.permalink ? ` (${igPick.permalink})` : ''}`;
       }
     }
-    if (!imageUrl && image_source !== 'instagram_only') {
+    if (!imageBase64 && !imageUrl && image_source !== 'instagram_only' && image_source !== 'drive_only') {
       try {
         const visualOut: any = await runVisualDesigner({ brief: goal });
         imageBase64 = visualOut?.image_base64 || null;

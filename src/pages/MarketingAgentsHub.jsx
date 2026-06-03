@@ -478,7 +478,35 @@ export default function MarketingAgentsHub() {
   const [pipelineGoal, setPipelineGoal] = useState('');
   const [pipelineBudget, setPipelineBudget] = useState(40);
   const [pipelineStage, setPipelineStage] = useState(null); // 'copy' | 'image' | 'brief' | null
-  const [pipelineImageSource, setPipelineImageSource] = useState('instagram'); // 'instagram' | 'ai' | 'auto'
+  const [pipelineImageSource, setPipelineImageSource] = useState('drive'); // 'drive' | 'instagram' | 'ai' | 'auto'
+  const [driveFolderId, setDriveFolderId] = useState('');
+  const [driveFolderSet, setDriveFolderSet] = useState(false);
+  const [savingDriveFolder, setSavingDriveFolder] = useState(false);
+
+  useEffect(() => {
+    base44.functions.hasIntegrationSecret({ key: 'DRIVE_AD_PHOTOS_FOLDER_ID' })
+      .then((r) => setDriveFolderSet(!!r?.data?.present))
+      .catch(() => {});
+  }, []);
+
+  const saveDriveFolder = async () => {
+    if (!driveFolderId.trim()) return;
+    setSavingDriveFolder(true);
+    try {
+      await base44.functions.setIntegrationSecret({
+        key: 'DRIVE_AD_PHOTOS_FOLDER_ID',
+        value: driveFolderId.trim(),
+        note: 'Drive folder with ad-ready photos for עלינא',
+      });
+      setDriveFolderSet(true);
+      setDriveFolderId('');
+      toast.success('תיקייה נשמרה');
+    } catch (e) {
+      toast.error(`שגיאה: ${e?.message || e}`);
+    } finally {
+      setSavingDriveFolder(false);
+    }
+  };
 
   const runPipeline = async () => {
     if (!pipelineGoal.trim()) {
@@ -761,12 +789,18 @@ export default function MarketingAgentsHub() {
                 disabled={!!pipelineStage}
                 className="w-full border rounded p-2 text-sm bg-white"
               >
-                <option value="instagram">אינסטגרם של עלינא (תמונה אמיתית, אותנטית)</option>
+                <option value="drive">תיקיית Drive שלך {driveFolderSet ? '✅' : '⚠️ לא הוגדרה'}</option>
+                <option value="instagram">אינסטגרם של עלינא (דורש הרשאת IG בטוקן)</option>
                 <option value="ai">AI (Google Imagen — תמונה גנרית, פחות מומלץ)</option>
-                <option value="auto">אוטומטי (נסה אינסטגרם, נפילה ל-AI אם אין)</option>
+                <option value="auto">אוטומטי (Drive → Instagram → AI)</option>
               </select>
               <div className="text-xs text-slate-500 mt-1">
-                המערכת תבחר את התמונה הכי מתאימה ליעד מתוך 15 התמונות האחרונות שלך באינסטגרם.
+                {pipelineImageSource === 'drive' && (driveFolderSet
+                  ? 'המערכת תבחר את התמונה הכי מתאימה ליעד מתוך התיקייה שלך לפי שם הקובץ.'
+                  : '⚠️ עוד לא הגדרת תיקייה — פתח "מפתחות API" והדבק Drive folder ID.')}
+                {pipelineImageSource === 'instagram' && 'המערכת תבחר את התמונה הכי מתאימה ליעד מתוך 15 התמונות האחרונות באינסטגרם.'}
+                {pipelineImageSource === 'ai' && 'Imagen של Google. תוצאות לפעמים גנריות.'}
+                {pipelineImageSource === 'auto' && 'נסיון מסודר: Drive → Instagram → AI. הראשון שמצליח — מנצח.'}
               </div>
             </div>
             <Button
@@ -993,6 +1027,25 @@ export default function MarketingAgentsHub() {
               <Button onClick={saveMetaToken} disabled={savingToken || !metaToken.trim()} className="mt-2 w-full">
                 {savingToken ? <Loader2 className="w-4 h-4 animate-spin ml-2" /> : <Key className="w-4 h-4 ml-2" />}
                 שמור טוקן
+              </Button>
+            </div>
+            <div className="border-t pt-4">
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-sm font-semibold">Google Drive — תיקיית תמונות למודעות</label>
+                {driveFolderSet && <Badge variant="default" className="text-xs">מוגדר</Badge>}
+              </div>
+              <p className="text-xs text-slate-500 mb-2">
+                תיקייה ב-Drive עם תמונות אמיתיות של עלינא (מנות, אווירה, אירועים). שתף את התיקייה עם service account של Google שיש לך מוגדר, בהרשאת Viewer. הדבק כאן את ה-folder ID (החלק האחרון בכתובת ה-Drive — אחרי <code>folders/</code>).
+              </p>
+              <Input
+                placeholder="1abc...XYZ (folder ID בלבד, לא URL מלא)"
+                value={driveFolderId}
+                onChange={(e) => setDriveFolderId(e.target.value)}
+                className="font-mono text-xs"
+              />
+              <Button onClick={saveDriveFolder} disabled={savingDriveFolder || !driveFolderId.trim()} className="mt-2 w-full" variant="outline">
+                {savingDriveFolder ? <Loader2 className="w-4 h-4 animate-spin ml-2" /> : null}
+                שמור תיקייה
               </Button>
             </div>
           </div>
