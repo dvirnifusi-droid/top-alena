@@ -5900,6 +5900,21 @@ async function pickBestDrivePhoto(goal: string): Promise<{ buffer: Buffer; name:
   return { buffer: buf, name: chosen.name };
 }
 
+registerFn('getDriveServiceAccountEmail', async () => {
+  const raw = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
+  if (!raw) return { configured: false };
+  let text = String(raw).trim();
+  if (!text.startsWith('{')) {
+    try { text = Buffer.from(text, 'base64').toString('utf8'); } catch {}
+  }
+  try {
+    const sa = JSON.parse(text);
+    return { configured: true, client_email: sa.client_email || null };
+  } catch {
+    return { configured: true, client_email: null, error: 'failed_to_parse' };
+  }
+});
+
 registerFn('listDriveAdPhotos', async () => {
   const folderId = await getSecret('DRIVE_AD_PHOTOS_FOLDER_ID');
   if (!folderId) return { configured: false, files: [] };
