@@ -1,13 +1,19 @@
 @import "tailwindcss";
 
 @theme {
-  --color-terracotta: #C65D3A;
-  --color-terracotta-600: #B14F2F;
-  --color-olive: #5A6B3B;
-  --color-lemon: #F4C95D;
-  --color-med-blue: #4A7C8C;
-  --color-cream: #FAF3E7;
-  --color-charcoal: #2B2825;
+  /* Mediterranean Luxury palette — deeper, warmer, more grown-up.
+     Drives a kosher-restaurant feel that reads "fancy" without going dark/moody. */
+  --color-terracotta: #A04A2E;          /* primary CTA / headlines accent */
+  --color-terracotta-600: #8B3D24;      /* hover */
+  --color-olive: #44512C;               /* deep forest olive — secondary */
+  --color-olive-soft: #6B7A4F;          /* lighter olive for text accents */
+  --color-brass: #B89556;               /* warm brass / gold — premium accent (replaces bright lemon) */
+  --color-brass-soft: #D9BD83;          /* lighter brass for badges */
+  --color-sienna: #8B5A3A;              /* warm brown for borders / hover */
+  --color-med-blue: #2F5A6B;            /* deep mediterranean blue */
+  --color-cream: #F4ECD8;               /* warm cream background */
+  --color-cream-soft: #FAF5E8;          /* even softer cream for cards */
+  --color-charcoal: #1F1B17;            /* warm near-black text */
 
   --font-display: var(--font-frank-ruhl), serif;
   --font-body: var(--font-heebo), system-ui, sans-serif;
@@ -20,9 +26,21 @@ html {
 
 body {
   font-feature-settings: "kern", "ss01";
+  background:
+    radial-gradient(ellipse at top right, rgba(184, 149, 86, 0.06), transparent 50%),
+    radial-gradient(ellipse at bottom left, rgba(68, 81, 44, 0.05), transparent 50%),
+    var(--color-cream);
 }
 
 ::selection {
-  background: var(--color-lemon);
-  color: var(--color-charcoal);
+  background: var(--color-brass);
+  color: var(--color-cream);
+}
+
+/* Subtle gold underline for links in body copy */
+.prose a {
+  color: var(--color-terracotta);
+  text-decoration: underline;
+  text-decoration-color: var(--color-brass);
+  text-underline-offset: 3px;
 }

@@ -15,11 +15,20 @@ const nav = [
 export function Header() {
   return (
     <header className="sticky top-0 z-40 border-b border-charcoal/5 bg-cream/85 backdrop-blur">
-      <Container className="flex items-center justify-between py-3">
-        <Link href="/" className="font-display text-2xl text-terracotta">עלינא</Link>
-        <nav className="hidden gap-6 md:flex">
+      <Container className="flex items-center justify-between py-4">
+        <Link href="/" className="group flex items-baseline gap-2">
+          <span className="font-display text-2xl text-terracotta tracking-wide">עלינא</span>
+          <span className="hidden text-[0.65rem] uppercase tracking-[0.3em] text-brass sm:inline">
+            חמארה · ראשון
+          </span>
+        </Link>
+        <nav className="hidden gap-7 md:flex">
           {nav.map((n) => (
-            <Link key={n.href} href={n.href} className="text-sm font-medium text-charcoal/80 hover:text-terracotta">
+            <Link
+              key={n.href}
+              href={n.href}
+              className="text-sm font-medium text-charcoal/75 transition hover:text-terracotta"
+            >
               {n.label}
             </Link>
           ))}

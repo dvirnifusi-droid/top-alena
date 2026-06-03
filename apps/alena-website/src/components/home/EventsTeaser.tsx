@@ -3,21 +3,26 @@ import { Container } from "@/components/layout/Container";
 
 export function EventsTeaser() {
   return (
-    <section className="bg-olive/10 py-16">
-      <Container className="grid items-center gap-8 md:grid-cols-2">
+    <section className="relative overflow-hidden bg-olive py-20 text-cream">
+      <div className="pointer-events-none absolute inset-0 bg-gradient-to-bl from-brass/15 via-transparent to-terracotta/10" />
+      <Container className="relative grid items-center gap-10 md:grid-cols-2">
         <div>
-          <h2 className="font-display text-4xl text-olive">אירועים פרטיים</h2>
-          <p className="mt-3 text-charcoal/80">
-            אולם פרטי עד 50 איש · חבילות גמישות · ימי הולדת, אירועי חברה, אירוסים, בר/בת מצווה.
+          <p className="mb-3 inline-flex items-center gap-2 text-xs uppercase tracking-[0.25em] text-brass-soft">
+            <span className="h-px w-8 bg-brass-soft" />
+            אירוח פרטי
+          </p>
+          <h2 className="font-display text-4xl text-cream md:text-5xl">אירועים פרטיים</h2>
+          <p className="mt-4 max-w-md text-cream/85">
+            אולם פרטי עד 50 איש. חבילות גמישות, מנות שף ים-תיכוניות, ברים מלאים — לימי הולדת, אירועי חברה, אירוסים, בר/בת מצווה.
           </p>
           <Link
-            href="/אירועים"
-            className="mt-6 inline-block rounded-full bg-olive px-6 py-3 font-semibold text-cream hover:bg-olive/90"
+            href="/events"
+            className="mt-8 inline-flex items-center gap-2 rounded-full bg-cream px-6 py-3 font-semibold text-olive transition hover:bg-brass hover:text-cream"
           >
-            ספרו לי עוד
+            ספרו לי עוד <span>←</span>
           </Link>
         </div>
-        <div className="relative aspect-video overflow-hidden rounded-3xl bg-gradient-to-br from-olive/30 to-terracotta/20" />
+        <div className="relative aspect-[4/3] overflow-hidden rounded-3xl bg-gradient-to-br from-brass/25 to-charcoal/40 ring-1 ring-brass/30" />
       </Container>
     </section>
   );
