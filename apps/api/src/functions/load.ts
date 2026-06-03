@@ -5761,16 +5761,24 @@ registerFn('launchCampaignBrief', async ({ body }) => {
     if (pageId && (brief.image_base64 || brief.image_url)) {
       try {
         // 3a. Upload the image to /adimages — returns an image_hash.
-        if (brief.image_base64) {
+        // If we only have a URL (e.g. an Instagram media_url), download it
+        // first so /adimages gets bytes either way.
+        let bytesB64: string | null = brief.image_base64 || null;
+        if (!bytesB64 && brief.image_url) {
+          const imgRes = await fetch(brief.image_url);
+          if (!imgRes.ok) throw new Error(`failed to fetch image_url (${imgRes.status})`);
+          const buf = Buffer.from(await imgRes.arrayBuffer());
+          bytesB64 = buf.toString('base64');
+        }
+        if (bytesB64) {
           const form = new URLSearchParams();
-          form.append('bytes', String(brief.image_base64));
+          form.append('bytes', bytesB64);
           const upRes = await fetch(
             `https://graph.facebook.com/v21.0/act_${META_AD_ACCOUNT_ID}/adimages?access_token=${encodeURIComponent(token)}`,
             { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: form.toString() },
           );
           const upData: any = await upRes.json().catch(() => ({}));
           if (!upRes.ok) throw new Error(`adimages: ${JSON.stringify(upData?.error || upData)}`);
-          // Response shape: { images: { <filename>: { hash, url, ... } } }
           const imgs = upData?.images || {};
           imageHash = Object.values(imgs)[0] ? (Object.values(imgs)[0] as any).hash : null;
         }
@@ -5860,16 +5868,65 @@ registerFn('approveAndLaunchCampaignBrief', async ({ body }) => {
   return (functionHandlers as any).launchCampaignBrief({ body: { id, active: true } });
 });
 
-// Owner gives a goal once. Pipeline runs Copywriter → Visual Designer →
-// createCampaignBrief, packaging the copy variants + generated image into
-// a Brief that's ready to approve & launch. No per-step clicking.
+// Pull the most recent photos from the FB Page's linked Instagram Business
+// account. Returns an array of { id, media_url, permalink, caption, timestamp }.
+// Requires the System User token to carry the instagram_basic permission and
+// the FB Page to have an IG Business account connected (Page Settings → Linked
+// accounts → Instagram).
+async function fetchInstagramMedia(limit = 15): Promise<any[]> {
+  const token = await META_TOKEN();
+  if (!token) return [];
+  try {
+    const pages = await metaApi(`/me/accounts?fields=id,instagram_business_account&limit=10`);
+    const igAccountId = pages?.data?.find((p: any) => p?.instagram_business_account?.id)?.instagram_business_account?.id;
+    if (!igAccountId) return [];
+    const media = await metaApi(
+      `/${igAccountId}/media?fields=id,media_type,media_url,thumbnail_url,permalink,caption,timestamp&limit=${limit}`,
+    );
+    // Filter to IMAGE / CAROUSEL_ALBUM only — VIDEOs need a thumbnail.
+    return (media?.data || []).filter((m: any) => m.media_url && m.media_type !== 'VIDEO');
+  } catch {
+    return [];
+  }
+}
+
+registerFn('listInstagramMedia', async ({ body }) => {
+  const { limit } = (body || {}) as any;
+  const media = await fetchInstagramMedia(Math.min(Number(limit) || 15, 30));
+  return { media, count: media.length };
+});
+
+// Picks the most relevant IG photo for a given goal — uses an LLM to score
+// each photo's caption against the goal, picks the top one.
+async function pickBestInstagramPhoto(goal: string): Promise<{ url: string; permalink?: string; caption?: string } | null> {
+  const media = await fetchInstagramMedia(15);
+  if (!media.length) return null;
+  if (media.length === 1) return { url: media[0].media_url, permalink: media[0].permalink, caption: media[0].caption };
+  const picks = media.map((m: any, i: number) => ({ idx: i, caption: (m.caption || '').slice(0, 300), permalink: m.permalink }));
+  try {
+    const result: any = await invokeLLM({
+      prompt: `אתה בוחר את התמונה הטובה ביותר למודעת פרסום. היעד: "${goal}".\nלהלן כתוביות של ${picks.length} תמונות אינסטגרם. החזר JSON: { idx: <מספר אינדקס 0-${picks.length - 1} של התמונה הכי מתאימה>, why: "משפט קצר" }.\n\n${picks.map((p) => `${p.idx}: ${p.caption || '(ללא כיתוב)'}`).join('\n')}`,
+      responseSchema: { type: 'object', properties: { idx: { type: 'number' }, why: { type: 'string' } } },
+    });
+    const idx = Number(result?.idx);
+    if (Number.isFinite(idx) && idx >= 0 && idx < media.length) {
+      const m = media[idx];
+      return { url: m.media_url, permalink: m.permalink, caption: m.caption };
+    }
+  } catch {}
+  return { url: media[0].media_url, permalink: media[0].permalink, caption: media[0].caption };
+}
+
+// Owner gives a goal once. Pipeline runs Copywriter → (Instagram pick OR
+// Visual Designer) → createCampaignBrief, packaging the copy variants +
+// image into a Brief that's ready to approve & launch.
 registerFn('runFullPipeline', async ({ body }) => {
   await ensureAgentRunTable();
   await ensureCampaignBriefTable();
-  const { goal, channel = 'instagram', daily_budget_ils, landing_url } = (body || {}) as any;
+  const { goal, channel = 'instagram', daily_budget_ils, landing_url, image_source = 'instagram' } = (body || {}) as any;
   if (!goal || !String(goal).trim()) throw new Error('goal required');
 
-  const stages: any = { goal, started_at: new Date().toISOString() };
+  const stages: any = { goal, started_at: new Date().toISOString(), image_source };
   try {
     // 1. Copywriter
     const copyOut: any = await runCopywriter({ topic: goal, channel, length: 'short' });
@@ -5878,12 +5935,32 @@ registerFn('runFullPipeline', async ({ body }) => {
       data: { agent_type: 'copywriter', title: `Pipeline: ${goal.slice(0, 40)}`, status: 'completed', input: { topic: goal, channel }, output: copyOut, ran_at: new Date() },
     }).catch(() => {});
 
-    // 2. Visual Designer
-    const visualOut: any = await runVisualDesigner({ brief: goal });
-    stages.image_base64 = visualOut?.image_base64 || null;
-    await db.marketingAgentRun.create({
-      data: { agent_type: 'visual_designer', title: `Pipeline: ${goal.slice(0, 40)}`, status: 'completed', input: { brief: goal }, output: visualOut, ran_at: new Date() },
-    }).catch(() => {});
+    // 2. Image — prefer Instagram (authentic, on-brand), fall back to AI.
+    let imageBase64: string | null = null;
+    let imageUrl: string | null = null;
+    let imageOriginNote = '';
+    if (image_source === 'instagram' || image_source === 'auto') {
+      const igPick = await pickBestInstagramPhoto(goal);
+      if (igPick?.url) {
+        imageUrl = igPick.url;
+        imageOriginNote = `Instagram${igPick.permalink ? ` (${igPick.permalink})` : ''}`;
+      }
+    }
+    if (!imageUrl && image_source !== 'instagram_only') {
+      try {
+        const visualOut: any = await runVisualDesigner({ brief: goal });
+        imageBase64 = visualOut?.image_base64 || null;
+        imageOriginNote = imageOriginNote || 'AI (Imagen)';
+        await db.marketingAgentRun.create({
+          data: { agent_type: 'visual_designer', title: `Pipeline: ${goal.slice(0, 40)}`, status: 'completed', input: { brief: goal }, output: visualOut, ran_at: new Date() },
+        }).catch(() => {});
+      } catch (e: any) {
+        imageOriginNote = `image generation failed: ${String(e?.message || e).slice(0, 100)}`;
+      }
+    }
+    stages.image_base64 = imageBase64;
+    stages.image_url = imageUrl;
+    stages.image_origin = imageOriginNote;
 
     // 3. Brief
     const briefRes: any = await (functionHandlers as any).createCampaignBrief({
@@ -5891,6 +5968,7 @@ registerFn('runFullPipeline', async ({ body }) => {
         goal,
         copy_variants: stages.copy_variants,
         image_base64: stages.image_base64,
+        image_url: stages.image_url,
         audience_hint: `Pipeline run for: ${goal}`,
         daily_budget_ils,
         landing_url,
@@ -6304,6 +6382,35 @@ registerFn('applyShiftGeofenceMigration', async () => {
     }
   }
   return { results };
+}, { public: true });
+
+// Add legacy created_date / updated_date text columns to every table whose
+// Prisma model declares them. Prisma otherwise throws P2022 when reading a
+// declared column that doesn't exist in DB. Idempotent.
+registerFn('addLegacyDateColumns', async () => {
+  const { Prisma } = await import('@prisma/client');
+  const stmts: string[] = [];
+  for (const model of Prisma.dmmf.datamodel.models) {
+    const fields = new Set(model.fields.map((f) => f.name));
+    const table = (model as any).dbName || model.name;
+    if (fields.has('created_date')) stmts.push(`ALTER TABLE "${table}" ADD COLUMN IF NOT EXISTS "created_date" TEXT`);
+    if (fields.has('updated_date')) stmts.push(`ALTER TABLE "${table}" ADD COLUMN IF NOT EXISTS "updated_date" TEXT`);
+  }
+  const results: Array<{ stmt: string; ok: boolean; error?: string }> = [];
+  for (const stmt of stmts) {
+    try {
+      await (prisma as any).$executeRawUnsafe(stmt);
+      results.push({ stmt, ok: true });
+    } catch (e: any) {
+      results.push({ stmt, ok: false, error: String(e?.message || e) });
+    }
+  }
+  return {
+    total: results.length,
+    ok: results.filter((r) => r.ok).length,
+    failed: results.filter((r) => !r.ok).length,
+    failures: results.filter((r) => !r.ok).slice(0, 10),
+  };
 }, { public: true });
 
 // Broad triplet repair — introspects Prisma DMMF for every model declaring
