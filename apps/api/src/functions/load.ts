@@ -610,6 +610,74 @@ registerFn('chatJobApplication', async ({ body }) => {
   };
 
   let candidate_id: string | null = null;
+
+  // ── PARTIAL SAVE ─────────────────────────────────────────────────────
+  // As soon as we have phone OR (name+role), persist whatever we've
+  // collected so the candidate's details don't disappear if they close
+  // the tab before the chat finishes. Upserts by phone so re-entries on
+  // the same number update the existing row instead of duplicating.
+  const partialCollected = (result?.collected || {}) as any;
+  const partialPhone = partialCollected.phone ? String(partialCollected.phone).trim() : null;
+  const partialName = partialCollected.full_name || partialCollected.name || null;
+  let existingPartial: any = null;
+  if (partialPhone) {
+    existingPartial = await db.jobCandidate.findFirst({
+      where: { phone: partialPhone },
+      orderBy: { id: 'desc' },
+    }).catch(() => null);
+    if (existingPartial) candidate_id = existingPartial.id;
+  }
+  if (!result?.complete && (partialPhone || (partialName && partialCollected.role_applied))) {
+    const partialData: any = {
+      full_name: partialName || 'מועמד בתהליך',
+      age: parseInt2(partialCollected.age),
+      phone: partialPhone,
+      city: partialCollected.city || null,
+      role_applied: partialCollected.role_applied || null,
+      experience: partialCollected.experience || null,
+      shifts_per_week: parseInt2(partialCollected.shifts_per_week),
+      weekend_availability:
+        typeof partialCollected.weekend_availability === 'boolean'
+          ? partialCollected.weekend_availability
+          : (partialCollected.weekend_availability ? parseBool(partialCollected.weekend_availability) : null),
+      start_date: partialCollected.start_date || null,
+      status: 'pending',
+      source: candidateSource,
+    };
+    // Drop null/undefined keys so update doesn't overwrite existing values with null
+    const cleaned: any = {};
+    for (const [k, v] of Object.entries(partialData)) {
+      if (v != null && v !== '' && v !== undefined) cleaned[k] = v;
+    }
+    const partialTranscript = [
+      ...turns,
+      ...(message ? [{ role: 'user', content: String(message) }] : []),
+      ...(result?.reply ? [{ role: 'assistant', content: String(result.reply) }] : []),
+    ];
+    try {
+      if (existingPartial) {
+        await db.jobCandidate.update({
+          where: { id: existingPartial.id },
+          data: { ...cleaned, transcript: partialTranscript, updated_date: new Date().toISOString() },
+        });
+      } else {
+        const created = await db.jobCandidate.create({
+          data: {
+            ...cleaned,
+            transcript: partialTranscript,
+            created_date: new Date().toISOString(),
+            updated_date: new Date().toISOString(),
+          },
+        });
+        candidate_id = created.id;
+        fireTriggers('JobCandidate', 'created', created).catch(() => {});
+      }
+    } catch (e: any) {
+      console.warn('[chatJobApplication partial-save] failed', e?.message);
+    }
+  }
+  // ── END PARTIAL SAVE ────────────────────────────────────────────────
+
   if (result?.complete) {
     const rejected = !!result.rejected;
     let score = typeof result.score === 'number' ? Math.round(result.score) : null;
@@ -757,8 +825,18 @@ registerFn('chatJobApplication', async ({ body }) => {
     };
 
     let cand: any = null;
+    // If the partial save already created/found a record for this phone,
+    // UPDATE that one instead of creating a duplicate.
+    const reuseId = candidate_id || existingPartial?.id || null;
     try {
-      cand = await db.jobCandidate.create({ data: { ...baseData, ...optionalKashrut, ...optionalTranscript } });
+      if (reuseId) {
+        cand = await db.jobCandidate.update({
+          where: { id: reuseId },
+          data: { ...baseData, ...optionalKashrut, ...optionalTranscript },
+        });
+      } else {
+        cand = await db.jobCandidate.create({ data: { ...baseData, ...optionalKashrut, ...optionalTranscript } });
+      }
     } catch (e: any) {
       const msg = String(e?.message || '');
       // Most common cause: db push hasn't added a newly added column yet
@@ -766,8 +844,11 @@ registerFn('chatJobApplication', async ({ body }) => {
       // candidate still lands in the dashboard.
       if (msg.toLowerCase().includes('kashrut') || msg.toLowerCase().includes('transcript') || /unknown (arg|column)/i.test(msg)) {
         console.warn('[jobCandidate.create] retrying without optional fields:', msg);
-        try { cand = await db.jobCandidate.create({ data: baseData }); }
-        catch (e2: any) { console.error('[jobCandidate.create] retry also failed:', e2?.message); }
+        try {
+          cand = reuseId
+            ? await db.jobCandidate.update({ where: { id: reuseId }, data: baseData })
+            : await db.jobCandidate.create({ data: baseData });
+        } catch (e2: any) { console.error('[jobCandidate.create] retry also failed:', e2?.message); }
       } else {
         console.error('[jobCandidate.create] failed:', msg);
       }
