@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
 import { invokePublic } from '@/lib/publicFetch';
+import LanguagePicker from '@/components/shared/LanguagePicker';
 
 const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY || '';
 
@@ -933,6 +934,7 @@ function QueueJoinInner() {
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-start pt-8 p-4" style={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%)' }} dir="rtl">
+    <div className="absolute top-3 left-3"><LanguagePicker /></div>
     {/* לוגו */}
     <div className="text-center mb-8">
       <div className="text-5xl mb-2 drop-shadow-lg">🍽️</div>

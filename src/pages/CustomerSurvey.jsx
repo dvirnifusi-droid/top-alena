@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import LanguagePicker from '@/components/shared/LanguagePicker';
 import { TableSession } from '@/entities/TableSession';
 import { ManualSurvey } from '@/entities/ManualSurvey';
 import { CustomerFeedback } from '@/entities/CustomerFeedback';
@@ -371,7 +372,8 @@ export default function CustomerSurveyPage() {
     const customerName = session?.customer_name || manualSurvey?.customer_name || (tableNumber && tableNumber !== 'general' ? `אורח בשולחן ${tableNumber}` : 'אורח יקר');
 
     return (
-        <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-green-50 to-emerald-100 p-4" dir="rtl">
+        <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-green-50 to-emerald-100 p-4 relative" dir="rtl">
+            <div className="absolute top-3 left-3"><LanguagePicker /></div>
             <Card className="w-full max-w-2xl shadow-xl border-0 bg-white/90 backdrop-blur-sm">
                 {step === 'rating' && (
                     <>
