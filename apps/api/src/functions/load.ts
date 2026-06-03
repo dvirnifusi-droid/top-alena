@@ -7,7 +7,7 @@
 import { prisma } from '../db.js';
 import { registerFn, functionHandlers } from './index.js';
 import { sendSms, sendWhatsApp } from '../lib/twilio.js';
-import { pushover, pushoverToAdmins } from '../lib/pushover.js';
+import { pushover, pushoverToAdmins, pushoverEventsOwners } from '../lib/pushover.js';
 import { sendTelegramMessage } from '../lib/telegram.js';
 import { sendEmail } from '../lib/email.js';
 import { invokeLLM, generateImage } from '../lib/llm.js';
@@ -3354,29 +3354,8 @@ registerFn('runCeoDailyBrief', async ({ body }) => {
  * a pushover_user_key, plus every User with role='admin' that has a
  * matching employee row. Logs results so we can see what happened.
  */
-async function pushoverEventsOwners(title: string, message: string) {
-  try {
-    const emps = await (prisma as any).employee.findMany({ where: { pushover_user_key: { not: null } } });
-    let sent = 0;
-    for (const emp of emps) {
-      if (!emp.pushover_user_key) continue;
-      try {
-        await pushover(emp.pushover_user_key, title, message, 1);
-        sent++;
-      } catch (err: any) {
-        console.error('[events-pushover] send failed for', emp.email, err?.message);
-      }
-    }
-    console.log(`[events-pushover] "${title}" sent to ${sent}/${emps.length} employees`);
-    if (sent === 0) {
-      console.warn('[events-pushover] no recipients — check Employee.pushover_user_key + PUSHOVER_APP_TOKEN env');
-    }
-    return { sent, total: emps.length };
-  } catch (e: any) {
-    console.error('[events-pushover] dispatcher failed', e?.message);
-    return { sent: 0, total: 0, error: e?.message };
-  }
-}
+// pushoverEventsOwners now imported from lib/pushover (moved so triggers
+// can use it too without a circular import).
 
 // Public diagnostics dump — call this from anywhere to see exactly what's wrong
 // without needing auth. Returns infrastructure state + recent records.
@@ -6493,28 +6472,92 @@ registerFn('testEveryPushTemplate', async ({ user }) => {
       `⏱️ טיפ לשעה: ${fmt(82)}`,
     ].join('\n'),
   );
-  // 2. Incident
-  await fire('incident', '🚨 תקרית חדשה: לקוח התלונן על אוכל קר [בדיקה]', `קטגוריה: service\nחומרה: medium\nתאריך: ${dateStr}`);
-  // 3. Checklist completed
-  await fire('checklist_completed', '✅ צ\'קליסט הושלם [בדיקה]', 'צ\'ק ליסט סגירת בר · יהלי דסקלו');
-  // 4. Shift end report
-  await fire('shift_end_report', '📋 דוח סיום משמרת [בדיקה]', `${dateStr} · ערב · מנהל: דביר ניפוסי\nהכנסות: ${fmt(8540)}`);
-  // 5. Availability submission
-  await fire('availability', '📅 הגשת זמינות [בדיקה]', `הילה מאסיל · ${dateStr} · partial`);
-  // 6. Clock-in
-  await fire('clock_in', '⏰ כניסה למשמרת [בדיקה]', 'דביר ניפוסי · שעת כניסה: 17:00');
-  // 7. Overtime
-  await fire('overtime', '⚠️ חריגה בשעות משמרת [בדיקה]', 'אוהד פלד · סה"כ 11.2 שעות');
-  // 8. Brief published
-  await fire('brief_published', '📢 תדריך פורסם [בדיקה]', 'תדריך ערב');
-  // 9. Shift swap request
-  await fire('swap_request', '🔄 בקשת החלפת משמרת [בדיקה]', `רותם שרעבי מבקש/ת להחליף משמרת בתאריך ${dateStr}`);
-  // 10. Leave request
-  await fire('leave_request', '🌴 בקשת חופשה חדשה [בדיקה]', `יפית גולדין · 10/06/2026 → 12/06/2026\nסיבה: חתונה במשפחה`);
-  // 11. Leave status update
-  await fire('leave_status', '🌴 עדכון סטטוס חופשה [בדיקה]', 'יפית גולדין · אושרה ✓');
-  // 12. Geofence auto-close
-  await fire('geofence_auto_close', '🚪 משמרת נסגרה אוטומטית [בדיקה]', 'דביר ניפוסי התרחק 500m+ מהעסק. נסגרה ב-17:35.');
+  // 2. Incident — full detail
+  await fire('incident', '🚨 תקרית חדשה: לקוח התלונן על אוכל קר [בדיקה]',
+    [`🔢 INC-2026-0042`,
+     `🏷️ קטגוריה: service`,
+     `⚠️ חומרה: בינונית 🟡`,
+     `📅 ${dateStr} 19:42`,
+     `📍 שולחן 15`,
+     `👤 דווח ע"י: יהלי דסקלו`,
+     `👮 הופנה ל: דביר ניפוסי`,
+     `🗣️ תגובת לקוח: ביקש החזר חלקי`,
+     `💰 עלות מוערכת: ${fmt(120)}`,
+     `📝 סטייק מדיום שהוגש קר. הוחזר למטבח לחימום ולקוח קיבל מנת לוואי על חשבון הבית.`,
+     `🔔 דורש מעקב`].join('\n'));
+  // 4. Shift end report — full
+  await fire('shift_end_report', '📋 דוח סיום משמרת — ערב 🌙 ' + dateStr + ' [בדיקה]',
+    [`📅 ${dateStr} · ערב 🌙`,
+     `👤 מנהל: דביר ניפוסי`,
+     `🕐 17:00-23:30`,
+     `💰 הכנסות: ${fmt(8540)}`,
+     `💳 אשראי: ${fmt(6820)}`,
+     `💵 מזומן: ${fmt(1720)}`,
+     `🪙 טיפים באשראי: ${fmt(840)}`,
+     `⏱️ טיפ לשעה למלצר: ${fmt(78)}`,
+     `👥 סועדים: 62 (ממוצע ${fmt(138)})`,
+     `🥡 טייק-אווי: ${fmt(420)}`,
+     `❌ ביטולים: 1 (${fmt(85)})`,
+     `🎫 הנחות: ${fmt(140)}`,
+     `⭐ דירוג כללי: 4/5`,
+     `📄 Z: Z-2026-156`].join('\n'));
+  // 5. Availability submission — full
+  await fire('availability', '📅 הגשת זמינות — הילה מאסיל [בדיקה]',
+    [`👤 הילה מאסיל`,
+     `📅 ${dateStr}`,
+     `סטטוס: ⏰ פנוי/ה חלקית`,
+     `🕐 משמרת מועדפת: ערב`,
+     `⏱️ שעות: 17:00-22:00`,
+     `🏢 מחלקה: פלור`,
+     `🎯 תפקידים: מלצר, ראנר`,
+     `📝 צריכה לצאת מוקדם בגלל לימודים בערב`].join('\n'));
+  // 6. Clock-in — full
+  await fire('clock_in', '⏰ כניסה למשמרת — דביר ניפוסי [בדיקה]',
+    [`👤 דביר ניפוסי`,
+     `🕐 שעת כניסה: 17:00`,
+     `📅 ${dateStr} · ערב 🌙`,
+     `📍 31.9645, 34.7931`].join('\n'));
+  // 7. Overtime — full
+  await fire('overtime', '⚠️ חריגה בשעות משמרת — אוהד פלד [בדיקה]',
+    [`👤 אוהד פלד`,
+     `⏱️ סה"כ 11.2 שעות עבודה`,
+     `✨ אפקטיביות: 10.7 שעות`,
+     `☕ הפסקות: 30 דק'`,
+     `🕐 התחיל ב-12:00`,
+     `🍽️ אכל: שניצל וצ'יפס`].join('\n'));
+  // 8. Brief published — full
+  await fire('brief_published', '📢 תדריך פורסם — ערב 🌙 ' + dateStr + ' [בדיקה]',
+    [`📅 ${dateStr} · ערב 🌙`,
+     `👤 מנהל: דביר ניפוסי`,
+     `💰 דגש מכירה: דחיפת קוקטייל החתימה החדש "ספריצי עלינא" — יעד 25 מנות`,
+     `🛎️ דגש שירות: הצגת התפריט תוך 90 שניות מההושבה`,
+     `🏭 דגש תפעולי: בדיקת חימום פיתות לפני 19:00`,
+     `🎯 סיפור היום: שף נריה עיצב מנת ערב מיוחדת — לדבר עליה`].join('\n'));
+  // 9. Shift swap request — full
+  await fire('swap_request', '🔄 בקשת החלפת משמרת [בדיקה]',
+    [`👤 רותם שרעבי ↔️ הילה מאסיל`,
+     `📅 ${dateStr} · ערב 🌙`,
+     `🎯 תפקיד: מלצרית`,
+     `🕐 17:00-23:00`,
+     `📝 חופשה מתוכננת בסופ"ש, מבקשת לעבור עם הילה`].join('\n'));
+  // 10. Leave request — full
+  await fire('leave_request', '🌴 בקשת חופשה חדשה — יפית גולדין [בדיקה]',
+    [`👤 יפית גולדין`,
+     `🌴 סוג: vacation`,
+     `📅 10/06/2026 → 12/06/2026 (3 ימים)`,
+     `📝 סיבה: חתונה במשפחה — אחותי`].join('\n'));
+  // 11. Leave status update — full
+  await fire('leave_status', '🌴 עדכון סטטוס חופשה [בדיקה]',
+    [`👤 יפית גולדין`,
+     `🌴 vacation · 10/06/2026 → 12/06/2026`,
+     `סטטוס: אושרה ✓`,
+     `📝 מאשר. תארגן החלפה עם הילה מאסיל לסופ"ש`].join('\n'));
+  // 12. Geofence auto-close — full
+  await fire('geofence_auto_close', '🚪 משמרת נסגרה אוטומטית — דביר ניפוסי [בדיקה]',
+    [`👤 דביר ניפוסי`,
+     `📅 ${dateStr} · 17:00-19:35`,
+     `📍 סיבה: left_geofence`,
+     `⏱️ סה"כ 2.6 שעות`].join('\n'));
   // 13. Events: new lead
   await fireEvents('events_new_lead', '✨ ליד אירוע חדש — שיחה פעילה [בדיקה]', `👤 גל · 0532181900\n📅 ${dateStr}\n🎉 יום הולדת\n👥 28 אורחים\n💰 ₪220/סועד\n📥 מקור: web_chat`);
   // 14. Events: abandoned lead
@@ -6541,6 +6584,21 @@ registerFn('testEveryPushTemplate', async ({ user }) => {
   await fire('checklist_issues', '⚠️ צ\'קליסט הושלם עם בעיות [בדיקה]', `צ\'ק ליסט פתיחת מטבח · אוהד פלד\n12 עברו · 2 נכשלו · ⚠️ 2 בעיות\n• מקרר 2 — טמפרטורה גבוהה (8°C)\n• כיריים — אזעקה לא עובדת`);
   // 25. Restroom check reminder (parallel to the webpush flow, sent to admins)
   await fire('restroom_reminder', '🚽 בדיקת שירותים [בדיקה]', `הגיעה השעה לבדוק שירותים. סמן בדיקה באפליקציה (אפשר עם תמונה).`);
+  // 26. EventBooking created (initial record)
+  await fireEvents('event_booking_created', '📋 הזמנת אירוע נוצרה — אביבה כהן [בדיקה]',
+    [`👤 אביבה כהן · 0541234567`,
+     `📅 15/07/2026 · 🕐 19:30`,
+     `👥 35 אורחים`,
+     `💰 סה"כ: ${fmt(9100)}`,
+     `💳 מקדמה: ${fmt(1820)}`,
+     `📥 מקור: web_chat`].join('\n'));
+  // 27. EventBooking rejected
+  await fireEvents('event_rejected', '❌ אירוע נדחה ע"י מנהל [בדיקה]',
+    [`👤 מאי כהן · 0509876543`,
+     `📅 04/06/2026 · 🕐 20:00`,
+     `👥 80 אורחים`,
+     `💰 סה"כ: ${fmt(28000)}`,
+     `📝 סיבה: התאריך כבר תפוס לחתונה אחרת`].join('\n'));
 
   return { total: sent.length, ok: sent.filter((s) => s.ok).length, failed: sent.filter((s) => !s.ok), report: sent };
 });
