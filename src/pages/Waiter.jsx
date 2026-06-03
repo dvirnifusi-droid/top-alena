@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { invokePublic } from '@/lib/publicFetch';
 import { Send, Sparkles, CheckCircle2, AlertCircle, Utensils } from 'lucide-react';
+import LanguagePicker from '@/components/shared/LanguagePicker';
+import { useI18n, LANG_NAMES_FOR_LLM } from '@/lib/i18n';
 
 // Progressive "thinking" indicator. The first 3s feel snappy with "מקליד…",
 // past 3s we rotate reassuring messages so 13s doesn't feel like a stall.
@@ -61,6 +63,7 @@ function readOrCreateSessionId() {
 export default function Waiter() {
   const [tableHint] = useState(readTableHint);
   const [sessionId] = useState(readOrCreateSessionId);
+  const [, lang] = useI18n();
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
@@ -78,6 +81,7 @@ export default function Waiter() {
     try {
       const res = await invokePublic('chatWaiter', {
         session_id: sessionId, table_hint: tableHint, history, message: text,
+        language: LANG_NAMES_FOR_LLM[lang] || 'Hebrew',
       });
       setMessages([...history, { role: 'assistant', content: res?.reply || '...' }]);
       if (Array.isArray(res?.recommended_items) && res.recommended_items.length) {
@@ -92,14 +96,16 @@ export default function Waiter() {
   };
 
   // Instant hardcoded welcome — no LLM round-trip — so the customer sees a friendly
-  // message the second the page loads. The first user reply triggers the real model.
+  // message the second the page loads. Localized per UI language.
   useEffect(() => {
-    setMessages([{
-      role: 'assistant',
-      content: 'ברוכים הבאים לעלינא 🌿 אני המלצר הדיגיטלי שלכם. אעזור לכם לבנות ארוחה מושלמת — סלטים, מנות חלוקה בשריות, ירקות מהגוספר, אלכוהול ועוד. כדי להתחיל — כמה אתם הערב?',
-    }]);
+    const welcome = {
+      he: 'ברוכים הבאים לעלינא 🌿 אני המלצר הדיגיטלי שלכם. אעזור לכם לבנות ארוחה מושלמת — סלטים, מנות חלוקה בשריות, ירקות מהגוספר, אלכוהול ועוד. כדי להתחיל — כמה אתם הערב?',
+      en: 'Welcome to Alina 🌿 I\'m your digital waiter. I\'ll help you build a perfect meal — salads, shareable mains, grilled vegetables, drinks and more. To start — how many of you are dining tonight?',
+      ru: 'Добро пожаловать в Алина 🌿 Я ваш цифровой официант. Помогу составить идеальный ужин — салаты, основные блюда для компании, овощи на гриле, напитки и многое другое. Для начала — сколько вас сегодня?',
+    };
+    setMessages([{ role: 'assistant', content: welcome[lang] || welcome.he }]);
     /* eslint-disable-next-line */
-  }, []);
+  }, [lang]);
   useEffect(() => {
     const el = scrollRef.current;
     if (el) el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
@@ -113,17 +119,24 @@ export default function Waiter() {
   };
   const onKey = (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } };
 
+  const isRtl = lang === 'he';
+  const header = {
+    he: { title: 'עלינא — ראש מלצרים', sub: 'בנו את הארוחה לפי הטעם שלכם' },
+    en: { title: 'Alina — Digital Waiter', sub: 'Build your meal your way' },
+    ru: { title: 'Алина — Цифровой официант', sub: 'Соберите ужин по своему вкусу' },
+  }[lang] || { title: 'עלינא — ראש מלצרים', sub: 'בנו את הארוחה לפי הטעם שלכם' };
   return (
-    <div className="min-h-screen bg-gradient-to-br from-amber-50 via-orange-50 to-amber-100 flex flex-col" dir="rtl">
+    <div className="min-h-screen bg-gradient-to-br from-amber-50 via-orange-50 to-amber-100 flex flex-col" dir={isRtl ? 'rtl' : 'ltr'}>
       <header className="bg-white/90 backdrop-blur border-b border-amber-200 p-4 sticky top-0 z-10">
         <div className="max-w-2xl mx-auto flex items-center gap-3">
           <div className="w-10 h-10 bg-gradient-to-br from-amber-600 to-orange-600 rounded-full flex items-center justify-center">
             <Utensils className="w-5 h-5 text-white" />
           </div>
           <div className="flex-1">
-            <h1 className="text-lg font-bold text-amber-900">עלינא — ראש מלצרים</h1>
-            <p className="text-xs text-amber-700">בנו את הארוחה לפי הטעם שלכם {tableHint ? `· שולחן ${tableHint}` : ''}</p>
+            <h1 className="text-lg font-bold text-amber-900">{header.title}</h1>
+            <p className="text-xs text-amber-700">{header.sub} {tableHint ? `· ${isRtl ? 'שולחן' : 'Table'} ${tableHint}` : ''}</p>
           </div>
+          <LanguagePicker />
         </div>
       </header>
 

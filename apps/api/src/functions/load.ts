@@ -4930,8 +4930,13 @@ registerFn('saveWaiterKit', async ({ body, user }) => {
 // no timeoutMs, no retry, no compact-menu trickery. Just: load kit → build prompt with
 // JSON menu → invokeLLM → save WaiterOrder → return reply. Same signature events uses.
 registerFn('chatWaiter', async ({ body }) => {
-  const { session_id, table_hint, history, message } = body as any;
+  const { session_id, table_hint, history, message, language: languageRaw } = body as any;
   if (!session_id) throw new Error('session_id required');
+  const language = (() => {
+    const allowed = ['Hebrew', 'English', 'Russian'];
+    const raw = typeof languageRaw === 'string' ? languageRaw.trim() : '';
+    return allowed.includes(raw) ? raw : 'Hebrew';
+  })();
 
   // Load the kit (creates on first call). Same shape as before — no migrations needed.
   let kit = await (prisma as any).waiterKit.findFirst({ where: { singleton: true } });
@@ -4963,7 +4968,11 @@ registerFn('chatWaiter', async ({ body }) => {
     `--- GENERAL_INFO ---\n${JSON.stringify(kit.general_info || {}, null, 0)}\n` +
     `--- TARGET: 4-5 מנות לזוג (3-4 חלוקה + 0-2 בצלחת) ---\n`;
 
-  const prompt = `${systemPrompt}${kitContext}\n--- שיחה עד כה ---\n${transcript || '(תחילת השיחה — קבל את הלקוח בברכה חמה ושאל כמה הם)'}${newPart}\n\nהחזר JSON בלבד.`;
+  const langDirective = language === 'Hebrew'
+    ? ''
+    : `\n\n--- LANGUAGE DIRECTIVE ---\nThe customer is ordering in ${language}. Your "reply" field MUST be written in ${language}, idiomatic and warm. The menu (item names, descriptions) MAY stay in Hebrew — that's expected and normal for a Hebrew restaurant — but explain dishes in ${language} when introducing them. recommended_items field stays as-is (real menu item ids).`;
+
+  const prompt = `${systemPrompt}${kitContext}${langDirective}\n--- שיחה עד כה ---\n${transcript || '(תחילת השיחה — קבל את הלקוח בברכה חמה ושאל כמה הם)'}${newPart}\n\nהחזר JSON בלבד.`;
 
   // Best-effort LLM call with aggressive resilience:
   //   1. Try Anthropic Claude Haiku (fastest + most reliable). If no API key OR it fails — fallback.
