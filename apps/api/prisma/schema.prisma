@@ -916,6 +916,8 @@ model JobCandidate {
   kashrut_capable              Boolean?
   kashrut_required             Boolean?
   transcript                   Json?
+  // Stable per-browser id so partial chats stay linked even before phone is captured.
+  lead_id                      String?
   createdBy  String?
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt

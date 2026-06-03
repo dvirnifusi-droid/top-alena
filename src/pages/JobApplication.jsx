@@ -10,8 +10,23 @@ function readUtmSource() {
   } catch { return null; }
 }
 
+// Stable per-browser lead id so an abandoned chat can be matched to the same
+// candidate row even if the user closes the tab and reopens /apply later.
+// Stored in localStorage; new id created on first visit and reused thereafter.
+function getOrCreateLeadId() {
+  try {
+    let id = localStorage.getItem('apply_lead_id');
+    if (!id) {
+      id = 'lead_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 10);
+      localStorage.setItem('apply_lead_id', id);
+    }
+    return id;
+  } catch { return 'lead_anon_' + Math.random().toString(36).slice(2, 12); }
+}
+
 export default function JobApplication() {
   const [utmSource] = useState(readUtmSource);
+  const [leadId] = useState(getOrCreateLeadId);
   const [messages, setMessages] = useState([]); // {role, content}
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
@@ -54,7 +69,7 @@ export default function JobApplication() {
     const history = text ? [...messages, { role: 'user', content: text }] : messages;
     if (text) setMessages(history);
     try {
-      const res = await invokePublic('chatJobApplication', { history, message: text, source: utmSource });
+      const res = await invokePublic('chatJobApplication', { history, message: text, source: utmSource, lead_id: leadId });
       setMessages([...history, { role: 'assistant', content: res?.reply || '...' }]);
       if (res?.complete) {
         setDone(true);

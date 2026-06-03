@@ -552,7 +552,8 @@ registerFn('marketingAdvisorChat', async ({ body }) => {
 });
 
 registerFn('chatJobApplication', async ({ body }) => {
-  const { history, message, source } = body as any;
+  const { history, message, source, lead_id: leadIdRaw } = body as any;
+  const leadId = typeof leadIdRaw === 'string' && leadIdRaw.trim() ? leadIdRaw.trim().slice(0, 80) : null;
   // Normalize utm_source to a short token we save on the candidate.
   const candidateSource =
     typeof source === 'string' && source.trim()
@@ -620,14 +621,23 @@ registerFn('chatJobApplication', async ({ body }) => {
   const partialPhone = partialCollected.phone ? String(partialCollected.phone).trim() : null;
   const partialName = partialCollected.full_name || partialCollected.name || null;
   let existingPartial: any = null;
-  if (partialPhone) {
+  // Try matching by lead_id FIRST (browser-stable id, works even before phone)
+  if (leadId) {
+    existingPartial = await db.jobCandidate.findFirst({
+      where: { lead_id: leadId },
+      orderBy: { id: 'desc' },
+    }).catch(() => null);
+  }
+  // Fall back to phone (legacy entry points, returning candidates on a new browser)
+  if (!existingPartial && partialPhone) {
     existingPartial = await db.jobCandidate.findFirst({
       where: { phone: partialPhone },
       orderBy: { id: 'desc' },
     }).catch(() => null);
-    if (existingPartial) candidate_id = existingPartial.id;
   }
-  if (!result?.complete && (partialPhone || (partialName && partialCollected.role_applied))) {
+  if (existingPartial) candidate_id = existingPartial.id;
+  // Save the moment we have ANY identifier: lead_id, phone, or name+role.
+  if (!result?.complete && (leadId || partialPhone || (partialName && partialCollected.role_applied))) {
     const partialData: any = {
       full_name: partialName || 'מועמד בתהליך',
       age: parseInt2(partialCollected.age),
@@ -643,6 +653,7 @@ registerFn('chatJobApplication', async ({ body }) => {
       start_date: partialCollected.start_date || null,
       status: 'pending',
       source: candidateSource,
+      lead_id: leadId,
     };
     // Drop null/undefined keys so update doesn't overwrite existing values with null
     const cleaned: any = {};
@@ -700,6 +711,8 @@ registerFn('chatJobApplication', async ({ body }) => {
           `אם פרט לא נאמר במפורש — החזר null. שמור טלפון בדיוק כפי שנאמר (כולל מקפים אם היו).\n` +
           `weekend_availability=true אם המועמד אמר שהוא זמין לסופ"ש (אפילו חלקית), false אם אמר שאינו זמין.\n` +
           `kashrut_capable: אם נשאלה השאלה על דיני בישול גויים — true אם ענה כן, false אם ענה לא, null אם לא נשאל או לא ברור.\n` +
+          `notes: רק ציטוטים קונקרטיים שהמועמד אמר שראויים להסבה ספציפית למנהל (למשל "מבקש לעבוד רק עד 22:00", "חבר של עובד X").\n` +
+          `אם אין משהו ספציפי שכדאי להעביר — החזר null. אסור להמציא או לנחש. אסור לכתוב מילים כמו "test" אם המועמד לא אמר אותן בעצמו.\n` +
           `ai_summary: סיכום 2-3 משפטים על המועמד למנהל (חוזקות, חולשות, התרשמות כללית).\n\n` +
           `--- תמלול ---\n${fullTranscript}\n--- סוף ---\n\nהחזר JSON בלבד.`,
         responseSchema: {
@@ -1281,6 +1294,25 @@ registerFn('copyShiftsFromLastWeek', async ({ body, user }) => {
   }
   return { created: created.length, skipped: skipped.length, details: { created, skipped } };
 });
+
+// Ensure JobCandidate.lead_id exists. Needed for incremental save of partial
+// chats — see chatJobApplication. Run once after deploy.
+registerFn('ensureLeadIdColumn', async () => {
+  const stmts = [
+    `ALTER TABLE "JobCandidate" ADD COLUMN IF NOT EXISTS "lead_id" TEXT`,
+    `CREATE INDEX IF NOT EXISTS "JobCandidate_lead_id_idx" ON "JobCandidate" ("lead_id")`,
+  ];
+  const results: any[] = [];
+  for (const stmt of stmts) {
+    try {
+      await (prisma as any).$executeRawUnsafe(stmt);
+      results.push({ stmt, ok: true });
+    } catch (e: any) {
+      results.push({ stmt, ok: false, error: String(e?.message || e) });
+    }
+  }
+  return { results };
+}, { public: true });
 
 // Ensure the recruitment knob columns exist on RestaurantProfile. Schema
 // declared them; this guarantees the DB matches before Prisma client reads.
