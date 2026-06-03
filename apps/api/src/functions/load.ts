@@ -581,7 +581,7 @@ registerFn('chatJobApplication', async ({ body }) => {
   const prompt = `${RECRUITMENT_SYSTEM_PROMPT}${kashrutClause}\n\n--- שיחה עד כה ---\n${transcript || '(אין עדיין הודעות — זו תחילת השיחה)'}${newPart}\n\nהחזר את התגובה הבאה כ-JSON בלבד.`;
 
   const result: any = await invokeLLM({
-    prompt,
+    prompt: prompt + `\n\nחובה: ברגע ש-complete=true (גם אם rejected=true), חובה להחזיר score כ-מספר 0-100. אסור להחזיר null או להשאיר את השדה ריק.`,
     responseSchema: {
       type: 'object',
       properties: {
@@ -779,6 +779,31 @@ registerFn('chatJobApplication', async ({ body }) => {
       city: extracted.city || c.city || null,
       notes: extracted.notes || c.notes || null,
     };
+
+    // Score fallback: if LLM forgot to return a score on a non-rejected
+    // complete chat, compute a simple heuristic so the candidate doesn't get
+    // stuck in pending+null limbo (which masquerades as "abandoned" + blocks
+    // the interview-slot booking flow which requires score >= 80).
+    if (!rejected && (score == null || Number.isNaN(score))) {
+      const hasPhone = !!d.phone;
+      const hasRole = !!d.role_applied;
+      const hasExp = !!d.experience;
+      const expYears = (() => {
+        const m = /(\d+)\s*שנ/.exec(String(d.experience || ''));
+        return m ? parseInt(m[1]) : 0;
+      })();
+      if (hasPhone && hasRole) {
+        let s = 70; // base — they completed the chat with phone+role
+        if (hasExp) s += 5;
+        if (expYears >= 2) s += 5;
+        if (expYears >= 5) s += 5;
+        if (d.weekend_availability) s += 5;
+        if (d.shifts_per_week && d.shifts_per_week >= 4) s += 5;
+        score = Math.min(s, 95);
+      } else {
+        score = hasPhone ? 50 : 30;
+      }
+    }
 
     // Server-side completion guard: Gemini sometimes marks complete=true and
     // emits a score before all required fields are actually in the transcript.
