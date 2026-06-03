@@ -7,6 +7,7 @@ import review from "./review";
 import blogPost from "./blogPost";
 import landingPage from "./landingPage";
 import banner from "./banner";
+import galleryImage from "./galleryImage";
 
 export const schemaTypes = [
   siteSettings,
@@ -18,4 +19,5 @@ export const schemaTypes = [
   blogPost,
   landingPage,
   banner,
+  galleryImage,
 ];

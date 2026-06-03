@@ -29,3 +29,11 @@ export const landingBySlugQuery = groq`*[_type == "landingPage" && slug.current 
 export const allLandingSlugsQuery = groq`*[_type == "landingPage"].slug.current`;
 
 export const activeBannerQuery = groq`*[_type == "banner" && active == true] | order(priority desc)[0]`;
+
+export const galleryQuery = groq`*[_type == "galleryImage"] | order(order asc, _createdAt desc){
+  _id, image, alt, category, instagramUrl, featured
+}`;
+
+export const featuredGalleryQuery = groq`*[_type == "galleryImage" && featured == true] | order(order asc)[0...12]{
+  _id, image, alt, instagramUrl
+}`;
