@@ -998,7 +998,63 @@ registerFn('getRecruitmentInbox', async () => {
     next_menu_exam: latestExamByCand[t.id] || null,
   }));
 
-  return { upcoming, recent, toCallBack, topUnscheduled, trainees: traineesEnriched };
+  // Rejected candidates — LLM decided not to pursue. Keep visible so the
+  // owner can audit AI decisions and recover false negatives.
+  const rejected = await db.jobCandidate.findMany({
+    where: { status: 'rejected' },
+    orderBy: { id: 'desc' },
+    take: 100,
+  });
+
+  // Abandoned: started the chat but never completed screening.
+  // Heuristic: status=pending, no score (chat never finalized).
+  const abandoned = await db.jobCandidate.findMany({
+    where: { status: 'pending', score: null },
+    orderBy: { id: 'desc' },
+    take: 100,
+  });
+
+  // Tag each abandoned record with the stage they dropped at, by walking
+  // the fields the chat collects in order.
+  const stageOf = (c: any): string => {
+    if (!c.phone) return 'phone';                       // never gave phone
+    if (!c.role_applied) return 'role';                 // never picked role
+    if (!c.experience) return 'experience';
+    if (c.shifts_per_week == null) return 'shifts';
+    if (c.weekend_availability == null) return 'weekend';
+    if (!c.start_date) return 'start_date';
+    return 'final_review';                              // got to end but never finalized
+  };
+  const abandonedEnriched = abandoned.map((c: any) => ({
+    ...c,
+    abandoned_stage: stageOf(c),
+    transcript_turns: Array.isArray(c.transcript) ? c.transcript.length : 0,
+  }));
+
+  // Funnel — count candidates at each stage of the application pipeline.
+  // Uses the same 100-row sample as above plus a total count for accuracy.
+  const totalCount = await db.jobCandidate.count();
+  const allRecent = await db.jobCandidate.findMany({ take: 500, orderBy: { id: 'desc' } });
+  const funnel = {
+    started: allRecent.length,                                                                    // chat opened
+    gave_phone: allRecent.filter((c: any) => c.phone).length,                                     // step 1
+    gave_role: allRecent.filter((c: any) => c.role_applied).length,                               // step 2
+    completed_screening: allRecent.filter((c: any) => c.score != null || c.status === 'rejected').length, // step 3
+    approved: allRecent.filter((c: any) => c.status === 'pending' && (c.score ?? 0) >= 80).length,
+    interview_scheduled: allRecent.filter((c: any) => c.status === 'interview_scheduled').length,
+    hired: allRecent.filter((c: any) => ['hired', 'trainee', 'active'].includes(c.status)).length,
+    rejected: rejected.length,
+    abandoned: abandoned.length,
+    total: totalCount,
+  };
+
+  return {
+    upcoming, recent, toCallBack, topUnscheduled,
+    trainees: traineesEnriched,
+    rejected,
+    abandoned: abandonedEnriched,
+    funnel,
+  };
 });
 
 // AUTH — manager-side slot helpers (no candidate-score check).

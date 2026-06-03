@@ -72,7 +72,7 @@ const TONE_CLASSES = {
 };
 
 export default function RecruitmentInterviews() {
-  const [inbox, setInbox] = useState({ upcoming: [], recent: [], toCallBack: [], topUnscheduled: [], trainees: [] });
+  const [inbox, setInbox] = useState({ upcoming: [], recent: [], toCallBack: [], topUnscheduled: [], trainees: [], rejected: [], abandoned: [], funnel: null });
   const [loading, setLoading] = useState(true);
   const [actionId, setActionId] = useState(null);
 
@@ -85,7 +85,7 @@ export default function RecruitmentInterviews() {
     setLoading(true);
     try {
       const inboxRes = await base44.functions.getRecruitmentInbox({});
-      setInbox(inboxRes?.data || { upcoming: [], recent: [], toCallBack: [], topUnscheduled: [], trainees: [] });
+      setInbox(inboxRes?.data || { upcoming: [], recent: [], toCallBack: [], topUnscheduled: [], trainees: [], rejected: [], abandoned: [], funnel: null });
     } catch (e) {
       console.warn('load failed', e);
     } finally {
@@ -208,6 +208,42 @@ export default function RecruitmentInterviews() {
       </div>
 
       {loading && <p className="text-slate-400 text-center py-6">טוען…</p>}
+
+      {/* Funnel dashboard — application pipeline at a glance */}
+      {inbox.funnel && (
+        <section className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-2xl shadow border border-indigo-200 p-4">
+          <div className="flex items-center justify-between mb-3">
+            <p className="font-black text-slate-800">📊 משפך הגיוס</p>
+            <span className="text-xs text-slate-500">סה"כ במאגר: {inbox.funnel.total}</span>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-2">
+            {[
+              { label: 'התחילו', icon: '👋', val: inbox.funnel.started, color: 'bg-slate-100 text-slate-700' },
+              { label: 'נתנו טלפון', icon: '📞', val: inbox.funnel.gave_phone, color: 'bg-blue-100 text-blue-700' },
+              { label: 'בחרו תפקיד', icon: '💼', val: inbox.funnel.gave_role, color: 'bg-cyan-100 text-cyan-700' },
+              { label: 'סיימו סינון', icon: '✔️', val: inbox.funnel.completed_screening, color: 'bg-emerald-100 text-emerald-700' },
+              { label: 'מועמדים מעולים', icon: '🌟', val: inbox.funnel.approved, color: 'bg-amber-100 text-amber-700' },
+              { label: 'ראיון נקבע', icon: '📅', val: inbox.funnel.interview_scheduled, color: 'bg-purple-100 text-purple-700' },
+              { label: 'התקבלו', icon: '🎉', val: inbox.funnel.hired, color: 'bg-green-200 text-green-800' },
+            ].map((s, i) => (
+              <div key={i} className={`rounded-xl px-3 py-2 ${s.color}`}>
+                <p className="text-xs font-medium flex items-center gap-1"><span>{s.icon}</span><span>{s.label}</span></p>
+                <p className="text-2xl font-black mt-1">{s.val}</p>
+              </div>
+            ))}
+          </div>
+          <div className="flex gap-2 mt-3">
+            <div className="flex-1 rounded-xl px-3 py-2 bg-orange-100 text-orange-700">
+              <p className="text-xs font-medium">🚪 נטשו באמצע</p>
+              <p className="text-2xl font-black mt-1">{inbox.funnel.abandoned}</p>
+            </div>
+            <div className="flex-1 rounded-xl px-3 py-2 bg-red-100 text-red-700">
+              <p className="text-xs font-medium">❌ נדחו ע"י ה-AI</p>
+              <p className="text-2xl font-black mt-1">{inbox.funnel.rejected}</p>
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* Upcoming interviews */}
       <section className="bg-white rounded-2xl shadow border border-slate-200 p-4">
@@ -425,6 +461,78 @@ export default function RecruitmentInterviews() {
 
         {/* Quick-hire shortcut for candidates already marked interviewed */}
         <InterviewedQuickHire onChange={load} />
+      </section>
+
+      {/* Abandoned mid-chat — started but never completed screening */}
+      <section className="bg-white rounded-2xl shadow border border-orange-200 p-4">
+        <p className="font-black text-slate-800 mb-1">🚪 נטשו באמצע הראיון ({(inbox.abandoned || []).length})</p>
+        <p className="text-xs text-slate-500 mb-3">פתחו את צ'אט הגיוס אבל לא סיימו. בכל אחד מסומן השלב שבו עזב — תוכל לפנות לו ולעודד לסיים.</p>
+        {(inbox.abandoned || []).length === 0 ? (
+          <p className="text-slate-400 text-sm">אין כרגע נטישות פעילות.</p>
+        ) : (
+          <div className="space-y-2">
+            {(inbox.abandoned || []).map((c) => {
+              const stageLabel = ({
+                phone: '📞 לא נתן טלפון',
+                role: '💼 לא בחר תפקיד',
+                experience: '📚 לא תיאר ניסיון',
+                shifts: '📅 לא ציין משמרות',
+                weekend: '🌙 לא ציין סופ"ש',
+                start_date: '🗓️ לא ציין תאריך התחלה',
+                final_review: '✔️ הגיע לסוף, לא אישר',
+              }[c.abandoned_stage] || c.abandoned_stage);
+              const phone = normalizePhoneIL(c.phone);
+              const waText = encodeURIComponent(`היי ${c.full_name || ''} 🌿\nראיתי שהתחלת בשיחה עם עלינא ולא סיימת. רוצה לחזור ולהמשיך?\nhttps://topalena.com/apply`);
+              return (
+                <div key={c.id} className="border border-orange-200 rounded-xl p-3 bg-orange-50/30">
+                  <div className="flex flex-wrap items-center gap-3">
+                    <div className="flex-1 min-w-[160px]">
+                      <p className="font-bold text-slate-800">{c.full_name || 'ללא שם'} {c.age && <span className="text-slate-400 text-xs">({c.age})</span>}</p>
+                      <p className="text-xs text-slate-500">{c.role_applied || '—'} · {c.city || '-'} · 📞 {c.phone || '-'}</p>
+                    </div>
+                    <span className="text-xs px-2 py-1 rounded-full font-bold bg-orange-100 text-orange-700">{stageLabel}</span>
+                    <span className="text-xs text-slate-400">💬 {c.transcript_turns} הודעות</span>
+                    {phone && (
+                      <a href={`https://wa.me/${phone}?text=${waText}`} target="_blank" rel="noreferrer" className="text-xs bg-emerald-500 hover:bg-emerald-600 text-white font-bold px-2.5 py-1.5 rounded-lg">📱 וואטסאפ</a>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </section>
+
+      {/* Rejected by AI — visible for audit */}
+      <section className="bg-white rounded-2xl shadow border border-red-200 p-4">
+        <p className="font-black text-slate-800 mb-1">❌ נדחו ע"י ה-AI ({(inbox.rejected || []).length})</p>
+        <p className="text-xs text-slate-500 mb-3">ה-AI החליט שלא להמשיך איתם. בדוק אם נדחה במקרה מועמד מתאים — תוכל להפוך את ההחלטה ידנית.</p>
+        {(inbox.rejected || []).length === 0 ? (
+          <p className="text-slate-400 text-sm">אין כרגע מועמדים שנדחו.</p>
+        ) : (
+          <div className="space-y-2">
+            {(inbox.rejected || []).map((c) => {
+              const phone = normalizePhoneIL(c.phone);
+              const waText = encodeURIComponent(`היי ${c.full_name || ''} 🌿\nבדקתי שוב את הפניה שלך לעלינא ובא לי להמשיך איתך. תוכל לחזור אלינו?`);
+              return (
+                <div key={c.id} className="border border-red-200 rounded-xl p-3 bg-red-50/30">
+                  <div className="flex flex-wrap items-center gap-3">
+                    <div className="flex-1 min-w-[160px]">
+                      <p className="font-bold text-slate-800">{c.full_name || 'ללא שם'} {c.age && <span className="text-slate-400 text-xs">({c.age})</span>}</p>
+                      <p className="text-xs text-slate-500">{c.role_applied || '—'} · {c.city || '-'} · 📞 {c.phone || '-'}</p>
+                      {c.notes && <p className="text-xs text-slate-600 mt-1 line-clamp-2">💬 {c.notes}</p>}
+                    </div>
+                    {c.score != null && <span className="text-xs font-bold bg-slate-200 text-slate-700 px-2 py-1 rounded-full">ציון: {c.score}</span>}
+                    <span className="text-xs px-2 py-1 rounded-full font-bold bg-red-100 text-red-700">נדחה</span>
+                    {phone && (
+                      <a href={`https://wa.me/${phone}?text=${waText}`} target="_blank" rel="noreferrer" className="text-xs bg-emerald-500 hover:bg-emerald-600 text-white font-bold px-2.5 py-1.5 rounded-lg">📱 וואטסאפ</a>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </section>
     </div>
   );
