@@ -353,7 +353,16 @@ on('Interview', 'created', async (row) => {
 // 15. NEW: Job candidate intake — every new candidate triggers a push so
 // nothing slips. (intakeJobCandidate function itself pushes only for high
 // scores; this guarantees coverage for any creation path.)
+//
+// IMPORTANT: skip placeholder rows that the partial-save creates before the
+// user has actually answered anything ("מועמד בתהליך" with no phone). They
+// get upserted as real candidates later when phone/role arrive; we don't want
+// a push for every chat-window-open.
 on('JobCandidate', 'created', async (row) => {
+  const isPlaceholder =
+    (!row.full_name || row.full_name === 'מועמד בתהליך' || row.full_name === 'מועמד אנונימי') &&
+    !row.phone;
+  if (isPlaceholder) return;
   const scoreEmoji =
     row.score == null ? '❓' :
     row.score >= 80 ? '🟢' :

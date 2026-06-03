@@ -636,8 +636,10 @@ registerFn('chatJobApplication', async ({ body }) => {
     }).catch(() => null);
   }
   if (existingPartial) candidate_id = existingPartial.id;
-  // Save the moment we have ANY identifier: lead_id, phone, or name+role.
-  if (!result?.complete && (leadId || partialPhone || (partialName && partialCollected.role_applied))) {
+  // Save only when there's real data — NOT just on chat-open. We want a
+  // record once we have phone OR (name + role). lead_id alone is NOT enough,
+  // otherwise every page open would create a placeholder row and spam push.
+  if (!result?.complete && (partialPhone || (partialName && partialCollected.role_applied))) {
     const partialData: any = {
       full_name: partialName || 'מועמד בתהליך',
       age: parseInt2(partialCollected.age),
@@ -1294,6 +1296,20 @@ registerFn('copyShiftsFromLastWeek', async ({ body, user }) => {
   }
   return { created: created.length, skipped: skipped.length, details: { created, skipped } };
 });
+
+// Cleanup orphan placeholders — rows the partial-save created on chat open
+// before the user typed anything. Identified by name="מועמד בתהליך" / "מועמד
+// אנונימי" AND null phone. Idempotent and owner-only.
+registerFn('cleanupPlaceholderCandidates', async ({ user }) => {
+  if (!user?.email) throw new Error('unauthorized');
+  if (String(user.email).toLowerCase() !== 'dvirnifusi@gmail.com') {
+    throw new Error('owner_only');
+  }
+  const deleted = await (prisma as any).$executeRawUnsafe(
+    `DELETE FROM "JobCandidate" WHERE phone IS NULL AND (full_name = 'מועמד בתהליך' OR full_name = 'מועמד אנונימי' OR full_name IS NULL OR full_name = '')`,
+  );
+  return { deleted: Number(deleted) };
+}, { public: true });
 
 // Ensure JobCandidate.lead_id exists. Needed for incremental save of partial
 // chats — see chatJobApplication. Run once after deploy.
