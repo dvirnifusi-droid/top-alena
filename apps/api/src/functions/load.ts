@@ -6457,6 +6457,20 @@ registerFn('applyShiftGeofenceMigration', async () => {
   return { results };
 }, { public: true });
 
+// One-off: promote the caller's User record to role='admin' so pushoverToAdmins
+// has a non-empty recipient list. Idempotent. Locked to dvirnifusi@gmail.com
+// (the owner) to avoid privilege escalation.
+registerFn('promoteSelfToAdmin', async ({ user }) => {
+  if (!user?.email) throw new Error('unauthorized');
+  const allowed = ['dvirnifusi@gmail.com'];
+  if (!allowed.includes(String(user.email).toLowerCase())) {
+    throw new Error('not_allowed_for_this_email');
+  }
+  const before: any = await (prisma as any).user.findUnique({ where: { id: user.id } });
+  await (prisma as any).user.update({ where: { id: user.id }, data: { role: 'admin' } });
+  return { ok: true, email: user.email, previous_role: before?.role || null };
+});
+
 // Add legacy created_date / updated_date text columns to every table whose
 // Prisma model declares them. Prisma otherwise throws P2022 when reading a
 // declared column that doesn't exist in DB. Idempotent.
