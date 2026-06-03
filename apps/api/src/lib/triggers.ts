@@ -57,9 +57,39 @@ on('ChecklistExecution', 'updated', async (row, prev) => {
 on('TipReport', 'updated', async (row, prev) => {
   if (prev?.status === 'locked') return;
   if (row.status !== 'locked') return;
+  // Format date as DD/MM/YYYY (Israel locale) — date column is DateTime,
+  // arrives as ISO string. Fall back to raw value if parse fails.
+  const dateRaw = row.date || row.shift_date || '';
+  let dateStr = String(dateRaw).slice(0, 10);
+  try {
+    const d = new Date(dateRaw);
+    if (!isNaN(d.getTime())) {
+      dateStr = `${String(d.getUTCDate()).padStart(2, '0')}/${String(d.getUTCMonth() + 1).padStart(2, '0')}/${d.getUTCFullYear()}`;
+    }
+  } catch { /* keep slice */ }
+  const shiftLabel =
+    row.shift_type === 'lunch' ? 'צהריים ☀️' :
+    row.shift_type === 'dinner' ? 'ערב 🌙' :
+    (row.shift_type || '-');
+  const fmt = (n: any) => (n == null || Number.isNaN(Number(n))) ? '-' : `₪${Number(n).toLocaleString('he-IL')}`;
+  const total = row.total_tips_collected ?? row.total_tips ?? row.amount;
+  const net = row.net_tips_for_distribution;
+  const perHour = row.tip_per_hour;
+  const meal = row.total_meal_amount;
+  const runner = row.runner_deduction;
+  const house = row.restaurant_deduction;
+  const lines = [
+    `📅 ${dateStr} · ${shiftLabel}`,
+    `💵 סה"כ נאסף: ${fmt(total)}`,
+  ];
+  if (meal != null && Number(meal) > 0) lines.push(`🍽️ ארוחות עובדים: ${fmt(meal)}`);
+  if (runner != null && Number(runner) > 0) lines.push(`🏃 ניכוי ראנר: ${fmt(runner)}`);
+  if (house != null && Number(house) > 0) lines.push(`🏠 ניכוי מסעדה: ${fmt(house)}`);
+  if (net != null) lines.push(`✨ לחלוקה: ${fmt(net)}`);
+  if (perHour != null) lines.push(`⏱️ טיפ לשעה: ${fmt(perHour)}`);
   await pushoverToAdmins(
-    `💰 טיפים ננעלו`,
-    `תאריך: ${row.date || row.shift_date || '-'} · סה"כ: ₪${row.total_tips ?? row.amount ?? '-'}`
+    `💰 טיפים ננעלו — ${shiftLabel} ${dateStr}`,
+    lines.join('\n'),
   );
 });
 
