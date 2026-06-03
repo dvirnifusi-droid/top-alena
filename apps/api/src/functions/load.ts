@@ -6457,6 +6457,72 @@ registerFn('applyShiftGeofenceMigration', async () => {
   return { results };
 }, { public: true });
 
+// Sends one realistic push for every notification template the app has.
+// Owner-only. No DB writes — just fires the push templates directly.
+registerFn('testEveryPushTemplate', async ({ user }) => {
+  if (!user?.email) throw new Error('unauthorized');
+  if (String(user.email).toLowerCase() !== 'dvirnifusi@gmail.com') {
+    throw new Error('owner_only');
+  }
+  const fmt = (n: number) => `₪${Number(n).toLocaleString('he-IL')}`;
+  const today = new Date();
+  const dd = String(today.getDate()).padStart(2, '0');
+  const mm = String(today.getMonth() + 1).padStart(2, '0');
+  const yyyy = today.getFullYear();
+  const dateStr = `${dd}/${mm}/${yyyy}`;
+  const sent: Array<{ kind: string; ok: boolean; error?: string }> = [];
+  const fire = async (kind: string, title: string, body: string) => {
+    try { await pushoverToAdmins(title, body); sent.push({ kind, ok: true }); }
+    catch (e: any) { sent.push({ kind, ok: false, error: String(e?.message || e) }); }
+  };
+  const fireEvents = async (kind: string, title: string, body: string) => {
+    try { await pushoverEventsOwners(title, body); sent.push({ kind, ok: true }); }
+    catch (e: any) { sent.push({ kind, ok: false, error: String(e?.message || e) }); }
+  };
+
+  // 1. Tip lock — full breakdown (the format you asked for)
+  await fire(
+    'tip_locked',
+    `💰 טיפים ננעלו — צהריים ☀️ ${dateStr} [בדיקה]`,
+    [
+      `📅 ${dateStr} · צהריים ☀️`,
+      `💵 סה"כ נאסף: ${fmt(2400)}`,
+      `🍽️ ארוחות עובדים: ${fmt(180)}`,
+      `🏃 ניכוי ראנר: ${fmt(240)}`,
+      `✨ לחלוקה: ${fmt(1980)}`,
+      `⏱️ טיפ לשעה: ${fmt(82)}`,
+    ].join('\n'),
+  );
+  // 2. Incident
+  await fire('incident', '🚨 תקרית חדשה: לקוח התלונן על אוכל קר [בדיקה]', `קטגוריה: service\nחומרה: medium\nתאריך: ${dateStr}`);
+  // 3. Checklist completed
+  await fire('checklist_completed', '✅ צ\'קליסט הושלם [בדיקה]', 'צ\'ק ליסט סגירת בר · יהלי דסקלו');
+  // 4. Shift end report
+  await fire('shift_end_report', '📋 דוח סיום משמרת [בדיקה]', `${dateStr} · ערב · מנהל: דביר ניפוסי\nהכנסות: ${fmt(8540)}`);
+  // 5. Availability submission
+  await fire('availability', '📅 הגשת זמינות [בדיקה]', `הילה מאסיל · ${dateStr} · partial`);
+  // 6. Clock-in
+  await fire('clock_in', '⏰ כניסה למשמרת [בדיקה]', 'דביר ניפוסי · שעת כניסה: 17:00');
+  // 7. Overtime
+  await fire('overtime', '⚠️ חריגה בשעות משמרת [בדיקה]', 'אוהד פלד · סה"כ 11.2 שעות');
+  // 8. Brief published
+  await fire('brief_published', '📢 תדריך פורסם [בדיקה]', 'תדריך ערב');
+  // 9. Shift swap request
+  await fire('swap_request', '🔄 בקשת החלפת משמרת [בדיקה]', `רותם שרעבי מבקש/ת להחליף משמרת בתאריך ${dateStr}`);
+  // 10. Leave request
+  await fire('leave_request', '🌴 בקשת חופשה חדשה [בדיקה]', `יפית גולדין · 10/06/2026 → 12/06/2026\nסיבה: חתונה במשפחה`);
+  // 11. Leave status update
+  await fire('leave_status', '🌴 עדכון סטטוס חופשה [בדיקה]', 'יפית גולדין · אושרה ✓');
+  // 12. Geofence auto-close
+  await fire('geofence_auto_close', '🚪 משמרת נסגרה אוטומטית [בדיקה]', 'דביר ניפוסי התרחק 500m+ מהעסק. נסגרה ב-17:35.');
+  // 13. Events: new lead
+  await fireEvents('events_new_lead', '✨ ליד אירוע חדש — שיחה פעילה [בדיקה]', `👤 גל · 0532181900\n📅 ${dateStr}\n🎉 יום הולדת\n👥 28 אורחים\n💰 ₪220/סועד\n📥 מקור: web_chat`);
+  // 14. Events: abandoned lead
+  await fireEvents('events_abandoned', '⚠️ ליד אירוע נטוש [בדיקה]', `👤 רותם · 0509998877\n📅 15/07/2026\n🎉 ברית\n👥 60 אורחים\n📊 ציון: 72/100\n⏰ עזב לפני ~10 דק׳ באמצע השיחה`);
+
+  return { total: sent.length, ok: sent.filter((s) => s.ok).length, failed: sent.filter((s) => !s.ok), report: sent };
+});
+
 // End-to-end push test. Reports what was attempted and the env state so we
 // can tell *why* it failed if it didn't arrive. Locked to dvirnifusi@gmail.com.
 registerFn('testAllPushPaths', async ({ user }) => {
