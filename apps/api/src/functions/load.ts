@@ -1147,6 +1147,25 @@ registerFn('getRecruitmentInbox', async () => {
   };
 });
 
+// Ensure the recruitment knob columns exist on RestaurantProfile. Schema
+// declared them; this guarantees the DB matches before Prisma client reads.
+registerFn('ensureRecruitmentColumns', async () => {
+  const stmts = [
+    `ALTER TABLE "RestaurantProfile" ADD COLUMN IF NOT EXISTS "recruitment_min_score" INTEGER DEFAULT 80`,
+    `ALTER TABLE "RestaurantProfile" ADD COLUMN IF NOT EXISTS "recruitment_monthly_targets" JSONB`,
+  ];
+  const results: any[] = [];
+  for (const stmt of stmts) {
+    try {
+      await (prisma as any).$executeRawUnsafe(stmt);
+      results.push({ stmt, ok: true });
+    } catch (e: any) {
+      results.push({ stmt, ok: false, error: String(e?.message || e) });
+    }
+  }
+  return { results };
+}, { public: true });
+
 // One-click recovery: take a rejected candidate back to pending so a manager
 // can reach out manually or re-evaluate.
 registerFn('unrejectCandidate', async ({ body }) => {
