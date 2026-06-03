@@ -47,6 +47,7 @@ const adminLinks = [
   { title: "חיזוי עומסים AI", url: createPageUrl("SmartPrediction"), icon: Brain, isSubItem: true, color: "violet" },
   { title: "יועץ שיווק AI 🚀", url: createPageUrl("MarketingAdvisor"), icon: Rocket, isSubItem: true, color: "violet" },
   { title: "סוכני שיווק (11)", url: createPageUrl("MarketingAgentsHub"), icon: Megaphone, isSubItem: true, color: "violet" },
+  { title: "פרומפטים של סוכנים 🤖", url: createPageUrl("AgentPrompts"), icon: Brain, isSubItem: true, color: "violet" },
   { title: "תחזיות ותובנות AI", url: createPageUrl("RevenueForecasting"), icon: Brain, isSubItem: true, color: "violet" },
 
   { title: "תפעול המסעדה", url: "#", icon: Utensils, isCategory: true, color: "orange" },
