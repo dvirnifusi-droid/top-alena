@@ -6519,6 +6519,28 @@ registerFn('testEveryPushTemplate', async ({ user }) => {
   await fireEvents('events_new_lead', '✨ ליד אירוע חדש — שיחה פעילה [בדיקה]', `👤 גל · 0532181900\n📅 ${dateStr}\n🎉 יום הולדת\n👥 28 אורחים\n💰 ₪220/סועד\n📥 מקור: web_chat`);
   // 14. Events: abandoned lead
   await fireEvents('events_abandoned', '⚠️ ליד אירוע נטוש [בדיקה]', `👤 רותם · 0509998877\n📅 15/07/2026\n🎉 ברית\n👥 60 אורחים\n📊 ציון: 72/100\n⏰ עזב לפני ~10 דק׳ באמצע השיחה`);
+  // 15. Event lead CLOSED (booking confirmed by manager)
+  await fireEvents('event_closed', '🎉 אירוע נסגר — אישור מנהל [בדיקה]', `👤 גל · 0532181900\n📅 09/06/2026 19:00\n🎉 יום הולדת\n👥 28 אורחים\n💰 סה"כ: ₪7,840\n💳 מקדמה: ₪1,568`);
+  // 16. Event same-day urgent close
+  await fireEvents('event_same_day', '⚡ אירוע same-day נסגר! [בדיקה]', `👤 עידן · 0501122334\n📅 ${dateStr} 21:00\n🎉 אירוסין\n👥 20 אורחים\n💰 ₪4,500`);
+  // 17. New high-score job candidate
+  await fire('new_candidate_high_score', '🎯 מועמד גיוס חדש (ציון גבוה) [בדיקה]', `👤 שירה כהן · 24\n📱 0541112222\n💼 מלצרית · 3+ שנות ניסיון\n⭐ ציון: 92/100\n📍 ראשון לציון`);
+  // 18. New interview scheduled
+  await fire('interview_scheduled', '📅 ראיון חדש נקבע [בדיקה]', `שירה כהן · ${dateStr} 14:30\nתפקיד: מלצרית · ציון: 92`);
+  // 19. Interview reminder (3h before)
+  await fire('interview_reminder', '⏰ ראיון עבודה בעוד ~3 שעות [בדיקה]', `שירה כהן · 14:30\nתפקיד: מלצרית · ציון: 92\n📱 0541112222`);
+  // 20. New reservation through the site
+  await fire('new_reservation', `📅 הזמנה חדשה — ${dateStr} 20:00 [בדיקה]`, `👤 משפחת לוי · 0508887777\n👥 6 סועדים\n🎉 יום הולדת\n📝 שולחן ליד החלון אם אפשר`);
+  // 21. Positive customer feedback
+  await fire('feedback_positive', '⭐ משוב לקוח חיובי (5/5) [בדיקה]', `אורן בן-דוד · 0531234567\n⭐⭐⭐⭐⭐ 5/5\n🍽️ אוכל: 5/5\n🛎️ שירות: 5/5\n🪑 שולחן 12\n💬 חוויה מדהימה, האוכל היה מצוין והצוות מקסים!`);
+  // 22. Negative customer feedback (alarm)
+  await fire('feedback_negative', '🚨 משוב לקוח שלילי (2/5) [בדיקה]', `אנונימי\n⭐⭐ 2/5\n🍽️ אוכל: 2/5\n🛎️ שירות: 3/5\n🪑 שולחן 7\n💬 האוכל הגיע קר ולקח 40 דקות`);
+  // 23. Checklist completed WITHOUT issues
+  await fire('checklist_ok', '✅ צ\'קליסט הושלם — תקין [בדיקה]', `צ\'ק ליסט סגירת בר · יהלי דסקלו\n18 עברו · 0 נכשלו · ✅ הכל תקין`);
+  // 24. Checklist completed WITH issues
+  await fire('checklist_issues', '⚠️ צ\'קליסט הושלם עם בעיות [בדיקה]', `צ\'ק ליסט פתיחת מטבח · אוהד פלד\n12 עברו · 2 נכשלו · ⚠️ 2 בעיות\n• מקרר 2 — טמפרטורה גבוהה (8°C)\n• כיריים — אזעקה לא עובדת`);
+  // 25. Restroom check reminder (parallel to the webpush flow, sent to admins)
+  await fire('restroom_reminder', '🚽 בדיקת שירותים [בדיקה]', `הגיעה השעה לבדוק שירותים. סמן בדיקה באפליקציה (אפשר עם תמונה).`);
 
   return { total: sent.length, ok: sent.filter((s) => s.ok).length, failed: sent.filter((s) => !s.ok), report: sent };
 });

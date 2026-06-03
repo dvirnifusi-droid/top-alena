@@ -48,9 +48,59 @@ on('ChecklistExecution', 'updated', async (row, prev) => {
   // Only fire on transition into "completed"
   if (prev?.status === 'completed') return;
   if (row.status !== 'completed') return;
+  // Count items that the executor flagged as failed/issue. The items live
+  // in row.items (Json array) — each item typically has {status, label, notes}.
+  const items: any[] = Array.isArray(row.items) ? row.items : [];
+  const failed = items.filter((i) => i && (i.status === 'failed' || i.status === 'issue' || i.has_issue === true));
+  const passed = items.filter((i) => i && (i.status === 'ok' || i.status === 'passed' || i.status === 'done'));
+  const verdict = failed.length === 0 ? '✅ הכל תקין' : `⚠️ ${failed.length} בעיות`;
+  const sample = failed.slice(0, 3).map((f) => `• ${f.label || f.name || '-'}${f.notes ? ` (${String(f.notes).slice(0, 40)})` : ''}`).join('\n');
+  const body = [
+    `${row.checklist_name || row.name || '—'} · ${row.completed_by_name || row.completed_by || row.created_by || '-'}`,
+    `${passed.length} עברו · ${failed.length} נכשלו · ${verdict}`,
+    sample,
+  ].filter(Boolean).join('\n');
   await pushoverToAdmins(
-    `✅ צ'קליסט הושלם`,
-    `${row.checklist_name || row.name || '—'} · ${row.completed_by_name || row.completed_by || row.created_by || '-'}`
+    failed.length === 0 ? `✅ צ'קליסט הושלם — תקין` : `⚠️ צ'קליסט הושלם עם בעיות`,
+    body,
+  );
+});
+
+// New reservation through the public booking flow.
+on('Reservation', 'created', async (row) => {
+  const dateStr = (() => {
+    try {
+      const d = new Date(row.date);
+      if (isNaN(d.getTime())) return String(row.date || '-').slice(0, 10);
+      return `${String(d.getUTCDate()).padStart(2, '0')}/${String(d.getUTCMonth() + 1).padStart(2, '0')}/${d.getUTCFullYear()}`;
+    } catch { return String(row.date || '-').slice(0, 10); }
+  })();
+  const occasion = row.special_occasion ? `\n🎉 ${row.special_occasion}` : '';
+  const requests = row.special_requests ? `\n📝 ${String(row.special_requests).slice(0, 120)}` : '';
+  await pushoverToAdmins(
+    `📅 הזמנה חדשה — ${dateStr} ${row.time || ''}`.trim(),
+    `👤 ${row.customer_name || '-'}${row.customer_phone ? ` · ${row.customer_phone}` : ''}\n👥 ${row.party_size || '-'} סועדים${occasion}${requests}`,
+  );
+});
+
+// Customer survey landed — separate templates for positive vs negative
+// (rating <= 3 is treated as negative so the manager knows to call them back).
+on('CustomerFeedback', 'created', async (row) => {
+  const rating = Number(row.rating ?? 0);
+  const isNegative = rating > 0 && rating <= 3;
+  const stars = '⭐'.repeat(Math.max(0, Math.min(5, rating)));
+  const food = row.food_rating != null ? `🍽️ אוכל: ${row.food_rating}/5` : null;
+  const service = row.service_rating != null ? `🛎️ שירות: ${row.service_rating}/5` : null;
+  const tableInfo = row.table_number ? `🪑 שולחן ${row.table_number}` : null;
+  const comment = row.comments ? `💬 ${String(row.comments).slice(0, 140)}` : null;
+  const lines = [
+    `${row.customer_name || 'לקוח אנונימי'}${row.customer_phone ? ` · ${row.customer_phone}` : ''}`,
+    `${stars} ${rating}/5`,
+    food, service, tableInfo, comment,
+  ].filter(Boolean).join('\n');
+  await pushoverToAdmins(
+    isNegative ? `🚨 משוב לקוח שלילי (${rating}/5)` : `⭐ משוב לקוח חיובי (${rating}/5)`,
+    lines,
   );
 });
 
