@@ -5913,7 +5913,7 @@ registerFn('getDriveServiceAccountEmail', async () => {
   } catch {
     return { configured: true, client_email: null, error: 'failed_to_parse' };
   }
-});
+}, { public: true });
 
 registerFn('listDriveAdPhotos', async () => {
   const folderId = await getSecret('DRIVE_AD_PHOTOS_FOLDER_ID');
