@@ -2,6 +2,79 @@ import React, { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import { createPageUrl } from '@/utils';
 
+// Owner-controllable AI threshold: candidates with score >= this get the
+// auto-interview slot picker in the chat. Lower the threshold on high-pressure
+// days (short-staffed) so more candidates self-book; raise it when you want
+// only the very best to qualify.
+function MinScoreControl({ currentScore, onSaved }) {
+  const [val, setVal] = useState(currentScore ?? 80);
+  const [saving, setSaving] = useState(false);
+  useEffect(() => { setVal(currentScore ?? 80); }, [currentScore]);
+  const dirty = Number(val) !== Number(currentScore ?? 80);
+  const save = async () => {
+    const n = Math.max(40, Math.min(95, parseInt(val, 10) || 80));
+    setSaving(true);
+    try {
+      await base44.functions.updateRecruitmentMinScore({ score: n });
+      if (onSaved) await onSaved();
+    } catch (e) {
+      alert('שגיאה: ' + (e?.data?.message || e?.message || ''));
+    } finally { setSaving(false); }
+  };
+  const presets = [
+    { label: '🔥 לחץ מקסימלי — קבל הרבה', val: 60, color: 'bg-red-100 text-red-700 border-red-300' },
+    { label: '⚡ לחץ — קבל יותר', val: 70, color: 'bg-orange-100 text-orange-700 border-orange-300' },
+    { label: '📅 רגיל', val: 80, color: 'bg-emerald-100 text-emerald-700 border-emerald-300' },
+    { label: '⭐ רק מעולים', val: 90, color: 'bg-indigo-100 text-indigo-700 border-indigo-300' },
+  ];
+  return (
+    <div className="mt-4 pt-3 border-t border-indigo-200">
+      <p className="text-xs font-semibold text-slate-700 mb-1">⚙️ סף ציון לקביעת ראיון אוטומטית</p>
+      <p className="text-[11px] text-slate-500 mb-2">
+        מועמדים עם ציון <b>{currentScore ?? 80}+</b> רואים בצ'אט רשימת מועדים פנויים ומזמינים את עצמם.
+        מועמדים מתחת ל-{currentScore ?? 80} נכנסים ל"לחזור אליהם" — אתה מחליט אם להתקשר.
+      </p>
+      <div className="flex flex-wrap gap-1.5 mb-2">
+        {presets.map((p) => (
+          <button
+            key={p.val}
+            onClick={() => setVal(p.val)}
+            className={`text-[11px] px-2.5 py-1 rounded-full border-2 font-bold ${Number(val) === p.val ? p.color : 'bg-white border-slate-200 text-slate-500'}`}
+          >
+            {p.label} ({p.val}+)
+          </button>
+        ))}
+      </div>
+      <div className="flex items-center gap-2">
+        <input
+          type="range"
+          min="40"
+          max="95"
+          step="5"
+          value={val}
+          onChange={(e) => setVal(e.target.value)}
+          className="flex-1 accent-indigo-600"
+        />
+        <input
+          type="number"
+          min="40"
+          max="95"
+          value={val}
+          onChange={(e) => setVal(e.target.value)}
+          className="w-14 text-center text-sm border border-slate-300 rounded-lg py-1"
+        />
+        <button
+          onClick={save}
+          disabled={!dirty || saving}
+          className={`text-xs font-bold px-3 py-1.5 rounded-lg ${dirty && !saving ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : 'bg-slate-200 text-slate-400 cursor-not-allowed'}`}
+        >
+          {saving ? 'שומר…' : dirty ? '💾 שמור' : 'נשמר ✓'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // Manager-facing: upcoming interviews + status + WhatsApp reminders + training pipeline.
 
 const STAGE_LABELS = {
@@ -366,6 +439,9 @@ export default function RecruitmentInterviews() {
               </div>
             </div>
           )}
+
+          {/* Min-score slider — owner-tunable threshold for auto interview booking */}
+          <MinScoreControl currentScore={inbox.settings?.min_score ?? 80} onSaved={load} />
         </section>
       )}
 
