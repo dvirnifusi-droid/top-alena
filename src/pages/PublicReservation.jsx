@@ -279,7 +279,7 @@ export default function PublicReservationPage() {
         );
     }
 
-    const isRtl = lang === 'he' || lang === 'ar';
+    const isRtl = lang === 'he';
     return (
         <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-100" dir={isRtl ? 'rtl' : 'ltr'}>
             <div className="max-w-4xl mx-auto p-6">

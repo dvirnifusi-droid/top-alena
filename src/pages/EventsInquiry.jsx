@@ -60,7 +60,7 @@ export default function EventsInquiry() {
   };
   const onKey = (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } };
 
-  const isRtl = lang === 'he' || lang === 'ar';
+  const isRtl = lang === 'he';
   return (
     <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-teal-50 to-emerald-100 flex flex-col" dir={isRtl ? 'rtl' : 'ltr'}>
       <header className="bg-white/80 backdrop-blur border-b border-emerald-100 p-4">

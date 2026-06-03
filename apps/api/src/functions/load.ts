@@ -557,7 +557,7 @@ registerFn('chatJobApplication', async ({ body }) => {
   // Language the candidate is using. Default Hebrew. Locked to a small whitelist
   // so the prompt-injection surface stays narrow.
   const language = (() => {
-    const allowed = ['Hebrew', 'Arabic', 'English', 'Russian'];
+    const allowed = ['Hebrew', 'English', 'Russian'];
     const raw = typeof languageRaw === 'string' ? languageRaw.trim() : '';
     return allowed.includes(raw) ? raw : 'Hebrew';
   })();
@@ -3953,7 +3953,7 @@ registerFn('chatEventsInquiry', async ({ body }) => {
     ? source.trim().slice(0, 40).toLowerCase()
     : 'web_chat';
   const language = (() => {
-    const allowed = ['Hebrew', 'Arabic', 'English', 'Russian'];
+    const allowed = ['Hebrew', 'English', 'Russian'];
     const raw = typeof languageRaw === 'string' ? languageRaw.trim() : '';
     return allowed.includes(raw) ? raw : 'Hebrew';
   })();

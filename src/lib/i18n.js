@@ -9,14 +9,12 @@ const STORAGE_KEY = 'topalena_lang';
 
 export const SUPPORTED_LANGUAGES = [
   { code: 'he', label: 'עברית', flag: '🇮🇱', dir: 'rtl' },
-  { code: 'ar', label: 'العربية', flag: '🇸🇦', dir: 'rtl' },
   { code: 'en', label: 'English', flag: '🇬🇧', dir: 'ltr' },
   { code: 'ru', label: 'Русский', flag: '🇷🇺', dir: 'ltr' },
 ];
 
 export const LANG_NAMES_FOR_LLM = {
   he: 'Hebrew',
-  ar: 'Arabic',
   en: 'English',
   ru: 'Russian',
 };

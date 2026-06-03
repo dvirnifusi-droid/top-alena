@@ -123,7 +123,7 @@ export default function JobApplication() {
   const showSlotPicker = done && !rejected && score >= 80 && !booked;
   const showSimpleEnd = done && (rejected || score < 80);
 
-  const isRtl = lang === 'he' || lang === 'ar';
+  const isRtl = lang === 'he';
   return (
     <div
       dir={isRtl ? 'rtl' : 'ltr'}
