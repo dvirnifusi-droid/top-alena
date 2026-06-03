@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { invokePublic } from '@/lib/publicFetch';
 import { Send, Sparkles, CheckCircle2, AlertCircle, CreditCard } from 'lucide-react';
+import LanguagePicker from '@/components/shared/LanguagePicker';
+import { useI18n, LANG_NAMES_FOR_LLM } from '@/lib/i18n';
 
 function readUtmSource() {
   try { return new URLSearchParams(window.location.search).get('utm_source') || null; }
@@ -9,6 +11,7 @@ function readUtmSource() {
 
 export default function EventsInquiry() {
   const [utmSource] = useState(readUtmSource);
+  const [t, lang] = useI18n();
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
@@ -29,6 +32,7 @@ export default function EventsInquiry() {
     try {
       const res = await invokePublic('chatEventsInquiry', {
         history, message: text, source: utmSource, lead_id: leadId, booking_id: bookingId,
+        language: LANG_NAMES_FOR_LLM[lang] || 'Hebrew',
       });
       setMessages([...history, { role: 'assistant', content: res?.reply || '...' }]);
       if (res?.lead_id) setLeadId(res.lead_id);
@@ -56,17 +60,19 @@ export default function EventsInquiry() {
   };
   const onKey = (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } };
 
+  const isRtl = lang === 'he' || lang === 'ar';
   return (
-    <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-teal-50 to-emerald-100 flex flex-col" dir="rtl">
+    <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-teal-50 to-emerald-100 flex flex-col" dir={isRtl ? 'rtl' : 'ltr'}>
       <header className="bg-white/80 backdrop-blur border-b border-emerald-100 p-4">
         <div className="max-w-2xl mx-auto flex items-center gap-3">
           <div className="w-10 h-10 bg-gradient-to-br from-emerald-600 to-teal-600 rounded-full flex items-center justify-center">
             <Sparkles className="w-5 h-5 text-white" />
           </div>
-          <div>
-            <h1 className="text-lg font-bold text-emerald-900">עלינא — אירועים פרטיים</h1>
-            <p className="text-xs text-emerald-700">צ׳אט בירור התאמה • 5 שאלות קצרות</p>
+          <div className="flex-1">
+            <h1 className="text-lg font-bold text-emerald-900">{t('events_title')}</h1>
+            <p className="text-xs text-emerald-700">{t('events_subtitle')}</p>
           </div>
+          <LanguagePicker />
         </div>
       </header>
 

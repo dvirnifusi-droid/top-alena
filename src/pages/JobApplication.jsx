@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { invokePublic } from '@/lib/publicFetch';
+import LanguagePicker from '@/components/shared/LanguagePicker';
+import { useI18n, LANG_NAMES_FOR_LLM } from '@/lib/i18n';
 
 // Read ?utm_source=... from the URL so we tag the candidate with where they
 // came from (Facebook / Instagram / QR / etc.).
@@ -27,6 +29,7 @@ function getOrCreateLeadId() {
 export default function JobApplication() {
   const [utmSource] = useState(readUtmSource);
   const [leadId] = useState(getOrCreateLeadId);
+  const [t, lang] = useI18n();
   const [messages, setMessages] = useState([]); // {role, content}
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
@@ -69,7 +72,10 @@ export default function JobApplication() {
     const history = text ? [...messages, { role: 'user', content: text }] : messages;
     if (text) setMessages(history);
     try {
-      const res = await invokePublic('chatJobApplication', { history, message: text, source: utmSource, lead_id: leadId });
+      const res = await invokePublic('chatJobApplication', {
+        history, message: text, source: utmSource, lead_id: leadId,
+        language: LANG_NAMES_FOR_LLM[lang] || 'Hebrew',
+      });
       setMessages([...history, { role: 'assistant', content: res?.reply || '...' }]);
       if (res?.complete) {
         setDone(true);
@@ -117,16 +123,21 @@ export default function JobApplication() {
   const showSlotPicker = done && !rejected && score >= 80 && !booked;
   const showSimpleEnd = done && (rejected || score < 80);
 
+  const isRtl = lang === 'he' || lang === 'ar';
   return (
     <div
-      dir="rtl"
+      dir={isRtl ? 'rtl' : 'ltr'}
       className="min-h-screen flex flex-col"
       style={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%)' }}
     >
+      {/* Language picker — top-left when RTL, top-right when LTR */}
+      <div className={`absolute top-3 ${isRtl ? 'left-3' : 'right-3'}`}>
+        <LanguagePicker />
+      </div>
       <div className="text-center pt-7 pb-3 text-white">
         <div className="text-4xl mb-1">🌿</div>
-        <h1 className="text-xl font-black tracking-wide">מסעדת עלינא — גיוס</h1>
-        <p className="text-xs text-slate-300 mt-0.5">העוזר הדיגיטלי לראיון ראשוני</p>
+        <h1 className="text-xl font-black tracking-wide">{t('apply_title')}</h1>
+        <p className="text-xs text-slate-300 mt-0.5">{t('apply_subtitle')}</p>
       </div>
 
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-3 pb-3 space-y-3 max-w-md w-full mx-auto">

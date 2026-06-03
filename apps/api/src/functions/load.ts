@@ -552,8 +552,15 @@ registerFn('marketingAdvisorChat', async ({ body }) => {
 });
 
 registerFn('chatJobApplication', async ({ body }) => {
-  const { history, message, source, lead_id: leadIdRaw } = body as any;
+  const { history, message, source, lead_id: leadIdRaw, language: languageRaw } = body as any;
   const leadId = typeof leadIdRaw === 'string' && leadIdRaw.trim() ? leadIdRaw.trim().slice(0, 80) : null;
+  // Language the candidate is using. Default Hebrew. Locked to a small whitelist
+  // so the prompt-injection surface stays narrow.
+  const language = (() => {
+    const allowed = ['Hebrew', 'Arabic', 'English', 'Russian'];
+    const raw = typeof languageRaw === 'string' ? languageRaw.trim() : '';
+    return allowed.includes(raw) ? raw : 'Hebrew';
+  })();
   // Normalize utm_source to a short token we save on the candidate.
   const candidateSource =
     typeof source === 'string' && source.trim()
@@ -578,7 +585,15 @@ registerFn('chatJobApplication', async ({ body }) => {
     ? `\n\n--- שאלת כשרות חובה ---\nהתפקידים הבאים במסעדה דורשים עמידה בדיני כשרות במטבח: ${kashrutPositionNames.join(', ')}.\nאם המועמד בחר אחד מהתפקידים האלה בשאלה 3 (או הזכיר אותו), **לפני שאתה ממשיך לשאלה הבאה** הוסף את השאלה הזו, מילה במילה (פעם אחת בלבד):\n"מעולה! תודה ששיתפת. המטבח שלנו פועל תחת השגחת כשרות קפדנית, הדורשת מהעובדים במשמרת הראשונה לבצע את הדלקת האש והתנורים. האם תוכל/י לעמוד בדרישה הזו כחלק מהתפקיד?"\nאחרי שתקבל תשובה: שמור את הערך (true/false) ב-collected.kashrut_capable, ועבור לשאלה הבאה.\nלתפקידים שלא ברשימה (מלצר/מארחת/קופה/וכו') — אל תשאל את השאלה הזו בכלל.`
     : '';
 
-  const prompt = `${RECRUITMENT_SYSTEM_PROMPT}${kashrutClause}\n\n--- שיחה עד כה ---\n${transcript || '(אין עדיין הודעות — זו תחילת השיחה)'}${newPart}\n\nהחזר את התגובה הבאה כ-JSON בלבד.`;
+  // Language directive — keep the screening logic in Hebrew internally
+  // (extracting fields, scoring) but render the candidate-facing `reply` in
+  // their preferred language. This way the manager dashboard stays consistent
+  // while the candidate experiences the chat fully in Arabic/English/Russian.
+  const langDirective = language === 'Hebrew'
+    ? ''
+    : `\n\n--- LANGUAGE DIRECTIVE ---\nThe candidate is communicating in ${language}. Your "reply" field MUST be written in ${language}, even if the rest of the schema/prompt is in Hebrew. Be warm, natural, and use idiomatic ${language}.\nField extraction (collected, ai_summary, notes) should still be in Hebrew so the manager can read it.`;
+
+  const prompt = `${RECRUITMENT_SYSTEM_PROMPT}${kashrutClause}${langDirective}\n\n--- שיחה עד כה ---\n${transcript || '(אין עדיין הודעות — זו תחילת השיחה)'}${newPart}\n\nהחזר את התגובה הבאה כ-JSON בלבד.`;
 
   const result: any = await invokeLLM({
     prompt: prompt + `\n\nחובה: ברגע ש-complete=true (גם אם rejected=true), חובה להחזיר score כ-מספר 0-100. אסור להחזיר null או להשאיר את השדה ריק.`,
@@ -3933,10 +3948,15 @@ const EVENTS_SYSTEM_PROMPT = `אתה סוכן הסיווג של מסעדת 'על
 חישוב ציון: +25 אם תאריך מולא ובעוד 14+ ימים. +25 אם 10≤אורחים≤80. +25 אם תקציב לסועד ≥150. +25 אם סוג אירוע תואם ולא הסלמה. -30 אם הסלמה.`;
 
 registerFn('chatEventsInquiry', async ({ body }) => {
-  const { history, message, source, lead_id, booking_id: incoming_booking_id } = body as any;
+  const { history, message, source, lead_id, booking_id: incoming_booking_id, language: languageRaw } = body as any;
   const leadSource = typeof source === 'string' && source.trim()
     ? source.trim().slice(0, 40).toLowerCase()
     : 'web_chat';
+  const language = (() => {
+    const allowed = ['Hebrew', 'Arabic', 'English', 'Russian'];
+    const raw = typeof languageRaw === 'string' ? languageRaw.trim() : '';
+    return allowed.includes(raw) ? raw : 'Hebrew';
+  })();
 
   // Load live Sales Kit
   let kit = await db.eventSalesKit.findFirst({ where: { singleton: true } });
@@ -3993,7 +4013,10 @@ registerFn('chatEventsInquiry', async ({ body }) => {
     `9. נסה תמיד לסגור עד הסוף — אל תוותר כי "התקציב גבוה". הצע חלופות. אגרסיביות חיובית: כל פעם שלקוח מסכים על משהו (חבילה/תאריך) — תקדם לשלב הבא מיד.\n` +
     `10. ההזמנה תמיד מותנת באישור סופי של מנהל המסעדה. ציין את זה כשאתה סוגר: "ההזמנה מותנת באישור סופי של מנהל המסעדה לאחר שיחה איתכם".\n`;
 
-  const prompt = `${systemPrompt}${dateContext}${kitContext}${closingInstructions}\n--- שיחה עד כה ---\n${transcript || '(אין עדיין הודעות — זו תחילת השיחה)'}${newPart}\n\nהחזר JSON בלבד.`;
+  const langDirective = language === 'Hebrew'
+    ? ''
+    : `\n\n--- LANGUAGE DIRECTIVE ---\nThe customer is communicating in ${language}. The "reply" field MUST be written in ${language}, even if the rest of the prompt is in Hebrew. Be warm, natural, and use idiomatic ${language}. Field extraction (booking data, ai_summary, etc) should stay in Hebrew so the manager can read it.`;
+  const prompt = `${systemPrompt}${dateContext}${kitContext}${closingInstructions}${langDirective}\n--- שיחה עד כה ---\n${transcript || '(אין עדיין הודעות — זו תחילת השיחה)'}${newPart}\n\nהחזר JSON בלבד.`;
 
   const result: any = await invokeLLM({
     prompt,
