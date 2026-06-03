@@ -1,5 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
+import LanguagePicker from '@/components/shared/LanguagePicker';
+import { useI18n } from '@/lib/i18n';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -62,6 +64,7 @@ const generateTimeSlots = (startTime, endTime) => {
 };
 
 export default function PublicReservationPage() {
+    const [t, lang] = useI18n();
     const [date, setDate] = useState(new Date());
     const [time, setTime] = useState('20:00');
     const [partySize, setPartySize] = useState(2);
@@ -276,16 +279,23 @@ export default function PublicReservationPage() {
         );
     }
 
+    const isRtl = lang === 'he' || lang === 'ar';
     return (
-        <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-100" dir="rtl">
+        <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-100" dir={isRtl ? 'rtl' : 'ltr'}>
             <div className="max-w-4xl mx-auto p-6">
+                {/* Language picker */}
+                <div className={`flex ${isRtl ? 'justify-start' : 'justify-end'} mb-2`}>
+                    <LanguagePicker />
+                </div>
                 {/* Header */}
                 <div className="text-center mb-8">
                     <h1 className="text-4xl font-bold text-gray-900 mb-4" style={{ color: settings?.theme_color || '#059669' }}>
                         {settings?.restaurant_name || 'עלינא'}
                     </h1>
                     <p className="text-lg text-gray-700">
-                        {settings?.welcome_message || 'ברוכים הבאים למסעדת עלינא - חוויה קולינרית מיוחדת מחכה לכם'}
+                        {lang === 'he'
+                          ? (settings?.welcome_message || 'ברוכים הבאים למסעדת עלינא - חוויה קולינרית מיוחדת מחכה לכם')
+                          : t('reservation_subtitle')}
                     </p>
                 </div>
 
