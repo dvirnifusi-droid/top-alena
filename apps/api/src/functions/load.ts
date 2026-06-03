@@ -8,6 +8,7 @@ import { prisma } from '../db.js';
 import { registerFn, functionHandlers } from './index.js';
 import { sendSms, sendWhatsApp } from '../lib/twilio.js';
 import { pushover, pushoverToAdmins, pushoverEventsOwners } from '../lib/pushover.js';
+import { fireTriggers } from '../lib/triggers.js';
 import { sendTelegramMessage } from '../lib/telegram.js';
 import { sendEmail } from '../lib/email.js';
 import { invokeLLM, generateImage } from '../lib/llm.js';
@@ -774,6 +775,11 @@ registerFn('chatJobApplication', async ({ body }) => {
 
     if (cand) {
       candidate_id = cand.id;
+      // Fire the JobCandidate.created trigger manually — db.* direct calls
+      // bypass the /api/entities route, so we have to dispatch ourselves.
+      fireTriggers('JobCandidate', 'created', cand).catch((e) =>
+        console.warn('[trigger] JobCandidate.created (manual) failed:', e?.message),
+      );
 
       if (!rejected && (score ?? 0) > 60) {
         const lines = [
@@ -894,6 +900,7 @@ registerFn('bookInterview', async ({ body }) => {
       status: 'scheduled',
     },
   });
+  fireTriggers('Interview', 'created', interview).catch(() => {});
 
   await db.jobCandidate.update({ where: { id: candidate_id }, data: { status: 'interview_scheduled' } });
 
@@ -1049,6 +1056,7 @@ registerFn('bookInterviewByManager', async ({ body }) => {
       type_: t,
     },
   });
+  fireTriggers('Interview', 'created', interview).catch(() => {});
 
   if (t === 'menu_exam') {
     await db.jobCandidate.update({
@@ -2710,6 +2718,7 @@ registerFn('createPublicReservation', async ({ body }) => {
       assigned_table: [avail.table.table_number],
     },
   });
+  fireTriggers('Reservation', 'created', reservation).catch(() => {});
 
   // Upsert the customer club record by phone.
   try {
@@ -3856,10 +3865,14 @@ registerFn('chatEventsInquiry', async ({ body }) => {
 
     try {
       let booking: any = null;
+      let bookingPrev: any = null;
       if (booking_id) {
+        bookingPrev = await db.eventBooking.findUnique({ where: { id: booking_id } }).catch(() => null);
         booking = await db.eventBooking.update({ where: { id: booking_id }, data: { ...bookingData, updated_date: nowIso } });
+        fireTriggers('EventBooking', 'updated', booking, bookingPrev).catch(() => {});
       } else {
         booking = await db.eventBooking.create({ data: { ...bookingData, created_date: nowIso, updated_date: nowIso } });
+        fireTriggers('EventBooking', 'created', booking).catch(() => {});
       }
       booking_id = booking.id;
       // No payment URL — chat closes with a "manager will call" promise. Frontend hides any leftover CTA.
