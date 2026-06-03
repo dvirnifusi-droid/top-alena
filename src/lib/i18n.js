@@ -1,3 +1,5 @@
+import { useState, useEffect } from 'react';
+
 // Lightweight i18n for public-facing pages. No external deps; just nested
 // objects + a t() helper + localStorage persistence.
 //
@@ -195,8 +197,6 @@ export function makeT(lang) {
 // React hook — returns [t, lang, setLang]. Subscribes to changes via a
 // custom event so all components re-render together.
 export function useI18n() {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const { useState, useEffect } = require('react');
   const [lang, setLangState] = useState(detectLanguage);
   useEffect(() => {
     setLanguage(lang);
