@@ -1147,6 +1147,60 @@ registerFn('getRecruitmentInbox', async () => {
   };
 });
 
+// Clone all WorkShift records from one week into another. Preserves
+// shift_type, start_time, end_time, positions_needed, and assigned_staff.
+// Owner-only. Skips dates that already have a WorkShift to avoid duplicates.
+registerFn('copyShiftsFromLastWeek', async ({ body, user }) => {
+  if (!user) throw new Error('unauthorized');
+  const { source_week_start, target_week_start } = (body || {}) as any;
+  if (!source_week_start || !target_week_start) throw new Error('source_week_start + target_week_start required');
+  const fmt = (d: Date) => d.toISOString().slice(0, 10);
+  const sourceStart = new Date(source_week_start + 'T00:00:00');
+  const targetStart = new Date(target_week_start + 'T00:00:00');
+  if (isNaN(sourceStart.getTime()) || isNaN(targetStart.getTime())) throw new Error('invalid_date');
+  const sourceEnd = new Date(sourceStart); sourceEnd.setDate(sourceEnd.getDate() + 7);
+
+  // Pull every WorkShift in the source range
+  const sourceShifts = await db.workShift.findMany({
+    where: { date: { gte: sourceStart, lt: sourceEnd } },
+    take: 200,
+  });
+  // What target dates already exist? Don't overwrite.
+  const targetEnd = new Date(targetStart); targetEnd.setDate(targetEnd.getDate() + 7);
+  const existing = await db.workShift.findMany({
+    where: { date: { gte: targetStart, lt: targetEnd } },
+    take: 200,
+  });
+  const existingKey = new Set(existing.map((w: any) => `${fmt(new Date(w.date))}|${w.shift_type}`));
+  const offsetDays = Math.round((targetStart.getTime() - sourceStart.getTime()) / 86400000);
+
+  const created: any[] = [];
+  const skipped: any[] = [];
+  for (const s of sourceShifts) {
+    const oldDate = new Date(s.date);
+    const newDate = new Date(oldDate); newDate.setDate(newDate.getDate() + offsetDays);
+    const key = `${fmt(newDate)}|${s.shift_type}`;
+    if (existingKey.has(key)) { skipped.push({ date: fmt(newDate), shift_type: s.shift_type }); continue; }
+    try {
+      const out = await db.workShift.create({
+        data: {
+          date: newDate,
+          shift_type: s.shift_type,
+          start_time: s.start_time,
+          end_time: s.end_time,
+          positions_needed: s.positions_needed,
+          assigned_staff: s.assigned_staff,
+          notes: s.notes,
+        },
+      });
+      created.push({ id: out.id, date: fmt(newDate), shift_type: s.shift_type });
+    } catch (e: any) {
+      skipped.push({ date: fmt(newDate), shift_type: s.shift_type, error: e?.message });
+    }
+  }
+  return { created: created.length, skipped: skipped.length, details: { created, skipped } };
+});
+
 // Ensure the recruitment knob columns exist on RestaurantProfile. Schema
 // declared them; this guarantees the DB matches before Prisma client reads.
 registerFn('ensureRecruitmentColumns', async () => {

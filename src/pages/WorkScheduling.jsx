@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
-import { Loader2, Plus, Calendar as CalendarIcon, ChevronLeft, ChevronRight, Filter, RotateCcw, X, Crown, Link, Check, Trash2, MoveRight, Phone, MessageCircle, Star } from 'lucide-react';
+import { Loader2, Plus, Calendar as CalendarIcon, ChevronLeft, ChevronRight, Filter, RotateCcw, X, Crown, Link, Check, Trash2, MoveRight, Phone, MessageCircle, Star, Copy } from 'lucide-react';
 import EmployeeRatingDialog from '../components/scheduling/EmployeeRatingDialog';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -974,6 +974,26 @@ export default function WorkScheduling() {
                             <Button variant="outline" onClick={handleCopyAvailabilityLink} className={copied ? "bg-green-50 border-green-400 text-green-700" : ""}>
                                 {copied ? <Check className="w-4 h-4 ml-2 text-green-600" /> : <Link className="w-4 h-4 ml-2" />}
                                 {copied ? "הועתק!" : "העתק לינק לזמינות"}
+                            </Button>
+                            <Button
+                                variant="outline"
+                                className="border-indigo-300 text-indigo-600 hover:bg-indigo-50"
+                                onClick={async () => {
+                                    if (!confirm('להעתיק את כל המשמרות מהשבוע שעבר לשבוע הזה?\nשיבוצים שכבר קיימים בשבוע הנוכחי לא ייפגעו.')) return;
+                                    try {
+                                        const source = format(addDays(weekInterval.start, -7), 'yyyy-MM-dd');
+                                        const target = format(weekInterval.start, 'yyyy-MM-dd');
+                                        const res = await base44.functions.copyShiftsFromLastWeek({ source_week_start: source, target_week_start: target });
+                                        const d = res?.data || {};
+                                        alert(`הועתקו ${d.created || 0} משמרות. ${d.skipped ? `${d.skipped} דולגו (כבר קיימות).` : ''}`);
+                                        await loadScheduleData();
+                                    } catch (e) {
+                                        alert('שגיאה בהעתקה: ' + (e?.data?.message || e?.message || ''));
+                                    }
+                                }}
+                            >
+                                <Copy className="w-4 h-4 ml-2" />
+                                העתק משבוע שעבר
                             </Button>
                             <Button variant="outline" className="border-red-300 text-red-600 hover:bg-red-50" onClick={() => setClearDialog(true)}>
                                 <Trash2 className="w-4 h-4 ml-2" />
