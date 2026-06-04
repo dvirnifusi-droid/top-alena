@@ -7525,3 +7525,227 @@ registerFn('beecommGetStatus', async () => {
     client_id_masked: cfg.client_id ? `${cfg.client_id.slice(0, 4)}…${cfg.client_id.slice(-4)}` : null,
   };
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// EVENT DIGITAL CONTRACT — generation, public signing, listing
+// Built from the Word doc Dvir uses as a paper sign-off. Each contract is a
+// frozen snapshot of an EventBooking + EventSalesKit at signing time, with a
+// customer signature captured on a public, token-protected URL.
+// ─────────────────────────────────────────────────────────────────────────────
+
+let eventContractTableReady = false;
+async function ensureEventContractTable() {
+  if (eventContractTableReady) return;
+  await (prisma as any).$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "EventContract" (
+      "id" TEXT NOT NULL PRIMARY KEY,
+      "booking_id" TEXT,
+      "contract_number" TEXT,
+      "public_token" TEXT,
+      "customer_name" TEXT,
+      "customer_phone" TEXT,
+      "company_or_event_label" TEXT,
+      "event_location" TEXT,
+      "event_date" TEXT,
+      "event_start_time" TEXT,
+      "event_end_time" TEXT,
+      "guest_count" INTEGER,
+      "package_label" TEXT,
+      "price_per_guest_ils" INTEGER,
+      "upsells_total_ils" INTEGER,
+      "subtotal_ils" INTEGER,
+      "deposit_ils" INTEGER,
+      "balance_ils" INTEGER,
+      "menu_snapshot" JSONB,
+      "upsells_snapshot" JSONB,
+      "terms_snapshot" JSONB,
+      "notes" TEXT,
+      "signature_data_url" TEXT,
+      "signed_at" TIMESTAMP(3),
+      "signed_ip" TEXT,
+      "signed_user_agent" TEXT,
+      "status" TEXT DEFAULT 'draft',
+      "sent_at" TIMESTAMP(3),
+      "sent_via" TEXT,
+      "created_date" TEXT,
+      "updated_date" TEXT,
+      "createdBy" TEXT,
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
+  await (prisma as any).$executeRawUnsafe(`
+    CREATE UNIQUE INDEX IF NOT EXISTS "EventContract_public_token_uq" ON "EventContract"("public_token");
+  `);
+  eventContractTableReady = true;
+}
+
+function randomToken(len = 24) {
+  const alphabet = 'abcdefghijkmnopqrstuvwxyz23456789';
+  let out = '';
+  for (let i = 0; i < len; i++) out += alphabet[Math.floor(Math.random() * alphabet.length)];
+  return out;
+}
+
+function fmtContractNumber(seq: number) {
+  const yr = new Date().getFullYear();
+  return `ALN-${yr}-${String(seq).padStart(4, '0')}`;
+}
+
+// Build a draft contract from a booking (or from scratch with raw fields).
+registerFn('createEventContract', async ({ body, user }) => {
+  await ensureEventContractTable();
+  const b = (body || {}) as any;
+  let booking: any = null;
+  if (b.booking_id) {
+    booking = await (prisma as any).eventBooking.findUnique({ where: { id: String(b.booking_id) } });
+  }
+  // Pull current sales kit for menu/upsells/terms snapshot
+  const kit = await (prisma as any).eventSalesKit.findFirst().catch(() => null);
+
+  // Derive package label from booking.selected_menu (which usually carries id/name/price)
+  const selMenu: any = booking?.selected_menu || null;
+  const packageLabel = b.package_label || (selMenu?.name || selMenu?.label || null);
+  const pricePerGuest = Number(b.price_per_guest_ils ?? selMenu?.price_per_guest ?? selMenu?.price ?? 0) || 0;
+  const guestCount = Number(b.guest_count ?? booking?.guest_count ?? 0) || 0;
+  const upsellsTotal = Number(b.upsells_total_ils ?? 0) || 0;
+  const subtotalIls = Number(b.subtotal_ils ?? booking?.total_ils ?? (pricePerGuest * guestCount + upsellsTotal)) || 0;
+  const depositIls = Number(b.deposit_ils ?? booking?.deposit_amount_ils ?? 0) || 0;
+  const balanceIls = Number(b.balance_ils ?? Math.max(0, subtotalIls - depositIls)) || 0;
+
+  // Sequence number — count existing rows
+  const seq = (await (prisma as any).eventContract.count()) + 1;
+
+  const created = await (prisma as any).eventContract.create({
+    data: {
+      booking_id: booking?.id || null,
+      contract_number: fmtContractNumber(seq),
+      public_token: randomToken(28),
+      customer_name: b.customer_name ?? booking?.customer_name ?? null,
+      customer_phone: b.customer_phone ?? booking?.customer_phone ?? null,
+      company_or_event_label: b.company_or_event_label ?? null,
+      event_location: b.event_location ?? 'עלינא — רוטשילד 104, ראשון לציון',
+      event_date: b.event_date ?? booking?.event_date ?? null,
+      event_start_time: b.event_start_time ?? booking?.event_time ?? null,
+      event_end_time: b.event_end_time ?? null,
+      guest_count: guestCount || null,
+      package_label: packageLabel,
+      price_per_guest_ils: pricePerGuest || null,
+      upsells_total_ils: upsellsTotal || null,
+      subtotal_ils: subtotalIls || null,
+      deposit_ils: depositIls || null,
+      balance_ils: balanceIls || null,
+      menu_snapshot: b.menu_snapshot ?? booking?.selected_dishes ?? selMenu?.dishes ?? null,
+      upsells_snapshot: b.upsells_snapshot ?? booking?.selected_upsells ?? null,
+      terms_snapshot: b.terms_snapshot ?? kit?.terms ?? null,
+      notes: b.notes ?? null,
+      status: 'draft',
+      createdBy: user?.email || null,
+    },
+  });
+  return { ok: true, contract: created };
+});
+
+// Admin read
+registerFn('getEventContract', async ({ body }) => {
+  await ensureEventContractTable();
+  const id = String((body as any)?.id || '');
+  if (!id) throw new Error('id required');
+  const c = await (prisma as any).eventContract.findUnique({ where: { id } });
+  if (!c) throw new Error('Not found');
+  return c;
+});
+
+// Admin patch (only allowed before signing)
+registerFn('updateEventContract', async ({ body }) => {
+  await ensureEventContractTable();
+  const b = (body || {}) as any;
+  if (!b.id) throw new Error('id required');
+  const existing = await (prisma as any).eventContract.findUnique({ where: { id: String(b.id) } });
+  if (!existing) throw new Error('Not found');
+  if (existing.status === 'signed') throw new Error('חוזה חתום — אי אפשר לערוך');
+  const allowed = [
+    'customer_name', 'customer_phone', 'company_or_event_label', 'event_location',
+    'event_date', 'event_start_time', 'event_end_time', 'guest_count',
+    'package_label', 'price_per_guest_ils', 'upsells_total_ils', 'subtotal_ils',
+    'deposit_ils', 'balance_ils', 'menu_snapshot', 'upsells_snapshot',
+    'terms_snapshot', 'notes', 'status',
+  ];
+  const data: Record<string, any> = {};
+  for (const k of allowed) if (b[k] !== undefined) data[k] = b[k];
+  const updated = await (prisma as any).eventContract.update({ where: { id: String(b.id) }, data });
+  return { ok: true, contract: updated };
+});
+
+// List contracts (admin)
+registerFn('listEventContracts', async ({ body }) => {
+  await ensureEventContractTable();
+  const b = (body || {}) as any;
+  const limit = Math.min(200, Math.max(1, Number(b.limit) || 50));
+  const where: any = {};
+  if (b.status) where.status = String(b.status);
+  if (b.booking_id) where.booking_id = String(b.booking_id);
+  const rows = await (prisma as any).eventContract.findMany({
+    where, orderBy: { createdAt: 'desc' }, take: limit,
+  });
+  return { ok: true, contracts: rows };
+});
+
+// Mark as "sent" + generate WhatsApp link
+registerFn('sendEventContract', async ({ body }) => {
+  await ensureEventContractTable();
+  const b = (body || {}) as any;
+  if (!b.id) throw new Error('id required');
+  const c = await (prisma as any).eventContract.findUnique({ where: { id: String(b.id) } });
+  if (!c) throw new Error('Not found');
+  await (prisma as any).eventContract.update({
+    where: { id: c.id },
+    data: { status: 'sent', sent_at: new Date(), sent_via: b.via || 'whatsapp' },
+  });
+  return { ok: true, public_url: `/r/contract/${c.public_token}` };
+});
+
+// PUBLIC — fetch contract by token (for the customer signing page)
+registerFn('getPublicEventContract', async ({ body }) => {
+  await ensureEventContractTable();
+  const token = String((body as any)?.token || '');
+  if (!token) throw new Error('token required');
+  const c = await (prisma as any).eventContract.findFirst({ where: { public_token: token } });
+  if (!c) throw new Error('Not found');
+  // Strip server-internal fields before returning to public
+  const { signed_ip: _ip, signed_user_agent: _ua, ...safe } = c as any;
+  return { ok: true, contract: safe };
+}, { public: true });
+
+// PUBLIC — customer submits signature
+registerFn('signEventContract', async ({ body, req }) => {
+  await ensureEventContractTable();
+  const b = (body || {}) as any;
+  const token = String(b.token || '');
+  const dataUrl = String(b.signature_data_url || '');
+  const sigName = String(b.customer_name || '').trim();
+  if (!token) throw new Error('token required');
+  if (!dataUrl.startsWith('data:image/')) throw new Error('signature_data_url must be a PNG/JPEG dataURL');
+  if (dataUrl.length > 250_000) throw new Error('signature too large');
+  if (!sigName) throw new Error('customer_name required');
+
+  const c = await (prisma as any).eventContract.findFirst({ where: { public_token: token } });
+  if (!c) throw new Error('Not found');
+  if (c.status === 'signed') throw new Error('כבר חתום');
+
+  const ip = (req as any)?.ip || (req as any)?.headers?.['x-forwarded-for'] || null;
+  const ua = (req as any)?.headers?.['user-agent'] || null;
+
+  await (prisma as any).eventContract.update({
+    where: { id: c.id },
+    data: {
+      signature_data_url: dataUrl,
+      customer_name: sigName,  // sync the printed name to the one the customer typed when signing
+      signed_at: new Date(),
+      signed_ip: ip ? String(ip).slice(0, 60) : null,
+      signed_user_agent: ua ? String(ua).slice(0, 200) : null,
+      status: 'signed',
+    },
+  });
+  return { ok: true };
+}, { public: true });

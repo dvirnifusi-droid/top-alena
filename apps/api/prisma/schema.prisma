@@ -2107,6 +2107,51 @@ model EventSalesKit {
   updated_date         String?
 }
 
+// Digital event contract: snapshot of an EventBooking at contract-sign time +
+// customer signature. Designed to be immutable once signed for legal clarity.
+model EventContract {
+  id                     String   @id @default(cuid())
+  booking_id             String?
+  contract_number        String?  // human-readable, e.g. "ALN-2026-0042"
+  // Public access — customer signs at /r/contract/<token>
+  public_token           String?  @unique
+  // Customer-facing data (frozen at contract-sign moment for legal stability)
+  customer_name          String?
+  customer_phone         String?
+  company_or_event_label String?
+  event_location         String?
+  event_date             String?
+  event_start_time       String?
+  event_end_time         String?
+  guest_count            Int?
+  package_label          String?  // e.g. "150 ₪ לסועד" / "שולחן שוק" / "תפריט מותאם"
+  price_per_guest_ils    Int?
+  upsells_total_ils      Int?
+  subtotal_ils           Int?
+  deposit_ils            Int?
+  balance_ils            Int?
+  // Frozen snapshots — JSON so changes to the live menu/terms don't alter past contracts
+  menu_snapshot          Json?
+  upsells_snapshot       Json?
+  terms_snapshot         Json?
+  notes                  String?
+  // Signature
+  signature_data_url     String?  @db.Text  // base64 PNG dataURL of the customer signature
+  signed_at              DateTime?
+  signed_ip              String?
+  signed_user_agent      String?
+  // Workflow status: 'draft', 'sent', 'signed', 'cancelled'
+  status                 String?  @default("draft")
+  sent_at                DateTime?
+  sent_via               String?  // 'whatsapp', 'email', 'sms', 'manual'
+  // Legacy base44 columns — see other models
+  created_date           String?
+  updated_date           String?
+  createdBy              String?
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+}
+
 model WaiterKit {
   id             String   @id @default(cuid())
   singleton      Boolean

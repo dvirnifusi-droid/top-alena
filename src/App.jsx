@@ -2,7 +2,13 @@ import { Toaster } from "@/components/ui/toaster"
 import { QueryClientProvider } from '@tanstack/react-query'
 import { queryClientInstance } from '@/lib/query-client'
 import { pagesConfig } from './pages.config'
-import { BrowserRouter as Router, Route, Routes, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Route, Routes, Navigate, useParams } from 'react-router-dom';
+
+// Short URL /c/<token> → /EventContractSign?token=<token>
+function EventContractSignRedirect() {
+  const { token } = useParams();
+  return <Navigate to={`/EventContractSign?token=${encodeURIComponent(token || '')}`} replace />;
+}
 import PageNotFound from './lib/PageNotFound';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
@@ -13,6 +19,7 @@ import TrainingVideos from './pages/TrainingVideos';
 import JobApplication from './pages/JobApplication';
 import EventsInquiry from './pages/EventsInquiry';
 import EventsPayment from './pages/EventsPayment';
+import EventContractSign from './pages/EventContractSign';
 import Waiter from './pages/Waiter';
 import QueueJoin from './pages/QueueJoin';
 import QueueDashboard from './pages/QueueDashboard';
@@ -120,6 +127,7 @@ const AuthenticatedApp = () => {
       <Route path="/j" element={<Navigate to="/apply" replace />} />
       <Route path="/e" element={<Navigate to="/EventsInquiry" replace />} />
       <Route path="/q" element={<Navigate to="/QueueJoin" replace />} />
+      <Route path="/c/:token" element={<EventContractSignRedirect />} />
       <Route path="*" element={<PageNotFound />} />
     </Routes>
   );
@@ -143,6 +151,7 @@ function App() {
           <Route path="/EventsInquiry" element={<EventsInquiry />} />
           <Route path="/events" element={<EventsInquiry />} />
           <Route path="/EventsPayment" element={<EventsPayment />} />
+          <Route path="/EventContractSign" element={<EventContractSign />} />
           <Route path="/Waiter" element={<Waiter />} />
           <Route path="/menu" element={<Waiter />} />
 
