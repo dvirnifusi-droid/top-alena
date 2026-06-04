@@ -50,7 +50,7 @@ export function Hero({ heroImageUrl, heroAlt }: { heroImageUrl?: string; heroAlt
             transition={{ duration: 0.7, delay: 0.5 }}
             className="mt-6 text-lg leading-relaxed text-charcoal/75"
           >
-            בר רחוב שמח · בשרים על האש · אירועים פרטיים. חוויה ים-תיכונית עכשווית, מבושלת בעבודת יד, מוגשת בלי פשרות.
+            תנור ג׳וספר על 600 מעלות · בשרים על האש · קוקטיילים וערבי נושא · אולם פרטי לאירועים. חמארה כשרה למהדרין במלוא מובן המילה.
           </motion.p>
           <motion.div
             initial={{ opacity: 0, y: 12 }}
