@@ -10,15 +10,22 @@ import { WelcomeModal } from "@/components/layout/WelcomeModal";
 import { Analytics as GA } from "@/lib/analytics";
 import { Analytics as VercelAnalytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/next";
+import { env } from "@/lib/env";
 
 export const metadata: Metadata = {
-  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "https://alenabepita.co.il"),
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "https://alena.topalena.com"),
   title: {
     default: "עלינא — חמארה ים-תיכונית כשרה בראשון לציון",
     template: "%s | עלינא",
   },
   description:
     "עלינא — בר מסעדה כשר ים-תיכוני ברוטשילד 104, ראשון לציון. המבורגרים, בשרים, חמארה, ארוחות בוקר ואירועים פרטיים. הזמן שולחן עכשיו.",
+  verification: {
+    google: env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION,
+    other: env.NEXT_PUBLIC_BING_SITE_VERIFICATION
+      ? { "msvalidate.01": env.NEXT_PUBLIC_BING_SITE_VERIFICATION }
+      : undefined,
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
