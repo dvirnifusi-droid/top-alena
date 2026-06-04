@@ -1,8 +1,9 @@
 import type { MetadataRoute } from "next";
 import { sanity } from "../../sanity/lib/client";
-import { allLandingSlugsQuery, blogIndexQuery } from "../../sanity/lib/queries";
+import { allLandingSlugsQuery } from "../../sanity/lib/queries";
 import { env } from "@/lib/env";
 import { routes } from "@/lib/routes";
+import { posts } from "@/content/blog";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const base = env.NEXT_PUBLIC_SITE_URL;
@@ -27,17 +28,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     landings = [];
   }
 
-  let posts: MetadataRoute.Sitemap = [];
-  try {
-    const blog = (await sanity.fetch(blogIndexQuery)) as { slug: { current: string }; publishedAt: string }[];
-    posts = (blog ?? []).map((p) => ({
-      url: `${base}/בלוג/${p.slug.current}`,
-      lastModified: new Date(p.publishedAt),
-      priority: 0.6,
-    }));
-  } catch {
-    posts = [];
-  }
+  // Static blog posts from src/content/blog.ts
+  const blogEntries: MetadataRoute.Sitemap = posts.map((p) => ({
+    url: `${base}/blog/${p.slug}`,
+    lastModified: new Date(p.publishedAt),
+    priority: 0.7,
+  }));
 
-  return [...fixed, ...landings, ...posts];
+  return [...fixed, ...landings, ...blogEntries];
 }
