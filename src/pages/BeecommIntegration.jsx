@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { BeecommConfig, BeecommOrder } from '@/entities/all';
+import { base44 } from '@/api/base44Client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -59,14 +60,38 @@ export default function BeecommIntegrationPage() {
 
   const loadConfig = async () => {
     try {
-      const configs = await BeecommConfig.list();
-      if (configs.length > 0) {
-        setConfig(configs[0]);
-        setNewConfig(configs[0]);
-        setIsConnected(!!configs[0].access_token && configs[0].active);
+      // Status (masked, never exposes client_secret)
+      const status = await base44.functions.beecommGetStatus({});
+      if (status?.configured) {
+        setConfig({ id: 'singleton', ...status });
+        setIsConnected(!!status.active && !!status.token_valid);
+      }
+      // Best-effort load of raw config for editing (admin only — entity is protected)
+      try {
+        const configs = await BeecommConfig.list();
+        if (configs.length > 0) {
+          setNewConfig({
+            client_id: configs[0].client_id || '',
+            client_secret: configs[0].client_secret || '',
+            api_base_url: configs[0].api_base_url || 'https://biapp.beecomm.co.il:8094',
+          });
+        }
+      } catch { /* non-admin or RLS — ignore */ }
+      // If connected, load customers list
+      if (status?.active && status?.token_valid) {
+        await loadCustomers();
       }
     } catch (error) {
       console.error('שגיאה בטעינת הגדרות:', error);
+    }
+  };
+
+  const loadCustomers = async () => {
+    try {
+      const res = await base44.functions.beecommGetCustomers({});
+      if (res?.ok) setCustomers(res.customers || []);
+    } catch (e) {
+      console.warn('beecommGetCustomers failed', e);
     }
   };
 
@@ -80,18 +105,22 @@ export default function BeecommIntegrationPage() {
   };
 
   const saveConfig = async () => {
+    if (!newConfig.client_id?.trim() || !newConfig.client_secret?.trim()) {
+      alert('יש למלא Client ID ו-Client Secret');
+      return;
+    }
     setLoading(true);
     try {
-      if (config) {
-        await BeecommConfig.update(config.id, newConfig);
-      } else {
-        await BeecommConfig.create(newConfig);
-      }
+      await base44.functions.beecommSaveConfig({
+        client_id: newConfig.client_id.trim(),
+        client_secret: newConfig.client_secret.trim(),
+        api_base_url: newConfig.api_base_url || 'https://biapp.beecomm.co.il:8094',
+      });
       await loadConfig();
-      alert('הגדרות נשמרו בהצלחה!');
+      alert('הגדרות נשמרו. עכשיו לחץ "בדוק חיבור" כדי לאמת מול Beecomm.');
     } catch (error) {
       console.error('שגיאה בשמירת הגדרות:', error);
-      alert('שגיאה בשמירת הגדרות');
+      alert('שגיאה בשמירת הגדרות: ' + (error?.message || error));
     }
     setLoading(false);
   };
@@ -99,36 +128,19 @@ export default function BeecommIntegrationPage() {
   const testConnection = async () => {
     setTestLoading(true);
     try {
-      // בחיבור אמיתי - זה יהיה דרך Backend Functions
-      // כרגע אני מדמה את התהליך
-      const response = await fetch(`${newConfig.api_base_url}/v2/oauth/token`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: `client_id=${newConfig.client_id}&client_secret=${newConfig.client_secret}`
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        if (data.result && data.access_token) {
-          await BeecommConfig.update(config.id, {
-            ...newConfig,
-            access_token: data.access_token,
-            token_expires: new Date(Date.now() + 3600000).toISOString(), // 1 hour
-            active: true
-          });
-          setIsConnected(true);
-          alert('חיבור הצליח! הטוקן נשמר.');
-        } else {
-          alert('חיבור נכשל: ' + (data.message || 'שגיאה לא ידועה'));
-        }
+      const res = await base44.functions.beecommTestConnection({});
+      if (res?.ok) {
+        setIsConnected(true);
+        await loadCustomers();
+        alert('✅ ' + (res.message || 'מחובר בהצלחה ל-Beecomm'));
       } else {
-        alert('שגיאה בחיבור: HTTP ' + response.status);
+        setIsConnected(false);
+        alert('❌ חיבור נכשל: ' + (res?.message || 'לא ידוע'));
       }
     } catch (error) {
       console.error('שגיאה בבדיקת חיבור:', error);
-      alert('שגיאה בחיבור למערכת. וודא שפרטי הגישה נכונים.');
+      setIsConnected(false);
+      alert('❌ שגיאה: ' + (error?.message || 'נסה שוב'));
     }
     setTestLoading(false);
   };
@@ -288,13 +300,36 @@ export default function BeecommIntegrationPage() {
                   </Button>
                 </div>
 
-                <div className="bg-amber-50 p-4 rounded-lg border border-amber-200">
-                  <h4 className="font-semibold text-amber-800 mb-2">⚠️ חשוב לדעת:</h4>
-                  <p className="text-amber-700 text-sm">
-                    פרטי הגישה נשמרים באופן מאובטח במערכת. עדיין נדרשת הפעלת "פונקציות צד-שרת" 
-                    כדי שהחיבור יעבוד במלואו. בינתיים תוכל לבדוק את הממשק ולהכין הזמנות.
+                <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                  <h4 className="font-semibold text-blue-800 mb-2">🔐 אבטחה</h4>
+                  <p className="text-blue-700 text-sm">
+                    האימות מבוצע כולו ב-Backend (apps/api). ה-Client Secret אינו עוזב את השרת
+                    ו-Token מתחדש אוטומטית כל ~50 דקות.
                   </p>
                 </div>
+
+                {isConnected && customers.length > 0 && (
+                  <div className="bg-green-50 p-4 rounded-lg border border-green-200">
+                    <h4 className="font-semibold text-green-800 mb-3">🏪 לקוחות וסניפים שהשרת רואה</h4>
+                    <div className="space-y-2">
+                      {customers.map((c) => (
+                        <div key={c.customerId} className="bg-white rounded p-3 border border-green-100">
+                          <div className="font-bold text-gray-800">{c.customerName} <span className="text-xs text-gray-500">#{c.customerId}</span></div>
+                          {(c.branches || []).map((b) => (
+                            <div key={b.branchId} className="mt-1 ml-4 text-sm text-gray-700">
+                              📍 {b.branchName} <span className="text-xs text-gray-400">branchId={b.branchId}</span>
+                              {(b.pos || []).length > 0 && (
+                                <span className="ml-2 text-xs text-gray-500">
+                                  · {b.pos.length} POS ({b.pos.map(p => p.posId).join(', ')})
+                                </span>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>

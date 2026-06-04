@@ -7409,3 +7409,119 @@ registerFn('backfillNullDateTimes', async () => {
     results,
   };
 }, { public: true });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// BEECOMM POS INTEGRATION (Order Center API)
+// Docs: http://bibeecommws.azurewebsites.net/Docs/OrdersCenter/OrdersCenter.aspx
+// Base: https://biapp.beecomm.co.il:8094
+// ─────────────────────────────────────────────────────────────────────────────
+
+const BEECOMM_DEFAULT_BASE = 'https://biapp.beecomm.co.il:8094';
+
+async function loadBeecommConfig() {
+  const rows = await (prisma as any).beecommConfig.findMany({ take: 1, orderBy: { createdAt: 'asc' } });
+  return rows[0] || null;
+}
+
+async function beecommAuth(cfg: { client_id: string; client_secret: string; api_base_url?: string | null }) {
+  const base = cfg.api_base_url || BEECOMM_DEFAULT_BASE;
+  const body = new URLSearchParams({ client_id: cfg.client_id, client_secret: cfg.client_secret });
+  const res = await fetch(`${base}/v2/oauth/token`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: body.toString(),
+  });
+  const text = await res.text();
+  let json: any;
+  try { json = JSON.parse(text); } catch { json = { result: false, message: text.slice(0, 200) }; }
+  if (!res.ok || !json?.result || !json?.access_token) {
+    throw new Error(json?.message || `HTTP ${res.status}`);
+  }
+  return { token: String(json.access_token), base };
+}
+
+// Returns a non-expired access token, re-authing if needed (50-min window).
+async function ensureBeecommToken() {
+  const cfg = await loadBeecommConfig();
+  if (!cfg) throw new Error('Beecomm not configured');
+  const exp = cfg.token_expires ? new Date(cfg.token_expires).getTime() : 0;
+  if (cfg.access_token && exp > Date.now() + 60_000) {
+    return { token: cfg.access_token as string, base: cfg.api_base_url || BEECOMM_DEFAULT_BASE, cfgId: cfg.id };
+  }
+  const { token, base } = await beecommAuth(cfg);
+  await (prisma as any).beecommConfig.update({
+    where: { id: cfg.id },
+    data: { access_token: token, token_expires: new Date(Date.now() + 50 * 60 * 1000), active: true },
+  });
+  return { token, base, cfgId: cfg.id };
+}
+
+// Save / update Beecomm credentials (singleton row).
+registerFn('beecommSaveConfig', async ({ body }) => {
+  const b = (body || {}) as { client_id?: string; client_secret?: string; api_base_url?: string };
+  if (!b.client_id || !b.client_secret) throw new Error('client_id and client_secret are required');
+  const existing = await loadBeecommConfig();
+  const data = {
+    client_id: b.client_id.trim(),
+    client_secret: b.client_secret.trim(),
+    api_base_url: (b.api_base_url || BEECOMM_DEFAULT_BASE).trim(),
+    access_token: null,
+    token_expires: null,
+  };
+  if (existing) {
+    await (prisma as any).beecommConfig.update({ where: { id: existing.id }, data });
+  } else {
+    await (prisma as any).beecommConfig.create({ data: { ...data, active: false } });
+  }
+  return { ok: true };
+});
+
+// Test credentials by acquiring a token; persists it on success.
+registerFn('beecommTestConnection', async () => {
+  const cfg = await loadBeecommConfig();
+  if (!cfg) throw new Error('Beecomm not configured — save credentials first');
+  try {
+    const { token } = await beecommAuth(cfg);
+    await (prisma as any).beecommConfig.update({
+      where: { id: cfg.id },
+      data: { access_token: token, token_expires: new Date(Date.now() + 50 * 60 * 1000), active: true },
+    });
+    return { ok: true, message: 'מחובר ל-Beecomm בהצלחה' };
+  } catch (e: any) {
+    await (prisma as any).beecommConfig.update({
+      where: { id: cfg.id },
+      data: { active: false, access_token: null, token_expires: null },
+    });
+    return { ok: false, message: String(e?.message || e) };
+  }
+});
+
+// List customers/branches/POS visible to the authenticated client.
+registerFn('beecommGetCustomers', async () => {
+  const { token, base } = await ensureBeecommToken();
+  const res = await fetch(`${base}/api/v2/services/orderCenter/customers`, {
+    method: 'GET',
+    headers: { access_token: token },
+  });
+  const text = await res.text();
+  let json: any;
+  try { json = JSON.parse(text); } catch { json = { result: false, message: text.slice(0, 200) }; }
+  if (!res.ok || !json?.result) throw new Error(json?.message || `HTTP ${res.status}`);
+  return { ok: true, customers: json.customers || [] };
+});
+
+// Read current config status (does NOT expose client_secret).
+registerFn('beecommGetStatus', async () => {
+  const cfg = await loadBeecommConfig();
+  if (!cfg) return { configured: false };
+  const exp = cfg.token_expires ? new Date(cfg.token_expires).getTime() : 0;
+  return {
+    configured: true,
+    active: !!cfg.active,
+    has_token: !!cfg.access_token,
+    token_valid: exp > Date.now(),
+    token_expires: cfg.token_expires,
+    api_base_url: cfg.api_base_url,
+    client_id_masked: cfg.client_id ? `${cfg.client_id.slice(0, 4)}…${cfg.client_id.slice(-4)}` : null,
+  };
+});
