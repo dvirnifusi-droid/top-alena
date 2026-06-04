@@ -1,46 +1,76 @@
+"use client";
+
+import { motion } from "framer-motion";
 import { Container } from "@/components/layout/Container";
-import { sanity } from "../../../sanity/lib/client";
-import { reviewsQuery } from "../../../sanity/lib/queries";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { reviewSchema } from "@/components/seo/schemas";
-import { FadeIn, StaggerGroup, StaggerItem } from "@/components/shared/MotionSection";
+import { reviews, aggregateRating } from "@/content/reviews";
 
-type Review = { _id: string; author: string; rating: number; body: string; date?: string };
+const SOURCE_LABEL: Record<string, string> = {
+  Google: "Google",
+  Facebook: "Facebook",
+  Direct: "ישיר",
+};
 
-export async function ReviewsCarousel() {
-  let reviews: Review[] = [];
-  try {
-    reviews = ((await sanity.fetch(reviewsQuery)) as Review[]) ?? [];
-  } catch {
-    reviews = [];
-  }
+export function ReviewsCarousel() {
   if (!reviews.length) return null;
+  const top = reviews.slice(0, 6);
   return (
-    <section className="py-20">
-      <Container>
-        <FadeIn>
-          <div className="mb-12 text-center">
-            <p className="mb-3 inline-flex items-center gap-2 text-xs uppercase tracking-[0.25em] text-brass">
-              <span className="h-px w-8 bg-brass" />
-              עדויות
-              <span className="h-px w-8 bg-brass" />
-            </p>
-            <h2 className="font-display text-4xl text-charcoal md:text-5xl">מה אומרים עלינו</h2>
+    <section className="py-24 md:py-32">
+      <Container className="max-w-6xl">
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, margin: "-80px" }}
+          transition={{ duration: 0.8 }}
+          className="mb-12 text-center"
+        >
+          <p className="text-xs uppercase tracking-[0.35em] text-brass">העדויות</p>
+          <h2 className="mt-4 font-display text-5xl text-charcoal md:text-6xl">
+            מה אומרים עלינו
+          </h2>
+          {/* Aggregate rating proof */}
+          <div className="mt-6 inline-flex items-center gap-3 rounded-full bg-cream-soft px-5 py-2 ring-1 ring-brass/20">
+            <span className="text-lg tracking-widest text-brass">★★★★★</span>
+            <span className="font-semibold text-charcoal">
+              {aggregateRating.ratingValue.toFixed(1)}
+            </span>
+            <span className="text-sm text-charcoal/60">
+              ({aggregateRating.reviewCount} ביקורות Google)
+            </span>
           </div>
-        </FadeIn>
-        <StaggerGroup className="grid gap-6 md:grid-cols-3">
-          {reviews.slice(0, 6).map((r) => (
-            <StaggerItem
-              key={r._id}
-              className="rounded-3xl border border-brass/20 bg-cream-soft p-7 shadow-sm shadow-charcoal/5"
+        </motion.div>
+
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+          {top.map((r, i) => (
+            <motion.figure
+              key={r.author + r.date}
+              initial={{ opacity: 0, y: 24 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, margin: "-60px" }}
+              transition={{ duration: 0.6, delay: i * 0.08 }}
+              className="rounded-3xl border border-brass/15 bg-cream-soft p-7 shadow-sm shadow-charcoal/5"
             >
-              <div className="text-lg tracking-widest text-brass">{"★".repeat(r.rating)}</div>
-              <blockquote className="mt-3 leading-relaxed text-charcoal/85">{r.body}</blockquote>
-              <figcaption className="mt-4 text-sm font-semibold text-olive">— {r.author}</figcaption>
-              <JsonLd data={reviewSchema(r)} />
-            </StaggerItem>
+              <div className="flex items-center justify-between gap-2">
+                <div className="text-lg tracking-widest text-brass">{"★".repeat(r.rating)}</div>
+                <span className="text-[0.7rem] uppercase tracking-wider text-charcoal/45">
+                  {SOURCE_LABEL[r.source]}
+                </span>
+              </div>
+              <blockquote className="mt-4 text-charcoal/85 leading-relaxed">{r.body}</blockquote>
+              <figcaption className="mt-5 flex items-center justify-between text-sm">
+                <span className="font-semibold text-olive">— {r.author}</span>
+                <time className="text-xs text-charcoal/45">
+                  {new Date(r.date).toLocaleDateString("he-IL", {
+                    year: "numeric",
+                    month: "short",
+                  })}
+                </time>
+              </figcaption>
+              <JsonLd data={reviewSchema({ ...r, rating: r.rating })} />
+            </motion.figure>
           ))}
-        </StaggerGroup>
+        </div>
       </Container>
     </section>
   );

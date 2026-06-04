@@ -1,3 +1,5 @@
+import { aggregateRating as agg } from "@/content/reviews";
+
 type Restaurant = { name: string; phone: string; address: string; url: string; image?: string };
 
 export const restaurantSchema = (r: Restaurant) => ({
@@ -14,6 +16,13 @@ export const restaurantSchema = (r: Restaurant) => ({
     streetAddress: r.address,
     addressLocality: "ראשון לציון",
     addressCountry: "IL",
+  },
+  aggregateRating: {
+    "@type": "AggregateRating",
+    ratingValue: agg.ratingValue.toFixed(1),
+    reviewCount: agg.reviewCount,
+    bestRating: 5,
+    worstRating: 1,
   },
 });
 
