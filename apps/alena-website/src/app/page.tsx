@@ -4,10 +4,11 @@ import { EventsTeaser } from "@/components/home/EventsTeaser";
 import { ReviewsCarousel } from "@/components/home/ReviewsCarousel";
 import { LocationMap } from "@/components/home/LocationMap";
 import { InstagramStrip, type StripImage } from "@/components/home/InstagramStrip";
+import { Marquee } from "@/components/shared/Marquee";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { restaurantSchema } from "@/components/seo/schemas";
 import { env } from "@/lib/env";
-import { heroPhoto, featuredPhotos } from "@/lib/gallery";
+import { featuredPhotos } from "@/lib/gallery";
 
 export const revalidate = 600;
 
@@ -20,7 +21,8 @@ export default function HomePage() {
 
   return (
     <>
-      <Hero heroImageUrl={heroPhoto.src} heroAlt={heroPhoto.alt} />
+      <Hero />
+      <Marquee />
       <MenuTeaser />
       <InstagramStrip images={stripImages} />
       <EventsTeaser />

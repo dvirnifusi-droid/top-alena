@@ -1,94 +1,84 @@
 import Link from "next/link";
 import Image from "next/image";
 import { Container } from "@/components/layout/Container";
-import { sanity } from "../../../sanity/lib/client";
-import { menuQuery } from "../../../sanity/lib/queries";
-import { urlFor } from "../../../sanity/lib/image";
+import { menu } from "@/content/menu";
 import { FadeIn, StaggerGroup, StaggerItem } from "@/components/shared/MotionSection";
 
-type Item = {
-  _id: string;
-  name: string;
-  description?: string;
-  price?: number;
-  image?: unknown;
-};
+// Pull a curated "what's hot" lineup from the real menu — items with photos
+// are surfaced first so the section feels visual.
+function pickFeatured() {
+  const all = menu.flatMap((s) => s.items);
+  const withImage = all.filter((i) => i.image);
+  const recommended = all.filter((i) => i.tags?.includes("מומלץ") && !i.image);
+  return [...withImage, ...recommended].slice(0, 6);
+}
 
-export async function MenuTeaser() {
-  let items: Item[] = [];
-  try {
-    const data = (await sanity.fetch(menuQuery)) as { items: Item[] };
-    items = data.items ?? [];
-  } catch {
-    items = [];
-  }
-  const featured = items.slice(0, 6);
-  if (!featured.length) {
-    return (
-      <section className="py-20">
-        <Container>
-          <FadeIn>
-            <p className="mb-3 inline-flex items-center gap-2 text-xs uppercase tracking-[0.25em] text-brass">
-              <span className="h-px w-8 bg-brass" />
-              תפריט
-            </p>
-            <h2 className="font-display text-4xl text-charcoal md:text-5xl">מה בתפריט</h2>
-            <p className="mt-4 max-w-xl rounded-2xl bg-cream-soft p-6 text-charcoal/70">
-              התפריט המלא יתעדכן בקרוב.{" "}
-              <Link href="/menu" className="text-terracotta underline decoration-brass underline-offset-2">
-                למידע נוסף
-              </Link>
-              .
-            </p>
-          </FadeIn>
-        </Container>
-      </section>
-    );
-  }
+export function MenuTeaser() {
+  const featured = pickFeatured();
   return (
-    <section className="py-20">
+    <section className="py-24">
       <Container>
         <FadeIn>
-          <div className="mb-10 flex items-end justify-between">
+          <div className="mb-12 flex flex-wrap items-end justify-between gap-3">
             <div>
               <p className="mb-2 inline-flex items-center gap-2 text-xs uppercase tracking-[0.25em] text-brass">
                 <span className="h-px w-8 bg-brass" />
                 תפריט
               </p>
-              <h2 className="font-display text-4xl text-charcoal md:text-5xl">מה בתפריט</h2>
+              <h2 className="font-display text-5xl text-charcoal md:text-6xl">המומלצים</h2>
+              <p className="mt-3 max-w-xl text-charcoal/70">
+                מה שאוכלים אצלנו השבוע. הכל בא מהג׳וספר על 600 מעלות.
+              </p>
             </div>
-            <Link href="/menu" className="text-sm font-medium text-terracotta hover:underline">
-              לתפריט המלא ←
+            <Link
+              href="/menu"
+              className="inline-flex items-center gap-2 rounded-full bg-charcoal px-5 py-2.5 text-sm font-semibold text-cream transition hover:bg-terracotta"
+            >
+              לתפריט המלא <span>←</span>
             </Link>
           </div>
         </FadeIn>
-        <StaggerGroup className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+        <StaggerGroup className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           {featured.map((item) => (
             <StaggerItem
-              key={item._id}
-              className="group overflow-hidden rounded-3xl bg-cream-soft shadow-sm ring-1 ring-brass/10 transition hover:shadow-lg"
+              key={item.name}
+              className="group relative overflow-hidden rounded-3xl bg-cream-soft shadow-lg shadow-charcoal/5 ring-1 ring-brass/15 transition hover:shadow-2xl"
             >
               {item.image ? (
                 <div className="relative aspect-[4/3] overflow-hidden">
                   <Image
-                    src={urlFor(item.image).width(800).url()}
+                    src={item.image}
                     alt={item.name}
                     fill
-                    sizes="(min-width:1024px) 30vw, 50vw"
-                    className="object-cover transition duration-700 group-hover:scale-105"
+                    sizes="(min-width:1024px) 33vw, (min-width:768px) 50vw, 100vw"
+                    className="object-cover transition duration-700 group-hover:scale-110"
                   />
-                </div>
-              ) : null}
-              <div className="p-5">
-                <div className="flex items-baseline justify-between gap-2">
-                  <h3 className="font-display text-xl text-charcoal">{item.name}</h3>
-                  {item.price ? (
-                    <span className="font-numeric font-semibold text-terracotta">₪{item.price}</span>
+                  {item.tags?.includes("מומלץ") ? (
+                    <span className="absolute right-3 top-3 rounded-full bg-brass px-3 py-1 text-[0.7rem] font-bold uppercase tracking-wider text-cream shadow-lg">
+                      מומלץ
+                    </span>
                   ) : null}
+                  <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-charcoal/85 via-charcoal/35 to-transparent p-5 text-cream">
+                    <div className="flex items-baseline justify-between gap-3">
+                      <h3 className="font-display text-2xl">{item.name}</h3>
+                      <span className="font-numeric whitespace-nowrap text-xl font-bold text-brass-soft">
+                        ₪{item.price}
+                      </span>
+                    </div>
+                  </div>
                 </div>
-                {item.description ? (
-                  <p className="mt-2 text-sm text-charcoal/70">{item.description}</p>
-                ) : null}
+              ) : (
+                <div className="p-6">
+                  <div className="flex items-baseline justify-between gap-3">
+                    <h3 className="font-display text-2xl text-charcoal">{item.name}</h3>
+                    <span className="font-numeric whitespace-nowrap text-xl font-bold text-terracotta">
+                      ₪{item.price}
+                    </span>
+                  </div>
+                </div>
+              )}
+              <div className="p-5 pt-3">
+                <p className="text-sm leading-relaxed text-charcoal/75">{item.description}</p>
               </div>
             </StaggerItem>
           ))}

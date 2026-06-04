@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Container } from "./Container";
 import { ReservationCTA } from "@/components/shared/ReservationCTA";
+import { Logo } from "@/components/shared/Logo";
 import { routes } from "@/lib/routes";
 
 const nav = [
@@ -15,12 +16,9 @@ const nav = [
 export function Header() {
   return (
     <header className="sticky top-0 z-40 border-b border-charcoal/5 bg-cream/85 backdrop-blur">
-      <Container className="flex items-center justify-between py-4">
-        <Link href="/" className="group flex items-baseline gap-2">
-          <span className="font-display text-2xl text-terracotta tracking-wide">עלינא</span>
-          <span className="hidden text-[0.65rem] uppercase tracking-[0.3em] text-brass sm:inline">
-            חמארה · ראשון
-          </span>
+      <Container className="flex items-center justify-between py-3">
+        <Link href="/" className="group">
+          <Logo />
         </Link>
         <nav className="hidden gap-7 md:flex">
           {nav.map((n) => (
