@@ -4,85 +4,59 @@ import { Container } from "@/components/layout/Container";
 import { menu } from "@/content/menu";
 import { FadeIn, StaggerGroup, StaggerItem } from "@/components/shared/MotionSection";
 
-// Pull a curated "what's hot" lineup from the real menu — items with photos
-// are surfaced first so the section feels visual.
 function pickFeatured() {
   const all = menu.flatMap((s) => s.items);
-  const withImage = all.filter((i) => i.image);
-  const recommended = all.filter((i) => i.tags?.includes("מומלץ") && !i.image);
-  return [...withImage, ...recommended].slice(0, 6);
+  return all.filter((i) => i.image).slice(0, 6);
 }
 
 export function MenuTeaser() {
   const featured = pickFeatured();
   return (
-    <section className="py-24">
-      <Container>
+    <section className="py-24 md:py-32">
+      <Container className="max-w-6xl">
         <FadeIn>
-          <div className="mb-12 flex flex-wrap items-end justify-between gap-3">
-            <div>
-              <p className="mb-2 inline-flex items-center gap-2 text-xs uppercase tracking-[0.25em] text-brass">
-                <span className="h-px w-8 bg-brass" />
-                תפריט
-              </p>
-              <h2 className="font-display text-5xl text-charcoal md:text-6xl">המומלצים</h2>
-              <p className="mt-3 max-w-xl text-charcoal/70">
-                מה שאוכלים אצלנו השבוע. הכל בא מהג׳וספר על 600 מעלות.
-              </p>
-            </div>
-            <Link
-              href="/menu"
-              className="inline-flex items-center gap-2 rounded-full bg-charcoal px-5 py-2.5 text-sm font-semibold text-cream transition hover:bg-terracotta"
-            >
-              לתפריט המלא <span>←</span>
-            </Link>
+          <div className="mb-16 text-center">
+            <p className="text-xs uppercase tracking-[0.35em] text-brass">תפריט</p>
+            <h2 className="mt-4 font-display text-5xl text-charcoal md:text-6xl">המנות שאנחנו אוהבים</h2>
+            <p className="mx-auto mt-4 max-w-xl text-charcoal/70">
+              שש מנות שמסבירות מי אנחנו. התפריט המלא ארוך יותר.
+            </p>
           </div>
         </FadeIn>
-        <StaggerGroup className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+        <StaggerGroup className="grid gap-8 md:grid-cols-2 lg:grid-cols-3">
           {featured.map((item) => (
-            <StaggerItem
-              key={item.name}
-              className="group relative overflow-hidden rounded-3xl bg-cream-soft shadow-lg shadow-charcoal/5 ring-1 ring-brass/15 transition hover:shadow-2xl"
-            >
-              {item.image ? (
-                <div className="relative aspect-[4/3] overflow-hidden">
+            <StaggerItem key={item.name} className="group">
+              <div className="relative aspect-[4/5] overflow-hidden rounded-2xl bg-cream-soft">
+                {item.image ? (
                   <Image
                     src={item.image}
                     alt={item.name}
                     fill
-                    sizes="(min-width:1024px) 33vw, (min-width:768px) 50vw, 100vw"
-                    className="object-cover transition duration-700 group-hover:scale-110"
+                    sizes="(min-width:1024px) 30vw, (min-width:768px) 45vw, 100vw"
+                    className="object-cover transition duration-700 group-hover:scale-105"
                   />
-                  {item.tags?.includes("מומלץ") ? (
-                    <span className="absolute right-3 top-3 rounded-full bg-brass px-3 py-1 text-[0.7rem] font-bold uppercase tracking-wider text-cream shadow-lg">
-                      מומלץ
-                    </span>
-                  ) : null}
-                  <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-charcoal/85 via-charcoal/35 to-transparent p-5 text-cream">
-                    <div className="flex items-baseline justify-between gap-3">
-                      <h3 className="font-display text-2xl">{item.name}</h3>
-                      <span className="font-numeric whitespace-nowrap text-xl font-bold text-brass-soft">
-                        ₪{item.price}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <div className="p-6">
-                  <div className="flex items-baseline justify-between gap-3">
-                    <h3 className="font-display text-2xl text-charcoal">{item.name}</h3>
-                    <span className="font-numeric whitespace-nowrap text-xl font-bold text-terracotta">
-                      ₪{item.price}
-                    </span>
-                  </div>
-                </div>
-              )}
-              <div className="p-5 pt-3">
-                <p className="text-sm leading-relaxed text-charcoal/75">{item.description}</p>
+                ) : null}
               </div>
+              <div className="mt-4 flex items-baseline justify-between gap-3">
+                <h3 className="font-display text-2xl text-charcoal">{item.name}</h3>
+                <span className="font-numeric whitespace-nowrap text-lg font-semibold text-terracotta">
+                  ₪{item.price}
+                </span>
+              </div>
+              <p className="mt-1.5 text-sm leading-relaxed text-charcoal/65">{item.description}</p>
             </StaggerItem>
           ))}
         </StaggerGroup>
+        <FadeIn delay={0.3}>
+          <div className="mt-16 text-center">
+            <Link
+              href="/menu"
+              className="inline-flex items-center gap-2 border-b border-charcoal/30 pb-1 text-sm uppercase tracking-[0.25em] text-charcoal hover:border-terracotta hover:text-terracotta"
+            >
+              לתפריט המלא ←
+            </Link>
+          </div>
+        </FadeIn>
       </Container>
     </section>
   );

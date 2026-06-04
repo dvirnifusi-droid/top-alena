@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { Container } from "./Container";
-import { ReservationCTA } from "@/components/shared/ReservationCTA";
 import { Logo } from "@/components/shared/Logo";
 import { routes } from "@/lib/routes";
+import { env } from "@/lib/env";
 
 const nav = [
   { href: routes.menu, label: "תפריט" },
@@ -15,23 +15,30 @@ const nav = [
 
 export function Header() {
   return (
-    <header className="sticky top-0 z-40 border-b border-charcoal/5 bg-cream/85 backdrop-blur">
-      <Container className="flex items-center justify-between py-3">
-        <Link href="/" className="group">
+    <header className="sticky top-0 z-40 border-b border-charcoal/5 bg-cream/90 backdrop-blur">
+      <Container className="flex flex-col items-center gap-3 py-4 md:gap-4 md:py-5">
+        <Link href="/" className="block">
           <Logo />
         </Link>
-        <nav className="hidden gap-7 md:flex">
+        <nav className="hidden flex-wrap justify-center gap-8 md:flex">
           {nav.map((n) => (
             <Link
               key={n.href}
               href={n.href}
-              className="text-sm font-medium text-charcoal/75 transition hover:text-terracotta"
+              className="text-[0.85rem] uppercase tracking-[0.2em] text-charcoal/70 transition hover:text-terracotta"
             >
               {n.label}
             </Link>
           ))}
+          <a
+            href={env.NEXT_PUBLIC_ONTOPO_URL}
+            target="_blank"
+            rel="noopener"
+            className="text-[0.85rem] uppercase tracking-[0.2em] font-semibold text-terracotta hover:text-terracotta-600"
+          >
+            הזמן שולחן ←
+          </a>
         </nav>
-        <ReservationCTA className="hidden md:inline-flex" />
       </Container>
     </header>
   );

@@ -1,10 +1,11 @@
 import { Hero } from "@/components/home/Hero";
+import { Story } from "@/components/home/Story";
 import { MenuTeaser } from "@/components/home/MenuTeaser";
+import { InstagramStrip, type StripImage } from "@/components/home/InstagramStrip";
 import { EventsTeaser } from "@/components/home/EventsTeaser";
+import { Playlist } from "@/components/home/Playlist";
 import { ReviewsCarousel } from "@/components/home/ReviewsCarousel";
 import { LocationMap } from "@/components/home/LocationMap";
-import { InstagramStrip, type StripImage } from "@/components/home/InstagramStrip";
-import { Marquee } from "@/components/shared/Marquee";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { restaurantSchema } from "@/components/seo/schemas";
 import { env } from "@/lib/env";
@@ -22,10 +23,11 @@ export default function HomePage() {
   return (
     <>
       <Hero />
-      <Marquee />
+      <Story />
       <MenuTeaser />
       <InstagramStrip images={stripImages} />
       <EventsTeaser />
+      <Playlist />
       <ReviewsCarousel />
       <LocationMap />
       <JsonLd

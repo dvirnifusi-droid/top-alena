@@ -1,42 +1,54 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { motion } from "framer-motion";
 import { Container } from "@/components/layout/Container";
 
 export function EventsTeaser() {
   return (
-    <section className="relative overflow-hidden bg-olive py-20 text-cream">
-      <div className="pointer-events-none absolute inset-0 bg-gradient-to-bl from-brass/15 via-transparent to-terracotta/10" />
-      <Container className="relative grid items-center gap-10 md:grid-cols-2">
-        <motion.div
-          initial={{ opacity: 0, x: 24 }}
-          whileInView={{ opacity: 1, x: 0 }}
-          viewport={{ once: true, margin: "-80px" }}
-          transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
-        >
-          <p className="mb-3 inline-flex items-center gap-2 text-xs uppercase tracking-[0.25em] text-brass-soft">
-            <span className="h-px w-8 bg-brass-soft" />
-            אירוח פרטי
-          </p>
-          <h2 className="font-display text-4xl text-cream md:text-5xl">אירועים פרטיים</h2>
-          <p className="mt-4 max-w-md text-cream/85">
-            אולם פרטי עד 50 איש. חבילות גמישות, מנות שף ים-תיכוניות, ברים מלאים — לימי הולדת, אירועי חברה, אירוסים, בר/בת מצווה.
-          </p>
-          <Link
-            href="/events"
-            className="mt-8 inline-flex items-center gap-2 rounded-full bg-cream px-6 py-3 font-semibold text-olive transition hover:bg-brass hover:text-cream"
+    <section className="bg-olive py-24 text-cream md:py-32">
+      <Container className="max-w-6xl">
+        <div className="grid items-center gap-14 md:grid-cols-2">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, margin: "-80px" }}
+            transition={{ duration: 0.9 }}
           >
-            ספרו לי עוד <span>←</span>
-          </Link>
-        </motion.div>
-        <motion.div
-          initial={{ opacity: 0, scale: 0.95 }}
-          whileInView={{ opacity: 1, scale: 1 }}
-          viewport={{ once: true, margin: "-80px" }}
-          transition={{ duration: 0.8, delay: 0.15 }}
-          className="relative aspect-[4/3] overflow-hidden rounded-3xl bg-gradient-to-br from-brass/25 to-charcoal/40 ring-1 ring-brass/30"
-        />
+            <p className="text-xs uppercase tracking-[0.35em] text-brass-soft">אירועים</p>
+            <h2 className="mt-4 font-display text-5xl leading-[1.05] text-cream md:text-6xl">
+              האירוע שלכם.
+              <br />
+              אצלנו.
+            </h2>
+            <p className="mt-6 max-w-md text-cream/85">
+              אולם פרטי עד 50 אורחים. תפריט מותאם, ברים מלאים, מוזיקה ים-תיכונית. סוכן AI חכם בונה איתכם
+              את האירוע בשיחה אחת.
+            </p>
+            <Link
+              href="/events"
+              className="mt-10 inline-flex items-center gap-2 border-b border-cream/40 pb-1 text-sm uppercase tracking-[0.25em] text-cream hover:border-brass hover:text-brass"
+            >
+              לבניית האירוע ←
+            </Link>
+          </motion.div>
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            whileInView={{ opacity: 1, scale: 1 }}
+            viewport={{ once: true, margin: "-80px" }}
+            transition={{ duration: 1, delay: 0.15 }}
+            className="relative aspect-[4/5] overflow-hidden rounded-3xl ring-1 ring-brass/30"
+          >
+            <Image
+              src="/gallery/IMG_6892.JPG"
+              alt="אורחות בעלינא"
+              fill
+              sizes="(min-width:768px) 45vw, 100vw"
+              className="object-cover"
+            />
+          </motion.div>
+        </div>
       </Container>
     </section>
   );
