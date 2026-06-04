@@ -121,11 +121,36 @@ export default function EventContractSign() {
   if (error) return <div className="p-8 text-center text-red-700" dir="rtl">⚠️ {error}</div>;
   if (!contract) return null;
 
-  const dishes = Array.isArray(contract.menu_snapshot) ? contract.menu_snapshot : [];
+  // Group dishes by category (the editor stores {category, name})
+  const rawDishes = Array.isArray(contract.menu_snapshot) ? contract.menu_snapshot : [];
+  const dishesByCat = {};
+  for (const d of rawDishes) {
+    const cat = (typeof d === 'object' && d?.category) ? d.category : 'custom';
+    const name = typeof d === 'string' ? d : (d.name || d.label || '');
+    if (!name) continue;
+    (dishesByCat[cat] = dishesByCat[cat] || []).push(name);
+  }
+  const CAT_LABELS = {
+    openers: 'פתיחות 🥖', sharing: 'חלוקה 🍢', mains: 'עיקריות בשר 🥩',
+    closers: 'סיומות ☕', drinks: 'שתייה 🍺', custom: 'נוספים ✨',
+  };
+  const orderedCats = ['openers', 'sharing', 'mains', 'closers', 'drinks', 'custom'].filter(k => dishesByCat[k]);
+
   const upsells = Array.isArray(contract.upsells_snapshot) ? contract.upsells_snapshot : [];
-  const terms = Array.isArray(contract.terms_snapshot)
-    ? contract.terms_snapshot
-    : (typeof contract.terms_snapshot === 'string' ? contract.terms_snapshot.split('\n') : []);
+
+  // Robust terms rendering — array of strings/{text}, raw string, or legacy object
+  const terms = (() => {
+    const v = contract.terms_snapshot;
+    if (Array.isArray(v)) return v.map(t => typeof t === 'string' ? t : (t.text || t.label || '')).filter(Boolean);
+    if (typeof v === 'string') return v.split('\n').filter(Boolean);
+    if (v && typeof v === 'object') {
+      const out = [];
+      if (v.cancellation_days) out.push(`ביטול אירוע חייב להתבצע עד ${v.cancellation_days} ימים לפני המועד; אחרת המקדמה לא חוזרת.`);
+      if (v.headcount_deadline_days) out.push(`עדכון כמות סופית של סועדים עד ${v.headcount_deadline_days} ימים לפני האירוע.`);
+      return out;
+    }
+    return [];
+  })();
 
   return (
     <div dir="rtl" className="min-h-screen bg-gradient-to-br from-amber-50 to-rose-50 py-6 px-3">
@@ -164,12 +189,17 @@ export default function EventContractSign() {
               <Row k="🍽️ חבילה" v={contract.package_label} />
             </div>
 
-            {/* MENU */}
-            {dishes.length > 0 && (
-              <div className="bg-amber-50 rounded-xl p-4 space-y-1 text-sm">
-                <div className="font-bold text-amber-900 mb-2">🍴 תפריט האירוע</div>
-                {dishes.map((d, i) => (
-                  <div key={i} className="text-gray-800">• {typeof d === 'string' ? d : (d.name || d.label)}</div>
+            {/* MENU — grouped by category */}
+            {orderedCats.length > 0 && (
+              <div className="bg-amber-50 rounded-xl p-4 space-y-3 text-sm">
+                <div className="font-bold text-amber-900">🍴 תפריט האירוע</div>
+                {orderedCats.map(cat => (
+                  <div key={cat}>
+                    <div className="font-bold text-amber-800 text-xs uppercase mb-1">{CAT_LABELS[cat] || cat}</div>
+                    {dishesByCat[cat].map((n, i) => (
+                      <div key={i} className="text-gray-800 mr-2">• {n}</div>
+                    ))}
+                  </div>
                 ))}
               </div>
             )}
@@ -193,6 +223,7 @@ export default function EventContractSign() {
               <Row k="מחיר לסועד" v={contract.price_per_guest_ils ? `${contract.price_per_guest_ils} ₪` : '—'} />
               <Row k="כמות סועדים" v={contract.guest_count} />
               <Row k="תוספות" v={`${contract.upsells_total_ils || 0} ₪`} />
+              {contract.tip_ils ? <Row k="טיפ למלצרים" v={`${contract.tip_ils} ₪`} /> : null}
               <div className="border-t my-2"></div>
               <Row k="סה״כ אירוע" v={`${contract.subtotal_ils || 0} ₪`} bold />
               <Row k="מקדמה" v={`${contract.deposit_ils || 0} ₪`} />

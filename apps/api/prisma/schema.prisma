@@ -2130,6 +2130,7 @@ model EventContract {
   subtotal_ils           Int?
   deposit_ils            Int?
   balance_ils            Int?
+  tip_ils                Int?      // טיפ למלצרים — מתווסף לסה״כ הכולל
   // Frozen snapshots — JSON so changes to the live menu/terms don't alter past contracts
   menu_snapshot          Json?
   upsells_snapshot       Json?

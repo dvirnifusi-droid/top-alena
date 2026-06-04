@@ -10,7 +10,36 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { FileText, Plus, Send, Copy, Check, ExternalLink, Eye, Pencil, Calendar, Users } from 'lucide-react';
+import { FileText, Plus, Send, Copy, Check, ExternalLink, Eye, Pencil, Calendar, Users, X } from 'lucide-react';
+
+// Default catalogue mirrored from the owner's Word sign-off form.
+// Editable manually in the dialog after pre-checking what's relevant.
+const DEFAULT_MENU_CATEGORIES = [
+  {
+    key: 'openers', label: 'פתיחות 🥖',
+    items: ['פרנה', 'טחינה', 'חומוס', 'משוויאה', 'סלט שוק'],
+  },
+  {
+    key: 'sharing', label: 'חלוקה 🍢',
+    items: ['בטטה בורלה', 'כרוב שרוף', 'תפוח אדמה קריספי', 'עראיס אסאדו', 'קרפצ׳יו בקר'],
+  },
+  {
+    key: 'mains', label: 'עיקריות בשר מרכז שולחן 🥩',
+    items: [
+      'מועבט — פלטת בשרים (קבב, פרגית, מרגז)',
+      'ירקות שרופים ופיתות זעתר על האש',
+      'סלט עלים',
+    ],
+  },
+  {
+    key: 'closers', label: 'סיומות ☕',
+    items: ['קנקן תה וקפה שחור', 'עוגיות מרוקאיות'],
+  },
+  {
+    key: 'drinks', label: 'שתייה 🍺',
+    items: ['בירה חבית / שתייה קלה — 1 לסועד'],
+  },
+];
 
 const STATUS_BADGE = {
   draft: { label: 'טיוטה', cls: 'bg-gray-100 text-gray-700 border-gray-300' },
@@ -230,7 +259,7 @@ function EditDialog({ contract, onClose }) {
     try {
       // Numeric coercion
       const payload = { ...c };
-      ['guest_count', 'price_per_guest_ils', 'upsells_total_ils', 'subtotal_ils', 'deposit_ils', 'balance_ils']
+      ['guest_count', 'price_per_guest_ils', 'upsells_total_ils', 'subtotal_ils', 'deposit_ils', 'balance_ils', 'tip_ils']
         .forEach(k => { if (payload[k] !== '' && payload[k] !== null && payload[k] !== undefined) payload[k] = Number(payload[k]) || 0; });
       const res = await base44.functions.updateEventContract(payload);
       const data = res?.data || res;
@@ -240,7 +269,7 @@ function EditDialog({ contract, onClose }) {
     finally { setSaving(false); }
   };
 
-  // Compute balance live
+  // Compute balance live (subtotal already includes tip; we just subtract the deposit)
   const subtotal = Number(c.subtotal_ils || 0);
   const deposit = Number(c.deposit_ils || 0);
   const autoBalance = Math.max(0, subtotal - deposit);
@@ -267,30 +296,23 @@ function EditDialog({ contract, onClose }) {
 
           <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 grid grid-cols-2 gap-3">
             <Field label="תוספות (₪)"><Input type="number" value={c.upsells_total_ils || ''} onChange={e => set('upsells_total_ils', e.target.value)} /></Field>
-            <Field label="סה״כ אירוע (₪)"><Input type="number" value={c.subtotal_ils || ''} onChange={e => set('subtotal_ils', e.target.value)} /></Field>
+            <Field label="טיפ למלצרים (₪)"><Input type="number" value={c.tip_ils || ''} onChange={e => set('tip_ils', e.target.value)} placeholder="0" /></Field>
+            <Field label="סה״כ אירוע כולל טיפ (₪)"><Input type="number" value={c.subtotal_ils || ''} onChange={e => set('subtotal_ils', e.target.value)} /></Field>
             <Field label="מקדמה (₪)"><Input type="number" value={c.deposit_ils || ''} onChange={e => set('deposit_ils', e.target.value)} /></Field>
             <Field label={`יתרה (אוטומטי: ${autoBalance}₪)`}>
               <Input type="number" value={c.balance_ils ?? autoBalance} onChange={e => set('balance_ils', e.target.value)} />
             </Field>
           </div>
 
-          <Field label="תפריט (פריט בכל שורה — יוצג בחוזה ללקוח)">
-            <Textarea
-              rows={6}
-              value={Array.isArray(c.menu_snapshot) ? c.menu_snapshot.map(d => typeof d === 'string' ? d : (d.name || d.label)).join('\n') : ''}
-              onChange={e => set('menu_snapshot', e.target.value.split('\n').map(s => s.trim()).filter(Boolean))}
-              placeholder="פרנה&#10;טחינה&#10;חומוס&#10;מועבט — פלטת בשרים..."
-            />
-          </Field>
+          <MenuPicker
+            value={c.menu_snapshot}
+            onChange={(arr) => set('menu_snapshot', arr)}
+          />
 
-          <Field label="תנאים (שורה לכל סעיף)">
-            <Textarea
-              rows={4}
-              value={Array.isArray(c.terms_snapshot) ? c.terms_snapshot.map(t => typeof t === 'string' ? t : (t.text || '')).join('\n') : (c.terms_snapshot || '')}
-              onChange={e => set('terms_snapshot', e.target.value.split('\n').map(s => s.trim()).filter(Boolean))}
-              placeholder="מקדמה לא חוזרת במקרה ביטול בתוך 7 ימים&#10;שעות נוספות יחויבו ב-X₪ לשעה&#10;..."
-            />
-          </Field>
+          <TermsEditor
+            value={c.terms_snapshot}
+            onChange={(arr) => set('terms_snapshot', arr)}
+          />
 
           <Field label="הערות"><Textarea rows={2} value={c.notes || ''} onChange={e => set('notes', e.target.value)} /></Field>
 
@@ -315,6 +337,120 @@ function Field({ label, children }) {
     <div>
       <Label className="mb-1 block text-xs text-gray-600">{label}</Label>
       {children}
+    </div>
+  );
+}
+
+// Categorized menu picker with checkboxes for the default catalogue + an
+// "add custom item" button per category. value/onChange use a flat array of
+// {category, name} so the public sign view renders cleanly.
+function MenuPicker({ value, onChange }) {
+  // Normalize incoming value (string|object|legacy) into [{category, name}]
+  const items = Array.isArray(value)
+    ? value.map(v => {
+        if (typeof v === 'string') return { category: 'custom', name: v };
+        return { category: v.category || 'custom', name: v.name || v.label || String(v) };
+      })
+    : [];
+  const isChecked = (cat, name) => items.some(it => it.category === cat && it.name === name);
+  const toggle = (cat, name) => {
+    if (isChecked(cat, name)) onChange(items.filter(it => !(it.category === cat && it.name === name)));
+    else onChange([...items, { category: cat, name }]);
+  };
+  const [customInput, setCustomInput] = useState({}); // {category: text}
+  const addCustom = (cat) => {
+    const txt = (customInput[cat] || '').trim();
+    if (!txt) return;
+    onChange([...items, { category: cat, name: txt }]);
+    setCustomInput(prev => ({ ...prev, [cat]: '' }));
+  };
+  const removeCustom = (cat, name) => {
+    onChange(items.filter(it => !(it.category === cat && it.name === name)));
+  };
+
+  return (
+    <div className="space-y-3">
+      <Label className="text-base font-bold flex items-center gap-2">🍴 תפריט האירוע</Label>
+      <p className="text-xs text-gray-500">סמן/י מה ייכלל בחבילה. אפשר להוסיף מנות חופשיות לכל קטגוריה.</p>
+
+      {DEFAULT_MENU_CATEGORIES.map(cat => {
+        const catalogue = cat.items;
+        const customs = items.filter(it => it.category === cat.key && !catalogue.includes(it.name));
+        return (
+          <div key={cat.key} className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+            <div className="font-bold text-amber-900 mb-2">{cat.label}</div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-1">
+              {catalogue.map(name => (
+                <label key={name} className="flex items-center gap-2 text-sm cursor-pointer hover:bg-white/60 rounded px-2 py-1">
+                  <input
+                    type="checkbox"
+                    checked={isChecked(cat.key, name)}
+                    onChange={() => toggle(cat.key, name)}
+                    className="w-4 h-4"
+                  />
+                  <span>{name}</span>
+                </label>
+              ))}
+            </div>
+            {customs.length > 0 && (
+              <div className="mt-2 pt-2 border-t border-amber-200 space-y-1">
+                {customs.map(c => (
+                  <div key={c.name} className="flex items-center justify-between gap-2 text-sm bg-white/60 rounded px-2 py-1">
+                    <span>✨ {c.name}</span>
+                    <button onClick={() => removeCustom(cat.key, c.name)} className="text-red-500 hover:text-red-700">
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="flex gap-2 mt-2">
+              <Input
+                value={customInput[cat.key] || ''}
+                onChange={(e) => setCustomInput(prev => ({ ...prev, [cat.key]: e.target.value }))}
+                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addCustom(cat.key); } }}
+                placeholder="הוסף/י מנה לקטגוריה זו..."
+                className="text-sm h-8"
+              />
+              <Button type="button" size="sm" onClick={() => addCustom(cat.key)} className="h-8 bg-amber-600 hover:bg-amber-700">
+                <Plus className="w-3.5 h-3.5" />
+              </Button>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// Terms editor — handles strings, arrays of strings, arrays of {text}, and the
+// legacy {cancellation_days, headcount_deadline_days} JSON object from the kit.
+function TermsEditor({ value, onChange }) {
+  // Normalize to array of strings
+  const lines = (() => {
+    if (Array.isArray(value)) return value.map(t => typeof t === 'string' ? t : (t.text || t.label || ''));
+    if (typeof value === 'string') return value.split('\n');
+    if (value && typeof value === 'object') {
+      // Legacy kit shape — render readable defaults
+      const out = [];
+      if (value.cancellation_days) out.push(`ביטול אירוע חייב להתבצע עד ${value.cancellation_days} ימים לפני המועד; אחרת המקדמה לא חוזרת.`);
+      if (value.headcount_deadline_days) out.push(`עדכון כמות סופית של סועדים עד ${value.headcount_deadline_days} ימים לפני האירוע.`);
+      return out;
+    }
+    return [];
+  })();
+  const text = lines.join('\n');
+
+  return (
+    <div>
+      <Label className="mb-1 block text-xs text-gray-600">תנאים (שורה לכל סעיף)</Label>
+      <Textarea
+        rows={5}
+        value={text}
+        // Don't filter blanks — that's what blocked typing previously
+        onChange={(e) => onChange(e.target.value.split('\n'))}
+        placeholder="ביטול אירוע עד 7 ימים לפני — המקדמה לא חוזרת&#10;שעות נוספות מעבר לסוכם יחויבו ב-X₪ לשעה&#10;..."
+      />
     </div>
   );
 }

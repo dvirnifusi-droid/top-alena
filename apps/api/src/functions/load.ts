@@ -7556,6 +7556,7 @@ async function ensureEventContractTable() {
       "subtotal_ils" INTEGER,
       "deposit_ils" INTEGER,
       "balance_ils" INTEGER,
+      "tip_ils" INTEGER,
       "menu_snapshot" JSONB,
       "upsells_snapshot" JSONB,
       "terms_snapshot" JSONB,
@@ -7577,6 +7578,10 @@ async function ensureEventContractTable() {
   await (prisma as any).$executeRawUnsafe(`
     CREATE UNIQUE INDEX IF NOT EXISTS "EventContract_public_token_uq" ON "EventContract"("public_token");
   `);
+  // Forward-compat: add columns that may be missing on tables created by older builds
+  await (prisma as any).$executeRawUnsafe(`
+    ALTER TABLE "EventContract" ADD COLUMN IF NOT EXISTS "tip_ils" INTEGER;
+  `).catch(() => {});
   eventContractTableReady = true;
 }
 
@@ -7668,7 +7673,7 @@ registerFn('updateEventContract', async ({ body }) => {
     'customer_name', 'customer_phone', 'company_or_event_label', 'event_location',
     'event_date', 'event_start_time', 'event_end_time', 'guest_count',
     'package_label', 'price_per_guest_ils', 'upsells_total_ils', 'subtotal_ils',
-    'deposit_ils', 'balance_ils', 'menu_snapshot', 'upsells_snapshot',
+    'deposit_ils', 'balance_ils', 'tip_ils', 'menu_snapshot', 'upsells_snapshot',
     'terms_snapshot', 'notes', 'status',
   ];
   const data: Record<string, any> = {};
