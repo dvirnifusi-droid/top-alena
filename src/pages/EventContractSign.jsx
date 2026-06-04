@@ -26,7 +26,7 @@ export default function EventContractSign() {
     }
     (async () => {
       try {
-        const res = await base44.functions.getPublicEventContract({ token });
+        const res = await base44.asServiceRole.functions.getPublicEventContract({ token });
         const data = res?.data || res;
         if (!data?.ok) throw new Error(data?.message || 'לא נמצא');
         setContract(data.contract);
@@ -106,7 +106,7 @@ export default function EventContractSign() {
     setSubmitting(true);
     try {
       const dataUrl = canvasRef.current.toDataURL('image/png');
-      const res = await base44.functions.signEventContract({
+      const res = await base44.asServiceRole.functions.signEventContract({
         token, customer_name: signerName.trim(), signature_data_url: dataUrl,
       });
       const data = res?.data || res;
