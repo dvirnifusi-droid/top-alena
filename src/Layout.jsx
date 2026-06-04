@@ -123,6 +123,7 @@ const adminLinks = [
   { title: "ייצוא דאטה", url: createPageUrl("DataExport"), icon: Download, isSubItem: true, color: "slate" },
   { title: "שליחת Push ידני", url: createPageUrl("PushNotifications"), icon: Bell, isSubItem: true, color: "slate" },
   { title: "פופ-אפים מתוזמנים 🔔", url: createPageUrl("Popups"), icon: Megaphone, isSubItem: true, color: "slate" },
+  { title: "חיבור קופה Beecomm 🐝", url: createPageUrl("BeecommIntegration"), icon: Package, isSubItem: true, color: "slate" },
 ];
 
 // Employee menu — same flat format, reorganised and color-coded.
