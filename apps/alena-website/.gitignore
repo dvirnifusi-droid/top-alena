@@ -36,6 +36,9 @@ yarn-error.log*
 # vercel
 .vercel
 
+# gallery sources (raw drive downloads, before sharp processing)
+/public/gallery-pool
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
