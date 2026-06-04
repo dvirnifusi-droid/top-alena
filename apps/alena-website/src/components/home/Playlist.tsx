@@ -2,10 +2,11 @@
 
 import { motion } from "framer-motion";
 import { Container } from "@/components/layout/Container";
+import { env } from "@/lib/env";
 
-// Curated Mediterranean / Israeli vibe — owner-tunable later.
-// Default placeholder = a public Israeli Mediterranean playlist.
-const SPOTIFY_PLAYLIST_ID = "37i9dQZF1DXdSjVZQzv2tl"; // "Israeli Mediterranean" — owner can swap to their own.
+// Playlist ID is read from NEXT_PUBLIC_SPOTIFY_PLAYLIST_ID env var.
+// To swap: edit .env.local (or Vercel env) and redeploy.
+// The ID is the string between /playlist/ and ? in the Spotify share URL.
 
 export function Playlist() {
   return (
@@ -36,7 +37,7 @@ export function Playlist() {
         >
           <iframe
             title="פלייליסט עלינא"
-            src={`https://open.spotify.com/embed/playlist/${SPOTIFY_PLAYLIST_ID}?utm_source=alenabepita&theme=0`}
+            src={`https://open.spotify.com/embed/playlist/${env.NEXT_PUBLIC_SPOTIFY_PLAYLIST_ID}?utm_source=alenabepita&theme=0`}
             width="100%"
             height="380"
             frameBorder="0"

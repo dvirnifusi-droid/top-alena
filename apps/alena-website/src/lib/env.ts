@@ -13,6 +13,7 @@ const schema = z.object({
   NEXT_PUBLIC_ONTOPO_URL: z.string().url().default("https://ontopo.com/he/il/page/15703580"),
   NEXT_PUBLIC_WHATSAPP_URL: z.string().url().default("https://wa.me/972503962976"),
   NEXT_PUBLIC_PHONE: z.string().default("03-622-8055"),
+  NEXT_PUBLIC_SPOTIFY_PLAYLIST_ID: z.string().default("37i9dQZF1DXdSjVZQzv2tl"),
 });
 
 export const env = schema.parse(process.env);
