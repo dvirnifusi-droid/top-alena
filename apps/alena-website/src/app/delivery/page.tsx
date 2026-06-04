@@ -151,7 +151,7 @@ export default function DeliveryPage() {
           <h3 className="mt-2 font-display text-2xl text-charcoal">לפני שמזמינים</h3>
           <ul className="mt-4 space-y-2 text-sm text-charcoal/80">
             <li>• תפריט מלא ומחירים — בכפתור ההזמנה למעלה</li>
-            <li>• כשרים למהדרין</li>
+            <li>• כשרים</li>
             <li>• לאלרגיות וזיהום צולב (גלוטן) — בקשו טלפונית מראש</li>
             <li>• מסלולי משלוח לפי איזורי ראשון לציון והסביבה</li>
           </ul>

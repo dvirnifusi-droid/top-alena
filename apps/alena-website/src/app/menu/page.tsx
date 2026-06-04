@@ -184,7 +184,7 @@ export default function MenuPage() {
 
         <p className="text-center text-xs text-charcoal/50">
           התפריט מתעדכן עונתית. ייתכנו שינויים בזמינות. צליאקים — אנא תאמו מראש (יש זיהום צולב). אנו
-          כשרים למהדרין.
+          כשרים.
         </p>
       </div>
 
