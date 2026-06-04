@@ -61,7 +61,8 @@ export default function BeecommIntegrationPage() {
   const loadConfig = async () => {
     try {
       // Status (masked, never exposes client_secret)
-      const status = await base44.functions.beecommGetStatus({});
+      const statusRes = await base44.functions.beecommGetStatus({});
+      const status = statusRes?.data || statusRes;
       if (status?.configured) {
         setConfig({ id: 'singleton', ...status });
         setIsConnected(!!status.active && !!status.token_valid);
@@ -89,7 +90,8 @@ export default function BeecommIntegrationPage() {
   const loadCustomers = async () => {
     try {
       const res = await base44.functions.beecommGetCustomers({});
-      if (res?.ok) setCustomers(res.customers || []);
+      const data = res?.data || res;
+      if (data?.ok) setCustomers(data.customers || []);
     } catch (e) {
       console.warn('beecommGetCustomers failed', e);
     }
@@ -129,13 +131,14 @@ export default function BeecommIntegrationPage() {
     setTestLoading(true);
     try {
       const res = await base44.functions.beecommTestConnection({});
-      if (res?.ok) {
+      const data = res?.data || res;
+      if (data?.ok) {
         setIsConnected(true);
         await loadCustomers();
-        alert('✅ ' + (res.message || 'מחובר בהצלחה ל-Beecomm'));
+        alert('✅ ' + (data.message || 'מחובר בהצלחה ל-Beecomm'));
       } else {
         setIsConnected(false);
-        alert('❌ חיבור נכשל: ' + (res?.message || 'לא ידוע'));
+        alert('❌ חיבור נכשל: ' + (data?.message || 'לא ידוע'));
       }
     } catch (error) {
       console.error('שגיאה בבדיקת חיבור:', error);

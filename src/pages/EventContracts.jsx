@@ -37,7 +37,8 @@ export default function EventContracts() {
         base44.functions.listEventContracts({ limit: 100 }),
         EventBooking.list('-created_date', 50).catch(() => []),
       ]);
-      setContracts(cRes?.contracts || []);
+      const cData = cRes?.data || cRes;
+      setContracts(cData?.contracts || []);
       setBookings(b || []);
     } catch (e) {
       console.error(e);
@@ -48,10 +49,11 @@ export default function EventContracts() {
     setCreating(true);
     try {
       const res = await base44.functions.createEventContract({ booking_id });
-      if (!res?.ok) throw new Error(res?.message || 'שגיאה');
+      const data = res?.data || res;
+      if (!data?.ok) throw new Error(data?.message || 'שגיאה');
       await loadAll();
       setShowCreate(false);
-      setEditing(res.contract);
+      setEditing(data.contract);
     } catch (e) { alert('שגיאה ביצירה: ' + (e?.message || e)); }
     finally { setCreating(false); }
   };
@@ -60,10 +62,11 @@ export default function EventContracts() {
     setCreating(true);
     try {
       const res = await base44.functions.createEventContract({});
-      if (!res?.ok) throw new Error(res?.message || 'שגיאה');
+      const data = res?.data || res;
+      if (!data?.ok) throw new Error(data?.message || 'שגיאה');
       await loadAll();
       setShowCreate(false);
-      setEditing(res.contract);
+      setEditing(data.contract);
     } catch (e) { alert('שגיאה ביצירה: ' + (e?.message || e)); }
     finally { setCreating(false); }
   };
@@ -230,7 +233,8 @@ function EditDialog({ contract, onClose }) {
       ['guest_count', 'price_per_guest_ils', 'upsells_total_ils', 'subtotal_ils', 'deposit_ils', 'balance_ils']
         .forEach(k => { if (payload[k] !== '' && payload[k] !== null && payload[k] !== undefined) payload[k] = Number(payload[k]) || 0; });
       const res = await base44.functions.updateEventContract(payload);
-      if (!res?.ok) throw new Error(res?.message || 'שגיאה');
+      const data = res?.data || res;
+      if (!data?.ok) throw new Error(data?.message || 'שגיאה');
       onClose();
     } catch (e) { alert('שגיאה בשמירה: ' + (e?.message || e)); }
     finally { setSaving(false); }

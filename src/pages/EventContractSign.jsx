@@ -27,10 +27,11 @@ export default function EventContractSign() {
     (async () => {
       try {
         const res = await base44.functions.getPublicEventContract({ token });
-        if (!res?.ok) throw new Error(res?.message || 'לא נמצא');
-        setContract(res.contract);
-        setSignerName(res.contract?.customer_name || '');
-        if (res.contract?.status === 'signed') setSigned(true);
+        const data = res?.data || res;
+        if (!data?.ok) throw new Error(data?.message || 'לא נמצא');
+        setContract(data.contract);
+        setSignerName(data.contract?.customer_name || '');
+        if (data.contract?.status === 'signed') setSigned(true);
       } catch (e) {
         setError(e?.message || 'שגיאה בטעינת החוזה');
       } finally {
@@ -108,7 +109,8 @@ export default function EventContractSign() {
       const res = await base44.functions.signEventContract({
         token, customer_name: signerName.trim(), signature_data_url: dataUrl,
       });
-      if (!res?.ok) throw new Error(res?.message || 'שגיאה');
+      const data = res?.data || res;
+      if (!data?.ok) throw new Error(data?.message || 'שגיאה');
       setSigned(true);
     } catch (e) {
       alert('שגיאה בשליחת החתימה: ' + (e?.message || e));
