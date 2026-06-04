@@ -6633,10 +6633,16 @@ registerFn('clockInWithLocation', async ({ user, body }) => {
     profile?.restaurant_lat != null &&
     profile?.restaurant_lng != null;
 
-  // Read this employee's disable flag via raw SQL too.
+  // Read this employee's record via raw SQL — match by id OR email. Most
+  // users authenticate via Google → User.id and Employee.id are different
+  // entities; the only stable cross-reference is email. Without this fallback
+  // every clock-in for those users showed the email as the name.
+  const userEmail = String((user as any).email || '').toLowerCase();
   const empRows: any[] = await (prisma as any).$queryRaw`
-    SELECT full_name, location_tracking_disabled
-    FROM "Employee" WHERE id = ${user.id} LIMIT 1
+    SELECT id, full_name, location_tracking_disabled, email
+    FROM "Employee"
+    WHERE id = ${user.id} OR LOWER(email) = ${userEmail}
+    LIMIT 1
   `;
   const emp = empRows?.[0] || null;
   const empDisabled = !!emp?.location_tracking_disabled;
@@ -6674,7 +6680,14 @@ registerFn('clockInWithLocation', async ({ user, body }) => {
 
   const now = new Date();
   const today = new Date(now.toISOString().slice(0, 10));
-  const employeeName = (user as any).full_name || emp?.full_name || (user as any).email || 'עובד';
+  // Prefer Employee.full_name (the canonical staff record), then user.full_name
+  // (from auth), then email as a last resort. This stops showing emails in the
+  // "active employees" widget for Google-authed users whose Employee record
+  // is keyed by email.
+  const employeeName = emp?.full_name || (user as any).full_name || (user as any).email || 'עובד';
+  // Resolve employee_id to the Employee record when one exists by email — so
+  // downstream joins (Tips, EmployeeReports, etc) find the right row.
+  const resolvedEmployeeId = emp?.id || user.id;
   const newId = `c${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`;
   const lastLat = typeof lat === 'number' ? lat : null;
   const lastLng = typeof lng === 'number' ? lng : null;
@@ -6687,18 +6700,24 @@ registerFn('clockInWithLocation', async ({ user, body }) => {
       last_lat, last_lng, last_location_at,
       "createdAt", "updatedAt"
     ) VALUES (
-      ${newId}, ${user.id}, ${employeeName}, ${today}, ${now}, 'active',
+      ${newId}, ${resolvedEmployeeId}, ${employeeName}, ${today}, ${now}, 'active',
       ${'[]'}::jsonb, 0, false,
       ${lastLat}, ${lastLng}, ${lastAt},
       NOW(), NOW()
     )
   `;
   const shift: any = {
-    id: newId, employee_id: user.id, employee_name: employeeName,
+    id: newId, employee_id: resolvedEmployeeId, employee_name: employeeName,
     date: today, shift_start: now, status: 'active',
     breaks: [], total_break_minutes: 0, had_meal: false,
     last_lat: lastLat, last_lng: lastLng, last_location_at: lastAt,
   };
+  // Fire the ShiftTracking.created trigger manually — this fn bypasses
+  // the /api/entities route, so the registry doesn't auto-dispatch. Without
+  // this the owner's "⏰ כניסה למשמרת" push never fires.
+  fireTriggers('ShiftTracking', 'created', shift).catch((e) =>
+    console.warn('[trigger] ShiftTracking.created (manual) failed:', e?.message),
+  );
   return { shift, already_active: false };
 });
 

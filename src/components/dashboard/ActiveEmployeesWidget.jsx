@@ -11,30 +11,52 @@ export default function ActiveEmployeesWidget() {
   useEffect(() => {
     const loadActiveEmployees = async () => {
       try {
-        // חיפוש עובדים שנכנסו בפועל היום
         const today = new Date().toISOString().split('T')[0];
-        
-        // ספיקת עובדים שנכנסו למשמרת (status: active או on_break)
-        const shiftTracking = await base44.entities.ShiftTracking.filter({
-          date: today,
-        });
-        
+
+        // Pull active/on_break trackings AND the full Employee roster so we
+        // can replace email-shaped employee_name values (legacy records made
+        // before clockInWithLocation resolved by email) with the real name.
+        const [shiftTracking, employees] = await Promise.all([
+          base44.entities.ShiftTracking.filter({ date: today }),
+          base44.entities.Employee.filter({ status: 'active' }).catch(() => []),
+        ]);
+
+        // Email → full_name lookup
+        const byEmail = {};
+        const byId = {};
+        for (const e of employees || []) {
+          if (e.email) byEmail[String(e.email).toLowerCase()] = e.full_name;
+          if (e.id) byId[e.id] = e.full_name;
+        }
+
+        const looksLikeEmail = (s) => typeof s === 'string' && s.includes('@');
+
         const active = [];
-        
         for (const tracking of shiftTracking) {
-          // בדוק אם העובד בעבודה כעת (active או on_break)
-          if (tracking.status === 'active' || tracking.status === 'on_break') {
-            const checkInDateTime = new Date(tracking.shift_start);
-            const checkInTime = checkInDateTime.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
-            
-            active.push({
-              name: tracking.employee_name || 'לא ידוע',
-              position: tracking.position || 'לא מוגדר',
-              checkInTime: checkInTime,
-              shiftType: tracking.shift_type || 'general',
-              status: 'active'
-            });
+          if (tracking.status !== 'active' && tracking.status !== 'on_break') continue;
+          const checkInDateTime = new Date(tracking.shift_start);
+          const checkInTime = checkInDateTime.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
+
+          // Try several routes to get a real name:
+          //  1. The record's employee_name unless it's an email
+          //  2. Employee lookup by employee_id
+          //  3. Employee lookup by the email currently stored as name
+          //  4. Last resort: keep what we have
+          let name = tracking.employee_name;
+          if (!name || looksLikeEmail(name)) {
+            name = byId[tracking.employee_id]
+              || byEmail[String(tracking.employee_name || '').toLowerCase()]
+              || tracking.employee_name
+              || 'לא ידוע';
           }
+
+          active.push({
+            name,
+            position: tracking.position || 'לא מוגדר',
+            checkInTime,
+            shiftType: tracking.shift_type || 'general',
+            status: 'active',
+          });
         }
 
         setActiveEmployees(active);
