@@ -10,6 +10,7 @@ import {
   Star, ChevronRight,
 } from 'lucide-react';
 import SmartReserveBanner from '@/components/public/SmartReserveBanner';
+import SpecialPopup from '@/components/public/SpecialPopup';
 
 // --- Brand palette (mirrors alena.topalena.com) ------------------------------
 //   terracotta  #A04A2E   →  primary CTA
@@ -1144,6 +1145,9 @@ export default function PublicReservationPage() {
           הזמן שולחן עכשיו
         </button>
       )}
+
+      {/* Context-aware marketing popup (events / midweek theme / lunch / mots"s) */}
+      {!success && <SpecialPopup />}
     </div>
   );
 }
