@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import SmartReserveBanner from '@/components/public/SmartReserveBanner';
 import SpecialPopup from '@/components/public/SpecialPopup';
+import PublicWaiterChat from '@/components/public/PublicWaiterChat';
 
 // --- Brand palette (mirrors alena.topalena.com) ------------------------------
 //   terracotta  #A04A2E   →  primary CTA
@@ -1148,6 +1149,9 @@ export default function PublicReservationPage() {
 
       {/* Context-aware marketing popup (events / midweek theme / lunch / mots"s) */}
       {!success && <SpecialPopup />}
+
+      {/* Floating AI concierge — answers guest questions before booking */}
+      {!success && <PublicWaiterChat />}
     </div>
   );
 }

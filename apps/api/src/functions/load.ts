@@ -8088,3 +8088,84 @@ registerFn('cancelReservationByToken', async ({ body }) => {
   } catch {}
   return { ok: true, status, lateCancel };
 }, { public: true });
+
+// ---------------------------------------------------------------------------
+// AI guest concierge for /PublicReservation
+//   Answers menu / reservation / hours / parking / dietary / event questions.
+//   Hard-coded system prompt — knows the restaurant cold so prospective
+//   diners can ask anything and get a Hebrew answer right inside the page.
+//   Returns { reply, intent?: 'reservation'|'event'|'menu'|'general' } so
+//   the client can show context-aware shortcuts (e.g. a "scroll to form"
+//   button when intent=reservation).
+// ---------------------------------------------------------------------------
+registerFn('guestInquiry', async ({ body }) => {
+  const { message, history } = body as any || {};
+  if (typeof message !== 'string' || !message.trim()) {
+    return { reply: 'אפשר לכתוב לי שאלה ואני אנסה לעזור.', intent: 'general' };
+  }
+  const trimmed = String(message).slice(0, 800);
+  const turns: Array<{ role: string; content: string }> = Array.isArray(history) ? history.slice(-10) : [];
+  const transcript = turns
+    .map(t => `${t.role === 'assistant' ? 'מלצר' : 'אורח'}: ${String(t.content || '').slice(0, 400)}`)
+    .join('\n');
+
+  const systemPrompt = `אתה המלצר הווירטואלי של מסעדת **עלינא** ברוטשילד 104 ראשון לציון. תפקידך לענות בקצרה, חמים, בעברית טבעית, על שאלות אורחים שנכנסו לעמוד הזמנת השולחן.
+
+— **על המסעדה**: חמארה ים-תיכונית כשרה. מנגל פתוח, בר אלכוהול, אווירה גבוהה. כתובת: רוטשילד 104 ראשון לציון. טלפון: 03-622-8055. אינסטגרם: @alena.hamara.
+
+— **שעות**: א׳-ד׳ 12:00-00:00 · ה׳ 12:00-02:00 · ו׳ סגור · ש׳ 20:15-02:00. עסקיות 12:00-17:00 בכל יום פתוח.
+
+— **ערבי הנושא**:
+  · ראשון = Burger Night (ספיישלים של בקר טרי 220גר׳)
+  · שני = יין ללא תחתית (כוסות מ-₪61, סומליה בבר)
+  · שלישי = Butcher Night (נתחי הפתעה ומנות שף ישר מהקצב)
+  · רביעי = ערב קלאסי (התפריט המלא, קוקטיילי הבית)
+  · חמישי = פתוחים עד 02:00, האווירה בשיא
+  · מוצ״ש = מ-20:15, הערב הכי גבוה
+  · Happy Hour: 40% הנחה על האלכוהול א׳-ה׳ עד 20:00
+
+— **הזמנות**: שולחן עד 12 סועדים דרך הטופס בעמוד. 13+ = אירוע פרטי, יש טופס מיוחד ב-/EventsInquiry. ביטול חופשי עד 3 שעות לפני, אחר כך 30₪ פיקדון לסועד. השולחן ממתין 10 דק׳ לאיחור.
+
+— **חניה**: חניון בן גוריון 2 דק׳ הליכה (חינם אחר הצהריים). חניה בכחול-לבן ברוטשילד/הרצל/וייצמן.
+
+— **תפריט**: בשר על האש, חמארה, פוקצ׳ות, פלטות, סלטים, קינוחים. תפריט מלא ב-/menu. יש מנות צמחוניות. **לא** טבעוני מלא.
+
+**כללים חשובים**:
+1. תענה תמיד בעברית, גם אם השאלה באנגלית. אם האורח כותב באנגלית/רוסית — תענה בשפה שלו.
+2. אל תמציא מידע. אם לא יודע — הצע להתקשר 03-622-8055.
+3. אם אורח שואל איך להזמין → הדריך אותו למלא את הטופס בעמוד.
+4. אם אורח רוצה אירוע 13+ → הפנה ל-/EventsInquiry.
+5. תשובות קצרות — 1-3 משפטים מקסימום. תמציתי, חם, מקצועי.
+6. אסור לדבר על מתחרים. אסור להבטיח הנחות שלא קיימות ברשימה.
+
+**החזר JSON בלבד** עם השדות:
+  reply  — התשובה לאורח (עברית/אנגלית/רוסית לפי השפה שלו)
+  intent — אחד מ: "reservation" / "event" / "menu" / "hours" / "general"`;
+
+  const userMessage = transcript
+    ? `${transcript}\nאורח: ${trimmed}`
+    : `אורח: ${trimmed}`;
+
+  try {
+    const result: any = await invokeLLM({
+      prompt: `${systemPrompt}\n\n--- השיחה ---\n${userMessage}`,
+      responseSchema: {
+        type: 'object',
+        properties: {
+          reply: { type: 'string' },
+          intent: { type: 'string', enum: ['reservation', 'event', 'menu', 'hours', 'general'] },
+        },
+        required: ['reply'],
+      },
+    });
+    return {
+      reply: String(result?.reply || 'מצטער, רגע אחד...').slice(0, 1500),
+      intent: result?.intent || 'general',
+    };
+  } catch (err: any) {
+    return {
+      reply: 'משהו פה לא עובד אצלי כרגע. אפשר להתקשר ל-03-622-8055 ונשמח לעזור.',
+      intent: 'general',
+    };
+  }
+}, { public: true });
