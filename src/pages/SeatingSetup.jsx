@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Trash2, Plus, Save, Loader2, Wand2, Eye, Edit, Wrench, ArrowRight, Settings } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Progress } from "@/components/ui/progress";
 import { Clock, Users, Phone, ChefHat, CheckCircle, Ban, Calendar, MapPin } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -89,24 +90,28 @@ function ReservationEditDialog({ open, setOpen, reservation, onUpdate, tables, r
     };
     
     return (
-        <Dialog open={open} onOpenChange={setOpen}>
-            <DialogContent className="sm:max-w-[500px]" dir="rtl">
-                <DialogHeader>
-                    <DialogTitle className="text-center bg-green-500 text-white py-2 rounded-t">שמור</DialogTitle>
-                </DialogHeader>
-                
-                <div className="bg-cyan-400 text-white p-3 rounded flex items-center justify-between">
+        <Sheet open={open} onOpenChange={setOpen}>
+            <SheetContent side="left" className="sm:max-w-[420px] w-full overflow-y-auto p-4" dir="rtl">
+                <SheetHeader>
+                    <SheetTitle className="text-center bg-emerald-500 text-white py-2 rounded">עריכת הזמנה</SheetTitle>
+                </SheetHeader>
+
+                <div className="bg-sky-500 text-white p-3 rounded flex items-center justify-between mt-2">
                     <Select value={editedReservation.status || 'pending'} onValueChange={value => setEditedReservation({...editedReservation, status: value})}>
-                        <SelectTrigger className="w-[180px] bg-cyan-400 text-white border-0 font-bold">
+                        <SelectTrigger className="w-[180px] bg-sky-500 text-white border-0 font-bold">
                             <SelectValue placeholder="בחר סטטוס" />
                         </SelectTrigger>
                         <SelectContent>
-                            <SelectItem value="confirmed">מוזמן</SelectItem>
+                            <SelectItem value="request">בקשה</SelectItem>
+                            <SelectItem value="pending">ממתין</SelectItem>
+                            <SelectItem value="confirmed">מאושר</SelectItem>
+                            <SelectItem value="standby">סטנדבי</SelectItem>
                             <SelectItem value="seated">יושב</SelectItem>
-                            <SelectItem value="completed">הסתיים</SelectItem>
+                            <SelectItem value="finishing_soon">מסיים בקרוב</SelectItem>
+                            <SelectItem value="completed">סיים</SelectItem>
                             <SelectItem value="cancelled">בוטל</SelectItem>
-                            <SelectItem value="no_show">לא הגיע</SelectItem>
-                            <SelectItem value="pending">ממתין לשולחן</SelectItem>
+                            <SelectItem value="no_show">הבריז</SelectItem>
+                            <SelectItem value="deleted">מחוק</SelectItem>
                         </SelectContent>
                     </Select>
                     <CheckCircle className="w-5 h-5" />
@@ -151,7 +156,12 @@ function ReservationEditDialog({ open, setOpen, reservation, onUpdate, tables, r
                             <span>זמן סיום</span>
                         </div>
                         <div className="text-left">
-                            <span>{editedReservation.reservation_end_time || 'לא מוגדר'}</span>
+                            <Input
+                                type="time"
+                                value={editedReservation.reservation_end_time || ''}
+                                onChange={e => setEditedReservation({...editedReservation, reservation_end_time: e.target.value})}
+                                className="h-8"
+                            />
                         </div>
 
                         <div className="text-right">
@@ -226,15 +236,15 @@ function ReservationEditDialog({ open, setOpen, reservation, onUpdate, tables, r
                 </div>
 
                 <div className="flex gap-2 mt-4">
-                    <Button onClick={handleSave} className="flex-1 bg-green-500 hover:bg-green-600">
+                    <Button onClick={handleSave} className="flex-1 bg-emerald-500 hover:bg-emerald-600">
                         שמור
                     </Button>
                     <Button variant="outline" onClick={() => setOpen(false)} className="flex-1">
                         בטל
                     </Button>
                 </div>
-            </DialogContent>
-        </Dialog>
+            </SheetContent>
+        </Sheet>
     );
 }
 
@@ -673,17 +683,18 @@ export default function SeatingSetup() {
     // `cardBg` and `cardText` are used when rendering the FULL card (strong color
     // for at-a-glance status). `color` and `bgColor` are kept for the small pill
     // version used in filter dropdowns and the status counter chips.
+    // cardBg colors softened one shade lighter — easier on the eye in long sessions
     const STATUS_CONFIGS = {
-        request:         { label: 'בקשה',          color: 'bg-orange-100 text-orange-800',    bgColor: 'bg-orange-50',    cardBg: 'bg-orange-600',    cardText: 'text-white' },
-        pending:         { label: 'ממתין',          color: 'bg-yellow-100 text-yellow-800',    bgColor: 'bg-yellow-50',    cardBg: 'bg-yellow-500',    cardText: 'text-yellow-950' },
-        confirmed:       { label: 'מאושר',         color: 'bg-blue-100 text-blue-800',        bgColor: 'bg-blue-50',      cardBg: 'bg-blue-600',      cardText: 'text-white' },
-        standby:         { label: 'סטנדבי',        color: 'bg-purple-100 text-purple-800',    bgColor: 'bg-purple-50',    cardBg: 'bg-purple-700',    cardText: 'text-white' },
-        seated:          { label: 'יושב',           color: 'bg-green-100 text-green-800',      bgColor: 'bg-green-50',     cardBg: 'bg-emerald-600',   cardText: 'text-white' },
-        finishing_soon:  { label: 'מסיים בקרוב',   color: 'bg-amber-100 text-amber-800',      bgColor: 'bg-amber-50',     cardBg: 'bg-amber-600',     cardText: 'text-white' },
-        completed:       { label: 'סיים',           color: 'bg-gray-100 text-gray-800',        bgColor: 'bg-gray-50',      cardBg: 'bg-gray-600',      cardText: 'text-white' },
-        cancelled:       { label: 'בוטל',           color: 'bg-red-100 text-red-700',          bgColor: 'bg-red-50',       cardBg: 'bg-red-600',       cardText: 'text-white' },
-        no_show:         { label: 'הבריז',          color: 'bg-rose-100 text-rose-900',        bgColor: 'bg-rose-50',      cardBg: 'bg-rose-900',      cardText: 'text-white' },
-        deleted:         { label: 'מחוק',           color: 'bg-zinc-200 text-zinc-700',        bgColor: 'bg-zinc-100',     cardBg: 'bg-zinc-700',      cardText: 'text-white' },
+        request:         { label: 'בקשה',          color: 'bg-orange-100 text-orange-800',    bgColor: 'bg-orange-50',    cardBg: 'bg-orange-500',    cardText: 'text-white' },
+        pending:         { label: 'ממתין',          color: 'bg-yellow-100 text-yellow-800',    bgColor: 'bg-yellow-50',    cardBg: 'bg-amber-400',     cardText: 'text-amber-950' },
+        confirmed:       { label: 'מאושר',         color: 'bg-blue-100 text-blue-800',        bgColor: 'bg-blue-50',      cardBg: 'bg-sky-500',       cardText: 'text-white' },
+        standby:         { label: 'סטנדבי',        color: 'bg-purple-100 text-purple-800',    bgColor: 'bg-purple-50',    cardBg: 'bg-violet-500',    cardText: 'text-white' },
+        seated:          { label: 'יושב',           color: 'bg-green-100 text-green-800',      bgColor: 'bg-green-50',     cardBg: 'bg-emerald-500',   cardText: 'text-white' },
+        finishing_soon:  { label: 'מסיים בקרוב',   color: 'bg-amber-100 text-amber-800',      bgColor: 'bg-amber-50',     cardBg: 'bg-amber-500',     cardText: 'text-white' },
+        completed:       { label: 'סיים',           color: 'bg-gray-100 text-gray-800',        bgColor: 'bg-gray-50',      cardBg: 'bg-slate-500',     cardText: 'text-white' },
+        cancelled:       { label: 'בוטל',           color: 'bg-red-100 text-red-700',          bgColor: 'bg-red-50',       cardBg: 'bg-rose-500',      cardText: 'text-white' },
+        no_show:         { label: 'הבריז',          color: 'bg-rose-100 text-rose-900',        bgColor: 'bg-rose-50',      cardBg: 'bg-rose-800',      cardText: 'text-white' },
+        deleted:         { label: 'מחוק',           color: 'bg-zinc-200 text-zinc-700',        bgColor: 'bg-zinc-100',     cardBg: 'bg-slate-600',     cardText: 'text-white' },
     };
     const getReservationStatusConfig = (status, assigned) => {
         if (status && STATUS_CONFIGS[status]) return STATUS_CONFIGS[status];
