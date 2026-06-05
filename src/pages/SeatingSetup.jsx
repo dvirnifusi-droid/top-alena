@@ -1738,6 +1738,7 @@ export default function SeatingSetup() {
                                 <Button variant="outline" onClick={handleAddTable}><Plus className="w-4 h-4 ml-2" />הוסף שולחן</Button>
                             </div>
                         ) : (
+                            <>
                             {/* Mobile tab switcher — sticky at top of content */}
                             <div className="lg:hidden sticky top-0 z-30 bg-gray-50 -mx-3 px-3 py-2 mb-2 flex gap-1 border-b border-gray-200">
                                 <button
@@ -2178,6 +2179,7 @@ export default function SeatingSetup() {
                                     </div> {/* close overflow scroll wrapper */}
                                 </div>
                             </div>
+                            </>
                         )
                     )}
 
