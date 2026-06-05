@@ -3209,6 +3209,10 @@ async function ensureReservationSourceCols() {
   await (prisma as any).$executeRawUnsafe(
     `ALTER TABLE "Reservation" ADD COLUMN IF NOT EXISTS "standby_promoted_at" TIMESTAMP(3);`
   ).catch(() => {});
+  // T+24h survey ping (added 2026-06)
+  await (prisma as any).$executeRawUnsafe(
+    `ALTER TABLE "Reservation" ADD COLUMN IF NOT EXISTS "survey_sent_at" TIMESTAMP(3);`
+  ).catch(() => {});
   reservationSourceCols = true;
 }
 
@@ -8657,3 +8661,79 @@ ${seatedNow.map((s: any) => `שולחן ${s.table} ×${s.party} ${s.name || ''}`
     return { answer: `שגיאת AI: ${e?.message || 'לא ידוע'}`, actions: [] };
   }
 });
+// ---------------------------------------------------------------------------
+// T+24h survey ping
+//   Runs daily ~12:00 via /api/cron/customer-survey-reminder. For each
+//   confirmed (non-standby, non-cancelled) reservation that started yesterday
+//   and hasn't been pinged yet, send a WhatsApp asking for feedback. Link
+//   goes to /CustomerSurvey?source=t24&res=<id> — existing survey page
+//   already handles rating>3 → Google review redirect and rating<=3 →
+//   internal incident creation.
+// ---------------------------------------------------------------------------
+export async function sendT24SurveyReminders() {
+  await ensureReservationSourceCols();
+  const now = new Date();
+  // Yesterday in Asia/Jerusalem (UTC+3 approx — close enough for "yesterday")
+  const tzNow = new Date(now.getTime() + 3 * 3600 * 1000);
+  const tzYesterday = new Date(tzNow);
+  tzYesterday.setUTCDate(tzNow.getUTCDate() - 1);
+  const yStart = new Date(Date.UTC(tzYesterday.getUTCFullYear(), tzYesterday.getUTCMonth(), tzYesterday.getUTCDate()));
+  const yEnd = new Date(yStart.getTime() + 24 * 3600 * 1000);
+
+  const targets: any[] = await db.reservation.findMany({
+    where: {
+      date: { gte: yStart, lt: yEnd },
+      status: 'confirmed',
+      is_standby: false,
+      survey_sent_at: null,
+      customer_phone: { not: null },
+    } as any,
+    select: {
+      id: true, customer_name: true, customer_phone: true,
+      time: true, party_size: true, date: true,
+    } as any,
+  });
+
+  const baseUrl = process.env.PUBLIC_BASE_URL || 'https://topalena.com';
+  let sent = 0;
+  let failed = 0;
+
+  for (const r of targets) {
+    const phone = String(r.customer_phone || '').trim();
+    if (!phone) continue;
+    const link = `${baseUrl}/CustomerSurvey?source=t24&res=${r.id}`;
+    const body = [
+      `שלום ${r.customer_name || ''}!`,
+      ``,
+      `איך הייתה הארוחה אתמול בעלינא?`,
+      `נשמח לחוות דעתך — לוקח 30 שניות:`,
+      `${link}`,
+      ``,
+      `תודה ולהתראות 🌿`,
+    ].join('\n');
+
+    try {
+      await sendWhatsApp(phone, body);
+      await db.reservation.update({
+        where: { id: r.id },
+        data: { survey_sent_at: new Date() } as any,
+      });
+      sent++;
+    } catch (e: any) {
+      failed++;
+      console.warn('[t24-survey] send failed for', r.id, e?.message);
+    }
+  }
+
+  // Notify admins so they know the cron actually ran (and how many went out).
+  if (sent > 0) {
+    try {
+      await pushoverToAdmins(
+        'סקרי T+24h נשלחו',
+        `${sent} לקוחות קיבלו הזמנה לחוות דעת על אתמול${failed ? ` · ${failed} נכשלו` : ''}`,
+      );
+    } catch {}
+  }
+
+  return { sent, failed, candidates: targets.length };
+}

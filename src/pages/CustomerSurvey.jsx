@@ -8,6 +8,7 @@ import { CustomerFeedback } from '@/entities/CustomerFeedback';
 import { Incident } from '@/entities/Incident';
 import { User } from '@/entities/User';
 import { Customer } from '@/entities/Customer'; // Added Customer entity
+import { Reservation } from '@/entities/Reservation'; // T+24h survey link prefill
 import { ReservationSettings } from '@/entities/ReservationSettings'; // Import ReservationSettings
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -26,6 +27,7 @@ export default function CustomerSurveyPage() {
     const [searchParams] = useSearchParams();
     const sessionId = searchParams.get('sessionId');
     const shortCode = searchParams.get('s'); // Changed from manualId to shortCode 's'
+    const reservationId = searchParams.get('res'); // T+24h survey link prefill
 
     const [session, setSession] = useState(null);
     const [manualSurvey, setManualSurvey] = useState(null);
@@ -105,14 +107,34 @@ export default function CustomerSurveyPage() {
                     console.error('Error loading manual survey:', e);
                     setError('שגיאה בטעינת הנתונים. ייתכן שהקישור אינו תקין.');
                 }
+            } else if (reservationId) {
+                // T+24h survey — link came from yesterday's reservation WhatsApp.
+                // Prefill name + phone so the guest doesn't re-type them.
+                try {
+                    const reservations = await Reservation.filter({ id: reservationId });
+                    if (reservations.length > 0) {
+                        const r = reservations[0];
+                        setFeedbackForm(f => ({
+                            ...f,
+                            contact_name: r.customer_name || '',
+                            contact_phone: r.customer_phone || '',
+                            party_size: r.party_size || '',
+                            visit_date: r.date ? new Date(r.date) : null,
+                        }));
+                        setClubForm({ name: r.customer_name || '', phone: r.customer_phone || '' });
+                    }
+                } catch (e) {
+                    console.warn('Could not prefill from reservation', e);
+                    // Survey still works without prefill — proceed silently.
+                }
             } else {
-                // אם אין sessionId או shortCode ולא הגענו מ-QR, זה שגיאה
+                // אם אין sessionId / shortCode / reservationId / QR — קישור לא תקין.
                 setError('קישור הסקר אינו תקין. לא נמצא מזהה ספציפי או קוד QR.');
             }
         };
 
         loadData();
-    }, [sessionId, shortCode]);
+    }, [sessionId, shortCode, reservationId]);
 
     // New useEffect to load settings
     useEffect(() => {
