@@ -1858,8 +1858,9 @@ export default function SeatingSetup() {
                                         <div className="absolute bottom-2 left-2 text-xs text-gray-600 bg-white/80 p-2 rounded">
                                             💡 גרור שולחנות לשינוי מיקום · 🖱️ לחץ לפרטים · 🔴 תפוס · 🟢 פנוי פנים · 🟡 פנוי חוץ · 🩷 חוזר
                                         </div>
-                                    </div>
+                                    </div> {/* close inner map */}
                                     </div> {/* close dimensional wrapper */}
+                                    </div> {/* close overflow scroll wrapper */}
                                 </div>
                             </div>
                         )
