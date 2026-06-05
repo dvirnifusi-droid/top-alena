@@ -2034,6 +2034,9 @@ export default function SeatingSetup() {
                                     </div>
                                 ))}
                                 <Button variant="outline" onClick={handleAddTable}><Plus className="w-4 h-4 ml-2" />הוסף שולחן</Button>
+
+                                {/* Party-size breakdown: derive from min/max/combinable_with */}
+                                <TableCombosBreakdown tables={tables} />
                             </div>
                         ) : (
                             <>
@@ -2924,6 +2927,211 @@ function CompactTonightStrip({ reservations, selectedDate, onEdit, onOpenFullDas
 }
 
 // === QueueApprovalBanner — popup with אשר/דחה inline, no need to leave page ===
+// === TableCombosBreakdown ===
+// For each party size N=2..12 (and 12+ for events), shows which standalone tables fit
+// and which connected combinations reach the target. Derived from each table's
+// min_capacity/max_capacity/combinable_with — no extra config needed.
+function TableCombosBreakdown({ tables }) {
+    const [open, setOpen] = React.useState(false);
+
+    const valid = (tables || []).filter(t => t && t.table_number != null && t.min_capacity != null && t.max_capacity != null);
+    if (valid.length === 0) return null;
+
+    const byNum = new Map(valid.map(t => [String(t.table_number), t]));
+    const adj = new Map();
+    valid.forEach(t => {
+        adj.set(String(t.table_number), new Set((Array.isArray(t.combinable_with) ? t.combinable_with : []).map(String)));
+    });
+
+    // Connected: BFS through subset using adj to confirm one connected component
+    const isConnected = (subset) => {
+        if (subset.length <= 1) return true;
+        const inSet = new Set(subset);
+        const seen = new Set([subset[0]]);
+        const queue = [subset[0]];
+        while (queue.length) {
+            const cur = queue.shift();
+            for (const nb of (adj.get(cur) || new Set())) {
+                if (inSet.has(nb) && !seen.has(nb)) { seen.add(nb); queue.push(nb); }
+            }
+        }
+        return seen.size === subset.length;
+    };
+
+    // For each N: singles + connected combos (size 2..4) whose [sumMin..sumMax] covers N.
+    // Heavy work memoized once.
+    const breakdown = React.useMemo(() => {
+        const SIZES = [2,3,4,5,6,7,8,9,10,11,12];
+        const out = {};
+        for (const n of SIZES) out[n] = { singles: [], combos: [] };
+
+        // Singles
+        for (const t of valid) {
+            const lo = t.min_capacity || 0, hi = t.max_capacity || 0;
+            for (const n of SIZES) {
+                if (n >= lo && n <= hi) out[n].singles.push(String(t.table_number));
+            }
+        }
+
+        // Combos (size 2..4)
+        const nums = valid.map(t => String(t.table_number));
+        const seen = new Set();
+        const enumerate = (start, current, sumMin, sumMax) => {
+            if (current.length >= 2) {
+                if (isConnected(current)) {
+                    const sorted = [...current].sort();
+                    const key = sorted.join('-');
+                    if (!seen.has(key)) {
+                        seen.add(key);
+                        for (const n of SIZES) {
+                            if (n >= sumMin && n <= sumMax) {
+                                out[n].combos.push({ ids: sorted, sumMin, sumMax });
+                            }
+                        }
+                    }
+                }
+            }
+            if (current.length >= 4) return;
+            for (let i = start; i < nums.length; i++) {
+                const t = byNum.get(nums[i]);
+                if (!t) continue;
+                current.push(nums[i]);
+                enumerate(i + 1, current, sumMin + (t.min_capacity || 0), sumMax + (t.max_capacity || 0));
+                current.pop();
+            }
+        };
+        enumerate(0, [], 0, 0);
+
+        // Sort combos by total max (smallest first — most efficient seating)
+        for (const n of SIZES) {
+            out[n].combos.sort((a, b) => a.sumMax - b.sumMax || a.ids.length - b.ids.length);
+            // cap to 8 displayed per size
+            out[n].combos = out[n].combos.slice(0, 8);
+        }
+        return out;
+    }, [valid.length, JSON.stringify(valid.map(t => [t.table_number, t.min_capacity, t.max_capacity, t.combinable_with]))]);
+
+    // Event combos (13+ guests) — bigger connected groups
+    const eventCombos = React.useMemo(() => {
+        const nums = valid.map(t => String(t.table_number));
+        const results = [];
+        const seen = new Set();
+        const enumerate = (start, current, sumMin, sumMax) => {
+            if (current.length >= 2 && sumMax >= 13 && isConnected(current)) {
+                const sorted = [...current].sort();
+                const key = sorted.join('-');
+                if (!seen.has(key)) {
+                    seen.add(key);
+                    results.push({ ids: sorted, sumMin, sumMax });
+                }
+            }
+            if (current.length >= 6) return;
+            for (let i = start; i < nums.length; i++) {
+                const t = byNum.get(nums[i]);
+                if (!t) continue;
+                current.push(nums[i]);
+                enumerate(i + 1, current, sumMin + (t.min_capacity || 0), sumMax + (t.max_capacity || 0));
+                current.pop();
+            }
+        };
+        enumerate(0, [], 0, 0);
+        results.sort((a, b) => b.sumMax - a.sumMax || a.ids.length - b.ids.length);
+        return results.slice(0, 30);
+    }, [valid.length, JSON.stringify(valid.map(t => [t.table_number, t.min_capacity, t.max_capacity, t.combinable_with]))]);
+
+    const Chip = ({ children, color = 'gray' }) => {
+        const COLORS = {
+            gray: 'bg-gray-100 text-gray-700 border-gray-300',
+            green: 'bg-emerald-100 text-emerald-800 border-emerald-300',
+            blue: 'bg-blue-100 text-blue-800 border-blue-300',
+            purple: 'bg-purple-100 text-purple-800 border-purple-300',
+        };
+        return <span className={`inline-block text-xs font-bold px-2 py-1 rounded-full border ${COLORS[color]}`}>{children}</span>;
+    };
+
+    return (
+        <div className="mt-6 border-2 border-indigo-200 rounded-2xl bg-gradient-to-b from-indigo-50/40 to-white" dir="rtl">
+            <button onClick={() => setOpen(o => !o)} className="w-full flex items-center justify-between p-4 hover:bg-indigo-50/60 rounded-2xl">
+                <div className="flex items-center gap-2">
+                    <span className="text-2xl">🪑</span>
+                    <div className="text-right">
+                        <div className="font-black text-base text-indigo-900">צירופי שולחנות לפי מס׳ סועדים</div>
+                        <div className="text-[11px] text-gray-500">נגזר אוטומטית מקיבולת השולחנות + שולחנות לחיבור. מעדכן את עצמו לפי הקיבולת שהוגדרה למעלה.</div>
+                    </div>
+                </div>
+                <span className="text-indigo-600 text-lg">{open ? '▲' : '▼'}</span>
+            </button>
+
+            {open && (
+                <div className="p-4 space-y-3 border-t border-indigo-200">
+                    {[2,3,4,5,6,7,8,9,10,11,12].map(n => {
+                        const b = breakdown[n] || { singles: [], combos: [] };
+                        return (
+                            <div key={n} className="border border-gray-200 rounded-xl p-3 bg-white">
+                                <div className="flex items-center justify-between mb-2">
+                                    <div className="font-black text-sm text-gray-900">👥 {n} סועדים</div>
+                                    <div className="text-[11px] text-gray-500">
+                                        {b.singles.length} לבד · {b.combos.length} בחיבור
+                                    </div>
+                                </div>
+                                {b.singles.length > 0 && (
+                                    <div className="mb-2">
+                                        <div className="text-[10px] font-bold text-gray-500 mb-1">🪑 לבד</div>
+                                        <div className="flex flex-wrap gap-1.5">
+                                            {b.singles.map(id => <Chip key={id} color="green">#{id}</Chip>)}
+                                        </div>
+                                    </div>
+                                )}
+                                {b.combos.length > 0 && (
+                                    <div>
+                                        <div className="text-[10px] font-bold text-gray-500 mb-1">🔗 בחיבור</div>
+                                        <div className="flex flex-wrap gap-1.5">
+                                            {b.combos.map((c, i) => (
+                                                <Chip key={i} color="blue">
+                                                    {c.ids.map(id => `#${id}`).join(' + ')}
+                                                    <span className="opacity-60 mr-1">({c.sumMin}-{c.sumMax})</span>
+                                                </Chip>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                                {b.singles.length === 0 && b.combos.length === 0 && (
+                                    <div className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1">⚠️ אין שולחן או חיבור שמתאים ל-{n} סועדים</div>
+                                )}
+                            </div>
+                        );
+                    })}
+
+                    {/* Event combos: 13+ guests */}
+                    <div className="border-2 border-purple-200 rounded-xl p-3 bg-purple-50/40">
+                        <div className="flex items-center justify-between mb-2">
+                            <div className="font-black text-sm text-purple-900">🎉 לאירועים — 13+ סועדים</div>
+                            <div className="text-[11px] text-purple-700">{eventCombos.length} אפשרויות</div>
+                        </div>
+                        {eventCombos.length === 0 ? (
+                            <div className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1">
+                                ⚠️ לא נמצאו צירופים של 13+ סועדים. ודא ש-`combinable_with` מוגדר נכון על שולחנות צמודים.
+                            </div>
+                        ) : (
+                            <div className="flex flex-wrap gap-1.5">
+                                {eventCombos.map((c, i) => (
+                                    <Chip key={i} color="purple">
+                                        {c.ids.map(id => `#${id}`).join(' + ')}
+                                        <span className="opacity-60 mr-1">({c.sumMin}-{c.sumMax})</span>
+                                    </Chip>
+                                ))}
+                            </div>
+                        )}
+                        <div className="mt-2 text-[10px] text-gray-500">
+                            המודול לאירועים יכול לבקש המלצה לכמות סועדים ספציפית דרך <code className="bg-white px-1 rounded">getTableCombosForPartySize</code>.
+                        </div>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+}
+
 function QueueApprovalBanner({ banner, onApprove, onReject, onDismiss, onOpenTab }) {
     // Empty by default — hostess must actively enter a wait time for it to
     // appear in the customer's push. Avoids accidentally sending '~15 דקות'

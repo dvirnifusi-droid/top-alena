@@ -5157,6 +5157,69 @@ export async function checkStuckEventLeads() {
   }
 }
 
+// Returns recommended standalone tables + connected combos that can seat a given party size.
+// Used by the events agent / public reservation flow / hostess UI to pick a table without
+// re-implementing the matching logic on the client.
+registerFn('getTableCombosForPartySize', async ({ body }) => {
+  const partySize = Number((body as any)?.party_size || (body as any)?.n || 0);
+  const maxComboSize = Math.min(8, Math.max(2, Number((body as any)?.max_combo_size || 4)));
+  if (!Number.isFinite(partySize) || partySize < 1) {
+    return { error: 'invalid_party_size', singles: [], combos: [] };
+  }
+  const layout = await db.seatingLayout.findFirst({ orderBy: { updatedAt: 'desc' } });
+  const tables: any[] = Array.isArray(layout?.tables) ? (layout!.tables as any[]) : [];
+  if (tables.length === 0) return { singles: [], combos: [] };
+
+  const valid = tables.filter((t) => t && t.table_number != null && t.min_capacity != null && t.max_capacity != null);
+  const byNum = new Map(valid.map((t) => [String(t.table_number), t]));
+  const adj = new Map<string, Set<string>>();
+  for (const t of valid) {
+    adj.set(String(t.table_number), new Set((Array.isArray(t.combinable_with) ? t.combinable_with : []).map(String)));
+  }
+  const isConnected = (subset: string[]) => {
+    if (subset.length <= 1) return true;
+    const inSet = new Set(subset);
+    const seen = new Set([subset[0]]);
+    const queue = [subset[0]];
+    while (queue.length) {
+      const cur = queue.shift()!;
+      for (const nb of adj.get(cur) || new Set()) {
+        if (inSet.has(nb) && !seen.has(nb)) { seen.add(nb); queue.push(nb); }
+      }
+    }
+    return seen.size === subset.length;
+  };
+
+  const singles = valid
+    .filter((t) => partySize >= (t.min_capacity || 0) && partySize <= (t.max_capacity || 0))
+    .map((t) => String(t.table_number));
+
+  const nums = valid.map((t) => String(t.table_number));
+  const combos: Array<{ ids: string[]; sumMin: number; sumMax: number }> = [];
+  const seen = new Set<string>();
+  const enumerate = (start: number, current: string[], sumMin: number, sumMax: number) => {
+    if (current.length >= 2 && partySize >= sumMin && partySize <= sumMax && isConnected(current)) {
+      const sorted = [...current].sort();
+      const key = sorted.join('-');
+      if (!seen.has(key)) {
+        seen.add(key);
+        combos.push({ ids: sorted, sumMin, sumMax });
+      }
+    }
+    if (current.length >= maxComboSize) return;
+    for (let i = start; i < nums.length; i++) {
+      const t = byNum.get(nums[i]);
+      if (!t) continue;
+      current.push(nums[i]);
+      enumerate(i + 1, current, sumMin + (t.min_capacity || 0), sumMax + (t.max_capacity || 0));
+      current.pop();
+    }
+  };
+  enumerate(0, [], 0, 0);
+  combos.sort((a, b) => a.sumMax - b.sumMax || a.ids.length - b.ids.length);
+  return { party_size: partySize, singles, combos: combos.slice(0, 12) };
+}, { public: true });
+
 // Admin: simulate a stuck lead AND run the scanner once. For diagnostics only.
 registerFn('simulateStuckEventLead', async ({ body }) => {
   const lastMsg = (body as any)?.message || 'צילה גילה 16:00';
