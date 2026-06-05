@@ -669,19 +669,21 @@ export default function SeatingSetup() {
         }
     };
 
-    // Extended status set per Dvir's spec: 9 distinct statuses with clear pill colors.
-    // Used by the rail card, badge filter, and status counters.
+    // Extended status set per Dvir's spec: 10 distinct statuses.
+    // `cardBg` and `cardText` are used when rendering the FULL card (strong color
+    // for at-a-glance status). `color` and `bgColor` are kept for the small pill
+    // version used in filter dropdowns and the status counter chips.
     const STATUS_CONFIGS = {
-        request:         { label: 'בקשה',          color: 'bg-violet-100 text-violet-800',    bgColor: 'bg-violet-50' },
-        pending:         { label: 'ממתין',          color: 'bg-yellow-100 text-yellow-800',    bgColor: 'bg-yellow-50' },
-        confirmed:       { label: 'מאושר',         color: 'bg-blue-100 text-blue-800',        bgColor: 'bg-blue-50' },
-        standby:         { label: 'סטנדבי',        color: 'bg-cyan-100 text-cyan-800',        bgColor: 'bg-cyan-50' },
-        seated:          { label: 'יושב',           color: 'bg-green-100 text-green-800',      bgColor: 'bg-green-50' },
-        finishing_soon:  { label: 'מסיים בקרוב',   color: 'bg-amber-100 text-amber-800',      bgColor: 'bg-amber-50' },
-        completed:       { label: 'סיים',           color: 'bg-gray-100 text-gray-800',        bgColor: 'bg-gray-50' },
-        cancelled:       { label: 'בוטל',           color: 'bg-red-100 text-red-700',          bgColor: 'bg-red-50' },
-        no_show:         { label: 'הבריז',          color: 'bg-orange-100 text-orange-800',    bgColor: 'bg-orange-50' },
-        deleted:         { label: 'מחוק',           color: 'bg-zinc-200 text-zinc-700',        bgColor: 'bg-zinc-100' },
+        request:         { label: 'בקשה',          color: 'bg-violet-100 text-violet-800',    bgColor: 'bg-violet-50',    cardBg: 'bg-violet-600',    cardText: 'text-white' },
+        pending:         { label: 'ממתין',          color: 'bg-yellow-100 text-yellow-800',    bgColor: 'bg-yellow-50',    cardBg: 'bg-yellow-500',    cardText: 'text-yellow-950' },
+        confirmed:       { label: 'מאושר',         color: 'bg-blue-100 text-blue-800',        bgColor: 'bg-blue-50',      cardBg: 'bg-blue-600',      cardText: 'text-white' },
+        standby:         { label: 'סטנדבי',        color: 'bg-cyan-100 text-cyan-800',        bgColor: 'bg-cyan-50',      cardBg: 'bg-cyan-700',      cardText: 'text-white' },
+        seated:          { label: 'יושב',           color: 'bg-green-100 text-green-800',      bgColor: 'bg-green-50',     cardBg: 'bg-teal-600',      cardText: 'text-white' },
+        finishing_soon:  { label: 'מסיים בקרוב',   color: 'bg-amber-100 text-amber-800',      bgColor: 'bg-amber-50',     cardBg: 'bg-amber-600',     cardText: 'text-white' },
+        completed:       { label: 'סיים',           color: 'bg-gray-100 text-gray-800',        bgColor: 'bg-gray-50',      cardBg: 'bg-gray-600',      cardText: 'text-white' },
+        cancelled:       { label: 'בוטל',           color: 'bg-red-100 text-red-700',          bgColor: 'bg-red-50',       cardBg: 'bg-red-600',       cardText: 'text-white' },
+        no_show:         { label: 'הבריז',          color: 'bg-orange-100 text-orange-800',    bgColor: 'bg-orange-50',    cardBg: 'bg-orange-600',    cardText: 'text-white' },
+        deleted:         { label: 'מחוק',           color: 'bg-zinc-200 text-zinc-700',        bgColor: 'bg-zinc-100',     cardBg: 'bg-zinc-700',      cardText: 'text-white' },
     };
     const getReservationStatusConfig = (status, assigned) => {
         if (status && STATUS_CONFIGS[status]) return STATUS_CONFIGS[status];
@@ -746,12 +748,20 @@ export default function SeatingSetup() {
 
         const phoneTel = (reservation.customer_phone || '').replace(/[^\d+]/g, '');
 
-        // Card background follows the status color (with returning-customer override)
-        const cardBg = isReturning ? 'bg-pink-50 border-pink-300' : `${statusConfig.bgColor} border-gray-200`;
+        // Strong status-driven background (Ontopo style)
+        const cardBg = statusConfig.cardBg || 'bg-white';
+        const cardText = statusConfig.cardText || 'text-gray-900';
+        // Source short label (Hebrew)
+        const SOURCE_LABEL = {
+            instagram: 'אינסטגרם', tiktok: 'TikTok', facebook: 'פייסבוק',
+            google: 'גוגל', whatsapp: 'WhatsApp', qr: 'QR', sms: 'SMS',
+            email: 'אימייל', direct: 'אונליין ישיר', other: 'אחר',
+        };
+        const sourceLabel = reservation.source ? (SOURCE_LABEL[reservation.source] || reservation.source) : null;
 
         return (
             <div
-                className={`p-3 rounded-xl border-2 transition-all hover:shadow-md cursor-pointer relative overflow-hidden ${cardBg}`}
+                className={`p-3 rounded-xl border-2 border-transparent transition-all hover:shadow-lg cursor-pointer relative overflow-hidden ${cardBg} ${cardText} ${isReturning ? 'ring-2 ring-pink-300 ring-offset-1' : ''}`}
                 onClick={openEdit}
             >
                 {/* Flag stripe on right edge — full height */}
@@ -759,14 +769,14 @@ export default function SeatingSetup() {
                     <div className={`absolute top-0 bottom-0 right-0 w-1.5 ${flagMeta.color}`}></div>
                 )}
 
-                {/* TOP ROW (RTL): status pill on RIGHT (first child), time big on LEFT (last child) */}
+                {/* TOP ROW (RTL): status pill on RIGHT, time on LEFT */}
                 <div className="flex items-start justify-between gap-2">
                     <Popover>
                         <PopoverTrigger asChild>
                             <button
                                 data-popover-trigger
                                 onClick={(e) => e.stopPropagation()}
-                                className={`text-[10px] font-bold px-2.5 py-1 rounded-full ${statusConfig.color} hover:opacity-80 transition-opacity`}
+                                className="text-xs font-bold px-3 py-1 rounded-full bg-amber-100 text-amber-900 hover:bg-amber-200 transition-colors shadow-sm"
                             >
                                 {statusConfig.label}
                             </button>
@@ -790,14 +800,20 @@ export default function SeatingSetup() {
                             })}
                         </PopoverContent>
                     </Popover>
-                    <div className="font-black text-2xl text-gray-900 leading-none">
+                    <div className="font-black text-2xl leading-none">
                         {reservation.time?.slice(0, 5) || '--:--'}
                     </div>
                 </div>
 
-                {/* IDENTITY ROW (RTL): name on RIGHT, flag dot to its LEFT, returning badge further left */}
-                <div className="mt-2 flex items-center gap-2">
-                    <div className="font-bold text-gray-900 text-base truncate">{customerInfo}</div>
+                {/* MIDDLE ROW: party size │ name (Ontopo style) + flag dot */}
+                <div className="mt-2.5 flex items-center gap-2">
+                    {/* Party size as big number */}
+                    <span className="text-2xl font-black opacity-95">{reservation.party_size || '?'}</span>
+                    {/* White divider */}
+                    <span className="w-px h-7 bg-white/40"></span>
+                    {/* Name */}
+                    <div className="font-bold text-lg truncate flex-1 min-w-0">{customerInfo}</div>
+                    {/* Flag dot */}
                     <Popover>
                         <PopoverTrigger asChild>
                             <button
@@ -805,7 +821,7 @@ export default function SeatingSetup() {
                                 onClick={(e) => e.stopPropagation()}
                                 title={flagMeta?.label || 'הוסף דגל'}
                                 className={`w-4 h-4 rounded-full border-2 flex-shrink-0 transition-all ${
-                                    flagMeta ? `${flagMeta.color} border-white shadow` : 'bg-white border-gray-300 hover:border-gray-400'
+                                    flagMeta ? `${flagMeta.color} border-white shadow` : 'bg-white/30 border-white/70 hover:bg-white/50'
                                 }`}
                             ></button>
                         </PopoverTrigger>
@@ -829,50 +845,44 @@ export default function SeatingSetup() {
                             )}
                         </PopoverContent>
                     </Popover>
-                    {isReturning && <span className="text-[9px] font-bold bg-pink-200 text-pink-800 px-1.5 py-0.5 rounded-full">חוזר</span>}
                 </div>
 
-                {/* META ROW (RTL): party (👥) on RIGHT, table (🪑) middle, phone on LEFT */}
-                <div className="mt-2 flex items-center justify-between gap-2">
-                    <span className="flex items-center gap-1 text-gray-800">
-                        <span className="text-xl font-black">{reservation.party_size || '?'}</span>
-                        <Users className="w-4 h-4" />
-                    </span>
-                    {Array.isArray(reservation.assigned_table) && reservation.assigned_table.length > 0 && (
-                        <span className="flex items-center gap-1 text-indigo-700">
-                            <span className="text-xl font-black">{reservation.assigned_table.join(',')}</span>
-                            <span className="text-sm">🪑</span>
-                        </span>
-                    )}
+                {/* TABLE + PHONE row */}
+                <div className="mt-1.5 flex items-center justify-between gap-2 text-sm opacity-90">
                     {phoneTel ? (
                         <a
                             href={`tel:${phoneTel}`}
                             onClick={(e) => e.stopPropagation()}
                             data-popover-trigger
-                            className="text-rose-400 text-xs hover:text-rose-600 hover:underline"
+                            className="text-xs hover:underline opacity-80 hover:opacity-100"
                             dir="ltr"
                         >
                             {reservation.customer_phone}
                         </a>
                     ) : <span></span>}
+                    {Array.isArray(reservation.assigned_table) && reservation.assigned_table.length > 0 && (
+                        <span className="flex items-center gap-1 font-bold">
+                            <span className="text-base">🪑</span>
+                            <span className="text-lg">{reservation.assigned_table.join(',')}</span>
+                        </span>
+                    )}
                 </div>
 
-                {/* SOURCE + OCCASION + REQUESTS */}
-                {(reservation.source || reservation.special_occasion || reservation.special_requests) && (
-                    <div className="mt-2 pt-2 border-t border-gray-100 flex items-center gap-2 flex-wrap text-[11px]">
-                        {reservation.source && (
-                            <ReservationSourceBadge source={reservation.source} campaign={reservation.campaign} />
+                {/* SOURCE + EXTRAS row */}
+                {(sourceLabel || reservation.special_occasion || reservation.special_requests || isReturning) && (
+                    <div className="mt-1.5 flex items-center justify-between gap-2 text-[11px] opacity-90">
+                        <div className="flex items-center gap-1.5 flex-wrap min-w-0">
+                            {sourceLabel && <span>הזמנה {sourceLabel}{reservation.campaign ? ` · ${reservation.campaign}` : ''}</span>}
+                            {reservation.special_occasion && <span>· 🎉 {reservation.special_occasion}</span>}
+                        </div>
+                        {isReturning && (
+                            <span className="bg-pink-200 text-pink-900 px-1.5 py-0.5 rounded-full text-[9px] font-bold flex-shrink-0">חוזר</span>
                         )}
-                        {reservation.special_occasion && (
-                            <span className="bg-rose-50 text-rose-700 border border-rose-200 rounded-full px-2 py-0.5 font-bold">
-                                🎉 {reservation.special_occasion}
-                            </span>
-                        )}
-                        {reservation.special_requests && (
-                            <span className="text-gray-500 italic truncate flex-1 min-w-0" title={reservation.special_requests}>
-                                "{reservation.special_requests}"
-                            </span>
-                        )}
+                    </div>
+                )}
+                {reservation.special_requests && (
+                    <div className="mt-1 italic text-[11px] opacity-75 truncate" title={reservation.special_requests}>
+                        "{reservation.special_requests}"
                     </div>
                 )}
             </div>
