@@ -3,7 +3,9 @@ import { Container } from "@/components/layout/Container";
 import { pageMetadata } from "@/lib/seo";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { ReservationCTA } from "@/components/shared/ReservationCTA";
-import { menu, drinks, softDrinks, type MenuItem } from "@/content/menu";
+import { getMenu, drinks, softDrinks, type MenuItem } from "@/lib/content-source";
+
+export const revalidate = 300;
 
 export const metadata = pageMetadata({
   title: "תפריט עלינא — חמארה ים-תיכונית כשרה בראשון לציון",
@@ -62,7 +64,8 @@ function formatDrinkPrice(p: number | { glass?: number; bottle?: number }): stri
   return "";
 }
 
-export default function MenuPage() {
+export default async function MenuPage() {
+  const menu = await getMenu();
   const menuLd = {
     "@context": "https://schema.org",
     "@type": "Menu",

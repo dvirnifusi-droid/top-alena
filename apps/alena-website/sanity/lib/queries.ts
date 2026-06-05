@@ -5,10 +5,12 @@ export const siteSettingsQuery = groq`*[_type == "siteSettings"][0]`;
 export const hoursQuery = groq`*[_type == "hours"] | order(day asc)`;
 
 export const menuQuery = groq`{
-  "categories": *[_type == "menuCategory"] | order(order asc),
-  "items": *[_type == "menuItem" && available == true]{
+  "categories": *[_type == "menuCategory"] | order(order asc){
+    _id, name, "id": slug.current
+  },
+  "items": *[_type == "menuItem" && (available == true || !defined(available))]{
     _id, name, description, price, image, tags,
-    "category": category->{_id, name, slug}
+    "categoryId": category._ref
   }
 }`;
 
@@ -21,6 +23,8 @@ export const blogIndexQuery = groq`*[_type == "blogPost" && defined(publishedAt)
 }`;
 
 export const blogPostQuery = groq`*[_type == "blogPost" && slug.current == $slug][0]`;
+
+export const allBlogSlugsQuery = groq`*[_type == "blogPost" && defined(slug.current)].slug.current`;
 
 export const landingBySlugQuery = groq`*[_type == "landingPage" && slug.current == $slug][0]{
   ..., relatedMenuItems[]->, reviews[]->
