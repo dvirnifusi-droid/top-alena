@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Container } from "./Container";
 import { Logo } from "@/components/shared/Logo";
+import { MobileMenu } from "./MobileMenu";
 import { routes } from "@/lib/routes";
 import { env } from "@/lib/env";
 
@@ -17,11 +18,29 @@ const nav = [
 export function Header() {
   return (
     <header className="sticky top-0 z-40 border-b border-charcoal/5 bg-cream/90 backdrop-blur">
-      <Container className="flex flex-col items-center gap-3 py-4 md:gap-4 md:py-5">
+      {/* Mobile bar */}
+      <div className="flex items-center justify-between px-4 py-3 md:hidden">
+        <MobileMenu />
+        <Link href="/" className="block">
+          <Logo withTagline={false} />
+        </Link>
+        <a
+          href={env.NEXT_PUBLIC_ONTOPO_URL}
+          target="_blank"
+          rel="noopener"
+          aria-label="הזמן שולחן"
+          className="rounded-full bg-terracotta px-4 py-2 text-xs font-bold text-cream shadow-md"
+        >
+          הזמן
+        </a>
+      </div>
+
+      {/* Desktop bar */}
+      <Container className="hidden flex-col items-center gap-3 py-4 md:flex md:gap-4 md:py-5">
         <Link href="/" className="block">
           <Logo />
         </Link>
-        <nav className="hidden flex-wrap justify-center gap-8 md:flex">
+        <nav className="flex flex-wrap justify-center gap-8">
           {nav.map((n) => (
             <Link
               key={n.href}
