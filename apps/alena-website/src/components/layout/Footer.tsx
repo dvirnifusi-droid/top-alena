@@ -22,6 +22,7 @@ export function Footer() {
             <li><Link href={routes.delivery} className="hover:text-cream">משלוחים</Link></li>
             <li><Link href={routes.about} className="hover:text-cream">אודות</Link></li>
             <li><Link href={routes.blog} className="hover:text-cream">בלוג</Link></li>
+            <li><Link href={routes.gift} className="hover:text-cream">שובר מתנה</Link></li>
             <li><Link href={routes.jobs} className="hover:text-cream">דרושים</Link></li>
           </ul>
         </div>

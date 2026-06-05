@@ -16,6 +16,7 @@ const nav = [
   { href: routes.gallery, label: "גלריה" },
   { href: routes.about, label: "אודות" },
   { href: routes.blog, label: "בלוג" },
+  { href: routes.gift, label: "🎁 שובר מתנה" },
   { href: routes.jobs, label: "דרושים" },
   { href: routes.contact, label: "צור קשר" },
 ];
