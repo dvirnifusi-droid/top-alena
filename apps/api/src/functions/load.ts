@@ -7819,3 +7819,41 @@ registerFn('signEventContract', async ({ body, req }) => {
   });
   return { ok: true };
 }, { public: true });
+
+// PUBLIC — live social-proof counter for the reservation page hero.
+// "🔥 בוצעו N הזמנות ב-H שעות האחרונות". Bounded at 999 and floor 0.
+registerFn('getRecentReservationCount', async ({ body }) => {
+  const hours = Math.min(72, Math.max(1, Number((body as any)?.hours) || 3));
+  const since = new Date(Date.now() - hours * 60 * 60 * 1000);
+  const count = await db.reservation.count({
+    where: {
+      createdAt: { gte: since },
+      status: { in: ['confirmed', 'pending', 'seated'] },
+    },
+  }).catch(() => 0);
+  return { count: Math.max(0, Math.min(999, count)), hours };
+}, { public: true });
+
+// PUBLIC — bulk availability check for a date. Returns map { "20:00": "open" | "tight" | "full" }
+// so the booking page can color time slots without per-slot round trips.
+registerFn('getDayAvailabilitySnapshot', async ({ body }) => {
+  const b = (body || {}) as any;
+  const date = String(b.date || '').slice(0, 10);
+  const party_size = Math.max(1, Math.min(20, Number(b.party_size) || 2));
+  const slots: string[] = Array.isArray(b.slots) ? b.slots.slice(0, 60).map((s: any) => String(s)) : [];
+  if (!date || slots.length === 0) return { availability: {} };
+
+  // Reuse the same engine the actual booking uses — most accurate signal.
+  const search: any = functionHandlers['searchReservationTable'];
+  const result: Record<string, string> = {};
+  const RESTAURANT_CAP = 36;
+  await Promise.all(slots.map(async (time) => {
+    try {
+      const res: any = await search({ body: { date, time, party_size }, user: null, req: undefined });
+      if (!res?.canAccommodate) result[time] = 'full';
+      else if ((res?.currentCapacity ?? 0) >= RESTAURANT_CAP * 0.7) result[time] = 'tight';
+      else result[time] = 'open';
+    } catch { result[time] = 'open'; }
+  }));
+  return { availability: result };
+}, { public: true });

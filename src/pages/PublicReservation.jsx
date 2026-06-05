@@ -1,587 +1,519 @@
-
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import LanguagePicker from '@/components/shared/LanguagePicker';
 import { useI18n } from '@/lib/i18n';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Calendar as CalendarComponent } from "@/components/ui/calendar";
-import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { invokePublic } from '@/lib/publicFetch';
-import { format, addMinutes, parse } from 'date-fns';
-import { Calendar, Clock, Users, Send, Loader2, AlertCircle, CheckCircle, PartyPopper, Search, Phone, Mail, MapPin, Utensils } from 'lucide-react'; // Added Phone, Mail, MapPin, Utensils icons
+import { format, addDays, addMinutes, parse, isSameDay } from 'date-fns';
+import { he } from 'date-fns/locale';
+import {
+  Calendar, Clock, Users, Send, Loader2, CheckCircle, Phone, MapPin,
+  Instagram, Music2, Facebook, MessageCircle, Sparkles, Flame, Navigation as NavIcon,
+} from 'lucide-react';
 
+// --- Constants ---------------------------------------------------------------
+
+const HERO_FALLBACK_BG = 'linear-gradient(135deg, #18181b 0%, #3f1d1d 60%, #7c2d12 100%)';
+
+// Default opening hours (overridden by settings if provided)
 const getOpeningHours = (selectedDate) => {
-    const dayOfWeek = new Date(selectedDate).getDay();
-    if (dayOfWeek === 6) return { start: '21:00', end: '23:45' };
-    if (dayOfWeek === 5) return { start: '12:00', end: '23:45' };
-    return { start: '12:00', end: '23:30' };
+  const dayOfWeek = new Date(selectedDate).getDay();
+  if (dayOfWeek === 6) return { start: '21:00', end: '23:45' }; // Saturday
+  if (dayOfWeek === 5) return { start: '12:00', end: '23:45' }; // Friday
+  return { start: '12:00', end: '23:30' };
 };
+const getSeatingDuration = (size) => (size >= 9 ? 165 : size >= 6 ? 150 : 120);
 
-const getSeatingDuration = (size) => {
-    if (size >= 9) return 165;
-    if (size >= 6) return 150;
-    return 120;
-};
+// Build half-hour slots (more compact UI than the previous 15-min picker)
+function generateTimeSlots(startTime, endTime) {
+  if (startTime === '00:00' && endTime === '00:00') return [];
+  const slots = [];
+  const [sh, sm] = startTime.split(':').map(Number);
+  const [eh, em] = endTime.split(':').map(Number);
+  let mins = sh * 60 + Math.ceil(sm / 30) * 30;
+  const endMins = eh * 60 + em;
+  while (mins <= endMins) {
+    const h = Math.floor(mins / 60), m = mins % 60;
+    slots.push(`${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`);
+    mins += 30;
+  }
+  return slots;
+}
 
-// Generate valid time slots (quarter hours only)
-const generateTimeSlots = (startTime, endTime) => {
-    const slots = [];
-    if (startTime === '00:00' && endTime === '00:00') {
-        return []; // Restaurant is closed
-    }
+// --- Capture UTM / referrer once ---------------------------------------------
 
-    let current = startTime;
-    
-    while (current <= endTime) {
-        const [hours, minutes] = current.split(':').map(Number);
-        const totalMinutes = hours * 60 + minutes;
-        
-        // Round to nearest quarter hour
-        const roundedMinutes = Math.ceil(totalMinutes / 15) * 15;
-        const roundedHours = Math.floor(roundedMinutes / 60);
-        const finalMinutes = roundedMinutes % 60;
-        
-        const timeSlot = `${roundedHours.toString().padStart(2, '0')}:${finalMinutes.toString().padStart(2, '0')}`;
-        
-        if (timeSlot <= endTime && !slots.includes(timeSlot)) {
-            slots.push(timeSlot);
-        }
-        
-        // Move to next quarter hour
-        const nextTotalMinutes = roundedMinutes + 15;
-        const nextHours = Math.floor(nextTotalMinutes / 60);
-        const nextMinutes = nextTotalMinutes % 60;
-        current = `${nextHours.toString().padStart(2, '0')}:${nextMinutes.toString().padStart(2, '0')}`;
-        
-        if (nextHours >= 24) break;
-    }
-    
-    return slots;
-};
+function captureAttribution() {
+  try {
+    const p = new URLSearchParams(window.location.search);
+    return {
+      utm_source: p.get('utm_source') || p.get('src') || '',
+      utm_campaign: p.get('utm_campaign') || p.get('cmp') || '',
+      utm_medium: p.get('utm_medium') || p.get('med') || '',
+      landing_url: window.location.href.slice(0, 500),
+      referrer: (document.referrer || '').slice(0, 500),
+    };
+  } catch { return {}; }
+}
+
+// ============================================================================
+// PAGE
+// ============================================================================
 
 export default function PublicReservationPage() {
-    const [t, lang] = useI18n();
-    const [date, setDate] = useState(new Date());
-    const [time, setTime] = useState('20:00');
-    const [partySize, setPartySize] = useState(2);
-    const [customerName, setCustomerName] = useState('');
-    const [customerPhone, setCustomerPhone] = useState('');
-    const [specialRequests, setSpecialRequests] = useState('');
-    const [specialOccasion, setSpecialOccasion] = useState('');
-    
-    const [isLoading, setIsLoading] = useState(false);
-    const [isSearching, setIsSearching] = useState(false);
-    const [error, setError] = useState('');
-    const [success, setSuccess] = useState('');
-    const [availableTable, setAvailableTable] = useState(null);
-    const [hasSearched, setHasSearched] = useState(false);
-    const [timeSlotInfo, setTimeSlotInfo] = useState(null);
-    const [openingHours, setOpeningHours] = useState(getOpeningHours(new Date()));
-    const [timeSlots, setTimeSlots] = useState([]);
-    const [showConfirmation, setShowConfirmation] = useState(false);
-    const [reservationData, setReservationData] = useState(null);
-    const [settings, setSettings] = useState(null); // Added settings state
+  const [t, lang] = useI18n();
+  const [date, setDate] = useState(new Date());
+  const [time, setTime] = useState('');
+  const [partySize, setPartySize] = useState(2);
+  const [customerName, setCustomerName] = useState('');
+  const [customerPhone, setCustomerPhone] = useState('');
+  const [specialRequests, setSpecialRequests] = useState('');
 
-    useEffect(() => {
-        loadSettings();
-    }, []); // Load settings only once on mount
+  const [settings, setSettings] = useState(null);
+  const [openingHours, setOpeningHours] = useState(getOpeningHours(new Date()));
+  const [timeSlots, setTimeSlots] = useState([]);
+  const [availability, setAvailability] = useState({}); // { "20:00": "open"|"tight"|"full" }
 
-    useEffect(() => {
-        let hoursToUse;
-        const dayOfWeekIndex = date.getDay(); // 0 (Sunday) to 6 (Saturday)
-        const dayMap = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
-        const currentDayName = dayMap[dayOfWeekIndex];
+  const [isBooking, setIsBooking] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
+  const [success, setSuccess] = useState(null); // { customer_name, time, date, party_size, table_number }
 
-        if (settings && settings.opening_hours && settings.opening_hours[currentDayName]) {
-            const daySettings = settings.opening_hours[currentDayName];
-            if (daySettings.closed) {
-                hoursToUse = { start: '00:00', end: '00:00' }; // Represents closed for time slot generation
-            } else {
-                hoursToUse = { start: daySettings.open, end: daySettings.close };
-            }
-        } else {
-            // Fallback to the hardcoded function if settings not loaded or specific day not defined
-            hoursToUse = getOpeningHours(date);
-        }
+  const [liveCount, setLiveCount] = useState(null);
 
-        setOpeningHours(hoursToUse);
-        setTimeSlots(generateTimeSlots(hoursToUse.start, hoursToUse.end));
-        setHasSearched(false);
-        setAvailableTable(null);
-    }, [date, settings]); // Re-run if date or settings change
+  // --- Load settings + live counter once
+  useEffect(() => {
+    (async () => {
+      try {
+        const s = await invokePublic('getReservationSettings');
+        if (s) setSettings(s);
+      } catch (e) { console.warn('settings load failed', e); }
+      try {
+        const r = await invokePublic('getRecentReservationCount', { hours: 3 });
+        if (r?.count != null) setLiveCount(r.count);
+      } catch (e) { /* non-fatal */ }
+    })();
+  }, []);
 
-    const loadSettings = async () => {
-        try {
-            const existingSettings = await invokePublic('getReservationSettings');
-            if (existingSettings) {
-                setSettings(existingSettings);
-            }
-        } catch (error) {
-            console.error('Error loading settings:', error);
-        }
-    };
-
-    const handleSearchTable = async () => {
-        if (!customerName || !customerPhone) {
-            setError("יש למלא שם וטלפון לפני חיפוש שולחן.");
-            return;
-        }
-
-        setIsSearching(true);
-        setError('');
-        setHasSearched(false);
-        setAvailableTable(null);
-
-        try {
-            const dateString = format(date, 'yyyy-MM-dd');
-            // Server-side capacity check + table finding (no customer data exposed)
-            const result = await invokePublic('searchReservationTable', {
-                date: dateString, time, party_size: partySize,
-            });
-            setTimeSlotInfo(result);
-
-            if (!result.canAccommodate) {
-                setError(`השעה ${time} מלאה (${result.currentCapacity}/36 אנשים). אנא בחר שעה אחרת.`);
-                setIsSearching(false);
-                return;
-            }
-
-            setAvailableTable(result.table);
-            setHasSearched(true);
-
-        } catch (err) {
-            console.error("Table search failed:", err);
-            setError("שגיאה בחיפוש שולחן. אנא נסה שוב.");
-        } finally {
-            setIsSearching(false);
-        }
-    };
-
-    const handleFormSubmit = async (e) => {
-        e.preventDefault();
-        setError('');
-
-        if (!hasSearched) {
-            setError("יש לחפש שולחן זמין לפני ביצוע הזמנה.");
-            return;
-        }
-
-        if (!availableTable) {
-            setError("לא נמצא שולחן זמין. אנא נסה שעה אחרת.");
-            return;
-        }
-
-        // Prepare reservation data for confirmation
-        const dateString = format(date, 'yyyy-MM-dd');
-        const startDateTime = parse(`${dateString} ${time}`, 'yyyy-MM-dd HH:mm', new Date());
-        const endDateTime = addMinutes(startDateTime, getSeatingDuration(Number(partySize)));
-        
-        const newReservationData = {
-            customer_name: customerName,
-            customer_phone: customerPhone,
-            date: dateString,
-            time: time,
-            party_size: parseInt(partySize),
-            special_requests: specialRequests || null,
-            special_occasion: specialOccasion || null,
-            status: 'confirmed', // Auto-confirm since table is available
-            reservation_end_time: format(endDateTime, 'HH:mm'),
-            assigned_table: [availableTable.table_number]
-        };
-
-        setReservationData(newReservationData);
-        setShowConfirmation(true);
-    };
-
-    // Capture marketing attribution once — UTM params (?utm_source=instagram&utm_campaign=summer25)
-    // and document.referrer so admin can see where every booking came from.
-    const captureAttribution = () => {
-        try {
-            const p = new URLSearchParams(window.location.search);
-            return {
-                utm_source: p.get('utm_source') || p.get('src') || '',
-                utm_campaign: p.get('utm_campaign') || p.get('cmp') || '',
-                utm_medium: p.get('utm_medium') || p.get('med') || '',
-                landing_url: window.location.href.slice(0, 500),
-                referrer: (document.referrer || '').slice(0, 500),
-            };
-        } catch { return {}; }
-    };
-
-    const confirmReservation = async () => {
-        setIsLoading(true);
-        try {
-            const attr = captureAttribution();
-            const res = await invokePublic('createPublicReservation', {
-                customer_name: reservationData.customer_name,
-                customer_phone: reservationData.customer_phone,
-                date: reservationData.date,
-                time: reservationData.time,
-                party_size: reservationData.party_size,
-                special_requests: reservationData.special_requests,
-                special_occasion: reservationData.special_occasion,
-                ...attr,
-            });
-            if (!res?.success) {
-                setError('השעה התמלאה זה עתה. אנא בחר שעה אחרת.');
-                setShowConfirmation(false);
-                setIsLoading(false);
-                return;
-            }
-
-            setSuccess(`מעולה ${reservationData.customer_name}! ההזמנה שלך אושרה בהצלחה למקום בעלינא.`);
-            setShowConfirmation(false);
-            
-            // Reset form
-            setCustomerName('');
-            setCustomerPhone('');
-            setSpecialRequests('');
-            setSpecialOccasion('');
-            setHasSearched(false);
-            setAvailableTable(null);
-
-        } catch (err) {
-            console.error("Reservation creation failed:", err);
-            setError("אירעה שגיאה ביצירת ההזמנה. אנא נסה שוב.");
-            setShowConfirmation(false);
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
-    if (showConfirmation && reservationData) {
-        return (
-            <div className="min-h-screen bg-pink-50 flex items-center justify-center p-4" dir="rtl">
-                <Card className="w-full max-w-2xl shadow-2xl border-pink-200">
-                    <CardHeader className="text-center">
-                        <PartyPopper className="mx-auto h-12 w-12 text-pink-500" />
-                        <CardTitle className="text-2xl font-bold text-gray-800">אישור ההזמנה</CardTitle>
-                        <CardDescription className="text-gray-600">אנא וודא שהפרטים נכונים לפני האישור הסופי</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="space-y-4 bg-white p-6 rounded-lg border">
-                            <div className="grid grid-cols-2 gap-4">
-                                <div><strong>שם:</strong> {reservationData.customer_name}</div>
-                                <div><strong>טלפון:</strong> {reservationData.customer_phone}</div>
-                                <div><strong>תאריך:</strong> {format(new Date(reservationData.date), 'dd/MM/yyyy')}</div>
-                                <div><strong>שעה:</strong> {reservationData.time} - {reservationData.reservation_end_time}</div>
-                                <div><strong>מספר סועדים:</strong> {reservationData.party_size}</div>
-                                <div><strong>סטטוס:</strong> <span className="text-green-600 font-semibold">מאושר ✓</span></div>
-                            </div>
-                            {reservationData.special_occasion && (
-                                <div><strong>אירוע מיוחד:</strong> {reservationData.special_occasion}</div>
-                            )}
-                            {reservationData.special_requests && (
-                                <div><strong>בקשות מיוחדות:</strong> {reservationData.special_requests}</div>
-                            )}
-                        </div>
-
-                        {error && <div className="p-3 bg-red-100 text-red-700 rounded-lg text-center flex items-center justify-center gap-2"><AlertCircle className="w-5 h-5"/>{error}</div>}
-
-                        <div className="flex gap-3 mt-6">
-                            <Button onClick={confirmReservation} className="flex-1 bg-pink-600 hover:bg-pink-700" disabled={isLoading}>
-                                {isLoading ? <Loader2 className="w-6 h-6 animate-spin" /> : <><Send className="w-5 h-5 ml-2"/>אשר הזמנה</>}
-                            </Button>
-                            <Button variant="outline" onClick={() => setShowConfirmation(false)} className="flex-1">
-                                חזור לעריכה
-                            </Button>
-                        </div>
-                    </CardContent>
-                </Card>
-            </div>
-        );
+  // --- Recompute hours + slots when date or settings change
+  useEffect(() => {
+    const dayMap = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+    const currentDayName = dayMap[date.getDay()];
+    let hoursToUse;
+    if (settings?.opening_hours?.[currentDayName]) {
+      const d = settings.opening_hours[currentDayName];
+      hoursToUse = d.closed ? { start: '00:00', end: '00:00' } : { start: d.open, end: d.close };
+    } else {
+      hoursToUse = getOpeningHours(date);
     }
+    setOpeningHours(hoursToUse);
+    const slots = generateTimeSlots(hoursToUse.start, hoursToUse.end);
+    setTimeSlots(slots);
+    // Auto-pick a sensible default time (first slot >= 19:00 or first slot)
+    if (slots.length && !slots.includes(time)) {
+      const dinnerSlot = slots.find(s => s >= '19:00') || slots[Math.floor(slots.length / 2)];
+      setTime(dinnerSlot);
+    }
+  }, [date, settings]);
 
-    const isRtl = lang === 'he';
+  // --- Fetch availability snapshot for the chosen date/party
+  useEffect(() => {
+    if (!timeSlots.length) { setAvailability({}); return; }
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await invokePublic('getDayAvailabilitySnapshot', {
+          date: format(date, 'yyyy-MM-dd'),
+          party_size: Number(partySize),
+          slots: timeSlots,
+        });
+        if (!cancelled && res?.availability) setAvailability(res.availability);
+      } catch (e) { /* non-fatal */ }
+    })();
+    return () => { cancelled = true; };
+  }, [date, partySize, timeSlots.join(',')]);
+
+  // --- Submit one-click booking
+  const submitBooking = async () => {
+    setErrorMsg('');
+    if (!customerName.trim()) return setErrorMsg('יש למלא שם מלא');
+    if (!customerPhone.trim() || customerPhone.replace(/\D/g, '').length < 9) return setErrorMsg('יש למלא מספר טלפון תקין');
+    if (!time) return setErrorMsg('יש לבחור שעה');
+
+    setIsBooking(true);
+    try {
+      const attr = captureAttribution();
+      const res = await invokePublic('createPublicReservation', {
+        customer_name: customerName.trim(),
+        customer_phone: customerPhone.trim(),
+        date: format(date, 'yyyy-MM-dd'),
+        time,
+        party_size: parseInt(partySize),
+        special_requests: specialRequests.trim() || null,
+        ...attr,
+      });
+      if (!res?.success) {
+        setErrorMsg(res?.reason === 'no_availability'
+          ? 'מצטערים, השעה התמלאה רגע לפניך. נסה שעה אחרת.'
+          : 'שגיאה בביצוע ההזמנה. אנא נסה שוב.');
+        return;
+      }
+      setSuccess({
+        customer_name: customerName,
+        time,
+        date: format(date, 'EEEE dd/MM', { locale: he }),
+        party_size: parseInt(partySize),
+        table_number: res.table_number,
+      });
+    } catch (e) {
+      setErrorMsg('שגיאה זמנית. נסה שוב בעוד רגע.');
+    } finally {
+      setIsBooking(false);
+    }
+  };
+
+  // --- Derived data
+  const restaurantName = settings?.restaurant_name || 'עלינא';
+  const welcomeMessage = settings?.welcome_message || 'בשר על האש, אווירה אחרת, אנשים נכונים';
+  const phone = settings?.phone || '03-1234567';
+  const address = settings?.address || 'רוטשילד 104, ראשון לציון';
+  const wazeUrl = `https://waze.com/ul?ll=31.96,34.79&navigate=yes`;
+  const social = {
+    instagram: settings?.instagram_url || 'https://instagram.com/alina_restaurant',
+    tiktok:    settings?.tiktok_url    || 'https://tiktok.com/@alina_restaurant',
+    facebook:  settings?.facebook_url  || null,
+    whatsapp:  settings?.whatsapp_url  || `https://wa.me/972${phone.replace(/\D/g, '').replace(/^0/, '')}`,
+  };
+
+  // Date strip — today + next 6 days
+  const dateOptions = useMemo(() => {
+    const arr = [];
+    for (let i = 0; i < 7; i++) arr.push(addDays(new Date(), i));
+    return arr;
+  }, []);
+
+  // ===========================================================================
+  // RENDER — SUCCESS STATE
+  // ===========================================================================
+  if (success) {
+    const confettiSize = settings?.confirmation_message || `הזמנתך נשמרה ל-${success.date} בשעה ${success.time} עבור ${success.party_size} סועדים`;
     return (
-        <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-100" dir={isRtl ? 'rtl' : 'ltr'}>
-            <div className="max-w-4xl mx-auto p-6">
-                {/* Language picker */}
-                <div className={`flex ${isRtl ? 'justify-start' : 'justify-end'} mb-2`}>
-                    <LanguagePicker />
-                </div>
-                {/* Header */}
-                <div className="text-center mb-8">
-                    <h1 className="text-4xl font-bold text-gray-900 mb-4" style={{ color: settings?.theme_color || '#059669' }}>
-                        {settings?.restaurant_name || 'עלינא'}
-                    </h1>
-                    <p className="text-lg text-gray-700">
-                        {lang === 'he'
-                          ? (settings?.welcome_message || 'ברוכים הבאים למסעדת עלינא - חוויה קולינרית מיוחדת מחכה לכם')
-                          : t('reservation_subtitle')}
-                    </p>
-                </div>
-
-                {/* Special Message */}
-                {settings?.special_message && (
-                    <div className="bg-yellow-100 border-l-4 border-yellow-500 p-4 mb-6 rounded">
-                        <p className="text-yellow-800 font-medium">{settings.special_message}</p>
-                    </div>
-                )}
-
-                {/* Reservations Disabled Message */}
-                {settings?.reservations_enabled === false && (
-                    <div className="bg-red-100 border border-red-300 rounded-lg p-6 text-center mb-6">
-                        <h2 className="text-xl font-bold text-red-800 mb-2">הזמנות מושבתות זמנית</h2>
-                        <p className="text-red-700">
-                            מתנצלים, כרגע לא ניתן לבצע הזמנות חדשות. אנא פנו אלינו טלפונית או נסו שוב מאוחר יותר.
-                        </p>
-                        <div className="mt-4 space-y-2">
-                            <p className="flex items-center justify-center gap-2">
-                                <Phone className="w-4 h-4" />
-                                <span>{settings?.phone || '03-1234567'}</span>
-                            </p>
-                            {settings?.email && (
-                                <p className="flex items-center justify-center gap-2">
-                                    <Mail className="w-4 h-4" />
-                                    <span>{settings.email}</span>
-                                </p>
-                            )}
-                        </div>
-                    </div>
-                )}
-
-                {/* Main Content (Reservation Form + Restaurant Info) */}
-                {settings?.reservations_enabled !== false && (
-                    <div className="grid lg:grid-cols-2 gap-8">
-                        {/* Reservation Form */}
-                        <Card className="w-full shadow-2xl border-pink-200">
-                            <CardHeader className="text-center">
-                                <PartyPopper className="mx-auto h-12 w-12 text-pink-500" />
-                                <CardTitle className="text-3xl font-bold text-gray-800">הזמנת מקום בעלינא</CardTitle>
-                                <CardDescription className="text-gray-600">מלאו את הפרטים והזמינו מקום במסעדה</CardDescription>
-                            </CardHeader>
-                            <CardContent>
-                                {success ? (
-                                    <div className="text-center p-8 bg-green-50 rounded-lg">
-                                        <CheckCircle className="mx-auto h-16 w-16 text-green-500 mb-4" />
-                                        <h3 className="text-2xl font-bold text-green-800 mb-2">ההזמנה אושרה!</h3>
-                                        <p className="text-green-700">{success}</p>
-                                    </div>
-                                ) : (
-                                    <form onSubmit={handleFormSubmit} className="space-y-6">
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                            <div>
-                                                <Label htmlFor="name" className="font-semibold text-gray-700">שם מלא</Label>
-                                                <Input id="name" value={customerName} onChange={e => setCustomerName(e.target.value)} required />
-                                            </div>
-                                            <div>
-                                                <Label htmlFor="phone" className="font-semibold text-gray-700">טלפון</Label>
-                                                <Input id="phone" type="tel" value={customerPhone} onChange={e => setCustomerPhone(e.target.value)} required />
-                                            </div>
-                                        </div>
-
-                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                            <div>
-                                                <Label htmlFor="partySize" className="flex items-center gap-2 font-semibold text-gray-700"><Users className="w-4 h-4"/>סועדים</Label>
-                                                <Input id="partySize" type="number" value={partySize} onChange={e => setPartySize(e.target.value)} min="1" required />
-                                            </div>
-                                            <div>
-                                                <Label htmlFor="date" className="flex items-center gap-2 font-semibold text-gray-700"><Calendar className="w-4 h-4"/>תאריך</Label>
-                                                <Popover>
-                                                    <PopoverTrigger asChild>
-                                                        <Button variant="outline" className="w-full justify-start font-normal">
-                                                            {format(date, 'dd/MM/yyyy')}
-                                                        </Button>
-                                                    </PopoverTrigger>
-                                                    <PopoverContent className="w-auto p-0">
-                                                        <CalendarComponent mode="single" selected={date} onSelect={d => d && setDate(d)} initialFocus disabled={(d) => d < new Date(new Date().setHours(0,0,0,0))} />
-                                                    </PopoverContent>
-                                                </Popover>
-                                            </div>
-                                            <div>
-                                                <Label htmlFor="time" className="flex items-center gap-2 font-semibold text-gray-700"><Clock className="w-4 h-4"/>שעה</Label>
-                                                <Select value={time} onValueChange={setTime}>
-                                                    <SelectTrigger>
-                                                        <SelectValue placeholder="בחר שעה" />
-                                                    </SelectTrigger>
-                                                    <SelectContent className="max-h-48 overflow-y-auto">
-                                                        {timeSlots.map(slot => (
-                                                            <SelectItem key={slot} value={slot}>{slot}</SelectItem>
-                                                        ))}
-                                                    </SelectContent>
-                                                </Select>
-                                            </div>
-                                        </div>
-
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                            <div>
-                                                <Label htmlFor="occasion" className="font-semibold text-gray-700">אירוע מיוחד (אופציונלי)</Label>
-                                                <Select value={specialOccasion} onValueChange={setSpecialOccasion}>
-                                                    <SelectTrigger>
-                                                        <SelectValue placeholder="בחר אירוע" />
-                                                    </SelectTrigger>
-                                                    <SelectContent>
-                                                        <SelectItem value="birthday">יום הולדת</SelectItem>
-                                                        <SelectItem value="anniversary">יום נישואין</SelectItem>
-                                                        <SelectItem value="date">דייט</SelectItem>
-                                                        <SelectItem value="business">פגישת עסקים</SelectItem>
-                                                        <SelectItem value="celebration">חגיגה</SelectItem>
-                                                    </SelectContent>
-                                                </Select>
-                                            </div>
-                                            <div className="flex items-end">
-                                                <Button 
-                                                    type="button" 
-                                                    onClick={handleSearchTable}
-                                                    disabled={isSearching || !customerName || !customerPhone}
-                                                    className="w-full bg-blue-600 hover:bg-blue-700"
-                                                >
-                                                    {isSearching ? <Loader2 className="w-5 h-5 animate-spin ml-2" /> : <Search className="w-5 h-5 ml-2" />}
-                                                    חפש שולחן זמין
-                                                </Button>
-                                            </div>
-                                        </div>
-
-                                        {/* Search Results */}
-                                        {hasSearched && (
-                                            <div className={`p-4 rounded-lg border ${availableTable ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
-                                                <div className="flex items-center gap-2 mb-2">
-                                                    {availableTable ? (
-                                                        <>
-                                                            <CheckCircle className="w-5 h-5 text-green-600" />
-                                                            <span className="font-semibold text-green-800">שולחן זמין!</span>
-                                                        </>
-                                                    ) : (
-                                                        <>
-                                                            <AlertCircle className="w-5 h-5 text-red-600" />
-                                                            <span className="font-semibold text-red-800">אין שולחן זמין</span>
-                                                        </>
-                                                    )}
-                                                </div>
-                                                {availableTable ? (
-                                                    <div className="text-sm text-green-700">
-                                                        נמצא שולחן מתאים עבור {partySize} אנשים בשעה {time}
-                                                    </div>
-                                                ) : (
-                                                    <div className="text-sm text-red-700">
-                                                        לא נמצא שולחן זמין בשעה זו. אנא נסה שעה אחרת.
-                                                    </div>
-                                                )}
-                                                {timeSlotInfo && (
-                                                    <div className="text-xs text-gray-600 mt-2">
-                                                        תפוסה ברבע השעה: {timeSlotInfo.currentCapacity + partySize}/36 אנשים
-                                                    </div>
-                                                )}
-                                            </div>
-                                        )}
-
-                                        <div>
-                                            <Label htmlFor="specialRequests" className="font-semibold text-gray-700">בקשות מיוחדות</Label>
-                                            <Textarea id="specialRequests" value={specialRequests} onChange={e => setSpecialRequests(e.target.value)} placeholder="לדוגמה: אלרגיות, בקשות מיוחדות למטבח..." />
-                                        </div>
-
-                                        <div className="text-xs text-gray-500 text-center">
-                                            {openingHours.start === '00:00' && openingHours.end === '00:00' ? (
-                                                'המסעדה סגורה ביום זה.'
-                                            ) : (
-                                                `שעות פעילות: ${openingHours.start} - ${openingHours.end} | מקבלים עד 36 אנשים לרבע שעה`
-                                            )}
-                                        </div>
-
-                                        {error && <div className="p-3 bg-red-100 text-red-700 rounded-lg text-center flex items-center justify-center gap-2"><AlertCircle className="w-5 h-5"/>{error}</div>}
-
-                                        <Button 
-                                            type="submit" 
-                                            className="w-full bg-pink-600 hover:bg-pink-700 text-lg py-3" 
-                                            disabled={isLoading || !hasSearched || !availableTable}
-                                        >
-                                            {isLoading ? <Loader2 className="w-6 h-6 animate-spin" /> : <><Send className="w-5 h-5 ml-2"/>בצע הזמנה</>}
-                                        </Button>
-                                    </form>
-                                )}
-                            </CardContent>
-                        </Card>
-
-                        {/* Restaurant Info */}
-                        <div className="space-y-6">
-                            {/* Contact Info */}
-                            <Card>
-                                <CardHeader>
-                                    <CardTitle className="flex items-center gap-2">
-                                        <Phone className="w-5 h-5" />
-                                        פרטי קשר
-                                    </CardTitle>
-                                </CardHeader>
-                                <CardContent className="space-y-3">
-                                    <div className="flex items-center gap-3">
-                                        <Phone className="w-4 h-4 text-green-600" />
-                                        <span>{settings?.phone || '03-1234567'}</span>
-                                    </div>
-                                    {settings?.email && (
-                                        <div className="flex items-center gap-3">
-                                            <Mail className="w-4 h-4 text-green-600" />
-                                            <span>{settings.email}</span>
-                                        </div>
-                                    )}
-                                    {settings?.address && (
-                                        <div className="flex items-center gap-3">
-                                            <MapPin className="w-4 h-4 text-green-600" />
-                                            <span>{settings.address}</span>
-                                        </div>
-                                    )}
-                                </CardContent>
-                            </Card>
-
-                            {/* Opening Hours */}
-                            {settings?.opening_hours && (
-                                <Card>
-                                    <CardHeader>
-                                        <CardTitle className="flex items-center gap-2">
-                                            <Clock className="w-5 h-5" />
-                                            שעות פתיחה
-                                        </CardTitle>
-                                    </CardHeader>
-                                    <CardContent>
-                                        <div className="space-y-2">
-                                            {Object.entries(settings.opening_hours).map(([day, hours]) => {
-                                                const dayNames = {
-                                                    sunday: 'ראשון',
-                                                    monday: 'שני',
-                                                    tuesday: 'שלישי', 
-                                                    wednesday: 'רביעי',
-                                                    thursday: 'חמישי',
-                                                    friday: 'שישי',
-                                                    saturday: 'שבת'
-                                                };
-                                                
-                                                return (
-                                                    <div key={day} className="flex justify-between">
-                                                        <span className="font-medium">{dayNames[day]}</span>
-                                                        <span>
-                                                            {hours.closed ? 'סגור' : `${hours.open} - ${hours.close}`}
-                                                        </span>
-                                                    </div>
-                                                );
-                                            })}
-                                        </div>
-                                    </CardContent>
-                                </Card>
-                            )}
-
-                            {/* Menu Link */}
-                            {settings?.show_menu_link && (
-                                <Card>
-                                    <CardContent className="p-6">
-                                        <Button 
-                                            className="w-full" 
-                                            variant="outline"
-                                            onClick={() => window.open(settings?.menu_link || '#', '_blank')}
-                                        >
-                                            <Utensils className="w-4 h-4 ml-2" />
-                                            צפה בתפריט שלנו
-                                        </Button>
-                                    </CardContent>
-                                </Card>
-                            )}
-                        </div>
-                    </div>
-                )}
-            </div>
+      <div dir="rtl" className="min-h-screen bg-gradient-to-br from-amber-50 via-rose-50 to-orange-100 flex items-center justify-center p-4">
+        <div className="max-w-md w-full bg-white rounded-3xl shadow-2xl p-8 text-center space-y-4">
+          <div className="text-6xl">✨</div>
+          <h1 className="text-3xl font-black text-gray-900">ההזמנה נקבעה!</h1>
+          <p className="text-lg text-gray-700">{success.customer_name}, נשמח לראותך 🔥</p>
+          <div className="bg-gradient-to-l from-amber-50 to-rose-50 border border-amber-200 rounded-2xl p-4 space-y-2 text-right">
+            <Row icon={<Calendar className="w-4 h-4 text-amber-600" />} label="תאריך" value={success.date} />
+            <Row icon={<Clock className="w-4 h-4 text-amber-600" />} label="שעה" value={success.time} />
+            <Row icon={<Users className="w-4 h-4 text-amber-600" />} label="סועדים" value={success.party_size} />
+            {success.table_number && (
+              <Row icon={<Sparkles className="w-4 h-4 text-amber-600" />} label="שולחן" value={`#${success.table_number}`} />
+            )}
+          </div>
+          <p className="text-xs text-gray-500">📩 תקבל אישור בוואטסאפ בקרוב</p>
+          <button onClick={() => setSuccess(null)} className="text-sm text-amber-700 underline">חזור לעמוד הראשי</button>
         </div>
+      </div>
     );
+  }
+
+  // ===========================================================================
+  // RENDER — MAIN
+  // ===========================================================================
+  return (
+    <div dir="rtl" className="min-h-screen bg-zinc-950 text-white">
+
+      {/* ============ HERO ============ */}
+      <header
+        className="relative overflow-hidden"
+        style={{
+          background: HERO_FALLBACK_BG,
+          backgroundImage: settings?.hero_image_url
+            ? `linear-gradient(180deg, rgba(0,0,0,0.3) 0%, rgba(0,0,0,0.85) 100%), url(${settings.hero_image_url})`
+            : HERO_FALLBACK_BG,
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+        }}
+      >
+        {/* Top bar */}
+        <div className="absolute top-0 left-0 right-0 flex items-center justify-between px-4 py-3 z-10">
+          <LanguagePicker />
+          <a href={`tel:${phone.replace(/\D/g, '')}`} className="flex items-center gap-1 bg-white/10 backdrop-blur-md rounded-full px-3 py-1.5 text-xs hover:bg-white/20">
+            <Phone className="w-3.5 h-3.5" />
+            <span>{phone}</span>
+          </a>
+        </div>
+
+        <div className="px-5 pt-24 pb-12 max-w-4xl mx-auto text-center relative z-[1]">
+          <div className="inline-flex items-center gap-1 bg-amber-500/20 border border-amber-400/30 rounded-full px-3 py-1 text-xs text-amber-200 mb-3">
+            <Flame className="w-3 h-3" />
+            רוטשילד 104, ראשון לציון
+          </div>
+          <h1 className="text-5xl md:text-7xl font-black tracking-tight mb-3">{restaurantName}</h1>
+          <p className="text-lg md:text-xl text-amber-100 max-w-xl mx-auto leading-relaxed">{welcomeMessage}</p>
+
+          {/* Social proof */}
+          {liveCount !== null && liveCount > 0 && (
+            <div className="mt-5 inline-flex items-center gap-2 bg-emerald-500/20 border border-emerald-400/30 rounded-full px-4 py-1.5 text-sm">
+              <span className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse"></span>
+              <span className="font-bold text-emerald-200">{liveCount} הזמנות</span>
+              <span className="text-emerald-100/80">ב-3 שעות אחרונות</span>
+            </div>
+          )}
+
+          {/* Social icons */}
+          <div className="mt-6 flex items-center justify-center gap-3">
+            {social.instagram && <SocialIcon href={social.instagram} label="Instagram"><Instagram className="w-4 h-4" /></SocialIcon>}
+            {social.tiktok    && <SocialIcon href={social.tiktok}    label="TikTok"><Music2 className="w-4 h-4" /></SocialIcon>}
+            {social.facebook  && <SocialIcon href={social.facebook}  label="Facebook"><Facebook className="w-4 h-4" /></SocialIcon>}
+            {social.whatsapp  && <SocialIcon href={social.whatsapp}  label="WhatsApp"><MessageCircle className="w-4 h-4" /></SocialIcon>}
+          </div>
+        </div>
+
+        {/* Curve divider */}
+        <div className="h-6 bg-gradient-to-b from-transparent to-white/5"></div>
+      </header>
+
+      {/* ============ BOOKING CARD ============ */}
+      <main className="-mt-8 relative z-[2] px-3 md:px-6 pb-10">
+        <div className="max-w-2xl mx-auto bg-white text-gray-900 rounded-3xl shadow-2xl p-5 md:p-7 space-y-5">
+          <div className="text-center">
+            <h2 className="text-2xl md:text-3xl font-black">הזמינו שולחן</h2>
+            <p className="text-sm text-gray-500 mt-1">ללא דמי שירות · אישור מיידי · ביטול חופשי</p>
+          </div>
+
+          {/* Party size */}
+          <div>
+            <Label icon={<Users className="w-4 h-4" />}>כמות סועדים</Label>
+            <div className="flex flex-wrap gap-1.5 mt-2">
+              {[1, 2, 3, 4, 5, 6, 8, 10, 12].map(n => (
+                <Chip key={n} active={Number(partySize) === n} onClick={() => setPartySize(n)}>
+                  {n === 12 ? '12+' : n}
+                </Chip>
+              ))}
+            </div>
+          </div>
+
+          {/* Date strip */}
+          <div>
+            <Label icon={<Calendar className="w-4 h-4" />}>תאריך</Label>
+            <div className="flex gap-1.5 mt-2 overflow-x-auto pb-1 -mx-1 px-1 scrollbar-thin">
+              {dateOptions.map(d => {
+                const active = isSameDay(d, date);
+                const day = format(d, 'EEE', { locale: he });
+                const num = format(d, 'd', { locale: he });
+                const mo = format(d, 'MMM', { locale: he });
+                return (
+                  <button
+                    key={d.toISOString()}
+                    onClick={() => setDate(d)}
+                    className={`flex-shrink-0 min-w-[58px] rounded-xl px-2 py-2 border text-center transition-all
+                      ${active
+                        ? 'bg-amber-600 border-amber-700 text-white shadow-lg scale-105'
+                        : 'bg-white border-gray-200 hover:border-amber-300 text-gray-700'}`}
+                  >
+                    <div className="text-[10px] font-bold uppercase opacity-80">{day}</div>
+                    <div className="text-xl font-black leading-none mt-0.5">{num}</div>
+                    <div className="text-[10px] opacity-70">{mo}</div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Time slots with availability dots */}
+          <div>
+            <Label icon={<Clock className="w-4 h-4" />}>שעה</Label>
+            {timeSlots.length === 0 ? (
+              <p className="text-sm text-red-600 mt-2 bg-red-50 border border-red-200 rounded-lg p-2">המסעדה סגורה בתאריך זה</p>
+            ) : (
+              <>
+                <div className="grid grid-cols-4 md:grid-cols-6 gap-1.5 mt-2">
+                  {timeSlots.map(slot => {
+                    const av = availability[slot]; // open|tight|full|undefined
+                    const active = time === slot;
+                    const disabled = av === 'full';
+                    return (
+                      <button
+                        key={slot}
+                        disabled={disabled}
+                        onClick={() => setTime(slot)}
+                        className={`relative rounded-xl py-2 text-sm font-bold border transition-all
+                          ${active
+                            ? 'bg-amber-600 text-white border-amber-700 shadow'
+                            : disabled
+                              ? 'bg-gray-50 text-gray-300 border-gray-100 cursor-not-allowed'
+                              : 'bg-white text-gray-800 border-gray-200 hover:border-amber-400'}`}
+                      >
+                        {slot}
+                        {av && !active && (
+                          <span className={`absolute top-1 right-1 w-1.5 h-1.5 rounded-full
+                            ${av === 'open' ? 'bg-emerald-400' : av === 'tight' ? 'bg-amber-400' : 'bg-red-400'}`}></span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+                <div className="flex gap-3 mt-2 text-[11px] text-gray-500">
+                  <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 bg-emerald-400 rounded-full"></span> פתוח</span>
+                  <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 bg-amber-400 rounded-full"></span> מעט מקום</span>
+                  <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 bg-red-400 rounded-full"></span> מלא</span>
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* Name + Phone */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div>
+              <Label>שם מלא</Label>
+              <input
+                type="text"
+                value={customerName}
+                onChange={e => setCustomerName(e.target.value)}
+                placeholder="ישראל ישראלי"
+                className="mt-1 w-full px-3 py-2.5 border-2 border-gray-200 rounded-xl focus:border-amber-500 focus:outline-none text-base"
+              />
+            </div>
+            <div>
+              <Label>טלפון</Label>
+              <input
+                type="tel"
+                value={customerPhone}
+                onChange={e => setCustomerPhone(e.target.value)}
+                placeholder="050-1234567"
+                dir="ltr"
+                className="mt-1 w-full px-3 py-2.5 border-2 border-gray-200 rounded-xl focus:border-amber-500 focus:outline-none text-base text-right"
+              />
+            </div>
+          </div>
+
+          {/* Optional notes */}
+          <details className="group">
+            <summary className="cursor-pointer text-sm text-amber-700 font-semibold list-none">
+              <span className="group-open:hidden">+ הוסף הערה (אופציונלי)</span>
+              <span className="hidden group-open:inline">− הסתר הערה</span>
+            </summary>
+            <input
+              type="text"
+              value={specialRequests}
+              onChange={e => setSpecialRequests(e.target.value)}
+              placeholder="יום הולדת, אלרגיות, בקשה מיוחדת..."
+              className="mt-2 w-full px-3 py-2 border-2 border-gray-200 rounded-xl focus:border-amber-500 focus:outline-none text-sm"
+            />
+          </details>
+
+          {errorMsg && (
+            <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl p-3 text-sm flex items-start gap-2">
+              <span className="text-lg leading-none">⚠️</span>
+              <span>{errorMsg}</span>
+            </div>
+          )}
+
+          {/* CTA */}
+          <button
+            onClick={submitBooking}
+            disabled={isBooking || !time}
+            className="w-full bg-gradient-to-l from-amber-600 to-rose-600 hover:from-amber-700 hover:to-rose-700 disabled:from-gray-300 disabled:to-gray-300 text-white font-black py-4 rounded-2xl text-lg shadow-xl flex items-center justify-center gap-2 transition-all"
+          >
+            {isBooking ? <Loader2 className="w-5 h-5 animate-spin" /> : <CheckCircle className="w-5 h-5" />}
+            {isBooking ? 'מבצע הזמנה...' : 'הזמן עכשיו'}
+          </button>
+          <p className="text-center text-[11px] text-gray-400">בלחיצה אתה מסכים לקבל אישור בוואטסאפ</p>
+        </div>
+      </main>
+
+      {/* ============ ABOUT / ATMOSPHERE ============ */}
+      <section className="bg-zinc-900 px-5 py-12">
+        <div className="max-w-2xl mx-auto text-center space-y-3">
+          <h3 className="text-2xl font-black text-amber-100">בשר. אלכוהול. אווירה. אנשים.</h3>
+          <p className="text-zinc-300 leading-relaxed">
+            עלינא היא לא רק מסעדה — היא מקום שבו אתם מרגישים בבית.
+            המנגל פתוח 13 שעות ביום, היין נשפך, הצחוקים גבוהים.
+            מ-12:00 עד אחרונה.
+          </p>
+        </div>
+      </section>
+
+      {/* ============ CONTACT / ADDRESS / HOURS ============ */}
+      <section className="bg-zinc-950 px-5 py-10 border-t border-zinc-800">
+        <div className="max-w-2xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+          <a href={wazeUrl} target="_blank" rel="noopener noreferrer"
+             className="bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 rounded-2xl p-4 flex items-start gap-3 transition-colors">
+            <NavIcon className="w-5 h-5 text-amber-400 mt-0.5" />
+            <div>
+              <div className="text-zinc-400 text-xs">ניווט ב-Waze</div>
+              <div className="text-white font-semibold mt-0.5">{address}</div>
+            </div>
+          </a>
+          <a href={`tel:${phone.replace(/\D/g, '')}`}
+             className="bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 rounded-2xl p-4 flex items-start gap-3 transition-colors">
+            <Phone className="w-5 h-5 text-amber-400 mt-0.5" />
+            <div>
+              <div className="text-zinc-400 text-xs">חייגו אלינו</div>
+              <div className="text-white font-semibold mt-0.5" dir="ltr">{phone}</div>
+            </div>
+          </a>
+          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4 flex items-start gap-3">
+            <Clock className="w-5 h-5 text-amber-400 mt-0.5" />
+            <div>
+              <div className="text-zinc-400 text-xs">שעות פתיחה היום</div>
+              <div className="text-white font-semibold mt-0.5">
+                {openingHours.start === '00:00' && openingHours.end === '00:00' ? 'סגור' : `${openingHours.start} - ${openingHours.end}`}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <p className="text-center text-zinc-600 text-xs mt-8">© עלינא · אוכל · אלכוהול · אווירה · אנשים</p>
+      </section>
+    </div>
+  );
+}
+
+// --- Small reusable bits ----------------------------------------------------
+
+function Label({ icon, children }) {
+  return (
+    <div className="flex items-center gap-1.5 text-sm font-semibold text-gray-700">
+      {icon}
+      {children}
+    </div>
+  );
+}
+
+function Chip({ active, onClick, children }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`min-w-[42px] h-10 px-3 rounded-xl font-bold text-sm border transition-all
+        ${active
+          ? 'bg-amber-600 text-white border-amber-700 shadow scale-105'
+          : 'bg-white text-gray-700 border-gray-200 hover:border-amber-400'}`}
+    >
+      {children}
+    </button>
+  );
+}
+
+function Row({ icon, label, value }) {
+  return (
+    <div className="flex items-center gap-2 text-sm">
+      {icon}
+      <span className="text-gray-500">{label}:</span>
+      <span className="font-bold text-gray-900 mr-auto">{value}</span>
+    </div>
+  );
+}
+
+function SocialIcon({ href, label, children }) {
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      aria-label={label}
+      className="w-10 h-10 rounded-full bg-white/10 backdrop-blur-md hover:bg-white/20 flex items-center justify-center text-white transition-colors"
+    >
+      {children}
+    </a>
+  );
 }
