@@ -23,20 +23,48 @@ const getOpeningHours = (selectedDate) => {
 };
 const getSeatingDuration = (size) => (size >= 9 ? 165 : size >= 6 ? 150 : 120);
 
-// Build half-hour slots (more compact UI than the previous 15-min picker)
-function generateTimeSlots(startTime, endTime) {
+// Build HOUR slots (top-level picker). User then drills down into quarter-hours.
+function generateHourSlots(startTime, endTime) {
   if (startTime === '00:00' && endTime === '00:00') return [];
   const slots = [];
-  const [sh, sm] = startTime.split(':').map(Number);
+  const [sh] = startTime.split(':').map(Number);
   const [eh, em] = endTime.split(':').map(Number);
-  let mins = sh * 60 + Math.ceil(sm / 30) * 30;
-  const endMins = eh * 60 + em;
-  while (mins <= endMins) {
-    const h = Math.floor(mins / 60), m = mins % 60;
-    slots.push(`${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`);
-    mins += 30;
+  let h = sh;
+  const lastH = em > 0 ? eh : eh - 1;
+  while (h <= lastH) {
+    slots.push(`${String(h).padStart(2, '0')}:00`);
+    h += 1;
   }
   return slots;
+}
+
+// Build a -30 to +30 quarter-hour drill-down strip around an hour, clamped
+// to the open window. Used after the user picks an hour.
+function buildQuarterStrip(hourSlot, startTime, endTime) {
+  if (!hourSlot) return [];
+  const [h, m] = hourSlot.split(':').map(Number);
+  const base = h * 60 + m;
+  const startM = Number(startTime.split(':')[0]) * 60 + Number(startTime.split(':')[1] || 0);
+  const endM = Number(endTime.split(':')[0]) * 60 + Number(endTime.split(':')[1] || 0);
+  const out = [];
+  for (const offset of [-30, -15, 0, 15, 30]) {
+    const m2 = base + offset;
+    if (m2 < startM || m2 > endM) continue;
+    const hh = Math.floor(m2 / 60), mm = m2 % 60;
+    out.push(`${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`);
+  }
+  return out;
+}
+
+// Estimate end time given a start "HH:mm" and party size — mirrors backend policy.
+function estimateEndTime(startHHmm, partySize) {
+  if (!startHHmm) return '';
+  const size = Number(partySize) || 2;
+  const dur = size >= 11 ? 150 : size >= 6 ? 135 : 120;
+  const [h, m] = startHHmm.split(':').map(Number);
+  const total = h * 60 + m + dur;
+  const hh = Math.floor(total / 60) % 24, mm = total % 60;
+  return `${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}`;
 }
 
 // --- Capture UTM / referrer once ---------------------------------------------
@@ -66,11 +94,13 @@ export default function PublicReservationPage() {
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
   const [specialRequests, setSpecialRequests] = useState('');
+  const [occasion, setOccasion] = useState('');  // chip-selected celebration
 
   const [settings, setSettings] = useState(null);
   const [openingHours, setOpeningHours] = useState(getOpeningHours(new Date()));
-  const [timeSlots, setTimeSlots] = useState([]);
-  const [availability, setAvailability] = useState({}); // { "20:00": "open"|"tight"|"full" }
+  const [hourSlots, setHourSlots] = useState([]);
+  const [selectedHour, setSelectedHour] = useState('');   // e.g. "21:00"
+  const [availability, setAvailability] = useState({});   // hour-level snapshot
 
   const [isBooking, setIsBooking] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
@@ -141,35 +171,55 @@ export default function PublicReservationPage() {
       hoursToUse = getOpeningHours(date);
     }
     setOpeningHours(hoursToUse);
-    const slots = generateTimeSlots(hoursToUse.start, hoursToUse.end);
-    setTimeSlots(slots);
-    // Auto-pick a sensible default time (first slot >= 19:00 or first slot)
-    if (slots.length && !slots.includes(time)) {
-      const dinnerSlot = slots.find(s => s >= '19:00') || slots[Math.floor(slots.length / 2)];
-      setTime(dinnerSlot);
-    }
+    const slots = generateHourSlots(hoursToUse.start, hoursToUse.end);
+    setHourSlots(slots);
+    setSelectedHour('');
+    setTime('');
   }, [date, settings]);
 
-  // --- Fetch availability snapshot for the chosen date/party
+  // --- Fetch availability snapshot for the HOUR-level grid (one dot per hour)
   useEffect(() => {
-    if (!timeSlots.length) { setAvailability({}); return; }
+    if (!hourSlots.length) { setAvailability({}); return; }
+    if (Number(partySize) > 12) { setAvailability({}); return; }
     let cancelled = false;
     (async () => {
       try {
         const res = await invokePublic('getDayAvailabilitySnapshot', {
           date: format(date, 'yyyy-MM-dd'),
           party_size: Number(partySize),
-          slots: timeSlots,
+          slots: hourSlots,
         });
         if (!cancelled && res?.availability) setAvailability(res.availability);
       } catch (e) { /* non-fatal */ }
     })();
     return () => { cancelled = true; };
-  }, [date, partySize, timeSlots.join(',')]);
+  }, [date, partySize, hourSlots.join(',')]);
+
+  // --- When user picks an HOUR, fetch quarter-strip availability
+  const [quarterStripAvail, setQuarterStripAvail] = useState({});
+  useEffect(() => {
+    if (!selectedHour) { setQuarterStripAvail({}); return; }
+    if (Number(partySize) > 12) return;
+    const strip = buildQuarterStrip(selectedHour, openingHours.start, openingHours.end);
+    if (!strip.length) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await invokePublic('getDayAvailabilitySnapshot', {
+          date: format(date, 'yyyy-MM-dd'),
+          party_size: Number(partySize),
+          slots: strip,
+        });
+        if (!cancelled && res?.availability) setQuarterStripAvail(res.availability);
+      } catch (e) { /* non-fatal */ }
+    })();
+    return () => { cancelled = true; };
+  }, [selectedHour, date, partySize, openingHours.start, openingHours.end]);
 
   // --- Submit one-click booking
   const submitBooking = async () => {
     setErrorMsg('');
+    if (Number(partySize) > 12) return setErrorMsg('יותר מ-12 סועדים נחשב לאירוע — מלא את טופס האירועים');
     if (!customerName.trim()) return setErrorMsg('יש למלא שם מלא');
     if (!customerPhone.trim() || customerPhone.replace(/\D/g, '').length < 9) return setErrorMsg('יש למלא מספר טלפון תקין');
     if (!time) return setErrorMsg('יש לבחור שעה');
@@ -184,20 +234,27 @@ export default function PublicReservationPage() {
         time,
         party_size: parseInt(partySize),
         special_requests: specialRequests.trim() || null,
+        special_occasion: occasion || null,
         ...attr,
       });
       if (!res?.success) {
-        setErrorMsg(res?.reason === 'no_availability'
-          ? 'מצטערים, השעה התמלאה רגע לפניך. נסה שעה אחרת.'
-          : 'שגיאה בביצוע ההזמנה. אנא נסה שוב.');
+        if (res?.reason === 'too_large_use_events') {
+          setErrorMsg('יותר מ-12 סועדים נחשב לאירוע — אנא מלא את טופס האירועים');
+        } else {
+          setErrorMsg(res?.reason === 'no_availability'
+            ? 'מצטערים, השעה התמלאה רגע לפניך. נסה שעה אחרת.'
+            : 'שגיאה בביצוע ההזמנה. אנא נסה שוב.');
+        }
         return;
       }
       setSuccess({
         customer_name: customerName,
         time,
+        end_time: estimateEndTime(time, partySize),
         date: format(date, 'EEEE dd/MM', { locale: he }),
         party_size: parseInt(partySize),
         table_number: res.table_number,
+        occasion,
       });
     } catch (e) {
       setErrorMsg('שגיאה זמנית. נסה שוב בעוד רגע.');
@@ -205,6 +262,9 @@ export default function PublicReservationPage() {
       setIsBooking(false);
     }
   };
+
+  // For party > 12 — render the events redirect block instead of booking flow
+  const isEventSize = Number(partySize) > 12;
 
   // --- Derived data
   const restaurantName = settings?.restaurant_name || 'עלינא';
@@ -230,23 +290,68 @@ export default function PublicReservationPage() {
   // RENDER — SUCCESS STATE
   // ===========================================================================
   if (success) {
-    const confettiSize = settings?.confirmation_message || `הזמנתך נשמרה ל-${success.date} בשעה ${success.time} עבור ${success.party_size} סועדים`;
+    const OCCASION_LABEL = {
+      birthday: '🎂 יום הולדת', anniversary: '💐 יום נישואין',
+      date: '❤️ דייט', celebration: '🎉 חגיגה', business: '💼 פגישת עסקים',
+    };
     return (
-      <div dir="rtl" className="min-h-screen bg-gradient-to-br from-amber-50 via-rose-50 to-orange-100 flex items-center justify-center p-4">
-        <div className="max-w-md w-full bg-white rounded-3xl shadow-2xl p-8 text-center space-y-4">
-          <div className="text-6xl">✨</div>
-          <h1 className="text-3xl font-black text-gray-900">ההזמנה נקבעה!</h1>
-          <p className="text-lg text-gray-700">{success.customer_name}, נשמח לראותך 🔥</p>
+      <div dir="rtl" className="min-h-screen bg-gradient-to-br from-amber-50 via-rose-50 to-orange-100 p-4 py-8">
+        <div className="max-w-lg w-full mx-auto bg-white rounded-3xl shadow-2xl p-6 md:p-8 space-y-5">
+          <div className="text-center space-y-2">
+            <div className="text-6xl">✨</div>
+            <h1 className="text-3xl font-black text-gray-900">ההזמנה נקבעה!</h1>
+            <p className="text-lg text-gray-700">{success.customer_name}, נשמח לראותך 🔥</p>
+          </div>
+
+          {/* Booking summary */}
           <div className="bg-gradient-to-l from-amber-50 to-rose-50 border border-amber-200 rounded-2xl p-4 space-y-2 text-right">
             <Row icon={<Calendar className="w-4 h-4 text-amber-600" />} label="תאריך" value={success.date} />
-            <Row icon={<Clock className="w-4 h-4 text-amber-600" />} label="שעה" value={success.time} />
+            <Row icon={<Clock className="w-4 h-4 text-amber-600" />} label="שעה" value={`${success.time}${success.end_time ? ` (עד ~${success.end_time})` : ''}`} />
             <Row icon={<Users className="w-4 h-4 text-amber-600" />} label="סועדים" value={success.party_size} />
             {success.table_number && (
               <Row icon={<Sparkles className="w-4 h-4 text-amber-600" />} label="שולחן" value={`#${success.table_number}`} />
             )}
+            {success.occasion && OCCASION_LABEL[success.occasion] && (
+              <Row icon={<span className="w-4 h-4">{OCCASION_LABEL[success.occasion].slice(0,2)}</span>} label="חוגגים" value={OCCASION_LABEL[success.occasion].slice(3)} />
+            )}
           </div>
-          <p className="text-xs text-gray-500">📩 תקבל אישור בוואטסאפ בקרוב</p>
-          <button onClick={() => setSuccess(null)} className="text-sm text-amber-700 underline">חזור לעמוד הראשי</button>
+
+          {/* Parking info */}
+          <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4">
+            <div className="font-bold text-blue-900 flex items-center gap-2"><NavIcon className="w-4 h-4" /> איפה חונים?</div>
+            <ul className="text-sm text-blue-800 mt-2 space-y-1 list-disc pr-5 leading-relaxed">
+              <li><b>חניון בן גוריון</b> — חינם אחר הצהריים, 2 דק׳ הליכה</li>
+              <li>רחובות סמוכים: רוטשילד, הרצל, וייצמן — חניה בכחול-לבן</li>
+              <li>ניווט ב-Waze ישר ל"עלינא ראשון לציון"</li>
+            </ul>
+          </div>
+
+          {/* Policy box — late arrival + cancellation */}
+          <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 space-y-2 text-sm">
+            <div className="font-bold text-amber-900">📋 מה חשוב לדעת</div>
+            <div className="text-amber-800 leading-relaxed">
+              ⏱ <b>איחור:</b> השולחן ממתין עד 10 דקות. לאיחור גדול יותר אנא הודע מראש.<br />
+              💳 <b>ביטול:</b> ניתן לבטל ללא חיוב <b>עד 3 שעות לפני</b>. אחרי זה — 30₪ פיקדון לסועד.<br />
+              📩 בקרוב יישלח אישור בוואטסאפ עם הקישור לעדכון/ביטול.
+            </div>
+          </div>
+
+          {/* Actions */}
+          <div className="flex gap-2">
+            <a
+              href="https://waze.com/ul?ll=31.96,34.79&navigate=yes"
+              target="_blank" rel="noopener noreferrer"
+              className="flex-1 bg-zinc-900 hover:bg-zinc-800 text-white font-bold py-3 rounded-xl text-center text-sm flex items-center justify-center gap-2"
+            >
+              <NavIcon className="w-4 h-4" /> נווט בוייז
+            </a>
+            <button
+              onClick={() => setSuccess(null)}
+              className="px-4 bg-white hover:bg-gray-50 text-gray-700 font-bold py-3 rounded-xl border border-gray-200 text-sm"
+            >
+              חזור
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -310,14 +415,16 @@ export default function PublicReservationPage() {
       </header>
 
       {/* ============ PROMO RIBBON ============ */}
+      {/* Higher contrast, larger text, sits below hero curve so it never overlaps */}
       {promos.length > 0 && (
-        <div className="bg-gradient-to-l from-amber-500 via-rose-500 to-orange-500 py-2 overflow-hidden">
-          <div className="flex gap-2 px-3 overflow-x-auto scrollbar-thin max-w-full mx-auto">
+        <div className="bg-amber-400 border-y-2 border-amber-600 py-2 overflow-hidden relative z-[3]">
+          <div className="flex gap-2 px-3 overflow-x-auto scrollbar-thin max-w-full mx-auto items-center">
+            <span className="flex-shrink-0 text-[10px] font-black text-amber-900 uppercase tracking-wider opacity-70">מה קורה עכשיו:</span>
             {promos.map((p, i) => (
-              <div key={i} className="flex-shrink-0 bg-black/20 backdrop-blur-sm rounded-full px-3 py-1.5 text-xs font-bold text-white border border-white/20 flex items-center gap-1.5">
-                <span className="text-base">{p.emoji}</span>
+              <div key={i} className="flex-shrink-0 bg-zinc-900 text-amber-100 rounded-full px-3 py-1 text-xs font-bold flex items-center gap-1.5">
+                <span className="text-sm">{p.emoji}</span>
                 <span>{p.label}</span>
-                {p.detail && <span className="opacity-80 font-normal">· {p.detail}</span>}
+                {p.detail && <span className="opacity-80 font-normal hidden sm:inline">· {p.detail}</span>}
               </div>
             ))}
           </div>
@@ -336,15 +443,42 @@ export default function PublicReservationPage() {
           <div>
             <Label icon={<Users className="w-4 h-4" />}>כמות סועדים</Label>
             <div className="flex flex-wrap gap-1.5 mt-2">
-              {[1, 2, 3, 4, 5, 6, 8, 10, 12].map(n => (
+              {[1, 2, 3, 4, 5, 6, 8, 10, 12, 13].map(n => (
                 <Chip key={n} active={Number(partySize) === n} onClick={() => setPartySize(n)}>
-                  {n === 12 ? '12+' : n}
+                  {n === 13 ? '13+' : n}
                 </Chip>
               ))}
             </div>
+            <div className="text-[10px] text-gray-400 mt-1.5">
+              {Number(partySize) <= 5 && '· משך שולחן 2:00 שעות'}
+              {Number(partySize) >= 6 && Number(partySize) <= 10 && '· משך שולחן 2:15 שעות'}
+              {Number(partySize) >= 11 && Number(partySize) <= 12 && '· משך שולחן 2:30 שעות'}
+              {Number(partySize) > 12 && '· 13+ סועדים = אירוע פרטי, ראה למטה'}
+            </div>
           </div>
 
-          {/* Date strip */}
+          {/* 13+ guests — redirect to events flow */}
+          {isEventSize && (
+            <div className="bg-gradient-to-bl from-purple-50 to-rose-50 border-2 border-purple-200 rounded-2xl p-4 space-y-3">
+              <div className="flex items-center gap-2">
+                <span className="text-2xl">🎉</span>
+                <div className="font-bold text-purple-900">קבוצה גדולה? זה אירוע פרטי</div>
+              </div>
+              <p className="text-sm text-purple-800 leading-relaxed">
+                ל-13 סועדים ומעלה אנחנו סוגרים תפריט אירוע אישי שמתאים בדיוק לקבוצה שלך —
+                תאמת אישית עם בעלת המקום, מנות מרכזיות, שתייה ואפילו חדר פרטי.
+              </p>
+              <a
+                href="/EventsInquiry"
+                className="block w-full text-center bg-purple-700 hover:bg-purple-800 text-white font-black py-3 rounded-xl transition-colors"
+              >
+                למילוי טופס אירוע פרטי →
+              </a>
+            </div>
+          )}
+
+          {/* Date / Time / Form — hidden when party > 12 (events flow active) */}
+          {!isEventSize && <>
           <div>
             <Label icon={<Calendar className="w-4 h-4" />}>תאריך</Label>
             <div className="flex gap-1.5 mt-2 overflow-x-auto pb-1 -mx-1 px-1 scrollbar-thin">
@@ -371,32 +505,34 @@ export default function PublicReservationPage() {
             </div>
           </div>
 
-          {/* Time slots with availability dots */}
+          {/* Time slots — two-step: pick HOUR, then expand to quarter-hour strip */}
           <div>
             <Label icon={<Clock className="w-4 h-4" />}>שעה</Label>
-            {timeSlots.length === 0 ? (
+            {hourSlots.length === 0 ? (
               <p className="text-sm text-red-600 mt-2 bg-red-50 border border-red-200 rounded-lg p-2">המסעדה סגורה בתאריך זה</p>
             ) : (
               <>
+                {/* Step 1: hour grid */}
                 <div className="grid grid-cols-4 md:grid-cols-6 gap-1.5 mt-2">
-                  {timeSlots.map(slot => {
+                  {hourSlots.map(slot => {
                     const av = availability[slot]; // open|tight|full|undefined
-                    const active = time === slot;
+                    const isHourActive = selectedHour === slot;
+                    const isFinal = time === slot;
                     const disabled = av === 'full';
                     return (
                       <button
                         key={slot}
                         disabled={disabled}
-                        onClick={() => setTime(slot)}
+                        onClick={() => { setSelectedHour(slot); setTime(slot); }}
                         className={`relative rounded-xl py-2 text-sm font-bold border transition-all
-                          ${active
+                          ${(isHourActive || isFinal)
                             ? 'bg-amber-600 text-white border-amber-700 shadow'
                             : disabled
                               ? 'bg-gray-50 text-gray-300 border-gray-100 cursor-not-allowed'
                               : 'bg-white text-gray-800 border-gray-200 hover:border-amber-400'}`}
                       >
                         {slot}
-                        {av && !active && (
+                        {av && !isHourActive && !isFinal && (
                           <span className={`absolute top-1 right-1 w-1.5 h-1.5 rounded-full
                             ${av === 'open' ? 'bg-emerald-400' : av === 'tight' ? 'bg-amber-400' : 'bg-red-400'}`}></span>
                         )}
@@ -404,13 +540,85 @@ export default function PublicReservationPage() {
                     );
                   })}
                 </div>
+
+                {/* Step 2: quarter-hour drill-down strip (appears after hour is picked) */}
+                {selectedHour && (() => {
+                  const strip = buildQuarterStrip(selectedHour, openingHours.start, openingHours.end);
+                  return (
+                    <div className="mt-3 bg-amber-50 border border-amber-200 rounded-xl p-2">
+                      <div className="text-[10px] text-amber-800 font-bold mb-1.5 text-center">
+                        רבעי שעה זמינים סביב {selectedHour}
+                      </div>
+                      <div className="grid grid-cols-5 gap-1.5">
+                        {strip.map(s => {
+                          const av = quarterStripAvail[s];
+                          const active = time === s;
+                          const disabled = av === 'full';
+                          return (
+                            <button
+                              key={s}
+                              disabled={disabled}
+                              onClick={() => setTime(s)}
+                              className={`relative rounded-lg py-1.5 text-[13px] font-bold border transition-all
+                                ${active
+                                  ? 'bg-amber-700 text-white border-amber-800 shadow-md scale-105'
+                                  : disabled
+                                    ? 'bg-white/40 text-gray-400 border-gray-200 cursor-not-allowed'
+                                    : 'bg-white text-amber-900 border-amber-300 hover:border-amber-600'}`}
+                            >
+                              {s}
+                              {av && !active && (
+                                <span className={`absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full
+                                  ${av === 'open' ? 'bg-emerald-400' : av === 'tight' ? 'bg-amber-400' : 'bg-red-400'}`}></span>
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })()}
+
                 <div className="flex gap-3 mt-2 text-[11px] text-gray-500">
                   <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 bg-emerald-400 rounded-full"></span> פתוח</span>
                   <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 bg-amber-400 rounded-full"></span> מעט מקום</span>
                   <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 bg-red-400 rounded-full"></span> מלא</span>
                 </div>
+                {time && (
+                  <div className="mt-2 text-[11px] text-gray-600 bg-gray-50 rounded-lg px-2 py-1.5 text-center">
+                    שעת סיום משוערת: <span className="font-bold">{estimateEndTime(time, partySize)}</span>
+                    {' '}· משך שולחן: {partySize >= 11 ? '2:30' : partySize >= 6 ? '2:15' : '2:00'} שעות
+                  </div>
+                )}
               </>
             )}
+          </div>
+
+          {/* Special occasion chips */}
+          <div>
+            <Label>מה חוגגים? <span className="font-normal text-gray-400">(אופציונלי)</span></Label>
+            <div className="flex flex-wrap gap-1.5 mt-2">
+              {[
+                {k:'birthday', l:'🎂 יום הולדת'},
+                {k:'anniversary', l:'💐 יום נישואין'},
+                {k:'date', l:'❤️ דייט'},
+                {k:'celebration', l:'🎉 חגיגה'},
+                {k:'business', l:'💼 עסקים'},
+                {k:'', l:'בלי סיבה מיוחדת'},
+              ].map(o => (
+                <button
+                  key={o.k}
+                  type="button"
+                  onClick={() => setOccasion(o.k)}
+                  className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-all
+                    ${occasion === o.k
+                      ? 'bg-rose-100 text-rose-700 border-rose-400'
+                      : 'bg-white text-gray-600 border-gray-200 hover:border-rose-300'}`}
+                >
+                  {o.l}
+                </button>
+              ))}
+            </div>
           </div>
 
           {/* Name + Phone */}
@@ -469,7 +677,11 @@ export default function PublicReservationPage() {
             {isBooking ? <Loader2 className="w-5 h-5 animate-spin" /> : <CheckCircle className="w-5 h-5" />}
             {isBooking ? 'מבצע הזמנה...' : 'הזמן עכשיו'}
           </button>
-          <p className="text-center text-[11px] text-gray-400">בלחיצה אתה מסכים לקבל אישור בוואטסאפ</p>
+          <div className="text-center text-[11px] text-gray-400 leading-relaxed">
+            <div>בלחיצה אתה מסכים לקבל אישור בוואטסאפ</div>
+            <div className="mt-1">השולחן ממתין עד 10 דק׳ איחור · ביטול חופשי עד 3 שעות לפני · אחר כך 30₪ פיקדון לסועד</div>
+          </div>
+          </>}
         </div>
       </main>
 

@@ -3086,7 +3086,14 @@ registerFn('getDriveImageUrl', async ({ body }) => {
 /* ----- Public reservation flow (no auth; never returns other customers' PII) ----- */
 
 const RES_MAX_PER_SLOT = 36;
-const seatingDuration = (size: number) => (size >= 9 ? 165 : size >= 6 ? 150 : 120);
+// Table holding duration per Dvir's policy:
+//   2-5  guests → 120 min
+//   6-10 guests → 135 min (2:15)
+//  11-12 guests → 150 min (2:30)
+//  13+   guests → not a public reservation — must go through EventsInquiry
+const seatingDuration = (size: number) =>
+  size >= 11 ? 150 : size >= 6 ? 135 : 120;
+const PUBLIC_RESERVATION_MAX_PARTY = 12;
 const toMin = (t: string) => {
   const [h, m] = String(t).split(':').map(Number);
   return h * 60 + m;
@@ -3118,6 +3125,9 @@ registerFn('searchReservationTable', async ({ body }) => {
   const { date, time, party_size } = body as any;
   if (!date || !time || !party_size) throw new Error('date, time, party_size required');
   const size = parseInt(party_size);
+  if (size > PUBLIC_RESERVATION_MAX_PARTY) {
+    return { canAccommodate: false, reason: 'too_large_use_events', currentCapacity: 0, availableCapacity: 0, table: null };
+  }
   const startMin = toMin(time);
   const endMin = startMin + seatingDuration(size);
 
@@ -3215,6 +3225,9 @@ registerFn('createPublicReservation', async ({ body }) => {
     throw new Error('missing_required_fields');
   }
   const size = parseInt(party_size);
+  if (size > PUBLIC_RESERVATION_MAX_PARTY) {
+    return { success: false, reason: 'too_large_use_events' };
+  }
   const source = classifyReservationSource({ utm_source, referrer, landing_url });
 
   // Re-find a table server-side (don't trust client).
