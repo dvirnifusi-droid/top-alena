@@ -25,6 +25,8 @@ import ReservationTool from '../components/reservations/ReservationTool';
 import TableIncidentDialog from '../components/seating/TableIncidentDialog';
 import TableIncidentHistory from '../components/seating/TableIncidentHistory';
 import ReservationSourceBadge from '@/components/shared/ReservationSourceBadge';
+import TablePicker from '@/components/dashboard/TablePicker';
+import { base44 } from '@/api/base44Client';
 
 // Dialog לעריכת הזמנה - עם כל הפרטים
 function ReservationEditDialog({ open, setOpen, reservation, onUpdate, tables, reservations }) {
@@ -1998,6 +2000,7 @@ export default function SeatingSetup() {
                                             onSeat={seatFromQueue}
                                             onAbandon={abandonFromQueue}
                                             onRestore={restoreToQueue}
+                                            onRefresh={loadQueue}
                                         />
                                     )}
                                 </div>
@@ -2548,19 +2551,40 @@ function queueIsFarAway(entry) {
 }
 
 // === CompactQueueStrip — third tab in big-map rail, walk-ins waiting now ====
-function CompactQueueStrip({ queueEntries, abandonedEntries, onSeat, onAbandon, onRestore }) {
+function CompactQueueStrip({ queueEntries, abandonedEntries, onSeat, onAbandon, onRestore, onRefresh }) {
     const [showAbandoned, setShowAbandoned] = useState(true);
     const [sizeFilter, setSizeFilter] = useState('all');
-    const [copiedId, setCopiedId] = useState(null);
     const now = Date.now();
 
-    const copyText = (txt, id) => {
-        navigator.clipboard.writeText(txt);
-        setCopiedId(id);
-        setTimeout(() => setCopiedId(null), 1500);
-    };
     const toggleTreated = async (entry) => {
-        try { await QueueEntry.update(entry.id, { treated: !entry.treated }); } catch {}
+        try { await QueueEntry.update(entry.id, { treated: !entry.treated }); onRefresh?.(); } catch {}
+    };
+    // Ring the customer: set seat_called_at + send push if subscribed
+    const callGuest = async (entry) => {
+        try {
+            await QueueEntry.update(entry.id, { seat_called_at: new Date().toISOString() });
+            await base44.functions.sendQueuePush({
+                entry_id: entry.id,
+                title: '🔔 הגיע תורכם!',
+                message: '🔔 עלינא קוראת לכם! השולחן שלכם מוכן — יש לכם 3 דקות להגיע למארחת.',
+            }).catch(() => {}); // push is best-effort
+            onRefresh?.();
+        } catch (e) { console.warn('call guest failed', e); }
+    };
+    // Check if the guest is nearby — sends a push asking the customer's app to share location
+    const checkProximity = async (entry) => {
+        try {
+            await QueueEntry.update(entry.id, {
+                proximity_check_at: new Date().toISOString(),
+                proximity_response: 'pending',
+            });
+            await base44.functions.sendQueuePush({
+                entry_id: entry.id,
+                title: '📍 בדיקת מיקום',
+                message: 'עלינא רוצים לוודא שאתם בסביבה — האם אתם קרובים?',
+            }).catch(() => {});
+            onRefresh?.();
+        } catch (e) { console.warn('proximity check failed', e); }
     };
 
     // Distinct party sizes for filter chips
@@ -2662,25 +2686,14 @@ function CompactQueueStrip({ queueEntries, abandonedEntries, onSeat, onAbandon, 
                                 <div className="font-bold text-base text-gray-900 truncate flex-1">{q.customer_name}</div>
                             </div>
 
-                            {/* COPY + PHONE row */}
-                            <div className="mt-1 flex items-center gap-1.5 flex-wrap">
-                                <button
-                                    onClick={() => copyText(q.customer_name, 'n-' + q.id)}
-                                    className="text-[10px] font-bold bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 px-1.5 py-0.5 rounded"
-                                >📋 {copiedId === 'n-' + q.id ? 'הועתק' : 'שם'}</button>
-                                {phoneClean && (
-                                    <>
-                                        <button
-                                            onClick={() => copyText(q.phone, 'p-' + q.id)}
-                                            className="text-[10px] font-bold bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 px-1.5 py-0.5 rounded"
-                                        >📋 {copiedId === 'p-' + q.id ? 'הועתק' : 'טלפון'}</button>
-                                        <a
-                                            href={`tel:${phoneClean}`}
-                                            className="text-[10px] font-bold bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 px-1.5 py-0.5 rounded"
-                                        >📞 חייג</a>
-                                    </>
-                                )}
-                            </div>
+                            {/* PHONE — displayed prominently as clickable tel: link */}
+                            {phoneClean && (
+                                <a
+                                    href={`tel:${phoneClean}`}
+                                    className="mt-1 block text-sm font-bold text-rose-500 hover:text-rose-700 underline"
+                                    dir="ltr"
+                                >📞 {q.phone}</a>
+                            )}
 
                             {/* SEATING PREFERENCE */}
                             <div className="mt-1 flex items-center gap-1 flex-wrap text-[10px]">
@@ -2698,21 +2711,46 @@ function CompactQueueStrip({ queueEntries, abandonedEntries, onSeat, onAbandon, 
                                 </div>
                             )}
 
-                            {/* ACTIONS row */}
-                            <div className="mt-2 flex gap-1.5">
+                            {/* TABLE PICKER — assign specific table directly from the rail */}
+                            <div className="mt-2">
+                                <TablePicker entry={q} onSave={onRefresh} />
+                            </div>
+
+                            {/* PRIMARY ACTION */}
+                            <button
+                                onClick={() => onSeat(q)}
+                                className="mt-1 w-full bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold py-2 rounded-lg flex items-center justify-center gap-1"
+                            >🪑 הושב · בחר שולחן במפה</button>
+
+                            {/* SECONDARY ACTIONS row */}
+                            <div className="mt-1.5 flex items-center justify-between gap-1">
                                 <button
-                                    onClick={() => onSeat(q)}
-                                    className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold py-1.5 rounded-lg flex items-center justify-center gap-1"
-                                >🪑 הושב · בחר שולחן</button>
+                                    onClick={() => callGuest(q)}
+                                    title="קרא לאורח (פוש)"
+                                    className="w-8 h-8 rounded-lg bg-amber-100 hover:bg-amber-200 text-amber-700 flex items-center justify-center"
+                                >🔔</button>
+                                <button
+                                    onClick={() => checkProximity(q)}
+                                    title="בדוק אם בסביבה"
+                                    className={`w-8 h-8 rounded-lg flex items-center justify-center ${
+                                        proxYes ? 'bg-emerald-200' : proxNo ? 'bg-purple-200' : proxPending ? 'bg-yellow-200 animate-pulse' : 'bg-blue-100 hover:bg-blue-200'
+                                    }`}
+                                >📍</button>
                                 <button
                                     onClick={() => toggleTreated(q)}
-                                    title={q.treated ? 'בטל סימון טופל' : 'סמן כטופל'}
-                                    className={`text-base py-1.5 px-2 rounded-lg border ${q.treated ? 'bg-amber-100 border-amber-300' : 'bg-white border-gray-300 hover:bg-amber-50'}`}
+                                    title={q.treated ? 'בטל סימון פינוק' : 'סמן כפינוק (🎁)'}
+                                    className={`w-8 h-8 rounded-lg flex items-center justify-center ${q.treated ? 'bg-pink-200' : 'bg-gray-100 hover:bg-pink-100'}`}
                                 >🎁</button>
+                                <a
+                                    href={`/QueueDashboard`}
+                                    target="_blank"
+                                    title="היסטוריה / בונוס מטבעות (לוח תור מלא)"
+                                    className="w-8 h-8 rounded-lg bg-purple-100 hover:bg-purple-200 text-purple-700 flex items-center justify-center text-sm"
+                                >🕓</a>
                                 <button
                                     onClick={() => onAbandon(q)}
                                     title="סמן כנטוש"
-                                    className="bg-white border border-red-300 text-red-600 hover:bg-red-50 text-xs font-bold py-1.5 px-2 rounded-lg"
+                                    className="w-8 h-8 rounded-lg bg-red-100 hover:bg-red-200 text-red-600 flex items-center justify-center"
                                 >❌</button>
                             </div>
                         </div>
