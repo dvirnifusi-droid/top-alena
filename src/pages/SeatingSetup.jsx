@@ -2338,53 +2338,51 @@ export default function SeatingSetup() {
                                                     </div>
                                                 )}
 
-                                                <div className="h-full p-1 flex flex-col justify-between text-center overflow-hidden">
-                                                    {/* TOP: capacity badge + table number */}
-                                                    <div className="flex justify-between items-start">
-                                                        <Badge variant="secondary" className="text-[8px] px-0.5 py-0 leading-none">
+                                                <div className="h-full px-1 py-0.5 flex flex-col text-center overflow-hidden">
+                                                    {/* TOP: capacity badge + table number — extremely tight, no spacing wasted */}
+                                                    <div className="flex justify-between items-start leading-none">
+                                                        <Badge variant="secondary" className="text-[9px] px-1 py-0 leading-none font-bold">
                                                             {table.min_capacity}-{table.max_capacity}
                                                         </Badge>
-                                                        <div className="font-black text-xs leading-none">{table.table_number}</div>
+                                                        <div className="font-black text-sm leading-none">{table.table_number}</div>
                                                     </div>
 
-                                                    {/* MIDDLE: dynamic state info */}
-                                                    <div className="flex-1 flex flex-col justify-center items-center px-0.5 leading-tight">
+                                                    {/* MIDDLE: dynamic state info — tight stacking, no extra gaps */}
+                                                    <div className="flex-1 flex flex-col justify-center items-center leading-[1.1]">
                                                         {isReallyOccupied ? (
                                                             <>
-                                                                {/* Status header */}
-                                                                <div className={`text-[9px] font-black uppercase tracking-wide ${
+                                                                <div className={`text-[10px] font-black ${
                                                                     isFinishingSoon ? 'text-amber-900'
                                                                     : isOvertime ? 'text-white'
                                                                     : 'text-red-900'
                                                                 }`}>
-                                                                    {isFinishingSoon ? '⏰ מסיים בקרוב'
+                                                                    {isFinishingSoon ? '⏰ מסיים'
                                                                     : isOvertime ? '⚠️ באיחור'
                                                                     : session ? 'פעיל' : 'יושב'}
                                                                 </div>
                                                                 {session ? (
                                                                     <>
-                                                                        <div className="text-[11px] font-black mt-0.5">👥 {session.party_size}</div>
+                                                                        <div className="text-[13px] font-black">👥{session.party_size}</div>
                                                                         {session.customer_name && (
-                                                                            <div className="text-[9px] font-bold truncate w-full">{getFirstName(session.customer_name)}</div>
+                                                                            <div className="text-[11px] font-bold truncate w-full">{getFirstName(session.customer_name)}</div>
                                                                         )}
-                                                                        <div className="text-[8px] opacity-80">{getActiveTime(session)}</div>
-                                                                        <div className="text-[8px] opacity-80">שלב {session.current_step}/23</div>
+                                                                        <div className="text-[10px] font-bold">{getActiveTime(session)}</div>
                                                                     </>
                                                                 ) : seatedReservation ? (
                                                                     <>
-                                                                        <div className="text-[11px] font-black mt-0.5">👥 {seatedReservation.party_size}</div>
-                                                                        <div className="text-[9px] font-bold truncate w-full">{getFirstName(seatedReservation.customer_name)}</div>
-                                                                        <div className="text-[8px] opacity-90">
+                                                                        <div className="text-[13px] font-black">👥{seatedReservation.party_size}</div>
+                                                                        <div className="text-[11px] font-bold truncate w-full">{getFirstName(seatedReservation.customer_name)}</div>
+                                                                        <div className="text-[10px] font-bold">
                                                                             {seatedReservation.time}{computedEndTime ? `→${computedEndTime}` : ''}
                                                                         </div>
                                                                         {minutesUntilEnd !== null && minutesUntilEnd > 0 && (
-                                                                            <div className="text-[8px] font-bold">⏱ {minutesUntilEnd}'</div>
+                                                                            <div className="text-[10px] font-bold">⏱{minutesUntilEnd}'</div>
                                                                         )}
-                                                                        {/* NEXT seating chip */}
+                                                                        {/* NEXT seating chip — bigger font, tighter layout */}
                                                                         {nextSeating && (
-                                                                            <div className="mt-0.5 w-full bg-blue-500 text-white rounded px-0.5 text-[8px] font-bold flex items-center justify-between leading-none">
-                                                                                <span>↓</span>
-                                                                                <span className="truncate mx-0.5">{nextSeating.time?.slice(0,5)} {getFirstName(nextSeating.customer_name)}</span>
+                                                                            <div className="mt-0.5 w-full bg-blue-500 text-white rounded px-1 text-[10px] font-bold flex items-center justify-between leading-tight">
+                                                                                <span>↓{nextSeating.time?.slice(0,5)}</span>
+                                                                                <span className="truncate mx-0.5">{getFirstName(nextSeating.customer_name)}</span>
                                                                                 <span>×{nextSeating.party_size}</span>
                                                                             </div>
                                                                         )}
@@ -2392,22 +2390,22 @@ export default function SeatingSetup() {
                                                                 ) : null}
                                                             </>
                                                         ) : futureReservationsForTable.length > 0 ? (
-                                                            <div className="space-y-0.5 w-full">
+                                                            <div className="w-full flex flex-col gap-0.5">
                                                                 {futureReservationsForTable.slice(0, 2).map(res => (
-                                                                    <div key={res.id} className="w-full bg-blue-500 text-white px-1 py-0.5 rounded text-[9px] font-bold flex items-center justify-between leading-none">
-                                                                        <span>×{res.party_size}</span>
-                                                                        <span className="truncate mx-1">{getFirstName(res.customer_name)}</span>
+                                                                    <div key={res.id} className="w-full bg-blue-500 text-white px-1 py-0 rounded text-[11px] font-bold flex items-center justify-between leading-tight">
                                                                         <span>{res.time?.slice(0, 5)}</span>
+                                                                        <span className="truncate mx-1">{getFirstName(res.customer_name)}</span>
+                                                                        <span>×{res.party_size}</span>
                                                                     </div>
                                                                 ))}
                                                                 {futureReservationsForTable.length > 2 && (
-                                                                    <div className="text-[8px] text-blue-600 font-bold">
+                                                                    <div className="text-[10px] text-blue-700 font-black">
                                                                         +{futureReservationsForTable.length - 2}
                                                                     </div>
                                                                 )}
                                                             </div>
                                                         ) : (
-                                                            <div className="text-[10px] font-semibold">פנוי</div>
+                                                            <div className="text-[12px] font-black">פנוי</div>
                                                         )}
                                                     </div>
 
