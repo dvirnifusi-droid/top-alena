@@ -52,10 +52,12 @@ function applyToHtml(s: State) {
 
 export function AccessibilityWidget() {
   const [open, setOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
   const [state, setState] = useState<State>(DEFAULT);
 
   // Hydrate from localStorage on mount
   useEffect(() => {
+    setMounted(true);
     try {
       const saved = localStorage.getItem(STORAGE);
       if (saved) {
@@ -89,6 +91,8 @@ export function AccessibilityWidget() {
     }
   }
 
+  if (!mounted) return null;
+
   return (
     <>
       <button
@@ -96,7 +100,8 @@ export function AccessibilityWidget() {
         onClick={() => setOpen(true)}
         aria-label="הגדרות נגישות"
         title="הגדרות נגישות"
-        className="fixed bottom-24 right-4 z-40 flex h-12 w-12 items-center justify-center rounded-full bg-med-blue text-cream shadow-xl shadow-charcoal/30 ring-2 ring-cream transition hover:bg-charcoal md:bottom-6 md:right-6 md:h-14 md:w-14"
+        style={{ WebkitTapHighlightColor: "transparent" }}
+        className="fixed bottom-24 right-4 z-40 flex h-12 w-12 items-center justify-center rounded-full bg-med-blue text-cream shadow-xl shadow-charcoal/30 ring-2 ring-cream hover:bg-charcoal md:bottom-6 md:right-6 md:h-14 md:w-14"
       >
         <Accessibility className="size-6 md:size-7" aria-hidden="true" />
       </button>

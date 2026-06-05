@@ -19,8 +19,8 @@ const nav = [
 
 export function Header() {
   return (
-    <header className="sticky top-0 z-40 border-b border-charcoal/5 bg-cream/90 backdrop-blur">
-      {/* Mobile bar */}
+    <header className="sticky top-0 z-40 border-b border-charcoal/5 bg-cream md:bg-cream/90 md:backdrop-blur">
+      {/* Mobile bar — solid bg, no blur (iOS-friendly) */}
       <div className="flex items-center justify-between px-4 py-3 md:hidden">
         <MobileMenu />
         <Link href="/" className="block">
@@ -31,6 +31,7 @@ export function Header() {
           target="_blank"
           rel="noopener"
           aria-label="הזמן שולחן"
+          style={{ WebkitTapHighlightColor: "transparent" }}
           className="rounded-full bg-terracotta px-4 py-2 text-xs font-bold text-cream shadow-md"
         >
           הזמן

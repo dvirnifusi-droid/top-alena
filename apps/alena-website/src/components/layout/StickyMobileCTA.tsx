@@ -3,7 +3,7 @@ import { env } from "@/lib/env";
 
 export function StickyMobileCTA() {
   return (
-    <div className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-3 border-t border-brass/30 bg-charcoal/95 text-cream backdrop-blur md:hidden">
+    <div className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-3 border-t border-brass/30 bg-charcoal text-cream md:hidden">
       <a
         href={`tel:${env.NEXT_PUBLIC_PHONE}`}
         className="flex flex-col items-center justify-center gap-0.5 py-2.5"

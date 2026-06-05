@@ -22,14 +22,40 @@
 
 html {
   scroll-behavior: smooth;
+  /* iOS Safari: prevents the 300ms tap delay + touch jank */
+  -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
 }
 
 body {
   font-feature-settings: "kern", "ss01";
+  /* iOS-friendly background: solid cream first, decorative gradients via
+     ::before so they never block paints on older Safari. */
+  background: var(--color-cream);
+  /* Reduce iOS rendering jank from compound transforms */
+  -webkit-font-smoothing: antialiased;
+  touch-action: manipulation;
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: -1;
   background:
     radial-gradient(ellipse at top right, rgba(184, 149, 86, 0.06), transparent 50%),
-    radial-gradient(ellipse at bottom left, rgba(68, 81, 44, 0.05), transparent 50%),
-    var(--color-cream);
+    radial-gradient(ellipse at bottom left, rgba(68, 81, 44, 0.05), transparent 50%);
+}
+
+/* Older iOS Safari can choke on heavy backdrop-filter — limit it to
+   desktops where the render budget exists. */
+@media (max-width: 767px) {
+  .backdrop-blur,
+  .backdrop-blur-sm {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
 }
 
 ::selection {
