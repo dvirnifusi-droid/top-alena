@@ -8699,10 +8699,21 @@ registerFn('aiSeatingAssistant', async ({ body }) => {
   const question = String(b.question || '').slice(0, 600).trim();
   if (!question) throw new Error('question required');
 
+  // Limit DB load: only TODAY's reservations + active queue + active sessions.
+  const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
+  const todayEnd = new Date(todayStart); todayEnd.setDate(todayEnd.getDate() + 1);
   const [layout, allRes, queue, sessions] = await Promise.all([
     (prisma as any).seatingLayout.findFirst().catch(() => null),
-    db.reservation.findMany({ orderBy: { time: 'asc' }, take: 200 }),
-    (prisma as any).queueEntry.findMany({ orderBy: { timestamp_register: 'desc' }, take: 50 }).catch(() => []),
+    db.reservation.findMany({
+      where: { date: { gte: todayStart, lt: todayEnd } },
+      orderBy: { time: 'asc' },
+      take: 60,
+    }).catch(() => []),
+    (prisma as any).queueEntry.findMany({
+      where: { OR: [{ status: 'pending' }, { status: 'active' }] },
+      orderBy: { timestamp_register: 'desc' },
+      take: 20,
+    }).catch(() => []),
     db.tableSession.findMany({ where: { status: 'active' } }),
   ]);
 
@@ -8768,6 +8779,10 @@ ${seatedNow.map((s: any) => `שולחן ${s.table} ×${s.party} ${s.name || ''}`
   try {
     const out: any = await invokeLLM({
       prompt: `${sys}\n\n---\n\n${userCtx}`,
+      // Speed > reliability for this interactive helper: 12s timeout, no retries.
+      timeoutMs: 12_000,
+      maxOutputTokens: 1024,
+      maxAttempts: 1,
       responseSchema: {
         type: 'object',
         properties: {
@@ -8786,7 +8801,7 @@ ${seatedNow.map((s: any) => `שולחן ${s.table} ×${s.party} ${s.name || ''}`
         },
         required: ['answer'],
       },
-    });
+    } as any);
     return {
       answer: out?.answer || 'לא הצלחתי להבין — נסה לנסח שוב.',
       actions: Array.isArray(out?.actions) ? out.actions.slice(0, 5) : [],

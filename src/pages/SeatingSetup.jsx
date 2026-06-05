@@ -3329,6 +3329,52 @@ function AiAssistantPanel({ tables, reservations, activeSessions, queueEntries, 
     const [chatQuestion, setChatQuestion] = useState(prefillQuestion || '');
     const [chatLoading, setChatLoading] = useState(false);
     const [chatAnswer, setChatAnswer] = useState(null); // { answer, actions }
+    const [chatElapsed, setChatElapsed] = useState(0);
+    const chatAbortRef = useRef(null);
+
+    // Tick a seconds counter while loading so the user sees progress (not stuck).
+    useEffect(() => {
+        if (!chatLoading) { setChatElapsed(0); return; }
+        const start = Date.now();
+        const id = setInterval(() => setChatElapsed(Math.floor((Date.now() - start) / 1000)), 250);
+        return () => clearInterval(id);
+    }, [chatLoading]);
+
+    const runAi = async (question) => {
+        setChatLoading(true);
+        setChatAnswer(null);
+        // AbortController so user-side cancellation works even if network hangs.
+        const ctrl = new AbortController();
+        chatAbortRef.current = ctrl;
+        // 18s hard ceiling matching backend (12s LLM + 6s slack for DB+network).
+        const hardTimeout = setTimeout(() => ctrl.abort(), 18_000);
+        try {
+            const tok = localStorage.getItem('auth_token') || '';
+            const r = await fetch('/api/fn/aiSeatingAssistant', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + tok },
+                body: JSON.stringify({ question }),
+                signal: ctrl.signal,
+            });
+            const data = await r.json();
+            setChatAnswer(data);
+        } catch (e) {
+            const aborted = ctrl.signal.aborted;
+            setChatAnswer({
+                answer: aborted
+                    ? '⏱️ ה-AI לא ענה בזמן. נסה שוב או נסח שאלה קצרה יותר.'
+                    : 'שגיאה: ' + (e?.message || e),
+                actions: [],
+            });
+        } finally {
+            clearTimeout(hardTimeout);
+            setChatLoading(false);
+            chatAbortRef.current = null;
+        }
+    };
+    const cancelAi = () => {
+        chatAbortRef.current?.abort();
+    };
     const now = new Date();
     const recs = [];
 
@@ -3336,33 +3382,14 @@ function AiAssistantPanel({ tables, reservations, activeSessions, queueEntries, 
     useEffect(() => {
         if (prefillQuestion && prefillQuestion.trim()) {
             setChatQuestion(prefillQuestion);
-            // auto-submit immediately
-            (async () => {
-                setChatLoading(true);
-                try {
-                    const res = await base44.functions.aiSeatingAssistant({ question: prefillQuestion });
-                    const data = res?.data || res;
-                    setChatAnswer(data);
-                } catch (e) {
-                    setChatAnswer({ answer: 'שגיאה: ' + (e?.message || e), actions: [] });
-                } finally { setChatLoading(false); }
-            })();
+            runAi(prefillQuestion);
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [prefillQuestion]);
 
-    const askAi = async () => {
+    const askAi = () => {
         if (!chatQuestion.trim()) return;
-        setChatLoading(true);
-        setChatAnswer(null);
-        try {
-            const res = await base44.functions.aiSeatingAssistant({ question: chatQuestion });
-            const data = res?.data || res;
-            setChatAnswer(data);
-        } catch (e) {
-            setChatAnswer({ answer: 'שגיאה בשליחה ל-AI: ' + (e?.message || e), actions: [] });
-        } finally {
-            setChatLoading(false);
-        }
+        runAi(chatQuestion);
     };
 
     // 1. Tables finishing in next 30 min + queue waiting
@@ -3541,12 +3568,27 @@ function AiAssistantPanel({ tables, reservations, activeSessions, queueEntries, 
                                 disabled={chatLoading}
                                 className="flex-1 text-xs border border-indigo-300 rounded-lg px-2 py-1 focus:outline-none focus:border-indigo-500"
                             />
-                            <button
-                                onClick={askAi}
-                                disabled={chatLoading || !chatQuestion.trim()}
-                                className="bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-300 text-white text-xs font-bold px-3 rounded-lg"
-                            >{chatLoading ? '…' : 'שלח'}</button>
+                            {chatLoading ? (
+                                <button
+                                    onClick={cancelAi}
+                                    className="bg-red-500 hover:bg-red-600 text-white text-xs font-bold px-3 rounded-lg whitespace-nowrap"
+                                    title="בטל"
+                                >✕ בטל</button>
+                            ) : (
+                                <button
+                                    onClick={askAi}
+                                    disabled={!chatQuestion.trim()}
+                                    className="bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-300 text-white text-xs font-bold px-3 rounded-lg"
+                                >שלח</button>
+                            )}
                         </div>
+                        {chatLoading && (
+                            <div className="mt-1.5 flex items-center gap-2 text-[11px] text-indigo-700">
+                                <span className="animate-pulse">🤔 חושב...</span>
+                                <span className="font-mono">{chatElapsed}s</span>
+                                {chatElapsed >= 10 && <span className="text-amber-600">(טוען לאט — אפשר לבטל)</span>}
+                            </div>
+                        )}
                         {chatAnswer && (
                             <div className="mt-1.5 bg-white border border-indigo-200 rounded-lg p-2">
                                 <div className="text-[11px] text-gray-800 leading-relaxed">{chatAnswer.answer}</div>
