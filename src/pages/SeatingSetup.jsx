@@ -17,6 +17,8 @@ import { Clock, Users, Phone, ChefHat, CheckCircle, Ban, Calendar, MapPin } from
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { format } from "date-fns";
+import { he } from "date-fns/locale";
+import { ZoomIn, ZoomOut, X, Maximize2 } from "lucide-react";
 import ReservationTool from '../components/reservations/ReservationTool';
 import TableIncidentDialog from '../components/seating/TableIncidentDialog';
 import TableIncidentHistory from '../components/seating/TableIncidentHistory';
@@ -274,6 +276,8 @@ export default function SeatingSetup() {
     const [isEditReservationOpen, setIsEditReservationOpen] = useState(false);
     const [incidentTableNumber, setIncidentTableNumber] = useState(null);
     const [selectedAreas, setSelectedAreas] = useState(['all']);
+    const [mapZoom, setMapZoom] = useState(1);     // 0.5–1.5 — scales the 1400×850 map canvas
+    const [mobileSheetOpen, setMobileSheetOpen] = useState(false);  // slide-up reservations dashboard on mobile
     const toggleArea = (key) => {
         if (key === 'all') { setSelectedAreas(['all']); return; }
         setSelectedAreas(prev => {
@@ -1351,8 +1355,64 @@ export default function SeatingSetup() {
         }
     };
 
+    // ─── LIVE STATUS computed from current state ────────────────────────────
+    // Tables actively seated, guests inside now, and reservations arriving in
+    // the next 60 / 240 minutes. The hostess sees this AT A GLANCE.
+    const liveStats = (() => {
+        const now = new Date();
+        const occupiedTables = activeSessions.length;
+        const guestsInside = activeSessions.reduce((s, sess) => s + (sess.party_size || 0), 0);
+        let arriving1h = 0, arriving4h = 0, guestsArriving1h = 0;
+        for (const r of (reservations || [])) {
+            if (!r.time) continue;
+            if (r.status === 'cancelled' || r.status === 'no_show' || r.status === 'seated') continue;
+            const [h, m] = String(r.time).split(':').map(Number);
+            const resAt = new Date(now); resAt.setHours(h, m || 0, 0, 0);
+            const diffMin = (resAt.getTime() - now.getTime()) / 60000;
+            if (diffMin >= -10 && diffMin <= 60) { arriving1h++; guestsArriving1h += (r.party_size || 0); }
+            else if (diffMin > 60 && diffMin <= 240) { arriving4h++; }
+        }
+        const totalReservationsToday = (reservations || []).filter(r => r.status !== 'cancelled').length;
+        return { occupiedTables, guestsInside, arriving1h, guestsArriving1h, arriving4h, totalReservationsToday };
+    })();
+
     return (
-        <div dir="rtl" className="p-4 md:p-8">
+        <div dir="rtl" className="p-3 md:p-6 bg-gray-50 min-h-screen">
+            {/* === LIVE STATUS BAR — always visible above page === */}
+            <div className="bg-white border border-gray-200 rounded-2xl shadow-sm p-3 md:p-4 mb-3 grid grid-cols-2 md:grid-cols-5 gap-2 md:gap-3">
+                <LiveStat
+                    icon="🪑" label="שולחנות תפוסים"
+                    value={liveStats.occupiedTables}
+                    sub={`${tables.length} סה״כ`}
+                    accent="emerald"
+                />
+                <LiveStat
+                    icon="👥" label="אנשים במסעדה"
+                    value={liveStats.guestsInside}
+                    sub="כעת"
+                    accent="blue"
+                />
+                <LiveStat
+                    icon="⏱️" label="מגיעים בעוד שעה"
+                    value={liveStats.arriving1h}
+                    sub={liveStats.guestsArriving1h ? `${liveStats.guestsArriving1h} סועדים` : '—'}
+                    accent="amber"
+                    pulse={liveStats.arriving1h > 0}
+                />
+                <LiveStat
+                    icon="📅" label="ב-4 שעות הבאות"
+                    value={liveStats.arriving4h}
+                    sub="הזמנות"
+                    accent="violet"
+                />
+                <LiveStat
+                    icon="📊" label="סה״כ היום"
+                    value={liveStats.totalReservationsToday}
+                    sub={format(selectedDate, 'dd/MM', { locale: he })}
+                    accent="slate"
+                />
+            </div>
+
             {isSelectingTables && (
                 <div className="fixed top-0 left-0 right-0 bg-purple-400 text-white p-2 text-center z-50 font-bold flex items-center justify-center gap-4">
                     מצב שיוך שולחנות מרובים: בחר שולחנות עבור הזמנה {multiAssignReservationId?.slice(-4)}.
@@ -1448,13 +1508,25 @@ export default function SeatingSetup() {
                                 <Button variant="outline" onClick={handleAddTable}><Plus className="w-4 h-4 ml-2" />הוסף שולחן</Button>
                             </div>
                         ) : (
-                            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                                <div className="lg:order-1 space-y-4">
+                            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-6">
+                                {/* Side panel — desktop sidebar / mobile bottom sheet */}
+                                <div className={`lg:order-1 space-y-4 ${mobileSheetOpen
+                                    ? 'fixed inset-0 z-40 bg-gray-50 p-4 overflow-y-auto'
+                                    : 'hidden lg:block'
+                                }`}>
+                                    {mobileSheetOpen && (
+                                        <div className="flex items-center justify-between lg:hidden mb-2">
+                                            <div className="font-bold text-lg">הזמנות והושבה</div>
+                                            <button onClick={() => setMobileSheetOpen(false)} className="p-2 -m-2 rounded-full hover:bg-gray-200">
+                                                <X className="w-5 h-5"/>
+                                            </button>
+                                        </div>
+                                    )}
                                     <ReservationsDashboard />
                                     <ReservationTool onReservationCreated={loadLayout} />
                                 </div>
 
-                                <div className="lg:col-span-2 lg:order-2 space-y-4">
+                                <div className="lg:col-span-2 lg:order-2 space-y-3">
                                     {/* פילטר אזורים - נראה בעיקר במובייל */}
                                     <div className="flex flex-wrap gap-2 p-2 bg-gray-50 rounded-lg border">
                                         {[
@@ -1520,13 +1592,40 @@ export default function SeatingSetup() {
                                         </Popover>
                                     </div>
 
-                                    <div 
-                                        className="relative w-[1400px] h-[850px] border rounded-lg overflow-auto"
+                                    {/* Zoom controls — small floating cluster, hidden on print */}
+                                    <div className="flex items-center gap-1 bg-white border rounded-lg p-1 shadow-sm w-fit">
+                                        <button
+                                            onClick={() => setMapZoom(z => Math.max(0.4, z - 0.1))}
+                                            className="w-8 h-8 flex items-center justify-center rounded hover:bg-gray-100"
+                                            title="הקטן"
+                                        ><ZoomOut className="w-4 h-4"/></button>
+                                        <button
+                                            onClick={() => setMapZoom(1)}
+                                            className="px-2 h-8 text-xs font-bold hover:bg-gray-100 rounded min-w-[3rem]"
+                                            title="גודל מקורי"
+                                        >{Math.round(mapZoom * 100)}%</button>
+                                        <button
+                                            onClick={() => setMapZoom(z => Math.min(1.6, z + 0.1))}
+                                            className="w-8 h-8 flex items-center justify-center rounded hover:bg-gray-100"
+                                            title="הגדל"
+                                        ><ZoomIn className="w-4 h-4"/></button>
+                                        <span className="text-[10px] text-gray-400 mr-2 hidden md:inline">גרור לתזוזה</span>
+                                    </div>
+                                    <div className="w-full overflow-auto border rounded-lg bg-gray-100" style={{ maxHeight: '70vh' }}>
+                                    {/* Outer wrapper takes the *visual* (scaled) dimensions so scrollbars match.
+                                        Inner element renders at native 1400×850 and is scaled with transform. */}
+                                    <div style={{ width: `${1400 * mapZoom}px`, height: `${850 * mapZoom}px` }}>
+                                    <div
+                                        className="relative"
                                         style={{
+                                            width: '1400px',
+                                            height: '850px',
                                             backgroundImage: `url('https://media.base44.com/images/public/68ac71d972dff18b98e30a21/5fc81039d_WhatsAppImage2026-04-10at145322.jpg')`,
                                             backgroundSize: '100% 100%',
                                             backgroundRepeat: 'no-repeat',
                                             backgroundPosition: 'center',
+                                            transform: `scale(${mapZoom})`,
+                                            transformOrigin: 'top right',
                                         }}
                                         >
                                         {facilities.map((facility) => {
@@ -1757,10 +1856,10 @@ export default function SeatingSetup() {
                                     })}
                                         
                                         <div className="absolute bottom-2 left-2 text-xs text-gray-600 bg-white/80 p-2 rounded">
-                                            💡 גרור שולחנות ואלמנטים לשינוי מיקום. גרור פינה ימנית-תחתונה לשינוי גודל. 
-                                            🖱️ לחץ על שולחן לפרטים מלאים | 🔴 אדום = תפוס (פגישה פעילה / הזמנה יושבת) | 🟢 ירוק = פנוי פנים | 🟡 צהוב = פנוי חוץ | 🩷 ורוד = לקוח חוזר
+                                            💡 גרור שולחנות לשינוי מיקום · 🖱️ לחץ לפרטים · 🔴 תפוס · 🟢 פנוי פנים · 🟡 פנוי חוץ · 🩷 חוזר
                                         </div>
                                     </div>
+                                    </div> {/* close dimensional wrapper */}
                                 </div>
                             </div>
                         )
@@ -1787,6 +1886,36 @@ export default function SeatingSetup() {
                     />
                 </CardContent>
             </Card>
+
+            {/* Mobile FAB — opens the reservations dashboard as a bottom sheet */}
+            <button
+                onClick={() => setMobileSheetOpen(true)}
+                className="lg:hidden fixed bottom-4 left-4 z-30 h-14 w-14 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white shadow-2xl flex items-center justify-center"
+                title="הזמנות והושבה"
+            >
+                <Calendar className="w-6 h-6" />
+            </button>
+        </div>
+    );
+}
+
+// === LiveStat — compact KPI tile for the top status bar ====================
+function LiveStat({ icon, label, value, sub, accent = 'slate', pulse = false }) {
+    const colorMap = {
+        emerald: 'border-emerald-200 bg-emerald-50 text-emerald-900',
+        blue:    'border-blue-200 bg-blue-50 text-blue-900',
+        amber:   'border-amber-200 bg-amber-50 text-amber-900',
+        violet:  'border-violet-200 bg-violet-50 text-violet-900',
+        slate:   'border-slate-200 bg-slate-50 text-slate-900',
+    };
+    return (
+        <div className={`border rounded-xl p-2 md:p-3 ${colorMap[accent] || colorMap.slate} ${pulse ? 'animate-pulse' : ''}`}>
+            <div className="flex items-center justify-between">
+                <span className="text-xl md:text-2xl">{icon}</span>
+                <span className="text-2xl md:text-3xl font-black tabular-nums">{value}</span>
+            </div>
+            <div className="text-[10px] md:text-xs font-bold opacity-80 mt-1 leading-tight">{label}</div>
+            {sub && <div className="text-[10px] opacity-60 leading-tight">{sub}</div>}
         </div>
     );
 }
