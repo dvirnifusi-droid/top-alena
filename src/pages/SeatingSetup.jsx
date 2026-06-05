@@ -2338,74 +2338,64 @@ export default function SeatingSetup() {
                                                     </div>
                                                 )}
 
-                                                <div className="h-full px-1 py-0.5 flex flex-col text-center overflow-hidden">
-                                                    {/* TOP: capacity badge + table number — extremely tight, no spacing wasted */}
+                                                <div className="h-full px-1 py-0.5 flex flex-col text-center overflow-hidden relative">
+                                                    {/* Status icon in corner — replaces verbose text */}
+                                                    {isFinishingSoon && (
+                                                        <span className="absolute top-0 left-1 text-base animate-pulse" title="מסיים בקרוב">⏰</span>
+                                                    )}
+                                                    {isOvertime && (
+                                                        <span className="absolute top-0 left-1 text-base" title="באיחור">⚠️</span>
+                                                    )}
+
+                                                    {/* TOP corners: capacity badge + table number — clear and out of the way */}
                                                     <div className="flex justify-between items-start leading-none">
-                                                        <Badge variant="secondary" className="text-[9px] px-1 py-0 leading-none font-bold">
+                                                        <Badge variant="secondary" className="text-[10px] px-1 py-0 leading-none font-bold">
                                                             {table.min_capacity}-{table.max_capacity}
                                                         </Badge>
-                                                        <div className="font-black text-sm leading-none">{table.table_number}</div>
+                                                        <div className="font-black text-base leading-none">{table.table_number}</div>
                                                     </div>
 
-                                                    {/* MIDDLE: dynamic state info — tight stacking, no extra gaps */}
-                                                    <div className="flex-1 flex flex-col justify-center items-center leading-[1.1]">
+                                                    {/* MIDDLE: the ESSENTIAL — guests + name + time (no other lines) */}
+                                                    <div className="flex-1 flex flex-col justify-center items-center leading-tight">
                                                         {isReallyOccupied ? (
                                                             <>
-                                                                <div className={`text-[10px] font-black ${
-                                                                    isFinishingSoon ? 'text-amber-900'
-                                                                    : isOvertime ? 'text-white'
-                                                                    : 'text-red-900'
-                                                                }`}>
-                                                                    {isFinishingSoon ? '⏰ מסיים'
-                                                                    : isOvertime ? '⚠️ באיחור'
-                                                                    : session ? 'פעיל' : 'יושב'}
-                                                                </div>
                                                                 {session ? (
                                                                     <>
-                                                                        <div className="text-[13px] font-black">👥{session.party_size}</div>
-                                                                        {session.customer_name && (
-                                                                            <div className="text-[11px] font-bold truncate w-full">{getFirstName(session.customer_name)}</div>
-                                                                        )}
-                                                                        <div className="text-[10px] font-bold">{getActiveTime(session)}</div>
+                                                                        <div className="text-base font-black">👥{session.party_size} · {getFirstName(session.customer_name) || '—'}</div>
+                                                                        <div className="text-xs font-bold opacity-90">{getActiveTime(session)}</div>
                                                                     </>
                                                                 ) : seatedReservation ? (
                                                                     <>
-                                                                        <div className="text-[13px] font-black">👥{seatedReservation.party_size}</div>
-                                                                        <div className="text-[11px] font-bold truncate w-full">{getFirstName(seatedReservation.customer_name)}</div>
-                                                                        <div className="text-[10px] font-bold">
-                                                                            {seatedReservation.time}{computedEndTime ? `→${computedEndTime}` : ''}
+                                                                        <div className="text-base font-black">👥{seatedReservation.party_size} · {getFirstName(seatedReservation.customer_name) || '—'}</div>
+                                                                        <div className="text-xs font-bold opacity-90">
+                                                                            {seatedReservation.time}{computedEndTime ? `–${computedEndTime}` : ''}
                                                                         </div>
-                                                                        {minutesUntilEnd !== null && minutesUntilEnd > 0 && (
-                                                                            <div className="text-[10px] font-bold">⏱{minutesUntilEnd}'</div>
-                                                                        )}
-                                                                        {/* NEXT seating chip — bigger font, tighter layout */}
-                                                                        {nextSeating && (
-                                                                            <div className="mt-0.5 w-full bg-blue-500 text-white rounded px-1 text-[10px] font-bold flex items-center justify-between leading-tight">
-                                                                                <span>↓{nextSeating.time?.slice(0,5)}</span>
-                                                                                <span className="truncate mx-0.5">{getFirstName(nextSeating.customer_name)}</span>
-                                                                                <span>×{nextSeating.party_size}</span>
-                                                                            </div>
-                                                                        )}
                                                                     </>
                                                                 ) : null}
+                                                                {/* NEXT seating chip — only if exists, smaller line */}
+                                                                {nextSeating && (
+                                                                    <div className="mt-0.5 w-full bg-blue-600 text-white rounded px-1 text-[11px] font-bold truncate leading-tight">
+                                                                        ↓ {nextSeating.time?.slice(0,5)} · {getFirstName(nextSeating.customer_name)} ×{nextSeating.party_size}
+                                                                    </div>
+                                                                )}
                                                             </>
                                                         ) : futureReservationsForTable.length > 0 ? (
                                                             <div className="w-full flex flex-col gap-0.5">
                                                                 {futureReservationsForTable.slice(0, 2).map(res => (
-                                                                    <div key={res.id} className="w-full bg-blue-500 text-white px-1 py-0 rounded text-[11px] font-bold flex items-center justify-between leading-tight">
+                                                                    <div key={res.id} className="w-full bg-blue-600 text-white px-1 rounded text-[11px] font-bold flex items-center justify-between leading-tight">
                                                                         <span>{res.time?.slice(0, 5)}</span>
                                                                         <span className="truncate mx-1">{getFirstName(res.customer_name)}</span>
                                                                         <span>×{res.party_size}</span>
                                                                     </div>
                                                                 ))}
                                                                 {futureReservationsForTable.length > 2 && (
-                                                                    <div className="text-[10px] text-blue-700 font-black">
+                                                                    <div className="text-[11px] text-blue-700 font-black">
                                                                         +{futureReservationsForTable.length - 2}
                                                                     </div>
                                                                 )}
                                                             </div>
                                                         ) : (
-                                                            <div className="text-[12px] font-black">פנוי</div>
+                                                            <div className="text-sm font-black">פנוי</div>
                                                         )}
                                                     </div>
 
