@@ -1565,7 +1565,7 @@ export default function SeatingSetup() {
                                 {/* Right rail — only in big-map mode. Toggles between compact
                                     'tonight' strip and the full ReservationsDashboard inline (no overlay). */}
                                 {bigMapMode && (
-                                <div className="hidden lg:flex flex-col gap-2 lg:order-2 overflow-y-auto pr-1" style={{ maxHeight: 'calc(100vh - 110px)' }}>
+                                <div className="hidden lg:flex flex-col gap-2 lg:order-1 overflow-y-auto pl-1" style={{ maxHeight: 'calc(100vh - 110px)' }}>
                                     {/* Tab toggle at top */}
                                     <div className="sticky top-0 z-20 bg-gray-50 pt-1 pb-1.5 flex gap-1">
                                         <button
@@ -1600,7 +1600,7 @@ export default function SeatingSetup() {
                                 </div>
                                 )}
 
-                                <div className={`${bigMapMode ? 'lg:col-span-3 lg:order-1' : 'lg:col-span-2 lg:order-2'} space-y-3`}>
+                                <div className={`${bigMapMode ? 'lg:col-span-3 lg:order-2' : 'lg:col-span-2 lg:order-2'} space-y-3`}>
                                     {/* פילטר אזורים - נראה בעיקר במובייל */}
                                     <div className="flex flex-wrap gap-2 p-2 bg-gray-50 rounded-lg border">
                                         {[
