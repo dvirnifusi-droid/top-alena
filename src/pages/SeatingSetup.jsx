@@ -4,6 +4,7 @@ import { TableSession } from '@/entities/TableSession';
 import { ServiceStep } from '@/entities/ServiceStep';
 import { Reservation } from '@/entities/Reservation';
 import { Customer } from '@/entities/Customer';
+import { QueueEntry } from '@/entities/QueueEntry';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -294,6 +295,10 @@ export default function SeatingSetup() {
     const [dashboardDrawerOpen, setDashboardDrawerOpen] = useState(false);  // overlay slide-in of full dashboard
     const [smartBookerOpen, setSmartBookerOpen] = useState(false);  // collapsible "+ הזמנה חדשה" panel
     const [mobileView, setMobileView] = useState('reservations');  // 'reservations' | 'map' — tab switcher on mobile
+    const [queueEntries, setQueueEntries] = useState([]);        // live restaurant queue (walk-ins waiting)
+    const [railTab, setRailTab] = useState('tonight');           // 'tonight' | 'full' | 'queue'
+    const [lastSeenQueueId, setLastSeenQueueId] = useState(null); // newest id we've shown — for badge
+    const [queueNewBanner, setQueueNewBanner] = useState(null);   // {name, party_size} popup data
     const toggleArea = (key) => {
         if (key === 'all') { setSelectedAreas(['all']); return; }
         setSelectedAreas(prev => {
@@ -365,6 +370,77 @@ export default function SeatingSetup() {
         const interval = setInterval(loadLiveData, 60000);
         return () => clearInterval(interval);
     }, [loadLiveData]);
+
+    // --- Poll active queue entries every 15s. Pops a banner when a NEW entry arrives.
+    const loadQueue = useCallback(async () => {
+        try {
+            const all = await QueueEntry.list('-timestamp_register', 50);
+            // Active = pending / waiting (not seated, not cancelled, not treated)
+            const active = (all || []).filter(q =>
+                !q.treated &&
+                q.status !== 'seated' && q.status !== 'cancelled' && q.status !== 'no_show'
+            );
+            setQueueEntries(active);
+            // Detect new entries
+            if (active.length > 0) {
+                const newest = active[0];
+                if (lastSeenQueueId !== null && newest.id !== lastSeenQueueId &&
+                    !active.find(q => q.id === lastSeenQueueId && q !== newest)) {
+                    // A truly new entry showed up since last poll
+                    setQueueNewBanner({ id: newest.id, name: newest.customer_name, party_size: newest.party_size });
+                }
+                if (lastSeenQueueId === null) setLastSeenQueueId(newest.id);
+            }
+        } catch (e) { console.warn('queue load failed', e); }
+    }, [lastSeenQueueId]);
+
+    useEffect(() => {
+        loadQueue();
+        const id = setInterval(loadQueue, 15000);
+        return () => clearInterval(id);
+    }, [loadQueue]);
+
+    // When user opens the queue tab, mark all as seen (dismisses badge)
+    useEffect(() => {
+        if (railTab === 'queue' && queueEntries.length > 0) {
+            setLastSeenQueueId(queueEntries[0].id);
+            setQueueNewBanner(null);
+        }
+    }, [railTab, queueEntries]);
+
+    // Convert a queue entry → reservation NOW. Closes the queue row, opens
+    // the table-assignment flow on the map.
+    const seatFromQueue = async (entry) => {
+        try {
+            const now = new Date();
+            const time = format(now, 'HH:mm');
+            const dateStr = format(now, 'yyyy-MM-dd');
+            // Create a quick reservation
+            const created = await Reservation.create({
+                customer_name: entry.customer_name,
+                customer_phone: entry.phone,
+                date: dateStr,
+                time,
+                party_size: entry.party_size,
+                status: 'seated',
+                special_requests: entry.notes || null,
+                source: 'queue',
+            });
+            // Mark queue entry as treated/seated
+            await QueueEntry.update(entry.id, {
+                treated: true,
+                status: 'seated',
+                timestamp_seated: new Date().toISOString(),
+            });
+            await loadQueue();
+            await loadLayout();
+            // Open the assigning-table flow so hostess picks a table from the map
+            setAssigningTable({ reservationId: created.id });
+        } catch (e) {
+            console.error('seat from queue failed', e);
+            alert('שגיאה בהושבה מהתור');
+        }
+    };
 
     const getTableSession = (tableNumber) => {
         return activeSessions.find(session => 
@@ -1810,22 +1886,34 @@ export default function SeatingSetup() {
                                     'tonight' strip and the full ReservationsDashboard inline (no overlay). */}
                                 {bigMapMode && (
                                 <div className="hidden lg:flex flex-col gap-2 lg:order-1 overflow-y-auto pl-1" style={{ maxHeight: 'calc(100vh - 110px)' }}>
-                                    {/* Tab toggle at top */}
+                                    {/* Tab toggle at top — 3 tabs: tonight / full / queue */}
                                     <div className="sticky top-0 z-20 bg-gray-50 pt-1 pb-1.5 flex gap-1">
                                         <button
-                                            onClick={() => setDashboardDrawerOpen(false)}
+                                            onClick={() => { setRailTab('tonight'); setDashboardDrawerOpen(false); }}
                                             className={`flex-1 text-xs font-bold py-1.5 rounded-lg border transition-colors
-                                                ${!dashboardDrawerOpen
+                                                ${railTab === 'tonight'
                                                     ? 'bg-indigo-600 border-indigo-700 text-white shadow'
                                                     : 'bg-white border-gray-200 text-gray-600 hover:border-indigo-300'}`}
                                         >🌙 הערב</button>
                                         <button
-                                            onClick={() => setDashboardDrawerOpen(true)}
+                                            onClick={() => { setRailTab('full'); setDashboardDrawerOpen(true); }}
                                             className={`flex-1 text-xs font-bold py-1.5 rounded-lg border transition-colors
-                                                ${dashboardDrawerOpen
+                                                ${railTab === 'full'
                                                     ? 'bg-indigo-600 border-indigo-700 text-white shadow'
                                                     : 'bg-white border-gray-200 text-gray-600 hover:border-indigo-300'}`}
                                         >📅 לוח מלא</button>
+                                        <button
+                                            onClick={() => { setRailTab('queue'); setDashboardDrawerOpen(false); }}
+                                            className={`flex-1 text-xs font-bold py-1.5 rounded-lg border transition-colors relative
+                                                ${railTab === 'queue'
+                                                    ? 'bg-emerald-600 border-emerald-700 text-white shadow'
+                                                    : 'bg-white border-gray-200 text-gray-600 hover:border-emerald-300'}`}
+                                        >
+                                            🚶 תור {queueEntries.length > 0 && <span className={`ml-0.5 inline-block min-w-[18px] h-4 px-1 rounded-full text-[10px] font-black ${railTab === 'queue' ? 'bg-white text-emerald-700' : 'bg-emerald-600 text-white'}`}>{queueEntries.length}</span>}
+                                            {queueNewBanner && railTab !== 'queue' && (
+                                                <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse"></span>
+                                            )}
+                                        </button>
                                     </div>
 
                                     {/* Date picker — always visible in big-map mode so hostess can switch days fast */}
@@ -1863,14 +1951,19 @@ export default function SeatingSetup() {
                                         </div>
                                     )}
 
-                                    {dashboardDrawerOpen ? (
-                                        <ReservationsDashboard />
-                                    ) : (
+                                    {railTab === 'full' && <ReservationsDashboard />}
+                                    {railTab === 'tonight' && (
                                         <CompactTonightStrip
                                             reservations={reservations}
                                             selectedDate={selectedDate}
                                             onEdit={(r) => { setEditingReservation(r); setIsEditReservationOpen(true); }}
-                                            onOpenFullDashboard={() => setDashboardDrawerOpen(true)}
+                                            onOpenFullDashboard={() => { setDashboardDrawerOpen(true); setRailTab('full'); }}
+                                        />
+                                    )}
+                                    {railTab === 'queue' && (
+                                        <CompactQueueStrip
+                                            queueEntries={queueEntries}
+                                            onSeat={seatFromQueue}
                                         />
                                     )}
                                 </div>
@@ -2243,6 +2336,30 @@ export default function SeatingSetup() {
 
             {/* Mobile FAB removed — replaced by the tab switcher above the grid */}
 
+            {/* Queue popup banner — fires when a NEW walk-in joins the queue */}
+            {queueNewBanner && (
+                <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[55] bg-emerald-600 text-white rounded-2xl shadow-2xl p-4 min-w-[280px] animate-in slide-in-from-bottom flex items-center gap-3">
+                    <div className="text-3xl">🔔</div>
+                    <div className="flex-1">
+                        <div className="font-black text-sm">לקוח חדש בתור!</div>
+                        <div className="text-xs opacity-90 mt-0.5">
+                            {queueNewBanner.name} · {queueNewBanner.party_size} סועדים
+                        </div>
+                    </div>
+                    <button
+                        onClick={() => { setRailTab('queue'); setBigMapMode(true); setQueueNewBanner(null); }}
+                        className="bg-white text-emerald-700 font-bold text-xs px-3 py-1.5 rounded-lg hover:bg-emerald-50"
+                    >פתח</button>
+                    <button
+                        onClick={() => setQueueNewBanner(null)}
+                        className="text-white/70 hover:text-white"
+                        title="סגור"
+                    >
+                        <X className="w-4 h-4" />
+                    </button>
+                </div>
+            )}
+
             {/* Dashboard drawer — modal overlay only when NOT in big-map mode.
                 In big-map mode the dashboard renders inline in the right rail. */}
             {dashboardDrawerOpen && !bigMapMode && (
@@ -2374,6 +2491,80 @@ function CompactTonightStrip({ reservations, selectedDate, onEdit, onOpenFullDas
                             )}
                         </div>
                     </button>
+                    );
+                })
+            )}
+        </>
+    );
+}
+
+// === CompactQueueStrip — third tab in big-map rail, walk-ins waiting now ====
+function CompactQueueStrip({ queueEntries, onSeat }) {
+    const now = Date.now();
+    return (
+        <>
+            {/* Sticky header */}
+            <div className="sticky top-0 bg-white border-2 border-emerald-200 rounded-2xl p-3 z-10 shadow-sm">
+                <div className="flex items-center justify-between">
+                    <div>
+                        <div className="text-[10px] font-bold text-emerald-700 uppercase tracking-wider">תור פעיל כעת</div>
+                        <div className="text-2xl font-black text-gray-900">{queueEntries.length}</div>
+                    </div>
+                    <div className="text-right">
+                        <div className="text-[10px] text-gray-500">סה״כ סועדים בהמתנה</div>
+                        <div className="text-2xl font-black text-gray-900">
+                            {queueEntries.reduce((s, q) => s + (q.party_size || 0), 0)}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* List */}
+            {queueEntries.length === 0 ? (
+                <div className="bg-white border border-gray-200 rounded-2xl p-5 text-center">
+                    <div className="text-3xl mb-1">🚶</div>
+                    <div className="text-sm text-gray-500">אין לקוחות בתור כעת</div>
+                </div>
+            ) : (
+                queueEntries.map((q, idx) => {
+                    const waitMin = q.timestamp_register
+                        ? Math.max(0, Math.floor((now - new Date(q.timestamp_register).getTime()) / 60000))
+                        : 0;
+                    const waitColor = waitMin >= 25 ? 'bg-red-500 text-white'
+                        : waitMin >= 15 ? 'bg-amber-500 text-white'
+                        : 'bg-emerald-500 text-white';
+                    return (
+                        <div key={q.id} className="bg-white border-2 border-gray-200 rounded-xl p-3 shadow-sm">
+                            <div className="flex items-center justify-between gap-2">
+                                <span className={`text-[11px] font-black px-2 py-0.5 rounded-full ${waitColor}`}>
+                                    {waitMin} דק׳
+                                </span>
+                                <div className="flex items-center gap-1">
+                                    <span className="text-xs text-gray-500">#{idx + 1}</span>
+                                </div>
+                            </div>
+                            <div className="mt-1.5 flex items-center gap-2">
+                                <span className="text-2xl font-black text-gray-800">{q.party_size}</span>
+                                <span className="w-px h-7 bg-gray-200"></span>
+                                <div className="font-bold text-base text-gray-900 truncate flex-1">{q.customer_name}</div>
+                            </div>
+                            {q.phone && (
+                                <a href={`tel:${q.phone.replace(/\D/g, '')}`} className="text-xs text-rose-400 hover:text-rose-600 mt-0.5 inline-block" dir="ltr">
+                                    {q.phone}
+                                </a>
+                            )}
+                            {q.notes && (
+                                <div className="text-[11px] text-gray-500 italic mt-0.5 truncate" title={q.notes}>
+                                    "{q.notes}"
+                                </div>
+                            )}
+                            <button
+                                onClick={() => onSeat(q)}
+                                className="mt-2 w-full bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold py-2 rounded-lg flex items-center justify-center gap-1"
+                            >
+                                🪑 הושב עכשיו · בחר שולחן
+                            </button>
+                        </div>
                     );
                 })
             )}
