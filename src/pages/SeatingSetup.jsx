@@ -22,6 +22,7 @@ import { ZoomIn, ZoomOut, X, Maximize2 } from "lucide-react";
 import ReservationTool from '../components/reservations/ReservationTool';
 import TableIncidentDialog from '../components/seating/TableIncidentDialog';
 import TableIncidentHistory from '../components/seating/TableIncidentHistory';
+import ReservationSourceBadge from '@/components/shared/ReservationSourceBadge';
 
 // Dialog לעריכת הזמנה - עם כל הפרטים
 function ReservationEditDialog({ open, setOpen, reservation, onUpdate, tables, reservations }) {
@@ -276,6 +277,7 @@ export default function SeatingSetup() {
     const [isEditReservationOpen, setIsEditReservationOpen] = useState(false);
     const [incidentTableNumber, setIncidentTableNumber] = useState(null);
     const [selectedAreas, setSelectedAreas] = useState(['all']);
+    const [selectedFlag, setSelectedFlag] = useState('all');  // flag-color filter
     const [mapZoom, setMapZoom] = useState(1);     // 0.5–1.5 — scales the 1400×850 map canvas
     const [mobileSheetOpen, setMobileSheetOpen] = useState(false);  // slide-up reservations dashboard on mobile
     const [bigMapMode, setBigMapMode] = useState(false);  // hostess fullscreen workflow — map + compact tonight strip
@@ -703,6 +705,19 @@ export default function SeatingSetup() {
         } catch (e) { console.warn('flag save failed', e); }
     };
 
+    // Status cycle — clicking the status pill advances to the next state
+    const STATUS_CYCLE = ['request', 'pending', 'confirmed', 'standby', 'seated', 'finishing_soon', 'completed', 'cancelled', 'no_show', 'deleted'];
+    const cycleStatus = async (reservation, e) => {
+        e?.stopPropagation();
+        const current = reservation.status || 'pending';
+        const idx = STATUS_CYCLE.indexOf(current);
+        const next = STATUS_CYCLE[(idx + 1) % STATUS_CYCLE.length];
+        try {
+            await Reservation.update(reservation.id, { status: next });
+            await loadLayout();
+        } catch (err) { console.warn('status cycle failed', err); }
+    };
+
     const ReservationCard = ({ reservation }) => {
         const statusConfig = getReservationStatusConfig(reservation.status, reservation.assigned_table);
         const customerInfo = reservation.customer_name || `לקוח ${reservation.id?.slice(-4)}`;
@@ -719,72 +734,88 @@ export default function SeatingSetup() {
             setHostessFlag(reservation, next);
         };
 
-        return (
-            <div className={`p-3 rounded-lg border transition-all hover:shadow-md ${isReturning ? 'bg-pink-50 border-pink-200' : statusConfig.bgColor} group relative`}>
-                {/* Flag bar — left edge stripe in the flag color */}
-                {flagMeta && (
-                    <div className={`absolute top-0 bottom-0 right-0 w-1.5 rounded-r-lg ${flagMeta.color}`}></div>
-                )}
-                <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                        <div className="text-lg font-bold text-gray-900 min-w-[60px]">
-                            {reservation.time?.slice(0, 5) || '00:00'}
-                        </div>
+        const openEdit = (e) => {
+            e?.stopPropagation();
+            setEditingReservation(reservation);
+            setIsEditReservationOpen(true);
+        };
 
-                        <div>
-                            <div className="font-semibold text-gray-900 flex items-center gap-2">
-                                {customerInfo}
-                                {/* Flag dot — click to cycle */}
-                                <button
-                                    onClick={cycleFlag}
-                                    title={flagMeta?.label || 'הוסף דגל'}
-                                    className={`w-4 h-4 rounded-full border-2 transition-all ${
-                                        flagMeta ? `${flagMeta.color} border-white shadow` : 'bg-white border-gray-300 hover:border-gray-400'
-                                    }`}
-                                ></button>
-                                {isReturning && <Badge className="bg-pink-200 text-pink-800">לקוח חוזר</Badge>}
-                            </div>
-                            <div className="text-sm text-gray-600 flex items-center gap-3">
-                                <span className="flex items-center gap-1">
-                                    <Users className="w-3 h-3" />
-                                    {reservation.party_size} {reservation.party_size === 1 ? 'אדם' : 'אנשים'}
-                                </span>
-                                {Array.isArray(reservation.assigned_table) && reservation.assigned_table.length > 0 && (
-                                    <span className="flex items-center gap-1">
-                                        <MapPin className="w-3 h-3" />
-                                        שולחן {reservation.assigned_table.join(', ')}
-                                    </span>
-                                )}
-                                {reservation.table_preference && (
-                                    <span className="text-blue-600">
-                                        ({reservation.table_preference})
-                                    </span>
-                                )}
-                            </div>
-                        </div>
+        return (
+            <div
+                className={`p-3 rounded-xl border-2 transition-all hover:shadow-md cursor-pointer relative overflow-hidden
+                    ${isReturning ? 'bg-pink-50 border-pink-200' : 'bg-white border-gray-200 hover:border-indigo-300'}`}
+                onClick={openEdit}
+            >
+                {/* Flag stripe on right edge */}
+                {flagMeta && (
+                    <div className={`absolute top-0 bottom-0 right-0 w-1.5 ${flagMeta.color}`}></div>
+                )}
+
+                {/* TOP ROW: time + status pill (clickable to cycle) */}
+                <div className="flex items-start justify-between gap-2">
+                    <div className="font-black text-xl text-gray-900 leading-none">
+                        {reservation.time?.slice(0, 5) || '--:--'}
                     </div>
-                    
-                    <div className="flex items-center gap-2">
-                        {reservation.special_occasion && (
-                            <Badge variant="outline" className="text-xs">
-                                🎉 {reservation.special_occasion}
-                            </Badge>
-                        )}
-                        <Badge className={statusConfig.color}>
-                            {statusConfig.label}
-                        </Badge>
-                        <Button variant="ghost" size="icon" className="h-6 w-6 opacity-0 group-hover:opacity-100" onClick={() => {
-                            setEditingReservation(reservation);
-                            setIsEditReservationOpen(true);
-                        }}>
-                           <Edit className="w-3 h-3" />
-                        </Button>
-                    </div>
+                    <button
+                        onClick={(e) => cycleStatus(reservation, e)}
+                        title="לחץ כדי להחליף סטטוס"
+                        className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${statusConfig.color} hover:scale-105 transition-transform`}
+                    >
+                        {statusConfig.label}
+                    </button>
                 </div>
-                
-                {reservation.special_requests && (
-                    <div className="mt-2 text-xs text-gray-600 italic">
-                        "{reservation.special_requests}"
+
+                {/* IDENTITY ROW: name + flag dot + returning badge */}
+                <div className="mt-2 flex items-center gap-2 flex-wrap">
+                    <button
+                        onClick={cycleFlag}
+                        title={flagMeta?.label || 'הוסף דגל'}
+                        className={`w-3.5 h-3.5 rounded-full border-2 flex-shrink-0 transition-all ${
+                            flagMeta ? `${flagMeta.color} border-white shadow` : 'bg-white border-gray-300 hover:border-gray-400'
+                        }`}
+                    ></button>
+                    <div className="font-bold text-gray-900 text-sm truncate flex-1 min-w-0">{customerInfo}</div>
+                    {isReturning && <span className="text-[9px] font-bold bg-pink-200 text-pink-800 px-1.5 py-0.5 rounded-full">חוזר</span>}
+                </div>
+
+                {/* META ROW: people + table + phone */}
+                <div className="mt-1.5 flex items-center gap-2.5 text-xs text-gray-600 flex-wrap">
+                    <span className="flex items-center gap-0.5">
+                        <Users className="w-3 h-3" />
+                        <b className="text-gray-900">{reservation.party_size || '?'}</b>
+                    </span>
+                    {Array.isArray(reservation.assigned_table) && reservation.assigned_table.length > 0 && (
+                        <span className="flex items-center gap-0.5 text-indigo-700 font-bold">
+                            🪑 {reservation.assigned_table.join(',')}
+                        </span>
+                    )}
+                    {reservation.customer_phone && (
+                        <span className="text-gray-400 text-[10px]" dir="ltr">
+                            {reservation.customer_phone}
+                        </span>
+                    )}
+                </div>
+
+                {/* SOURCE ROW: where the booking came from + campaign on click */}
+                {reservation.source && (
+                    <div className="mt-1.5">
+                        <ReservationSourceBadge source={reservation.source} campaign={reservation.campaign} />
+                    </div>
+                )}
+
+                {/* OCCASION + SPECIAL REQUESTS */}
+                {(reservation.special_occasion || reservation.special_requests) && (
+                    <div className="mt-1.5 flex items-center gap-2 flex-wrap text-[11px]">
+                        {reservation.special_occasion && (
+                            <span className="bg-rose-50 text-rose-700 border border-rose-200 rounded-full px-2 py-0.5 font-bold">
+                                🎉 {reservation.special_occasion}
+                            </span>
+                        )}
+                        {reservation.special_requests && (
+                            <span className="text-gray-500 italic truncate flex-1 min-w-0" title={reservation.special_requests}>
+                                "{reservation.special_requests}"
+                            </span>
+                        )}
                     </div>
                 )}
             </div>
@@ -817,13 +848,22 @@ export default function SeatingSetup() {
         const filteredReservations = reservations.filter(r => {
             const statusMatch = selectedStatus === 'all' || (r.status || 'pending') === selectedStatus;
             const timeMatch = !timeFilter || (r.time && r.time.startsWith(timeFilter));
+            const flagMatch = selectedFlag === 'all'
+                || (selectedFlag === 'none' && !r.hostess_flag)
+                || (r.hostess_flag === selectedFlag);
             const q = searchTerm.trim().toLowerCase();
             const searchMatch = !q || (
                 (r.customer_name || '').toLowerCase().includes(q) ||
                 (r.customer_phone || '').replace(/\D/g, '').includes(q.replace(/\D/g, ''))
             );
-            return statusMatch && timeMatch && searchMatch;
+            return statusMatch && timeMatch && flagMatch && searchMatch;
         });
+
+        const flagCounts = reservations.reduce((c, r) => {
+            const f = r.hostess_flag || 'none';
+            c[f] = (c[f] || 0) + 1;
+            return c;
+        }, {});
 
         const totalGuests = filteredReservations.reduce((sum, res) => sum + (res.party_size || 0), 0);
 
@@ -897,6 +937,35 @@ export default function SeatingSetup() {
                             <SelectItem value="deleted">מחוק ({statusCounts.deleted || 0})</SelectItem>
                         </SelectContent>
                     </Select>
+                </div>
+
+                {/* Flag filter — colored pill row */}
+                <div className="mb-4 flex items-center gap-1.5 flex-wrap">
+                    <span className="text-[10px] font-bold text-gray-500 uppercase">דגל:</span>
+                    {[
+                        { k: 'all',    label: 'הכל',  cls: 'bg-gray-100 text-gray-700 border-gray-200' },
+                        { k: 'none',   label: '○',    cls: 'bg-white text-gray-500 border-gray-300', title: 'בלי דגל' },
+                        { k: 'green',  label: '●',    cls: 'bg-emerald-500 text-white border-emerald-700', title: 'התקשרנו, מגיע' },
+                        { k: 'orange', label: '●',    cls: 'bg-orange-500 text-white border-orange-700', title: 'התקשרנו, מאחר' },
+                        { k: 'red',    label: '●',    cls: 'bg-red-500 text-white border-red-700', title: 'התקשרנו, לא ענה' },
+                        { k: 'black',  label: '●',    cls: 'bg-zinc-900 text-white border-zinc-700', title: 'בעייתי' },
+                    ].map(f => {
+                        const count = f.k === 'all'
+                            ? reservations.length
+                            : (flagCounts[f.k] || 0);
+                        const active = selectedFlag === f.k;
+                        return (
+                            <button
+                                key={f.k}
+                                onClick={() => setSelectedFlag(f.k)}
+                                title={f.title || f.label}
+                                className={`text-[10px] font-bold px-2 py-1 rounded-full border transition-all
+                                    ${f.cls} ${active ? 'ring-2 ring-indigo-500 ring-offset-1 scale-105' : 'opacity-70 hover:opacity-100'}`}
+                            >
+                                {f.label} <span className="opacity-80">({count})</span>
+                            </button>
+                        );
+                    })}
                 </div>
 
                 <div className="space-y-2 max-h-80 overflow-y-auto">
