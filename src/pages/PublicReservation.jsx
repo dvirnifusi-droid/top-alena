@@ -392,96 +392,100 @@ export default function PublicReservationPage() {
   // RENDER — MAIN
   // ===========================================================================
   return (
-    <div dir="rtl" className="min-h-screen bg-zinc-950 text-white">
+    <div dir="rtl" className="min-h-screen bg-white text-gray-900">
 
-      {/* ============ HERO ============ */}
-      <header
-        className="relative overflow-hidden"
-        style={{
-          backgroundImage: settings?.hero_image_url
-            ? `linear-gradient(180deg, rgba(0,0,0,0.3) 0%, rgba(15,15,18,0.92) 100%), url(${settings.hero_image_url})`
-            : HERO_FALLBACK_BG,
-          backgroundSize: 'cover',
-          backgroundPosition: 'center',
-        }}
-      >
-        {/* Animated ember/glow layer — pure CSS, no asset */}
-        <div className="absolute inset-0 pointer-events-none opacity-60">
-          <div className="absolute -top-20 -right-20 w-96 h-96 bg-orange-600/30 rounded-full blur-3xl animate-pulse"></div>
-          <div className="absolute -bottom-20 -left-20 w-96 h-96 bg-rose-600/20 rounded-full blur-3xl animate-pulse" style={{animationDelay: '1.5s'}}></div>
-          <div className="absolute top-1/3 left-1/4 w-64 h-64 bg-amber-500/15 rounded-full blur-3xl animate-pulse" style={{animationDelay: '0.7s'}}></div>
-        </div>
-
-        {/* Top bar */}
-        <div className="absolute top-0 left-0 right-0 flex items-center justify-between px-4 py-3 z-10">
+      {/* ============ HERO PHOTO (Ontopo-style) ============ */}
+      <header className="relative">
+        {/* Top utility bar — overlaid on photo */}
+        <div className="absolute top-0 left-0 right-0 z-20 flex items-center justify-between px-4 py-3 bg-gradient-to-b from-black/60 to-transparent">
           <LanguagePicker />
-          <a href={`tel:${phone.replace(/\D/g, '')}`} className="flex items-center gap-1 bg-white/10 backdrop-blur-md rounded-full px-3 py-1.5 text-xs hover:bg-white/20">
+          <a href={`tel:${phone.replace(/\D/g, '')}`} className="flex items-center gap-1.5 bg-white/15 backdrop-blur-md rounded-full px-3 py-1.5 text-xs text-white hover:bg-white/25 transition-colors">
             <Phone className="w-3.5 h-3.5" />
             <span>{phone}</span>
           </a>
         </div>
 
-        <div className="px-5 pt-24 pb-12 max-w-4xl mx-auto text-center relative z-[1]">
-          {/* Free-focaccia gift badge — floating, pulsing */}
-          <div className="inline-flex items-center gap-1.5 bg-gradient-to-l from-amber-500 to-rose-500 text-white rounded-full px-3.5 py-1.5 text-xs font-black mb-4 shadow-lg animate-bounce" style={{animationDuration: '3s'}}>
-            🎁 פוקצ׳ה חינם להזמנה ראשונה
-          </div>
-
-          <div className="inline-flex items-center gap-1 bg-amber-500/20 border border-amber-400/30 rounded-full px-3 py-1 text-xs text-amber-200 mb-3">
-            <Flame className="w-3 h-3" />
-            רוטשילד 104, ראשון לציון
-          </div>
-
-          <h1 className="text-5xl md:text-7xl font-black tracking-tight mb-3 drop-shadow-[0_0_30px_rgba(251,146,60,0.3)]">
-            {restaurantName}
-          </h1>
-          <p className="text-lg md:text-xl text-amber-100 max-w-xl mx-auto leading-relaxed">{welcomeMessage}</p>
-
-          {/* Rating + capacity row */}
-          <div className="mt-4 flex flex-wrap items-center justify-center gap-2 md:gap-3 text-sm">
-            <div className="bg-white/10 backdrop-blur-md rounded-full px-3 py-1.5 flex items-center gap-1.5">
-              <Star className="w-4 h-4 fill-amber-400 text-amber-400" />
-              <span className="font-black text-white">4.8</span>
-              <span className="text-amber-100/70 text-xs">(1,247 ביקורות)</span>
-            </div>
-            <div className="bg-white/10 backdrop-blur-md rounded-full px-3 py-1.5 flex items-center gap-1.5">
-              <Sparkles className="w-4 h-4 text-amber-300" />
-              <span className="font-bold text-white text-xs">אישור 30 שניות</span>
-            </div>
-          </div>
-
-          {/* Live counter */}
-          {liveCount !== null && liveCount > 0 && (
-            <div className="mt-4 inline-flex items-center gap-2 bg-emerald-500/20 border border-emerald-400/30 rounded-full px-4 py-1.5 text-sm">
-              <span className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse"></span>
-              <span className="font-bold text-emerald-200">{liveCount} הזמנות</span>
-              <span className="text-emerald-100/80">ב-3 שעות אחרונות</span>
+        {/* Wide aspect hero photo (settings.hero_image_url overrides) */}
+        <div
+          className="w-full h-[42vh] md:h-[55vh] min-h-[260px] max-h-[480px] relative overflow-hidden"
+          style={{
+            backgroundImage: settings?.hero_image_url
+              ? `url(${settings.hero_image_url})`
+              : `linear-gradient(135deg, #1c1917 0%, #57220a 40%, #92400e 100%)`,
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+          }}
+        >
+          {/* Soft animated glow if no real photo */}
+          {!settings?.hero_image_url && (
+            <div className="absolute inset-0 pointer-events-none opacity-70">
+              <div className="absolute -top-32 -right-20 w-[28rem] h-[28rem] bg-orange-600/35 rounded-full blur-3xl animate-pulse"></div>
+              <div className="absolute -bottom-20 -left-32 w-[28rem] h-[28rem] bg-rose-700/25 rounded-full blur-3xl animate-pulse" style={{animationDelay: '1.5s'}}></div>
             </div>
           )}
+          {/* Bottom fade for legibility of identity strip */}
+          <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-white via-white/60 to-transparent"></div>
 
-          {/* Recent-bookings rotating ticker */}
-          <div className="mt-3 h-5 text-xs text-amber-100/70 overflow-hidden">
-            <div
-              key={tickerIndex}
-              className="flex items-center justify-center gap-1.5"
-              style={{ animation: 'fadeIn 0.4s ease-out' }}
-            >
-              <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full"></span>
-              <span><b className="text-white">{TICKER_NAMES[tickerIndex]}</b> הזמין/ה לפני {TICKER_MINUTES[tickerIndex % TICKER_MINUTES.length]} דק׳</span>
+          {/* Floating bonus pill — top-left, subtle */}
+          <div className="absolute top-16 right-4 md:right-8 z-10">
+            <div className="bg-gradient-to-l from-amber-500 to-rose-500 text-white rounded-full px-3 py-1.5 text-[11px] font-black shadow-lg flex items-center gap-1">
+              🎁 פוקצ׳ה חינם
+            </div>
+          </div>
+        </div>
+      </header>
+
+      {/* ============ IDENTITY STRIP ============ */}
+      <section className="bg-white text-gray-900 -mt-12 relative z-10">
+        <div className="max-w-5xl mx-auto px-4 md:px-8 pt-2 pb-5">
+          <div className="flex items-start gap-3 md:gap-5">
+            {/* Logo bubble */}
+            <div className="flex-shrink-0 w-16 h-16 md:w-20 md:h-20 rounded-2xl bg-zinc-900 text-amber-400 flex items-center justify-center shadow-lg border-4 border-white text-xl md:text-2xl font-black">
+              {settings?.logo_url
+                ? <img src={settings.logo_url} alt={restaurantName} className="w-full h-full object-cover rounded-2xl" />
+                : <span>עלינא</span>}
+            </div>
+            <div className="flex-1 min-w-0 pt-1">
+              <h1 className="text-2xl md:text-4xl font-black tracking-tight leading-tight">{restaurantName}</h1>
+              <p className="text-sm text-gray-500 mt-0.5">ראשון לציון · רוטשילד 104</p>
+              {/* Tags */}
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {(settings?.tags && Array.isArray(settings.tags) ? settings.tags : ['בשר על האש', 'כשר', 'אלכוהול', 'אווירה']).map(tag => (
+                  <span key={tag} className="bg-amber-50 text-amber-900 border border-amber-200 rounded-full px-2.5 py-0.5 text-[11px] font-bold">{tag}</span>
+                ))}
+              </div>
             </div>
           </div>
 
-          {/* Social icons */}
-          <div className="mt-5 flex items-center justify-center gap-3">
-            {social.instagram && <SocialIcon href={social.instagram} label="Instagram"><Instagram className="w-4 h-4" /></SocialIcon>}
-            {social.tiktok    && <SocialIcon href={social.tiktok}    label="TikTok"><Music2 className="w-4 h-4" /></SocialIcon>}
-            {social.facebook  && <SocialIcon href={social.facebook}  label="Facebook"><Facebook className="w-4 h-4" /></SocialIcon>}
-            {social.whatsapp  && <SocialIcon href={social.whatsapp}  label="WhatsApp"><MessageCircle className="w-4 h-4" /></SocialIcon>}
+          {/* Rating row */}
+          <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+            <div className="flex items-center gap-1">
+              {[1,2,3,4,5].map(i => <Star key={i} className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />)}
+              <span className="font-black text-gray-900 mr-1">4.8</span>
+              <span className="text-gray-500 text-xs">(1,247 ביקורות)</span>
+            </div>
+            {liveCount !== null && liveCount > 0 && (
+              <div className="inline-flex items-center gap-1.5 text-xs">
+                <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></span>
+                <span className="text-emerald-700 font-bold">{liveCount}</span>
+                <span className="text-gray-500">הזמנות בשעות אחרונות</span>
+              </div>
+            )}
+          </div>
+
+          {/* Ticker — single-line, calm */}
+          <div className="mt-2 h-4 text-[11px] text-gray-400 overflow-hidden">
+            <div
+              key={tickerIndex}
+              className="flex items-center gap-1.5"
+              style={{ animation: 'fadeIn 0.4s ease-out' }}
+            >
+              <span className="w-1 h-1 bg-emerald-400 rounded-full"></span>
+              <span><b className="text-gray-700">{TICKER_NAMES[tickerIndex]}</b> הזמין/ה לפני {TICKER_MINUTES[tickerIndex % TICKER_MINUTES.length]} דק׳ · קבוצה של {2 + (tickerIndex % 4)}</span>
+            </div>
           </div>
         </div>
-
-        <div className="h-6 bg-gradient-to-b from-transparent to-white/5"></div>
-      </header>
+      </section>
 
       {/* Tiny CSS keyframes (avoid global stylesheet edits) */}
       <style>{`
@@ -508,8 +512,8 @@ export default function PublicReservationPage() {
       )}
 
       {/* ============ BOOKING CARD ============ */}
-      <main ref={bookingCardRef} className="-mt-8 relative z-[2] px-3 md:px-6 pb-10">
-        <div className="max-w-2xl mx-auto bg-white text-gray-900 rounded-3xl shadow-2xl p-5 md:p-7 space-y-5">
+      <main ref={bookingCardRef} className="bg-white relative z-[2] px-3 md:px-6 pb-10">
+        <div className="max-w-2xl mx-auto bg-gray-50 text-gray-900 rounded-3xl shadow-lg border border-gray-200 p-5 md:p-7 space-y-5">
           <div className="text-center">
             <h2 className="text-2xl md:text-3xl font-black">הזמינו שולחן</h2>
             <p className="text-sm text-gray-500 mt-1">ללא דמי שירות · אישור מיידי · ביטול חופשי</p>
@@ -762,7 +766,7 @@ export default function PublicReservationPage() {
       </main>
 
       {/* ============ TRUST STRIP ============ */}
-      <section className="bg-zinc-950 px-3 py-6 border-t border-zinc-800/50">
+      <section className="bg-gray-50 px-3 py-8 border-t border-gray-200">
         <div className="max-w-5xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-3">
           <TrustBlock icon="⚡" title="אישור מיידי" sub="ב-30 שניות" />
           <TrustBlock icon="🚫" title="ללא דמי שירות" sub="בלי הפתעות" />
@@ -772,18 +776,18 @@ export default function PublicReservationPage() {
 
         {/* "Why us vs Wolt" contrast — strong differentiator */}
         <div className="max-w-3xl mx-auto mt-6 grid grid-cols-1 md:grid-cols-2 gap-3">
-          <div className="bg-emerald-900/30 border border-emerald-700/40 rounded-2xl p-4">
-            <div className="text-emerald-300 text-xs font-black uppercase tracking-wider mb-2">אצלנו</div>
-            <ul className="text-sm text-emerald-100 space-y-1">
+          <div className="bg-emerald-50 border-2 border-emerald-200 rounded-2xl p-4">
+            <div className="text-emerald-700 text-xs font-black uppercase tracking-wider mb-2">אצלנו</div>
+            <ul className="text-sm text-emerald-900 space-y-1">
               <li>✅ שולחן שמור עם השם שלך</li>
               <li>✅ מנגל פתוח · בשר טרי</li>
               <li>✅ ללא עמלות · אישור 30 שניות</li>
               <li>✅ אווירה. אנשים. צחוקים.</li>
             </ul>
           </div>
-          <div className="bg-zinc-800/50 border border-zinc-700/50 rounded-2xl p-4">
-            <div className="text-zinc-400 text-xs font-black uppercase tracking-wider mb-2">משלוח עמלה</div>
-            <ul className="text-sm text-zinc-400 space-y-1">
+          <div className="bg-gray-100 border-2 border-gray-200 rounded-2xl p-4">
+            <div className="text-gray-500 text-xs font-black uppercase tracking-wider mb-2">משלוח עמלה</div>
+            <ul className="text-sm text-gray-600 space-y-1">
               <li>⛔ 30% עמלה ממחיר המנה</li>
               <li>⛔ אוכל קר אחרי 40 דק׳</li>
               <li>⛔ בלי אווירה · בבית לבד</li>
@@ -795,32 +799,32 @@ export default function PublicReservationPage() {
 
       {/* ============ FEATURED MENU CAROUSEL ============ */}
       {featuredMenu.length > 0 && (
-        <section className="bg-zinc-900 px-3 md:px-5 py-10">
+        <section className="bg-white px-3 md:px-5 py-10 border-t border-gray-200">
           <div className="max-w-5xl mx-auto">
             <div className="flex items-end justify-between mb-4 px-2">
               <div>
-                <div className="text-xs text-amber-400 font-bold uppercase tracking-wider">המומלצים שלנו</div>
-                <h3 className="text-2xl md:text-3xl font-black text-white">תפריט שיפתח לך תיאבון</h3>
+                <div className="text-xs text-amber-600 font-bold uppercase tracking-wider">המומלצים שלנו</div>
+                <h3 className="text-2xl md:text-3xl font-black text-gray-900">תפריט שיפתח לך תיאבון</h3>
               </div>
-              <a href="/menu" className="text-xs text-amber-300 hover:text-amber-100 flex items-center gap-0.5">
+              <a href="/menu" className="text-xs text-amber-700 hover:text-amber-900 flex items-center gap-0.5 font-bold">
                 כל התפריט <ChevronRight className="w-3 h-3 rotate-180" />
               </a>
             </div>
             <div className="flex gap-3 overflow-x-auto pb-2 px-2 snap-x snap-mandatory">
               {featuredMenu.map((item) => (
-                <div key={item.id} className="flex-shrink-0 w-56 snap-start bg-zinc-800 rounded-2xl overflow-hidden border border-zinc-700/50 hover:border-amber-500/50 transition-colors">
+                <div key={item.id} className="flex-shrink-0 w-56 snap-start bg-white rounded-2xl overflow-hidden border border-gray-200 hover:border-amber-400 hover:shadow-lg transition-all">
                   {item.image_url && (
-                    <div className="aspect-[4/3] bg-zinc-900 overflow-hidden">
+                    <div className="aspect-[4/3] bg-gray-100 overflow-hidden">
                       <img src={item.image_url} alt={item.name} loading="lazy" className="w-full h-full object-cover" />
                     </div>
                   )}
                   <div className="p-3">
-                    <div className="font-bold text-white text-sm">{item.name}</div>
+                    <div className="font-bold text-gray-900 text-sm">{item.name}</div>
                     {item.description && (
-                      <p className="text-xs text-zinc-400 mt-1 line-clamp-2 leading-snug">{item.description}</p>
+                      <p className="text-xs text-gray-500 mt-1 line-clamp-2 leading-snug">{item.description}</p>
                     )}
                     {item.price ? (
-                      <div className="mt-2 text-amber-400 font-black text-sm">{Math.round(item.price)} ₪</div>
+                      <div className="mt-2 text-amber-700 font-black text-sm">{Math.round(item.price)} ₪</div>
                     ) : null}
                   </div>
                 </div>
@@ -832,27 +836,27 @@ export default function PublicReservationPage() {
 
       {/* ============ REVIEWS BLOCK ============ */}
       {reviews.length > 0 && (
-        <section className="bg-zinc-950 px-3 md:px-5 py-10 border-t border-zinc-800">
+        <section className="bg-gray-50 px-3 md:px-5 py-10 border-t border-gray-200">
           <div className="max-w-5xl mx-auto">
             <div className="text-center mb-5">
               <div className="flex items-center justify-center gap-1 mb-1">
                 {[1,2,3,4,5].map(i => <Star key={i} className="w-5 h-5 fill-amber-400 text-amber-400" />)}
               </div>
-              <h3 className="text-2xl md:text-3xl font-black text-white">מה הסועדים אומרים</h3>
-              <p className="text-zinc-400 text-sm mt-1">ביקורות אמיתיות מלקוחות עלינא</p>
+              <h3 className="text-2xl md:text-3xl font-black text-gray-900">מה הסועדים אומרים</h3>
+              <p className="text-gray-500 text-sm mt-1">ביקורות אמיתיות מלקוחות עלינא</p>
             </div>
             <div className="flex gap-3 overflow-x-auto pb-2 px-2 snap-x snap-mandatory">
               {reviews.map((r, i) => (
-                <div key={i} className="flex-shrink-0 w-72 snap-start bg-gradient-to-br from-zinc-900 to-zinc-800 border border-zinc-700/50 rounded-2xl p-4">
+                <div key={i} className="flex-shrink-0 w-72 snap-start bg-white border border-gray-200 rounded-2xl p-4 shadow-sm">
                   <div className="flex items-center gap-1 mb-2">
                     {Array.from({ length: r.rating || 5 }).map((_, k) => (
                       <Star key={k} className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
                     ))}
                   </div>
-                  <p className="text-sm text-zinc-200 leading-relaxed line-clamp-5">"{r.comment}"</p>
+                  <p className="text-sm text-gray-700 leading-relaxed line-clamp-5">"{r.comment}"</p>
                   <div className="mt-3 flex items-center justify-between text-xs">
-                    <span className="font-bold text-amber-300">— {r.name}</span>
-                    {r.date && <span className="text-zinc-500">{r.date}</span>}
+                    <span className="font-bold text-amber-700">— {r.name}</span>
+                    {r.date && <span className="text-gray-400">{r.date}</span>}
                   </div>
                 </div>
               ))}
@@ -862,10 +866,10 @@ export default function PublicReservationPage() {
       )}
 
       {/* ============ ABOUT / ATMOSPHERE ============ */}
-      <section className="bg-zinc-900 px-5 py-12">
+      <section className="bg-white px-5 py-12 border-t border-gray-200">
         <div className="max-w-2xl mx-auto text-center space-y-3">
-          <h3 className="text-2xl font-black text-amber-100">בשר. אלכוהול. אווירה. אנשים.</h3>
-          <p className="text-zinc-300 leading-relaxed">
+          <h3 className="text-2xl font-black text-gray-900">בשר. אלכוהול. אווירה. אנשים.</h3>
+          <p className="text-gray-600 leading-relaxed">
             עלינא היא לא רק מסעדה — היא מקום שבו אתם מרגישים בבית.
             המנגל פתוח 13 שעות ביום, היין נשפך, הצחוקים גבוהים.
             מ-12:00 עד אחרונה.
@@ -874,36 +878,44 @@ export default function PublicReservationPage() {
       </section>
 
       {/* ============ CONTACT / ADDRESS / HOURS ============ */}
-      <section className="bg-zinc-950 px-5 py-10 border-t border-zinc-800">
+      <section className="bg-gray-50 px-5 py-10 border-t border-gray-200">
         <div className="max-w-2xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
           <a href={wazeUrl} target="_blank" rel="noopener noreferrer"
-             className="bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 rounded-2xl p-4 flex items-start gap-3 transition-colors">
-            <NavIcon className="w-5 h-5 text-amber-400 mt-0.5" />
+             className="bg-white hover:bg-amber-50 border border-gray-200 hover:border-amber-300 rounded-2xl p-4 flex items-start gap-3 transition-colors">
+            <NavIcon className="w-5 h-5 text-amber-600 mt-0.5" />
             <div>
-              <div className="text-zinc-400 text-xs">ניווט ב-Waze</div>
-              <div className="text-white font-semibold mt-0.5">{address}</div>
+              <div className="text-gray-500 text-xs">ניווט ב-Waze</div>
+              <div className="text-gray-900 font-semibold mt-0.5">{address}</div>
             </div>
           </a>
           <a href={`tel:${phone.replace(/\D/g, '')}`}
-             className="bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 rounded-2xl p-4 flex items-start gap-3 transition-colors">
-            <Phone className="w-5 h-5 text-amber-400 mt-0.5" />
+             className="bg-white hover:bg-amber-50 border border-gray-200 hover:border-amber-300 rounded-2xl p-4 flex items-start gap-3 transition-colors">
+            <Phone className="w-5 h-5 text-amber-600 mt-0.5" />
             <div>
-              <div className="text-zinc-400 text-xs">חייגו אלינו</div>
-              <div className="text-white font-semibold mt-0.5" dir="ltr">{phone}</div>
+              <div className="text-gray-500 text-xs">חייגו אלינו</div>
+              <div className="text-gray-900 font-semibold mt-0.5" dir="ltr">{phone}</div>
             </div>
           </a>
-          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4 flex items-start gap-3">
-            <Clock className="w-5 h-5 text-amber-400 mt-0.5" />
+          <div className="bg-white border border-gray-200 rounded-2xl p-4 flex items-start gap-3">
+            <Clock className="w-5 h-5 text-amber-600 mt-0.5" />
             <div>
-              <div className="text-zinc-400 text-xs">שעות פתיחה היום</div>
-              <div className="text-white font-semibold mt-0.5">
+              <div className="text-gray-500 text-xs">שעות פתיחה היום</div>
+              <div className="text-gray-900 font-semibold mt-0.5">
                 {openingHours.start === '00:00' && openingHours.end === '00:00' ? 'סגור' : `${openingHours.start} - ${openingHours.end}`}
               </div>
             </div>
           </div>
         </div>
 
-        <p className="text-center text-zinc-600 text-xs mt-8">© עלינא · אוכל · אלכוהול · אווירה · אנשים</p>
+        {/* Social icons row */}
+        <div className="mt-6 flex items-center justify-center gap-3">
+          {social.instagram && <SocialIconLight href={social.instagram} label="Instagram"><Instagram className="w-4 h-4" /></SocialIconLight>}
+          {social.tiktok    && <SocialIconLight href={social.tiktok}    label="TikTok"><Music2 className="w-4 h-4" /></SocialIconLight>}
+          {social.facebook  && <SocialIconLight href={social.facebook}  label="Facebook"><Facebook className="w-4 h-4" /></SocialIconLight>}
+          {social.whatsapp  && <SocialIconLight href={social.whatsapp}  label="WhatsApp"><MessageCircle className="w-4 h-4" /></SocialIconLight>}
+        </div>
+
+        <p className="text-center text-gray-400 text-xs mt-6">© עלינא · אוכל · אלכוהול · אווירה · אנשים</p>
       </section>
 
       {/* ============ EXIT INTENT MODAL (desktop) ============ */}
@@ -982,10 +994,10 @@ function Row({ icon, label, value }) {
 
 function TrustBlock({ icon, title, sub }) {
   return (
-    <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-3 text-center">
+    <div className="bg-white border border-gray-200 rounded-2xl p-3 text-center hover:border-amber-300 transition-colors">
       <div className="text-2xl mb-1">{icon}</div>
-      <div className="text-sm font-black text-white">{title}</div>
-      <div className="text-[10px] text-zinc-400 mt-0.5">{sub}</div>
+      <div className="text-sm font-black text-gray-900">{title}</div>
+      <div className="text-[10px] text-gray-500 mt-0.5">{sub}</div>
     </div>
   );
 }
@@ -998,6 +1010,20 @@ function SocialIcon({ href, label, children }) {
       rel="noopener noreferrer"
       aria-label={label}
       className="w-10 h-10 rounded-full bg-white/10 backdrop-blur-md hover:bg-white/20 flex items-center justify-center text-white transition-colors"
+    >
+      {children}
+    </a>
+  );
+}
+
+function SocialIconLight({ href, label, children }) {
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      aria-label={label}
+      className="w-10 h-10 rounded-full bg-white border border-gray-200 hover:border-amber-400 hover:text-amber-700 flex items-center justify-center text-gray-600 transition-colors"
     >
       {children}
     </a>
