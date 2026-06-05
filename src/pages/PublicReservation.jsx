@@ -434,13 +434,6 @@ export default function PublicReservationPage() {
           {/* Bottom fade for legibility of identity strip */}
           <div className="absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-white via-white/70 to-transparent"></div>
 
-          {/* Floating bonus pill — brand brass */}
-          <div className="absolute top-16 right-4 md:right-8 z-10">
-            <div className="rounded-full px-3 py-1.5 text-[11px] font-black shadow-lg flex items-center gap-1" style={{ background: '#B89556', color: '#1F1B17' }}>
-              🎁 פוקצ׳ה חינם
-            </div>
-          </div>
-
           {/* Hero wordmark — always shown, sits above the cocktail-bar photo */}
           <div className="absolute inset-x-0 bottom-16 md:bottom-24 z-[5] text-center pointer-events-none">
             <p className="text-[10px] md:text-xs uppercase tracking-[0.4em] drop-shadow" style={{ color: '#D9BD83' }}>
@@ -937,29 +930,6 @@ export default function PublicReservationPage() {
 
         <p className="text-center text-gray-400 text-xs mt-6">© עלינא · אוכל · אלכוהול · אווירה · אנשים</p>
       </section>
-
-      {/* ============ EXIT INTENT MODAL (desktop) ============ */}
-      {showExitIntent && !success && (
-        <div className="fixed inset-0 z-[100] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setShowExitIntent(false)}>
-          <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full p-6 md:p-8 text-center space-y-4 relative" onClick={e => e.stopPropagation()}>
-            <button onClick={() => setShowExitIntent(false)} className="absolute top-3 left-3 text-gray-400 hover:text-gray-700 text-xl leading-none">✕</button>
-            <div className="text-5xl">🔥</div>
-            <h2 className="text-2xl font-black text-gray-900">רגע! לפני שאתה הולך...</h2>
-            <p className="text-gray-700 leading-relaxed">
-              הזמן עכשיו וקבל <b className="text-amber-600">פוקצ׳ה חמה מתנה</b> לשולחן.
-              <br />
-              <span className="text-xs text-gray-500">תקף 24 שעות. הזמנה אחת ללקוח חדש.</span>
-            </p>
-            <button
-              onClick={() => { setShowExitIntent(false); scrollToBooking(); }}
-              className="w-full bg-gradient-to-l from-amber-600 to-rose-600 text-white font-black py-3 rounded-2xl text-lg shadow-lg"
-            >
-              🎁 קח את המתנה
-            </button>
-            <p className="text-[11px] text-gray-400">לא תודה — אסגור</p>
-          </div>
-        </div>
-      )}
 
       {/* ============ STICKY MOBILE CTA ============ */}
       {/* Appears once user has scrolled past the booking card — a single tap returns them to it */}
