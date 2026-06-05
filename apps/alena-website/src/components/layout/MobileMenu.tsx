@@ -63,13 +63,13 @@ export function MobileMenu() {
               className="absolute inset-0 bg-charcoal/60 backdrop-blur-sm"
             />
 
-            {/* Drawer */}
+            {/* Drawer — slides in from the right (hamburger is on the right in RTL) */}
             <motion.div
-              initial={{ x: "-100%" }}
+              initial={{ x: "100%" }}
               animate={{ x: 0 }}
-              exit={{ x: "-100%" }}
+              exit={{ x: "100%" }}
               transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
-              className="absolute inset-y-0 right-0 flex w-full max-w-sm flex-col bg-cream shadow-2xl"
+              className="absolute inset-y-0 right-0 flex w-[88%] max-w-sm flex-col bg-cream shadow-2xl"
             >
               {/* Header */}
               <div className="flex items-center justify-between border-b border-brass/15 px-5 py-4">
