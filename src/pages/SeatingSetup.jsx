@@ -2002,6 +2002,7 @@ export default function SeatingSetup() {
                                         activeSessions={activeSessions}
                                         queueEntries={queueEntries}
                                         customers={customers}
+                                        onSwitchToListMode={() => { setViewMode('list'); setBigMapMode(false); }}
                                     />
 
                                     {/* Tab toggle at top — 3 tabs: tonight / full / queue */}
@@ -2915,10 +2916,28 @@ function QueueApprovalBanner({ banner, onApprove, onReject, onDismiss, onOpenTab
 //   - Returning customer in queue → suggest area
 //   - Critical wait times in queue
 //   - Empty hot zone in busy hour
-function AiAssistantPanel({ tables, reservations, activeSessions, queueEntries, customers }) {
+function AiAssistantPanel({ tables, reservations, activeSessions, queueEntries, customers, onSwitchToListMode }) {
     const [collapsed, setCollapsed] = useState(false);
+    const [chatQuestion, setChatQuestion] = useState('');
+    const [chatLoading, setChatLoading] = useState(false);
+    const [chatAnswer, setChatAnswer] = useState(null); // { answer, actions }
     const now = new Date();
     const recs = [];
+
+    const askAi = async () => {
+        if (!chatQuestion.trim()) return;
+        setChatLoading(true);
+        setChatAnswer(null);
+        try {
+            const res = await base44.functions.aiSeatingAssistant({ question: chatQuestion });
+            const data = res?.data || res;
+            setChatAnswer(data);
+        } catch (e) {
+            setChatAnswer({ answer: 'שגיאה בשליחה ל-AI: ' + (e?.message || e), actions: [] });
+        } finally {
+            setChatLoading(false);
+        }
+    };
 
     // 1. Tables finishing in next 30 min + queue waiting
     const occupiedFinishingSoon = (reservations || []).filter(r => {
@@ -2980,7 +2999,44 @@ function AiAssistantPanel({ tables, reservations, activeSessions, queueEntries, 
         }
     });
 
-    // 4. Long wait in queue
+    // 4. CONFLICT: seated table overstaying + incoming reservation for same table
+    const todayStr = format(now, 'yyyy-MM-dd');
+    (reservations || []).forEach(r => {
+        if (r.status !== 'seated' || !r.reservation_end_time || !r.assigned_table) return;
+        const [eh, em] = r.reservation_end_time.split(':').map(Number);
+        const end = new Date(); end.setHours(eh, em || 0, 0, 0);
+        const minsLate = (now.getTime() - end.getTime()) / 60000;
+        if (minsLate < -5) return; // not late yet
+        const assigned = Array.isArray(r.assigned_table) ? r.assigned_table : [r.assigned_table];
+        const blocker = (reservations || []).find(r2 =>
+            r2.id !== r.id &&
+            r2.status === 'confirmed' &&
+            r2.date === todayStr &&
+            r2.assigned_table &&
+            (Array.isArray(r2.assigned_table) ? r2.assigned_table : [r2.assigned_table]).some(t => assigned.includes(t)) &&
+            r2.time
+        );
+        if (blocker) {
+            const [bh, bm] = blocker.time.split(':').map(Number);
+            const blkStart = new Date(); blkStart.setHours(bh, bm || 0, 0, 0);
+            const minsTilBlocker = (blkStart.getTime() - now.getTime()) / 60000;
+            recs.push({
+                icon: '🚨',
+                level: 'red',
+                title: `שולחן ${assigned.join(',')} ${minsLate > 0 ? `מאחר ${Math.round(minsLate)} דק׳` : 'אמור לסיים'}`,
+                detail: `${blocker.customer_name} מגיעים ב-${blocker.time} (בעוד ${Math.max(0, Math.round(minsTilBlocker))} דק׳) — שווה לסיים עכשיו או להעביר לשולחן אחר`,
+            });
+        } else if (minsLate > 15) {
+            recs.push({
+                icon: '⏱️',
+                level: 'amber',
+                title: `שולחן ${assigned.join(',')} מאחר ${Math.round(minsLate)} דק׳`,
+                detail: `${r.customer_name} מעבר לזמן, אבל אין הזמנה אחרת על השולחן`,
+            });
+        }
+    });
+
+    // 5. Long wait in queue
     const longWait = (queueEntries || []).find(q => {
         if (!q.timestamp_register) return false;
         const min = (Date.now() - new Date(q.timestamp_register).getTime()) / 60000;
@@ -3028,16 +3084,59 @@ function AiAssistantPanel({ tables, reservations, activeSessions, queueEntries, 
                 <span className="text-xs text-indigo-600">{collapsed ? '▼' : '▲'}</span>
             </button>
             {!collapsed && (
-                <div className="px-2 pb-2 space-y-1.5 max-h-44 overflow-y-auto">
-                    {recs.map((r, i) => (
-                        <div key={i} className={`border rounded-lg p-2 ${levelStyle[r.level] || levelStyle.green}`}>
-                            <div className="text-xs font-black flex items-center gap-1">
-                                <span>{r.icon}</span>
-                                <span>{r.title}</span>
+                <div className="px-2 pb-2 space-y-1.5">
+                    {/* Real-time auto recommendations */}
+                    <div className="space-y-1.5 max-h-44 overflow-y-auto">
+                        {recs.map((r, i) => (
+                            <div key={i} className={`border rounded-lg p-2 ${levelStyle[r.level] || levelStyle.green}`}>
+                                <div className="text-xs font-black flex items-center gap-1">
+                                    <span>{r.icon}</span>
+                                    <span>{r.title}</span>
+                                </div>
+                                <div className="text-[10px] mt-0.5 opacity-90">{r.detail}</div>
                             </div>
-                            <div className="text-[10px] mt-0.5 opacity-90">{r.detail}</div>
+                        ))}
+                    </div>
+
+                    {/* Chat input — ask AI for help with any dilemma */}
+                    <div className="pt-1.5 border-t border-indigo-200">
+                        <div className="text-[10px] font-bold text-indigo-700 mb-1">💬 שאל את ה-AI:</div>
+                        <div className="flex gap-1">
+                            <input
+                                value={chatQuestion}
+                                onChange={e => setChatQuestion(e.target.value)}
+                                onKeyDown={e => { if (e.key === 'Enter' && !chatLoading) askAi(); }}
+                                placeholder='לדוגמה: "איפה לשבת קבוצה של 6?"'
+                                disabled={chatLoading}
+                                className="flex-1 text-xs border border-indigo-300 rounded-lg px-2 py-1 focus:outline-none focus:border-indigo-500"
+                            />
+                            <button
+                                onClick={askAi}
+                                disabled={chatLoading || !chatQuestion.trim()}
+                                className="bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-300 text-white text-xs font-bold px-3 rounded-lg"
+                            >{chatLoading ? '…' : 'שלח'}</button>
                         </div>
-                    ))}
+                        {chatAnswer && (
+                            <div className="mt-1.5 bg-white border border-indigo-200 rounded-lg p-2">
+                                <div className="text-[11px] text-gray-800 leading-relaxed">{chatAnswer.answer}</div>
+                                {Array.isArray(chatAnswer.actions) && chatAnswer.actions.length > 0 && (
+                                    <div className="mt-1.5 flex flex-wrap gap-1">
+                                        {chatAnswer.actions.map((a, i) => (
+                                            <span key={i} className="bg-indigo-50 border border-indigo-200 text-indigo-700 text-[10px] font-bold px-1.5 py-0.5 rounded">
+                                                {a.label}{a.table ? ` · 🪑${a.table}` : ''}{a.customer ? ` · ${a.customer}` : ''}
+                                            </span>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Quick link: settings */}
+                    <button
+                        onClick={onSwitchToListMode}
+                        className="w-full text-[10px] text-indigo-600 hover:text-indigo-800 underline text-center pt-1"
+                    >🔗 הגדר חיבורי שולחנות (עבור לתצוגת רשימה)</button>
                 </div>
             )}
         </div>

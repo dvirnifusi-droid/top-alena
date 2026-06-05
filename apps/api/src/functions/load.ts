@@ -8550,3 +8550,111 @@ registerFn('seedSpecialPopupsIfEmpty', async ({ user }) => {
   }
   return { seeded: true, count: seeds.length };
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// AI SEATING ASSISTANT — LLM-backed advisor for the hostess
+// Takes a free-text question + current restaurant state, returns a structured
+// recommendation. Used by the rail's AI chat box.
+// ─────────────────────────────────────────────────────────────────────────────
+registerFn('aiSeatingAssistant', async ({ body }) => {
+  const b = (body || {}) as any;
+  const question = String(b.question || '').slice(0, 600).trim();
+  if (!question) throw new Error('question required');
+
+  const [layout, allRes, queue, sessions] = await Promise.all([
+    (prisma as any).seatingLayout.findFirst().catch(() => null),
+    db.reservation.findMany({ orderBy: { time: 'asc' }, take: 200 }),
+    (prisma as any).queueEntry.findMany({ orderBy: { timestamp_register: 'desc' }, take: 50 }).catch(() => []),
+    db.tableSession.findMany({ where: { status: 'active' } }),
+  ]);
+
+  const today = new Date().toISOString().slice(0, 10);
+  const todayRes = (allRes || []).filter((r: any) => {
+    const d = r.date instanceof Date ? r.date.toISOString().slice(0, 10) : String(r.date).slice(0, 10);
+    return d === today;
+  });
+  const activeQueue = (queue || []).filter((q: any) =>
+    (q.status === 'pending' || q.status === 'active') && !q.treated
+  );
+  const tables = (layout?.tables as any[] || []).map((t: any) => ({
+    n: t.table_number, min: t.min_capacity, max: t.max_capacity,
+    area: t.area, combinable: t.combinable_with, location: t.location,
+  }));
+  const reservations = todayRes.map((r: any) => ({
+    name: r.customer_name, time: r.time, end: r.reservation_end_time,
+    party: r.party_size, status: r.status, table: r.assigned_table,
+  }));
+  const queueShort = activeQueue.map((q: any) => ({
+    name: q.customer_name, party: q.party_size,
+    waitMin: q.timestamp_register
+      ? Math.round((Date.now() - new Date(q.timestamp_register).getTime()) / 60000) : 0,
+    status: q.status, pref: q.seating_preference,
+  }));
+  const seatedNow = sessions.map((s: any) => ({
+    table: s.table_number, party: s.party_size, name: s.customer_name,
+  }));
+
+  const nowStr = new Date().toLocaleString('he-IL', { hour: '2-digit', minute: '2-digit' });
+  const combinable = tables.filter((t: any) => Array.isArray(t.combinable) && t.combinable.length);
+
+  const sys = `אתה עוזר ניהול הושבה למסעדה "עלינא" בראשון לציון. מקבל מצב מסעדה עכשיו ועונה למארחת בעברית.
+תפקידך: המלצה קצרה, מעשית, ספציפית. שמות, שעות ושולחנות אמיתיים מהנתונים בלבד.
+תמיד החזר JSON: {"answer": "...", "actions": [{"label":"...","table":"...","customer":"..."}]}.
+תשובה 1-3 משפטים. פעולות = רעיונות קונקרטיים (חבר 201+202, הושב X על שולחן Y, האריך, העבר וכו').`;
+
+  const userCtx = `שעה: ${nowStr}
+
+שאלה מהמארחת:
+"""${question}"""
+
+מצב נוכחי:
+• ${tables.length} שולחנות (אזורים: ${[...new Set(tables.map((t: any) => t.area))].join(', ')})
+• ${reservations.length} הזמנות היום
+• ${queueShort.length} בתור (${queueShort.filter((q: any) => q.status === 'pending').length} pending, ${queueShort.filter((q: any) => q.status === 'active').length} active)
+• ${seatedNow.length} סשנים פעילים
+
+חיבורי שולחנות מוגדרים:
+${combinable.map((t: any) => `${t.n}+${t.combinable.join('+')} (${t.min}-${t.max})`).join(', ') || 'אין'}
+
+הזמנות פתוחות (היום):
+${reservations.slice(0, 30).map((r: any) => `${r.time || '--'} ${r.name} ×${r.party} [${r.status}]${r.table ? ' שולחן ' + (Array.isArray(r.table) ? r.table.join(',') : r.table) : ''}`).join('\n') || '—'}
+
+בתור:
+${queueShort.map((q: any) => `${q.name} ×${q.party} (ממתין ${q.waitMin}ד״ק, ${q.status}${q.pref ? ', ' + q.pref : ''})`).join('\n') || '—'}
+
+יושבים עכשיו (סשנים פעילים):
+${seatedNow.map((s: any) => `שולחן ${s.table} ×${s.party} ${s.name || ''}`).join('\n') || '—'}
+
+החזר JSON בלבד.`;
+
+  try {
+    const out: any = await invokeLLM({
+      prompt: userCtx,
+      system_prompt: sys,
+      response_json_schema: {
+        type: 'object',
+        properties: {
+          answer: { type: 'string' },
+          actions: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                label: { type: 'string' },
+                table: { type: 'string' },
+                customer: { type: 'string' },
+              },
+            },
+          },
+        },
+        required: ['answer'],
+      },
+    });
+    return {
+      answer: out?.answer || 'לא הצלחתי להבין — נסה לנסח שוב.',
+      actions: Array.isArray(out?.actions) ? out.actions.slice(0, 5) : [],
+    };
+  } catch (e: any) {
+    return { answer: `שגיאת AI: ${e?.message || 'לא ידוע'}`, actions: [] };
+  }
+});
