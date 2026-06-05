@@ -278,6 +278,8 @@ export default function SeatingSetup() {
     const [selectedAreas, setSelectedAreas] = useState(['all']);
     const [mapZoom, setMapZoom] = useState(1);     // 0.5–1.5 — scales the 1400×850 map canvas
     const [mobileSheetOpen, setMobileSheetOpen] = useState(false);  // slide-up reservations dashboard on mobile
+    const [bigMapMode, setBigMapMode] = useState(false);  // hostess fullscreen workflow — map + compact tonight strip
+    const [dashboardDrawerOpen, setDashboardDrawerOpen] = useState(false);  // overlay slide-in of full dashboard
     const toggleArea = (key) => {
         if (key === 'all') { setSelectedAreas(['all']); return; }
         setSelectedAreas(prev => {
@@ -1444,7 +1446,18 @@ export default function SeatingSetup() {
                                 <CardDescription className="hidden sm:block">כל השולחנות והאלמנטים הפיזיים במסעדה.</CardDescription>
                             </div>
                             <div className="flex gap-1 sm:gap-2">
-                                <Button variant={viewMode === 'list' ? 'secondary' : 'outline'} size="icon" className="h-9 w-9" onClick={() => setViewMode('list')}><Edit className="w-4 h-4"/></Button>
+                                {viewMode === 'map' && (
+                                    <Button
+                                        variant={bigMapMode ? 'default' : 'outline'}
+                                        size="sm"
+                                        onClick={() => setBigMapMode(v => !v)}
+                                        className={`hidden lg:flex ${bigMapMode ? 'bg-indigo-600 hover:bg-indigo-700 text-white' : ''}`}
+                                    >
+                                        <Maximize2 className="w-4 h-4 ml-1" />
+                                        {bigMapMode ? 'צא ממפה גדולה' : 'מפה גדולה'}
+                                    </Button>
+                                )}
+                                <Button variant={viewMode === 'list' ? 'secondary' : 'outline'} size="icon" className="h-9 w-9" onClick={() => { setViewMode('list'); setBigMapMode(false); }}><Edit className="w-4 h-4"/></Button>
                                 <Button variant={viewMode === 'map' ? 'secondary' : 'outline'} size="icon" className="h-9 w-9" onClick={() => setViewMode('map')}><Eye className="w-4 h-4"/></Button>
                                 <Button onClick={handleSaveLayout} disabled={isSaving} size="sm">
                                     {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
@@ -1508,8 +1521,9 @@ export default function SeatingSetup() {
                                 <Button variant="outline" onClick={handleAddTable}><Plus className="w-4 h-4 ml-2" />הוסף שולחן</Button>
                             </div>
                         ) : (
-                            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-6">
-                                {/* Side panel — desktop sidebar / mobile bottom sheet */}
+                            <div className={`grid grid-cols-1 gap-4 lg:gap-4 ${bigMapMode ? 'lg:grid-cols-4' : 'lg:grid-cols-3'}`}>
+                                {/* Full sidebar — hidden in big-map mode; replaced by compact strip */}
+                                {!bigMapMode && (
                                 <div className={`lg:order-1 space-y-4 ${mobileSheetOpen
                                     ? 'fixed inset-0 z-40 bg-gray-50 p-4 overflow-y-auto'
                                     : 'hidden lg:block'
@@ -1525,8 +1539,21 @@ export default function SeatingSetup() {
                                     <ReservationsDashboard />
                                     <ReservationTool onReservationCreated={loadLayout} />
                                 </div>
+                                )}
 
-                                <div className="lg:col-span-2 lg:order-2 space-y-3">
+                                {/* Compact "tonight" strip — only in big-map mode */}
+                                {bigMapMode && (
+                                <div className="hidden lg:flex flex-col gap-2 lg:order-2 max-h-[80vh] overflow-y-auto pr-1">
+                                    <CompactTonightStrip
+                                        reservations={reservations}
+                                        selectedDate={selectedDate}
+                                        onEdit={(r) => { setEditingReservation(r); setIsEditReservationOpen(true); }}
+                                        onOpenFullDashboard={() => setDashboardDrawerOpen(true)}
+                                    />
+                                </div>
+                                )}
+
+                                <div className={`${bigMapMode ? 'lg:col-span-3 lg:order-1' : 'lg:col-span-2 lg:order-2'} space-y-3`}>
                                     {/* פילטר אזורים - נראה בעיקר במובייל */}
                                     <div className="flex flex-wrap gap-2 p-2 bg-gray-50 rounded-lg border">
                                         {[
@@ -1611,7 +1638,7 @@ export default function SeatingSetup() {
                                         ><ZoomIn className="w-4 h-4"/></button>
                                         <span className="text-[10px] text-gray-400 mr-2 hidden md:inline">גרור לתזוזה</span>
                                     </div>
-                                    <div className="w-full overflow-auto border rounded-lg bg-gray-100" style={{ maxHeight: '70vh' }}>
+                                    <div className="w-full overflow-auto border rounded-lg bg-gray-100" style={{ maxHeight: bigMapMode ? '85vh' : '70vh' }}>
                                     {/* Outer wrapper takes the *visual* (scaled) dimensions so scrollbars match.
                                         Inner element renders at native 1400×850 and is scaled with transform. */}
                                     <div style={{ width: `${1400 * mapZoom}px`, height: `${850 * mapZoom}px` }}>
@@ -1896,7 +1923,122 @@ export default function SeatingSetup() {
             >
                 <Calendar className="w-6 h-6" />
             </button>
+
+            {/* Dashboard drawer — slide-in from the right in big-map mode */}
+            {dashboardDrawerOpen && (
+                <div className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm" onClick={() => setDashboardDrawerOpen(false)}>
+                    <div
+                        className="absolute right-0 top-0 bottom-0 w-full max-w-md bg-white p-4 overflow-y-auto shadow-2xl"
+                        onClick={(e) => e.stopPropagation()}
+                        dir="rtl"
+                    >
+                        <div className="flex items-center justify-between mb-3">
+                            <h3 className="text-lg font-black">לוח הזמנות מלא</h3>
+                            <button onClick={() => setDashboardDrawerOpen(false)} className="p-2 -m-2 rounded-full hover:bg-gray-100">
+                                <X className="w-5 h-5"/>
+                            </button>
+                        </div>
+                        <div className="space-y-4">
+                            <ReservationsDashboard />
+                            <ReservationTool onReservationCreated={loadLayout} />
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
+    );
+}
+
+// === CompactTonightStrip — narrow right rail for big-map mode ================
+// Shows TODAY's evening reservations only (>= 17:00), grouped chronologically.
+// Each row is tap/click-to-edit. There's also a button to open the full dashboard.
+function CompactTonightStrip({ reservations, selectedDate, onEdit, onOpenFullDashboard }) {
+    const todayStr = format(new Date(selectedDate), 'yyyy-MM-dd');
+    const tonight = (reservations || [])
+        .filter(r => {
+            const d = (r.date instanceof Date) ? format(r.date, 'yyyy-MM-dd') : String(r.date || '').slice(0, 10);
+            if (d !== todayStr) return false;
+            if (r.status === 'cancelled' || r.status === 'no_show') return false;
+            // evening focus: 17:00 onwards. fallback: include all if no time
+            if (!r.time) return true;
+            return String(r.time) >= '17:00';
+        })
+        .sort((a, b) => String(a.time || '').localeCompare(String(b.time || '')));
+
+    const totalGuests = tonight.reduce((s, r) => s + (r.party_size || 0), 0);
+
+    // Status pill color
+    const statusPill = (s) => {
+        if (s === 'seated') return 'bg-emerald-100 text-emerald-700 border-emerald-200';
+        if (s === 'confirmed') return 'bg-blue-100 text-blue-700 border-blue-200';
+        if (s === 'pending') return 'bg-amber-100 text-amber-700 border-amber-200';
+        return 'bg-gray-100 text-gray-600 border-gray-200';
+    };
+    const statusLabel = (s) => {
+        if (s === 'seated') return 'יושב';
+        if (s === 'confirmed') return 'אושר';
+        if (s === 'pending') return 'ממתין';
+        return s || '—';
+    };
+
+    return (
+        <>
+            {/* Sticky header */}
+            <div className="sticky top-0 bg-white border-2 border-indigo-200 rounded-2xl p-3 z-10 shadow-sm">
+                <div className="flex items-center justify-between">
+                    <div>
+                        <div className="text-[10px] font-bold text-indigo-600 uppercase tracking-wider">הזמנות הערב</div>
+                        <div className="text-2xl font-black text-gray-900">{tonight.length}</div>
+                    </div>
+                    <div className="text-right">
+                        <div className="text-[10px] text-gray-500">סה״כ סועדים</div>
+                        <div className="text-2xl font-black text-gray-900">{totalGuests}</div>
+                    </div>
+                </div>
+                <button
+                    onClick={onOpenFullDashboard}
+                    className="mt-2 w-full text-xs bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 rounded-lg flex items-center justify-center gap-1"
+                >
+                    <Calendar className="w-3.5 h-3.5" />
+                    פתח לוח מלא
+                </button>
+            </div>
+
+            {/* List */}
+            {tonight.length === 0 ? (
+                <div className="bg-white border border-gray-200 rounded-2xl p-5 text-center">
+                    <div className="text-3xl mb-1">🌙</div>
+                    <div className="text-sm text-gray-500">אין הזמנות הערב</div>
+                </div>
+            ) : (
+                tonight.map((r) => (
+                    <button
+                        key={r.id}
+                        onClick={() => onEdit && onEdit(r)}
+                        className="w-full text-right bg-white hover:bg-indigo-50 border border-gray-200 hover:border-indigo-400 rounded-xl p-2.5 transition-colors"
+                    >
+                        <div className="flex items-center justify-between gap-2">
+                            <div className="font-black text-sm text-gray-900 leading-tight">{r.time || '--:--'}</div>
+                            <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full border ${statusPill(r.status)}`}>
+                                {statusLabel(r.status)}
+                            </span>
+                        </div>
+                        <div className="font-bold text-sm text-gray-800 truncate mt-0.5">{r.customer_name || 'אורח'}</div>
+                        <div className="flex items-center justify-between text-[11px] text-gray-500 mt-0.5">
+                            <span className="flex items-center gap-0.5"><Users className="w-3 h-3"/>{r.party_size || '?'}</span>
+                            {r.assigned_table && (
+                                <span className="font-bold text-indigo-600">
+                                    🪑 {Array.isArray(r.assigned_table) ? r.assigned_table.join(',') : r.assigned_table}
+                                </span>
+                            )}
+                            {r.special_occasion && (
+                                <span className="text-rose-500" title={r.special_occasion}>🎂</span>
+                            )}
+                        </div>
+                    </button>
+                ))
+            )}
+        </>
     );
 }
 
