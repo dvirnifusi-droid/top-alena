@@ -425,7 +425,7 @@ export default function PublicReservationPage() {
 
         {/* Wide aspect hero photo (settings.hero_image_url overrides) */}
         <div
-          className="w-full h-[48vh] md:h-[54vh] min-h-[340px] max-h-[480px] relative overflow-hidden"
+          className="w-full h-[40vh] md:h-[54vh] min-h-[280px] md:min-h-[340px] max-h-[480px] relative overflow-hidden"
           style={{
             backgroundImage: settings?.hero_image_url
               ? `url(${settings.hero_image_url})`
@@ -461,62 +461,41 @@ export default function PublicReservationPage() {
         </div>
       </header>
 
-      {/* ============ IDENTITY STRIP ============ */}
-      <section className="text-gray-900 -mt-12 relative z-10" style={{ background: '#FFFEFB' }}>
-        <div className="max-w-3xl mx-auto px-4 md:px-8 pt-3 pb-5">
-          <div className="flex items-start gap-3 md:gap-5">
-            {/* Logo bubble — brand olive branch + wordmark */}
-            <div className="flex-shrink-0 w-16 h-16 md:w-20 md:h-20 rounded-2xl flex items-center justify-center shadow-lg border-4 border-white" style={{ background: '#1F1B17' }}>
-              {settings?.logo_url ? (
-                <img src={settings.logo_url} alt={restaurantName} className="w-full h-full object-cover rounded-2xl" />
-              ) : (
-                <svg viewBox="0 0 64 64" className="w-10 h-10 md:w-12 md:h-12" aria-hidden="true">
-                  <path d="M8 36 Q20 22 32 28 Q44 34 56 24" fill="none" stroke="#B89556" strokeWidth="2" strokeLinecap="round" />
-                  <ellipse cx="14" cy="30" rx="4" ry="2.4" transform="rotate(-25 14 30)" fill="#44512C" />
-                  <ellipse cx="26" cy="27" rx="4" ry="2.4" transform="rotate(-8 26 27)" fill="#44512C" />
-                  <ellipse cx="38" cy="29" rx="4" ry="2.4" transform="rotate(12 38 29)" fill="#44512C" />
-                  <ellipse cx="50" cy="26" rx="4" ry="2.4" transform="rotate(-8 50 26)" fill="#44512C" />
-                  <text x="32" y="52" textAnchor="middle" fontSize="14" fontWeight="900" fill="#F4ECD8" fontFamily="Frank Ruhl Libre, serif">עלינא</text>
-                </svg>
-              )}
-            </div>
-            <div className="flex-1 min-w-0 pt-1">
-              <h1 className="brand-display text-3xl md:text-5xl leading-tight" style={{ color: '#1F1B17' }}>{restaurantName}</h1>
-              <p className="text-sm mt-0.5" style={{ color: '#6B7A4F' }}>חמארה ים-תיכונית · רוטשילד 104, ראשון לציון</p>
-              {/* Tags — brand brass */}
-              <div className="mt-2 flex flex-wrap gap-1.5">
-                {(settings?.tags && Array.isArray(settings.tags) ? settings.tags : ['בשר על האש', 'כשר', 'אלכוהול', 'אווירה']).map(tag => (
-                  <span key={tag} className="rounded-full px-2.5 py-0.5 text-[11px] font-bold" style={{ background: 'rgba(184,149,86,0.15)', color: '#8B5A3A', border: '1px solid rgba(184,149,86,0.4)' }}>{tag}</span>
-                ))}
-              </div>
-            </div>
+      {/* ============ COMPACT TRUST STRIP (hero already carries the wordmark) ============ */}
+      <section className="-mt-10 md:-mt-12 relative z-10" style={{ background: '#FFFEFB' }}>
+        <div className="max-w-3xl mx-auto px-4 md:px-8 pt-3 pb-4 text-center">
+          {/* Tags */}
+          <div className="flex flex-wrap items-center justify-center gap-1.5">
+            {(settings?.tags && Array.isArray(settings.tags) ? settings.tags : ['בשר על האש', 'כשר', 'אלכוהול', 'אווירה']).map(tag => (
+              <span key={tag} className="rounded-full px-2.5 py-0.5 text-[11px] font-bold" style={{ background: 'rgba(184,149,86,0.15)', color: '#8B5A3A', border: '1px solid rgba(184,149,86,0.4)' }}>{tag}</span>
+            ))}
           </div>
 
-          {/* Rating row */}
-          <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+          {/* Rating + live count — single line on desktop, wraps on mobile */}
+          <div className="mt-2.5 flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-sm">
             <div className="flex items-center gap-1">
-              {[1,2,3,4,5].map(i => <Star key={i} className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />)}
-              <span className="font-black text-gray-900 mr-1">4.8</span>
-              <span className="text-gray-500 text-xs">(1,247 ביקורות)</span>
+              {[1,2,3,4,5].map(i => <Star key={i} className="w-3.5 h-3.5" style={{ fill: '#B89556', color: '#B89556' }} />)}
+              <span className="font-black mr-1" style={{ color: '#1F1B17' }}>4.8</span>
+              <span className="text-xs" style={{ color: '#8B7F65' }}>(1,247 ביקורות)</span>
             </div>
             {liveCount !== null && liveCount > 0 && (
               <div className="inline-flex items-center gap-1.5 text-xs">
-                <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></span>
-                <span className="text-emerald-700 font-bold">{liveCount}</span>
-                <span className="text-gray-500">הזמנות בשעות אחרונות</span>
+                <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: '#44512C' }}></span>
+                <span className="font-bold" style={{ color: '#44512C' }}>{liveCount}</span>
+                <span style={{ color: '#8B7F65' }}>הזמנות בשעות אחרונות</span>
               </div>
             )}
           </div>
 
-          {/* Ticker — single-line, calm */}
-          <div className="mt-2 h-4 text-[11px] text-gray-400 overflow-hidden">
+          {/* Ticker */}
+          <div className="mt-1.5 h-4 text-[11px] overflow-hidden" style={{ color: '#A8967A' }}>
             <div
               key={tickerIndex}
-              className="flex items-center gap-1.5"
+              className="flex items-center justify-center gap-1.5"
               style={{ animation: 'fadeIn 0.4s ease-out' }}
             >
-              <span className="w-1 h-1 bg-emerald-400 rounded-full"></span>
-              <span><b className="text-gray-700">{TICKER_NAMES[tickerIndex]}</b> הזמין/ה לפני {TICKER_MINUTES[tickerIndex % TICKER_MINUTES.length]} דק׳ · קבוצה של {2 + (tickerIndex % 4)}</span>
+              <span className="w-1 h-1 rounded-full" style={{ background: '#44512C' }}></span>
+              <span><b style={{ color: '#44512C' }}>{TICKER_NAMES[tickerIndex]}</b> הזמין/ה לפני {TICKER_MINUTES[tickerIndex % TICKER_MINUTES.length]} דק׳ · קבוצה של {2 + (tickerIndex % 4)}</span>
             </div>
           </div>
         </div>
@@ -546,16 +525,14 @@ export default function PublicReservationPage() {
         </div>
       )}
 
-      {/* ============ SMART BANNER + BOOKING SECTION (warm cream backdrop grounds the card) ============ */}
-      <div className="relative z-[2] px-3 md:px-6 pt-6 pb-2" style={{ background: 'linear-gradient(180deg, #FFFEFB 0%, #FAF5E8 30%, #F4ECD8 100%)' }}>
-        <div className="max-w-3xl mx-auto">
-          <SmartReserveBanner />
-        </div>
-      </div>
-
-      {/* ============ BOOKING CARD ============ */}
-      <main ref={bookingCardRef} className="relative z-[2] px-3 md:px-6 pb-12 pt-4" style={{ background: '#F4ECD8' }}>
-        <div className="max-w-3xl mx-auto rounded-3xl p-5 md:p-8 space-y-5" style={{ background: '#FFFEFB', border: '1px solid rgba(184,149,86,0.4)', boxShadow: '0 30px 60px -25px rgba(31,27,23,0.30), 0 8px 20px -10px rgba(31,27,23,0.15)' }}>
+      {/* ============ TWO-COLUMN SECTION (banner+form left, menu sidebar right on desktop) ============ */}
+      <div className="relative z-[2] px-3 md:px-6 pt-6 pb-12" style={{ background: 'linear-gradient(180deg, #FFFEFB 0%, #FAF5E8 25%, #F4ECD8 100%)' }}>
+        <div className="max-w-6xl mx-auto lg:grid lg:grid-cols-12 lg:gap-8">
+          {/* LEFT — SmartBanner + Booking card */}
+          <div className="lg:col-span-7 space-y-4">
+            <SmartReserveBanner />
+            {/* ============ BOOKING CARD ============ */}
+            <main ref={bookingCardRef} className="rounded-3xl p-5 md:p-8 space-y-5" style={{ background: '#FFFEFB', border: '1px solid rgba(184,149,86,0.4)', boxShadow: '0 30px 60px -25px rgba(31,27,23,0.30), 0 8px 20px -10px rgba(31,27,23,0.15)' }}>
           <div className="text-center">
             <h2 className="brand-display text-3xl md:text-4xl" style={{ color: '#1F1B17' }}>הזמינו שולחן</h2>
             <p className="text-sm mt-1" style={{ color: '#6B7A4F' }}>ללא דמי שירות · אישור מיידי · ביטול חופשי</p>
@@ -614,7 +591,7 @@ export default function PublicReservationPage() {
                   <button
                     key={d.toISOString()}
                     onClick={() => setDate(d)}
-                    className="flex-shrink-0 min-w-[60px] rounded-xl px-2 py-2 text-center transition-all"
+                    className="flex-shrink-0 min-w-[64px] rounded-xl px-2 py-2.5 text-center transition-all"
                     style={active
                       ? { background: '#A04A2E', border: '1px solid #8B3D24', color: '#F4ECD8', boxShadow: '0 8px 16px -6px rgba(160,74,46,0.55)', transform: 'scale(1.05)' }
                       : { background: '#FFFEFB', border: '1px solid rgba(184,149,86,0.35)', color: '#44512C' }}
@@ -647,7 +624,7 @@ export default function PublicReservationPage() {
                         key={slot}
                         disabled={disabled}
                         onClick={() => { setSelectedHour(slot); setTime(slot); }}
-                        className="relative rounded-xl py-2.5 text-sm font-bold transition-all"
+                        className="relative rounded-xl py-3 text-sm font-bold transition-all min-h-[48px]"
                         style={(isHourActive || isFinal)
                           ? { background: '#A04A2E', color: '#F4ECD8', border: '1px solid #8B3D24', boxShadow: '0 6px 14px -5px rgba(160,74,46,0.55)' }
                           : disabled
@@ -821,12 +798,47 @@ export default function PublicReservationPage() {
             <div className="mt-1">השולחן ממתין עד 10 דק׳ איחור · ביטול חופשי עד 3 שעות לפני · אחר כך 30₪ פיקדון לסועד</div>
           </div>
           </>}
-        </div>
       </main>
+          </div>{/* /LEFT col */}
 
-      {/* ============ FEATURED MENU CAROUSEL ============ */}
+          {/* RIGHT — Featured menu vertical sidebar (desktop only) */}
+          {featuredMenu.length > 0 && (
+            <aside className="hidden lg:block lg:col-span-5 mt-8 lg:mt-0">
+              <div className="lg:sticky lg:top-6">
+                <div className="text-[11px] font-bold uppercase tracking-[0.25em]" style={{ color: '#B89556' }}>המומלצים שלנו</div>
+                <h3 className="brand-display text-2xl md:text-3xl mt-1 mb-4" style={{ color: '#1F1B17' }}>תפריט שיפתח לך תיאבון</h3>
+                <div className="space-y-3">
+                  {featuredMenu.slice(0, 4).map((item) => (
+                    <div key={item.id} className="flex gap-3 rounded-2xl overflow-hidden transition-all hover:-translate-y-0.5" style={{ background: '#FFFEFB', border: '1px solid rgba(184,149,86,0.30)', boxShadow: '0 4px 12px -4px rgba(31,27,23,0.08)' }}>
+                      {item.image_url && (
+                        <div className="w-24 h-24 flex-shrink-0 overflow-hidden" style={{ background: '#F4ECD8' }}>
+                          <img src={item.image_url} alt={item.name} loading="lazy" className="w-full h-full object-cover" />
+                        </div>
+                      )}
+                      <div className="flex-1 min-w-0 p-3 flex flex-col justify-center">
+                        <div className="font-bold text-sm leading-tight" style={{ color: '#1F1B17' }}>{item.name}</div>
+                        {item.description && (
+                          <p className="text-[11px] mt-1 line-clamp-2 leading-snug" style={{ color: '#6B7A4F' }}>{item.description}</p>
+                        )}
+                        {item.price ? (
+                          <div className="mt-1.5 font-black text-sm" style={{ color: '#A04A2E' }}>{Math.round(item.price)} ₪</div>
+                        ) : null}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <a href="/menu" className="block mt-4 text-center font-bold text-sm rounded-xl py-3 transition-colors" style={{ background: 'rgba(68,81,44,0.08)', color: '#44512C', border: '1px solid rgba(68,81,44,0.25)' }}>
+                  כל התפריט ←
+                </a>
+              </div>
+            </aside>
+          )}
+        </div>{/* /grid */}
+      </div>{/* /two-column section */}
+
+      {/* ============ FEATURED MENU CAROUSEL — mobile only (below form) ============ */}
       {featuredMenu.length > 0 && (
-        <section className="px-3 md:px-5 py-12" style={{ background: '#FFFEFB', borderTop: '1px solid rgba(184,149,86,0.25)' }}>
+        <section className="lg:hidden px-3 md:px-5 py-12" style={{ background: '#FFFEFB', borderTop: '1px solid rgba(184,149,86,0.25)' }}>
           <div className="max-w-5xl mx-auto">
             <div className="flex items-end justify-between mb-5 px-2">
               <div>
@@ -984,7 +996,7 @@ function Chip({ active, onClick, children }) {
     <button
       type="button"
       onClick={onClick}
-      className="min-w-[44px] h-11 px-3 rounded-xl font-bold text-sm transition-all"
+      className="min-w-[48px] h-12 px-3.5 rounded-xl font-bold text-sm transition-all"
       style={active
         ? { background: '#A04A2E', color: '#F4ECD8', border: '1px solid #8B3D24', boxShadow: '0 6px 14px -5px rgba(160,74,46,0.55)', transform: 'scale(1.05)' }
         : { background: '#FFFEFB', color: '#1F1B17', border: '1px solid rgba(184,149,86,0.35)' }}
