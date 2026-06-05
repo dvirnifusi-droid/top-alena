@@ -422,39 +422,40 @@ export default function PublicReservationPage() {
 
         {/* Wide aspect hero photo (settings.hero_image_url overrides) */}
         <div
-          className="w-full h-[42vh] md:h-[55vh] min-h-[260px] max-h-[480px] relative overflow-hidden"
+          className="w-full h-[48vh] md:h-[60vh] min-h-[320px] max-h-[520px] relative overflow-hidden"
           style={{
             backgroundImage: settings?.hero_image_url
               ? `url(${settings.hero_image_url})`
-              : HERO_FALLBACK_BG,
+              : `linear-gradient(180deg, rgba(31,27,23,0.10) 0%, rgba(31,27,23,0.55) 100%), url('https://alena.topalena.com/gallery/IMG_4682.JPG')`,
             backgroundSize: 'cover',
             backgroundPosition: 'center',
           }}
         >
-          {/* Soft brass glow if no real photo */}
-          {!settings?.hero_image_url && (
-            <div className="absolute inset-0 pointer-events-none opacity-70">
-              <div className="absolute -top-32 -right-20 w-[28rem] h-[28rem] rounded-full blur-3xl animate-pulse" style={{ background: 'rgba(184,149,86,0.30)' }}></div>
-              <div className="absolute -bottom-20 -left-32 w-[28rem] h-[28rem] rounded-full blur-3xl animate-pulse" style={{ background: 'rgba(160,74,46,0.22)', animationDelay: '1.5s' }}></div>
-            </div>
-          )}
           {/* Bottom fade for legibility of identity strip */}
-          <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-white via-white/60 to-transparent"></div>
+          <div className="absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-white via-white/70 to-transparent"></div>
 
-          {/* Floating bonus pill — top-left, brand brass */}
+          {/* Floating bonus pill — brand brass */}
           <div className="absolute top-16 right-4 md:right-8 z-10">
             <div className="rounded-full px-3 py-1.5 text-[11px] font-black shadow-lg flex items-center gap-1" style={{ background: '#B89556', color: '#1F1B17' }}>
               🎁 פוקצ׳ה חינם
             </div>
           </div>
 
-          {/* Hero brand wordmark — bottom-center, kept subtle */}
-          {!settings?.hero_image_url && (
-            <div className="absolute inset-x-0 bottom-12 z-[5] text-center pointer-events-none">
-              <p className="text-[10px] uppercase tracking-[0.4em]" style={{ color: '#D9BD83' }}>רוטשילד 104 · ראשון לציון</p>
-              <h2 className="brand-display text-5xl md:text-7xl mt-2" style={{ color: '#F4ECD8' }}>עלינא</h2>
-            </div>
-          )}
+          {/* Hero wordmark — always shown, sits above the cocktail-bar photo */}
+          <div className="absolute inset-x-0 bottom-16 md:bottom-24 z-[5] text-center pointer-events-none">
+            <p className="text-[10px] md:text-xs uppercase tracking-[0.4em] drop-shadow" style={{ color: '#D9BD83' }}>
+              רוטשילד 104 · ראשון לציון
+            </p>
+            <h2
+              className="brand-display mt-2 drop-shadow-lg"
+              style={{ color: '#F4ECD8', fontSize: 'clamp(3.5rem, 10vw, 6.5rem)', lineHeight: 1 }}
+            >
+              עלינא
+            </h2>
+            <p className="mt-3 text-sm md:text-base font-medium drop-shadow" style={{ color: 'rgba(244,236,216,0.90)' }}>
+              חמארה ים-תיכונית · כשרה
+            </p>
+          </div>
         </div>
       </header>
 
@@ -815,38 +816,6 @@ export default function PublicReservationPage() {
           </>}
         </div>
       </main>
-
-      {/* ============ TRUST STRIP ============ */}
-      <section className="bg-gray-50 px-3 py-8 border-t border-gray-200">
-        <div className="max-w-5xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-3">
-          <TrustBlock icon="⚡" title="אישור מיידי" sub="ב-30 שניות" />
-          <TrustBlock icon="🚫" title="ללא דמי שירות" sub="בלי הפתעות" />
-          <TrustBlock icon="↩️" title="ביטול חינם" sub="עד 3 שעות לפני" />
-          <TrustBlock icon="⭐" title="4.8 מתוך 5" sub="1,247 ביקורות אמיתיות" />
-        </div>
-
-        {/* "Why us vs Wolt" contrast — strong differentiator */}
-        <div className="max-w-3xl mx-auto mt-6 grid grid-cols-1 md:grid-cols-2 gap-3">
-          <div className="bg-emerald-50 border-2 border-emerald-200 rounded-2xl p-4">
-            <div className="text-emerald-700 text-xs font-black uppercase tracking-wider mb-2">אצלנו</div>
-            <ul className="text-sm text-emerald-900 space-y-1">
-              <li>✅ שולחן שמור עם השם שלך</li>
-              <li>✅ מנגל פתוח · בשר טרי</li>
-              <li>✅ ללא עמלות · אישור 30 שניות</li>
-              <li>✅ אווירה. אנשים. צחוקים.</li>
-            </ul>
-          </div>
-          <div className="bg-gray-100 border-2 border-gray-200 rounded-2xl p-4">
-            <div className="text-gray-500 text-xs font-black uppercase tracking-wider mb-2">משלוח עמלה</div>
-            <ul className="text-sm text-gray-600 space-y-1">
-              <li>⛔ 30% עמלה ממחיר המנה</li>
-              <li>⛔ אוכל קר אחרי 40 דק׳</li>
-              <li>⛔ בלי אווירה · בבית לבד</li>
-              <li>⛔ שירות לוקה בחסר</li>
-            </ul>
-          </div>
-        </div>
-      </section>
 
       {/* ============ FEATURED MENU CAROUSEL ============ */}
       {featuredMenu.length > 0 && (
