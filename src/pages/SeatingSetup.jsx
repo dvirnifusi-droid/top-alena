@@ -1464,7 +1464,9 @@ export default function SeatingSetup() {
         <div
             dir="rtl"
             className={bigMapMode
-                ? 'fixed inset-0 z-[60] bg-white overflow-auto p-2'
+                // z-30: above page content but BELOW Radix Dialog (z-50) and Popover so
+                // table details, status selects, and date pickers stay clickable
+                ? 'fixed inset-0 z-30 bg-white overflow-auto p-2'
                 : 'p-3 md:p-6 bg-gray-50 min-h-screen'
             }
         >
@@ -1509,7 +1511,7 @@ export default function SeatingSetup() {
             {bigMapMode && (
                 <button
                     onClick={() => setBigMapMode(false)}
-                    className="fixed top-3 left-3 z-[70] bg-zinc-900 hover:bg-zinc-800 text-white rounded-full pl-3 pr-4 py-2 shadow-2xl flex items-center gap-1.5 text-sm font-bold"
+                    className="fixed top-3 left-3 z-40 bg-zinc-900 hover:bg-zinc-800 text-white rounded-full pl-3 pr-4 py-2 shadow-2xl flex items-center gap-1.5 text-sm font-bold"
                 >
                     <X className="w-4 h-4" />
                     סגור מצב מסך מלא
