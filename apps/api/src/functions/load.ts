@@ -8629,9 +8629,8 @@ ${seatedNow.map((s: any) => `שולחן ${s.table} ×${s.party} ${s.name || ''}`
 
   try {
     const out: any = await invokeLLM({
-      prompt: userCtx,
-      system_prompt: sys,
-      response_json_schema: {
+      prompt: `${sys}\n\n---\n\n${userCtx}`,
+      responseSchema: {
         type: 'object',
         properties: {
           answer: { type: 'string' },
