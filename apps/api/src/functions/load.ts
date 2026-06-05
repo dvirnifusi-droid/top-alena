@@ -8871,3 +8871,19 @@ export async function sendT24SurveyReminders() {
 
   return { sent, failed, candidates: targets.length };
 }
+
+// === Startup drift-repair: ensure Reservation columns exist before any read ===
+// Without this, a fresh deploy that added a new column (e.g. survey_sent_at) breaks
+// every Reservation.findMany() until createPublicReservation happens to run.
+// Fires once at module import (= server boot).
+if (!(globalThis as any).__startupDriftRepair) {
+  (globalThis as any).__startupDriftRepair = true;
+  void (async () => {
+    try {
+      await ensureReservationSourceCols();
+      console.log('[startup] ensureReservationSourceCols OK');
+    } catch (e: any) {
+      console.error('[startup] ensureReservationSourceCols failed:', e?.message);
+    }
+  })();
+}
