@@ -91,7 +91,7 @@ function ReservationEditDialog({ open, setOpen, reservation, onUpdate, tables, r
     
     return (
         <Sheet open={open} onOpenChange={setOpen}>
-            <SheetContent side="left" className="sm:max-w-[420px] w-full overflow-y-auto p-4" dir="rtl">
+            <SheetContent side="right" className="sm:max-w-[420px] w-full overflow-y-auto p-4" dir="rtl">
                 <SheetHeader>
                     <SheetTitle className="text-center bg-emerald-500 text-white py-2 rounded">עריכת הזמנה</SheetTitle>
                 </SheetHeader>
