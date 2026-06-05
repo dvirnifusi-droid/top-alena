@@ -1379,8 +1379,15 @@ export default function SeatingSetup() {
     })();
 
     return (
-        <div dir="rtl" className="p-3 md:p-6 bg-gray-50 min-h-screen">
-            {/* === LIVE STATUS BAR — always visible above page === */}
+        <div
+            dir="rtl"
+            className={bigMapMode
+                ? 'fixed inset-0 z-[60] bg-white overflow-auto p-2'
+                : 'p-3 md:p-6 bg-gray-50 min-h-screen'
+            }
+        >
+            {/* === LIVE STATUS BAR — hidden in fullscreen big-map mode === */}
+            {!bigMapMode && (
             <div className="bg-white border border-gray-200 rounded-2xl shadow-sm p-3 md:p-4 mb-3 grid grid-cols-2 md:grid-cols-5 gap-2 md:gap-3">
                 <LiveStat
                     icon="🪑" label="שולחנות תפוסים"
@@ -1414,6 +1421,18 @@ export default function SeatingSetup() {
                     accent="slate"
                 />
             </div>
+            )}
+
+            {/* Floating exit button — only in fullscreen big-map mode */}
+            {bigMapMode && (
+                <button
+                    onClick={() => setBigMapMode(false)}
+                    className="fixed top-3 left-3 z-[70] bg-zinc-900 hover:bg-zinc-800 text-white rounded-full pl-3 pr-4 py-2 shadow-2xl flex items-center gap-1.5 text-sm font-bold"
+                >
+                    <X className="w-4 h-4" />
+                    סגור מצב מסך מלא
+                </button>
+            )}
 
             {isSelectingTables && (
                 <div className="fixed top-0 left-0 right-0 bg-purple-400 text-white p-2 text-center z-50 font-bold flex items-center justify-center gap-4">
@@ -1437,7 +1456,8 @@ export default function SeatingSetup() {
                     מצב שיוך: בחר שולחן מהמפה לשייך להזמנה. <Button variant="ghost" size="sm" onClick={() => setAssigningTable(null)}>בטל</Button>
                 </div>
             )}
-            <Card>
+            <Card className={bigMapMode ? 'border-0 shadow-none bg-transparent' : ''}>
+                {!bigMapMode && (
                 <CardHeader className="pb-3">
                     <div className="flex flex-col gap-3">
                         <div className="flex justify-between items-start">
@@ -1482,7 +1502,8 @@ export default function SeatingSetup() {
                         </div>
                     </div>
                 </CardHeader>
-                <CardContent>
+                )}
+                <CardContent className={bigMapMode ? 'p-0' : ''}>
                     {tables.length === 0 && facilities.length === 0 ? (
                         <div className="text-center py-12">
                             <p className="mb-4">לא נמצאו שולחנות או אלמנטים. האם ברצונך לטעון את כל 41 השולחנות של עלינא ואלמנטים בסיסיים?</p>
@@ -1544,7 +1565,7 @@ export default function SeatingSetup() {
                                 {/* Right rail — only in big-map mode. Toggles between compact
                                     'tonight' strip and the full ReservationsDashboard inline (no overlay). */}
                                 {bigMapMode && (
-                                <div className="hidden lg:flex flex-col gap-2 lg:order-2 max-h-[85vh] overflow-y-auto pr-1">
+                                <div className="hidden lg:flex flex-col gap-2 lg:order-2 overflow-y-auto pr-1" style={{ maxHeight: 'calc(100vh - 110px)' }}>
                                     {/* Tab toggle at top */}
                                     <div className="sticky top-0 z-20 bg-gray-50 pt-1 pb-1.5 flex gap-1">
                                         <button
@@ -1664,7 +1685,7 @@ export default function SeatingSetup() {
                                         ><ZoomIn className="w-4 h-4"/></button>
                                         <span className="text-[10px] text-gray-400 mr-2 hidden md:inline">גרור לתזוזה</span>
                                     </div>
-                                    <div className="w-full overflow-auto border rounded-lg bg-gray-100" style={{ maxHeight: bigMapMode ? '85vh' : '70vh' }}>
+                                    <div className="w-full overflow-auto border rounded-lg bg-gray-100" style={{ maxHeight: bigMapMode ? 'calc(100vh - 110px)' : '70vh' }}>
                                     {/* Outer wrapper takes the *visual* (scaled) dimensions so scrollbars match.
                                         Inner element renders at native 1400×850 and is scaled with transform. */}
                                     <div style={{ width: `${1400 * mapZoom}px`, height: `${850 * mapZoom}px` }}>
