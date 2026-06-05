@@ -28,7 +28,16 @@ export const landingBySlugQuery = groq`*[_type == "landingPage" && slug.current 
 
 export const allLandingSlugsQuery = groq`*[_type == "landingPage"].slug.current`;
 
-export const activeBannerQuery = groq`*[_type == "banner" && active == true] | order(priority desc)[0]`;
+// Currently active banner — respects startsAt/endsAt scheduling window.
+// $now should be passed in (ISO string) by the caller for correctness.
+export const activeBannerQuery = groq`*[
+  _type == "banner" &&
+  active == true &&
+  (!defined(startsAt) || startsAt <= $now) &&
+  (!defined(endsAt) || endsAt >= $now)
+] | order(priority desc)[0]{
+  message, ctaText, ctaUrl
+}`;
 
 export const galleryQuery = groq`*[_type == "galleryImage"] | order(order asc, _createdAt desc){
   _id, image, alt, category, instagramUrl, featured
