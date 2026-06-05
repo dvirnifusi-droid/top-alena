@@ -116,3 +116,74 @@ h1, h2, h3, h4 {
     display: inline;
   }
 }
+
+/* ────────────────────────────────────────────────────────────────────────── */
+/* ACCESSIBILITY WIDGET MODES                                                 */
+/* Applied via classes on <html> by the AccessibilityWidget component.        */
+/* ────────────────────────────────────────────────────────────────────────── */
+
+html.a11y-font-down  { font-size: 88%; }
+html.a11y-font-up    { font-size: 115%; }
+html.a11y-font-xl    { font-size: 130%; }
+
+/* High contrast — darken text + brighten backgrounds */
+html.a11y-contrast body {
+  background: #ffffff !important;
+}
+html.a11y-contrast {
+  --color-charcoal: #000000;
+  --color-cream: #ffffff;
+  --color-cream-soft: #ffffff;
+  --color-terracotta: #7a2e16;
+  --color-olive: #1f2a10;
+  --color-brass: #6e4f00;
+}
+html.a11y-contrast * {
+  text-shadow: none !important;
+}
+
+/* Grayscale — desaturate the entire page */
+html.a11y-grayscale body {
+  filter: grayscale(100%) contrast(105%);
+}
+
+/* Underline every link */
+html.a11y-underline-links a {
+  text-decoration: underline !important;
+  text-underline-offset: 3px;
+}
+
+/* Highlight headings — background bar */
+html.a11y-highlight-headings h1,
+html.a11y-highlight-headings h2,
+html.a11y-highlight-headings h3 {
+  background: rgba(184, 149, 86, 0.15);
+  padding: 4px 8px;
+  border-right: 4px solid var(--color-terracotta);
+  border-radius: 4px;
+}
+
+/* Stop motion — disable transitions & animations */
+html.a11y-no-motion *,
+html.a11y-no-motion *::before,
+html.a11y-no-motion *::after {
+  animation-duration: 0ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0ms !important;
+  scroll-behavior: auto !important;
+}
+
+/* Big cursor — large default + pointer */
+html.a11y-big-cursor,
+html.a11y-big-cursor * {
+  cursor:
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='48' height='48' viewBox='0 0 48 48'><path fill='%231F1B17' stroke='%23F4ECD8' stroke-width='2' d='M8 6l32 18-14 4-6 14z'/></svg>") 4 4,
+    auto !important;
+}
+html.a11y-big-cursor a,
+html.a11y-big-cursor button,
+html.a11y-big-cursor [role="button"] {
+  cursor:
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='48' height='48' viewBox='0 0 48 48'><circle cx='24' cy='24' r='10' fill='%23A04A2E' stroke='%23F4ECD8' stroke-width='3'/></svg>") 24 24,
+    pointer !important;
+}

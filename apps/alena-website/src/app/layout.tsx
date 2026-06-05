@@ -9,6 +9,7 @@ import { StickyMobileCTA } from "@/components/layout/StickyMobileCTA";
 import { FloatingWhatsApp } from "@/components/shared/FloatingWhatsApp";
 import { WelcomeModal } from "@/components/layout/WelcomeModal";
 import { SkipLink } from "@/components/layout/SkipLink";
+import { AccessibilityWidget } from "@/components/shared/AccessibilityWidget";
 import { Analytics as GA } from "@/lib/analytics";
 import { Analytics as VercelAnalytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/next";
@@ -41,6 +42,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <Footer />
         <StickyMobileCTA />
         <FloatingWhatsApp />
+        <AccessibilityWidget />
         <WelcomeModal />
         <GA />
         <VercelAnalytics />

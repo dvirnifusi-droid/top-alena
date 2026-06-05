@@ -43,8 +43,11 @@ export function Footer() {
           </ul>
         </div>
       </Container>
-      <Container className="mt-10 border-t border-cream/10 pt-5 text-xs text-cream/45">
-        © {new Date().getFullYear()} עלינא · כל הזכויות שמורות
+      <Container className="mt-10 flex flex-wrap items-center justify-between gap-3 border-t border-cream/10 pt-5 text-xs text-cream/45">
+        <span>© {new Date().getFullYear()} עלינא · כל הזכויות שמורות</span>
+        <Link href={routes.accessibility} className="hover:text-brass">
+          הצהרת נגישות
+        </Link>
       </Container>
     </footer>
   );
