@@ -227,8 +227,23 @@ async function anthropicInvoke(args: InvokeArgs) {
 
 export async function invokeLLM(args: InvokeArgs) {
   const provider = (args as any).provider || PROVIDER;
-  if (provider === 'anthropic') return anthropicInvoke(args);
-  return geminiInvoke(args);
+  const maxAttempts = Number((args as any).maxAttempts || 3);
+  let lastErr: any = null;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      if (provider === 'anthropic') return await anthropicInvoke(args);
+      return await geminiInvoke(args);
+    } catch (e: any) {
+      lastErr = e;
+      const msg = String(e?.message || e || '');
+      // Retry only on transient errors (network, 5xx, timeout, quota cooldowns)
+      const transient = /timeout|ETIMEDOUT|ECONNRESET|ENOTFOUND|EAI_AGAIN|fetch failed|network|503|502|504|429|overloaded|rate.?limit/i.test(msg);
+      if (!transient || attempt === maxAttempts) break;
+      // Exponential backoff: 600ms, 1.5s
+      await new Promise((r) => setTimeout(r, 600 * attempt + Math.random() * 400));
+    }
+  }
+  throw lastErr;
 }
 
 export async function generateImage({ prompt }: { prompt: string }) {

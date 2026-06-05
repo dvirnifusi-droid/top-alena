@@ -4317,21 +4317,38 @@ registerFn('chatEventsInquiry', async ({ body }) => {
     : `\n\n--- LANGUAGE DIRECTIVE ---\nThe customer is communicating in ${language}. The "reply" field MUST be written in ${language}, even if the rest of the prompt is in Hebrew. Be warm, natural, and use idiomatic ${language}. Field extraction (booking data, ai_summary, etc) should stay in Hebrew so the manager can read it.`;
   const prompt = `${systemPrompt}${dateContext}${kitContext}${closingInstructions}${langDirective}\n--- שיחה עד כה ---\n${transcript || '(אין עדיין הודעות — זו תחילת השיחה)'}${newPart}\n\nהחזר JSON בלבד.`;
 
-  const result: any = await invokeLLM({
-    prompt,
-    responseSchema: {
-      type: 'object',
-      properties: {
-        reply: { type: 'string' },
-        collected: { type: 'object' },
-        stage: { type: 'string' },
-        complete: { type: 'boolean' },
-        escalation: { type: 'boolean' },
-        score: { type: 'number' },
+  let result: any;
+  let llmError: any = null;
+  try {
+    result = await invokeLLM({
+      prompt,
+      responseSchema: {
+        type: 'object',
+        properties: {
+          reply: { type: 'string' },
+          collected: { type: 'object' },
+          stage: { type: 'string' },
+          complete: { type: 'boolean' },
+          escalation: { type: 'boolean' },
+          score: { type: 'number' },
+        },
+        required: ['reply'],
       },
-      required: ['reply'],
-    },
-  });
+    });
+  } catch (e: any) {
+    llmError = e;
+    console.error('[chatEventsInquiry] LLM failed after retries:', e?.message);
+    // Fallback: keep the conversation alive instead of "Load failed".
+    // The user sees a graceful Hebrew message, the owner gets an immediate alert,
+    // and we still persist the customer's message + any extractable fields.
+    result = {
+      reply: 'רגע אחד, בודקת את הפרטים — אני שולחת הודעה במקביל למנהל המסעדה והוא יחזור אליכם בקרוב 🌿\nתוכלו לכתוב לי גם את השם והטלפון שלכם כדי שאוכל לוודא שנחזור אליכם?',
+      collected: {},
+      stage: 'collecting',
+      complete: false,
+      score: 30,
+    };
+  }
 
   const cRaw = result?.collected || {};
 
@@ -4520,6 +4537,27 @@ registerFn('chatEventsInquiry', async ({ body }) => {
       currentLeadId = currentLead.id;
     }
   } catch (e: any) { console.error('[eventLead.upsert]', e?.message); }
+
+  // If the LLM crashed mid-conversation, alert the owner IMMEDIATELY (don't wait 10 min)
+  // and include the customer's last message + extracted fields so they can call back.
+  if (llmError && currentLead) {
+    try {
+      const tail = [
+        '🚨 שיחת AI אירועים נתקעה — התקשר ללקוח עכשיו',
+        `👤 ${currentLead.contact_name || 'ללא שם'} · ${currentLead.contact_phone || 'אין טלפון עדיין'}`,
+        currentLead.event_date ? `📅 ${currentLead.event_date}` : null,
+        currentLead.guest_count ? `👥 ${currentLead.guest_count} אורחים` : null,
+        c.event_time ? `⏰ ${c.event_time}` : null,
+        '',
+        `💬 הודעה אחרונה של הלקוח:`,
+        `"${(message || '').slice(0, 200) || '(ריק)'}"`,
+        '',
+        `⚠️ סיבה: ${String(llmError?.message || llmError).slice(0, 120)}`,
+        `📥 מקור: ${currentLead.source || 'web_chat'}`,
+      ].filter(Boolean).join('\n');
+      pushoverEventsOwners('🚨 AI נפל — ליד באוויר', tail).catch(() => {});
+    } catch { /* ignore */ }
+  }
 
   // Cheap dedicated name-extraction pass on EVERY turn where we have a phone but no name yet.
   // Runs once per lead (until name is captured) so /EventsPrivate shows the customer name
@@ -5086,6 +5124,12 @@ export async function checkStuckEventLeads() {
       if (notes.includes('abandoned_alerted:')) continue;
       const log = Array.isArray(lead.conversation_log) ? lead.conversation_log : [];
       if (log.length < 2) continue; // didn't engage past greeting
+      // Last 1-2 customer messages — so the owner knows what was said before they bailed.
+      const lastCustomerMsgs = (log as any[])
+        .filter((t) => t && t.role !== 'assistant')
+        .slice(-2)
+        .map((t) => String(t.content || '').trim())
+        .filter(Boolean);
       const q: any = {};
       // Best-effort extract last-known fields from the row directly
       const summary = [
@@ -5098,6 +5142,7 @@ export async function checkStuckEventLeads() {
         `📊 ציון: ${lead.score ?? '?'}/100 · סטטוס: ${lead.status || 'new'}`,
         `📥 מקור: ${lead.source || 'web_chat'}`,
         `⏰ עזב לפני ~${STUCK_THRESHOLD_MIN} דק׳ באמצע השיחה`,
+        lastCustomerMsgs.length ? `\n💬 הודעות אחרונות של הלקוח:\n${lastCustomerMsgs.map((m) => `"${m.slice(0, 150)}"`).join('\n')}` : null,
       ].filter(Boolean).join('\n');
       try { await pushoverEventsOwners('⚠️ ליד אירוע נטוש', summary); } catch { /* ignore */ }
       try {
