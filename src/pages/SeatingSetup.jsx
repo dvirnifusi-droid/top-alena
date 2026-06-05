@@ -1541,15 +1541,41 @@ export default function SeatingSetup() {
                                 </div>
                                 )}
 
-                                {/* Compact "tonight" strip — only in big-map mode */}
+                                {/* Right rail — only in big-map mode. Toggles between compact
+                                    'tonight' strip and the full ReservationsDashboard inline (no overlay). */}
                                 {bigMapMode && (
-                                <div className="hidden lg:flex flex-col gap-2 lg:order-2 max-h-[80vh] overflow-y-auto pr-1">
-                                    <CompactTonightStrip
-                                        reservations={reservations}
-                                        selectedDate={selectedDate}
-                                        onEdit={(r) => { setEditingReservation(r); setIsEditReservationOpen(true); }}
-                                        onOpenFullDashboard={() => setDashboardDrawerOpen(true)}
-                                    />
+                                <div className="hidden lg:flex flex-col gap-2 lg:order-2 max-h-[85vh] overflow-y-auto pr-1">
+                                    {/* Tab toggle at top */}
+                                    <div className="sticky top-0 z-20 bg-gray-50 pt-1 pb-1.5 flex gap-1">
+                                        <button
+                                            onClick={() => setDashboardDrawerOpen(false)}
+                                            className={`flex-1 text-xs font-bold py-1.5 rounded-lg border transition-colors
+                                                ${!dashboardDrawerOpen
+                                                    ? 'bg-indigo-600 border-indigo-700 text-white shadow'
+                                                    : 'bg-white border-gray-200 text-gray-600 hover:border-indigo-300'}`}
+                                        >🌙 הערב</button>
+                                        <button
+                                            onClick={() => setDashboardDrawerOpen(true)}
+                                            className={`flex-1 text-xs font-bold py-1.5 rounded-lg border transition-colors
+                                                ${dashboardDrawerOpen
+                                                    ? 'bg-indigo-600 border-indigo-700 text-white shadow'
+                                                    : 'bg-white border-gray-200 text-gray-600 hover:border-indigo-300'}`}
+                                        >📅 לוח מלא</button>
+                                    </div>
+
+                                    {dashboardDrawerOpen ? (
+                                        <>
+                                            <ReservationsDashboard />
+                                            <ReservationTool onReservationCreated={loadLayout} />
+                                        </>
+                                    ) : (
+                                        <CompactTonightStrip
+                                            reservations={reservations}
+                                            selectedDate={selectedDate}
+                                            onEdit={(r) => { setEditingReservation(r); setIsEditReservationOpen(true); }}
+                                            onOpenFullDashboard={() => setDashboardDrawerOpen(true)}
+                                        />
+                                    )}
                                 </div>
                                 )}
 
@@ -1924,8 +1950,9 @@ export default function SeatingSetup() {
                 <Calendar className="w-6 h-6" />
             </button>
 
-            {/* Dashboard drawer — slide-in from the right in big-map mode */}
-            {dashboardDrawerOpen && (
+            {/* Dashboard drawer — modal overlay only when NOT in big-map mode.
+                In big-map mode the dashboard renders inline in the right rail. */}
+            {dashboardDrawerOpen && !bigMapMode && (
                 <div className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm" onClick={() => setDashboardDrawerOpen(false)}>
                     <div
                         className="absolute right-0 top-0 bottom-0 w-full max-w-md bg-white p-4 overflow-y-auto shadow-2xl"
