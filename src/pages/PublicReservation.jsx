@@ -10,7 +10,6 @@ import {
   Star, ChevronRight,
 } from 'lucide-react';
 import SmartReserveBanner from '@/components/public/SmartReserveBanner';
-import HappyHourCallout from '@/components/public/HappyHourCallout';
 
 // --- Brand palette (mirrors alena.topalena.com) ------------------------------
 //   terracotta  #A04A2E   →  primary CTA
@@ -74,6 +73,33 @@ function estimateEndTime(startHHmm, partySize) {
   const total = h * 60 + m + dur;
   const hh = Math.floor(total / 60) % 24, mm = total % 60;
   return `${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}`;
+}
+
+// --- Theme nights + specials catalogue ---------------------------------------
+// Single source of truth for the "what we run" cards AND the in-form time tags.
+// Edit this list to change copy across both surfaces.
+const THEME_NIGHTS = [
+  { id: 'happy', emoji: '🌅', title: 'Happy Hour',  blurb: '40% הנחה על כל האלכוהול — קוקטיילים, בירה, יין.',
+    when: 'א׳-ה׳ · עד 20:00', match: (d,h) => d>=0 && d<=4 && h<20 },
+  { id: 'biz',   emoji: '🍽',  title: 'עסקיות צהריים', blurb: 'תפריט עסקיות עשיר — מנה ראשונה, עיקרית ושתייה.',
+    when: 'כל יום פתוח · 12:00-17:00', match: (d,h) => d!==5 && h>=12 && h<17 },
+  { id: 'sun',   emoji: '🍔', title: 'Burger Night', blurb: 'ספיישלים של בקר טרי 220גר׳ — בורגרים שלא בתפריט הרגיל.',
+    when: 'ראשון · כל הערב', match: (d) => d===0 },
+  { id: 'mon',   emoji: '🍷', title: 'יין ללא תחתית', blurb: 'הסומליה בבר, כוסות מ-₪61, היין נמזג ברצף עד הסגירה.',
+    when: 'שני · כל הערב', match: (d) => d===1 },
+  { id: 'tue',   emoji: '🥩', title: 'Butcher Night', blurb: 'נתחי הפתעה ומנות שף חד-פעמיות — ישר מהקצב לגריל.',
+    when: 'שלישי · כל הערב', match: (d) => d===2 },
+  { id: 'thu',   emoji: '🔥', title: 'חמישי גבוה',    blurb: 'פתוחים עד 02:00, הצוות בכושר, מקום על הבר אם תהיו זריזים.',
+    when: 'חמישי · עד 02:00', match: (d) => d===4 },
+  { id: 'sat',   emoji: '✨', title: 'מוצ״ש בעלינא',   blurb: 'פותחים מ-20:15 — הערב הכי גבוה של השבוע.',
+    when: 'שבת · מ-20:15', match: (d) => d===6 },
+];
+
+function getSpecialsForSlot(dateObj, hhmm) {
+  if (!hhmm) return [];
+  const d = dateObj.getDay();
+  const h = Number(String(hhmm).split(':')[0]) || 0;
+  return THEME_NIGHTS.filter(t => t.match(d, h));
 }
 
 // --- Capture UTM / referrer once ---------------------------------------------
@@ -429,16 +455,26 @@ export default function PublicReservationPage() {
           style={{
             backgroundImage: settings?.hero_image_url
               ? `url(${settings.hero_image_url})`
-              : `linear-gradient(180deg, rgba(31,27,23,0.10) 0%, rgba(31,27,23,0.55) 100%), url('https://alena.topalena.com/gallery/IMG_4682.JPG')`,
+              : `linear-gradient(180deg, rgba(31,27,23,0.35) 0%, rgba(31,27,23,0.55) 60%, rgba(31,27,23,0.80) 100%), url('https://alena.topalena.com/gallery/spread.jpg')`,
             backgroundSize: 'cover',
-            backgroundPosition: 'center',
+            backgroundPosition: 'center 40%',
           }}
         >
           {/* Bottom fade for legibility of identity strip */}
           <div className="absolute inset-x-0 bottom-0 h-28" style={{ background: 'linear-gradient(to top, #FFFEFB 0%, rgba(255,254,251,0.72) 50%, transparent 100%)' }}></div>
 
-          {/* Hero wordmark — always shown, sits above the cocktail-bar photo */}
-          <div className="absolute inset-x-0 bottom-16 md:bottom-24 z-[5] text-center pointer-events-none px-4">
+          {/* Hero center stack: logo + wordmark */}
+          <div className="absolute inset-0 z-[5] flex flex-col items-center justify-center text-center pointer-events-none px-4">
+            {/* Olive-branch logo medallion */}
+            <div className="w-20 h-20 md:w-24 md:h-24 rounded-full flex items-center justify-center mb-3 md:mb-4" style={{ background: 'rgba(31,27,23,0.55)', backdropFilter: 'blur(6px)', border: '1px solid rgba(217,189,131,0.45)' }}>
+              <svg viewBox="0 0 64 64" className="w-12 h-12 md:w-14 md:h-14" aria-hidden="true">
+                <path d="M8 36 Q20 22 32 28 Q44 34 56 24" fill="none" stroke="#D9BD83" strokeWidth="2.2" strokeLinecap="round" />
+                <ellipse cx="14" cy="30" rx="4" ry="2.4" transform="rotate(-25 14 30)" fill="#B89556" />
+                <ellipse cx="26" cy="27" rx="4" ry="2.4" transform="rotate(-8 26 27)" fill="#B89556" />
+                <ellipse cx="38" cy="29" rx="4" ry="2.4" transform="rotate(12 38 29)" fill="#B89556" />
+                <ellipse cx="50" cy="26" rx="4" ry="2.4" transform="rotate(-8 50 26)" fill="#B89556" />
+              </svg>
+            </div>
             <p className="text-[10px] md:text-xs uppercase tracking-[0.4em] drop-shadow" style={{ color: '#D9BD83' }}>
               רוטשילד 104 · ראשון לציון
             </p>
@@ -448,7 +484,6 @@ export default function PublicReservationPage() {
             >
               עלינא
             </h2>
-            {/* Delicate brass divider — anchors the wordmark */}
             <div className="flex items-center justify-center gap-2 mt-3" aria-hidden="true">
               <span style={{ width: 32, height: 1, background: 'rgba(217,189,131,0.7)' }} />
               <span style={{ width: 4, height: 4, borderRadius: 2, background: '#D9BD83' }} />
@@ -487,17 +522,20 @@ export default function PublicReservationPage() {
             )}
           </div>
 
-          {/* Ticker */}
-          <div className="mt-1.5 h-4 text-[11px] overflow-hidden" style={{ color: '#A8967A' }}>
-            <div
-              key={tickerIndex}
-              className="flex items-center justify-center gap-1.5"
-              style={{ animation: 'fadeIn 0.4s ease-out' }}
-            >
-              <span className="w-1 h-1 rounded-full" style={{ background: '#44512C' }}></span>
-              <span><b style={{ color: '#44512C' }}>{TICKER_NAMES[tickerIndex]}</b> הזמין/ה לפני {TICKER_MINUTES[tickerIndex % TICKER_MINUTES.length]} דק׳ · קבוצה של {2 + (tickerIndex % 4)}</span>
+          {/* Ticker — only shown if there ARE recent reservations.
+              Capped to liveCount so it never claims more activity than the API reports. */}
+          {liveCount > 0 && (
+            <div className="mt-1.5 h-4 text-[11px] overflow-hidden" style={{ color: '#A8967A' }}>
+              <div
+                key={tickerIndex}
+                className="flex items-center justify-center gap-1.5"
+                style={{ animation: 'fadeIn 0.4s ease-out' }}
+              >
+                <span className="w-1 h-1 rounded-full" style={{ background: '#44512C' }}></span>
+                <span><b style={{ color: '#44512C' }}>{TICKER_NAMES[tickerIndex % Math.max(1, Math.min(liveCount, TICKER_NAMES.length))]}</b> הזמין/ה לפני {TICKER_MINUTES[tickerIndex % TICKER_MINUTES.length]} דק׳ · קבוצה של {2 + (tickerIndex % 4)}</span>
+              </div>
             </div>
-          </div>
+          )}
         </div>
       </section>
 
@@ -532,7 +570,7 @@ export default function PublicReservationPage() {
           <div className="lg:col-span-7 space-y-4">
             <SmartReserveBanner />
             {/* ============ BOOKING CARD ============ */}
-            <main ref={bookingCardRef} className="rounded-3xl p-5 md:p-8 space-y-5" style={{ background: '#FFFEFB', border: '1px solid rgba(184,149,86,0.4)', boxShadow: '0 30px 60px -25px rgba(31,27,23,0.30), 0 8px 20px -10px rgba(31,27,23,0.15)' }}>
+            <main id="booking" ref={bookingCardRef} className="rounded-3xl p-5 md:p-8 space-y-5" style={{ background: '#FFFEFB', border: '1px solid rgba(184,149,86,0.4)', boxShadow: '0 30px 60px -25px rgba(31,27,23,0.30), 0 8px 20px -10px rgba(31,27,23,0.15)' }}>
           <div className="text-center">
             <h2 className="brand-display text-3xl md:text-4xl" style={{ color: '#1F1B17' }}>הזמינו שולחן</h2>
             <p className="text-sm mt-1" style={{ color: '#6B7A4F' }}>ללא דמי שירות · אישור מיידי · ביטול חופשי</p>
@@ -691,12 +729,29 @@ export default function PublicReservationPage() {
                   </div>
                 )}
 
-                {/* Happy Hour reminder — only Sun-Thu, only when time < 20:00 */}
-                {time && (
-                  <div className="mt-2">
-                    <HappyHourCallout time={time} dateObj={date} />
-                  </div>
-                )}
+                {/* Specials active in the chosen slot — pulls from THEME_NIGHTS catalogue */}
+                {time && (() => {
+                  const specials = getSpecialsForSlot(date, time);
+                  if (specials.length === 0) return null;
+                  return (
+                    <div className="mt-3 rounded-xl p-3" style={{ background: 'linear-gradient(135deg, rgba(184,149,86,0.12), rgba(68,81,44,0.08))', border: '1px solid rgba(184,149,86,0.40)' }}>
+                      <p className="text-[10px] font-bold uppercase tracking-[0.25em] mb-2" style={{ color: '#B89556' }}>
+                        בשעה שבחרת
+                      </p>
+                      <div className="space-y-2">
+                        {specials.map(s => (
+                          <div key={s.id} className="flex items-start gap-2">
+                            <span className="text-xl leading-none">{s.emoji}</span>
+                            <div className="flex-1 min-w-0">
+                              <div className="font-bold text-sm" style={{ color: '#1F1B17' }}>{s.title}</div>
+                              <div className="text-[12px] leading-snug" style={{ color: '#44512C' }}>{s.blurb}</div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })()}
               </>
             )}
           </div>
@@ -873,6 +928,28 @@ export default function PublicReservationPage() {
         </section>
       )}
 
+      {/* ============ THEME NIGHTS — what's on at עלינא, every day ============ */}
+      <section className="px-3 md:px-5 py-12" style={{ background: '#1F1B17', borderTop: '1px solid rgba(184,149,86,0.25)' }}>
+        <div className="max-w-6xl mx-auto">
+          <div className="text-center mb-7">
+            <div className="text-[11px] font-bold uppercase tracking-[0.3em]" style={{ color: '#B89556' }}>הערבים של עלינא</div>
+            <h3 className="brand-display text-2xl md:text-3xl mt-1" style={{ color: '#F4ECD8' }}>כל יום — סיפור אחר</h3>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            {THEME_NIGHTS.map(t => (
+              <div key={t.id} className="rounded-2xl p-4 transition-all hover:-translate-y-0.5" style={{ background: 'rgba(244,236,216,0.06)', border: '1px solid rgba(184,149,86,0.30)' }}>
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-2xl leading-none">{t.emoji}</span>
+                  <div className="brand-display text-lg" style={{ color: '#F4ECD8' }}>{t.title}</div>
+                </div>
+                <div className="text-[11px] font-bold uppercase tracking-[0.2em] mb-1.5" style={{ color: '#D9BD83' }}>{t.when}</div>
+                <p className="text-sm leading-snug" style={{ color: 'rgba(244,236,216,0.82)' }}>{t.blurb}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* ============ REVIEWS BLOCK ============ */}
       {reviews.length > 0 && (
         <section className="px-3 md:px-5 py-12" style={{ background: '#FAF5E8', borderTop: '1px solid rgba(184,149,86,0.25)' }}>
@@ -918,6 +995,38 @@ export default function PublicReservationPage() {
             המנגל פתוח 13 שעות ביום, היין נשפך, הצחוקים גבוהים.
             מ-12:00 עד אחרונה.
           </p>
+        </div>
+      </section>
+
+      {/* ============ ATMOSPHERE GALLERY ============ */}
+      <section className="px-3 md:px-5 py-10" style={{ background: '#FAF5E8', borderTop: '1px solid rgba(184,149,86,0.25)' }}>
+        <div className="max-w-6xl mx-auto">
+          <div className="text-center mb-5">
+            <div className="text-[11px] font-bold uppercase tracking-[0.3em]" style={{ color: '#B89556' }}>האווירה</div>
+            <h3 className="brand-display text-2xl md:text-3xl mt-1" style={{ color: '#1F1B17' }}>איך זה נראה אצלנו</h3>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 md:gap-3">
+            {[
+              'spread.jpg', 'burger-hero.jpg', 'carpaccio.jpg', 'IMG_6829.JPG',
+              'fries-side.jpg', 'IMG_6892.JPG', 'IMG_4682.JPG', 'IMG_6770.JPG',
+            ].map((file, i) => (
+              <a
+                key={file}
+                href="https://alena.topalena.com/gallery"
+                target="_blank"
+                rel="noopener noreferrer"
+                className={`block aspect-square rounded-2xl overflow-hidden transition-all hover:scale-[1.02] ${i === 0 ? 'col-span-2 row-span-2 aspect-auto md:aspect-square' : ''}`}
+                style={{ border: '1px solid rgba(184,149,86,0.30)' }}
+              >
+                <img
+                  src={`https://alena.topalena.com/gallery/${file}`}
+                  alt="עלינא"
+                  loading="lazy"
+                  className="w-full h-full object-cover"
+                />
+              </a>
+            ))}
+          </div>
         </div>
       </section>
 
