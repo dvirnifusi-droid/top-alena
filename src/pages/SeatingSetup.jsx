@@ -294,6 +294,9 @@ export default function SeatingSetup() {
     const [mapZoom, setMapZoom] = useState(1);     // 0.5–1.5 — scales the 1400×850 map canvas
     const [showBlueprint, setShowBlueprint] = useState(false); // legacy background drawing toggle (default OFF)
     const [isSmartMapMode, setIsSmartMapMode] = useState(false); // AI overlay state (Phase 4)
+    const [quickSeatOpen, setQuickSeatOpen] = useState(false); // walk-in / standby quick-seat flow
+    const [smartReserveOpen, setSmartReserveOpen] = useState(false); // smart-recommended reservation dialog
+    const [clockTick, setClockTick] = useState(() => new Date());
     const [mobileSheetOpen, setMobileSheetOpen] = useState(false);  // slide-up reservations dashboard on mobile
     const [bigMapMode, setBigMapMode] = useState(false);  // hostess fullscreen workflow — map + compact tonight strip
     const [dashboardDrawerOpen, setDashboardDrawerOpen] = useState(false);  // overlay slide-in of full dashboard
@@ -375,6 +378,12 @@ export default function SeatingSetup() {
         const interval = setInterval(loadLiveData, 60000);
         return () => clearInterval(interval);
     }, [loadLiveData]);
+
+    // Digital clock — tick every second for the top action bar display
+    useEffect(() => {
+        const id = setInterval(() => setClockTick(new Date()), 1000);
+        return () => clearInterval(id);
+    }, []);
 
     // --- Poll queue entries every 15s. Pops a banner when a NEW entry arrives.
     const [abandonedEntries, setAbandonedEntries] = useState([]);
@@ -2078,30 +2087,57 @@ export default function SeatingSetup() {
                                 <div className={`${bigMapMode ? 'lg:col-span-3 lg:order-2' : 'lg:col-span-2 lg:order-2'} space-y-3 ${
                                     mobileView === 'map' ? 'block' : 'hidden lg:block'
                                 }`}>
+                                    {/* TOP ACTION BAR — primary controls always visible */}
+                                    <div className="bg-white border border-gray-200 rounded-2xl shadow-sm p-2 md:p-3 flex items-center gap-2 flex-wrap">
+                                        <Button
+                                            onClick={() => setSmartReserveOpen(true)}
+                                            size="sm"
+                                            className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
+                                        >
+                                            <Plus className="w-4 h-4 ml-1" />
+                                            הזמנה חדשה
+                                        </Button>
+                                        <Button
+                                            onClick={() => setQuickSeatOpen(true)}
+                                            size="sm"
+                                            className="bg-blue-600 hover:bg-blue-700 text-white font-bold"
+                                        >
+                                            <Plus className="w-4 h-4 ml-1" />
+                                            הושבה מהירה
+                                        </Button>
+                                        <div className="flex-1"></div>
+                                        {/* Digital clock — center-prominent */}
+                                        <div className="text-center px-3 py-1 bg-gradient-to-bl from-slate-900 to-slate-700 text-white rounded-xl">
+                                            <div className="text-xl font-black tabular-nums leading-none">{format(clockTick, 'HH:mm:ss')}</div>
+                                            <div className="text-[10px] opacity-80 mt-0.5">{format(clockTick, 'EEE dd/MM', { locale: he })}</div>
+                                        </div>
+                                    </div>
+
                                     {/* פילטר אזורים - נראה בעיקר במובייל */}
-                                    <div className="flex flex-wrap gap-2 p-2 bg-gray-50 rounded-lg border">
+                                    {/* AREA FILTER — clean neutral tabs (no neon colors). Active gets dark fill. */}
+                                    <div className="flex flex-wrap gap-1 p-1.5 bg-white border border-gray-200 rounded-2xl">
                                         {[
-                                            { key: 'all', label: 'הכל', color: 'bg-gray-500' },
-                                            { key: 'אזור חום', label: '🟤 חום', color: 'bg-amber-700' },
-                                            { key: 'כניסה', label: '🟣 כניסה', color: 'bg-purple-600' },
-                                            { key: 'אדום מרוכזי', label: '🔴 אדום', color: 'bg-red-600' },
-                                            { key: 'זוהרה', label: '🗠 זוהרה', color: 'bg-orange-500' },
-                                            { key: 'מספרה', label: '🟡 מספרה', color: 'bg-yellow-500' },
-                                            { key: 'גבטה', label: '🔵 גבטה', color: 'bg-blue-600' },
-                                            { key: 'ורוד', label: '🩷 ורוד', color: 'bg-pink-500' },
-                                            ].map(area => (
-                                            <button
-                                                key={area.key}
-                                                onClick={() => toggleArea(area.key)}
-                                                className={`px-3 py-1.5 rounded-full text-sm font-bold text-white transition-all ${
-                                                    selectedAreas.includes(area.key)
-                                                        ? `${area.color} ring-2 ring-offset-1 ring-gray-800 scale-105`
-                                                        : `${area.color} opacity-50`
-                                                }`}
-                                            >
-                                                {area.label}
-                                            </button>
-                                        ))}
+                                            { key: 'all', label: 'הכל' },
+                                            { key: 'אזור חום', label: 'אזור חום' },
+                                            { key: 'כניסה', label: 'כניסה' },
+                                            { key: 'אדום מרוכזי', label: 'אדום מרוכזי' },
+                                            { key: 'זוהרה', label: 'זוהרה' },
+                                            { key: 'מספרה', label: 'מספרה' },
+                                            { key: 'גבטה', label: 'גבטה' },
+                                            { key: 'ורוד', label: 'ורוד' },
+                                        ].map(area => {
+                                            const active = selectedAreas.includes(area.key);
+                                            return (
+                                                <button
+                                                    key={area.key}
+                                                    onClick={() => toggleArea(area.key)}
+                                                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-colors
+                                                        ${active
+                                                            ? 'bg-slate-900 text-white shadow-sm'
+                                                            : 'bg-gray-50 text-gray-600 hover:bg-gray-100'}`}
+                                                >{area.label}</button>
+                                            );
+                                        })}
                                     </div>
                                     <div className="bg-white p-2 border rounded-lg shadow-sm flex justify-between items-center">
                                         <Button
@@ -2584,6 +2620,39 @@ export default function SeatingSetup() {
 
             {/* Mobile FAB removed — replaced by the tab switcher above the grid */}
 
+            {/* QUICK SEAT (walk-in) flow */}
+            {quickSeatOpen && (
+                <QuickSeatDialog
+                    open={quickSeatOpen}
+                    onClose={() => setQuickSeatOpen(false)}
+                    tables={tables}
+                    reservations={reservations}
+                    activeSessions={activeSessions}
+                    onSeat={async (params) => {
+                        const { name, phone, party_size, table_number, source_label } = params;
+                        const now = new Date();
+                        const dateStr = format(now, 'yyyy-MM-dd');
+                        const time = format(now, 'HH:mm');
+                        try {
+                            const created = await Reservation.create({
+                                customer_name: name,
+                                customer_phone: phone || null,
+                                date: dateStr,
+                                time,
+                                party_size: parseInt(party_size),
+                                status: 'seated',
+                                assigned_table: [table_number],
+                                source: source_label || 'walkin',
+                            });
+                            await loadLayout();
+                            setQuickSeatOpen(false);
+                        } catch (e) {
+                            alert('שגיאה בהושבה: ' + (e?.message || e));
+                        }
+                    }}
+                />
+            )}
+
             {/* Queue popup banner — fires when a NEW walk-in joins the queue.
                 Inline אשר/דחה buttons so hostess approves/rejects without leaving. */}
             {queueNewBanner && (
@@ -2811,6 +2880,168 @@ function QueueApprovalBanner({ banner, onApprove, onReject, onDismiss, onOpenTab
             >
                 פתח טאב התור לפרטים נוספים →
             </button>
+        </div>
+    );
+}
+
+// === QuickSeatDialog — walk-in / standby / casual quick seat ================
+// Rule-based recommendation engine: given a party size, find available tables
+// (no active session, no overlapping reservation) and rank by fit.
+function QuickSeatDialog({ open, onClose, tables, reservations, activeSessions, onSeat }) {
+    const [step, setStep] = useState('intake'); // intake | pick
+    const [partySize, setPartySize] = useState(2);
+    const [name, setName] = useState('');
+    const [phone, setPhone] = useState('');
+    const [sourceLabel, setSourceLabel] = useState('walkin'); // walkin | queue | standby
+    const [selectedTable, setSelectedTable] = useState(null);
+
+    if (!open) return null;
+
+    // Build availability map
+    const now = new Date();
+    const occupied = new Set(activeSessions.map(s => s.table_number));
+    const todayStr = format(now, 'yyyy-MM-dd');
+    const todayReservations = (reservations || []).filter(r => {
+        const d = r.date instanceof Date ? format(r.date, 'yyyy-MM-dd') : String(r.date).slice(0,10);
+        return d === todayStr && ['confirmed','seated','pending'].includes(r.status);
+    });
+    const tableHasUpcomingSoon = (tableNum) => {
+        const inNext2h = todayReservations.find(r => {
+            const assigned = Array.isArray(r.assigned_table) ? r.assigned_table : (r.assigned_table ? [r.assigned_table] : []);
+            if (!assigned.includes(tableNum)) return false;
+            if (!r.time) return false;
+            const [h, m] = r.time.split(':').map(Number);
+            const start = new Date(now); start.setHours(h, m||0, 0, 0);
+            const diffMin = (start.getTime() - now.getTime()) / 60000;
+            return diffMin >= 0 && diffMin <= 120;
+        });
+        return inNext2h;
+    };
+
+    // RULE-BASED RECOMMENDATIONS:
+    //   1. min_capacity <= party_size <= max_capacity (exact fit, no over-allocation)
+    //   2. Not currently occupied (no active session)
+    //   3. No upcoming reservation in the next 2 hours
+    //   4. Sort: indoor first, then by capacity ascending (no wasted seats)
+    const size = parseInt(partySize) || 0;
+    const recommendations = (tables || [])
+        .map(t => {
+            const occ = occupied.has(t.table_number);
+            const conflict = tableHasUpcomingSoon(t.table_number);
+            const fits = (t.min_capacity || 1) <= size && size <= (t.max_capacity || 99);
+            return { t, occ, conflict, fits };
+        })
+        .filter(x => x.fits)
+        .sort((a, b) => {
+            // available > conflict > occupied
+            const aScore = (a.occ ? 2 : 0) + (a.conflict ? 1 : 0);
+            const bScore = (b.occ ? 2 : 0) + (b.conflict ? 1 : 0);
+            if (aScore !== bScore) return aScore - bScore;
+            // prefer indoor
+            if (a.t.location !== b.t.location) return a.t.location === 'indoor' ? -1 : 1;
+            // smallest still-fitting capacity first
+            return (a.t.max_capacity || 99) - (b.t.max_capacity || 99);
+        });
+
+    const handleConfirm = () => {
+        if (!name.trim()) { alert('יש להזין שם'); return; }
+        if (!selectedTable) { alert('יש לבחור שולחן'); return; }
+        onSeat({ name: name.trim(), phone: phone.trim(), party_size: size, table_number: selectedTable, source_label: sourceLabel });
+    };
+
+    return (
+        <div className="fixed inset-0 bg-black/50 z-[55] flex items-center justify-center p-4" dir="rtl" onClick={onClose}>
+            <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-5 space-y-4 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+                <div className="flex items-center justify-between">
+                    <h3 className="text-lg font-black text-gray-900">⚡ הושבה מהירה</h3>
+                    <button onClick={onClose} className="text-gray-400 hover:text-gray-700"><X className="w-5 h-5" /></button>
+                </div>
+
+                {/* Source */}
+                <div className="flex gap-1.5 flex-wrap">
+                    {[
+                        { k: 'walkin',  l: '🚶 מזדמן' },
+                        { k: 'queue',   l: '📋 מתור' },
+                        { k: 'standby', l: '⏳ סטנדבי' },
+                    ].map(s => (
+                        <button key={s.k} onClick={() => setSourceLabel(s.k)}
+                            className={`text-xs font-bold px-3 py-1.5 rounded-full border transition-colors
+                                ${sourceLabel === s.k ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-gray-600 border-gray-300'}`}
+                        >{s.l}</button>
+                    ))}
+                </div>
+
+                {/* Party size chips */}
+                <div>
+                    <Label className="text-xs font-bold text-gray-600 mb-1 block">כמות סועדים</Label>
+                    <div className="flex flex-wrap gap-1">
+                        {[1,2,3,4,5,6,8,10,12,15].map(n => (
+                            <button key={n} onClick={() => setPartySize(n)}
+                                className={`min-w-[42px] h-10 px-3 rounded-xl font-bold text-sm border transition-all
+                                    ${partySize === n ? 'bg-blue-600 text-white border-blue-700 shadow scale-105'
+                                                      : 'bg-white text-gray-700 border-gray-200 hover:border-blue-400'}`}
+                            >{n}</button>
+                        ))}
+                    </div>
+                </div>
+
+                {/* Name + phone */}
+                <div className="grid grid-cols-2 gap-2">
+                    <div>
+                        <Label className="text-xs font-bold text-gray-600">שם</Label>
+                        <Input value={name} onChange={e => setName(e.target.value)} placeholder="שם הלקוח" />
+                    </div>
+                    <div>
+                        <Label className="text-xs font-bold text-gray-600">טלפון (אופציונלי)</Label>
+                        <Input value={phone} onChange={e => setPhone(e.target.value)} placeholder="050…" dir="ltr" className="text-right" />
+                    </div>
+                </div>
+
+                {/* Recommendations */}
+                <div>
+                    <Label className="text-xs font-bold text-gray-600 mb-1 block">
+                        🎯 שולחנות מומלצים ({recommendations.length})
+                    </Label>
+                    {recommendations.length === 0 ? (
+                        <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-700">
+                            ⚠️ אין שולחן מתאים ל-{size} סועדים כרגע. שקול לחבר שני שולחנות, או הוסף לתור.
+                        </div>
+                    ) : (
+                        <div className="grid grid-cols-3 gap-1.5 max-h-52 overflow-y-auto">
+                            {recommendations.slice(0, 18).map(({ t, occ, conflict }) => {
+                                const status = occ ? 'תפוס' : conflict ? `הזמנה ב-${conflict.time}` : 'פנוי';
+                                const statusColor = occ ? 'text-red-600' : conflict ? 'text-amber-700' : 'text-emerald-700';
+                                const tn = t.table_number;
+                                const active = selectedTable === tn;
+                                const disabled = occ;
+                                return (
+                                    <button
+                                        key={tn}
+                                        disabled={disabled}
+                                        onClick={() => setSelectedTable(tn)}
+                                        className={`p-2 rounded-lg border text-center transition-all
+                                            ${active ? 'bg-blue-600 text-white border-blue-700 shadow'
+                                                : disabled ? 'bg-gray-50 text-gray-300 border-gray-100 cursor-not-allowed'
+                                                : 'bg-white border-gray-200 hover:border-blue-400'}`}
+                                    >
+                                        <div className="font-black text-base">{tn}</div>
+                                        <div className="text-[9px] opacity-70">{t.area}</div>
+                                        <div className={`text-[9px] mt-0.5 ${active ? 'opacity-90' : statusColor}`}>{status}</div>
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    )}
+                </div>
+
+                <Button
+                    onClick={handleConfirm}
+                    disabled={!selectedTable || !name.trim()}
+                    className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:bg-gray-300 text-white font-black py-3"
+                >
+                    🪑 הושב בשולחן {selectedTable || '?'}
+                </Button>
+            </div>
         </div>
     );
 }
