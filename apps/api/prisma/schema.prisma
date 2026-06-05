@@ -1384,6 +1384,15 @@ model Reservation {
   // via a single click. Values: 'green' (called, confirmed) / 'orange' (called,
   // running late) / 'red' (called, no answer) / 'black' (problem customer).
   hostess_flag                 String?
+  // Customer-facing tracking token. Random 28-char string. URL becomes
+  // /ReservationView?token=<>. Lets the customer cancel / view their own
+  // reservation without auth.
+  tracking_token               String?  @unique
+  customer_email               String?
+  cancelled_at                 DateTime?
+  cancellation_reason          String?
+  deposit_charged_at           DateTime?
+  deposit_charge_amount        Int?     // in ILS
   // Legacy base44 columns — exist in DB; declared so frontend code that
   // reads record.created_date / record.updated_date still gets a value.
   created_date String?

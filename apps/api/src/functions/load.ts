@@ -3180,12 +3180,34 @@ registerFn('searchReservationTable', async ({ body }) => {
 let reservationSourceCols = false;
 async function ensureReservationSourceCols() {
   if (reservationSourceCols) return;
-  for (const col of ['source', 'campaign', 'medium', 'landing_url', 'referrer', 'hostess_flag']) {
+  for (const col of ['source', 'campaign', 'medium', 'landing_url', 'referrer', 'hostess_flag', 'tracking_token', 'customer_email', 'cancellation_reason']) {
     await (prisma as any).$executeRawUnsafe(
       `ALTER TABLE "Reservation" ADD COLUMN IF NOT EXISTS "${col}" TEXT;`
     ).catch(() => {});
   }
+  // Timestamp + integer columns
+  await (prisma as any).$executeRawUnsafe(
+    `ALTER TABLE "Reservation" ADD COLUMN IF NOT EXISTS "cancelled_at" TIMESTAMP(3);`
+  ).catch(() => {});
+  await (prisma as any).$executeRawUnsafe(
+    `ALTER TABLE "Reservation" ADD COLUMN IF NOT EXISTS "deposit_charged_at" TIMESTAMP(3);`
+  ).catch(() => {});
+  await (prisma as any).$executeRawUnsafe(
+    `ALTER TABLE "Reservation" ADD COLUMN IF NOT EXISTS "deposit_charge_amount" INTEGER;`
+  ).catch(() => {});
+  // Unique index for tracking_token (best-effort)
+  await (prisma as any).$executeRawUnsafe(
+    `CREATE UNIQUE INDEX IF NOT EXISTS "Reservation_tracking_token_uq" ON "Reservation"("tracking_token") WHERE "tracking_token" IS NOT NULL;`
+  ).catch(() => {});
   reservationSourceCols = true;
+}
+
+// 28-char URL-safe random token for customer-facing reservation links.
+function makeTrackingToken() {
+  const alphabet = 'abcdefghijkmnopqrstuvwxyz23456789';
+  let out = '';
+  for (let i = 0; i < 28; i++) out += alphabet[Math.floor(Math.random() * alphabet.length)];
+  return out;
 }
 
 // Normalize a UTM source or referrer hostname into one of our known channels.
@@ -3242,6 +3264,9 @@ registerFn('createPublicReservation', async ({ body }) => {
   const end_time = `${String(Math.floor(endMin / 60) % 24).padStart(2, '0')}:${String(endMin % 60).padStart(2, '0')}`;
 
   const { start: bookingDate } = dayRange(date);
+  const tracking_token = makeTrackingToken();
+  const customer_email = (body as any)?.customer_email
+    ? String((body as any).customer_email).slice(0, 200).trim() : null;
   const reservation = await db.reservation.create({
     data: {
       customer_name: String(customer_name).trim(),
@@ -3258,9 +3283,55 @@ registerFn('createPublicReservation', async ({ body }) => {
       medium: utm_medium ? String(utm_medium).slice(0, 40) : null,
       landing_url: landing_url ? String(landing_url).slice(0, 500) : null,
       referrer: referrer ? String(referrer).slice(0, 500) : null,
+      tracking_token,
+      customer_email,
     } as any,
   });
   fireTriggers('Reservation', 'created', reservation).catch(() => {});
+
+  // Customer-facing confirmation messages
+  const baseUrl = process.env.PUBLIC_BASE_URL || 'https://topalena.com';
+  const trackUrl = `${baseUrl}/ReservationView?token=${tracking_token}`;
+  const dateStr = bookingDate.toISOString().slice(0, 10).split('-').reverse().join('/');
+  const smsBody = [
+    `שלום ${customer_name}!`,
+    `ההזמנה שלך בעלינא אושרה ✅`,
+    `📅 ${dateStr} · 🕐 ${time}`,
+    `👥 ${size} סועדים`,
+    `📍 רוטשילד 104, ראשון לציון`,
+    `🅿️ חניה: חניון בן גוריון (חינם אחר הצהריים)`,
+    ``,
+    `🔗 צפיה / ביטול: ${trackUrl}`,
+    `(ניתן לבטל ללא חיוב עד שעתיים לפני)`,
+  ].join('\n');
+  // SMS
+  sendSms(String(customer_phone).trim(), smsBody).catch((e) =>
+    console.warn('[reservation] sms failed', e?.message)
+  );
+  // WhatsApp (Twilio sandbox / approved number, if configured)
+  sendWhatsApp(String(customer_phone).trim(), smsBody).catch((e) =>
+    console.warn('[reservation] whatsapp failed', e?.message)
+  );
+  // Email — best-effort if address provided
+  if (customer_email) {
+    const html = `
+      <div style="font-family:Arial,sans-serif;max-width:560px;margin:auto;padding:20px;background:#fafafa;border-radius:12px">
+        <h2 style="color:#a04a2e">שלום ${customer_name}, ההזמנה שלך בעלינא אושרה ✅</h2>
+        <p>📅 <b>${dateStr}</b> · 🕐 <b>${time}</b> · 👥 <b>${size} סועדים</b></p>
+        <p>📍 רוטשילד 104, ראשון לציון</p>
+        <p>🅿️ <b>חניה</b>: חניון בן גוריון (חינם אחר הצהריים)</p>
+        <p style="margin-top:24px">
+          <a href="${trackUrl}" style="background:#a04a2e;color:white;padding:10px 16px;border-radius:8px;text-decoration:none">צפיה / ביטול הזמנה</a>
+        </p>
+        <p style="font-size:12px;color:#666;margin-top:16px">ניתן לבטל ללא חיוב עד שעתיים לפני המועד. נשמח לראותך!</p>
+      </div>
+    `;
+    sendEmail({
+      to: customer_email,
+      subject: `ההזמנה שלך בעלינא · ${dateStr} ${time}`,
+      html,
+    }).catch((e) => console.warn('[reservation] email failed', e?.message));
+  }
 
   // Upsert the customer club record by phone.
   try {
@@ -7947,4 +8018,73 @@ registerFn('getDayAvailabilitySnapshot', async ({ body }) => {
     } catch { result[time] = 'open'; }
   }));
   return { availability: result };
+}, { public: true });
+
+// PUBLIC — fetch a reservation by tracking_token for the customer-view page.
+// Returns customer-safe fields only (no internal hostess_flag, no source data).
+registerFn('getReservationByToken', async ({ body }) => {
+  await ensureReservationSourceCols();
+  const token = String((body as any)?.token || '').trim();
+  if (!token) throw new Error('token required');
+  const r = await (prisma as any).reservation.findFirst({ where: { tracking_token: token } });
+  if (!r) throw new Error('not_found');
+  return {
+    customer_name: r.customer_name,
+    customer_phone: r.customer_phone,
+    customer_email: r.customer_email,
+    date: r.date,
+    time: r.time,
+    reservation_end_time: r.reservation_end_time,
+    party_size: r.party_size,
+    assigned_table: r.assigned_table,
+    status: r.status,
+    cancelled_at: r.cancelled_at,
+    special_occasion: r.special_occasion,
+    special_requests: r.special_requests,
+  };
+}, { public: true });
+
+// PUBLIC — cancel a reservation by tracking_token.
+// Policy: < 2 hours before start → marked 'no_show' (eligible for deposit charge).
+// Otherwise → 'cancelled' (no charge).
+registerFn('cancelReservationByToken', async ({ body }) => {
+  await ensureReservationSourceCols();
+  const b = (body || {}) as any;
+  const token = String(b.token || '').trim();
+  const reason = String(b.reason || '').slice(0, 300);
+  if (!token) throw new Error('token required');
+  const r = await (prisma as any).reservation.findFirst({ where: { tracking_token: token } });
+  if (!r) throw new Error('not_found');
+  if (r.cancelled_at || r.status === 'cancelled' || r.status === 'no_show') {
+    return { ok: false, reason: 'already_cancelled' };
+  }
+  // Compute hours until reservation start
+  const d = r.date instanceof Date ? r.date : new Date(r.date);
+  const dateStr = d.toISOString().slice(0, 10);
+  const startMs = new Date(`${dateStr}T${r.time}:00`).getTime();
+  const hoursTo = (startMs - Date.now()) / (60 * 60 * 1000);
+  const lateCancel = hoursTo < 2 && hoursTo >= -1;  // within 2h window (or up to 1h after start)
+  const status = lateCancel ? 'no_show' : 'cancelled';
+  await (prisma as any).reservation.update({
+    where: { id: r.id },
+    data: {
+      status,
+      cancelled_at: new Date(),
+      cancellation_reason: reason || (lateCancel ? 'בוטל פחות משעתיים לפני' : 'בוטל ע״י הלקוח'),
+    },
+  });
+  // Notify admin
+  try {
+    await pushoverToAdmins(
+      lateCancel ? '🚨 ביטול מאוחר — הזמנה' : '❌ ביטול הזמנה',
+      [
+        `👤 ${r.customer_name} · ${r.customer_phone}`,
+        `📅 ${dateStr} 🕐 ${r.time}`,
+        `👥 ${r.party_size}`,
+        reason ? `סיבה: ${reason}` : null,
+        lateCancel ? '⚠️ פחות משעתיים — מועמד לחיוב פיקדון' : null,
+      ].filter(Boolean).join('\n')
+    );
+  } catch {}
+  return { ok: true, status, lateCancel };
 }, { public: true });

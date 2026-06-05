@@ -142,6 +142,7 @@ export default function PublicReservationPage() {
   const [partySize, setPartySize] = useState(2);
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
+  const [customerEmail, setCustomerEmail] = useState('');
   const [specialRequests, setSpecialRequests] = useState('');
   const [occasion, setOccasion] = useState('');  // chip-selected celebration
 
@@ -300,6 +301,7 @@ export default function PublicReservationPage() {
       const res = await invokePublic('createPublicReservation', {
         customer_name: customerName.trim(),
         customer_phone: customerPhone.trim(),
+        customer_email: customerEmail.trim() || null,
         date: format(date, 'yyyy-MM-dd'),
         time,
         party_size: parseInt(partySize),
@@ -846,6 +848,20 @@ export default function PublicReservationPage() {
                 style={{ background: '#FFFEFB', border: '2px solid rgba(184,149,86,0.35)', color: '#1F1B17' }}
               />
             </div>
+          </div>
+
+          {/* Optional email — for email confirmation */}
+          <div>
+            <Label>אימייל <span className="font-normal text-gray-400">(אופציונלי, לאישור במייל)</span></Label>
+            <input
+              type="email"
+              value={customerEmail}
+              onChange={e => setCustomerEmail(e.target.value)}
+              placeholder="you@example.com"
+              dir="ltr"
+              className="mt-1 w-full px-3 py-2.5 rounded-xl focus:outline-none text-base text-right brand-input"
+              style={{ background: '#FFFEFB', border: '2px solid rgba(184,149,86,0.35)', color: '#1F1B17' }}
+            />
           </div>
 
           {/* Optional notes */}

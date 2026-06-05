@@ -76,6 +76,7 @@ import EventsPrivate from './pages/EventsPrivate';
 import EventsSalesKit from './pages/EventsSalesKit';
 import EventContracts from './pages/EventContracts';
 import EventContractSign from './pages/EventContractSign';
+import ReservationView from './pages/ReservationView';
 import GamificationAdmin from './pages/GamificationAdmin';
 import GamificationCenter from './pages/GamificationCenter';
 import Incidents from './pages/Incidents';
@@ -156,6 +157,7 @@ export const PAGES = {
     "EventsSalesKit": EventsSalesKit,
     "EventContracts": EventContracts,
     "EventContractSign": EventContractSign,
+    "ReservationView": ReservationView,
     "GamificationAdmin": GamificationAdmin,
     "GamificationCenter": GamificationCenter,
     "Incidents": Incidents,

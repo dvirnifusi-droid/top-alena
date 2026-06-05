@@ -20,6 +20,7 @@ import JobApplication from './pages/JobApplication';
 import EventsInquiry from './pages/EventsInquiry';
 import EventsPayment from './pages/EventsPayment';
 import EventContractSign from './pages/EventContractSign';
+import ReservationView from './pages/ReservationView';
 import Waiter from './pages/Waiter';
 import QueueJoin from './pages/QueueJoin';
 import QueueDashboard from './pages/QueueDashboard';
@@ -152,6 +153,7 @@ function App() {
           <Route path="/events" element={<EventsInquiry />} />
           <Route path="/EventsPayment" element={<EventsPayment />} />
           <Route path="/EventContractSign" element={<EventContractSign />} />
+          <Route path="/ReservationView" element={<ReservationView />} />
           <Route path="/Waiter" element={<Waiter />} />
           <Route path="/menu" element={<Waiter />} />
 
