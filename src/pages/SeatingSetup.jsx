@@ -283,6 +283,7 @@ export default function SeatingSetup() {
     const [bigMapMode, setBigMapMode] = useState(false);  // hostess fullscreen workflow — map + compact tonight strip
     const [dashboardDrawerOpen, setDashboardDrawerOpen] = useState(false);  // overlay slide-in of full dashboard
     const [smartBookerOpen, setSmartBookerOpen] = useState(false);  // collapsible "+ הזמנה חדשה" panel
+    const [mobileView, setMobileView] = useState('reservations');  // 'reservations' | 'map' — tab switcher on mobile
     const toggleArea = (key) => {
         if (key === 'all') { setSelectedAreas(['all']); return; }
         setSelectedAreas(prev => {
@@ -705,17 +706,13 @@ export default function SeatingSetup() {
         } catch (e) { console.warn('flag save failed', e); }
     };
 
-    // Status cycle — clicking the status pill advances to the next state
-    const STATUS_CYCLE = ['request', 'pending', 'confirmed', 'standby', 'seated', 'finishing_soon', 'completed', 'cancelled', 'no_show', 'deleted'];
-    const cycleStatus = async (reservation, e) => {
-        e?.stopPropagation();
-        const current = reservation.status || 'pending';
-        const idx = STATUS_CYCLE.indexOf(current);
-        const next = STATUS_CYCLE[(idx + 1) % STATUS_CYCLE.length];
+    // Status picker — direct selection from a popover menu
+    const STATUS_OPTIONS = ['request', 'pending', 'confirmed', 'standby', 'seated', 'finishing_soon', 'completed', 'cancelled', 'no_show', 'deleted'];
+    const setStatus = async (reservation, status) => {
         try {
-            await Reservation.update(reservation.id, { status: next });
+            await Reservation.update(reservation.id, { status });
             await loadLayout();
-        } catch (err) { console.warn('status cycle failed', err); }
+        } catch (err) { console.warn('status save failed', err); }
     };
 
     const ReservationCard = ({ reservation }) => {
@@ -727,18 +724,14 @@ export default function SeatingSetup() {
         const flag = reservation.hostess_flag || '';
         const flagMeta = FLAG_CONFIGS[flag];
 
-        const cycleFlag = (e) => {
-            e.stopPropagation();
-            const idx = FLAG_CYCLE.indexOf(flag);
-            const next = FLAG_CYCLE[(idx + 1) % FLAG_CYCLE.length];
-            setHostessFlag(reservation, next);
-        };
-
         const openEdit = (e) => {
-            e?.stopPropagation();
+            // open edit only when clicking outside any inline control
+            if (e.target.closest('button, [role="menuitem"], [data-popover-trigger]')) return;
             setEditingReservation(reservation);
             setIsEditReservationOpen(true);
         };
+
+        const phoneTel = (reservation.customer_phone || '').replace(/[^\d+]/g, '');
 
         return (
             <div
@@ -746,66 +739,115 @@ export default function SeatingSetup() {
                     ${isReturning ? 'bg-pink-50 border-pink-200' : 'bg-white border-gray-200 hover:border-indigo-300'}`}
                 onClick={openEdit}
             >
-                {/* Flag stripe on right edge */}
+                {/* Flag stripe on right edge — full height */}
                 {flagMeta && (
                     <div className={`absolute top-0 bottom-0 right-0 w-1.5 ${flagMeta.color}`}></div>
                 )}
 
-                {/* TOP ROW: time + status pill (clickable to cycle) */}
+                {/* TOP ROW: status pill (menu) on left + time on right */}
                 <div className="flex items-start justify-between gap-2">
-                    <div className="font-black text-xl text-gray-900 leading-none">
+                    <Popover>
+                        <PopoverTrigger asChild>
+                            <button
+                                data-popover-trigger
+                                onClick={(e) => e.stopPropagation()}
+                                className={`text-[10px] font-bold px-2.5 py-1 rounded-full ${statusConfig.color} hover:opacity-80 transition-opacity`}
+                            >
+                                {statusConfig.label}
+                            </button>
+                        </PopoverTrigger>
+                        <PopoverContent className="p-1.5 w-44" dir="rtl" align="start">
+                            <div className="text-[10px] font-bold text-gray-500 px-2 py-1">החלף סטטוס:</div>
+                            {STATUS_OPTIONS.map(s => {
+                                const sc = STATUS_CONFIGS[s];
+                                const active = (reservation.status || 'pending') === s;
+                                return (
+                                    <button
+                                        key={s}
+                                        onClick={(e) => { e.stopPropagation(); setStatus(reservation, s); }}
+                                        className={`w-full text-right text-xs font-bold px-2 py-1.5 rounded my-0.5 flex items-center gap-2 ${
+                                            active ? sc.color + ' ring-2 ring-indigo-400' : `${sc.color} opacity-75 hover:opacity-100`
+                                        }`}
+                                    >
+                                        {sc.label}
+                                    </button>
+                                );
+                            })}
+                        </PopoverContent>
+                    </Popover>
+                    <div className="font-black text-2xl text-gray-900 leading-none">
                         {reservation.time?.slice(0, 5) || '--:--'}
                     </div>
-                    <button
-                        onClick={(e) => cycleStatus(reservation, e)}
-                        title="לחץ כדי להחליף סטטוס"
-                        className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${statusConfig.color} hover:scale-105 transition-transform`}
-                    >
-                        {statusConfig.label}
-                    </button>
                 </div>
 
-                {/* IDENTITY ROW: name + flag dot + returning badge */}
-                <div className="mt-2 flex items-center gap-2 flex-wrap">
-                    <button
-                        onClick={cycleFlag}
-                        title={flagMeta?.label || 'הוסף דגל'}
-                        className={`w-3.5 h-3.5 rounded-full border-2 flex-shrink-0 transition-all ${
-                            flagMeta ? `${flagMeta.color} border-white shadow` : 'bg-white border-gray-300 hover:border-gray-400'
-                        }`}
-                    ></button>
-                    <div className="font-bold text-gray-900 text-sm truncate flex-1 min-w-0">{customerInfo}</div>
+                {/* IDENTITY ROW: flag picker + name + returning */}
+                <div className="mt-2 flex items-center justify-end gap-2">
                     {isReturning && <span className="text-[9px] font-bold bg-pink-200 text-pink-800 px-1.5 py-0.5 rounded-full">חוזר</span>}
+                    <div className="font-bold text-gray-900 text-base truncate">{customerInfo}</div>
+                    <Popover>
+                        <PopoverTrigger asChild>
+                            <button
+                                data-popover-trigger
+                                onClick={(e) => e.stopPropagation()}
+                                title={flagMeta?.label || 'הוסף דגל'}
+                                className={`w-4 h-4 rounded-full border-2 flex-shrink-0 transition-all ${
+                                    flagMeta ? `${flagMeta.color} border-white shadow` : 'bg-white border-gray-300 hover:border-gray-400'
+                                }`}
+                            ></button>
+                        </PopoverTrigger>
+                        <PopoverContent className="p-2 w-52" dir="rtl" align="end">
+                            <div className="text-[10px] font-bold text-gray-500 mb-1.5">בחר דגל:</div>
+                            {Object.entries(FLAG_CONFIGS).map(([k, v]) => (
+                                <button
+                                    key={k}
+                                    onClick={(e) => { e.stopPropagation(); setHostessFlag(reservation, k); }}
+                                    className={`w-full flex items-center gap-2 text-xs font-bold px-2 py-1.5 rounded my-0.5 hover:bg-gray-100 ${flag === k ? 'bg-gray-100 ring-2 ring-indigo-400' : ''}`}
+                                >
+                                    <span className={`w-3 h-3 rounded-full ${v.color}`}></span>
+                                    <span className="text-gray-800">{v.label}</span>
+                                </button>
+                            ))}
+                            {flag && (
+                                <button
+                                    onClick={(e) => { e.stopPropagation(); setHostessFlag(reservation, ''); }}
+                                    className="w-full text-[11px] text-gray-500 hover:text-red-600 py-1 mt-1 border-t"
+                                >ניקוי דגל</button>
+                            )}
+                        </PopoverContent>
+                    </Popover>
                 </div>
 
-                {/* META ROW: people + table + phone */}
-                <div className="mt-1.5 flex items-center gap-2.5 text-xs text-gray-600 flex-wrap">
-                    <span className="flex items-center gap-0.5">
-                        <Users className="w-3 h-3" />
-                        <b className="text-gray-900">{reservation.party_size || '?'}</b>
-                    </span>
-                    {Array.isArray(reservation.assigned_table) && reservation.assigned_table.length > 0 && (
-                        <span className="flex items-center gap-0.5 text-indigo-700 font-bold">
-                            🪑 {reservation.assigned_table.join(',')}
-                        </span>
-                    )}
-                    {reservation.customer_phone && (
-                        <span className="text-gray-400 text-[10px]" dir="ltr">
+                {/* META ROW: phone (small, pink) + table (big) + party (big) */}
+                <div className="mt-2 flex items-center justify-end gap-3">
+                    {phoneTel && (
+                        <a
+                            href={`tel:${phoneTel}`}
+                            onClick={(e) => e.stopPropagation()}
+                            data-popover-trigger
+                            className="text-rose-400 text-xs hover:text-rose-600 hover:underline"
+                            dir="ltr"
+                        >
                             {reservation.customer_phone}
+                        </a>
+                    )}
+                    {Array.isArray(reservation.assigned_table) && reservation.assigned_table.length > 0 && (
+                        <span className="flex items-center gap-1 text-indigo-700">
+                            <span className="text-xl font-black">{reservation.assigned_table.join(',')}</span>
+                            <span className="text-sm">🪑</span>
                         </span>
                     )}
+                    <span className="flex items-center gap-1 text-gray-800">
+                        <span className="text-xl font-black">{reservation.party_size || '?'}</span>
+                        <Users className="w-4 h-4" />
+                    </span>
                 </div>
 
-                {/* SOURCE ROW: where the booking came from + campaign on click */}
-                {reservation.source && (
-                    <div className="mt-1.5">
-                        <ReservationSourceBadge source={reservation.source} campaign={reservation.campaign} />
-                    </div>
-                )}
-
-                {/* OCCASION + SPECIAL REQUESTS */}
-                {(reservation.special_occasion || reservation.special_requests) && (
-                    <div className="mt-1.5 flex items-center gap-2 flex-wrap text-[11px]">
+                {/* SOURCE + OCCASION + REQUESTS */}
+                {(reservation.source || reservation.special_occasion || reservation.special_requests) && (
+                    <div className="mt-2 pt-2 border-t border-gray-100 flex items-center gap-2 flex-wrap text-[11px]">
+                        {reservation.source && (
+                            <ReservationSourceBadge source={reservation.source} campaign={reservation.campaign} />
+                        )}
                         {reservation.special_occasion && (
                             <span className="bg-rose-50 text-rose-700 border border-rose-200 rounded-full px-2 py-0.5 font-bold">
                                 🎉 {reservation.special_occasion}
@@ -1696,21 +1738,32 @@ export default function SeatingSetup() {
                                 <Button variant="outline" onClick={handleAddTable}><Plus className="w-4 h-4 ml-2" />הוסף שולחן</Button>
                             </div>
                         ) : (
+                            {/* Mobile tab switcher — sticky at top of content */}
+                            <div className="lg:hidden sticky top-0 z-30 bg-gray-50 -mx-3 px-3 py-2 mb-2 flex gap-1 border-b border-gray-200">
+                                <button
+                                    onClick={() => setMobileView('reservations')}
+                                    className={`flex-1 text-sm font-bold py-2 rounded-lg border transition-colors flex items-center justify-center gap-1
+                                        ${mobileView === 'reservations'
+                                            ? 'bg-indigo-600 border-indigo-700 text-white shadow'
+                                            : 'bg-white border-gray-200 text-gray-600'}`}
+                                >📋 הזמנות</button>
+                                <button
+                                    onClick={() => setMobileView('map')}
+                                    className={`flex-1 text-sm font-bold py-2 rounded-lg border transition-colors flex items-center justify-center gap-1
+                                        ${mobileView === 'map'
+                                            ? 'bg-indigo-600 border-indigo-700 text-white shadow'
+                                            : 'bg-white border-gray-200 text-gray-600'}`}
+                                >🗺️ מפה</button>
+                            </div>
+
                             <div className={`grid grid-cols-1 gap-4 lg:gap-4 ${bigMapMode ? 'lg:grid-cols-4' : 'lg:grid-cols-3'}`}>
                                 {/* Full sidebar — hidden in big-map mode; replaced by compact strip */}
                                 {!bigMapMode && (
-                                <div className={`lg:order-1 space-y-4 ${mobileSheetOpen
-                                    ? 'fixed inset-0 z-40 bg-gray-50 p-4 overflow-y-auto'
-                                    : 'hidden lg:block'
+                                <div className={`lg:order-1 space-y-4 ${
+                                    mobileView === 'reservations'
+                                        ? 'block'
+                                        : 'hidden lg:block'
                                 }`}>
-                                    {mobileSheetOpen && (
-                                        <div className="flex items-center justify-between lg:hidden mb-2">
-                                            <div className="font-bold text-lg">הזמנות והושבה</div>
-                                            <button onClick={() => setMobileSheetOpen(false)} className="p-2 -m-2 rounded-full hover:bg-gray-200">
-                                                <X className="w-5 h-5"/>
-                                            </button>
-                                        </div>
-                                    )}
                                     <ReservationsDashboard />
                                     <ReservationTool onReservationCreated={loadLayout} />
                                 </div>
@@ -1786,7 +1839,9 @@ export default function SeatingSetup() {
                                 </div>
                                 )}
 
-                                <div className={`${bigMapMode ? 'lg:col-span-3 lg:order-2' : 'lg:col-span-2 lg:order-2'} space-y-3`}>
+                                <div className={`${bigMapMode ? 'lg:col-span-3 lg:order-2' : 'lg:col-span-2 lg:order-2'} space-y-3 ${
+                                    mobileView === 'map' ? 'block' : 'hidden lg:block'
+                                }`}>
                                     {/* פילטר אזורים - נראה בעיקר במובייל */}
                                     <div className="flex flex-wrap gap-2 p-2 bg-gray-50 rounded-lg border">
                                         {[
@@ -2148,14 +2203,7 @@ export default function SeatingSetup() {
                 </CardContent>
             </Card>
 
-            {/* Mobile FAB — opens the reservations dashboard as a bottom sheet */}
-            <button
-                onClick={() => setMobileSheetOpen(true)}
-                className="lg:hidden fixed bottom-4 left-4 z-30 h-14 w-14 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white shadow-2xl flex items-center justify-center"
-                title="הזמנות והושבה"
-            >
-                <Calendar className="w-6 h-6" />
-            </button>
+            {/* Mobile FAB removed — replaced by the tab switcher above the grid */}
 
             {/* Dashboard drawer — modal overlay only when NOT in big-map mode.
                 In big-map mode the dashboard renders inline in the right rail. */}
