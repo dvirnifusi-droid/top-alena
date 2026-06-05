@@ -4,7 +4,7 @@ import { TableSession } from '@/entities/TableSession';
 import { ServiceStep } from '@/entities/ServiceStep';
 import { Reservation } from '@/entities/Reservation';
 import { Customer } from '@/entities/Customer';
-import { QueueEntry } from '@/entities/QueueEntry';
+import { QueueEntry } from '@/entities/all';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
