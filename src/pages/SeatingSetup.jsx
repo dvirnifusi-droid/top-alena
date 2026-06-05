@@ -700,19 +700,32 @@ export default function SeatingSetup() {
     };
     const FLAG_CYCLE = ['', 'green', 'orange', 'red', 'black'];
     const setHostessFlag = async (reservation, nextFlag) => {
+        // optimistic — no global reload
+        setReservations(prev => prev.map(r => r.id === reservation.id ? { ...r, hostess_flag: nextFlag || null } : r));
         try {
             await Reservation.update(reservation.id, { hostess_flag: nextFlag || null });
-            await loadLayout();
-        } catch (e) { console.warn('flag save failed', e); }
+        } catch (e) {
+            setReservations(prev => prev.map(r => r.id === reservation.id ? { ...r, hostess_flag: reservation.hostess_flag } : r));
+            console.warn('flag save failed', e);
+        }
     };
 
     // Status picker — direct selection from a popover menu
     const STATUS_OPTIONS = ['request', 'pending', 'confirmed', 'standby', 'seated', 'finishing_soon', 'completed', 'cancelled', 'no_show', 'deleted'];
+    // Optimistic helper — update one reservation row in local state without
+    // triggering the global loading overlay. Avoids the 'טוען הגדרות' flash
+    // every time the hostess flips a status or flag.
+    const patchReservationLocal = (id, patch) => {
+        setReservations(prev => prev.map(r => r.id === id ? { ...r, ...patch } : r));
+    };
     const setStatus = async (reservation, status) => {
+        patchReservationLocal(reservation.id, { status });
         try {
             await Reservation.update(reservation.id, { status });
-            await loadLayout();
-        } catch (err) { console.warn('status save failed', err); }
+        } catch (err) {
+            patchReservationLocal(reservation.id, { status: reservation.status });
+            console.warn('status save failed', err);
+        }
     };
 
     const ReservationCard = ({ reservation }) => {
@@ -733,10 +746,12 @@ export default function SeatingSetup() {
 
         const phoneTel = (reservation.customer_phone || '').replace(/[^\d+]/g, '');
 
+        // Card background follows the status color (with returning-customer override)
+        const cardBg = isReturning ? 'bg-pink-50 border-pink-300' : `${statusConfig.bgColor} border-gray-200`;
+
         return (
             <div
-                className={`p-3 rounded-xl border-2 transition-all hover:shadow-md cursor-pointer relative overflow-hidden
-                    ${isReturning ? 'bg-pink-50 border-pink-200' : 'bg-white border-gray-200 hover:border-indigo-300'}`}
+                className={`p-3 rounded-xl border-2 transition-all hover:shadow-md cursor-pointer relative overflow-hidden ${cardBg}`}
                 onClick={openEdit}
             >
                 {/* Flag stripe on right edge — full height */}
@@ -744,7 +759,7 @@ export default function SeatingSetup() {
                     <div className={`absolute top-0 bottom-0 right-0 w-1.5 ${flagMeta.color}`}></div>
                 )}
 
-                {/* TOP ROW: status pill (menu) on left + time on right */}
+                {/* TOP ROW (RTL): status pill on RIGHT (first child), time big on LEFT (last child) */}
                 <div className="flex items-start justify-between gap-2">
                     <Popover>
                         <PopoverTrigger asChild>
@@ -780,9 +795,8 @@ export default function SeatingSetup() {
                     </div>
                 </div>
 
-                {/* IDENTITY ROW: flag picker + name + returning */}
-                <div className="mt-2 flex items-center justify-end gap-2">
-                    {isReturning && <span className="text-[9px] font-bold bg-pink-200 text-pink-800 px-1.5 py-0.5 rounded-full">חוזר</span>}
+                {/* IDENTITY ROW (RTL): name on RIGHT, flag dot to its LEFT, returning badge further left */}
+                <div className="mt-2 flex items-center gap-2">
                     <div className="font-bold text-gray-900 text-base truncate">{customerInfo}</div>
                     <Popover>
                         <PopoverTrigger asChild>
@@ -815,11 +829,22 @@ export default function SeatingSetup() {
                             )}
                         </PopoverContent>
                     </Popover>
+                    {isReturning && <span className="text-[9px] font-bold bg-pink-200 text-pink-800 px-1.5 py-0.5 rounded-full">חוזר</span>}
                 </div>
 
-                {/* META ROW: phone (small, pink) + table (big) + party (big) */}
-                <div className="mt-2 flex items-center justify-end gap-3">
-                    {phoneTel && (
+                {/* META ROW (RTL): party (👥) on RIGHT, table (🪑) middle, phone on LEFT */}
+                <div className="mt-2 flex items-center justify-between gap-2">
+                    <span className="flex items-center gap-1 text-gray-800">
+                        <span className="text-xl font-black">{reservation.party_size || '?'}</span>
+                        <Users className="w-4 h-4" />
+                    </span>
+                    {Array.isArray(reservation.assigned_table) && reservation.assigned_table.length > 0 && (
+                        <span className="flex items-center gap-1 text-indigo-700">
+                            <span className="text-xl font-black">{reservation.assigned_table.join(',')}</span>
+                            <span className="text-sm">🪑</span>
+                        </span>
+                    )}
+                    {phoneTel ? (
                         <a
                             href={`tel:${phoneTel}`}
                             onClick={(e) => e.stopPropagation()}
@@ -829,17 +854,7 @@ export default function SeatingSetup() {
                         >
                             {reservation.customer_phone}
                         </a>
-                    )}
-                    {Array.isArray(reservation.assigned_table) && reservation.assigned_table.length > 0 && (
-                        <span className="flex items-center gap-1 text-indigo-700">
-                            <span className="text-xl font-black">{reservation.assigned_table.join(',')}</span>
-                            <span className="text-sm">🪑</span>
-                        </span>
-                    )}
-                    <span className="flex items-center gap-1 text-gray-800">
-                        <span className="text-xl font-black">{reservation.party_size || '?'}</span>
-                        <Users className="w-4 h-4" />
-                    </span>
+                    ) : <span></span>}
                 </div>
 
                 {/* SOURCE + OCCASION + REQUESTS */}
