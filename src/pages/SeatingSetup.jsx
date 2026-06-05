@@ -292,6 +292,8 @@ export default function SeatingSetup() {
     const [selectedAreas, setSelectedAreas] = useState(['all']);
     const [selectedFlag, setSelectedFlag] = useState('all');  // flag-color filter
     const [mapZoom, setMapZoom] = useState(1);     // 0.5–1.5 — scales the 1400×850 map canvas
+    const [showBlueprint, setShowBlueprint] = useState(false); // legacy background drawing toggle (default OFF)
+    const [isSmartMapMode, setIsSmartMapMode] = useState(false); // AI overlay state (Phase 4)
     const [mobileSheetOpen, setMobileSheetOpen] = useState(false);  // slide-up reservations dashboard on mobile
     const [bigMapMode, setBigMapMode] = useState(false);  // hostess fullscreen workflow — map + compact tonight strip
     const [dashboardDrawerOpen, setDashboardDrawerOpen] = useState(false);  // overlay slide-in of full dashboard
@@ -2159,24 +2161,95 @@ export default function SeatingSetup() {
                                             title="הגדל"
                                         ><ZoomIn className="w-4 h-4"/></button>
                                         <span className="text-[10px] text-gray-400 mr-2 hidden md:inline">גרור לתזוזה</span>
+                                        <span className="w-px h-5 bg-gray-200 mx-1"></span>
+                                        <button
+                                            onClick={() => setShowBlueprint(v => !v)}
+                                            className={`text-[10px] font-bold px-2 py-1 rounded transition-colors ${
+                                                showBlueprint ? 'bg-zinc-900 text-white' : 'bg-white text-gray-500 border border-gray-200 hover:border-gray-400'
+                                            }`}
+                                            title="הצג/הסתר שרטוט רקע"
+                                        >🗺️ שרטוט</button>
+                                        <button
+                                            onClick={() => setIsSmartMapMode(v => !v)}
+                                            className={`text-[10px] font-bold px-2 py-1 rounded transition-colors ${
+                                                isSmartMapMode ? 'bg-indigo-600 text-white' : 'bg-white text-gray-500 border border-gray-200 hover:border-indigo-400'
+                                            }`}
+                                            title="הצג המלצות AI"
+                                        >✨ AI</button>
                                     </div>
                                     <div className="w-full overflow-auto border rounded-lg bg-gray-100" style={{ maxHeight: bigMapMode ? 'calc(100vh - 110px)' : '70vh' }}>
                                     {/* Outer wrapper takes the *visual* (scaled) dimensions so scrollbars match.
                                         Inner element renders at native 1400×850 and is scaled with transform. */}
                                     <div style={{ width: `${1400 * mapZoom}px`, height: `${850 * mapZoom}px` }}>
                                     <div
-                                        className="relative"
+                                        className="relative bg-stone-50"
                                         style={{
                                             width: '1400px',
                                             height: '850px',
-                                            backgroundImage: `url('https://media.base44.com/images/public/68ac71d972dff18b98e30a21/5fc81039d_WhatsAppImage2026-04-10at145322.jpg')`,
-                                            backgroundSize: '100% 100%',
-                                            backgroundRepeat: 'no-repeat',
-                                            backgroundPosition: 'center',
+                                            // Blueprint overlay only when toggled — clean white-ish canvas by default
+                                            ...(showBlueprint ? {
+                                                backgroundImage: `url('https://media.base44.com/images/public/68ac71d972dff18b98e30a21/5fc81039d_WhatsAppImage2026-04-10at145322.jpg')`,
+                                                backgroundSize: '100% 100%',
+                                                backgroundRepeat: 'no-repeat',
+                                                backgroundPosition: 'center',
+                                            } : {}),
                                             transform: `scale(${mapZoom})`,
                                             transformOrigin: 'top right',
                                         }}
                                         >
+                                        {/* ZONE BACKDROPS — computed bounding boxes per area, soft pastel fills.
+                                            Renders BEFORE tables/facilities so they sit underneath. */}
+                                        {!showBlueprint && (() => {
+                                            const ZONE_STYLES = {
+                                                'אזור חום':     { bg: 'rgba(217,178,138,0.25)', label: '#7c5e3a', name: 'אזור חום' },
+                                                'כניסה':         { bg: 'rgba(167,243,208,0.35)', label: '#065f46', name: 'כניסה' },
+                                                'אדום מרוכזי':   { bg: 'rgba(254,205,211,0.35)', label: '#9f1239', name: 'אזור אדום מרכזי' },
+                                                'זוהרה':         { bg: 'rgba(167,139,250,0.20)', label: '#5b21b6', name: 'זוהרה' },
+                                                'מספרה':         { bg: 'rgba(250,204,21,0.20)', label: '#92400e', name: 'מספרה' },
+                                                'גבטה':          { bg: 'rgba(165,180,252,0.30)', label: '#1e3a8a', name: 'גבטה' },
+                                                'ורוד':          { bg: 'rgba(251,207,232,0.35)', label: '#9d174d', name: 'אזור ורוד' },
+                                            };
+                                            const byArea = {};
+                                            tables.forEach(t => {
+                                                if (!t.area || !ZONE_STYLES[t.area]) return;
+                                                if (!byArea[t.area]) byArea[t.area] = [];
+                                                byArea[t.area].push(t);
+                                            });
+                                            const PADDING = 24;
+                                            return Object.entries(byArea).map(([area, ts]) => {
+                                                const zone = ZONE_STYLES[area];
+                                                const minX = Math.min(...ts.map(t => t.x || 0)) - PADDING;
+                                                const minY = Math.min(...ts.map(t => t.y || 0)) - PADDING;
+                                                const maxX = Math.max(...ts.map(t => (t.x || 0) + (t.width || 80))) + PADDING;
+                                                const maxY = Math.max(...ts.map(t => (t.y || 0) + (t.height || 80))) + PADDING + 18;
+                                                return (
+                                                    <div
+                                                        key={area}
+                                                        style={{
+                                                            position: 'absolute',
+                                                            left: minX, top: minY,
+                                                            width: maxX - minX, height: maxY - minY,
+                                                            background: zone.bg,
+                                                            borderRadius: 16,
+                                                            border: `1px dashed ${zone.label}30`,
+                                                            pointerEvents: 'none',
+                                                        }}
+                                                    >
+                                                        <div
+                                                            style={{
+                                                                position: 'absolute',
+                                                                bottom: 4, right: 12,
+                                                                fontSize: 12,
+                                                                fontWeight: 800,
+                                                                color: zone.label,
+                                                                letterSpacing: '0.02em',
+                                                                opacity: 0.75,
+                                                            }}
+                                                        >{zone.name}</div>
+                                                    </div>
+                                                );
+                                            });
+                                        })()}
                                         {facilities.map((facility) => {
                                             const facilityType = FACILITY_TYPES[facility.type];
                                             if (!facilityType) return null;
@@ -2263,16 +2336,29 @@ export default function SeatingSetup() {
                                         let tableColorClass = '';
                                         const isReallyOccupied = !!session || !!seatedReservation;
 
+                                        // Upcoming reservation TODAY → "Reserved" state (soft yellow)
+                                        const upcomingToday = !isReallyOccupied && futureReservationsForTable.find(r => r.date === currentDate);
+
+                                        // 3 primary states + 2 derived: Available / Reserved / Seated / FinishingSoon / Overtime
                                         if (isFinishingSoon) {
-                                            tableColorClass = 'bg-amber-300 border-amber-600 text-amber-900 animate-pulse';
+                                            tableColorClass = 'bg-amber-200 border-amber-500 text-amber-900 animate-pulse';
                                         } else if (isOvertime) {
-                                            tableColorClass = 'bg-rose-400 border-rose-700 text-white';
+                                            tableColorClass = 'bg-rose-500 border-rose-700 text-white';
                                         } else if (isReallyOccupied) {
-                                            tableColorClass = 'bg-red-300 border-red-500 text-red-900';
-                                        } else if (table.location === 'indoor') {
-                                            tableColorClass = 'bg-green-300 border-green-500 text-green-900';
+                                            // SEATED — pastel pink/red
+                                            tableColorClass = 'bg-rose-100 border-rose-400 text-rose-900';
+                                        } else if (upcomingToday) {
+                                            // RESERVED — pastel yellow
+                                            tableColorClass = 'bg-yellow-50 border-yellow-400 text-yellow-900';
                                         } else {
-                                            tableColorClass = 'bg-yellow-300 border-yellow-600 text-yellow-900';
+                                            // AVAILABLE — clean white w/ soft green border (indoor) or soft amber (outdoor)
+                                            tableColorClass = table.location === 'indoor'
+                                                ? 'bg-white border-emerald-300 text-emerald-900'
+                                                : 'bg-stone-50 border-amber-400 text-amber-900';
+                                        }
+                                        // Smart-map mode: dim non-recommended (placeholder — no recommendations yet)
+                                        if (isSmartMapMode) {
+                                            tableColorClass += ' opacity-40';
                                         }
 
                                         if (isSelectingTables && selectedTablesForReservation.includes(table.table_number)) {
