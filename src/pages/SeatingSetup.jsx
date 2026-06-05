@@ -280,6 +280,7 @@ export default function SeatingSetup() {
     const [mobileSheetOpen, setMobileSheetOpen] = useState(false);  // slide-up reservations dashboard on mobile
     const [bigMapMode, setBigMapMode] = useState(false);  // hostess fullscreen workflow — map + compact tonight strip
     const [dashboardDrawerOpen, setDashboardDrawerOpen] = useState(false);  // overlay slide-in of full dashboard
+    const [smartBookerOpen, setSmartBookerOpen] = useState(false);  // collapsible "+ הזמנה חדשה" panel
     const toggleArea = (key) => {
         if (key === 'all') { setSelectedAreas(['all']); return; }
         setSelectedAreas(prev => {
@@ -648,19 +649,41 @@ export default function SeatingSetup() {
         }
     };
 
+    // Extended status set per Dvir's spec: 9 distinct statuses with clear pill colors.
+    // Used by the rail card, badge filter, and status counters.
+    const STATUS_CONFIGS = {
+        request:         { label: 'בקשה',          color: 'bg-violet-100 text-violet-800',    bgColor: 'bg-violet-50' },
+        pending:         { label: 'ממתין',          color: 'bg-yellow-100 text-yellow-800',    bgColor: 'bg-yellow-50' },
+        confirmed:       { label: 'מאושר',         color: 'bg-blue-100 text-blue-800',        bgColor: 'bg-blue-50' },
+        standby:         { label: 'סטנדבי',        color: 'bg-cyan-100 text-cyan-800',        bgColor: 'bg-cyan-50' },
+        seated:          { label: 'יושב',           color: 'bg-green-100 text-green-800',      bgColor: 'bg-green-50' },
+        finishing_soon:  { label: 'מסיים בקרוב',   color: 'bg-amber-100 text-amber-800',      bgColor: 'bg-amber-50' },
+        completed:       { label: 'סיים',           color: 'bg-gray-100 text-gray-800',        bgColor: 'bg-gray-50' },
+        cancelled:       { label: 'בוטל',           color: 'bg-red-100 text-red-700',          bgColor: 'bg-red-50' },
+        no_show:         { label: 'הבריז',          color: 'bg-orange-100 text-orange-800',    bgColor: 'bg-orange-50' },
+        deleted:         { label: 'מחוק',           color: 'bg-zinc-200 text-zinc-700',        bgColor: 'bg-zinc-100' },
+    };
     const getReservationStatusConfig = (status, assigned) => {
+        if (status && STATUS_CONFIGS[status]) return STATUS_CONFIGS[status];
         if (!assigned || assigned.length === 0) {
             return { label: 'לא משויך', color: 'bg-orange-100 text-orange-800', bgColor: 'bg-orange-50' };
         }
-        const configs = {
-            confirmed: { label: 'מוזמן', color: 'bg-blue-100 text-blue-800', bgColor: 'bg-blue-50' },
-            seated: { label: 'יושב', color: 'bg-green-100 text-green-800', bgColor: 'bg-green-50' },
-            completed: { label: 'סיים', color: 'bg-gray-100 text-gray-800', bgColor: 'bg-gray-50' },
-            cancelled: { label: 'בוטל', color: 'bg-red-100 text-red-800', bgColor: 'bg-red-50' },
-            no_show: { label: 'הבריז', color: 'bg-orange-100 text-orange-800', bgColor: 'bg-orange-50' },
-            pending: { label: 'ממתין לשולחן', color: 'bg-yellow-100 text-yellow-800', bgColor: 'bg-yellow-50' }
-        };
-        return configs[status] || configs.pending;
+        return STATUS_CONFIGS.pending;
+    };
+
+    // Hostess colored flag — clickable on the card to cycle through states.
+    const FLAG_CONFIGS = {
+        green:  { color: 'bg-emerald-500', label: 'התקשרנו, מגיע' },
+        orange: { color: 'bg-orange-500',  label: 'התקשרנו, מאחר' },
+        red:    { color: 'bg-red-500',     label: 'התקשרנו, לא ענה' },
+        black:  { color: 'bg-zinc-900',    label: 'בעייתי / מאחר 20+' },
+    };
+    const FLAG_CYCLE = ['', 'green', 'orange', 'red', 'black'];
+    const setHostessFlag = async (reservation, nextFlag) => {
+        try {
+            await Reservation.update(reservation.id, { hostess_flag: nextFlag || null });
+            await loadLayout();
+        } catch (e) { console.warn('flag save failed', e); }
     };
 
     const ReservationCard = ({ reservation }) => {
@@ -669,18 +692,39 @@ export default function SeatingSetup() {
 
         const customer = customers.find(c => c.phone === reservation.customer_phone);
         const isReturning = customer && customer.total_visits > 1;
+        const flag = reservation.hostess_flag || '';
+        const flagMeta = FLAG_CONFIGS[flag];
+
+        const cycleFlag = (e) => {
+            e.stopPropagation();
+            const idx = FLAG_CYCLE.indexOf(flag);
+            const next = FLAG_CYCLE[(idx + 1) % FLAG_CYCLE.length];
+            setHostessFlag(reservation, next);
+        };
 
         return (
-            <div className={`p-3 rounded-lg border transition-all hover:shadow-md ${isReturning ? 'bg-pink-50 border-pink-200' : statusConfig.bgColor} group`}>
+            <div className={`p-3 rounded-lg border transition-all hover:shadow-md ${isReturning ? 'bg-pink-50 border-pink-200' : statusConfig.bgColor} group relative`}>
+                {/* Flag bar — left edge stripe in the flag color */}
+                {flagMeta && (
+                    <div className={`absolute top-0 bottom-0 right-0 w-1.5 rounded-r-lg ${flagMeta.color}`}></div>
+                )}
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-4">
                         <div className="text-lg font-bold text-gray-900 min-w-[60px]">
                             {reservation.time?.slice(0, 5) || '00:00'}
                         </div>
-                        
+
                         <div>
                             <div className="font-semibold text-gray-900 flex items-center gap-2">
                                 {customerInfo}
+                                {/* Flag dot — click to cycle */}
+                                <button
+                                    onClick={cycleFlag}
+                                    title={flagMeta?.label || 'הוסף דגל'}
+                                    className={`w-4 h-4 rounded-full border-2 transition-all ${
+                                        flagMeta ? `${flagMeta.color} border-white shadow` : 'bg-white border-gray-300 hover:border-gray-400'
+                                    }`}
+                                ></button>
                                 {isReturning && <Badge className="bg-pink-200 text-pink-800">לקוח חוזר</Badge>}
                             </div>
                             <div className="text-sm text-gray-600 flex items-center gap-3">
@@ -751,11 +795,17 @@ export default function SeatingSetup() {
 
     const ReservationsDashboard = () => {
         const [timeFilter, setTimeFilter] = useState('');
-        
+        const [searchTerm, setSearchTerm] = useState('');
+
         const filteredReservations = reservations.filter(r => {
             const statusMatch = selectedStatus === 'all' || (r.status || 'pending') === selectedStatus;
             const timeMatch = !timeFilter || (r.time && r.time.startsWith(timeFilter));
-            return statusMatch && timeMatch;
+            const q = searchTerm.trim().toLowerCase();
+            const searchMatch = !q || (
+                (r.customer_name || '').toLowerCase().includes(q) ||
+                (r.customer_phone || '').replace(/\D/g, '').includes(q.replace(/\D/g, ''))
+            );
+            return statusMatch && timeMatch && searchMatch;
         });
 
         const totalGuests = filteredReservations.reduce((sum, res) => sum + (res.party_size || 0), 0);
@@ -793,13 +843,24 @@ export default function SeatingSetup() {
                     </Popover>
                 </div>
 
+                {/* Search box — name or phone */}
+                <div className="mb-2 relative">
+                    <Input
+                        type="search"
+                        value={searchTerm}
+                        onChange={e => setSearchTerm(e.target.value)}
+                        placeholder="🔍 חפש לפי שם או טלפון..."
+                        className="w-full pr-3"
+                    />
+                </div>
+
                 <div className="flex gap-2 mb-4">
-                    <Input 
+                    <Input
                         type="time"
                         value={timeFilter}
                         onChange={e => setTimeFilter(e.target.value)}
-                        className="w-32"
-                        placeholder="פילטר שעה"
+                        className="w-28"
+                        placeholder="שעה"
                     />
                     <Select value={selectedStatus} onValueChange={setSelectedStatus}>
                         <SelectTrigger className="flex-1">
@@ -807,12 +868,16 @@ export default function SeatingSetup() {
                         </SelectTrigger>
                         <SelectContent>
                             <SelectItem value="all">הכל ({statusCounts.total || 0})</SelectItem>
-                            <SelectItem value="confirmed">מאושר ({statusCounts.confirmed || 0})</SelectItem>
+                            <SelectItem value="request">בקשה ({statusCounts.request || 0})</SelectItem>
                             <SelectItem value="pending">ממתין ({statusCounts.pending || 0})</SelectItem>
+                            <SelectItem value="confirmed">מאושר ({statusCounts.confirmed || 0})</SelectItem>
+                            <SelectItem value="standby">סטנדבי ({statusCounts.standby || 0})</SelectItem>
                             <SelectItem value="seated">יושב ({statusCounts.seated || 0})</SelectItem>
-                            <SelectItem value="completed">הסתיים ({statusCounts.completed || 0})</SelectItem>
+                            <SelectItem value="finishing_soon">מסיים בקרוב ({statusCounts.finishing_soon || 0})</SelectItem>
+                            <SelectItem value="completed">סיים ({statusCounts.completed || 0})</SelectItem>
                             <SelectItem value="cancelled">בוטל ({statusCounts.cancelled || 0})</SelectItem>
-                            <SelectItem value="no_show">לא הגיע ({statusCounts.no_show || 0})</SelectItem>
+                            <SelectItem value="no_show">הבריז ({statusCounts.no_show || 0})</SelectItem>
+                            <SelectItem value="deleted">מחוק ({statusCounts.deleted || 0})</SelectItem>
                         </SelectContent>
                     </Select>
                 </div>
@@ -1584,11 +1649,43 @@ export default function SeatingSetup() {
                                         >📅 לוח מלא</button>
                                     </div>
 
+                                    {/* Date picker — always visible in big-map mode so hostess can switch days fast */}
+                                    <div className="bg-white border border-gray-200 rounded-lg p-2 flex items-center justify-between">
+                                        <Popover>
+                                            <PopoverTrigger asChild>
+                                                <Button variant="outline" size="sm" className="text-xs">
+                                                    <Calendar className="w-3.5 h-3.5 ml-1" />
+                                                    {format(selectedDate, 'EEE dd/MM', { locale: he })}
+                                                </Button>
+                                            </PopoverTrigger>
+                                            <PopoverContent className="w-auto p-0" align="start">
+                                                <CalendarComponent
+                                                    mode="single"
+                                                    selected={selectedDate}
+                                                    onSelect={(d) => d && setSelectedDate(d)}
+                                                    initialFocus
+                                                />
+                                            </PopoverContent>
+                                        </Popover>
+                                        <Button
+                                            size="sm"
+                                            className="text-xs bg-emerald-600 hover:bg-emerald-700"
+                                            onClick={() => setSmartBookerOpen(v => !v)}
+                                        >
+                                            <Plus className="w-3.5 h-3.5 ml-1" />
+                                            הזמנה חדשה
+                                        </Button>
+                                    </div>
+
+                                    {/* Collapsible Smart Booker */}
+                                    {smartBookerOpen && (
+                                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-2">
+                                            <ReservationTool onReservationCreated={() => { loadLayout(); setSmartBookerOpen(false); }} />
+                                        </div>
+                                    )}
+
                                     {dashboardDrawerOpen ? (
-                                        <>
-                                            <ReservationsDashboard />
-                                            <ReservationTool onReservationCreated={loadLayout} />
-                                        </>
+                                        <ReservationsDashboard />
                                     ) : (
                                         <CompactTonightStrip
                                             reservations={reservations}
@@ -2001,15 +2098,22 @@ export default function SeatingSetup() {
 // Shows TODAY's evening reservations only (>= 17:00), grouped chronologically.
 // Each row is tap/click-to-edit. There's also a button to open the full dashboard.
 function CompactTonightStrip({ reservations, selectedDate, onEdit, onOpenFullDashboard }) {
+    const [searchTerm, setSearchTerm] = useState('');
     const todayStr = format(new Date(selectedDate), 'yyyy-MM-dd');
+    const q = searchTerm.trim().toLowerCase();
     const tonight = (reservations || [])
         .filter(r => {
             const d = (r.date instanceof Date) ? format(r.date, 'yyyy-MM-dd') : String(r.date || '').slice(0, 10);
             if (d !== todayStr) return false;
-            if (r.status === 'cancelled' || r.status === 'no_show') return false;
-            // evening focus: 17:00 onwards. fallback: include all if no time
+            if (r.status === 'cancelled' || r.status === 'no_show' || r.status === 'deleted') return false;
             if (!r.time) return true;
-            return String(r.time) >= '17:00';
+            if (String(r.time) < '17:00') return false;
+            if (q) {
+                const nameMatch = (r.customer_name || '').toLowerCase().includes(q);
+                const phoneMatch = (r.customer_phone || '').replace(/\D/g, '').includes(q.replace(/\D/g, ''));
+                if (!nameMatch && !phoneMatch) return false;
+            }
+            return true;
         })
         .sort((a, b) => String(a.time || '').localeCompare(String(b.time || '')));
 
@@ -2043,13 +2147,14 @@ function CompactTonightStrip({ reservations, selectedDate, onEdit, onOpenFullDas
                         <div className="text-2xl font-black text-gray-900">{totalGuests}</div>
                     </div>
                 </div>
-                <button
-                    onClick={onOpenFullDashboard}
-                    className="mt-2 w-full text-xs bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 rounded-lg flex items-center justify-center gap-1"
-                >
-                    <Calendar className="w-3.5 h-3.5" />
-                    פתח לוח מלא
-                </button>
+                {/* Search */}
+                <input
+                    type="search"
+                    value={searchTerm}
+                    onChange={e => setSearchTerm(e.target.value)}
+                    placeholder="🔍 חפש לפי שם או טלפון..."
+                    className="mt-2 w-full text-xs border border-gray-200 rounded-lg px-3 py-1.5 focus:border-indigo-400 focus:outline-none"
+                />
             </div>
 
             {/* List */}
@@ -2059,12 +2164,22 @@ function CompactTonightStrip({ reservations, selectedDate, onEdit, onOpenFullDas
                     <div className="text-sm text-gray-500">אין הזמנות הערב</div>
                 </div>
             ) : (
-                tonight.map((r) => (
+                tonight.map((r) => {
+                    const flagColor = {
+                        green:  'bg-emerald-500',
+                        orange: 'bg-orange-500',
+                        red:    'bg-red-500',
+                        black:  'bg-zinc-900',
+                    }[r.hostess_flag] || null;
+                    return (
                     <button
                         key={r.id}
                         onClick={() => onEdit && onEdit(r)}
-                        className="w-full text-right bg-white hover:bg-indigo-50 border border-gray-200 hover:border-indigo-400 rounded-xl p-2.5 transition-colors"
+                        className="w-full text-right bg-white hover:bg-indigo-50 border border-gray-200 hover:border-indigo-400 rounded-xl p-2.5 transition-colors relative overflow-hidden"
                     >
+                        {flagColor && (
+                            <div className={`absolute top-0 bottom-0 right-0 w-1 ${flagColor}`}></div>
+                        )}
                         <div className="flex items-center justify-between gap-2">
                             <div className="font-black text-sm text-gray-900 leading-tight">{r.time || '--:--'}</div>
                             <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full border ${statusPill(r.status)}`}>
@@ -2084,7 +2199,8 @@ function CompactTonightStrip({ reservations, selectedDate, onEdit, onOpenFullDas
                             )}
                         </div>
                     </button>
-                ))
+                    );
+                })
             )}
         </>
     );

@@ -3180,7 +3180,7 @@ registerFn('searchReservationTable', async ({ body }) => {
 let reservationSourceCols = false;
 async function ensureReservationSourceCols() {
   if (reservationSourceCols) return;
-  for (const col of ['source', 'campaign', 'medium', 'landing_url', 'referrer']) {
+  for (const col of ['source', 'campaign', 'medium', 'landing_url', 'referrer', 'hostess_flag']) {
     await (prisma as any).$executeRawUnsafe(
       `ALTER TABLE "Reservation" ADD COLUMN IF NOT EXISTS "${col}" TEXT;`
     ).catch(() => {});

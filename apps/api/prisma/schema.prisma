@@ -1380,6 +1380,10 @@ model Reservation {
   medium                       String?  // utm_medium (e.g. 'cpc', 'organic', 'story')
   landing_url                  String?  // full URL the customer landed on
   referrer                     String?  // document.referrer captured at booking time
+  // Hostess-side bookkeeping — small per-reservation flag the hostess sets
+  // via a single click. Values: 'green' (called, confirmed) / 'orange' (called,
+  // running late) / 'red' (called, no answer) / 'black' (problem customer).
+  hostess_flag                 String?
   // Legacy base44 columns — exist in DB; declared so frontend code that
   // reads record.created_date / record.updated_date still gets a value.
   created_date String?
