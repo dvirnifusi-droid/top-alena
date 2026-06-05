@@ -1393,6 +1393,12 @@ model Reservation {
   cancellation_reason          String?
   deposit_charged_at           DateTime?
   deposit_charge_amount        Int?     // in ILS
+  // Standby waitlist — guest opted in when their preferred slot was full.
+  // is_standby=true means restaurant promised to call back if a real table
+  // opens. On callback the hostess flips this to false (= promoted to real).
+  is_standby                   Boolean  @default(false)
+  standby_requested_time       String?  // the time they originally wanted (HH:mm)
+  standby_promoted_at          DateTime?
   // Legacy base44 columns — exist in DB; declared so frontend code that
   // reads record.created_date / record.updated_date still gets a value.
   created_date String?

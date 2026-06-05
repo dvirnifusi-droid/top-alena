@@ -3199,6 +3199,16 @@ async function ensureReservationSourceCols() {
   await (prisma as any).$executeRawUnsafe(
     `CREATE UNIQUE INDEX IF NOT EXISTS "Reservation_tracking_token_uq" ON "Reservation"("tracking_token") WHERE "tracking_token" IS NOT NULL;`
   ).catch(() => {});
+  // Standby waitlist columns (added 2026-06)
+  await (prisma as any).$executeRawUnsafe(
+    `ALTER TABLE "Reservation" ADD COLUMN IF NOT EXISTS "is_standby" BOOLEAN NOT NULL DEFAULT FALSE;`
+  ).catch(() => {});
+  await (prisma as any).$executeRawUnsafe(
+    `ALTER TABLE "Reservation" ADD COLUMN IF NOT EXISTS "standby_requested_time" TEXT;`
+  ).catch(() => {});
+  await (prisma as any).$executeRawUnsafe(
+    `ALTER TABLE "Reservation" ADD COLUMN IF NOT EXISTS "standby_promoted_at" TIMESTAMP(3);`
+  ).catch(() => {});
   reservationSourceCols = true;
 }
 
@@ -3252,13 +3262,28 @@ registerFn('createPublicReservation', async ({ body }) => {
   }
   const source = classifyReservationSource({ utm_source, referrer, landing_url });
 
+  const acceptStandby = Boolean((body as any)?.accept_standby);
+
   // Re-find a table server-side (don't trust client).
   const avail: any = await (functionHandlers['searchReservationTable'] as any)({
     body: { date, time, party_size: size }, user: null, req: undefined,
   });
+
+  // Slot full path.
+  // If the guest opted into the standby waitlist, create a standby reservation
+  // (no assigned_table) — restaurant will call back if a real table opens.
+  // Otherwise return alternative slots so the page can offer them.
   if (!avail.canAccommodate || !avail.table) {
-    return { success: false, reason: 'no_availability' };
+    if (acceptStandby) {
+      // Pass through to standby creation below.
+    } else {
+      const alternatives = await findNearbyAvailableSlots(date, time, size);
+      return { success: false, reason: 'no_availability', alternatives };
+    }
   }
+
+  // Mark this as standby if we got here from the slot-full + accept_standby branch.
+  const isStandby = !(avail.canAccommodate && avail.table);
 
   const endMin = toMin(time) + seatingDuration(size);
   const end_time = `${String(Math.floor(endMin / 60) % 24).padStart(2, '0')}:${String(endMin % 60).padStart(2, '0')}`;
@@ -3273,11 +3298,15 @@ registerFn('createPublicReservation', async ({ body }) => {
       customer_phone: String(customer_phone).trim(),
       date: bookingDate, time,
       party_size: size,
-      status: 'confirmed',
+      // Standby reservations sit in 'pending' until promoted; confirmed
+      // ones are real bookings with an assigned table.
+      status: isStandby ? 'pending' : 'confirmed',
+      is_standby: isStandby,
+      standby_requested_time: isStandby ? time : null,
       special_requests: special_requests || null,
       special_occasion: special_occasion || null,
       reservation_end_time: end_time,
-      assigned_table: [avail.table.table_number],
+      assigned_table: isStandby ? null : [avail.table.table_number],
       source,
       campaign: utm_campaign ? String(utm_campaign).slice(0, 80) : null,
       medium: utm_medium ? String(utm_medium).slice(0, 40) : null,
@@ -3293,17 +3322,29 @@ registerFn('createPublicReservation', async ({ body }) => {
   const baseUrl = process.env.PUBLIC_BASE_URL || 'https://topalena.com';
   const trackUrl = `${baseUrl}/ReservationView?token=${tracking_token}`;
   const dateStr = bookingDate.toISOString().slice(0, 10).split('-').reverse().join('/');
-  const smsBody = [
-    `שלום ${customer_name}!`,
-    `ההזמנה שלך בעלינא אושרה ✅`,
-    `📅 ${dateStr} · 🕐 ${time}`,
-    `👥 ${size} סועדים`,
-    `📍 רוטשילד 104, ראשון לציון`,
-    `🅿️ חניה: חניון בן גוריון (חינם אחר הצהריים)`,
-    ``,
-    `🔗 צפיה / ביטול: ${trackUrl}`,
-    `(ניתן לבטל ללא חיוב עד שעתיים לפני)`,
-  ].join('\n');
+  const smsBody = isStandby
+    ? [
+        `שלום ${customer_name}!`,
+        `נרשמת לרשימת המתנה בעלינא 🟡`,
+        `📅 ${dateStr} · 🕐 ${time} (השעה שביקשת)`,
+        `👥 ${size} סועדים`,
+        ``,
+        `השולחן מלא ברגע זה — אם יתפנה מקום נצור איתך קשר מיד.`,
+        `אין הזמנה מאושרת עד שנחזור אליך.`,
+        ``,
+        `🔗 לבדיקת סטטוס: ${trackUrl}`,
+      ].join('\n')
+    : [
+        `שלום ${customer_name}!`,
+        `ההזמנה שלך בעלינא אושרה ✅`,
+        `📅 ${dateStr} · 🕐 ${time}`,
+        `👥 ${size} סועדים`,
+        `📍 רוטשילד 104, ראשון לציון`,
+        `🅿️ חניה: חניון בן גוריון (חינם אחר הצהריים)`,
+        ``,
+        `🔗 צפיה / ביטול: ${trackUrl}`,
+        `(ניתן לבטל ללא חיוב עד שעתיים לפני)`,
+      ].join('\n');
   // SMS
   sendSms(String(customer_phone).trim(), smsBody).catch((e) =>
     console.warn('[reservation] sms failed', e?.message)
@@ -3349,8 +3390,114 @@ registerFn('createPublicReservation', async ({ body }) => {
     console.warn('[createPublicReservation] customer upsert failed', e);
   }
 
-  return { success: true, reservation_id: reservation.id, table_number: avail.table.table_number };
+  return {
+    success: true,
+    reservation_id: reservation.id,
+    table_number: isStandby ? null : avail.table.table_number,
+    is_standby: isStandby,
+  };
 }, { public: true });
+
+// Search for open reservation slots near a requested time on the same day.
+// Used when the chosen slot is full so the page can offer alternatives
+// without making the user click around to find them.
+async function findNearbyAvailableSlots(
+  dateInput: string,
+  time: string,
+  partySize: number,
+): Promise<Array<{ time: string; offset_min: number }>> {
+  const base = toMin(time);
+  // Look at ±15, ±30, ±45, ±60 minutes (rounded to 15-min grid).
+  const offsets = [-60, -45, -30, -15, 15, 30, 45, 60];
+  const candidates: Array<{ time: string; offset_min: number }> = [];
+  for (const off of offsets) {
+    const m = base + off;
+    if (m < 0 || m > 23 * 60 + 45) continue;
+    const hh = String(Math.floor(m / 60) % 24).padStart(2, '0');
+    const mm = String(m % 60).padStart(2, '0');
+    const t = `${hh}:${mm}`;
+    try {
+      const r: any = await (functionHandlers['searchReservationTable'] as any)({
+        body: { date: dateInput, time: t, party_size: partySize }, user: null, req: undefined,
+      });
+      if (r?.canAccommodate && r?.table) {
+        candidates.push({ time: t, offset_min: off });
+        if (candidates.length >= 3) break; // 3 is enough — keep page calm
+      }
+    } catch { /* swallow per-slot errors */ }
+  }
+  // Sort by closeness to requested time
+  return candidates.sort((a, b) => Math.abs(a.offset_min) - Math.abs(b.offset_min));
+}
+
+// Admin: promote a standby reservation to a real confirmed reservation.
+// Looks for an open table at the requested time (or accepts a new time),
+// flips is_standby off, assigns a table, and pings the customer.
+registerFn('promoteStandbyReservation', async ({ body, user }) => {
+  if (!user) throw new Error('auth required');
+  const { reservation_id, new_time } = body as any;
+  if (!reservation_id) throw new Error('reservation_id required');
+  const r: any = await db.reservation.findUnique({ where: { id: String(reservation_id) } });
+  if (!r) throw new Error('not_found');
+  if (!r.is_standby) return { success: false, reason: 'not_a_standby' };
+
+  const timeToUse: string = new_time && /^\d{2}:\d{2}$/.test(String(new_time)) ? String(new_time) : r.time;
+  const dateInput = r.date instanceof Date ? r.date.toISOString().slice(0, 10) : String(r.date).slice(0, 10);
+
+  const avail: any = await (functionHandlers['searchReservationTable'] as any)({
+    body: { date: dateInput, time: timeToUse, party_size: r.party_size }, user: null, req: undefined,
+  });
+  if (!avail?.canAccommodate || !avail?.table) {
+    return { success: false, reason: 'still_full' };
+  }
+
+  const updated = await db.reservation.update({
+    where: { id: r.id },
+    data: {
+      is_standby: false,
+      status: 'confirmed',
+      time: timeToUse,
+      assigned_table: [avail.table.table_number],
+      standby_promoted_at: new Date(),
+    } as any,
+  });
+
+  // Notify the customer
+  const baseUrl = process.env.PUBLIC_BASE_URL || 'https://topalena.com';
+  const trackUrl = `${baseUrl}/ReservationView?token=${r.tracking_token}`;
+  const dateStr = (r.date instanceof Date ? r.date : new Date(r.date)).toISOString().slice(0, 10).split('-').reverse().join('/');
+  const msg = [
+    `שלום ${r.customer_name}!`,
+    `שולחן התפנה ב-עלינא 🎉`,
+    `📅 ${dateStr} · 🕐 ${timeToUse}`,
+    `👥 ${r.party_size} סועדים`,
+    `📍 רוטשילד 104, ראשון לציון`,
+    ``,
+    `ההזמנה שלך אושרה. נשמח לראותך!`,
+    `🔗 ${trackUrl}`,
+  ].join('\n');
+  if (r.customer_phone) {
+    sendSms(String(r.customer_phone), msg).catch(() => {});
+    sendWhatsApp(String(r.customer_phone), msg).catch(() => {});
+  }
+  return { success: true, reservation: updated };
+});
+
+// Admin: list standby reservations (queue view).
+registerFn('listStandbyReservations', async ({ user }) => {
+  if (!user) throw new Error('auth required');
+  const { start } = dayRange(new Date());
+  return await db.reservation.findMany({
+    where: { is_standby: true, status: { not: 'cancelled' }, date: { gte: start } },
+    orderBy: [{ date: 'asc' }, { time: 'asc' }, { createdAt: 'asc' }],
+    select: {
+      id: true, customer_name: true, customer_phone: true,
+      date: true, time: true, party_size: true,
+      special_occasion: true, special_requests: true,
+      standby_requested_time: true, createdAt: true,
+    } as any,
+  });
+});
 
 // ── User role / department manager (admin only) ──────────────────────────────
 // Set a user's system role and/or managed_department by email. If the User row

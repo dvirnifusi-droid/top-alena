@@ -156,7 +156,10 @@ export default function PublicReservationPage() {
 
   const [isBooking, setIsBooking] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
-  const [success, setSuccess] = useState(null); // { customer_name, time, date, party_size, table_number }
+  const [success, setSuccess] = useState(null); // { customer_name, time, date, party_size, table_number, is_standby }
+  // Slot-full helper: when backend says no_availability we surface
+  // nearby open slots and a standby-waitlist button.
+  const [alternatives, setAlternatives] = useState([]); // [{ time, offset_min }]
 
   const [liveCount, setLiveCount] = useState(null);
   const [featuredMenu, setFeaturedMenu] = useState([]);
@@ -289,9 +292,11 @@ export default function PublicReservationPage() {
     return () => { cancelled = true; };
   }, [selectedHour, date, partySize, openingHours.start, openingHours.end]);
 
-  // --- Submit one-click booking
-  const submitBooking = async () => {
+  // --- Submit one-click booking. acceptStandby=true sends the request again
+  // after the user explicitly opted into the waitlist from the alternatives block.
+  const submitBooking = async (acceptStandby = false) => {
     setErrorMsg('');
+    if (!acceptStandby) setAlternatives([]); // reset any prior alts on a fresh attempt
     if (Number(partySize) > 12) return setErrorMsg('יותר מ-12 סועדים נחשב לאירוע — מלא את טופס האירועים');
     if (!customerName.trim()) return setErrorMsg('יש למלא שם מלא');
     if (!customerPhone.trim() || customerPhone.replace(/\D/g, '').length < 9) return setErrorMsg('יש למלא מספר טלפון תקין');
@@ -303,24 +308,29 @@ export default function PublicReservationPage() {
       const res = await invokePublic('createPublicReservation', {
         customer_name: customerName.trim(),
         customer_phone: customerPhone.trim(),
-        customer_email: customerEmail.trim() || null,
+        customer_email: customerEmail?.trim?.() || null,
         date: format(date, 'yyyy-MM-dd'),
         time,
         party_size: parseInt(partySize),
         special_requests: specialRequests.trim() || null,
         special_occasion: occasion || null,
+        accept_standby: acceptStandby,
         ...attr,
       });
       if (!res?.success) {
         if (res?.reason === 'too_large_use_events') {
           setErrorMsg('יותר מ-12 סועדים נחשב לאירוע — אנא מלא את טופס האירועים');
+        } else if (res?.reason === 'no_availability') {
+          // Surface backend-suggested alternative slots (if any) instead of a flat error.
+          const alts = Array.isArray(res?.alternatives) ? res.alternatives : [];
+          setAlternatives(alts);
+          setErrorMsg('');
         } else {
-          setErrorMsg(res?.reason === 'no_availability'
-            ? 'מצטערים, השעה התמלאה רגע לפניך. נסה שעה אחרת.'
-            : 'שגיאה בביצוע ההזמנה. אנא נסה שוב.');
+          setErrorMsg('שגיאה בביצוע ההזמנה. אנא נסה שוב.');
         }
         return;
       }
+      setAlternatives([]);
       setSuccess({
         customer_name: customerName,
         time,
@@ -328,6 +338,7 @@ export default function PublicReservationPage() {
         date: format(date, 'EEEE dd/MM', { locale: he }),
         party_size: parseInt(partySize),
         table_number: res.table_number,
+        is_standby: Boolean(res.is_standby),
         occasion,
       });
     } catch (e) {
@@ -372,10 +383,28 @@ export default function PublicReservationPage() {
       <div dir="rtl" className="min-h-screen p-4 py-8" style={{ background: 'linear-gradient(135deg, #FAF5E8 0%, #F4ECD8 60%, #E8D9B5 100%)', fontFamily: 'Heebo, system-ui, sans-serif' }}>
         <style>{`@import url('https://fonts.googleapis.com/css2?family=Frank+Ruhl+Libre:wght@400;500;700;900&family=Heebo:wght@300;400;500;600;700&display=swap'); .brand-display{font-family:'Frank Ruhl Libre',serif;font-weight:900;letter-spacing:-0.01em}`}</style>
         <div className="max-w-lg w-full mx-auto rounded-3xl shadow-2xl p-6 md:p-8 space-y-5" style={{ background: '#FFFEFB', border: '1px solid rgba(184,149,86,0.3)' }}>
+          {/* Standby badge */}
+          {success.is_standby && (
+            <div className="rounded-2xl px-3 py-2 text-center text-xs font-black uppercase tracking-[0.25em]" style={{ background: '#1F1B17', color: '#D9BD83', border: '1px solid #B89556' }}>
+              🟡 סטאנד-ביי · ברשימת המתנה
+            </div>
+          )}
           <div className="text-center space-y-2">
-            <div className="text-6xl">✨</div>
-            <h1 className="brand-display text-3xl md:text-4xl" style={{ color: '#1F1B17' }}>ההזמנה נקבעה!</h1>
-            <p className="text-lg" style={{ color: '#44512C' }}>{success.customer_name}, נשמח לראותך 🔥</p>
+            <div className="text-6xl">{success.is_standby ? '🟡' : '✨'}</div>
+            <h1 className="brand-display text-3xl md:text-4xl" style={{ color: '#1F1B17' }}>
+              {success.is_standby ? 'נרשמת לרשימת המתנה' : 'ההזמנה נקבעה!'}
+            </h1>
+            <p className="text-lg" style={{ color: '#44512C' }}>
+              {success.is_standby
+                ? `${success.customer_name}, אם יתפנה שולחן ניצור איתך קשר מיד 📱`
+                : `${success.customer_name}, נשמח לראותך 🔥`}
+            </p>
+            {success.is_standby && (
+              <p className="text-sm leading-relaxed pt-1" style={{ color: '#8B7F65' }}>
+                <b>שים לב:</b> ההזמנה עוד לא מאושרת. השעה שביקשת ({success.time}) מלאה ברגע זה.
+                <br />אם בתוך זמן קצר יתפנה שולחן — נשלח לך וואטסאפ עם אישור.
+              </p>
+            )}
           </div>
 
           {/* Booking summary */}
@@ -886,6 +915,55 @@ export default function PublicReservationPage() {
             <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl p-3 text-sm flex items-start gap-2">
               <span className="text-lg leading-none">⚠️</span>
               <span>{errorMsg}</span>
+            </div>
+          )}
+
+          {/* Slot-full → propose alternatives + standby waitlist */}
+          {alternatives !== null && alternatives.length >= 0 && !errorMsg && (
+            <>{Array.isArray(alternatives) && (alternatives.length > 0 || (alternatives.length === 0 && time && false))}</>
+          )}
+          {alternatives && alternatives.length > 0 && (
+            <div className="rounded-2xl p-4 space-y-3" style={{ background: 'linear-gradient(135deg, rgba(184,149,86,0.10), rgba(160,74,46,0.08))', border: '1px solid rgba(184,149,86,0.45)' }}>
+              <div>
+                <div className="font-bold text-sm flex items-center gap-2" style={{ color: '#1F1B17' }}>
+                  <span className="text-lg">🟡</span> {time} מלא ברגע זה
+                </div>
+                <div className="text-xs mt-1" style={{ color: '#44512C' }}>
+                  השעות הקרובות עוד פנויות — אפשר לבחור אחת:
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {alternatives.map(a => (
+                  <button
+                    key={a.time}
+                    type="button"
+                    onClick={() => { setTime(a.time); setSelectedHour(`${a.time.slice(0,2)}:00`); setAlternatives([]); }}
+                    className="rounded-xl px-3.5 py-2 text-sm font-bold transition-transform hover:scale-105"
+                    style={{ background: '#FFFEFB', color: '#1F1B17', border: '1px solid rgba(184,149,86,0.45)', boxShadow: '0 4px 10px -4px rgba(31,27,23,0.12)' }}
+                  >
+                    {a.time}
+                    {a.offset_min ? (
+                      <span className="block text-[10px] font-normal opacity-60 mt-0.5">
+                        {a.offset_min > 0 ? `+${a.offset_min}` : a.offset_min} דק׳
+                      </span>
+                    ) : null}
+                  </button>
+                ))}
+              </div>
+              <div className="pt-2 border-t" style={{ borderColor: 'rgba(184,149,86,0.30)' }}>
+                <div className="text-xs mb-2 leading-snug" style={{ color: '#44512C' }}>
+                  או הירשמו לרשימת המתנה ב-{time} — אם יתפנה שולחן ניצור איתכם קשר בוואטסאפ.
+                </div>
+                <button
+                  type="button"
+                  onClick={() => submitBooking(true)}
+                  disabled={isBooking}
+                  className="w-full font-bold py-3 rounded-xl text-sm transition-colors disabled:opacity-50"
+                  style={{ background: '#1F1B17', color: '#D9BD83', border: '1px solid #B89556' }}
+                >
+                  {isBooking ? 'רושם...' : '🟡 הירשם לרשימת המתנה ב-' + time}
+                </button>
+              </div>
             </div>
           )}
 
