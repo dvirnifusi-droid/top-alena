@@ -2036,7 +2036,20 @@ export default function SeatingSetup() {
                                 <Button variant="outline" onClick={handleAddTable}><Plus className="w-4 h-4 ml-2" />הוסף שולחן</Button>
 
                                 {/* Party-size breakdown: derive from min/max/combinable_with */}
-                                <TableCombosBreakdown tables={tables} />
+                                <TableCombosBreakdown
+                                    tables={tables}
+                                    onSetConnection={(numA, numB, connect) => {
+                                        const next = tables.map(t => ({ ...t, combinable_with: Array.isArray(t.combinable_with) ? [...t.combinable_with] : [] }));
+                                        const a = next.find(t => String(t.table_number) === String(numA));
+                                        const b = next.find(t => String(t.table_number) === String(numB));
+                                        if (!a || !b) return;
+                                        const addUnique = (arr, v) => arr.includes(v) ? arr : [...arr, v];
+                                        const removeAll = (arr, v) => arr.filter(x => String(x) !== String(v));
+                                        a.combinable_with = connect ? addUnique(a.combinable_with.map(String), String(numB)) : removeAll(a.combinable_with, numB);
+                                        b.combinable_with = connect ? addUnique(b.combinable_with.map(String), String(numA)) : removeAll(b.combinable_with, numA);
+                                        setTables(next);
+                                    }}
+                                />
                             </div>
                         ) : (
                             <>
@@ -2931,8 +2944,37 @@ function CompactTonightStrip({ reservations, selectedDate, onEdit, onOpenFullDas
 // For each party size N=2..12 (and 12+ for events), shows which standalone tables fit
 // and which connected combinations reach the target. Derived from each table's
 // min_capacity/max_capacity/combinable_with — no extra config needed.
-function TableCombosBreakdown({ tables }) {
+function TableCombosBreakdown({ tables, onSetConnection }) {
     const [open, setOpen] = React.useState(false);
+    const [addMode, setAddMode] = React.useState(false);
+    const [pickA, setPickA] = React.useState('');
+    const [pickB, setPickB] = React.useState('');
+
+    const allNums = (tables || []).map(t => String(t.table_number)).filter(Boolean);
+
+    const disconnectPair = (idA, idB) => {
+        if (!onSetConnection) return;
+        if (!window.confirm(`לנתק את החיבור בין שולחן ${idA} ל-${idB}?`)) return;
+        onSetConnection(idA, idB, false);
+    };
+    const disconnectCombo = (ids) => {
+        if (!onSetConnection) return;
+        if (ids.length === 2) return disconnectPair(ids[0], ids[1]);
+        if (!window.confirm(`לנתק את כל החיבורים בין השולחנות: ${ids.map(i=>'#'+i).join(', ')}?`)) return;
+        for (let i = 0; i < ids.length; i++) {
+            for (let j = i+1; j < ids.length; j++) {
+                onSetConnection(ids[i], ids[j], false);
+            }
+        }
+    };
+    const addConnection = () => {
+        if (!pickA || !pickB || pickA === pickB) {
+            window.alert('בחר 2 שולחנות שונים');
+            return;
+        }
+        onSetConnection?.(pickA, pickB, true);
+        setPickA(''); setPickB(''); setAddMode(false);
+    };
 
     const valid = (tables || []).filter(t => t && t.table_number != null && t.min_capacity != null && t.max_capacity != null);
     if (valid.length === 0) return null;
@@ -3064,6 +3106,41 @@ function TableCombosBreakdown({ tables }) {
 
             {open && (
                 <div className="p-4 space-y-3 border-t border-indigo-200">
+                    {/* Edit toolbar */}
+                    {onSetConnection && (
+                        <div className="bg-white border border-indigo-200 rounded-xl p-3">
+                            {!addMode ? (
+                                <div className="flex items-center justify-between gap-2">
+                                    <div className="text-[11px] text-gray-600">
+                                        ✏️ עריכת חיבורים: ❌ על צ׳יפ בחיבור = לנתק. <strong>+ הוסף חיבור</strong> = ליצור חיבור חדש.
+                                    </div>
+                                    <button
+                                        onClick={() => setAddMode(true)}
+                                        className="text-xs font-bold px-3 py-1.5 rounded-full bg-emerald-600 text-white hover:bg-emerald-700 shadow"
+                                    >➕ הוסף חיבור</button>
+                                </div>
+                            ) : (
+                                <div className="flex items-center gap-2 flex-wrap">
+                                    <span className="text-xs font-bold text-gray-700">חבר את:</span>
+                                    <select value={pickA} onChange={e => setPickA(e.target.value)} className="text-xs border border-gray-300 rounded px-2 py-1 min-w-[80px]">
+                                        <option value="">שולחן…</option>
+                                        {allNums.map(n => <option key={n} value={n}>#{n}</option>)}
+                                    </select>
+                                    <span className="text-xs text-gray-500">+</span>
+                                    <select value={pickB} onChange={e => setPickB(e.target.value)} className="text-xs border border-gray-300 rounded px-2 py-1 min-w-[80px]">
+                                        <option value="">שולחן…</option>
+                                        {allNums.filter(n => n !== pickA).map(n => <option key={n} value={n}>#{n}</option>)}
+                                    </select>
+                                    <button onClick={addConnection} className="text-xs font-bold px-2.5 py-1 rounded bg-emerald-600 text-white hover:bg-emerald-700">חבר</button>
+                                    <button onClick={() => { setAddMode(false); setPickA(''); setPickB(''); }} className="text-xs px-2.5 py-1 rounded bg-gray-100 text-gray-700 hover:bg-gray-200">ביטול</button>
+                                </div>
+                            )}
+                            <div className="mt-1.5 text-[10px] text-amber-700">
+                                ⚠️ זכור ללחוץ <strong>שמור</strong> למעלה כדי לשמור את השינויים ל-DB.
+                            </div>
+                        </div>
+                    )}
+
                     {[2,3,4,5,6,7,8,9,10,11,12].map(n => {
                         const b = breakdown[n] || { singles: [], combos: [] };
                         return (
@@ -3087,10 +3164,17 @@ function TableCombosBreakdown({ tables }) {
                                         <div className="text-[10px] font-bold text-gray-500 mb-1">🔗 בחיבור</div>
                                         <div className="flex flex-wrap gap-1.5">
                                             {b.combos.map((c, i) => (
-                                                <Chip key={i} color="blue">
+                                                <span key={i} className="inline-flex items-center gap-1 text-xs font-bold px-2 py-1 rounded-full border bg-blue-100 text-blue-800 border-blue-300">
                                                     {c.ids.map(id => `#${id}`).join(' + ')}
-                                                    <span className="opacity-60 mr-1">({c.sumMin}-{c.sumMax})</span>
-                                                </Chip>
+                                                    <span className="opacity-60">({c.sumMin}-{c.sumMax})</span>
+                                                    {onSetConnection && (
+                                                        <button
+                                                            onClick={(e) => { e.stopPropagation(); disconnectCombo(c.ids); }}
+                                                            title="נתק חיבור"
+                                                            className="ml-0.5 w-4 h-4 rounded-full bg-blue-200 hover:bg-red-500 hover:text-white text-blue-900 text-[10px] flex items-center justify-center"
+                                                        >×</button>
+                                                    )}
+                                                </span>
                                             ))}
                                         </div>
                                     </div>
@@ -3115,10 +3199,17 @@ function TableCombosBreakdown({ tables }) {
                         ) : (
                             <div className="flex flex-wrap gap-1.5">
                                 {eventCombos.map((c, i) => (
-                                    <Chip key={i} color="purple">
+                                    <span key={i} className="inline-flex items-center gap-1 text-xs font-bold px-2 py-1 rounded-full border bg-purple-100 text-purple-800 border-purple-300">
                                         {c.ids.map(id => `#${id}`).join(' + ')}
-                                        <span className="opacity-60 mr-1">({c.sumMin}-{c.sumMax})</span>
-                                    </Chip>
+                                        <span className="opacity-60">({c.sumMin}-{c.sumMax})</span>
+                                        {onSetConnection && (
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); disconnectCombo(c.ids); }}
+                                                title="נתק חיבור"
+                                                className="ml-0.5 w-4 h-4 rounded-full bg-purple-200 hover:bg-red-500 hover:text-white text-purple-900 text-[10px] flex items-center justify-center"
+                                            >×</button>
+                                        )}
+                                    </span>
                                 ))}
                             </div>
                         )}
