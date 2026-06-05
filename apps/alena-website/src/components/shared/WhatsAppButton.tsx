@@ -1,10 +1,27 @@
 import { MessageCircle } from "lucide-react";
-import { env } from "@/lib/env";
+import { wa } from "@/lib/whatsapp";
 
-export function WhatsAppButton({ className }: { className?: string }) {
+type Kind = "reserve" | "event" | "delivery" | "general";
+
+export function WhatsAppButton({
+  className,
+  kind = "general",
+  label = "WhatsApp",
+}: {
+  className?: string;
+  kind?: Kind;
+  label?: string;
+}) {
   return (
-    <a href={env.NEXT_PUBLIC_WHATSAPP_URL} target="_blank" rel="noopener" className={className} aria-label="וואטסאפ">
-      <MessageCircle className="size-4" /> <span>WhatsApp</span>
+    <a
+      href={wa[kind]()}
+      target="_blank"
+      rel="noopener"
+      aria-label={`שלחו הודעה ב-WhatsApp — ${label}`}
+      className={className}
+    >
+      <MessageCircle className="size-4" aria-hidden="true" />
+      <span>{label}</span>
     </a>
   );
 }

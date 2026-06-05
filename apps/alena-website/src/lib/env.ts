@@ -17,6 +17,9 @@ const schema = z.object({
   // Search engine verifications — set after registering at GSC + Bing.
   NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION: z.string().optional(),
   NEXT_PUBLIC_BING_SITE_VERIFICATION: z.string().optional(),
+  // Microsoft Clarity — free heatmaps & session recordings.
+  // Get an ID at https://clarity.microsoft.com/
+  NEXT_PUBLIC_CLARITY_ID: z.string().optional(),
 });
 
 export const env = schema.parse(process.env);
