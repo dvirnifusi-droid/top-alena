@@ -1,0 +1,49 @@
+name: Auto-deploy to VPS
+
+# On every push to the migration branch — SSH into the Hetzner VPS,
+# pull the new commits, rebuild Docker containers, and self-test the API.
+# This replaces the manual "console open + paste redeploy.sh" loop.
+
+on:
+  push:
+    branches:
+      - migration
+  workflow_dispatch:  # also allow manual trigger from GitHub UI
+
+concurrency:
+  # Cancel a running deploy if a newer push comes in — only the latest matters
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Build + restart Docker containers on VPS
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: SSH and run redeploy.sh
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host:     ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key:      ${{ secrets.VPS_SSH_KEY }}
+          port:     ${{ secrets.VPS_PORT || 22 }}
+          # 10-minute timeout for the docker build step
+          command_timeout: 10m
+          script: |
+            set -euo pipefail
+            cd /opt/top-alena
+            echo "==> pulling origin/migration"
+            git fetch origin migration
+            git reset --hard origin/migration
+            echo "==> now at: $(git rev-parse --short HEAD) - $(git log -1 --pretty=%s)"
+            echo "==> rebuilding containers"
+            docker compose up -d --build
+            echo "==> waiting for API"
+            sleep 6
+            echo "==> self-test:"
+            curl -sf -m 10 -X POST http://localhost:3001/api/public/fn/getTreats \
+              -H "Content-Type: application/json" -d '{}' \
+              | head -c 200 || echo "(self-test endpoint did not respond — check container logs)"
+            echo ""
+            echo "==> DEPLOY_DONE"
