@@ -9,10 +9,19 @@ import {
   Instagram, Music2, Facebook, MessageCircle, Sparkles, Flame, Navigation as NavIcon,
   Star, ChevronRight,
 } from 'lucide-react';
+import SmartReserveBanner from '@/components/public/SmartReserveBanner';
+import HappyHourCallout from '@/components/public/HappyHourCallout';
 
-// --- Constants ---------------------------------------------------------------
+// --- Brand palette (mirrors alena.topalena.com) ------------------------------
+//   terracotta  #A04A2E   →  primary CTA
+//   olive       #44512C   →  deep secondary
+//   brass       #B89556   →  premium accent
+//   brass-soft  #D9BD83
+//   cream       #F4ECD8
+//   cream-soft  #FAF5E8
+//   charcoal    #1F1B17
 
-const HERO_FALLBACK_BG = 'linear-gradient(135deg, #18181b 0%, #3f1d1d 60%, #7c2d12 100%)';
+const HERO_FALLBACK_BG = 'linear-gradient(135deg, #1F1B17 0%, #44512C 55%, #A04A2E 100%)';
 
 // Default opening hours (overridden by settings if provided)
 const getOpeningHours = (selectedDate) => {
@@ -392,7 +401,13 @@ export default function PublicReservationPage() {
   // RENDER — MAIN
   // ===========================================================================
   return (
-    <div dir="rtl" className="min-h-screen bg-white text-gray-900">
+    <div dir="rtl" className="min-h-screen bg-white text-gray-900" style={{ fontFamily: 'Heebo, system-ui, sans-serif' }}>
+
+      {/* ============ BRAND FONT INJECTION ============ */}
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Frank+Ruhl+Libre:wght@400;500;700;900&family=Heebo:wght@300;400;500;600;700&display=swap');
+        .brand-display { font-family: 'Frank Ruhl Libre', serif; font-weight: 900; letter-spacing: -0.01em; }
+      `}</style>
 
       {/* ============ HERO PHOTO (Ontopo-style) ============ */}
       <header className="relative">
@@ -411,27 +426,35 @@ export default function PublicReservationPage() {
           style={{
             backgroundImage: settings?.hero_image_url
               ? `url(${settings.hero_image_url})`
-              : `linear-gradient(135deg, #1c1917 0%, #57220a 40%, #92400e 100%)`,
+              : HERO_FALLBACK_BG,
             backgroundSize: 'cover',
             backgroundPosition: 'center',
           }}
         >
-          {/* Soft animated glow if no real photo */}
+          {/* Soft brass glow if no real photo */}
           {!settings?.hero_image_url && (
             <div className="absolute inset-0 pointer-events-none opacity-70">
-              <div className="absolute -top-32 -right-20 w-[28rem] h-[28rem] bg-orange-600/35 rounded-full blur-3xl animate-pulse"></div>
-              <div className="absolute -bottom-20 -left-32 w-[28rem] h-[28rem] bg-rose-700/25 rounded-full blur-3xl animate-pulse" style={{animationDelay: '1.5s'}}></div>
+              <div className="absolute -top-32 -right-20 w-[28rem] h-[28rem] rounded-full blur-3xl animate-pulse" style={{ background: 'rgba(184,149,86,0.30)' }}></div>
+              <div className="absolute -bottom-20 -left-32 w-[28rem] h-[28rem] rounded-full blur-3xl animate-pulse" style={{ background: 'rgba(160,74,46,0.22)', animationDelay: '1.5s' }}></div>
             </div>
           )}
           {/* Bottom fade for legibility of identity strip */}
           <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-white via-white/60 to-transparent"></div>
 
-          {/* Floating bonus pill — top-left, subtle */}
+          {/* Floating bonus pill — top-left, brand brass */}
           <div className="absolute top-16 right-4 md:right-8 z-10">
-            <div className="bg-gradient-to-l from-amber-500 to-rose-500 text-white rounded-full px-3 py-1.5 text-[11px] font-black shadow-lg flex items-center gap-1">
+            <div className="rounded-full px-3 py-1.5 text-[11px] font-black shadow-lg flex items-center gap-1" style={{ background: '#B89556', color: '#1F1B17' }}>
               🎁 פוקצ׳ה חינם
             </div>
           </div>
+
+          {/* Hero brand wordmark — bottom-center, kept subtle */}
+          {!settings?.hero_image_url && (
+            <div className="absolute inset-x-0 bottom-12 z-[5] text-center pointer-events-none">
+              <p className="text-[10px] uppercase tracking-[0.4em]" style={{ color: '#D9BD83' }}>רוטשילד 104 · ראשון לציון</p>
+              <h2 className="brand-display text-5xl md:text-7xl mt-2" style={{ color: '#F4ECD8' }}>עלינא</h2>
+            </div>
+          )}
         </div>
       </header>
 
@@ -439,19 +462,28 @@ export default function PublicReservationPage() {
       <section className="bg-white text-gray-900 -mt-12 relative z-10">
         <div className="max-w-5xl mx-auto px-4 md:px-8 pt-2 pb-5">
           <div className="flex items-start gap-3 md:gap-5">
-            {/* Logo bubble */}
-            <div className="flex-shrink-0 w-16 h-16 md:w-20 md:h-20 rounded-2xl bg-zinc-900 text-amber-400 flex items-center justify-center shadow-lg border-4 border-white text-xl md:text-2xl font-black">
-              {settings?.logo_url
-                ? <img src={settings.logo_url} alt={restaurantName} className="w-full h-full object-cover rounded-2xl" />
-                : <span>עלינא</span>}
+            {/* Logo bubble — brand olive branch + wordmark */}
+            <div className="flex-shrink-0 w-16 h-16 md:w-20 md:h-20 rounded-2xl flex items-center justify-center shadow-lg border-4 border-white" style={{ background: '#1F1B17' }}>
+              {settings?.logo_url ? (
+                <img src={settings.logo_url} alt={restaurantName} className="w-full h-full object-cover rounded-2xl" />
+              ) : (
+                <svg viewBox="0 0 64 64" className="w-10 h-10 md:w-12 md:h-12" aria-hidden="true">
+                  <path d="M8 36 Q20 22 32 28 Q44 34 56 24" fill="none" stroke="#B89556" strokeWidth="2" strokeLinecap="round" />
+                  <ellipse cx="14" cy="30" rx="4" ry="2.4" transform="rotate(-25 14 30)" fill="#44512C" />
+                  <ellipse cx="26" cy="27" rx="4" ry="2.4" transform="rotate(-8 26 27)" fill="#44512C" />
+                  <ellipse cx="38" cy="29" rx="4" ry="2.4" transform="rotate(12 38 29)" fill="#44512C" />
+                  <ellipse cx="50" cy="26" rx="4" ry="2.4" transform="rotate(-8 50 26)" fill="#44512C" />
+                  <text x="32" y="52" textAnchor="middle" fontSize="14" fontWeight="900" fill="#F4ECD8" fontFamily="Frank Ruhl Libre, serif">עלינא</text>
+                </svg>
+              )}
             </div>
             <div className="flex-1 min-w-0 pt-1">
-              <h1 className="text-2xl md:text-4xl font-black tracking-tight leading-tight">{restaurantName}</h1>
-              <p className="text-sm text-gray-500 mt-0.5">ראשון לציון · רוטשילד 104</p>
-              {/* Tags */}
+              <h1 className="brand-display text-3xl md:text-5xl leading-tight" style={{ color: '#1F1B17' }}>{restaurantName}</h1>
+              <p className="text-sm mt-0.5" style={{ color: '#6B7A4F' }}>חמארה ים-תיכונית · רוטשילד 104, ראשון לציון</p>
+              {/* Tags — brand brass */}
               <div className="mt-2 flex flex-wrap gap-1.5">
                 {(settings?.tags && Array.isArray(settings.tags) ? settings.tags : ['בשר על האש', 'כשר', 'אלכוהול', 'אווירה']).map(tag => (
-                  <span key={tag} className="bg-amber-50 text-amber-900 border border-amber-200 rounded-full px-2.5 py-0.5 text-[11px] font-bold">{tag}</span>
+                  <span key={tag} className="rounded-full px-2.5 py-0.5 text-[11px] font-bold" style={{ background: 'rgba(184,149,86,0.15)', color: '#8B5A3A', border: '1px solid rgba(184,149,86,0.4)' }}>{tag}</span>
                 ))}
               </div>
             </div>
@@ -494,14 +526,13 @@ export default function PublicReservationPage() {
         .cta-pulse { animation: pulseBtn 2.5s ease-in-out infinite; }
       `}</style>
 
-      {/* ============ PROMO RIBBON ============ */}
-      {/* Higher contrast, larger text, sits below hero curve so it never overlaps */}
+      {/* ============ PROMO RIBBON — brand brass ============ */}
       {promos.length > 0 && (
-        <div className="bg-amber-400 border-y-2 border-amber-600 py-2 overflow-hidden relative z-[3]">
+        <div className="border-y-2 py-2 overflow-hidden relative z-[3]" style={{ background: '#B89556', borderTopColor: '#8B5A3A', borderBottomColor: '#8B5A3A' }}>
           <div className="flex gap-2 px-3 overflow-x-auto scrollbar-thin max-w-full mx-auto items-center">
-            <span className="flex-shrink-0 text-[10px] font-black text-amber-900 uppercase tracking-wider opacity-70">מה קורה עכשיו:</span>
+            <span className="flex-shrink-0 text-[10px] font-black uppercase tracking-wider opacity-80" style={{ color: '#1F1B17' }}>מה קורה עכשיו:</span>
             {promos.map((p, i) => (
-              <div key={i} className="flex-shrink-0 bg-zinc-900 text-amber-100 rounded-full px-3 py-1 text-xs font-bold flex items-center gap-1.5">
+              <div key={i} className="flex-shrink-0 rounded-full px-3 py-1 text-xs font-bold flex items-center gap-1.5" style={{ background: '#1F1B17', color: '#F4ECD8' }}>
                 <span className="text-sm">{p.emoji}</span>
                 <span>{p.label}</span>
                 {p.detail && <span className="opacity-80 font-normal hidden sm:inline">· {p.detail}</span>}
@@ -511,12 +542,19 @@ export default function PublicReservationPage() {
         </div>
       )}
 
+      {/* ============ SMART BANNER (day-aware) ============ */}
+      <div className="bg-white relative z-[2] px-3 md:px-6 pt-6 pb-2">
+        <div className="max-w-2xl mx-auto">
+          <SmartReserveBanner />
+        </div>
+      </div>
+
       {/* ============ BOOKING CARD ============ */}
-      <main ref={bookingCardRef} className="bg-white relative z-[2] px-3 md:px-6 pb-10">
-        <div className="max-w-2xl mx-auto bg-gray-50 text-gray-900 rounded-3xl shadow-lg border border-gray-200 p-5 md:p-7 space-y-5">
+      <main ref={bookingCardRef} className="bg-white relative z-[2] px-3 md:px-6 pb-10 pt-4">
+        <div className="max-w-2xl mx-auto rounded-3xl shadow-lg border p-5 md:p-7 space-y-5" style={{ background: '#FAF5E8', borderColor: 'rgba(184,149,86,0.35)' }}>
           <div className="text-center">
-            <h2 className="text-2xl md:text-3xl font-black">הזמינו שולחן</h2>
-            <p className="text-sm text-gray-500 mt-1">ללא דמי שירות · אישור מיידי · ביטול חופשי</p>
+            <h2 className="brand-display text-3xl md:text-4xl" style={{ color: '#1F1B17' }}>הזמינו שולחן</h2>
+            <p className="text-sm mt-1" style={{ color: '#6B7A4F' }}>ללא דמי שירות · אישור מיידי · ביטול חופשי</p>
           </div>
 
           {/* Party size */}
@@ -670,6 +708,13 @@ export default function PublicReservationPage() {
                     {' '}· משך שולחן: {partySize >= 11 ? '2:30' : partySize >= 6 ? '2:15' : '2:00'} שעות
                   </div>
                 )}
+
+                {/* Happy Hour reminder — only Sun-Thu, only when time < 20:00 */}
+                {time && (
+                  <div className="mt-2">
+                    <HappyHourCallout time={time} dateObj={date} />
+                  </div>
+                )}
               </>
             )}
           </div>
@@ -748,11 +793,17 @@ export default function PublicReservationPage() {
             </div>
           )}
 
-          {/* CTA */}
+          {/* CTA — brand terracotta */}
           <button
             onClick={submitBooking}
             disabled={isBooking || !time}
-            className="cta-pulse w-full bg-gradient-to-l from-amber-600 to-rose-600 hover:from-amber-700 hover:to-rose-700 disabled:from-gray-300 disabled:to-gray-300 disabled:animate-none text-white font-black py-4 rounded-2xl text-lg shadow-xl flex items-center justify-center gap-2 transition-all"
+            className="cta-pulse w-full font-black py-4 rounded-2xl text-lg shadow-xl flex items-center justify-center gap-2 transition-all disabled:cursor-not-allowed disabled:animate-none"
+            style={{
+              background: (isBooking || !time)
+                ? 'linear-gradient(to left, #d1d5db, #d1d5db)'
+                : 'linear-gradient(to left, #A04A2E, #8B3D24)',
+              color: '#F4ECD8',
+            }}
           >
             {isBooking ? <Loader2 className="w-5 h-5 animate-spin" /> : <Flame className="w-5 h-5" />}
             {isBooking ? 'מבצע הזמנה...' : '🔥 תפוס מקום עכשיו'}
