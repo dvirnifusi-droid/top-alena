@@ -7868,7 +7868,7 @@ registerFn('getPublicFeaturedMenuItems', async ({ body }) => {
     if (items.length < limit) {
       // Fallback: any available item with an image
       const need = limit - items.length;
-      const seen = new Set(items.map(i => i.id));
+      const seen = new Set(items.map((i: any) => i.id));
       const more = await db.menuItem.findMany({
         where: { available: true, image_url: { not: null }, id: { notIn: Array.from(seen) } },
         orderBy: [{ popularity_score: 'desc' }, { name: 'asc' }],
@@ -7898,9 +7898,9 @@ registerFn('getPublicRecentReviews', async ({ body }) => {
       select: { customer_name: true, rating: true, comments: true, visit_date: true },
     });
     const filtered = rows
-      .filter(r => r.comments && r.comments.trim().length >= 8)
+      .filter((r: any) => r.comments && r.comments.trim().length >= 8)
       .slice(0, limit)
-      .map(r => ({
+      .map((r: any) => ({
         name: r.customer_name || 'אורח',
         rating: r.rating,
         comment: r.comments,
