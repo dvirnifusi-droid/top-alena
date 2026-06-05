@@ -3100,6 +3100,20 @@ registerFn('getReservationSettings', async () => {
 
 // Public: check capacity + find an available table. Returns aggregate counts
 // and a single available table number — never any customer details.
+// Reservation.date is a DateTime column — Prisma can't parse "2026-06-07" alone.
+// Normalize a YYYY-MM-DD string into [startOfDay, nextDay) UTC Date pair so
+// we can query for "any reservation on that calendar day" even if it was
+// stored with a time component.
+function dayRange(dateInput: string | Date) {
+  const dateStr = typeof dateInput === 'string'
+    ? dateInput.slice(0, 10)
+    : new Date(dateInput).toISOString().slice(0, 10);
+  const start = new Date(`${dateStr}T00:00:00.000Z`);
+  const next = new Date(start);
+  next.setUTCDate(next.getUTCDate() + 1);
+  return { start, next, dateStr };
+}
+
 registerFn('searchReservationTable', async ({ body }) => {
   const { date, time, party_size } = body as any;
   if (!date || !time || !party_size) throw new Error('date, time, party_size required');
@@ -3107,7 +3121,10 @@ registerFn('searchReservationTable', async ({ body }) => {
   const startMin = toMin(time);
   const endMin = startMin + seatingDuration(size);
 
-  const reservations = await db.reservation.findMany({ where: { date } });
+  const { start: dayStart, next: dayNext } = dayRange(date);
+  const reservations = await db.reservation.findMany({
+    where: { date: { gte: dayStart, lt: dayNext } },
+  });
   const active = (r: any) => r.status !== 'cancelled' && r.status !== 'no_show';
 
   // Capacity within the 15-min slot
@@ -3211,11 +3228,12 @@ registerFn('createPublicReservation', async ({ body }) => {
   const endMin = toMin(time) + seatingDuration(size);
   const end_time = `${String(Math.floor(endMin / 60) % 24).padStart(2, '0')}:${String(endMin % 60).padStart(2, '0')}`;
 
+  const { start: bookingDate } = dayRange(date);
   const reservation = await db.reservation.create({
     data: {
       customer_name: String(customer_name).trim(),
       customer_phone: String(customer_phone).trim(),
-      date, time,
+      date: bookingDate, time,
       party_size: size,
       status: 'confirmed',
       special_requests: special_requests || null,
@@ -3238,10 +3256,10 @@ registerFn('createPublicReservation', async ({ body }) => {
     if (existing) {
       await db.customer.update({
         where: { id: existing.id },
-        data: { last_visit: date, visit_count: (existing.visit_count ?? 0) + 1, name: existing.name ?? customer_name },
+        data: { last_visit: bookingDate, visit_count: (existing.visit_count ?? 0) + 1, name: existing.name ?? customer_name },
       });
     } else {
-      await db.customer.create({ data: { phone, name: customer_name, visit_count: 1, last_visit: date } });
+      await db.customer.create({ data: { phone, name: customer_name, visit_count: 1, last_visit: bookingDate } });
     }
   } catch (e) {
     console.warn('[createPublicReservation] customer upsert failed', e);
