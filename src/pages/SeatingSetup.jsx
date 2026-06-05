@@ -297,6 +297,8 @@ export default function SeatingSetup() {
     const [quickSeatOpen, setQuickSeatOpen] = useState(false); // walk-in / standby quick-seat flow
     const [smartReserveOpen, setSmartReserveOpen] = useState(false); // smart-recommended reservation dialog
     const [clockTick, setClockTick] = useState(() => new Date());
+    const [aiOpen, setAiOpen] = useState(false); // floating AI assistant widget
+    const [aiPrefillQuestion, setAiPrefillQuestion] = useState(''); // when a per-reservation ✨ button is clicked
     const [mobileSheetOpen, setMobileSheetOpen] = useState(false);  // slide-up reservations dashboard on mobile
     const [bigMapMode, setBigMapMode] = useState(false);  // hostess fullscreen workflow — map + compact tonight strip
     const [dashboardDrawerOpen, setDashboardDrawerOpen] = useState(false);  // overlay slide-in of full dashboard
@@ -416,7 +418,20 @@ export default function SeatingSetup() {
             });
             if (fresh) {
                 seenQueueIdsRef.current.add(fresh.id);
-                setQueueNewBanner({ id: fresh.id, name: fresh.customer_name, party_size: fresh.party_size });
+                setQueueNewBanner({ id: fresh.id, name: fresh.customer_name, party_size: fresh.party_size, aiSuggestion: null, aiLoading: true });
+                // Fetch AI suggestion in background
+                (async () => {
+                    try {
+                        const q = `הגיע ${fresh.customer_name || 'לקוח חדש'} לתור עם ${fresh.party_size || '?'} סועדים. איזה שולחן הכי מתאים להושיב אותם עכשיו וכמה דקות צפי המתנה?`;
+                        const res = await base44.functions.aiSeatingAssistant({ question: q });
+                        const data = res?.data || res;
+                        setQueueNewBanner(prev => prev && prev.id === fresh.id
+                            ? { ...prev, aiLoading: false, aiSuggestion: data?.answer || null, aiActions: data?.actions || [] }
+                            : prev);
+                    } catch (e) {
+                        setQueueNewBanner(prev => prev && prev.id === fresh.id ? { ...prev, aiLoading: false } : prev);
+                    }
+                })();
             }
         } catch (e) { console.warn('queue load failed', e); }
     }, []);
@@ -955,9 +970,29 @@ export default function SeatingSetup() {
         };
         const sourceLabel = reservation.source ? (SOURCE_LABEL[reservation.source] || reservation.source) : null;
 
+        // Next reservation after this one on same date (any status, just chronologically next)
+        const nextReservation = (() => {
+            if (!reservation.time || !reservation.date) return null;
+            const sameDay = reservations.filter(o =>
+                o.id !== reservation.id &&
+                o.date === reservation.date &&
+                o.time && o.time > reservation.time &&
+                (o.status || 'pending') !== 'cancelled'
+            );
+            sameDay.sort((a, b) => a.time.localeCompare(b.time));
+            return sameDay[0] || null;
+        })();
+
+        const askAiForThis = (e) => {
+            e.stopPropagation();
+            const q = `איזה שולחן הכי טוב להושיב את ${reservation.customer_name || 'הלקוח'} (${reservation.party_size || '?'} סועדים) בשעה ${reservation.time?.slice(0,5) || ''}? קח בחשבון את ההזמנות האחרות והשולחנות הפנויים עכשיו.`;
+            setAiPrefillQuestion(q);
+            setAiOpen(true);
+        };
+
         return (
             <div
-                className={`p-3 rounded-xl border-2 border-transparent transition-all hover:shadow-lg cursor-pointer relative overflow-hidden ${cardBg} ${cardText} ${isReturning ? 'ring-2 ring-pink-300 ring-offset-1' : ''}`}
+                className={`p-3.5 rounded-xl border-2 border-transparent transition-all hover:shadow-lg cursor-pointer relative overflow-hidden ${cardBg} ${cardText} ${isReturning ? 'ring-2 ring-pink-300 ring-offset-1' : ''}`}
                 onClick={openEdit}
             >
                 {/* Flag stripe on right edge — full height */}
@@ -996,8 +1031,16 @@ export default function SeatingSetup() {
                             })}
                         </PopoverContent>
                     </Popover>
-                    <div className="font-black text-2xl leading-none">
-                        {reservation.time?.slice(0, 5) || '--:--'}
+                    <div className="flex items-center gap-1.5">
+                        <button
+                            data-popover-trigger
+                            onClick={askAiForThis}
+                            title="שאל את AI לאיזה שולחן להושיב"
+                            className="text-base w-7 h-7 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 text-white shadow hover:scale-110 transition-transform flex items-center justify-center"
+                        >✨</button>
+                        <div className="font-black text-2xl leading-none">
+                            {reservation.time?.slice(0, 5) || '--:--'}
+                        </div>
                     </div>
                 </div>
 
@@ -1081,6 +1124,14 @@ export default function SeatingSetup() {
                         "{reservation.special_requests}"
                     </div>
                 )}
+
+                {/* NEXT reservation chip */}
+                {nextReservation && (
+                    <div className="mt-2 flex items-center gap-1.5 text-[10px] font-bold bg-white/40 backdrop-blur-sm rounded-full px-2 py-1 w-fit">
+                        <span>⏭️</span>
+                        <span>הבא: {nextReservation.time?.slice(0,5)} · {nextReservation.customer_name || 'לקוח'} ({nextReservation.party_size || '?'})</span>
+                    </div>
+                )}
             </div>
         );
     };
@@ -1106,11 +1157,21 @@ export default function SeatingSetup() {
 
     const ReservationsDashboard = () => {
         const [timeFilter, setTimeFilter] = useState('');
+        const [timeBucket, setTimeBucket] = useState('all'); // all|morning|noon|evening|night
+        // Apply time bucket → set time filter to first hour digit of range
+        const TIME_BUCKETS = {
+            all:     { label: 'הכל',      test: () => true },
+            morning: { label: 'בוקר',     test: (t) => t >= '06:00' && t < '12:00' },
+            noon:    { label: 'צהריים',   test: (t) => t >= '12:00' && t < '17:00' },
+            evening: { label: 'ערב',      test: (t) => t >= '17:00' && t < '22:00' },
+            night:   { label: 'לילה',     test: (t) => t >= '22:00' || t < '06:00' },
+        };
         const [searchTerm, setSearchTerm] = useState('');
 
         const filteredReservations = reservations.filter(r => {
             const statusMatch = selectedStatus === 'all' || (r.status || 'pending') === selectedStatus;
             const timeMatch = !timeFilter || (r.time && r.time.startsWith(timeFilter));
+            const bucketMatch = timeBucket === 'all' || (r.time && TIME_BUCKETS[timeBucket]?.test(r.time));
             const flagMatch = selectedFlag === 'all'
                 || (selectedFlag === 'none' && !r.hostess_flag)
                 || (r.hostess_flag === selectedFlag);
@@ -1119,7 +1180,7 @@ export default function SeatingSetup() {
                 (r.customer_name || '').toLowerCase().includes(q) ||
                 (r.customer_phone || '').replace(/\D/g, '').includes(q.replace(/\D/g, ''))
             );
-            return statusMatch && timeMatch && flagMatch && searchMatch;
+            return statusMatch && timeMatch && bucketMatch && flagMatch && searchMatch;
         });
 
         const flagCounts = reservations.reduce((c, r) => {
@@ -1174,12 +1235,28 @@ export default function SeatingSetup() {
                     />
                 </div>
 
+                {/* Hour bucket filter — quick chips, no typing */}
+                <div className="mb-2 flex flex-wrap gap-1">
+                    {['all','morning','noon','evening','night'].map(k => {
+                        const active = timeBucket === k;
+                        const emoji = { all: '🕐', morning: '🌅', noon: '☀️', evening: '🌙', night: '🌃' }[k];
+                        return (
+                            <button
+                                key={k}
+                                onClick={() => setTimeBucket(k)}
+                                className={`text-[11px] font-bold px-2.5 py-1 rounded-full border transition-colors
+                                    ${active ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-gray-600 border-gray-200 hover:border-slate-400'}`}
+                            >{emoji} {TIME_BUCKETS[k].label}</button>
+                        );
+                    })}
+                </div>
+
                 <div className="flex gap-2 mb-4">
                     <Input
                         type="time"
                         value={timeFilter}
                         onChange={e => setTimeFilter(e.target.value)}
-                        className="w-28"
+                        className="w-24"
                         placeholder="שעה"
                     />
                     <Select value={selectedStatus} onValueChange={setSelectedStatus}>
@@ -1995,15 +2072,7 @@ export default function SeatingSetup() {
                                     'tonight' strip and the full ReservationsDashboard inline (no overlay). */}
                                 {bigMapMode && (
                                 <div className="hidden lg:flex flex-col gap-2 lg:order-1 overflow-y-auto pl-1" style={{ maxHeight: 'calc(100vh - 110px)' }}>
-                                    {/* AI Assistant — sticky at top, always visible */}
-                                    <AiAssistantPanel
-                                        tables={tables}
-                                        reservations={reservations}
-                                        activeSessions={activeSessions}
-                                        queueEntries={queueEntries}
-                                        customers={customers}
-                                        onSwitchToListMode={() => { setViewMode('list'); setBigMapMode(false); }}
-                                    />
+                                    {/* AI Assistant moved to a floating widget — see bottom of page render */}
 
                                     {/* Tab toggle at top — 3 tabs: tonight / full / queue */}
                                     <div className="sticky top-0 z-20 bg-gray-50 pt-1 pb-1.5 flex gap-1">
@@ -2645,6 +2714,32 @@ export default function SeatingSetup() {
 
             {/* Mobile FAB removed — replaced by the tab switcher above the grid */}
 
+            {/* === FLOATING AI ASSISTANT === */}
+            {/* FAB — bottom-right corner. Shows badge if there are auto-recs. */}
+            <button
+                onClick={() => setAiOpen(true)}
+                className="fixed bottom-4 right-4 z-[55] w-14 h-14 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 text-white shadow-2xl flex items-center justify-center text-2xl hover:scale-105 transition-transform"
+                title="עוזר AI"
+            >✨</button>
+
+            {aiOpen && (
+                <div className="fixed inset-0 z-[60] bg-black/30 backdrop-blur-sm" onClick={() => { setAiOpen(false); setAiPrefillQuestion(''); }}>
+                    <div className="absolute bottom-0 right-0 max-w-md w-full sm:bottom-4 sm:right-4 sm:rounded-2xl bg-white shadow-2xl overflow-hidden" dir="rtl" onClick={e => e.stopPropagation()}>
+                        <AiAssistantPanel
+                            tables={tables}
+                            reservations={reservations}
+                            activeSessions={activeSessions}
+                            queueEntries={queueEntries}
+                            customers={customers}
+                            onSwitchToListMode={() => { setViewMode('list'); setBigMapMode(false); setAiOpen(false); }}
+                            prefillQuestion={aiPrefillQuestion}
+                            onClose={() => { setAiOpen(false); setAiPrefillQuestion(''); }}
+                            inDrawer
+                        />
+                    </div>
+                </div>
+            )}
+
             {/* QUICK SEAT (walk-in) flow */}
             {quickSeatOpen && (
                 <QuickSeatDialog
@@ -2869,6 +2964,20 @@ function QueueApprovalBanner({ banner, onApprove, onReject, onDismiss, onOpenTab
                 </button>
             </div>
 
+            {/* AI suggestion */}
+            {(banner.aiLoading || banner.aiSuggestion) && (
+                <div className="mb-2 bg-gradient-to-br from-indigo-50 to-purple-50 border border-indigo-200 rounded-lg p-2">
+                    <div className="flex items-center gap-1 text-[10px] font-black text-indigo-700 mb-1">
+                        <span>✨</span><span>הצעה של AI:</span>
+                    </div>
+                    {banner.aiLoading ? (
+                        <div className="text-xs text-indigo-600 animate-pulse">חושב...</div>
+                    ) : (
+                        <div className="text-xs text-gray-800 whitespace-pre-wrap leading-snug">{banner.aiSuggestion}</div>
+                    )}
+                </div>
+            )}
+
             {/* Wait time input */}
             <div className="flex items-center gap-2 mb-2 bg-amber-50 border border-amber-200 rounded-lg p-2">
                 <span className="text-xs font-bold text-amber-800">⏱️ זמן המתנה משוער:</span>
@@ -2916,13 +3025,31 @@ function QueueApprovalBanner({ banner, onApprove, onReject, onDismiss, onOpenTab
 //   - Returning customer in queue → suggest area
 //   - Critical wait times in queue
 //   - Empty hot zone in busy hour
-function AiAssistantPanel({ tables, reservations, activeSessions, queueEntries, customers, onSwitchToListMode }) {
+function AiAssistantPanel({ tables, reservations, activeSessions, queueEntries, customers, onSwitchToListMode, prefillQuestion, onClose, inDrawer }) {
     const [collapsed, setCollapsed] = useState(false);
-    const [chatQuestion, setChatQuestion] = useState('');
+    const [chatQuestion, setChatQuestion] = useState(prefillQuestion || '');
     const [chatLoading, setChatLoading] = useState(false);
     const [chatAnswer, setChatAnswer] = useState(null); // { answer, actions }
     const now = new Date();
     const recs = [];
+
+    // Auto-ask if prefilled
+    useEffect(() => {
+        if (prefillQuestion && prefillQuestion.trim()) {
+            setChatQuestion(prefillQuestion);
+            // auto-submit immediately
+            (async () => {
+                setChatLoading(true);
+                try {
+                    const res = await base44.functions.aiSeatingAssistant({ question: prefillQuestion });
+                    const data = res?.data || res;
+                    setChatAnswer(data);
+                } catch (e) {
+                    setChatAnswer({ answer: 'שגיאה: ' + (e?.message || e), actions: [] });
+                } finally { setChatLoading(false); }
+            })();
+        }
+    }, [prefillQuestion]);
 
     const askAi = async () => {
         if (!chatQuestion.trim()) return;
@@ -3068,21 +3195,26 @@ function AiAssistantPanel({ tables, reservations, activeSessions, queueEntries, 
         green:  'bg-emerald-50 border-emerald-300 text-emerald-900',
     };
 
+    const wrapperCls = inDrawer
+        ? 'bg-gradient-to-b from-indigo-50 to-white max-h-[80vh] overflow-y-auto'
+        : 'sticky top-0 z-30 bg-gradient-to-b from-indigo-50 to-white border-2 border-indigo-200 rounded-2xl shadow-sm';
+
     return (
-        <div className="sticky top-0 z-30 bg-gradient-to-b from-indigo-50 to-white border-2 border-indigo-200 rounded-2xl shadow-sm">
-            <button
-                onClick={() => setCollapsed(c => !c)}
-                className="w-full flex items-center justify-between px-3 py-2"
-            >
+        <div className={wrapperCls}>
+            <div className="flex items-center justify-between px-3 py-2 border-b border-indigo-200/50 sticky top-0 bg-indigo-50 z-10">
                 <div className="flex items-center gap-1.5">
                     <span className="text-base">✨</span>
-                    <span className="text-xs font-black text-indigo-700">עוזר AI</span>
+                    <span className="text-sm font-black text-indigo-700">עוזר AI</span>
                     {recs.length > 0 && (
                         <span className="text-[9px] font-bold bg-indigo-600 text-white px-1.5 py-0.5 rounded-full">{recs.length}</span>
                     )}
                 </div>
-                <span className="text-xs text-indigo-600">{collapsed ? '▼' : '▲'}</span>
-            </button>
+                {onClose ? (
+                    <button onClick={onClose} className="text-gray-400 hover:text-gray-700"><X className="w-4 h-4"/></button>
+                ) : (
+                    <button onClick={() => setCollapsed(c => !c)} className="text-xs text-indigo-600">{collapsed ? '▼' : '▲'}</button>
+                )}
+            </div>
             {!collapsed && (
                 <div className="px-2 pb-2 space-y-1.5">
                     {/* Real-time auto recommendations */}
