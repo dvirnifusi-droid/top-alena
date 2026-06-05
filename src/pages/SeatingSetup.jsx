@@ -459,9 +459,22 @@ export default function SeatingSetup() {
                 { id: 'restroom-1', type: 'restroom', name: 'שירותים', x: 557, y: 5, width: 175, height: 190 },
             ];
 
-            await SeatingLayout.create({ layout_name: "מפה ראשית - עלינא", tables: allTables, facilities: defaultFacilities });
+            // Upsert — if a layout already exists, overwrite it. Prevents the
+            // dup-row issue that created 11 'מפה ראשית' rows over time.
+            const existing = await SeatingLayout.list().catch(() => []);
+            if (existing && existing.length > 0) {
+                await SeatingLayout.update(existing[0].id, {
+                    layout_name: "מפה ראשית - עלינא", tables: allTables, facilities: defaultFacilities,
+                });
+                // Best-effort cleanup of any leftover duplicates
+                for (let i = 1; i < existing.length; i++) {
+                    await SeatingLayout.delete(existing[i].id).catch(() => {});
+                }
+            } else {
+                await SeatingLayout.create({ layout_name: "מפה ראשית - עלינא", tables: allTables, facilities: defaultFacilities });
+            }
             await loadLayout();
-            alert("כל 41 השולחנות ו 2 אלמנטים פיזיים נוספו בהצלחה!");
+            alert("כל 57 השולחנות ו-3 אלמנטים פיזיים נטענו בהצלחה!");
         } catch (error) {
             console.error('Error creating default layout:', error);
             alert("שגיאה ביצירת השולחנות");
@@ -503,14 +516,18 @@ export default function SeatingSetup() {
     const handleSaveLayout = async () => {
         setIsSaving(true);
         try {
-            const layoutData = { 
-                layout_name: layout?.layout_name || "מפה ראשית - עלינא", 
+            const layoutData = {
+                layout_name: layout?.layout_name || "מפה ראשית - עלינא",
                 tables,
                 facilities
             };
-            
-            if (layout) {
-                await SeatingLayout.update(layout.id, layoutData);
+
+            // Always check the server, not just local state — guards against
+            // creating a duplicate if local state is null due to a race.
+            const existing = await SeatingLayout.list().catch(() => []);
+            if (existing && existing.length > 0) {
+                const targetId = layout?.id || existing[0].id;
+                await SeatingLayout.update(targetId, layoutData);
             } else {
                 await SeatingLayout.create(layoutData);
             }
