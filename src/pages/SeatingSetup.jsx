@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { SeatingLayout } from '@/entities/SeatingLayout';
 import { TableSession } from '@/entities/TableSession';
 import { ServiceStep } from '@/entities/ServiceStep';
@@ -299,8 +299,9 @@ export default function SeatingSetup() {
     const [mobileView, setMobileView] = useState('reservations');  // 'reservations' | 'map' — tab switcher on mobile
     const [queueEntries, setQueueEntries] = useState([]);        // live restaurant queue (walk-ins waiting)
     const [railTab, setRailTab] = useState('tonight');           // 'tonight' | 'full' | 'queue'
-    const [lastSeenQueueId, setLastSeenQueueId] = useState(null); // newest id we've shown — for badge
-    const [queueNewBanner, setQueueNewBanner] = useState(null);   // {name, party_size} popup data
+    const [queueNewBanner, setQueueNewBanner] = useState(null);   // {id, name, party_size} popup data
+    const pageLoadTimeRef = useRef(Date.now());                  // any entry registered AFTER this is "new"
+    const seenQueueIdsRef = useRef(new Set());                   // ids we've already shown the banner for
     const toggleArea = (key) => {
         if (key === 'all') { setSelectedAreas(['all']); return; }
         setSelectedAreas(prev => {
@@ -392,16 +393,22 @@ export default function SeatingSetup() {
             setQueueEntries(active);
             setAbandonedEntries(abandoned);
 
-            // New-entry detection: banner when we see an id NEWER than any we've seen
-            if (active.length > 0) {
-                const newest = active[0];
-                if (lastSeenQueueId && newest.id !== lastSeenQueueId) {
-                    setQueueNewBanner({ id: newest.id, name: newest.customer_name, party_size: newest.party_size });
-                }
-                if (!lastSeenQueueId) setLastSeenQueueId(newest.id);
+            // New-entry detection — fire banner for ANY pending entry that
+            // (a) was registered AFTER the page loaded, and (b) we haven't shown yet.
+            // This catches the "first new entry on a previously-empty queue" case
+            // that the old id-comparison logic missed.
+            const pending = active.filter(q => q.status === 'pending');
+            const fresh = pending.find(q => {
+                if (seenQueueIdsRef.current.has(q.id)) return false;
+                const regTs = q.timestamp_register ? new Date(q.timestamp_register).getTime() : 0;
+                return regTs >= pageLoadTimeRef.current;
+            });
+            if (fresh) {
+                seenQueueIdsRef.current.add(fresh.id);
+                setQueueNewBanner({ id: fresh.id, name: fresh.customer_name, party_size: fresh.party_size });
             }
         } catch (e) { console.warn('queue load failed', e); }
-    }, [lastSeenQueueId]);
+    }, []);
 
     // Mark a queue entry as abandoned (manual ❌)
     const abandonFromQueue = async (entry) => {
@@ -479,10 +486,10 @@ export default function SeatingSetup() {
         return () => clearInterval(id);
     }, [loadQueue]);
 
-    // When user opens the queue tab, mark all as seen (dismisses badge)
+    // When user opens the queue tab, mark all current ids as seen (dismisses banner)
     useEffect(() => {
-        if (railTab === 'queue' && queueEntries.length > 0) {
-            setLastSeenQueueId(queueEntries[0].id);
+        if (railTab === 'queue') {
+            queueEntries.forEach(q => seenQueueIdsRef.current.add(q.id));
             setQueueNewBanner(null);
         }
     }, [railTab, queueEntries]);
@@ -2059,6 +2066,8 @@ export default function SeatingSetup() {
                                             onAbandon={abandonFromQueue}
                                             onRestore={restoreToQueue}
                                             onRefresh={loadQueue}
+                                            onApprove={approveQueueEntry}
+                                            onReject={rejectQueueEntry}
                                         />
                                     )}
                                 </div>
@@ -2678,9 +2687,10 @@ function queueIsFarAway(entry) {
 }
 
 // === CompactQueueStrip — third tab in big-map rail, walk-ins waiting now ====
-function CompactQueueStrip({ queueEntries, abandonedEntries, onSeat, onAbandon, onRestore, onRefresh }) {
+function CompactQueueStrip({ queueEntries, abandonedEntries, onSeat, onAbandon, onRestore, onRefresh, onApprove, onReject }) {
     const [showAbandoned, setShowAbandoned] = useState(true);
     const [sizeFilter, setSizeFilter] = useState('all');
+    const [waitTimeInput, setWaitTimeInput] = useState({}); // {entryId: '15'}
     const now = Date.now();
 
     const toggleTreated = async (entry) => {
@@ -2822,6 +2832,36 @@ function CompactQueueStrip({ queueEntries, abandonedEntries, onSeat, onAbandon, 
                                 >📞 {q.phone}</a>
                             )}
 
+                            {/* PENDING — needs approval first. Inline אשר/דחה. */}
+                            {q.status === 'pending' && (
+                                <div className="mt-2 bg-amber-50 border-2 border-amber-300 rounded-lg p-2">
+                                    <div className="text-[10px] font-bold text-amber-900 mb-1.5">⏳ ממתין לאישור</div>
+                                    <div className="flex items-center gap-1.5 mb-1.5">
+                                        <span className="text-[10px] font-bold text-amber-800">⏱️ צפי:</span>
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            max="180"
+                                            placeholder="ריק = ללא"
+                                            value={waitTimeInput[q.id] || ''}
+                                            onChange={e => setWaitTimeInput(prev => ({ ...prev, [q.id]: e.target.value }))}
+                                            className="w-16 text-center text-xs font-bold border border-amber-300 rounded px-1 py-0.5"
+                                        />
+                                        <span className="text-[10px] font-bold text-amber-800">דק׳</span>
+                                    </div>
+                                    <div className="flex gap-1.5">
+                                        <button
+                                            onClick={() => onApprove(q.id, waitTimeInput[q.id])}
+                                            className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold py-1.5 rounded"
+                                        >✅ אשר</button>
+                                        <button
+                                            onClick={() => onReject(q.id)}
+                                            className="flex-1 bg-red-500 hover:bg-red-600 text-white text-xs font-bold py-1.5 rounded"
+                                        >❌ דחה</button>
+                                    </div>
+                                </div>
+                            )}
+
                             {/* SEATING PREFERENCE */}
                             <div className="mt-1 flex items-center gap-1 flex-wrap text-[10px]">
                                 {q.seating_preference === 'inside' && <span className="bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full font-bold">🏠 בפנים</span>}
@@ -2838,16 +2878,20 @@ function CompactQueueStrip({ queueEntries, abandonedEntries, onSeat, onAbandon, 
                                 </div>
                             )}
 
-                            {/* TABLE PICKER — assign specific table directly from the rail */}
-                            <div className="mt-2">
-                                <TablePicker entry={q} onSave={onRefresh} />
-                            </div>
+                            {/* TABLE PICKER — only when status='active' (after approval) */}
+                            {q.status === 'active' && (
+                                <div className="mt-2">
+                                    <TablePicker entry={q} onSave={onRefresh} />
+                                </div>
+                            )}
 
-                            {/* PRIMARY ACTION */}
-                            <button
-                                onClick={() => onSeat(q)}
-                                className="mt-1 w-full bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold py-2 rounded-lg flex items-center justify-center gap-1"
-                            >🪑 הושב · בחר שולחן במפה</button>
+                            {/* PRIMARY ACTION — only for active. Pending uses approve/reject above. */}
+                            {q.status === 'active' && (
+                                <button
+                                    onClick={() => onSeat(q)}
+                                    className="mt-1 w-full bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold py-2 rounded-lg flex items-center justify-center gap-1"
+                                >🪑 הושב · בחר שולחן במפה</button>
+                            )}
 
                             {/* SECONDARY ACTIONS row */}
                             <div className="mt-1.5 flex items-center justify-between gap-1">
