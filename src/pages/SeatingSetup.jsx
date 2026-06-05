@@ -2234,10 +2234,40 @@ export default function SeatingSetup() {
                                             r.status === 'seated'
                                         );
 
+                                        // Compute end time for the currently-seated reservation (if any)
+                                        // to drive the "finishing soon" amber state in the last 30 min.
+                                        let minutesUntilEnd = null;
+                                        let computedEndTime = seatedReservation?.reservation_end_time || null;
+                                        if (seatedReservation?.time && computedEndTime) {
+                                            const [eh, em] = computedEndTime.split(':').map(Number);
+                                            const end = new Date();
+                                            end.setHours(eh, em || 0, 0, 0);
+                                            // If end-time is past midnight (e.g. 01:00 dinner), assume tomorrow
+                                            if (eh < 6 && now.getHours() >= 18) end.setDate(end.getDate() + 1);
+                                            minutesUntilEnd = Math.round((end.getTime() - now.getTime()) / 60000);
+                                        }
+                                        const isFinishingSoon = minutesUntilEnd !== null && minutesUntilEnd <= 30 && minutesUntilEnd > 0;
+                                        const isOvertime     = minutesUntilEnd !== null && minutesUntilEnd <= 0;
+
+                                        // Next reservation for this table TODAY (after current seated session)
+                                        let nextSeating = null;
+                                        if (seatedReservation) {
+                                            const seatedEnd = computedEndTime || seatedReservation.time;
+                                            nextSeating = futureReservationsForTable.find(r =>
+                                                r.id !== seatedReservation.id &&
+                                                r.date === currentDate &&
+                                                (r.time || '99:99') > seatedEnd
+                                            );
+                                        }
+
                                         let tableColorClass = '';
                                         const isReallyOccupied = !!session || !!seatedReservation;
-                                        
-                                        if (isReallyOccupied) {
+
+                                        if (isFinishingSoon) {
+                                            tableColorClass = 'bg-amber-300 border-amber-600 text-amber-900 animate-pulse';
+                                        } else if (isOvertime) {
+                                            tableColorClass = 'bg-rose-400 border-rose-700 text-white';
+                                        } else if (isReallyOccupied) {
                                             tableColorClass = 'bg-red-300 border-red-500 text-red-900';
                                         } else if (table.location === 'indoor') {
                                             tableColorClass = 'bg-green-300 border-green-500 text-green-900';
@@ -2308,52 +2338,71 @@ export default function SeatingSetup() {
                                                     </div>
                                                 )}
 
-                                                <div className="h-full p-0.5 flex flex-col justify-between text-center">
+                                                <div className="h-full p-1 flex flex-col justify-between text-center overflow-hidden">
+                                                    {/* TOP: capacity badge + table number */}
                                                     <div className="flex justify-between items-start">
                                                         <Badge variant="secondary" className="text-[8px] px-0.5 py-0 leading-none">
                                                             {table.min_capacity}-{table.max_capacity}
                                                         </Badge>
-                                                        <div className="font-black text-xs">{table.table_number}</div>
+                                                        <div className="font-black text-xs leading-none">{table.table_number}</div>
                                                     </div>
-                                                    
-                                                    <div className="flex-1 flex flex-col justify-center items-center px-0.5">
+
+                                                    {/* MIDDLE: dynamic state info */}
+                                                    <div className="flex-1 flex flex-col justify-center items-center px-0.5 leading-tight">
                                                         {isReallyOccupied ? (
                                                             <>
-                                                                <div className="text-[10px] font-bold text-red-900">
-                                                                    {session ? 'פעיל' : seatedReservation ? 'יושב' : 'תפוס'}
+                                                                {/* Status header */}
+                                                                <div className={`text-[9px] font-black uppercase tracking-wide ${
+                                                                    isFinishingSoon ? 'text-amber-900'
+                                                                    : isOvertime ? 'text-white'
+                                                                    : 'text-red-900'
+                                                                }`}>
+                                                                    {isFinishingSoon ? '⏰ מסיים בקרוב'
+                                                                    : isOvertime ? '⚠️ באיחור'
+                                                                    : session ? 'פעיל' : 'יושב'}
                                                                 </div>
                                                                 {session ? (
                                                                     <>
-                                                                        <div className="text-[10px]">{session.party_size} אנשים</div>
-                                                                        <div className="text-[10px]">{getActiveTime(session)}</div>
-                                                                        <div className="text-[10px]">שלב {session.current_step}/23</div>
-                                                                        {session.waiter_name && (
-                                                                            <div className="text-[8px] truncate w-full">{session.waiter_name}</div>
-                                                                        )}
+                                                                        <div className="text-[11px] font-black mt-0.5">👥 {session.party_size}</div>
                                                                         {session.customer_name && (
-                                                                            <div className="text-[8px] truncate w-full">{getFirstName(session.customer_name)}</div>
+                                                                            <div className="text-[9px] font-bold truncate w-full">{getFirstName(session.customer_name)}</div>
                                                                         )}
+                                                                        <div className="text-[8px] opacity-80">{getActiveTime(session)}</div>
+                                                                        <div className="text-[8px] opacity-80">שלב {session.current_step}/23</div>
                                                                     </>
                                                                 ) : seatedReservation ? (
                                                                     <>
-                                                                        <div className="text-[10px]">{seatedReservation.party_size} אנשים</div>
-                                                                        <div className="text-[8px] truncate w-full">{getFirstName(seatedReservation.customer_name)}</div>
-                                                                        <div className="text-[8px]">מ-{seatedReservation.time}</div>
+                                                                        <div className="text-[11px] font-black mt-0.5">👥 {seatedReservation.party_size}</div>
+                                                                        <div className="text-[9px] font-bold truncate w-full">{getFirstName(seatedReservation.customer_name)}</div>
+                                                                        <div className="text-[8px] opacity-90">
+                                                                            {seatedReservation.time}{computedEndTime ? `→${computedEndTime}` : ''}
+                                                                        </div>
+                                                                        {minutesUntilEnd !== null && minutesUntilEnd > 0 && (
+                                                                            <div className="text-[8px] font-bold">⏱ {minutesUntilEnd}'</div>
+                                                                        )}
+                                                                        {/* NEXT seating chip */}
+                                                                        {nextSeating && (
+                                                                            <div className="mt-0.5 w-full bg-blue-500 text-white rounded px-0.5 text-[8px] font-bold flex items-center justify-between leading-none">
+                                                                                <span>↓</span>
+                                                                                <span className="truncate mx-0.5">{nextSeating.time?.slice(0,5)} {getFirstName(nextSeating.customer_name)}</span>
+                                                                                <span>×{nextSeating.party_size}</span>
+                                                                            </div>
+                                                                        )}
                                                                     </>
                                                                 ) : null}
                                                             </>
                                                         ) : futureReservationsForTable.length > 0 ? (
                                                             <div className="space-y-0.5 w-full">
                                                                 {futureReservationsForTable.slice(0, 2).map(res => (
-                                                                    <div key={res.id} className="w-full bg-blue-400 text-white px-1 py-0.5 rounded text-[9px] font-semibold flex items-center justify-between leading-none">
-                                                                        <span>{res.party_size}</span>
+                                                                    <div key={res.id} className="w-full bg-blue-500 text-white px-1 py-0.5 rounded text-[9px] font-bold flex items-center justify-between leading-none">
+                                                                        <span>×{res.party_size}</span>
                                                                         <span className="truncate mx-1">{getFirstName(res.customer_name)}</span>
                                                                         <span>{res.time?.slice(0, 5)}</span>
                                                                     </div>
                                                                 ))}
                                                                 {futureReservationsForTable.length > 2 && (
-                                                                    <div className="text-[8px] text-blue-600">
-                                                                        +{futureReservationsForTable.length - 2} נוספות
+                                                                    <div className="text-[8px] text-blue-600 font-bold">
+                                                                        +{futureReservationsForTable.length - 2}
                                                                     </div>
                                                                 )}
                                                             </div>
@@ -2361,12 +2410,33 @@ export default function SeatingSetup() {
                                                             <div className="text-[10px] font-semibold">פנוי</div>
                                                         )}
                                                     </div>
-                                                    
-                                                    {session && (
+
+                                                    {/* BOTTOM: progress / countdown bar */}
+                                                    {session ? (
                                                         <div className="w-full bg-red-200 rounded-full h-1 mt-0.5">
                                                             <div className="bg-red-600 h-1 rounded-full" style={{width: `${progress}%`}}></div>
                                                         </div>
-                                                    )}
+                                                    ) : seatedReservation && minutesUntilEnd !== null && minutesUntilEnd > 0 ? (
+                                                        // Visual countdown — fills as time toward end gets close
+                                                        (() => {
+                                                            const totalMins = computedEndTime && seatedReservation.time
+                                                                ? (() => {
+                                                                    const [sh, sm] = seatedReservation.time.split(':').map(Number);
+                                                                    const [eh, em] = computedEndTime.split(':').map(Number);
+                                                                    return Math.max(1, (eh*60+(em||0)) - (sh*60+(sm||0)));
+                                                                })()
+                                                                : 120;
+                                                            const usedPct = Math.min(100, Math.max(0, Math.round(((totalMins - minutesUntilEnd) / totalMins) * 100)));
+                                                            return (
+                                                                <div className="w-full bg-black/15 rounded-full h-1 mt-0.5">
+                                                                    <div
+                                                                        className={`h-1 rounded-full transition-all ${isFinishingSoon ? 'bg-amber-700' : 'bg-red-600'}`}
+                                                                        style={{ width: `${usedPct}%` }}
+                                                                    ></div>
+                                                                </div>
+                                                            );
+                                                        })()
+                                                    ) : null}
                                                 </div>
                                                 
                                                 {!isBlockedForInteraction && (
