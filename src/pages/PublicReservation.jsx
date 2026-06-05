@@ -467,12 +467,14 @@ export default function PublicReservationPage() {
           <div className="absolute inset-0 z-[5] flex flex-col items-center justify-center text-center pointer-events-none px-4">
             {/* Olive-branch logo medallion */}
             <div className="w-20 h-20 md:w-24 md:h-24 rounded-full flex items-center justify-center mb-3 md:mb-4" style={{ background: 'rgba(31,27,23,0.55)', backdropFilter: 'blur(6px)', border: '1px solid rgba(217,189,131,0.45)' }}>
-              <svg viewBox="0 0 64 64" className="w-12 h-12 md:w-14 md:h-14" aria-hidden="true">
-                <path d="M8 36 Q20 22 32 28 Q44 34 56 24" fill="none" stroke="#D9BD83" strokeWidth="2.2" strokeLinecap="round" />
-                <ellipse cx="14" cy="30" rx="4" ry="2.4" transform="rotate(-25 14 30)" fill="#B89556" />
-                <ellipse cx="26" cy="27" rx="4" ry="2.4" transform="rotate(-8 26 27)" fill="#B89556" />
-                <ellipse cx="38" cy="29" rx="4" ry="2.4" transform="rotate(12 38 29)" fill="#B89556" />
-                <ellipse cx="50" cy="26" rx="4" ry="2.4" transform="rotate(-8 50 26)" fill="#B89556" />
+              <svg viewBox="0 0 64 64" className="w-14 h-14 md:w-16 md:h-16" aria-hidden="true">
+                <path d="M6 38 Q20 22 32 28 Q44 34 58 22" fill="none" stroke="#D9BD83" strokeWidth="2.4" strokeLinecap="round" />
+                <ellipse cx="12" cy="32" rx="5" ry="2.8" transform="rotate(-30 12 32)" fill="#7A8A48" />
+                <ellipse cx="24" cy="27" rx="5" ry="2.8" transform="rotate(-10 24 27)" fill="#7A8A48" />
+                <ellipse cx="38" cy="29" rx="5" ry="2.8" transform="rotate(14 38 29)" fill="#7A8A48" />
+                <ellipse cx="52" cy="25" rx="5" ry="2.8" transform="rotate(-6 52 25)" fill="#7A8A48" />
+                <circle cx="6" cy="38" r="1.6" fill="#D9BD83" />
+                <circle cx="58" cy="22" r="1.6" fill="#D9BD83" />
               </svg>
             </div>
             <p className="text-[10px] md:text-xs uppercase tracking-[0.4em] drop-shadow" style={{ color: '#D9BD83' }}>
@@ -1005,17 +1007,17 @@ export default function PublicReservationPage() {
             <div className="text-[11px] font-bold uppercase tracking-[0.3em]" style={{ color: '#B89556' }}>האווירה</div>
             <h3 className="brand-display text-2xl md:text-3xl mt-1" style={{ color: '#1F1B17' }}>איך זה נראה אצלנו</h3>
           </div>
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 md:gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2 md:gap-3">
             {[
-              'spread.jpg', 'burger-hero.jpg', 'carpaccio.jpg', 'IMG_6829.JPG',
-              'fries-side.jpg', 'IMG_6892.JPG', 'IMG_4682.JPG', 'IMG_6770.JPG',
-            ].map((file, i) => (
+              'spread.jpg', 'burger-hero.jpg', 'carpaccio.jpg',
+              'IMG_6829.JPG', 'fries-side.jpg', 'IMG_4682.JPG',
+            ].map((file) => (
               <a
                 key={file}
                 href="https://alena.topalena.com/gallery"
                 target="_blank"
                 rel="noopener noreferrer"
-                className={`block aspect-square rounded-2xl overflow-hidden transition-all hover:scale-[1.02] ${i === 0 ? 'col-span-2 row-span-2 aspect-auto md:aspect-square' : ''}`}
+                className="block aspect-square rounded-2xl overflow-hidden transition-all hover:scale-[1.02]"
                 style={{ border: '1px solid rgba(184,149,86,0.30)' }}
               >
                 <img
@@ -1026,6 +1028,11 @@ export default function PublicReservationPage() {
                 />
               </a>
             ))}
+          </div>
+          <div className="text-center mt-5">
+            <a href="https://alena.topalena.com/gallery" target="_blank" rel="noopener noreferrer" className="inline-block font-bold text-sm rounded-xl px-5 py-3 transition-colors" style={{ background: 'rgba(68,81,44,0.10)', color: '#44512C', border: '1px solid rgba(68,81,44,0.30)' }}>
+              לכל הגלריה ←
+            </a>
           </div>
         </div>
       </section>
