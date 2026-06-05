@@ -427,6 +427,49 @@ export default function SeatingSetup() {
         } catch (e) { console.warn('restore failed', e); }
     };
 
+    // Approve a pending queue entry — sets status=active with optional wait time + push
+    const approveQueueEntry = async (entryId, waitMinutes) => {
+        try {
+            const now = new Date().toISOString();
+            // Compute next sort_order from currently active entries
+            const all = await QueueEntry.list('-timestamp_register', 80).catch(() => []);
+            const active = (all || []).filter(q => q.status === 'active');
+            const maxOrder = Math.max(0, ...active.map(e => e.sort_order ?? 0));
+            const patch = {
+                status: 'active',
+                timestamp_approved: now,
+                sort_order: maxOrder + 1,
+            };
+            const wait = parseInt(waitMinutes);
+            if (wait && wait > 0) patch.estimated_wait_time = wait;
+            await QueueEntry.update(entryId, patch);
+            // Best-effort push to customer
+            await base44.functions.sendQueuePush({
+                entry_id: entryId,
+                title: '✅ אושרתם בתור!',
+                message: wait
+                    ? `התור שלכם אושר 🎉 צפי המתנה: ~${wait} דקות. נשמח לראותכם.`
+                    : `התור שלכם אושר 🎉 נשמח לראותכם!`,
+            }).catch(() => {});
+            setQueueNewBanner(null);
+            await loadQueue();
+        } catch (e) {
+            console.error('approve failed', e);
+            alert('שגיאה באישור התור');
+        }
+    };
+
+    const rejectQueueEntry = async (entryId) => {
+        try {
+            await QueueEntry.update(entryId, {
+                status: 'abandoned',
+                timestamp_end: new Date().toISOString(),
+            });
+            setQueueNewBanner(null);
+            await loadQueue();
+        } catch (e) { console.warn('reject failed', e); }
+    };
+
     useEffect(() => {
         loadQueue();
         const id = setInterval(loadQueue, 15000);
@@ -2373,28 +2416,16 @@ export default function SeatingSetup() {
 
             {/* Mobile FAB removed — replaced by the tab switcher above the grid */}
 
-            {/* Queue popup banner — fires when a NEW walk-in joins the queue */}
+            {/* Queue popup banner — fires when a NEW walk-in joins the queue.
+                Inline אשר/דחה buttons so hostess approves/rejects without leaving. */}
             {queueNewBanner && (
-                <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[55] bg-emerald-600 text-white rounded-2xl shadow-2xl p-4 min-w-[280px] animate-in slide-in-from-bottom flex items-center gap-3">
-                    <div className="text-3xl">🔔</div>
-                    <div className="flex-1">
-                        <div className="font-black text-sm">לקוח חדש בתור!</div>
-                        <div className="text-xs opacity-90 mt-0.5">
-                            {queueNewBanner.name} · {queueNewBanner.party_size} סועדים
-                        </div>
-                    </div>
-                    <button
-                        onClick={() => { setRailTab('queue'); setBigMapMode(true); setQueueNewBanner(null); }}
-                        className="bg-white text-emerald-700 font-bold text-xs px-3 py-1.5 rounded-lg hover:bg-emerald-50"
-                    >פתח</button>
-                    <button
-                        onClick={() => setQueueNewBanner(null)}
-                        className="text-white/70 hover:text-white"
-                        title="סגור"
-                    >
-                        <X className="w-4 h-4" />
-                    </button>
-                </div>
+                <QueueApprovalBanner
+                    banner={queueNewBanner}
+                    onApprove={approveQueueEntry}
+                    onReject={rejectQueueEntry}
+                    onDismiss={() => setQueueNewBanner(null)}
+                    onOpenTab={() => { setRailTab('queue'); setBigMapMode(true); }}
+                />
             )}
 
             {/* Dashboard drawer — modal overlay only when NOT in big-map mode.
@@ -2532,6 +2563,83 @@ function CompactTonightStrip({ reservations, selectedDate, onEdit, onOpenFullDas
                 })
             )}
         </>
+    );
+}
+
+// === QueueApprovalBanner — popup with אשר/דחה inline, no need to leave page ===
+function QueueApprovalBanner({ banner, onApprove, onReject, onDismiss, onOpenTab }) {
+    const [waitTime, setWaitTime] = useState('15');
+    const [submitting, setSubmitting] = useState(false);
+
+    const handleApprove = async () => {
+        setSubmitting(true);
+        await onApprove(banner.id, waitTime);
+        setSubmitting(false);
+    };
+    const handleReject = async () => {
+        if (!window.confirm(`לדחות את ${banner.name}?`)) return;
+        setSubmitting(true);
+        await onReject(banner.id);
+        setSubmitting(false);
+    };
+
+    return (
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[55] bg-white border-2 border-emerald-400 rounded-2xl shadow-2xl p-4 min-w-[320px] max-w-md animate-in slide-in-from-bottom" dir="rtl">
+            <div className="flex items-center justify-between gap-2 mb-2">
+                <div className="flex items-center gap-2">
+                    <div className="text-2xl">🔔</div>
+                    <div>
+                        <div className="font-black text-sm text-emerald-700">לקוח חדש בתור</div>
+                        <div className="text-base font-bold text-gray-900">
+                            {banner.name} · 👥 {banner.party_size}
+                        </div>
+                    </div>
+                </div>
+                <button
+                    onClick={onDismiss}
+                    className="text-gray-400 hover:text-gray-700"
+                    title="סגור"
+                >
+                    <X className="w-5 h-5" />
+                </button>
+            </div>
+
+            {/* Wait time input */}
+            <div className="flex items-center gap-2 mb-2 bg-amber-50 border border-amber-200 rounded-lg p-2">
+                <span className="text-xs font-bold text-amber-800">⏱️ זמן המתנה משוער:</span>
+                <input
+                    type="number"
+                    min="0"
+                    max="180"
+                    value={waitTime}
+                    onChange={(e) => setWaitTime(e.target.value)}
+                    className="w-16 text-center text-sm font-bold border border-amber-300 rounded px-1 py-0.5"
+                />
+                <span className="text-xs font-bold text-amber-800">דק׳</span>
+            </div>
+
+            {/* Action buttons */}
+            <div className="flex gap-2">
+                <button
+                    onClick={handleApprove}
+                    disabled={submitting}
+                    className="flex-1 bg-emerald-600 hover:bg-emerald-700 disabled:bg-gray-300 text-white font-black py-2 rounded-lg text-sm flex items-center justify-center gap-1"
+                >✅ אשר</button>
+                <button
+                    onClick={handleReject}
+                    disabled={submitting}
+                    className="flex-1 bg-red-500 hover:bg-red-600 disabled:bg-gray-300 text-white font-black py-2 rounded-lg text-sm flex items-center justify-center gap-1"
+                >❌ דחה</button>
+            </div>
+
+            {/* Secondary link */}
+            <button
+                onClick={() => { onOpenTab(); onDismiss(); }}
+                className="mt-2 w-full text-[11px] text-indigo-600 hover:text-indigo-800"
+            >
+                פתח טאב התור לפרטים נוספים →
+            </button>
+        </div>
     );
 }
 
