@@ -96,6 +96,7 @@ import PositionsManagement from './pages/PositionsManagement';
 import PublicReservation from './pages/PublicReservation';
 import PublicReservationSettings from './pages/PublicReservationSettings';
 import Popups from './pages/Popups';
+import SpecialsAdmin from './pages/SpecialsAdmin';
 import AgentInbox from './pages/AgentInbox';
 import AgentPrompts from './pages/AgentPrompts';
 import PushNotifications from './pages/PushNotifications';
@@ -177,6 +178,7 @@ export const PAGES = {
     "PublicReservation": PublicReservation,
     "PublicReservationSettings": PublicReservationSettings,
     "Popups": Popups,
+    "SpecialsAdmin": SpecialsAdmin,
     "AgentInbox": AgentInbox,
     "AgentPrompts": AgentPrompts,
     "PushNotifications": PushNotifications,

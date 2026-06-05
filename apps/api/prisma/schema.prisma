@@ -1408,6 +1408,47 @@ model Reservation {
   updatedAt  DateTime @updatedAt
 }
 
+// Owner-editable marketing popup shown on /PublicReservation.
+// One popup is picked per session at mount time, based on day/hour filters
+// + priority. Edits go through /SpecialsAdmin so no code push is needed
+// to swap copy or run a one-off campaign.
+model SpecialPopup {
+  id                String   @id @default(cuid())
+  variant           String   @unique   // stable key: 'events', 'lunch', 'midweek-1', etc.
+  eyebrow           String?
+  emoji             String?
+  title             String
+  body              String
+  cta               String   @default("הזמן שולחן")
+  cta_href          String?  // null = scroll to #booking; full URL/path = navigate
+  // Targeting: CSV of day numbers ('0,1,2,3,4,5,6') — null/empty = any day.
+  target_days       String?
+  target_hour_from  Int?     // 0-23 inclusive — null = any
+  target_hour_to    Int?     // 0-23 exclusive — null = any
+  // Higher priority wins ties when multiple popups match the current moment.
+  priority          Int      @default(0)
+  is_active         Boolean  @default(true)
+  // Optional one-shot scheduling — popup only appears between these dates.
+  starts_at         DateTime?
+  ends_at           DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+// Conversion-funnel telemetry for SpecialPopup. Each event ties back to a
+// session (sessionStorage UUID generated client-side) so we can compute
+// per-variant: impressions, dismissal rate, click-through, and conversion
+// (= reservation succeeded in the same session after a click).
+model PopupEvent {
+  id        String   @id @default(cuid())
+  variant   String   // matches SpecialPopup.variant
+  action    String   // 'shown' | 'dismissed' | 'clicked' | 'converted'
+  sessionId String
+  ts        DateTime @default(now())
+  @@index([variant, action])
+  @@index([sessionId])
+}
+
 model ReservationSettings {
   id        String   @id @default(cuid())
   restaurant_name              String  @default("עלינא")

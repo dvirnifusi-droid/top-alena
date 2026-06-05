@@ -341,6 +341,9 @@ export default function PublicReservationPage() {
         is_standby: Boolean(res.is_standby),
         occasion,
       });
+      // Log popup conversion if this reservation came from a clicked popup
+      // in the same session. The hook is installed by SpecialPopup.
+      try { window.__alenaTrackPopupConversion?.(); } catch {}
     } catch (e) {
       setErrorMsg('שגיאה זמנית. נסה שוב בעוד רגע.');
     } finally {

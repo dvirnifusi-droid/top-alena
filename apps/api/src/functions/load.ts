@@ -8339,3 +8339,161 @@ Happy Hour כרגע: ${happyHourActive ? 'פעיל — 40% הנחה על האל�
     };
   }
 }, { public: true });
+// ===========================================================================
+// SpecialPopup admin + tracking
+//   Owner edits the marketing popups from /SpecialsAdmin; PublicReservation
+//   fetches the active list at load time and picks one client-side. Every
+//   show / dismiss / click / converted is logged to PopupEvent so the admin
+//   can see which variants actually drive bookings.
+// ===========================================================================
+
+// Public — list of all active popups, including filters. Client picks one.
+registerFn('getActiveSpecialPopups', async () => {
+  const now = new Date();
+  const rows: any[] = await db.specialPopup.findMany({
+    where: {
+      is_active: true,
+      OR: [
+        { AND: [{ starts_at: null }, { ends_at: null }] },
+        { AND: [{ starts_at: { lte: now } }, { ends_at: null }] },
+        { AND: [{ starts_at: null }, { ends_at: { gte: now } }] },
+        { AND: [{ starts_at: { lte: now } }, { ends_at: { gte: now } }] },
+      ],
+    } as any,
+    orderBy: [{ priority: 'desc' }, { createdAt: 'asc' }],
+  });
+  return rows.map((p) => ({
+    id: p.id, variant: p.variant,
+    eyebrow: p.eyebrow, emoji: p.emoji, title: p.title, body: p.body,
+    cta: p.cta, cta_href: p.cta_href,
+    target_days: p.target_days, target_hour_from: p.target_hour_from, target_hour_to: p.target_hour_to,
+    priority: p.priority,
+  }));
+}, { public: true });
+
+// Public — telemetry sink. Accepts {variant, action, sessionId}.
+// action is one of 'shown' | 'dismissed' | 'clicked' | 'converted'.
+registerFn('trackPopupEvent', async ({ body }) => {
+  const { variant, action, sessionId } = (body as any) || {};
+  if (typeof variant !== 'string' || !variant.trim()) return { ok: false };
+  if (!['shown', 'dismissed', 'clicked', 'converted'].includes(String(action))) return { ok: false };
+  if (typeof sessionId !== 'string' || !sessionId.trim()) return { ok: false };
+  try {
+    await db.popupEvent.create({
+      data: {
+        variant: String(variant).slice(0, 80),
+        action: String(action),
+        sessionId: String(sessionId).slice(0, 80),
+      },
+    });
+    return { ok: true };
+  } catch (e) {
+    return { ok: false };
+  }
+}, { public: true });
+
+// Admin — full list including inactive, for the editor.
+registerFn('listSpecialPopups', async ({ user }) => {
+  if (!user) throw new Error('auth required');
+  return await db.specialPopup.findMany({ orderBy: [{ priority: 'desc' }, { createdAt: 'asc' }] });
+});
+
+// Admin — create or update a popup row.
+registerFn('upsertSpecialPopup', async ({ body, user }) => {
+  if (!user) throw new Error('auth required');
+  const b = (body as any) || {};
+  if (typeof b.variant !== 'string' || !b.variant.trim()) throw new Error('variant required');
+  if (typeof b.title !== 'string' || !b.title.trim()) throw new Error('title required');
+  const data: any = {
+    variant: String(b.variant).trim().slice(0, 80),
+    eyebrow: b.eyebrow ? String(b.eyebrow).slice(0, 120) : null,
+    emoji: b.emoji ? String(b.emoji).slice(0, 8) : null,
+    title: String(b.title).slice(0, 240),
+    body: String(b.body || '').slice(0, 1200),
+    cta: b.cta ? String(b.cta).slice(0, 80) : 'הזמן שולחן',
+    cta_href: b.cta_href ? String(b.cta_href).slice(0, 240) : null,
+    target_days: b.target_days ? String(b.target_days).slice(0, 32) : null,
+    target_hour_from: typeof b.target_hour_from === 'number' ? Math.max(0, Math.min(23, b.target_hour_from)) : null,
+    target_hour_to: typeof b.target_hour_to === 'number' ? Math.max(0, Math.min(24, b.target_hour_to)) : null,
+    priority: typeof b.priority === 'number' ? b.priority : 0,
+    is_active: b.is_active !== undefined ? Boolean(b.is_active) : true,
+    starts_at: b.starts_at ? new Date(b.starts_at) : null,
+    ends_at: b.ends_at ? new Date(b.ends_at) : null,
+  };
+  const existing = await db.specialPopup.findUnique({ where: { variant: data.variant } });
+  if (existing) {
+    return await db.specialPopup.update({ where: { id: existing.id }, data });
+  }
+  return await db.specialPopup.create({ data });
+});
+
+// Admin — delete a popup. Tracking events stay so historic analytics survive.
+registerFn('deleteSpecialPopup', async ({ body, user }) => {
+  if (!user) throw new Error('auth required');
+  const id = (body as any)?.id;
+  if (typeof id !== 'string') throw new Error('id required');
+  await db.specialPopup.delete({ where: { id } });
+  return { ok: true };
+});
+
+// Admin — per-variant funnel: shown / dismissed / clicked / converted.
+registerFn('getPopupAnalytics', async ({ user, body }) => {
+  if (!user) throw new Error('auth required');
+  const sinceDays = Number((body as any)?.since_days) || 30;
+  const since = new Date(Date.now() - sinceDays * 86400 * 1000);
+  const rows: any[] = await db.popupEvent.groupBy({
+    by: ['variant', 'action'],
+    where: { ts: { gte: since } },
+    _count: { _all: true },
+  });
+  const byVariant: Record<string, any> = {};
+  for (const r of rows) {
+    const v = r.variant;
+    if (!byVariant[v]) byVariant[v] = { variant: v, shown: 0, dismissed: 0, clicked: 0, converted: 0 };
+    byVariant[v][r.action] = (r._count?._all as number) || 0;
+  }
+  const out = Object.values(byVariant).map((v: any) => ({
+    ...v,
+    ctr: v.shown > 0 ? Math.round((v.clicked / v.shown) * 1000) / 10 : 0,
+    conversion_rate: v.clicked > 0 ? Math.round((v.converted / v.clicked) * 1000) / 10 : 0,
+  }));
+  out.sort((a, b) => b.shown - a.shown);
+  return { since_days: sinceDays, variants: out };
+});
+
+// Admin — seed defaults if the table is empty.
+registerFn('seedSpecialPopupsIfEmpty', async ({ user }) => {
+  if (!user) throw new Error('auth required');
+  const count = await db.specialPopup.count();
+  if (count > 0) return { seeded: false, existing: count };
+  const seeds = [
+    { variant: 'events', priority: 0, eyebrow: 'אירועים פרטיים', emoji: '🎉',
+      title: 'מארגנים אירוע אצלכם בעסק או בחיים?',
+      body: 'יום הולדת 30, מסיבת רווקות, אירוע חברה, מפגש לקוחות — אצלנו סוגרים תפריט אישי, חדר פרטי, ובר פתוח. עלינא מנוסה באירוח גבוה.',
+      cta: 'בקשת הצעת מחיר לאירוע', cta_href: '/EventsInquiry' },
+    { variant: 'lunch', priority: 10, eyebrow: 'בצהריים אצלנו', emoji: '🍽',
+      title: 'ארוחות צהריים עסקיות',
+      body: 'תפריט עסקי במחיר מיוחד, 12:00-17:00. מנה ראשונה, עיקרית ושתייה — והשולחן כולו רק שלכם.',
+      cta: 'הזמן צהריים', target_days: '0,1,2,3,4', target_hour_from: 11, target_hour_to: 15 },
+    { variant: 'midweek-1', priority: 8, eyebrow: 'אמצע שבוע', emoji: '🍷',
+      title: 'הערב — יין ללא תחתית',
+      body: 'הסומליה בבר, כוסות מ-61 שקל, יין נמזג ברצף עד הסגירה. הערב הכי שקט-עם-עומק של השבוע.',
+      cta: 'תפוס שולחן הערב', target_days: '1', target_hour_from: 16 },
+    { variant: 'midweek-2', priority: 8, eyebrow: 'אמצע שבוע', emoji: '🥩',
+      title: 'הערב — Butcher Night',
+      body: 'נתחי הפתעה ומנות שף חד-פעמיות. ישר מהקצב לגריל. כשנגמר — נגמר.',
+      cta: 'תפוס שולחן הערב', target_days: '2', target_hour_from: 16 },
+    { variant: 'midweek-3', priority: 8, eyebrow: 'אמצע שבוע', emoji: '🍸',
+      title: 'הערב — רביעי קלאסי',
+      body: 'התפריט המלא, השף בעבודה, וקוקטיילי הבית במיטבם. אווירת מועדון שקטה ומדויקת.',
+      cta: 'תפוס שולחן הערב', target_days: '3', target_hour_from: 16 },
+    { variant: 'sat', priority: 9, eyebrow: 'מוצש', emoji: '✨',
+      title: 'הערב הכי גבוה של השבוע',
+      body: 'פותחים מ-20:15 עד הלקוח האחרון. הצוות בכושר, המקום מתמלא — אם רוצים שולחן הלילה, עכשיו זה הזמן.',
+      cta: 'תפוס שולחן עכשיו', target_days: '6', target_hour_from: 18 },
+  ];
+  for (const s of seeds) {
+    await db.specialPopup.create({ data: { ...s, is_active: true } });
+  }
+  return { seeded: true, count: seeds.length };
+});
