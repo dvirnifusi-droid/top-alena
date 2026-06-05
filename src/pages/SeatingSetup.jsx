@@ -2976,16 +2976,23 @@ function TableCombosBreakdown({ tables, onSetConnection }) {
         setPickA(''); setPickB(''); setAddMode(false);
     };
 
-    const valid = (tables || []).filter(t => t && t.table_number != null && t.min_capacity != null && t.max_capacity != null);
+    // Stable fingerprint so memoization actually works.
+    const tablesFingerprint = React.useMemo(
+        () => JSON.stringify((tables || []).map(t => [t?.table_number, t?.min_capacity, t?.max_capacity, t?.combinable_with])),
+        [tables]
+    );
+    // Derived structures — recompute only when fingerprint changes.
+    const { valid, byNum, adj } = React.useMemo(() => {
+        const v = (tables || []).filter(t => t && t.table_number != null && t.min_capacity != null && t.max_capacity != null);
+        const bn = new Map(v.map(t => [String(t.table_number), t]));
+        const ad = new Map();
+        v.forEach(t => ad.set(String(t.table_number), new Set((Array.isArray(t.combinable_with) ? t.combinable_with : []).map(String))));
+        return { valid: v, byNum: bn, adj: ad };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [tablesFingerprint]);
+
     if (valid.length === 0) return null;
 
-    const byNum = new Map(valid.map(t => [String(t.table_number), t]));
-    const adj = new Map();
-    valid.forEach(t => {
-        adj.set(String(t.table_number), new Set((Array.isArray(t.combinable_with) ? t.combinable_with : []).map(String)));
-    });
-
-    // Connected: BFS through subset using adj to confirm one connected component
     const isConnected = (subset) => {
         if (subset.length <= 1) return true;
         const inSet = new Set(subset);
@@ -3000,9 +3007,10 @@ function TableCombosBreakdown({ tables, onSetConnection }) {
         return seen.size === subset.length;
     };
 
-    // For each N: singles + connected combos (size 2..4) whose [sumMin..sumMax] covers N.
-    // Heavy work memoized once.
-    const breakdown = React.useMemo(() => {
+    // CRITICAL: only compute breakdown when section is OPEN. Otherwise C(57,k)
+    // enumeration on every parent re-render freezes the whole page.
+    // Also enumerate per connected-component only (massive prune for sparse graphs).
+    const computeBreakdown = React.useCallback(() => {
         const SIZES = [2,3,4,5,6,7,8,9,10,11,12];
         const out = {};
         for (const n of SIZES) out[n] = { singles: [], combos: [] };
@@ -3015,71 +3023,72 @@ function TableCombosBreakdown({ tables, onSetConnection }) {
             }
         }
 
-        // Combos (size 2..4)
-        const nums = valid.map(t => String(t.table_number));
+        // Build connected components — only enumerate within each (massive prune).
+        const visited = new Set();
+        const components = [];
+        const allNums = valid.map(t => String(t.table_number));
+        for (const num of allNums) {
+            if (visited.has(num)) continue;
+            const comp = [];
+            const stack = [num];
+            while (stack.length) {
+                const cur = stack.pop();
+                if (visited.has(cur)) continue;
+                visited.add(cur);
+                comp.push(cur);
+                for (const nb of (adj.get(cur) || new Set())) {
+                    if (!visited.has(nb)) stack.push(nb);
+                }
+            }
+            if (comp.length >= 2) components.push(comp);
+        }
+
         const seen = new Set();
-        const enumerate = (start, current, sumMin, sumMax) => {
-            if (current.length >= 2) {
-                if (isConnected(current)) {
+        const eventOut = [];
+
+        for (const comp of components) {
+            const enumerate = (start, current, sumMin, sumMax, maxSize) => {
+                if (current.length >= 2 && isConnected(current)) {
                     const sorted = [...current].sort();
                     const key = sorted.join('-');
                     if (!seen.has(key)) {
                         seen.add(key);
+                        // 2..12 buckets
                         for (const n of SIZES) {
                             if (n >= sumMin && n <= sumMax) {
                                 out[n].combos.push({ ids: sorted, sumMin, sumMax });
                             }
                         }
+                        // Event bucket (13+)
+                        if (sumMax >= 13) eventOut.push({ ids: sorted, sumMin, sumMax });
                     }
                 }
-            }
-            if (current.length >= 4) return;
-            for (let i = start; i < nums.length; i++) {
-                const t = byNum.get(nums[i]);
-                if (!t) continue;
-                current.push(nums[i]);
-                enumerate(i + 1, current, sumMin + (t.min_capacity || 0), sumMax + (t.max_capacity || 0));
-                current.pop();
-            }
-        };
-        enumerate(0, [], 0, 0);
+                if (current.length >= maxSize) return;
+                for (let i = start; i < comp.length; i++) {
+                    const t = byNum.get(comp[i]);
+                    if (!t) continue;
+                    current.push(comp[i]);
+                    enumerate(i + 1, current, sumMin + (t.min_capacity || 0), sumMax + (t.max_capacity || 0), maxSize);
+                    current.pop();
+                }
+            };
+            // Cap maxSize: 4 for normal buckets, 6 for event-size (only enumerated within tiny components anyway)
+            enumerate(0, [], 0, 0, Math.min(6, comp.length));
+        }
 
-        // Sort combos by total max (smallest first — most efficient seating)
         for (const n of SIZES) {
             out[n].combos.sort((a, b) => a.sumMax - b.sumMax || a.ids.length - b.ids.length);
-            // cap to 8 displayed per size
             out[n].combos = out[n].combos.slice(0, 8);
         }
-        return out;
-    }, [valid.length, JSON.stringify(valid.map(t => [t.table_number, t.min_capacity, t.max_capacity, t.combinable_with]))]);
+        eventOut.sort((a, b) => b.sumMax - a.sumMax || a.ids.length - b.ids.length);
+        return { byN: out, events: eventOut.slice(0, 30) };
+    }, [valid, adj, byNum]);
 
-    // Event combos (13+ guests) — bigger connected groups
-    const eventCombos = React.useMemo(() => {
-        const nums = valid.map(t => String(t.table_number));
-        const results = [];
-        const seen = new Set();
-        const enumerate = (start, current, sumMin, sumMax) => {
-            if (current.length >= 2 && sumMax >= 13 && isConnected(current)) {
-                const sorted = [...current].sort();
-                const key = sorted.join('-');
-                if (!seen.has(key)) {
-                    seen.add(key);
-                    results.push({ ids: sorted, sumMin, sumMax });
-                }
-            }
-            if (current.length >= 6) return;
-            for (let i = start; i < nums.length; i++) {
-                const t = byNum.get(nums[i]);
-                if (!t) continue;
-                current.push(nums[i]);
-                enumerate(i + 1, current, sumMin + (t.min_capacity || 0), sumMax + (t.max_capacity || 0));
-                current.pop();
-            }
-        };
-        enumerate(0, [], 0, 0);
-        results.sort((a, b) => b.sumMax - a.sumMax || a.ids.length - b.ids.length);
-        return results.slice(0, 30);
-    }, [valid.length, JSON.stringify(valid.map(t => [t.table_number, t.min_capacity, t.max_capacity, t.combinable_with]))]);
+    // Only compute when actually open. Returns empty until then.
+    const { byN: breakdown, events: eventCombos } = React.useMemo(
+        () => open ? computeBreakdown() : { byN: {}, events: [] },
+        [open, computeBreakdown]
+    );
 
     const Chip = ({ children, color = 'gray' }) => {
         const COLORS = {
