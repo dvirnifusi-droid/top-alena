@@ -46,4 +46,22 @@ jobs:
               -H "Content-Type: application/json" -d '{}' \
               | head -c 200 || echo "(self-test endpoint did not respond — check container logs)"
             echo ""
+
+            # ─────────────────────────────────────────────────────────────
+            # Install (idempotent) crontab line for the daily T+24h
+            # customer-survey ping. Skips if already present. Reads the
+            # CRON_SECRET out of apps/api/.env at runtime so the secret
+            # never lands in /etc/crontab or git.
+            # ─────────────────────────────────────────────────────────────
+            CRON_TAG='# topalena-t24-survey'
+            CRON_LINE='0 12 * * * curl -fsS -X POST -H "x-cron-secret: $(grep ^CRON_SECRET /opt/top-alena/apps/api/.env | cut -d= -f2-)" http://localhost:3001/api/cron/customer-survey-reminder >> /var/log/topalena-t24-cron.log 2>&1'
+            if crontab -l 2>/dev/null | grep -qF "$CRON_TAG"; then
+              echo "==> crontab T+24h: already installed"
+            else
+              echo "==> crontab T+24h: installing"
+              sudo touch /var/log/topalena-t24-cron.log 2>/dev/null || touch /var/log/topalena-t24-cron.log
+              ( crontab -l 2>/dev/null; echo "$CRON_TAG"; echo "$CRON_LINE" ) | crontab -
+              echo "==> crontab T+24h: installed. Verify with: crontab -l | grep topalena"
+            fi
+
             echo "==> DEPLOY_DONE"
