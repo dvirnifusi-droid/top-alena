@@ -5157,6 +5157,32 @@ export async function checkStuckEventLeads() {
   }
 }
 
+// Admin: simulate a stuck lead AND run the scanner once. For diagnostics only.
+registerFn('simulateStuckEventLead', async ({ body }) => {
+  const lastMsg = (body as any)?.message || 'צילה גילה 16:00';
+  const name = (body as any)?.name || 'צילה גילה (סימולציה)';
+  const phone = (body as any)?.phone || '0501234567';
+  const backdated = new Date(Date.now() - 15 * 60 * 1000).toISOString(); // 15 min ago
+  const lead = await db.eventLead.create({
+    data: {
+      contact_name: name,
+      contact_phone: phone,
+      status: 'new',
+      score: 50,
+      source: 'diag-claude',
+      conversation_log: [
+        { role: 'assistant', content: 'היי 🌿 כדי להתקדם — מה השם המלא ובאיזו שעה תרצו שיתחיל?' },
+        { role: 'user', content: lastMsg },
+      ] as any,
+      created_date: backdated,
+      updated_date: backdated,
+    },
+  });
+  await checkStuckEventLeads();
+  const after = await db.eventLead.findUnique({ where: { id: lead.id } });
+  return { ok: true, leadId: lead.id, alerted: String(after?.notes || '').includes('abandoned_alerted:') };
+});
+
 if (!(globalThis as any).__stuckEventLeadTimer) {
   (globalThis as any).__stuckEventLeadTimer = setTimeout(function loop() {
     checkStuckEventLeads().finally(() => {
