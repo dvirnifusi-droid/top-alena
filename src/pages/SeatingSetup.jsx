@@ -2532,11 +2532,36 @@ function CompactTonightStrip({ reservations, selectedDate, onEdit, onOpenFullDas
     );
 }
 
+// Geofence constants — matches QueueDashboard's calculation
+const QUEUE_RESTAURANT_LAT = 31.964780873771108;
+const QUEUE_RESTAURANT_LNG = 34.79326668650769;
+const QUEUE_MAX_DISTANCE_M = 100;
+function queueCalcDistance(lat1, lon1, lat2, lon2) {
+    const R = 6371000, toRad = d => d * Math.PI / 180;
+    const dLat = toRad(lat2 - lat1), dLon = toRad(lon2 - lon1);
+    const a = Math.sin(dLat/2)**2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon/2)**2;
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+function queueIsFarAway(entry) {
+    if (!entry?.last_location_lat || !entry?.last_location_lng) return false;
+    return queueCalcDistance(QUEUE_RESTAURANT_LAT, QUEUE_RESTAURANT_LNG, entry.last_location_lat, entry.last_location_lng) > QUEUE_MAX_DISTANCE_M;
+}
+
 // === CompactQueueStrip — third tab in big-map rail, walk-ins waiting now ====
 function CompactQueueStrip({ queueEntries, abandonedEntries, onSeat, onAbandon, onRestore }) {
     const [showAbandoned, setShowAbandoned] = useState(true);
     const [sizeFilter, setSizeFilter] = useState('all');
+    const [copiedId, setCopiedId] = useState(null);
     const now = Date.now();
+
+    const copyText = (txt, id) => {
+        navigator.clipboard.writeText(txt);
+        setCopiedId(id);
+        setTimeout(() => setCopiedId(null), 1500);
+    };
+    const toggleTreated = async (entry) => {
+        try { await QueueEntry.update(entry.id, { treated: !entry.treated }); } catch {}
+    };
 
     // Distinct party sizes for filter chips
     const sizeCounts = queueEntries.reduce((acc, q) => {
@@ -2600,51 +2625,107 @@ function CompactQueueStrip({ queueEntries, abandonedEntries, onSeat, onAbandon, 
                         : waitMin >= 15 ? 'bg-amber-500 text-white'
                         : 'bg-emerald-500 text-white';
                     const phoneClean = (q.phone || '').replace(/\D/g, '');
+                    const farAway = queueIsFarAway(q);
+                    const proxYes = q.proximity_response === 'yes';
+                    const proxNo = q.proximity_response === 'no';
+                    const proxPending = q.proximity_response === 'pending';
+                    // Border color reflects proximity status
+                    const borderColor = proxNo ? 'border-purple-400 bg-purple-50'
+                        : proxYes ? 'border-emerald-400 bg-emerald-50'
+                        : farAway ? 'border-red-400 bg-red-50'
+                        : idx === 0 ? 'border-blue-300 bg-blue-50/40'
+                        : 'border-gray-200 bg-white';
                     return (
-                        <div key={q.id} className="bg-white border-2 border-gray-200 rounded-xl p-3 shadow-sm">
+                        <div key={q.id} className={`border-2 rounded-xl p-3 shadow-sm ${borderColor}`}>
+                            {/* TOP ROW: position number badge + wait time pill */}
                             <div className="flex items-center justify-between gap-2">
+                                <div className="flex items-center gap-2">
+                                    <span className={`w-7 h-7 rounded-xl text-white flex items-center justify-center font-black text-sm
+                                        ${idx === 0 ? 'bg-gradient-to-br from-blue-500 to-indigo-600' : 'bg-blue-500'}`}>
+                                        {idx + 1}
+                                    </span>
+                                    {q.treated && <span title="טופל">🎁</span>}
+                                    {proxYes && <span title="כן באזור">🟢</span>}
+                                    {proxPending && !proxNo && !proxYes && <span title="ממתין לתגובה" className="animate-pulse">🟡</span>}
+                                    {proxNo && <span title="לא באזור">🟣</span>}
+                                    {farAway && !proxNo && !proxYes && <span title="רחוק">📍❌</span>}
+                                </div>
                                 <span className={`text-[11px] font-black px-2 py-0.5 rounded-full ${waitColor}`}>
                                     {waitMin} דק׳
                                 </span>
-                                <span className="text-[10px] font-bold text-gray-400">#{idx + 1}</span>
                             </div>
+
+                            {/* NAME ROW: party | name */}
                             <div className="mt-1.5 flex items-center gap-2">
                                 <span className="text-2xl font-black text-gray-800">{q.party_size}</span>
-                                <span className="w-px h-7 bg-gray-200"></span>
+                                <span className="w-px h-7 bg-gray-300"></span>
                                 <div className="font-bold text-base text-gray-900 truncate flex-1">{q.customer_name}</div>
                             </div>
-                            {phoneClean && (
-                                <a
-                                    href={`tel:${phoneClean}`}
-                                    className="text-xs text-rose-400 hover:text-rose-600 mt-0.5 inline-block"
-                                    dir="ltr"
-                                >{q.phone}</a>
-                            )}
-                            {q.seating_preference && q.seating_preference !== 'no_preference' && (
-                                <div className="text-[10px] text-gray-500 mt-0.5">
-                                    📍 העדפת ישיבה: {q.seating_preference}
+
+                            {/* COPY + PHONE row */}
+                            <div className="mt-1 flex items-center gap-1.5 flex-wrap">
+                                <button
+                                    onClick={() => copyText(q.customer_name, 'n-' + q.id)}
+                                    className="text-[10px] font-bold bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 px-1.5 py-0.5 rounded"
+                                >📋 {copiedId === 'n-' + q.id ? 'הועתק' : 'שם'}</button>
+                                {phoneClean && (
+                                    <>
+                                        <button
+                                            onClick={() => copyText(q.phone, 'p-' + q.id)}
+                                            className="text-[10px] font-bold bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 px-1.5 py-0.5 rounded"
+                                        >📋 {copiedId === 'p-' + q.id ? 'הועתק' : 'טלפון'}</button>
+                                        <a
+                                            href={`tel:${phoneClean}`}
+                                            className="text-[10px] font-bold bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 px-1.5 py-0.5 rounded"
+                                        >📞 חייג</a>
+                                    </>
+                                )}
+                            </div>
+
+                            {/* SEATING PREFERENCE */}
+                            <div className="mt-1 flex items-center gap-1 flex-wrap text-[10px]">
+                                {q.seating_preference === 'inside' && <span className="bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full font-bold">🏠 בפנים</span>}
+                                {q.seating_preference === 'outside' && <span className="bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full font-bold">🌳 בחוץ</span>}
+                                {(!q.seating_preference || q.seating_preference === 'no_preference') && <span className="bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-full">🤷 לא משנה</span>}
+                                {(q.table_duration_preference === 'one_hour_only' || q.table_duration_preference === 'one_hour')
+                                    ? <span className="bg-orange-100 text-orange-800 px-1.5 py-0.5 rounded-full font-bold border border-orange-300">✅ שולחן לשעה</span>
+                                    : <span className="bg-red-100 text-red-700 px-1.5 py-0.5 rounded-full">❌ צריך יותר</span>}
+                            </div>
+
+                            {q.customer_notes && (
+                                <div className="mt-1 bg-yellow-50 border border-yellow-200 rounded px-1.5 py-1 text-[10px] text-yellow-900">
+                                    💬 {q.customer_notes}
                                 </div>
                             )}
-                            {q.notes && (
-                                <div className="text-[11px] text-gray-500 italic mt-0.5 truncate" title={q.notes}>
-                                    "{q.notes}"
-                                </div>
-                            )}
-                            <div className="mt-2 flex gap-2">
+
+                            {/* ACTIONS row */}
+                            <div className="mt-2 flex gap-1.5">
                                 <button
                                     onClick={() => onSeat(q)}
-                                    className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold py-2 rounded-lg flex items-center justify-center gap-1"
+                                    className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold py-1.5 rounded-lg flex items-center justify-center gap-1"
                                 >🪑 הושב · בחר שולחן</button>
+                                <button
+                                    onClick={() => toggleTreated(q)}
+                                    title={q.treated ? 'בטל סימון טופל' : 'סמן כטופל'}
+                                    className={`text-base py-1.5 px-2 rounded-lg border ${q.treated ? 'bg-amber-100 border-amber-300' : 'bg-white border-gray-300 hover:bg-amber-50'}`}
+                                >🎁</button>
                                 <button
                                     onClick={() => onAbandon(q)}
                                     title="סמן כנטוש"
-                                    className="bg-white border border-red-300 text-red-600 hover:bg-red-50 text-xs font-bold py-2 px-3 rounded-lg"
+                                    className="bg-white border border-red-300 text-red-600 hover:bg-red-50 text-xs font-bold py-1.5 px-2 rounded-lg"
                                 >❌</button>
                             </div>
                         </div>
                     );
                 })
             )}
+
+            {/* Link to full dashboard for advanced features */}
+            <a
+                href="/QueueDashboard"
+                target="_blank"
+                className="text-[11px] text-indigo-600 hover:text-indigo-800 underline mt-2 inline-block"
+            >פתח לוח תור מלא ↗ (גרירה, בדיקת אזור, מטבעות)</a>
 
             {/* Recently abandoned section (collapsible) */}
             {abandonedEntries.length > 0 && (
