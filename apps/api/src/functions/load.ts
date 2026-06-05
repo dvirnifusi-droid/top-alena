@@ -7834,6 +7834,66 @@ registerFn('getRecentReservationCount', async ({ body }) => {
   return { count: Math.max(0, Math.min(999, count)), hours };
 }, { public: true });
 
+// PUBLIC — featured menu items for the public reservation page carousel.
+// Picks recommended + highest-popularity items that have an image, falls back
+// to any item with image_url. Caps to 8.
+registerFn('getPublicFeaturedMenuItems', async ({ body }) => {
+  const limit = Math.min(12, Math.max(1, Number((body as any)?.limit) || 6));
+  try {
+    // First pass: recommended items with images
+    let items = await db.menuItem.findMany({
+      where: { is_recommended: true, available: true, image_url: { not: null } },
+      orderBy: [{ popularity_score: 'desc' }, { name: 'asc' }],
+      take: limit,
+      select: { id: true, name: true, description: true, price: true, image_url: true, category: true },
+    });
+    if (items.length < limit) {
+      // Fallback: any available item with an image
+      const need = limit - items.length;
+      const seen = new Set(items.map(i => i.id));
+      const more = await db.menuItem.findMany({
+        where: { available: true, image_url: { not: null }, id: { notIn: Array.from(seen) } },
+        orderBy: [{ popularity_score: 'desc' }, { name: 'asc' }],
+        take: need,
+        select: { id: true, name: true, description: true, price: true, image_url: true, category: true },
+      });
+      items = [...items, ...more];
+    }
+    return { items };
+  } catch (e: any) {
+    return { items: [], error: e?.message };
+  }
+}, { public: true });
+
+// PUBLIC — recent positive reviews for the public page social-proof block.
+// Returns 4-5 stars from CustomerFeedback with a real comment.
+registerFn('getPublicRecentReviews', async ({ body }) => {
+  const limit = Math.min(10, Math.max(1, Number((body as any)?.limit) || 5));
+  try {
+    const rows = await db.customerFeedback.findMany({
+      where: {
+        rating: { gte: 4 },
+        comments: { not: null },
+      },
+      orderBy: [{ visit_date: 'desc' }, { createdAt: 'desc' }],
+      take: limit * 3, // over-fetch then prune empty comments client-side guard
+      select: { customer_name: true, rating: true, comments: true, visit_date: true },
+    });
+    const filtered = rows
+      .filter(r => r.comments && r.comments.trim().length >= 8)
+      .slice(0, limit)
+      .map(r => ({
+        name: r.customer_name || 'אורח',
+        rating: r.rating,
+        comment: r.comments,
+        date: r.visit_date ? new Date(r.visit_date).toISOString().slice(0, 10) : null,
+      }));
+    return { reviews: filtered };
+  } catch (e: any) {
+    return { reviews: [], error: e?.message };
+  }
+}, { public: true });
+
 // PUBLIC — bulk availability check for a date. Returns map { "20:00": "open" | "tight" | "full" }
 // so the booking page can color time slots without per-slot round trips.
 registerFn('getDayAvailabilitySnapshot', async ({ body }) => {

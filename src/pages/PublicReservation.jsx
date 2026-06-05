@@ -7,6 +7,7 @@ import { he } from 'date-fns/locale';
 import {
   Calendar, Clock, Users, Send, Loader2, CheckCircle, Phone, MapPin,
   Instagram, Music2, Facebook, MessageCircle, Sparkles, Flame, Navigation as NavIcon,
+  Star, ChevronRight,
 } from 'lucide-react';
 
 // --- Constants ---------------------------------------------------------------
@@ -76,20 +77,57 @@ export default function PublicReservationPage() {
   const [success, setSuccess] = useState(null); // { customer_name, time, date, party_size, table_number }
 
   const [liveCount, setLiveCount] = useState(null);
+  const [featuredMenu, setFeaturedMenu] = useState([]);
+  const [reviews, setReviews] = useState([]);
+  const [showStickyCTA, setShowStickyCTA] = useState(false);
+  const bookingCardRef = useRef(null);
 
-  // --- Load settings + live counter once
+  // --- Load settings + live counter + featured menu + reviews once
   useEffect(() => {
     (async () => {
       try {
         const s = await invokePublic('getReservationSettings');
         if (s) setSettings(s);
       } catch (e) { console.warn('settings load failed', e); }
-      try {
-        const r = await invokePublic('getRecentReservationCount', { hours: 3 });
-        if (r?.count != null) setLiveCount(r.count);
-      } catch (e) { /* non-fatal */ }
+      // Fire all four public reads in parallel — none block each other
+      const [countRes, menuRes, revRes] = await Promise.all([
+        invokePublic('getRecentReservationCount', { hours: 3 }).catch(() => null),
+        invokePublic('getPublicFeaturedMenuItems', { limit: 8 }).catch(() => null),
+        invokePublic('getPublicRecentReviews', { limit: 6 }).catch(() => null),
+      ]);
+      if (countRes?.count != null) setLiveCount(countRes.count);
+      if (Array.isArray(menuRes?.items)) setFeaturedMenu(menuRes.items);
+      if (Array.isArray(revRes?.reviews)) setReviews(revRes.reviews);
     })();
   }, []);
+
+  // --- Show sticky bottom CTA on mobile when user scrolls past the booking card
+  useEffect(() => {
+    const onScroll = () => {
+      const el = bookingCardRef.current;
+      if (!el) return;
+      const rect = el.getBoundingClientRect();
+      // Show when bottom of booking card has scrolled above the viewport bottom
+      setShowStickyCTA(rect.bottom < window.innerHeight * 0.4);
+    };
+    onScroll();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
+
+  const scrollToBooking = () => {
+    bookingCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  };
+
+  // --- Active promos: from settings.promos JSON array, else defaults
+  const promos = Array.isArray(settings?.promos) && settings.promos.length
+    ? settings.promos
+    : [
+        { emoji: '🍷', label: 'ערב יין רביעי', detail: 'בקבוק יין השבוע ב-50% הנחה' },
+        { emoji: '🥩', label: 'ימי בשר חמישי', detail: '20% הנחה על כל פלטות הבשר' },
+        { emoji: '☀️', label: 'ארוחת צהריים עסקית', detail: 'תפריט מיוחד ב-89₪' },
+        { emoji: '🎂', label: 'יום הולדת', detail: 'קינוח מתנה ושיר מהצוות' },
+      ];
 
   // --- Recompute hours + slots when date or settings change
   useEffect(() => {
@@ -271,8 +309,23 @@ export default function PublicReservationPage() {
         <div className="h-6 bg-gradient-to-b from-transparent to-white/5"></div>
       </header>
 
+      {/* ============ PROMO RIBBON ============ */}
+      {promos.length > 0 && (
+        <div className="bg-gradient-to-l from-amber-500 via-rose-500 to-orange-500 py-2 overflow-hidden">
+          <div className="flex gap-2 px-3 overflow-x-auto scrollbar-thin max-w-full mx-auto">
+            {promos.map((p, i) => (
+              <div key={i} className="flex-shrink-0 bg-black/20 backdrop-blur-sm rounded-full px-3 py-1.5 text-xs font-bold text-white border border-white/20 flex items-center gap-1.5">
+                <span className="text-base">{p.emoji}</span>
+                <span>{p.label}</span>
+                {p.detail && <span className="opacity-80 font-normal">· {p.detail}</span>}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* ============ BOOKING CARD ============ */}
-      <main className="-mt-8 relative z-[2] px-3 md:px-6 pb-10">
+      <main ref={bookingCardRef} className="-mt-8 relative z-[2] px-3 md:px-6 pb-10">
         <div className="max-w-2xl mx-auto bg-white text-gray-900 rounded-3xl shadow-2xl p-5 md:p-7 space-y-5">
           <div className="text-center">
             <h2 className="text-2xl md:text-3xl font-black">הזמינו שולחן</h2>
@@ -420,6 +473,74 @@ export default function PublicReservationPage() {
         </div>
       </main>
 
+      {/* ============ FEATURED MENU CAROUSEL ============ */}
+      {featuredMenu.length > 0 && (
+        <section className="bg-zinc-900 px-3 md:px-5 py-10">
+          <div className="max-w-5xl mx-auto">
+            <div className="flex items-end justify-between mb-4 px-2">
+              <div>
+                <div className="text-xs text-amber-400 font-bold uppercase tracking-wider">המומלצים שלנו</div>
+                <h3 className="text-2xl md:text-3xl font-black text-white">תפריט שיפתח לך תיאבון</h3>
+              </div>
+              <a href="/menu" className="text-xs text-amber-300 hover:text-amber-100 flex items-center gap-0.5">
+                כל התפריט <ChevronRight className="w-3 h-3 rotate-180" />
+              </a>
+            </div>
+            <div className="flex gap-3 overflow-x-auto pb-2 px-2 snap-x snap-mandatory">
+              {featuredMenu.map((item) => (
+                <div key={item.id} className="flex-shrink-0 w-56 snap-start bg-zinc-800 rounded-2xl overflow-hidden border border-zinc-700/50 hover:border-amber-500/50 transition-colors">
+                  {item.image_url && (
+                    <div className="aspect-[4/3] bg-zinc-900 overflow-hidden">
+                      <img src={item.image_url} alt={item.name} loading="lazy" className="w-full h-full object-cover" />
+                    </div>
+                  )}
+                  <div className="p-3">
+                    <div className="font-bold text-white text-sm">{item.name}</div>
+                    {item.description && (
+                      <p className="text-xs text-zinc-400 mt-1 line-clamp-2 leading-snug">{item.description}</p>
+                    )}
+                    {item.price ? (
+                      <div className="mt-2 text-amber-400 font-black text-sm">{Math.round(item.price)} ₪</div>
+                    ) : null}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* ============ REVIEWS BLOCK ============ */}
+      {reviews.length > 0 && (
+        <section className="bg-zinc-950 px-3 md:px-5 py-10 border-t border-zinc-800">
+          <div className="max-w-5xl mx-auto">
+            <div className="text-center mb-5">
+              <div className="flex items-center justify-center gap-1 mb-1">
+                {[1,2,3,4,5].map(i => <Star key={i} className="w-5 h-5 fill-amber-400 text-amber-400" />)}
+              </div>
+              <h3 className="text-2xl md:text-3xl font-black text-white">מה הסועדים אומרים</h3>
+              <p className="text-zinc-400 text-sm mt-1">ביקורות אמיתיות מלקוחות עלינא</p>
+            </div>
+            <div className="flex gap-3 overflow-x-auto pb-2 px-2 snap-x snap-mandatory">
+              {reviews.map((r, i) => (
+                <div key={i} className="flex-shrink-0 w-72 snap-start bg-gradient-to-br from-zinc-900 to-zinc-800 border border-zinc-700/50 rounded-2xl p-4">
+                  <div className="flex items-center gap-1 mb-2">
+                    {Array.from({ length: r.rating || 5 }).map((_, k) => (
+                      <Star key={k} className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
+                    ))}
+                  </div>
+                  <p className="text-sm text-zinc-200 leading-relaxed line-clamp-5">"{r.comment}"</p>
+                  <div className="mt-3 flex items-center justify-between text-xs">
+                    <span className="font-bold text-amber-300">— {r.name}</span>
+                    {r.date && <span className="text-zinc-500">{r.date}</span>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
+
       {/* ============ ABOUT / ATMOSPHERE ============ */}
       <section className="bg-zinc-900 px-5 py-12">
         <div className="max-w-2xl mx-auto text-center space-y-3">
@@ -464,6 +585,18 @@ export default function PublicReservationPage() {
 
         <p className="text-center text-zinc-600 text-xs mt-8">© עלינא · אוכל · אלכוהול · אווירה · אנשים</p>
       </section>
+
+      {/* ============ STICKY MOBILE CTA ============ */}
+      {/* Appears once user has scrolled past the booking card — a single tap returns them to it */}
+      {showStickyCTA && !success && (
+        <button
+          onClick={scrollToBooking}
+          className="md:hidden fixed bottom-3 left-3 right-3 z-50 bg-gradient-to-l from-amber-600 to-rose-600 text-white font-black py-3.5 rounded-2xl shadow-2xl flex items-center justify-center gap-2 animate-in slide-in-from-bottom"
+        >
+          <Sparkles className="w-5 h-5" />
+          הזמן שולחן עכשיו
+        </button>
+      )}
     </div>
   );
 }
