@@ -8347,8 +8347,55 @@ Happy Hour כרגע: ${happyHourActive ? 'פעיל — 40% הנחה על האל�
 //   can see which variants actually drive bookings.
 // ===========================================================================
 
+// Idempotent CREATE TABLE for the two SpecialPopup-related tables.
+// The container's cold-start `prisma db push` has been failing silently
+// on this host, so we mirror the additive-schema pattern used for
+// Reservation columns elsewhere in this file.
+let specialPopupTablesEnsured = false;
+async function ensureSpecialPopupTables() {
+  if (specialPopupTablesEnsured) return;
+  await (prisma as any).$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "SpecialPopup" (
+      "id"                TEXT PRIMARY KEY,
+      "variant"           TEXT NOT NULL UNIQUE,
+      "eyebrow"           TEXT,
+      "emoji"             TEXT,
+      "title"             TEXT NOT NULL,
+      "body"              TEXT NOT NULL,
+      "cta"               TEXT NOT NULL DEFAULT 'הזמן שולחן',
+      "cta_href"          TEXT,
+      "target_days"       TEXT,
+      "target_hour_from"  INTEGER,
+      "target_hour_to"    INTEGER,
+      "priority"          INTEGER NOT NULL DEFAULT 0,
+      "is_active"         BOOLEAN NOT NULL DEFAULT TRUE,
+      "starts_at"         TIMESTAMP(3),
+      "ends_at"           TIMESTAMP(3),
+      "createdAt"         TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt"         TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+  `).catch(() => {});
+  await (prisma as any).$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "PopupEvent" (
+      "id"        TEXT PRIMARY KEY,
+      "variant"   TEXT NOT NULL,
+      "action"    TEXT NOT NULL,
+      "sessionId" TEXT NOT NULL,
+      "ts"        TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+  `).catch(() => {});
+  await (prisma as any).$executeRawUnsafe(
+    `CREATE INDEX IF NOT EXISTS "PopupEvent_variant_action_idx" ON "PopupEvent"("variant","action");`
+  ).catch(() => {});
+  await (prisma as any).$executeRawUnsafe(
+    `CREATE INDEX IF NOT EXISTS "PopupEvent_sessionId_idx" ON "PopupEvent"("sessionId");`
+  ).catch(() => {});
+  specialPopupTablesEnsured = true;
+}
+
 // Public — list of all active popups, including filters. Client picks one.
 registerFn('getActiveSpecialPopups', async () => {
+  await ensureSpecialPopupTables();
   const now = new Date();
   const rows: any[] = await db.specialPopup.findMany({
     where: {
@@ -8378,6 +8425,7 @@ registerFn('trackPopupEvent', async ({ body }) => {
   if (typeof variant !== 'string' || !variant.trim()) return { ok: false };
   if (!['shown', 'dismissed', 'clicked', 'converted'].includes(String(action))) return { ok: false };
   if (typeof sessionId !== 'string' || !sessionId.trim()) return { ok: false };
+  await ensureSpecialPopupTables();
   try {
     await db.popupEvent.create({
       data: {
@@ -8395,12 +8443,14 @@ registerFn('trackPopupEvent', async ({ body }) => {
 // Admin — full list including inactive, for the editor.
 registerFn('listSpecialPopups', async ({ user }) => {
   if (!user) throw new Error('auth required');
+  await ensureSpecialPopupTables();
   return await db.specialPopup.findMany({ orderBy: [{ priority: 'desc' }, { createdAt: 'asc' }] });
 });
 
 // Admin — create or update a popup row.
 registerFn('upsertSpecialPopup', async ({ body, user }) => {
   if (!user) throw new Error('auth required');
+  await ensureSpecialPopupTables();
   const b = (body as any) || {};
   if (typeof b.variant !== 'string' || !b.variant.trim()) throw new Error('variant required');
   if (typeof b.title !== 'string' || !b.title.trim()) throw new Error('title required');
@@ -8430,6 +8480,7 @@ registerFn('upsertSpecialPopup', async ({ body, user }) => {
 // Admin — delete a popup. Tracking events stay so historic analytics survive.
 registerFn('deleteSpecialPopup', async ({ body, user }) => {
   if (!user) throw new Error('auth required');
+  await ensureSpecialPopupTables();
   const id = (body as any)?.id;
   if (typeof id !== 'string') throw new Error('id required');
   await db.specialPopup.delete({ where: { id } });
@@ -8439,6 +8490,7 @@ registerFn('deleteSpecialPopup', async ({ body, user }) => {
 // Admin — per-variant funnel: shown / dismissed / clicked / converted.
 registerFn('getPopupAnalytics', async ({ user, body }) => {
   if (!user) throw new Error('auth required');
+  await ensureSpecialPopupTables();
   const sinceDays = Number((body as any)?.since_days) || 30;
   const since = new Date(Date.now() - sinceDays * 86400 * 1000);
   const rows: any[] = await db.popupEvent.groupBy({
@@ -8464,6 +8516,7 @@ registerFn('getPopupAnalytics', async ({ user, body }) => {
 // Admin — seed defaults if the table is empty.
 registerFn('seedSpecialPopupsIfEmpty', async ({ user }) => {
   if (!user) throw new Error('auth required');
+  await ensureSpecialPopupTables();
   const count = await db.specialPopup.count();
   if (count > 0) return { seeded: false, existing: count };
   const seeds = [
