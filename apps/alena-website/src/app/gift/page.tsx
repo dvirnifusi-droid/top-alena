@@ -7,15 +7,14 @@ import { env } from "@/lib/env";
 export const metadata = pageMetadata({
   title: "שובר מתנה — עלינא, ראשון לציון",
   description:
-    "שובר מתנה דיגיטלי למסעדת עלינא ברוטשילד 104. 3 חבילות מעוצבות לימי הולדת, ימי נישואים, הוקרה לעובד. רכישה תוך דקה.",
+    "שובר מתנה דיגיטלי למסעדת עלינא ברוטשילד 104. 3 סכומים לבחירה — המקבל בוחר את הארוחה. מתאים ליום הולדת, יום נישואים, הוקרה לעובד.",
   path: "/gift",
 });
 
 type Pkg = {
   amount: number;
-  title: string;
-  pitch: string;
-  includes: string[];
+  fitFor: string; // who this is good for
+  vibe: string; // one-line vibe
   highlight?: boolean;
   badge?: string;
 };
@@ -23,36 +22,20 @@ type Pkg = {
 const packages: Pkg[] = [
   {
     amount: 200,
-    title: "שובר ערב זוגי",
-    pitch: "ארוחה לזוג עם קוקטיילים — בלי החשבון בסוף.",
-    includes: [
-      "3 מנות משותפות מהתפריט",
-      "2 קוקטיילי בית",
-      "מנות קינוח",
-    ],
+    fitFor: "מתנה אישית קטנה",
+    vibe: "להזכיר למישהו שאתם חושבים עליו.",
   },
   {
     amount: 350,
-    title: "שובר חברים",
-    pitch: "ערב עם 4 חברים — ככה שכל אחד זוכר את זה.",
-    includes: [
-      "תפריט שף לחלוקה (4 איש)",
-      "ברים פתוחים לשעה",
-      "ערב נושא מותאם (בורגרים / יין / קצב)",
-    ],
+    fitFor: "מתנה לזוגות / חברים",
+    vibe: "ערב יציאה אמיתי, בלי לחשוב על המחיר.",
     highlight: true,
     badge: "הכי פופולרי",
   },
   {
     amount: 500,
-    title: "שובר VIP",
-    pitch: "אירוח שאומר ׳הכרתי על זה הרבה זמן׳ — לעובד, ללקוח, לבן/בת זוג.",
-    includes: [
-      "ארוחת שף מלאה ל-2",
-      "בקבוק יין שלם או 4 קוקטיילים",
-      "קינוח מיוחד מהשף",
-      "השארה אישית של השף לשולחן",
-    ],
+    fitFor: "מתנה לעובד / לקוח / יקירים",
+    vibe: "אירוח שאומר ׳הערכתי על זה הרבה זמן׳.",
   },
 ];
 
@@ -60,7 +43,7 @@ function whatsappForPackage(p: Pkg) {
   return wa.general().replace(
     /text=.*/,
     `text=${encodeURIComponent(
-      `שלום! אני רוצה לרכוש שובר מתנה של ${p.title} (₪${p.amount}). אפשר לקבל פרטים על תהליך התשלום והמשלוח של השובר?`,
+      `שלום! אני רוצה לרכוש שובר מתנה ע״ס ₪${p.amount}. אפשר לקבל פרטים על תהליך התשלום ועל איך השובר נשלח?`,
     )}`,
   );
 }
@@ -74,8 +57,8 @@ export default function GiftPage() {
           ערב בעלינא — במתנה
         </h1>
         <p className="mx-auto mt-4 max-w-2xl text-lg text-charcoal/80">
-          מתנה ליום הולדת, יום נישואים, יום הולדת לעובד, או הוקרה שאומרת ״תודה״. שובר דיגיטלי מעוצב,
-          תקף שנה מיום הרכישה, ניתן להעברה למתנת אדם אחר.
+          שובר דיגיטלי בערך כספי. המקבל בוחר מה לאכול ומה לשתות, בכל ביקור, בכל שעה. תקף שנה, ניתן
+          להעברה. מתאים ליום הולדת, יום נישואים, הוקרה לעובד.
         </p>
       </header>
 
@@ -83,37 +66,37 @@ export default function GiftPage() {
         {packages.map((p) => (
           <article
             key={p.amount}
-            className={`relative flex flex-col rounded-3xl p-7 shadow-lg shadow-charcoal/5 transition ${
+            className={`relative flex flex-col rounded-3xl p-8 text-center shadow-lg shadow-charcoal/5 transition ${
               p.highlight
                 ? "bg-olive text-cream ring-2 ring-brass"
                 : "bg-cream-soft text-charcoal ring-1 ring-brass/15"
             }`}
           >
             {p.badge ? (
-              <span className="absolute -top-3 right-7 rounded-full bg-brass px-3 py-1 text-xs font-bold uppercase tracking-wider text-charcoal shadow">
+              <span className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-brass px-3 py-1 text-xs font-bold uppercase tracking-wider text-charcoal shadow">
                 {p.badge}
               </span>
             ) : null}
-            <div>
-              <p className={`text-xs uppercase tracking-[0.25em] ${p.highlight ? "text-brass-soft" : "text-brass"}`}>
-                שובר
-              </p>
-              <h2 className={`mt-3 font-display text-3xl ${p.highlight ? "text-cream" : "text-charcoal"}`}>
-                {p.title}
-              </h2>
-              <p className="mt-1 text-sm opacity-80">{p.pitch}</p>
-            </div>
-            <p className="mt-6 font-numeric text-5xl font-black">₪{p.amount}</p>
-            <ul className="mt-6 space-y-2 text-sm">
-              {p.includes.map((inc) => (
-                <li key={inc} className="flex items-start gap-2">
-                  <span aria-hidden="true" className={p.highlight ? "text-brass-soft" : "text-brass"}>
-                    ✓
-                  </span>
-                  <span>{inc}</span>
-                </li>
-              ))}
-            </ul>
+
+            <p
+              className={`text-xs uppercase tracking-[0.25em] ${
+                p.highlight ? "text-brass-soft" : "text-brass"
+              }`}
+            >
+              שובר על סך
+            </p>
+
+            <p className="mt-4 font-numeric text-6xl font-black md:text-7xl">₪{p.amount}</p>
+
+            <div className={`my-6 h-px w-12 self-center ${p.highlight ? "bg-brass-soft" : "bg-brass/40"}`} />
+
+            <p className={`text-sm uppercase tracking-wider ${p.highlight ? "text-brass-soft" : "text-brass"}`}>
+              {p.fitFor}
+            </p>
+            <p className="mt-2 text-base leading-relaxed opacity-85">
+              {p.vibe}
+            </p>
+
             <a
               href={whatsappForPackage(p)}
               target="_blank"
@@ -124,11 +107,18 @@ export default function GiftPage() {
                   : "bg-terracotta text-cream hover:bg-terracotta-600"
               }`}
             >
-              לרכישת השובר <span>←</span>
+              לרכישת השובר <span aria-hidden="true">←</span>
             </a>
           </article>
         ))}
       </section>
+
+      <p className="mt-8 text-center text-sm text-charcoal/65">
+        סכום אחר? התקשרו{" "}
+        <a href={`tel:${env.NEXT_PUBLIC_PHONE}`} className="font-semibold text-terracotta">
+          {env.NEXT_PUBLIC_PHONE}
+        </a>
+      </p>
 
       <section className="mt-20 grid gap-12 md:grid-cols-2 md:items-center">
         <div>
@@ -136,9 +126,9 @@ export default function GiftPage() {
           <h2 className="mt-3 font-display text-4xl text-charcoal">3 צעדים פשוטים</h2>
           <ol className="mt-6 space-y-4">
             {[
-              "בחרו חבילה ולחצו ׳לרכישת השובר׳ — נפתח צ׳אט וואטסאפ עם הפרטים",
-              "אנחנו שולחים לכם קישור תשלום מאובטח + פרטי השובר",
-              "תוך שעות בודדות תקבלו במייל שובר מעוצב, מוכן למשלוח/הדפסה",
+              "בוחרים סכום ולוחצים ׳לרכישת השובר׳ — נפתח צ׳אט וואטסאפ עם הפרטים",
+              "מקבלים קישור תשלום מאובטח + מי שיקבל את השובר",
+              "תוך שעות בודדות נשלח שובר מעוצב במייל — מוכן להדפסה או למשלוח דיגיטלי",
             ].map((step, i) => (
               <li key={i} className="flex gap-4">
                 <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-terracotta font-bold text-cream">
@@ -170,19 +160,19 @@ export default function GiftPage() {
             },
             {
               q: "האם השובר ניתן להעברה?",
-              a: "כן, השובר מתנה. אתם רוכשים עבור עצמכם או עבור מישהו אחר.",
-            },
-            {
-              q: "האם יש דרישת הזמנה מוקדמת?",
-              a: "מומלץ להזמין שולחן מראש דרך OnTopo או בטלפון, במיוחד לערבי סופ״ש.",
-            },
-            {
-              q: "האם השובר כולל אלכוהול?",
-              a: "כן. כל החבילות כוללות אלכוהול כשר. אם המקבל לא צורך אלכוהול, נחליף בקוקטיילים ללא אלכוהול בשווי דומה.",
+              a: "כן, השובר מתנה — בעת רכישה אתם מציינים על שם מי הוא, או משאירים אותו ללא שם והמקבל פשוט מציג אותו במסעדה.",
             },
             {
               q: "מה אם הסכום בארוחה גבוה מהשובר?",
               a: "תוספת תשלום במזומן או באשראי. אם הסכום נמוך מהשובר — היתרה נשארת כקרדיט לביקור הבא.",
+            },
+            {
+              q: "האם השובר ניתן למימוש בכל יום?",
+              a: "בכל יום שהמסעדה פתוחה — ראשון עד חמישי + שבת. ביום שישי אנחנו סגורים. מומלץ להזמין שולחן מראש.",
+            },
+            {
+              q: "השובר נשלח מודפס או דיגיטלי?",
+              a: "כברירת מחדל — דיגיטלי במייל. אם תרצו עותק מודפס מעוצב — תוסיפו 30 ₪ ונדאג לכם להדפסה איכותית עם מעטפה.",
             },
           ].map((qa) => (
             <details key={qa.q} className="group py-4">
@@ -193,16 +183,6 @@ export default function GiftPage() {
             </details>
           ))}
         </div>
-      </section>
-
-      <section className="mt-16 text-center">
-        <p className="text-charcoal/70">צריכים שובר בסכום שונה? עיצוב מיוחד?</p>
-        <a
-          href={`tel:${env.NEXT_PUBLIC_PHONE}`}
-          className="mt-4 inline-block font-display text-3xl text-terracotta hover:underline"
-        >
-          {env.NEXT_PUBLIC_PHONE}
-        </a>
       </section>
     </Container>
   );
