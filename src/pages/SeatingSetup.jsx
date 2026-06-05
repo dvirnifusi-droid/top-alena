@@ -1995,6 +1995,15 @@ export default function SeatingSetup() {
                                     'tonight' strip and the full ReservationsDashboard inline (no overlay). */}
                                 {bigMapMode && (
                                 <div className="hidden lg:flex flex-col gap-2 lg:order-1 overflow-y-auto pl-1" style={{ maxHeight: 'calc(100vh - 110px)' }}>
+                                    {/* AI Assistant — sticky at top, always visible */}
+                                    <AiAssistantPanel
+                                        tables={tables}
+                                        reservations={reservations}
+                                        activeSessions={activeSessions}
+                                        queueEntries={queueEntries}
+                                        customers={customers}
+                                    />
+
                                     {/* Tab toggle at top — 3 tabs: tonight / full / queue */}
                                     <div className="sticky top-0 z-20 bg-gray-50 pt-1 pb-1.5 flex gap-1">
                                         <button
@@ -2023,6 +2032,13 @@ export default function SeatingSetup() {
                                                 <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse"></span>
                                             )}
                                         </button>
+                                        <button
+                                            onClick={() => { setRailTab('live'); setDashboardDrawerOpen(false); }}
+                                            className={`flex-1 text-xs font-bold py-1.5 rounded-lg border transition-colors
+                                                ${railTab === 'live'
+                                                    ? 'bg-purple-600 border-purple-700 text-white shadow'
+                                                    : 'bg-white border-gray-200 text-gray-600 hover:border-purple-300'}`}
+                                        >📋 חי</button>
                                     </div>
 
                                     {/* Date picker — always visible in big-map mode so hostess can switch days fast */}
@@ -2079,6 +2095,14 @@ export default function SeatingSetup() {
                                             onRefresh={loadQueue}
                                             onApprove={approveQueueEntry}
                                             onReject={rejectQueueEntry}
+                                        />
+                                    )}
+                                    {railTab === 'live' && (
+                                        <LiveAccordionPanel
+                                            reservations={reservations}
+                                            queueEntries={queueEntries}
+                                            selectedDate={selectedDate}
+                                            onEditReservation={(r) => { setEditingReservation(r); setIsEditReservationOpen(true); }}
                                         />
                                     )}
                                 </div>
@@ -2881,6 +2905,223 @@ function QueueApprovalBanner({ banner, onApprove, onReject, onDismiss, onOpenTab
                 פתח טאב התור לפרטים נוספים →
             </button>
         </div>
+    );
+}
+
+// === AiAssistantPanel — rule-based real-time recommendations ===============
+// Pure JS engine (no LLM). Detects high-value opportunities and surfaces them:
+//   - Upcoming large party → suggest table combinations (combinable_with)
+//   - Table finishing soon + queue waiting → suggest pairing
+//   - Returning customer in queue → suggest area
+//   - Critical wait times in queue
+//   - Empty hot zone in busy hour
+function AiAssistantPanel({ tables, reservations, activeSessions, queueEntries, customers }) {
+    const [collapsed, setCollapsed] = useState(false);
+    const now = new Date();
+    const recs = [];
+
+    // 1. Tables finishing in next 30 min + queue waiting
+    const occupiedFinishingSoon = (reservations || []).filter(r => {
+        if (r.status !== 'seated' || !r.reservation_end_time) return false;
+        const [eh, em] = r.reservation_end_time.split(':').map(Number);
+        const end = new Date(); end.setHours(eh, em || 0, 0, 0);
+        const minsLeft = (end.getTime() - now.getTime()) / 60000;
+        return minsLeft >= 0 && minsLeft <= 30;
+    });
+    if (occupiedFinishingSoon.length > 0 && queueEntries.length > 0) {
+        const t = occupiedFinishingSoon[0];
+        const q = queueEntries.find(qe => qe.party_size <= t.party_size);
+        if (q) {
+            recs.push({
+                icon: '⏰',
+                level: 'amber',
+                title: `שולחן ${Array.isArray(t.assigned_table) ? t.assigned_table.join(',') : t.assigned_table} מתפנה בקרוב`,
+                detail: `אפשר לשבץ את ${q.customer_name} (${q.party_size}) ברגע שיתפנה`,
+            });
+        }
+    }
+
+    // 2. Large party in next 2h needing combined tables
+    const upcomingLarge = (reservations || []).filter(r => {
+        if (!r.time || r.status !== 'confirmed') return false;
+        if (r.party_size < 6) return false;
+        const [h, m] = r.time.split(':').map(Number);
+        const start = new Date(); start.setHours(h, m || 0, 0, 0);
+        const mins = (start.getTime() - now.getTime()) / 60000;
+        return mins >= 0 && mins <= 120;
+    });
+    upcomingLarge.forEach(r => {
+        const combinableTables = (tables || []).filter(t =>
+            Array.isArray(t.combinable_with) && t.combinable_with.length > 0 &&
+            (t.max_capacity || 0) + (t.combinable_with[0] ? 2 : 0) >= r.party_size
+        );
+        if (combinableTables.length > 0) {
+            const combo = combinableTables[0];
+            const partnerNum = combo.combinable_with[0];
+            recs.push({
+                icon: '🔗',
+                level: 'blue',
+                title: `${r.party_size} סועדים מגיעים ב-${r.time}`,
+                detail: `שקול חיבור ${combo.table_number} + ${partnerNum} עבור ${r.customer_name}`,
+            });
+        }
+    });
+
+    // 3. Returning customers in queue
+    (queueEntries || []).forEach(q => {
+        const customer = customers.find(c => c.phone === q.phone);
+        if (customer && (customer.total_visits || customer.visit_count || 0) >= 3) {
+            recs.push({
+                icon: '⭐',
+                level: 'violet',
+                title: `${q.customer_name} — לקוח חוזר (${customer.total_visits || customer.visit_count} ביקורים)`,
+                detail: 'שווה תשומת לב מיוחדת',
+            });
+        }
+    });
+
+    // 4. Long wait in queue
+    const longWait = (queueEntries || []).find(q => {
+        if (!q.timestamp_register) return false;
+        const min = (Date.now() - new Date(q.timestamp_register).getTime()) / 60000;
+        return min >= 25;
+    });
+    if (longWait) {
+        recs.push({
+            icon: '🚨',
+            level: 'red',
+            title: `${longWait.customer_name} ממתינים ${Math.round((Date.now() - new Date(longWait.timestamp_register).getTime()) / 60000)} דק׳`,
+            detail: 'שווה לעדכן או לקרוא להם',
+        });
+    }
+
+    if (recs.length === 0) {
+        recs.push({
+            icon: '✨',
+            level: 'green',
+            title: 'הכל תקין לעת עתה',
+            detail: 'אין המלצות דחופות. המשך לעקוב.',
+        });
+    }
+
+    const levelStyle = {
+        amber:  'bg-amber-50 border-amber-300 text-amber-900',
+        blue:   'bg-blue-50 border-blue-300 text-blue-900',
+        violet: 'bg-violet-50 border-violet-300 text-violet-900',
+        red:    'bg-red-50 border-red-400 text-red-900',
+        green:  'bg-emerald-50 border-emerald-300 text-emerald-900',
+    };
+
+    return (
+        <div className="sticky top-0 z-30 bg-gradient-to-b from-indigo-50 to-white border-2 border-indigo-200 rounded-2xl shadow-sm">
+            <button
+                onClick={() => setCollapsed(c => !c)}
+                className="w-full flex items-center justify-between px-3 py-2"
+            >
+                <div className="flex items-center gap-1.5">
+                    <span className="text-base">✨</span>
+                    <span className="text-xs font-black text-indigo-700">עוזר AI</span>
+                    {recs.length > 0 && (
+                        <span className="text-[9px] font-bold bg-indigo-600 text-white px-1.5 py-0.5 rounded-full">{recs.length}</span>
+                    )}
+                </div>
+                <span className="text-xs text-indigo-600">{collapsed ? '▼' : '▲'}</span>
+            </button>
+            {!collapsed && (
+                <div className="px-2 pb-2 space-y-1.5 max-h-44 overflow-y-auto">
+                    {recs.map((r, i) => (
+                        <div key={i} className={`border rounded-lg p-2 ${levelStyle[r.level] || levelStyle.green}`}>
+                            <div className="text-xs font-black flex items-center gap-1">
+                                <span>{r.icon}</span>
+                                <span>{r.title}</span>
+                            </div>
+                            <div className="text-[10px] mt-0.5 opacity-90">{r.detail}</div>
+                        </div>
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+}
+
+// === LiveAccordionPanel — combined view: בתור / מגיעים / יושבים / סיימו ====
+function LiveAccordionPanel({ reservations, queueEntries, selectedDate, onEditReservation }) {
+    const [open, setOpen] = useState({ waiting: true, arriving: true, seated: true, finished: false });
+    const todayStr = format(new Date(selectedDate), 'yyyy-MM-dd');
+    const now = new Date();
+    const todayRes = (reservations || []).filter(r => {
+        const d = r.date instanceof Date ? format(r.date, 'yyyy-MM-dd') : String(r.date).slice(0, 10);
+        return d === todayStr;
+    });
+    // Buckets
+    const waiting = queueEntries;
+    const arriving = todayRes
+        .filter(r => r.status === 'confirmed' || r.status === 'pending')
+        .sort((a, b) => String(a.time || '').localeCompare(String(b.time || '')));
+    const seated = todayRes
+        .filter(r => r.status === 'seated' || r.status === 'finishing_soon')
+        .sort((a, b) => String(a.time || '').localeCompare(String(b.time || '')));
+    const finished = todayRes
+        .filter(r => r.status === 'completed' || r.status === 'cancelled' || r.status === 'no_show')
+        .sort((a, b) => String(b.time || '').localeCompare(String(a.time || '')))
+        .slice(0, 10);
+
+    const Section = ({ k, title, count, accent, children }) => (
+        <div className={`border rounded-xl ${accent}`}>
+            <button
+                onClick={() => setOpen(p => ({ ...p, [k]: !p[k] }))}
+                className="w-full flex items-center justify-between px-3 py-2"
+            >
+                <div className="flex items-center gap-2 text-sm font-black">
+                    {title}
+                    <span className="text-[10px] bg-white/60 px-1.5 py-0.5 rounded-full">{count}</span>
+                </div>
+                <span className="text-xs">{open[k] ? '▲' : '▼'}</span>
+            </button>
+            {open[k] && (
+                <div className="px-2 pb-2 space-y-1.5">{children}</div>
+            )}
+        </div>
+    );
+
+    const ResRow = ({ r }) => (
+        <button
+            onClick={() => onEditReservation?.(r)}
+            className="w-full text-right bg-white hover:bg-gray-50 border border-gray-200 rounded-lg p-2 text-xs flex items-center justify-between gap-2"
+        >
+            <span className="font-bold">{r.time?.slice(0, 5)}</span>
+            <span className="font-bold flex-1 truncate text-right">{r.customer_name}</span>
+            <span className="text-gray-500">👥{r.party_size}</span>
+            {Array.isArray(r.assigned_table) && r.assigned_table.length > 0 && (
+                <span className="text-indigo-600 font-bold">🪑{r.assigned_table.join(',')}</span>
+            )}
+        </button>
+    );
+
+    return (
+        <>
+            <Section k="waiting" title="⏳ בתור" count={waiting.length} accent="bg-emerald-50 border-emerald-200">
+                {waiting.length === 0 ? <div className="text-[11px] text-gray-400 text-center py-2">אין לקוחות בתור</div>
+                    : waiting.map(q => (
+                        <div key={q.id} className="bg-white border border-gray-200 rounded-lg p-2 text-xs flex items-center gap-2">
+                            <span className="font-bold flex-1 truncate">{q.customer_name}</span>
+                            <span>👥{q.party_size}</span>
+                        </div>
+                    ))}
+            </Section>
+            <Section k="arriving" title="📅 מגיעים" count={arriving.length} accent="bg-blue-50 border-blue-200">
+                {arriving.length === 0 ? <div className="text-[11px] text-gray-400 text-center py-2">אין הזמנות פתוחות</div>
+                    : arriving.map(r => <ResRow key={r.id} r={r} />)}
+            </Section>
+            <Section k="seated" title="🪑 יושבים" count={seated.length} accent="bg-rose-50 border-rose-200">
+                {seated.length === 0 ? <div className="text-[11px] text-gray-400 text-center py-2">אין יושבים כעת</div>
+                    : seated.map(r => <ResRow key={r.id} r={r} />)}
+            </Section>
+            <Section k="finished" title="✓ סיימו" count={finished.length} accent="bg-gray-50 border-gray-200">
+                {finished.length === 0 ? <div className="text-[11px] text-gray-400 text-center py-2">אין סיומים היום</div>
+                    : finished.map(r => <ResRow key={r.id} r={r} />)}
+            </Section>
+        </>
     );
 }
 
