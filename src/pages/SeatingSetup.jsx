@@ -443,13 +443,16 @@ export default function SeatingSetup() {
             const wait = parseInt(waitMinutes);
             if (wait && wait > 0) patch.estimated_wait_time = wait;
             await QueueEntry.update(entryId, patch);
-            // Best-effort push to customer
+            // Customer-facing queue tracking page (same /q they joined from)
+            const queueLink = `${window.location.origin}/q`;
+            // Compose message conditionally — wait time line only if entered
+            const parts = ['התור שלכם אושר 🎉'];
+            if (wait && wait > 0) parts.push(`צפי המתנה: ~${wait} דקות.`);
+            parts.push(`לעקוב אחר התור: ${queueLink}`);
             await base44.functions.sendQueuePush({
                 entry_id: entryId,
                 title: '✅ אושרתם בתור!',
-                message: wait
-                    ? `התור שלכם אושר 🎉 צפי המתנה: ~${wait} דקות. נשמח לראותכם.`
-                    : `התור שלכם אושר 🎉 נשמח לראותכם!`,
+                message: parts.join(' '),
             }).catch(() => {});
             setQueueNewBanner(null);
             await loadQueue();
@@ -484,14 +487,24 @@ export default function SeatingSetup() {
         }
     }, [railTab, queueEntries]);
 
-    // Convert a queue entry → reservation NOW. Closes the queue row, opens
-    // the table-assignment flow on the map.
+    // Convert a queue entry → reservation NOW.
+    // If a table was already chosen via TablePicker (stored in entry.notes as
+    // 'שולחן: X[, Y]'), seat directly at that table and SKIP map assignment.
+    // Otherwise enter the assigning-table flow so hostess picks from the map.
     const seatFromQueue = async (entry) => {
         try {
+            // Parse pre-picked table(s) from notes
+            const m = (entry.notes || '').match(/^שולחן:\s*([\d,\s]+)/);
+            const preTables = m
+                ? m[1].split(',').map(s => s.trim()).filter(Boolean)
+                : null;
             const now = new Date();
             const time = format(now, 'HH:mm');
             const dateStr = format(now, 'yyyy-MM-dd');
-            // Create a quick reservation
+            // Cleanup notes — strip the table prefix so it doesn't pollute special_requests
+            const cleanNotes = m
+                ? (entry.notes || '').replace(/^שולחן:\s*[\d,\s]+/, '').trim()
+                : (entry.notes || '');
             const created = await Reservation.create({
                 customer_name: entry.customer_name,
                 customer_phone: entry.phone,
@@ -499,10 +512,10 @@ export default function SeatingSetup() {
                 time,
                 party_size: entry.party_size,
                 status: 'seated',
-                special_requests: entry.notes || null,
+                special_requests: cleanNotes || null,
                 source: 'queue',
+                ...(preTables ? { assigned_table: preTables } : {}),
             });
-            // Mark queue entry as treated/seated
             await QueueEntry.update(entry.id, {
                 treated: true,
                 status: 'seated',
@@ -510,8 +523,10 @@ export default function SeatingSetup() {
             });
             await loadQueue();
             await loadLayout();
-            // Open the assigning-table flow so hostess picks a table from the map
-            setAssigningTable({ reservationId: created.id });
+            // Only enter map-assigning mode if no pre-picked table
+            if (!preTables) {
+                setAssigningTable({ reservationId: created.id });
+            }
         } catch (e) {
             console.error('seat from queue failed', e);
             alert('שגיאה בהושבה מהתור');
@@ -2568,7 +2583,10 @@ function CompactTonightStrip({ reservations, selectedDate, onEdit, onOpenFullDas
 
 // === QueueApprovalBanner — popup with אשר/דחה inline, no need to leave page ===
 function QueueApprovalBanner({ banner, onApprove, onReject, onDismiss, onOpenTab }) {
-    const [waitTime, setWaitTime] = useState('15');
+    // Empty by default — hostess must actively enter a wait time for it to
+    // appear in the customer's push. Avoids accidentally sending '~15 דקות'
+    // when not intended.
+    const [waitTime, setWaitTime] = useState('');
     const [submitting, setSubmitting] = useState(false);
 
     const handleApprove = async () => {
@@ -2613,7 +2631,8 @@ function QueueApprovalBanner({ banner, onApprove, onReject, onDismiss, onOpenTab
                     max="180"
                     value={waitTime}
                     onChange={(e) => setWaitTime(e.target.value)}
-                    className="w-16 text-center text-sm font-bold border border-amber-300 rounded px-1 py-0.5"
+                    placeholder="ריק = ללא"
+                    className="w-20 text-center text-sm font-bold border border-amber-300 rounded px-1 py-0.5"
                 />
                 <span className="text-xs font-bold text-amber-800">דק׳</span>
             </div>
