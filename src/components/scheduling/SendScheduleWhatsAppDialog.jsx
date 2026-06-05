@@ -8,6 +8,7 @@ import { format } from 'date-fns';
 import { he } from 'date-fns/locale';
 import { MessageCircle, Copy, Check, Clock, Lock, Star, Save } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
+import TimePicker from '../shared/TimePicker';
 
 const DINNER_POSITIONS_ORDER = [
     'מנהל משמרת', 'ברמן', 'מלצר', 'ראנר', 'מארח/ת', 'מתלמד פלור',
@@ -239,7 +240,7 @@ export default function SendScheduleWhatsAppDialog({ open, onClose, week, days, 
                             </Label>
                             <p className="text-xs text-gray-500 mb-2">הרשימה תמוין לפי שעת כניסה (מוקדם למעלה)</p>
                             <div className="border rounded-lg overflow-hidden">
-                                <div className="grid grid-cols-[1fr_110px_90px_90px] gap-0 bg-gray-100 px-3 py-2 text-xs font-semibold text-gray-600 border-b">
+                                <div className="grid grid-cols-[1fr_150px_84px_84px] gap-0 bg-gray-100 px-3 py-2 text-xs font-semibold text-gray-600 border-b">
                                     <span>שם עובד</span>
                                     <span className="flex items-center gap-1"><Clock className="w-3 h-3"/> שעת כניסה</span>
                                     <span className="flex items-center gap-1 justify-center"><Lock className="w-3 h-3"/> סגירה</span>
@@ -249,7 +250,7 @@ export default function SendScheduleWhatsAppDialog({ open, onClose, week, days, 
                                     {sortedStaffForDisplay.map((a) => {
                                         const ov = staffOverrides[a.employee_id] || {};
                                         return (
-                                            <div key={a.employee_id} className={`grid grid-cols-[1fr_110px_90px_90px] gap-0 px-3 py-2 items-center text-sm
+                                            <div key={a.employee_id} className={`grid grid-cols-[1fr_150px_84px_84px] gap-0 px-3 py-2 items-center text-sm
                                                 ${ov.isClosing && ov.isPromoter ? 'bg-amber-50' : ov.isClosing ? 'bg-orange-50' : ov.isPromoter ? 'bg-yellow-50' : ''}`}>
                                                 <div className="flex flex-col gap-0.5 min-w-0">
                                                     <span className="font-medium truncate">{a.employee_name}
@@ -262,11 +263,9 @@ export default function SendScheduleWhatsAppDialog({ open, onClose, week, days, 
                                                     )}
                                                 </div>
                                                 <div className="flex flex-col gap-0.5">
-                                                   <Input
-                                                       type="time"
+                                                   <TimePicker
                                                        value={ov.start_time || ''}
-                                                       onChange={e => setOverride(a.employee_id, 'start_time', e.target.value)}
-                                                       className="h-7 text-xs px-1 w-24"
+                                                       onChange={val => setOverride(a.employee_id, 'start_time', val)}
                                                    />
                                                    {(() => {
                                                        const note = availabilities.find(av => av.employee_id === a.employee_id && av.date === selectedDate)?.reason;
