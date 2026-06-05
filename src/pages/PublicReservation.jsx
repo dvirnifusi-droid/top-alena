@@ -102,6 +102,20 @@ function getSpecialsForSlot(dateObj, hhmm) {
   return THEME_NIGHTS.filter(t => t.match(d, h));
 }
 
+// All specials relevant to a given day at ANY hour during open windows.
+// Used for the day-level tag chip that appears after the user picks a date.
+function getDaySpecials(dateObj) {
+  const d = dateObj.getDay();
+  const seen = new Set();
+  const out = [];
+  for (const h of [13, 18, 21]) {
+    THEME_NIGHTS.forEach(t => {
+      if (!seen.has(t.id) && t.match(d, h)) { seen.add(t.id); out.push(t); }
+    });
+  }
+  return out;
+}
+
 // --- Capture UTM / referrer once ---------------------------------------------
 
 function captureAttribution() {
@@ -214,16 +228,6 @@ export default function PublicReservationPage() {
   const scrollToBooking = () => {
     bookingCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
   };
-
-  // --- Active promos: from settings.promos JSON array, else defaults
-  const promos = Array.isArray(settings?.promos) && settings.promos.length
-    ? settings.promos
-    : [
-        { emoji: '🍷', label: 'ערב יין רביעי', detail: 'בקבוק יין השבוע ב-50% הנחה' },
-        { emoji: '🥩', label: 'ימי בשר חמישי', detail: '20% הנחה על כל פלטות הבשר' },
-        { emoji: '☀️', label: 'ארוחת צהריים עסקית', detail: 'תפריט מיוחד ב-89₪' },
-        { emoji: '🎂', label: 'יום הולדת', detail: 'קינוח מתנה ושיר מהצוות' },
-      ];
 
   // --- Recompute hours + slots when date or settings change
   useEffect(() => {
@@ -549,21 +553,37 @@ export default function PublicReservationPage() {
         .brand-input:focus { border-color: #B89556 !important; box-shadow: 0 0 0 3px rgba(184,149,86,0.20); }
       `}</style>
 
-      {/* ============ PROMO RIBBON — brand brass ============ */}
-      {promos.length > 0 && (
-        <div className="border-y-2 py-2 overflow-hidden relative z-[3]" style={{ background: '#B89556', borderTopColor: '#8B5A3A', borderBottomColor: '#8B5A3A' }}>
-          <div className="flex gap-2 px-3 overflow-x-auto scrollbar-thin max-w-full mx-auto items-center">
-            <span className="flex-shrink-0 text-[10px] font-black uppercase tracking-wider opacity-80" style={{ color: '#1F1B17' }}>מה קורה עכשיו:</span>
-            {promos.map((p, i) => (
-              <div key={i} className="flex-shrink-0 rounded-full px-3 py-1 text-xs font-bold flex items-center gap-1.5" style={{ background: '#1F1B17', color: '#F4ECD8' }}>
-                <span className="text-sm">{p.emoji}</span>
-                <span>{p.label}</span>
-                {p.detail && <span className="opacity-80 font-normal hidden sm:inline">· {p.detail}</span>}
-              </div>
-            ))}
+      {/* ============ THEME RIBBON — live day-aware catalogue ============ */}
+      {(() => {
+        const now = new Date();
+        const todayD = now.getDay();
+        const todayH = now.getHours();
+        return (
+          <div className="border-y-2 py-2 overflow-hidden relative z-[3]" style={{ background: '#B89556', borderTopColor: '#8B5A3A', borderBottomColor: '#8B5A3A' }}>
+            <div className="flex gap-2 px-3 overflow-x-auto scrollbar-thin max-w-full mx-auto items-center">
+              <span className="flex-shrink-0 text-[10px] font-black uppercase tracking-wider opacity-80" style={{ color: '#1F1B17' }}>הערבים שלנו:</span>
+              {THEME_NIGHTS.map(t => {
+                const activeNow = t.match(todayD, todayH);
+                return (
+                  <div
+                    key={t.id}
+                    className="flex-shrink-0 rounded-full px-3 py-1 text-xs font-bold flex items-center gap-1.5 transition-all"
+                    style={activeNow
+                      ? { background: '#F4ECD8', color: '#1F1B17', boxShadow: '0 0 0 2px #1F1B17, 0 4px 10px -3px rgba(31,27,23,0.4)' }
+                      : { background: '#1F1B17', color: '#F4ECD8' }}
+                    title={t.blurb}
+                  >
+                    <span className="text-sm">{t.emoji}</span>
+                    <span>{t.title}</span>
+                    {activeNow && <span className="text-[9px] uppercase tracking-wider opacity-75 hidden sm:inline">· עכשיו</span>}
+                    <span className="opacity-70 font-normal hidden md:inline">· {t.when}</span>
+                  </div>
+                );
+              })}
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* ============ TWO-COLUMN SECTION (banner+form left, menu sidebar right on desktop) ============ */}
       <div className="relative z-[2] px-3 md:px-6 pt-6 pb-12" style={{ background: 'linear-gradient(180deg, #FFFEFB 0%, #FAF5E8 25%, #F4ECD8 100%)' }}>
@@ -643,6 +663,22 @@ export default function PublicReservationPage() {
                 );
               })}
             </div>
+            {/* Day-level specials tag — visible as soon as a date is picked */}
+            {(() => {
+              const dayItems = getDaySpecials(date);
+              if (dayItems.length === 0) return null;
+              return (
+                <div className="mt-3 flex flex-wrap items-center gap-1.5">
+                  <span className="text-[10px] font-black uppercase tracking-[0.2em]" style={{ color: '#B89556' }}>ביום הזה אצלנו:</span>
+                  {dayItems.map(t => (
+                    <span key={t.id} className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-bold" style={{ background: 'rgba(184,149,86,0.14)', color: '#1F1B17', border: '1px solid rgba(184,149,86,0.45)' }} title={t.blurb}>
+                      <span className="text-sm leading-none">{t.emoji}</span>
+                      <span>{t.title}</span>
+                    </span>
+                  ))}
+                </div>
+              );
+            })()}
           </div>
 
           {/* Time slots — two-step: pick HOUR, then expand to quarter-hour strip */}
