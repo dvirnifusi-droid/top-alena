@@ -3149,15 +3149,56 @@ registerFn('searchReservationTable', async ({ body }) => {
 
 // Public: create a reservation. Re-validates server-side, upserts the customer
 // by phone, returns only a confirmation id.
+// Forward-compat: add source columns to existing Reservation tables
+let reservationSourceCols = false;
+async function ensureReservationSourceCols() {
+  if (reservationSourceCols) return;
+  for (const col of ['source', 'campaign', 'medium', 'landing_url', 'referrer']) {
+    await (prisma as any).$executeRawUnsafe(
+      `ALTER TABLE "Reservation" ADD COLUMN IF NOT EXISTS "${col}" TEXT;`
+    ).catch(() => {});
+  }
+  reservationSourceCols = true;
+}
+
+// Normalize a UTM source or referrer hostname into one of our known channels.
+function classifyReservationSource(opts: { utm_source?: string; referrer?: string; landing_url?: string }) {
+  const u = (opts.utm_source || '').toLowerCase().trim();
+  if (u) {
+    if (/(instagram|ig)/.test(u)) return 'instagram';
+    if (/tiktok/.test(u)) return 'tiktok';
+    if (/(facebook|fb|meta)/.test(u)) return 'facebook';
+    if (/(google|adwords|gads)/.test(u)) return 'google';
+    if (/whats?app|wa\b/.test(u)) return 'whatsapp';
+    if (/(qr|menu)/.test(u)) return 'qr';
+    if (/(sms|text)/.test(u)) return 'sms';
+    if (/email/.test(u)) return 'email';
+    return u;  // unknown but explicit — preserve as-is
+  }
+  const r = (opts.referrer || '').toLowerCase();
+  if (r.includes('instagram.com')) return 'instagram';
+  if (r.includes('tiktok.com'))    return 'tiktok';
+  if (r.includes('facebook.com'))  return 'facebook';
+  if (r.includes('google.'))       return 'google';
+  if (r.includes('whatsapp.com') || r.includes('wa.me')) return 'whatsapp';
+  // Internal short-link → QR-printed: came from /r alias on our own domain
+  if (r.includes('topalena.com') && opts.landing_url?.includes('/r')) return 'qr';
+  if (!r) return 'direct';
+  return 'other';
+}
+
 registerFn('createPublicReservation', async ({ body }) => {
+  await ensureReservationSourceCols();
   const {
     customer_name, customer_phone, date, time, party_size,
     special_requests, special_occasion,
+    utm_source, utm_campaign, utm_medium, landing_url, referrer,
   } = body as any;
   if (!customer_name || !customer_phone || !date || !time || !party_size) {
     throw new Error('missing_required_fields');
   }
   const size = parseInt(party_size);
+  const source = classifyReservationSource({ utm_source, referrer, landing_url });
 
   // Re-find a table server-side (don't trust client).
   const avail: any = await (functionHandlers['searchReservationTable'] as any)({
@@ -3181,7 +3222,12 @@ registerFn('createPublicReservation', async ({ body }) => {
       special_occasion: special_occasion || null,
       reservation_end_time: end_time,
       assigned_table: [avail.table.table_number],
-    },
+      source,
+      campaign: utm_campaign ? String(utm_campaign).slice(0, 80) : null,
+      medium: utm_medium ? String(utm_medium).slice(0, 40) : null,
+      landing_url: landing_url ? String(landing_url).slice(0, 500) : null,
+      referrer: referrer ? String(referrer).slice(0, 500) : null,
+    } as any,
   });
   fireTriggers('Reservation', 'created', reservation).catch(() => {});
 

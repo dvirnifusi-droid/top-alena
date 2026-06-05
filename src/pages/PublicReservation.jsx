@@ -197,9 +197,25 @@ export default function PublicReservationPage() {
         setShowConfirmation(true);
     };
 
+    // Capture marketing attribution once — UTM params (?utm_source=instagram&utm_campaign=summer25)
+    // and document.referrer so admin can see where every booking came from.
+    const captureAttribution = () => {
+        try {
+            const p = new URLSearchParams(window.location.search);
+            return {
+                utm_source: p.get('utm_source') || p.get('src') || '',
+                utm_campaign: p.get('utm_campaign') || p.get('cmp') || '',
+                utm_medium: p.get('utm_medium') || p.get('med') || '',
+                landing_url: window.location.href.slice(0, 500),
+                referrer: (document.referrer || '').slice(0, 500),
+            };
+        } catch { return {}; }
+    };
+
     const confirmReservation = async () => {
         setIsLoading(true);
         try {
+            const attr = captureAttribution();
             const res = await invokePublic('createPublicReservation', {
                 customer_name: reservationData.customer_name,
                 customer_phone: reservationData.customer_phone,
@@ -208,6 +224,7 @@ export default function PublicReservationPage() {
                 party_size: reservationData.party_size,
                 special_requests: reservationData.special_requests,
                 special_occasion: reservationData.special_occasion,
+                ...attr,
             });
             if (!res?.success) {
                 setError('השעה התמלאה זה עתה. אנא בחר שעה אחרת.');

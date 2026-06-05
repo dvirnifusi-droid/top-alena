@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Calendar, Users, Clock } from "lucide-react";
+import ReservationSourceBadge from '@/components/shared/ReservationSourceBadge';
 
 const mockReservations = [
     { id: 1, time: "18:00", name: "משפחת כהן", party_size: 6, status: "confirmed" },
@@ -82,7 +83,10 @@ export default function TodayReservations({ reservations = [], isLoading = false
                                 </Badge>
                             </div>
                             <div className="flex items-center justify-between">
-                                <span className="text-sm text-slate-700">{reservation.customer_name || reservation.name}</span>
+                                <span className="text-sm text-slate-700 flex items-center gap-1.5">
+                                    {reservation.customer_name || reservation.name}
+                                    <ReservationSourceBadge source={reservation.source} campaign={reservation.campaign} compact />
+                                </span>
                                 <div className="flex items-center gap-1 text-xs text-slate-500">
                                     <Users className="w-3 h-3" />
                                     {reservation.party_size}

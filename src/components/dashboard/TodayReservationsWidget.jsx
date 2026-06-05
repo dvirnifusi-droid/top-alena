@@ -5,6 +5,7 @@ import { base44 } from '@/api/base44Client';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { format } from 'date-fns';
+import ReservationSourceBadge from '@/components/shared/ReservationSourceBadge';
 
 export default function TodayReservationsWidget() {
   const [reservations, setReservations] = useState([]);
@@ -38,7 +39,10 @@ export default function TodayReservationsWidget() {
             <div className="space-y-2">
               {reservations.map((r, i) => (
                 <div key={r.id || i} className="flex items-center justify-between gap-2">
-                  <span className="text-xs font-medium truncate flex-1">{r.guest_name || r.customer_name || 'אורח'}</span>
+                  <span className="text-xs font-medium truncate flex-1 flex items-center gap-1.5">
+                    {r.guest_name || r.customer_name || 'אורח'}
+                    <ReservationSourceBadge source={r.source} campaign={r.campaign} compact />
+                  </span>
                   <span className="text-xs text-muted-foreground flex items-center gap-1 flex-shrink-0">
                     <Clock className="w-3 h-3" />{r.time || '--:--'}
                   </span>
