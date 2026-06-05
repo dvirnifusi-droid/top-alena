@@ -371,28 +371,59 @@ export default function SeatingSetup() {
         return () => clearInterval(interval);
     }, [loadLiveData]);
 
-    // --- Poll active queue entries every 15s. Pops a banner when a NEW entry arrives.
+    // --- Poll queue entries every 15s. Pops a banner when a NEW entry arrives.
+    const [abandonedEntries, setAbandonedEntries] = useState([]);
     const loadQueue = useCallback(async () => {
         try {
-            const all = await QueueEntry.list('-timestamp_register', 50);
-            // Active = pending / waiting (not seated, not cancelled, not treated)
+            const all = await QueueEntry.list('-timestamp_register', 80);
+            // ACTIVE = pending or active (not yet seated, not abandoned)
             const active = (all || []).filter(q =>
-                !q.treated &&
-                q.status !== 'seated' && q.status !== 'cancelled' && q.status !== 'no_show'
+                (q.status === 'pending' || q.status === 'active') && !q.treated
             );
+            // ABANDONED = status='abandoned' in the last 6 hours
+            const sixHoursAgo = Date.now() - 6 * 60 * 60 * 1000;
+            const abandoned = (all || []).filter(q => {
+                if (q.status !== 'abandoned') return false;
+                const ts = q.timestamp_register ? new Date(q.timestamp_register).getTime() : 0;
+                return ts >= sixHoursAgo;
+            });
             setQueueEntries(active);
-            // Detect new entries
+            setAbandonedEntries(abandoned);
+
+            // New-entry detection: banner when we see an id NEWER than any we've seen
             if (active.length > 0) {
                 const newest = active[0];
-                if (lastSeenQueueId !== null && newest.id !== lastSeenQueueId &&
-                    !active.find(q => q.id === lastSeenQueueId && q !== newest)) {
-                    // A truly new entry showed up since last poll
+                if (lastSeenQueueId && newest.id !== lastSeenQueueId) {
                     setQueueNewBanner({ id: newest.id, name: newest.customer_name, party_size: newest.party_size });
                 }
-                if (lastSeenQueueId === null) setLastSeenQueueId(newest.id);
+                if (!lastSeenQueueId) setLastSeenQueueId(newest.id);
             }
         } catch (e) { console.warn('queue load failed', e); }
     }, [lastSeenQueueId]);
+
+    // Mark a queue entry as abandoned (manual ❌)
+    const abandonFromQueue = async (entry) => {
+        if (!confirm(`לסמן את ${entry.customer_name} כנטוש?`)) return;
+        try {
+            await QueueEntry.update(entry.id, {
+                status: 'abandoned',
+                timestamp_end: new Date().toISOString(),
+            });
+            await loadQueue();
+        } catch (e) { console.warn('abandon failed', e); }
+    };
+
+    // Restore an abandoned entry back to the active queue (החזר לתור)
+    const restoreToQueue = async (entry) => {
+        try {
+            await QueueEntry.update(entry.id, {
+                status: 'pending',
+                treated: false,
+                timestamp_end: null,
+            });
+            await loadQueue();
+        } catch (e) { console.warn('restore failed', e); }
+    };
 
     useEffect(() => {
         loadQueue();
@@ -1963,7 +1994,10 @@ export default function SeatingSetup() {
                                     {railTab === 'queue' && (
                                         <CompactQueueStrip
                                             queueEntries={queueEntries}
+                                            abandonedEntries={abandonedEntries}
                                             onSeat={seatFromQueue}
+                                            onAbandon={abandonFromQueue}
+                                            onRestore={restoreToQueue}
                                         />
                                     )}
                                 </div>
@@ -2499,74 +2533,158 @@ function CompactTonightStrip({ reservations, selectedDate, onEdit, onOpenFullDas
 }
 
 // === CompactQueueStrip — third tab in big-map rail, walk-ins waiting now ====
-function CompactQueueStrip({ queueEntries, onSeat }) {
+function CompactQueueStrip({ queueEntries, abandonedEntries, onSeat, onAbandon, onRestore }) {
+    const [showAbandoned, setShowAbandoned] = useState(true);
+    const [sizeFilter, setSizeFilter] = useState('all');
     const now = Date.now();
+
+    // Distinct party sizes for filter chips
+    const sizeCounts = queueEntries.reduce((acc, q) => {
+        const k = String(q.party_size || '?');
+        acc[k] = (acc[k] || 0) + 1;
+        return acc;
+    }, {});
+    const sizeKeys = Object.keys(sizeCounts).sort((a, b) => Number(a) - Number(b));
+
+    const visibleActive = sizeFilter === 'all'
+        ? queueEntries
+        : queueEntries.filter(q => String(q.party_size) === sizeFilter);
+
     return (
         <>
             {/* Sticky header */}
             <div className="sticky top-0 bg-white border-2 border-emerald-200 rounded-2xl p-3 z-10 shadow-sm">
                 <div className="flex items-center justify-between">
                     <div>
-                        <div className="text-[10px] font-bold text-emerald-700 uppercase tracking-wider">תור פעיל כעת</div>
+                        <div className="text-[10px] font-bold text-emerald-700 uppercase tracking-wider">תור פעיל</div>
                         <div className="text-2xl font-black text-gray-900">{queueEntries.length}</div>
                     </div>
                     <div className="text-right">
-                        <div className="text-[10px] text-gray-500">סה״כ סועדים בהמתנה</div>
+                        <div className="text-[10px] text-gray-500">סה״כ סועדים</div>
                         <div className="text-2xl font-black text-gray-900">
                             {queueEntries.reduce((s, q) => s + (q.party_size || 0), 0)}
                         </div>
                     </div>
                 </div>
+
+                {/* Size filter chips */}
+                {sizeKeys.length > 1 && (
+                    <div className="mt-2 flex flex-wrap gap-1">
+                        <button
+                            onClick={() => setSizeFilter('all')}
+                            className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${sizeFilter === 'all' ? 'bg-zinc-900 text-white border-zinc-900' : 'bg-white text-gray-600 border-gray-200'}`}
+                        >הכל ({queueEntries.length})</button>
+                        {sizeKeys.map(k => (
+                            <button
+                                key={k}
+                                onClick={() => setSizeFilter(k)}
+                                className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${sizeFilter === k ? 'bg-indigo-600 text-white border-indigo-700' : 'bg-white text-gray-600 border-gray-200'}`}
+                            >👥 {k} · {sizeCounts[k]}</button>
+                        ))}
+                    </div>
+                )}
             </div>
 
-            {/* List */}
-            {queueEntries.length === 0 ? (
+            {/* Active list */}
+            {visibleActive.length === 0 ? (
                 <div className="bg-white border border-gray-200 rounded-2xl p-5 text-center">
                     <div className="text-3xl mb-1">🚶</div>
-                    <div className="text-sm text-gray-500">אין לקוחות בתור כעת</div>
+                    <div className="text-sm text-gray-500">אין לקוחות בתור</div>
                 </div>
             ) : (
-                queueEntries.map((q, idx) => {
+                visibleActive.map((q, idx) => {
                     const waitMin = q.timestamp_register
                         ? Math.max(0, Math.floor((now - new Date(q.timestamp_register).getTime()) / 60000))
                         : 0;
                     const waitColor = waitMin >= 25 ? 'bg-red-500 text-white'
                         : waitMin >= 15 ? 'bg-amber-500 text-white'
                         : 'bg-emerald-500 text-white';
+                    const phoneClean = (q.phone || '').replace(/\D/g, '');
                     return (
                         <div key={q.id} className="bg-white border-2 border-gray-200 rounded-xl p-3 shadow-sm">
                             <div className="flex items-center justify-between gap-2">
                                 <span className={`text-[11px] font-black px-2 py-0.5 rounded-full ${waitColor}`}>
                                     {waitMin} דק׳
                                 </span>
-                                <div className="flex items-center gap-1">
-                                    <span className="text-xs text-gray-500">#{idx + 1}</span>
-                                </div>
+                                <span className="text-[10px] font-bold text-gray-400">#{idx + 1}</span>
                             </div>
                             <div className="mt-1.5 flex items-center gap-2">
                                 <span className="text-2xl font-black text-gray-800">{q.party_size}</span>
                                 <span className="w-px h-7 bg-gray-200"></span>
                                 <div className="font-bold text-base text-gray-900 truncate flex-1">{q.customer_name}</div>
                             </div>
-                            {q.phone && (
-                                <a href={`tel:${q.phone.replace(/\D/g, '')}`} className="text-xs text-rose-400 hover:text-rose-600 mt-0.5 inline-block" dir="ltr">
-                                    {q.phone}
-                                </a>
+                            {phoneClean && (
+                                <a
+                                    href={`tel:${phoneClean}`}
+                                    className="text-xs text-rose-400 hover:text-rose-600 mt-0.5 inline-block"
+                                    dir="ltr"
+                                >{q.phone}</a>
+                            )}
+                            {q.seating_preference && q.seating_preference !== 'no_preference' && (
+                                <div className="text-[10px] text-gray-500 mt-0.5">
+                                    📍 העדפת ישיבה: {q.seating_preference}
+                                </div>
                             )}
                             {q.notes && (
                                 <div className="text-[11px] text-gray-500 italic mt-0.5 truncate" title={q.notes}>
                                     "{q.notes}"
                                 </div>
                             )}
-                            <button
-                                onClick={() => onSeat(q)}
-                                className="mt-2 w-full bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold py-2 rounded-lg flex items-center justify-center gap-1"
-                            >
-                                🪑 הושב עכשיו · בחר שולחן
-                            </button>
+                            <div className="mt-2 flex gap-2">
+                                <button
+                                    onClick={() => onSeat(q)}
+                                    className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold py-2 rounded-lg flex items-center justify-center gap-1"
+                                >🪑 הושב · בחר שולחן</button>
+                                <button
+                                    onClick={() => onAbandon(q)}
+                                    title="סמן כנטוש"
+                                    className="bg-white border border-red-300 text-red-600 hover:bg-red-50 text-xs font-bold py-2 px-3 rounded-lg"
+                                >❌</button>
+                            </div>
                         </div>
                     );
                 })
+            )}
+
+            {/* Recently abandoned section (collapsible) */}
+            {abandonedEntries.length > 0 && (
+                <div className="mt-3">
+                    <button
+                        onClick={() => setShowAbandoned(v => !v)}
+                        className="w-full text-right text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg px-3 py-2 flex items-center justify-between"
+                    >
+                        <span>{showAbandoned ? '▲' : '▼'}</span>
+                        <span>נטשו לאחרונה ({abandonedEntries.length})</span>
+                    </button>
+                    {showAbandoned && (
+                        <div className="mt-2 space-y-2">
+                            {abandonedEntries.map(q => {
+                                const waitMin = q.timestamp_register
+                                    ? Math.max(0, Math.floor((now - new Date(q.timestamp_register).getTime()) / 60000))
+                                    : 0;
+                                return (
+                                    <div key={q.id} className="bg-rose-50 border border-rose-200 rounded-xl p-3">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-lg font-black">{q.party_size}</span>
+                                            <span className="w-px h-5 bg-rose-200"></span>
+                                            <div className="font-bold text-sm flex-1 truncate">{q.customer_name}</div>
+                                        </div>
+                                        {q.phone && (
+                                            <a href={`tel:${q.phone.replace(/\D/g, '')}`} className="text-[11px] text-rose-500" dir="ltr">
+                                                {q.phone}
+                                            </a>
+                                        )}
+                                        <div className="text-[10px] text-gray-500 mt-0.5">לפני {waitMin} דק׳</div>
+                                        <button
+                                            onClick={() => onRestore(q)}
+                                            className="mt-2 w-full bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold py-1.5 rounded"
+                                        >↩ החזר לתור</button>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
+                </div>
             )}
         </>
     );
