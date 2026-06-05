@@ -674,15 +674,15 @@ export default function SeatingSetup() {
     // for at-a-glance status). `color` and `bgColor` are kept for the small pill
     // version used in filter dropdowns and the status counter chips.
     const STATUS_CONFIGS = {
-        request:         { label: 'בקשה',          color: 'bg-violet-100 text-violet-800',    bgColor: 'bg-violet-50',    cardBg: 'bg-violet-600',    cardText: 'text-white' },
+        request:         { label: 'בקשה',          color: 'bg-orange-100 text-orange-800',    bgColor: 'bg-orange-50',    cardBg: 'bg-orange-600',    cardText: 'text-white' },
         pending:         { label: 'ממתין',          color: 'bg-yellow-100 text-yellow-800',    bgColor: 'bg-yellow-50',    cardBg: 'bg-yellow-500',    cardText: 'text-yellow-950' },
         confirmed:       { label: 'מאושר',         color: 'bg-blue-100 text-blue-800',        bgColor: 'bg-blue-50',      cardBg: 'bg-blue-600',      cardText: 'text-white' },
-        standby:         { label: 'סטנדבי',        color: 'bg-cyan-100 text-cyan-800',        bgColor: 'bg-cyan-50',      cardBg: 'bg-cyan-700',      cardText: 'text-white' },
-        seated:          { label: 'יושב',           color: 'bg-green-100 text-green-800',      bgColor: 'bg-green-50',     cardBg: 'bg-teal-600',      cardText: 'text-white' },
+        standby:         { label: 'סטנדבי',        color: 'bg-purple-100 text-purple-800',    bgColor: 'bg-purple-50',    cardBg: 'bg-purple-700',    cardText: 'text-white' },
+        seated:          { label: 'יושב',           color: 'bg-green-100 text-green-800',      bgColor: 'bg-green-50',     cardBg: 'bg-emerald-600',   cardText: 'text-white' },
         finishing_soon:  { label: 'מסיים בקרוב',   color: 'bg-amber-100 text-amber-800',      bgColor: 'bg-amber-50',     cardBg: 'bg-amber-600',     cardText: 'text-white' },
         completed:       { label: 'סיים',           color: 'bg-gray-100 text-gray-800',        bgColor: 'bg-gray-50',      cardBg: 'bg-gray-600',      cardText: 'text-white' },
         cancelled:       { label: 'בוטל',           color: 'bg-red-100 text-red-700',          bgColor: 'bg-red-50',       cardBg: 'bg-red-600',       cardText: 'text-white' },
-        no_show:         { label: 'הבריז',          color: 'bg-orange-100 text-orange-800',    bgColor: 'bg-orange-50',    cardBg: 'bg-orange-600',    cardText: 'text-white' },
+        no_show:         { label: 'הבריז',          color: 'bg-rose-100 text-rose-900',        bgColor: 'bg-rose-50',      cardBg: 'bg-rose-900',      cardText: 'text-white' },
         deleted:         { label: 'מחוק',           color: 'bg-zinc-200 text-zinc-700',        bgColor: 'bg-zinc-100',     cardBg: 'bg-zinc-700',      cardText: 'text-white' },
     };
     const getReservationStatusConfig = (status, assigned) => {
