@@ -21,6 +21,7 @@ export function Footer() {
             <li><Link href={routes.events} className="hover:text-cream">אירועים</Link></li>
             <li><Link href={routes.delivery} className="hover:text-cream">משלוחים</Link></li>
             <li><Link href={routes.about} className="hover:text-cream">אודות</Link></li>
+            <li><Link href={routes.blog} className="hover:text-cream">בלוג</Link></li>
             <li><Link href={routes.jobs} className="hover:text-cream">דרושים</Link></li>
           </ul>
         </div>

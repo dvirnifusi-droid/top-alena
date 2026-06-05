@@ -9,6 +9,7 @@ import { Playlist } from "@/components/home/Playlist";
 import { ReviewsCarousel } from "@/components/home/ReviewsCarousel";
 import { Newsletter } from "@/components/home/Newsletter";
 import { JobsCallout } from "@/components/home/JobsCallout";
+import { BlogTeaser } from "@/components/home/BlogTeaser";
 import { LocationMap } from "@/components/home/LocationMap";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { restaurantSchema } from "@/components/seo/schemas";
@@ -35,6 +36,7 @@ export default function HomePage() {
       <EventsTeaser />
       <Playlist />
       <ReviewsCarousel />
+      <BlogTeaser />
       <JobsCallout />
       <Newsletter />
       <LocationMap />
