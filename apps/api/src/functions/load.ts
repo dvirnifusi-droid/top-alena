@@ -7442,7 +7442,20 @@ registerFn('patchShiftRaw', async ({ user, body }) => {
     SELECT employee_id FROM "ShiftTracking" WHERE id = ${shift_id} LIMIT 1
   `;
   if (!own?.[0]) throw new Error('shift_not_found');
-  if (own[0].employee_id !== user.id) throw new Error('not your shift');
+  // OWNERSHIP CHECK — User.id and Employee.id are DIFFERENT entities for
+  // Google-auth users (clockInWithLocation stores Employee.id via email match,
+  // but JWT carries User.id). Match against EITHER. Admins can always patch.
+  if (own[0].employee_id !== user.id) {
+    const userEmail = String((user as any).email || '').toLowerCase();
+    const empMatch: any[] = userEmail ? await (prisma as any).$queryRaw`
+      SELECT id FROM "Employee" WHERE LOWER(email) = ${userEmail} LIMIT 1
+    ` : [];
+    const empId = empMatch?.[0]?.id || null;
+    const isAdmin = isAdminRole((user as any)?.role);
+    if (!isAdmin && empId !== own[0].employee_id) {
+      throw new Error('not your shift');
+    }
+  }
 
   const stripNuls = (s: unknown) => (typeof s === 'string' ? s.replace(/\x00/g, '') : s);
 
@@ -7498,7 +7511,14 @@ registerFn('shiftHeartbeat', async ({ user, body }) => {
 
   const shift = await db.shiftTracking.findUnique({ where: { id: shift_id } });
   if (!shift) throw new Error('shift_not_found');
-  if (shift.employee_id !== user.id) throw new Error('not your shift');
+  // Same ownership double-check as patchShiftRaw — accept Employee.id (email-resolved) OR User.id.
+  if (shift.employee_id !== user.id) {
+    const userEmail = String((user as any).email || '').toLowerCase();
+    const empMatch: any = userEmail
+      ? await db.employee.findFirst({ where: { email: userEmail } }).catch(() => null)
+      : null;
+    if (empMatch?.id !== shift.employee_id) throw new Error('not your shift');
+  }
   if (shift.status !== 'active') return { status: shift.status, closed: true };
 
   const profile = await db.restaurantProfile.findFirst();
