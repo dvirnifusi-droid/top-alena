@@ -3045,11 +3045,21 @@ function CompactTonightStrip({ reservations, selectedDate, onEdit, onOpenFullDas
 function TableCombosBreakdown({ tables, onSetConnection }) {
     const [open, setOpen] = React.useState(false);
     const [addMode, setAddMode] = React.useState(false);
-    const [pickA, setPickA] = React.useState('');
-    const [pickB, setPickB] = React.useState('');
+    const [pickedTables, setPickedTables] = React.useState([]); // multi-select
+    const [pickedSize, setPickedSize] = React.useState(''); // 3..40 or '' (auto)
 
     const allNums = (tables || []).map(t => String(t.table_number)).filter(Boolean);
+    // Sort numerically for a stable grid.
+    const sortedNums = [...allNums].sort((a, b) => {
+        const na = parseInt(a), nb = parseInt(b);
+        if (!isNaN(na) && !isNaN(nb)) return na - nb;
+        return a.localeCompare(b);
+    });
 
+    const togglePicked = (n) => {
+        const s = String(n);
+        setPickedTables(prev => prev.includes(s) ? prev.filter(x => x !== s) : [...prev, s]);
+    };
     const disconnectPair = (idA, idB) => {
         if (!onSetConnection) return;
         if (!window.confirm(`לנתק את החיבור בין שולחן ${idA} ל-${idB}?`)) return;
@@ -3066,12 +3076,18 @@ function TableCombosBreakdown({ tables, onSetConnection }) {
         }
     };
     const addConnection = () => {
-        if (!pickA || !pickB || pickA === pickB) {
-            window.alert('בחר 2 שולחנות שונים');
+        if (pickedTables.length < 2) {
+            window.alert('בחר לפחות 2 שולחנות');
             return;
         }
-        onSetConnection?.(pickA, pickB, true);
-        setPickA(''); setPickB(''); setAddMode(false);
+        // Connect ALL pairs in the picked set — so the breakdown engine treats them
+        // as one connected component. Pairwise edges = explicit graph.
+        for (let i = 0; i < pickedTables.length; i++) {
+            for (let j = i + 1; j < pickedTables.length; j++) {
+                onSetConnection?.(pickedTables[i], pickedTables[j], true);
+            }
+        }
+        setPickedTables([]); setPickedSize(''); setAddMode(false);
     };
 
     // Stable fingerprint so memoization actually works.
@@ -3230,19 +3246,57 @@ function TableCombosBreakdown({ tables, onSetConnection }) {
                                     >➕ הוסף חיבור</button>
                                 </div>
                             ) : (
-                                <div className="flex items-center gap-2 flex-wrap">
-                                    <span className="text-xs font-bold text-gray-700">חבר את:</span>
-                                    <select value={pickA} onChange={e => setPickA(e.target.value)} className="text-xs border border-gray-300 rounded px-2 py-1 min-w-[80px]">
-                                        <option value="">שולחן…</option>
-                                        {allNums.map(n => <option key={n} value={n}>#{n}</option>)}
-                                    </select>
-                                    <span className="text-xs text-gray-500">+</span>
-                                    <select value={pickB} onChange={e => setPickB(e.target.value)} className="text-xs border border-gray-300 rounded px-2 py-1 min-w-[80px]">
-                                        <option value="">שולחן…</option>
-                                        {allNums.filter(n => n !== pickA).map(n => <option key={n} value={n}>#{n}</option>)}
-                                    </select>
-                                    <button onClick={addConnection} className="text-xs font-bold px-2.5 py-1 rounded bg-emerald-600 text-white hover:bg-emerald-700">חבר</button>
-                                    <button onClick={() => { setAddMode(false); setPickA(''); setPickB(''); }} className="text-xs px-2.5 py-1 rounded bg-gray-100 text-gray-700 hover:bg-gray-200">ביטול</button>
+                                <div>
+                                    {/* Party-size picker (3-40) — informational only, helps you focus the right scenario */}
+                                    <div className="flex items-center gap-2 mb-2">
+                                        <span className="text-xs font-bold text-gray-700">👥 לכמה סועדים?</span>
+                                        <select
+                                            value={pickedSize}
+                                            onChange={e => setPickedSize(e.target.value)}
+                                            className="text-xs border border-gray-300 rounded px-2 py-1 min-w-[80px]"
+                                        >
+                                            <option value="">(ללא — חישוב אוטומטי)</option>
+                                            {Array.from({length: 38}, (_, i) => i + 3).map(n => (
+                                                <option key={n} value={n}>{n} סועדים</option>
+                                            ))}
+                                        </select>
+                                    </div>
+
+                                    {/* Multi-select table grid */}
+                                    <div className="mb-2">
+                                        <div className="flex items-center justify-between mb-1">
+                                            <span className="text-xs font-bold text-gray-700">🪑 בחר 2 שולחנות או יותר:</span>
+                                            {pickedTables.length > 0 && (
+                                                <span className="text-[11px] font-bold text-emerald-700">
+                                                    נבחרו: {pickedTables.map(n => '#' + n).join(' + ')}
+                                                </span>
+                                            )}
+                                        </div>
+                                        <div className="flex flex-wrap gap-1 max-h-48 overflow-y-auto bg-gray-50 p-2 rounded border border-gray-200">
+                                            {sortedNums.map(n => {
+                                                const isSelected = pickedTables.includes(n);
+                                                return (
+                                                    <button
+                                                        key={n}
+                                                        onClick={() => togglePicked(n)}
+                                                        className={`text-xs font-bold px-2 py-1 rounded-full border transition-colors
+                                                            ${isSelected
+                                                                ? 'bg-emerald-600 text-white border-emerald-700 shadow'
+                                                                : 'bg-white text-gray-700 border-gray-200 hover:border-emerald-400'}`}
+                                                    >#{n}</button>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+
+                                    <div className="flex items-center gap-2">
+                                        <button
+                                            onClick={addConnection}
+                                            disabled={pickedTables.length < 2}
+                                            className="text-xs font-bold px-3 py-1.5 rounded bg-emerald-600 text-white hover:bg-emerald-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
+                                        >חבר {pickedTables.length >= 2 ? `(${pickedTables.length})` : ''}</button>
+                                        <button onClick={() => { setAddMode(false); setPickedTables([]); setPickedSize(''); }} className="text-xs px-3 py-1.5 rounded bg-gray-100 text-gray-700 hover:bg-gray-200">ביטול</button>
+                                    </div>
                                 </div>
                             )}
                             <div className="mt-1.5 text-[10px] text-amber-700">
