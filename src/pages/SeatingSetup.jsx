@@ -2155,20 +2155,41 @@ export default function SeatingSetup() {
                                         }));
                                         const slotKey = slots.map(s => `${s.key}|${(s.exclude_tables||[]).join(',')}`).sort().join(';');
                                         const key = `${partySize}:${sorted.join('-')}:${slotKey}`;
-                                        // De-dupe: same tables AND same flex slots (including their excludes)
                                         if (combos.some(c => {
                                             const ck = `${c.party_size}:${[...(c.tables||[])].map(String).sort().join('-')}:${(c.flex_slots||[]).map(s=>`${s.key}|${(s.exclude_tables||[]).join(',')}`).sort().join(';')}`;
                                             return ck === key;
                                         })) return;
+                                        // New combo gets the next priority for its party size (lowest priority = last in line)
+                                        const samePartyCount = combos.filter(c => Number(c.party_size) === Number(partySize)).length;
                                         setCombos(prev => [...prev, {
                                             id: `c_${Date.now()}_${Math.random().toString(36).slice(2,7)}`,
                                             party_size: Number(partySize),
                                             tables: sorted,
                                             flex_slots: slots,
+                                            priority: samePartyCount + 1, // 1-based, new combos go to bottom
                                         }]);
                                     }}
                                     onRemoveCombo={(comboId) => {
                                         setCombos(prev => prev.filter(c => c.id !== comboId));
+                                    }}
+                                    onReorderCombo={(comboId, direction) => {
+                                        // direction: 'up' (lower priority number = higher rank) or 'down'
+                                        setCombos(prev => {
+                                            const target = prev.find(c => c.id === comboId);
+                                            if (!target) return prev;
+                                            const sameSize = prev
+                                                .filter(c => Number(c.party_size) === Number(target.party_size))
+                                                .sort((a, b) => (a.priority || 999) - (b.priority || 999));
+                                            const idx = sameSize.findIndex(c => c.id === comboId);
+                                            const swapIdx = direction === 'up' ? idx - 1 : idx + 1;
+                                            if (swapIdx < 0 || swapIdx >= sameSize.length) return prev;
+                                            const a = sameSize[idx], b = sameSize[swapIdx];
+                                            return prev.map(c => {
+                                                if (c.id === a.id) return { ...c, priority: b.priority || (swapIdx + 1) };
+                                                if (c.id === b.id) return { ...c, priority: a.priority || (idx + 1) };
+                                                return c;
+                                            });
+                                        });
                                     }}
                                     onSetConnection={(numA, numB, connect) => {
                                         const next = tables.map(t => ({ ...t, combinable_with: Array.isArray(t.combinable_with) ? [...t.combinable_with] : [] }));
@@ -3076,7 +3097,7 @@ function CompactTonightStrip({ reservations, selectedDate, onEdit, onOpenFullDas
 // For each party size N=2..12 (and 12+ for events), shows which standalone tables fit
 // and which connected combinations reach the target. Derived from each table's
 // min_capacity/max_capacity/combinable_with — no extra config needed.
-function TableCombosBreakdown({ tables, combos = [], onAddCombo, onRemoveCombo, onSetConnection }) {
+function TableCombosBreakdown({ tables, combos = [], onAddCombo, onRemoveCombo, onReorderCombo, onSetConnection }) {
     const [open, setOpen] = React.useState(false);
     const [addMode, setAddMode] = React.useState(false);
     const [pickedTables, setPickedTables] = React.useState([]); // multi-select
@@ -3465,7 +3486,9 @@ function TableCombosBreakdown({ tables, combos = [], onAddCombo, onRemoveCombo, 
                     {(() => null)()}
                     {[2,3,4,5,6,7,8,9,10,11,12].map(n => {
                         const b = breakdown[n] || { singles: [], combos: [] };
-                        const explicitCombos = combos.filter(c => Number(c.party_size) === n);
+                        const explicitCombos = combos
+                            .filter(c => Number(c.party_size) === n)
+                            .sort((a, b) => (a.priority || 999) - (b.priority || 999));
                         // Set of "tableId|tableId|..." keys claimed explicitly for ANY party size
                         const claimedKeys = new Set(
                             combos.map(c => [...(c.tables||[])].map(String).sort().join('|'))
@@ -3485,12 +3508,12 @@ function TableCombosBreakdown({ tables, combos = [], onAddCombo, onRemoveCombo, 
                                     </div>
                                 </div>
 
-                                {/* Explicit owner-saved combos for this party size — pinned at top */}
+                                {/* Explicit owner-saved combos for this party size — sorted by priority */}
                                 {explicitCombos.length > 0 && (
                                     <div className="mb-2">
-                                        <div className="text-[10px] font-bold text-emerald-700 mb-1">📌 חיבורים שמורים</div>
-                                        <div className="flex flex-wrap gap-1.5">
-                                            {explicitCombos.map(c => {
+                                        <div className="text-[10px] font-bold text-emerald-700 mb-1">📌 חיבורים שמורים (לפי עדיפות — ה-AI ינסה מלמעלה למטה)</div>
+                                        <div className="space-y-1">
+                                            {explicitCombos.map((c, idx) => {
                                                 const fixedParts = (c.tables || []).map(id => `#${id}`);
                                                 const flexParts = (c.flex_slots || []).map(s => {
                                                     const exCount = Array.isArray(s.exclude_tables) ? s.exclude_tables.length : 0;
@@ -3499,16 +3522,35 @@ function TableCombosBreakdown({ tables, combos = [], onAddCombo, onRemoveCombo, 
                                                 });
                                                 const parts = [...fixedParts, ...flexParts];
                                                 return (
-                                                    <span key={c.id} className="inline-flex items-center gap-1 text-xs font-bold px-2 py-1 rounded-full border bg-emerald-100 text-emerald-900 border-emerald-400">
-                                                        {parts.join(' + ')}
-                                                        {onRemoveCombo && (
-                                                            <button
-                                                                onClick={(e) => { e.stopPropagation(); if (window.confirm(`להסיר את החיבור השמור ${parts.join(' + ')} ל-${n} סועדים?`)) onRemoveCombo(c.id); }}
-                                                                title="הסר חיבור שמור"
-                                                                className="ml-0.5 w-4 h-4 rounded-full bg-emerald-200 hover:bg-red-500 hover:text-white text-emerald-900 text-[10px] flex items-center justify-center"
-                                                            >×</button>
+                                                    <div key={c.id} className="flex items-center gap-1.5">
+                                                        <span className="text-[10px] font-black text-emerald-900 w-5 text-center">{idx + 1}.</span>
+                                                        {onReorderCombo && (
+                                                            <div className="flex flex-col gap-0">
+                                                                <button
+                                                                    onClick={() => onReorderCombo(c.id, 'up')}
+                                                                    disabled={idx === 0}
+                                                                    title="עלה בעדיפות"
+                                                                    className="text-[10px] leading-none px-1 rounded hover:bg-emerald-200 disabled:opacity-30 disabled:cursor-not-allowed"
+                                                                >▲</button>
+                                                                <button
+                                                                    onClick={() => onReorderCombo(c.id, 'down')}
+                                                                    disabled={idx === explicitCombos.length - 1}
+                                                                    title="ירד בעדיפות"
+                                                                    className="text-[10px] leading-none px-1 rounded hover:bg-emerald-200 disabled:opacity-30 disabled:cursor-not-allowed"
+                                                                >▼</button>
+                                                            </div>
                                                         )}
-                                                    </span>
+                                                        <span className="inline-flex items-center gap-1 text-xs font-bold px-2 py-1 rounded-full border bg-emerald-100 text-emerald-900 border-emerald-400">
+                                                            {parts.join(' + ')}
+                                                            {onRemoveCombo && (
+                                                                <button
+                                                                    onClick={(e) => { e.stopPropagation(); if (window.confirm(`להסיר את החיבור השמור ${parts.join(' + ')} ל-${n} סועדים?`)) onRemoveCombo(c.id); }}
+                                                                    title="הסר חיבור שמור"
+                                                                    className="ml-0.5 w-4 h-4 rounded-full bg-emerald-200 hover:bg-red-500 hover:text-white text-emerald-900 text-[10px] flex items-center justify-center"
+                                                                >×</button>
+                                                            )}
+                                                        </span>
+                                                    </div>
                                                 );
                                             })}
                                         </div>

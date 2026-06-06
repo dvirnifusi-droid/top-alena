@@ -8797,15 +8797,35 @@ registerFn('aiSeatingAssistant', async ({ body }) => {
   const freeOutdoor = freeTables.filter((t: any) => String(t.location || '').toLowerCase() === 'outdoor');
   const freeIndoor  = freeTables.filter((t: any) => String(t.location || '').toLowerCase() !== 'outdoor');
 
-  // Load owner-saved explicit combos (the 📌 ones from the new UI)
-  const ownerCombos: Array<any> = Array.isArray((layout as any)?.combos) ? (layout as any).combos : [];
-  const ownerCombosText = ownerCombos.length
-    ? ownerCombos.map((c: any) => {
-        const fixed = (c.tables || []).map((id: any) => `#${id}`).join('+');
-        const flex = (c.flex_slots || []).map((s: any) => `+🃏${s.label || `max ${s.table_max}`}`).join('');
-        return `${c.party_size}ס: ${fixed}${flex}`;
-      }).join(' | ')
-    : 'אין';
+  // Load owner-saved explicit combos (the 📌 ones from the new UI) — sorted by priority
+  const ownerCombos: Array<any> = (Array.isArray((layout as any)?.combos) ? (layout as any).combos : [])
+    .slice()
+    .sort((a: any, b: any) => (a.priority || 999) - (b.priority || 999));
+  // Tag each combo with current availability so AI can pick the first free option.
+  const comboAvailability = (c: any) => {
+    const fixed: string[] = Array.isArray(c.tables) ? c.tables.map(String) : [];
+    const taken: string[] = [];
+    for (const t of fixed) if (occupiedTableSet.has(t)) taken.push(t);
+    if (taken.length === 0) return { status: '✅ פנוי', note: '' };
+    return { status: '❌ תפוס', note: `(${taken.map(t=>'#'+t).join(', ')} תפוסים)` };
+  };
+  const groupedCombosByPartySize: Record<number, any[]> = {};
+  for (const c of ownerCombos) {
+    const ps = Number(c.party_size);
+    if (!groupedCombosByPartySize[ps]) groupedCombosByPartySize[ps] = [];
+    groupedCombosByPartySize[ps].push(c);
+  }
+  const ownerCombosText = Object.keys(groupedCombosByPartySize).length
+    ? Object.entries(groupedCombosByPartySize).map(([ps, list]: [string, any[]]) => {
+        const lines = list.map((c, i) => {
+          const fixed = (c.tables || []).map((id: any) => `#${id}`).join('+');
+          const flex = (c.flex_slots || []).map((s: any) => `+🃏${s.label || `max ${s.table_max}`}`).join('');
+          const av = comboAvailability(c);
+          return `  ${i+1}. ${fixed}${flex} → ${av.status} ${av.note}`;
+        }).join('\n');
+        return `[${ps} סועדים]\n${lines}`;
+      }).join('\n')
+    : 'אין חיבורים שמורים';
 
   // Areas summary — group tables by area with counts
   const areaSummary = (() => {
@@ -8856,8 +8876,10 @@ ${summarizeByCap(freeIndoor).slice(0, 600)}
 ⏰ זמינות עד מתי (רק שולחנות שיש להם הזמנה היום):
 ${[...freeUntilByTable.entries()].filter(([_,v]) => v.startsWith('פנוי עד')).slice(0, 15).map(([n,v]) => `#${n}: ${v}`).join(' | ') || 'אין הזמנות עתידיות היום'}
 
-📌 חיבורים שמורים על-ידי הבעלים (לקבל עדיפות גבוהה כשהבקשה תואמת):
+📌 חיבורים שמורים — סדר עדיפות של בעל המסעדה (1=הכי עדיף, ✅=פנוי, ❌=תפוס):
 ${ownerCombosText}
+
+⚠️ כשהבקשה תואמת מספר סועדים שיש לו חיבורים שמורים — חובה ללכת לפי הסדר ולבחור את הראשון שמסומן ✅. דלג על ❌. אם כולם תפוסים — תאמר זאת ותציע חלופה אוטומטית.
 
 🔗 חיבורים אוטומטיים מהגרף (combinable_with):
 ${combinable.map((t: any) => `${t.n}+${t.combinable.join('+')} (${t.min}-${t.max})`).join(', ') || 'אין'}
