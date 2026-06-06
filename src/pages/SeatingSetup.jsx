@@ -2278,7 +2278,72 @@ export default function SeatingSetup() {
                                                     ? 'bg-purple-600 border-purple-700 text-white shadow'
                                                     : 'bg-white border-gray-200 text-gray-600 hover:border-purple-300'}`}
                                         >📋 חי</button>
+                                        <button
+                                            onClick={() => { setRailTab('ai'); setDashboardDrawerOpen(false); }}
+                                            className={`flex-1 text-xs font-bold py-1.5 rounded-lg border transition-colors
+                                                ${railTab === 'ai'
+                                                    ? 'bg-gradient-to-br from-indigo-500 to-purple-600 border-indigo-600 text-white shadow'
+                                                    : 'bg-white border-gray-200 text-gray-600 hover:border-indigo-300'}`}
+                                        >✨ AI</button>
                                     </div>
+
+                                    {/* AI tab — inline, full-rail height */}
+                                    {railTab === 'ai' && (
+                                        <div className="flex-1 overflow-hidden">
+                                            <AiAssistantPanel
+                                                tables={tables}
+                                                reservations={reservations}
+                                                activeSessions={activeSessions}
+                                                queueEntries={queueEntries}
+                                                customers={customers}
+                                                combos={combos}
+                                                onSeatReservation={async (tableNums, reservationId) => {
+                                                    // Assign tables to existing reservation + seat
+                                                    if (!reservationId || !tableNums?.length) return;
+                                                    try {
+                                                        await Reservation.update(reservationId, {
+                                                            assigned_table: tableNums,
+                                                            status: 'seated',
+                                                        });
+                                                        const res = reservations.find(r => r.id === reservationId);
+                                                        if (res) {
+                                                            await TableSession.create({
+                                                                table_number: String(tableNums[0]),
+                                                                party_size: res.party_size,
+                                                                customer_name: res.customer_name,
+                                                                customer_phone: res.customer_phone,
+                                                                session_start: new Date().toISOString(),
+                                                                status: 'active',
+                                                                waiter_name: 'מנהל',
+                                                                waiter_id: 'manager_seated',
+                                                                table_style: 'couple',
+                                                            });
+                                                        }
+                                                        await loadLayout();
+                                                    } catch (e) { alert('שגיאה בהושבה: ' + (e?.message || e)); }
+                                                }}
+                                                onSeatWalkIn={async (tableNums, name, phone, partySize) => {
+                                                    if (!tableNums?.length || !name) return;
+                                                    try {
+                                                        await TableSession.create({
+                                                            table_number: String(tableNums[0]),
+                                                            party_size: Number(partySize) || 2,
+                                                            customer_name: name,
+                                                            customer_phone: phone || '',
+                                                            session_start: new Date().toISOString(),
+                                                            status: 'active',
+                                                            waiter_name: 'מנהל',
+                                                            waiter_id: 'manager_seated',
+                                                            table_style: 'couple',
+                                                        });
+                                                        await loadLayout();
+                                                    } catch (e) { alert('שגיאה בהושבה: ' + (e?.message || e)); }
+                                                }}
+                                                onSwitchToListMode={() => { setViewMode('list'); setBigMapMode(false); }}
+                                                inlinePanel
+                                            />
+                                        </div>
+                                    )}
 
                                     {/* Date picker — always visible in big-map mode so hostess can switch days fast */}
                                     <div className="bg-white border border-gray-200 rounded-lg p-2 flex items-center justify-between">
@@ -3803,7 +3868,42 @@ function QueueApprovalBanner({ banner, onApprove, onReject, onDismiss, onOpenTab
 //   - Returning customer in queue → suggest area
 //   - Critical wait times in queue
 //   - Empty hot zone in busy hour
-function AiAssistantPanel({ tables, reservations, activeSessions, queueEntries, customers, onSwitchToListMode, prefillQuestion, onClose, inDrawer }) {
+function AiAssistantPanel({ tables, reservations, activeSessions, queueEntries, customers, combos, onSwitchToListMode, prefillQuestion, onClose, inDrawer, inlinePanel, onSeatReservation, onSeatWalkIn }) {
+    // State for "הושב" flow per action
+    const [seatActionFor, setSeatActionFor] = useState(null); // { tableNums, label }
+    const [seatMode, setSeatMode] = useState('pick'); // 'pick' | 'existing' | 'walkin'
+    const [walkInName, setWalkInName] = useState('');
+    const [walkInPhone, setWalkInPhone] = useState('');
+    const [walkInSize, setWalkInSize] = useState(2);
+    const [existingSearch, setExistingSearch] = useState('');
+    const openSeatAction = (action) => {
+        // Parse table from action — supports "10" / "10,11" / "100+101"
+        const raw = String(action.table || '');
+        const nums = raw.split(/[,+\s]+/).map(s => s.trim()).filter(Boolean);
+        setSeatActionFor({ tableNums: nums, label: action.label || `שולחן ${raw}` });
+        setSeatMode('pick');
+        setWalkInName(''); setWalkInPhone(''); setWalkInSize(2);
+        setExistingSearch('');
+    };
+    const closeSeatAction = () => { setSeatActionFor(null); };
+    const submitExisting = async (reservationId) => {
+        await onSeatReservation?.(seatActionFor.tableNums, reservationId);
+        closeSeatAction();
+    };
+    const submitWalkIn = async () => {
+        if (!walkInName.trim()) { alert('נא למלא שם'); return; }
+        await onSeatWalkIn?.(seatActionFor.tableNums, walkInName.trim(), walkInPhone.trim(), walkInSize);
+        closeSeatAction();
+    };
+    // Filter pending reservations matching today, not seated yet
+    const todayPending = (reservations || []).filter(r => {
+        const isPending = (r.status || 'pending') === 'pending' || (r.status || 'pending') === 'confirmed';
+        if (!isPending) return false;
+        if (!existingSearch.trim()) return true;
+        const q = existingSearch.trim().toLowerCase();
+        return (r.customer_name || '').toLowerCase().includes(q) ||
+               (r.customer_phone || '').includes(q.replace(/\D/g, ''));
+    }).slice(0, 20);
     const [collapsed, setCollapsed] = useState(false);
     const [chatQuestion, setChatQuestion] = useState(prefillQuestion || '');
     const [chatLoading, setChatLoading] = useState(false);
@@ -4000,9 +4100,11 @@ function AiAssistantPanel({ tables, reservations, activeSessions, queueEntries, 
         green:  'bg-emerald-50 border-emerald-300 text-emerald-900',
     };
 
-    const wrapperCls = inDrawer
-        ? 'bg-gradient-to-b from-indigo-50 to-white max-h-[80vh] overflow-y-auto'
-        : 'sticky top-0 z-30 bg-gradient-to-b from-indigo-50 to-white border-2 border-indigo-200 rounded-2xl shadow-sm';
+    const wrapperCls = inlinePanel
+        ? 'h-full bg-gradient-to-b from-indigo-50 to-white border-2 border-indigo-200 rounded-2xl shadow-sm flex flex-col overflow-y-auto'
+        : inDrawer
+            ? 'bg-gradient-to-b from-indigo-50 to-white max-h-[80vh] overflow-y-auto'
+            : 'sticky top-0 z-30 bg-gradient-to-b from-indigo-50 to-white border-2 border-indigo-200 rounded-2xl shadow-sm';
 
     return (
         <div className={wrapperCls}>
@@ -4069,17 +4171,102 @@ function AiAssistantPanel({ tables, reservations, activeSessions, queueEntries, 
                             </div>
                         )}
                         {chatAnswer && (
-                            <div className="mt-1.5 bg-white border border-indigo-200 rounded-lg p-2">
-                                <div className="text-[11px] text-gray-800 leading-relaxed">{chatAnswer.answer}</div>
+                            <div className={`mt-1.5 bg-white border border-indigo-200 rounded-lg ${inlinePanel ? 'p-3' : 'p-2'}`}>
+                                <div className={`${inlinePanel ? 'text-sm' : 'text-[11px]'} text-gray-800 leading-relaxed`}>{chatAnswer.answer}</div>
                                 {Array.isArray(chatAnswer.actions) && chatAnswer.actions.length > 0 && (
-                                    <div className="mt-1.5 flex flex-wrap gap-1">
+                                    <div className="mt-2 flex flex-col gap-1.5">
                                         {chatAnswer.actions.map((a, i) => (
-                                            <span key={i} className="bg-indigo-50 border border-indigo-200 text-indigo-700 text-[10px] font-bold px-1.5 py-0.5 rounded">
-                                                {a.label}{a.table ? ` · 🪑${a.table}` : ''}{a.customer ? ` · ${a.customer}` : ''}
-                                            </span>
+                                            <div key={i} className="flex items-center justify-between gap-2 bg-indigo-50 border border-indigo-200 rounded-lg p-2">
+                                                <div className="text-xs font-bold text-indigo-900 flex-1 min-w-0">
+                                                    {a.label}
+                                                    {a.table && <span className="block text-[10px] opacity-70">🪑 שולחן {a.table}</span>}
+                                                    {a.customer && <span className="block text-[10px] opacity-70">👤 {a.customer}</span>}
+                                                </div>
+                                                {a.table && (onSeatReservation || onSeatWalkIn) && (
+                                                    <button
+                                                        onClick={() => openSeatAction(a)}
+                                                        className="text-xs font-black px-3 py-1.5 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 shadow whitespace-nowrap"
+                                                    >🪑 הושב</button>
+                                                )}
+                                            </div>
                                         ))}
                                     </div>
                                 )}
+                            </div>
+                        )}
+
+                        {/* Seat action dialog */}
+                        {seatActionFor && (
+                            <div className="fixed inset-0 z-[80] bg-black/40 flex items-center justify-center p-4" onClick={closeSeatAction}>
+                                <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-4" dir="rtl" onClick={e => e.stopPropagation()}>
+                                    <div className="flex items-center justify-between mb-3">
+                                        <div className="font-black text-base">🪑 הושב על {seatActionFor.tableNums.map(t=>'#'+t).join('+')}</div>
+                                        <button onClick={closeSeatAction} className="text-gray-400 hover:text-gray-700 text-xl">×</button>
+                                    </div>
+                                    {seatMode === 'pick' && (
+                                        <div className="space-y-2">
+                                            <button onClick={() => setSeatMode('existing')} className="w-full text-right p-3 rounded-lg bg-indigo-50 hover:bg-indigo-100 border border-indigo-200">
+                                                <div className="font-bold text-sm">📅 צרף להזמנה קיימת</div>
+                                                <div className="text-[11px] text-gray-600">בחר לקוח מתוך ההזמנות של היום</div>
+                                            </button>
+                                            <button onClick={() => setSeatMode('walkin')} className="w-full text-right p-3 rounded-lg bg-emerald-50 hover:bg-emerald-100 border border-emerald-200">
+                                                <div className="font-bold text-sm">🚶 הזמנה חדשה (walk-in)</div>
+                                                <div className="text-[11px] text-gray-600">מלא שם ומספר טלפון</div>
+                                            </button>
+                                        </div>
+                                    )}
+                                    {seatMode === 'existing' && (
+                                        <div className="space-y-2">
+                                            <input
+                                                value={existingSearch}
+                                                onChange={e => setExistingSearch(e.target.value)}
+                                                placeholder="🔍 חפש לפי שם או טלפון..."
+                                                className="w-full text-sm border border-gray-300 rounded px-2 py-1.5 focus:outline-none focus:border-indigo-500"
+                                                autoFocus
+                                            />
+                                            <div className="max-h-72 overflow-y-auto space-y-1">
+                                                {todayPending.length === 0 ? (
+                                                    <div className="text-xs text-gray-500 text-center py-3">אין הזמנות פתוחות תואמות</div>
+                                                ) : todayPending.map(r => (
+                                                    <button
+                                                        key={r.id}
+                                                        onClick={() => submitExisting(r.id)}
+                                                        className="w-full text-right p-2 rounded border border-gray-200 hover:border-indigo-400 hover:bg-indigo-50"
+                                                    >
+                                                        <div className="flex items-center justify-between gap-2">
+                                                            <div>
+                                                                <div className="text-sm font-bold">{r.customer_name || 'ללא שם'}</div>
+                                                                <div className="text-[10px] text-gray-500">{r.customer_phone} · 👥{r.party_size}</div>
+                                                            </div>
+                                                            <div className="text-xs font-black text-indigo-700">{r.time?.slice(0,5)}</div>
+                                                        </div>
+                                                    </button>
+                                                ))}
+                                            </div>
+                                            <button onClick={() => setSeatMode('pick')} className="text-[10px] text-gray-500 underline">← חזרה</button>
+                                        </div>
+                                    )}
+                                    {seatMode === 'walkin' && (
+                                        <div className="space-y-2">
+                                            <div>
+                                                <label className="text-[11px] font-bold text-gray-700">שם מלא:</label>
+                                                <input value={walkInName} onChange={e => setWalkInName(e.target.value)} className="w-full text-sm border border-gray-300 rounded px-2 py-1.5" autoFocus />
+                                            </div>
+                                            <div>
+                                                <label className="text-[11px] font-bold text-gray-700">טלפון:</label>
+                                                <input value={walkInPhone} onChange={e => setWalkInPhone(e.target.value)} className="w-full text-sm border border-gray-300 rounded px-2 py-1.5" inputMode="tel" />
+                                            </div>
+                                            <div>
+                                                <label className="text-[11px] font-bold text-gray-700">מס׳ סועדים:</label>
+                                                <input type="number" min="1" max="20" value={walkInSize} onChange={e => setWalkInSize(e.target.value)} className="w-full text-sm border border-gray-300 rounded px-2 py-1.5" />
+                                            </div>
+                                            <div className="flex gap-2 pt-1">
+                                                <button onClick={submitWalkIn} className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-black py-2 rounded-lg">🪑 הושב</button>
+                                                <button onClick={() => setSeatMode('pick')} className="text-[10px] text-gray-500 underline px-2">← חזרה</button>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
                             </div>
                         )}
                     </div>
