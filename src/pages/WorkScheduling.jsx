@@ -37,8 +37,24 @@ const DINNER_POSITIONS_ORDER = [
 // New constant for department definitions and their associated position names
 const DEPARTMENT_DEFINITIONS = {
     all: { name: 'כל המחלקות' },
-    floor: { name: 'סידור פלור', positionNames: ['מלצר', 'ברמן', 'מארח/ת', 'מנהל פלור', 'ראנר', 'קופה +אריזות', 'מנהלת משמרת', 'מתלמד פלור', 'בלתם'] },
-    kitchen: { name: 'סידור מטבח', positionNames: ['טבח', 'מנהל מטבח', 'שוטף כלים', 'קונדיטור', 'מתלמד מטבח', 'צאקר', 'גריל', 'פס בטטה', 'מקשר', 'בלתם'] },
+    floor: { name: 'סידור פלור', positionNames: [
+        'מלצר', 'מלצרית', 'ברמן', 'ברמנית',
+        'מארח/ת', 'מארח', 'מארחת',
+        'מנהל פלור', 'מנהלת פלור',
+        'ראנר', 'ראנרית',
+        'קופה +אריזות', 'קופה + אריזות', 'קופה ואריזות',
+        'מנהל משמרת', 'מנהלת משמרת',
+        'מתלמד פלור', 'מתלמדת פלור',
+        'בלתם',
+    ] },
+    kitchen: { name: 'סידור מטבח', positionNames: [
+        'טבח', 'טבחית',
+        'מנהל מטבח', 'מנהלת מטבח',
+        'שוטף כלים', 'שוטפת כלים',
+        'קונדיטור', 'קונדיטורית',
+        'מתלמד מטבח', 'מתלמדת מטבח',
+        'צאקר', 'גריל', 'פס בטטה', 'מקשר', 'בלתם',
+    ] },
 };
 
 // Helper function to get ordered and included positions for a specific shift
@@ -63,13 +79,16 @@ const getOrderedPositionsForShift = (allPositions, shiftType) => {
     return includedPositions;
 };
 
-// Helper function to filter positions by department
+// Helper function to filter positions by department.
+// Match is whitespace-tolerant and case-insensitive — owner-typed positions
+// like " מלצרית" (with stray space) or "Waiter" otherwise dropped silently.
+const _normPos = (s) => String(s || '').trim().replace(/\s+/g, ' ').toLowerCase();
 const filterPositionsByDepartment = (allPositions, departmentFilter) => {
     if (departmentFilter === 'all') {
         return allPositions;
     }
-    const departmentPositionNames = DEPARTMENT_DEFINITIONS[departmentFilter]?.positionNames || [];
-    return allPositions.filter(position => departmentPositionNames.includes(position.position_name));
+    const departmentPositionNames = (DEPARTMENT_DEFINITIONS[departmentFilter]?.positionNames || []).map(_normPos);
+    return allPositions.filter(position => departmentPositionNames.includes(_normPos(position.position_name)));
 };
 
 
