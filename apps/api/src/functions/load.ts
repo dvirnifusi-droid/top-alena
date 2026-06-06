@@ -8754,6 +8754,37 @@ registerFn('aiSeatingAssistant', async ({ body }) => {
   // Split tables by location so location-based questions ("בחוץ" / "outdoor") just work.
   const outdoorTables = tables.filter((t: any) => String(t.location || '').toLowerCase() === 'outdoor');
   const indoorTables = tables.filter((t: any) => String(t.location || '').toLowerCase() !== 'outdoor');
+  // Compute "free until" for each table — earliest upcoming reservation time today.
+  // For an OCCUPIED table (active session), free becomes the estimated end of session.
+  const nowMin = (() => {
+    const d = new Date();
+    return (d.getUTCHours() + 3) % 24 * 60 + d.getUTCMinutes();
+  })();
+  const toMin = (hhmm: string) => {
+    if (!hhmm) return -1;
+    const [h, m] = String(hhmm).split(':').map(Number);
+    return (h * 60) + (m || 0);
+  };
+  const freeUntilByTable = new Map<string, string>(); // tableNum → 'HH:MM' or 'תפוס' or 'פנוי כל הערב'
+  for (const t of tables) {
+    const tableNum = String(t.n);
+    const occupiedNow = seatedNow.some((s: any) => String(s.table) === tableNum);
+    // Find upcoming today reservations that assign this table, sorted by time
+    const upcomingForTable = reservations
+      .filter((r: any) => {
+        const assigned = Array.isArray(r.table) ? r.table : [r.table];
+        return assigned && assigned.some((a: any) => String(a) === tableNum) && toMin(r.time) > nowMin;
+      })
+      .sort((a: any, b: any) => toMin(a.time) - toMin(b.time));
+    if (occupiedNow) {
+      freeUntilByTable.set(tableNum, 'תפוס עכשיו' + (upcomingForTable[0] ? ` → גם ב-${upcomingForTable[0].time}` : ''));
+    } else if (upcomingForTable[0]) {
+      freeUntilByTable.set(tableNum, `פנוי עד ${upcomingForTable[0].time} (אז ${upcomingForTable[0].name} ×${upcomingForTable[0].party})`);
+    } else {
+      freeUntilByTable.set(tableNum, 'פנוי כל הערב');
+    }
+  }
+
   // Identify which tables are currently occupied (active session) or assigned to an upcoming reservation
   const occupiedTableSet = new Set<string>();
   for (const s of seatedNow) if (s.table) occupiedTableSet.add(String(s.table));
@@ -8766,9 +8797,40 @@ registerFn('aiSeatingAssistant', async ({ body }) => {
   const freeOutdoor = freeTables.filter((t: any) => String(t.location || '').toLowerCase() === 'outdoor');
   const freeIndoor  = freeTables.filter((t: any) => String(t.location || '').toLowerCase() !== 'outdoor');
 
+  // Load owner-saved explicit combos (the 📌 ones from the new UI)
+  const ownerCombos: Array<any> = Array.isArray((layout as any)?.combos) ? (layout as any).combos : [];
+  const ownerCombosText = ownerCombos.length
+    ? ownerCombos.map((c: any) => {
+        const fixed = (c.tables || []).map((id: any) => `#${id}`).join('+');
+        const flex = (c.flex_slots || []).map((s: any) => `+🃏${s.label || `max ${s.table_max}`}`).join('');
+        return `${c.party_size}ס: ${fixed}${flex}`;
+      }).join(' | ')
+    : 'אין';
+
+  // Areas summary — group tables by area with counts
+  const areaSummary = (() => {
+    const map = new Map<string, { total: number; free: number; loc: string }>();
+    for (const t of tables) {
+      const area = t.area || '(ללא אזור)';
+      const cur = map.get(area) || { total: 0, free: 0, loc: t.location === 'outdoor' ? 'חוץ' : 'פנים' };
+      cur.total++;
+      if (!occupiedTableSet.has(String(t.n))) cur.free++;
+      map.set(area, cur);
+    }
+    return [...map.entries()].map(([a, v]) => `${a} (${v.loc}, פנויים ${v.free}/${v.total})`).join(', ');
+  })();
+
   const summarizeByCap = (arr: any[]) => {
     if (!arr.length) return 'אין';
     return arr.map((t: any) => `#${t.n}(${t.min}-${t.max})`).join(', ');
+  };
+  const summarizeWithUntil = (arr: any[]) => {
+    if (!arr.length) return 'אין';
+    return arr.map((t: any) => {
+      const until = freeUntilByTable.get(String(t.n));
+      const untilShort = until?.startsWith('פנוי עד') ? ' עד ' + until.match(/\d{2}:\d{2}/)?.[0] : '';
+      return `#${t.n}(${t.min}-${t.max}${untilShort})`;
+    }).join(', ');
   };
 
   const userCtx = `שעה: ${nowStr}
@@ -8782,16 +8844,19 @@ registerFn('aiSeatingAssistant', async ({ body }) => {
 
 מצב נוכחי:
 • ${tables.length} שולחנות סה"כ — ${indoorTables.length} בפנים, ${outdoorTables.length} בחוץ
-• אזורים: ${[...new Set(tables.map((t: any) => t.area))].filter(Boolean).join(', ')}
+• אזורים: ${areaSummary}
 • ${reservations.length} הזמנות היום, ${queueShort.length} בתור (${queueShort.filter((q: any) => q.status === 'pending').length} pending, ${queueShort.filter((q: any) => q.status === 'active').length} active), ${seatedNow.length} סשנים פעילים
 
-🌿 שולחנות פנויים בחוץ (location=outdoor, לא תפוסים ולא משובצים להזמנה היום):
-${summarizeByCap(freeOutdoor)}
+🌿 שולחנות פנויים בחוץ (עם 'עד HH:MM' = ההזמנה הבאה לאותו שולחן היום):
+${summarizeWithUntil(freeOutdoor)}
 
 🏠 שולחנות פנויים בפנים:
-${summarizeByCap(freeIndoor).slice(0, 800)}
+${summarizeWithUntil(freeIndoor).slice(0, 800)}
 
-חיבורי שולחנות מוגדרים:
+📌 חיבורים שמורים על-ידי הבעלים (לקבל עדיפות גבוהה כשהבקשה תואמת):
+${ownerCombosText}
+
+🔗 חיבורים אוטומטיים מהגרף (combinable_with):
 ${combinable.map((t: any) => `${t.n}+${t.combinable.join('+')} (${t.min}-${t.max})`).join(', ') || 'אין'}
 
 הזמנות פתוחות (היום):
@@ -8806,7 +8871,9 @@ ${seatedNow.map((s: any) => `שולחן ${s.table} ×${s.party} ${s.name || ''}`
 חוקים לתשובה:
 1. אם המארחת ביקשה מקום ספציפי (בחוץ/בפנים/אזור מסוים) — חובה להציע שולחן מהמיקום שביקשה ואם אין — תאמר זאת במפורש.
 2. אם ביקשה כמות סועדים (X) — מצא שולחן יחיד עם min<=X<=max או צירוף שמתאים.
-3. תמיד החזר תשובה מועילה — לא להחזיר ריק. אם אין שולחן מתאים, תגיד מה כן יש או הצע חלופה (חכה X דק׳, חבר שולחנות וכו׳).
+3. **אם יש חיבור שמור (📌) שמתאים לכמות הסועדים** — תעדיף אותו על פני צירוף אוטומטי. אלה ההגדרות של בעל המסעדה.
+4. אם השולחן פנוי רק עד שעה מסוימת — ציין זאת ("שולחן 11 פנוי עד 19:30, יש להם הזמנה אחר כך").
+5. תמיד החזר תשובה מועילה — לא להחזיר ריק. אם אין שולחן מתאים, תגיד מה כן יש או הצע חלופה (חכה X דק׳, חבר שולחנות וכו׳).
 
 החזר JSON בלבד.`;
 
