@@ -8751,16 +8751,45 @@ registerFn('aiSeatingAssistant', async ({ body }) => {
 תמיד החזר JSON: {"answer": "...", "actions": [{"label":"...","table":"...","customer":"..."}]}.
 תשובה 1-3 משפטים. פעולות = רעיונות קונקרטיים (חבר 201+202, הושב X על שולחן Y, האריך, העבר וכו').`;
 
+  // Split tables by location so location-based questions ("בחוץ" / "outdoor") just work.
+  const outdoorTables = tables.filter((t: any) => String(t.location || '').toLowerCase() === 'outdoor');
+  const indoorTables = tables.filter((t: any) => String(t.location || '').toLowerCase() !== 'outdoor');
+  // Identify which tables are currently occupied (active session) or assigned to an upcoming reservation
+  const occupiedTableSet = new Set<string>();
+  for (const s of seatedNow) if (s.table) occupiedTableSet.add(String(s.table));
+  for (const r of reservations) {
+    if (!r.table) continue;
+    const arr = Array.isArray(r.table) ? r.table : [r.table];
+    for (const tn of arr) occupiedTableSet.add(String(tn));
+  }
+  const freeTables = tables.filter((t: any) => !occupiedTableSet.has(String(t.n)));
+  const freeOutdoor = freeTables.filter((t: any) => String(t.location || '').toLowerCase() === 'outdoor');
+  const freeIndoor  = freeTables.filter((t: any) => String(t.location || '').toLowerCase() !== 'outdoor');
+
+  const summarizeByCap = (arr: any[]) => {
+    if (!arr.length) return 'אין';
+    return arr.map((t: any) => `#${t.n}(${t.min}-${t.max})`).join(', ');
+  };
+
   const userCtx = `שעה: ${nowStr}
 
 שאלה מהמארחת:
 """${question}"""
 
+מילון מיקומים:
+• "בחוץ" / "outdoor" / "חצר" / "טראסה" = location: outdoor
+• "בפנים" / "indoor" / "פנים" / "סלון" = location: indoor
+
 מצב נוכחי:
-• ${tables.length} שולחנות (אזורים: ${[...new Set(tables.map((t: any) => t.area))].join(', ')})
-• ${reservations.length} הזמנות היום
-• ${queueShort.length} בתור (${queueShort.filter((q: any) => q.status === 'pending').length} pending, ${queueShort.filter((q: any) => q.status === 'active').length} active)
-• ${seatedNow.length} סשנים פעילים
+• ${tables.length} שולחנות סה"כ — ${indoorTables.length} בפנים, ${outdoorTables.length} בחוץ
+• אזורים: ${[...new Set(tables.map((t: any) => t.area))].filter(Boolean).join(', ')}
+• ${reservations.length} הזמנות היום, ${queueShort.length} בתור (${queueShort.filter((q: any) => q.status === 'pending').length} pending, ${queueShort.filter((q: any) => q.status === 'active').length} active), ${seatedNow.length} סשנים פעילים
+
+🌿 שולחנות פנויים בחוץ (location=outdoor, לא תפוסים ולא משובצים להזמנה היום):
+${summarizeByCap(freeOutdoor)}
+
+🏠 שולחנות פנויים בפנים:
+${summarizeByCap(freeIndoor).slice(0, 800)}
 
 חיבורי שולחנות מוגדרים:
 ${combinable.map((t: any) => `${t.n}+${t.combinable.join('+')} (${t.min}-${t.max})`).join(', ') || 'אין'}
@@ -8773,6 +8802,11 @@ ${queueShort.map((q: any) => `${q.name} ×${q.party} (ממתין ${q.waitMin}ד�
 
 יושבים עכשיו (סשנים פעילים):
 ${seatedNow.map((s: any) => `שולחן ${s.table} ×${s.party} ${s.name || ''}`).join('\n') || '—'}
+
+חוקים לתשובה:
+1. אם המארחת ביקשה מקום ספציפי (בחוץ/בפנים/אזור מסוים) — חובה להציע שולחן מהמיקום שביקשה ואם אין — תאמר זאת במפורש.
+2. אם ביקשה כמות סועדים (X) — מצא שולחן יחיד עם min<=X<=max או צירוף שמתאים.
+3. תמיד החזר תשובה מועילה — לא להחזיר ריק. אם אין שולחן מתאים, תגיד מה כן יש או הצע חלופה (חכה X דק׳, חבר שולחנות וכו׳).
 
 החזר JSON בלבד.`;
 
