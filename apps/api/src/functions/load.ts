@@ -9311,7 +9311,8 @@ if (!(globalThis as any).__startupDriftRepair) {
       await prisma.$executeRawUnsafe(`ALTER TABLE "Customer" ADD COLUMN IF NOT EXISTS "marketing_consent" BOOLEAN NOT NULL DEFAULT FALSE;`);
       await prisma.$executeRawUnsafe(`ALTER TABLE "Customer" ADD COLUMN IF NOT EXISTS "marketing_consent_at" TIMESTAMP(3);`);
       await prisma.$executeRawUnsafe(`ALTER TABLE "Customer" ADD COLUMN IF NOT EXISTS "marketing_unsubscribed_at" TIMESTAMP(3);`);
-      console.log('[startup] Reservation deposit + marketing consent columns ensured');
+      await prisma.$executeRawUnsafe(`ALTER TABLE "ShiftTracking" ADD COLUMN IF NOT EXISTS "end_reminder_sent_at" TIMESTAMP(3);`);
+      console.log('[startup] Reservation deposit + marketing consent + shift reminder columns ensured');
     } catch (e: any) {
       console.error('[startup] ensure Reservation deposit cols failed:', e?.message);
     }
@@ -9581,4 +9582,96 @@ if (!(globalThis as any).__shiftAutoCloseTimer) {
       (globalThis as any).__shiftAutoCloseTimer = setTimeout(loop, 30 * 60 * 1000);
     });
   }, 3 * 60 * 1000); // 3 min after boot
+}
+
+// === Tighter shift-end reminder + earlier auto-close ========================
+// Runs every 10 min. For each active ShiftTracking:
+//   1) If now > scheduled_end + 30 min AND no reminder sent → push the employee
+//   2) If now > scheduled_end + 4 hours → auto-close (more aggressive than the 16h safety net)
+// Uses the matching WorkShift assignment's end_time as the source of truth.
+async function findEmployeeScheduledEnd(employeeId: string, clockInDate: Date): Promise<Date | null> {
+  const start = new Date(clockInDate);
+  start.setUTCHours(0, 0, 0, 0);
+  const end = new Date(start);
+  end.setUTCDate(end.getUTCDate() + 1);
+  const dayShifts = await db.workShift.findMany({
+    where: { date: { gte: start, lt: end } },
+  }).catch(() => []);
+  for (const w of dayShifts) {
+    for (const s of ((w.assigned_staff as any[]) || [])) {
+      if (s.employee_id === employeeId && s.end_time && /^\d{2}:\d{2}$/.test(String(s.end_time))) {
+        const [hh, mm] = String(s.end_time).split(':').map(Number);
+        const scheduled = new Date(clockInDate);
+        scheduled.setUTCHours(hh - 3, mm, 0, 0);
+        if (scheduled <= clockInDate) scheduled.setUTCDate(scheduled.getUTCDate() + 1);
+        return scheduled;
+      }
+    }
+  }
+  return null;
+}
+
+export async function shiftEndReminderAndClose() {
+  try {
+    const active: any[] = await (prisma as any).shiftTracking.findMany({
+      where: { status: 'active' },
+      take: 200,
+    }).catch(() => []);
+    const now = Date.now();
+    let reminders = 0, closed = 0;
+    for (const t of active) {
+      const clockIn = new Date(t.shift_start);
+      const scheduled = await findEmployeeScheduledEnd(t.employee_id, clockIn);
+      if (!scheduled) continue; // no schedule found → the 16h safety-net cron handles it
+      const minsPast = (now - scheduled.getTime()) / 60000;
+
+      // Aggressive auto-close: 4 hours past scheduled end
+      if (minsPast >= 240) {
+        const totalHours = Math.round(((scheduled.getTime() - clockIn.getTime()) / 36000)) / 100;
+        await (prisma as any).shiftTracking.update({
+          where: { id: t.id },
+          data: {
+            status: 'completed',
+            shift_end: scheduled,
+            total_hours: totalHours,
+            effective_hours: totalHours,
+            auto_close_reason: `auto-closed 4h after scheduled end (${scheduled.toISOString()})`,
+          },
+        }).catch(() => {});
+        closed++;
+        continue;
+      }
+
+      // Reminder push: 30 min past scheduled end, only if we haven't already pinged.
+      if (minsPast >= 30 && !t.end_reminder_sent_at) {
+        try {
+          await (prisma as any).shiftTracking.update({
+            where: { id: t.id },
+            data: { end_reminder_sent_at: new Date() },
+          });
+          const hhmm = `${String(scheduled.getUTCHours() + 3).padStart(2,'0')}:${String(scheduled.getUTCMinutes()).padStart(2,'0')}`;
+          // Admin gets notified — they can poke the employee. The employee themselves
+          // sees the pulsing red banner in the app the moment they open ShiftClockWidget.
+          await pushoverToAdmins(
+            '⏰ עובד שכח לסיים משמרת',
+            `${t.employee_name} הייתה אמורה לסיים ב-${hhmm} ועדיין מסומנת במשמרת.\nאם לא תסיים, הקרון יסגור אוטומטית בעוד כ-3.5 שעות.`,
+          ).catch(() => {});
+          reminders++;
+        } catch { /* ignore individual failures */ }
+      }
+    }
+    if (reminders > 0 || closed > 0) {
+      console.log(`[shift-end-reminder] ${reminders} reminders sent, ${closed} auto-closed`);
+    }
+  } catch (e: any) {
+    console.error('[shift-end-reminder] failed:', e?.message);
+  }
+}
+
+if (!(globalThis as any).__shiftEndReminderTimer) {
+  (globalThis as any).__shiftEndReminderTimer = setTimeout(function loop() {
+    shiftEndReminderAndClose().finally(() => {
+      (globalThis as any).__shiftEndReminderTimer = setTimeout(loop, 10 * 60 * 1000);
+    });
+  }, 5 * 60 * 1000); // 5 min after boot
 }

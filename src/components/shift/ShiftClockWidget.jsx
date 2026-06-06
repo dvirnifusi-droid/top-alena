@@ -52,7 +52,38 @@ export default function ShiftClockWidget() {
     const [showGearReturn, setShowGearReturn] = useState(false);
     const [myDevices, setMyDevices] = useState({ ipad: null, terminal: null });
     const [pendingEndShift, setPendingEndShift] = useState(false);
+    const [scheduledEnd, setScheduledEnd] = useState(null); // Date — pulls from WorkShift assignment
     const timerRef = useRef(null);
+
+    // Load the scheduled end time for the current shift assignment, so we can highlight
+    // the 'סיום משמרת' button once the time has passed.
+    useEffect(() => {
+        if (!activeShift) { setScheduledEnd(null); return; }
+        (async () => {
+            try {
+                const startDate = new Date(activeShift.shift_start);
+                const y = startDate.getFullYear();
+                const m = String(startDate.getMonth()+1).padStart(2,'0');
+                const d = String(startDate.getDate()).padStart(2,'0');
+                const today = `${y}-${m}-${d}`;
+                const workShifts = await base44.entities.WorkShift.filter({ date: today });
+                for (const w of (workShifts || [])) {
+                    for (const s of (w.assigned_staff || [])) {
+                        const matches = s.employee_id === activeShift.employee_id ||
+                            (s.employee_name && activeShift.employee_name && s.employee_name.trim().toLowerCase() === activeShift.employee_name.trim().toLowerCase());
+                        if (matches && s.end_time && /^\d{2}:\d{2}$/.test(s.end_time)) {
+                            const [hh, mm] = s.end_time.split(':').map(Number);
+                            const end = new Date(startDate);
+                            end.setHours(hh, mm, 0, 0);
+                            if (end <= startDate) end.setDate(end.getDate() + 1);
+                            setScheduledEnd(end);
+                            return;
+                        }
+                    }
+                }
+            } catch { /* silently ignore - this is a nice-to-have */ }
+        })();
+    }, [activeShift?.id]);
 
     useEffect(() => {
         timerRef.current = setInterval(() => setCurrentTime(new Date()), 1000);
@@ -568,14 +599,30 @@ export default function ShiftClockWidget() {
                                     {activeShift.had_meal ? 'נרשמה ארוחה' : 'ארוחת עובד'}
                                 </Button>
 
-                                <Button
-                                    onClick={endShift}
-                                    disabled={actionLoading || isOnBreak}
-                                    className="col-span-2 bg-red-600 hover:bg-red-700 text-white"
-                                >
-                                    <Square className="w-4 h-4 ml-1" />
-                                    סיום משמרת
-                                </Button>
+                                {(() => {
+                                    const isOverdue = scheduledEnd && currentTime > scheduledEnd;
+                                    const overdueMin = isOverdue ? Math.floor((currentTime - scheduledEnd) / 60000) : 0;
+                                    return (
+                                        <div className="col-span-2 space-y-1.5">
+                                            {isOverdue && (
+                                                <div className="bg-red-100 border-2 border-red-400 rounded-lg p-2 text-center animate-pulse">
+                                                    <div className="text-xs font-black text-red-900">⏰ המשמרת שלך הסתיימה ב-{scheduledEnd.getHours().toString().padStart(2,'0')}:{scheduledEnd.getMinutes().toString().padStart(2,'0')}</div>
+                                                    <div className="text-[10px] text-red-700">לחצי על "סיום משמרת" — עברו {overdueMin >= 60 ? `${Math.floor(overdueMin/60)} שעות` : `${overdueMin} דק'`}</div>
+                                                </div>
+                                            )}
+                                            <Button
+                                                onClick={endShift}
+                                                disabled={actionLoading || isOnBreak}
+                                                className={`w-full text-white ${isOverdue
+                                                    ? 'bg-red-600 hover:bg-red-700 ring-4 ring-red-300 animate-pulse shadow-lg shadow-red-500/50'
+                                                    : 'bg-red-600 hover:bg-red-700'}`}
+                                            >
+                                                <Square className="w-4 h-4 ml-1" />
+                                                סיום משמרת
+                                            </Button>
+                                        </div>
+                                    );
+                                })()}
                             </div>
                         </>
                     )}
