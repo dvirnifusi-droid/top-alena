@@ -8847,11 +8847,11 @@ registerFn('aiSeatingAssistant', async ({ body }) => {
 • אזורים: ${areaSummary}
 • ${reservations.length} הזמנות היום, ${queueShort.length} בתור (${queueShort.filter((q: any) => q.status === 'pending').length} pending, ${queueShort.filter((q: any) => q.status === 'active').length} active), ${seatedNow.length} סשנים פעילים
 
-🌿 שולחנות פנויים בחוץ (עם 'עד HH:MM' = ההזמנה הבאה לאותו שולחן היום):
-${summarizeWithUntil(freeOutdoor)}
+🌿 שולחנות פנויים בחוץ (עם 'עד HH:MM' = ההזמנה הבאה היום, אחרת = פנוי כל הערב):
+${summarizeWithUntil(freeOutdoor).slice(0, 1200)}
 
 🏠 שולחנות פנויים בפנים:
-${summarizeWithUntil(freeIndoor).slice(0, 800)}
+${summarizeWithUntil(freeIndoor).slice(0, 1200)}
 
 📌 חיבורים שמורים על-ידי הבעלים (לקבל עדיפות גבוהה כשהבקשה תואמת):
 ${ownerCombosText}
@@ -8881,8 +8881,8 @@ ${seatedNow.map((s: any) => `שולחן ${s.table} ×${s.party} ${s.name || ''}`
     const out: any = await invokeLLM({
       prompt: `${sys}\n\n---\n\n${userCtx}`,
       // Speed > reliability for this interactive helper.
-      timeoutMs: 15_000,
-      maxOutputTokens: 2048,
+      timeoutMs: 18_000,
+      maxOutputTokens: 4096,
       maxAttempts: 1,
       responseSchema: {
         type: 'object',
