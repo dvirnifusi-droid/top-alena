@@ -3492,6 +3492,7 @@ registerFn('createPublicReservation', async ({ body }) => {
   const tracking_token = makeTrackingToken();
   const customer_email = (body as any)?.customer_email
     ? String((body as any).customer_email).slice(0, 200).trim() : null;
+  const marketing_consent = !!(body as any)?.marketing_consent;
   // Compute deposit requirement (does NOT block booking yet — provider integration tomorrow).
   const depositInfo = await computeDepositRequirement({
     date, time, party_size: size, is_event: false,
@@ -3521,6 +3522,8 @@ registerFn('createPublicReservation', async ({ body }) => {
       deposit_required: !!depositInfo.required,
       deposit_amount: depositInfo.required ? depositInfo.amount_ils : null,
       deposit_status: depositInfo.required ? 'pending' : null,
+      marketing_consent,
+      marketing_consent_at: marketing_consent ? new Date() : null,
     } as any,
   });
   fireTriggers('Reservation', 'created', reservation).catch(() => {});
@@ -3582,16 +3585,29 @@ registerFn('createPublicReservation', async ({ body }) => {
   }
 
   // Upsert the customer club record by phone.
+  // Marketing consent: only SET it (never CLEAR) — once a customer opted in,
+  // only an explicit unsubscribe should turn it off.
   try {
     const phone = String(customer_phone).trim();
     const existing = await db.customer.findFirst({ where: { phone } });
     if (existing) {
-      await db.customer.update({
-        where: { id: existing.id },
-        data: { last_visit: bookingDate, visit_count: (existing.visit_count ?? 0) + 1, name: existing.name ?? customer_name },
-      });
+      const updateData: any = {
+        last_visit: bookingDate,
+        visit_count: (existing.visit_count ?? 0) + 1,
+        name: existing.name ?? customer_name,
+      };
+      // If the customer just opted in AND wasn't opted in before → record it.
+      if (marketing_consent && !(existing as any).marketing_consent) {
+        updateData.marketing_consent = true;
+        updateData.marketing_consent_at = new Date();
+      }
+      await db.customer.update({ where: { id: existing.id }, data: updateData });
     } else {
-      await db.customer.create({ data: { phone, name: customer_name, visit_count: 1, last_visit: bookingDate } });
+      await db.customer.create({ data: {
+        phone, name: customer_name, visit_count: 1, last_visit: bookingDate,
+        marketing_consent,
+        marketing_consent_at: marketing_consent ? new Date() : null,
+      } as any });
     }
   } catch (e) {
     console.warn('[createPublicReservation] customer upsert failed', e);
@@ -9256,7 +9272,12 @@ if (!(globalThis as any).__startupDriftRepair) {
       await prisma.$executeRawUnsafe(`ALTER TABLE "Reservation" ADD COLUMN IF NOT EXISTS "deposit_status" TEXT;`);
       await prisma.$executeRawUnsafe(`ALTER TABLE "Reservation" ADD COLUMN IF NOT EXISTS "deposit_authorized_at" TIMESTAMP(3);`);
       await prisma.$executeRawUnsafe(`ALTER TABLE "Reservation" ADD COLUMN IF NOT EXISTS "deposit_released_at" TIMESTAMP(3);`);
-      console.log('[startup] Reservation deposit columns ensured');
+      await prisma.$executeRawUnsafe(`ALTER TABLE "Reservation" ADD COLUMN IF NOT EXISTS "marketing_consent" BOOLEAN NOT NULL DEFAULT FALSE;`);
+      await prisma.$executeRawUnsafe(`ALTER TABLE "Reservation" ADD COLUMN IF NOT EXISTS "marketing_consent_at" TIMESTAMP(3);`);
+      await prisma.$executeRawUnsafe(`ALTER TABLE "Customer" ADD COLUMN IF NOT EXISTS "marketing_consent" BOOLEAN NOT NULL DEFAULT FALSE;`);
+      await prisma.$executeRawUnsafe(`ALTER TABLE "Customer" ADD COLUMN IF NOT EXISTS "marketing_consent_at" TIMESTAMP(3);`);
+      await prisma.$executeRawUnsafe(`ALTER TABLE "Customer" ADD COLUMN IF NOT EXISTS "marketing_unsubscribed_at" TIMESTAMP(3);`);
+      console.log('[startup] Reservation deposit + marketing consent columns ensured');
     } catch (e: any) {
       console.error('[startup] ensure Reservation deposit cols failed:', e?.message);
     }
@@ -9419,3 +9440,28 @@ if (!(globalThis as any).__dailySummaryTimer) {
     });
   }, 120 * 1000);
 }
+
+// === Marketing consent gating ==============================================
+// Use this BEFORE any promotional/marketing send to a customer. Returns false
+// if the customer never opted in, or explicitly unsubscribed.
+export async function customerCanReceiveMarketing(phone: string): Promise<boolean> {
+  if (!phone) return false;
+  const c: any = await db.customer.findFirst({ where: { phone: String(phone).trim() } }).catch(() => null);
+  if (!c) return false;
+  if (c.marketing_unsubscribed_at) return false;
+  return !!c.marketing_consent;
+}
+
+// Public: customer-facing unsubscribe by phone.
+// Marks the customer record as unsubscribed; future marketing sends will skip them.
+registerFn('unsubscribeMarketing', async ({ body }) => {
+  const phone = String((body as any)?.phone || '').trim();
+  if (!phone) throw new Error('phone required');
+  const c: any = await db.customer.findFirst({ where: { phone } }).catch(() => null);
+  if (!c) return { success: true, already: false };
+  await db.customer.update({
+    where: { id: c.id },
+    data: { marketing_unsubscribed_at: new Date(), marketing_consent: false } as any,
+  });
+  return { success: true };
+}, { public: true });

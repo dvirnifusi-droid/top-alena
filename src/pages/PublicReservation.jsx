@@ -145,6 +145,7 @@ export default function PublicReservationPage() {
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
   const [customerEmail, setCustomerEmail] = useState('');
+  const [marketingConsent, setMarketingConsent] = useState(false);
   const [specialRequests, setSpecialRequests] = useState('');
   const [occasion, setOccasion] = useState('');  // chip-selected celebration
 
@@ -331,6 +332,7 @@ export default function PublicReservationPage() {
         customer_name: customerName.trim(),
         customer_phone: customerPhone.trim(),
         customer_email: customerEmail?.trim?.() || null,
+        marketing_consent: !!marketingConsent,
         date: format(date, 'yyyy-MM-dd'),
         time,
         party_size: parseInt(partySize),
@@ -1051,6 +1053,20 @@ export default function PublicReservationPage() {
               </div>
             </div>
           )}
+
+          {/* Marketing consent — Israeli Spam Law (Section 30A) requires explicit opt-in for any non-transactional message */}
+          <label className="flex items-start gap-2 cursor-pointer select-none mt-1 mb-1 rounded-xl p-2.5" style={{ background: '#FFFEFB', border: '1px solid rgba(184,149,86,0.30)' }}>
+            <input
+              type="checkbox"
+              checked={marketingConsent}
+              onChange={(e) => setMarketingConsent(e.target.checked)}
+              className="mt-0.5 w-4 h-4 accent-emerald-600 shrink-0"
+            />
+            <span className="text-[12px] leading-snug" style={{ color: '#3d3327' }}>
+              אני מאשר/ת לעלינא לשלוח לי הודעות שיווקיות (מבצעים, אירועים מיוחדים, תפריטים חדשים) ב-SMS / WhatsApp / מייל.
+              <span className="block text-[10px] opacity-70 mt-1">אישור או ביטול הזמנה — תמיד תקבלו, גם בלי לסמן.</span>
+            </span>
+          </label>
 
           {/* CTA — brand terracotta */}
           <button

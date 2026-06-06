@@ -372,6 +372,12 @@ model Customer {
   group_size_preference        Int?
   tags                         Json?
   rating_received              Int?
+  // Marketing consent — copied from reservation form's opt-in checkbox.
+  // GATES every promotional/marketing send for this customer.
+  // Required by חוק הספאם / Israeli Spam Law (Section 30A).
+  marketing_consent            Boolean  @default(false)
+  marketing_consent_at         DateTime?
+  marketing_unsubscribed_at    DateTime?
   // Legacy base44 columns — exist in DB; declared so frontend code that
   // reads record.created_date / record.updated_date still gets a value.
   created_date String?
@@ -1389,6 +1395,11 @@ model Reservation {
   // reservation without auth.
   tracking_token               String?  @unique
   customer_email               String?
+  // Marketing consent — explicit opt-in checkbox in the public form.
+  // Required by Israeli Spam Law (Section 30A) for any non-transactional message.
+  // Transactional (booking confirm, table-ready, etc.) does NOT depend on this.
+  marketing_consent            Boolean  @default(false)
+  marketing_consent_at         DateTime?
   cancelled_at                 DateTime?
   cancellation_reason          String?
   deposit_charged_at           DateTime?
