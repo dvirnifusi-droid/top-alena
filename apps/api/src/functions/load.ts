@@ -9499,3 +9499,86 @@ registerFn('unsubscribeMarketing', async ({ body }) => {
   });
   return { success: true };
 }, { public: true });
+
+// === ShiftTracking auto-close cron ==========================================
+// Closes any 'active' ShiftTracking row whose clock-in is older than 16 hours.
+// 16h leaves slack for a full double-shift but prevents the database from
+// accumulating zombie 'active' rows when an employee forgets to clock out.
+// Uses scheduled end_time from the matching WorkShift if found; otherwise
+// clock_in + 6 hours.
+const SHIFT_AUTO_CLOSE_HOURS = 16;
+export async function autoCloseStaleShifts() {
+  try {
+    const cutoff = new Date(Date.now() - SHIFT_AUTO_CLOSE_HOURS * 3600 * 1000);
+    const stuck: any[] = await (prisma as any).shiftTracking.findMany({
+      where: { status: 'active', shift_start: { lt: cutoff } },
+      take: 200,
+    }).catch(() => []);
+    if (stuck.length === 0) return;
+    // Pull today's + yesterday's WorkShifts to find scheduled end_time per employee.
+    const since = new Date(Date.now() - 48 * 3600 * 1000);
+    const workShifts: any[] = await db.workShift.findMany({
+      where: { date: { gte: since } },
+    }).catch(() => []);
+    const endByEmp = new Map<string, string>();
+    for (const w of workShifts) {
+      for (const s of ((w.assigned_staff as any[]) || [])) {
+        if (s.employee_id && s.end_time && /^\d{2}:\d{2}$/.test(String(s.end_time))) {
+          endByEmp.set(s.employee_id, s.end_time);
+        }
+      }
+    }
+    let closed = 0;
+    for (const t of stuck) {
+      const start = new Date(t.shift_start);
+      const scheduledEnd = endByEmp.get(t.employee_id);
+      let endTime: Date;
+      let reason: string;
+      if (scheduledEnd) {
+        const [hh, mm] = scheduledEnd.split(':').map(Number);
+        // IL → UTC shift
+        endTime = new Date(start);
+        endTime.setUTCHours(hh - 3, mm, 0, 0);
+        if (endTime <= start) endTime.setUTCDate(endTime.getUTCDate() + 1);
+        reason = `auto-closed by cron — used scheduled end_time ${scheduledEnd}`;
+      } else {
+        endTime = new Date(start.getTime() + 6 * 3600 * 1000);
+        reason = `auto-closed by cron — no scheduled end, used +6h`;
+      }
+      const totalHours = Math.round(((endTime.getTime() - start.getTime()) / 36000)) / 100;
+      try {
+        await (prisma as any).shiftTracking.update({
+          where: { id: t.id },
+          data: {
+            status: 'completed',
+            shift_end: endTime,
+            total_hours: totalHours,
+            effective_hours: totalHours,
+            auto_close_reason: reason,
+          },
+        });
+        closed++;
+      } catch (e: any) { console.warn('[shift-auto-close] update failed:', t.id, e?.message); }
+    }
+    if (closed > 0) {
+      console.log(`[shift-auto-close] closed ${closed} stale ShiftTracking rows`);
+      try {
+        await pushoverToAdmins(
+          '⏰ משמרות נסגרו אוטומטית',
+          `${closed} עובדים שכחו לסיים משמרת — סגרתי אוטומטית לפי שעות מתוכננות.`,
+        );
+      } catch { /* ignore */ }
+    }
+  } catch (e: any) {
+    console.error('[shift-auto-close] failed:', e?.message);
+  }
+}
+
+if (!(globalThis as any).__shiftAutoCloseTimer) {
+  (globalThis as any).__shiftAutoCloseTimer = setTimeout(function loop() {
+    autoCloseStaleShifts().finally(() => {
+      // Check every 30 min
+      (globalThis as any).__shiftAutoCloseTimer = setTimeout(loop, 30 * 60 * 1000);
+    });
+  }, 3 * 60 * 1000); // 3 min after boot
+}
