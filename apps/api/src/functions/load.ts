@@ -3537,7 +3537,7 @@ registerFn('createPublicReservation', async ({ body }) => {
   const cancelLine = cancelHours
     ? `ביטול חופשי עד ${cancelHours} שעות לפני ההזמנה`
     : `אפשר לבטל ללא חיוב עד שעתיים לפני המועד`;
-  const restaurantPhone = process.env.RESTAURANT_PHONE || '03-XXXXXXX';
+  const restaurantPhone = process.env.RESTAURANT_PHONE || '03-6228055 שלוחה 3';
   const smsBody = isStandby
     ? [
         `שלום ${customer_name} 👋`,
