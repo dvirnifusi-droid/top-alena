@@ -247,19 +247,7 @@ export default function PublicReservationPage() {
       hoursToUse = getOpeningHours(date);
     }
     setOpeningHours(hoursToUse);
-    let slots = generateHourSlots(hoursToUse.start, hoursToUse.end);
-    // For TODAY: hide hour slots that are already in the past (or within next 15 min).
-    // Minimum lead time: 15 minutes ahead of the current Israel time.
-    const todayStr = format(new Date(), 'yyyy-MM-dd');
-    const selectedStr = format(date, 'yyyy-MM-dd');
-    if (selectedStr === todayStr) {
-      const now = new Date();
-      const cutoffMin = now.getHours() * 60 + now.getMinutes() + 15;
-      slots = slots.filter(hhmm => {
-        const [h, m] = String(hhmm).split(':').map(Number);
-        return (h * 60 + (m || 0)) >= cutoffMin;
-      });
-    }
+    const slots = generateHourSlots(hoursToUse.start, hoursToUse.end);
     setHourSlots(slots);
     setSelectedHour('');
     setTime('');
@@ -755,31 +743,52 @@ export default function PublicReservationPage() {
               <>
                 {/* Step 1: hour grid */}
                 <div className="grid grid-cols-4 md:grid-cols-6 gap-1.5 mt-2">
-                  {hourSlots.map(slot => {
-                    const av = availability[slot]; // open|tight|full|undefined
-                    const isHourActive = selectedHour === slot;
-                    const isFinal = time === slot;
-                    const disabled = av === 'full';
-                    return (
-                      <button
-                        key={slot}
-                        disabled={disabled}
-                        onClick={() => { setSelectedHour(slot); setTime(slot); }}
-                        className="relative rounded-xl py-3 text-sm font-bold transition-all min-h-[48px]"
-                        style={(isHourActive || isFinal)
-                          ? { background: '#A04A2E', color: '#F4ECD8', border: '1px solid #8B3D24', boxShadow: '0 6px 14px -5px rgba(160,74,46,0.55)' }
-                          : disabled
-                            ? { background: '#F4ECD8', color: '#C8B889', border: '1px solid rgba(184,149,86,0.15)', cursor: 'not-allowed' }
-                            : { background: '#FFFEFB', color: '#1F1B17', border: '1px solid rgba(184,149,86,0.35)' }}
-                      >
-                        {slot}
-                        {av && !isHourActive && !isFinal && (
-                          <span className={`absolute top-1 right-1 w-1.5 h-1.5 rounded-full
-                            ${av === 'open' ? 'bg-emerald-400' : av === 'tight' ? 'bg-amber-400' : 'bg-red-400'}`}></span>
-                        )}
-                      </button>
-                    );
-                  })}
+                  {(() => {
+                    // For TODAY: any slot that is already in the past (or within next 15 min)
+                    // is disabled and visually crossed out. Customer sees the full schedule but
+                    // can't pick a slot that won't actually happen.
+                    const todayStr = format(new Date(), 'yyyy-MM-dd');
+                    const selectedStr = format(date, 'yyyy-MM-dd');
+                    let pastCutoffMin = -1;
+                    if (selectedStr === todayStr) {
+                      const now = new Date();
+                      pastCutoffMin = now.getHours() * 60 + now.getMinutes() + 15;
+                    }
+                    return hourSlots.map(slot => {
+                      const av = availability[slot]; // open|tight|full|undefined
+                      const isHourActive = selectedHour === slot;
+                      const isFinal = time === slot;
+                      const [h, m] = String(slot).split(':').map(Number);
+                      const slotMin = h * 60 + (m || 0);
+                      const isPast = pastCutoffMin >= 0 && slotMin < pastCutoffMin;
+                      const disabled = av === 'full' || isPast;
+                      return (
+                        <button
+                          key={slot}
+                          disabled={disabled}
+                          onClick={() => { setSelectedHour(slot); setTime(slot); }}
+                          title={isPast ? 'שעה זו כבר עברה' : (av === 'full' ? 'מלא' : '')}
+                          className="relative rounded-xl py-3 text-sm font-bold transition-all min-h-[48px]"
+                          style={(isHourActive || isFinal)
+                            ? { background: '#A04A2E', color: '#F4ECD8', border: '1px solid #8B3D24', boxShadow: '0 6px 14px -5px rgba(160,74,46,0.55)' }
+                            : isPast
+                              ? { background: '#F1ECE2', color: '#A89882', border: '1px solid rgba(184,149,86,0.15)', cursor: 'not-allowed', textDecoration: 'line-through' }
+                              : disabled
+                                ? { background: '#F4ECD8', color: '#C8B889', border: '1px solid rgba(184,149,86,0.15)', cursor: 'not-allowed' }
+                                : { background: '#FFFEFB', color: '#1F1B17', border: '1px solid rgba(184,149,86,0.35)' }}
+                        >
+                          {slot}
+                          {av && !isHourActive && !isFinal && !isPast && (
+                            <span className={`absolute top-1 right-1 w-1.5 h-1.5 rounded-full
+                              ${av === 'open' ? 'bg-emerald-400' : av === 'tight' ? 'bg-amber-400' : 'bg-red-400'}`}></span>
+                          )}
+                          {isPast && (
+                            <span className="absolute top-0.5 right-1 text-[8px] text-gray-400">עבר</span>
+                          )}
+                        </button>
+                      );
+                    });
+                  })()}
                 </div>
 
                 {/* Step 2: quarter-hour drill-down strip (appears after hour is picked) */}
@@ -791,30 +800,45 @@ export default function PublicReservationPage() {
                         רבעי שעה זמינים סביב {selectedHour}
                       </div>
                       <div className="grid grid-cols-5 gap-1.5">
-                        {strip.map(s => {
-                          const av = quarterStripAvail[s];
-                          const active = time === s;
-                          const disabled = av === 'full';
-                          return (
-                            <button
-                              key={s}
-                              disabled={disabled}
-                              onClick={() => setTime(s)}
-                              className="relative rounded-lg py-1.5 text-[13px] font-bold transition-all"
-                              style={active
-                                ? { background: '#44512C', color: '#F4ECD8', border: '1px solid #2F3A1E', boxShadow: '0 5px 12px -4px rgba(68,81,44,0.55)', transform: 'scale(1.05)' }
-                                : disabled
-                                  ? { background: '#FFFEFB', color: '#C8B889', border: '1px solid rgba(184,149,86,0.15)', cursor: 'not-allowed' }
-                                  : { background: '#FFFEFB', color: '#44512C', border: '1px solid rgba(68,81,44,0.30)' }}
-                            >
-                              {s}
-                              {av && !active && (
-                                <span className={`absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full
-                                  ${av === 'open' ? 'bg-emerald-400' : av === 'tight' ? 'bg-amber-400' : 'bg-red-400'}`}></span>
-                              )}
-                            </button>
-                          );
-                        })}
+                        {(() => {
+                          const todayStr = format(new Date(), 'yyyy-MM-dd');
+                          const selectedStr = format(date, 'yyyy-MM-dd');
+                          let pastCutoffMin = -1;
+                          if (selectedStr === todayStr) {
+                            const now = new Date();
+                            pastCutoffMin = now.getHours() * 60 + now.getMinutes() + 15;
+                          }
+                          return strip.map(s => {
+                            const av = quarterStripAvail[s];
+                            const active = time === s;
+                            const [h, m] = String(s).split(':').map(Number);
+                            const slotMin = h * 60 + (m || 0);
+                            const isPast = pastCutoffMin >= 0 && slotMin < pastCutoffMin;
+                            const disabled = av === 'full' || isPast;
+                            return (
+                              <button
+                                key={s}
+                                disabled={disabled}
+                                onClick={() => setTime(s)}
+                                title={isPast ? 'שעה זו כבר עברה' : (av === 'full' ? 'מלא' : '')}
+                                className="relative rounded-lg py-1.5 text-[13px] font-bold transition-all"
+                                style={active
+                                  ? { background: '#44512C', color: '#F4ECD8', border: '1px solid #2F3A1E', boxShadow: '0 5px 12px -4px rgba(68,81,44,0.55)', transform: 'scale(1.05)' }
+                                  : isPast
+                                    ? { background: '#F1ECE2', color: '#A89882', border: '1px solid rgba(184,149,86,0.15)', cursor: 'not-allowed', textDecoration: 'line-through' }
+                                    : disabled
+                                      ? { background: '#FFFEFB', color: '#C8B889', border: '1px solid rgba(184,149,86,0.15)', cursor: 'not-allowed' }
+                                      : { background: '#FFFEFB', color: '#44512C', border: '1px solid rgba(68,81,44,0.30)' }}
+                              >
+                                {s}
+                                {av && !active && !isPast && (
+                                  <span className={`absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full
+                                    ${av === 'open' ? 'bg-emerald-400' : av === 'tight' ? 'bg-amber-400' : 'bg-red-400'}`}></span>
+                                )}
+                              </button>
+                            );
+                          });
+                        })()}
                       </div>
                     </div>
                   );
