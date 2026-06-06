@@ -360,10 +360,9 @@ export default function ShiftClockWidget() {
 
     const handleGearReturnDone = (result) => {
         setShowGearReturn(false);
-        if (result) {
-            // המשך לשאלון סיום משמרת
-            setShowEndShiftDialog(true);
-        }
+        // ALWAYS continue to the feedback dialog — even if gear-return was skipped
+        // or had no devices to return. Otherwise shift stays 'active' forever.
+        setShowEndShiftDialog(true);
         setPendingEndShift(false);
     };
 
@@ -380,13 +379,37 @@ export default function ShiftClockWidget() {
         const finalEffectiveHours = Math.max(0, totalHours - finalBreakMinutes / 60);
 
         // 1. עדכון ShiftTracking via raw SQL (Prisma update broken on this table)
-        await patchShift({
-            shift_end: now,
-            status: 'completed',
-            total_hours: Math.round(totalHours * 100) / 100,
-            effective_hours: Math.round(finalEffectiveHours * 100) / 100,
-            total_break_minutes: finalBreakMinutes,
-        });
+        // CRITICAL: this is the ONLY step that actually closes the shift. If it
+        // fails, we must NOT clear activeShift below — otherwise the UI lies to
+        // the employee (says "you're out") while the DB still has status='active'.
+        let closedSuccessfully = false;
+        try {
+            const result = await patchShift({
+                shift_end: now,
+                status: 'completed',
+                total_hours: Math.round(totalHours * 100) / 100,
+                effective_hours: Math.round(finalEffectiveHours * 100) / 100,
+                total_break_minutes: finalBreakMinutes,
+            });
+            closedSuccessfully = !!result;
+        } catch (e) {
+            console.error('[submitEndShift] patchShift failed:', e);
+            alert('⚠️ שגיאה בסיום המשמרת!\n\n' + (e?.data?.message || e?.message || 'שגיאת רשת') + '\n\nהמשמרת לא נסגרה. נסה שוב או פנה למנהל.');
+            setActionLoading(false);
+            return; // bail out — don't clear state, don't show loot box
+        }
+        if (!closedSuccessfully) {
+            alert('⚠️ סיום המשמרת לא אושר ע"י השרת. נסה שוב או פנה למנהל.');
+            setActionLoading(false);
+            return;
+        }
+        // Verify the DB actually has status='completed' by reloading.
+        try {
+            const verified = await base44.functions.getMyActiveShift({});
+            if (verified?.data?.shift) {
+                console.warn('[submitEndShift] server still returns an active shift after close — investigating');
+            }
+        } catch (e) { /* non-fatal */ }
 
         // 2. מצא את רשומת העובד לפי אימייל (כמו WorkScheduling)
         const employeeRecord = await findEmployeeRecord(user);
