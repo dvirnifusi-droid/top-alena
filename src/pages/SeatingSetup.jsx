@@ -2426,23 +2426,21 @@ export default function SeatingSetup() {
                                     mobileView === 'map' ? 'block' : 'hidden lg:block'
                                 }`}>
                                     {/* TOP ACTION BAR — compact on mobile, full on desktop */}
-                                    <div className="bg-white border border-gray-200 rounded-2xl shadow-sm p-1.5 md:p-3 flex items-center gap-1.5 flex-wrap">
-                                        <Button
+                                    <div className="bg-white border border-gray-200 rounded-2xl shadow-sm p-1.5 md:p-3 flex items-center gap-1.5 flex-nowrap overflow-hidden">
+                                        <button
                                             onClick={() => setSmartReserveOpen(true)}
-                                            size="sm"
-                                            className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold flex-1 sm:flex-initial"
+                                            className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs sm:text-sm px-2 sm:px-3 h-9 rounded-lg flex items-center justify-center gap-1 flex-1 sm:flex-initial min-w-0 truncate"
                                         >
-                                            <Plus className="w-4 h-4 ml-1" />
-                                            <span>הזמנה חדשה</span>
-                                        </Button>
-                                        <Button
+                                            <Plus className="w-3.5 h-3.5 shrink-0" />
+                                            <span className="truncate">הזמנה חדשה</span>
+                                        </button>
+                                        <button
                                             onClick={() => setQuickSeatOpen(true)}
-                                            size="sm"
-                                            className="bg-blue-600 hover:bg-blue-700 text-white font-bold flex-1 sm:flex-initial"
+                                            className="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs sm:text-sm px-2 sm:px-3 h-9 rounded-lg flex items-center justify-center gap-1 flex-1 sm:flex-initial min-w-0 truncate"
                                         >
-                                            <Plus className="w-4 h-4 ml-1" />
-                                            <span>הושבה מהירה</span>
-                                        </Button>
+                                            <Plus className="w-3.5 h-3.5 shrink-0" />
+                                            <span className="truncate">הושבה מהירה</span>
+                                        </button>
                                         <div className="hidden sm:block flex-1"></div>
                                         {/* Clock — desktop only (mobile shows in the system bar anyway) */}
                                         <div className="hidden sm:block text-center px-3 py-1 bg-gradient-to-bl from-slate-900 to-slate-700 text-white rounded-xl">
@@ -2554,10 +2552,13 @@ export default function SeatingSetup() {
                                             title="הצג המלצות AI"
                                         >✨ AI</button>
                                     </div>
-                                    <div className="w-full overflow-auto border rounded-lg bg-gray-100" style={{
-                                        // Mobile: as tall as possible so map dominates; desktop: cap so other rail/dashboard fits.
-                                        height: bigMapMode ? 'calc(100vh - 110px)' : '75vh',
-                                        minHeight: '60vh',
+                                    <div className="w-full border rounded-lg bg-gray-100 overscroll-contain" style={{
+                                        // Bounded scroll inside the card; iOS momentum + horizontal+vertical pan.
+                                        height: bigMapMode ? 'calc(100vh - 110px)' : '70vh',
+                                        minHeight: '55vh',
+                                        overflow: 'auto',
+                                        WebkitOverflowScrolling: 'touch',
+                                        touchAction: 'pan-x pan-y',
                                     }}>
                                     {/* Outer wrapper takes the *visual* (scaled) dimensions so scrollbars match.
                                         Inner element renders at native 1400×850 and is scaled with transform. */}
