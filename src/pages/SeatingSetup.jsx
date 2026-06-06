@@ -4546,6 +4546,40 @@ function CompactQueueStrip({ queueEntries, abandonedEntries, onSeat, onAbandon, 
     const [sizeFilter, setSizeFilter] = useState('all');
     const [waitTimeInput, setWaitTimeInput] = useState({}); // {entryId: '15'}
     const now = Date.now();
+    // AI seating suggestions per queue entry — keyed by entry.id
+    const [aiSuggestions, setAiSuggestions] = useState({}); // {entryId: {loading, answer, actions}}
+    const aiFetchedRef = useRef(new Set()); // entry ids we already fetched (avoid spamming endpoint)
+
+    // Auto-fetch AI suggestion for every active queue entry, once per entry
+    useEffect(() => {
+        const active = (queueEntries || []).filter(q => q.status === 'active' || q.status === 'pending');
+        for (const entry of active) {
+            if (aiFetchedRef.current.has(entry.id)) continue;
+            aiFetchedRef.current.add(entry.id);
+            (async () => {
+                setAiSuggestions(prev => ({ ...prev, [entry.id]: { loading: true } }));
+                const prefMap = { inside: 'בפנים', outside: 'בחוץ', no_preference: 'ללא העדפת מיקום' };
+                const prefText = prefMap[entry.seating_preference] || 'ללא העדפת מיקום';
+                const durationText = (entry.table_duration_preference === 'one_hour_only' || entry.table_duration_preference === 'one_hour')
+                    ? 'מסכימים לשולחן לשעה בלבד'
+                    : 'צריך שולחן לזמן רגיל (לא מוגבל לשעה)';
+                const noteText = entry.customer_notes ? ` הערה: "${entry.customer_notes}"` : '';
+                const question = `הגיע ${entry.customer_name || 'לקוח'} לתור עם ${entry.party_size || '?'} סועדים, ${prefText}, ${durationText}.${noteText} איזה שולחן הכי מתאים להושיב אותם עכשיו?`;
+                try {
+                    const tok = localStorage.getItem('auth_token') || '';
+                    const r = await fetch('/api/fn/aiSeatingAssistant', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + tok },
+                        body: JSON.stringify({ question }),
+                    });
+                    const data = await r.json();
+                    setAiSuggestions(prev => ({ ...prev, [entry.id]: { loading: false, answer: data.answer, actions: data.actions || [] } }));
+                } catch (e) {
+                    setAiSuggestions(prev => ({ ...prev, [entry.id]: { loading: false, error: String(e?.message || e) } }));
+                }
+            })();
+        }
+    }, [queueEntries]);
 
     const toggleTreated = async (entry) => {
         try { await QueueEntry.update(entry.id, { treated: !entry.treated }); onRefresh?.(); } catch {}
@@ -4729,6 +4763,58 @@ function CompactQueueStrip({ queueEntries, abandonedEntries, onSeat, onAbandon, 
                             {q.customer_notes && (
                                 <div className="mt-1 bg-yellow-50 border border-yellow-200 rounded px-1.5 py-1 text-[10px] text-yellow-900">
                                     💬 {q.customer_notes}
+                                </div>
+                            )}
+
+                            {/* AI seating suggestion — automatically loaded for every queue entry */}
+                            {aiSuggestions[q.id] && (
+                                <div className="mt-2 bg-gradient-to-br from-indigo-50 to-purple-50 border border-indigo-200 rounded-lg p-2">
+                                    <div className="flex items-center gap-1 text-[10px] font-black text-indigo-700 mb-1">
+                                        <span>✨</span><span>הצעת AI להושבה:</span>
+                                    </div>
+                                    {aiSuggestions[q.id].loading ? (
+                                        <div className="text-[11px] text-indigo-600 animate-pulse">חושב...</div>
+                                    ) : aiSuggestions[q.id].error ? (
+                                        <div className="text-[11px] text-amber-700">לא הצלחתי לקבל הצעה — נסה ידני</div>
+                                    ) : (
+                                        <>
+                                            <div className="text-[11px] text-gray-800 leading-snug mb-1.5">{aiSuggestions[q.id].answer}</div>
+                                            {Array.isArray(aiSuggestions[q.id].actions) && aiSuggestions[q.id].actions.length > 0 && (
+                                                <div className="flex flex-wrap gap-1">
+                                                    {aiSuggestions[q.id].actions.map((a, i) => (
+                                                        <button
+                                                            key={i}
+                                                            onClick={async () => {
+                                                                const tables = String(a.table || '').split(/[,+\s]+/).map(s => s.trim()).filter(Boolean);
+                                                                if (!tables.length) return;
+                                                                try {
+                                                                    // Mark queue as seated by setting timestamp_seated + status='seated'
+                                                                    await QueueEntry.update(q.id, {
+                                                                        status: 'seated',
+                                                                        timestamp_seated: new Date().toISOString(),
+                                                                    });
+                                                                    // Create TableSession for the walk-in
+                                                                    await TableSession.create({
+                                                                        table_number: tables[0],
+                                                                        party_size: q.party_size,
+                                                                        customer_name: q.customer_name,
+                                                                        customer_phone: q.customer_phone || '',
+                                                                        session_start: new Date().toISOString(),
+                                                                        status: 'active',
+                                                                        waiter_name: 'מנהל',
+                                                                        waiter_id: 'manager_seated',
+                                                                        table_style: 'couple',
+                                                                    });
+                                                                    onRefresh?.();
+                                                                } catch (e) { alert('שגיאה בהושבה: ' + (e?.message || e)); }
+                                                            }}
+                                                            className="text-[10px] font-bold px-2 py-1 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white shadow"
+                                                        >🪑 {a.label || `הושב על ${a.table}`}</button>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </>
+                                    )}
                                 </div>
                             )}
 
