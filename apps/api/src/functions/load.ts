@@ -8813,9 +8813,9 @@ ${seatedNow.map((s: any) => `שולחן ${s.table} ×${s.party} ${s.name || ''}`
   try {
     const out: any = await invokeLLM({
       prompt: `${sys}\n\n---\n\n${userCtx}`,
-      // Speed > reliability for this interactive helper: 12s timeout, no retries.
-      timeoutMs: 12_000,
-      maxOutputTokens: 1024,
+      // Speed > reliability for this interactive helper.
+      timeoutMs: 15_000,
+      maxOutputTokens: 2048,
       maxAttempts: 1,
       responseSchema: {
         type: 'object',
@@ -8836,11 +8836,24 @@ ${seatedNow.map((s: any) => `שולחן ${s.table} ×${s.party} ${s.name || ''}`
         required: ['answer'],
       },
     } as any);
+    console.log('[aiSeatingAssistant] LLM raw output:', JSON.stringify(out).slice(0, 400));
+    // Robust answer extraction — LLM sometimes wraps JSON in markdown, returns
+    // {text:...} instead of {answer:...}, or returns a stringified JSON.
+    let answer: string = String(out?.answer || out?.text || out?.reply || '').trim();
+    if (!answer && typeof out === 'string') {
+      // Sometimes invokeLLM returns the raw text when JSON parsing failed upstream
+      try {
+        const parsed = JSON.parse(out.replace(/^```json\s*/i, '').replace(/```\s*$/i, ''));
+        answer = String(parsed?.answer || '');
+      } catch { /* fallthrough */ }
+      if (!answer) answer = out as string;
+    }
     return {
-      answer: out?.answer || 'לא הצלחתי להבין — נסה לנסח שוב.',
+      answer: answer || 'ה-AI לא החזיר תשובה. נסה שוב, או נסח קצר יותר.',
       actions: Array.isArray(out?.actions) ? out.actions.slice(0, 5) : [],
     };
   } catch (e: any) {
+    console.error('[aiSeatingAssistant] error:', e?.message);
     return { answer: `שגיאת AI: ${e?.message || 'לא ידוע'}`, actions: [] };
   }
 });
