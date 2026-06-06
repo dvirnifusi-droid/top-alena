@@ -589,9 +589,12 @@ export default function SeatingSetup() {
     };
 
     const getTableSession = (tableNumber) => {
-        return activeSessions.find(session => 
-            session.table_number === tableNumber && session.status === 'active'
-        );
+        return activeSessions.find(session => {
+            if (session.status !== 'active') return false;
+            // Support multi-table sessions stored as 'A,B' or 'A+B'
+            const parts = String(session.table_number || '').split(/[,+]/).map(s => s.trim());
+            return parts.includes(String(tableNumber));
+        });
     };
 
     const getActiveTime = (session) => {
@@ -2298,9 +2301,9 @@ export default function SeatingSetup() {
                                                 customers={customers}
                                                 combos={combos}
                                                 onSeatReservation={async (tableNums, reservationId) => {
-                                                    // Assign tables to existing reservation + seat
                                                     if (!reservationId || !tableNums?.length) return;
                                                     try {
+                                                        const tableJoined = tableNums.map(String).join(',');
                                                         await Reservation.update(reservationId, {
                                                             assigned_table: tableNums,
                                                             status: 'seated',
@@ -2308,7 +2311,7 @@ export default function SeatingSetup() {
                                                         const res = reservations.find(r => r.id === reservationId);
                                                         if (res) {
                                                             await TableSession.create({
-                                                                table_number: String(tableNums[0]),
+                                                                table_number: tableJoined, // multi-table session
                                                                 party_size: res.party_size,
                                                                 customer_name: res.customer_name,
                                                                 customer_phone: res.customer_phone,
@@ -2326,7 +2329,7 @@ export default function SeatingSetup() {
                                                     if (!tableNums?.length || !name) return;
                                                     try {
                                                         await TableSession.create({
-                                                            table_number: String(tableNums[0]),
+                                                            table_number: tableNums.map(String).join(','), // multi-table session
                                                             party_size: Number(partySize) || 2,
                                                             customer_name: name,
                                                             customer_phone: phone || '',
@@ -4378,7 +4381,10 @@ function QuickSeatDialog({ open, onClose, tables, reservations, activeSessions, 
 
     // Build availability map
     const now = new Date();
-    const occupied = new Set(activeSessions.map(s => s.table_number));
+    // Multi-table sessions stored as 'A,B' or 'A+B' — expand into individual table numbers
+    const occupied = new Set(activeSessions.flatMap(s =>
+        String(s.table_number || '').split(/[,+]/).map(p => p.trim()).filter(Boolean)
+    ));
     const todayStr = format(now, 'yyyy-MM-dd');
     const todayReservations = (reservations || []).filter(r => {
         const d = r.date instanceof Date ? format(r.date, 'yyyy-MM-dd') : String(r.date).slice(0,10);
@@ -4800,7 +4806,8 @@ function CompactQueueStrip({ queueEntries, abandonedEntries, onSeat, onAbandon, 
                                                                     });
                                                                     // Create TableSession for the walk-in
                                                                     await TableSession.create({
-                                                                        table_number: tables[0],
+                                                                        // Multi-table support: join as "200,201" so map highlights both
+                                                                        table_number: tables.join(','),
                                                                         party_size: q.party_size,
                                                                         customer_name: q.customer_name,
                                                                         customer_phone: q.customer_phone || '',
