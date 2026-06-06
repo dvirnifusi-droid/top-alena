@@ -3342,16 +3342,30 @@ function TableCombosBreakdown({ tables, combos = [], onAddCombo, onRemoveCombo, 
                         </div>
                     )}
 
+                    {/* Build a set of "table-id sets" that the owner has explicitly claimed
+                        for SOME party size. These get suppressed from the auto-derived suggestions
+                        at every OTHER party size — so a combo saved as "3 סועדים" stops appearing
+                        as a generic suggestion under 2 and 4. */}
+                    {(() => null)()}
                     {[2,3,4,5,6,7,8,9,10,11,12].map(n => {
                         const b = breakdown[n] || { singles: [], combos: [] };
                         const explicitCombos = combos.filter(c => Number(c.party_size) === n);
+                        // Set of "tableId|tableId|..." keys claimed explicitly for ANY party size
+                        const claimedKeys = new Set(
+                            combos.map(c => [...(c.tables||[])].map(String).sort().join('|'))
+                        );
+                        // Filter out auto-derived combos whose table set is already claimed
+                        const autoCombos = (b.combos || []).filter(ac => {
+                            const key = [...(ac.ids||[])].map(String).sort().join('|');
+                            return !claimedKeys.has(key);
+                        });
                         return (
                             <div key={n} className="border border-gray-200 rounded-xl p-3 bg-white">
                                 <div className="flex items-center justify-between mb-2">
                                     <div className="font-black text-sm text-gray-900">👥 {n} סועדים</div>
                                     <div className="text-[11px] text-gray-500">
                                         {explicitCombos.length > 0 && <span className="text-emerald-700 font-bold">📌 {explicitCombos.length} שמורים · </span>}
-                                        {b.singles.length} לבד · {b.combos.length} בחיבור
+                                        {b.singles.length} לבד · {autoCombos.length} בחיבור
                                     </div>
                                 </div>
 
@@ -3383,11 +3397,11 @@ function TableCombosBreakdown({ tables, combos = [], onAddCombo, onRemoveCombo, 
                                         </div>
                                     </div>
                                 )}
-                                {b.combos.length > 0 && (
+                                {autoCombos.length > 0 && (
                                     <div>
-                                        <div className="text-[10px] font-bold text-gray-500 mb-1">🔗 בחיבור</div>
+                                        <div className="text-[10px] font-bold text-gray-500 mb-1">🔗 בחיבור (אוטומטי)</div>
                                         <div className="flex flex-wrap gap-1.5">
-                                            {b.combos.map((c, i) => (
+                                            {autoCombos.map((c, i) => (
                                                 <span key={i} className="inline-flex items-center gap-1 text-xs font-bold px-2 py-1 rounded-full border bg-blue-100 text-blue-800 border-blue-300">
                                                     {c.ids.map(id => `#${id}`).join(' + ')}
                                                     <span className="opacity-60">({c.sumMin}-{c.sumMax})</span>
@@ -3403,7 +3417,7 @@ function TableCombosBreakdown({ tables, combos = [], onAddCombo, onRemoveCombo, 
                                         </div>
                                     </div>
                                 )}
-                                {b.singles.length === 0 && b.combos.length === 0 && (
+                                {b.singles.length === 0 && autoCombos.length === 0 && explicitCombos.length === 0 && (
                                     <div className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1">⚠️ אין שולחן או חיבור שמתאים ל-{n} סועדים</div>
                                 )}
                             </div>
