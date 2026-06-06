@@ -3121,6 +3121,156 @@ function dayRange(dateInput: string | Date) {
   return { start, next, dateStr };
 }
 
+// === Deposit policy ===================================================
+// Pure rule engine — given (date, time, party_size, is_event), returns
+// { required, amount_ils, reason, free_cancel_until_iso }. Owner edits the
+// rules via /DepositSettings; this function reads them and applies.
+const DAY_NAMES = ['sunday','monday','tuesday','wednesday','thursday','friday','saturday'];
+async function computeDepositRequirement(params: {
+  date: string; time: string; party_size: number; is_event?: boolean;
+}) {
+  const { date, time, party_size, is_event } = params;
+  const settings: any = await (prisma as any).depositSettings.findFirst({ where: { singleton: true } }).catch(() => null);
+  if (!settings || !settings.enabled) {
+    return { required: false, amount_ils: 0, reason: 'מערכת פיקדון לא פעילה', free_cancel_until_iso: null };
+  }
+  const sz = Number(party_size) || 0;
+  const eventFlag = !!is_event || sz >= 13;
+  // Determine day-of-week from date.
+  let dayName = 'sunday';
+  try {
+    const d = new Date(`${date}T12:00:00.000Z`);
+    dayName = DAY_NAMES[d.getUTCDay()];
+  } catch {}
+  const weekendDays: string[] = Array.isArray(settings.required_weekend_days) && settings.required_weekend_days.length
+    ? settings.required_weekend_days
+    : ['thursday', 'friday', 'saturday'];
+  const midweekMin: number = settings.required_midweek_min_party_size ?? 6;
+  const smallThreshold: number = settings.small_party_threshold ?? 6;
+  // Required logic
+  let required = false;
+  let reason = '';
+  if (eventFlag) {
+    required = true;
+    reason = `אירוע (${sz}+ סועדים) — פיקדון נדרש בכל יום`;
+  } else if (weekendDays.includes(dayName)) {
+    required = true;
+    reason = `הזמנה בסוף שבוע (${dayName}) — פיקדון נדרש`;
+  } else if (sz >= midweekMin) {
+    required = true;
+    reason = `הזמנה אמצ"ש של ${sz} סועדים (סף ${midweekMin}) — פיקדון נדרש`;
+  } else {
+    return { required: false, amount_ils: 0, reason: 'לא נדרש פיקדון לתרחיש זה', free_cancel_until_iso: null };
+  }
+  // Amount
+  let amount_ils = 0;
+  if (eventFlag) {
+    // 20% of event value — owner-defined per-event estimate; use ₪220 × guests as the default contract value.
+    const pctValue = settings.event_pct ?? 20;
+    const eventValue = sz * 220;
+    amount_ils = Math.round((eventValue * pctValue) / 100);
+  } else {
+    const perGuest = settings.amount_per_guest_ils ?? 30;
+    amount_ils = sz * perGuest;
+  }
+  // Free-cancel window
+  const cancelHours = eventFlag
+    ? (settings.free_cancel_hours_event ?? 24)
+    : sz > smallThreshold
+      ? (settings.free_cancel_hours_large ?? 6)
+      : (settings.free_cancel_hours_small ?? 3);
+  let free_cancel_until_iso: string | null = null;
+  try {
+    const [hh, mm] = String(time).split(':').map((s) => parseInt(s, 10));
+    const reservationStart = new Date(`${date}T${String(hh).padStart(2,'0')}:${String(mm||0).padStart(2,'0')}:00+03:00`);
+    free_cancel_until_iso = new Date(reservationStart.getTime() - cancelHours * 3600 * 1000).toISOString();
+  } catch {}
+  return { required, amount_ils, reason, free_cancel_until_iso, cancel_hours: cancelHours };
+}
+
+// Public: check if a given reservation slot requires a deposit (for showing in the booking form).
+registerFn('getDepositRequirement', async ({ body }) => {
+  const b = (body || {}) as any;
+  return await computeDepositRequirement({
+    date: String(b.date || ''),
+    time: String(b.time || ''),
+    party_size: Number(b.party_size) || 0,
+    is_event: !!b.is_event,
+  });
+}, { public: true });
+
+// Admin: read DepositSettings, or seed with sensible defaults if missing.
+registerFn('getDepositSettings', async () => {
+  let settings: any = await (prisma as any).depositSettings.findFirst({ where: { singleton: true } }).catch(() => null);
+  if (!settings) {
+    settings = await (prisma as any).depositSettings.create({
+      data: {
+        singleton: true,
+        required_weekend_days: ['thursday', 'friday', 'saturday'],
+        required_midweek_min_party_size: 6,
+        amount_per_guest_ils: 30,
+        event_pct: 20,
+        free_cancel_hours_small: 3,
+        free_cancel_hours_large: 6,
+        free_cancel_hours_event: 24,
+        small_party_threshold: 6,
+        enabled: false,
+      },
+    });
+  }
+  return settings;
+});
+
+registerFn('updateDepositSettings', async ({ body, user }) => {
+  if (!user) throw new Error('auth required');
+  const allowed = [
+    'required_weekend_days', 'required_midweek_min_party_size',
+    'amount_per_guest_ils', 'event_pct',
+    'free_cancel_hours_small', 'free_cancel_hours_large', 'free_cancel_hours_event',
+    'small_party_threshold', 'provider', 'enabled',
+  ];
+  const data: any = {};
+  for (const k of allowed) if ((body as any)?.[k] !== undefined) data[k] = (body as any)[k];
+  let settings: any = await (prisma as any).depositSettings.findFirst({ where: { singleton: true } }).catch(() => null);
+  if (!settings) {
+    settings = await (prisma as any).depositSettings.create({ data: { singleton: true, ...data } });
+  } else {
+    settings = await (prisma as any).depositSettings.update({ where: { id: settings.id }, data });
+  }
+  return settings;
+});
+
+// Hostess: manually capture (charge no-show) or release (refund/cancel) a deposit hold.
+// PROVIDER-SPECIFIC WIRING goes here once we know which gateway (MAX Online / Tranzila / PayPlus).
+// For now these only update DB state and log; real provider call is a TODO.
+registerFn('captureDeposit', async ({ body, user }) => {
+  if (!user) throw new Error('auth required');
+  const { reservation_id } = body as any;
+  const r: any = await (prisma as any).reservation.findUnique({ where: { id: String(reservation_id) } });
+  if (!r) throw new Error('not_found');
+  if (r.deposit_status !== 'authorized') return { success: false, reason: 'not_authorized', currentStatus: r.deposit_status };
+  // TODO: call provider API to capture
+  await (prisma as any).reservation.update({
+    where: { id: r.id },
+    data: { deposit_status: 'captured', deposit_charged_at: new Date(), deposit_charge_amount: r.deposit_amount },
+  });
+  return { success: true, captured_ils: r.deposit_amount };
+});
+
+registerFn('releaseDeposit', async ({ body, user }) => {
+  if (!user) throw new Error('auth required');
+  const { reservation_id } = body as any;
+  const r: any = await (prisma as any).reservation.findUnique({ where: { id: String(reservation_id) } });
+  if (!r) throw new Error('not_found');
+  if (r.deposit_status !== 'authorized') return { success: false, reason: 'not_authorized', currentStatus: r.deposit_status };
+  // TODO: call provider API to release
+  await (prisma as any).reservation.update({
+    where: { id: r.id },
+    data: { deposit_status: 'released', deposit_released_at: new Date() },
+  });
+  return { success: true };
+});
+
 registerFn('searchReservationTable', async ({ body }) => {
   const { date, time, party_size } = body as any;
   if (!date || !time || !party_size) throw new Error('date, time, party_size required');
@@ -3342,6 +3492,10 @@ registerFn('createPublicReservation', async ({ body }) => {
   const tracking_token = makeTrackingToken();
   const customer_email = (body as any)?.customer_email
     ? String((body as any).customer_email).slice(0, 200).trim() : null;
+  // Compute deposit requirement (does NOT block booking yet — provider integration tomorrow).
+  const depositInfo = await computeDepositRequirement({
+    date, time, party_size: size, is_event: false,
+  }).catch(() => ({ required: false, amount_ils: 0 }));
   const reservation = await db.reservation.create({
     data: {
       customer_name: String(customer_name).trim(),
@@ -3364,6 +3518,9 @@ registerFn('createPublicReservation', async ({ body }) => {
       referrer: referrer ? String(referrer).slice(0, 500) : null,
       tracking_token,
       customer_email,
+      deposit_required: !!depositInfo.required,
+      deposit_amount: depositInfo.required ? depositInfo.amount_ils : null,
+      deposit_status: depositInfo.required ? 'pending' : null,
     } as any,
   });
   fireTriggers('Reservation', 'created', reservation).catch(() => {});
@@ -9090,6 +9247,40 @@ if (!(globalThis as any).__startupDriftRepair) {
       console.log('[startup] SeatingLayout.combos column ensured');
     } catch (e: any) {
       console.error('[startup] ensure SeatingLayout.combos failed:', e?.message);
+    }
+    try {
+      await prisma.$executeRawUnsafe(`ALTER TABLE "Reservation" ADD COLUMN IF NOT EXISTS "deposit_required" BOOLEAN NOT NULL DEFAULT FALSE;`);
+      await prisma.$executeRawUnsafe(`ALTER TABLE "Reservation" ADD COLUMN IF NOT EXISTS "deposit_amount" INTEGER;`);
+      await prisma.$executeRawUnsafe(`ALTER TABLE "Reservation" ADD COLUMN IF NOT EXISTS "deposit_provider" TEXT;`);
+      await prisma.$executeRawUnsafe(`ALTER TABLE "Reservation" ADD COLUMN IF NOT EXISTS "deposit_provider_ref" TEXT;`);
+      await prisma.$executeRawUnsafe(`ALTER TABLE "Reservation" ADD COLUMN IF NOT EXISTS "deposit_status" TEXT;`);
+      await prisma.$executeRawUnsafe(`ALTER TABLE "Reservation" ADD COLUMN IF NOT EXISTS "deposit_authorized_at" TIMESTAMP(3);`);
+      await prisma.$executeRawUnsafe(`ALTER TABLE "Reservation" ADD COLUMN IF NOT EXISTS "deposit_released_at" TIMESTAMP(3);`);
+      console.log('[startup] Reservation deposit columns ensured');
+    } catch (e: any) {
+      console.error('[startup] ensure Reservation deposit cols failed:', e?.message);
+    }
+    try {
+      await prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "DepositSettings" (
+        "id" TEXT PRIMARY KEY,
+        "singleton" BOOLEAN NOT NULL UNIQUE DEFAULT TRUE,
+        "required_weekend_days" JSONB,
+        "required_midweek_min_party_size" INTEGER DEFAULT 6,
+        "amount_per_guest_ils" INTEGER DEFAULT 30,
+        "event_pct" INTEGER DEFAULT 20,
+        "free_cancel_hours_small" INTEGER DEFAULT 3,
+        "free_cancel_hours_large" INTEGER DEFAULT 6,
+        "free_cancel_hours_event" INTEGER DEFAULT 24,
+        "small_party_threshold" INTEGER DEFAULT 6,
+        "provider" TEXT,
+        "provider_credentials" JSONB,
+        "enabled" BOOLEAN NOT NULL DEFAULT FALSE,
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );`);
+      console.log('[startup] DepositSettings table ensured');
+    } catch (e: any) {
+      console.error('[startup] ensure DepositSettings failed:', e?.message);
     }
   })();
 }

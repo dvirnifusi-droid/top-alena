@@ -160,6 +160,7 @@ export default function PublicReservationPage() {
   // Slot-full helper: when backend says no_availability we surface
   // nearby open slots and a standby-waitlist button.
   const [alternatives, setAlternatives] = useState([]); // [{ time, offset_min }]
+  const [depositInfo, setDepositInfo] = useState(null); // { required, amount_ils, reason, free_cancel_until_iso }
 
   const [liveCount, setLiveCount] = useState(null);
   const [featuredMenu, setFeaturedMenu] = useState([]);
@@ -252,6 +253,23 @@ export default function PublicReservationPage() {
     setSelectedHour('');
     setTime('');
   }, [date, settings]);
+
+  // --- Compute deposit requirement whenever date/time/party_size changes
+  useEffect(() => {
+    if (!time || !date || !partySize) { setDepositInfo(null); return; }
+    let cancelled = false;
+    (async () => {
+      try {
+        const r = await invokePublic('getDepositRequirement', {
+          date: format(date, 'yyyy-MM-dd'),
+          time,
+          party_size: Number(partySize),
+        });
+        if (!cancelled) setDepositInfo(r);
+      } catch { setDepositInfo(null); }
+    })();
+    return () => { cancelled = true; };
+  }, [date, time, partySize]);
 
   // --- Fetch availability snapshot for the HOUR-level grid (one dot per hour)
   useEffect(() => {
@@ -1019,6 +1037,17 @@ export default function PublicReservationPage() {
                 >
                   {isBooking ? 'רושם...' : '🟡 הירשם לרשימת המתנה ב-' + time}
                 </button>
+              </div>
+            </div>
+          )}
+
+          {/* Deposit notice — appears when a hold is required for this slot */}
+          {depositInfo?.required && (
+            <div className="rounded-2xl p-3 border-2 border-emerald-300 bg-emerald-50 mb-2">
+              <div className="font-bold text-sm text-emerald-900 mb-1">💳 פיקדון נדרש להזמנה זו: ₪{depositInfo.amount_ils}</div>
+              <div className="text-[12px] text-emerald-800 leading-relaxed">
+                {depositInfo.reason} · אנחנו ננפיק על הכרטיס שלך <strong>אישור עסקה בלבד</strong> — הכסף לא יורד מהחשבון. <br/>
+                ביטול חופשי עד {depositInfo.cancel_hours} שעות לפני ההזמנה. אחרי זה — אם תבטל או לא תגיע, נחייב ב-₪{depositInfo.amount_ils} בלבד.
               </div>
             </div>
           )}

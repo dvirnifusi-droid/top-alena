@@ -1393,6 +1393,16 @@ model Reservation {
   cancellation_reason          String?
   deposit_charged_at           DateTime?
   deposit_charge_amount        Int?     // in ILS
+  // Deposit / auth-hold flow (new). The hold is created at booking time, then either:
+  // - released on arrival (auto when status→seated)
+  // - captured if no_show (auto after a grace period, or manual by hostess)
+  deposit_required             Boolean  @default(false)
+  deposit_amount               Int?     // requested hold amount in ILS
+  deposit_provider             String?  // 'max_online' | 'tranzila' | 'payplus' | 'cardcom' (set after we know which)
+  deposit_provider_ref         String?  // transaction id at the provider
+  deposit_status               String?  // 'pending' | 'authorized' | 'captured' | 'released' | 'failed'
+  deposit_authorized_at        DateTime?
+  deposit_released_at          DateTime?
   // Standby waitlist — guest opted in when their preferred slot was full.
   // is_standby=true means restaurant promised to call back if a real table
   // opens. On callback the hostess flips this to false (= promoted to real).
@@ -1436,6 +1446,31 @@ model SpecialPopup {
   ends_at           DateTime?
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
+}
+
+// DepositSettings — singleton row that defines when a deposit is required,
+// how much to charge, and the no-charge cancellation window.
+model DepositSettings {
+  id                              String   @id @default(cuid())
+  singleton                       Boolean  @unique @default(true)
+  // Rules — JSON: { weekend_days: ['thursday','friday','saturday'], min_party_for_midweek: 6 }
+  required_weekend_days           Json?
+  required_midweek_min_party_size Int?     @default(6)
+  // Amounts
+  amount_per_guest_ils            Int?     @default(30) // ₪30 per guest
+  event_pct                       Int?     @default(20) // 20% of event value
+  // Cancellation policy — free-cancel cutoffs (in hours before reservation)
+  free_cancel_hours_small         Int?     @default(3)  // up to 6 guests
+  free_cancel_hours_large         Int?     @default(6)  // 6+ guests
+  free_cancel_hours_event         Int?     @default(24) // events 13+
+  small_party_threshold           Int?     @default(6)  // up to this many = "small"
+  // Provider — set by owner after they pick (max_online / tranzila / payplus / cardcom)
+  provider                        String?
+  provider_credentials            Json?    // encrypted/opaque; set via admin panel
+  // Master switch
+  enabled                         Boolean  @default(false)
+  createdAt                       DateTime @default(now())
+  updatedAt                       DateTime @updatedAt
 }
 
 // Conversion-funnel telemetry for SpecialPopup. Each event ties back to a
