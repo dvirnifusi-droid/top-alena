@@ -45,6 +45,7 @@ const filterPositionsByShiftType = (positions, shiftType) => {
 export default function QuickAssignDialog({ isOpen, onOpenChange, context, employees, positions, onAction }) {
     const [selectedEmployeeId, setSelectedEmployeeId] = useState('');
     const [selectedPosition, setSelectedPosition] = useState('');
+    const [employeeSearch, setEmployeeSearch] = useState('');
     const [startTime, setStartTime] = useState('');
     const [endTime, setEndTime] = useState('');
     const [onLeaveEmployeeIds, setOnLeaveEmployeeIds] = useState(new Set());
@@ -130,14 +131,37 @@ export default function QuickAssignDialog({ isOpen, onOpenChange, context, emplo
                                 <SelectValue placeholder="בחר עובד" />
                             </SelectTrigger>
                             <SelectContent>
-                               {employees.map(employee => {
-                                   const isOnLeave = onLeaveEmployeeIds.has(employee.id);
-                                   return (
-                                       <SelectItem key={employee.id} value={employee.id} disabled={isOnLeave}>
-                                           {isOnLeave ? `🚫 ${employee.full_name} (בחופשה)` : employee.full_name}
-                                       </SelectItem>
-                                   );
-                               })}
+                                {/* Search box inside the dropdown — type to filter, no scrolling */}
+                                <div className="p-2 sticky top-0 bg-white z-10 border-b">
+                                    <input
+                                        type="text"
+                                        placeholder="🔍 חפש לפי שם..."
+                                        value={employeeSearch}
+                                        onChange={(e) => setEmployeeSearch(e.target.value)}
+                                        onKeyDown={(e) => e.stopPropagation()}
+                                        onClick={(e) => e.stopPropagation()}
+                                        autoFocus
+                                        className="w-full text-sm border border-gray-300 rounded px-2 py-1 focus:outline-none focus:border-indigo-500"
+                                        dir="rtl"
+                                    />
+                                </div>
+                                {(() => {
+                                    const q = employeeSearch.trim().toLowerCase();
+                                    const filtered = q
+                                        ? employees.filter(e => (e.full_name || '').toLowerCase().includes(q))
+                                        : employees;
+                                    if (filtered.length === 0) {
+                                        return <div className="text-xs text-gray-500 text-center py-3">לא נמצאו עובדים</div>;
+                                    }
+                                    return filtered.map(employee => {
+                                        const isOnLeave = onLeaveEmployeeIds.has(employee.id);
+                                        return (
+                                            <SelectItem key={employee.id} value={employee.id} disabled={isOnLeave}>
+                                                {isOnLeave ? `🚫 ${employee.full_name} (בחופשה)` : employee.full_name}
+                                            </SelectItem>
+                                        );
+                                    });
+                                })()}
                             </SelectContent>
                         </Select>
                     </div>
