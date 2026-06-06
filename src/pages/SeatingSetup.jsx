@@ -2149,7 +2149,7 @@ export default function SeatingSetup() {
                                         const flexCount = Array.isArray(flexSlots) ? flexSlots.length : 0;
                                         if (fixedCount + flexCount < 2) return; // Need at least 2 slots total
                                         const sorted = [...(tableIds || [])].map(String).sort();
-                                        const slots = (flexSlots || []).map(f => ({ key: f.key, label: f.label, min: f.min, max: f.max }));
+                                        const slots = (flexSlots || []).map(f => ({ key: f.key, label: f.label, table_max: f.table_max }));
                                         const slotKey = slots.map(s => s.key).sort().join(',');
                                         const key = `${partySize}:${sorted.join('-')}:${slotKey}`;
                                         // De-dupe: same tables AND same flex slots
@@ -3078,12 +3078,26 @@ function TableCombosBreakdown({ tables, combos = [], onAddCombo, onRemoveCombo, 
     const [addMode, setAddMode] = React.useState(false);
     const [pickedTables, setPickedTables] = React.useState([]); // multi-select
     const [pickedSize, setPickedSize] = React.useState(''); // 3..40 or '' (auto)
-    const [flexSlots, setFlexSlots] = React.useState([]); // [{capacity_label, min, max}] — wildcards
+    const [flexSlots, setFlexSlots] = React.useState([]); // [{key, label, table_max}] — wildcards
+    // Each option = a ceiling on the candidate table's max_capacity.
+    // table_max=2 means "ONLY a table whose max_capacity is 2" — i.e. a real 2-seater,
+    // not a 4-seater that happens to fit 2. This prevents wasting a #200 (4-seater)
+    // as a 'זוגי' slot.
     const FLEX_OPTIONS = [
-        { key: 'pair',   label: 'שולחן זוגי פנוי',       min: 1, max: 2, emoji: '🃏' },
-        { key: 'trio',   label: 'שולחן 3-4 מקומות פנוי',  min: 3, max: 4, emoji: '🃏' },
-        { key: 'big',    label: 'שולחן 5+ מקומות פנוי',   min: 5, max: 8, emoji: '🃏' },
+        { key: 'max2', label: 'שולחן זוגי (max 2)',    table_max: 2 },
+        { key: 'max3', label: 'שולחן שלישייה (max 3)', table_max: 3 },
+        { key: 'max4', label: 'שולחן רביעייה (max 4)', table_max: 4 },
+        { key: 'max5', label: 'שולחן חמישייה (max 5)', table_max: 5 },
+        { key: 'max6', label: 'שולחן שישייה (max 6)',  table_max: 6 },
     ];
+    // Diagnostic: how many real tables match each ceiling. Cheap — recompute per render.
+    const flexCounts = (() => {
+        const out = {};
+        for (const opt of FLEX_OPTIONS) {
+            out[opt.key] = (tables || []).filter(t => Number(t?.max_capacity) === opt.table_max).length;
+        }
+        return out;
+    })();
     const addFlex = (key) => {
         const opt = FLEX_OPTIONS.find(o => o.key === key);
         if (!opt) return;
@@ -3344,13 +3358,21 @@ function TableCombosBreakdown({ tables, combos = [], onAddCombo, onRemoveCombo, 
                                     {/* Wildcard slots — fill at seating time with whichever free table fits */}
                                     <div className="mb-2 p-2 bg-purple-50 border border-purple-200 rounded">
                                         <div className="text-xs font-bold text-purple-800 mb-1">🃏 הוסף שולחן וויילדקארד (פנוי בזמן אמת):</div>
+                                        <div className="text-[10px] text-purple-700 mb-1.5">
+                                            ההגבלה היא לפי <strong>max_capacity של השולחן עצמו</strong>: "זוגי" = רק שולחנות שה-max שלהם הוא 2 (לא רביעייה שמכילה 2).
+                                        </div>
                                         <div className="flex flex-wrap gap-1">
                                             {FLEX_OPTIONS.map(opt => (
                                                 <button
                                                     key={opt.key}
                                                     onClick={() => addFlex(opt.key)}
-                                                    className="text-[11px] font-bold px-2 py-1 rounded-full bg-white border border-purple-300 text-purple-900 hover:bg-purple-100"
-                                                >+ {opt.label}</button>
+                                                    disabled={flexCounts[opt.key] === 0}
+                                                    title={flexCounts[opt.key] === 0 ? 'אין שולחנות עם max זה במפה' : `יש ${flexCounts[opt.key]} שולחנות במפה עם max=${opt.table_max}`}
+                                                    className={`text-[11px] font-bold px-2 py-1 rounded-full border
+                                                        ${flexCounts[opt.key] === 0
+                                                            ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
+                                                            : 'bg-white text-purple-900 border-purple-300 hover:bg-purple-100'}`}
+                                                >+ {opt.label} <span className="opacity-60">({flexCounts[opt.key]})</span></button>
                                             ))}
                                         </div>
                                         {flexSlots.length > 0 && (
@@ -3423,7 +3445,7 @@ function TableCombosBreakdown({ tables, combos = [], onAddCombo, onRemoveCombo, 
                                         <div className="flex flex-wrap gap-1.5">
                                             {explicitCombos.map(c => {
                                                 const fixedParts = (c.tables || []).map(id => `#${id}`);
-                                                const flexParts = (c.flex_slots || []).map(s => `🃏${s.label || `${s.min}-${s.max}`}`);
+                                                const flexParts = (c.flex_slots || []).map(s => `🃏${s.label || `max ${s.table_max || s.max}`}`);
                                                 const parts = [...fixedParts, ...flexParts];
                                                 return (
                                                     <span key={c.id} className="inline-flex items-center gap-1 text-xs font-bold px-2 py-1 rounded-full border bg-emerald-100 text-emerald-900 border-emerald-400">
