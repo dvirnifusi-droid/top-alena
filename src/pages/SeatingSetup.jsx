@@ -2149,12 +2149,15 @@ export default function SeatingSetup() {
                                         const flexCount = Array.isArray(flexSlots) ? flexSlots.length : 0;
                                         if (fixedCount + flexCount < 2) return; // Need at least 2 slots total
                                         const sorted = [...(tableIds || [])].map(String).sort();
-                                        const slots = (flexSlots || []).map(f => ({ key: f.key, label: f.label, table_max: f.table_max }));
-                                        const slotKey = slots.map(s => s.key).sort().join(',');
+                                        const slots = (flexSlots || []).map(f => ({
+                                            key: f.key, label: f.label, table_max: f.table_max,
+                                            exclude_tables: Array.isArray(f.exclude_tables) ? [...f.exclude_tables].map(String).sort() : [],
+                                        }));
+                                        const slotKey = slots.map(s => `${s.key}|${(s.exclude_tables||[]).join(',')}`).sort().join(';');
                                         const key = `${partySize}:${sorted.join('-')}:${slotKey}`;
-                                        // De-dupe: same tables AND same flex slots
+                                        // De-dupe: same tables AND same flex slots (including their excludes)
                                         if (combos.some(c => {
-                                            const ck = `${c.party_size}:${[...(c.tables||[])].map(String).sort().join('-')}:${(c.flex_slots||[]).map(s=>s.key).sort().join(',')}`;
+                                            const ck = `${c.party_size}:${[...(c.tables||[])].map(String).sort().join('-')}:${(c.flex_slots||[]).map(s=>`${s.key}|${(s.exclude_tables||[]).join(',')}`).sort().join(';')}`;
                                             return ck === key;
                                         })) return;
                                         setCombos(prev => [...prev, {
@@ -3101,9 +3104,27 @@ function TableCombosBreakdown({ tables, combos = [], onAddCombo, onRemoveCombo, 
     const addFlex = (key) => {
         const opt = FLEX_OPTIONS.find(o => o.key === key);
         if (!opt) return;
-        setFlexSlots(prev => [...prev, opt]);
+        // Start with empty exclude list — all matching tables are eligible by default
+        setFlexSlots(prev => [...prev, { ...opt, exclude_tables: [] }]);
     };
     const removeFlex = (idx) => setFlexSlots(prev => prev.filter((_, i) => i !== idx));
+    const toggleExcludeInFlex = (slotIdx, tableNum) => {
+        setFlexSlots(prev => prev.map((slot, i) => {
+            if (i !== slotIdx) return slot;
+            const ex = Array.isArray(slot.exclude_tables) ? slot.exclude_tables : [];
+            const s = String(tableNum);
+            return { ...slot, exclude_tables: ex.includes(s) ? ex.filter(x => x !== s) : [...ex, s] };
+        }));
+    };
+    // Get all tables matching a slot's table_max
+    const matchingTablesForSlot = (slot) =>
+        (tables || []).filter(t => Number(t?.max_capacity) === Number(slot.table_max))
+                      .map(t => String(t.table_number))
+                      .sort((a, b) => {
+                          const na = parseInt(a), nb = parseInt(b);
+                          if (!isNaN(na) && !isNaN(nb)) return na - nb;
+                          return a.localeCompare(b);
+                      });
 
     const allNums = (tables || []).map(t => String(t.table_number)).filter(Boolean);
     // Sort numerically for a stable grid.
@@ -3376,13 +3397,39 @@ function TableCombosBreakdown({ tables, combos = [], onAddCombo, onRemoveCombo, 
                                             ))}
                                         </div>
                                         {flexSlots.length > 0 && (
-                                            <div className="mt-1.5 flex flex-wrap gap-1">
-                                                {flexSlots.map((f, i) => (
-                                                    <span key={i} className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-purple-200 text-purple-900">
-                                                        🃏 {f.label}
-                                                        <button onClick={() => removeFlex(i)} className="ml-0.5 w-4 h-4 rounded-full bg-purple-300 hover:bg-red-500 hover:text-white text-purple-900 text-[10px] flex items-center justify-center">×</button>
-                                                    </span>
-                                                ))}
+                                            <div className="mt-2 space-y-2">
+                                                {flexSlots.map((f, i) => {
+                                                    const matching = matchingTablesForSlot(f);
+                                                    const excluded = new Set((f.exclude_tables || []).map(String));
+                                                    const includedCount = matching.filter(t => !excluded.has(t)).length;
+                                                    return (
+                                                        <div key={i} className="bg-white border border-purple-300 rounded p-1.5">
+                                                            <div className="flex items-center justify-between gap-2 mb-1">
+                                                                <span className="text-[11px] font-bold text-purple-900">
+                                                                    🃏 {f.label} <span className="opacity-70">— זמינים {includedCount}/{matching.length}</span>
+                                                                </span>
+                                                                <button onClick={() => removeFlex(i)} className="w-4 h-4 rounded-full bg-purple-200 hover:bg-red-500 hover:text-white text-purple-900 text-[10px] flex items-center justify-center">×</button>
+                                                            </div>
+                                                            <div className="text-[9px] text-gray-500 mb-1">לחץ על שולחן כדי להוציא אותו מהמועמדים (למשל אם בגובה אחר):</div>
+                                                            <div className="flex flex-wrap gap-1">
+                                                                {matching.map(t => {
+                                                                    const isExcluded = excluded.has(t);
+                                                                    return (
+                                                                        <button
+                                                                            key={t}
+                                                                            onClick={() => toggleExcludeInFlex(i, t)}
+                                                                            className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full border transition-colors
+                                                                                ${isExcluded
+                                                                                    ? 'bg-gray-100 text-gray-400 border-gray-200 line-through'
+                                                                                    : 'bg-purple-100 text-purple-900 border-purple-300 hover:bg-purple-200'}`}
+                                                                            title={isExcluded ? 'מוחרג — לחץ כדי להחזיר' : 'לחץ כדי להוציא'}
+                                                                        >#{t}</button>
+                                                                    );
+                                                                })}
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })}
                                             </div>
                                         )}
                                         <div className="mt-1 text-[10px] text-purple-700">
@@ -3445,7 +3492,11 @@ function TableCombosBreakdown({ tables, combos = [], onAddCombo, onRemoveCombo, 
                                         <div className="flex flex-wrap gap-1.5">
                                             {explicitCombos.map(c => {
                                                 const fixedParts = (c.tables || []).map(id => `#${id}`);
-                                                const flexParts = (c.flex_slots || []).map(s => `🃏${s.label || `max ${s.table_max || s.max}`}`);
+                                                const flexParts = (c.flex_slots || []).map(s => {
+                                                    const exCount = Array.isArray(s.exclude_tables) ? s.exclude_tables.length : 0;
+                                                    const baseLabel = s.label || `max ${s.table_max || s.max}`;
+                                                    return exCount > 0 ? `🃏${baseLabel} (פרט ל-${exCount})` : `🃏${baseLabel}`;
+                                                });
                                                 const parts = [...fixedParts, ...flexParts];
                                                 return (
                                                     <span key={c.id} className="inline-flex items-center gap-1 text-xs font-bold px-2 py-1 rounded-full border bg-emerald-100 text-emerald-900 border-emerald-400">
