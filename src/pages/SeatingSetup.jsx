@@ -2143,16 +2143,25 @@ export default function SeatingSetup() {
                                 <TableCombosBreakdown
                                     tables={tables}
                                     combos={combos}
-                                    onAddCombo={(partySize, tableIds) => {
-                                        if (!partySize || !Array.isArray(tableIds) || tableIds.length < 2) return;
-                                        const sorted = [...tableIds].map(String).sort();
-                                        const key = `${partySize}:${sorted.join('-')}`;
-                                        // De-dupe: don't add the same combo twice
-                                        if (combos.some(c => `${c.party_size}:${[...(c.tables||[])].map(String).sort().join('-')}` === key)) return;
+                                    onAddCombo={(partySize, tableIds, flexSlots) => {
+                                        if (!partySize) return;
+                                        const fixedCount = Array.isArray(tableIds) ? tableIds.length : 0;
+                                        const flexCount = Array.isArray(flexSlots) ? flexSlots.length : 0;
+                                        if (fixedCount + flexCount < 2) return; // Need at least 2 slots total
+                                        const sorted = [...(tableIds || [])].map(String).sort();
+                                        const slots = (flexSlots || []).map(f => ({ key: f.key, label: f.label, min: f.min, max: f.max }));
+                                        const slotKey = slots.map(s => s.key).sort().join(',');
+                                        const key = `${partySize}:${sorted.join('-')}:${slotKey}`;
+                                        // De-dupe: same tables AND same flex slots
+                                        if (combos.some(c => {
+                                            const ck = `${c.party_size}:${[...(c.tables||[])].map(String).sort().join('-')}:${(c.flex_slots||[]).map(s=>s.key).sort().join(',')}`;
+                                            return ck === key;
+                                        })) return;
                                         setCombos(prev => [...prev, {
                                             id: `c_${Date.now()}_${Math.random().toString(36).slice(2,7)}`,
                                             party_size: Number(partySize),
                                             tables: sorted,
+                                            flex_slots: slots,
                                         }]);
                                     }}
                                     onRemoveCombo={(comboId) => {
@@ -3069,6 +3078,18 @@ function TableCombosBreakdown({ tables, combos = [], onAddCombo, onRemoveCombo, 
     const [addMode, setAddMode] = React.useState(false);
     const [pickedTables, setPickedTables] = React.useState([]); // multi-select
     const [pickedSize, setPickedSize] = React.useState(''); // 3..40 or '' (auto)
+    const [flexSlots, setFlexSlots] = React.useState([]); // [{capacity_label, min, max}] — wildcards
+    const FLEX_OPTIONS = [
+        { key: 'pair',   label: 'שולחן זוגי פנוי',       min: 1, max: 2, emoji: '🃏' },
+        { key: 'trio',   label: 'שולחן 3-4 מקומות פנוי',  min: 3, max: 4, emoji: '🃏' },
+        { key: 'big',    label: 'שולחן 5+ מקומות פנוי',   min: 5, max: 8, emoji: '🃏' },
+    ];
+    const addFlex = (key) => {
+        const opt = FLEX_OPTIONS.find(o => o.key === key);
+        if (!opt) return;
+        setFlexSlots(prev => [...prev, opt]);
+    };
+    const removeFlex = (idx) => setFlexSlots(prev => prev.filter((_, i) => i !== idx));
 
     const allNums = (tables || []).map(t => String(t.table_number)).filter(Boolean);
     // Sort numerically for a stable grid.
@@ -3098,28 +3119,27 @@ function TableCombosBreakdown({ tables, combos = [], onAddCombo, onRemoveCombo, 
         }
     };
     const addConnection = () => {
-        if (pickedTables.length < 2) {
-            window.alert('בחר לפחות 2 שולחנות');
+        const totalPicked = pickedTables.length + flexSlots.length;
+        if (totalPicked < 2) {
+            window.alert('בחר לפחות 2 שולחנות (יכול לכלול שולחן וויילדקארד)');
             return;
         }
-        // Connect ALL pairs in the picked set — so the breakdown engine treats them
-        // as one connected component. Pairwise edges = explicit graph.
+        // Connect ALL pairs of FIXED picked tables — wildcards don't create graph edges.
         for (let i = 0; i < pickedTables.length; i++) {
             for (let j = i + 1; j < pickedTables.length; j++) {
                 onSetConnection?.(pickedTables[i], pickedTables[j], true);
             }
         }
-        // Also save as explicit combo for the chosen party size (if specified)
+        // Save as explicit combo with the picked party size and flex slots
         if (pickedSize && onAddCombo) {
-            onAddCombo(pickedSize, pickedTables);
+            onAddCombo(pickedSize, pickedTables, flexSlots);
         }
-        // KEY UX: stay in add mode, keep party size selected, clear only tables.
-        // Owner can immediately enter the next combo for the same party size.
+        // Keep party size — clear tables + flex for next combo
         setPickedTables([]);
-        // DO NOT reset pickedSize or addMode — sticky for bulk entry
+        setFlexSlots([]);
     };
     const finishAdding = () => {
-        setAddMode(false); setPickedTables([]); setPickedSize('');
+        setAddMode(false); setPickedTables([]); setPickedSize(''); setFlexSlots([]);
     };
 
     // Stable fingerprint so memoization actually works.
@@ -3298,9 +3318,9 @@ function TableCombosBreakdown({ tables, combos = [], onAddCombo, onRemoveCombo, 
                                     <div className="mb-2">
                                         <div className="flex items-center justify-between mb-1">
                                             <span className="text-xs font-bold text-gray-700">🪑 בחר 2 שולחנות או יותר:</span>
-                                            {pickedTables.length > 0 && (
+                                            {(pickedTables.length > 0 || flexSlots.length > 0) && (
                                                 <span className="text-[11px] font-bold text-emerald-700">
-                                                    נבחרו: {pickedTables.map(n => '#' + n).join(' + ')}
+                                                    נבחרו: {[...pickedTables.map(n => '#' + n), ...flexSlots.map(f => `🃏${f.label}`)].join(' + ')}
                                                 </span>
                                             )}
                                         </div>
@@ -3318,6 +3338,33 @@ function TableCombosBreakdown({ tables, combos = [], onAddCombo, onRemoveCombo, 
                                                     >#{n}</button>
                                                 );
                                             })}
+                                        </div>
+                                    </div>
+
+                                    {/* Wildcard slots — fill at seating time with whichever free table fits */}
+                                    <div className="mb-2 p-2 bg-purple-50 border border-purple-200 rounded">
+                                        <div className="text-xs font-bold text-purple-800 mb-1">🃏 הוסף שולחן וויילדקארד (פנוי בזמן אמת):</div>
+                                        <div className="flex flex-wrap gap-1">
+                                            {FLEX_OPTIONS.map(opt => (
+                                                <button
+                                                    key={opt.key}
+                                                    onClick={() => addFlex(opt.key)}
+                                                    className="text-[11px] font-bold px-2 py-1 rounded-full bg-white border border-purple-300 text-purple-900 hover:bg-purple-100"
+                                                >+ {opt.label}</button>
+                                            ))}
+                                        </div>
+                                        {flexSlots.length > 0 && (
+                                            <div className="mt-1.5 flex flex-wrap gap-1">
+                                                {flexSlots.map((f, i) => (
+                                                    <span key={i} className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-purple-200 text-purple-900">
+                                                        🃏 {f.label}
+                                                        <button onClick={() => removeFlex(i)} className="ml-0.5 w-4 h-4 rounded-full bg-purple-300 hover:bg-red-500 hover:text-white text-purple-900 text-[10px] flex items-center justify-center">×</button>
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        )}
+                                        <div className="mt-1 text-[10px] text-purple-700">
+                                            דוגמה: 700+701 + שולחן זוגי פנוי → בזמן אמת ה-AI יציע איזה שולחן 2 לקחת.
                                         </div>
                                     </div>
 
@@ -3374,18 +3421,23 @@ function TableCombosBreakdown({ tables, combos = [], onAddCombo, onRemoveCombo, 
                                     <div className="mb-2">
                                         <div className="text-[10px] font-bold text-emerald-700 mb-1">📌 חיבורים שמורים</div>
                                         <div className="flex flex-wrap gap-1.5">
-                                            {explicitCombos.map(c => (
-                                                <span key={c.id} className="inline-flex items-center gap-1 text-xs font-bold px-2 py-1 rounded-full border bg-emerald-100 text-emerald-900 border-emerald-400">
-                                                    {(c.tables || []).map(id => `#${id}`).join(' + ')}
-                                                    {onRemoveCombo && (
-                                                        <button
-                                                            onClick={(e) => { e.stopPropagation(); if (window.confirm(`להסיר את החיבור השמור ${(c.tables||[]).map(id=>'#'+id).join('+')} ל-${n} סועדים?`)) onRemoveCombo(c.id); }}
-                                                            title="הסר חיבור שמור"
-                                                            className="ml-0.5 w-4 h-4 rounded-full bg-emerald-200 hover:bg-red-500 hover:text-white text-emerald-900 text-[10px] flex items-center justify-center"
-                                                        >×</button>
-                                                    )}
-                                                </span>
-                                            ))}
+                                            {explicitCombos.map(c => {
+                                                const fixedParts = (c.tables || []).map(id => `#${id}`);
+                                                const flexParts = (c.flex_slots || []).map(s => `🃏${s.label || `${s.min}-${s.max}`}`);
+                                                const parts = [...fixedParts, ...flexParts];
+                                                return (
+                                                    <span key={c.id} className="inline-flex items-center gap-1 text-xs font-bold px-2 py-1 rounded-full border bg-emerald-100 text-emerald-900 border-emerald-400">
+                                                        {parts.join(' + ')}
+                                                        {onRemoveCombo && (
+                                                            <button
+                                                                onClick={(e) => { e.stopPropagation(); if (window.confirm(`להסיר את החיבור השמור ${parts.join(' + ')} ל-${n} סועדים?`)) onRemoveCombo(c.id); }}
+                                                                title="הסר חיבור שמור"
+                                                                className="ml-0.5 w-4 h-4 rounded-full bg-emerald-200 hover:bg-red-500 hover:text-white text-emerald-900 text-[10px] flex items-center justify-center"
+                                                            >×</button>
+                                                        )}
+                                                    </span>
+                                                );
+                                            })}
                                         </div>
                                     </div>
                                 )}
