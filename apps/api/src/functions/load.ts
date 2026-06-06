@@ -3278,6 +3278,24 @@ registerFn('createPublicReservation', async ({ body }) => {
   if (!customer_name || !customer_phone || !date || !time || !party_size) {
     throw new Error('missing_required_fields');
   }
+  // Time-in-past guard: reservation must be at least 15 minutes from now (Israel time).
+  // Server clock is UTC; Israel is UTC+3.
+  try {
+    const dateStr = String(date).slice(0, 10);
+    const [hh, mm] = String(time).split(':').map((s) => parseInt(s, 10));
+    if (!Number.isFinite(hh) || !Number.isFinite(mm)) throw new Error('invalid_time_format');
+    const nowMs = Date.now();
+    const ilNow = new Date(nowMs + 3 * 3600 * 1000); // shift to IL wall clock
+    const ilTargetIso = `${dateStr}T${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}:00.000Z`;
+    const targetMs = new Date(ilTargetIso).getTime();
+    const minLeadMs = 15 * 60 * 1000;
+    if (targetMs - ilNow.getTime() < minLeadMs) {
+      throw Object.assign(new Error('זמן ההזמנה כבר עבר. בחר שעה לפחות 15 דקות קדימה.'), { code: 'time_in_past' });
+    }
+  } catch (e: any) {
+    if (e?.code === 'time_in_past') throw e;
+    // For format errors, let the regular flow handle it (don't block on parse).
+  }
   const size = parseInt(party_size);
   if (size > PUBLIC_RESERVATION_MAX_PARTY) {
     return { success: false, reason: 'too_large_use_events' };

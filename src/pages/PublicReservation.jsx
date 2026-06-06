@@ -247,7 +247,19 @@ export default function PublicReservationPage() {
       hoursToUse = getOpeningHours(date);
     }
     setOpeningHours(hoursToUse);
-    const slots = generateHourSlots(hoursToUse.start, hoursToUse.end);
+    let slots = generateHourSlots(hoursToUse.start, hoursToUse.end);
+    // For TODAY: hide hour slots that are already in the past (or within next 15 min).
+    // Minimum lead time: 15 minutes ahead of the current Israel time.
+    const todayStr = format(new Date(), 'yyyy-MM-dd');
+    const selectedStr = format(date, 'yyyy-MM-dd');
+    if (selectedStr === todayStr) {
+      const now = new Date();
+      const cutoffMin = now.getHours() * 60 + now.getMinutes() + 15;
+      slots = slots.filter(hhmm => {
+        const [h, m] = String(hhmm).split(':').map(Number);
+        return (h * 60 + (m || 0)) >= cutoffMin;
+      });
+    }
     setHourSlots(slots);
     setSelectedHour('');
     setTime('');
