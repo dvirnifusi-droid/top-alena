@@ -8847,11 +8847,14 @@ registerFn('aiSeatingAssistant', async ({ body }) => {
 • אזורים: ${areaSummary}
 • ${reservations.length} הזמנות היום, ${queueShort.length} בתור (${queueShort.filter((q: any) => q.status === 'pending').length} pending, ${queueShort.filter((q: any) => q.status === 'active').length} active), ${seatedNow.length} סשנים פעילים
 
-🌿 שולחנות פנויים בחוץ (עם 'עד HH:MM' = ההזמנה הבאה היום, אחרת = פנוי כל הערב):
-${summarizeWithUntil(freeOutdoor).slice(0, 1200)}
+🌿 שולחנות פנויים בחוץ (#מס׳(min-max)):
+${summarizeByCap(freeOutdoor).slice(0, 600)}
 
 🏠 שולחנות פנויים בפנים:
-${summarizeWithUntil(freeIndoor).slice(0, 1200)}
+${summarizeByCap(freeIndoor).slice(0, 600)}
+
+⏰ זמינות עד מתי (רק שולחנות שיש להם הזמנה היום):
+${[...freeUntilByTable.entries()].filter(([_,v]) => v.startsWith('פנוי עד')).slice(0, 15).map(([n,v]) => `#${n}: ${v}`).join(' | ') || 'אין הזמנות עתידיות היום'}
 
 📌 חיבורים שמורים על-ידי הבעלים (לקבל עדיפות גבוהה כשהבקשה תואמת):
 ${ownerCombosText}
@@ -8881,8 +8884,8 @@ ${seatedNow.map((s: any) => `שולחן ${s.table} ×${s.party} ${s.name || ''}`
     const out: any = await invokeLLM({
       prompt: `${sys}\n\n---\n\n${userCtx}`,
       // Speed > reliability for this interactive helper.
-      timeoutMs: 18_000,
-      maxOutputTokens: 4096,
+      timeoutMs: 25_000,
+      maxOutputTokens: 2048,
       maxAttempts: 1,
       responseSchema: {
         type: 'object',
