@@ -9284,3 +9284,138 @@ if (!(globalThis as any).__startupDriftRepair) {
     }
   })();
 }
+
+// === No-show auto-mark cron =================================================
+// Every 5 min: scan today's reservations whose time + grace_minutes has passed
+// and that don't have an active TableSession. Mark them as 'no_show' and stamp
+// cancelled_at. This is the hook that will later trigger deposit capture.
+const NO_SHOW_GRACE_MIN = 30;
+export async function autoMarkNoShows() {
+  try {
+    const il = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Jerusalem',
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', hour12: false,
+    }).formatToParts(new Date());
+    const get = (t: string) => il.find(p => p.type === t)?.value || '';
+    const ilDateStr = `${get('year')}-${get('month')}-${get('day')}`;
+    const nowMin = parseInt(get('hour'), 10) * 60 + parseInt(get('minute'), 10);
+    const { start: dayStart, next: dayNext } = dayRange(ilDateStr);
+    const todayRes: any[] = await db.reservation.findMany({
+      where: { date: { gte: dayStart, lt: dayNext } },
+    });
+    const activeSessions: any[] = await db.tableSession.findMany({ where: { status: 'active' } });
+    const sessionTables = new Set<string>();
+    for (const s of activeSessions) {
+      for (const t of String(s.table_number || '').split(/[,+]/)) sessionTables.add(t.trim());
+    }
+    let marked = 0;
+    for (const r of todayRes) {
+      const status = String(r.status || 'pending').toLowerCase();
+      // Only confirmed/pending bookings can flip to no_show
+      if (!['confirmed', 'pending'].includes(status)) continue;
+      // Need a time to compare
+      const [hh, mm] = String(r.time || '').split(':').map((s: string) => parseInt(s, 10));
+      if (!Number.isFinite(hh)) continue;
+      const resMin = hh * 60 + (mm || 0);
+      if (nowMin - resMin < NO_SHOW_GRACE_MIN) continue; // not yet past grace
+      // If any of their assigned tables has an active session — they're seated, skip
+      const assigned: string[] = Array.isArray(r.assigned_table) ? r.assigned_table.map(String) : [];
+      if (assigned.some((t) => sessionTables.has(t))) continue;
+      // Mark as no_show
+      try {
+        await db.reservation.update({
+          where: { id: r.id },
+          data: {
+            status: 'no_show',
+            cancelled_at: new Date(),
+            cancellation_reason: `auto-marked no-show (${NO_SHOW_GRACE_MIN}+ min past time)`,
+          },
+        });
+        marked++;
+        console.log(`[no-show-cron] marked ${r.customer_name} ${r.time} as no_show`);
+      } catch (e: any) { console.warn('[no-show-cron] update failed:', e?.message); }
+    }
+    if (marked > 0) {
+      try {
+        await pushoverEventsOwners(
+          '⚠️ הזמנות סומנו אוטומטית כלא-הגיע',
+          `${marked} הזמנות עברו ${NO_SHOW_GRACE_MIN} דק' אחרי הזמן ולא הגיעו.\nבדוק את לוח ההזמנות.`,
+        );
+      } catch { /* ignore */ }
+    }
+  } catch (e: any) {
+    console.error('[no-show-cron] failed:', e?.message);
+  }
+}
+
+if (!(globalThis as any).__noShowCronTimer) {
+  (globalThis as any).__noShowCronTimer = setTimeout(function loop() {
+    autoMarkNoShows().finally(() => {
+      (globalThis as any).__noShowCronTimer = setTimeout(loop, 5 * 60 * 1000);
+    });
+  }, 90 * 1000);
+}
+
+// === Daily summary push to owner at 22:30 IL ================================
+// Aggregates today's reservations and sends a single owner-facing summary push.
+// Idempotent: tracked via __dailySummarySentDate so we send once per day.
+export async function maybeDailySummary() {
+  try {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Jerusalem',
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', hour12: false,
+    }).formatToParts(new Date());
+    const get = (t: string) => parts.find(p => p.type === t)?.value || '';
+    const ilDateStr = `${get('year')}-${get('month')}-${get('day')}`;
+    const ilHour = parseInt(get('hour'), 10);
+    const ilMin = parseInt(get('minute'), 10);
+    // Only fire between 22:30 and 23:00 IL, and at most once per day
+    if (ilHour !== 22 || ilMin < 30) return;
+    if ((globalThis as any).__dailySummarySentDate === ilDateStr) return;
+    (globalThis as any).__dailySummarySentDate = ilDateStr;
+
+    const { start: dayStart, next: dayNext } = dayRange(ilDateStr);
+    const todayRes: any[] = await db.reservation.findMany({
+      where: { date: { gte: dayStart, lt: dayNext } },
+    });
+    const stat = (s: string) => todayRes.filter(r => String(r.status || '').toLowerCase() === s).length;
+    const totalGuests = todayRes.reduce((sum, r) => sum + (Number(r.party_size) || 0), 0);
+    const seated = stat('seated') + stat('completed');
+    const no_show = stat('no_show');
+    const cancelled = stat('cancelled');
+    const confirmed = stat('confirmed');
+    const seatedGuests = todayRes
+      .filter(r => ['seated', 'completed'].includes(String(r.status || '').toLowerCase()))
+      .reduce((s, r) => s + (Number(r.party_size) || 0), 0);
+    const estRevenue = seatedGuests * 220; // ₪220/guest avg ticket — adjust if owner has real number
+    const noShowRate = todayRes.length ? Math.round((no_show / todayRes.length) * 100) : 0;
+    const body = [
+      `📊 סיכום יום · ${ilDateStr.split('-').reverse().join('/')}`,
+      ``,
+      `📋 סה"כ הזמנות: ${todayRes.length} (${totalGuests} סועדים)`,
+      `✅ הגיעו ויושבים/השלימו: ${seated}`,
+      `⏳ עוד מאושרים שלא יושב: ${confirmed}`,
+      `❌ הבריזו (no-show): ${no_show} (${noShowRate}%)`,
+      `🚫 ביטולים: ${cancelled}`,
+      ``,
+      `💰 הכנסה משוערת מיושבים: ₪${estRevenue.toLocaleString()}`,
+      `(לפי ₪220 לסועד)`,
+    ].join('\n');
+    try {
+      await pushoverEventsOwners('📊 סיכום יום במסעדה', body);
+    } catch (e: any) { console.warn('[daily-summary] push failed:', e?.message); }
+  } catch (e: any) {
+    console.error('[daily-summary] failed:', e?.message);
+  }
+}
+
+if (!(globalThis as any).__dailySummaryTimer) {
+  (globalThis as any).__dailySummaryTimer = setTimeout(function loop() {
+    maybeDailySummary().finally(() => {
+      // Check every 5 min so we hit the 22:30 window at most once
+      (globalThis as any).__dailySummaryTimer = setTimeout(loop, 5 * 60 * 1000);
+    });
+  }, 120 * 1000);
+}
