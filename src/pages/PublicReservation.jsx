@@ -295,6 +295,10 @@ export default function PublicReservationPage() {
   // --- Submit one-click booking. acceptStandby=true sends the request again
   // after the user explicitly opted into the waitlist from the alternatives block.
   const submitBooking = async (acceptStandby = false) => {
+    // Defensive: if a button accidentally passes a React event here (onClick={submitBooking}),
+    // coerce to a plain boolean. Prevents 'Converting circular structure to JSON' if
+    // the SyntheticEvent ends up in the request body.
+    acceptStandby = acceptStandby === true;
     setErrorMsg('');
     if (!acceptStandby) setAlternatives([]); // reset any prior alts on a fresh attempt
     if (Number(partySize) > 12) return setErrorMsg('יותר מ-12 סועדים נחשב לאירוע — מלא את טופס האירועים');
@@ -985,7 +989,7 @@ export default function PublicReservationPage() {
 
           {/* CTA — brand terracotta */}
           <button
-            onClick={submitBooking}
+            onClick={() => submitBooking(false)}
             disabled={isBooking || !time}
             className="cta-pulse w-full font-black py-4 rounded-2xl text-lg shadow-xl flex items-center justify-center gap-2 transition-all disabled:cursor-not-allowed disabled:animate-none"
             style={{
