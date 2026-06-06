@@ -398,7 +398,9 @@ export default function SeatingSetup() {
 
     // Digital clock — tick every second for the top action bar display
     useEffect(() => {
-        const id = setInterval(() => setClockTick(new Date()), 1000);
+        // 30s tick — second-precision was forcing a full page re-render every
+        // second, which caused the reservation rail to flicker / scroll-reset.
+        const id = setInterval(() => setClockTick(new Date()), 30000);
         return () => clearInterval(id);
     }, []);
 
@@ -956,7 +958,7 @@ export default function SeatingSetup() {
         }
     };
 
-    const ReservationCard = ({ reservation }) => {
+    const ReservationCard = ({ reservation, compact = false }) => {
         const statusConfig = getReservationStatusConfig(reservation.status, reservation.assigned_table);
         const customerInfo = reservation.customer_name || `לקוח ${reservation.id?.slice(-4)}`;
 
@@ -1004,6 +1006,67 @@ export default function SeatingSetup() {
             setAiPrefillQuestion(q);
             setAiOpen(true);
         };
+
+        // === Compact rail card (Ontopo-style, 6-8 fit in viewport) ===
+        if (compact) {
+            return (
+                <div
+                    className={`px-2.5 py-1.5 rounded-lg border-2 border-transparent transition-colors hover:brightness-110 cursor-pointer relative overflow-hidden ${cardBg} ${cardText} ${isReturning ? 'ring-2 ring-pink-300' : ''}`}
+                    onClick={openEdit}
+                >
+                    {flagMeta && (
+                        <div className={`absolute top-0 bottom-0 right-0 w-1 ${flagMeta.color}`}></div>
+                    )}
+                    <div className="flex items-center justify-between gap-2">
+                        {/* RIGHT in RTL: time + table/status */}
+                        <div className="flex items-center gap-2 min-w-0">
+                            <div className="font-black text-lg leading-none tabular-nums">{reservation.time?.slice(0, 5) || '--:--'}</div>
+                            <div className="flex flex-col gap-0.5 min-w-0">
+                                <div className="font-bold text-sm truncate">{customerInfo}</div>
+                                <div className="text-[10px] opacity-80 truncate">
+                                    {sourceLabel || 'אונליין'}{isReturning ? ' · חוזר' : ''}
+                                </div>
+                            </div>
+                        </div>
+                        {/* LEFT in RTL: party + table + status + flag */}
+                        <div className="flex items-center gap-1.5 flex-shrink-0">
+                            <span className="text-base font-black opacity-90">👥{reservation.party_size || '?'}</span>
+                            {Array.isArray(reservation.assigned_table) && reservation.assigned_table.length > 0 && (
+                                <span className="text-[11px] font-bold bg-white/40 rounded px-1">🪑{reservation.assigned_table.join(',')}</span>
+                            )}
+                            <Popover>
+                                <PopoverTrigger asChild>
+                                    <button
+                                        data-popover-trigger
+                                        onClick={(e) => e.stopPropagation()}
+                                        className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-white/80 text-amber-900 hover:bg-white shadow-sm"
+                                    >{statusConfig.label}</button>
+                                </PopoverTrigger>
+                                <PopoverContent className="p-1.5 w-44" dir="rtl" align="start">
+                                    <div className="text-[10px] font-bold text-gray-500 px-2 py-1">החלף סטטוס:</div>
+                                    {STATUS_OPTIONS.map(s => {
+                                        const sc = STATUS_CONFIGS[s];
+                                        const active = (reservation.status || 'pending') === s;
+                                        return (
+                                            <button
+                                                key={s}
+                                                onClick={(e) => { e.stopPropagation(); setStatus(reservation, s); }}
+                                                className={`w-full text-right text-xs font-bold px-2 py-1.5 rounded my-0.5 flex items-center gap-2 ${
+                                                    active ? sc.color + ' ring-2 ring-indigo-400' : `${sc.color} opacity-75 hover:opacity-100`
+                                                }`}
+                                            >{sc.label}</button>
+                                        );
+                                    })}
+                                </PopoverContent>
+                            </Popover>
+                            {flagMeta && (
+                                <span title={flagMeta.label} className={`w-2.5 h-2.5 rounded-full ${flagMeta.color} border border-white`}></span>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            );
+        }
 
         return (
             <div
@@ -1182,6 +1245,17 @@ export default function SeatingSetup() {
             night:   { label: 'לילה',     test: (t) => t >= '22:00' || t < '06:00' },
         };
         const [searchTerm, setSearchTerm] = useState('');
+        // Compact list density — 6-8 cards per viewport. Persisted across renders.
+        const [compactMode, setCompactMode] = useState(() => {
+            try { return localStorage.getItem('seating_compact_mode') !== 'off'; } catch { return true; }
+        });
+        const toggleCompact = () => {
+            setCompactMode(v => {
+                const next = !v;
+                try { localStorage.setItem('seating_compact_mode', next ? 'on' : 'off'); } catch {}
+                return next;
+            });
+        };
 
         const filteredReservations = reservations.filter(r => {
             const statusMatch = selectedStatus === 'all' || (r.status || 'pending') === selectedStatus;
@@ -1323,10 +1397,19 @@ export default function SeatingSetup() {
                     })}
                 </div>
 
-                <div className="space-y-2 max-h-80 overflow-y-auto">
+                {/* Density toggle */}
+                <div className="flex items-center justify-end mb-1.5 gap-1">
+                    <button
+                        onClick={toggleCompact}
+                        title={compactMode ? 'הצג קלפים גדולים' : 'הצג קלפים קומפקטיים'}
+                        className={`text-[10px] font-bold px-2 py-1 rounded-full border transition-colors
+                            ${compactMode ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-gray-600 border-gray-200'}`}
+                    >{compactMode ? '☰ קומפקטי' : '▦ מורחב'}</button>
+                </div>
+                <div className={`overflow-y-auto ${compactMode ? 'space-y-1 max-h-[60vh]' : 'space-y-2 max-h-80'}`}>
                     {filteredReservations.length > 0 ? (
                         filteredReservations.map(reservation => (
-                            <ReservationCard key={reservation.id} reservation={reservation} />
+                            <ReservationCard key={reservation.id} reservation={reservation} compact={compactMode} />
                         ))
                     ) : (
                         <div className="text-center py-8 text-gray-500">
@@ -2233,7 +2316,7 @@ export default function SeatingSetup() {
                                         <div className="flex-1"></div>
                                         {/* Digital clock — center-prominent */}
                                         <div className="text-center px-3 py-1 bg-gradient-to-bl from-slate-900 to-slate-700 text-white rounded-xl">
-                                            <div className="text-xl font-black tabular-nums leading-none">{format(clockTick, 'HH:mm:ss')}</div>
+                                            <div className="text-xl font-black tabular-nums leading-none">{format(clockTick, 'HH:mm')}</div>
                                             <div className="text-[10px] opacity-80 mt-0.5">{format(clockTick, 'EEE dd/MM', { locale: he })}</div>
                                         </div>
                                     </div>
