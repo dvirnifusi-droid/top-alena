@@ -251,7 +251,7 @@ function ReservationEditDialog({ open, setOpen, reservation, onUpdate, tables, r
     );
 }
 
-const GRID_SIZE = 20;
+const GRID_SIZE = 4; // fine snap so tables can be placed precisely (was 20px = too coarse)
 
 const FACILITY_TYPES = {
     restroom: { name: 'שירותים', icon: '🚻', color: 'bg-gray-300 border-gray-500 text-gray-900' },
@@ -294,7 +294,14 @@ export default function SeatingSetup() {
     const [incidentTableNumber, setIncidentTableNumber] = useState(null);
     const [selectedAreas, setSelectedAreas] = useState(['all']);
     const [selectedFlag, setSelectedFlag] = useState('all');  // flag-color filter
-    const [mapZoom, setMapZoom] = useState(1);     // 0.5–1.5 — scales the 1400×850 map canvas
+    // Auto-fit to viewport on first load — phones default ~0.3, tablets ~0.6, desktops 1.0
+    const [mapZoom, setMapZoom] = useState(() => {
+        if (typeof window === 'undefined') return 1;
+        const w = window.innerWidth;
+        if (w < 500) return 0.32;
+        if (w < 900) return 0.55;
+        return 1;
+    });
     const [showBlueprint, setShowBlueprint] = useState(false); // legacy background drawing toggle (default OFF)
     const [isSmartMapMode, setIsSmartMapMode] = useState(false); // AI overlay state (Phase 4)
     const [quickSeatOpen, setQuickSeatOpen] = useState(false); // walk-in / standby quick-seat flow
@@ -2513,14 +2520,18 @@ export default function SeatingSetup() {
                                     {/* Zoom controls — small floating cluster, hidden on print */}
                                     <div className="flex items-center gap-1 bg-white border rounded-lg p-1 shadow-sm w-fit">
                                         <button
-                                            onClick={() => setMapZoom(z => Math.max(0.4, z - 0.1))}
+                                            onClick={() => setMapZoom(z => Math.max(0.2, z - 0.1))}
                                             className="w-8 h-8 flex items-center justify-center rounded hover:bg-gray-100"
                                             title="הקטן"
                                         ><ZoomOut className="w-4 h-4"/></button>
                                         <button
-                                            onClick={() => setMapZoom(1)}
+                                            onClick={() => {
+                                                // התאם למסך: phone→0.32, tablet→0.55, desktop→1.0
+                                                const w = typeof window !== 'undefined' ? window.innerWidth : 1280;
+                                                setMapZoom(w < 500 ? 0.32 : w < 900 ? 0.55 : 1);
+                                            }}
                                             className="px-2 h-8 text-xs font-bold hover:bg-gray-100 rounded min-w-[3rem]"
-                                            title="גודל מקורי"
+                                            title="התאם למסך"
                                         >{Math.round(mapZoom * 100)}%</button>
                                         <button
                                             onClick={() => setMapZoom(z => Math.min(1.6, z + 0.1))}
