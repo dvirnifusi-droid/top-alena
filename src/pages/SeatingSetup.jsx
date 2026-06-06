@@ -2425,35 +2425,34 @@ export default function SeatingSetup() {
                                 <div className={`${bigMapMode ? 'lg:col-span-3 lg:order-2' : 'lg:col-span-2 lg:order-2'} space-y-3 ${
                                     mobileView === 'map' ? 'block' : 'hidden lg:block'
                                 }`}>
-                                    {/* TOP ACTION BAR — primary controls always visible */}
-                                    <div className="bg-white border border-gray-200 rounded-2xl shadow-sm p-2 md:p-3 flex items-center gap-2 flex-wrap">
+                                    {/* TOP ACTION BAR — compact on mobile, full on desktop */}
+                                    <div className="bg-white border border-gray-200 rounded-2xl shadow-sm p-1.5 md:p-3 flex items-center gap-1.5 flex-wrap">
                                         <Button
                                             onClick={() => setSmartReserveOpen(true)}
                                             size="sm"
-                                            className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
+                                            className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold flex-1 sm:flex-initial"
                                         >
                                             <Plus className="w-4 h-4 ml-1" />
-                                            הזמנה חדשה
+                                            <span>הזמנה חדשה</span>
                                         </Button>
                                         <Button
                                             onClick={() => setQuickSeatOpen(true)}
                                             size="sm"
-                                            className="bg-blue-600 hover:bg-blue-700 text-white font-bold"
+                                            className="bg-blue-600 hover:bg-blue-700 text-white font-bold flex-1 sm:flex-initial"
                                         >
                                             <Plus className="w-4 h-4 ml-1" />
-                                            הושבה מהירה
+                                            <span>הושבה מהירה</span>
                                         </Button>
-                                        <div className="flex-1"></div>
-                                        {/* Digital clock — center-prominent */}
-                                        <div className="text-center px-3 py-1 bg-gradient-to-bl from-slate-900 to-slate-700 text-white rounded-xl">
+                                        <div className="hidden sm:block flex-1"></div>
+                                        {/* Clock — desktop only (mobile shows in the system bar anyway) */}
+                                        <div className="hidden sm:block text-center px-3 py-1 bg-gradient-to-bl from-slate-900 to-slate-700 text-white rounded-xl">
                                             <div className="text-xl font-black tabular-nums leading-none">{format(clockTick, 'HH:mm')}</div>
                                             <div className="text-[10px] opacity-80 mt-0.5">{format(clockTick, 'EEE dd/MM', { locale: he })}</div>
                                         </div>
                                     </div>
 
-                                    {/* פילטר אזורים - נראה בעיקר במובייל */}
-                                    {/* AREA FILTER — clean neutral tabs (no neon colors). Active gets dark fill. */}
-                                    <div className="flex flex-wrap gap-1 p-1.5 bg-white border border-gray-200 rounded-2xl">
+                                    {/* פילטר אזורים — horizontal scroll on mobile, wrap on desktop */}
+                                    <div className="flex sm:flex-wrap gap-1 p-1.5 bg-white border border-gray-200 rounded-2xl overflow-x-auto sm:overflow-visible whitespace-nowrap">
                                         {[
                                             { key: 'all', label: 'הכל' },
                                             { key: 'אזור חום', label: 'אזור חום' },
@@ -2481,7 +2480,7 @@ export default function SeatingSetup() {
                                         <Button
                                             variant="outline"
                                             onClick={() => window.open(window.location.origin + '/PublicReservation', '_blank')}
-                                            className="bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100"
+                                            className="bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100 hidden sm:flex"
                                         >
                                             <Eye className="w-4 h-4 ml-2" />
                                             צפה בעמוד הזמנות
@@ -2555,7 +2554,11 @@ export default function SeatingSetup() {
                                             title="הצג המלצות AI"
                                         >✨ AI</button>
                                     </div>
-                                    <div className="w-full overflow-auto border rounded-lg bg-gray-100" style={{ maxHeight: bigMapMode ? 'calc(100vh - 110px)' : '70vh' }}>
+                                    <div className="w-full overflow-auto border rounded-lg bg-gray-100" style={{
+                                        // Mobile: as tall as possible so map dominates; desktop: cap so other rail/dashboard fits.
+                                        height: bigMapMode ? 'calc(100vh - 110px)' : '75vh',
+                                        minHeight: '60vh',
+                                    }}>
                                     {/* Outer wrapper takes the *visual* (scaled) dimensions so scrollbars match.
                                         Inner element renders at native 1400×850 and is scaled with transform. */}
                                     <div style={{ width: `${1400 * mapZoom}px`, height: `${850 * mapZoom}px` }}>
