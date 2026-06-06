@@ -356,6 +356,16 @@ export default function SeatingSetup() {
     }, [selectedDate]);
 
     // טוען רק נתונים חיים (sessions, הזמנות) — לא נוגע בשולחנות/מפה
+    // Stable fingerprint helper so polls that return identical data don't
+    // re-create the array (which would force every ReservationCard to re-render
+    // and reset scroll/selection in the rail).
+    const fingerprintReservations = (arr) =>
+        (arr || []).map(r => `${r.id}|${r.status}|${r.assigned_table}|${r.hostess_flag}|${r.time}|${r.party_size}|${r.customer_name}`).join('§');
+    const fingerprintSessions = (arr) =>
+        (arr || []).map(s => `${s.id}|${s.current_step}|${s.table_number}`).join('§');
+    const fingerprintCustomers = (arr) =>
+        (arr || []).map(c => `${c.id}|${c.total_visits}`).join('§');
+
     const loadLiveData = useCallback(async () => {
         try {
             const dateString = format(selectedDate, 'yyyy-MM-dd');
@@ -364,9 +374,14 @@ export default function SeatingSetup() {
                 Reservation.filter({ date: dateString }, 'time'),
                 Customer.list()
             ]);
-            setActiveSessions(sessions);
-            setReservations((dateReservations || []).map(r => ({ ...r, date: typeof r.date === 'string' ? r.date.slice(0, 10) : r.date })));
-            setCustomers(allCustomers);
+            const newSessions = sessions || [];
+            const newRes = (dateReservations || []).map(r => ({ ...r, date: typeof r.date === 'string' ? r.date.slice(0, 10) : r.date }));
+            const newCustomers = allCustomers || [];
+            // Only setState when something actually changed — preserves scroll position,
+            // popovers, and prevents unnecessary card re-renders during 60s polls.
+            setActiveSessions(prev => fingerprintSessions(prev) === fingerprintSessions(newSessions) ? prev : newSessions);
+            setReservations(prev => fingerprintReservations(prev) === fingerprintReservations(newRes) ? prev : newRes);
+            setCustomers(prev => fingerprintCustomers(prev) === fingerprintCustomers(newCustomers) ? prev : newCustomers);
         } catch (error) {
             console.error('Error loading live data:', error);
         }
@@ -3115,6 +3130,9 @@ function TableCombosBreakdown({ tables, onSetConnection }) {
 
             {open && (
                 <div className="p-4 space-y-3 border-t border-indigo-200">
+                    {/* Reverse selector — pick tables → see party-size range */}
+                    <TableComboSelector tables={valid} adj={adj} byNum={byNum} isConnected={isConnected} />
+
                     {/* Edit toolbar */}
                     {onSetConnection && (
                         <div className="bg-white border border-indigo-200 rounded-xl p-3">
@@ -3227,6 +3245,80 @@ function TableCombosBreakdown({ tables, onSetConnection }) {
                         </div>
                     </div>
                 </div>
+            )}
+        </div>
+    );
+}
+
+// === TableComboSelector — pick tables, see how many guests they seat together ===
+function TableComboSelector({ tables, adj, byNum, isConnected }) {
+    const [selected, setSelected] = React.useState([]);
+
+    const toggle = (num) => {
+        const n = String(num);
+        setSelected(prev => prev.includes(n) ? prev.filter(x => x !== n) : [...prev, n]);
+    };
+    const clear = () => setSelected([]);
+
+    let sumMin = 0, sumMax = 0;
+    for (const n of selected) {
+        const t = byNum.get(n);
+        if (t) { sumMin += (t.min_capacity || 0); sumMax += (t.max_capacity || 0); }
+    }
+    const connected = selected.length <= 1 ? true : isConnected(selected);
+
+    // Sort tables by number (numeric where possible)
+    const sortedTables = [...tables].sort((a, b) => {
+        const na = parseInt(a.table_number), nb = parseInt(b.table_number);
+        if (!isNaN(na) && !isNaN(nb)) return na - nb;
+        return String(a.table_number).localeCompare(String(b.table_number));
+    });
+
+    return (
+        <div className="bg-white border-2 border-emerald-200 rounded-xl p-3 mb-3">
+            <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-1.5">
+                    <span className="text-base">🔍</span>
+                    <span className="font-black text-sm text-emerald-800">בדוק שילוב — בחר שולחנות, רואה למה הם מתאימים</span>
+                </div>
+                {selected.length > 0 && (
+                    <button onClick={clear} className="text-[11px] text-gray-500 hover:text-red-600">נקה ({selected.length})</button>
+                )}
+            </div>
+
+            {selected.length > 0 && (
+                <div className={`mb-2 p-2 rounded-lg ${connected ? 'bg-emerald-50 border border-emerald-300' : 'bg-amber-50 border border-amber-300'}`}>
+                    {connected ? (
+                        <div className="text-sm font-bold text-emerald-900">
+                            ✅ {selected.map(s => `#${s}`).join(' + ')} → מתאים ל-<span className="text-lg">{sumMin}-{sumMax}</span> סועדים
+                        </div>
+                    ) : (
+                        <div className="text-xs font-bold text-amber-900">
+                            ⚠️ {selected.map(s => `#${s}`).join(' + ')} — השולחנות לא מחוברים בפועל ({sumMin}-{sumMax} סועדים אם תחבר אותם)
+                        </div>
+                    )}
+                </div>
+            )}
+
+            <div className="flex flex-wrap gap-1 max-h-40 overflow-y-auto">
+                {sortedTables.map(t => {
+                    const n = String(t.table_number);
+                    const isSelected = selected.includes(n);
+                    return (
+                        <button
+                            key={n}
+                            onClick={() => toggle(n)}
+                            className={`text-xs font-bold px-2 py-1 rounded-full border transition-colors
+                                ${isSelected
+                                    ? 'bg-emerald-600 text-white border-emerald-700 shadow'
+                                    : 'bg-white text-gray-700 border-gray-200 hover:border-emerald-400'}`}
+                            title={`קיבולת ${t.min_capacity}-${t.max_capacity}`}
+                        >#{t.table_number}</button>
+                    );
+                })}
+            </div>
+            {selected.length === 0 && (
+                <div className="mt-1 text-[10px] text-gray-500">לחץ על שולחנות לבחירה — סכום הקיבולת יחושב אוטומטית.</div>
             )}
         </div>
     );
