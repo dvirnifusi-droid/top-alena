@@ -3279,17 +3279,27 @@ registerFn('createPublicReservation', async ({ body }) => {
     throw new Error('missing_required_fields');
   }
   // Time-in-past guard: reservation must be at least 15 minutes from now (Israel time).
-  // Server clock is UTC; Israel is UTC+3.
+  // DST-safe: read current IL wall-clock via Intl.DateTimeFormat instead of hardcoded +3 (which is wrong in winter UTC+2).
   try {
     const dateStr = String(date).slice(0, 10);
     const [hh, mm] = String(time).split(':').map((s) => parseInt(s, 10));
     if (!Number.isFinite(hh) || !Number.isFinite(mm)) throw new Error('invalid_time_format');
-    const nowMs = Date.now();
-    const ilNow = new Date(nowMs + 3 * 3600 * 1000); // shift to IL wall clock
-    const ilTargetIso = `${dateStr}T${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}:00.000Z`;
-    const targetMs = new Date(ilTargetIso).getTime();
-    const minLeadMs = 15 * 60 * 1000;
-    if (targetMs - ilNow.getTime() < minLeadMs) {
+    // Get the current wall clock in Asia/Jerusalem as 'YYYY-MM-DD HH:MM'.
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Jerusalem',
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', hour12: false,
+    }).formatToParts(new Date());
+    const get = (t: string) => parts.find((p) => p.type === t)?.value || '';
+    const ilNowDateStr = `${get('year')}-${get('month')}-${get('day')}`;
+    const ilNowMin = parseInt(get('hour'), 10) * 60 + parseInt(get('minute'), 10);
+    const targetMin = hh * 60 + mm;
+    // Build sortable signatures: same date → compare minutes; different date → compare strings
+    const sameDay = dateStr === ilNowDateStr;
+    const isPast = sameDay
+      ? targetMin - ilNowMin < 15
+      : dateStr < ilNowDateStr;
+    if (isPast) {
       throw Object.assign(new Error('זמן ההזמנה כבר עבר. בחר שעה לפחות 15 דקות קדימה.'), { code: 'time_in_past' });
     }
   } catch (e: any) {
