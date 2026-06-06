@@ -160,8 +160,11 @@ export default function ShiftClockWidget() {
             // and we must NEVER overwrite the lunch assignment when they clock
             // into the evening (and vice versa). Wrapped in try/catch so any
             // WorkShift drift doesn't prevent the gear-up dialog from opening.
+            let employeeRecordForGearCheck = null;
+            let assignmentForGearCheck = null;
             try {
                 const employeeRecord = await findEmployeeRecord(user);
+                employeeRecordForGearCheck = employeeRecord;
                 const employeeId = employeeRecord?.id || user.id;
                 const employeeName = employeeRecord?.full_name || user.full_name;
 
@@ -183,6 +186,7 @@ export default function ShiftClockWidget() {
                     );
                     if (assignment) { assignmentFound = assignment; targetShift = ws; break; }
                 }
+                assignmentForGearCheck = assignmentFound;
 
                 if (!assignmentFound) {
                     // No assignment in this shift_type — create or extend a
@@ -225,7 +229,19 @@ export default function ShiftClockWidget() {
             }
 
             setActiveShift(shift);
-            setShowGearUp(true);
+            // Skip gear-up dialog for kitchen staff — they don't get iPads/terminals.
+            const KITCHEN_POSITIONS = ['טבח', 'מנהל מטבח', 'שוטף כלים', 'kitchen', 'sous chef', 'dishwasher', 'cook'];
+            const isKitchen = (() => {
+                try {
+                    // Check the shift assignment we just made/found.
+                    const assignmentPosition = String(assignmentForGearCheck?.position || '').toLowerCase();
+                    if (KITCHEN_POSITIONS.some(k => assignmentPosition.includes(k.toLowerCase()))) return true;
+                    // Fallback: check the Employee record's primary position.
+                    const empPositions = (employeeRecordForGearCheck?.positions || []).map(p => String(p?.position_name || '').toLowerCase());
+                    return empPositions.some(p => KITCHEN_POSITIONS.some(k => p.includes(k.toLowerCase())));
+                } catch { return false; }
+            })();
+            if (!isKitchen) setShowGearUp(true);
         } catch (err) {
             // If even ShiftTracking.create fails, surface a real error to the user.
             const data = err?.data || {};

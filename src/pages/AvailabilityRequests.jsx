@@ -231,12 +231,21 @@ function AvailabilityRequestsInner() {
                  end_time: shiftType === 'lunch' ? '17:00' : '23:00',
              }];
 
-             await base44.entities.WorkShift.update(shift.id, { assigned_staff: newStaff });
-             toast.success(`${avail.employee_name} שובץ בהצלחה!`);
+             const updated = await base44.entities.WorkShift.update(shift.id, { assigned_staff: newStaff });
+             // Verify the staff is actually in the response so we know the save took.
+             const verified = (updated?.assigned_staff || []).some(s => s.employee_id === avail.employee_id);
+             if (!verified) {
+                 console.warn('[singleAssign] save returned but employee not present in response', { shiftId: shift.id, newStaff, updated });
+                 toast.error('שגיאה: השיבוץ לא נשמר. בדוק את הרשת ונסה שוב.');
+                 setSingleAssignLoading(false);
+                 return;
+             }
+             toast.success(`${avail.employee_name} שובץ ל-${shiftType === 'lunch' ? 'צהריים' : 'ערב'} בהצלחה!`);
              setSingleAssignModal(null);
+             await loadData(); // Refresh so the UI reflects the new assignment immediately
          } catch (e) {
-             console.error(e);
-             toast.error('שגיאה בשיבוץ');
+             console.error('[singleAssign] failed:', e);
+             toast.error('שגיאה בשיבוץ: ' + (e?.message || e));
          }
          setSingleAssignLoading(false);
      };
