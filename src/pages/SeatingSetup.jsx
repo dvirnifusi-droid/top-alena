@@ -268,6 +268,9 @@ export default function SeatingSetup() {
     const [layout, setLayout] = useState(null);
     const [tables, setTables] = useState([]);
     const [facilities, setFacilities] = useState([]);
+    // Explicit table-combinations the owner saved per party size.
+    // Shape: [{ id, party_size, tables: ['10','11'] }]
+    const [combos, setCombos] = useState([]);
     const [activeSessions, setActiveSessions] = useState([]);
     const [serviceSteps, setServiceSteps] = useState([]);
     const [reservations, setReservations] = useState([]);
@@ -338,10 +341,12 @@ export default function SeatingSetup() {
                 setLayout(layouts[0]);
                 setTables(layouts[0].tables || []);
                 setFacilities(layouts[0].facilities || []);
+                setCombos(Array.isArray(layouts[0].combos) ? layouts[0].combos : []);
             } else {
                 setLayout(null);
                 setTables([]);
                 setFacilities([]);
+                setCombos([]);
             }
             
             setActiveSessions(sessions);
@@ -749,7 +754,8 @@ export default function SeatingSetup() {
             const layoutData = {
                 layout_name: layout?.layout_name || "מפה ראשית - עלינא",
                 tables,
-                facilities
+                facilities,
+                combos,
             };
 
             // Always check the server, not just local state — guards against
@@ -2136,6 +2142,22 @@ export default function SeatingSetup() {
                                 {/* Party-size breakdown: derive from min/max/combinable_with */}
                                 <TableCombosBreakdown
                                     tables={tables}
+                                    combos={combos}
+                                    onAddCombo={(partySize, tableIds) => {
+                                        if (!partySize || !Array.isArray(tableIds) || tableIds.length < 2) return;
+                                        const sorted = [...tableIds].map(String).sort();
+                                        const key = `${partySize}:${sorted.join('-')}`;
+                                        // De-dupe: don't add the same combo twice
+                                        if (combos.some(c => `${c.party_size}:${[...(c.tables||[])].map(String).sort().join('-')}` === key)) return;
+                                        setCombos(prev => [...prev, {
+                                            id: `c_${Date.now()}_${Math.random().toString(36).slice(2,7)}`,
+                                            party_size: Number(partySize),
+                                            tables: sorted,
+                                        }]);
+                                    }}
+                                    onRemoveCombo={(comboId) => {
+                                        setCombos(prev => prev.filter(c => c.id !== comboId));
+                                    }}
                                     onSetConnection={(numA, numB, connect) => {
                                         const next = tables.map(t => ({ ...t, combinable_with: Array.isArray(t.combinable_with) ? [...t.combinable_with] : [] }));
                                         const a = next.find(t => String(t.table_number) === String(numA));
@@ -3042,7 +3064,7 @@ function CompactTonightStrip({ reservations, selectedDate, onEdit, onOpenFullDas
 // For each party size N=2..12 (and 12+ for events), shows which standalone tables fit
 // and which connected combinations reach the target. Derived from each table's
 // min_capacity/max_capacity/combinable_with — no extra config needed.
-function TableCombosBreakdown({ tables, onSetConnection }) {
+function TableCombosBreakdown({ tables, combos = [], onAddCombo, onRemoveCombo, onSetConnection }) {
     const [open, setOpen] = React.useState(false);
     const [addMode, setAddMode] = React.useState(false);
     const [pickedTables, setPickedTables] = React.useState([]); // multi-select
@@ -3087,7 +3109,17 @@ function TableCombosBreakdown({ tables, onSetConnection }) {
                 onSetConnection?.(pickedTables[i], pickedTables[j], true);
             }
         }
-        setPickedTables([]); setPickedSize(''); setAddMode(false);
+        // Also save as explicit combo for the chosen party size (if specified)
+        if (pickedSize && onAddCombo) {
+            onAddCombo(pickedSize, pickedTables);
+        }
+        // KEY UX: stay in add mode, keep party size selected, clear only tables.
+        // Owner can immediately enter the next combo for the same party size.
+        setPickedTables([]);
+        // DO NOT reset pickedSize or addMode — sticky for bulk entry
+    };
+    const finishAdding = () => {
+        setAddMode(false); setPickedTables([]); setPickedSize('');
     };
 
     // Stable fingerprint so memoization actually works.
@@ -3294,9 +3326,14 @@ function TableCombosBreakdown({ tables, onSetConnection }) {
                                             onClick={addConnection}
                                             disabled={pickedTables.length < 2}
                                             className="text-xs font-bold px-3 py-1.5 rounded bg-emerald-600 text-white hover:bg-emerald-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
-                                        >חבר {pickedTables.length >= 2 ? `(${pickedTables.length})` : ''}</button>
-                                        <button onClick={() => { setAddMode(false); setPickedTables([]); setPickedSize(''); }} className="text-xs px-3 py-1.5 rounded bg-gray-100 text-gray-700 hover:bg-gray-200">ביטול</button>
+                                        >הוסף חיבור {pickedTables.length >= 2 ? `(${pickedTables.length})` : ''}</button>
+                                        <button onClick={finishAdding} className="text-xs px-3 py-1.5 rounded bg-slate-700 text-white hover:bg-slate-800">סיים</button>
                                     </div>
+                                    {pickedSize && (
+                                        <div className="mt-2 text-[10px] text-emerald-700 font-bold">
+                                            📌 המערכת נשארת על {pickedSize} סועדים — בחר את החיבור הבא ולחץ "הוסף חיבור" שוב.
+                                        </div>
+                                    )}
                                 </div>
                             )}
                             <div className="mt-1.5 text-[10px] text-amber-700">
@@ -3307,14 +3344,37 @@ function TableCombosBreakdown({ tables, onSetConnection }) {
 
                     {[2,3,4,5,6,7,8,9,10,11,12].map(n => {
                         const b = breakdown[n] || { singles: [], combos: [] };
+                        const explicitCombos = combos.filter(c => Number(c.party_size) === n);
                         return (
                             <div key={n} className="border border-gray-200 rounded-xl p-3 bg-white">
                                 <div className="flex items-center justify-between mb-2">
                                     <div className="font-black text-sm text-gray-900">👥 {n} סועדים</div>
                                     <div className="text-[11px] text-gray-500">
+                                        {explicitCombos.length > 0 && <span className="text-emerald-700 font-bold">📌 {explicitCombos.length} שמורים · </span>}
                                         {b.singles.length} לבד · {b.combos.length} בחיבור
                                     </div>
                                 </div>
+
+                                {/* Explicit owner-saved combos for this party size — pinned at top */}
+                                {explicitCombos.length > 0 && (
+                                    <div className="mb-2">
+                                        <div className="text-[10px] font-bold text-emerald-700 mb-1">📌 חיבורים שמורים</div>
+                                        <div className="flex flex-wrap gap-1.5">
+                                            {explicitCombos.map(c => (
+                                                <span key={c.id} className="inline-flex items-center gap-1 text-xs font-bold px-2 py-1 rounded-full border bg-emerald-100 text-emerald-900 border-emerald-400">
+                                                    {(c.tables || []).map(id => `#${id}`).join(' + ')}
+                                                    {onRemoveCombo && (
+                                                        <button
+                                                            onClick={(e) => { e.stopPropagation(); if (window.confirm(`להסיר את החיבור השמור ${(c.tables||[]).map(id=>'#'+id).join('+')} ל-${n} סועדים?`)) onRemoveCombo(c.id); }}
+                                                            title="הסר חיבור שמור"
+                                                            className="ml-0.5 w-4 h-4 rounded-full bg-emerald-200 hover:bg-red-500 hover:text-white text-emerald-900 text-[10px] flex items-center justify-center"
+                                                        >×</button>
+                                                    )}
+                                                </span>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
                                 {b.singles.length > 0 && (
                                     <div className="mb-2">
                                         <div className="text-[10px] font-bold text-gray-500 mb-1">🪑 לבד</div>

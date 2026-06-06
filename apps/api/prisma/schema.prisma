@@ -1572,6 +1572,7 @@ model SeatingLayout {
   layout_name                  String
   tables                       Json
   facilities                   Json?
+  combos                       Json?
   // Legacy base44 columns — exist in DB; declared so frontend code that
   // reads record.created_date / record.updated_date still gets a value.
   created_date String?

@@ -8900,5 +8900,11 @@ if (!(globalThis as any).__startupDriftRepair) {
     } catch (e: any) {
       console.error('[startup] ensureReservationSourceCols failed:', e?.message);
     }
+    try {
+      await prisma.$executeRawUnsafe(`ALTER TABLE "SeatingLayout" ADD COLUMN IF NOT EXISTS "combos" JSONB;`);
+      console.log('[startup] SeatingLayout.combos column ensured');
+    } catch (e: any) {
+      console.error('[startup] ensure SeatingLayout.combos failed:', e?.message);
+    }
   })();
 }
