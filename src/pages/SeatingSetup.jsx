@@ -4546,40 +4546,31 @@ function CompactQueueStrip({ queueEntries, abandonedEntries, onSeat, onAbandon, 
     const [sizeFilter, setSizeFilter] = useState('all');
     const [waitTimeInput, setWaitTimeInput] = useState({}); // {entryId: '15'}
     const now = Date.now();
-    // AI seating suggestions per queue entry — keyed by entry.id
+    // AI seating suggestions per queue entry — keyed by entry.id, on-demand only
     const [aiSuggestions, setAiSuggestions] = useState({}); // {entryId: {loading, answer, actions}}
-    const aiFetchedRef = useRef(new Set()); // entry ids we already fetched (avoid spamming endpoint)
 
-    // Auto-fetch AI suggestion for every active queue entry, once per entry
-    useEffect(() => {
-        const active = (queueEntries || []).filter(q => q.status === 'active' || q.status === 'pending');
-        for (const entry of active) {
-            if (aiFetchedRef.current.has(entry.id)) continue;
-            aiFetchedRef.current.add(entry.id);
-            (async () => {
-                setAiSuggestions(prev => ({ ...prev, [entry.id]: { loading: true } }));
-                const prefMap = { inside: 'בפנים', outside: 'בחוץ', no_preference: 'ללא העדפת מיקום' };
-                const prefText = prefMap[entry.seating_preference] || 'ללא העדפת מיקום';
-                const durationText = (entry.table_duration_preference === 'one_hour_only' || entry.table_duration_preference === 'one_hour')
-                    ? 'מסכימים לשולחן לשעה בלבד'
-                    : 'צריך שולחן לזמן רגיל (לא מוגבל לשעה)';
-                const noteText = entry.customer_notes ? ` הערה: "${entry.customer_notes}"` : '';
-                const question = `הגיע ${entry.customer_name || 'לקוח'} לתור עם ${entry.party_size || '?'} סועדים, ${prefText}, ${durationText}.${noteText} איזה שולחן הכי מתאים להושיב אותם עכשיו?`;
-                try {
-                    const tok = localStorage.getItem('auth_token') || '';
-                    const r = await fetch('/api/fn/aiSeatingAssistant', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + tok },
-                        body: JSON.stringify({ question }),
-                    });
-                    const data = await r.json();
-                    setAiSuggestions(prev => ({ ...prev, [entry.id]: { loading: false, answer: data.answer, actions: data.actions || [] } }));
-                } catch (e) {
-                    setAiSuggestions(prev => ({ ...prev, [entry.id]: { loading: false, error: String(e?.message || e) } }));
-                }
-            })();
+    const fetchAiSuggestion = async (entry) => {
+        setAiSuggestions(prev => ({ ...prev, [entry.id]: { loading: true } }));
+        const prefMap = { inside: 'בפנים', outside: 'בחוץ', no_preference: 'ללא העדפת מיקום' };
+        const prefText = prefMap[entry.seating_preference] || 'ללא העדפת מיקום';
+        const durationText = (entry.table_duration_preference === 'one_hour_only' || entry.table_duration_preference === 'one_hour')
+            ? 'מסכימים לשולחן לשעה בלבד'
+            : 'צריך שולחן לזמן רגיל (לא מוגבל לשעה)';
+        const noteText = entry.customer_notes ? ` הערה: "${entry.customer_notes}"` : '';
+        const question = `הגיע ${entry.customer_name || 'לקוח'} לתור עם ${entry.party_size || '?'} סועדים, ${prefText}, ${durationText}.${noteText} איזה שולחן הכי מתאים להושיב אותם עכשיו?`;
+        try {
+            const tok = localStorage.getItem('auth_token') || '';
+            const r = await fetch('/api/fn/aiSeatingAssistant', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + tok },
+                body: JSON.stringify({ question }),
+            });
+            const data = await r.json();
+            setAiSuggestions(prev => ({ ...prev, [entry.id]: { loading: false, answer: data.answer, actions: data.actions || [] } }));
+        } catch (e) {
+            setAiSuggestions(prev => ({ ...prev, [entry.id]: { loading: false, error: String(e?.message || e) } }));
         }
-    }, [queueEntries]);
+    };
 
     const toggleTreated = async (entry) => {
         try { await QueueEntry.update(entry.id, { treated: !entry.treated }); onRefresh?.(); } catch {}
@@ -4766,11 +4757,25 @@ function CompactQueueStrip({ queueEntries, abandonedEntries, onSeat, onAbandon, 
                                 </div>
                             )}
 
-                            {/* AI seating suggestion — automatically loaded for every queue entry */}
-                            {aiSuggestions[q.id] && (
+                            {/* AI seating suggestion — on-demand. Click button to fetch. */}
+                            {!aiSuggestions[q.id] ? (
+                                <button
+                                    onClick={() => fetchAiSuggestion(q)}
+                                    className="mt-2 w-full text-xs font-bold py-2 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 text-white shadow hover:scale-[1.02] transition-transform flex items-center justify-center gap-1"
+                                >✨ קבל הצעת AI להושבה</button>
+                            ) : (
                                 <div className="mt-2 bg-gradient-to-br from-indigo-50 to-purple-50 border border-indigo-200 rounded-lg p-2">
-                                    <div className="flex items-center gap-1 text-[10px] font-black text-indigo-700 mb-1">
-                                        <span>✨</span><span>הצעת AI להושבה:</span>
+                                    <div className="flex items-center justify-between mb-1">
+                                        <div className="flex items-center gap-1 text-[10px] font-black text-indigo-700">
+                                            <span>✨</span><span>הצעת AI להושבה:</span>
+                                        </div>
+                                        {!aiSuggestions[q.id].loading && (
+                                            <button
+                                                onClick={() => fetchAiSuggestion(q)}
+                                                title="חשב שוב"
+                                                className="text-[10px] text-indigo-600 hover:text-indigo-900"
+                                            >🔄</button>
+                                        )}
                                     </div>
                                     {aiSuggestions[q.id].loading ? (
                                         <div className="text-[11px] text-indigo-600 animate-pulse">חושב...</div>
