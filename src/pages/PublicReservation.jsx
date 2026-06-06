@@ -345,7 +345,20 @@ export default function PublicReservationPage() {
       // in the same session. The hook is installed by SpecialPopup.
       try { window.__alenaTrackPopupConversion?.(); } catch {}
     } catch (e) {
-      setErrorMsg('שגיאה זמנית. נסה שוב בעוד רגע.');
+      // Surface the real reason so we can see what went wrong instead of generic "תקלה זמנית".
+      const serverMsg = e?.data?.message || e?.response?.data?.message || e?.message;
+      const code = e?.data?.code || e?.code;
+      console.error('[createPublicReservation] failed:', { code, serverMsg, raw: e });
+      const HEBREW = {
+        'missing_required_fields': 'חסרים פרטים בטופס. ודא שמילאת שם, טלפון, תאריך, שעה ומספר סועדים.',
+        'party_too_large': 'מספר הסועדים גדול מהמותר להזמנה מקוונת.',
+        'no_table_available': 'אין שולחנות פנויים בשעה שבחרת. נסה שעה אחרת או הצטרף לרשימת המתנה.',
+        'time_outside_hours': 'השעה שבחרת מחוץ לשעות הפעילות.',
+        'date_in_past': 'אי אפשר להזמין לתאריך שעבר.',
+        'invalid_phone': 'מספר הטלפון לא תקין.',
+      };
+      const friendly = (code && HEBREW[code]) || serverMsg || 'שגיאה זמנית. נסה שוב בעוד רגע.';
+      setErrorMsg(friendly);
     } finally {
       setIsBooking(false);
     }
