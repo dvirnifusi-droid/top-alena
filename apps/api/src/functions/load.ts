@@ -3576,7 +3576,7 @@ registerFn('createPublicReservation', async ({ body }) => {
     `;
     sendEmail({
       to: customer_email,
-      subject: `ההזמנה שלך בעלינא · ${dateStr} ${time}`,
+      subject: `אישור הזמנה - ${dateStr} בשעה ${time} - עלינא`,
       html,
     }).catch((e) => console.warn('[reservation] email failed', e?.message));
   }

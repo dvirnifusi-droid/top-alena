@@ -4,31 +4,63 @@ type SendEmailArgs = {
   text?: string;
   html?: string;
   from?: string;
+  replyTo?: string;
 };
 
-export async function sendEmail({ to, subject, text, html, from }: SendEmailArgs) {
+// Strip HTML tags + collapse whitespace for plain-text fallback. Many spam
+// filters penalize HTML-only emails.
+function htmlToText(html: string): string {
+  return String(html || '')
+    .replace(/<style[\s\S]*?<\/style>/gi, '')
+    .replace(/<script[\s\S]*?<\/script>/gi, '')
+    .replace(/<br\s*\/?>(?!\n)/gi, '\n')
+    .replace(/<\/p>/gi, '\n\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+export async function sendEmail({ to, subject, text, html, from, replyTo }: SendEmailArgs) {
   const apiKey = process.env.RESEND_API_KEY;
-  const sender = from ?? process.env.EMAIL_FROM ?? 'noreply@example.com';
+  // Friendly From name helps deliverability AND looks more professional.
+  // Caller can override with `from`; otherwise use EMAIL_FROM env, otherwise the brand default.
+  const defaultFrom = process.env.EMAIL_FROM ?? 'עלינא <noreply@topalena.com>';
+  const sender = from ?? defaultFrom;
   if (!apiKey) {
     console.warn('[email] RESEND_API_KEY not set — skipping send', { to, subject });
     return { skipped: true };
   }
+  // Ensure a plain-text version exists — Gmail/Outlook treat HTML-only as suspicious.
+  const finalText = text || (html ? htmlToText(html) : '');
+  const payload: any = {
+    from: sender,
+    to: Array.isArray(to) ? to : [to],
+    subject,
+    text: finalText,
+    html,
+    // Reply-To so customers can reply to the business directly instead of noreply@
+    reply_to: replyTo || process.env.EMAIL_REPLY_TO || 'reservations@topalena.com',
+    // Standard List-Unsubscribe header — major signal for inbox placement
+    headers: {
+      'List-Unsubscribe': '<mailto:unsubscribe@topalena.com>',
+      'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+    },
+  };
   const res = await fetch('https://api.resend.com/emails', {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${apiKey}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({
-      from: sender,
-      to: Array.isArray(to) ? to : [to],
-      subject,
-      text,
-      html,
-    }),
+    body: JSON.stringify(payload),
   });
   if (!res.ok) {
     const errBody = await res.text();
+    console.error('[email] resend failed', { status: res.status, body: errBody.slice(0, 300) });
     throw new Error(`Resend error ${res.status}: ${errBody}`);
   }
   return res.json();

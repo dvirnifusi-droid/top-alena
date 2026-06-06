@@ -34,17 +34,29 @@ export async function sendWhatsApp(to: string, body: string) {
     process.env.TWILIO_WHATSAPP_FROM ??
     (process.env.TWILIO_PHONE_NUMBER ? `whatsapp:${process.env.TWILIO_PHONE_NUMBER}` : undefined);
   if (!sid || !token || !from) {
-    console.warn('[twilio] missing WhatsApp credentials, skipping', { to });
-    return { skipped: true };
+    console.warn('[twilio] missing WhatsApp credentials, skipping', { to, from_set: !!from, sid_set: !!sid });
+    return { skipped: true, reason: 'missing_credentials' };
   }
   const creds = Buffer.from(`${sid}:${token}`).toString('base64');
   const toN = normalizeIsraeliPhone(to);
+  const params: Record<string, string> = { From: from, To: `whatsapp:${toN}`, Body: body };
+  // If a pre-approved template SID is configured, use it. Twilio's WhatsApp Business
+  // requires templates for business-initiated messages outside a 24h session.
+  if (process.env.TWILIO_WA_TEMPLATE_SID) {
+    params.ContentSid = process.env.TWILIO_WA_TEMPLATE_SID;
+    // ContentVariables is JSON-encoded mapping of {"1":"value1","2":"value2"}; caller can pass via env if needed
+    if (process.env.TWILIO_WA_TEMPLATE_VARS) params.ContentVariables = process.env.TWILIO_WA_TEMPLATE_VARS;
+  }
   const res = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`, {
     method: 'POST',
     headers: { Authorization: `Basic ${creds}`, 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({ From: from, To: `whatsapp:${toN}`, Body: body }),
+    body: new URLSearchParams(params),
   });
   const data: any = await res.json();
-  if (!res.ok) throw new Error(data?.message || `twilio_wa_${res.status}`);
+  if (!res.ok) {
+    // Surface the full Twilio error code + message so we can diagnose (e.g., 63016 = needs template).
+    console.error('[twilio-wa] failed', { status: res.status, code: data?.code, message: data?.message, to: toN });
+    throw new Error(`twilio_wa_${data?.code || res.status}: ${data?.message || 'unknown'}`);
+  }
   return { success: true, sid: data.sid };
 }
