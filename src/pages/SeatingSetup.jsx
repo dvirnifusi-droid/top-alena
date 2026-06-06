@@ -1406,7 +1406,7 @@ export default function SeatingSetup() {
                             ${compactMode ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-gray-600 border-gray-200'}`}
                     >{compactMode ? '☰ קומפקטי' : '▦ מורחב'}</button>
                 </div>
-                <div className={`overflow-y-auto ${compactMode ? 'space-y-1 max-h-[60vh]' : 'space-y-2 max-h-80'}`}>
+                <div className={`overflow-y-auto ${compactMode ? 'space-y-1 max-h-[calc(100vh-180px)]' : 'space-y-2 max-h-[calc(100vh-200px)]'}`}>
                     {filteredReservations.length > 0 ? (
                         filteredReservations.map(reservation => (
                             <ReservationCard key={reservation.id} reservation={reservation} compact={compactMode} />
