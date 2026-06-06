@@ -3532,28 +3532,46 @@ registerFn('createPublicReservation', async ({ body }) => {
   const baseUrl = process.env.PUBLIC_BASE_URL || 'https://topalena.com';
   const trackUrl = `${baseUrl}/ReservationView?token=${tracking_token}`;
   const dateStr = bookingDate.toISOString().slice(0, 10).split('-').reverse().join('/');
+  // Cancellation copy from deposit settings (e.g. 'ביטול חופשי עד 3 שעות לפני').
+  const cancelHours: number | undefined = (depositInfo as any)?.cancel_hours;
+  const cancelLine = cancelHours
+    ? `ביטול חופשי עד ${cancelHours} שעות לפני ההזמנה`
+    : `אפשר לבטל ללא חיוב עד שעתיים לפני המועד`;
+  const restaurantPhone = process.env.RESTAURANT_PHONE || '03-XXXXXXX';
   const smsBody = isStandby
     ? [
-        `שלום ${customer_name}!`,
+        `שלום ${customer_name} 👋`,
+        ``,
         `נרשמת לרשימת המתנה בעלינא 🟡`,
-        `📅 ${dateStr} · 🕐 ${time} (השעה שביקשת)`,
+        `📅 ${dateStr} בשעה ${time} (השעה שביקשת)`,
         `👥 ${size} סועדים`,
         ``,
         `השולחן מלא ברגע זה — אם יתפנה מקום נצור איתך קשר מיד.`,
         `אין הזמנה מאושרת עד שנחזור אליך.`,
         ``,
-        `🔗 לבדיקת סטטוס: ${trackUrl}`,
+        `📋 לבדיקת סטטוס: ${trackUrl}`,
       ].join('\n')
     : [
-        `שלום ${customer_name}!`,
+        `שלום ${customer_name} 👋`,
+        ``,
         `ההזמנה שלך בעלינא אושרה ✅`,
-        `📅 ${dateStr} · 🕐 ${time}`,
+        `📅 ${dateStr} בשעה ${time}`,
         `👥 ${size} סועדים`,
         `📍 רוטשילד 104, ראשון לציון`,
-        `🅿️ חניה: חניון בן גוריון (חינם אחר הצהריים)`,
         ``,
-        `🔗 צפיה / ביטול: ${trackUrl}`,
-        `(ניתן לבטל ללא חיוב עד שעתיים לפני)`,
+        `🅿️ חניה`,
+        `חניון מול מרכז בן גוריון (חינם מ-17:00 ובסופ"ש)`,
+        ``,
+        `⏰ ביטול`,
+        cancelLine,
+        ``,
+        `💬 שינויים / שאלות?`,
+        `${restaurantPhone} (במסעדה)`,
+        ``,
+        `נשמח לראותכם ✨`,
+        `צוות עלינא`,
+        ``,
+        `📋 צפיה בהזמנה: ${trackUrl}`,
       ].join('\n');
   // SMS
   sendSms(String(customer_phone).trim(), smsBody).catch((e) =>
@@ -3566,15 +3584,31 @@ registerFn('createPublicReservation', async ({ body }) => {
   // Email — best-effort if address provided
   if (customer_email) {
     const html = `
-      <div style="font-family:Arial,sans-serif;max-width:560px;margin:auto;padding:20px;background:#fafafa;border-radius:12px">
-        <h2 style="color:#a04a2e">שלום ${customer_name}, ההזמנה שלך בעלינא אושרה ✅</h2>
-        <p>📅 <b>${dateStr}</b> · 🕐 <b>${time}</b> · 👥 <b>${size} סועדים</b></p>
-        <p>📍 רוטשילד 104, ראשון לציון</p>
-        <p>🅿️ <b>חניה</b>: חניון בן גוריון (חינם אחר הצהריים)</p>
-        <p style="margin-top:24px">
-          <a href="${trackUrl}" style="background:#a04a2e;color:white;padding:10px 16px;border-radius:8px;text-decoration:none">צפיה / ביטול הזמנה</a>
+      <div dir="rtl" style="font-family:Arial,Helvetica,sans-serif;max-width:560px;margin:auto;padding:24px;background:#fafafa;border-radius:12px;color:#1f1b17">
+        <p style="font-size:18px;margin:0 0 4px">שלום ${customer_name} 👋</p>
+        <p style="margin:0 0 24px;color:#a04a2e;font-size:20px;font-weight:bold">ההזמנה שלך בעלינא אושרה ✅</p>
+
+        <div style="background:#fff;border:1px solid #e5d9c4;border-radius:10px;padding:16px;margin-bottom:16px">
+          <p style="margin:4px 0">📅 <b>${dateStr}</b> בשעה <b>${time}</b></p>
+          <p style="margin:4px 0">👥 <b>${size} סועדים</b></p>
+          <p style="margin:4px 0">📍 רוטשילד 104, ראשון לציון</p>
+        </div>
+
+        <p style="margin:16px 0 4px;font-weight:bold">🅿️ חניה</p>
+        <p style="margin:0 0 16px">חניון מול מרכז בן גוריון (חינם מ-17:00 ובסופ"ש)</p>
+
+        <p style="margin:16px 0 4px;font-weight:bold">⏰ ביטול</p>
+        <p style="margin:0 0 16px">${cancelLine}</p>
+
+        <p style="margin:16px 0 4px;font-weight:bold">💬 שינויים / שאלות?</p>
+        <p style="margin:0 0 16px">${restaurantPhone} (במסעדה)</p>
+
+        <p style="margin:24px 0 12px;text-align:center;color:#a04a2e;font-size:16px">נשמח לראותכם ✨</p>
+        <p style="margin:0 0 16px;text-align:center;color:#666">צוות עלינא</p>
+
+        <p style="margin:24px 0 0;text-align:center">
+          <a href="${trackUrl}" style="background:#a04a2e;color:#F4ECD8;padding:12px 20px;border-radius:8px;text-decoration:none;font-weight:bold;display:inline-block">📋 צפיה / ביטול הזמנה</a>
         </p>
-        <p style="font-size:12px;color:#666;margin-top:16px">ניתן לבטל ללא חיוב עד שעתיים לפני המועד. נשמח לראותך!</p>
       </div>
     `;
     sendEmail({
