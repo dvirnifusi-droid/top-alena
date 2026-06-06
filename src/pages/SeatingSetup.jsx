@@ -2157,7 +2157,8 @@ export default function SeatingSetup() {
                                         if (!partySize) return;
                                         const fixedCount = Array.isArray(tableIds) ? tableIds.length : 0;
                                         const flexCount = Array.isArray(flexSlots) ? flexSlots.length : 0;
-                                        if (fixedCount + flexCount < 2) return; // Need at least 2 slots total
+                                        // Allow ranking single tables too (1 = unified priority list with combos)
+                                        if (fixedCount + flexCount < 1) return;
                                         const sorted = [...(tableIds || [])].map(String).sort();
                                         const slots = (flexSlots || []).map(f => ({
                                             key: f.key, label: f.label, table_max: f.table_max,
@@ -3259,8 +3260,8 @@ function TableCombosBreakdown({ tables, combos = [], onAddCombo, onRemoveCombo, 
     };
     const addConnection = () => {
         const totalPicked = pickedTables.length + flexSlots.length;
-        if (totalPicked < 2) {
-            window.alert('בחר לפחות 2 שולחנות (יכול לכלול שולחן וויילדקארד)');
+        if (totalPicked < 1) {
+            window.alert('בחר לפחות שולחן אחד או וויילדקארד');
             return;
         }
         // Connect ALL pairs of FIXED picked tables — wildcards don't create graph edges.
@@ -3429,12 +3430,12 @@ function TableCombosBreakdown({ tables, combos = [], onAddCombo, onRemoveCombo, 
                             {!addMode ? (
                                 <div className="flex items-center justify-between gap-2">
                                     <div className="text-[11px] text-gray-600">
-                                        ✏️ עריכת חיבורים: ❌ על צ׳יפ בחיבור = לנתק. <strong>+ הוסף חיבור</strong> = ליצור חיבור חדש.
+                                        ✏️ עריכת עדיפויות: ❌ על צ׳יפ = הסר מהעדיפויות. <strong>+ הוסף לעדיפויות</strong> = שולחן בודד או חיבור.
                                     </div>
                                     <button
                                         onClick={() => setAddMode(true)}
                                         className="text-xs font-bold px-3 py-1.5 rounded-full bg-emerald-600 text-white hover:bg-emerald-700 shadow"
-                                    >➕ הוסף חיבור</button>
+                                    >➕ הוסף לעדיפויות</button>
                                 </div>
                             ) : (
                                 <div>
@@ -3456,7 +3457,7 @@ function TableCombosBreakdown({ tables, combos = [], onAddCombo, onRemoveCombo, 
                                     {/* Multi-select table grid */}
                                     <div className="mb-2">
                                         <div className="flex items-center justify-between mb-1">
-                                            <span className="text-xs font-bold text-gray-700">🪑 בחר 2 שולחנות או יותר:</span>
+                                            <span className="text-xs font-bold text-gray-700">🪑 בחר שולחן אחד או יותר (לבד או בחיבור):</span>
                                             {(pickedTables.length > 0 || flexSlots.length > 0) && (
                                                 <span className="text-[11px] font-bold text-emerald-700">
                                                     נבחרו: {[...pickedTables.map(n => '#' + n), ...flexSlots.map(f => `🃏${f.label}`)].join(' + ')}
@@ -3546,12 +3547,12 @@ function TableCombosBreakdown({ tables, combos = [], onAddCombo, onRemoveCombo, 
                                             onClick={addConnection}
                                             disabled={pickedTables.length < 2}
                                             className="text-xs font-bold px-3 py-1.5 rounded bg-emerald-600 text-white hover:bg-emerald-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
-                                        >הוסף חיבור {pickedTables.length >= 2 ? `(${pickedTables.length})` : ''}</button>
+                                        >הוסף לעדיפויות {(pickedTables.length + flexSlots.length) > 0 ? `(${pickedTables.length + flexSlots.length})` : ''}</button>
                                         <button onClick={finishAdding} className="text-xs px-3 py-1.5 rounded bg-slate-700 text-white hover:bg-slate-800">סיים</button>
                                     </div>
                                     {pickedSize && (
                                         <div className="mt-2 text-[10px] text-emerald-700 font-bold">
-                                            📌 המערכת נשארת על {pickedSize} סועדים — בחר את החיבור הבא ולחץ "הוסף חיבור" שוב.
+                                            📌 המערכת נשארת על {pickedSize} סועדים — בחר את העדיפות הבאה ולחץ "הוסף לעדיפויות" שוב.
                                         </div>
                                     )}
                                 </div>
@@ -3581,20 +3582,27 @@ function TableCombosBreakdown({ tables, combos = [], onAddCombo, onRemoveCombo, 
                             const key = [...(ac.ids||[])].map(String).sort().join('|');
                             return !claimedKeys.has(key);
                         });
+                        // Filter out auto-derived singles whose table is already in an explicit list
+                        const claimedSingles = new Set(
+                            combos
+                                .filter(c => (c.tables||[]).length === 1 && (c.flex_slots||[]).length === 0)
+                                .map(c => String(c.tables[0]))
+                        );
+                        const autoSingles = (b.singles || []).filter(t => !claimedSingles.has(String(t)));
                         return (
                             <div key={n} className="border border-gray-200 rounded-xl p-3 bg-white">
                                 <div className="flex items-center justify-between mb-2">
                                     <div className="font-black text-sm text-gray-900">👥 {n} סועדים</div>
                                     <div className="text-[11px] text-gray-500">
-                                        {explicitCombos.length > 0 && <span className="text-emerald-700 font-bold">📌 {explicitCombos.length} שמורים · </span>}
-                                        {b.singles.length} לבד · {autoCombos.length} בחיבור
+                                        {explicitCombos.length > 0 && <span className="text-emerald-700 font-bold">📌 {explicitCombos.length} בעדיפות · </span>}
+                                        {autoSingles.length} לבד · {autoCombos.length} בחיבור
                                     </div>
                                 </div>
 
-                                {/* Explicit owner-saved combos for this party size — sorted by priority */}
+                                {/* Explicit owner-saved priority list — singles AND combos, sorted by rank */}
                                 {explicitCombos.length > 0 && (
                                     <div className="mb-2">
-                                        <div className="text-[10px] font-bold text-emerald-700 mb-1">📌 חיבורים שמורים (לפי עדיפות — ה-AI ינסה מלמעלה למטה)</div>
+                                        <div className="text-[10px] font-bold text-emerald-700 mb-1">📌 רשימת עדיפויות הושבה (שולחנות וחיבורים — ה-AI ינסה מלמעלה למטה)</div>
                                         <div className="space-y-1">
                                             {explicitCombos.map((c, idx) => {
                                                 const fixedParts = (c.tables || []).map(id => `#${id}`);
@@ -3639,11 +3647,11 @@ function TableCombosBreakdown({ tables, combos = [], onAddCombo, onRemoveCombo, 
                                         </div>
                                     </div>
                                 )}
-                                {b.singles.length > 0 && (
+                                {autoSingles.length > 0 && (
                                     <div className="mb-2">
-                                        <div className="text-[10px] font-bold text-gray-500 mb-1">🪑 לבד</div>
+                                        <div className="text-[10px] font-bold text-gray-500 mb-1">🪑 לבד (אוטומטי — לא בעדיפויות)</div>
                                         <div className="flex flex-wrap gap-1.5">
-                                            {b.singles.map(id => <Chip key={id} color="green">#{id}</Chip>)}
+                                            {autoSingles.map(id => <Chip key={id} color="green">#{id}</Chip>)}
                                         </div>
                                     </div>
                                 )}
@@ -3667,7 +3675,7 @@ function TableCombosBreakdown({ tables, combos = [], onAddCombo, onRemoveCombo, 
                                         </div>
                                     </div>
                                 )}
-                                {b.singles.length === 0 && autoCombos.length === 0 && explicitCombos.length === 0 && (
+                                {autoSingles.length === 0 && autoCombos.length === 0 && explicitCombos.length === 0 && (
                                     <div className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1">⚠️ אין שולחן או חיבור שמתאים ל-{n} סועדים</div>
                                 )}
                             </div>

@@ -3162,25 +3162,25 @@ registerFn('searchReservationTable', async ({ body }) => {
       });
       return conflicts.length === 0;
     });
-    // 1) Try a single table whose capacity range covers the party.
-    const fit = free.find((t: any) => t.min_capacity <= size && t.max_capacity >= size);
-    if (fit) {
-      table = { table_number: fit.table_number, table_numbers: [fit.table_number] };
-    } else {
-      // 2) No single table fits — try owner-saved combos for this party size, in priority order.
-      const combos: any[] = Array.isArray((layout as any)?.combos)
-        ? (layout!.combos as any[]).filter((c) => Number(c.party_size) === size)
-        : [];
-      combos.sort((a, b) => (a.priority || 999) - (b.priority || 999));
-      const freeSet = new Set(free.map((t: any) => String(t.table_number)));
-      for (const c of combos) {
-        const tableIds: string[] = Array.isArray(c.tables) ? c.tables.map(String) : [];
-        if (tableIds.length === 0) continue;
-        if (tableIds.every((id) => freeSet.has(id))) {
-          table = { table_number: tableIds[0], table_numbers: tableIds };
-          break;
-        }
+    // 1) Owner-saved priority list (singles AND combos for this exact party size).
+    //    Try them top-to-bottom; first one whose ALL tables are free wins.
+    const combos: any[] = Array.isArray((layout as any)?.combos)
+      ? (layout!.combos as any[]).filter((c) => Number(c.party_size) === size)
+      : [];
+    combos.sort((a, b) => (a.priority || 999) - (b.priority || 999));
+    const freeSet = new Set(free.map((t: any) => String(t.table_number)));
+    for (const c of combos) {
+      const tableIds: string[] = Array.isArray(c.tables) ? c.tables.map(String) : [];
+      if (tableIds.length === 0) continue;
+      if (tableIds.every((id) => freeSet.has(id))) {
+        table = { table_number: tableIds[0], table_numbers: tableIds };
+        break;
       }
+    }
+    // 2) Fallback — if owner didn't rank anything (or all ranked options taken), take any single table whose capacity fits.
+    if (!table) {
+      const fit = free.find((t: any) => t.min_capacity <= size && t.max_capacity >= size);
+      if (fit) table = { table_number: fit.table_number, table_numbers: [fit.table_number] };
     }
   }
 
