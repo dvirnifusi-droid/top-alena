@@ -66,6 +66,7 @@ const adminLinks = [
   { title: "ניהול משחקי ממתינים", url: createPageUrl("GamesAdmin"), icon: Trophy, isSubItem: true, color: "cyan" },
   { title: "שאלות משחקים", url: createPageUrl("GameQuestionsAdmin"), icon: FileText, isSubItem: true, color: "cyan" },
   { title: "הגדרות הזמנות", url: createPageUrl("PublicReservationSettings"), icon: Settings, isSubItem: true, color: "cyan" },
+  { title: "הגדרות פיקדון 💳", url: createPageUrl("DepositSettings"), icon: Settings, isSubItem: true, color: "cyan" },
 
   { title: "כספים ודוחות", url: "#", icon: TrendingUp, isCategory: true, color: "emerald" },
   { title: "דוחות", url: createPageUrl("Reports"), icon: BarChart3, isSubItem: true, color: "emerald" },
