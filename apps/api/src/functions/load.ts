@@ -3162,8 +3162,26 @@ registerFn('searchReservationTable', async ({ body }) => {
       });
       return conflicts.length === 0;
     });
+    // 1) Try a single table whose capacity range covers the party.
     const fit = free.find((t: any) => t.min_capacity <= size && t.max_capacity >= size);
-    if (fit) table = { table_number: fit.table_number };
+    if (fit) {
+      table = { table_number: fit.table_number, table_numbers: [fit.table_number] };
+    } else {
+      // 2) No single table fits — try owner-saved combos for this party size, in priority order.
+      const combos: any[] = Array.isArray((layout as any)?.combos)
+        ? (layout!.combos as any[]).filter((c) => Number(c.party_size) === size)
+        : [];
+      combos.sort((a, b) => (a.priority || 999) - (b.priority || 999));
+      const freeSet = new Set(free.map((t: any) => String(t.table_number)));
+      for (const c of combos) {
+        const tableIds: string[] = Array.isArray(c.tables) ? c.tables.map(String) : [];
+        if (tableIds.length === 0) continue;
+        if (tableIds.every((id) => freeSet.has(id))) {
+          table = { table_number: tableIds[0], table_numbers: tableIds };
+          break;
+        }
+      }
+    }
   }
 
   return {
@@ -3310,7 +3328,7 @@ registerFn('createPublicReservation', async ({ body }) => {
       special_requests: special_requests || null,
       special_occasion: special_occasion || null,
       reservation_end_time: end_time,
-      assigned_table: isStandby ? null : [avail.table.table_number],
+      assigned_table: isStandby ? null : (Array.isArray(avail.table?.table_numbers) ? avail.table.table_numbers : [avail.table.table_number]),
       source,
       campaign: utm_campaign ? String(utm_campaign).slice(0, 80) : null,
       medium: utm_medium ? String(utm_medium).slice(0, 40) : null,
@@ -3461,7 +3479,7 @@ registerFn('promoteStandbyReservation', async ({ body, user }) => {
       is_standby: false,
       status: 'confirmed',
       time: timeToUse,
-      assigned_table: [avail.table.table_number],
+      assigned_table: Array.isArray(avail.table?.table_numbers) ? avail.table.table_numbers : [avail.table.table_number],
       standby_promoted_at: new Date(),
     } as any,
   });
