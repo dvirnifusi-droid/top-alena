@@ -33,6 +33,12 @@ import MyNotificationsWidget from '../components/dashboard/MyNotificationsWidget
 import QueueStatusWidget from '../components/dashboard/QueueStatusWidget';
 import ShiftSupervisorPanel from '../components/sales/ShiftSupervisorPanel';
 import { isShiftSupervisor } from '@/lib/roleGates';
+import SalesGoalsBanner from '../components/sales/SalesGoalsBanner';
+import ShiftLeaderboard from '../components/sales/ShiftLeaderboard';
+import RewardShowcase from '../components/sales/RewardShowcase';
+import CompactCoinWidget from '../components/sales/CompactCoinWidget';
+import WeeklyPersonalGoal from '../components/sales/WeeklyPersonalGoal';
+import { isWaitstaff, isNonSalesRole } from '@/lib/roleGates';
 
 export default function EmployeeHome() {
     const [user, setUser] = useState(null);
@@ -110,6 +116,21 @@ export default function EmployeeHome() {
     const widgets = {
         supervisor_panel: isVisible('supervisor_panel') && isShiftSupervisor(currentEmployee, user) && (
             <ShiftSupervisorPanel key="supervisor_panel" />
+        ),
+        sales_banner: isVisible('sales_banner') && !isNonSalesRole(currentEmployee, user) && (
+            <SalesGoalsBanner key="sales_banner" />
+        ),
+        shift_leaderboard: isVisible('shift_leaderboard') && !isNonSalesRole(currentEmployee, user) && (
+            <ShiftLeaderboard key="shift_leaderboard" myEmployeeId={currentEmployee?.id} />
+        ),
+        reward_showcase: isVisible('reward_showcase') && !isNonSalesRole(currentEmployee, user) && (
+            <RewardShowcase key="reward_showcase" />
+        ),
+        compact_coin: isVisible('compact_coin') && isNonSalesRole(currentEmployee, user) && (
+            <CompactCoinWidget key="compact_coin" />
+        ),
+        weekly_goal: isVisible('weekly_goal') && isWaitstaff(currentEmployee, user) && (
+            <WeeklyPersonalGoal key="weekly_goal" />
         ),
         stories: isVisible('stories') && <StoriesBar key="stories" currentEmployee={currentEmployee} />,
         daily_challenge: isVisible('daily_challenge') && currentEmployee && (

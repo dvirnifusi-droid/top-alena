@@ -4,6 +4,11 @@ import { useState, useEffect } from 'react';
 export const EMPLOYEE_WIDGETS = [
   { id: 'stories', label: 'סטוריז', emoji: '📸', defaultOn: true },
   { id: 'supervisor_panel', label: 'פאנל מפקח משמרת', emoji: '🎯', defaultOn: true },
+  { id: 'sales_banner', label: 'הצוות מתחרה', emoji: '🔥', defaultOn: true },
+  { id: 'shift_leaderboard', label: 'לוח המשמרת', emoji: '🏆', defaultOn: true },
+  { id: 'weekly_goal', label: 'היעד השבועי שלי', emoji: '🎯', defaultOn: true },
+  { id: 'reward_showcase', label: 'הפרסים שלי', emoji: '💎', defaultOn: true },
+  { id: 'compact_coin', label: 'יתרת מטבעות', emoji: '💰', defaultOn: true },
   { id: 'daily_challenge', label: 'אתגר יומי', emoji: '🎯', defaultOn: true },
   { id: 'shift_clock', label: 'שעון משמרת', emoji: '⏱️', defaultOn: true },
   { id: 'next_shift', label: 'המשמרת הבאה שלי', emoji: '⏰', defaultOn: true },
