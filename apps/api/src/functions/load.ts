@@ -10267,6 +10267,32 @@ registerFn('sendTeamWhatsApp', async ({ body, user }) => {
   return { sent, failed, total: targets.length };
 });
 
+// === Shared shift resolution =================================================
+// Mirror of src/lib/salesShift.js — frontend and backend MUST agree on which
+// shift a given moment belongs to or sales goals get filed to the wrong shift.
+function resolveCurrentShift(now: Date = new Date()): { date: string; type: 'lunch' | 'dinner' } | null {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Jerusalem',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', hour12: false,
+  }).formatToParts(now);
+  const get = (t: string) => parts.find(p => p.type === t)?.value || '';
+  const dateStr = `${get('year')}-${get('month')}-${get('day')}`;
+  const hour = parseInt(get('hour'), 10);
+
+  if (hour >= 6 && hour < 17) return { date: dateStr, type: 'lunch' };
+  if (hour >= 17 && hour <= 23) return { date: dateStr, type: 'dinner' };
+  if (hour >= 0 && hour < 3) {
+    const y = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Jerusalem',
+      year: 'numeric', month: '2-digit', day: '2-digit',
+    }).formatToParts(new Date(now.getTime() - 24 * 60 * 60 * 1000));
+    const yget = (t: string) => y.find(p => p.type === t)?.value || '';
+    return { date: `${yget('year')}-${yget('month')}-${yget('day')}`, type: 'dinner' };
+  }
+  return null;
+}
+
 // === Auto-Tracker =========================================================
 // Watches owner/manager actions (page nav, voice commands, button clicks),
 // stores them in ActivityLog, and once a day asks Gemini to spot repeated
