@@ -27,15 +27,27 @@ function normalizeHebrewNumbers(text) {
     return out;
 }
 
+// Strip punctuation that Web Speech API adds, collapse all whitespace, trim.
+// The matchers don't care about '?', ',', '.' — but the regex anchors do.
+function cleanForMatch(text) {
+    return String(text || '')
+        .replace(/[?!.,،؟]/g, '') // common punctuation including Arabic question mark
+        .replace(/\s+/g, ' ')
+        .trim();
+}
+
 // === Intent matchers — order matters (most specific first) ===================
 // Each returns { intent, ...params } or null.
 const MATCHERS = [
-    // Q&A — read out info
-    { re: /^(מי|מיהו)\s+(הבא|הבאה|הבא\s+בתור|הבאה\s+בתור)/, intent: 'q_next_in_queue' },
-    { re: /^(מי|מיהי)\s+ההזמנה\s+הבאה/, intent: 'q_next_reservation' },
-    { re: /^כמה\s+(אנשים|חבורות)\s+בתור/, intent: 'q_queue_count' },
-    { re: /^כמה\s+מקומות\s+פנויים/, intent: 'q_free_tables' },
-    { re: /מי\s+על\s+שולחן\s+(\d+)/, intent: 'q_who_on_table', extract: m => ({ table: m[1] }) },
+    // Q&A — read out info. Patterns are lenient: no ^ anchor where unneeded, allow synonyms.
+    { re: /(מי|מיהו|מיהי)\s+(הבא|הבאה)\s+(בתור|לתור)/, intent: 'q_next_in_queue' },
+    { re: /^(מי|מיהו|מיהי)\s+הבא/, intent: 'q_next_in_queue' },
+    { re: /(מי|מיהי)\s+ההזמנה\s+הבאה/, intent: 'q_next_reservation' },
+    { re: /ההזמנה\s+הבאה/, intent: 'q_next_reservation' },
+    { re: /כמה\s+(אנשים|חבורות|לקוחות)?\s*(יש)?\s*בתור/, intent: 'q_queue_count' },
+    { re: /^בתור\s+(יש)?/, intent: 'q_queue_count' },
+    { re: /כמה\s+(מקומות|שולחנות)\s+פנויים/, intent: 'q_free_tables' },
+    { re: /(מי|מיהו)\s+(על|יושב\s+על|נמצא\s+על)\s+שולחן\s+(\d+)/, intent: 'q_who_on_table', extract: m => ({ table: m[3] }) },
 
     // Seat assignment
     { re: /^תושיב(י)?\s+את\s+(.+?)\s+על\s+(?:שולחן\s+)?(\d+)\s+ו(?:על\s+)?(\d+)/,
@@ -74,7 +86,9 @@ const MATCHERS = [
 ];
 
 function parseIntent(text) {
-    const clean = normalizeHebrewNumbers(text.trim());
+    const clean = normalizeHebrewNumbers(cleanForMatch(text));
+    // Log so we can debug WHY a command didn't match.
+    try { console.log('[voice] parsing:', JSON.stringify(text), '→', JSON.stringify(clean)); } catch {}
     for (const m of MATCHERS) {
         const match = clean.match(m.re);
         if (match) {
@@ -182,9 +196,9 @@ export default function VoiceControl({
     const handleFinalTranscript = async (txt) => {
         const parsed = parseIntent(txt);
         if (parsed.intent === 'unknown') {
-            const msg = 'לא הבנתי. נסה לנסח אחרת.';
+            const msg = `לא הבנתי: "${parsed.raw}". נסה לנסח אחרת.`;
             setLastResult({ ok: false, message: msg });
-            speak(msg);
+            speak('לא הבנתי, נסה לנסח אחרת');
             return;
         }
         try {
