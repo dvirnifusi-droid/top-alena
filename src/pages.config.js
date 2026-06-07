@@ -127,6 +127,7 @@ import Waiter from './pages/Waiter';
 import WaiterAdmin from './pages/WaiterAdmin';
 import WaiterTables from './pages/WaiterTables';
 import WorkScheduling from './pages/WorkScheduling';
+import SalesGoalTemplates from './pages/SalesGoalTemplates';
 import __Layout from './Layout.jsx';
 
 
@@ -211,6 +212,7 @@ export const PAGES = {
     "WaiterAdmin": WaiterAdmin,
     "WaiterTables": WaiterTables,
     "WorkScheduling": WorkScheduling,
+    "SalesGoalTemplates": SalesGoalTemplates,
 }
 
 export const pagesConfig = {
