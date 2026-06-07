@@ -13,12 +13,17 @@ function fmtIls(n) {
 
 function fmtAgo(ts) {
     if (!ts) return '';
-    const ms = Date.now() - new Date(ts).getTime();
+    const t = new Date(ts).getTime();
+    if (Number.isNaN(t)) return '';
+    const ms = Date.now() - t;
     const m = Math.round(ms / 60000);
+    if (m < 0) return 'עכשיו';
     if (m < 1) return 'עכשיו';
     if (m < 60) return `לפני ${m} דק׳`;
     const h = Math.round(m / 60);
-    return `לפני ${h} שעות`;
+    if (h < 24) return `לפני ${h} שעות`;
+    const d = Math.round(h / 24);
+    return `לפני ${d} ימים`;
 }
 
 export default function BeecommLiveWidget() {
@@ -121,7 +126,7 @@ export default function BeecommLiveWidget() {
                     </div>
                     <div className="bg-white rounded-lg p-3 text-center shadow-sm">
                         <div className="text-2xl font-bold text-purple-700">{fmtIls(snap.predicted_month)}</div>
-                        <div className="text-xs text-gray-500 mt-1">צפי חודשי</div>
+                        <div className="text-xs text-gray-500 mt-1">סה״כ חודשי</div>
                     </div>
                 </div>
 
