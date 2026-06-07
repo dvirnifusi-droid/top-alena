@@ -10346,6 +10346,52 @@ async function isShiftSupervisor(userId: string): Promise<boolean> {
   } catch { return false; }
 }
 
+registerFn('activateSalesGoal', async ({ body, user }) => {
+  if (!user) throw new Error('auth required');
+  if (!(await isShiftSupervisor(user.id))) throw new Error('only shift supervisors can activate goals');
+  const b = (body || {}) as any;
+  const templateId = String(b.template_id || '');
+  if (!templateId) throw new Error('template_id required');
+  const tmpl: any = await (db as any).salesGoalTemplate.findUnique({ where: { id: templateId } });
+  if (!tmpl) throw new Error('template not found');
+  if (!tmpl.is_active) throw new Error('template not active');
+  const shift = resolveCurrentShift(new Date());
+  if (!shift) throw new Error('no active shift right now (03:00–06:00 dead window)');
+
+  const goal: any = await (db as any).salesGoal.create({
+    data: {
+      template_id: tmpl.id,
+      shift_date: shift.date,
+      shift_type: shift.type,
+      dish_label: tmpl.dish_label,
+      emoji: tmpl.emoji,
+      target: Number(b.target) > 0 ? Number(b.target) : tmpl.default_target,
+      coins_per_sale: Number(b.coins_per_sale) > 0 ? Number(b.coins_per_sale) : tmpl.default_coins_per_sale,
+      activated_by_id: String(user.id),
+      activated_by_name: String((user as any).full_name || user.email || ''),
+    },
+  });
+
+  // Activity log + push to all on-shift staff
+  try {
+    await (db as any).activityLog.create({
+      data: {
+        user_id: String(user.id),
+        user_name: String((user as any).full_name || user.email || ''),
+        action_type: 'goal_activate',
+        page: '/EmployeeHome',
+        label: `${tmpl.name} (target ${goal.target})`,
+        target_id: goal.id,
+      },
+    });
+  } catch { /* best-effort */ }
+  await pushoverToActiveShift(
+    `🎯 יעד חדש: ${goal.target} ${goal.dish_label}`,
+    `קדימה צוות! ${goal.coins_per_sale} 🪙 פר מכירה`,
+  );
+  return { goal };
+});
+
 // === Auto-Tracker =========================================================
 // Watches owner/manager actions (page nav, voice commands, button clicks),
 // stores them in ActivityLog, and once a day asks Gemini to spot repeated
