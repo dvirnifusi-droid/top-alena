@@ -16,7 +16,8 @@ export default function BeecommLive() {
 
     const load = async () => {
         try {
-            const r = await base44.functions.getBeecommDailyHistory({ days: 7 });
+            const res = await base44.functions.getBeecommDailyHistory({ days: 7 });
+            const r = res?.data ?? res;
             setHistory(r?.history || []);
         } catch { /* swallow */ }
     };

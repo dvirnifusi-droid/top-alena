@@ -29,7 +29,9 @@ export default function BeecommLiveWidget() {
 
     const load = async () => {
         try {
-            const r = await base44.functions.getLatestBeecommSnapshot({});
+            const res = await base44.functions.getLatestBeecommSnapshot({});
+            // base44Client wraps fn responses as { data, status } — unwrap.
+            const r = res?.data ?? res;
             setSnap(r?.snapshot || null);
             setYesterday(r?.yesterday || null);
             setError(null);
@@ -40,9 +42,10 @@ export default function BeecommLiveWidget() {
         setRefreshing(true);
         setError(null);
         try {
-            const r = await base44.functions.captureBeecommSnapshot({});
+            const res = await base44.functions.captureBeecommSnapshot({});
+            const r = res?.data ?? res;
             if (r?.ok === false) {
-                setError('שרת לא הצליח: ' + (r?.reason || 'לא ידוע'));
+                setError('שרת לא הצליח: ' + (r?.reason || 'לא ידוע') + (r?.error ? ' (' + r.error + ')' : ''));
             } else if (r?.error) {
                 setError('שגיאה: ' + r.error);
             }
