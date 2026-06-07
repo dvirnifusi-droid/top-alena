@@ -271,6 +271,13 @@ export const MATCHERS = [
     { re: /(?:מתי\s+(?:ניקו|ניקיון\s+אחרון)|ניקיון\s+(?:אחרון|שירותים))/, intent: 'q_last_clean' },
     { re: /^(תסמן|סמן)\s+(?:את\s+ה)?ניקיון/, intent: 'mark_clean' },
 
+    // ========== Sales gamification ==========
+    { re: /^\+?\s*1?\s+(.+?)\s+ל(.+)$/, intent: 'sale_credit', extract: m => ({ dish: m[1].trim(), name: m[2].trim() }) },
+    { re: /^(תוסיף|הוסף)\s+(.+?)\s+ל(.+)$/, intent: 'sale_credit', extract: m => ({ dish: m[2].trim(), name: m[3].trim() }) },
+    { re: /^(תפעיל|הפעל|פתח)\s+יעד\s+(.+)$/, intent: 'sales_goal_activate', extract: m => ({ template: m[2].trim() }) },
+    { re: /(?:כמה\s+(.+?)\s+(?:מכרנו|מכרו)|סטטוס\s+(?:ה?)מכירות)/, intent: 'q_sales_status', extract: m => ({ dish: (m[1] || '').trim() }) },
+    { re: /(?:מי\s+המוביל|מי\s+מוביל\s+ב?מכירות)/, intent: 'q_sales_leader' },
+
     // ========== Help ==========
     { re: /^(מה\s+אפשר|איזה\s+פקודות|עזרה|מה\s+אתה\s+יודע)/, intent: 'help' },
 ];
@@ -534,6 +541,16 @@ export const COMMAND_GROUPS = [
             'הודעות היום',
             'מתי ניקיון אחרון',
             'תסמן ניקיון',
+        ],
+    },
+    {
+        title: '🎯 מכירות',
+        cmds: [
+            'תוסיף קינוח לרן',
+            '+1 קינוח לרן',
+            'תפעיל יעד מבצע קינוחים',
+            'כמה קינוחים מכרנו',
+            'מי המוביל',
         ],
     },
     {

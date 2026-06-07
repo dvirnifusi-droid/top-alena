@@ -48,6 +48,7 @@ const MUTATING_INTENTS = new Set([
     'return_device', 'courier_assign',
     'settings_change_cancellation', 'settings_change_deposit_pct', 'online_reservations_toggle',
     'chat_broadcast', 'mark_clean',
+    'sale_credit', 'sales_goal_activate',
 ]);
 
 export async function handleVoiceCommand(cmd) {
@@ -1457,6 +1458,56 @@ async function dispatchCommand(cmd, state) {
                 } catch { return { ok: false, message: 'שגיאה' }; }
             }
 
+            case 'sale_credit': {
+                try {
+                    const data = await base44.functions.getActiveSalesGoals({});
+                    const goal = (data.goals || []).find(g =>
+                        g.dish_label && cmd.dish && (g.dish_label.includes(cmd.dish) || cmd.dish.includes(g.dish_label))
+                    );
+                    if (!goal) return { ok: false, message: `אין יעד פעיל ל-${cmd.dish}` };
+                    const emps = await base44.entities.Employee.list();
+                    const waiter = (emps || []).find(e => (e.full_name || '').includes(cmd.name));
+                    if (!waiter) return { ok: false, message: `${cmd.name} לא נמצא` };
+                    const r = await base44.functions.creditSale({ goal_id: goal.id, waiter_id: waiter.id });
+                    broadcastDataChange('sales:credited');
+                    return { ok: true, message: `בוצע ✓ +1 ${goal.dish_label} ל-${waiter.full_name} (${r.new_count}/${goal.target})` };
+                } catch (e) { return { ok: false, message: e?.message || 'שגיאה' }; }
+            }
+            case 'sales_goal_activate': {
+                try {
+                    const templates = await base44.entities.SalesGoalTemplate.filter({ is_active: true });
+                    const t = (templates || []).find(t =>
+                        (t.name || '').includes(cmd.template) || (t.dish_label || '').includes(cmd.template)
+                    );
+                    if (!t) return { ok: false, message: `תבנית ${cmd.template} לא נמצאה` };
+                    await base44.functions.activateSalesGoal({ template_id: t.id });
+                    broadcastDataChange('sales:goal-activated');
+                    return { ok: true, message: `בוצע ✓ יעד ${t.name} הופעל` };
+                } catch (e) { return { ok: false, message: e?.message || 'שגיאה' }; }
+            }
+            case 'q_sales_status': {
+                try {
+                    const data = await base44.functions.getActiveSalesGoals({});
+                    const goals = data.goals || [];
+                    if (goals.length === 0) return { ok: true, message: 'אין יעדים פעילים' };
+                    const target = cmd.dish
+                        ? goals.find(g => g.dish_label.includes(cmd.dish))
+                        : goals[0];
+                    if (!target) return { ok: true, message: `אין יעד ל-${cmd.dish}` };
+                    const leader = target.leaderboard[0];
+                    const leaderMsg = leader ? ` המוביל ${leader.name} עם ${leader.count}` : '';
+                    return { ok: true, message: `${target.dish_label}: ${target.current_count} מתוך ${target.target}.${leaderMsg}` };
+                } catch (e) { return { ok: false, message: 'לא הצלחתי לבדוק' }; }
+            }
+            case 'q_sales_leader': {
+                try {
+                    const data = await base44.functions.getShiftLeaderboard({});
+                    const board = data.board || [];
+                    if (board.length === 0) return { ok: true, message: 'אין נתוני מכירות עדיין' };
+                    const top = board[0];
+                    return { ok: true, message: `${top.name}, ${top.sales} מכירות, ${top.coins} מטבעות` };
+                } catch (e) { return { ok: false, message: 'לא הצלחתי לבדוק' }; }
+            }
             default:
                 return { ok: false, message: 'פקודה לא מוכרת: ' + cmd.intent };
         }

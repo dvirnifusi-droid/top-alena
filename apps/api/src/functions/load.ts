@@ -9993,6 +9993,12 @@ OPS:
 - incident_open {description}: פתח תקרית
 - task_add {description, who?}: משימה
 
+SALES:
+- sale_credit {dish, name}: זיכוי מכירה למלצר ספציפי
+- sales_goal_activate {template}: פתיחת יעד מכירות
+- q_sales_status {dish?}: כמה נמכר היום
+- q_sales_leader: מי המוביל
+
 CUSTOMERS:
 - q_birthdays_today: מי חוגג היום
 - q_returning_customers: לקוחות חוזרים/VIP
@@ -10166,6 +10172,11 @@ EXAMPLES:
 "כמה משלוחים היום" → {"intent":"q_deliveries_today"}
 "איזה שליחים פעילים" → {"intent":"q_active_courier"}
 "משימות לרן" → {"intent":"q_tasks_for","name":"רן"}
+"תוסיף קינוח לרן" → {"intent":"sale_credit","dish":"קינוח","name":"רן"}
+"+1 ספיישל לשירה" → {"intent":"sale_credit","dish":"ספיישל","name":"שירה"}
+"תפעיל יעד מבצע קינוחים" → {"intent":"sales_goal_activate","template":"מבצע קינוחים"}
+"כמה קינוחים מכרנו" → {"intent":"q_sales_status","dish":"קינוח"}
+"מי המוביל" → {"intent":"q_sales_leader"}
 "תוסיף הזמנה רן ארבעה אנשים תשע מחר" → {"intent":"reservation_add","name":"רן","party_size":4,"time":"21:00","when":"מחר"}
 "תוסיף הזמנה על שם ניב להיום בערב בשעה 9:00" → {"intent":"reservation_add","name":"ניב","party_size":2,"time":"21:00","when":"היום"}
 "תדחה את ההזמנה של רן ל-9:30 בערב" → {"intent":"reservation_reschedule","name":"רן","time":"21:30"}
@@ -10231,6 +10242,9 @@ Output (JSON only, MUST include "intent"):`;
           // Reservation extended (reschedule / update phone / multi-move)
           from_tables: { type: 'array', items: { type: 'string' } },
           preference: { type: 'string' },
+          // Sales gamification
+          dish: { type: 'string' },
+          template: { type: 'string' },
         },
         required: ['intent'],
       },
