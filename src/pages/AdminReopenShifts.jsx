@@ -76,8 +76,18 @@ export default function AdminReopenShifts() {
                                 ))}
                             </div>
                         )}
-                        {result.reverted === 0 && (
+                        {result.reverted === 0 && result.scanned === 0 && (
                             <p className="text-sm text-gray-600 mt-2">אין משמרות לפתוח מחדש — או שהן כבר נפתחו בעבר.</p>
+                        )}
+                        {result.reverted === 0 && result.scanned > 0 && (
+                            <div className="mt-2 p-2 bg-amber-50 rounded text-sm text-amber-800">
+                                ⚠️ נמצאו {result.scanned} משמרות אבל ההחזרה נכשלה לכולן.
+                                {Array.isArray(result.failures) && result.failures.length > 0 && (
+                                    <div className="mt-2 text-xs">
+                                        שגיאה: {result.failures[0].error}
+                                    </div>
+                                )}
+                            </div>
                         )}
                     </CardContent>
                 </Card>

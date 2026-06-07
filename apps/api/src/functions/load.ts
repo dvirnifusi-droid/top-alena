@@ -9720,19 +9720,24 @@ export async function reopenAutoClosedShifts(maxAgeHours = 36) {
     orderBy: { shift_start: 'desc' },
   });
   const reverted: any[] = [];
+  const failures: any[] = [];
   for (const t of closed) {
+    // Use raw SQL — bypasses Prisma model validation for the `end_reminder_sent_at`
+    // column which exists in the DB (added by drift-repair) but isn't on the
+    // Prisma model. Update the standard fields via the same raw write.
     try {
-      await (prisma as any).shiftTracking.update({
-        where: { id: t.id },
-        data: {
-          status: 'active',
-          shift_end: null,
-          total_hours: null,
-          effective_hours: null,
-          auto_close_reason: null,
-          end_reminder_sent_at: null,
-        },
-      });
+      await (prisma as any).$executeRawUnsafe(
+        `UPDATE "ShiftTracking" SET
+           status = 'active',
+           shift_end = NULL,
+           total_hours = NULL,
+           effective_hours = NULL,
+           auto_close_reason = NULL,
+           end_reminder_sent_at = NULL,
+           "updatedAt" = NOW()
+         WHERE id = $1`,
+        t.id,
+      );
       reverted.push({
         id: t.id,
         employee_name: t.employee_name,
@@ -9743,9 +9748,10 @@ export async function reopenAutoClosedShifts(maxAgeHours = 36) {
       });
     } catch (e: any) {
       console.warn('[reopenAutoClosedShifts] failed', t.id, e?.message);
+      failures.push({ id: t.id, employee_name: t.employee_name, error: e?.message });
     }
   }
-  return { scanned: closed.length, reverted: reverted.length, details: reverted };
+  return { scanned: closed.length, reverted: reverted.length, details: reverted, failures };
 }
 
 registerFn('reopenAutoClosedShifts', async ({ user, body }) => {
