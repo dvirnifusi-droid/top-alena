@@ -27,8 +27,10 @@ function htmlToText(html: string): string {
 export async function sendEmail({ to, subject, text, html, from, replyTo }: SendEmailArgs) {
   const apiKey = process.env.RESEND_API_KEY;
   // Friendly From name helps deliverability AND looks more professional.
-  // Caller can override with `from`; otherwise use EMAIL_FROM env, otherwise the brand default.
-  const defaultFrom = process.env.EMAIL_FROM ?? 'עלינא <noreply@topalena.com>';
+  // Caller can override with `from`; otherwise use EMAIL_FROM env, otherwise the
+  // verified-at-Resend brand domain (alenabepita.co.il is the long-standing
+  // production sender — verified + Cloudflare DNS + DKIM/SPF/DMARC in place).
+  const defaultFrom = process.env.EMAIL_FROM ?? 'עלינא <noreply@alenabepita.co.il>';
   const sender = from ?? defaultFrom;
   if (!apiKey) {
     console.warn('[email] RESEND_API_KEY not set — skipping send', { to, subject });
@@ -43,10 +45,10 @@ export async function sendEmail({ to, subject, text, html, from, replyTo }: Send
     text: finalText,
     html,
     // Reply-To so customers can reply to the business directly instead of noreply@
-    reply_to: replyTo || process.env.EMAIL_REPLY_TO || 'reservations@topalena.com',
+    reply_to: replyTo || process.env.EMAIL_REPLY_TO || 'reservations@alenabepita.co.il',
     // Standard List-Unsubscribe header — major signal for inbox placement
     headers: {
-      'List-Unsubscribe': '<mailto:unsubscribe@topalena.com>',
+      'List-Unsubscribe': '<mailto:unsubscribe@alenabepita.co.il>',
       'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
     },
   };
