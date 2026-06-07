@@ -9894,6 +9894,109 @@ OPS:
 - incident_open {description}: פתח תקרית
 - task_add {description, who?}: משימה
 
+CUSTOMERS:
+- q_birthdays_today: מי חוגג היום
+- q_returning_customers: לקוחות חוזרים/VIP
+- customer_set_vip {name}: סמן VIP
+- customer_send_coupon {name}: שלח קופון
+- benefit_give {name, description?, type?}: הטבה
+- q_benefits_given: כמה הטבות פעילות
+
+EMPLOYEES_EXT:
+- q_new_hires_month: עובדים חדשים החודש
+- q_hours_worked {name}: שעות עבודה
+- q_on_leave: מי בחופש היום
+- leave_approve {name}: אשר חופש
+- request_swap {name, date?, shift_type?}: פתח בקשת החלפה
+- q_late_today: מי איחר היום
+- schedule_add {name, when?, shift_type?, position?}: שבץ למשמרת
+
+INVENTORY:
+- q_stock {item}: כמה במלאי
+- q_low_stock: פריטים חסרים
+- inventory_add {item, quantity}: הוסף למלאי
+- order_from_supplier {item, quantity?}: הזמן מספק
+- q_supplier_of {item}: ספק של פריט
+
+SUPPLIERS:
+- q_supplier_invoice {supplier}: חשבונית אחרונה של ספק
+- q_supplier_balance {supplier}: יתרה אצל ספק
+
+MENU:
+- q_top_seller: הכי נמכר
+- q_today_sold: מה נמכר היום
+- menu_remove {name}: הסר מהתפריט
+- menu_add {name, category?, price}: הוסף לתפריט
+- q_profit_on {name}: רווח על מנה
+
+FINANCE:
+- q_tips_today: טיפים היום
+- pay_bonus {name, amount?, reason?}: בונוס לעובד
+- coins_give {name, amount, reason?}: מטבעות לעובד
+- q_open_invoices: חשבוניות פתוחות
+- invoice_create {supplier, amount}: יצירת חשבונית
+- q_weekly_revenue: הכנסה שבועית
+
+EVENTS:
+- q_events_week: אירועים השבוע
+- q_next_event: האירוע הבא
+- event_add {name, date?, guest_count?, event_type?, phone?}: ליד אירוע
+- event_send_contract {name}: שלח חוזה
+- q_event_status {name}: סטטוס אירוע
+
+TASKS_CHECKLISTS:
+- q_tasks_for {name}: משימות לעובד
+- q_checklist_done: צ׳קליסטים שהושלמו היום
+- checklist_mark_done {title?}: סמן צ׳קליסט כהושלם
+- checklist_open: צ׳קליסטים פעילים
+
+INCIDENTS_EXT:
+- q_open_incidents: תקריות פתוחות
+- incident_close {description?}: סגור תקרית
+
+MARKETING:
+- campaign_broadcast {message}: שלח לכל הלקוחות
+- q_campaign_success: סטטוס קמפיין אחרון
+- popup_activate {title}: הפעל פופאפ
+
+GAMIFICATION:
+- q_leaderboard: לוח שיאים
+- q_employee_score {name}: כמה מטבעות לעובד
+
+DEVICES:
+- q_who_has_ipad: מי לקח אייפד
+- return_device {device_number}: החזרת מכשיר
+- q_device_count: כמה מכשירים
+
+POS:
+- q_open_orders: הזמנות פעילות בקופה
+- q_avg_wait: זמן המתנה ממוצע
+
+TRAINING:
+- q_who_didnt_finish_course: מי לא סיים קורס
+
+DELIVERIES:
+- q_active_courier: שליחים פעילים
+- q_deliveries_today: משלוחים היום
+- courier_assign {courier}: שבץ שליח
+
+SETTINGS:
+- settings_change_cancellation {hours}: שנה חלון ביטול
+- settings_change_deposit_pct {pct}: שנה אחוז פיקדון
+- table_add: הוסף שולחן (פותח מפת הושבה)
+- online_reservations_toggle {enabled?}: הפעל/כבה הזמנות אונליין
+
+REPORTS:
+- report_generate_monthly / report_send_weekly_whatsapp / report_export_excel: דוחות
+
+SHIFTCHAT:
+- chat_broadcast {message}: שלח הודעה לצ׳אט משמרת
+- q_today_chat: הודעות בצ׳אט היום
+
+RESTROOM:
+- q_last_clean: מתי ניקיון אחרון
+- mark_clean: סמן ניקיון
+
 - help: עזרה
 - unknown: רק אם באמת אי-אפשר
 
@@ -9920,6 +10023,50 @@ EXAMPLES:
 "מה המצב" → {"intent":"q_status_summary"}
 "תפתח את הדאשבורד" → {"intent":"nav_open","target":"dashboard"}
 "תפתח תקרית המקרר התקלקל" → {"intent":"incident_open","description":"המקרר התקלקל"}
+"מי חוגג היום" → {"intent":"q_birthdays_today"}
+"תסמן את דביר כVIP" → {"intent":"customer_set_vip","name":"דביר"}
+"תשלח קופון לרן" → {"intent":"customer_send_coupon","name":"רן"}
+"כמה חזה עוף יש במלאי" → {"intent":"q_stock","item":"חזה עוף"}
+"מלאי נמוך" → {"intent":"q_low_stock"}
+"תוסיף 10 חזה עוף למלאי" → {"intent":"inventory_add","item":"חזה עוף","quantity":10}
+"תזמין חזה עוף מהספק" → {"intent":"order_from_supplier","item":"חזה עוף"}
+"חשבונית אחרונה של גלעם" → {"intent":"q_supplier_invoice","supplier":"גלעם"}
+"יתרה של גלעם" → {"intent":"q_supplier_balance","supplier":"גלעם"}
+"הכי נמכר" → {"intent":"q_top_seller"}
+"תוסיף לתפריט פיצה ב-65" → {"intent":"menu_add","name":"פיצה","price":65}
+"כמה טיפים היום" → {"intent":"q_tips_today"}
+"תן בונוס לרן 100" → {"intent":"pay_bonus","name":"רן","amount":100}
+"תן 50 מטבעות לשירה" → {"intent":"coins_give","name":"שירה","amount":50}
+"חשבוניות פתוחות" → {"intent":"q_open_invoices"}
+"תיצור חשבונית גלעם 1200" → {"intent":"invoice_create","supplier":"גלעם","amount":1200}
+"הכנסה השבוע" → {"intent":"q_weekly_revenue"}
+"אירועים השבוע" → {"intent":"q_events_week"}
+"האירוע הבא" → {"intent":"q_next_event"}
+"תוסיף אירוע לרן 25/12 50 אנשים" → {"intent":"event_add","name":"רן","date":"25/12","guest_count":50}
+"תשלח חוזה לרן" → {"intent":"event_send_contract","name":"רן"}
+"תקריות פתוחות" → {"intent":"q_open_incidents"}
+"סגור את תקרית המקרר" → {"intent":"incident_close","description":"המקרר"}
+"תשלח לכל הלקוחות אנחנו פתוחים השבת" → {"intent":"campaign_broadcast","message":"אנחנו פתוחים השבת"}
+"לוח שיאים" → {"intent":"q_leaderboard"}
+"כמה מטבעות יש לדביר" → {"intent":"q_employee_score","name":"דביר"}
+"מי לקח אייפד" → {"intent":"q_who_has_ipad"}
+"תחזיר אייפד 3" → {"intent":"return_device","device_number":"3"}
+"מי בחופש היום" → {"intent":"q_on_leave"}
+"מי איחר היום" → {"intent":"q_late_today"}
+"עובדים חדשים החודש" → {"intent":"q_new_hires_month"}
+"כמה שעות עבד רן" → {"intent":"q_hours_worked","name":"רן"}
+"תאשר חופש של רן" → {"intent":"leave_approve","name":"רן"}
+"תוסיף את שירה למשמרת ערב היום" → {"intent":"schedule_add","name":"שירה","shift_type":"dinner","when":"היום"}
+"שנה חלון ביטול ל-12 שעות" → {"intent":"settings_change_cancellation","hours":12}
+"שנה פיקדון ל-25%" → {"intent":"settings_change_deposit_pct","pct":25}
+"הפעל הזמנות אונליין" → {"intent":"online_reservations_toggle","enabled":true}
+"מתי ניקיון אחרון" → {"intent":"q_last_clean"}
+"תסמן ניקיון" → {"intent":"mark_clean"}
+"תשלח לצ׳אט משמרת קדימה חבר׳ה" → {"intent":"chat_broadcast","message":"קדימה חבר׳ה"}
+"מי לא סיים את הקורס" → {"intent":"q_who_didnt_finish_course"}
+"כמה משלוחים היום" → {"intent":"q_deliveries_today"}
+"איזה שליחים פעילים" → {"intent":"q_active_courier"}
+"משימות לרן" → {"intent":"q_tasks_for","name":"רן"}
 
 Input: "${text}"
 Output (JSON only, MUST include "intent"):`;
@@ -9950,6 +10097,25 @@ Output (JSON only, MUST include "intent"):`;
           message: { type: 'string' },
           description: { type: 'string' },
           who: { type: 'string' },
+          // Extended intents (Customers/Inventory/Suppliers/Menu/Finance/Events/Tasks/Settings/Devices/Marketing/Couriers)
+          item: { type: 'string' },
+          quantity: { type: 'number' },
+          supplier: { type: 'string' },
+          amount: { type: 'number' },
+          reason: { type: 'string' },
+          price: { type: 'number' },
+          category: { type: 'string' },
+          date: { type: 'string' },
+          guest_count: { type: 'number' },
+          event_type: { type: 'string' },
+          phone: { type: 'string' },
+          title: { type: 'string' },
+          type: { type: 'string' },
+          device_number: { type: 'string' },
+          hours: { type: 'number' },
+          pct: { type: 'number' },
+          enabled: { type: 'boolean' },
+          courier: { type: 'string' },
         },
         required: ['intent'],
       },

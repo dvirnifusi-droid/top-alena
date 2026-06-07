@@ -150,6 +150,111 @@ export const MATCHERS = [
     { re: /^תפתח(י)?\s+(?:את\s+)?(?:ה)?(תור|דאשבורד\s+מארחת)/, intent: 'nav_open', extract: m => ({ target: 'queue' }) },
     { re: /^תפתח(י)?\s+(?:את\s+)?(?:ה)?אירועים/, intent: 'nav_open', extract: m => ({ target: 'events' }) },
 
+    // ========== Customers ==========
+    { re: /(מי\s+חוגג|חוגגים|ימי\s+הולדת)\s+(היום|הערב)/, intent: 'q_birthdays_today' },
+    { re: /(לקוחות\s+(חוזרים|מובילים|טובים|VIP)|מי\s+הלקוחות\s+הכי)/, intent: 'q_returning_customers' },
+    { re: /^(תסמן|תגדיר|תהפוך)\s+(?:את\s+)?(.+?)\s+(?:כ|ל)?VIP/, intent: 'customer_set_vip', extract: m => ({ name: m[2].trim() }) },
+    { re: /^(תשלח|שלח)\s+קופון\s+ל(.+)$/, intent: 'customer_send_coupon', extract: m => ({ name: m[2].trim() }) },
+    { re: /^(תן|תשלח|תוסיף)\s+הטבה\s+ל(.+)$/, intent: 'benefit_give', extract: m => ({ name: m[2].trim() }) },
+    { re: /כמה\s+הטבות\s+(ניתנו|פעילות)/, intent: 'q_benefits_given' },
+
+    // ========== Employees extended ==========
+    { re: /(עובדים\s+חדשים|מי\s+(נכנס|התקבל)\s+(החודש|מהחודש))/, intent: 'q_new_hires_month' },
+    { re: /כמה\s+שעות\s+(עבד[ה]?|לקח[ה]?)\s+(.+)$/, intent: 'q_hours_worked', extract: m => ({ name: m[2].trim() }) },
+    { re: /(מי\s+(בחופש|בחופשה)\s*(היום)?|עובדים\s+בחופש)/, intent: 'q_on_leave' },
+    { re: /^(תאשר|אשר)\s+(?:את\s+)?(?:ה)?חופש(?:ה)?\s+של\s+(.+)$/, intent: 'leave_approve', extract: m => ({ name: m[2].trim() }) },
+    { re: /(מי\s+(איחר|מאחר[ים]?)|איחורים\s+היום)/, intent: 'q_late_today' },
+    { re: /^(תוסיף|שבץ)\s+את\s+(.+?)\s+ל(?:משמרת\s+)?(ערב|צהריים|לונץ׳)\s*(היום|מחר)?/, intent: 'schedule_add', extract: m => ({ name: m[2].trim(), shift_type: m[3].includes('צהר') || m[3].includes('לונ') ? 'lunch' : 'dinner', when: m[4] || 'היום' }) },
+    { re: /^(תפתח|תיצור)\s+בקשת\s+החלפה\s+ל(.+)$/, intent: 'request_swap', extract: m => ({ name: m[2].trim() }) },
+
+    // ========== Inventory ==========
+    { re: /כמה\s+(.+?)\s+יש\s+(?:במלאי|בשטח|בארגז)?/, intent: 'q_stock', extract: m => ({ item: m[1].trim() }) },
+    { re: /(מלאי\s+(?:נמוך|חסר|מתכלה)|פריטים\s+(?:חסרים|נגמרים))/, intent: 'q_low_stock' },
+    { re: /^(תוסיף|הוסף)\s+(\d+)\s+(.+?)\s+ל?מלאי$/, intent: 'inventory_add', extract: m => ({ quantity: Number(m[2]), item: m[3].trim() }) },
+    { re: /^(תזמין|הזמן)\s+(.+?)\s+(?:מהספק|לספק|מ-?ספק)?$/, intent: 'order_from_supplier', extract: m => ({ item: m[2].trim() }) },
+    { re: /(?:איזה|מי)\s+ספק\s+(?:של|נותן)\s+(.+)$/, intent: 'q_supplier_of', extract: m => ({ item: m[1].trim() }) },
+
+    // ========== Suppliers ==========
+    { re: /(?:חשבונית\s+אחרונה|חשבונית\s+אחרון[הת])\s+(?:של\s+|מ-?)(.+)$/, intent: 'q_supplier_invoice', extract: m => ({ supplier: m[1].trim() }) },
+    { re: /(?:יתרה|חוב|כמה\s+אני\s+חייב)\s+(?:ל|של\s+)(.+)$/, intent: 'q_supplier_balance', extract: m => ({ supplier: m[1].trim() }) },
+
+    // ========== Menu ==========
+    { re: /(?:הכי\s+(?:נמכר|מוביל|פופולרי)|מובילים\s+(?:בתפריט|במכירות))/, intent: 'q_top_seller' },
+    { re: /(?:מה\s+נמכר|כמה\s+מכרנו)\s+(?:היום|הערב)/, intent: 'q_today_sold' },
+    { re: /^(הסר|תוריד|תסיר)\s+(?:את\s+)?(.+?)\s+מהתפריט/, intent: 'menu_remove', extract: m => ({ name: m[2].trim() }) },
+    { re: /^(תוסיף|הוסף)\s+(?:לתפריט\s+)?(.+?)\s+ב-?(\d+)\s*₪?/, intent: 'menu_add', extract: m => ({ name: m[2].trim(), price: Number(m[3]) }) },
+    { re: /(?:מה\s+הרווח|כמה\s+(?:רווח|מרווח))\s+(?:על|ב)(.+)$/, intent: 'q_profit_on', extract: m => ({ name: m[1].trim() }) },
+
+    // ========== Finance ==========
+    { re: /(?:כמה\s+טיפים|טיפים\s+היום)/, intent: 'q_tips_today' },
+    { re: /^(תן|שלח)\s+בונוס\s+ל(.+?)(?:\s+(\d+))?$/, intent: 'pay_bonus', extract: m => ({ name: m[2].trim(), amount: Number(m[3]) || 50 }) },
+    { re: /^(תן|שלח|תוסיף)\s+(\d+)\s+מטבעות\s+ל(.+)$/, intent: 'coins_give', extract: m => ({ amount: Number(m[2]), name: m[3].trim() }) },
+    { re: /(?:חשבוניות\s+(?:פתוחות|לתשלום)|כמה\s+אני\s+חייב)/, intent: 'q_open_invoices' },
+    { re: /^(תיצור|תוסיף)\s+חשבונית\s+ל?(.+?)\s+(?:על\s+)?(\d+)/, intent: 'invoice_create', extract: m => ({ supplier: m[2].trim(), amount: Number(m[3]) }) },
+    { re: /(?:הכנסה|הכנסות)\s+(השבוע|שבוע)/, intent: 'q_weekly_revenue' },
+
+    // ========== Events ==========
+    { re: /(?:אירועים\s+השבוע|כמה\s+אירועים\s+השבוע)/, intent: 'q_events_week' },
+    { re: /(?:האירוע\s+הבא|אירוע\s+הבא|מתי\s+האירוע\s+הבא)/, intent: 'q_next_event' },
+    { re: /^(תוסיף|תיצור)\s+אירוע\s+ל(.+?)\s+(?:ב-?)?(\d{1,2}\/\d{1,2}|\d{4}-\d{2}-\d{2})?\s*(?:ל-?)?(\d+)?\s*(?:אנשים)?/, intent: 'event_add', extract: m => ({ name: m[2].trim(), date: m[3] || '', guest_count: Number(m[4]) || 0 }) },
+    { re: /^(תשלח|שלח)\s+חוזה\s+ל(.+)$/, intent: 'event_send_contract', extract: m => ({ name: m[2].trim() }) },
+    { re: /(?:מה\s+סטטוס|סטטוס)\s+(?:האירוע\s+)?(?:של\s+)?(.+)$/, intent: 'q_event_status', extract: m => ({ name: m[1].trim() }) },
+
+    // ========== Tasks / Checklists ==========
+    { re: /(?:משימות\s+ל|מה\s+יש\s+ל)(.+?)(?:\s+היום)?$/, intent: 'q_tasks_for', extract: m => ({ name: m[1].trim() }) },
+    { re: /(?:כמה\s+צ׳קליסטים|צ׳קליסטים\s+(?:הושלמו|נעשו))/, intent: 'q_checklist_done' },
+    { re: /^(תסמן|סמן)\s+צ׳קליסט\s+(?:כ)?(?:הושלם|בוצע|גמור)/, intent: 'checklist_mark_done' },
+    { re: /(?:איזה|מה)\s+צ׳קליסטים\s+(?:פתוחים|פעילים)/, intent: 'checklist_open' },
+
+    // ========== Incidents ==========
+    { re: /(?:תקריות\s+(?:פתוחות|פעילות)|כמה\s+תקריות)/, intent: 'q_open_incidents' },
+    { re: /^(סגור|תסגור)\s+(?:את\s+)?(?:ה?תקרית\s*)?(.*)$/, intent: 'incident_close', extract: m => ({ description: m[2].trim() }) },
+
+    // ========== Marketing ==========
+    { re: /^(תשלח|שלח)\s+(?:הודעה\s+|קמפיין\s+)?לכל\s+הלקוחות\s+(.+)$/, intent: 'campaign_broadcast', extract: m => ({ message: m[2].trim() }) },
+    { re: /(?:הצלחת\s+קמפיין|איך\s+(?:עבד|הלך)\s+הקמפיין)/, intent: 'q_campaign_success' },
+    { re: /^(הפעל|תפעיל)\s+פופאפ\s+(.+)$/, intent: 'popup_activate', extract: m => ({ title: m[2].trim() }) },
+
+    // ========== Gamification ==========
+    { re: /(?:לוח\s+שיאים|מי\s+ה?מוביל|טופ\s+עובדים)/, intent: 'q_leaderboard' },
+    { re: /כמה\s+(?:מטבעות|נקודות)\s+(?:יש\s+)?ל(.+)$/, intent: 'q_employee_score', extract: m => ({ name: m[1].trim() }) },
+
+    // ========== Devices ==========
+    { re: /(?:מי\s+לקח|מי\s+החזיק|אצל\s+מי)\s+(?:את\s+)?(?:ה)?(?:אייפד|טאבלט|iPad|מכשיר)/, intent: 'q_who_has_ipad' },
+    { re: /^(תחזיר|החזר|קבל\s+חזרה)\s+(?:את\s+)?(?:ה)?(?:אייפד|מכשיר|טאבלט)\s+(\d+)/, intent: 'return_device', extract: m => ({ device_number: m[2] }) },
+    { re: /כמה\s+(?:מכשירים|אייפדים|טאבלטים)/, intent: 'q_device_count' },
+
+    // ========== POS Beecomm ==========
+    { re: /(?:הזמנות\s+פתוחות|הזמנות\s+פעילות|כמה\s+הזמנות\s+בקופה)/, intent: 'q_open_orders' },
+    { re: /(?:זמן\s+המתנה\s+(?:ממוצע|בקופה)|כמה\s+מחכים)/, intent: 'q_avg_wait' },
+
+    // ========== Training ==========
+    { re: /(?:מי\s+לא\s+סיים|מי\s+פתח[ות]?)\s+(?:את\s+)?(?:ה)?(?:קורס|הכשרה|הדרכה)/, intent: 'q_who_didnt_finish_course' },
+
+    // ========== Couriers / Deliveries ==========
+    { re: /(?:איזה\s+שליחים|מי\s+השליחים)\s+(?:פעילים|במשמרת)/, intent: 'q_active_courier' },
+    { re: /(?:כמה\s+משלוחים|משלוחים\s+היום)/, intent: 'q_deliveries_today' },
+    { re: /^(שבץ|תקצה)\s+(?:את\s+)?(.+?)\s+למשלוח/, intent: 'courier_assign', extract: m => ({ courier: m[2].trim() }) },
+
+    // ========== Settings ==========
+    { re: /(?:שנה|עדכן)\s+(?:חלון\s+)?ביטול\s+ל?(\d+)\s+שעות/, intent: 'settings_change_cancellation', extract: m => ({ hours: Number(m[1]) }) },
+    { re: /(?:שנה|עדכן)\s+(?:אחוז\s+)?פיקדון\s+ל?(\d+)\s*%?/, intent: 'settings_change_deposit_pct', extract: m => ({ pct: Number(m[1]) }) },
+    { re: /^(הוסף|תוסיף)\s+שולחן/, intent: 'table_add' },
+    { re: /(?:הפעל|כבה|תפעיל|תכבה)\s+הזמנות\s+אונליין/, intent: 'online_reservations_toggle' },
+
+    // ========== Reports ==========
+    { re: /(?:תפיק|הפק)\s+דוח\s+(?:חודשי|חודש)/, intent: 'report_generate_monthly' },
+    { re: /(?:תשלח|שלח)\s+דוח\s+שבועי/, intent: 'report_send_weekly_whatsapp' },
+    { re: /(?:ייצא|תייצא)\s+(?:ל)?אקסל/, intent: 'report_export_excel' },
+
+    // ========== ShiftChat ==========
+    { re: /^(תשלח|שלח|תכתוב|כתוב)\s+ל(?:צ׳אט|משמרת)\s+(.+)$/, intent: 'chat_broadcast', extract: m => ({ message: m[2].trim() }) },
+    { re: /(?:הודעות\s+היום|מה\s+(?:כתבו|נכתב)\s+בצ׳אט)/, intent: 'q_today_chat' },
+
+    // ========== Restroom ==========
+    { re: /(?:מתי\s+(?:ניקו|ניקיון\s+אחרון)|ניקיון\s+(?:אחרון|שירותים))/, intent: 'q_last_clean' },
+    { re: /^(תסמן|סמן)\s+(?:את\s+ה)?ניקיון/, intent: 'mark_clean' },
+
     // ========== Help ==========
     { re: /^(מה\s+אפשר|איזה\s+פקודות|עזרה|מה\s+אתה\s+יודע)/, intent: 'help' },
 ];
@@ -273,6 +378,146 @@ export const COMMAND_GROUPS = [
         cmds: [
             'תשלח לשירה אישור',
             'תזכיר לשירה',
+        ],
+    },
+    {
+        title: '👤 לקוחות',
+        cmds: [
+            'מי חוגג היום',
+            'לקוחות חוזרים',
+            'תסמן את דביר VIP',
+            'תשלח קופון לרן',
+            'תן הטבה לשירה',
+        ],
+    },
+    {
+        title: '👥 עובדים (מורחב)',
+        cmds: [
+            'עובדים חדשים החודש',
+            'כמה שעות עבד דביר',
+            'מי בחופש היום',
+            'תאשר חופש של רן',
+            'מי איחר היום',
+            'תוסיף את שירה למשמרת ערב היום',
+            'תפתח בקשת החלפה לדביר',
+        ],
+    },
+    {
+        title: '📦 מלאי',
+        cmds: [
+            'כמה חזה עוף יש',
+            'מלאי נמוך',
+            'תוסיף 10 חזה עוף למלאי',
+            'תזמין חזה עוף',
+            'איזה ספק של חזה עוף',
+        ],
+    },
+    {
+        title: '🚚 ספקים',
+        cmds: [
+            'חשבונית אחרונה של גלעם',
+            'יתרה של גלעם',
+        ],
+    },
+    {
+        title: '🍽️ תפריט',
+        cmds: [
+            'הכי נמכר',
+            'מה נמכר היום',
+            'הסר ספגטי מהתפריט',
+            'תוסיף לתפריט פיצה ב-65',
+            'מה הרווח על המבורגר',
+        ],
+    },
+    {
+        title: '💰 כסף',
+        cmds: [
+            'כמה טיפים היום',
+            'תן בונוס לרן 100',
+            'תן 50 מטבעות לשירה',
+            'חשבוניות פתוחות',
+            'תיצור חשבונית גלעם 1200',
+            'הכנסות השבוע',
+        ],
+    },
+    {
+        title: '🎉 אירועים',
+        cmds: [
+            'אירועים השבוע',
+            'האירוע הבא',
+            'תוסיף אירוע לרן 25/12 50 אנשים',
+            'תשלח חוזה לרן',
+            'סטטוס של רן',
+        ],
+    },
+    {
+        title: '✅ משימות ו-צ׳קליסטים',
+        cmds: [
+            'משימות לרן',
+            'כמה צ׳קליסטים הושלמו',
+            'תסמן צ׳קליסט כהושלם',
+            'איזה צ׳קליסטים פתוחים',
+        ],
+    },
+    {
+        title: '🚨 תקריות',
+        cmds: [
+            'תקריות פתוחות',
+            'סגור תקרית המקרר',
+        ],
+    },
+    {
+        title: '📣 שיווק',
+        cmds: [
+            'תשלח לכל הלקוחות אנחנו פתוחים שבת',
+            'הצלחת קמפיין',
+            'הפעל פופאפ מבצע יין',
+        ],
+    },
+    {
+        title: '🏆 גמיפיקציה',
+        cmds: [
+            'לוח שיאים',
+            'כמה מטבעות יש לדביר',
+        ],
+    },
+    {
+        title: '📱 מכשירים',
+        cmds: [
+            'מי לקח אייפד',
+            'תחזיר אייפד 3',
+            'כמה מכשירים',
+        ],
+    },
+    {
+        title: '🛵 משלוחים',
+        cmds: [
+            'איזה שליחים פעילים',
+            'כמה משלוחים היום',
+            'שבץ את ישי למשלוח',
+        ],
+    },
+    {
+        title: '🎓 הכשרות',
+        cmds: ['מי לא סיים את הקורס'],
+    },
+    {
+        title: '⚙️ הגדרות',
+        cmds: [
+            'שנה ביטול ל-12 שעות',
+            'שנה פיקדון ל-25%',
+            'הוסף שולחן',
+            'הפעל הזמנות אונליין',
+            'תפיק דוח חודשי',
+        ],
+    },
+    {
+        title: '💬 צ׳אט משמרת + ניקיון',
+        cmds: [
+            'תשלח למשמרת קדימה',
+            'הודעות היום',
+            'מתי ניקיון אחרון',
+            'תסמן ניקיון',
         ],
     },
     {

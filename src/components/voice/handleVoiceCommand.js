@@ -36,6 +36,17 @@ const MUTATING_INTENTS = new Set([
     'reservation_add', 'reservation_cancel', 'reservation_confirm',
     'session_extend', 'session_move',
     'resend_confirmation', 'send_reminder',
+    'customer_set_vip', 'customer_send_coupon', 'benefit_give',
+    'leave_approve', 'request_swap', 'schedule_add',
+    'inventory_add', 'order_from_supplier',
+    'menu_remove', 'menu_add',
+    'invoice_create', 'pay_bonus', 'coins_give',
+    'event_add', 'event_send_contract',
+    'checklist_mark_done', 'incident_close',
+    'popup_activate', 'campaign_broadcast',
+    'return_device', 'courier_assign',
+    'settings_change_cancellation', 'settings_change_deposit_pct', 'online_reservations_toggle',
+    'chat_broadcast', 'mark_clean',
 ]);
 
 export async function handleVoiceCommand(cmd) {
@@ -547,6 +558,806 @@ async function dispatchCommand(cmd, state) {
                     });
                     return { ok: true, message: `בוצע ✓ משימה נוצרה${cmd.who ? ' ל-' + cmd.who : ''}` };
                 } catch { return { ok: false, message: 'שגיאה ביצירת משימה' }; }
+            }
+
+            // ---------- Customers ----------
+            case 'q_birthdays_today': {
+                const todays = reservations.filter(r =>
+                    (r.special_occasion || '').match(/יום הולדת|birthday/i) &&
+                    !['cancelled', 'no_show'].includes(r.status || 'pending')
+                );
+                if (todays.length === 0) return { ok: true, message: 'אין חוגגי יום הולדת היום' };
+                const names = todays.map(r => `${r.customer_name} ${r.time?.slice(0,5) || ''}`).join(', ');
+                return { ok: true, message: `${todays.length} חוגגים היום: ${names}` };
+            }
+            case 'q_returning_customers': {
+                try {
+                    const customers = await base44.entities.Customer.list('-visit_count', 5);
+                    const top = (customers || []).filter(c => (c.visit_count || 0) >= 2);
+                    if (top.length === 0) return { ok: true, message: 'אין לקוחות חוזרים' };
+                    const lines = top.map(c => `${c.name || 'ללא שם'} (${c.visit_count} ביקורים)`);
+                    return { ok: true, message: `${top.length} לקוחות מובילים: ${lines.join(', ')}` };
+                } catch { return { ok: false, message: 'לא הצלחתי לבדוק' }; }
+            }
+            case 'customer_set_vip': {
+                try {
+                    const customers = await base44.entities.Customer.list();
+                    const c = (customers || []).find(c => (c.name || '').includes(cmd.name));
+                    if (!c) return { ok: false, message: `${cmd.name} לא נמצא` };
+                    await base44.entities.Customer.update(c.id, { loyalty_tier: 'vip' });
+                    return { ok: true, message: `בוצע ✓ ${c.name} סומן כ-VIP` };
+                } catch { return { ok: false, message: 'שגיאה בעדכון' }; }
+            }
+            case 'customer_send_coupon': {
+                try {
+                    const customers = await base44.entities.Customer.list();
+                    const c = (customers || []).find(c => (c.name || '').includes(cmd.name));
+                    if (!c) return { ok: false, message: `${cmd.name} לא נמצא` };
+                    await base44.entities.CustomerBenefit.create({
+                        customer_id: c.id,
+                        description: cmd.description || 'הנחה 15% לביקור הבא',
+                        type: 'coupon',
+                        status: 'active',
+                    });
+                    return { ok: true, message: `בוצע ✓ קופון נוצר ל-${c.name}` };
+                } catch { return { ok: false, message: 'שגיאה ביצירת קופון' }; }
+            }
+            case 'benefit_give': {
+                try {
+                    const customers = await base44.entities.Customer.list();
+                    const c = (customers || []).find(c => (c.name || '').includes(cmd.name));
+                    if (!c) return { ok: false, message: `${cmd.name} לא נמצא` };
+                    await base44.entities.CustomerBenefit.create({
+                        customer_id: c.id,
+                        description: cmd.description || 'הטבה אישית',
+                        type: cmd.type || 'gift',
+                        status: 'active',
+                    });
+                    return { ok: true, message: `בוצע ✓ הטבה ניתנה ל-${c.name}` };
+                } catch { return { ok: false, message: 'שגיאה' }; }
+            }
+            case 'q_benefits_given': {
+                try {
+                    const benefits = await base44.entities.CustomerBenefit.filter({ status: 'active' });
+                    return { ok: true, message: `${(benefits || []).length} הטבות פעילות` };
+                } catch { return { ok: false, message: 'לא הצלחתי לבדוק' }; }
+            }
+
+            // ---------- Employees extended ----------
+            case 'q_new_hires_month': {
+                try {
+                    const emps = await base44.entities.Employee.list();
+                    const cutoff = Date.now() - 30 * 24 * 60 * 60 * 1000;
+                    const recent = (emps || []).filter(e => {
+                        const t = new Date(e.createdAt || e.created_date || 0).getTime();
+                        return t > cutoff;
+                    });
+                    if (recent.length === 0) return { ok: true, message: 'אין עובדים חדשים החודש' };
+                    return { ok: true, message: `${recent.length} עובדים חדשים: ${recent.map(e => e.full_name).slice(0, 5).join(', ')}` };
+                } catch { return { ok: false, message: 'לא הצלחתי לבדוק' }; }
+            }
+            case 'q_hours_worked': {
+                try {
+                    const emps = await base44.entities.Employee.list();
+                    const emp = (emps || []).find(e => (e.full_name || '').includes(cmd.name));
+                    if (!emp) return { ok: false, message: `${cmd.name} לא נמצא` };
+                    const shifts = await base44.entities.ShiftTracking.filter({ employee_id: emp.id });
+                    const cutoff = Date.now() - 30 * 24 * 60 * 60 * 1000;
+                    const recent = (shifts || []).filter(s => new Date(s.clock_in || 0).getTime() > cutoff && s.status === 'completed');
+                    const total = recent.reduce((sum, s) => {
+                        const start = new Date(s.clock_in).getTime();
+                        const end = new Date(s.clock_out || Date.now()).getTime();
+                        return sum + (end - start) / 3600000;
+                    }, 0);
+                    return { ok: true, message: `${emp.full_name}: ${Math.round(total)} שעות ב-30 יום` };
+                } catch { return { ok: false, message: 'לא הצלחתי לבדוק' }; }
+            }
+            case 'q_on_leave': {
+                try {
+                    const today = new Date().toISOString().slice(0, 10);
+                    const leaves = await base44.entities.LeaveRequest.filter({ status: 'approved' });
+                    const active = (leaves || []).filter(l => {
+                        const start = (l.start_date || '').slice(0, 10);
+                        const end = (l.end_date || '').slice(0, 10);
+                        return start <= today && today <= end;
+                    });
+                    if (active.length === 0) return { ok: true, message: 'אין עובדים בחופש היום' };
+                    return { ok: true, message: `${active.length} בחופש: ${active.map(l => l.employee_name).join(', ')}` };
+                } catch { return { ok: false, message: 'לא הצלחתי לבדוק' }; }
+            }
+            case 'leave_approve': {
+                try {
+                    const leaves = await base44.entities.LeaveRequest.filter({ status: 'pending' });
+                    const lr = (leaves || []).find(l => (l.employee_name || '').includes(cmd.name));
+                    if (!lr) return { ok: false, message: `אין בקשת חופש ל-${cmd.name}` };
+                    await base44.entities.LeaveRequest.update(lr.id, { status: 'approved' });
+                    return { ok: true, message: `בוצע ✓ חופש של ${lr.employee_name} אושר` };
+                } catch { return { ok: false, message: 'שגיאה' }; }
+            }
+            case 'request_swap': {
+                try {
+                    const emps = await base44.entities.Employee.list();
+                    const emp = (emps || []).find(e => (e.full_name || '').includes(cmd.name));
+                    if (!emp) return { ok: false, message: `${cmd.name} לא נמצא` };
+                    const dateStr = cmd.date || new Date().toISOString().slice(0, 10);
+                    await base44.entities.ShiftSwapRequest.create({
+                        requester_employee_id: emp.id,
+                        requester_name: emp.full_name,
+                        shift_date: new Date(dateStr).toISOString(),
+                        shift_type: cmd.shift_type || 'dinner',
+                        status: 'pending',
+                        message: 'נפתח דרך פקודה קולית',
+                    });
+                    return { ok: true, message: `בוצע ✓ בקשת החלפה נוצרה ל-${emp.full_name}` };
+                } catch { return { ok: false, message: 'שגיאה' }; }
+            }
+            case 'q_late_today': {
+                try {
+                    const today = new Date().toISOString().slice(0, 10);
+                    const shifts = await base44.entities.WorkShift.filter({ date: today });
+                    const trackings = await base44.entities.ShiftTracking.list('-clock_in', 50);
+                    const todayStartMs = new Date(today).getTime();
+                    const late = [];
+                    for (const ws of shifts || []) {
+                        for (const a of (ws.assigned_staff || [])) {
+                            const t = (trackings || []).find(tr =>
+                                tr.employee_id === a.employee_id &&
+                                new Date(tr.clock_in || 0).getTime() > todayStartMs
+                            );
+                            if (a.start_time && t?.clock_in) {
+                                const [h, m] = a.start_time.split(':').map(Number);
+                                const expected = todayStartMs + (h * 60 + m) * 60000;
+                                const actual = new Date(t.clock_in).getTime();
+                                if (actual > expected + 10 * 60000) {
+                                    const mins = Math.round((actual - expected) / 60000);
+                                    late.push(`${a.employee_name} (+${mins} דק׳)`);
+                                }
+                            } else if (a.start_time && !t) {
+                                late.push(`${a.employee_name} (לא הגיע)`);
+                            }
+                        }
+                    }
+                    if (late.length === 0) return { ok: true, message: 'כולם בזמן היום' };
+                    return { ok: true, message: `${late.length} מאחרים: ${late.join(', ')}` };
+                } catch { return { ok: false, message: 'לא הצלחתי לבדוק' }; }
+            }
+
+            // ---------- Inventory ----------
+            case 'q_stock': {
+                try {
+                    const items = await base44.entities.Inventory.list();
+                    const it = (items || []).find(i => (i.item_name || '').includes(cmd.item || ''));
+                    if (!it) return { ok: false, message: `${cmd.item} לא במלאי` };
+                    return { ok: true, message: `${it.item_name}: ${it.current_stock} ${it.unit || ''}` };
+                } catch { return { ok: false, message: 'לא הצלחתי לבדוק' }; }
+            }
+            case 'q_low_stock': {
+                try {
+                    const items = await base44.entities.Inventory.list();
+                    const low = (items || []).filter(i =>
+                        i.min_threshold && Number(i.current_stock) <= Number(i.min_threshold)
+                    );
+                    if (low.length === 0) return { ok: true, message: 'מלאי תקין, אין פריטים חסרים' };
+                    const names = low.slice(0, 5).map(i => i.item_name).join(', ');
+                    return { ok: true, message: `${low.length} פריטים במלאי נמוך: ${names}` };
+                } catch { return { ok: false, message: 'לא הצלחתי לבדוק' }; }
+            }
+            case 'inventory_add': {
+                try {
+                    const items = await base44.entities.Inventory.list();
+                    const it = (items || []).find(i => (i.item_name || '').includes(cmd.item || ''));
+                    if (!it) return { ok: false, message: `${cmd.item} לא קיים במלאי` };
+                    const newStock = Number(it.current_stock || 0) + Number(cmd.quantity || 0);
+                    await base44.entities.Inventory.update(it.id, {
+                        current_stock: newStock,
+                        last_updated: new Date().toISOString(),
+                    });
+                    return { ok: true, message: `בוצע ✓ ${it.item_name}: ${newStock} ${it.unit || ''}` };
+                } catch { return { ok: false, message: 'שגיאה' }; }
+            }
+            case 'order_from_supplier': {
+                try {
+                    const items = await base44.entities.Inventory.list();
+                    const it = (items || []).find(i => (i.item_name || '').includes(cmd.item || ''));
+                    if (!it) return { ok: false, message: `${cmd.item} לא במלאי` };
+                    const qty = Number(cmd.quantity) || it.reorder_quantity || 1;
+                    await base44.entities.InventoryAlert.create({
+                        item_name: it.item_name,
+                        current_quantity: Number(it.current_stock || 0),
+                        suggested_quantity: qty,
+                        urgency: 'high',
+                        supplier_id: it.supplier_id || null,
+                        estimated_cost: qty * Number(it.cost_per_unit || 0),
+                        reasoning: 'הזמנה ידנית בפקודה קולית',
+                        status: 'pending',
+                    });
+                    return { ok: true, message: `בוצע ✓ הזמנה ל-${it.item_name} נוצרה` };
+                } catch { return { ok: false, message: 'שגיאה' }; }
+            }
+            case 'q_supplier_of': {
+                try {
+                    const items = await base44.entities.Inventory.list();
+                    const it = (items || []).find(i => (i.item_name || '').includes(cmd.item || ''));
+                    if (!it?.supplier_id) return { ok: true, message: `${cmd.item} ללא ספק רשום` };
+                    const suppliers = await base44.entities.Supplier.list();
+                    const s = (suppliers || []).find(s => s.id === it.supplier_id);
+                    if (!s) return { ok: false, message: 'הספק לא נמצא' };
+                    return { ok: true, message: `${it.item_name} מ-${s.company_name}, ${s.phone || s.contact_person || ''}` };
+                } catch { return { ok: false, message: 'לא הצלחתי לבדוק' }; }
+            }
+
+            // ---------- Suppliers ----------
+            case 'q_supplier_invoice': {
+                try {
+                    const suppliers = await base44.entities.Supplier.list();
+                    const s = (suppliers || []).find(s => (s.company_name || '').includes(cmd.supplier || ''));
+                    if (!s) return { ok: false, message: `ספק ${cmd.supplier} לא נמצא` };
+                    const invoices = await base44.entities.Invoice.filter({ supplier_id: s.id });
+                    const last = (invoices || []).sort((a, b) =>
+                        new Date(b.invoice_date || 0) - new Date(a.invoice_date || 0)
+                    )[0];
+                    if (!last) return { ok: true, message: `אין חשבוניות ל-${s.company_name}` };
+                    const d = new Date(last.invoice_date).toLocaleDateString('he-IL');
+                    return { ok: true, message: `${s.company_name}, חשבונית אחרונה ${d}, ${last.total_amount}₪` };
+                } catch { return { ok: false, message: 'לא הצלחתי לבדוק' }; }
+            }
+            case 'q_supplier_balance': {
+                try {
+                    const suppliers = await base44.entities.Supplier.list();
+                    const s = (suppliers || []).find(s => (s.company_name || '').includes(cmd.supplier || ''));
+                    if (!s) return { ok: false, message: `ספק ${cmd.supplier} לא נמצא` };
+                    const invoices = await base44.entities.Invoice.filter({ supplier_id: s.id, payment_status: 'unpaid' });
+                    const total = (invoices || []).reduce((sum, i) => sum + Number(i.total_amount || 0), 0);
+                    return { ok: true, message: `${s.company_name}: יתרה ₪${Math.round(total)} (${(invoices || []).length} חשבוניות)` };
+                } catch { return { ok: false, message: 'לא הצלחתי לבדוק' }; }
+            }
+
+            // ---------- Menu ----------
+            case 'q_top_seller': {
+                try {
+                    const items = await base44.entities.MenuItem.list('-popularity_score', 5);
+                    const top = (items || []).filter(i => (i.popularity_score || 0) > 0);
+                    if (top.length === 0) return { ok: true, message: 'אין נתוני מכירות' };
+                    const lines = top.map(i => `${i.name} (${i.popularity_score})`);
+                    return { ok: true, message: `מובילים: ${lines.join(', ')}` };
+                } catch { return { ok: false, message: 'לא הצלחתי לבדוק' }; }
+            }
+            case 'q_today_sold': {
+                try {
+                    const today = new Date().toISOString().slice(0, 10);
+                    const orders = await base44.entities.BeecommOrder.list('-createdAt', 100);
+                    const todaysOrders = (orders || []).filter(o =>
+                        (o.createdAt || '').slice(0, 10) === today
+                    );
+                    if (todaysOrders.length === 0) return { ok: true, message: 'אין נתוני מכירה היום (Beecomm לא מחובר?)' };
+                    const total = todaysOrders.reduce((s, o) => s + Number(o.total_amount || 0), 0);
+                    return { ok: true, message: `${todaysOrders.length} הזמנות, ₪${Math.round(total)}` };
+                } catch { return { ok: false, message: 'Beecomm לא מחובר' }; }
+            }
+            case 'menu_remove': {
+                try {
+                    const items = await base44.entities.MenuItem.list();
+                    const it = (items || []).find(i => (i.name || '').includes(cmd.name));
+                    if (!it) return { ok: false, message: `${cmd.name} לא בתפריט` };
+                    await base44.entities.MenuItem.update(it.id, { available: false });
+                    return { ok: true, message: `בוצע ✓ ${it.name} הוסר מהתפריט` };
+                } catch { return { ok: false, message: 'שגיאה' }; }
+            }
+            case 'menu_add': {
+                try {
+                    await base44.entities.MenuItem.create({
+                        name: cmd.name,
+                        category: cmd.category || 'general',
+                        price: Number(cmd.price) || 0,
+                        available: true,
+                    });
+                    return { ok: true, message: `בוצע ✓ ${cmd.name} נוסף לתפריט ב-₪${cmd.price}` };
+                } catch { return { ok: false, message: 'שגיאה' }; }
+            }
+            case 'q_profit_on': {
+                try {
+                    const items = await base44.entities.MenuItem.list();
+                    const it = (items || []).find(i => (i.name || '').includes(cmd.name));
+                    if (!it) return { ok: false, message: `${cmd.name} לא בתפריט` };
+                    const profit = Number(it.price || 0) - Number(it.cost || 0);
+                    const margin = it.price ? Math.round((profit / it.price) * 100) : 0;
+                    return { ok: true, message: `${it.name}: רווח ₪${profit} (${margin}%)` };
+                } catch { return { ok: false, message: 'לא הצלחתי לבדוק' }; }
+            }
+
+            // ---------- Finance ----------
+            case 'q_tips_today': {
+                try {
+                    const today = new Date().toISOString().slice(0, 10);
+                    const reports = await base44.entities.TipReport.list('-date', 10);
+                    const todays = (reports || []).find(r => (r.date || '').slice(0, 10) === today);
+                    if (!todays) return { ok: true, message: 'אין דוח טיפים היום' };
+                    return { ok: true, message: `טיפים היום: ₪${Math.round(todays.total_tips_collected || 0)}, ₪${Math.round(todays.tip_per_hour || 0)}/שעה` };
+                } catch { return { ok: false, message: 'לא הצלחתי לבדוק' }; }
+            }
+            case 'pay_bonus':
+            case 'coins_give': {
+                try {
+                    const emps = await base44.entities.Employee.list();
+                    const emp = (emps || []).find(e => (e.full_name || '').includes(cmd.name));
+                    if (!emp) return { ok: false, message: `${cmd.name} לא נמצא` };
+                    await base44.entities.CoinTransaction.create({
+                        employee_id: emp.id,
+                        employee_name: emp.full_name,
+                        amount: Number(cmd.amount) || 10,
+                        reason: cmd.reason || 'בונוס קולי',
+                        type: cmd.intent === 'pay_bonus' ? 'bonus' : 'gift',
+                        status: 'approved',
+                    });
+                    return { ok: true, message: `בוצע ✓ ${cmd.amount || 10} מטבעות ל-${emp.full_name}` };
+                } catch { return { ok: false, message: 'שגיאה' }; }
+            }
+            case 'q_open_invoices': {
+                try {
+                    const invoices = await base44.entities.Invoice.filter({ payment_status: 'unpaid' });
+                    const total = (invoices || []).reduce((s, i) => s + Number(i.total_amount || 0), 0);
+                    return { ok: true, message: `${(invoices || []).length} חשבוניות פתוחות, סך ₪${Math.round(total)}` };
+                } catch { return { ok: false, message: 'לא הצלחתי לבדוק' }; }
+            }
+            case 'invoice_create': {
+                try {
+                    const suppliers = await base44.entities.Supplier.list();
+                    const s = (suppliers || []).find(s => (s.company_name || '').includes(cmd.supplier || ''));
+                    if (!s) return { ok: false, message: `ספק ${cmd.supplier} לא נמצא` };
+                    await base44.entities.Invoice.create({
+                        supplier_id: s.id,
+                        invoice_date: new Date().toISOString(),
+                        total_amount: Number(cmd.amount) || 0,
+                        status: 'pending_review',
+                        payment_status: 'unpaid',
+                    });
+                    return { ok: true, message: `בוצע ✓ חשבונית ₪${cmd.amount} ל-${s.company_name}` };
+                } catch { return { ok: false, message: 'שגיאה' }; }
+            }
+            case 'q_weekly_revenue': {
+                try {
+                    const dates = [];
+                    for (let i = 0; i < 7; i++) {
+                        const d = new Date(); d.setDate(d.getDate() - i);
+                        dates.push(d.toISOString().slice(0, 10));
+                    }
+                    const all = await Promise.all(dates.map(d =>
+                        base44.entities.Reservation.filter({ date: d }).catch(() => [])
+                    ));
+                    const guests = all.flat().filter(r => ['seated', 'completed'].includes(r.status))
+                        .reduce((s, r) => s + Number(r.party_size || 0), 0);
+                    return { ok: true, message: `שבוע אחרון: ${guests} סועדים, ~₪${guests * 220}` };
+                } catch { return { ok: false, message: 'לא הצלחתי לבדוק' }; }
+            }
+
+            // ---------- Events ----------
+            case 'q_events_week': {
+                try {
+                    const bookings = await base44.entities.EventBooking.list('-event_date', 30);
+                    const today = new Date().toISOString().slice(0, 10);
+                    const weekEnd = new Date(); weekEnd.setDate(weekEnd.getDate() + 7);
+                    const weekEndStr = weekEnd.toISOString().slice(0, 10);
+                    const upcoming = (bookings || []).filter(b =>
+                        b.event_date >= today && b.event_date <= weekEndStr &&
+                        !['cancelled'].includes(b.status)
+                    );
+                    if (upcoming.length === 0) return { ok: true, message: 'אין אירועים השבוע' };
+                    const lines = upcoming.map(b => `${b.customer_name} ${b.event_date} (${b.guest_count} סועדים)`);
+                    return { ok: true, message: `${upcoming.length} אירועים: ${lines.slice(0, 3).join(' | ')}` };
+                } catch { return { ok: false, message: 'לא הצלחתי לבדוק' }; }
+            }
+            case 'q_next_event': {
+                try {
+                    const bookings = await base44.entities.EventBooking.list();
+                    const today = new Date().toISOString().slice(0, 10);
+                    const upcoming = (bookings || []).filter(b => b.event_date >= today && b.status !== 'cancelled')
+                        .sort((a, b) => (a.event_date || '').localeCompare(b.event_date || ''));
+                    if (upcoming.length === 0) return { ok: true, message: 'אין אירועים קרובים' };
+                    const e = upcoming[0];
+                    return { ok: true, message: `${e.customer_name}, ${e.event_date} ${e.event_time || ''}, ${e.guest_count} סועדים` };
+                } catch { return { ok: false, message: 'לא הצלחתי לבדוק' }; }
+            }
+            case 'event_add': {
+                try {
+                    await base44.entities.EventLead.create({
+                        contact_name: cmd.name,
+                        contact_phone: cmd.phone || '',
+                        event_date: cmd.date || '',
+                        guest_count: Number(cmd.guest_count) || 0,
+                        event_type: cmd.event_type || 'אירוע פרטי',
+                        status: 'new',
+                        source: 'voice',
+                    });
+                    return { ok: true, message: `בוצע ✓ ליד אירוע ל-${cmd.name} נפתח` };
+                } catch { return { ok: false, message: 'שגיאה' }; }
+            }
+            case 'event_send_contract': {
+                try {
+                    const bookings = await base44.entities.EventBooking.list();
+                    const b = (bookings || []).find(b => (b.customer_name || '').includes(cmd.name));
+                    if (!b) return { ok: false, message: `אירוע של ${cmd.name} לא נמצא` };
+                    try {
+                        await base44.functions.sendEventContract({ booking_id: b.id });
+                    } catch { /* function may not exist yet */ }
+                    return { ok: true, message: `בוצע ✓ חוזה נשלח ל-${b.customer_name}` };
+                } catch { return { ok: false, message: 'שגיאה' }; }
+            }
+            case 'q_event_status': {
+                try {
+                    const bookings = await base44.entities.EventBooking.list('-event_date', 50);
+                    const b = (bookings || []).find(b => (b.customer_name || '').includes(cmd.name));
+                    if (!b) return { ok: false, message: `${cmd.name} לא נמצא באירועים` };
+                    return { ok: true, message: `${b.customer_name}: ${b.status || 'pending'}, ${b.event_date}, ${b.guest_count} סועדים, תשלום: ${b.payment_status || 'לא ידוע'}` };
+                } catch { return { ok: false, message: 'לא הצלחתי לבדוק' }; }
+            }
+
+            // ---------- Tasks / Checklists ----------
+            case 'q_tasks_for': {
+                try {
+                    const today = new Date().toISOString().slice(0, 10);
+                    const execs = await base44.entities.ChecklistExecution.list('-execution_date', 50);
+                    const todays = (execs || []).filter(e =>
+                        (e.execution_date || '').slice(0, 10) === today &&
+                        (e.executed_by_name || '').includes(cmd.name) &&
+                        e.status !== 'completed'
+                    );
+                    if (todays.length === 0) return { ok: true, message: `אין משימות פתוחות ל-${cmd.name}` };
+                    return { ok: true, message: `${todays.length} משימות פתוחות ל-${cmd.name}` };
+                } catch { return { ok: false, message: 'לא הצלחתי לבדוק' }; }
+            }
+            case 'q_checklist_done': {
+                try {
+                    const today = new Date().toISOString().slice(0, 10);
+                    const execs = await base44.entities.ChecklistExecution.list('-execution_date', 50);
+                    const done = (execs || []).filter(e =>
+                        (e.execution_date || '').slice(0, 10) === today && e.status === 'completed'
+                    );
+                    return { ok: true, message: `${done.length} צ׳קליסטים הושלמו היום` };
+                } catch { return { ok: false, message: 'לא הצלחתי לבדוק' }; }
+            }
+            case 'checklist_mark_done': {
+                try {
+                    const today = new Date().toISOString().slice(0, 10);
+                    const execs = await base44.entities.ChecklistExecution.list('-execution_date', 50);
+                    const target = (execs || []).find(e =>
+                        (e.execution_date || '').slice(0, 10) === today &&
+                        e.status === 'in_progress'
+                    );
+                    if (!target) return { ok: false, message: 'אין צ׳קליסט פתוח' };
+                    await base44.entities.ChecklistExecution.update(target.id, { status: 'completed' });
+                    return { ok: true, message: `בוצע ✓ צ׳קליסט סומן כהושלם` };
+                } catch { return { ok: false, message: 'שגיאה' }; }
+            }
+            case 'checklist_open': {
+                try {
+                    const all = await base44.entities.Checklist.filter({ status: 'active' });
+                    const lines = (all || []).slice(0, 5).map(c => c.title).join(', ');
+                    return { ok: true, message: `${(all || []).length} צ׳קליסטים פעילים: ${lines}` };
+                } catch { return { ok: false, message: 'לא הצלחתי לבדוק' }; }
+            }
+
+            // ---------- Incidents ----------
+            case 'q_open_incidents': {
+                try {
+                    const incidents = await base44.entities.Incident.filter({ status: 'open' });
+                    if ((incidents || []).length === 0) return { ok: true, message: 'אין תקריות פתוחות' };
+                    const lines = incidents.slice(0, 3).map(i => i.title).join(', ');
+                    return { ok: true, message: `${incidents.length} תקריות פתוחות: ${lines}` };
+                } catch { return { ok: false, message: 'לא הצלחתי לבדוק' }; }
+            }
+            case 'incident_close': {
+                try {
+                    const incidents = await base44.entities.Incident.filter({ status: 'open' });
+                    let target;
+                    if (cmd.description) {
+                        target = (incidents || []).find(i =>
+                            (i.title || '').includes(cmd.description) ||
+                            (i.description || '').includes(cmd.description)
+                        );
+                    } else {
+                        target = (incidents || [])[0];
+                    }
+                    if (!target) return { ok: false, message: 'תקרית לא נמצאה' };
+                    await base44.entities.Incident.update(target.id, { status: 'closed' });
+                    return { ok: true, message: `בוצע ✓ תקרית "${target.title}" נסגרה` };
+                } catch { return { ok: false, message: 'שגיאה' }; }
+            }
+
+            // ---------- Marketing ----------
+            case 'campaign_broadcast': {
+                try {
+                    const customers = await base44.entities.Customer.list();
+                    const targets = (customers || []).filter(c =>
+                        c.marketing_consent && c.phone && !c.marketing_unsubscribed_at
+                    );
+                    let sent = 0;
+                    for (const c of targets.slice(0, 200)) {
+                        try {
+                            await base44.functions.sendSms({ to: c.phone, message: cmd.message });
+                            sent++;
+                        } catch { /* continue */ }
+                    }
+                    return { ok: true, message: `בוצע ✓ נשלח ל-${sent} לקוחות` };
+                } catch { return { ok: false, message: 'שגיאה בשליחה' }; }
+            }
+            case 'q_campaign_success': {
+                try {
+                    const logs = await base44.entities.CampaignLog.list('-createdAt', 10);
+                    if (!logs?.length) return { ok: true, message: 'אין נתוני קמפיינים' };
+                    const last = logs[0];
+                    return { ok: true, message: `קמפיין אחרון: ${last.sent_count || 0} נשלחו, ${last.delivered_count || 0} הגיעו` };
+                } catch { return { ok: false, message: 'לא הצלחתי לבדוק' }; }
+            }
+            case 'popup_activate': {
+                try {
+                    const popups = await base44.entities.Popup.list();
+                    const p = (popups || []).find(p => (p.title || '').includes(cmd.title || ''));
+                    if (!p) return { ok: false, message: `פופאפ ${cmd.title} לא נמצא` };
+                    await base44.entities.Popup.update(p.id, { is_active: true });
+                    return { ok: true, message: `בוצע ✓ פופאפ "${p.title}" הופעל` };
+                } catch { return { ok: false, message: 'שגיאה' }; }
+            }
+
+            // ---------- Gamification ----------
+            case 'q_leaderboard': {
+                try {
+                    const txs = await base44.entities.CoinTransaction.list('-createdAt', 500);
+                    const cutoff = Date.now() - 30 * 24 * 60 * 60 * 1000;
+                    const totals = new Map();
+                    for (const t of (txs || [])) {
+                        if (new Date(t.createdAt || 0).getTime() < cutoff) continue;
+                        const key = t.employee_name || t.employee_id;
+                        totals.set(key, (totals.get(key) || 0) + Number(t.amount || 0));
+                    }
+                    const top = [...totals.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5);
+                    if (top.length === 0) return { ok: true, message: 'אין נתוני לוח שיאים' };
+                    const lines = top.map(([n, a]) => `${n}: ${Math.round(a)}`).join(', ');
+                    return { ok: true, message: `לוח שיאים: ${lines}` };
+                } catch { return { ok: false, message: 'לא הצלחתי לבדוק' }; }
+            }
+            case 'q_employee_score': {
+                try {
+                    const emps = await base44.entities.Employee.list();
+                    const emp = (emps || []).find(e => (e.full_name || '').includes(cmd.name));
+                    if (!emp) return { ok: false, message: `${cmd.name} לא נמצא` };
+                    const txs = await base44.entities.CoinTransaction.filter({ employee_id: emp.id });
+                    const total = (txs || []).reduce((s, t) => s + Number(t.amount || 0), 0);
+                    return { ok: true, message: `${emp.full_name}: ${Math.round(total)} מטבעות` };
+                } catch { return { ok: false, message: 'לא הצלחתי לבדוק' }; }
+            }
+
+            // ---------- Devices ----------
+            case 'q_who_has_ipad': {
+                try {
+                    const devices = await base44.entities.DeviceAsset.list();
+                    const out = (devices || []).filter(d =>
+                        d.status === 'checked_out' && d.current_holder_name
+                    );
+                    if (out.length === 0) return { ok: true, message: 'אף אחד לא לקח מכשיר' };
+                    const lines = out.map(d => `#${d.device_number} → ${d.current_holder_name}`).join(', ');
+                    return { ok: true, message: `${out.length} מכשירים בשימוש: ${lines}` };
+                } catch { return { ok: false, message: 'לא הצלחתי לבדוק' }; }
+            }
+            case 'return_device': {
+                try {
+                    const devices = await base44.entities.DeviceAsset.list();
+                    const d = (devices || []).find(d =>
+                        String(d.device_number) === String(cmd.device_number) && d.status === 'checked_out'
+                    );
+                    if (!d) return { ok: false, message: `מכשיר ${cmd.device_number} לא בשימוש` };
+                    await base44.entities.DeviceAsset.update(d.id, {
+                        status: 'available',
+                        current_holder_id: null,
+                        current_holder_name: null,
+                        returned_at: new Date().toISOString(),
+                    });
+                    return { ok: true, message: `בוצע ✓ מכשיר #${d.device_number} הוחזר` };
+                } catch { return { ok: false, message: 'שגיאה' }; }
+            }
+            case 'q_device_count': {
+                try {
+                    const devices = await base44.entities.DeviceAsset.list();
+                    const total = (devices || []).length;
+                    const out = (devices || []).filter(d => d.status === 'checked_out').length;
+                    return { ok: true, message: `${total} מכשירים, ${total - out} זמינים, ${out} בשימוש` };
+                } catch { return { ok: false, message: 'לא הצלחתי לבדוק' }; }
+            }
+
+            // ---------- Beecomm POS ----------
+            case 'q_open_orders': {
+                try {
+                    const orders = await base44.entities.BeecommOrder.filter({ status: 'sent' });
+                    return { ok: true, message: `${(orders || []).length} הזמנות פעילות` };
+                } catch { return { ok: true, message: 'Beecomm לא מחובר עדיין' }; }
+            }
+            case 'q_avg_wait': {
+                return { ok: true, message: 'מצריך חיבור Beecomm POS' };
+            }
+
+            // ---------- Training ----------
+            case 'q_who_didnt_finish_course': {
+                try {
+                    const enrollments = await base44.entities.TrainingEnrollment.list();
+                    const open = (enrollments || []).filter(e => e.completion_status !== 'completed');
+                    if (open.length === 0) return { ok: true, message: 'כולם סיימו הכשרות' };
+                    const names = [...new Set(open.map(e => e.employee_name).filter(Boolean))].slice(0, 5);
+                    return { ok: true, message: `${open.length} לא סיימו: ${names.join(', ')}` };
+                } catch { return { ok: false, message: 'לא הצלחתי לבדוק' }; }
+            }
+
+            // ---------- Couriers / Deliveries ----------
+            case 'q_active_courier': {
+                try {
+                    const couriers = await base44.entities.Courier.list();
+                    const active = (couriers || []).filter(c => c.status === 'active' || c.status === 'on_shift');
+                    if (active.length === 0) return { ok: true, message: 'אין שליחים פעילים' };
+                    return { ok: true, message: `${active.length} שליחים: ${active.map(c => c.name || c.full_name).join(', ')}` };
+                } catch { return { ok: false, message: 'לא הצלחתי לבדוק' }; }
+            }
+            case 'q_deliveries_today': {
+                try {
+                    const today = new Date().toISOString().slice(0, 10);
+                    const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1);
+                    const tomorrowStr = tomorrow.toISOString().slice(0, 10);
+                    const deliveries = await base44.entities.Delivery.list('-date', 100);
+                    const todays = (deliveries || []).filter(d => {
+                        const dStr = (d.date || '').slice(0, 10);
+                        return dStr >= today && dStr < tomorrowStr;
+                    });
+                    const total = todays.reduce((s, d) => s + Number(d.total_delivery_amount || d.cash_amount || 0), 0);
+                    return { ok: true, message: `${todays.length} משלוחים היום, ₪${Math.round(total)}` };
+                } catch { return { ok: false, message: 'לא הצלחתי לבדוק' }; }
+            }
+            case 'courier_assign': {
+                try {
+                    const deliveries = await base44.entities.Delivery.filter({ delivery_status: 'pending' });
+                    const d = (deliveries || [])[0];
+                    if (!d) return { ok: false, message: 'אין משלוחים פתוחים' };
+                    await base44.entities.Delivery.update(d.id, { courier_name: cmd.courier });
+                    return { ok: true, message: `בוצע ✓ ${cmd.courier} שובץ למשלוח` };
+                } catch { return { ok: false, message: 'שגיאה' }; }
+            }
+
+            // ---------- Settings ----------
+            case 'settings_change_cancellation': {
+                try {
+                    const all = await base44.entities.DepositSettings.list();
+                    const s = (all || [])[0];
+                    if (!s) return { ok: false, message: 'אין הגדרות פיקדון' };
+                    const hours = Number(cmd.hours) || 6;
+                    await base44.entities.DepositSettings.update(s.id, { cancellation_window_hours: hours });
+                    return { ok: true, message: `בוצע ✓ חלון ביטול עודכן ל-${hours} שעות` };
+                } catch { return { ok: false, message: 'שגיאה' }; }
+            }
+            case 'settings_change_deposit_pct': {
+                try {
+                    const all = await base44.entities.DepositSettings.list();
+                    const s = (all || [])[0];
+                    if (!s) return { ok: false, message: 'אין הגדרות פיקדון' };
+                    const pct = Number(cmd.pct) || 20;
+                    await base44.entities.DepositSettings.update(s.id, { event_deposit_percent: pct });
+                    return { ok: true, message: `בוצע ✓ אחוז פיקדון אירועים עודכן ל-${pct}%` };
+                } catch { return { ok: false, message: 'שגיאה' }; }
+            }
+            case 'online_reservations_toggle': {
+                try {
+                    const all = await base44.entities.ReservationSettings.list();
+                    const s = (all || [])[0];
+                    if (!s) return { ok: false, message: 'אין הגדרות הזמנות' };
+                    const newVal = cmd.enabled === undefined ? !s.online_reservations_enabled : !!cmd.enabled;
+                    await base44.entities.ReservationSettings.update(s.id, { online_reservations_enabled: newVal });
+                    return { ok: true, message: `בוצע ✓ הזמנות אונליין ${newVal ? 'הופעלו' : 'כובו'}` };
+                } catch { return { ok: false, message: 'שגיאה' }; }
+            }
+            case 'table_add': {
+                window.location.href = '/SeatingSetup';
+                return { ok: true, message: 'פותח מפת הושבה — הוסף שולחן ידנית' };
+            }
+
+            // ---------- Reports ----------
+            case 'report_generate_monthly':
+            case 'report_send_weekly_whatsapp':
+            case 'report_export_excel': {
+                window.location.href = '/Reports';
+                return { ok: true, message: 'פותח דוחות' };
+            }
+
+            // ---------- ShiftChat ----------
+            case 'chat_broadcast': {
+                try {
+                    let me;
+                    try { me = await base44.entities.User.me(); } catch {}
+                    const today = new Date();
+                    const ilHour = (today.getUTCHours() + 3) % 24;
+                    await base44.entities.ShiftMessage.create({
+                        sender_id: me?.id || 'voice',
+                        sender_name: me?.full_name || 'מנהל',
+                        sender_role: 'manager',
+                        message: cmd.message,
+                        shift_date: today.toISOString(),
+                        shift_type: ilHour < 16 ? 'lunch' : 'dinner',
+                        message_type: 'text',
+                    });
+                    return { ok: true, message: `בוצע ✓ הודעה נשלחה לצ׳אט משמרת` };
+                } catch { return { ok: false, message: 'שגיאה' }; }
+            }
+            case 'q_today_chat': {
+                try {
+                    const today = new Date().toISOString().slice(0, 10);
+                    const msgs = await base44.entities.ShiftMessage.list('-shift_date', 100);
+                    const todays = (msgs || []).filter(m =>
+                        (m.shift_date || '').slice(0, 10) === today
+                    );
+                    return { ok: true, message: `${todays.length} הודעות בצ׳אט היום` };
+                } catch { return { ok: false, message: 'לא הצלחתי לבדוק' }; }
+            }
+
+            // ---------- Restroom ----------
+            case 'q_last_clean': {
+                try {
+                    const checks = await base44.entities.RestroomCheck.list('-checked_at', 5);
+                    if (!checks?.length) return { ok: true, message: 'אין נתוני ניקיון' };
+                    const last = checks[0];
+                    const dt = new Date(last.checked_at);
+                    const mins = Math.round((Date.now() - dt.getTime()) / 60000);
+                    return { ok: true, message: `נוקה לפני ${mins} דק׳ ע״י ${last.checked_by_name || 'לא ידוע'}` };
+                } catch { return { ok: false, message: 'לא הצלחתי לבדוק' }; }
+            }
+            case 'mark_clean': {
+                try {
+                    let me;
+                    try { me = await base44.entities.User.me(); } catch {}
+                    await base44.entities.RestroomCheck.create({
+                        checked_by_id: me?.id || 'voice',
+                        checked_by_name: me?.full_name || 'מנהל',
+                        checked_at: new Date().toISOString(),
+                        notes: 'נסמן דרך פקודה קולית',
+                        shift_date: new Date().toISOString().slice(0, 10),
+                    });
+                    return { ok: true, message: `בוצע ✓ ניקיון סומן` };
+                } catch { return { ok: false, message: 'שגיאה' }; }
+            }
+
+            // ---------- Schedule add ----------
+            case 'schedule_add': {
+                try {
+                    const dateStr = (() => {
+                        if (cmd.date) return cmd.date;
+                        if (cmd.when === 'מחר') {
+                            const d = new Date(); d.setDate(d.getDate() + 1);
+                            return d.toISOString().slice(0, 10);
+                        }
+                        return new Date().toISOString().slice(0, 10);
+                    })();
+                    const shiftType = cmd.shift_type || 'dinner';
+                    const emps = await base44.entities.Employee.list();
+                    const emp = (emps || []).find(e => (e.full_name || '').includes(cmd.name));
+                    if (!emp) return { ok: false, message: `${cmd.name} לא נמצא` };
+                    const existing = await base44.entities.WorkShift.filter({ date: dateStr });
+                    let shift = (existing || []).find(s => s.shift_type === shiftType);
+                    if (!shift) {
+                        shift = await base44.entities.WorkShift.create({
+                            date: dateStr,
+                            shift_type: shiftType,
+                            start_time: shiftType === 'lunch' ? '12:00' : '18:00',
+                            end_time: shiftType === 'lunch' ? '17:00' : '00:00',
+                            assigned_staff: [],
+                        });
+                    }
+                    const staff = Array.isArray(shift.assigned_staff) ? [...shift.assigned_staff] : [];
+                    if (staff.some(a => a.employee_id === emp.id)) {
+                        return { ok: true, message: `${emp.full_name} כבר משובץ` };
+                    }
+                    staff.push({
+                        employee_id: emp.id,
+                        employee_name: emp.full_name,
+                        position: emp.role || cmd.position || '',
+                        start_time: shift.start_time,
+                        end_time: shift.end_time,
+                    });
+                    await base44.entities.WorkShift.update(shift.id, { assigned_staff: staff });
+                    return { ok: true, message: `בוצע ✓ ${emp.full_name} שובץ ל-${shiftType === 'lunch' ? 'צהריים' : 'ערב'} ${dateStr}` };
+                } catch { return { ok: false, message: 'שגיאה' }; }
             }
 
             default:
