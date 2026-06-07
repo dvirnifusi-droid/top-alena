@@ -4,6 +4,15 @@ import { base44 } from '@/api/base44Client';
 
 const { Reservation, QueueEntry, TableSession, SeatingLayout } = base44.entities;
 
+// After any successful action that mutated DB, broadcast so listening pages
+// (SeatingSetup, QueueDashboard, WorkScheduling, etc.) can reload immediately
+// instead of waiting for their poll interval.
+function broadcastDataChange(scope) {
+    try {
+        window.dispatchEvent(new CustomEvent('voice:data-changed', { detail: { scope } }));
+    } catch { /* SSR safety */ }
+}
+
 // Common: fetch live state from server (small, fast queries)
 async function loadState() {
     const today = new Date().toISOString().slice(0, 10);
@@ -18,11 +27,36 @@ async function loadState() {
     return { reservations, queueEntries, activeQueue, activeSessions, tables };
 }
 
+// Intents that mutate data — used to decide whether to broadcast.
+const MUTATING_INTENTS = new Set([
+    'table_free', 'table_finishing', 'table_seated', 'table_no_show',
+    'table_flag',
+    'queue_add', 'queue_call', 'queue_arrived', 'queue_abandoned',
+    'seat_walkin', 'seat_reservation', 'seat_reservation_multi', 'seat_next_queue',
+    'reservation_add', 'reservation_cancel', 'reservation_confirm',
+    'session_extend', 'session_move',
+    'resend_confirmation', 'send_reminder',
+]);
+
 export async function handleVoiceCommand(cmd) {
     try {
         const state = await loadState();
         const { reservations, activeQueue, activeSessions, tables } = state;
+        const result = await dispatchCommand(cmd, state);
+        // Auto-broadcast on successful mutations so live pages refresh instantly.
+        if (result?.ok && MUTATING_INTENTS.has(cmd.intent)) {
+            broadcastDataChange(cmd.intent);
+        }
+        return result;
+    } catch (e) {
+        console.error('[voice] handler failed', e);
+        return { ok: false, message: 'שגיאה: ' + (e?.message || 'נסה שוב') };
+    }
+}
 
+async function dispatchCommand(cmd, state) {
+    const { reservations, activeQueue, activeSessions, tables } = state;
+    try {
         switch (cmd.intent) {
             // ---------- Q&A ----------
             case 'q_next_in_queue': {
@@ -378,7 +412,7 @@ export async function handleVoiceCommand(cmd) {
                 return { ok: false, message: 'פקודה לא מוכרת: ' + cmd.intent };
         }
     } catch (e) {
-        console.error('[voice] handler failed', e);
+        console.error('[voice] dispatch failed', e);
         return { ok: false, message: 'שגיאה: ' + (e?.message || 'נסה שוב') };
     }
 }

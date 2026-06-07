@@ -8,14 +8,49 @@ import { parseIntent } from './voiceIntents';
 // the common forms to digits so '#100' parses identically whether spoken as
 // numeral or word.
 // === Speech synthesis — speaks the reply back via the device's TTS ============
+// iOS Safari quirk: voices list is empty until 'voiceschanged' event fires.
+// We pre-warm and pick the best Hebrew voice once, fall back to default lang.
+let cachedHebrewVoice = null;
+function pickHebrewVoice() {
+    if (typeof window === 'undefined' || !window.speechSynthesis) return null;
+    if (cachedHebrewVoice) return cachedHebrewVoice;
+    const voices = window.speechSynthesis.getVoices();
+    // Prefer Hebrew voices, then any voice
+    cachedHebrewVoice =
+        voices.find(v => /he/i.test(v.lang)) ||
+        voices.find(v => /iw/i.test(v.lang)) || // older iOS code for Hebrew
+        null;
+    return cachedHebrewVoice;
+}
+// Warm voices list on load (iOS won't populate until this fires).
+if (typeof window !== 'undefined' && window.speechSynthesis) {
+    window.speechSynthesis.onvoiceschanged = () => {
+        cachedHebrewVoice = null; // reset so we re-pick
+        pickHebrewVoice();
+    };
+    // Also try once immediately (desktop browsers have voices ready)
+    setTimeout(pickHebrewVoice, 500);
+}
+
 function speak(text) {
     try {
+        if (!window.speechSynthesis) {
+            console.warn('[voice] SpeechSynthesis not available');
+            return;
+        }
+        window.speechSynthesis.cancel();
         const u = new SpeechSynthesisUtterance(text);
         u.lang = 'he-IL';
-        u.rate = 1.05;
-        window.speechSynthesis.cancel();
+        u.rate = 1.0;
+        u.pitch = 1.0;
+        u.volume = 1.0;
+        const heVoice = pickHebrewVoice();
+        if (heVoice) u.voice = heVoice;
+        u.onerror = (e) => console.warn('[voice] TTS error:', e?.error);
         window.speechSynthesis.speak(u);
-    } catch { /* TTS unavailable; visual feedback only */ }
+    } catch (e) {
+        console.warn('[voice] speak failed:', e);
+    }
 }
 
 // === The main component ======================================================
@@ -41,6 +76,16 @@ export default function VoiceControl({
 
     const start = () => {
         if (!supported) { setError('הדפדפן לא תומך בזיהוי קולי'); return; }
+        // PRIME the speech synthesis with a silent utterance — iOS Safari blocks
+        // TTS unless the audio context was activated by a user gesture. The user
+        // pressing the mic button counts; this empty utterance unlocks the rest.
+        try {
+            if (window.speechSynthesis) {
+                const prime = new SpeechSynthesisUtterance(' ');
+                prime.volume = 0;
+                window.speechSynthesis.speak(prime);
+            }
+        } catch { /* ignore */ }
         setError(null);
         setTranscript('');
         setLastResult(null);

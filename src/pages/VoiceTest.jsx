@@ -9,6 +9,22 @@ function VoiceTestInner() {
     const [loading, setLoading] = useState(false);
     const [history, setHistory] = useState([]);
 
+    // Test TTS — verifies the device can actually speak Hebrew back.
+    const testTTS = () => {
+        try {
+            window.speechSynthesis.cancel();
+            const u = new SpeechSynthesisUtterance('בדיקה. אם אתה שומע אותי, הקול עובד מצוין.');
+            u.lang = 'he-IL';
+            u.rate = 1.0;
+            const voices = window.speechSynthesis.getVoices();
+            const heVoice = voices.find(v => /he|iw/i.test(v.lang));
+            if (heVoice) u.voice = heVoice;
+            window.speechSynthesis.speak(u);
+        } catch (e) {
+            alert('TTS לא נתמך בדפדפן: ' + e?.message);
+        }
+    };
+
     const test = async (cmd) => {
         const input = cmd || text;
         if (!input.trim()) return;
@@ -41,7 +57,13 @@ function VoiceTestInner() {
 
     return (
         <div className="max-w-4xl mx-auto p-4 sm:p-6 space-y-4" dir="rtl">
-            <h1 className="text-2xl font-black">🎤 בדיקת פקודות קוליות</h1>
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+                <h1 className="text-2xl font-black">🎤 בדיקת פקודות קוליות</h1>
+                <button
+                    onClick={testTTS}
+                    className="bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold px-3 py-2 rounded-xl"
+                >🔊 בדיקת קול (TTS)</button>
+            </div>
             <p className="text-sm text-gray-600">
                 כתוב פקודה או לחץ על אחת מהדוגמאות. בדיקה משתמשת באותו pipeline כמו דיבור — קודם regex, אם לא נמצא — LLM, ואז ביצוע.
             </p>

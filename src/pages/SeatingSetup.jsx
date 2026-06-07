@@ -409,6 +409,19 @@ export default function SeatingSetup() {
         return () => clearInterval(interval);
     }, [loadLiveData]);
 
+    // Listen for voice-driven data changes — refresh immediately instead of
+    // waiting for the 60s poll interval. Any successful voice command broadcasts
+    // 'voice:data-changed' via handleVoiceCommand.
+    useEffect(() => {
+        const onVoiceChange = () => {
+            loadLiveData();
+            loadLayout();
+            loadQueue();
+        };
+        window.addEventListener('voice:data-changed', onVoiceChange);
+        return () => window.removeEventListener('voice:data-changed', onVoiceChange);
+    }, [loadLiveData, loadLayout, loadQueue]);
+
     // Digital clock — tick every second for the top action bar display
     useEffect(() => {
         // 30s tick — second-precision was forcing a full page re-render every
