@@ -57,13 +57,44 @@ function buildLayout(widgets, saved) {
   if (!saved || !Array.isArray(saved)) {
     return widgets.map(w => ({ ...w, enabled: w.defaultOn }));
   }
-  // Start with saved order, fill in missing new widgets at the end
-  const savedIds = saved.map(s => s.id);
+  // Start with saved order, then merge in NEW widgets at their canonical
+  // position from the `widgets` array so a new defaultOn widget appears where
+  // we want it (e.g. top of the list) instead of stranded at the bottom.
+  const savedIds = new Set(saved.map(s => s.id));
   const ordered = saved
     .map(s => { const w = widgets.find(x => x.id === s.id); return w ? { ...w, enabled: s.enabled } : null; })
     .filter(Boolean);
-  const newWidgets = widgets.filter(w => !savedIds.includes(w.id)).map(w => ({ ...w, enabled: w.defaultOn }));
-  return [...ordered, ...newWidgets];
+  const result = [];
+  let savedIdx = 0;
+  for (const canon of widgets) {
+    if (savedIds.has(canon.id)) {
+      // Skip — it'll be placed by the saved-order walker below
+      continue;
+    }
+    // New widget — insert it at the matching position in `ordered`. To keep
+    // canonical order, walk `ordered` and place when we cross the next saved
+    // widget that comes AFTER this one canonically.
+    const canonIndex = widgets.findIndex(w => w.id === canon.id);
+    // Find the first saved widget whose canonical index is > canonIndex
+    let inserted = false;
+    while (savedIdx < ordered.length) {
+      const sIdx = widgets.findIndex(w => w.id === ordered[savedIdx].id);
+      if (sIdx > canonIndex) {
+        result.push({ ...canon, enabled: canon.defaultOn });
+        inserted = true;
+        break;
+      }
+      result.push(ordered[savedIdx]);
+      savedIdx++;
+    }
+    if (!inserted) result.push({ ...canon, enabled: canon.defaultOn });
+  }
+  // Flush remaining saved widgets
+  while (savedIdx < ordered.length) {
+    result.push(ordered[savedIdx]);
+    savedIdx++;
+  }
+  return result;
 }
 
 export function useDashboardLayout(userEmail, page) {
