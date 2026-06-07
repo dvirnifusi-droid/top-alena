@@ -19,6 +19,18 @@ export function normalizeHebrewNumbers(text) {
     for (const [word, digit] of entries) {
         out = out.replace(new RegExp(`(^|\\s)${word}(\\s|$)`, 'g'), `$1${digit}$2`);
     }
+    // Hebrew time-of-day → 24h conversion.
+    // '9 בערב' → '21:00', '11 בבוקר' → '11:00', '8 בלילה' → '20:00'.
+    // Done BEFORE the matchers run so 'בשעה 9 בערב' looks the same as 'ב-21:00'.
+    out = out.replace(/(\d{1,2})(?::(\d{2}))?\s+(בערב|בלילה)/g, (_, h, m) => {
+        const hour = parseInt(h, 10);
+        const adj = hour < 12 ? hour + 12 : hour;
+        return `${String(adj).padStart(2, '0')}:${m || '00'}`;
+    });
+    out = out.replace(/(\d{1,2})(?::(\d{2}))?\s+(בבוקר|בצהריים)/g, (_, h, m) => {
+        const hour = parseInt(h, 10);
+        return `${String(hour === 12 && /בבוקר/.test(_) ? 0 : hour).padStart(2, '0')}:${m || '00'}`;
+    });
     return out;
 }
 
@@ -52,13 +64,40 @@ export const MATCHERS = [
     { re: /^תקבל(י)?\s+את\s+הבא\s+(?:בתור\s+)?על\s+(?:שולחן\s+)?(\d+)/, intent: 'seat_next_queue', extract: m => ({ table: m[2] }) },
 
     // ========== Reservation management ==========
-    { re: /^תוסיף(י)?\s+הזמנה\s+(?:ל)?(.+?)\s+(\d+)\s+(?:אנשים\s+)?(?:ל)?(\d{1,2}[:.]?\d{0,2})(?:\s+(היום|מחר|מחרתיים))?/,
+    // Extractor helper for the catch-all: walks the cleaned text and pulls
+    // out the components regardless of order.
+    // {{insert later}} — handled inline below.
+    // 1. Original ordering: תוסיף הזמנה ל-NAME N (אנשים) ל-TIME [WHEN]
+    { re: /^תוסיף(י)?\s+הזמנה\s+ל(?!היום|מחר)(\S+?)\s+(\d+)\s+(?:אנשים\s+)?(?:ל|ב)?(\d{1,2}[:.]?\d{0,2})(?:\s+(היום|מחר|מחרתיים))?/,
         intent: 'reservation_add', extract: m => ({
-            name: m[2].trim(),
-            party_size: Number(m[3]),
+            name: m[2].trim(), party_size: Number(m[3]),
             time: m[4].replace('.', ':').padEnd(5, '0'),
             when: m[5] || 'היום',
         }) },
+    // 2. Catch-all (most flexible): captures any order of name/party/time/when
+    //    Example: 'תוסיף הזמנה להיום בשעה 21:00 על שם רן ל8 אנשים'
+    {
+        re: /^תוסיף(?:י)?\s+הזמנה\b.*/, intent: 'reservation_add', extract: m => {
+            const txt = m[0];
+            // When: היום / מחר / מחרתיים
+            const whenMatch = txt.match(/(?:^|\s)(היום|מחר|מחרתיים)(?:\s|$)/);
+            const when = whenMatch?.[1] || 'היום';
+            // Time: HH:MM (already normalized from בערב/בבוקר). Fallback: bare hour.
+            const timeMatch = txt.match(/(\d{1,2}):(\d{2})/) || txt.match(/(?:בשעה|ב-?)\s*(\d{1,2})(?![:.\d])/);
+            const time = timeMatch
+                ? (timeMatch[2]
+                    ? `${String(timeMatch[1]).padStart(2,'0')}:${timeMatch[2]}`
+                    : `${String(timeMatch[1]).padStart(2,'0')}:00`)
+                : '20:00';
+            // Name: after 'על שם' or 'בשם' or 'של'
+            const nameMatch = txt.match(/(?:על\s+שם|בשם|של)\s+([א-ת][א-ת\s]+?)(?:\s+ל\d|$|\s+בשעה|\s+ב-?\d)/);
+            const name = nameMatch?.[1]?.trim() || 'לקוח';
+            // Party: 'N אנשים' or 'לN אנשים' or 'לN'
+            const partyMatch = txt.match(/(?:^|\s)ל?(\d+)\s+(?:אנשים|סועדים|איש)/) || txt.match(/(?:^|\s)ל(\d+)(?:\s|$)/);
+            const party_size = partyMatch ? Number(partyMatch[1]) : 2;
+            return { name, party_size, time, when };
+        },
+    },
     { re: /^(בטל|תבטל[יה]?)\s+(?:את\s+)?(?:ההזמנה\s+של\s+)?(.+)$/, intent: 'reservation_cancel', extract: m => ({ name: m[2].trim() }) },
     { re: /^תאשר(י)?\s+(?:את\s+)?(?:ההזמנה\s+של\s+)?(.+)$/, intent: 'reservation_confirm', extract: m => ({ name: m[2].trim() }) },
 
