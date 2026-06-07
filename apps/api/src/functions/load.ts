@@ -10947,3 +10947,77 @@ if (!(globalThis as any).__salesAutoCloseTimer) {
       });
   }, 2 * 60 * 1000);
 }
+
+// === Weekly personal goals cron =============================================
+// Sunday 06:00 IL: for each active employee with sales role, compute last
+// week's total sales count and create a new WeeklyPersonalGoal with
+// target = last_week + 15% (rounded), reward_coins = 200.
+// Idempotent per week_start_date.
+export async function runWeeklyPersonalGoals() {
+  const now = new Date();
+  const ilDay = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Jerusalem', weekday: 'short' }).format(now);
+  const daysFromSun = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(ilDay);
+  const sunday = new Date(now.getTime() - daysFromSun * 24 * 60 * 60 * 1000);
+  const weekStart = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jerusalem' }).format(sunday);
+  const prevSunday = new Date(sunday.getTime() - 7 * 24 * 60 * 60 * 1000);
+  const prevWeekStart = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jerusalem' }).format(prevSunday);
+
+  const employees: any[] = await (db as any).employee.findMany({ where: { status: 'active' } });
+  let created = 0, skipped = 0;
+  const SALES_KEYWORDS = ['מלצר', 'ברמן', 'מארח', 'ראנר'];
+
+  for (const emp of employees) {
+    const role = String(emp.role || '');
+    if (!SALES_KEYWORDS.some(k => role.includes(k))) continue;
+    const existing = await (db as any).weeklyPersonalGoal.findFirst({
+      where: { employee_id: emp.id, week_start_date: weekStart },
+    });
+    if (existing) { skipped++; continue; }
+    // Count last week's events for this waiter
+    const lastWeekStart = new Date(`${prevWeekStart}T00:00:00+03:00`);
+    const thisWeekStart = new Date(`${weekStart}T00:00:00+03:00`);
+    const prevCount = await (db as any).saleEvent.count({
+      where: {
+        waiter_id: emp.id,
+        undone_at: null,
+        createdAt: { gte: lastWeekStart, lt: thisWeekStart },
+      },
+    });
+    const target = Math.max(5, Math.round(prevCount * 1.15));
+    try {
+      await (db as any).weeklyPersonalGoal.create({
+        data: {
+          employee_id: emp.id,
+          employee_name: emp.full_name,
+          week_start_date: weekStart,
+          target,
+          reward_coins: 200,
+        },
+      });
+      created++;
+    } catch (e: any) {
+      console.warn('[weeklyPersonalGoals] create failed for', emp.id, e?.message);
+    }
+  }
+  return { week_start: weekStart, created, skipped };
+}
+
+if (!(globalThis as any).__weeklyPersonalGoalTimer) {
+  (globalThis as any).__weeklyPersonalGoalTimer = setTimeout(function loop() {
+    void (async () => {
+      try {
+        const parts = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Jerusalem', weekday: 'short', hour: '2-digit', hour12: false }).formatToParts(new Date());
+        const day = parts.find(p => p.type === 'weekday')?.value;
+        const hour = parts.find(p => p.type === 'hour')?.value;
+        const dateStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jerusalem' }).format(new Date());
+        const lastRun = (globalThis as any).__weeklyPersonalGoalLastRun;
+        if (day === 'Sun' && hour === '06' && lastRun !== dateStr) {
+          (globalThis as any).__weeklyPersonalGoalLastRun = dateStr;
+          const r = await runWeeklyPersonalGoals();
+          console.log('[weeklyPersonalGoals]', JSON.stringify(r));
+        }
+      } catch (e: any) { console.warn('[weeklyPersonalGoals cron] failed:', e?.message); }
+      (globalThis as any).__weeklyPersonalGoalTimer = setTimeout(loop, 30 * 60 * 1000);
+    })();
+  }, 3 * 60 * 1000);
+}
