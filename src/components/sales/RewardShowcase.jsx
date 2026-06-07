@@ -8,15 +8,49 @@ export default function RewardShowcase() {
     const [data, setData] = useState({ affordable: [], locked: [], balance: 0 });
     const [redeeming, setRedeeming] = useState(null);
 
+    const loadFallback = async () => {
+        // Resilient path: pull rewards + my balance directly from entity APIs
+        // (same pattern as the existing GamificationCenter page).
+        try {
+            const me = await base44.entities.User.me();
+            const [emps, allRewards] = await Promise.all([
+                base44.entities.Employee.filter({ status: 'active' }).catch(() => []),
+                base44.entities.Reward.filter({ is_active: true }).catch(() => []),
+            ]);
+            const emp = (emps || []).find(e => (e.email || '').toLowerCase() === (me?.email || '').toLowerCase());
+            let bal = 0;
+            if (emp) {
+                const txs = await base44.entities.CoinTransaction.filter({ employee_id: emp.id, status: 'approved' }).catch(() => []);
+                bal = (txs || []).reduce((s, t) => s + Number(t.amount || 0), 0);
+            }
+            const sorted = (allRewards || []).slice().sort((a, b) => Number(a.cost || 0) - Number(b.cost || 0));
+            setData({
+                affordable: sorted.filter(r => Number(r.cost || 0) <= bal),
+                locked: sorted.filter(r => Number(r.cost || 0) > bal).slice(0, 6),
+                balance: bal,
+            });
+        } catch { /* nothing else to do */ }
+    };
+
     const load = async () => {
         try {
             const d = await base44.functions.getActiveRewardsForMe({});
+            const affordable = Array.isArray(d?.affordable) ? d.affordable : [];
+            const locked = Array.isArray(d?.locked) ? d.locked : [];
+            // If the server returns empty in both buckets, fall back to direct
+            // entity load — works around stale deploys / route quirks.
+            if (affordable.length === 0 && locked.length === 0) {
+                await loadFallback();
+                return;
+            }
             setData({
-                affordable: Array.isArray(d?.affordable) ? d.affordable : [],
-                locked: Array.isArray(d?.locked) ? d.locked : [],
+                affordable,
+                locked,
                 balance: Number(d?.balance) || 0,
             });
-        } catch { /* swallow */ }
+        } catch {
+            await loadFallback();
+        }
     };
 
     useEffect(() => {
