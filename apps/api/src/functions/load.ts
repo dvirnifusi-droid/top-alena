@@ -11139,6 +11139,38 @@ registerFn('captureBeecommSnapshot', async ({ user }) => {
   return captureBeecommSnapshot();
 });
 
+// Returns the last snapshot of each of the past N days (for the 7-day chart on
+// the Beecomm Live page). Each entry is the latest snapshot captured between
+// 18:00 and 23:59 IL of that day — the moment that best represents that
+// day's full total before nightly close.
+registerFn('getBeecommDailyHistory', async ({ body, user }) => {
+  if (!user) throw new Error('auth required');
+  const days = Math.min(30, Math.max(1, Number((body as any)?.days) || 7));
+  const now = new Date();
+  const dayStart = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
+  const all: any[] = await (db as any).beecommSnapshot.findMany({
+    where: { captured_at: { gte: dayStart } },
+    orderBy: { captured_at: 'asc' },
+  });
+  // Group by IL calendar date, keep the max-total snapshot per day
+  const byDay = new Map<string, any>();
+  for (const s of all) {
+    const d = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jerusalem' }).format(s.captured_at);
+    const prev = byDay.get(d);
+    if (!prev || Number(s.total_today) >= Number(prev.total_today)) byDay.set(d, s);
+  }
+  const history = [...byDay.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([date, snap]) => ({
+      date,
+      total: Number(snap.total_today) || 0,
+      tips: Number(snap.total_tips) || 0,
+      open_money: Number(snap.open_money) || 0,
+      workers: Array.isArray(snap.workers) ? snap.workers.length : 0,
+    }));
+  return { days, history };
+});
+
 // Returns the latest snapshot, plus today-over-yesterday delta for context.
 registerFn('getLatestBeecommSnapshot', async ({ user }) => {
   if (!user) throw new Error('auth required');
