@@ -10482,6 +10482,101 @@ registerFn('creditSale', async ({ body, user }) => {
   return { event, new_count: newCount, just_completed: justCompleted };
 });
 
+registerFn('undoLastSale', async ({ body, user }) => {
+  if (!user) throw new Error('auth required');
+  if (!(await isShiftSupervisor(user.id))) throw new Error('only shift supervisors can undo');
+  const b = (body || {}) as any;
+  const goalId = String(b.goal_id || '');
+  const waiterId = String(b.waiter_id || '');
+  if (!goalId || !waiterId) throw new Error('goal_id and waiter_id required');
+
+  const last: any = await (db as any).saleEvent.findFirst({
+    where: { goal_id: goalId, waiter_id: waiterId, undone_at: null },
+    orderBy: { createdAt: 'desc' },
+  });
+  if (!last) throw new Error('אין מכירה לבטל');
+  const ageMs = Date.now() - new Date(last.createdAt).getTime();
+  if (ageMs > 60_000) throw new Error('חלון ביטול נסגר');
+
+  await (db as any).saleEvent.update({
+    where: { id: last.id },
+    data: { undone_at: new Date() },
+  });
+  // Reverse coins via a negative CoinTransaction so audit trail is preserved
+  if (last.coin_transaction_id) {
+    await (db as any).coinTransaction.create({
+      data: {
+        employee_id: last.waiter_id,
+        employee_name: last.waiter_name,
+        amount: -Math.abs(last.coins_amount),
+        reason: `ביטול מכירה`,
+        type: 'sale_undo',
+        trigger: `sales_goal:${goalId}`,
+        status: 'approved',
+        approved_by: String((user as any).full_name || user.email || ''),
+      },
+    });
+  }
+  await (db as any).salesGoal.update({
+    where: { id: goalId },
+    data: { current_count: { decrement: 1 } },
+  });
+  return { undone: true };
+});
+
+registerFn('closeSalesGoal', async ({ body, user }) => {
+  if (!user) throw new Error('auth required');
+  if (!(await isShiftSupervisor(user.id))) throw new Error('only shift supervisors can close');
+  const goalId = String((body as any)?.goal_id || '');
+  if (!goalId) throw new Error('goal_id required');
+
+  const goal: any = await (db as any).salesGoal.findUnique({ where: { id: goalId } });
+  if (!goal) throw new Error('goal not found');
+  if (goal.status === 'closed') return { goal };
+
+  // Compute leaderboard for the auto-Story
+  const events: any[] = await (db as any).saleEvent.findMany({
+    where: { goal_id: goal.id, undone_at: null },
+  });
+  const perWaiter = new Map<string, { id: string; name: string; count: number }>();
+  for (const e of events) {
+    const cur = perWaiter.get(e.waiter_id) || { id: e.waiter_id, name: e.waiter_name, count: 0 };
+    cur.count++;
+    perWaiter.set(e.waiter_id, cur);
+  }
+  const ranked = [...perWaiter.values()].sort((a, b) => b.count - a.count);
+  const leader = ranked[0];
+
+  const updated = await (db as any).salesGoal.update({
+    where: { id: goal.id },
+    data: {
+      status: 'closed',
+      closed_at: new Date(),
+      closed_by_id: String(user.id),
+    },
+  });
+
+  // Auto-Story (best-effort — the story model name may vary in this codebase;
+  // try the most likely names and ignore errors).
+  if (leader) {
+    try {
+      await (db as any).employeeStory.create({
+        data: {
+          title: `👑 המוביל ב-${goal.dish_label}`,
+          content: `${leader.name} עם ${leader.count} מכירות (${ranked.length} מלצרים השתתפו, סה״כ ${events.length} ${goal.dish_label})`,
+          image_url: null,
+          author_id: String(user.id),
+          author_name: String((user as any).full_name || user.email || ''),
+          published_at: new Date(),
+        },
+      });
+    } catch (e: any) {
+      console.warn('[closeSalesGoal] story create failed:', e?.message);
+    }
+  }
+  return { goal: updated, leaderboard: ranked };
+});
+
 // === Auto-Tracker =========================================================
 // Watches owner/manager actions (page nav, voice commands, button clicks),
 // stores them in ActivityLog, and once a day asks Gemini to spot repeated
