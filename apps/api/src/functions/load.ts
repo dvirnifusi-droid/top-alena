@@ -9400,6 +9400,41 @@ if (!(globalThis as any).__startupDriftRepair) {
       console.error('[startup] ensure ActivityLog failed:', e?.message);
     }
     try {
+      await prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "BeecommSnapshot" (
+        "id" TEXT PRIMARY KEY,
+        "pos_id" TEXT NOT NULL,
+        "pos_name" TEXT,
+        "captured_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "total_today" DOUBLE PRECISION,
+        "total_tips" DOUBLE PRECISION,
+        "open_money" DOUBLE PRECISION,
+        "predicted_month" DOUBLE PRECISION,
+        "predicted_year" DOUBLE PRECISION,
+        "online_shifts" INTEGER,
+        "active_today" BOOLEAN,
+        "beecomm_last_update_x" BIGINT,
+        "beecomm_last_update_z" BIGINT,
+        "beecomm_last_update_dishes" BIGINT,
+        "beecomm_last_update_shifts" BIGINT,
+        "workers" JSONB,
+        "top_dishes" JSONB,
+        "payments" JSONB,
+        "orders_by_hour" JSONB,
+        "stations" JSONB,
+        "dine_in" JSONB,
+        "takeaway" JSONB,
+        "delivery" JSONB,
+        "harigot" JSONB,
+        "z_numbers_open" JSONB,
+        "raw" JSONB,
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );`);
+      await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "BeecommSnapshot_pos_captured_idx" ON "BeecommSnapshot" ("pos_id", "captured_at");`);
+      console.log('[startup] BeecommSnapshot table + index ensured');
+    } catch (e: any) {
+      console.error('[startup] ensure BeecommSnapshot failed:', e?.message);
+    }
+    try {
       await prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "SalesGoalTemplate" (
         "id" TEXT PRIMARY KEY,
         "name" TEXT NOT NULL,
@@ -11024,4 +11059,128 @@ if (!(globalThis as any).__weeklyPersonalGoalTimer) {
       (globalThis as any).__weeklyPersonalGoalTimer = setTimeout(loop, 30 * 60 * 1000);
     })();
   }, 3 * 60 * 1000);
+}
+
+// === Beecomm BeePort live data integration =================================
+// BeePort (the cloud dashboard Beecomm provides) hits a single endpoint that
+// returns the live X data, top dishes, predicted month/year, and per-waiter
+// sales. We poll the same endpoint every 15 minutes from the server with the
+// owner's Firebase UID — the only auth Beecomm uses is a `userid` header —
+// and store a snapshot row. The frontend widget reads the latest snapshot.
+
+const BEECOMM_BASE = 'https://beeport.bcmws.com';
+const BEECOMM_UID = process.env.BEECOMM_UID || 'Wnj23Gz6loXTPYCuZkl1eoLHM4x2';
+
+async function fetchBeecommPos(): Promise<any | null> {
+  try {
+    const url = `${BEECOMM_BASE}/api/auth/${BEECOMM_UID}`;
+    const r = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Accept': 'application/json',
+        'userid': BEECOMM_UID,
+        // Match a normal browser to look like the BeePort web app
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36',
+      },
+    });
+    if (!r.ok) {
+      console.warn('[beecomm] fetch failed status', r.status);
+      return null;
+    }
+    const json: any = await r.json();
+    const pos = json?.data?.user?.groups?.[0]?.restaurants?.[0]?.poses?.[0];
+    return pos || null;
+  } catch (e: any) {
+    console.warn('[beecomm] fetch error:', e?.message);
+    return null;
+  }
+}
+
+export async function captureBeecommSnapshot() {
+  const pos = await fetchBeecommPos();
+  if (!pos) return { ok: false, reason: 'no pos data' };
+  const x: any = pos.x || {};
+  const lu = pos.lastUpdate || {};
+  const predicted = pos.predicted || {};
+
+  const snap = await (db as any).beecommSnapshot.create({
+    data: {
+      pos_id: String(pos.posId || ''),
+      pos_name: String(pos.name || ''),
+      total_today: Number(x.total) || 0,
+      total_tips: Number(x.totalTips) || 0,
+      open_money: Number(pos.openMoney) || 0,
+      predicted_month: Number(predicted.totalMonth) || 0,
+      predicted_year: Number(predicted.totalYear) || 0,
+      online_shifts: Array.isArray(pos.onlineShifts) ? pos.onlineShifts.length : (Number(pos.onlineShifts) || 0),
+      active_today: Boolean(pos.activeToday),
+      beecomm_last_update_x: lu.x ? BigInt(lu.x) : null,
+      beecomm_last_update_z: lu.z ? BigInt(lu.z) : null,
+      beecomm_last_update_dishes: lu.dishes ? BigInt(lu.dishes) : null,
+      beecomm_last_update_shifts: lu.shifts ? BigInt(lu.shifts) : null,
+      workers: x.workers || [],
+      top_dishes: pos.topDishes || [],
+      payments: x.payments || {},
+      orders_by_hour: x.ordersByHours || {},
+      stations: x.stations || [],
+      dine_in: x.restaurantOrder || null,
+      takeaway: x.takeawayOrder || null,
+      delivery: x.deliveryOrder || null,
+      harigot: x.harigot || null,
+      z_numbers_open: x.zNumbers || [],
+      raw: pos,
+    },
+  });
+  return { ok: true, snapshot_id: snap.id, total: snap.total_today, workers: (x.workers || []).length };
+}
+
+registerFn('captureBeecommSnapshot', async ({ user }) => {
+  if (!user) throw new Error('auth required');
+  return captureBeecommSnapshot();
+});
+
+// Returns the latest snapshot, plus today-over-yesterday delta for context.
+registerFn('getLatestBeecommSnapshot', async ({ user }) => {
+  if (!user) throw new Error('auth required');
+  const latest: any = await (db as any).beecommSnapshot.findFirst({
+    orderBy: { captured_at: 'desc' },
+  });
+  if (!latest) return { snapshot: null };
+  // Find the same-time snapshot from yesterday for comparison
+  const yesterday = new Date(latest.captured_at.getTime() - 24 * 60 * 60 * 1000);
+  const yWindow = new Date(yesterday.getTime() - 60 * 60 * 1000); // ±1h
+  const yWindow2 = new Date(yesterday.getTime() + 60 * 60 * 1000);
+  const ySnap: any = await (db as any).beecommSnapshot.findFirst({
+    where: { captured_at: { gte: yWindow, lte: yWindow2 } },
+    orderBy: { captured_at: 'desc' },
+  });
+  return {
+    snapshot: serializeBigInts(latest),
+    yesterday: ySnap ? serializeBigInts(ySnap) : null,
+  };
+});
+
+// Workaround: Prisma BigInt is not JSON.stringify-able; convert before sending.
+function serializeBigInts(obj: any): any {
+  if (obj === null || obj === undefined) return obj;
+  if (typeof obj === 'bigint') return Number(obj);
+  if (Array.isArray(obj)) return obj.map(serializeBigInts);
+  if (typeof obj === 'object') {
+    const out: any = {};
+    for (const k of Object.keys(obj)) out[k] = serializeBigInts(obj[k]);
+    return out;
+  }
+  return obj;
+}
+
+// 15-min cron — idempotent guard, first fire 90s after boot
+if (!(globalThis as any).__beecommSnapshotTimer) {
+  (globalThis as any).__beecommSnapshotTimer = setTimeout(function loop() {
+    captureBeecommSnapshot()
+      .then(r => { if (r.ok) console.log('[beecomm] snapshot captured', r.snapshot_id); })
+      .catch(e => console.warn('[beecomm] capture failed:', e?.message))
+      .finally(() => {
+        (globalThis as any).__beecommSnapshotTimer = setTimeout(loop, 15 * 60 * 1000);
+      });
+  }, 90 * 1000);
 }

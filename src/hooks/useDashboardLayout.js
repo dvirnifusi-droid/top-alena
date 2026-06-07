@@ -25,6 +25,7 @@ export const EMPLOYEE_WIDGETS = [
 ];
 
 export const ADMIN_WIDGETS = [
+  { id: 'beecomm_live', label: 'Beecomm Live · קופה בזמן אמת', emoji: '🔴', defaultOn: true },
   { id: 'smart_tools', label: 'כלי עבודה חכמים', emoji: '🤖', defaultOn: true },
   { id: 'recruitment', label: 'דשבורד גיוס', emoji: '👥', defaultOn: true },
   { id: 'quick_stats', label: 'מבט מהיר - סטטיסטיקות', emoji: '📊', defaultOn: true },

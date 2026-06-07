@@ -1,5 +1,5 @@
 import type { FastifyPluginAsync } from 'fastify';
-import { sendRestroomReminder, sendAbandonedReminder, sendT24SurveyReminders, runAutoTrackerAnalysis, runSalesAutoClose, runWeeklyPersonalGoals } from '../functions/load.js';
+import { sendRestroomReminder, sendAbandonedReminder, sendT24SurveyReminders, runAutoTrackerAnalysis, runSalesAutoClose, runWeeklyPersonalGoals, captureBeecommSnapshot } from '../functions/load.js';
 
 // Internal cron endpoints, guarded by a shared secret (x-cron-secret header or
 // ?secret=). Called by the server crontab — never by end users.
@@ -41,5 +41,9 @@ export const cronRoutes: FastifyPluginAsync = async (app) => {
 
   app.post('/weekly-personal-goals', async () => {
     return runWeeklyPersonalGoals();
+  });
+
+  app.post('/beecomm-snapshot', async () => {
+    return captureBeecommSnapshot();
   });
 };

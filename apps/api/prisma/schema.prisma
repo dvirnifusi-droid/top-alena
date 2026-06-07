@@ -41,6 +41,46 @@ model AccountantExport {
   updatedAt  DateTime @updatedAt
 }
 
+// Snapshot of Beecomm /api/auth/<uid> response — captured by a cron every
+// 15 minutes so we have a live mirror of today's POS data: per-waiter sales,
+// hourly orders, top dishes, payment breakdown, predicted month/year.
+// Drives the AdminLiveBeecommWidget on the home dashboard and feeds future
+// auto-credit into the Sales Gamification system.
+model BeecommSnapshot {
+  id                  String   @id @default(cuid())
+  pos_id              String
+  pos_name            String?
+  captured_at         DateTime @default(now())
+  // Live X data extracted to scalar columns for fast queries
+  total_today         Float?
+  total_tips          Float?
+  open_money          Float?
+  predicted_month     Float?
+  predicted_year      Float?
+  online_shifts       Int?
+  active_today        Boolean?
+  beecomm_last_update_x       BigInt?
+  beecomm_last_update_z       BigInt?
+  beecomm_last_update_dishes  BigInt?
+  beecomm_last_update_shifts  BigInt?
+  // Rich JSON blobs for the widget + future analytics
+  workers             Json?      // [{ workerId, name, diners, sum, tips }]
+  top_dishes          Json?      // [{ dishId, name, categoryName, quantity, sum }]
+  payments            Json?      // { paymentTypeName: { sum, hiuv, zikuy, tips } }
+  orders_by_hour      Json?
+  stations            Json?
+  dine_in             Json?      // restaurantOrder
+  takeaway            Json?
+  delivery            Json?
+  harigot             Json?      // discounts + cancellations
+  z_numbers_open      Json?
+  raw                 Json?      // full pos object for future fields we haven't broken out
+
+  createdAt           DateTime @default(now())
+
+  @@index([pos_id, captured_at])
+}
+
 // Auto-Tracker activity log — captures owner/manager actions so the daily
 // pattern analyzer can suggest voice shortcuts / widgets / automations for
 // repeated manual workflows.

@@ -28,6 +28,7 @@ import SalesChart from '../components/dashboard/SalesChart';
 import DashboardCustomizer from '../components/dashboard/DashboardCustomizer';
 import { useDashboardLayout } from '../hooks/useDashboardLayout';
 import TodayTipsWidget from '../components/dashboard/TodayTipsWidget';
+import BeecommLiveWidget from '../components/dashboard/BeecommLiveWidget';
 import LowInventoryWidget from '../components/dashboard/LowInventoryWidget';
 import ActiveDeliveriesWidget from '../components/dashboard/ActiveDeliveriesWidget';
 import PendingRequestsWidget from '../components/dashboard/PendingRequestsWidget';
@@ -305,6 +306,7 @@ function DashboardInner() {
                 <SalesChart />
             </section>
         ),
+        beecomm_live: isVisible('beecomm_live') && <BeecommLiveWidget key="beecomm_live" />,
         active_employees: isVisible('active_employees') && <ActiveEmployeesWidget key="active_employees" />,
         treats_report: isVisible('treats_report') && <TreatsReport key="treats_report" />,
         brief_readers: isVisible('brief_readers') && <BriefReadersWidget key="brief_readers" />,
