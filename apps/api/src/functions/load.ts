@@ -10293,6 +10293,59 @@ function resolveCurrentShift(now: Date = new Date()): { date: string; type: 'lun
   return null;
 }
 
+// Resolves the staff currently on shift and returns Employee records with
+// push capability. If `onlyEmployeeId` is provided, returns just that one.
+async function getActiveShiftStaff(onlyEmployeeId?: string): Promise<any[]> {
+  const shift = resolveCurrentShift(new Date());
+  if (!shift) return [];
+  const workShifts: any[] = await (db as any).workShift.findMany({
+    where: { date: shift.date, shift_type: shift.type },
+  });
+  const ids = new Set<string>();
+  for (const ws of workShifts) {
+    for (const a of (ws.assigned_staff || [])) {
+      if (a.employee_id) ids.add(a.employee_id);
+    }
+  }
+  if (onlyEmployeeId) {
+    if (!ids.has(onlyEmployeeId)) return [];
+    const e = await (db as any).employee.findUnique({ where: { id: onlyEmployeeId } });
+    return e ? [e] : [];
+  }
+  if (ids.size === 0) return [];
+  return (db as any).employee.findMany({ where: { id: { in: [...ids] } } });
+}
+
+// Like pushoverToAdmins but addresses staff on the currently active shift only.
+async function pushoverToActiveShift(title: string, message: string, onlyEmployeeId?: string) {
+  try {
+    const staff = await getActiveShiftStaff(onlyEmployeeId);
+    for (const e of staff) {
+      const sub = (e as any).push_subscription;
+      if (!sub) continue;
+      try { await pushover(sub, title, message); }
+      catch (err: any) { console.warn('[pushoverToActiveShift] push failed for', e.id, err?.message); }
+    }
+  } catch (e: any) {
+    console.warn('[pushoverToActiveShift] failed:', e?.message);
+  }
+}
+
+// Role check used by sale_credit / activateSalesGoal endpoints and voice intents.
+const SUPERVISOR_POSITIONS = new Set(['אחראי משמרת', 'מנהלת משמרת', 'מנהל משמרת', 'אחמש']);
+async function isShiftSupervisor(userId: string): Promise<boolean> {
+  try {
+    const u: any = await (db as any).user.findUnique({ where: { id: userId } });
+    if (!u) return false;
+    if (u.role === 'admin' || u.role === 'manager' || u.role === 'owner') return true;
+    const emp: any = await (db as any).employee.findFirst({ where: { email: u.email } });
+    if (!emp) return false;
+    if (emp.role === 'admin' || emp.role === 'manager') return true;
+    const positions: string[] = Array.isArray(emp.positions) ? emp.positions : (emp.role ? [emp.role] : []);
+    return positions.some(p => SUPERVISOR_POSITIONS.has(String(p).trim()));
+  } catch { return false; }
+}
+
 // === Auto-Tracker =========================================================
 // Watches owner/manager actions (page nav, voice commands, button clicks),
 // stores them in ActivityLog, and once a day asks Gemini to spot repeated
