@@ -38,11 +38,18 @@ export default function BeecommLiveWidget() {
 
     const refresh = async () => {
         setRefreshing(true);
+        setError(null);
         try {
-            await base44.functions.captureBeecommSnapshot({});
+            const r = await base44.functions.captureBeecommSnapshot({});
+            if (r?.ok === false) {
+                setError('שרת לא הצליח: ' + (r?.reason || 'לא ידוע'));
+            } else if (r?.error) {
+                setError('שגיאה: ' + r.error);
+            }
             await load();
         } catch (e) {
-            setError(e?.message);
+            setError('שגיאת רשת: ' + (e?.message || String(e)));
+            console.error('[BeecommLiveWidget] refresh failed', e);
         } finally { setRefreshing(false); }
     };
 

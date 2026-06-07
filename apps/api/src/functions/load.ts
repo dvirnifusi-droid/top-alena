@@ -11071,39 +11071,55 @@ if (!(globalThis as any).__weeklyPersonalGoalTimer) {
 const BEECOMM_BASE = 'https://beeport.bcmws.com';
 const BEECOMM_UID = process.env.BEECOMM_UID || 'Wnj23Gz6loXTPYCuZkl1eoLHM4x2';
 
-async function fetchBeecommPos(): Promise<any | null> {
+async function fetchBeecommPos(): Promise<{ pos: any | null; debug: any }> {
+  const debug: any = { url: `${BEECOMM_BASE}/api/auth/${BEECOMM_UID}` };
   try {
-    const url = `${BEECOMM_BASE}/api/auth/${BEECOMM_UID}`;
-    const r = await fetch(url, {
+    const r = await fetch(debug.url, {
       method: 'GET',
       headers: {
         'Accept': 'application/json',
         'userid': BEECOMM_UID,
-        // Match a normal browser to look like the BeePort web app
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36',
       },
     });
+    debug.status = r.status;
+    debug.contentType = r.headers.get('content-type');
     if (!r.ok) {
-      console.warn('[beecomm] fetch failed status', r.status);
-      return null;
+      const text = await r.text();
+      debug.bodyPreview = text.slice(0, 300);
+      console.warn('[beecomm] fetch failed', debug);
+      return { pos: null, debug };
     }
     const json: any = await r.json();
+    debug.success = json?.success;
+    debug.message = json?.message;
+    debug.hasData = !!json?.data;
+    debug.hasUser = !!json?.data?.user;
+    debug.groupCount = json?.data?.user?.groups?.length || 0;
     const pos = json?.data?.user?.groups?.[0]?.restaurants?.[0]?.poses?.[0];
-    return pos || null;
+    debug.foundPos = !!pos;
+    debug.posName = pos?.name;
+    return { pos: pos || null, debug };
   } catch (e: any) {
-    console.warn('[beecomm] fetch error:', e?.message);
-    return null;
+    debug.error = e?.message || String(e);
+    console.warn('[beecomm] fetch error:', debug);
+    return { pos: null, debug };
   }
 }
 
 export async function captureBeecommSnapshot() {
-  const pos = await fetchBeecommPos();
-  if (!pos) return { ok: false, reason: 'no pos data' };
+  const { pos, debug } = await fetchBeecommPos();
+  if (!pos) {
+    console.warn('[beecomm] captureBeecommSnapshot: no pos data', debug);
+    return { ok: false, reason: 'no pos data', debug };
+  }
   const x: any = pos.x || {};
   const lu = pos.lastUpdate || {};
   const predicted = pos.predicted || {};
 
-  const snap = await (db as any).beecommSnapshot.create({
+  let snap: any;
+  try {
+    snap = await (db as any).beecommSnapshot.create({
     data: {
       pos_id: String(pos.posId || ''),
       pos_name: String(pos.name || ''),
@@ -11131,7 +11147,11 @@ export async function captureBeecommSnapshot() {
       raw: pos,
     },
   });
-  return { ok: true, snapshot_id: snap.id, total: snap.total_today, workers: (x.workers || []).length };
+  } catch (e: any) {
+    console.error('[beecomm] DB insert failed:', e?.message);
+    return { ok: false, reason: 'db insert failed', error: e?.message, debug };
+  }
+  return { ok: true, snapshot_id: snap.id, total: Number(snap.total_today), workers: (x.workers || []).length };
 }
 
 registerFn('captureBeecommSnapshot', async ({ user }) => {
