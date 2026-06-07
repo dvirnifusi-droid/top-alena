@@ -9781,21 +9781,34 @@ registerFn('parseVoiceCommand', async ({ body, user }) => {
 
 ${VOICE_INTENT_LIST}
 
+דוגמאות (סדר המילים בעברית גמיש — תזהה לפי משמעות):
+- "תוסיף 4 אנשים לתור על שם רן" → {"intent":"queue_add","name":"רן","party_size":4,"pref":"no_preference"}
+- "תוסיף לתור 4 על שם רן" → אותו דבר
+- "תוסיף ארבע אנשים לתור על שם רן" → אותו דבר (המספר כבר תורגם ל-4)
+- "שולחן 11 נגמר" → {"intent":"table_free","table":"11"}
+- "תפנה את שולחן 11" → {"intent":"table_free","table":"11"}
+- "שולחן 11 בקינוח" → {"intent":"table_finishing","table":"11"}
+- "תושיב 4 על שולחן 30" → {"intent":"seat_walkin","party_size":4,"table":"30"}
+- "תושיב את ניב על 200 ו-201" → {"intent":"seat_reservation","name":"ניב","tables":["200","201"]}
+- "כמה אנשים בתור" → {"intent":"q_queue_count"}
+- "מה המצב" → {"intent":"q_status_summary"}
+- "תפתח את הדאשבורד" → {"intent":"nav_open","target":"dashboard"}
+
 חוקים:
-- אם הפקודה לא ברורה לחלוטין — החזר { "intent": "unknown" }
+- אם הפקודה ממש לא ברורה — החזר {"intent":"unknown"}
 - שמות לקוחות בעברית — תחזיר בדיוק כפי שנאמרו
 - מספרי שולחן — תחזיר כמחרוזות ("10", לא 10)
 - party_size — תחזיר כמספר
 - ל-flag, השתמש במחרוזות באנגלית (green/red/orange/black/"")
 - ללא markdown, ללא הסברים — רק JSON
 
-הפקודה: "${text}"
+הפקודה שצריך לפענח: "${text}"
 
 החזר JSON בלבד.`;
 
     const result: any = await invokeLLM({
       prompt,
-      timeoutMs: 8000,
+      timeoutMs: 12000,
       maxOutputTokens: 256,
       maxAttempts: 1,
       responseSchema: {

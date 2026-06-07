@@ -71,9 +71,16 @@ export const MATCHERS = [
     { re: /(העבר|תעבר[יה]?)\s+(?:את\s+)?שולחן\s+(\d+)\s+ל(?:שולחן\s+)?(\d+)/, intent: 'session_move', extract: m => ({ from: m[2], to: m[3] }) },
 
     // ========== Queue ==========
-    { re: /^תוסיף(י)?\s+(?:לתור\s+)?(\d+)\s+(חוץ|פנים)\s+על\s+שם\s+(.+)$/, intent: 'queue_add', extract: m => ({ party_size: Number(m[2]), pref: m[3] === 'חוץ' ? 'outside' : 'inside', name: m[4].trim() }) },
-    { re: /^תוסיף(י)?\s+לתור\s+(\d+)\s+על\s+שם\s+(.+)$/, intent: 'queue_add', extract: m => ({ party_size: Number(m[2]), pref: 'no_preference', name: m[3].trim() }) },
+    // 1. With explicit preference + "על שם": תוסיף [לתור] N חוץ/פנים על שם X
+    { re: /^תוסיף(י)?\s+(?:לתור\s+)?(\d+)\s+(?:אנשים\s+)?(?:לתור\s+)?(חוץ|פנים)\s+על\s+שם\s+(.+)$/, intent: 'queue_add', extract: m => ({ party_size: Number(m[2]), pref: m[3] === 'חוץ' ? 'outside' : 'inside', name: m[4].trim() }) },
+    // 2. Number THEN לתור: תוסיף N (אנשים) לתור על שם X
+    { re: /^תוסיף(י)?\s+(\d+)\s+(?:אנשים\s+)?לתור\s+על\s+שם\s+(.+)$/, intent: 'queue_add', extract: m => ({ party_size: Number(m[2]), pref: 'no_preference', name: m[3].trim() }) },
+    // 3. לתור THEN number: תוסיף לתור N (אנשים) על שם X
+    { re: /^תוסיף(י)?\s+לתור\s+(\d+)\s+(?:אנשים\s+)?על\s+שם\s+(.+)$/, intent: 'queue_add', extract: m => ({ party_size: Number(m[2]), pref: 'no_preference', name: m[3].trim() }) },
+    // 4. Name first variant: תוסיף לתור את X N (אנשים)
     { re: /^תוסיף(י)?\s+לתור\s+את\s+(.+?)\s+(\d+)\s+(?:אנשים)?/, intent: 'queue_add', extract: m => ({ name: m[2].trim(), party_size: Number(m[3]), pref: 'no_preference' }) },
+    // 5. Very-flexible catch-all — captures any phrasing with תוסיף + N + לתור + name
+    { re: /תוסיף(?:י)?.*?(\d+).*?לתור.*?(?:על\s+שם\s+|של\s+|בשם\s+)?([א-ת][א-ת\s]+)$/, intent: 'queue_add', extract: m => ({ party_size: Number(m[1]), pref: 'no_preference', name: m[2].trim() }) },
     { re: /^תקרא(י)?\s+ל(.+)$/, intent: 'queue_call', extract: m => ({ name: m[2].trim() }) },
     { re: /^(.+?)\s+(בא|הגיע|הגיעה)$/, intent: 'queue_arrived', extract: m => ({ name: m[1].trim() }) },
     { re: /^(.+?)\s+(עזב|עזבה|נטוש|נטושה)$/, intent: 'queue_abandoned', extract: m => ({ name: m[1].trim() }) },
