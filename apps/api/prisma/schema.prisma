@@ -41,6 +41,24 @@ model AccountantExport {
   updatedAt  DateTime @updatedAt
 }
 
+// Auto-Tracker activity log — captures owner/manager actions so the daily
+// pattern analyzer can suggest voice shortcuts / widgets / automations for
+// repeated manual workflows.
+model ActivityLog {
+  id           String   @id @default(cuid())
+  user_id      String
+  user_name    String?
+  action_type  String   // 'nav' | 'voice' | 'click' | 'entity_create' | 'entity_update' | etc.
+  page         String?
+  label        String?  // human-readable description ("opened Reservations", "ran voice:q_today_revenue")
+  target_id    String?  // entity id, table number, etc.
+  metadata     Json?
+  createdAt    DateTime @default(now())
+
+  @@index([user_id, createdAt])
+  @@index([action_type, createdAt])
+}
+
 model Achievement {
   id        String   @id @default(cuid())
   name                         String

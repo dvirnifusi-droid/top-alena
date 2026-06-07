@@ -9381,6 +9381,24 @@ if (!(globalThis as any).__startupDriftRepair) {
     } catch (e: any) {
       console.error('[startup] ensure DepositSettings failed:', e?.message);
     }
+    try {
+      await prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "ActivityLog" (
+        "id" TEXT PRIMARY KEY,
+        "user_id" TEXT NOT NULL,
+        "user_name" TEXT,
+        "action_type" TEXT NOT NULL,
+        "page" TEXT,
+        "label" TEXT,
+        "target_id" TEXT,
+        "metadata" JSONB,
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );`);
+      await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "ActivityLog_user_id_createdAt_idx" ON "ActivityLog" ("user_id", "createdAt");`);
+      await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "ActivityLog_action_type_createdAt_idx" ON "ActivityLog" ("action_type", "createdAt");`);
+      console.log('[startup] ActivityLog table + indexes ensured');
+    } catch (e: any) {
+      console.error('[startup] ensure ActivityLog failed:', e?.message);
+    }
   })();
 }
 
@@ -10151,3 +10169,199 @@ registerFn('sendTeamWhatsApp', async ({ body, user }) => {
   }
   return { sent, failed, total: targets.length };
 });
+
+// === Auto-Tracker =========================================================
+// Watches owner/manager actions (page nav, voice commands, button clicks),
+// stores them in ActivityLog, and once a day asks Gemini to spot repeated
+// workflows and propose voice shortcuts / widgets / automations. Each
+// suggestion is saved as an AiSuggestion record and pushed to the owner.
+registerFn('logActivity', async ({ body, user }) => {
+  if (!user) throw new Error('auth required');
+  const events: any[] = Array.isArray((body as any)?.events) ? (body as any).events : [];
+  if (events.length === 0) return { saved: 0 };
+  const rows = events.slice(0, 200).map((e: any) => ({
+    user_id: String(user.id),
+    user_name: String((user as any).full_name || user.email || ''),
+    action_type: String(e.action_type || 'unknown').slice(0, 60),
+    page: e.page ? String(e.page).slice(0, 200) : null,
+    label: e.label ? String(e.label).slice(0, 200) : null,
+    target_id: e.target_id ? String(e.target_id).slice(0, 100) : null,
+    metadata: e.metadata ?? null,
+  }));
+  try {
+    await (db as any).activityLog.createMany({ data: rows, skipDuplicates: true });
+    return { saved: rows.length };
+  } catch (e: any) {
+    console.warn('[logActivity] insert failed:', e?.message);
+    return { saved: 0, error: e?.message };
+  }
+});
+
+// === Pattern analysis + suggestion generation ============================
+// Looks at the last 7 days of activity for each user, finds patterns (same
+// action repeated 5+ times, or workflows of N actions that follow each
+// other), and asks Gemini to propose voice shortcuts. Idempotent: it skips
+// patterns already represented by an existing 'auto_tracker' AiSuggestion.
+export async function runAutoTrackerAnalysis() {
+  const cutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+  const logs: any[] = await (db as any).activityLog.findMany({
+    where: { createdAt: { gte: cutoff } },
+    orderBy: { createdAt: 'asc' },
+  });
+  if (logs.length < 5) return { skipped: 'not enough activity', total: logs.length };
+
+  // Group per user
+  const perUser = new Map<string, any[]>();
+  for (const l of logs) {
+    if (!perUser.has(l.user_id)) perUser.set(l.user_id, []);
+    perUser.get(l.user_id)!.push(l);
+  }
+
+  // Existing auto_tracker suggestions — used for dedup
+  const existing: any[] = await (db as any).aiSuggestion.findMany({
+    where: { suggestion_type: 'auto_tracker' },
+    select: { title: true, ai_context: true },
+  });
+  const seenKeys = new Set(
+    existing.map(e => (e.ai_context || '').split('|')[0]).filter(Boolean)
+  );
+
+  let suggestionsCreated = 0;
+
+  for (const [userId, userLogs] of perUser) {
+    // Count repeats: key = action_type + page + (label substring)
+    const counts = new Map<string, { key: string; count: number; example: any }>();
+    for (const l of userLogs) {
+      const key = `${l.action_type}::${l.page || ''}::${l.label || ''}`;
+      const prev = counts.get(key) || { key, count: 0, example: l };
+      prev.count++;
+      counts.set(key, prev);
+    }
+    const repeats = [...counts.values()]
+      .filter(c => c.count >= 5)
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 10);
+    if (repeats.length === 0) continue;
+
+    // Build context for LLM
+    const summary = repeats.map(r =>
+      `- ${r.count}× ${r.example.action_type} · ${r.example.page || ''} · ${r.example.label || ''}`
+    ).join('\n');
+
+    let llmResult: any = null;
+    try {
+      llmResult = await invokeLLM({
+        prompt: `אתה עוזר ל-Dvir, בעלים של מסעדת עלינא. הוא משתמש במערכת ניהול עם פקודות קוליות.
+ניתחתי את הפעולות שלו ב-7 ימים האחרונים ומצאתי דברים שהוא חוזר עליהם:
+
+${summary}
+
+לכל פעולה חוזרת, הצע שיפור אחד מהאפשרויות:
+1. **פקודה קולית חדשה** ("תגיד 'X' ויעשה את זה אוטומטית")
+2. **Widget בדאשבורד** ("נציג לך את הנתון הזה בעמוד הראשי")
+3. **אוטומציה** ("נריץ את זה אוטומטית כשX קורה")
+
+החזר JSON array עם עד 5 הצעות:
+[
+  {"title": "כותרת קצרה", "content": "תיאור מלא בעברית — מה זה ולמה זה יעזור", "type": "voice"|"widget"|"automation", "context_key": "${repeats[0]?.key || ''}", "priority": "high"|"medium"|"low"}
+]
+
+החזר רק את ה-JSON, בלי הסבר.`,
+        timeoutMs: 25000,
+        maxOutputTokens: 1500,
+        responseSchema: {
+          type: 'object',
+          properties: {
+            suggestions: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  title: { type: 'string' },
+                  content: { type: 'string' },
+                  type: { type: 'string' },
+                  context_key: { type: 'string' },
+                  priority: { type: 'string' },
+                },
+              },
+            },
+          },
+        },
+      } as any);
+    } catch (e: any) {
+      console.warn('[autoTracker] LLM failed:', e?.message);
+      continue;
+    }
+
+    const suggestions: any[] = Array.isArray(llmResult?.suggestions) ? llmResult.suggestions : [];
+    for (const s of suggestions.slice(0, 5)) {
+      const key = String(s.context_key || s.title || '').slice(0, 200);
+      if (!key || seenKeys.has(key)) continue;
+      seenKeys.add(key);
+      try {
+        await (db as any).aiSuggestion.create({
+          data: {
+            suggestion_type: 'auto_tracker',
+            title: String(s.title || '').slice(0, 200),
+            content: String(s.content || '').slice(0, 2000),
+            ai_context: `${key}|user:${userId}`,
+            priority: ['high', 'medium', 'low'].includes(s.priority) ? s.priority : 'medium',
+            implementation_status: 'saved',
+            category: s.type || 'voice',
+            tags: { source: 'auto_tracker', target_user: userId, type: s.type || 'voice' },
+          },
+        });
+        suggestionsCreated++;
+      } catch (e: any) {
+        console.warn('[autoTracker] create suggestion failed:', e?.message);
+      }
+    }
+
+    // Push owner one summary notification per analysis cycle
+    if (suggestions.length > 0) {
+      try {
+        await pushoverToAdmins(
+          `💡 ${suggestions.length} הצעות חדשות מ-Auto-Tracker`,
+          suggestions.slice(0, 3).map((s: any) => `• ${s.title}`).join('\n'),
+        );
+      } catch { /* push optional */ }
+    }
+  }
+
+  return { users_analyzed: perUser.size, suggestions_created: suggestionsCreated, logs_scanned: logs.length };
+}
+
+registerFn('runAutoTrackerAnalysis', async ({ user }) => {
+  if (!user) throw new Error('auth required');
+  return runAutoTrackerAnalysis();
+});
+
+// === Auto-Tracker daily cron at 23:00 IL ====================================
+// Idempotent guard so we don't run twice per day.
+if (!(globalThis as any).__autoTrackerCronTimer) {
+  (globalThis as any).__autoTrackerCronTimer = setTimeout(function loop() {
+    void (async () => {
+      try {
+        const parts = new Intl.DateTimeFormat('en-CA', {
+          timeZone: 'Asia/Jerusalem',
+          hour: '2-digit',
+          hour12: false,
+        }).formatToParts(new Date());
+        const hour = parts.find(p => p.type === 'hour')?.value || '00';
+        const dateStr = new Intl.DateTimeFormat('en-CA', {
+          timeZone: 'Asia/Jerusalem',
+        }).format(new Date());
+        const lastRun = (globalThis as any).__autoTrackerLastRun;
+        if (hour === '23' && lastRun !== dateStr) {
+          (globalThis as any).__autoTrackerLastRun = dateStr;
+          console.log('[autoTracker] daily run starting');
+          const r = await runAutoTrackerAnalysis();
+          console.log('[autoTracker] daily run done:', JSON.stringify(r));
+        }
+      } catch (e: any) {
+        console.warn('[autoTracker] daily cron failed:', e?.message);
+      }
+      (globalThis as any).__autoTrackerCronTimer = setTimeout(loop, 15 * 60 * 1000);
+    })();
+  }, 60 * 1000);
+}

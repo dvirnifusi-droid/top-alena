@@ -19,6 +19,7 @@ import DevicePreviewToggle from "./components/DevicePreviewToggle";
 import EnableStaffPush from "./components/EnableStaffPush";
 import PopupManager from "./components/PopupManager";
 import AutoCloseNoticeBanner from "./components/shift/AutoCloseNoticeBanner";
+import { logActivity } from "./lib/activityLogger";
 
 // Color presets for the per-category accent. Tailwind purges by content scan
 // so the full class names must appear literally in the file.
@@ -206,6 +207,16 @@ export default function Layout({ children, currentPageName }) {
   const [originalUserRole, setOriginalUserRole] = React.useState(null);
   const [hasUnreadChat, setHasUnreadChat] = React.useState(false);
   const [appTheme, setAppTheme] = React.useState(() => localStorage.getItem('gc_theme') || 'light');
+
+  // Auto-Tracker: log every page nav so the daily analyzer can spot patterns
+  // (e.g. "Dvir opened SeatingSetup 20× tonight → propose a dashboard widget").
+  React.useEffect(() => {
+    logActivity({
+      action_type: 'nav',
+      page: location.pathname,
+      label: currentPageName || '',
+    });
+  }, [location.pathname, currentPageName]);
 
   // Listen for theme changes from GamificationCenter
   React.useEffect(() => {
