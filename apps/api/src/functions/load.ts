@@ -12057,14 +12057,26 @@ export async function captureGomileySnapshot() {
       console.warn('[gomiley] fetch failed', r.status, text.slice(0, 200));
       return { ok: false, reason: `http ${r.status}`, preview: text.slice(0, 200) };
     }
-    const ct = r.headers.get('content-type') || '';
-    if (!ct.includes('json')) {
-      // Likely got redirected to login → session expired
-      const text = await r.text();
-      console.warn('[gomiley] non-json response — session probably expired');
-      return { ok: false, reason: 'session expired (got HTML, not JSON)', preview: text.slice(0, 200) };
+    // Gomiley returns the DataTables JSON with Content-Type: text/html (not
+    // application/json), so we always read as text and try to parse. Only if
+    // JSON.parse fails AND the response looks like a login page do we treat
+    // it as session-expired.
+    const text = await r.text();
+    let json: any;
+    try {
+      json = JSON.parse(text);
+    } catch {
+      const lowered = text.toLowerCase();
+      const looksLikeLogin =
+        lowered.includes('<form') ||
+        lowered.includes('login') ||
+        lowered.includes('signin') ||
+        lowered.includes('<!doctype');
+      if (looksLikeLogin) {
+        return { ok: false, reason: 'session expired', preview: text.slice(0, 200) };
+      }
+      return { ok: false, reason: 'unparseable response', preview: text.slice(0, 200) };
     }
-    const json: any = await r.json();
     const rows: any[] = Array.isArray(json?.data) ? json.data : [];
     const orders = rows.map(parseGomileyRow).filter((o): o is GomileyOrder => !!o);
     const cashOrders = orders.filter(o => o.is_cash_guess);
