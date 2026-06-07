@@ -180,7 +180,7 @@ export default function BeecommLiveWidget() {
                 )}
 
                 {stations.length > 0 && (
-                    <div className="bg-white rounded-lg p-3 shadow-sm">
+                    <div className="bg-white rounded-lg p-3 shadow-sm mb-3">
                         <p className="text-xs font-bold text-gray-700 mb-2">📱 פר תחנת iPad</p>
                         <div className="grid grid-cols-2 gap-1 text-xs">
                             {stations.map((s, i) => (
@@ -192,7 +192,98 @@ export default function BeecommLiveWidget() {
                         </div>
                     </div>
                 )}
+
+                <PaymentsSection payments={snap.payments} raw={snap.raw} />
+                <ChannelsSection dineIn={snap.dine_in} takeaway={snap.takeaway} delivery={snap.delivery} />
+                <HarigotSection harigot={snap.harigot} />
             </CardContent>
         </Card>
+    );
+}
+
+function PaymentsSection({ payments, raw }) {
+    const list = payments && typeof payments === 'object' ? Object.values(payments) : [];
+    const cards = raw?.x?.creditCardTypes && typeof raw.x.creditCardTypes === 'object' ? Object.values(raw.x.creditCardTypes) : [];
+    if (list.length === 0 && cards.length === 0) return null;
+    const totalAll = list.reduce((s, p) => s + Number(p.sum || 0), 0);
+    return (
+        <div className="bg-white rounded-lg p-3 shadow-sm mb-3">
+            <p className="text-xs font-bold text-gray-700 mb-2">💳 פר סוג תשלום</p>
+            <div className="space-y-1">
+                {list.map((p, i) => {
+                    const pct = totalAll > 0 ? Math.round((Number(p.sum || 0) / totalAll) * 100) : 0;
+                    return (
+                        <div key={i} className="flex justify-between text-sm">
+                            <span className="font-bold">{p.paymentTypeName}</span>
+                            <span className="text-gray-600">{fmtIls(p.sum)} ({pct}%){p.tips > 0 ? ` · 💰${fmtIls(p.tips)}` : ''}</span>
+                        </div>
+                    );
+                })}
+            </div>
+            {cards.length > 0 && (
+                <div className="mt-2 pt-2 border-t">
+                    <p className="text-[10px] text-gray-500 mb-1">סוגי כרטיסי אשראי</p>
+                    <div className="space-y-1 text-xs">
+                        {cards.map((c, i) => (
+                            <div key={i} className="flex justify-between">
+                                <span>{c.cardTypeName}</span>
+                                <span className="text-gray-600">חיוב {fmtIls(c.sumHiuv)}{c.sumZikuy ? ` · זיכוי ${fmtIls(c.sumZikuy)}` : ''}</span>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+}
+
+function ChannelsSection({ dineIn, takeaway, delivery }) {
+    const channels = [
+        { name: '🪑 במקום', data: dineIn, color: 'bg-emerald-50 text-emerald-800' },
+        { name: '🥡 איסוף', data: takeaway, color: 'bg-amber-50 text-amber-800' },
+        { name: '🛵 משלוח', data: delivery, color: 'bg-blue-50 text-blue-800' },
+    ];
+    const any = channels.some(c => c.data && (Number(c.data.sum) || Number(c.data.count) || Number(c.data.diners)));
+    if (!any) return null;
+    return (
+        <div className="bg-white rounded-lg p-3 shadow-sm mb-3">
+            <p className="text-xs font-bold text-gray-700 mb-2">📦 פר ערוץ</p>
+            <div className="grid grid-cols-3 gap-2">
+                {channels.map((c, i) => {
+                    const d = c.data || {};
+                    return (
+                        <div key={i} className={`rounded-lg p-2 text-center ${c.color}`}>
+                            <div className="text-xs font-bold">{c.name}</div>
+                            <div className="text-base font-bold mt-1">{fmtIls(d.sum)}</div>
+                            <div className="text-[10px] mt-1">{Number(d.diners) || 0} סועדים · {Number(d.count) || 0} הזמנות</div>
+                        </div>
+                    );
+                })}
+            </div>
+        </div>
+    );
+}
+
+function HarigotSection({ harigot }) {
+    if (!harigot || typeof harigot !== 'object') return null;
+    const rows = [
+        { label: 'ביטולי פריטים', d: harigot.cancelItems },
+        { label: 'ביטולי הזמנות', d: harigot.cancelOrders },
+        { label: 'הנחות פריטים', d: harigot.discountItems },
+        { label: 'הנחות הזמנות', d: harigot.discountOrders },
+    ].filter(r => r.d && (Number(r.d.count) || Number(r.d.sum)));
+    if (rows.length === 0) return null;
+    return (
+        <div className="bg-white rounded-lg p-3 shadow-sm">
+            <p className="text-xs font-bold text-gray-700 mb-2">⚠️ ביטולים והנחות</p>
+            <div className="grid grid-cols-2 gap-1 text-xs">
+                {rows.map((r, i) => (
+                    <div key={i} className="flex justify-between bg-amber-50 px-2 py-1 rounded">
+                        <span>{r.label}</span>
+                        <span className="text-amber-900 font-bold">{Number(r.d.count) || 0}{Number(r.d.sum) ? ` · ${fmtIls(r.d.sum)}` : ''}</span>
+                    </div>
+                ))}
+            </div>
+        </div>
     );
 }

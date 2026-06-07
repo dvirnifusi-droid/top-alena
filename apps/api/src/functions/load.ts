@@ -11163,6 +11163,74 @@ registerFn('captureBeecommSnapshot', async ({ user }) => {
 // the Beecomm Live page). Each entry is the latest snapshot captured between
 // 18:00 and 23:59 IL of that day — the moment that best represents that
 // day's full total before nightly close.
+// Per-waiter / per-station / per-category aggregates over a date range — pulls
+// the matching snapshot rows from BeecommSnapshot and aggregates locally so we
+// don't hammer the Beecomm API. For each calendar day we use the MAX-total
+// snapshot of that day (representing the day's full result before close).
+registerFn('getBeecommRangeBreakdown', async ({ body, user }) => {
+  if (!user) throw new Error('auth required');
+  const b = (body || {}) as any;
+  const days = Math.min(90, Math.max(1, Number(b.days) || 7));
+  const now = new Date();
+  const since = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
+  const all: any[] = await (db as any).beecommSnapshot.findMany({
+    where: { captured_at: { gte: since } },
+    orderBy: { captured_at: 'asc' },
+  });
+  // Group by IL calendar date, keep latest of day (≈ max-total)
+  const byDay = new Map<string, any>();
+  for (const s of all) {
+    const d = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jerusalem' }).format(s.captured_at);
+    const prev = byDay.get(d);
+    if (!prev || Number(s.total_today) >= Number(prev.total_today)) byDay.set(d, s);
+  }
+  // Aggregate
+  const waiterTotals = new Map<string, { name: string; sum: number; tips: number; diners: number; days: number }>();
+  const stationTotals = new Map<string, { name: string; sum: number; tips: number; days: number }>();
+  const dishTotals = new Map<string, { name: string; categoryName: string; quantity: number; sum: number; days: number }>();
+  let totalSum = 0, totalTips = 0, totalDiners = 0;
+
+  for (const snap of byDay.values()) {
+    totalSum += Number(snap.total_today) || 0;
+    totalTips += Number(snap.total_tips) || 0;
+    for (const w of (snap.workers || [])) {
+      const key = String(w.workerId || w.name || '?');
+      const e = waiterTotals.get(key) || { name: w.name || key, sum: 0, tips: 0, diners: 0, days: 0 };
+      e.sum += Number(w.sum) || 0;
+      e.tips += Number(w.tips) || 0;
+      e.diners += Number(w.diners) || 0;
+      e.days += 1;
+      totalDiners += Number(w.diners) || 0;
+      waiterTotals.set(key, e);
+    }
+    for (const st of (snap.stations || [])) {
+      const key = String(st.stationName || '?');
+      const e = stationTotals.get(key) || { name: key, sum: 0, tips: 0, days: 0 };
+      e.sum += Number(st.sum) || 0;
+      e.tips += Number(st.tips) || 0;
+      e.days += 1;
+      stationTotals.set(key, e);
+    }
+    for (const d of (snap.top_dishes || [])) {
+      const key = String(d.dishId || d.name || '?');
+      const e = dishTotals.get(key) || { name: d.name || key, categoryName: d.categoryName || '', quantity: 0, sum: 0, days: 0 };
+      e.quantity += Number(d.quantity) || 0;
+      e.sum += Number(d.sum) || 0;
+      e.days += 1;
+      dishTotals.set(key, e);
+    }
+  }
+
+  return {
+    days_covered: byDay.size,
+    range: { from: since.toISOString(), to: now.toISOString() },
+    totals: { sum: totalSum, tips: totalTips, diners: totalDiners },
+    waiters: [...waiterTotals.values()].sort((a, b) => b.sum - a.sum),
+    stations: [...stationTotals.values()].sort((a, b) => b.sum - a.sum),
+    dishes: [...dishTotals.values()].sort((a, b) => b.quantity - a.quantity).slice(0, 50),
+  };
+});
+
 registerFn('getBeecommDailyHistory', async ({ body, user }) => {
   if (!user) throw new Error('auth required');
   const days = Math.min(30, Math.max(1, Number((body as any)?.days) || 7));

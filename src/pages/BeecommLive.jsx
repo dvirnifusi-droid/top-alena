@@ -11,8 +11,18 @@ function fmtIls(n) {
     return '₪' + Math.round(Number(n) || 0).toLocaleString('he-IL');
 }
 
+const RANGE_OPTIONS = [
+    { id: 1, label: 'היום' },
+    { id: 7, label: '7 ימים' },
+    { id: 14, label: 'שבועיים' },
+    { id: 30, label: '30 ימים' },
+    { id: 90, label: '3 חודשים' },
+];
+
 export default function BeecommLive() {
     const [history, setHistory] = useState([]);
+    const [range, setRange] = useState(7);
+    const [breakdown, setBreakdown] = useState(null);
 
     const load = async () => {
         try {
@@ -21,6 +31,15 @@ export default function BeecommLive() {
             setHistory(r?.history || []);
         } catch { /* swallow */ }
     };
+
+    const loadBreakdown = async (days) => {
+        try {
+            const res = await base44.functions.getBeecommRangeBreakdown({ days });
+            setBreakdown(res?.data ?? res);
+        } catch { /* swallow */ }
+    };
+
+    useEffect(() => { loadBreakdown(range); }, [range]);
 
     useEffect(() => {
         load();
@@ -82,6 +101,73 @@ export default function BeecommLive() {
                     </CardContent>
                 </Card>
             )}
+
+            <Card className="mb-4">
+                <CardContent className="p-4">
+                    <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+                        <h3 className="font-bold">🔍 פילוח לפי טווח</h3>
+                        <div className="flex gap-1">
+                            {RANGE_OPTIONS.map(opt => (
+                                <Button
+                                    key={opt.id}
+                                    size="sm"
+                                    variant={range === opt.id ? 'default' : 'outline'}
+                                    onClick={() => setRange(opt.id)}
+                                    className="text-xs"
+                                >
+                                    {opt.label}
+                                </Button>
+                            ))}
+                        </div>
+                    </div>
+                    {!breakdown && <p className="text-sm text-gray-500">טוען...</p>}
+                    {breakdown && (
+                        <>
+                            <div className="text-xs text-gray-500 mb-3">
+                                {breakdown.days_covered} ימים · סה״כ {fmtIls(breakdown.totals?.sum)} · {breakdown.totals?.diners || 0} סועדים · 💰 {fmtIls(breakdown.totals?.tips)}
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                <div className="bg-blue-50 rounded-lg p-3">
+                                    <p className="text-xs font-bold mb-2">🏆 מלצרים מובילים</p>
+                                    <div className="space-y-1 text-xs">
+                                        {(breakdown.waiters || []).slice(0, 8).map((w, i) => (
+                                            <div key={i} className="flex justify-between">
+                                                <span className="font-bold">{i + 1}. {w.name}</span>
+                                                <span className="text-gray-600">{fmtIls(w.sum)} · {w.diners} סוע׳ · 💰{fmtIls(w.tips)}</span>
+                                            </div>
+                                        ))}
+                                        {(breakdown.waiters || []).length === 0 && <p className="text-gray-400">אין נתונים</p>}
+                                    </div>
+                                </div>
+                                <div className="bg-amber-50 rounded-lg p-3">
+                                    <p className="text-xs font-bold mb-2">🍽️ מנות מובילות</p>
+                                    <div className="space-y-1 text-xs">
+                                        {(breakdown.dishes || []).slice(0, 8).map((d, i) => (
+                                            <div key={i} className="flex justify-between gap-2">
+                                                <span className="font-bold truncate">{i + 1}. {d.name}</span>
+                                                <span className="text-gray-600 flex-shrink-0">×{d.quantity} · {fmtIls(d.sum)}</span>
+                                            </div>
+                                        ))}
+                                        {(breakdown.dishes || []).length === 0 && <p className="text-gray-400">אין נתונים</p>}
+                                    </div>
+                                </div>
+                                <div className="bg-emerald-50 rounded-lg p-3">
+                                    <p className="text-xs font-bold mb-2">📱 פר תחנת iPad</p>
+                                    <div className="space-y-1 text-xs">
+                                        {(breakdown.stations || []).slice(0, 8).map((s, i) => (
+                                            <div key={i} className="flex justify-between">
+                                                <span className="font-bold">{s.name}</span>
+                                                <span className="text-gray-600">{fmtIls(s.sum)} · 💰{fmtIls(s.tips)}</span>
+                                            </div>
+                                        ))}
+                                        {(breakdown.stations || []).length === 0 && <p className="text-gray-400">אין נתונים</p>}
+                                    </div>
+                                </div>
+                            </div>
+                        </>
+                    )}
+                </CardContent>
+            </Card>
 
             <Card>
                 <CardContent className="p-4">
