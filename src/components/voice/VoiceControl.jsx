@@ -112,40 +112,71 @@ export default function VoiceControl({
         typeof window !== 'undefined' && (window.SpeechRecognition || window.webkitSpeechRecognition);
     const supported = !!SpeechRecognition;
 
+    // Stable refs so we can read the latest transcript inside async callbacks.
+    const transcriptRef = useRef('');
+    const userStoppedRef = useRef(false);
+
     const start = () => {
         if (!supported) { setError('הדפדפן לא תומך בזיהוי קולי'); return; }
         setError(null);
         setTranscript('');
         setLastResult(null);
+        transcriptRef.current = '';
+        userStoppedRef.current = false;
+
         const rec = new SpeechRecognition();
         rec.lang = 'he-IL';
-        rec.continuous = false;
+        // continuous=true means we keep listening across pauses — the USER decides when to stop (second click).
+        rec.continuous = true;
         rec.interimResults = true;
         rec.maxAlternatives = 1;
         recRef.current = rec;
 
         rec.onstart = () => setListening(true);
         rec.onresult = (e) => {
-            let txt = '';
-            for (let i = e.resultIndex; i < e.results.length; i++) {
-                txt += e.results[i][0].transcript;
+            // Build full transcript across all final + interim results in this session.
+            let final = '';
+            let interim = '';
+            for (let i = 0; i < e.results.length; i++) {
+                const piece = e.results[i][0].transcript;
+                if (e.results[i].isFinal) final += piece;
+                else interim += piece;
             }
-            setTranscript(txt);
-            if (e.results[e.results.length - 1].isFinal) {
-                handleFinalTranscript(txt);
-            }
+            const full = (final + ' ' + interim).trim();
+            transcriptRef.current = full;
+            setTranscript(full);
         };
         rec.onerror = (e) => {
             setError('שגיאה בזיהוי: ' + e.error);
             setListening(false);
         };
-        rec.onend = () => setListening(false);
-        rec.start();
+        rec.onend = () => {
+            setListening(false);
+            // Only execute the command if the user explicitly stopped (second click).
+            // If onend fires for other reasons (timeout, network), we skip execution
+            // so we don't run a partial/half-thought command by accident.
+            if (userStoppedRef.current && transcriptRef.current.trim()) {
+                handleFinalTranscript(transcriptRef.current.trim());
+            }
+        };
+        try {
+            rec.start();
+        } catch (e) {
+            setError('לא ניתן להתחיל הקלטה: ' + (e?.message || ''));
+        }
     };
 
     const stop = () => {
-        if (recRef.current) recRef.current.stop();
-        setListening(false);
+        // Mark that THE USER chose to stop — onend will then run the handler.
+        userStoppedRef.current = true;
+        if (recRef.current) {
+            try { recRef.current.stop(); } catch {}
+        }
+    };
+
+    const toggle = () => {
+        if (listening) stop();
+        else start();
     };
 
     const handleFinalTranscript = async (txt) => {
@@ -171,22 +202,26 @@ export default function VoiceControl({
 
     return (
         <>
-            {/* Floating mic button — bottom-left so it doesn't fight the AI FAB on the right */}
+            {/* Floating mic button — click to start, click again to stop and execute. */}
             <button
-                onMouseDown={start}
-                onMouseUp={stop}
-                onTouchStart={start}
-                onTouchEnd={stop}
+                onClick={toggle}
                 disabled={!supported}
-                title={supported ? 'החזק וזכר את הפקודה' : 'הדפדפן לא תומך'}
-                className={`fixed bottom-4 left-4 z-[55] w-14 h-14 rounded-full shadow-2xl flex items-center justify-center text-2xl transition-transform
+                title={supported ? (listening ? 'לחץ שוב לסיום' : 'לחץ להתחלת הקלטה') : 'הדפדפן לא תומך'}
+                className={`fixed bottom-4 left-4 z-[55] w-16 h-16 rounded-full shadow-2xl flex items-center justify-center text-2xl transition-all
                     ${listening
-                        ? 'bg-gradient-to-br from-red-500 to-red-700 text-white scale-110 animate-pulse'
-                        : 'bg-gradient-to-br from-blue-500 to-blue-700 text-white hover:scale-105'}
+                        ? 'bg-gradient-to-br from-red-500 to-red-700 text-white scale-110 ring-4 ring-red-300 animate-pulse'
+                        : 'bg-gradient-to-br from-blue-500 to-blue-700 text-white hover:scale-110 hover:from-blue-600 hover:to-blue-800'}
                     ${!supported ? 'opacity-40 cursor-not-allowed' : ''}`}
             >
-                {listening ? <Mic className="w-6 h-6" /> : <MicOff className="w-6 h-6" />}
+                {listening ? <Mic className="w-7 h-7" /> : <MicOff className="w-7 h-7" />}
             </button>
+
+            {/* Tiny "click again to stop" hint while recording */}
+            {listening && (
+                <div className="fixed bottom-24 left-4 z-[55] text-[10px] font-bold text-red-700 bg-white px-2 py-1 rounded-full shadow border border-red-300 animate-pulse">
+                    🔴 מקליט · לחץ שוב לסיום
+                </div>
+            )}
 
             {/* Live transcript + result panel */}
             {(transcript || lastResult || error) && (
