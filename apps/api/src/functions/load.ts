@@ -10603,7 +10603,7 @@ registerFn('getActiveSalesGoals', async ({ body, user }) => {
     orderBy: { activated_at: 'asc' },
   });
   // For each goal, leaderboard + caller's slot
-  const callerEmp: any = await (db as any).employee.findFirst({ where: { email: user.email } });
+  const callerEmp: any = await (db as any).employee.findFirst({ where: { email: { equals: user.email, mode: 'insensitive' } } });
   const callerId = callerEmp?.id || null;
 
   const enriched = await Promise.all(goals.map(async (g) => {
@@ -10651,7 +10651,7 @@ registerFn('getShiftLeaderboard', async ({ body, user }) => {
 
 registerFn('getMyWeeklyGoal', async ({ user }) => {
   if (!user) throw new Error('auth required');
-  const emp: any = await (db as any).employee.findFirst({ where: { email: user.email } });
+  const emp: any = await (db as any).employee.findFirst({ where: { email: { equals: user.email, mode: 'insensitive' } } });
   if (!emp) return { goal: null };
   // Find current week start (Sunday) in IL
   const now = new Date();
@@ -10667,7 +10667,7 @@ registerFn('getMyWeeklyGoal', async ({ user }) => {
 
 registerFn('getActiveRewardsForMe', async ({ user }) => {
   if (!user) throw new Error('auth required');
-  const emp: any = await (db as any).employee.findFirst({ where: { email: user.email } });
+  const emp: any = await (db as any).employee.findFirst({ where: { email: { equals: user.email, mode: 'insensitive' } } });
   if (!emp) return { affordable: [], locked: [], balance: 0 };
   const txs: any[] = await (db as any).coinTransaction.findMany({
     where: { employee_id: emp.id, status: 'approved' },
