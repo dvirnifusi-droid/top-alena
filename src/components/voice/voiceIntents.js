@@ -278,8 +278,48 @@ export const MATCHERS = [
     { re: /(?:כמה\s+(.+?)\s+(?:מכרנו|מכרו)|סטטוס\s+(?:ה?)מכירות)/, intent: 'q_sales_status', extract: m => ({ dish: (m[1] || '').trim() }) },
     { re: /(?:מי\s+המוביל|מי\s+מוביל\s+ב?מכירות)/, intent: 'q_sales_leader' },
 
+    // ========== Spoken Hebrew shortcuts — fast-path for common phrasings ==========
+    // These cover slang and short forms that come up in real-time dictation.
+    // Less specific than the named patterns above, hence placed at the end.
+
+    // Tables — single-number short form
+    { re: /^(\d+)\s+(פנוי|פנויה|קם|קמו|הלך|הלכו|שילם|שילמו|התפנה|נסגר|גמרו)/, intent: 'table_free', extract: m => ({ table: m[1] }) },
+    { re: /^(\d+)\s+(חשבון|קינוח|קינוחים)/, intent: 'table_finishing', extract: m => ({ table: m[1] }) },
+    { re: /^(\d+)\s+(יושב|יושבים|התיישבו|ישב|ישבו)/, intent: 'table_seated', extract: m => ({ table: m[1] }) },
+    { re: /^(\d+)\s+(הבריזו|לא\s+באו|לא\s+הגיעו)/, intent: 'table_no_show', extract: m => ({ table: m[1] }) },
+    { re: /^(\d+)\s+(VIP|וי\s*איי\s*פי|חשוב|ירוק)/, intent: 'table_flag', extract: m => ({ table: m[1], flag: 'green' }) },
+    { re: /^(\d+)\s+(אדום|בעיה|בעיתי)/, intent: 'table_flag', extract: m => ({ table: m[1], flag: 'red' }) },
+
+    // "X מכר Y" — sale credit (waiter sold a dish)
+    { re: /^(.+?)\s+מכר[הת]?\s+(?:עוד\s+)?(.+)$/, intent: 'sale_credit', extract: m => ({ name: m[1].trim(), dish: m[2].trim() }) },
+    { re: /^מכרתי\s+(.+?)\s+ל(.+)$/, intent: 'sale_credit', extract: m => ({ dish: m[1].trim(), name: m[2].trim() }) },
+
+    // Cancel — short
+    { re: /^(.+?)\s+(ביטל|ביטלה|ביטלו|לא\s+בא[הו]?)$/, intent: 'reservation_cancel', extract: m => ({ name: m[1].trim() }) },
+    { re: /^בטל\s+את\s+(.+)$/, intent: 'reservation_cancel', extract: m => ({ name: m[1].trim() }) },
+    { re: /^תוריד\s+את\s+(.+)$/, intent: 'reservation_cancel', extract: m => ({ name: m[1].trim() }) },
+
+    // Confirm — short
+    { re: /^(.+?)\s+אישר[הת]?$/, intent: 'reservation_confirm', extract: m => ({ name: m[1].trim() }) },
+    { re: /^אישור\s+ל(.+)$/, intent: 'reservation_confirm', extract: m => ({ name: m[1].trim() }) },
+
+    // Arrived — short
+    { re: /^(.+?)\s+(פה|כאן|נכנס[הת]?)$/, intent: 'reservation_mark_arrived', extract: m => ({ name: m[1].trim() }) },
+
+    // Live status — even shorter
+    { re: /^(מה\s+קורה|מה\s+המצב|איך\s+אנחנו)/, intent: 'q_status_summary' },
+    { re: /^כמה\s+פנוי/, intent: 'q_free_tables' },
+    { re: /^מה\s+הבא/, intent: 'q_next_in_queue' },
+    { re: /^מה\s+עם\s+(\d+)$/, intent: 'q_who_on_table', extract: m => ({ table: m[1] }) },
+    { re: /^מי\s+הצוות\s+עכשיו$/, intent: 'q_on_shift_now' },
+
+    // Quick nav
+    { re: /^(פתח\s+לי\s+(?:את\s+)?(?:ה)?מפ[ה]?|קח\s+אותי\s+למפה|מפת\s+השולחנות)/, intent: 'nav_open', extract: () => ({ target: 'seating' }) },
+    { re: /^קופה\s+ל?ייב$/, intent: 'nav_open', extract: () => ({ target: 'dashboard' }) },
+    { re: /^דאשבורד$/, intent: 'nav_open', extract: () => ({ target: 'dashboard' }) },
+
     // ========== Help ==========
-    { re: /^(מה\s+אפשר|איזה\s+פקודות|עזרה|מה\s+אתה\s+יודע)/, intent: 'help' },
+    { re: /^(מה\s+אפשר|איזה\s+פקודות|עזרה|מה\s+אתה\s+יודע|מה\s+אתה\s+יכול|איך\s+משתמשים|תסביר\s+לי)/, intent: 'help' },
 ];
 
 export function parseIntent(text) {

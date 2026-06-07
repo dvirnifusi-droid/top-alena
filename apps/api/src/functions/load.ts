@@ -10257,13 +10257,153 @@ EXAMPLES:
 "תמצא לי מקום לעשרה אנשים עכשיו" → {"intent":"q_ai_seat_suggest","party_size":10}
 "תמצא לי בעזרת העוזר האישי מקום לעשרה אנשים" → {"intent":"q_ai_seat_suggest","party_size":10}
 
+# === SPOKEN HEBREW VARIANTS — מקסם דיוק על דיבור טבעי ===
+# Owner reported certain phrasings were missing. These cover real dictation
+# patterns: skipping prepositions, mixing speeds, dropping "את"/"של", merging
+# numbers into the next word, using nicknames for time.
+
+# Reservations — every conceivable phrasing
+"רן מחר בערב 4 אנשים" → {"intent":"reservation_add","name":"רן","party_size":4,"time":"20:00","when":"מחר"}
+"תקבע ליום שישי בשמונה לדביר 6 אנשים" → {"intent":"reservation_add","name":"דביר","party_size":6,"time":"20:00","when":"מחר"}
+"תזמין לארבעה אנשים על שם נועה היום בשמונה וחצי" → {"intent":"reservation_add","name":"נועה","party_size":4,"time":"20:30","when":"היום"}
+"רשום שירה ל2 הערב ב8" → {"intent":"reservation_add","name":"שירה","party_size":2,"time":"20:00","when":"היום"}
+"הזמנה למחר בצהריים ל6 אנשים על שם איציק" → {"intent":"reservation_add","name":"איציק","party_size":6,"time":"13:00","when":"מחר"}
+"אורי מחרתיים בערב 8 אנשים" → {"intent":"reservation_add","name":"אורי","party_size":8,"time":"20:00","when":"מחרתיים"}
+"תכניס יוסי ל4 ב8 וחצי הערב" → {"intent":"reservation_add","name":"יוסי","party_size":4,"time":"20:30","when":"היום"}
+
+# Cancel — slang, missing את, just name
+"בטל את רן" → {"intent":"reservation_cancel","name":"רן"}
+"רן ביטל" → {"intent":"reservation_cancel","name":"רן"}
+"רן לא בא" → {"intent":"reservation_cancel","name":"רן"}
+"דביר ביטל את ההזמנה" → {"intent":"reservation_cancel","name":"דביר"}
+"תוריד את שירה" → {"intent":"reservation_cancel","name":"שירה"}
+
+# Confirm
+"רן אישר" → {"intent":"reservation_confirm","name":"רן"}
+"אישור לדביר" → {"intent":"reservation_confirm","name":"דביר"}
+
+# Mark arrived
+"שירה הגיעה" → {"intent":"reservation_mark_arrived","name":"שירה"}
+"רן פה" → {"intent":"reservation_mark_arrived","name":"רן"}
+"דביר נכנס" → {"intent":"reservation_mark_arrived","name":"דביר"}
+"תסמן שעדיה ישבה" → {"intent":"reservation_mark_arrived","name":"עדיה"}
+
+# Reschedule
+"רן יאחר חצי שעה" → {"intent":"reservation_reschedule","name":"רן","time":""}
+"תזיז את רן לשמונה וחצי" → {"intent":"reservation_reschedule","name":"רן","time":"20:30"}
+"רן יבוא ב9 במקום 8" → {"intent":"reservation_reschedule","name":"רן","time":"21:00"}
+"דביר מאחר לשעה 21" → {"intent":"reservation_reschedule","name":"דביר","time":"21:00"}
+
+# Tables — open, finishing, freed
+"30 פנוי" → {"intent":"table_free","table":"30"}
+"30 קם" → {"intent":"table_free","table":"30"}
+"30 הלך" → {"intent":"table_free","table":"30"}
+"30 שילם" → {"intent":"table_free","table":"30"}
+"שולחן 11 גמרו" → {"intent":"table_free","table":"11"}
+"11 חשבון" → {"intent":"table_finishing","table":"11"}
+"30 קינוחים" → {"intent":"table_finishing","table":"30"}
+"11 ישבו" → {"intent":"table_seated","table":"11"}
+"11 על שולחן" → {"intent":"table_seated","table":"11"}
+"30 הבריזו" → {"intent":"table_no_show","table":"30"}
+"30 לא באו" → {"intent":"table_no_show","table":"30"}
+
+# Seating commands
+"תושיב את רן על 30" → {"intent":"seat_reservation","name":"רן","table":"30"}
+"רן יושב על 30" → {"intent":"seat_reservation","name":"רן","table":"30"}
+"שירה ל11" → {"intent":"seat_reservation","name":"שירה","table":"11"}
+"דביר על 70 ו71" → {"intent":"seat_reservation_multi","name":"דביר","tables":["70","71"]}
+"תקבל את הבא בתור על 30" → {"intent":"seat_next_queue","table":"30"}
+"קבל את הבא על 11" → {"intent":"seat_next_queue","table":"11"}
+"וווק אין 4 על 30" → {"intent":"seat_walkin","party_size":4,"table":"30"}
+"4 על 30" → {"intent":"seat_walkin","party_size":4,"table":"30"}
+
+# Move tables
+"תזיז שולחן 30 ל11" → {"intent":"session_move","from":"30","to":"11"}
+"העבר 30 ל11" → {"intent":"session_move","from":"30","to":"11"}
+"30 ל11 תעביר" → {"intent":"session_move","from":"30","to":"11"}
+
+# Extend sessions
+"30 עוד רבע שעה" → {"intent":"session_extend","table":"30","minutes":15}
+"30 עוד 20 דקות" → {"intent":"session_extend","table":"30","minutes":20}
+
+# Queue — natural phrasings
+"רן בא עכשיו לתור 4 אנשים" → {"intent":"queue_add","name":"רן","party_size":4,"pref":"no_preference"}
+"שירה מחכה בחוץ" → {"intent":"queue_add","name":"שירה","party_size":2,"pref":"outside"}
+"תרשום רן ל4 חוץ" → {"intent":"queue_add","name":"רן","party_size":4,"pref":"outside"}
+"רן יצא" → {"intent":"queue_abandoned","name":"רן"}
+"שירה לא מחכה" → {"intent":"queue_abandoned","name":"שירה"}
+"תקרא לרן" → {"intent":"queue_call","name":"רן"}
+"רן נכנס" → {"intent":"queue_arrived","name":"רן"}
+
+# Flags — slang
+"30 VIP" → {"intent":"table_flag","table":"30","flag":"green"}
+"30 חשוב" → {"intent":"table_flag","table":"30","flag":"green"}
+"30 ירוק" → {"intent":"table_flag","table":"30","flag":"green"}
+"30 בעיה" → {"intent":"table_flag","table":"30","flag":"red"}
+"30 אדום" → {"intent":"table_flag","table":"30","flag":"red"}
+"30 שים לב" → {"intent":"table_flag","table":"30","flag":"orange"}
+
+# Live questions
+"מה קורה עכשיו" → {"intent":"q_status_summary"}
+"איך אנחנו עומדים" → {"intent":"q_status_summary"}
+"כמה פנוי" → {"intent":"q_free_tables"}
+"מה הבא בתור" → {"intent":"q_next_in_queue"}
+"מי הבא" → {"intent":"q_next_in_queue"}
+"מה עם 30" → {"intent":"q_who_on_table","table":"30"}
+"מי על 30" → {"intent":"q_who_on_table","table":"30"}
+"כמה אנשים יש לי היום" → {"intent":"q_today_guests"}
+"כמה הכנסה עד עכשיו" → {"intent":"q_today_revenue"}
+
+# Staff
+"מי הצוות עכשיו" → {"intent":"q_on_shift_now"}
+"מי בערב היום" → {"intent":"q_on_shift_evening"}
+"מי במשמרת ערב" → {"intent":"q_on_shift_evening"}
+"מי בצהריים מחר" → {"intent":"q_on_shift_date","when":"מחר","shift_type":"lunch"}
+"איזה מלצרים יש לי היום" → {"intent":"q_on_shift_date","when":"היום","position":"מלצר"}
+"מי הברמן הערב" → {"intent":"q_on_shift_date","when":"היום","shift_type":"dinner","position":"ברמן"}
+
+# Comms
+"תזכר לרן" → {"intent":"send_reminder","name":"רן"}
+"שלח אישור לדביר" → {"intent":"resend_confirmation","name":"דביר"}
+"תגיד לצוות שיש מבצע" → {"intent":"send_team_message","message":"יש מבצע"}
+"שלח לכולם שאנחנו חוגגים" → {"intent":"send_team_message","message":"אנחנו חוגגים"}
+
+# Sales
+"דביר מכר עוד קינוח" → {"intent":"sale_credit","dish":"קינוח","name":"דביר"}
+"+1 לדביר קינוח" → {"intent":"sale_credit","dish":"קינוח","name":"דביר"}
+"מכרתי קינוח לרן" → {"intent":"sale_credit","dish":"קינוח","name":"רן"}
+"שירה מכרה ספיישל" → {"intent":"sale_credit","dish":"ספיישל","name":"שירה"}
+"תפעיל את מבצע הקינוחים" → {"intent":"sales_goal_activate","template":"מבצע קינוחים"}
+"מה מצב המכירות" → {"intent":"q_sales_status"}
+"מי בראש" → {"intent":"q_sales_leader"}
+
+# Open page
+"פתח לי את המפה" → {"intent":"nav_open","target":"seating"}
+"קח אותי למפה" → {"intent":"nav_open","target":"seating"}
+"מפת השולחנות" → {"intent":"nav_open","target":"seating"}
+"דאשבורד" → {"intent":"nav_open","target":"dashboard"}
+"קופה לייב" → {"intent":"nav_open","target":"dashboard"}
+
+# Help
+"מה אתה יכול לעשות" → {"intent":"help"}
+"איך משתמשים בזה" → {"intent":"help"}
+"תסביר לי" → {"intent":"help"}
+
+# Common time phrasings (always convert to HH:MM)
+# "תשע בערב"=21:00, "תשע וחצי בערב"=21:30, "שמונה רבע"=08:15, "שמונה ורבע"=08:15
+# "אחת אחר חצות"=01:00, "חצי שבע"=06:30 (NOT 07:30 — שלא לפי תקני בלוח השעון)
+# "רבע ל9 בערב"=20:45, "עשר וחצי בלילה"=22:30
+# Hebrew weekday names: ראשון=Sun, שני=Mon, שלישי=Tue, רביעי=Wed, חמישי=Thu, שישי=Fri, שבת=Sat
+# When user says "יום שני" — that's Monday; resolve to nearest future Monday and use as `when`.
+# When user says "סוף שבוע" → typically מחר (חמישי) או מחרתיים (שישי) — default to closest weekend.
+
 Input: "${text}"
 Output (JSON only, MUST include "intent"):`;
 
     const result: any = await invokeLLM({
       prompt,
-      timeoutMs: 20000,
-      maxOutputTokens: 1024,
+      timeoutMs: 25000,
+      maxOutputTokens: 2048,
       maxAttempts: 2,
       responseSchema: {
         type: 'object',
