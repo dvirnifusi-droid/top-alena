@@ -10577,6 +10577,98 @@ registerFn('closeSalesGoal', async ({ body, user }) => {
   return { goal: updated, leaderboard: ranked };
 });
 
+registerFn('getActiveSalesGoals', async ({ body, user }) => {
+  if (!user) throw new Error('auth required');
+  const b = (body || {}) as any;
+  const explicit = b.shift_date && b.shift_type ? { date: String(b.shift_date), type: String(b.shift_type) } : null;
+  const shift = explicit || resolveCurrentShift(new Date());
+  if (!shift) return { shift: null, goals: [] };
+
+  const goals: any[] = await (db as any).salesGoal.findMany({
+    where: { shift_date: shift.date, shift_type: shift.type, status: { not: 'closed' } },
+    orderBy: { activated_at: 'asc' },
+  });
+  // For each goal, leaderboard + caller's slot
+  const callerEmp: any = await (db as any).employee.findFirst({ where: { email: user.email } });
+  const callerId = callerEmp?.id || null;
+
+  const enriched = await Promise.all(goals.map(async (g) => {
+    const events: any[] = await (db as any).saleEvent.findMany({
+      where: { goal_id: g.id, undone_at: null },
+    });
+    const perWaiter = new Map<string, { id: string; name: string; count: number }>();
+    for (const e of events) {
+      const cur = perWaiter.get(e.waiter_id) || { id: e.waiter_id, name: e.waiter_name, count: 0 };
+      cur.count++;
+      perWaiter.set(e.waiter_id, cur);
+    }
+    const ranked = [...perWaiter.values()].sort((a, b) => b.count - a.count);
+    const myCount = callerId ? (perWaiter.get(callerId)?.count || 0) : 0;
+    const myPosition = callerId ? ranked.findIndex(r => r.id === callerId) + 1 : 0;
+    return { ...g, leaderboard: ranked.slice(0, 5), my_count: myCount, my_position: myPosition };
+  }));
+  return { shift, goals: enriched };
+});
+
+registerFn('getShiftLeaderboard', async ({ body, user }) => {
+  if (!user) throw new Error('auth required');
+  const b = (body || {}) as any;
+  const explicit = b.shift_date && b.shift_type ? { date: String(b.shift_date), type: String(b.shift_type) } : null;
+  const shift = explicit || resolveCurrentShift(new Date());
+  if (!shift) return { shift: null, board: [] };
+  const goals: any[] = await (db as any).salesGoal.findMany({
+    where: { shift_date: shift.date, shift_type: shift.type },
+    select: { id: true },
+  });
+  if (goals.length === 0) return { shift, board: [] };
+  const events: any[] = await (db as any).saleEvent.findMany({
+    where: { goal_id: { in: goals.map(g => g.id) }, undone_at: null },
+  });
+  const perWaiter = new Map<string, { id: string; name: string; sales: number; coins: number }>();
+  for (const e of events) {
+    const cur = perWaiter.get(e.waiter_id) || { id: e.waiter_id, name: e.waiter_name, sales: 0, coins: 0 };
+    cur.sales++;
+    cur.coins += e.coins_amount;
+    perWaiter.set(e.waiter_id, cur);
+  }
+  const board = [...perWaiter.values()].sort((a, b) => b.coins - a.coins);
+  return { shift, board };
+});
+
+registerFn('getMyWeeklyGoal', async ({ user }) => {
+  if (!user) throw new Error('auth required');
+  const emp: any = await (db as any).employee.findFirst({ where: { email: user.email } });
+  if (!emp) return { goal: null };
+  // Find current week start (Sunday) in IL
+  const now = new Date();
+  const ilDay = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Jerusalem', weekday: 'short' }).format(now);
+  const daysFromSun = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(ilDay);
+  const sunday = new Date(now.getTime() - daysFromSun * 24 * 60 * 60 * 1000);
+  const weekStart = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jerusalem' }).format(sunday);
+  const goal: any = await (db as any).weeklyPersonalGoal.findFirst({
+    where: { employee_id: emp.id, week_start_date: weekStart },
+  });
+  return { goal };
+});
+
+registerFn('getActiveRewardsForMe', async ({ user }) => {
+  if (!user) throw new Error('auth required');
+  const emp: any = await (db as any).employee.findFirst({ where: { email: user.email } });
+  if (!emp) return { affordable: [], locked: [], balance: 0 };
+  const txs: any[] = await (db as any).coinTransaction.findMany({
+    where: { employee_id: emp.id, status: 'approved' },
+    select: { amount: true },
+  });
+  const balance = txs.reduce((s, t) => s + Number(t.amount || 0), 0);
+  const rewards: any[] = await (db as any).reward.findMany({
+    where: { is_active: true },
+    orderBy: { cost: 'asc' },
+  });
+  const affordable = rewards.filter(r => Number(r.cost || 0) <= balance);
+  const locked = rewards.filter(r => Number(r.cost || 0) > balance).slice(0, 4);
+  return { affordable, locked, balance };
+});
+
 // === Auto-Tracker =========================================================
 // Watches owner/manager actions (page nav, voice commands, button clicks),
 // stores them in ActivityLog, and once a day asks Gemini to spot repeated
