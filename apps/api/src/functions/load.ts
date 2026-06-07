@@ -7558,20 +7558,15 @@ registerFn('shiftHeartbeat', async ({ user, body }) => {
   const shiftStartMs = new Date(shift.shift_start).getTime();
   const ageSeconds = (now.getTime() - shiftStartMs) / 1000;
 
-  let willClose = false;
-  if (trackingOn && !empDisabled && ageSeconds >= GEOFENCE_WARMUP_SECONDS) {
-    const cur = distanceMeters(
-      { lat, lng },
-      { lat: profile!.restaurant_lat as number, lng: profile!.restaurant_lng as number },
-    );
-    if (cur > GEOFENCE_OUT_RADIUS_M && prevLat != null && prevLng != null) {
-      const prev = distanceMeters(
-        { lat: prevLat, lng: prevLng },
-        { lat: profile!.restaurant_lat as number, lng: profile!.restaurant_lng as number },
-      );
-      if (prev > GEOFENCE_OUT_RADIUS_M) willClose = true;
-    }
-  }
+  // === MANUAL CLOSE ONLY (owner directive 7/6/2026) ===
+  // The geofence auto-close kept logging out Hila & Aya even when they were
+  // mid-shift — likely because their phones reported stale or imprecise GPS
+  // (indoor, signal dropped, background tracking off). Owner explicitly asked
+  // for clock-out to be MANUAL ONLY. We still record the last location so the
+  // admin can see who drifted, but we never auto-end the shift.
+  // Re-enable willClose below if/when GPS reliability improves.
+  const willClose = false;
+  void trackingOn; void empDisabled; void prevLat; void prevLng;
 
   if (!willClose) {
     await db.shiftTracking.update({
@@ -9778,14 +9773,18 @@ export async function autoCloseStaleShifts() {
   }
 }
 
-if (!(globalThis as any).__shiftAutoCloseTimer) {
-  (globalThis as any).__shiftAutoCloseTimer = setTimeout(function loop() {
-    autoCloseStaleShifts().finally(() => {
-      // Check every 30 min
-      (globalThis as any).__shiftAutoCloseTimer = setTimeout(loop, 30 * 60 * 1000);
-    });
-  }, 3 * 60 * 1000); // 3 min after boot
-}
+// === DISABLED 7/6/2026 — owner asked for manual close only.
+// Re-enable only if zombie 'active' rows start piling up faster than the
+// admin can clean them. autoCloseStaleShifts() remains callable manually
+// from a script if needed. To re-enable: uncomment the setTimeout block.
+//
+// if (!(globalThis as any).__shiftAutoCloseTimer) {
+//   (globalThis as any).__shiftAutoCloseTimer = setTimeout(function loop() {
+//     autoCloseStaleShifts().finally(() => {
+//       (globalThis as any).__shiftAutoCloseTimer = setTimeout(loop, 30 * 60 * 1000);
+//     });
+//   }, 3 * 60 * 1000);
+// }
 
 // === Tighter shift-end reminder + earlier auto-close ========================
 // Runs every 10 min. For each active ShiftTracking:
@@ -9828,20 +9827,22 @@ export async function shiftEndReminderAndClose() {
       if (!scheduled) continue; // no schedule found → the 16h safety-net cron handles it
       const minsPast = (now - scheduled.getTime()) / 60000;
 
-      // Aggressive auto-close: 4 hours past scheduled end
-      if (minsPast >= 240) {
-        const totalHours = Math.round(((scheduled.getTime() - clockIn.getTime()) / 36000)) / 100;
-        await (prisma as any).shiftTracking.update({
-          where: { id: t.id },
-          data: {
-            status: 'completed',
-            shift_end: scheduled,
-            total_hours: totalHours,
-            effective_hours: totalHours,
-            auto_close_reason: `auto-closed 4h after scheduled end (${scheduled.toISOString()})`,
-          },
-        }).catch(() => {});
-        closed++;
+      // === AUTO-CLOSE DISABLED 7/6/2026 (owner directive: manual close only) ===
+      // Previously closed at 4h past scheduled end. Now we only send a louder
+      // reminder so admin can poke the employee — no automatic state change.
+      if (minsPast >= 240 && !t.end_reminder_sent_at) {
+        try {
+          await (prisma as any).shiftTracking.update({
+            where: { id: t.id },
+            data: { end_reminder_sent_at: new Date() },
+          });
+          const hhmm = `${String(scheduled.getUTCHours() + 3).padStart(2,'0')}:${String(scheduled.getUTCMinutes()).padStart(2,'0')}`;
+          await pushoverToAdmins(
+            '⚠️ עובד עם משמרת פתוחה 4h+ אחרי הסיום',
+            `${t.employee_name} הייתה אמורה לסיים ב-${hhmm} ועדיין במשמרת פעילה.\nסגירה ידנית בלבד — צריך לעדכן את הטופס שלה.`,
+          ).catch(() => {});
+          reminders++;
+        } catch { /* ignore */ }
         continue;
       }
 
@@ -9871,6 +9872,11 @@ export async function shiftEndReminderAndClose() {
   }
 }
 
+// === REMINDERS-ONLY CRON 7/6/2026 ===
+// Owner asked for no auto-close. We keep the reminder push so admin still
+// gets pinged "X forgot to clock out" but the function now SKIPS the close
+// block (4h aggressive). See shiftEndReminderAndClose() — the close
+// branch is bypassed below.
 if (!(globalThis as any).__shiftEndReminderTimer) {
   (globalThis as any).__shiftEndReminderTimer = setTimeout(function loop() {
     shiftEndReminderAndClose().finally(() => {
