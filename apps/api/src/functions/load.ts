@@ -9706,6 +9706,57 @@ registerFn('unsubscribeMarketing', async ({ body }) => {
 // Uses scheduled end_time from the matching WorkShift if found; otherwise
 // clock_in + 6 hours.
 const SHIFT_AUTO_CLOSE_HOURS = 16;
+// One-shot recovery — re-opens ShiftTracking rows that were auto-closed in
+// the last 36 hours. Triggered after disabling the three auto-close paths
+// so the owner can manually finalize hours that the system cut short.
+export async function reopenAutoClosedShifts(maxAgeHours = 36) {
+  const cutoff = new Date(Date.now() - maxAgeHours * 60 * 60 * 1000);
+  const closed: any[] = await (prisma as any).shiftTracking.findMany({
+    where: {
+      shift_start: { gte: cutoff },
+      status: { in: ['completed', 'auto_closed'] },
+      auto_close_reason: { not: null },
+    },
+    orderBy: { shift_start: 'desc' },
+  });
+  const reverted: any[] = [];
+  for (const t of closed) {
+    try {
+      await (prisma as any).shiftTracking.update({
+        where: { id: t.id },
+        data: {
+          status: 'active',
+          shift_end: null,
+          total_hours: null,
+          effective_hours: null,
+          auto_close_reason: null,
+          end_reminder_sent_at: null,
+        },
+      });
+      reverted.push({
+        id: t.id,
+        employee_name: t.employee_name,
+        started_at: t.shift_start,
+        was_ended_at: t.shift_end,
+        was_total_hours: t.total_hours,
+        reason: t.auto_close_reason,
+      });
+    } catch (e: any) {
+      console.warn('[reopenAutoClosedShifts] failed', t.id, e?.message);
+    }
+  }
+  return { scanned: closed.length, reverted: reverted.length, details: reverted };
+}
+
+registerFn('reopenAutoClosedShifts', async ({ user, body }) => {
+  if (!user) throw new Error('auth required');
+  if ((user as any).role !== 'admin' && (user as any).role !== 'owner') {
+    throw new Error('admin only');
+  }
+  const maxAgeHours = Number((body as any)?.maxAgeHours) || 36;
+  return reopenAutoClosedShifts(maxAgeHours);
+});
+
 export async function autoCloseStaleShifts() {
   try {
     const cutoff = new Date(Date.now() - SHIFT_AUTO_CLOSE_HOURS * 3600 * 1000);

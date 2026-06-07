@@ -1,5 +1,5 @@
 import type { FastifyPluginAsync } from 'fastify';
-import { sendRestroomReminder, sendAbandonedReminder, sendT24SurveyReminders, runAutoTrackerAnalysis, runSalesAutoClose, runWeeklyPersonalGoals, captureBeecommSnapshot, backfillBeecommHistory } from '../functions/load.js';
+import { sendRestroomReminder, sendAbandonedReminder, sendT24SurveyReminders, runAutoTrackerAnalysis, runSalesAutoClose, runWeeklyPersonalGoals, captureBeecommSnapshot, backfillBeecommHistory, reopenAutoClosedShifts } from '../functions/load.js';
 
 // Internal cron endpoints, guarded by a shared secret (x-cron-secret header or
 // ?secret=). Called by the server crontab — never by end users.
@@ -50,5 +50,13 @@ export const cronRoutes: FastifyPluginAsync = async (app) => {
   app.post('/beecomm-backfill-daily', async () => {
     // Pull yesterday so today's Z (which just closed at 06:00 IL) is captured.
     return backfillBeecommHistory({ days: 2 });
+  });
+
+  // One-shot recovery endpoint — re-opens ShiftTracking rows that were
+  // auto-closed in the last 36h. Triggered manually after the auto-close
+  // paths were disabled (7/6/2026).
+  app.post('/reopen-auto-closed-shifts', async (req) => {
+    const maxAgeHours = Number((req.query as any)?.hours) || 36;
+    return reopenAutoClosedShifts(maxAgeHours);
   });
 };
