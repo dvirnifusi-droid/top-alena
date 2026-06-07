@@ -9878,17 +9878,22 @@ QUEUE:
 
 SEATING:
 - seat_walkin {party_size, table}: הושיב walk-in
-- seat_reservation {name, table OR tables[]}: הושיב הזמנה
+- seat_reservation {name, table OR tables[]}: הושיב/העבר הזמנה לשולחן
 - seat_next_queue {table}: הושיב את הבא בתור
+- q_ai_seat_suggest {party_size, preference?}: מצא לי מקום עם עוזר/AI
 
 RESERVATIONS:
 - reservation_add {name, party_size, time, when}: ליצור (when: היום/מחר/מחרתיים, time: HH:MM)
 - reservation_cancel {name}
 - reservation_confirm {name}
+- reservation_reschedule {name, time, when?}: דחה/הזז שעה של הזמנה
+- reservation_update_phone {name, phone}: עדכן טלפון בהזמנה
+- reservation_mark_arrived {name}: ההזמנה הגיעה (לסמן יושב)
 
 SESSIONS:
 - session_extend {table, minutes}
 - session_move {from, to}
+- session_move_multi {from_tables[], to}: העבר כמה שולחנות לאחד
 
 QUESTIONS:
 - q_next_in_queue / q_next_reservation / q_queue_count / q_free_tables
@@ -10085,15 +10090,28 @@ EXAMPLES:
 "כמה משלוחים היום" → {"intent":"q_deliveries_today"}
 "איזה שליחים פעילים" → {"intent":"q_active_courier"}
 "משימות לרן" → {"intent":"q_tasks_for","name":"רן"}
+"תוסיף הזמנה רן ארבעה אנשים תשע מחר" → {"intent":"reservation_add","name":"רן","party_size":4,"time":"21:00","when":"מחר"}
+"תוסיף הזמנה על שם ניב להיום בערב בשעה 9:00" → {"intent":"reservation_add","name":"ניב","party_size":2,"time":"21:00","when":"היום"}
+"תדחה את ההזמנה של רן ל-9:30 בערב" → {"intent":"reservation_reschedule","name":"רן","time":"21:30"}
+"ההזמנה של רן ליום שני מאחרים לשעה 9:30 בערב" → {"intent":"reservation_reschedule","name":"רן","time":"21:30"}
+"תזיז את ההזמנה של רן לשעה 22" → {"intent":"reservation_reschedule","name":"רן","time":"22:00"}
+"תעדכן את הטלפון של רן ל0501234567" → {"intent":"reservation_update_phone","name":"רן","phone":"0501234567"}
+"תעדכן את המספר טלפון בהזמנה של רן ליום שני למספר 0503962976" → {"intent":"reservation_update_phone","name":"רן","phone":"0503962976"}
+"תעשה שהזמנה של עדיה הגיעה" → {"intent":"reservation_mark_arrived","name":"עדיה"}
+"ההזמנה של רן הגיעה" → {"intent":"reservation_mark_arrived","name":"רן"}
+"תעביר את ההזמנה של דביר לשולחן 8" → {"intent":"seat_reservation","name":"דביר","table":"8"}
+"תעביר את שולחנות 70 ו 71 לשולחן 8" → {"intent":"session_move_multi","from_tables":["70","71"],"to":"8"}
+"תמצא לי מקום לעשרה אנשים עכשיו" → {"intent":"q_ai_seat_suggest","party_size":10}
+"תמצא לי בעזרת העוזר האישי מקום לעשרה אנשים" → {"intent":"q_ai_seat_suggest","party_size":10}
 
 Input: "${text}"
 Output (JSON only, MUST include "intent"):`;
 
     const result: any = await invokeLLM({
       prompt,
-      timeoutMs: 15000,
-      maxOutputTokens: 512,
-      maxAttempts: 1,
+      timeoutMs: 20000,
+      maxOutputTokens: 1024,
+      maxAttempts: 2,
       responseSchema: {
         type: 'object',
         properties: {
@@ -10134,6 +10152,9 @@ Output (JSON only, MUST include "intent"):`;
           pct: { type: 'number' },
           enabled: { type: 'boolean' },
           courier: { type: 'string' },
+          // Reservation extended (reschedule / update phone / multi-move)
+          from_tables: { type: 'array', items: { type: 'string' } },
+          preference: { type: 'string' },
         },
         required: ['intent'],
       },

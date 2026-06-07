@@ -34,7 +34,8 @@ const MUTATING_INTENTS = new Set([
     'queue_add', 'queue_call', 'queue_arrived', 'queue_abandoned',
     'seat_walkin', 'seat_reservation', 'seat_reservation_multi', 'seat_next_queue',
     'reservation_add', 'reservation_cancel', 'reservation_confirm',
-    'session_extend', 'session_move',
+    'reservation_reschedule', 'reservation_update_phone', 'reservation_mark_arrived',
+    'session_extend', 'session_move', 'session_move_multi',
     'resend_confirmation', 'send_reminder',
     'customer_set_vip', 'customer_send_coupon', 'benefit_give',
     'leave_approve', 'request_swap', 'schedule_add',
@@ -337,6 +338,102 @@ async function dispatchCommand(cmd, state) {
                 const newEnd = `${String(newH).padStart(2, '0')}:${String(newM).padStart(2, '0')}`;
                 await Reservation.update(r.id, { reservation_end_time: newEnd });
                 return { ok: true, message: `בוצע ✓ שולחן ${cmd.table} הוארך ב-${cmd.minutes} דקות עד ${newEnd}` };
+            }
+
+            // ---------- Reservation: reschedule (change time) ----------
+            case 'reservation_reschedule': {
+                // Search across today + next 14 days (a הזמנה ליום שני is in the future)
+                let target = reservations.find(r =>
+                    (r.customer_name || '').includes(cmd.name) &&
+                    !['cancelled', 'completed', 'no_show'].includes(r.status || 'pending')
+                );
+                if (!target) {
+                    // Fallback: search future reservations
+                    try {
+                        const future = await Reservation.list('-date', 200);
+                        target = (future || []).find(r =>
+                            (r.customer_name || '').includes(cmd.name) &&
+                            !['cancelled', 'completed', 'no_show'].includes(r.status || 'pending')
+                        );
+                    } catch { /* ignore */ }
+                }
+                if (!target) return { ok: false, message: `${cmd.name} לא נמצא בהזמנות` };
+                await Reservation.update(target.id, { time: cmd.time });
+                return { ok: true, message: `בוצע ✓ הזמנה של ${target.customer_name} שונתה ל-${cmd.time}` };
+            }
+
+            // ---------- Reservation: update phone ----------
+            case 'reservation_update_phone': {
+                let target = reservations.find(r =>
+                    (r.customer_name || '').includes(cmd.name) &&
+                    !['cancelled', 'completed', 'no_show'].includes(r.status || 'pending')
+                );
+                if (!target) {
+                    try {
+                        const future = await Reservation.list('-date', 200);
+                        target = (future || []).find(r =>
+                            (r.customer_name || '').includes(cmd.name) &&
+                            !['cancelled', 'completed', 'no_show'].includes(r.status || 'pending')
+                        );
+                    } catch { /* ignore */ }
+                }
+                if (!target) return { ok: false, message: `${cmd.name} לא נמצא בהזמנות` };
+                const cleanPhone = String(cmd.phone || '').replace(/[^\d]/g, '');
+                if (cleanPhone.length < 7) return { ok: false, message: 'מספר טלפון לא תקין' };
+                await Reservation.update(target.id, { customer_phone: cleanPhone });
+                return { ok: true, message: `בוצע ✓ טלפון עודכן ל-${cleanPhone}` };
+            }
+
+            // ---------- Mark reservation as arrived (by name, not table) ----------
+            case 'reservation_mark_arrived': {
+                const target = reservations.find(r =>
+                    (r.customer_name || '').includes(cmd.name) &&
+                    !['cancelled', 'completed', 'no_show', 'seated'].includes(r.status || 'pending')
+                );
+                if (!target) return { ok: false, message: `${cmd.name} לא נמצא בהזמנות פעילות` };
+                await Reservation.update(target.id, { status: 'seated' });
+                return { ok: true, message: `בוצע ✓ ${target.customer_name} סומן כיושב` };
+            }
+
+            // ---------- Move multi-table session: "תעביר 70 ו 71 ל-8" ----------
+            case 'session_move_multi': {
+                const fromList = cmd.from_tables || [];
+                let movedAny = false;
+                for (const from of fromList) {
+                    const session = activeSessions.find(s =>
+                        String(s.table_number || '').split(/[,+]/).map(p => p.trim()).includes(String(from))
+                    );
+                    if (session) {
+                        await TableSession.update(session.id, { table_number: String(cmd.to) });
+                        movedAny = true;
+                    }
+                    const r = reservations.find(r =>
+                        Array.isArray(r.assigned_table) &&
+                        r.assigned_table.map(String).includes(String(from))
+                    );
+                    if (r) {
+                        await Reservation.update(r.id, { assigned_table: [String(cmd.to)] });
+                        movedAny = true;
+                    }
+                }
+                if (!movedAny) return { ok: false, message: `אין סשנים פעילים על ${fromList.join(', ')}` };
+                return { ok: true, message: `בוצע ✓ ${fromList.join(' ו-')} הועברו ל-${cmd.to}` };
+            }
+
+            // ---------- AI seat suggestion (handoff to existing AI assistant) ----------
+            case 'q_ai_seat_suggest': {
+                try {
+                    const result = await base44.functions.aiSeatingAssistant({
+                        party_size: Number(cmd.party_size) || 2,
+                        preference: cmd.preference || 'no_preference',
+                        question: `מצא מקום ל-${cmd.party_size} סועדים עכשיו`,
+                    });
+                    const msg = result?.answer || result?.message || 'יוצר הצעות בעמוד מפת הושבה';
+                    return { ok: true, message: String(msg).slice(0, 300) };
+                } catch {
+                    window.location.href = '/SeatingSetup';
+                    return { ok: true, message: `פותח מפה — חפש מקום ל-${cmd.party_size} ידנית` };
+                }
             }
 
             // ---------- Move session between tables ----------

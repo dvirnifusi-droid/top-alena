@@ -100,6 +100,22 @@ export const MATCHERS = [
     },
     { re: /^(בטל|תבטל[יה]?)\s+(?:את\s+)?(?:ההזמנה\s+של\s+)?(.+)$/, intent: 'reservation_cancel', extract: m => ({ name: m[2].trim() }) },
     { re: /^תאשר(י)?\s+(?:את\s+)?(?:ההזמנה\s+של\s+)?(.+)$/, intent: 'reservation_confirm', extract: m => ({ name: m[2].trim() }) },
+    // Reschedule (change time) of an existing reservation.
+    // Examples: "תדחה את ההזמנה של רן ל21:30", "ההזמנה של רן ליום שני מאחרים לשעה 9:30 בערב"
+    { re: /(?:תדחה|דחה|תזיז|העבר\s+שעה\s+של|מאחרים\s+(?:את\s+)?(?:ה?הזמנה\s+של\s+)?)(.+?)\s+(?:ל-?|לשעה\s+)?(\d{1,2}:\d{2})/, intent: 'reservation_reschedule', extract: m => ({ name: m[1].replace(/^(את\s+ההזמנה\s+של\s+|ההזמנה\s+של\s+)/, '').trim(), time: m[2] }) },
+    // Update phone number of an existing reservation.
+    // Examples: "תעדכן את הטלפון של רן ל-0501234567"
+    { re: /(?:תעדכן|עדכן|שנה)\s+(?:את\s+)?(?:ה)?(?:מספר\s+)?טלפון\s+(?:בהזמנה\s+של\s+|של\s+|ל)?(.+?)\s+(?:ל-?|למספר\s+)([\d\-]{7,})/, intent: 'reservation_update_phone', extract: m => ({ name: m[1].trim(), phone: m[2].replace(/-/g, '') }) },
+    // Mark reservation as arrived/seated by NAME (not by table number).
+    // Examples: "תעשה שהזמנה של עדיה הגיעה", "ההזמנה של רן הגיעה"
+    { re: /(?:תעשה\s+שה?הזמנה\s+(?:של\s+|על\s+שם\s+)?|הזמנה\s+(?:של\s+|על\s+שם\s+))(.+?)\s+(הגיע|הגיעה|הגיעו|בא|באה|באו)$/, intent: 'reservation_mark_arrived', extract: m => ({ name: m[1].trim() }) },
+    // Move existing reservation to a different table (verb תעביר instead of תושיב).
+    // Examples: "תעביר את ההזמנה של דביר לשולחן 8"
+    { re: /^(תעביר|העבר)\s+(?:את\s+)?(?:ה)?הזמנה\s+(?:של\s+|על\s+שם\s+)(.+?)\s+ל(?:שולחן\s+)?(\d+)/, intent: 'seat_reservation', extract: m => ({ name: m[2].trim(), table: m[3] }) },
+    // Move MULTI-table session: "תעביר את שולחנות 70 ו 71 לשולחן 8"
+    { re: /^(תעביר|העבר)\s+(?:את\s+)?שולחנות\s+(\d+)\s+ו-?\s*(\d+)\s+ל(?:שולחן\s+)?(\d+)/, intent: 'session_move_multi', extract: m => ({ from_tables: [m[2], m[3]], to: m[4] }) },
+    // AI seat suggestion ("ask the AI assistant to find a spot for X people now")
+    { re: /(?:תמצא\s+לי|מצא\s+לי|איפה\s+אפשר\s+להושיב)\s+(?:בעזרת\s+(?:ה?עוזר|AI|בינה)\s+)?(?:מקום\s+)?(?:ל)?(\d+)\s+(?:אנשים|סועדים|איש)?\s*(?:עכשיו|מיד|לעכשיו)?/, intent: 'q_ai_seat_suggest', extract: m => ({ party_size: Number(m[1]) }) },
 
     // ========== Session extensions ==========
     { re: /שולחן\s+(\d+)\s+עוד\s+(\d+)\s+דק/, intent: 'session_extend', extract: m => ({ table: m[1], minutes: Number(m[2]) }) },
