@@ -10668,18 +10668,22 @@ registerFn('getMyWeeklyGoal', async ({ user }) => {
 registerFn('getActiveRewardsForMe', async ({ user }) => {
   if (!user) throw new Error('auth required');
   const emp: any = await (db as any).employee.findFirst({ where: { email: { equals: user.email, mode: 'insensitive' } } });
-  if (!emp) return { affordable: [], locked: [], balance: 0 };
-  const txs: any[] = await (db as any).coinTransaction.findMany({
-    where: { employee_id: emp.id, status: 'approved' },
-    select: { amount: true },
-  });
-  const balance = txs.reduce((s, t) => s + Number(t.amount || 0), 0);
+  let balance = 0;
+  if (emp) {
+    const txs: any[] = await (db as any).coinTransaction.findMany({
+      where: { employee_id: emp.id, status: 'approved' },
+      select: { amount: true },
+    });
+    balance = txs.reduce((s, t) => s + Number(t.amount || 0), 0);
+  }
   const rewards: any[] = await (db as any).reward.findMany({
     where: { is_active: true },
     orderBy: { cost: 'asc' },
   });
   const affordable = rewards.filter(r => Number(r.cost || 0) <= balance);
-  const locked = rewards.filter(r => Number(r.cost || 0) > balance).slice(0, 4);
+  // Show up to 6 "locked" rewards as motivation — always populated when there
+  // are any active rewards in the catalog, even if the caller has 0 balance.
+  const locked = rewards.filter(r => Number(r.cost || 0) > balance).slice(0, 6);
   return { affordable, locked, balance };
 });
 
