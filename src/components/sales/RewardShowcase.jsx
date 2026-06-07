@@ -11,7 +11,11 @@ export default function RewardShowcase() {
     const load = async () => {
         try {
             const d = await base44.functions.getActiveRewardsForMe({});
-            setData(d);
+            setData({
+                affordable: Array.isArray(d?.affordable) ? d.affordable : [],
+                locked: Array.isArray(d?.locked) ? d.locked : [],
+                balance: Number(d?.balance) || 0,
+            });
         } catch { /* swallow */ }
     };
 

@@ -16,7 +16,7 @@ export default function SalesGoalsBanner() {
     const load = async () => {
         try {
             const data = await base44.functions.getActiveSalesGoals({});
-            setGoals(data.goals || []);
+            setGoals(Array.isArray(data?.goals) ? data.goals : []);
             setShift(data.shift);
         } catch { /* swallow */ }
     };
@@ -44,10 +44,11 @@ export default function SalesGoalsBanner() {
                 <h3 className="font-bold mb-3 text-center">🔥 הצוות מתחרה — {shift.type === 'lunch' ? 'צהריים' : 'ערב'}!</h3>
                 {goals.map(g => {
                     const pct = Math.min(100, Math.round((g.current_count / Math.max(1, g.target)) * 100));
+                    const lb = Array.isArray(g.leaderboard) ? g.leaderboard : [];
                     const myMsg = g.my_position === 1
                         ? `👑 אתה מוביל עם ${g.my_count}`
                         : g.my_position > 0
-                            ? `אתה במקום #${g.my_position} עם ${g.my_count}${g.leaderboard[0] ? ` · עוד ${g.leaderboard[0].count - g.my_count + 1} ותעקוף את ${g.leaderboard[0].name}` : ''}`
+                            ? `אתה במקום #${g.my_position} עם ${g.my_count}${lb[0] ? ` · עוד ${lb[0].count - g.my_count + 1} ותעקוף את ${lb[0].name}` : ''}`
                             : null;
                     return (
                         <div key={g.id} className="mb-3 last:mb-0">
@@ -59,8 +60,8 @@ export default function SalesGoalsBanner() {
                                 <div className={`h-full bg-gradient-to-r ${gradientForPct(pct)} transition-all`} style={{ width: `${pct}%` }} />
                             </div>
                             {myMsg && <p className="text-xs mt-1 text-amber-200">{myMsg}</p>}
-                            {!myMsg && g.leaderboard[0] && (
-                                <p className="text-xs mt-1 text-amber-200">👑 המוביל: {g.leaderboard[0].name} ({g.leaderboard[0].count})</p>
+                            {!myMsg && lb[0] && (
+                                <p className="text-xs mt-1 text-amber-200">👑 המוביל: {lb[0].name} ({lb[0].count})</p>
                             )}
                         </div>
                     );

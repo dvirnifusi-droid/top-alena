@@ -15,7 +15,7 @@ export default function ShiftSupervisorPanel() {
     const load = async () => {
         try {
             const data = await base44.functions.getActiveSalesGoals({});
-            setGoals(data.goals || []);
+            setGoals(Array.isArray(data?.goals) ? data.goals : []);
             // Load on-shift staff so we can render per-waiter buttons even if they
             // haven't sold yet.
             if (data.shift) {
@@ -48,8 +48,10 @@ export default function ShiftSupervisorPanel() {
         };
     }, []);
 
-    const countFor = (goal, waiterId) =>
-        goal.leaderboard?.find(l => l.id === waiterId)?.count || 0;
+    const countFor = (goal, waiterId) => {
+        const lb = Array.isArray(goal?.leaderboard) ? goal.leaderboard : [];
+        return lb.find(l => l.id === waiterId)?.count || 0;
+    };
 
     const tap = async (goal, waiter) => {
         const key = `${goal.id}-${waiter.id}`;

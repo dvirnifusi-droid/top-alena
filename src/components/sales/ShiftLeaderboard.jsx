@@ -10,7 +10,7 @@ export default function ShiftLeaderboard({ myEmployeeId }) {
     const load = async () => {
         try {
             const data = await base44.functions.getShiftLeaderboard({});
-            setBoard(data.board || []);
+            setBoard(Array.isArray(data?.board) ? data.board : []);
         } catch { /* swallow */ }
     };
 
@@ -48,7 +48,7 @@ export default function ShiftLeaderboard({ myEmployeeId }) {
                             </div>
                         );
                     })}
-                    {showSelfRow && (
+                    {showSelfRow && board[myIdx] && (
                         <div className="flex items-center justify-between p-2 rounded-lg bg-yellow-50 border-2 border-yellow-400 mt-3">
                             <span className="font-bold">#{myIdx + 1} {board[myIdx].name} (אתה)</span>
                             <span className="text-sm text-gray-700">{board[myIdx].sales} מכירות · {board[myIdx].coins} 🪙</span>
