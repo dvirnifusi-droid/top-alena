@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Mic, MicOff, X } from 'lucide-react';
+import { handleVoiceCommand as globalHandler } from './handleVoiceCommand';
 
 // === Hebrew number normalization =============================================
 // People say numbers in many ways: "מאה ועשרים", "120", "שולחן מאה". We map
@@ -112,9 +113,10 @@ function speak(text) {
 
 // === The main component ======================================================
 export default function VoiceControl({
-    onCommand,         // async ({intent, ...params}) => {ok, message}
+    onCommand,         // async ({intent, ...params}) => {ok, message}. Falls back to globalHandler when omitted.
     enabled = true,
 }) {
+    const handler = onCommand || globalHandler;
     const [listening, setListening] = useState(false);
     const [transcript, setTranscript] = useState('');
     const [lastResult, setLastResult] = useState(null); // { ok, message, intent }
@@ -194,15 +196,30 @@ export default function VoiceControl({
     };
 
     const handleFinalTranscript = async (txt) => {
-        const parsed = parseIntent(txt);
+        let parsed = parseIntent(txt);
+        // LLM fallback when regex fails. Costs ~₪0.01 only when regex misses.
         if (parsed.intent === 'unknown') {
-            const msg = `לא הבנתי: "${parsed.raw}". נסה לנסח אחרת.`;
+            try {
+                const tok = localStorage.getItem('auth_token') || '';
+                const r = await fetch('/api/fn/parseVoiceCommand', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + tok },
+                    body: JSON.stringify({ text: txt }),
+                });
+                const data = await r.json();
+                if (data?.intent && data.intent !== 'unknown') parsed = { ...data, raw: txt };
+            } catch (e) {
+                console.warn('[voice] LLM fallback failed', e);
+            }
+        }
+        if (parsed.intent === 'unknown') {
+            const msg = `לא הבנתי: "${parsed.raw || txt}". נסה לנסח אחרת.`;
             setLastResult({ ok: false, message: msg });
             speak('לא הבנתי, נסה לנסח אחרת');
             return;
         }
         try {
-            const result = await onCommand(parsed);
+            const result = await handler(parsed);
             setLastResult({ ok: !!result?.ok, message: result?.message || 'בוצע ✓', intent: parsed.intent });
             if (result?.message) speak(result.message);
         } catch (e) {

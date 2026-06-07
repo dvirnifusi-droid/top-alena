@@ -3167,8 +3167,7 @@ export default function SeatingSetup() {
                 title="עוזר AI"
             >✨</button>
 
-            {/* === VOICE CONTROL — push-to-talk mic, bottom-left === */}
-            <VoiceControl onCommand={async (cmd) => handleVoiceCommand(cmd)} />
+            {/* Voice control is now mounted globally in Layout.jsx — no per-page button needed. */}
 
 
             {aiOpen && (

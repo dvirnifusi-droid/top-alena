@@ -96,6 +96,7 @@ import PositionsManagement from './pages/PositionsManagement';
 import PublicReservation from './pages/PublicReservation';
 import PublicReservationSettings from './pages/PublicReservationSettings';
 import DepositSettings from './pages/DepositSettings';
+import VoiceTest from './pages/VoiceTest';
 import Popups from './pages/Popups';
 import SpecialsAdmin from './pages/SpecialsAdmin';
 import AgentInbox from './pages/AgentInbox';
@@ -179,6 +180,7 @@ export const PAGES = {
     "PublicReservation": PublicReservation,
     "PublicReservationSettings": PublicReservationSettings,
     "DepositSettings": DepositSettings,
+    "VoiceTest": VoiceTest,
     "Popups": Popups,
     "SpecialsAdmin": SpecialsAdmin,
     "AgentInbox": AgentInbox,

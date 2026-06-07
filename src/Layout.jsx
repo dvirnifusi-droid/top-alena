@@ -2,6 +2,7 @@ import React from "react";
 import { Link, useLocation } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { base44 } from "@/api/base44Client";
+import VoiceControl from "@/components/voice/VoiceControl";
 import {
   Users, GraduationCap, AlertTriangle, CheckSquare, Building, BarChart3,
   LayoutGrid, Trophy, Menu, FileText, Utensils, Sparkles, Crown, Rocket, Map, Brain, Calendar, CalendarDays, CalendarHeart, Banknote, MessageSquare, Briefcase, QrCode, ClipboardCheck, Settings, TrendingUp, Zap, Megaphone, Bell, Package, Navigation, LogOut, Tablet, Download
@@ -346,6 +347,9 @@ export default function Layout({ children, currentPageName }) {
     <div className="relative h-screen bg-background text-foreground" dir="rtl">
       {themeVars && <style>{`:root, [dir="rtl"] { ${themeVars.split(';').filter(Boolean).map(v => v.trim()).join('; ')} }`}</style>}
       <GlobalMobileStyles />
+
+      {/* Global voice control — mic button available on every page */}
+      <VoiceControl />
 
       {/* תפריט דסקטופ - fixed */}
       <div className="hidden lg:block">

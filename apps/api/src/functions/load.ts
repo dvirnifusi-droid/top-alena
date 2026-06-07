@@ -9718,3 +9718,98 @@ if (!(globalThis as any).__shiftEndReminderTimer) {
     });
   }, 5 * 60 * 1000); // 5 min after boot
 }
+
+// === Voice command LLM fallback parser ======================================
+// Frontend's regex parser tries first (fast, free). If it returns 'unknown',
+// it calls this endpoint with the raw transcript; Gemini parses meaning into
+// the same intent schema. Drops cost to ~₪0.01 per fallback (only when regex
+// fails); regex still handles ~70% of common phrasings free.
+const VOICE_INTENT_LIST = `
+INTENTS (return the JSON exactly — no markdown, no prose):
+
+table_free        — שולחן התפנה / סיים
+  params: { table: "מספר השולחן" }
+table_finishing   — שולחן בקינוח / חשבון / סיום קרוב
+  params: { table }
+table_seated      — לקוחות יושב על שולחן
+  params: { table }
+table_no_show     — שולחן הבריז / לא הגיעו
+  params: { table }
+
+table_flag        — דגל על שולחן
+  params: { table, flag: "green"|"red"|"orange"|"black"|"" }
+  (green=ירוק/VIP, red=אדום/בעיה, orange=כתום, black=שחור, ""=הסר דגל)
+
+queue_add         — להוסיף ל תור
+  params: { name, party_size: number, pref: "inside"|"outside"|"no_preference" }
+queue_call        — לקרוא ללקוח שבתור
+  params: { name }
+queue_arrived     — לקוח הגיע / לאשר תור
+  params: { name }
+queue_abandoned   — לקוח עזב / לסמן כנטוש
+  params: { name }
+
+seat_reservation  — להושיב הזמנה על שולחן
+  params: { name, table } OR { name, tables: ["10","11"] }
+seat_next_queue   — להושיב את הראשון בתור על שולחן
+  params: { table }
+
+q_next_in_queue   — מי הבא בתור (שאלה)
+q_next_reservation— מי ההזמנה הבאה (שאלה)
+q_queue_count     — כמה בתור (שאלה)
+q_free_tables     — כמה שולחנות פנויים (שאלה)
+q_who_on_table    — מי על שולחן מסוים (שאלה)
+  params: { table }
+
+resend_confirmation — שלח שוב SMS אישור
+  params: { name }
+
+unknown — אם באמת אי אפשר להבין.
+`;
+
+registerFn('parseVoiceCommand', async ({ body, user }) => {
+  if (!user) throw new Error('auth required');
+  const text = String((body as any)?.text || '').trim();
+  if (!text) return { intent: 'unknown', raw: '' };
+  try {
+    const prompt = `אתה מנתח פקודות קוליות מעברית למארחת במסעדה. הלקוח אמר משפט וצריך להחזיר JSON עם 'intent' ופרמטרים.
+
+${VOICE_INTENT_LIST}
+
+חוקים:
+- אם הפקודה לא ברורה לחלוטין — החזר { "intent": "unknown" }
+- שמות לקוחות בעברית — תחזיר בדיוק כפי שנאמרו
+- מספרי שולחן — תחזיר כמחרוזות ("10", לא 10)
+- party_size — תחזיר כמספר
+- ל-flag, השתמש במחרוזות באנגלית (green/red/orange/black/"")
+- ללא markdown, ללא הסברים — רק JSON
+
+הפקודה: "${text}"
+
+החזר JSON בלבד.`;
+
+    const result: any = await invokeLLM({
+      prompt,
+      timeoutMs: 8000,
+      maxOutputTokens: 256,
+      maxAttempts: 1,
+      responseSchema: {
+        type: 'object',
+        properties: {
+          intent: { type: 'string' },
+          table: { type: 'string' },
+          name: { type: 'string' },
+          party_size: { type: 'number' },
+          pref: { type: 'string' },
+          flag: { type: 'string' },
+          tables: { type: 'array', items: { type: 'string' } },
+        },
+        required: ['intent'],
+      },
+    } as any);
+    return { ...result, raw: text };
+  } catch (e: any) {
+    console.warn('[parseVoiceCommand] LLM failed:', e?.message);
+    return { intent: 'unknown', raw: text, error: e?.message };
+  }
+});
