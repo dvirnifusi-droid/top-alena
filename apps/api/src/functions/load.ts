@@ -10392,6 +10392,96 @@ registerFn('activateSalesGoal', async ({ body, user }) => {
   return { goal };
 });
 
+registerFn('creditSale', async ({ body, user }) => {
+  if (!user) throw new Error('auth required');
+  if (!(await isShiftSupervisor(user.id))) throw new Error('only shift supervisors can credit sales');
+  const b = (body || {}) as any;
+  const goalId = String(b.goal_id || '');
+  const waiterId = String(b.waiter_id || '');
+  if (!goalId || !waiterId) throw new Error('goal_id and waiter_id required');
+
+  const goal: any = await (db as any).salesGoal.findUnique({ where: { id: goalId } });
+  if (!goal) throw new Error('goal not found');
+  if (goal.status === 'closed') throw new Error('היעד נסגר');
+  // 'completed' goals still accept sales, with bonus
+
+  const waiter: any = await (db as any).employee.findUnique({ where: { id: waiterId } });
+  if (!waiter) throw new Error('waiter not found');
+
+  const isBonus = goal.status === 'completed';
+  const coins = isBonus ? goal.coins_per_sale * 2 : goal.coins_per_sale;
+
+  // Coin transaction first so we have the id to link
+  const ct: any = await (db as any).coinTransaction.create({
+    data: {
+      employee_id: waiter.id,
+      employee_name: waiter.full_name,
+      amount: coins,
+      reason: `מכירת ${goal.dish_label}${isBonus ? ' (בונוס)' : ''}`,
+      type: 'sale_bonus',
+      trigger: `sales_goal:${goal.id}`,
+      status: 'approved',
+      approved_by: String((user as any).full_name || user.email || ''),
+    },
+  });
+
+  // Sale event
+  const event: any = await (db as any).saleEvent.create({
+    data: {
+      goal_id: goal.id,
+      waiter_id: waiter.id,
+      waiter_name: waiter.full_name,
+      credited_by_id: String(user.id),
+      credited_by_name: String((user as any).full_name || user.email || ''),
+      coins_amount: coins,
+      is_bonus: isBonus,
+      coin_transaction_id: ct.id,
+    },
+  });
+
+  // Atomic increment + completion flip
+  const newCount = goal.current_count + 1;
+  const justCompleted = !isBonus && newCount === goal.target;
+  await (db as any).salesGoal.update({
+    where: { id: goal.id },
+    data: {
+      current_count: { increment: 1 },
+      status: justCompleted ? 'completed' : goal.status,
+      completed_at: justCompleted ? new Date() : undefined,
+    },
+  });
+
+  // Activity log
+  try {
+    await (db as any).activityLog.create({
+      data: {
+        user_id: String(user.id),
+        user_name: String((user as any).full_name || user.email || ''),
+        action_type: 'sale_credit',
+        page: '/EmployeeHome',
+        label: `+1 ${goal.dish_label} → ${waiter.full_name}`,
+        target_id: goal.id,
+        metadata: { waiter_id: waiter.id, coins },
+      },
+    });
+  } catch { /* best-effort */ }
+
+  // Push to the credited waiter (always), then group push on completion
+  await pushoverToActiveShift(
+    `+${coins} 🪙 על ${goal.dish_label}!`,
+    isBonus ? 'בונוס כפול 🔥' : 'יפה מאוד!',
+    waiter.id,
+  );
+  if (justCompleted) {
+    await pushoverToActiveShift(
+      `🎉 הצוות עשה את זה!`,
+      `${goal.target} ${goal.dish_label} — בונוס כפול על מכירות נוספות`,
+    );
+  }
+
+  return { event, new_count: newCount, just_completed: justCompleted };
+});
+
 // === Auto-Tracker =========================================================
 // Watches owner/manager actions (page nav, voice commands, button clicks),
 // stores them in ActivityLog, and once a day asks Gemini to spot repeated
