@@ -388,16 +388,44 @@ export default function AiChatWidget() {
                     setShowProgress(true);
                 }
 
-                const geminiRes = await askGemini({
-                    message: currentInput,
-                    history: conversationHistory,
-                    systemPrompt
-                });
+                // Retry helper — handles iOS Safari's habit of dropping long fetches
+                // ('Load failed' / 'Failed to fetch') by trying up to 3 times with
+                // exponential backoff. Gives users on mobile a much better experience.
+                const callGeminiWithRetry = async () => {
+                    const NETWORK_ERR = /Load failed|Failed to fetch|NetworkError|network request failed|aborted|timeout/i;
+                    let lastErr;
+                    for (let attempt = 0; attempt < 3; attempt++) {
+                        try {
+                            const res = await askGemini({
+                                message: currentInput,
+                                history: conversationHistory,
+                                systemPrompt,
+                            });
+                            return res;
+                        } catch (e) {
+                            lastErr = e;
+                            const m = e?.message || e?.response?.data?.message || '';
+                            const isNetworkErr = NETWORK_ERR.test(String(m)) || !m;
+                            // Quota / 429 — don't retry (it'll just fail again)
+                            if (m.includes('quota') || m.includes('429')) throw e;
+                            // Last attempt — give up
+                            if (attempt === 2) throw e;
+                            // Network glitch — wait and retry
+                            if (isNetworkErr) {
+                                await new Promise(r => setTimeout(r, 1500 * (attempt + 1)));
+                                continue;
+                            }
+                            // Non-network error — fail immediately
+                            throw e;
+                        }
+                    }
+                    throw lastErr;
+                };
+
+                const geminiRes = await callGeminiWithRetry();
                 aiResponseContent = geminiRes.data?.reply || '';
             } catch (geminiErr) {
                 console.error('Gemini error:', geminiErr);
-                // The API returns { error: 'function_error', message: <real reason> }
-                // so we want .message, not .error (which is just the error code).
                 const errMsg =
                   geminiErr?.response?.data?.message ||
                   geminiErr?.response?.data?.error ||
@@ -405,8 +433,14 @@ export default function AiChatWidget() {
                   '';
                 if (errMsg.includes('quota') || errMsg.includes('429')) {
                     aiResponseContent = `אני קצת עמוס כרגע 😅 נסה שוב בעוד כמה שניות.`;
+                } else if (/Load failed|Failed to fetch|NetworkError|network request failed/i.test(errMsg) || !errMsg) {
+                    // iOS Safari + slow mobile networks — most common error
+                    aiResponseContent = `החיבור נפל באמצע 📶 בדוק קליטה ונסה שוב. אם זה ממשיך — סגור והדליק את האפליקציה.`;
+                } else if (errMsg.includes('GEMINI_API_KEY') || errMsg.includes('API key')) {
+                    aiResponseContent = `יש בעיה זמנית בצד שלי. אני מודיע לדביר מיד.`;
+                    console.error('[AI CHAT] CRITICAL — Gemini API key missing or invalid');
                 } else if (errMsg) {
-                    aiResponseContent = `יש לי שגיאה כרגע — נסה שוב בעוד רגע.\n\n_פרטים טכניים: ${errMsg.slice(0, 300)}_`;
+                    aiResponseContent = `יש לי שגיאה כרגע — נסה שוב בעוד רגע.\n\n_פרטים טכניים: ${errMsg.slice(0, 200)}_`;
                 }
             }
 
