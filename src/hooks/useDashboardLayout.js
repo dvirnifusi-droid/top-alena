@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 // Default widget configs per page
 export const EMPLOYEE_WIDGETS = [
   { id: 'stories', label: 'סטוריז', emoji: '📸', defaultOn: true },
+  { id: 'supervisor_panel', label: 'פאנל מפקח משמרת', emoji: '🎯', defaultOn: true },
   { id: 'daily_challenge', label: 'אתגר יומי', emoji: '🎯', defaultOn: true },
   { id: 'shift_clock', label: 'שעון משמרת', emoji: '⏱️', defaultOn: true },
   { id: 'next_shift', label: 'המשמרת הבאה שלי', emoji: '⏰', defaultOn: true },

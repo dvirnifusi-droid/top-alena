@@ -31,6 +31,8 @@ import MyTipsWidget from '../components/dashboard/MyTipsWidget';
 import MyRankWidget from '../components/dashboard/MyRankWidget';
 import MyNotificationsWidget from '../components/dashboard/MyNotificationsWidget';
 import QueueStatusWidget from '../components/dashboard/QueueStatusWidget';
+import ShiftSupervisorPanel from '../components/sales/ShiftSupervisorPanel';
+import { isShiftSupervisor } from '@/lib/roleGates';
 
 export default function EmployeeHome() {
     const [user, setUser] = useState(null);
@@ -106,6 +108,9 @@ export default function EmployeeHome() {
     const widgetOrder = layout.map(w => w.id);
 
     const widgets = {
+        supervisor_panel: isVisible('supervisor_panel') && isShiftSupervisor(currentEmployee, user) && (
+            <ShiftSupervisorPanel key="supervisor_panel" />
+        ),
         stories: isVisible('stories') && <StoriesBar key="stories" currentEmployee={currentEmployee} />,
         daily_challenge: isVisible('daily_challenge') && currentEmployee && (
             <div key="daily_challenge" className="mb-4">
