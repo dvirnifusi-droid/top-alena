@@ -11996,24 +11996,36 @@ type GomileyOrder = {
 
 function parseGomileyRow(row: string[]): GomileyOrder | null {
   if (!Array.isArray(row) || row.length < 12) return null;
-  // Col 0 — checkbox with order ID inside value=''
+  // Column layout from Gomiley's DataTables payload:
+  //   0  checkbox (value=order_id)
+  //   1  display_id (e.g. 25)
+  //   2  package_no (e.g. 628)
+  //   3  restaurant name
+  //   4  customer name (anchor with data-guid)
+  //   5  empty
+  //   6  delivery_address (anchor with data-lat/lng)
+  //   7  empty
+  //   8  delivery_at (e.g. 08/06 00:19)
+  //   9  source (e.g. Wolt)
+  //   10 amount (e.g. 61.00₪)
+  //   11 created_at (e.g. 07/06/26 23:58)
+  //   12 status button (e.g. הודפסה)
+  //   13 courier select
+  //   14 actions menu
   const checkbox = row[0] || '';
   const idMatch = checkbox.match(/value=['"](\d+)['"]/);
   const id = idMatch ? idMatch[1] : '';
-  // GUID appears in many later cells via data-guid='...'
   const guid = extractDataAttr(row.join(' '), 'guid') || '';
   const display_id = stripHtml(row[1] || '');
   const package_no = stripHtml(row[2] || '');
   const restaurant = stripHtml(row[3] || '');
   const customer = stripHtml(row[4] || '');
-  const delivery_at = stripHtml(row[9] || '');
-  const source = stripHtml(row[10] || '');
-  // Col 11 looks like '61.00₪' — strip ₪ and parse as number
-  const amountStr = stripHtml(row[11] || '').replace(/[^\d.]/g, '');
+  const delivery_at = stripHtml(row[8] || '');
+  const source = stripHtml(row[9] || '');
+  const amountStr = stripHtml(row[10] || '').replace(/[^\d.]/g, '');
   const amount = Number(amountStr) || 0;
-  const created_at = stripHtml(row[12] || '');
-  // Status — col 13 contains 'הודפסה' / 'ממתינה' / etc. Strip to text.
-  const status = stripHtml(row[13] || '').slice(0, 40);
+  const created_at = stripHtml(row[11] || '');
+  const status = stripHtml(row[12] || '').slice(0, 40);
   return {
     id,
     guid,
