@@ -9399,6 +9399,82 @@ if (!(globalThis as any).__startupDriftRepair) {
     } catch (e: any) {
       console.error('[startup] ensure ActivityLog failed:', e?.message);
     }
+    try {
+      await prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "SalesGoalTemplate" (
+        "id" TEXT PRIMARY KEY,
+        "name" TEXT NOT NULL,
+        "dish_label" TEXT NOT NULL,
+        "emoji" TEXT NOT NULL,
+        "default_target" INTEGER NOT NULL,
+        "default_coins_per_sale" INTEGER NOT NULL,
+        "is_active" BOOLEAN NOT NULL DEFAULT TRUE,
+        "sort_order" INTEGER DEFAULT 0,
+        "created_date" TEXT,
+        "updated_date" TEXT,
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );`);
+      await prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "SalesGoal" (
+        "id" TEXT PRIMARY KEY,
+        "template_id" TEXT NOT NULL,
+        "shift_date" TEXT NOT NULL,
+        "shift_type" TEXT NOT NULL,
+        "dish_label" TEXT NOT NULL,
+        "emoji" TEXT NOT NULL,
+        "target" INTEGER NOT NULL,
+        "coins_per_sale" INTEGER NOT NULL,
+        "current_count" INTEGER NOT NULL DEFAULT 0,
+        "status" TEXT NOT NULL DEFAULT 'active',
+        "activated_by_id" TEXT NOT NULL,
+        "activated_by_name" TEXT NOT NULL,
+        "activated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "completed_at" TIMESTAMP(3),
+        "closed_at" TIMESTAMP(3),
+        "closed_by_id" TEXT,
+        "created_date" TEXT,
+        "updated_date" TEXT,
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );`);
+      await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "SalesGoal_shift_status_idx" ON "SalesGoal" ("shift_date", "shift_type", "status");`);
+      await prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "SaleEvent" (
+        "id" TEXT PRIMARY KEY,
+        "goal_id" TEXT NOT NULL,
+        "waiter_id" TEXT NOT NULL,
+        "waiter_name" TEXT NOT NULL,
+        "credited_by_id" TEXT NOT NULL,
+        "credited_by_name" TEXT NOT NULL,
+        "coins_amount" INTEGER NOT NULL,
+        "is_bonus" BOOLEAN NOT NULL DEFAULT FALSE,
+        "undone_at" TIMESTAMP(3),
+        "coin_transaction_id" TEXT,
+        "created_date" TEXT,
+        "updated_date" TEXT,
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );`);
+      await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "SaleEvent_goal_createdAt_idx" ON "SaleEvent" ("goal_id", "createdAt");`);
+      await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "SaleEvent_waiter_createdAt_idx" ON "SaleEvent" ("waiter_id", "createdAt");`);
+      await prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "WeeklyPersonalGoal" (
+        "id" TEXT PRIMARY KEY,
+        "employee_id" TEXT NOT NULL,
+        "employee_name" TEXT NOT NULL,
+        "week_start_date" TEXT NOT NULL,
+        "target" INTEGER NOT NULL,
+        "current_count" INTEGER NOT NULL DEFAULT 0,
+        "reward_coins" INTEGER NOT NULL,
+        "is_awarded" BOOLEAN NOT NULL DEFAULT FALSE,
+        "awarded_at" TIMESTAMP(3),
+        "created_date" TEXT,
+        "updated_date" TEXT,
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );`);
+      await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "WeeklyPersonalGoal_employee_week_idx" ON "WeeklyPersonalGoal" ("employee_id", "week_start_date");`);
+      console.log('[startup] Sales gamification tables ensured');
+    } catch (e: any) {
+      console.error('[startup] ensure sales gamification tables failed:', e?.message);
+    }
   })();
 }
 
