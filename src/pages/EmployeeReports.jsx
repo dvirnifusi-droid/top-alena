@@ -966,9 +966,9 @@ function EmployeeReportsInner() {
                                                                          <td className="py-3 px-4">{entry.start_time}</td>
                                                                          <td className="py-3 px-4">{entry.end_time}</td>
                                                                          <td className="py-3 px-4 text-gray-500">{entry.break_minutes > 0 ? entry.break_minutes : '-'}</td>
-                                                                         <td className="py-3 px-4 font-bold text-blue-700">{entry.net_hours.toFixed(2)}</td>
+                                                                         <td className="py-3 px-4 font-bold text-blue-700">{Number(entry.net_hours || 0).toFixed(2)}</td>
                                                                          <td className="py-3 px-4 font-bold text-orange-600">
-                                                                         {positionRates[entry.position] > 0 ? `₪${(entry.net_hours * parseFloat(positionRates[entry.position])).toFixed(2)}` : '-'}
+                                                                         {positionRates[entry.position] > 0 ? `₪${(Number(entry.net_hours || 0) * parseFloat(positionRates[entry.position])).toFixed(2)}` : '-'}
                                                                          </td>
                                                                          {isAdmin && (
                                                                          <td className="py-3 px-4">
@@ -1122,13 +1122,13 @@ function EmployeeReportsInner() {
                                                         <td className="py-3 px-4">{(entry.effectiveHours || 0).toFixed(2)}</td>
                                                         <td className="py-3 px-4 text-blue-600">₪{(entry.grossTip || 0).toFixed(2)}</td>
                                                         <td className="py-3 px-4 text-red-500">
-                                                            {entry.meal_cost > 0 ? `-₪${entry.meal_cost.toFixed(2)}` : '-'}
+                                                            {Number(entry.meal_cost) > 0 ? `-₪${Number(entry.meal_cost).toFixed(2)}` : '-'}
                                                         </td>
                                                         <td className="py-3 px-4 text-green-600">
-                                                            {entry.sales_bonus > 0 ? `+₪${entry.sales_bonus.toFixed(2)}` : '-'}
+                                                            {Number(entry.sales_bonus) > 0 ? `+₪${Number(entry.sales_bonus).toFixed(2)}` : '-'}
                                                         </td>
                                                         <td className="py-3 px-4 text-purple-600">
-                                                            {entry.supplement > 0 ? `+₪${entry.supplement.toFixed(2)}` : '-'}
+                                                            {Number(entry.supplement) > 0 ? `+₪${Number(entry.supplement).toFixed(2)}` : '-'}
                                                         </td>
                                                         <td className="py-3 px-4 font-bold text-green-700">₪{(entry.totalEarnings || 0).toFixed(2)}</td>
                                                     </tr>
