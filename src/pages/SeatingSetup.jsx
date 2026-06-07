@@ -409,18 +409,8 @@ export default function SeatingSetup() {
         return () => clearInterval(interval);
     }, [loadLiveData]);
 
-    // Listen for voice-driven data changes — refresh immediately instead of
-    // waiting for the 60s poll interval. Any successful voice command broadcasts
-    // 'voice:data-changed' via handleVoiceCommand.
-    useEffect(() => {
-        const onVoiceChange = () => {
-            loadLiveData();
-            loadLayout();
-            loadQueue();
-        };
-        window.addEventListener('voice:data-changed', onVoiceChange);
-        return () => window.removeEventListener('voice:data-changed', onVoiceChange);
-    }, [loadLiveData, loadLayout, loadQueue]);
+    // The 'voice:data-changed' useEffect moved further down — AFTER loadQueue
+    // is declared (otherwise TDZ error 'Cannot access loadQueue before init').
 
     // Digital clock — tick every second for the top action bar display
     useEffect(() => {
@@ -554,6 +544,18 @@ export default function SeatingSetup() {
         const id = setInterval(loadQueue, 15000);
         return () => clearInterval(id);
     }, [loadQueue]);
+
+    // Listen for voice-driven data changes — instant refresh instead of waiting for poll.
+    // Mounted HERE because loadQueue (above) must be declared first.
+    useEffect(() => {
+        const onVoiceChange = () => {
+            loadLiveData();
+            loadLayout();
+            loadQueue();
+        };
+        window.addEventListener('voice:data-changed', onVoiceChange);
+        return () => window.removeEventListener('voice:data-changed', onVoiceChange);
+    }, [loadLiveData, loadLayout, loadQueue]);
 
     // When user opens the queue tab, mark all current ids as seen (dismisses banner)
     useEffect(() => {
