@@ -10878,3 +10878,72 @@ if (!(globalThis as any).__autoTrackerCronTimer) {
     })();
   }, 60 * 1000);
 }
+
+// === Sales-goal auto-close cron =============================================
+// Lunch goals close at 18:00 IL of their shift_date.
+// Dinner goals close at 03:00 IL of (shift_date + 1 day).
+// Idempotent: only goals with status='active' or 'completed' are touched.
+export async function runSalesAutoClose() {
+  const now = new Date();
+  const goals: any[] = await (db as any).salesGoal.findMany({
+    where: { status: { in: ['active', 'completed'] } },
+  });
+  let closed = 0;
+  for (const g of goals) {
+    let closeTimeIso: string;
+    if (g.shift_type === 'lunch') {
+      closeTimeIso = `${g.shift_date}T18:00:00+03:00`;
+    } else {
+      const [y, m, d] = g.shift_date.split('-').map(Number);
+      const next = new Date(Date.UTC(y, m - 1, d + 1));
+      const nextStr = next.toISOString().slice(0, 10);
+      closeTimeIso = `${nextStr}T03:00:00+03:00`;
+    }
+    if (now.getTime() < new Date(closeTimeIso).getTime()) continue;
+    try {
+      // Use the same close logic as the manual endpoint
+      const events: any[] = await (db as any).saleEvent.findMany({
+        where: { goal_id: g.id, undone_at: null },
+      });
+      const perWaiter = new Map<string, { id: string; name: string; count: number }>();
+      for (const e of events) {
+        const cur = perWaiter.get(e.waiter_id) || { id: e.waiter_id, name: e.waiter_name, count: 0 };
+        cur.count++;
+        perWaiter.set(e.waiter_id, cur);
+      }
+      const ranked = [...perWaiter.values()].sort((a, b) => b.count - a.count);
+      await (db as any).salesGoal.update({
+        where: { id: g.id },
+        data: { status: 'closed', closed_at: now, closed_by_id: 'cron' },
+      });
+      if (ranked[0]) {
+        try {
+          await (db as any).employeeStory.create({
+            data: {
+              title: `👑 המוביל ב-${g.dish_label}`,
+              content: `${ranked[0].name} עם ${ranked[0].count} מכירות (${events.length} סה״כ ${g.dish_label})`,
+              author_id: 'cron',
+              author_name: 'מערכת',
+              published_at: now,
+            },
+          });
+        } catch (err: any) { console.warn('[salesAutoClose] story failed:', err?.message); }
+      }
+      closed++;
+    } catch (err: any) {
+      console.warn('[salesAutoClose] close failed for', g.id, err?.message);
+    }
+  }
+  return { scanned: goals.length, closed };
+}
+
+if (!(globalThis as any).__salesAutoCloseTimer) {
+  (globalThis as any).__salesAutoCloseTimer = setTimeout(function loop() {
+    void runSalesAutoClose()
+      .then(r => { if (r.closed > 0) console.log('[salesAutoClose]', JSON.stringify(r)); })
+      .catch(e => console.warn('[salesAutoClose] failed:', e?.message))
+      .finally(() => {
+        (globalThis as any).__salesAutoCloseTimer = setTimeout(loop, 30 * 60 * 1000);
+      });
+  }, 2 * 60 * 1000);
+}
