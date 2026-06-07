@@ -9430,6 +9430,28 @@ if (!(globalThis as any).__startupDriftRepair) {
       console.error('[startup] ensure BeecommSnapshot failed:', e?.message);
     }
     try {
+      await prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "GomileySnapshot" (
+        "id" TEXT PRIMARY KEY,
+        "restaurant_id" TEXT NOT NULL,
+        "captured_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "total_income" DOUBLE PRECISION,
+        "total_orders" INTEGER,
+        "new_orders" INTEGER,
+        "cancelled_orders" INTEGER,
+        "split_orders" INTEGER,
+        "cross_min_orders" INTEGER,
+        "cash_orders_count" INTEGER DEFAULT 0,
+        "cash_orders_amount" DOUBLE PRECISION DEFAULT 0,
+        "orders" JSONB,
+        "raw" JSONB,
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );`);
+      await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "GomileySnapshot_restaurant_captured_idx" ON "GomileySnapshot" ("restaurant_id", "captured_at");`);
+      console.log('[startup] GomileySnapshot table + index ensured');
+    } catch (e: any) {
+      console.error('[startup] ensure GomileySnapshot failed:', e?.message);
+    }
+    try {
       await prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "BeecommHistoricalDay" (
         "id" TEXT PRIMARY KEY,
         "pos_id" TEXT NOT NULL,
@@ -11842,4 +11864,265 @@ if (!(globalThis as any).__beecommSnapshotTimer) {
         (globalThis as any).__beecommSnapshotTimer = setTimeout(loop, 3 * 60 * 1000);
       });
   }, 60 * 1000);
+}
+
+// === Gomiley delivery aggregator integration ================================
+// Polls /system/pages/orders/ajax.php every 5 min and parses the DataTables
+// response — for each order row we extract id, guid, customer, source,
+// amount, timestamps from the HTML cells. Cash detection: by default any
+// order whose source is NOT a card-based platform (Wolt/Bolt/10bis/Mishloha/
+// PayBox/Cibus) is counted as cash. Owner says receipt actually carries the
+// 'מזומן' label — best detected per-order from the preview endpoint, which
+// we'll add in a follow-up pass.
+const GOMILEY_BASE = 'https://app.gomiley.com';
+const GOMILEY_RESTAURANT_ID = process.env.GOMILEY_RESTAURANT_ID || '1968';
+
+function gomileyCookieHeader(): string {
+  const phpSessId = process.env.GOMILEY_PHPSESSID || '';
+  const arena = process.env.GOMILEY_ARENA || '';
+  const deviceToken = process.env.GOMILEY_DEVICE_TOKEN || '';
+  const parts: string[] = ['user_language=he'];
+  if (phpSessId) parts.push(`PHPSESSID=${phpSessId}`);
+  if (arena) parts.push(`arena=${arena}`);
+  if (deviceToken) parts.push(`device_token=${deviceToken}`);
+  return parts.join('; ');
+}
+
+// Build the standard DataTables.net payload that Gomiley's ajax.php expects.
+// 15 columns, server-side processing, default sort by col 0 DESC, 30 rows.
+function gomileyDataTablesPayload(length = 30, start = 0): URLSearchParams {
+  const p = new URLSearchParams();
+  p.append('move', '');
+  p.append('moveorderid', '');
+  p.append('draw', '1');
+  for (let i = 0; i < 15; i++) {
+    p.append(`columns[${i}][data]`, String(i));
+    p.append(`columns[${i}][name]`, '');
+    p.append(`columns[${i}][searchable]`, 'true');
+    p.append(`columns[${i}][orderable]`, 'true');
+    p.append(`columns[${i}][search][value]`, '');
+    p.append(`columns[${i}][search][regex]`, 'false');
+  }
+  p.append('order[0][column]', '0');
+  p.append('order[0][dir]', 'DESC');
+  p.append('start', String(start));
+  p.append('length', String(length));
+  p.append('search[value]', '');
+  p.append('search[regex]', 'false');
+  return p;
+}
+
+// Strip HTML tags and decode common entities from a Gomiley cell.
+function stripHtml(s: string): string {
+  if (!s) return '';
+  return String(s)
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&#39;/g, "'")
+    .replace(/&quot;/g, '"')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+// Extract a `data-X="value"` attribute from a raw HTML string.
+function extractDataAttr(html: string, attr: string): string | null {
+  const m = String(html || '').match(new RegExp(`data-${attr}=['"]([^'"]+)['"]`));
+  return m ? m[1] : null;
+}
+
+// Sources that are typically credit-based (paid via app). Anything else gets
+// flagged as potential cash. The owner confirms cash is printed on the receipt
+// — we'll override per-order from preview in a follow-up if needed.
+const GOMILEY_CARD_SOURCES = new Set([
+  'wolt', 'bolt', '10bis', 'mishloha', 'paybox', 'cibus', 'tenbis', 'gett',
+  'goodi', 'goodybag', 'מתאבון',  // ironic but it's listed
+]);
+
+function isCardSource(source: string): boolean {
+  const s = (source || '').toLowerCase().trim();
+  for (const card of GOMILEY_CARD_SOURCES) {
+    if (s.includes(card.toLowerCase())) return true;
+  }
+  return false;
+}
+
+type GomileyOrder = {
+  id: string;
+  guid: string;
+  display_id: string;
+  package_no: string;
+  restaurant: string;
+  customer: string;
+  delivery_at: string;
+  source: string;
+  amount: number;
+  created_at: string;
+  status: string;
+  is_cash_guess: boolean;
+};
+
+function parseGomileyRow(row: string[]): GomileyOrder | null {
+  if (!Array.isArray(row) || row.length < 12) return null;
+  // Col 0 — checkbox with order ID inside value=''
+  const checkbox = row[0] || '';
+  const idMatch = checkbox.match(/value=['"](\d+)['"]/);
+  const id = idMatch ? idMatch[1] : '';
+  // GUID appears in many later cells via data-guid='...'
+  const guid = extractDataAttr(row.join(' '), 'guid') || '';
+  const display_id = stripHtml(row[1] || '');
+  const package_no = stripHtml(row[2] || '');
+  const restaurant = stripHtml(row[3] || '');
+  const customer = stripHtml(row[4] || '');
+  const delivery_at = stripHtml(row[9] || '');
+  const source = stripHtml(row[10] || '');
+  // Col 11 looks like '61.00₪' — strip ₪ and parse as number
+  const amountStr = stripHtml(row[11] || '').replace(/[^\d.]/g, '');
+  const amount = Number(amountStr) || 0;
+  const created_at = stripHtml(row[12] || '');
+  // Status — col 13 contains 'הודפסה' / 'ממתינה' / etc. Strip to text.
+  const status = stripHtml(row[13] || '').slice(0, 40);
+  return {
+    id,
+    guid,
+    display_id,
+    package_no,
+    restaurant,
+    customer,
+    delivery_at,
+    source,
+    amount,
+    created_at,
+    status,
+    is_cash_guess: !isCardSource(source),
+  };
+}
+
+export async function captureGomileySnapshot() {
+  const cookieHeader = gomileyCookieHeader();
+  if (!cookieHeader.includes('PHPSESSID')) {
+    return { ok: false, reason: 'missing GOMILEY_PHPSESSID env var' };
+  }
+  const url = `${GOMILEY_BASE}/system/pages/orders/ajax.php?move=&moveorderid=`;
+  const payload = gomileyDataTablesPayload(100, 0);
+  try {
+    const r = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Accept': 'application/json, text/javascript, */*; q=0.01',
+        'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+        'X-Requested-With': 'XMLHttpRequest',
+        'Cookie': cookieHeader,
+        'Referer': `${GOMILEY_BASE}/system/pages/orders/`,
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36',
+      },
+      body: payload.toString(),
+    });
+    if (!r.ok) {
+      const text = await r.text();
+      console.warn('[gomiley] fetch failed', r.status, text.slice(0, 200));
+      return { ok: false, reason: `http ${r.status}`, preview: text.slice(0, 200) };
+    }
+    const ct = r.headers.get('content-type') || '';
+    if (!ct.includes('json')) {
+      // Likely got redirected to login → session expired
+      const text = await r.text();
+      console.warn('[gomiley] non-json response — session probably expired');
+      return { ok: false, reason: 'session expired (got HTML, not JSON)', preview: text.slice(0, 200) };
+    }
+    const json: any = await r.json();
+    const rows: any[] = Array.isArray(json?.data) ? json.data : [];
+    const orders = rows.map(parseGomileyRow).filter((o): o is GomileyOrder => !!o);
+    const cashOrders = orders.filter(o => o.is_cash_guess);
+
+    // Parse '61.00₪' to number
+    const parseAmt = (s: string) => Number(String(s || '').replace(/[^\d.]/g, '')) || 0;
+
+    const snap = await (db as any).gomileySnapshot.create({
+      data: {
+        restaurant_id: GOMILEY_RESTAURANT_ID,
+        total_income: parseAmt(json?.total_income),
+        total_orders: Number(json?.total_orders) || 0,
+        new_orders: Number(json?.new_orders) || 0,
+        cancelled_orders: Number(json?.canceld_orders ?? json?.cancelled_orders) || 0,
+        split_orders: Number(json?.split_orders_amount) || 0,
+        cross_min_orders: Number(json?.cross_min_orders) || 0,
+        cash_orders_count: cashOrders.length,
+        cash_orders_amount: cashOrders.reduce((s, o) => s + o.amount, 0),
+        orders,
+        raw: json,
+      },
+    });
+    return {
+      ok: true,
+      snapshot_id: snap.id,
+      total_orders: snap.total_orders,
+      total_income: snap.total_income,
+      cash_orders_count: snap.cash_orders_count,
+      cash_orders_amount: snap.cash_orders_amount,
+    };
+  } catch (e: any) {
+    console.warn('[gomiley] capture failed:', e?.message);
+    return { ok: false, reason: e?.message };
+  }
+}
+
+registerFn('captureGomileySnapshot', async ({ user }) => {
+  if (!user) throw new Error('auth required');
+  return captureGomileySnapshot();
+});
+
+registerFn('getLatestGomileySnapshot', async ({ user }) => {
+  if (!user) throw new Error('auth required');
+  const latest: any = await (db as any).gomileySnapshot.findFirst({
+    orderBy: { captured_at: 'desc' },
+  });
+  if (!latest) return { snapshot: null };
+  return { snapshot: latest };
+});
+
+// Combined Beecomm + Gomiley summary for the dashboard's top-line tile.
+registerFn('getCombinedRevenueToday', async ({ user }) => {
+  if (!user) throw new Error('auth required');
+  const [bc, gm]: any[] = await Promise.all([
+    (db as any).beecommSnapshot.findFirst({ orderBy: { captured_at: 'desc' } }),
+    (db as any).gomileySnapshot.findFirst({ orderBy: { captured_at: 'desc' } }),
+  ]);
+  const beecomm_total = Number(bc?.total_today) || 0;
+  const beecomm_open_money = Number(bc?.open_money) || 0;
+  const gomiley_total = Number(gm?.total_income) || 0;
+  const gomiley_cash = Number(gm?.cash_orders_amount) || 0;
+  const gomiley_cash_count = Number(gm?.cash_orders_count) || 0;
+  const gomiley_orders = Number(gm?.total_orders) || 0;
+  return {
+    combined_total: beecomm_total + gomiley_total,
+    beecomm: { total: beecomm_total, open_money: beecomm_open_money },
+    gomiley: {
+      total: gomiley_total,
+      orders: gomiley_orders,
+      cash_count: gomiley_cash_count,
+      cash_amount: gomiley_cash,
+    },
+    // Approximate today's cash = Beecomm open money (cash in drawer) + Gomiley cash
+    cash_today_approx: beecomm_open_money + gomiley_cash,
+    last_beecomm_update: bc?.captured_at || null,
+    last_gomiley_update: gm?.captured_at || null,
+  };
+});
+
+// 5-min cron — first fire 75s after boot (after Beecomm's 60s).
+if (!(globalThis as any).__gomileySnapshotTimer) {
+  (globalThis as any).__gomileySnapshotTimer = setTimeout(function loop() {
+    captureGomileySnapshot()
+      .then(r => {
+        if (r.ok) console.log('[gomiley] snapshot captured', r.snapshot_id, 'orders=', r.total_orders);
+        else console.warn('[gomiley] capture not-ok:', r.reason);
+      })
+      .catch(e => console.warn('[gomiley] capture failed:', e?.message))
+      .finally(() => {
+        (globalThis as any).__gomileySnapshotTimer = setTimeout(loop, 5 * 60 * 1000);
+      });
+  }, 75 * 1000);
 }
