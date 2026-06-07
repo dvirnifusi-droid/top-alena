@@ -6,7 +6,7 @@
  */
 import { prisma } from '../db.js';
 import { registerFn, functionHandlers } from './index.js';
-import { sendSms, sendWhatsApp } from '../lib/twilio.js';
+import { sendSms, sendWhatsApp, sendWhatsAppTemplate } from '../lib/twilio.js';
 import { pushover, pushoverToAdmins, pushoverEventsOwners } from '../lib/pushover.js';
 import { fireTriggers } from '../lib/triggers.js';
 import { sendTelegramMessage } from '../lib/telegram.js';
@@ -3577,10 +3577,33 @@ registerFn('createPublicReservation', async ({ body }) => {
   sendSms(String(customer_phone).trim(), smsBody).catch((e) =>
     console.warn('[reservation] sms failed', e?.message)
   );
-  // WhatsApp (Twilio sandbox / approved number, if configured)
-  sendWhatsApp(String(customer_phone).trim(), smsBody).catch((e) =>
-    console.warn('[reservation] whatsapp failed', e?.message)
-  );
+  // WhatsApp — use the approved template (booking_confirmation_he, SID HX42...).
+  // Business-initiated requires a Meta-approved template; passing variables that
+  // match the {{1}}..{{6}} placeholders in the template body.
+  const waTemplateSid = process.env.TWILIO_WA_TEMPLATE_SID || 'HX42bd4ae96abaa7312aeeae1af997c3da';
+  if (!isStandby) {
+    sendWhatsAppTemplate(
+      String(customer_phone).trim(),
+      waTemplateSid,
+      {
+        '1': customer_name,
+        '2': dateStr,
+        '3': time,
+        '4': String(size),
+        '5': trackUrl,
+        '6': cancelLine,
+      },
+    ).catch((e) => {
+      console.warn('[reservation] whatsapp template failed, falling back to free-form', e?.message);
+      // Fallback to free-form (only works if customer pinged us in last 24h; otherwise quietly skipped)
+      sendWhatsApp(String(customer_phone).trim(), smsBody).catch(() => {});
+    });
+  } else {
+    // Standby has no approved template yet — try free-form as best-effort.
+    sendWhatsApp(String(customer_phone).trim(), smsBody).catch((e) =>
+      console.warn('[reservation] whatsapp standby failed', e?.message)
+    );
+  }
   // Email — best-effort if address provided
   if (customer_email) {
     const html = `
