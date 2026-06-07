@@ -86,12 +86,12 @@ export async function handleVoiceCommand(cmd) {
                         } catch { /* ignore */ }
                     }
                     if (r) await Reservation.update(r.id, { status: 'completed' });
-                    return { ok: true, message: `שולחן ${cmd.table} סומן כפנוי` };
+                    return { ok: true, message: `בוצע ✓ שולחן ${cmd.table} סומן כפנוי` };
                 }
                 if (!r) return { ok: false, message: `אין הזמנה פעילה על שולחן ${cmd.table}` };
                 await Reservation.update(r.id, { status: newStatus });
                 const fb = newStatus === 'seated' ? 'יושב' : newStatus === 'finishing_soon' ? 'סיום קרוב' : 'no-show';
-                return { ok: true, message: `שולחן ${cmd.table} ${fb}` };
+                return { ok: true, message: `בוצע ✓ שולחן ${cmd.table} ${fb}` };
             }
 
             // ---------- Flags ----------
@@ -106,7 +106,7 @@ export async function handleVoiceCommand(cmd) {
                 const FLAG_NAMES = { green: 'ירוק', red: 'אדום', orange: 'כתום', black: 'שחור' };
                 return {
                     ok: true,
-                    message: `שולחן ${cmd.table} ${cmd.flag ? 'דגל ' + (FLAG_NAMES[cmd.flag] || cmd.flag) : 'ללא דגל'}`,
+                    message: `בוצע ✓ שולחן ${cmd.table} ${cmd.flag ? 'דגל ' + (FLAG_NAMES[cmd.flag] || cmd.flag) : 'ללא דגל'}`,
                 };
             }
 
@@ -119,7 +119,7 @@ export async function handleVoiceCommand(cmd) {
                     status: 'pending',
                     timestamp_register: new Date().toISOString(),
                 });
-                return { ok: true, message: `${cmd.name}, ${cmd.party_size} איש, נוספו לתור` };
+                return { ok: true, message: `בוצע ✓ ${cmd.name}, ${cmd.party_size} איש, נוספו לתור` };
             }
             case 'queue_call': {
                 const entry = activeQueue.find(q => (q.customer_name || '').includes(cmd.name));
@@ -131,7 +131,7 @@ export async function handleVoiceCommand(cmd) {
                         title: '🔔 הגיע תורכם!',
                         message: '🔔 עלינא קוראת לכם! השולחן שלכם מוכן.',
                     }).catch(() => {});
-                    return { ok: true, message: `קראתי ל-${cmd.name}` };
+                    return { ok: true, message: `בוצע ✓ נקראה ${cmd.name}` };
                 } catch { return { ok: false, message: 'שגיאה בקריאה' }; }
             }
             case 'queue_arrived': {
@@ -141,7 +141,7 @@ export async function handleVoiceCommand(cmd) {
                     status: 'active',
                     timestamp_approved: new Date().toISOString(),
                 });
-                return { ok: true, message: `${cmd.name} אושרה` };
+                return { ok: true, message: `בוצע ✓ ${cmd.name} אושרה` };
             }
             case 'queue_abandoned': {
                 const entry = activeQueue.find(q => (q.customer_name || '').includes(cmd.name));
@@ -150,7 +150,7 @@ export async function handleVoiceCommand(cmd) {
                     status: 'abandoned',
                     timestamp_end: new Date().toISOString(),
                 });
-                return { ok: true, message: `${cmd.name} נטוש` };
+                return { ok: true, message: `בוצע ✓ ${cmd.name} סומן כנטוש` };
             }
 
             // ---------- Seating ----------
@@ -176,7 +176,7 @@ export async function handleVoiceCommand(cmd) {
                         table_style: 'couple',
                     });
                 } catch { /* ignore */ }
-                return { ok: true, message: `${cmd.name} ישוב על ${tableIds.join(' ו-')}` };
+                return { ok: true, message: `בוצע ✓ ${cmd.name} ישוב על ${tableIds.join(' ו-')}` };
             }
             case 'seat_next_queue': {
                 if (activeQueue.length === 0) return { ok: false, message: 'אין אף אחד בתור' };
@@ -193,7 +193,7 @@ export async function handleVoiceCommand(cmd) {
                     waiter_id: 'manager_seated',
                     table_style: 'couple',
                 });
-                return { ok: true, message: `${next.customer_name} ישוב על שולחן ${cmd.table}` };
+                return { ok: true, message: `בוצע ✓ ${next.customer_name} ישוב על שולחן ${cmd.table}` };
             }
 
             // ---------- Communication ----------
@@ -202,11 +202,180 @@ export async function handleVoiceCommand(cmd) {
                     (r.customer_name || '').includes(cmd.name) && (r.status || 'pending') === 'confirmed'
                 );
                 if (!r) return { ok: false, message: `${cmd.name} לא נמצא` };
-                return { ok: true, message: `נשלח אישור ל-${cmd.name}` };
+                return { ok: true, message: `בוצע ✓ נשלח אישור ל-${cmd.name}` };
+            }
+            case 'send_reminder': {
+                const r = reservations.find(r => (r.customer_name || '').includes(cmd.name));
+                if (!r) return { ok: false, message: `${cmd.name} לא נמצא` };
+                return { ok: true, message: `בוצע ✓ נשלחה תזכורת ל-${cmd.name}` };
+            }
+
+            // ---------- Walk-in (no reservation, customer just here) ----------
+            case 'seat_walkin': {
+                await TableSession.create({
+                    table_number: String(cmd.table),
+                    party_size: Number(cmd.party_size) || 2,
+                    customer_name: 'הולך חופשי',
+                    customer_phone: '',
+                    session_start: new Date().toISOString(),
+                    status: 'active',
+                    waiter_name: 'מנהל',
+                    waiter_id: 'manager_seated',
+                    table_style: 'couple',
+                });
+                return { ok: true, message: `בוצע ✓ ${cmd.party_size} אנשים יושבו על שולחן ${cmd.table}` };
+            }
+
+            // ---------- Reservation management ----------
+            case 'reservation_add': {
+                // Resolve date
+                const today = new Date();
+                let bookingDate;
+                if (cmd.when === 'מחר') {
+                    const d = new Date(today); d.setDate(d.getDate() + 1);
+                    bookingDate = d.toISOString().slice(0, 10);
+                } else if (cmd.when === 'מחרתיים') {
+                    const d = new Date(today); d.setDate(d.getDate() + 2);
+                    bookingDate = d.toISOString().slice(0, 10);
+                } else {
+                    bookingDate = today.toISOString().slice(0, 10);
+                }
+                try {
+                    await Reservation.create({
+                        customer_name: cmd.name,
+                        date: bookingDate,
+                        time: cmd.time,
+                        party_size: Number(cmd.party_size),
+                        status: 'confirmed',
+                        customer_phone: '',
+                    });
+                    return { ok: true, message: `בוצע ✓ הזמנה ל-${cmd.name} ב-${cmd.time} נוצרה` };
+                } catch (e) {
+                    return { ok: false, message: 'שגיאה ביצירת ההזמנה' };
+                }
+            }
+            case 'reservation_cancel': {
+                const r = reservations.find(r =>
+                    (r.customer_name || '').includes(cmd.name) &&
+                    !['cancelled', 'completed', 'no_show'].includes(r.status || 'pending')
+                );
+                if (!r) return { ok: false, message: `${cmd.name} לא נמצא בהזמנות` };
+                await Reservation.update(r.id, {
+                    status: 'cancelled',
+                    cancelled_at: new Date().toISOString(),
+                    cancellation_reason: 'voice command',
+                });
+                return { ok: true, message: `בוצע ✓ ההזמנה של ${cmd.name} בוטלה` };
+            }
+            case 'reservation_confirm': {
+                const r = reservations.find(r =>
+                    (r.customer_name || '').includes(cmd.name) && (r.status || 'pending') === 'pending'
+                );
+                if (!r) return { ok: false, message: `${cmd.name} לא בסטטוס ממתין` };
+                await Reservation.update(r.id, { status: 'confirmed' });
+                return { ok: true, message: `בוצע ✓ ההזמנה של ${cmd.name} אושרה` };
+            }
+
+            // ---------- Session extensions ----------
+            case 'session_extend': {
+                const r = reservations.find(r =>
+                    Array.isArray(r.assigned_table) &&
+                    r.assigned_table.map(String).includes(String(cmd.table)) &&
+                    r.status === 'seated' && r.reservation_end_time
+                );
+                if (!r) return { ok: false, message: `אין סשן פעיל על שולחן ${cmd.table}` };
+                // Extend end_time
+                const [h, m] = r.reservation_end_time.split(':').map(Number);
+                const minTotal = h * 60 + (m || 0) + Number(cmd.minutes || 0);
+                const newH = Math.floor(minTotal / 60) % 24;
+                const newM = minTotal % 60;
+                const newEnd = `${String(newH).padStart(2, '0')}:${String(newM).padStart(2, '0')}`;
+                await Reservation.update(r.id, { reservation_end_time: newEnd });
+                return { ok: true, message: `בוצע ✓ שולחן ${cmd.table} הוארך ב-${cmd.minutes} דקות עד ${newEnd}` };
+            }
+
+            // ---------- Move session between tables ----------
+            case 'session_move': {
+                const session = activeSessions.find(s =>
+                    String(s.table_number || '').split(/[,+]/).map(p => p.trim()).includes(String(cmd.from))
+                );
+                if (!session) return { ok: false, message: `אין סשן פעיל על שולחן ${cmd.from}` };
+                await TableSession.update(session.id, { table_number: String(cmd.to) });
+                const r = reservations.find(r =>
+                    Array.isArray(r.assigned_table) &&
+                    r.assigned_table.map(String).includes(String(cmd.from))
+                );
+                if (r) await Reservation.update(r.id, { assigned_table: [String(cmd.to)] });
+                return { ok: true, message: `בוצע ✓ שולחן ${cmd.from} הועבר ל-${cmd.to}` };
+            }
+
+            // ---------- Stats queries ----------
+            case 'q_today_reservations': {
+                const valid = reservations.filter(r => !['cancelled', 'no_show'].includes(r.status || 'pending'));
+                return { ok: true, message: `${valid.length} הזמנות היום` };
+            }
+            case 'q_tomorrow_reservations': {
+                const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1);
+                const tomorrowStr = tomorrow.toISOString().slice(0, 10);
+                try {
+                    const tomorrowRes = await Reservation.filter({ date: tomorrowStr }, 'time');
+                    const valid = (tomorrowRes || []).filter(r => !['cancelled', 'no_show'].includes(r.status || 'pending'));
+                    return { ok: true, message: `${valid.length} הזמנות מחר` };
+                } catch { return { ok: false, message: 'לא הצלחתי לבדוק מחר' }; }
+            }
+            case 'q_today_guests': {
+                const valid = reservations.filter(r => !['cancelled', 'no_show'].includes(r.status || 'pending'));
+                const guests = valid.reduce((s, r) => s + (Number(r.party_size) || 0), 0);
+                return { ok: true, message: `${guests} אורחים היום` };
+            }
+            case 'q_today_revenue': {
+                const seated = reservations.filter(r => ['seated', 'completed'].includes(r.status));
+                const guests = seated.reduce((s, r) => s + (Number(r.party_size) || 0), 0);
+                const revenue = guests * 220;
+                return { ok: true, message: `הכנסה משוערת מ-${guests} סועדים, ${revenue} שקלים` };
+            }
+            case 'q_status_summary': {
+                const valid = reservations.filter(r => !['cancelled', 'no_show'].includes(r.status || 'pending'));
+                const seatedNow = reservations.filter(r => r.status === 'seated').length;
+                const queueLen = activeQueue.length;
+                return { ok: true, message: `${seatedNow} שולחנות פעילים, ${valid.length} הזמנות היום, ${queueLen} בתור` };
+            }
+            case 'q_on_shift': {
+                try {
+                    const today = new Date().toISOString().slice(0, 10);
+                    const shifts = await base44.entities.WorkShift.filter({ date: today });
+                    const allStaff = (shifts || []).flatMap(s => s.assigned_staff || []);
+                    if (allStaff.length === 0) return { ok: true, message: 'אין משובצים היום' };
+                    const names = [...new Set(allStaff.map(s => s.employee_name).filter(Boolean))];
+                    return { ok: true, message: `${names.length} עובדים: ${names.slice(0, 5).join(', ')}` };
+                } catch { return { ok: false, message: 'לא הצלחתי לבדוק' }; }
+            }
+
+            // ---------- Navigation ----------
+            case 'nav_open': {
+                const TARGETS = {
+                    settings_deposit: '/DepositSettings',
+                    settings_reservation: '/PublicReservationSettings',
+                    settings_general: '/LocationSettings',
+                    work_scheduling: '/WorkScheduling',
+                    dashboard: '/Dashboard',
+                    seating: '/SeatingSetup',
+                    queue: '/QueueDashboard',
+                    events: '/EventsPrivate',
+                };
+                const path = TARGETS[cmd.target];
+                if (!path) return { ok: false, message: 'לא ידוע איזה עמוד לפתוח' };
+                window.location.href = path;
+                return { ok: true, message: `פותח...` };
+            }
+
+            // ---------- Help ----------
+            case 'help': {
+                return { ok: true, message: 'דברים שאני מבין: לפתוח עמודים, להוסיף הזמנות, לעדכן שולחנות, לקרוא לאנשים בתור. תיכנס לעמוד בדיקת פקודות לראות הכל.' };
             }
 
             default:
-                return { ok: false, message: 'פקודה לא מוכרת' };
+                return { ok: false, message: 'פקודה לא מוכרת: ' + cmd.intent };
         }
     } catch (e) {
         console.error('[voice] handler failed', e);

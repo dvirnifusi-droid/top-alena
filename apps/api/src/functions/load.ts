@@ -9727,42 +9727,47 @@ if (!(globalThis as any).__shiftEndReminderTimer) {
 const VOICE_INTENT_LIST = `
 INTENTS (return the JSON exactly — no markdown, no prose):
 
-table_free        — שולחן התפנה / סיים
-  params: { table: "מספר השולחן" }
-table_finishing   — שולחן בקינוח / חשבון / סיום קרוב
-  params: { table }
-table_seated      — לקוחות יושב על שולחן
-  params: { table }
-table_no_show     — שולחן הבריז / לא הגיעו
-  params: { table }
+TABLE STATUS:
+table_free   — שולחן התפנה / סיים / נגמר / לסמן כפנוי. params: { table }
+table_finishing — שולחן בקינוח / חשבון / סיום קרוב. params: { table }
+table_seated — לקוחות יושב על שולחן. params: { table }
+table_no_show — שולחן הבריז / לא הגיעו. params: { table }
 
-table_flag        — דגל על שולחן
-  params: { table, flag: "green"|"red"|"orange"|"black"|"" }
-  (green=ירוק/VIP, red=אדום/בעיה, orange=כתום, black=שחור, ""=הסר דגל)
+FLAGS:
+table_flag — דגל על שולחן. params: { table, flag: "green"|"red"|"orange"|"black"|"" }
 
-queue_add         — להוסיף ל תור
-  params: { name, party_size: number, pref: "inside"|"outside"|"no_preference" }
-queue_call        — לקרוא ללקוח שבתור
-  params: { name }
-queue_arrived     — לקוח הגיע / לאשר תור
-  params: { name }
-queue_abandoned   — לקוח עזב / לסמן כנטוש
-  params: { name }
+QUEUE:
+queue_add — להוסיף לתור. params: { name, party_size, pref: "inside"|"outside"|"no_preference" }
+queue_call — לקרוא ללקוח שבתור. params: { name }
+queue_arrived — לקוח הגיע. params: { name }
+queue_abandoned — לקוח עזב/נטש. params: { name }
 
-seat_reservation  — להושיב הזמנה על שולחן
-  params: { name, table } OR { name, tables: ["10","11"] }
-seat_next_queue   — להושיב את הראשון בתור על שולחן
-  params: { table }
+SEATING:
+seat_walkin — להושיב לקוח חופשי בלי הזמנה. params: { party_size, table }
+seat_reservation — להושיב הזמנה. params: { name, table } OR { name, tables: ["10","11"] }
+seat_next_queue — להושיב את הבא בתור. params: { table }
 
-q_next_in_queue   — מי הבא בתור (שאלה)
-q_next_reservation— מי ההזמנה הבאה (שאלה)
-q_queue_count     — כמה בתור (שאלה)
-q_free_tables     — כמה שולחנות פנויים (שאלה)
-q_who_on_table    — מי על שולחן מסוים (שאלה)
-  params: { table }
+RESERVATIONS:
+reservation_add — ליצור הזמנה. params: { name, party_size, time: "HH:MM", when: "היום"|"מחר"|"מחרתיים" }
+reservation_cancel — לבטל הזמנה. params: { name }
+reservation_confirm — לאשר הזמנה ממתינה. params: { name }
 
-resend_confirmation — שלח שוב SMS אישור
-  params: { name }
+SESSIONS:
+session_extend — להאריך שולחן. params: { table, minutes }
+session_move — להעביר שולחן. params: { from, to }
+
+QUESTIONS (read out):
+q_next_in_queue, q_next_reservation, q_queue_count, q_free_tables, q_today_reservations, q_tomorrow_reservations, q_today_guests, q_today_revenue, q_status_summary, q_on_shift
+q_who_on_table — params: { table }
+
+COMMS:
+resend_confirmation, send_reminder — params: { name }
+
+NAVIGATION:
+nav_open — params: { target: "dashboard"|"seating"|"queue"|"events"|"work_scheduling"|"settings_deposit"|"settings_reservation" }
+
+HELP:
+help — להציג רשימת פקודות.
 
 unknown — אם באמת אי אפשר להבין.
 `;
@@ -9803,6 +9808,12 @@ ${VOICE_INTENT_LIST}
           pref: { type: 'string' },
           flag: { type: 'string' },
           tables: { type: 'array', items: { type: 'string' } },
+          time: { type: 'string' },
+          when: { type: 'string' },
+          minutes: { type: 'number' },
+          from: { type: 'string' },
+          to: { type: 'string' },
+          target: { type: 'string' },
         },
         required: ['intent'],
       },

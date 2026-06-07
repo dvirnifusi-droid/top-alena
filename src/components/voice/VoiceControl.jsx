@@ -1,105 +1,12 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Mic, MicOff, X } from 'lucide-react';
 import { handleVoiceCommand as globalHandler } from './handleVoiceCommand';
+import { parseIntent } from './voiceIntents';
 
 // === Hebrew number normalization =============================================
 // People say numbers in many ways: "מאה ועשרים", "120", "שולחן מאה". We map
 // the common forms to digits so '#100' parses identically whether spoken as
 // numeral or word.
-const HEB_NUMBERS = {
-    'אפס': 0, 'אחד': 1, 'אחת': 1, 'שניים': 2, 'שתיים': 2, 'שני': 2, 'שלוש': 3, 'שלושה': 3,
-    'ארבע': 4, 'ארבעה': 4, 'חמש': 5, 'חמישה': 5, 'שש': 6, 'שישה': 6, 'שבע': 7, 'שבעה': 7,
-    'שמונה': 8, 'תשע': 9, 'תשעה': 9, 'עשר': 10, 'עשרה': 10,
-    'אחד עשרה': 11, 'אחת עשרה': 11, 'שתים עשרה': 12, 'שלוש עשרה': 13, 'ארבע עשרה': 14,
-    'חמש עשרה': 15, 'שש עשרה': 16, 'שבע עשרה': 17, 'שמונה עשרה': 18, 'תשע עשרה': 19,
-    'עשרים': 20, 'שלושים': 30, 'ארבעים': 40, 'חמישים': 50, 'שישים': 60, 'שבעים': 70,
-    'שמונים': 80, 'תשעים': 90, 'מאה': 100, 'מאתיים': 200, 'שלוש מאות': 300,
-};
-
-function normalizeHebrewNumbers(text) {
-    let out = text;
-    // Word numbers → digits (longest first so 'אחד עשרה' isn't broken into '1 10')
-    const entries = Object.entries(HEB_NUMBERS).sort((a, b) => b[0].length - a[0].length);
-    for (const [word, digit] of entries) {
-        out = out.replace(new RegExp(`(^|\\s)${word}(\\s|$)`, 'g'), `$1${digit}$2`);
-    }
-    // 'מאה ועשרים' → '120' (compound numbers)
-    out = out.replace(/(\d+)\s+ו(\d+)/g, (_, a, b) => String(Number(a) + Number(b)));
-    return out;
-}
-
-// Strip punctuation that Web Speech API adds, collapse all whitespace, trim.
-// The matchers don't care about '?', ',', '.' — but the regex anchors do.
-function cleanForMatch(text) {
-    return String(text || '')
-        .replace(/[?!.,،؟]/g, '') // common punctuation including Arabic question mark
-        .replace(/\s+/g, ' ')
-        .trim();
-}
-
-// === Intent matchers — order matters (most specific first) ===================
-// Each returns { intent, ...params } or null.
-const MATCHERS = [
-    // Q&A — read out info. Patterns are lenient: no ^ anchor where unneeded, allow synonyms.
-    { re: /(מי|מיהו|מיהי)\s+(הבא|הבאה)\s+(בתור|לתור)/, intent: 'q_next_in_queue' },
-    { re: /^(מי|מיהו|מיהי)\s+הבא/, intent: 'q_next_in_queue' },
-    { re: /(מי|מיהי)\s+ההזמנה\s+הבאה/, intent: 'q_next_reservation' },
-    { re: /ההזמנה\s+הבאה/, intent: 'q_next_reservation' },
-    { re: /כמה\s+(אנשים|חבורות|לקוחות)?\s*(יש)?\s*בתור/, intent: 'q_queue_count' },
-    { re: /^בתור\s+(יש)?/, intent: 'q_queue_count' },
-    { re: /כמה\s+(מקומות|שולחנות)\s+פנויים/, intent: 'q_free_tables' },
-    { re: /(מי|מיהו)\s+(על|יושב\s+על|נמצא\s+על)\s+שולחן\s+(\d+)/, intent: 'q_who_on_table', extract: m => ({ table: m[3] }) },
-
-    // Seat assignment
-    { re: /^תושיב(י)?\s+את\s+(.+?)\s+על\s+(?:שולחן\s+)?(\d+)\s+ו(?:על\s+)?(\d+)/,
-        intent: 'seat_reservation_multi', extract: m => ({ name: m[2].trim(), tables: [m[3], m[4]] }) },
-    { re: /^תושיב(י)?\s+את\s+(.+?)\s+על\s+(?:שולחן\s+)?(\d+)/,
-        intent: 'seat_reservation', extract: m => ({ name: m[2].trim(), table: m[3] }) },
-    { re: /^תקבל(י)?\s+את\s+הבא\s+(?:בתור\s+)?על\s+(?:שולחן\s+)?(\d+)/,
-        intent: 'seat_next_queue', extract: m => ({ table: m[2] }) },
-
-    // Queue add
-    { re: /^תוסיף(י)?\s+לתור\s+(\d+)\s+(חוץ|פנים)\s+על\s+שם\s+(.+)$/,
-        intent: 'queue_add', extract: m => ({ party_size: Number(m[2]), pref: m[3] === 'חוץ' ? 'outside' : 'inside', name: m[4].trim() }) },
-    { re: /^תוסיף(י)?\s+לתור\s+(\d+)\s+על\s+שם\s+(.+)$/,
-        intent: 'queue_add', extract: m => ({ party_size: Number(m[2]), pref: 'no_preference', name: m[3].trim() }) },
-
-    // Queue interactions
-    { re: /^תקרא(י)?\s+ל(.+)$/, intent: 'queue_call', extract: m => ({ name: m[2].trim() }) },
-    { re: /^(.+?)\s+(בא|הגיע|הגיעה)$/, intent: 'queue_arrived', extract: m => ({ name: m[1].trim() }) },
-    { re: /^(.+?)\s+(עזב|עזבה|נטוש|נטושה)$/, intent: 'queue_abandoned', extract: m => ({ name: m[1].trim() }) },
-
-    // Table status
-    { re: /שולחן\s+(\d+)\s+(פנוי|התפנה|פנויה)/, intent: 'table_free', extract: m => ({ table: m[1] }) },
-    { re: /שולחן\s+(\d+)\s+(קינוח|חשבון|סיום|סיום\s+קרוב)/, intent: 'table_finishing', extract: m => ({ table: m[1] }) },
-    { re: /שולחן\s+(\d+)\s+(יושב|יושבים|התיישבו|התיישב)/, intent: 'table_seated', extract: m => ({ table: m[1] }) },
-    { re: /שולחן\s+(\d+)\s+(הבריז|הבריזו|לא\s+הגיע|לא\s+הגיעו)/, intent: 'table_no_show', extract: m => ({ table: m[1] }) },
-
-    // Flags
-    { re: /שולחן\s+(\d+)\s+(ירוק|VIP|וי\s*איי\s*פי)/, intent: 'table_flag', extract: m => ({ table: m[1], flag: 'green' }) },
-    { re: /שולחן\s+(\d+)\s+(אדום|בעיה)/, intent: 'table_flag', extract: m => ({ table: m[1], flag: 'red' }) },
-    { re: /שולחן\s+(\d+)\s+כתום/, intent: 'table_flag', extract: m => ({ table: m[1], flag: 'orange' }) },
-    { re: /שולחן\s+(\d+)\s+שחור/, intent: 'table_flag', extract: m => ({ table: m[1], flag: 'black' }) },
-    { re: /שולחן\s+(\d+)\s+(ללא\s+דגל|בלי\s+דגל|נקה\s+דגל)/, intent: 'table_flag', extract: m => ({ table: m[1], flag: '' }) },
-
-    // Communication
-    { re: /^תשלח(י)?\s+ל(.+?)\s+אישור/, intent: 'resend_confirmation', extract: m => ({ name: m[2].trim() }) },
-];
-
-function parseIntent(text) {
-    const clean = normalizeHebrewNumbers(cleanForMatch(text));
-    // Log so we can debug WHY a command didn't match.
-    try { console.log('[voice] parsing:', JSON.stringify(text), '→', JSON.stringify(clean)); } catch {}
-    for (const m of MATCHERS) {
-        const match = clean.match(m.re);
-        if (match) {
-            const extracted = m.extract ? m.extract(match) : {};
-            return { intent: m.intent, raw: clean, ...extracted };
-        }
-    }
-    return { intent: 'unknown', raw: clean };
-}
-
 // === Speech synthesis — speaks the reply back via the device's TTS ============
 function speak(text) {
     try {
