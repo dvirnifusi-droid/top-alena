@@ -23,6 +23,8 @@ export default function BeecommLive() {
     const [history, setHistory] = useState([]);
     const [range, setRange] = useState(7);
     const [breakdown, setBreakdown] = useState(null);
+    const [backfilling, setBackfilling] = useState(false);
+    const [backfillMsg, setBackfillMsg] = useState(null);
 
     const load = async () => {
         try {
@@ -40,6 +42,26 @@ export default function BeecommLive() {
     };
 
     useEffect(() => { loadBreakdown(range); }, [range]);
+
+    const runBackfill = async (days) => {
+        setBackfilling(true);
+        setBackfillMsg(null);
+        try {
+            const res = await base44.functions.backfillBeecommHistory({ days });
+            const r = res?.data ?? res;
+            if (r?.ok === false) {
+                setBackfillMsg('❌ ' + (r.reason || 'נכשל'));
+            } else {
+                setBackfillMsg(`✅ הוטענו ${r.fetched} ימים (${r.skipped} כבר קיימים, ${r.failed} נכשלו). מ-${r.oldest} עד ${r.latest}`);
+                await loadBreakdown(range);
+                await load();
+            }
+        } catch (e) {
+            setBackfillMsg('❌ שגיאת רשת: ' + (e?.message || e));
+        } finally {
+            setBackfilling(false);
+        }
+    };
 
     useEffect(() => {
         load();
@@ -102,6 +124,25 @@ export default function BeecommLive() {
                 </Card>
             )}
 
+            <Card className="mb-4 bg-emerald-50 border-emerald-200">
+                <CardContent className="p-4">
+                    <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
+                        <div>
+                            <h3 className="font-bold">📥 הטעת היסטוריה</h3>
+                            <p className="text-xs text-gray-600">משוך מ-Beecomm את כל המכירות, מנות, מלצרים פר יום אחורה</p>
+                        </div>
+                        <div className="flex gap-1 flex-wrap">
+                            <Button size="sm" variant="outline" disabled={backfilling} onClick={() => runBackfill(7)}>שבוע</Button>
+                            <Button size="sm" variant="outline" disabled={backfilling} onClick={() => runBackfill(30)}>חודש</Button>
+                            <Button size="sm" variant="outline" disabled={backfilling} onClick={() => runBackfill(90)}>3 חודשים</Button>
+                            <Button size="sm" disabled={backfilling} onClick={() => runBackfill(180)}>6 חודשים</Button>
+                        </div>
+                    </div>
+                    {backfilling && <p className="text-xs text-blue-600 mt-1">⏳ מושך... זה לוקח כ-300ms פר יום (חודש = ~10 שניות)</p>}
+                    {backfillMsg && <p className="text-xs mt-1">{backfillMsg}</p>}
+                </CardContent>
+            </Card>
+
             <Card className="mb-4">
                 <CardContent className="p-4">
                     <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
@@ -124,8 +165,21 @@ export default function BeecommLive() {
                     {breakdown && (
                         <>
                             <div className="text-xs text-gray-500 mb-3">
-                                {breakdown.days_covered} ימים · סה״כ {fmtIls(breakdown.totals?.sum)} · {breakdown.totals?.diners || 0} סועדים · 💰 {fmtIls(breakdown.totals?.tips)}
+                                {breakdown.days_covered} ימים ({breakdown.days_historical || 0} היסטוריים, {breakdown.days_live || 0} חי) · סה״כ {fmtIls(breakdown.totals?.sum)} · {breakdown.totals?.diners || 0} סועדים · 💰 {fmtIls(breakdown.totals?.tips)}
                             </div>
+                            {Array.isArray(breakdown.categories) && breakdown.categories.length > 0 && (
+                                <div className="bg-purple-50 rounded-lg p-3 mb-3">
+                                    <p className="text-xs font-bold mb-2">📂 קטגוריות מובילות</p>
+                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-1 text-xs">
+                                        {breakdown.categories.slice(0, 8).map((c, i) => (
+                                            <div key={i} className="flex justify-between bg-white px-2 py-1 rounded">
+                                                <span className="font-bold truncate">{c.name}</span>
+                                                <span className="text-gray-600 flex-shrink-0">{fmtIls(c.sum)}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                                 <div className="bg-blue-50 rounded-lg p-3">
                                     <p className="text-xs font-bold mb-2">🏆 מלצרים מובילים</p>

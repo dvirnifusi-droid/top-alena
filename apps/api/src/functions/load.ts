@@ -9435,6 +9435,37 @@ if (!(globalThis as any).__startupDriftRepair) {
       console.error('[startup] ensure BeecommSnapshot failed:', e?.message);
     }
     try {
+      await prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "BeecommHistoricalDay" (
+        "id" TEXT PRIMARY KEY,
+        "pos_id" TEXT NOT NULL,
+        "date" TEXT NOT NULL,
+        "z_numbers" JSONB NOT NULL,
+        "net_total" DOUBLE PRECISION,
+        "gross_total" DOUBLE PRECISION,
+        "total_tips" DOUBLE PRECISION,
+        "diners" INTEGER,
+        "orders_count" INTEGER,
+        "workers" JSONB,
+        "payments" JSONB,
+        "top_dishes" JSONB,
+        "category_totals" JSONB,
+        "stations" JSONB,
+        "dine_in" JSONB,
+        "takeaway" JSONB,
+        "delivery" JSONB,
+        "harigot" JSONB,
+        "raw_z_summary" JSONB,
+        "raw_dishes" JSONB,
+        "fetched_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );`);
+      await prisma.$executeRawUnsafe(`CREATE UNIQUE INDEX IF NOT EXISTS "BeecommHistoricalDay_pos_date_unique" ON "BeecommHistoricalDay" ("pos_id", "date");`);
+      await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "BeecommHistoricalDay_date_idx" ON "BeecommHistoricalDay" ("date");`);
+      console.log('[startup] BeecommHistoricalDay table + indexes ensured');
+    } catch (e: any) {
+      console.error('[startup] ensure BeecommHistoricalDay failed:', e?.message);
+    }
+    try {
       await prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "SalesGoalTemplate" (
         "id" TEXT PRIMARY KEY,
         "name" TEXT NOT NULL,
@@ -11170,40 +11201,83 @@ registerFn('captureBeecommSnapshot', async ({ user }) => {
 registerFn('getBeecommRangeBreakdown', async ({ body, user }) => {
   if (!user) throw new Error('auth required');
   const b = (body || {}) as any;
-  const days = Math.min(90, Math.max(1, Number(b.days) || 7));
+  const days = Math.min(180, Math.max(1, Number(b.days) || 7));
   const now = new Date();
   const since = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
-  const all: any[] = await (db as any).beecommSnapshot.findMany({
-    where: { captured_at: { gte: since } },
-    orderBy: { captured_at: 'asc' },
-  });
-  // Group by IL calendar date, keep latest of day (≈ max-total)
+  const sinceStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jerusalem' }).format(since);
+  const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jerusalem' }).format(now);
+
+  // Pull from BOTH sources:
+  // 1. BeecommHistoricalDay = backfilled closed days (most accurate)
+  // 2. BeecommSnapshot = live capture of today + any day we don't have history for
+  const [historicalRows, liveRows]: any[] = await Promise.all([
+    (db as any).beecommHistoricalDay.findMany({
+      where: { date: { gte: sinceStr, lte: todayStr } },
+      orderBy: { date: 'asc' },
+    }),
+    (db as any).beecommSnapshot.findMany({
+      where: { captured_at: { gte: since } },
+      orderBy: { captured_at: 'asc' },
+    }),
+  ]);
+
+  // Index historical by date so we can prefer it
+  const histByDate = new Map<string, any>();
+  for (const h of historicalRows) histByDate.set(h.date, h);
+
+  // For each snapshot, fall back to it only if no historical exists for that day
   const byDay = new Map<string, any>();
-  for (const s of all) {
-    const d = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jerusalem' }).format(s.captured_at);
-    const prev = byDay.get(d);
-    if (!prev || Number(s.total_today) >= Number(prev.total_today)) byDay.set(d, s);
+  for (const date of histByDate.keys()) {
+    const h = histByDate.get(date);
+    byDay.set(date, {
+      source: 'historical',
+      total: Number(h.net_total) || 0,
+      tips: Number(h.total_tips) || 0,
+      diners: Number(h.diners) || 0,
+      workers: h.workers || [],
+      stations: h.stations || [],
+      top_dishes: h.top_dishes || [],
+      category_totals: h.category_totals || [],
+    });
   }
+  for (const s of liveRows) {
+    const d = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jerusalem' }).format(s.captured_at);
+    if (byDay.has(d) && byDay.get(d).source === 'historical') continue;
+    const cur = byDay.get(d);
+    if (cur && Number(cur.total) >= Number(s.total_today)) continue;
+    byDay.set(d, {
+      source: 'snapshot',
+      total: Number(s.total_today) || 0,
+      tips: Number(s.total_tips) || 0,
+      diners: 0,
+      workers: s.workers || [],
+      stations: s.stations || [],
+      top_dishes: s.top_dishes || [],
+      category_totals: [],
+    });
+  }
+
   // Aggregate
   const waiterTotals = new Map<string, { name: string; sum: number; tips: number; diners: number; days: number }>();
   const stationTotals = new Map<string, { name: string; sum: number; tips: number; days: number }>();
-  const dishTotals = new Map<string, { name: string; categoryName: string; quantity: number; sum: number; days: number }>();
+  const dishTotals = new Map<string, { name: string; categoryName: string; quantity: number; sum: number }>();
+  const categoryTotals = new Map<string, { name: string; sum: number; quantity: number }>();
   let totalSum = 0, totalTips = 0, totalDiners = 0;
 
-  for (const snap of byDay.values()) {
-    totalSum += Number(snap.total_today) || 0;
-    totalTips += Number(snap.total_tips) || 0;
-    for (const w of (snap.workers || [])) {
+  for (const day of byDay.values()) {
+    totalSum += day.total;
+    totalTips += day.tips;
+    totalDiners += day.diners;
+    for (const w of (day.workers || [])) {
       const key = String(w.workerId || w.name || '?');
       const e = waiterTotals.get(key) || { name: w.name || key, sum: 0, tips: 0, diners: 0, days: 0 };
       e.sum += Number(w.sum) || 0;
       e.tips += Number(w.tips) || 0;
       e.diners += Number(w.diners) || 0;
       e.days += 1;
-      totalDiners += Number(w.diners) || 0;
       waiterTotals.set(key, e);
     }
-    for (const st of (snap.stations || [])) {
+    for (const st of (day.stations || [])) {
       const key = String(st.stationName || '?');
       const e = stationTotals.get(key) || { name: key, sum: 0, tips: 0, days: 0 };
       e.sum += Number(st.sum) || 0;
@@ -11211,23 +11285,32 @@ registerFn('getBeecommRangeBreakdown', async ({ body, user }) => {
       e.days += 1;
       stationTotals.set(key, e);
     }
-    for (const d of (snap.top_dishes || [])) {
+    for (const d of (day.top_dishes || [])) {
       const key = String(d.dishId || d.name || '?');
-      const e = dishTotals.get(key) || { name: d.name || key, categoryName: d.categoryName || '', quantity: 0, sum: 0, days: 0 };
+      const e = dishTotals.get(key) || { name: d.name || key, categoryName: d.categoryName || '', quantity: 0, sum: 0 };
       e.quantity += Number(d.quantity) || 0;
       e.sum += Number(d.sum) || 0;
-      e.days += 1;
       dishTotals.set(key, e);
+    }
+    for (const c of (day.category_totals || [])) {
+      const key = String(c.name || '?');
+      const e = categoryTotals.get(key) || { name: key, sum: 0, quantity: 0 };
+      e.sum += Number(c.sum) || 0;
+      e.quantity += Number(c.quantity) || 0;
+      categoryTotals.set(key, e);
     }
   }
 
   return {
     days_covered: byDay.size,
+    days_historical: historicalRows.length,
+    days_live: byDay.size - historicalRows.length,
     range: { from: since.toISOString(), to: now.toISOString() },
     totals: { sum: totalSum, tips: totalTips, diners: totalDiners },
     waiters: [...waiterTotals.values()].sort((a, b) => b.sum - a.sum),
     stations: [...stationTotals.values()].sort((a, b) => b.sum - a.sum),
     dishes: [...dishTotals.values()].sort((a, b) => b.quantity - a.quantity).slice(0, 50),
+    categories: [...categoryTotals.values()].sort((a, b) => b.sum - a.sum),
   };
 });
 
@@ -11292,6 +11375,204 @@ function serializeBigInts(obj: any): any {
   }
   return obj;
 }
+
+// === Historical backfill ===================================================
+// pos.z is a map of every closed Z report (zNumber → { startTS, endTS }) back
+// to ~Sept 2023. We group by IL calendar date based on endTS, then for each
+// requested day call /api/z/summary and /api/dishes with that day's zNums and
+// persist a BeecommHistoricalDay row.
+
+const BEECOMM_HEADERS = {
+  'Accept': 'application/json',
+  'userid': BEECOMM_UID,
+  'Content-Type': 'application/json',
+  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36',
+};
+
+function ilDateFromMs(ms: number): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jerusalem' }).format(new Date(ms));
+}
+
+async function fetchBeecommZMap(): Promise<{ posId: string; zByDate: Map<string, number[]> } | null> {
+  try {
+    const r = await fetch(`${BEECOMM_BASE}/api/auth/${BEECOMM_UID}`, { headers: BEECOMM_HEADERS });
+    if (!r.ok) return null;
+    const json: any = await r.json();
+    const pos = json?.data?.user?.groups?.[0]?.restaurants?.[0]?.poses?.[0];
+    if (!pos?.posId || !pos.z) return null;
+    const zByDate = new Map<string, number[]>();
+    for (const k of Object.keys(pos.z)) {
+      const z = pos.z[k];
+      if (!z?.zNumber || !z?.endTS) continue;
+      const d = ilDateFromMs(Number(z.endTS));
+      if (!zByDate.has(d)) zByDate.set(d, []);
+      zByDate.get(d)!.push(Number(z.zNumber));
+    }
+    return { posId: String(pos.posId), zByDate };
+  } catch (e: any) {
+    console.warn('[beecomm] fetchZMap failed:', e?.message);
+    return null;
+  }
+}
+
+async function fetchBeecommZSummary(posId: string, zNums: number[], fromTS: string, toTS: string): Promise<any | null> {
+  try {
+    const r = await fetch(`${BEECOMM_BASE}/api/z/summary`, {
+      method: 'POST',
+      headers: BEECOMM_HEADERS,
+      body: JSON.stringify({ poses: [{ posId, zNums }], fromTS, toTS }),
+    });
+    if (!r.ok) {
+      console.warn('[beecomm] z/summary failed', r.status, await r.text().then(t => t.slice(0, 200)));
+      return null;
+    }
+    return await r.json();
+  } catch (e: any) {
+    console.warn('[beecomm] z/summary error:', e?.message);
+    return null;
+  }
+}
+
+async function fetchBeecommDishes(posId: string, zNums: number[], fromTS: string, toTS: string): Promise<any | null> {
+  try {
+    const r = await fetch(`${BEECOMM_BASE}/api/dishes`, {
+      method: 'POST',
+      headers: BEECOMM_HEADERS,
+      body: JSON.stringify({
+        poses: [posId],
+        posesZNums: [{ posId, zNums }],
+        fromTS,
+        toTS,
+      }),
+    });
+    if (!r.ok) {
+      console.warn('[beecomm] dishes failed', r.status);
+      return null;
+    }
+    return await r.json();
+  } catch (e: any) {
+    console.warn('[beecomm] dishes error:', e?.message);
+    return null;
+  }
+}
+
+export async function backfillBeecommHistory(opts: { days?: number; forceRefresh?: boolean } = {}) {
+  const days = Math.min(180, Math.max(1, Number(opts.days) || 30));
+  const map = await fetchBeecommZMap();
+  if (!map) return { ok: false, reason: 'no z map' };
+  const today = ilDateFromMs(Date.now());
+  // sort dates descending so newest is first; take up to `days` dates
+  const sorted = [...map.zByDate.entries()].sort(([a], [b]) => b.localeCompare(a));
+  const targets = sorted.filter(([d]) => d < today).slice(0, days);
+
+  let fetched = 0, skipped = 0, failed = 0;
+  for (const [date, zNums] of targets) {
+    // Skip if we already have this day (unless forceRefresh)
+    const existing: any = await (db as any).beecommHistoricalDay.findFirst({
+      where: { pos_id: map.posId, date },
+    });
+    if (existing && !opts.forceRefresh) { skipped++; continue; }
+
+    // IL day window: 06:00 → next-day 06:00 (Beecomm's shift boundary)
+    const fromTS = `${date}T06:00:00+03:00`;
+    const [yy, mm, dd] = date.split('-').map(Number);
+    const next = new Date(Date.UTC(yy, mm - 1, dd + 1));
+    const nextStr = next.toISOString().slice(0, 10);
+    const toTS = `${nextStr}T06:00:00+03:00`;
+
+    const [zSummary, dishes] = await Promise.all([
+      fetchBeecommZSummary(map.posId, zNums, fromTS, toTS),
+      fetchBeecommDishes(map.posId, zNums, fromTS, toTS),
+    ]);
+
+    if (!zSummary?.success && !dishes?.success) { failed++; continue; }
+
+    // Parse z summary — structure: data.poses (one entry) with aggregated fields
+    const zData = zSummary?.data?.poses?.[0] || zSummary?.data?.[0] || zSummary?.data || {};
+    const dishesData = dishes?.data?.[map.posId] || [];
+
+    // Aggregate category totals + flatten top dishes
+    const categoryTotals: any[] = [];
+    const allDishes: any[] = [];
+    for (const cat of (Array.isArray(dishesData) ? dishesData : [])) {
+      categoryTotals.push({
+        name: cat.name,
+        sum: Number(cat.sum) || 0,
+        quantity: Number(cat.quantity) || 0,
+      });
+      for (const d of (cat.dishes || [])) {
+        allDishes.push({
+          dishId: d.dishId,
+          name: d.name,
+          categoryName: d.categoryName || cat.name,
+          quantity: Number(d.quantity) || 0,
+          sum: Number(d.sum) || 0,
+        });
+      }
+    }
+    allDishes.sort((a, b) => b.quantity - a.quantity);
+
+    const data = {
+      pos_id: map.posId,
+      date,
+      z_numbers: zNums,
+      net_total: Number(zData.netTotal ?? zData.total ?? 0),
+      gross_total: Number(zData.grossTotal ?? zData.total ?? 0),
+      total_tips: Number(zData.totalTips ?? 0),
+      diners: Number(zData.totalDiners ?? zData.diners ?? 0) || null,
+      orders_count: Number(zData.totalOrders ?? zData.orders ?? 0) || null,
+      workers: zData.workers ?? null,
+      payments: zData.payments ?? null,
+      top_dishes: allDishes.slice(0, 20),
+      category_totals: categoryTotals,
+      stations: zData.stations ?? null,
+      dine_in: zData.restaurantOrder ?? null,
+      takeaway: zData.takeawayOrder ?? null,
+      delivery: zData.deliveryOrder ?? null,
+      harigot: zData.harigot ?? null,
+      raw_z_summary: zSummary?.data ?? null,
+      raw_dishes: dishes?.data ?? null,
+      fetched_at: new Date(),
+    };
+
+    try {
+      if (existing) {
+        await (db as any).beecommHistoricalDay.update({ where: { id: existing.id }, data });
+      } else {
+        await (db as any).beecommHistoricalDay.create({ data });
+      }
+      fetched++;
+    } catch (e: any) {
+      console.warn('[beecomm backfill] insert failed for', date, e?.message);
+      failed++;
+    }
+
+    // Throttle so Beecomm doesn't rate-limit us
+    await new Promise(r => setTimeout(r, 300));
+  }
+  return { ok: true, requested_days: days, fetched, skipped, failed, latest: targets[0]?.[0], oldest: targets[targets.length - 1]?.[0] };
+}
+
+registerFn('backfillBeecommHistory', async ({ body, user }) => {
+  if (!user) throw new Error('auth required');
+  const days = Number((body as any)?.days) || 30;
+  const forceRefresh = Boolean((body as any)?.forceRefresh);
+  return backfillBeecommHistory({ days, forceRefresh });
+});
+
+// Returns historical days for a given range (reads from BeecommHistoricalDay)
+registerFn('getBeecommHistoricalDays', async ({ body, user }) => {
+  if (!user) throw new Error('auth required');
+  const days = Math.min(180, Math.max(1, Number((body as any)?.days) || 30));
+  const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jerusalem' }).format(new Date());
+  const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+  const sinceStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jerusalem' }).format(since);
+  const rows: any[] = await (db as any).beecommHistoricalDay.findMany({
+    where: { date: { gte: sinceStr, lte: today } },
+    orderBy: { date: 'desc' },
+  });
+  return { days: rows.length, rows };
+});
 
 // 15-min cron — idempotent guard, first fire 90s after boot
 if (!(globalThis as any).__beecommSnapshotTimer) {

@@ -81,6 +81,38 @@ model BeecommSnapshot {
   @@index([pos_id, captured_at])
 }
 
+// Historical day-level Beecomm data. One row per IL calendar date per POS.
+// Populated by the backfill job which calls /api/z/summary + /api/dishes
+// for each closed Z and aggregates. Lives alongside BeecommSnapshot but
+// represents a fully-closed day rather than a live mid-day capture.
+model BeecommHistoricalDay {
+  id                  String   @id @default(cuid())
+  pos_id              String
+  date                String   // 'YYYY-MM-DD' (IL calendar)
+  z_numbers           Json     // [zNum, zNum, ...] for that day
+  net_total           Float?   // sum after discounts
+  gross_total         Float?   // sum before discounts
+  total_tips          Float?
+  diners              Int?
+  orders_count        Int?
+  workers             Json?    // [{ workerId, name, sum, tips, diners }]
+  payments            Json?    // per payment type
+  top_dishes          Json?    // top 20 dishes that day
+  category_totals     Json?    // per-category totals
+  stations            Json?    // per-iPad totals
+  dine_in             Json?
+  takeaway            Json?
+  delivery            Json?
+  harigot             Json?
+  raw_z_summary       Json?
+  raw_dishes          Json?
+  fetched_at          DateTime @default(now())
+  createdAt           DateTime @default(now())
+
+  @@unique([pos_id, date])
+  @@index([date])
+}
+
 // Auto-Tracker activity log — captures owner/manager actions so the daily
 // pattern analyzer can suggest voice shortcuts / widgets / automations for
 // repeated manual workflows.
