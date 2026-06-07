@@ -9839,39 +9839,91 @@ registerFn('parseVoiceCommand', async ({ body, user }) => {
   const text = String((body as any)?.text || '').trim();
   if (!text) return { intent: 'unknown', raw: '' };
   try {
-    const prompt = `אתה מנתח פקודות קוליות מעברית למארחת במסעדה. הלקוח אמר משפט וצריך להחזיר JSON עם 'intent' ופרמטרים.
+    // Concise prompt — Gemini Flash returned empty when prompt was too long.
+    // Keep intent list compact, push examples to the end, lean on structured output.
+    const prompt = `Parse a Hebrew restaurant voice command into JSON.
 
-${VOICE_INTENT_LIST}
+Available intents (return field "intent" + relevant params):
 
-דוגמאות (סדר המילים בעברית גמיש — תזהה לפי משמעות):
-- "תוסיף 4 אנשים לתור על שם רן" → {"intent":"queue_add","name":"רן","party_size":4,"pref":"no_preference"}
-- "תוסיף לתור 4 על שם רן" → אותו דבר
-- "תוסיף ארבע אנשים לתור על שם רן" → אותו דבר (המספר כבר תורגם ל-4)
-- "שולחן 11 נגמר" → {"intent":"table_free","table":"11"}
-- "תפנה את שולחן 11" → {"intent":"table_free","table":"11"}
-- "שולחן 11 בקינוח" → {"intent":"table_finishing","table":"11"}
-- "תושיב 4 על שולחן 30" → {"intent":"seat_walkin","party_size":4,"table":"30"}
-- "תושיב את ניב על 200 ו-201" → {"intent":"seat_reservation","name":"ניב","tables":["200","201"]}
-- "כמה אנשים בתור" → {"intent":"q_queue_count"}
-- "מה המצב" → {"intent":"q_status_summary"}
-- "תפתח את הדאשבורד" → {"intent":"nav_open","target":"dashboard"}
+TABLES:
+- table_free {table}: שולחן נגמר/פנוי/התפנה
+- table_finishing {table}: שולחן בקינוח/חשבון/סיום
+- table_seated {table}: יושבים
+- table_no_show {table}: הבריזו/לא הגיעו
+- table_flag {table, flag}: דגל (flag: green/red/orange/black/"")
 
-חוקים:
-- אם הפקודה ממש לא ברורה — החזר {"intent":"unknown"}
-- שמות לקוחות בעברית — תחזיר בדיוק כפי שנאמרו
-- מספרי שולחן — תחזיר כמחרוזות ("10", לא 10)
-- party_size — תחזיר כמספר
-- ל-flag, השתמש במחרוזות באנגלית (green/red/orange/black/"")
-- ללא markdown, ללא הסברים — רק JSON
+QUEUE:
+- queue_add {name, party_size, pref}: הוסף לתור (pref: inside/outside/no_preference)
+- queue_call {name}: קרא
+- queue_arrived {name}: הגיע
+- queue_abandoned {name}: עזב
 
-הפקודה שצריך לפענח: "${text}"
+SEATING:
+- seat_walkin {party_size, table}: הושיב walk-in
+- seat_reservation {name, table OR tables[]}: הושיב הזמנה
+- seat_next_queue {table}: הושיב את הבא בתור
 
-החזר JSON בלבד.`;
+RESERVATIONS:
+- reservation_add {name, party_size, time, when}: ליצור (when: היום/מחר/מחרתיים, time: HH:MM)
+- reservation_cancel {name}
+- reservation_confirm {name}
+
+SESSIONS:
+- session_extend {table, minutes}
+- session_move {from, to}
+
+QUESTIONS:
+- q_next_in_queue / q_next_reservation / q_queue_count / q_free_tables
+- q_who_on_table {table}
+- q_today_reservations / q_tomorrow_reservations / q_today_guests / q_today_revenue / q_status_summary
+- q_on_shift (any), q_on_shift_now, q_on_shift_evening, q_on_shift_lunch, q_on_shift_date {when, shift_type?}
+- q_customer_history {name}
+
+COMMS:
+- resend_confirmation {name}
+- send_reminder {name}
+- send_staff_schedule {when}: סידור לצוות בוואטסאפ
+- send_team_message {message}: הודעת צוות
+- send_customer_message {name, message}: לקוח
+
+NAV:
+- nav_open {target}: dashboard/seating/queue/events/work_scheduling/reports/employees/settings_deposit/settings_reservation
+
+OPS:
+- incident_open {description}: פתח תקרית
+- task_add {description, who?}: משימה
+
+- help: עזרה
+- unknown: רק אם באמת אי-אפשר
+
+Rules:
+- Hebrew word order is fluid — UNDERSTAND MEANING.
+- Names: כפי שנאמרו.
+- Tables: strings ("10").
+- "9 בערב"=21:00, "11 בבוקר"=11:00, "8 בלילה"=20:00, "12 בצהריים"=12:00.
+- Hebrew numbers (ארבע=4, חמישה=5 etc) — convert.
+- JSON only, no markdown.
+
+EXAMPLES:
+"מי עובד היום בערב" → {"intent":"q_on_shift_evening"}
+"מי עובד עכשיו" → {"intent":"q_on_shift_now"}
+"תשלח לצוות שעות להיום בוואטסאפ" → {"intent":"send_staff_schedule","when":"היום"}
+"11 פתחו לי" → {"intent":"table_free","table":"11"}
+"שולחן 30 בקינוח" → {"intent":"table_finishing","table":"30"}
+"תכניס שירה לתור היא ארבע" → {"intent":"queue_add","name":"שירה","party_size":4,"pref":"no_preference"}
+"תוסיף הזמנה להיום בשעה 9 בערב על שם רן לשמונה אנשים" → {"intent":"reservation_add","name":"רן","party_size":8,"time":"21:00","when":"היום"}
+"כמה אנשים בתור" → {"intent":"q_queue_count"}
+"מה המצב" → {"intent":"q_status_summary"}
+"תפתח את הדאשבורד" → {"intent":"nav_open","target":"dashboard"}
+"תפתח תקרית המקרר התקלקל" → {"intent":"incident_open","description":"המקרר התקלקל"}
+
+Input: "${text}"
+Output (JSON only, MUST include "intent"):`;
 
     const result: any = await invokeLLM({
       prompt,
-      timeoutMs: 12000,
-      maxOutputTokens: 256,
+      timeoutMs: 15000,
+      maxOutputTokens: 512,
       maxAttempts: 1,
       responseSchema: {
         type: 'object',
