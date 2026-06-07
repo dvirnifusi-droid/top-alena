@@ -8,6 +8,7 @@ import { base44 } from '@/api/base44Client';
 
 export default function ShiftEditInlineDialog({ open, onClose, shiftEntry, workShiftId, employeeId, onSaved }) {
     const [form, setForm] = useState({
+        date: '',
         shift_type: 'dinner',
         start_time: '',
         end_time: '',
@@ -20,6 +21,7 @@ export default function ShiftEditInlineDialog({ open, onClose, shiftEntry, workS
     useEffect(() => {
         if (shiftEntry) {
             setForm({
+                date: (shiftEntry.date || '').slice(0, 10),
                 shift_type: shiftEntry.shift_type || 'dinner',
                 start_time: shiftEntry.start_time || '',
                 end_time: shiftEntry.end_time || '',
@@ -33,33 +35,59 @@ export default function ShiftEditInlineDialog({ open, onClose, shiftEntry, workS
     const handleSave = async () => {
         setSaving(true);
         // Load the full WorkShift, update the specific staff member
-        const ws = await base44.entities.WorkShift.get ? 
+        const ws = await base44.entities.WorkShift.get ?
             await base44.entities.WorkShift.get(workShiftId) :
             (await base44.entities.WorkShift.filter({ id: workShiftId }))[0];
 
         if (ws) {
-            // If shift_type changed, we need to move to a different WorkShift
-            if (form.shift_type !== ws.shift_type) {
-                // Remove from old shift
+            const sourceDate = (ws.date || '').slice(0, 10);
+            const targetDate = (form.date || sourceDate).slice(0, 10);
+            const dateChanged = targetDate !== sourceDate;
+            const typeChanged = form.shift_type !== ws.shift_type;
+            const newStaffEntry = {
+                employee_id: employeeId,
+                start_time: form.start_time,
+                end_time: form.end_time,
+                total_break_minutes: Number(form.total_break_minutes) || 0,
+                notes: form.notes,
+                position: form.position || shiftEntry.position,
+                status: 'scheduled',
+            };
+
+            if (dateChanged || typeChanged) {
+                // Move: remove from current WorkShift, add to target (find-or-create).
                 const removedStaff = (ws.assigned_staff || []).filter(a =>
                     !(a.employee_id === employeeId && a.start_time === shiftEntry.start_time && a.end_time === shiftEntry.end_time)
                 );
                 await base44.entities.WorkShift.update(workShiftId, { assigned_staff: removedStaff });
-                // Add to new shift (find or create)
-                const newShifts = await base44.entities.WorkShift.filter({ date: ws.date, shift_type: form.shift_type });
-                const newStaffEntry = { employee_id: employeeId, start_time: form.start_time, end_time: form.end_time, total_break_minutes: Number(form.total_break_minutes) || 0, notes: form.notes, position: shiftEntry.position, status: 'scheduled' };
-                if (newShifts.length > 0) {
-                    const newWs = newShifts[0];
-                    await base44.entities.WorkShift.update(newWs.id, { assigned_staff: [...(newWs.assigned_staff || []), newStaffEntry] });
+                const target = await base44.entities.WorkShift.filter({ date: targetDate, shift_type: form.shift_type });
+                if (target?.length > 0) {
+                    const newWs = target[0];
+                    await base44.entities.WorkShift.update(newWs.id, {
+                        assigned_staff: [...(newWs.assigned_staff || []), newStaffEntry],
+                    });
                 } else {
-                    await base44.entities.WorkShift.create({ date: ws.date, shift_type: form.shift_type, start_time: form.start_time, end_time: form.end_time, assigned_staff: [newStaffEntry] });
+                    await base44.entities.WorkShift.create({
+                        date: targetDate,
+                        shift_type: form.shift_type,
+                        start_time: form.start_time,
+                        end_time: form.end_time,
+                        assigned_staff: [newStaffEntry],
+                    });
                 }
             } else {
                 const updatedStaff = (ws.assigned_staff || []).map(a => {
                     if (a.employee_id === employeeId &&
                         a.start_time === shiftEntry.start_time &&
                         a.end_time === shiftEntry.end_time) {
-                        return { ...a, start_time: form.start_time, end_time: form.end_time, total_break_minutes: Number(form.total_break_minutes) || 0, notes: form.notes, position: form.position };
+                        return {
+                            ...a,
+                            start_time: form.start_time,
+                            end_time: form.end_time,
+                            total_break_minutes: Number(form.total_break_minutes) || 0,
+                            notes: form.notes,
+                            position: form.position,
+                        };
                     }
                     return a;
                 });
@@ -77,9 +105,13 @@ export default function ShiftEditInlineDialog({ open, onClose, shiftEntry, workS
         <Dialog open={open} onOpenChange={onClose}>
             <DialogContent className="max-w-sm" dir="rtl">
                 <DialogHeader>
-                    <DialogTitle>עריכת משמרת - {shiftEntry.date}</DialogTitle>
+                    <DialogTitle>עריכת משמרת - {form.date || shiftEntry.date}</DialogTitle>
                 </DialogHeader>
                 <div className="space-y-4">
+                    <div>
+                        <Label>תאריך</Label>
+                        <Input type="date" value={form.date} onChange={e => setForm(p => ({ ...p, date: e.target.value }))} />
+                    </div>
                     <div>
                         <Label>תפקיד</Label>
                         <Input value={form.position} onChange={e => setForm(p => ({ ...p, position: e.target.value }))} placeholder="לדוגמה: קופה, מטבח..." />
