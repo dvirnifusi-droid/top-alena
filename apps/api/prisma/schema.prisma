@@ -128,7 +128,7 @@ model WeeklyPersonalGoal {
   target                   Int
   current_count            Int      @default(0)
   reward_coins             Int
-  awarded                  Boolean  @default(false)
+  is_awarded               Boolean  @default(false)
   awarded_at               DateTime?
   created_date             String?
   updated_date             String?
