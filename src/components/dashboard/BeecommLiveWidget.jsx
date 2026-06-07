@@ -63,7 +63,9 @@ export default function BeecommLiveWidget() {
 
     useEffect(() => {
         load();
-        const i = setInterval(load, 60_000); // refresh display every minute
+        // Refresh display every 20s so a new snapshot (server captures every 3 min)
+        // shows up within seconds of being written.
+        const i = setInterval(load, 20_000);
         return () => clearInterval(i);
     }, []);
 

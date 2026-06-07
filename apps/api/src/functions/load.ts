@@ -11574,14 +11574,16 @@ registerFn('getBeecommHistoricalDays', async ({ body, user }) => {
   return { days: rows.length, rows };
 });
 
-// 15-min cron — idempotent guard, first fire 90s after boot
+// 3-min cron — idempotent guard, first fire 60s after boot. Beecomm's own
+// lastUpdate.x stamps under a minute, so 3 min strikes a balance between
+// "feels live" and "not hammering Beecomm".
 if (!(globalThis as any).__beecommSnapshotTimer) {
   (globalThis as any).__beecommSnapshotTimer = setTimeout(function loop() {
     captureBeecommSnapshot()
       .then(r => { if (r.ok) console.log('[beecomm] snapshot captured', r.snapshot_id); })
       .catch(e => console.warn('[beecomm] capture failed:', e?.message))
       .finally(() => {
-        (globalThis as any).__beecommSnapshotTimer = setTimeout(loop, 15 * 60 * 1000);
+        (globalThis as any).__beecommSnapshotTimer = setTimeout(loop, 3 * 60 * 1000);
       });
-  }, 90 * 1000);
+  }, 60 * 1000);
 }
