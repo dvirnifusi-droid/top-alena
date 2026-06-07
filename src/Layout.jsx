@@ -19,6 +19,7 @@ import DevicePreviewToggle from "./components/DevicePreviewToggle";
 import EnableStaffPush from "./components/EnableStaffPush";
 import PopupManager from "./components/PopupManager";
 import AutoCloseNoticeBanner from "./components/shift/AutoCloseNoticeBanner";
+import InstallAppBanner from "./components/sales/InstallAppBanner";
 import { logActivity } from "./lib/activityLogger";
 
 // Color presets for the per-category accent. Tailwind purges by content scan
@@ -382,6 +383,7 @@ export default function Layout({ children, currentPageName }) {
             {user && <EnableStaffPush />}
             {user && <PopupManager user={user} />}
             {user && <AutoCloseNoticeBanner />}
+            <InstallAppBanner />
             {children}
           </main>
         </div>
