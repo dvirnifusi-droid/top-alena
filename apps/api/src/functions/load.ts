@@ -10394,7 +10394,7 @@ EXAMPLES:
 # "אחת אחר חצות"=01:00, "חצי שבע"=06:30 (NOT 07:30 — שלא לפי תקני בלוח השעון)
 # "רבע ל9 בערב"=20:45, "עשר וחצי בלילה"=22:30
 # Hebrew weekday names: ראשון=Sun, שני=Mon, שלישי=Tue, רביעי=Wed, חמישי=Thu, שישי=Fri, שבת=Sat
-# When user says "יום שני" — that's Monday; resolve to nearest future Monday and use as `when`.
+# When user says "יום שני" — that's Monday; resolve to nearest future Monday and use as the when field.
 # When user says "סוף שבוע" → typically מחר (חמישי) או מחרתיים (שישי) — default to closest weekend.
 
 Input: "${text}"
