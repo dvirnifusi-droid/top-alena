@@ -70,6 +70,21 @@ export default function VoiceControl({
         typeof window !== 'undefined' && (window.SpeechRecognition || window.webkitSpeechRecognition);
     const supported = !!SpeechRecognition;
 
+    // Auto-start recording when launched via PWA shortcut ?voice=1
+    useEffect(() => {
+        if (!supported) return;
+        const params = new URLSearchParams(window.location.search);
+        if (params.get('voice') === '1') {
+            const t = setTimeout(() => {
+                start();
+                // Clean the URL so refresh doesn't re-trigger
+                history.replaceState(null, '', window.location.pathname);
+            }, 500);
+            return () => clearTimeout(t);
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [supported]);
+
     // Stable refs so we can read the latest transcript inside async callbacks.
     const transcriptRef = useRef('');
     const userStoppedRef = useRef(false);
