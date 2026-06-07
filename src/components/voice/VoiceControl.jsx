@@ -148,22 +148,29 @@ export default function VoiceControl({
     };
 
     const handleFinalTranscript = async (txt) => {
+        // LLM-FIRST strategy (owner's request): always ask the LLM to understand
+        // meaning semantically, regardless of phrasing. Regex is used only as a
+        // fast cache for the most-frequent exact phrasings (instant + free).
         let parsed = parseIntent(txt);
-        // LLM fallback when regex fails. Costs ~₪0.01 only when regex misses.
-        if (parsed.intent === 'unknown') {
-            try {
-                const tok = localStorage.getItem('auth_token') || '';
-                const r = await fetch('/api/fn/parseVoiceCommand', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + tok },
-                    body: JSON.stringify({ text: txt }),
-                });
-                const data = await r.json();
-                if (data?.intent && data.intent !== 'unknown') parsed = { ...data, raw: txt };
-            } catch (e) {
-                console.warn('[voice] LLM fallback failed', e);
-            }
+        const regexHit = parsed.intent !== 'unknown';
+        // Always run LLM in parallel — even if regex matched, the LLM result is
+        // preferred for non-trivial intents (more accurate name/time/etc.).
+        let llmParsed = null;
+        try {
+            const tok = localStorage.getItem('auth_token') || '';
+            const r = await fetch('/api/fn/parseVoiceCommand', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + tok },
+                body: JSON.stringify({ text: txt }),
+            });
+            const data = await r.json();
+            if (data?.intent && data.intent !== 'unknown') llmParsed = { ...data, raw: txt };
+        } catch (e) {
+            console.warn('[voice] LLM call failed', e);
         }
+        // Decision: prefer LLM. Fall back to regex only if LLM failed entirely.
+        if (llmParsed) parsed = llmParsed;
+        else if (!regexHit) parsed = { intent: 'unknown', raw: txt };
         if (parsed.intent === 'unknown') {
             const msg = `לא הבנתי: "${parsed.raw || txt}". נסה לנסח אחרת.`;
             setLastResult({ ok: false, message: msg });

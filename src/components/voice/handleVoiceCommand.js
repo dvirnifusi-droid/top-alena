@@ -405,7 +405,128 @@ async function dispatchCommand(cmd, state) {
 
             // ---------- Help ----------
             case 'help': {
-                return { ok: true, message: 'דברים שאני מבין: לפתוח עמודים, להוסיף הזמנות, לעדכן שולחנות, לקרוא לאנשים בתור. תיכנס לעמוד בדיקת פקודות לראות הכל.' };
+                return { ok: true, message: 'דברים שאני מבין: לפתוח עמודים, להוסיף הזמנות, לעדכן שולחנות, לקרוא לאנשים בתור, לשלוח לצוות, לפתוח תקריות. תיכנס לעמוד בדיקת פקודות לראות הכל.' };
+            }
+
+            // ---------- Staff queries ----------
+            case 'q_on_shift_now':
+            case 'q_on_shift_evening':
+            case 'q_on_shift_lunch':
+            case 'q_on_shift_date': {
+                const dateStr = (() => {
+                    if (cmd.when === 'מחר') {
+                        const d = new Date(); d.setDate(d.getDate() + 1);
+                        return d.toISOString().slice(0, 10);
+                    }
+                    if (cmd.when === 'מחרתיים') {
+                        const d = new Date(); d.setDate(d.getDate() + 2);
+                        return d.toISOString().slice(0, 10);
+                    }
+                    return new Date().toISOString().slice(0, 10);
+                })();
+                let shiftType = cmd.shift_type;
+                if (cmd.intent === 'q_on_shift_evening') shiftType = 'dinner';
+                if (cmd.intent === 'q_on_shift_lunch') shiftType = 'lunch';
+                if (cmd.intent === 'q_on_shift_now') {
+                    const ilHour = (new Date().getUTCHours() + 3) % 24;
+                    shiftType = ilHour < 16 ? 'lunch' : 'dinner';
+                }
+                try {
+                    const shifts = await base44.entities.WorkShift.filter({ date: dateStr });
+                    const filtered = shiftType ? (shifts || []).filter(s => s.shift_type === shiftType) : (shifts || []);
+                    const allStaff = filtered.flatMap(s => s.assigned_staff || []);
+                    if (allStaff.length === 0) {
+                        const when = cmd.when === 'מחר' ? 'מחר' : 'היום';
+                        const slot = shiftType === 'lunch' ? 'צהריים' : shiftType === 'dinner' ? 'ערב' : '';
+                        return { ok: true, message: `אין משובצים ${when} ${slot}`.trim() };
+                    }
+                    const names = [...new Set(allStaff.map(s => s.employee_name).filter(Boolean))];
+                    return { ok: true, message: `${names.length} עובדים: ${names.join(', ')}` };
+                } catch { return { ok: false, message: 'לא הצלחתי לבדוק' }; }
+            }
+
+            // ---------- Customer lookup ----------
+            case 'q_customer_history': {
+                try {
+                    const customers = await base44.entities.Customer.list();
+                    const c = (customers || []).find(c => (c.name || '').includes(cmd.name));
+                    if (!c) return { ok: false, message: `${cmd.name} לא נמצא במאגר לקוחות` };
+                    const visits = c.visit_count || 0;
+                    const lastVisit = c.last_visit ? new Date(c.last_visit).toLocaleDateString('he-IL') : 'לא ידוע';
+                    return { ok: true, message: `${c.name}, ${visits} ביקורים, ביקור אחרון ${lastVisit}` };
+                } catch { return { ok: false, message: 'לא הצלחתי לבדוק' }; }
+            }
+
+            // ---------- Send staff schedule ----------
+            case 'send_staff_schedule': {
+                const dateStr = (() => {
+                    if (cmd.when === 'מחר') {
+                        const d = new Date(); d.setDate(d.getDate() + 1);
+                        return d.toISOString().slice(0, 10);
+                    }
+                    return new Date().toISOString().slice(0, 10);
+                })();
+                try {
+                    const shifts = await base44.entities.WorkShift.filter({ date: dateStr });
+                    if (!shifts || shifts.length === 0) return { ok: false, message: 'אין סידור משובץ' };
+                    const lines = [];
+                    for (const s of shifts) {
+                        const shiftName = s.shift_type === 'lunch' ? 'צהריים' : 'ערב';
+                        lines.push(`*${shiftName} ${s.start_time}-${s.end_time}*`);
+                        for (const a of (s.assigned_staff || [])) {
+                            lines.push(`• ${a.employee_name} (${a.position || ''}) ${a.start_time || ''}-${a.end_time || ''}`);
+                        }
+                        lines.push('');
+                    }
+                    const msg = `🗓️ סידור עבודה ${cmd.when || 'היום'}\n\n${lines.join('\n')}`;
+                    try { await base44.functions.sendTeamWhatsApp({ message: msg }); }
+                    catch (e) { console.warn('[voice] sendTeamWhatsApp failed', e); }
+                    return { ok: true, message: `בוצע ✓ סידור ${cmd.when || 'היום'} נשלח לצוות` };
+                } catch { return { ok: false, message: 'לא הצלחתי לשלוח' }; }
+            }
+
+            case 'send_team_message': {
+                try {
+                    await base44.functions.sendTeamWhatsApp({ message: cmd.message });
+                    return { ok: true, message: `בוצע ✓ הודעה נשלחה לצוות` };
+                } catch { return { ok: false, message: 'שגיאה בשליחה' }; }
+            }
+
+            case 'send_customer_message': {
+                const r = reservations.find(r => (r.customer_name || '').includes(cmd.name));
+                if (!r?.customer_phone) return { ok: false, message: `${cmd.name} ללא טלפון רשום` };
+                try {
+                    await base44.functions.sendSms({ to: r.customer_phone, message: cmd.message });
+                    return { ok: true, message: `בוצע ✓ הודעה נשלחה ל-${cmd.name}` };
+                } catch { return { ok: false, message: 'שגיאה בשליחה' }; }
+            }
+
+            // ---------- Operations ----------
+            case 'incident_open': {
+                try {
+                    await base44.entities.Incident.create({
+                        incident_number: `VOICE-${Date.now()}`,
+                        title: cmd.description || 'תקרית קולית',
+                        description: cmd.description || '',
+                        severity: 'low',
+                        status: 'open',
+                        incident_date: new Date().toISOString(),
+                        reported_by: 'voice',
+                    });
+                    return { ok: true, message: `בוצע ✓ תקרית נפתחה` };
+                } catch { return { ok: false, message: 'שגיאה ביצירת תקרית' }; }
+            }
+
+            case 'task_add': {
+                try {
+                    if (!base44.entities.Task?.create) return { ok: false, message: 'מערכת משימות לא זמינה' };
+                    await base44.entities.Task.create({
+                        title: cmd.description || 'משימה',
+                        assigned_to: cmd.who || '',
+                        status: 'open',
+                    });
+                    return { ok: true, message: `בוצע ✓ משימה נוצרה${cmd.who ? ' ל-' + cmd.who : ''}` };
+                } catch { return { ok: false, message: 'שגיאה ביצירת משימה' }; }
             }
 
             default:

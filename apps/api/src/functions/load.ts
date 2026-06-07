@@ -9725,51 +9725,113 @@ if (!(globalThis as any).__shiftEndReminderTimer) {
 // the same intent schema. Drops cost to ~₪0.01 per fallback (only when regex
 // fails); regex still handles ~70% of common phrasings free.
 const VOICE_INTENT_LIST = `
-INTENTS (return the JSON exactly — no markdown, no prose):
+You are a Hebrew voice command parser for a restaurant manager (Alina). Hebrew word order is fluid — you MUST understand meaning, not match keywords literally.
 
-TABLE STATUS:
-table_free   — שולחן התפנה / סיים / נגמר / לסמן כפנוי. params: { table }
-table_finishing — שולחן בקינוח / חשבון / סיום קרוב. params: { table }
-table_seated — לקוחות יושב על שולחן. params: { table }
-table_no_show — שולחן הבריז / לא הגיעו. params: { table }
+Return exactly ONE JSON object with 'intent' + params. No markdown, no prose, no apologies.
 
-FLAGS:
-table_flag — דגל על שולחן. params: { table, flag: "green"|"red"|"orange"|"black"|"" }
+========== AVAILABLE INTENTS ==========
 
-QUEUE:
-queue_add — להוסיף לתור. params: { name, party_size, pref: "inside"|"outside"|"no_preference" }
-queue_call — לקרוא ללקוח שבתור. params: { name }
-queue_arrived — לקוח הגיע. params: { name }
-queue_abandoned — לקוח עזב/נטש. params: { name }
+▶ TABLE STATUS
+table_free        — table is free/finished/empty. params: { table }
+table_finishing   — table in dessert/check/finishing. params: { table }
+table_seated      — guests just sat down. params: { table }
+table_no_show     — table didn't show up. params: { table }
 
-SEATING:
-seat_walkin — להושיב לקוח חופשי בלי הזמנה. params: { party_size, table }
-seat_reservation — להושיב הזמנה. params: { name, table } OR { name, tables: ["10","11"] }
-seat_next_queue — להושיב את הבא בתור. params: { table }
+▶ FLAGS (visual markers on reservations)
+table_flag        — params: { table, flag: "green"|"red"|"orange"|"black"|"" }
+                    green=VIP/important, red=problem, orange=attention, ""=clear
 
-RESERVATIONS:
-reservation_add — ליצור הזמנה. params: { name, party_size, time: "HH:MM", when: "היום"|"מחר"|"מחרתיים" }
-reservation_cancel — לבטל הזמנה. params: { name }
-reservation_confirm — לאשר הזמנה ממתינה. params: { name }
+▶ QUEUE (waiting list)
+queue_add         — add to queue. params: { name, party_size, pref: "inside"|"outside"|"no_preference" }
+queue_call        — ring the customer / "your table is ready". params: { name }
+queue_arrived     — they showed up / approve. params: { name }
+queue_abandoned   — they left / didn't wait. params: { name }
 
-SESSIONS:
-session_extend — להאריך שולחן. params: { table, minutes }
-session_move — להעביר שולחן. params: { from, to }
+▶ SEATING
+seat_walkin       — seat someone without a reservation. params: { party_size, table }
+seat_reservation  — seat an existing reservation. params: { name, table } OR { name, tables: ["10","11"] }
+seat_next_queue   — seat the next in queue on a table. params: { table }
 
-QUESTIONS (read out):
-q_next_in_queue, q_next_reservation, q_queue_count, q_free_tables, q_today_reservations, q_tomorrow_reservations, q_today_guests, q_today_revenue, q_status_summary, q_on_shift
-q_who_on_table — params: { table }
+▶ RESERVATIONS (advance bookings)
+reservation_add   — create a new reservation. params: { name, party_size, time: "HH:MM", when: "היום"|"מחר"|"מחרתיים"|date "YYYY-MM-DD" }
+reservation_cancel — cancel one. params: { name }
+reservation_confirm — confirm pending. params: { name }
 
-COMMS:
-resend_confirmation, send_reminder — params: { name }
+▶ SESSIONS
+session_extend    — extend a seated table. params: { table, minutes }
+session_move      — move guests to different table. params: { from, to }
 
-NAVIGATION:
-nav_open — params: { target: "dashboard"|"seating"|"queue"|"events"|"work_scheduling"|"settings_deposit"|"settings_reservation" }
+▶ INFO QUESTIONS (system speaks back)
+q_next_in_queue        — who's next in queue
+q_next_reservation     — what's the next reservation
+q_queue_count          — how many in queue
+q_free_tables          — how many free tables
+q_who_on_table         — who's at table N. params: { table }
+q_today_reservations   — today's reservation count
+q_tomorrow_reservations — tomorrow's count
+q_today_guests         — today's guest count
+q_today_revenue        — today's est. revenue
+q_status_summary       — overall current state
+q_on_shift             — who's working today (any shift)
+q_on_shift_now         — who's working right now
+q_on_shift_evening     — who's working evening shift today
+q_on_shift_lunch       — who's working lunch shift today
+q_on_shift_date        — who's working on date X. params: { when: "מחר"|"מחרתיים"|date, shift_type?: "lunch"|"dinner" }
+q_customer_history     — info on a returning customer. params: { name }
 
-HELP:
-help — להציג רשימת פקודות.
+▶ COMMUNICATION (sends messages)
+resend_confirmation    — re-send reservation confirmation SMS. params: { name }
+send_reminder          — send reminder before reservation. params: { name }
+send_staff_schedule    — broadcast today's schedule to staff via WhatsApp. params: { when: "היום"|"מחר" }
+send_team_message      — send custom WhatsApp message to the team. params: { message }
+send_customer_message  — send custom message to a customer. params: { name, message }
 
-unknown — אם באמת אי אפשר להבין.
+▶ NAVIGATION (jump to a page)
+nav_open — params: { target: "dashboard"|"seating"|"queue"|"events"|"work_scheduling"|"settings_deposit"|"settings_reservation"|"reports"|"employees"|"voice_test" }
+
+▶ TASKS / OPERATIONS
+incident_open    — log an incident/issue. params: { description }
+task_add         — add a checklist task. params: { description, who?: name }
+
+▶ HELP
+help — list what voice can do.
+
+unknown — only if you really, truly can't map the request to ANY intent.
+
+========== EXAMPLES (semantic, NOT keyword-matched) ==========
+Input: "שולחן 11 נגמר" → {"intent":"table_free","table":"11"}
+Input: "תפנה את שולחן 11" → {"intent":"table_free","table":"11"}
+Input: "11 פתחו לי" → {"intent":"table_free","table":"11"}
+Input: "שולחן 30 בקינוח, כבר עוד מעט מסיימים" → {"intent":"table_finishing","table":"30"}
+Input: "תוסיף הזמנה להיום בשעה 9 בערב על שם רן לשמונה אנשים" → {"intent":"reservation_add","name":"רן","party_size":8,"time":"21:00","when":"היום"}
+Input: "תכניס הזמנה ליום שני 8 בערב 6 אנשים על שם דביר" → {"intent":"reservation_add","name":"דביר","party_size":6,"time":"20:00","when":"מחר"}
+Input: "תכניס שירה לתור היא ארבע" → {"intent":"queue_add","name":"שירה","party_size":4,"pref":"no_preference"}
+Input: "תוסיף ארבע אנשים לתור על שם רן" → {"intent":"queue_add","name":"רן","party_size":4,"pref":"no_preference"}
+Input: "מי עובד היום בערב" → {"intent":"q_on_shift_evening"}
+Input: "מי עובד עכשיו" → {"intent":"q_on_shift_now"}
+Input: "מי עובד מחר בצהריים" → {"intent":"q_on_shift_date","when":"מחר","shift_type":"lunch"}
+Input: "תשלח לצוות שעות להיום בוואטסאפ" → {"intent":"send_staff_schedule","when":"היום"}
+Input: "תשלח לצוות סידור עבודה לסוף שבוע" → {"intent":"send_staff_schedule","when":"מחר"}
+Input: "תכריז לכולם שהמסעדה סגורה מחר" → {"intent":"send_team_message","message":"המסעדה סגורה מחר"}
+Input: "כמה אנשים בתור" → {"intent":"q_queue_count"}
+Input: "מה המצב" → {"intent":"q_status_summary"}
+Input: "תפתח את הדאשבורד" → {"intent":"nav_open","target":"dashboard"}
+Input: "פתח לי את העובדים" → {"intent":"nav_open","target":"employees"}
+Input: "תפתח את הדוחות" → {"intent":"nav_open","target":"reports"}
+Input: "תפתח תקרית — המקרר התקלקל" → {"intent":"incident_open","description":"המקרר התקלקל"}
+Input: "תוסיף משימה לרון לנקות את הגריל" → {"intent":"task_add","description":"לנקות את הגריל","who":"רון"}
+Input: "מי דביר ניפוסי" → {"intent":"q_customer_history","name":"דביר ניפוסי"}
+Input: "מה אפשר לעשות פה" → {"intent":"help"}
+
+========== RULES ==========
+1. Hebrew names — return exactly as spoken
+2. Tables — always strings ("10" not 10)
+3. party_size — number
+4. Times — HH:MM 24h. "9 בערב"=21:00, "11 בבוקר"=11:00, "8 בלילה"=20:00.
+5. Hebrew numbers (ארבע, חמישה, עשר...) — convert to digits
+6. NEVER reject because of word order. Re-read mentally as English and figure out intent.
+7. If ambiguous between two intents, prefer the more specific one
+8. Return unknown ONLY when truly nothing in the list fits.
 `;
 
 registerFn('parseVoiceCommand', async ({ body, user }) => {
@@ -9827,13 +9889,42 @@ ${VOICE_INTENT_LIST}
           from: { type: 'string' },
           to: { type: 'string' },
           target: { type: 'string' },
+          shift_type: { type: 'string' },
+          message: { type: 'string' },
+          description: { type: 'string' },
+          who: { type: 'string' },
         },
         required: ['intent'],
       },
     } as any);
+    console.log('[parseVoiceCommand]', JSON.stringify({ text, result }).slice(0, 400));
     return { ...result, raw: text };
   } catch (e: any) {
     console.warn('[parseVoiceCommand] LLM failed:', e?.message);
     return { intent: 'unknown', raw: text, error: e?.message };
   }
+});
+
+// === Voice → team broadcast helper ==========================================
+// Sends one WhatsApp/SMS to every active employee with a phone on file.
+// Used by the voice 'send_staff_schedule' and 'send_team_message' intents.
+registerFn('sendTeamWhatsApp', async ({ body, user }) => {
+  if (!user) throw new Error('auth required');
+  const message = String((body as any)?.message || '').trim();
+  if (!message) throw new Error('message required');
+  const employees: any[] = await db.employee.findMany({ where: { status: 'active' } });
+  const targets = employees.filter((e) => e.phone);
+  let sent = 0, failed = 0;
+  for (const e of targets) {
+    try {
+      // Try WhatsApp first (template-less free-form works if they messaged us in 24h);
+      // SMS as fallback to ensure delivery.
+      await sendWhatsApp(e.phone, message).catch(() => sendSms(e.phone, message));
+      sent++;
+    } catch (err: any) {
+      console.warn('[sendTeamWhatsApp] failed for', e.phone, err?.message);
+      failed++;
+    }
+  }
+  return { sent, failed, total: targets.length };
 });
