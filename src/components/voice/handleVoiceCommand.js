@@ -38,7 +38,7 @@ const MUTATING_INTENTS = new Set([
     'session_extend', 'session_move', 'session_move_multi',
     'resend_confirmation', 'send_reminder',
     'customer_set_vip', 'customer_send_coupon', 'benefit_give',
-    'leave_approve', 'request_swap', 'schedule_add',
+    'leave_approve', 'request_swap', 'schedule_add', 'schedule_remove',
     'inventory_add', 'order_from_supplier',
     'menu_remove', 'menu_add',
     'invoice_create', 'pay_bonus', 'coins_give',
@@ -1455,6 +1455,47 @@ async function dispatchCommand(cmd, state) {
                     });
                     await base44.entities.WorkShift.update(shift.id, { assigned_staff: staff });
                     return { ok: true, message: `בוצע ✓ ${emp.full_name} שובץ ל-${shiftType === 'lunch' ? 'צהריים' : 'ערב'} ${dateStr}` };
+                } catch { return { ok: false, message: 'שגיאה' }; }
+            }
+
+            // ---------- Schedule remove ----------
+            case 'schedule_remove': {
+                try {
+                    if (!cmd.name) return { ok: false, message: 'לא בטוח את מי להוריד — תגיד את השם' };
+                    const dateStr = (() => {
+                        if (cmd.date) return cmd.date;
+                        if (cmd.when === 'מחר') {
+                            const d = new Date(); d.setDate(d.getDate() + 1);
+                            return d.toISOString().slice(0, 10);
+                        }
+                        if (cmd.when === 'מחרתיים') {
+                            const d = new Date(); d.setDate(d.getDate() + 2);
+                            return d.toISOString().slice(0, 10);
+                        }
+                        return new Date().toISOString().slice(0, 10);
+                    })();
+                    // Get all shifts for this date (could be multiple — lunch + dinner)
+                    const shifts = await base44.entities.WorkShift.filter({ date: dateStr });
+                    if (!shifts || shifts.length === 0) {
+                        return { ok: false, message: `אין משמרת ב-${dateStr}` };
+                    }
+                    // Filter to specific shift_type if given
+                    const relevant = cmd.shift_type
+                        ? shifts.filter(s => s.shift_type === cmd.shift_type)
+                        : shifts;
+                    let removedFrom = 0;
+                    for (const shift of relevant) {
+                        const staff = Array.isArray(shift.assigned_staff) ? shift.assigned_staff : [];
+                        const filtered = staff.filter(a => !(a.employee_name || '').includes(cmd.name));
+                        if (filtered.length < staff.length) {
+                            await base44.entities.WorkShift.update(shift.id, { assigned_staff: filtered });
+                            removedFrom++;
+                        }
+                    }
+                    if (removedFrom === 0) {
+                        return { ok: false, message: `${cmd.name} לא משובץ למשמרת ב-${dateStr}` };
+                    }
+                    return { ok: true, message: `בוצע ✓ ${cmd.name} הוסר/ה מ-${removedFrom} משמרת/ות ב-${dateStr}` };
                 } catch { return { ok: false, message: 'שגיאה' }; }
             }
 

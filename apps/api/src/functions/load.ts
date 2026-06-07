@@ -10059,6 +10059,47 @@ OPS:
 - incident_open {description}: פתח תקרית
 - task_add {description, who?}: משימה
 
+SCHEDULE:
+- schedule_add {name, when?, shift_type?, position?}: שבץ למשמרת
+- schedule_remove {name, when?, shift_type?}: הוצא מהמשמרת / מהסידור
+
+# === SYNONYM GROUPS — שיטה מרכזית להבנת ניסוחים ===
+# Hebrew has many verbs that mean the same action. NORMALIZE all of these:
+#
+# REMOVE/DELETE group (all → schedule_remove or *_cancel):
+#   תמחק / תוריד / תוציא / תסיר / תבטל / תזרוק / להוציא / לבטל / להסיר
+#   Example: "תמחק את עדן מהסידור" / "תוריד את עדן מהמשמרת" / "תוציא את
+#   עדן מהיום" — all map to {schedule_remove, name: "עדן", when: "היום"}
+#
+# ADD/CREATE group (all → *_add or *_activate):
+#   תוסיף / תרשום / תכניס / תקבע / תזמין / תפתח / תיצור / תייצר / להוסיף
+#   Example: "תוסיף את שירה ערב" / "תכניס את שירה לסידור הערב" / "שבץ
+#   את שירה לערב" — all map to schedule_add
+#
+# QUERY group (all → q_*):
+#   מה / כמה / מי / איפה / איך / תראה לי / תבדוק / תספור / תגיד / רגע
+#   Example: "מי במשמרת" / "תראה לי מי במשמרת" / "תגיד מי במשמרת" — all
+#   map to q_on_shift
+#
+# MOVE/TRANSFER group (all → session_move or seat_reservation):
+#   תעביר / תזיז / תקח / להעביר / להעיף / לשנות
+#   Example: "תעביר 30 ל11" / "תזיז 30 ל11" / "תקח את 30 ל11"
+#
+# REFERENCES / PRONOUNS:
+#   When user says אותו/אותה/אותם — it refers to the LAST mentioned person
+#   or table. Without context, treat as the subject of the sentence.
+#
+# TIME REFERENCES (always convert to when field):
+#   "היום" / "הערב" / "עכשיו" / "כרגע" → "היום"
+#   "מחר" / "מחר בבוקר" / "מחר בערב" → "מחר"
+#   "מחרתיים" / "ביומיים" → "מחרתיים"
+#   "השבוע" / "סוף שבוע" / "שבת" → keep as text or convert to date
+#   "יום שני" / "ראשון" / "שלישי" → resolve to next occurrence
+#
+# THE GOLDEN RULE:
+# Match by MEANING not by exact words. If you understand what the user
+# wants — return the intent even if their words don't match any example.
+
 SALES:
 - sale_credit {dish, name}: זיכוי מכירה למלצר ספציפי
 - sales_goal_activate {template}: פתיחת יעד מכירות
@@ -10396,6 +10437,18 @@ EXAMPLES:
 # Hebrew weekday names: ראשון=Sun, שני=Mon, שלישי=Tue, רביעי=Wed, חמישי=Thu, שישי=Fri, שבת=Sat
 # When user says "יום שני" — that's Monday; resolve to nearest future Monday and use as the when field.
 # When user says "סוף שבוע" → typically מחר (חמישי) או מחרתיים (שישי) — default to closest weekend.
+
+# === Schedule remove — all verb variants must work ===
+"תמחק את עדן מהסידור היום" → {"intent":"schedule_remove","name":"עדן","when":"היום"}
+"תוריד את עדן מהמשמרת היום" → {"intent":"schedule_remove","name":"עדן","when":"היום"}
+"תוציא את עדן מהיום" → {"intent":"schedule_remove","name":"עדן","when":"היום"}
+"תסיר את עדן מהסידור" → {"intent":"schedule_remove","name":"עדן","when":"היום"}
+"תבטל את המשמרת של עדן היום" → {"intent":"schedule_remove","name":"עדן","when":"היום"}
+"תוריד אותה מהמשמרת היום" → {"intent":"schedule_remove","name":"","when":"היום"}
+"עדן לא במשמרת היום" → {"intent":"schedule_remove","name":"עדן","when":"היום"}
+"עדן יצאה מהיום" → {"intent":"schedule_remove","name":"עדן","when":"היום"}
+"תזרוק את עדן מהערב מחר" → {"intent":"schedule_remove","name":"עדן","when":"מחר","shift_type":"dinner"}
+"להוציא את עדן מהצהריים שלישי" → {"intent":"schedule_remove","name":"עדן","when":"שלישי","shift_type":"lunch"}
 
 Input: "${text}"
 Output (JSON only, MUST include "intent"):`;

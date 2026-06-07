@@ -318,6 +318,14 @@ export const MATCHERS = [
     { re: /^קופה\s+ל?ייב$/, intent: 'nav_open', extract: () => ({ target: 'dashboard' }) },
     { re: /^דאשבורד$/, intent: 'nav_open', extract: () => ({ target: 'dashboard' }) },
 
+    // ========== Schedule remove — synonym group ==========
+    // All these verbs mean "remove from schedule": תמחק / תוריד / תוציא / תסיר / תבטל / תזרוק
+    { re: /^(?:תמחק|תוריד|תוציא|תסיר|תבטל|תזרוק)\s+(?:את\s+)?(.+?)\s+(?:מ(?:ה)?(?:סידור|משמרת|יום|לוח\s+עבודה))(?:\s+(היום|מחר|מחרתיים))?/, intent: 'schedule_remove', extract: m => ({ name: m[1].trim(), when: m[2] || 'היום' }) },
+    // "תבטל את המשמרת של עדן היום"
+    { re: /^תבטל\s+(?:את\s+)?(?:ה?משמרת\s+של\s+)(.+?)(?:\s+(היום|מחר|מחרתיים))?$/, intent: 'schedule_remove', extract: m => ({ name: m[1].trim(), when: m[2] || 'היום' }) },
+    // "עדן לא במשמרת היום" / "עדן יצאה מהיום"
+    { re: /^(.+?)\s+(לא\s+במשמרת|יצא[הת]?\s+מ(?:ה)?(?:יום|סידור|משמרת))(?:\s+(היום|מחר|מחרתיים))?$/, intent: 'schedule_remove', extract: m => ({ name: m[1].trim(), when: m[3] || 'היום' }) },
+
     // ========== Help ==========
     { re: /^(מה\s+אפשר|איזה\s+פקודות|עזרה|מה\s+אתה\s+יודע|מה\s+אתה\s+יכול|איך\s+משתמשים|תסביר\s+לי)/, intent: 'help' },
 ];
