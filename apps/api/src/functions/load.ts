@@ -9876,7 +9876,8 @@ QUESTIONS:
 - q_next_in_queue / q_next_reservation / q_queue_count / q_free_tables
 - q_who_on_table {table}
 - q_today_reservations / q_tomorrow_reservations / q_today_guests / q_today_revenue / q_status_summary
-- q_on_shift (any), q_on_shift_now, q_on_shift_evening, q_on_shift_lunch, q_on_shift_date {when, shift_type?}
+- q_on_shift (any), q_on_shift_now, q_on_shift_evening, q_on_shift_lunch, q_on_shift_date {when, shift_type?, position?}
+  Position values: "מלצר", "טבח", "ברמן", "מנהלת משמרת", "ראנר", "מארחת", "קופה", "שוטף כלים", etc.
 - q_customer_history {name}
 
 COMMS:
@@ -9907,6 +9908,9 @@ Rules:
 EXAMPLES:
 "מי עובד היום בערב" → {"intent":"q_on_shift_evening"}
 "מי עובד עכשיו" → {"intent":"q_on_shift_now"}
+"מי עובד היום מלצר" → {"intent":"q_on_shift_date","when":"היום","position":"מלצר"}
+"איזה מלצרים יש מחר בערב" → {"intent":"q_on_shift_date","when":"מחר","shift_type":"dinner","position":"מלצר"}
+"מי טבח עכשיו" → {"intent":"q_on_shift_now","position":"טבח"}
 "תשלח לצוות שעות להיום בוואטסאפ" → {"intent":"send_staff_schedule","when":"היום"}
 "11 פתחו לי" → {"intent":"table_free","table":"11"}
 "שולחן 30 בקינוח" → {"intent":"table_finishing","table":"30"}
@@ -9942,6 +9946,7 @@ Output (JSON only, MUST include "intent"):`;
           to: { type: 'string' },
           target: { type: 'string' },
           shift_type: { type: 'string' },
+          position: { type: 'string' },
           message: { type: 'string' },
           description: { type: 'string' },
           who: { type: 'string' },

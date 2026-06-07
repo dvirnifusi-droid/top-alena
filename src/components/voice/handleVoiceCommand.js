@@ -434,14 +434,34 @@ async function dispatchCommand(cmd, state) {
                 try {
                     const shifts = await base44.entities.WorkShift.filter({ date: dateStr });
                     const filtered = shiftType ? (shifts || []).filter(s => s.shift_type === shiftType) : (shifts || []);
-                    const allStaff = filtered.flatMap(s => s.assigned_staff || []);
+                    let allStaff = filtered.flatMap(s => s.assigned_staff || []);
+                    // Position filter — if user asked "מי עובד היום מלצר", filter to that role.
+                    if (cmd.position) {
+                        const want = String(cmd.position).trim().toLowerCase();
+                        // Match by includes so 'מלצר' catches 'מלצרית' too, and Hebrew/English alike.
+                        allStaff = allStaff.filter(a => {
+                            const p = String(a.position || '').toLowerCase();
+                            return p.includes(want) || want.includes(p);
+                        });
+                    }
                     if (allStaff.length === 0) {
                         const when = cmd.when === 'מחר' ? 'מחר' : 'היום';
                         const slot = shiftType === 'lunch' ? 'צהריים' : shiftType === 'dinner' ? 'ערב' : '';
-                        return { ok: true, message: `אין משובצים ${when} ${slot}`.trim() };
+                        const posTxt = cmd.position ? ' כ-' + cmd.position : '';
+                        return { ok: true, message: `אין משובצים${posTxt} ${when} ${slot}`.trim() };
                     }
-                    const names = [...new Set(allStaff.map(s => s.employee_name).filter(Boolean))];
-                    return { ok: true, message: `${names.length} עובדים: ${names.join(', ')}` };
+                    // Unique by name+position so a person who works lunch+dinner shows once with both roles.
+                    const seen = new Set();
+                    const lines = [];
+                    for (const a of allStaff) {
+                        const key = (a.employee_name || '') + '|' + (a.position || '');
+                        if (seen.has(key)) continue;
+                        seen.add(key);
+                        const role = a.position ? ` (${a.position})` : '';
+                        lines.push(`${a.employee_name}${role}`);
+                    }
+                    const posTxt = cmd.position ? ` כ-${cmd.position}` : '';
+                    return { ok: true, message: `${lines.length} עובדים${posTxt}: ${lines.join(', ')}` };
                 } catch { return { ok: false, message: 'לא הצלחתי לבדוק' }; }
             }
 
