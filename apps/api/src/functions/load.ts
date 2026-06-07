@@ -11877,14 +11877,44 @@ if (!(globalThis as any).__beecommSnapshotTimer) {
 const GOMILEY_BASE = 'https://app.gomiley.com';
 const GOMILEY_RESTAURANT_ID = process.env.GOMILEY_RESTAURANT_ID || '1968';
 
-function gomileyCookieHeader(): string {
-  const phpSessId = process.env.GOMILEY_PHPSESSID || '';
-  const arena = process.env.GOMILEY_ARENA || '';
-  const deviceToken = process.env.GOMILEY_DEVICE_TOKEN || '';
+// In-memory cache of cookies read from IntegrationSecret. Refreshed lazily
+// every 60s so a save through the admin page takes effect immediately for
+// the next cron tick without restarting the API.
+let __gomileyCookieCache: { value: { phpSessId: string; arena: string; deviceToken: string; restaurantId: string }; expiresAt: number } | null = null;
+
+async function readGomileyCookieRow(key: string): Promise<string> {
+  try {
+    const row: any = await (db as any).integrationSecret.findFirst({ where: { key } });
+    return row?.value || '';
+  } catch { return ''; }
+}
+
+async function loadGomileyCookies() {
+  if (__gomileyCookieCache && __gomileyCookieCache.expiresAt > Date.now()) {
+    return __gomileyCookieCache.value;
+  }
+  const [phpSessId, arena, deviceToken, restaurantId] = await Promise.all([
+    readGomileyCookieRow('gomiley_phpsessid'),
+    readGomileyCookieRow('gomiley_arena'),
+    readGomileyCookieRow('gomiley_device_token'),
+    readGomileyCookieRow('gomiley_restaurant_id'),
+  ]);
+  const value = {
+    phpSessId: phpSessId || process.env.GOMILEY_PHPSESSID || '',
+    arena: arena || process.env.GOMILEY_ARENA || '',
+    deviceToken: deviceToken || process.env.GOMILEY_DEVICE_TOKEN || '',
+    restaurantId: restaurantId || process.env.GOMILEY_RESTAURANT_ID || '1968',
+  };
+  __gomileyCookieCache = { value, expiresAt: Date.now() + 60_000 };
+  return value;
+}
+
+async function gomileyCookieHeader(): Promise<string> {
+  const c = await loadGomileyCookies();
   const parts: string[] = ['user_language=he'];
-  if (phpSessId) parts.push(`PHPSESSID=${phpSessId}`);
-  if (arena) parts.push(`arena=${arena}`);
-  if (deviceToken) parts.push(`device_token=${deviceToken}`);
+  if (c.phpSessId) parts.push(`PHPSESSID=${c.phpSessId}`);
+  if (c.arena) parts.push(`arena=${c.arena}`);
+  if (c.deviceToken) parts.push(`device_token=${c.deviceToken}`);
   return parts.join('; ');
 }
 
@@ -12001,10 +12031,12 @@ function parseGomileyRow(row: string[]): GomileyOrder | null {
 }
 
 export async function captureGomileySnapshot() {
-  const cookieHeader = gomileyCookieHeader();
+  const cookieHeader = await gomileyCookieHeader();
   if (!cookieHeader.includes('PHPSESSID')) {
-    return { ok: false, reason: 'missing GOMILEY_PHPSESSID env var' };
+    return { ok: false, reason: 'no cookies — set them at /AdminGomileyCookies' };
   }
+  const cookies = await loadGomileyCookies();
+  const restaurantId = cookies.restaurantId || GOMILEY_RESTAURANT_ID;
   const url = `${GOMILEY_BASE}/system/pages/orders/ajax.php?move=&moveorderid=`;
   const payload = gomileyDataTablesPayload(100, 0);
   try {
@@ -12042,7 +12074,7 @@ export async function captureGomileySnapshot() {
 
     const snap = await (db as any).gomileySnapshot.create({
       data: {
-        restaurant_id: GOMILEY_RESTAURANT_ID,
+        restaurant_id: restaurantId,
         total_income: parseAmt(json?.total_income),
         total_orders: Number(json?.total_orders) || 0,
         new_orders: Number(json?.new_orders) || 0,
@@ -12109,6 +12141,62 @@ registerFn('getCombinedRevenueToday', async ({ user }) => {
     cash_today_approx: beecomm_open_money + gomiley_cash,
     last_beecomm_update: bc?.captured_at || null,
     last_gomiley_update: gm?.captured_at || null,
+  };
+});
+
+// Admin endpoint — set Gomiley cookies. Stored as IntegrationSecret rows
+// (key+value) so the owner can refresh them whenever they expire without
+// SSH'ing to the VPS.
+registerFn('saveGomileyCookies', async ({ body, user }) => {
+  if (!user) throw new Error('auth required');
+  if ((user as any).role !== 'admin' && (user as any).role !== 'owner') {
+    throw new Error('admin only');
+  }
+  const b = (body || {}) as any;
+  const updates: Array<[string, string]> = [
+    ['gomiley_phpsessid', String(b.phpSessId || '').trim()],
+    ['gomiley_arena', String(b.arena || '').trim()],
+    ['gomiley_device_token', String(b.deviceToken || '').trim()],
+    ['gomiley_restaurant_id', String(b.restaurantId || '1968').trim()],
+  ];
+  const note = 'Gomiley delivery aggregator — saved from /AdminGomileyCookies';
+  for (const [key, value] of updates) {
+    if (!value) continue;
+    const existing: any = await (db as any).integrationSecret.findFirst({ where: { key } });
+    if (existing) {
+      await (db as any).integrationSecret.update({
+        where: { id: existing.id },
+        data: { value, note, updated_at: new Date(), updated_date: new Date().toISOString() },
+      });
+    } else {
+      await (db as any).integrationSecret.create({
+        data: { key, value, note, updated_at: new Date() },
+      });
+    }
+  }
+  // Bust cache so next snapshot uses new cookies immediately
+  __gomileyCookieCache = null;
+  // Try a fresh capture right away to confirm cookies work
+  const test = await captureGomileySnapshot();
+  return { ok: true, saved: updates.filter(([, v]) => v).map(([k]) => k), capture_test: test };
+});
+
+registerFn('getGomileyCookiesStatus', async ({ user }) => {
+  if (!user) throw new Error('auth required');
+  if ((user as any).role !== 'admin' && (user as any).role !== 'owner') {
+    throw new Error('admin only');
+  }
+  const c = await loadGomileyCookies();
+  const latestSnap: any = await (db as any).gomileySnapshot.findFirst({
+    orderBy: { captured_at: 'desc' },
+  });
+  return {
+    has_phpsessid: !!c.phpSessId,
+    has_arena: !!c.arena,
+    has_device_token: !!c.deviceToken,
+    restaurant_id: c.restaurantId,
+    last_capture_at: latestSnap?.captured_at || null,
+    last_orders_count: latestSnap?.total_orders || 0,
   };
 });
 

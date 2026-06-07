@@ -130,6 +130,7 @@ import WorkScheduling from './pages/WorkScheduling';
 import SalesGoalTemplates from './pages/SalesGoalTemplates';
 import BeecommLive from './pages/BeecommLive';
 import AdminReopenShifts from './pages/AdminReopenShifts';
+import AdminGomileyCookies from './pages/AdminGomileyCookies';
 import __Layout from './Layout.jsx';
 
 
@@ -217,6 +218,7 @@ export const PAGES = {
     "SalesGoalTemplates": SalesGoalTemplates,
     "BeecommLive": BeecommLive,
     "AdminReopenShifts": AdminReopenShifts,
+    "AdminGomileyCookies": AdminGomileyCookies,
 }
 
 export const pagesConfig = {
