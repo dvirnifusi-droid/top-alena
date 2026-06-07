@@ -59,6 +59,85 @@ model ActivityLog {
   @@index([action_type, createdAt])
 }
 
+// Sales gamification — manager-confirmed "+1" tap creates CoinTransaction.
+model SalesGoalTemplate {
+  id                       String   @id @default(cuid())
+  name                     String
+  dish_label               String
+  emoji                    String
+  default_target           Int
+  default_coins_per_sale   Int
+  is_active                Boolean  @default(true)
+  sort_order               Int?     @default(0)
+  created_date             String?
+  updated_date             String?
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+}
+
+model SalesGoal {
+  id                       String   @id @default(cuid())
+  template_id              String
+  shift_date               String
+  shift_type               String
+  dish_label               String
+  emoji                    String
+  target                   Int
+  coins_per_sale           Int
+  current_count            Int      @default(0)
+  status                   String   @default("active")
+  activated_by_id          String
+  activated_by_name        String
+  activated_at             DateTime @default(now())
+  completed_at             DateTime?
+  closed_at                DateTime?
+  closed_by_id             String?
+  created_date             String?
+  updated_date             String?
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+
+  @@index([shift_date, shift_type, status])
+}
+
+model SaleEvent {
+  id                       String   @id @default(cuid())
+  goal_id                  String
+  waiter_id                String
+  waiter_name              String
+  credited_by_id           String
+  credited_by_name         String
+  coins_amount             Int
+  is_bonus                 Boolean  @default(false)
+  undone_at                DateTime?
+  coin_transaction_id      String?
+  created_date             String?
+  updated_date             String?
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+
+  @@index([goal_id, createdAt])
+  @@index([waiter_id, createdAt])
+}
+
+model WeeklyPersonalGoal {
+  id                       String   @id @default(cuid())
+  employee_id              String
+  employee_name            String
+  week_start_date          String   // 'YYYY-MM-DD' of the Sunday
+  target                   Int
+  current_count            Int      @default(0)
+  reward_coins             Int
+  awarded                  Boolean  @default(false)
+  awarded_at               DateTime?
+  created_date             String?
+  updated_date             String?
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+
+  @@index([employee_id, week_start_date])
+}
+
 model Achievement {
   id        String   @id @default(cuid())
   name                         String
