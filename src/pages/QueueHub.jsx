@@ -25,7 +25,7 @@ export default function QueueHub() {
     return (
         <div className="p-4" dir="rtl">
             <h1 className="text-2xl font-bold mb-3 flex items-center gap-2">
-                <Users className="w-6 h-6 text-cyan-600" />
+                <Users className="w-6 h-6 text-amber-600" />
                 תור והזמנות
             </h1>
             <Tabs value={tab} onValueChange={onChange}>

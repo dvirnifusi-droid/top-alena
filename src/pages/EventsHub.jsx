@@ -30,7 +30,7 @@ export default function EventsHub() {
         <div className="p-4" dir="rtl">
             <div className="mb-4">
                 <h1 className="text-2xl font-bold flex items-center gap-2">
-                    <CalendarHeart className="w-6 h-6 text-indigo-600" />
+                    <CalendarHeart className="w-6 h-6 text-orange-600" />
                     אירועים פרטיים — מרכז ניהול
                 </h1>
                 <p className="text-sm text-gray-600 mt-1">

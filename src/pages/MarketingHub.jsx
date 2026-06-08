@@ -29,7 +29,7 @@ export default function MarketingHub() {
     return (
         <div className="p-4" dir="rtl">
             <h1 className="text-2xl font-bold mb-3 flex items-center gap-2">
-                <Megaphone className="w-6 h-6 text-pink-600" />
+                <Megaphone className="w-6 h-6 text-emerald-600" />
                 שיווק ולקוחות
             </h1>
             <Tabs value={tab} onValueChange={onChange}>

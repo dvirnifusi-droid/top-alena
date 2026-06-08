@@ -29,7 +29,7 @@ export default function AIHub() {
     return (
         <div className="p-4" dir="rtl">
             <h1 className="text-2xl font-bold mb-3 flex items-center gap-2">
-                <Sparkles className="w-6 h-6 text-violet-600" />
+                <Sparkles className="w-6 h-6 text-amber-600" />
                 כלי AI
             </h1>
             <Tabs value={tab} onValueChange={onChange}>

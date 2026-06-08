@@ -23,7 +23,7 @@ export default function DeliveriesHub() {
     return (
         <div className="p-4" dir="rtl">
             <h1 className="text-2xl font-bold mb-3 flex items-center gap-2">
-                <Package className="w-6 h-6 text-amber-600" />
+                <Package className="w-6 h-6 text-orange-600" />
                 משלוחים
             </h1>
             <Tabs value={tab} onValueChange={onChange}>

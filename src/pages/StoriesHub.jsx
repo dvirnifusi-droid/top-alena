@@ -31,7 +31,7 @@ export default function StoriesHub() {
     return (
         <div className="p-4" dir="rtl">
             <h1 className="text-2xl font-bold mb-3 flex items-center gap-2">
-                <Trophy className="w-6 h-6 text-rose-600" />
+                <Trophy className="w-6 h-6 text-orange-600" />
                 גמיפיקציה וסטוריז
             </h1>
             <Tabs value={tab} onValueChange={onChange}>
