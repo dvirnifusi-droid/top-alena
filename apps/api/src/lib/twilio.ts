@@ -65,6 +65,11 @@ export async function sendWhatsAppTemplate(
   return { success: true, sid: data.sid };
 }
 
+// Send a FREE-FORM WhatsApp message — works only within a 24-hour session
+// (i.e. the customer messaged us in the last 24h). Outside that window Meta
+// requires a pre-approved template, which is what sendWhatsAppTemplate is for.
+// IMPORTANT: never auto-attach a ContentSid here — Twilio will silently use
+// the template and IGNORE the Body, sending the wrong message to the customer.
 export async function sendWhatsApp(to: string, body: string) {
   const sid = process.env.TWILIO_ACCOUNT_SID;
   const token = process.env.TWILIO_AUTH_TOKEN;
@@ -78,16 +83,6 @@ export async function sendWhatsApp(to: string, body: string) {
   const creds = Buffer.from(`${sid}:${token}`).toString('base64');
   const toN = normalizeIsraeliPhone(to);
   const params: Record<string, string> = { From: from, To: `whatsapp:${toN}`, Body: body };
-  // If a pre-approved template SID is configured, use it. Twilio's WhatsApp Business
-  // requires templates for business-initiated messages outside a 24h session.
-  // Default = the owner's approved booking_confirmation_he template; overridable via env.
-  const templateSid = process.env.TWILIO_WA_TEMPLATE_SID || 'HX42bd4ae96abaa7312aeeae1af997c3da';
-  if (templateSid) {
-    params.ContentSid = templateSid;
-    // Caller passes ContentVariables as the message body (just the JSON string of {1: ..., 2: ..., ...})
-    // — sendWhatsAppTemplate below is the typed wrapper.
-    if (process.env.TWILIO_WA_TEMPLATE_VARS) params.ContentVariables = process.env.TWILIO_WA_TEMPLATE_VARS;
-  }
   const res = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`, {
     method: 'POST',
     headers: { Authorization: `Basic ${creds}`, 'Content-Type': 'application/x-www-form-urlencoded' },
