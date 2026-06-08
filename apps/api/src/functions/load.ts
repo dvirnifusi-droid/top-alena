@@ -2100,26 +2100,10 @@ registerFn('sendWhatsAppBroadcast', async ({ body, user }) => {
 
 registerFn('sendWhatsApp', async ({ body }) => {
   const { to, message } = body as any;
-  const sid = process.env.TWILIO_ACCOUNT_SID;
-  const token = process.env.TWILIO_AUTH_TOKEN;
-  const from = process.env.TWILIO_WHATSAPP_FROM ?? `whatsapp:${process.env.TWILIO_PHONE_NUMBER}`;
-  if (!sid || !token || !from) {
-    console.warn('[twilio] missing WhatsApp credentials, skipping');
-    return { skipped: true };
-  }
-  const creds = Buffer.from(`${sid}:${token}`).toString('base64');
-  const res = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`, {
-    method: 'POST',
-    headers: { Authorization: `Basic ${creds}`, 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({
-      From: from,
-      To: to.startsWith('whatsapp:') ? to : `whatsapp:${to}`,
-      Body: message,
-    }),
-  });
-  const data: any = await res.json();
-  if (!res.ok) throw new Error(data?.message || `twilio_wa_${res.status}`);
-  return { success: true, sid: data.sid };
+  if (!to || !message) throw new Error('to and message required');
+  // Delegate to lib — it normalizes Israeli phones (0XX → +972XX) and
+  // surfaces Twilio error codes properly.
+  return sendWhatsApp(String(to), String(message));
 });
 
 registerFn('sendCustomerEmail', async ({ body }) => {
