@@ -12918,6 +12918,7 @@ registerFn('getKitchenScreenData', async ({ user }) => {
     arriving_soon_count: 0,
     low_inventory: { kitchen: [], bar: [] },
     deliveries_by_platform: [],  // [{name, orders, total}] from Gomiley dashboard
+    daily_specials: [],          // [{description, target_value, bonus}] from today's brief
   };
 
   // 1. Beecomm latest snapshot — use fallback to last-with-data if today empty
@@ -13035,60 +13036,63 @@ registerFn('getKitchenScreenData', async ({ user }) => {
     out.arriving_soon_count = arriving.reduce((s, a) => s + a.party, 0);
   } catch (e: any) { console.warn('[kitchen-screen] reservations failed:', e?.message); }
 
-  // 7. Low inventory — primary source is InventoryAlert (existing system,
-  // populated by InventoryScanner photo OCR). Falls back to Inventory table
-  // if there are also items there with current_stock <= min_threshold.
-  // Categories are inferred from item_name (Hebrew keywords for bar items).
+  // 7. Shortages + daily specials — read from today's DailyBrief
+  // (owner-edited via /BriefingManagement). Primary source. Falls back to
+  // InventoryAlert if no brief exists yet.
   try {
-    const isBarName = (name: string) => /יין|בירה|וודקה|ויסקי|טקילה|רום|ג['י]ין|ליקר|שמפניה|פרוסקו|אבסולוט|ארבק|וויסקי|וודק|מאיירס|כוס|בקבוק|אלכוהול|קוקטייל|מארטיני|אפרול|לימונדה|קולה|מיץ|סודה|טוניק|שתי/i.test(String(name || ''));
-    // From InventoryAlert (pending only — not resolved)
-    const alerts: any[] = await (db as any).inventoryAlert.findMany({
-      where: { OR: [{ status: 'pending' }, { status: null }] },
-      orderBy: { createdAt: 'desc' },
-      take: 50,
+    const today00 = new Date();
+    today00.setHours(0, 0, 0, 0);
+    const tomorrow00 = new Date(today00.getTime() + 24 * 60 * 60 * 1000);
+    const brief: any = await (db as any).dailyBrief.findFirst({
+      where: { date: { gte: today00, lt: tomorrow00 } },
+      orderBy: { updatedAt: 'desc' },
     });
-    const fromAlerts = alerts.map(a => ({
-      name: String(a.item_name || ''),
-      current: Number(a.current_quantity) || 0,
-      min: Number(a.suggested_quantity) || 0,
-      unit: '',
-      urgency: String(a.urgency || ''),
-      source: 'alert',
-    }));
-    // Also pull Inventory rows that have explicit min_threshold set
-    let fromInventory: any[] = [];
-    try {
-      const lowAll: any[] = await (db as any).inventory.findMany({
-        where: { min_threshold: { not: null } },
-        select: { item_name: true, category: true, current_stock: true, min_threshold: true, unit: true },
-      });
-      fromInventory = lowAll
-        .filter(i => Number(i.current_stock) <= Number(i.min_threshold))
-        .map(i => ({
-          name: String(i.item_name || ''),
-          current: Number(i.current_stock) || 0,
-          min: Number(i.min_threshold) || 0,
-          unit: String(i.unit || ''),
-          urgency: '',
-          source: 'inventory',
-          category: String(i.category || ''),
-        }));
-    } catch { /* table may not exist on some envs */ }
 
-    // Dedupe by lowercased item_name
-    const dedup = new Map<string, any>();
-    for (const x of [...fromAlerts, ...fromInventory]) {
-      const k = x.name.toLowerCase().trim();
-      if (!k) continue;
-      if (!dedup.has(k)) dedup.set(k, x);
+    let kitchenItems: any[] = [];
+    let barItems: any[] = [];
+    if (brief) {
+      const ks = Array.isArray(brief.kitchen_shortages) ? brief.kitchen_shortages : [];
+      const bs = Array.isArray(brief.bar_shortages) ? brief.bar_shortages : [];
+      // Accept either string entries or { item: string } entries from legacy data
+      const normalize = (s: any) => (typeof s === 'string' ? s : (s?.item ?? '')).trim();
+      kitchenItems = ks.map((s: any) => ({ name: normalize(s) })).filter((x: any) => x.name);
+      barItems = bs.map((s: any) => ({ name: normalize(s) })).filter((x: any) => x.name);
+
+      // Daily specials from brief.sales_targets — info-only on screen
+      const targets = Array.isArray(brief.sales_targets) ? brief.sales_targets : [];
+      out.daily_specials = targets.map((t: any) => ({
+        description: String(t?.target_description || '').trim(),
+        target_value: Number(t?.target_value) || 0,
+        bonus: String(t?.bonus_description || '').trim(),
+      })).filter((t: any) => t.description);
     }
-    const all = [...dedup.values()];
-    const isBar = (it: any) => isBarName(it.name) || /bar|בר|שתי|אלכוהול|משקאות|יין|בירה/.test(String(it.category || '').toLowerCase());
+
+    // Fallback to InventoryAlert if brief has no shortages yet
+    if (kitchenItems.length === 0 && barItems.length === 0) {
+      try {
+        const isBarName = (n: string) => /יין|בירה|וודקה|ויסקי|טקילה|רום|ג['י]ין|ליקר|שמפניה|פרוסקו|אבסולוט|אלכוהול|קוקטייל|מארטיני|אפרול|לימונדה|קולה|מיץ|סודה|טוניק|שתי/i.test(String(n || ''));
+        const alerts: any[] = await (db as any).inventoryAlert.findMany({
+          where: { OR: [{ status: 'pending' }, { status: null }] },
+          orderBy: { createdAt: 'desc' },
+          take: 30,
+        });
+        for (const a of alerts) {
+          const item = { name: String(a.item_name || '').trim() };
+          if (!item.name) continue;
+          if (isBarName(item.name)) barItems.push(item);
+          else kitchenItems.push(item);
+        }
+      } catch { /* best effort */ }
+    }
+
     out.low_inventory = {
-      kitchen: all.filter(x => !isBar(x)).slice(0, 10),
-      bar: all.filter(x => isBar(x)).slice(0, 10),
+      kitchen: kitchenItems.slice(0, 12),
+      bar: barItems.slice(0, 12),
+      source: brief ? 'brief' : 'alerts',
+      brief_id: brief?.id || null,
     };
-  } catch (e: any) { console.warn('[kitchen-screen] inventory failed:', e?.message); }
+  } catch (e: any) { console.warn('[kitchen-screen] shortages failed:', e?.message); }
+  if (!Array.isArray(out.daily_specials)) out.daily_specials = [];
 
   // 8. Deliveries by platform — from latest Gomiley dashboard scrape
   try {

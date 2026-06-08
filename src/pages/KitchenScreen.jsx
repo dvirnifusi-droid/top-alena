@@ -83,6 +83,8 @@ export default function KitchenScreen() {
   const arrivingTotal = data?.arriving_soon_count ?? 0;
   const lowKitchen = Array.isArray(data?.low_inventory?.kitchen) ? data.low_inventory.kitchen : [];
   const lowBar = Array.isArray(data?.low_inventory?.bar) ? data.low_inventory.bar : [];
+  const shortagesSource = data?.low_inventory?.source; // 'brief' or 'alerts'
+  const dailySpecials = Array.isArray(data?.daily_specials) ? data.daily_specials : [];
   const platforms = Array.isArray(data?.deliveries_by_platform) ? data.deliveries_by_platform : [];
   const workers = Array.isArray(data?.beecomm?.workers) ? data.beecomm.workers.slice(0, 6) : [];
 
@@ -148,9 +150,29 @@ export default function KitchenScreen() {
             <PredictedHourTile pred={pred} />
           </div>
 
-          {/* Row 3 — Goals */}
+          {/* Row 3a — Daily Specials from today's brief (info banner) */}
+          {dailySpecials.length > 0 && (
+            <div style={{ background: 'linear-gradient(135deg, #831843, #9d174d)', border: '2px solid #f9a8d440', borderRadius: '16px', padding: '16px', marginBottom: '20px' }}>
+              <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#fbcfe8', marginBottom: '12px' }}>💡 ספיישלים — היום</div>
+              <div style={{ display: 'grid', gridTemplateColumns: `repeat(${Math.min(dailySpecials.length, 3)}, 1fr)`, gap: '12px' }}>
+                {dailySpecials.slice(0, 3).map((s, i) => (
+                  <div key={i} style={{ background: 'rgba(0,0,0,0.25)', borderRadius: '10px', padding: '12px' }}>
+                    <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#f1f5f9' }}>{s.description}</div>
+                    {s.target_value > 0 && (
+                      <div style={{ fontSize: '28px', fontWeight: 'bold', color: '#fbcfe8', marginTop: '4px', lineHeight: 1 }}>יעד: {s.target_value}</div>
+                    )}
+                    {s.bonus && (
+                      <div style={{ fontSize: '13px', color: '#fbcfe8', marginTop: '6px' }}>🎁 {s.bonus}</div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Row 3b — Active SalesGoals with progress + marking */}
           {goals.length > 0 && (
-            <Panel title="🎯 יעדים פעילים — המשמרת">
+            <Panel title="🎯 יעדים פעילים — מד התקדמות">
               <div style={{ display: 'grid', gridTemplateColumns: `repeat(${Math.min(goals.length, 3)}, 1fr)`, gap: '12px' }}>
                 {goals.slice(0, 3).map(g => (
                   <GoalCard key={g.id} goal={g} />
@@ -336,20 +358,14 @@ function ShortagesPanel({ title, items, color }) {
         <div style={{ color: '#94a3b8', textAlign: 'center', padding: '20px 0', fontSize: '14px' }}>✓ אין חוסרים</div>
       ) : (
         <div>
-          {items.slice(0, 6).map((it, i) => {
-            const dangerLevel = it.current === 0 ? 'out' : it.current <= it.min * 0.5 ? 'critical' : 'warn';
-            const c = dangerLevel === 'out' ? '#ef4444' : dangerLevel === 'critical' ? '#f59e0b' : '#fbbf24';
-            return (
-              <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid #ffffff08', fontSize: '15px' }}>
-                <span style={{ fontWeight: 'bold' }}>{it.name}</span>
-                <span style={{ color: c, fontWeight: 'bold' }}>
-                  {it.current}{it.unit ? ` ${it.unit}` : ''} {dangerLevel === 'out' ? '⚠️ נגמר' : `/ ${it.min} מינ׳`}
-                </span>
-              </div>
-            );
-          })}
-          {items.length > 6 && (
-            <div style={{ fontSize: '11px', color: '#64748b', textAlign: 'center', marginTop: '6px' }}>+{items.length - 6} פריטים נוספים</div>
+          {items.slice(0, 8).map((it, i) => (
+            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 0', borderBottom: '1px solid #ffffff08', fontSize: '17px' }}>
+              <span style={{ color: '#ef4444', fontSize: '16px' }}>●</span>
+              <span style={{ fontWeight: 'bold' }}>{it.name}</span>
+            </div>
+          ))}
+          {items.length > 8 && (
+            <div style={{ fontSize: '11px', color: '#64748b', textAlign: 'center', marginTop: '6px' }}>+{items.length - 8} פריטים נוספים</div>
           )}
         </div>
       )}
