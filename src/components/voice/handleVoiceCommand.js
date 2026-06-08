@@ -13,6 +13,40 @@ function broadcastDataChange(scope) {
     } catch { /* SSR safety */ }
 }
 
+// Resolve relative dates ("היום", "מחר", "מחרתיים") into YYYY-MM-DD.
+// Also accepts Hebrew weekday names ("שני", "שלישי") — picks the nearest
+// future occurrence. Empty/unknown → today.
+function resolveWhenDate(when) {
+    const today = new Date();
+    if (!when || when === 'היום' || when === 'הערב' || when === 'עכשיו' || when === 'כרגע') {
+        return today.toISOString().slice(0, 10);
+    }
+    if (when === 'מחר') {
+        const d = new Date(today); d.setDate(d.getDate() + 1);
+        return d.toISOString().slice(0, 10);
+    }
+    if (when === 'מחרתיים') {
+        const d = new Date(today); d.setDate(d.getDate() + 2);
+        return d.toISOString().slice(0, 10);
+    }
+    const WEEKDAYS = { 'ראשון': 0, 'שני': 1, 'שלישי': 2, 'רביעי': 3, 'חמישי': 4, 'שישי': 5, 'שבת': 6 };
+    if (when in WEEKDAYS) {
+        const target = WEEKDAYS[when];
+        const d = new Date(today);
+        const diff = (target - d.getDay() + 7) % 7 || 7;
+        d.setDate(d.getDate() + diff);
+        return d.toISOString().slice(0, 10);
+    }
+    // Already YYYY-MM-DD or DD/MM
+    if (/^\d{4}-\d{2}-\d{2}$/.test(when)) return when;
+    if (/^\d{1,2}\/\d{1,2}$/.test(when)) {
+        const [d, m] = when.split('/').map(Number);
+        const dt = new Date(today.getFullYear(), m - 1, d);
+        return dt.toISOString().slice(0, 10);
+    }
+    return today.toISOString().slice(0, 10);
+}
+
 // Common: fetch live state from server (small, fast queries)
 async function loadState() {
     const today = new Date().toISOString().slice(0, 10);
@@ -49,14 +83,53 @@ const MUTATING_INTENTS = new Set([
     'settings_change_cancellation', 'settings_change_deposit_pct', 'online_reservations_toggle',
     'chat_broadcast', 'mark_clean',
     'sale_credit', 'sales_goal_activate',
+    'schedule_set_end_time', 'schedule_set_start_time',
+    'tips_sync_hours', 'tips_set_total',
 ]);
 
 export async function handleVoiceCommand(cmd) {
     try {
+        // MULTI-STEP PLAN: when the LLM returns `steps: [...]`, execute them in
+        // order, accumulate messages, broadcast changes per-step, and stop on
+        // the first hard failure. Single-intent commands still work as before.
+        if (Array.isArray(cmd?.steps) && cmd.steps.length > 0) {
+            const messages = [];
+            let lastResult = { ok: true };
+            const sharedState = { lastName: null, lastTable: null, lastDate: null };
+            // Defer nav_open until ALL data steps finish (page reload kills exec).
+            let pendingNav = null;
+            for (let i = 0; i < cmd.steps.length; i++) {
+                const step = cmd.steps[i];
+                if (step.name === '__last__' && sharedState.lastName) step.name = sharedState.lastName;
+                if (step.table === '__last__' && sharedState.lastTable) step.table = sharedState.lastTable;
+                if (step.intent === 'nav_open') {
+                    pendingNav = step;
+                    messages.push('פותח...');
+                    continue;
+                }
+                const state = await loadState();
+                const res = await dispatchCommand(step, state);
+                if (res?.ok && MUTATING_INTENTS.has(step.intent)) broadcastDataChange(step.intent);
+                if (step.name) sharedState.lastName = step.name;
+                if (step.table) sharedState.lastTable = step.table;
+                if (res?.message) messages.push(res.message);
+                lastResult = res;
+                if (!res?.ok && !step.continue_on_error) break;
+            }
+            if (pendingNav && lastResult.ok !== false) {
+                // Schedule nav after a tick so the result message renders/announces.
+                setTimeout(() => dispatchCommand(pendingNav, {}), 1500);
+            }
+            return {
+                ok: lastResult.ok,
+                message: messages.join(' · '),
+                multi: true,
+                stepCount: cmd.steps.length,
+            };
+        }
         const state = await loadState();
         const { reservations, activeQueue, activeSessions, tables } = state;
         const result = await dispatchCommand(cmd, state);
-        // Auto-broadcast on successful mutations so live pages refresh instantly.
         if (result?.ok && MUTATING_INTENTS.has(cmd.intent)) {
             broadcastDataChange(cmd.intent);
         }
@@ -505,6 +578,9 @@ async function dispatchCommand(cmd, state) {
                     seating: '/SeatingSetup',
                     queue: '/QueueDashboard',
                     events: '/EventsPrivate',
+                    tips: '/Tips',
+                    employees: '/Employees',
+                    reports: '/Reports',
                 };
                 const path = TARGETS[cmd.target];
                 if (!path) return { ok: false, message: 'לא ידוע איזה עמוד לפתוח' };
@@ -1549,6 +1625,129 @@ async function dispatchCommand(cmd, state) {
                     return { ok: true, message: `${top.name}, ${top.sales} מכירות, ${top.coins} מטבעות` };
                 } catch (e) { return { ok: false, message: 'לא הצלחתי לבדוק' }; }
             }
+            // ---------- WorkSchedule: change employee start/end time ----------
+            case 'schedule_set_end_time':
+            case 'schedule_set_start_time': {
+                const field = cmd.intent === 'schedule_set_end_time' ? 'end_time' : 'start_time';
+                const dateStr = resolveWhenDate(cmd.when);
+                try {
+                    const shifts = await base44.entities.WorkShift.filter({ date: dateStr });
+                    if (!shifts || shifts.length === 0) return { ok: false, message: `אין סידור ל-${cmd.when || 'היום'}` };
+                    let updated = 0;
+                    let employeeFullName = cmd.name;
+                    for (const s of shifts) {
+                        const staff = Array.isArray(s.assigned_staff) ? [...s.assigned_staff] : [];
+                        if (cmd.shift_type && s.shift_type !== cmd.shift_type) continue;
+                        let touched = false;
+                        for (let i = 0; i < staff.length; i++) {
+                            const a = staff[i];
+                            if ((a.employee_name || '').includes(cmd.name)) {
+                                staff[i] = { ...a, [field]: cmd.time };
+                                employeeFullName = a.employee_name || cmd.name;
+                                touched = true;
+                                updated++;
+                            }
+                        }
+                        if (touched) {
+                            await base44.entities.WorkShift.update(s.id, { assigned_staff: staff });
+                        }
+                    }
+                    if (!updated) return { ok: false, message: `${cmd.name} לא בסידור ${cmd.when || 'היום'}` };
+                    const label = field === 'end_time' ? 'יציאה' : 'כניסה';
+                    return { ok: true, message: `בוצע ✓ ${employeeFullName} ${label} ל-${cmd.time}` };
+                } catch (e) { return { ok: false, message: 'שגיאה בעדכון סידור: ' + (e?.message || '') }; }
+            }
+
+            // ---------- Tips: sync hours from WorkShift schedule into TipReport ----------
+            case 'tips_sync_hours': {
+                const dateStr = resolveWhenDate(cmd.when);
+                const shiftType = cmd.shift_type || null;
+                try {
+                    const shifts = await base44.entities.WorkShift.filter({ date: dateStr });
+                    if (!shifts || shifts.length === 0) return { ok: false, message: `אין סידור ל-${cmd.when || 'היום'}` };
+                    // Aggregate per-employee scheduled hours
+                    const hoursByName = new Map();
+                    for (const s of shifts) {
+                        if (shiftType && s.shift_type !== shiftType) continue;
+                        for (const a of (s.assigned_staff || [])) {
+                            const start = a.start_time || s.start_time;
+                            const end = a.end_time || s.end_time;
+                            if (!start || !end) continue;
+                            const [sh, sm] = start.split(':').map(Number);
+                            const [eh, em] = end.split(':').map(Number);
+                            let hours = ((eh * 60 + (em || 0)) - (sh * 60 + (sm || 0))) / 60;
+                            if (hours < 0) hours += 24;
+                            const prev = hoursByName.get(a.employee_name) || { hours: 0, position: a.position };
+                            hoursByName.set(a.employee_name, { hours: prev.hours + hours, position: a.position });
+                        }
+                    }
+                    if (hoursByName.size === 0) return { ok: false, message: 'אין עובדים בסידור לסנכרון' };
+                    // Find / create TipReport for the date
+                    const reports = await base44.entities.TipReport.list('-date', 50);
+                    let report = (reports || []).find(r => (r.date || '').slice(0, 10) === dateStr && (!shiftType || r.shift_type === shiftType));
+                    const staffDetails = Array.from(hoursByName.entries()).map(([name, v]) => ({
+                        employee_name: name,
+                        hours: Number(v.hours.toFixed(2)),
+                        position: v.position || '',
+                    }));
+                    if (report) {
+                        // Preserve existing tip amounts per-employee if present
+                        const existingById = new Map((report.staff_details || []).map(x => [x.employee_name, x]));
+                        const merged = staffDetails.map(x => ({ ...existingById.get(x.employee_name), ...x }));
+                        await base44.entities.TipReport.update(report.id, { staff_details: merged });
+                    } else {
+                        report = await base44.entities.TipReport.create({
+                            date: dateStr,
+                            total_tips_collected: 0,
+                            staff_details: staffDetails,
+                            shift_type: shiftType || undefined,
+                            status: 'draft',
+                        });
+                    }
+                    const totalHours = staffDetails.reduce((s, x) => s + x.hours, 0);
+                    return { ok: true, message: `בוצע ✓ סונכרנו שעות ל-${staffDetails.length} עובדים (${totalHours.toFixed(1)} שעות סה"כ)` };
+                } catch (e) { return { ok: false, message: 'שגיאה בסנכרון: ' + (e?.message || '') }; }
+            }
+
+            // ---------- Tips: set total collected, recalc tip_per_hour ----------
+            case 'tips_set_total': {
+                const dateStr = resolveWhenDate(cmd.when);
+                const shiftType = cmd.shift_type || null;
+                const amount = Number(cmd.amount) || 0;
+                if (amount <= 0) return { ok: false, message: 'סכום טיפים לא תקין' };
+                try {
+                    const reports = await base44.entities.TipReport.list('-date', 50);
+                    let report = (reports || []).find(r => (r.date || '').slice(0, 10) === dateStr && (!shiftType || r.shift_type === shiftType));
+                    if (!report) {
+                        report = await base44.entities.TipReport.create({
+                            date: dateStr, total_tips_collected: amount,
+                            staff_details: [], shift_type: shiftType || undefined, status: 'draft',
+                        });
+                    } else {
+                        await base44.entities.TipReport.update(report.id, { total_tips_collected: amount });
+                    }
+                    // Recalc tip_per_hour based on aggregated staff_details hours
+                    const totalHours = (report.staff_details || []).reduce((s, x) => s + (Number(x.hours) || 0), 0);
+                    const tipPerHour = totalHours > 0 ? Math.round(amount / totalHours) : 0;
+                    await base44.entities.TipReport.update(report.id, { tip_per_hour: tipPerHour });
+                    return { ok: true, message: `בוצע ✓ טיפים ${amount}₪, ${tipPerHour}₪/שעה (${totalHours.toFixed(1)} שעות)` };
+                } catch (e) { return { ok: false, message: 'שגיאה: ' + (e?.message || '') }; }
+            }
+
+            // ---------- Tips per hour query ----------
+            case 'q_tips_per_hour': {
+                const dateStr = resolveWhenDate(cmd.when);
+                try {
+                    const reports = await base44.entities.TipReport.list('-date', 50);
+                    const report = (reports || []).find(r => (r.date || '').slice(0, 10) === dateStr);
+                    if (!report) return { ok: true, message: `אין דוח טיפים ל-${cmd.when || 'היום'}` };
+                    const total = Math.round(Number(report.total_tips_collected) || 0);
+                    const totalHours = (report.staff_details || []).reduce((s, x) => s + (Number(x.hours) || 0), 0);
+                    const tph = totalHours > 0 ? Math.round(total / totalHours) : (Number(report.tip_per_hour) || 0);
+                    return { ok: true, message: `${total}₪ טיפים, ${totalHours.toFixed(1)} שעות, ${tph}₪ לשעה` };
+                } catch (e) { return { ok: false, message: 'לא הצלחתי לבדוק' }; }
+            }
+
             default:
                 return { ok: false, message: 'פקודה לא מוכרת: ' + cmd.intent };
         }

@@ -10821,6 +10821,69 @@ SHIFTCHAT:
 - chat_broadcast {message}: שלח הודעה לצ׳אט משמרת
 - q_today_chat: הודעות בצ׳אט היום
 
+WORK_SCHEDULE_EDIT (כניסה/יציאה של עובד בסידור עבודה):
+- schedule_set_end_time {name, time, when?, shift_type?}: שנה שעת יציאה — "סדר ליציאה של אסתר ב-22", "תשנה לאסתר יציאה ל10 בערב", "אסתר יוצאת ב11"
+- schedule_set_start_time {name, time, when?, shift_type?}: שנה שעת כניסה — "אסתר נכנסת ב4", "תזיז כניסה של אסתר ל-15:30"
+
+TIPS_FLOW (ניהול דוח טיפים — שעות, סה"כ, חישוב לשעה):
+- tips_sync_hours {when?, shift_type?}: סנכרן שעות מהסידור לדוח הטיפים — "תסנכרן שעות עם הסידור", "תכניס את השעות מהסידור לטיפים"
+- tips_set_total {amount, when?, shift_type?}: הכנס סה"כ טיפים — "סהכ טיפים 2400", "טיפים היום 1800", "סכום טיפים 3000"
+- q_tips_per_hour {when?}: כמה יוצא לשעה — "כמה יוצא לשעה", "תגיד כמה לשעה", "טיפ לשעה"
+
+# === MULTI-STEP PLANS — שרשרת פעולות ===
+# When the user chains MULTIPLE actions in one utterance (using "ו"/"אז"/"וגם"/
+# "אחרי זה"/"בנוסף" or just commas), return a "steps" array INSTEAD of a single
+# intent. Each step is {intent, params}. Steps execute in order; later steps
+# see the results of earlier ones (no need to re-state shared params).
+#
+# Examples:
+# "תפתח סידור עבודה, סדר ליציאה של אסתר ב-22, תסנכרן שעות עם הסידור, תכניס סהכ טיפים 2400, ותגיד כמה יוצא לשעה" →
+# {"intent":"plan","steps":[
+#   {"intent":"nav_open","target":"work_scheduling"},
+#   {"intent":"schedule_set_end_time","name":"אסתר","time":"22:00","when":"היום"},
+#   {"intent":"tips_sync_hours","when":"היום"},
+#   {"intent":"tips_set_total","amount":2400,"when":"היום"},
+#   {"intent":"q_tips_per_hour","when":"היום"}
+# ]}
+#
+# "תוסיף הזמנה לדביר 4 אנשים ב9 בערב ותסמן כ-VIP" →
+# {"intent":"plan","steps":[
+#   {"intent":"reservation_add","name":"דביר","party_size":4,"time":"21:00","when":"היום"},
+#   {"intent":"customer_set_vip","name":"דביר"}
+# ]}
+#
+# "תסגור שולחן 30, תושיב את הבא בתור עליו, ותגיד מה המצב" →
+# {"intent":"plan","steps":[
+#   {"intent":"table_free","table":"30"},
+#   {"intent":"seat_next_queue","table":"30"},
+#   {"intent":"q_status_summary"}
+# ]}
+#
+# "תפתח טיפים, סנכרן שעות, תכניס 1800, ותגיד כמה לשעה" →
+# {"intent":"plan","steps":[
+#   {"intent":"nav_open","target":"tips"},
+#   {"intent":"tips_sync_hours","when":"היום"},
+#   {"intent":"tips_set_total","amount":1800,"when":"היום"},
+#   {"intent":"q_tips_per_hour","when":"היום"}
+# ]}
+#
+# "תוציא את עדן מהסידור היום ותשלח לצוות שיש שינוי" →
+# {"intent":"plan","steps":[
+#   {"intent":"schedule_remove","name":"עדן","when":"היום"},
+#   {"intent":"send_team_message","message":"יש שינוי בסידור היום"}
+# ]}
+#
+# When the user uses "אותו"/"אותה" referring to a previous step's subject,
+# pass "__last__" as the value — the dispatcher will resolve it.
+#
+# Use "plan" as the top-level intent ONLY when there's a steps array. For
+# single actions, return the regular single-intent form.
+
+EXTRA_NAV_TARGETS (in nav_open):
+- tips: ניהול טיפים (TipManagement / "תפתח טיפים" / "ניהול טיפים")
+- employees: עובדים
+- reports: דוחות
+
 RESTROOM:
 - q_last_clean: מתי ניקיון אחרון
 - mark_clean: סמן ניקיון
@@ -11120,6 +11183,31 @@ Output (JSON only, MUST include "intent"):`;
           // Sales gamification
           dish: { type: 'string' },
           template: { type: 'string' },
+          // Multi-step plan — array of {intent, ...params} executed in order
+          steps: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                intent: { type: 'string' },
+                name: { type: 'string' },
+                table: { type: 'string' },
+                time: { type: 'string' },
+                when: { type: 'string' },
+                shift_type: { type: 'string' },
+                amount: { type: 'number' },
+                party_size: { type: 'number' },
+                target: { type: 'string' },
+                message: { type: 'string' },
+                description: { type: 'string' },
+                item: { type: 'string' },
+                quantity: { type: 'number' },
+                dish: { type: 'string' },
+                continue_on_error: { type: 'boolean' },
+              },
+              required: ['intent'],
+            },
+          },
         },
         required: ['intent'],
       },
