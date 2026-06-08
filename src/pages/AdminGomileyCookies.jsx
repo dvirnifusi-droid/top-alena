@@ -11,6 +11,41 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Loader2, CheckCircle2, AlertTriangle } from 'lucide-react';
 
+function SyncCustomersButton() {
+    const [running, setRunning] = useState(false);
+    const [result, setResult] = useState(null);
+    const [error, setError] = useState(null);
+
+    const run = async () => {
+        setRunning(true); setError(null); setResult(null);
+        try {
+            const res = await base44.functions.captureGomileyCustomers({});
+            const r = res?.data ?? res;
+            setResult(r);
+        } catch (e) {
+            setError(e?.message);
+        } finally { setRunning(false); }
+    };
+
+    return (
+        <div>
+            <Button onClick={run} disabled={running}>
+                {running ? <Loader2 className="w-4 h-4 animate-spin ml-2" /> : null}
+                {running ? 'מסנכרן...' : '🔄 סנכרן עכשיו'}
+            </Button>
+            {result?.ok && (
+                <p className="text-xs text-emerald-700 mt-2">
+                    ✅ סורקו {result.scanned} לקוחות · {result.created} חדשים נוצרו · {result.updated} עודכנו · {result.skipped_no_phone} דולגו (חסר טלפון)
+                </p>
+            )}
+            {result?.ok === false && (
+                <p className="text-xs text-red-700 mt-2">❌ {result.reason}</p>
+            )}
+            {error && <p className="text-xs text-red-700 mt-2">{error}</p>}
+        </div>
+    );
+}
+
 export default function AdminGomileyCookies() {
     const [phpSessId, setPhpSessId] = useState('');
     const [arena, setArena] = useState('');
@@ -160,6 +195,17 @@ export default function AdminGomileyCookies() {
                     </CardContent>
                 </Card>
             )}
+
+            <Card className="mb-4 bg-blue-50 border-blue-200">
+                <CardContent className="p-4">
+                    <h3 className="font-bold mb-2">👥 סנכרון לקוחות מ-Gomiley</h3>
+                    <p className="text-xs text-gray-600 mb-3">
+                        מושך את כל הלקוחות מ-Gomiley (שם, טלפון, כתובת) ומכניס למועדון לקוחות משלוחים עם הערה "נכנס מ-Gomiley".
+                        רץ אוטומטית כל יום ב-04:00 לפנות בוקר. אפשר גם להפעיל ידנית כאן.
+                    </p>
+                    <SyncCustomersButton />
+                </CardContent>
+            </Card>
 
             <Card>
                 <CardContent className="p-3 text-xs text-gray-600 space-y-2">

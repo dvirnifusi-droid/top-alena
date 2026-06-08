@@ -12168,6 +12168,180 @@ registerFn('getCombinedRevenueToday', async ({ user }) => {
   };
 });
 
+// ============================================================================
+// Gomiley customers sync — pulls /system/pages/customers/ajax.php with the
+// same DataTables payload pattern as orders. For each row we extract name,
+// phone, address (column indices guessed from the customers table — verified
+// after first run). Upserts into DeliveryCustomer by normalized phone, tags
+// new ones with note 'נכנס מ-Gomiley'.
+// ============================================================================
+
+function normPhone(s: string): string {
+  return String(s || '').replace(/\D/g, '').replace(/^972/, '0');
+}
+
+type GomileyCustomerRow = {
+  name: string;
+  phone: string;
+  email: string;
+  address: string;
+  total_orders: number;
+  total_spent: number;
+};
+
+function parseGomileyCustomerRow(row: string[]): GomileyCustomerRow | null {
+  if (!Array.isArray(row) || row.length < 4) return null;
+  // We don't yet know the exact column order. Use defensive scanning across
+  // all cells: pick the longest phone-like string, longest-looking name,
+  // first email, first address-like text.
+  const joined = row.join(' ');
+  // Phone: 9-10 digit Israeli number after digit-only normalization
+  const phoneMatch = joined.match(/\b0[2-9]\d{7,8}\b/) || joined.match(/\b972\d{8,9}\b/);
+  const phone = phoneMatch ? normPhone(phoneMatch[0]) : '';
+  // Email: standard regex
+  const emailMatch = joined.match(/[\w.+-]+@[\w.-]+\.\w{2,}/);
+  const email = emailMatch ? emailMatch[0] : '';
+  // Name: first cell that contains Hebrew/English letters and isn't a date/phone
+  let name = '';
+  for (const cell of row) {
+    const clean = stripHtml(cell);
+    if (!clean) continue;
+    if (/^[\d\s.,/-]+$/.test(clean)) continue; // numbers/dates only
+    if (clean === phone) continue;
+    if (clean === email) continue;
+    if (clean.length > 1 && clean.length < 60 && /[א-תA-Za-z]/.test(clean)) {
+      name = clean;
+      break;
+    }
+  }
+  // Address: look for a cell that contains street keywords
+  let address = '';
+  for (const cell of row) {
+    const clean = stripHtml(cell);
+    if (!clean) continue;
+    if (/רחוב|דרך|שכונה|רח'|פינת|מספר|שדרות/.test(clean)) {
+      address = clean;
+      break;
+    }
+  }
+  // Numeric totals — find cells that are pure numbers
+  let total_orders = 0;
+  let total_spent = 0;
+  const numericCells = row.map(c => Number(stripHtml(c).replace(/[^\d.]/g, ''))).filter(n => n > 0);
+  if (numericCells.length > 0) total_orders = Math.round(numericCells[0]);
+  if (numericCells.length > 1) total_spent = numericCells[1];
+  if (!phone && !name) return null;
+  return { name, phone, email, address, total_orders, total_spent };
+}
+
+export async function captureGomileyCustomers() {
+  const cookieHeader = await gomileyCookieHeader();
+  if (!cookieHeader.includes('PHPSESSID')) {
+    return { ok: false, reason: 'no cookies — set them at /AdminGomileyCookies' };
+  }
+  const url = `${GOMILEY_BASE}/system/pages/customers/ajax.php?move=&moveorderid=`;
+  const payload = gomileyDataTablesPayload(500, 0);
+  try {
+    const r = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Accept': 'application/json, text/javascript, */*; q=0.01',
+        'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+        'X-Requested-With': 'XMLHttpRequest',
+        'Cookie': cookieHeader,
+        'Referer': `${GOMILEY_BASE}/system/pages/customers/`,
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36',
+      },
+      body: payload.toString(),
+    });
+    if (!r.ok) return { ok: false, reason: `http ${r.status}` };
+    const text = await r.text();
+    let json: any;
+    try { json = JSON.parse(text); }
+    catch { return { ok: false, reason: 'session expired or unparseable', preview: text.slice(0, 200) }; }
+    const rows: any[] = Array.isArray(json?.data) ? json.data : [];
+    const customers = rows.map(parseGomileyCustomerRow).filter((c): c is GomileyCustomerRow => !!c);
+
+    let upserted = 0, skipped = 0, created = 0;
+    const today = new Date().toISOString().slice(0, 10);
+    for (const c of customers) {
+      const phone = c.phone;
+      if (!phone || phone.length < 9) { skipped++; continue; }
+      const existing: any = await (db as any).deliveryCustomer.findFirst({
+        where: { customer_phone: phone },
+      });
+      if (existing) {
+        // Update only if Gomiley has more orders / newer data
+        const noteHasGomiley = (existing.notes || '').includes('Gomiley');
+        await (db as any).deliveryCustomer.update({
+          where: { id: existing.id },
+          data: {
+            customer_name: existing.customer_name || c.name,
+            address: existing.address || c.address,
+            notes: noteHasGomiley
+              ? existing.notes
+              : `${existing.notes || ''}\nסונכרן מ-Gomiley (בתאבון) ב-${today}`.trim(),
+            total_orders: Math.max(Number(existing.total_orders) || 0, c.total_orders),
+            total_spent: Math.max(Number(existing.total_spent) || 0, c.total_spent),
+          },
+        });
+        upserted++;
+      } else {
+        await (db as any).deliveryCustomer.create({
+          data: {
+            customer_name: c.name || 'לקוח Gomiley',
+            customer_phone: phone,
+            email: c.email || null,
+            address: c.address || null,
+            notes: `נכנס מ-Gomiley (בתאבון) ב-${today}`,
+            total_orders: c.total_orders,
+            total_spent: c.total_spent,
+          },
+        });
+        created++;
+      }
+    }
+    return {
+      ok: true,
+      scanned: customers.length,
+      created,
+      updated: upserted,
+      skipped_no_phone: skipped,
+    };
+  } catch (e: any) {
+    return { ok: false, reason: e?.message };
+  }
+}
+
+registerFn('captureGomileyCustomers', async ({ user }) => {
+  if (!user) throw new Error('auth required');
+  if ((user as any).role !== 'admin' && (user as any).role !== 'owner') {
+    throw new Error('admin only');
+  }
+  return captureGomileyCustomers();
+});
+
+// Daily cron — 04:00 IL, after the kitchen is closed and Gomiley has all of
+// yesterday's orders attributed.
+if (!(globalThis as any).__gomileyCustomersTimer) {
+  (globalThis as any).__gomileyCustomersTimer = setTimeout(function loop() {
+    void (async () => {
+      try {
+        const parts = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Jerusalem', hour: '2-digit', hour12: false }).formatToParts(new Date());
+        const hour = parts.find(p => p.type === 'hour')?.value;
+        const dateStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jerusalem' }).format(new Date());
+        const lastRun = (globalThis as any).__gomileyCustomersLastRun;
+        if (hour === '04' && lastRun !== dateStr) {
+          (globalThis as any).__gomileyCustomersLastRun = dateStr;
+          const r = await captureGomileyCustomers();
+          console.log('[gomiley customers cron]', JSON.stringify(r));
+        }
+      } catch (e: any) { console.warn('[gomiley customers cron] failed:', e?.message); }
+      (globalThis as any).__gomileyCustomersTimer = setTimeout(loop, 30 * 60 * 1000);
+    })();
+  }, 5 * 60 * 1000);
+}
+
 // Admin endpoint — set Gomiley cookies. Stored as IntegrationSecret rows
 // (key+value) so the owner can refresh them whenever they expire without
 // SSH'ing to the VPS.
