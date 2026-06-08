@@ -2482,11 +2482,16 @@ model EventContract {
   upsells_snapshot       Json?
   terms_snapshot         Json?
   notes                  String?
-  // Signature
+  // Customer signature
   signature_data_url     String?  @db.Text  // base64 PNG dataURL of the customer signature
   signed_at              DateTime?
   signed_ip              String?
   signed_user_agent      String?
+  // Restaurant rep signature (counter-sign by admin/owner)
+  rep_name               String?
+  rep_signature_data_url String?  @db.Text  // base64 PNG dataURL
+  rep_signed_at          DateTime?
+  rep_user_email         String?  // who from עלינא counter-signed
   // Workflow status: 'draft', 'sent', 'signed', 'cancelled'
   status                 String?  @default("draft")
   sent_at                DateTime?

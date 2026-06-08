@@ -8333,6 +8333,10 @@ async function ensureEventContractTable() {
   await addCol('customer_id_or_taxno', 'TEXT');
   await addCol('event_type', 'TEXT');
   await addCol('kids_count', 'INTEGER');
+  await addCol('rep_name', 'TEXT');
+  await addCol('rep_signature_data_url', 'TEXT');
+  await addCol('rep_signed_at', 'TIMESTAMP(3)');
+  await addCol('rep_user_email', 'TEXT');
   eventContractTableReady = true;
 }
 
@@ -8564,6 +8568,41 @@ registerFn('signEventContract', async ({ body, req }) => {
   });
   return { ok: true };
 }, { public: true });
+
+// Admin counter-signature — owner/admin signs the contract after customer.
+// Together with the customer signature this makes the contract bilaterally
+// binding. Once both are present, status is implicitly 'fully_signed' (we
+// keep status='signed' for backwards compatibility, the rep_signed_at field
+// indicates counter-signature).
+registerFn('signEventContractAsRep', async ({ body, user }) => {
+  if (!user) throw new Error('auth required');
+  if ((user as any).role !== 'admin' && (user as any).role !== 'owner') {
+    throw new Error('admin only');
+  }
+  await ensureEventContractTable();
+  const b = (body || {}) as any;
+  const id = String(b.id || '');
+  const dataUrl = String(b.signature_data_url || '');
+  const repName = String(b.rep_name || '').trim();
+  if (!id) throw new Error('id required');
+  if (!dataUrl.startsWith('data:image/')) throw new Error('signature_data_url must be a PNG/JPEG dataURL');
+  if (dataUrl.length > 250_000) throw new Error('signature too large');
+  if (!repName) throw new Error('rep_name required');
+
+  const c = await (prisma as any).eventContract.findUnique({ where: { id } });
+  if (!c) throw new Error('Not found');
+
+  await (prisma as any).eventContract.update({
+    where: { id },
+    data: {
+      rep_name: repName,
+      rep_signature_data_url: dataUrl,
+      rep_signed_at: new Date(),
+      rep_user_email: (user as any).email || null,
+    },
+  });
+  return { ok: true };
+});
 
 // PUBLIC — live social-proof counter for the reservation page hero.
 // "🔥 בוצעו N הזמנות ב-H שעות האחרונות". Bounded at 999 and floor 0.

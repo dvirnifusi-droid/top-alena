@@ -164,13 +164,43 @@ export default function EventContractSign() {
         </div>
 
         {signed ? (
-          <div className="bg-green-50 border-2 border-green-300 rounded-xl p-6 text-center space-y-2">
-            <div className="text-5xl">✅</div>
-            <div className="text-xl font-bold text-green-800">החוזה נחתם!</div>
-            <div className="text-sm text-green-700">תודה רבה. נשמח לראותך באירוע.</div>
-            {contract.signature_data_url && (
-              <img src={contract.signature_data_url} alt="signature" className="mx-auto mt-3 max-h-24" />
-            )}
+          <div className="space-y-3">
+            <div className="bg-green-50 border-2 border-green-300 rounded-xl p-6 text-center space-y-2">
+              <div className="text-5xl">✅</div>
+              <div className="text-xl font-bold text-green-800">החוזה נחתם!</div>
+              <div className="text-sm text-green-700">תודה רבה. נשמח לראותך באירוע.</div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="border rounded-xl p-3 bg-white">
+                <div className="text-xs font-bold text-gray-600 mb-1">חתימת המזמין</div>
+                <div className="text-sm text-gray-800 mb-2">{contract.customer_name || ''}</div>
+                {contract.signature_data_url && (
+                  <img src={contract.signature_data_url} alt="customer signature" className="max-h-24 mx-auto" />
+                )}
+                {contract.signed_at && (
+                  <div className="text-[10px] text-gray-400 text-center mt-2">
+                    {new Date(contract.signed_at).toLocaleString('he-IL', { dateStyle: 'short', timeStyle: 'short' })}
+                  </div>
+                )}
+              </div>
+              <div className="border rounded-xl p-3 bg-white">
+                <div className="text-xs font-bold text-gray-600 mb-1">חתימת נציג עלינא</div>
+                {contract.rep_signed_at ? (
+                  <>
+                    <div className="text-sm text-gray-800 mb-2">{contract.rep_name || ''}</div>
+                    {contract.rep_signature_data_url && (
+                      <img src={contract.rep_signature_data_url} alt="rep signature" className="max-h-24 mx-auto" />
+                    )}
+                    <div className="text-[10px] text-gray-400 text-center mt-2">
+                      {new Date(contract.rep_signed_at).toLocaleString('he-IL', { dateStyle: 'short', timeStyle: 'short' })}
+                    </div>
+                  </>
+                ) : (
+                  <div className="text-xs text-amber-600 text-center py-6">⏳ ממתין לחתימת נציג עלינא</div>
+                )}
+              </div>
+            </div>
           </div>
         ) : (
           <>

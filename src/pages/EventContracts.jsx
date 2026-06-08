@@ -57,6 +57,7 @@ export default function EventContracts() {
   const [showCreate, setShowCreate] = useState(false);
   const [editing, setEditing] = useState(null);
   const [copiedToken, setCopiedToken] = useState(null);
+  const [repSigning, setRepSigning] = useState(null);
 
   useEffect(() => { loadAll(); }, []);
 
@@ -203,6 +204,16 @@ export default function EventContracts() {
                             <Send className="w-3.5 h-3.5 ml-1" /> שלח בוואטסאפ
                           </Button>
                         )}
+                        {c.status === 'signed' && !c.rep_signed_at && (
+                          <Button size="sm" className="bg-amber-600 hover:bg-amber-700 text-white" onClick={() => setRepSigning(c)}>
+                            ✍️ חתום כנציג עלינא
+                          </Button>
+                        )}
+                        {c.status === 'signed' && c.rep_signed_at && (
+                          <Badge className="bg-emerald-100 text-emerald-800 border-emerald-300 text-[10px]">
+                            ✅ חתום ע״י {c.rep_name || 'נציג'}
+                          </Badge>
+                        )}
                       </div>
                     </div>
                   );
@@ -246,7 +257,110 @@ export default function EventContracts() {
 
       {/* EDIT dialog */}
       {editing && <EditDialog contract={editing} onClose={() => { setEditing(null); loadAll(); }} />}
+
+      {/* REP SIGN dialog */}
+      {repSigning && <RepSignDialog contract={repSigning} onClose={() => { setRepSigning(null); loadAll(); }} />}
     </div>
+  );
+}
+
+function RepSignDialog({ contract, onClose }) {
+  const canvasRef = React.useRef(null);
+  const [repName, setRepName] = React.useState('דביר ניפוסי');
+  const [submitting, setSubmitting] = React.useState(false);
+  const drawing = React.useRef(false);
+
+  React.useEffect(() => {
+    const c = canvasRef.current;
+    if (!c) return;
+    const ctx = c.getContext('2d');
+    ctx.lineWidth = 2; ctx.lineCap = 'round'; ctx.strokeStyle = '#111';
+    const pos = (e) => {
+      const r = c.getBoundingClientRect();
+      const x = ((e.touches?.[0]?.clientX ?? e.clientX) - r.left) * (c.width / r.width);
+      const y = ((e.touches?.[0]?.clientY ?? e.clientY) - r.top) * (c.height / r.height);
+      return [x, y];
+    };
+    const start = (e) => { drawing.current = true; const [x, y] = pos(e); ctx.beginPath(); ctx.moveTo(x, y); e.preventDefault?.(); };
+    const move = (e) => { if (!drawing.current) return; const [x, y] = pos(e); ctx.lineTo(x, y); ctx.stroke(); e.preventDefault?.(); };
+    const end = () => { drawing.current = false; };
+    c.addEventListener('mousedown', start); c.addEventListener('mousemove', move); c.addEventListener('mouseup', end); c.addEventListener('mouseleave', end);
+    c.addEventListener('touchstart', start, { passive: false }); c.addEventListener('touchmove', move, { passive: false }); c.addEventListener('touchend', end);
+    return () => {
+      c.removeEventListener('mousedown', start); c.removeEventListener('mousemove', move); c.removeEventListener('mouseup', end); c.removeEventListener('mouseleave', end);
+      c.removeEventListener('touchstart', start); c.removeEventListener('touchmove', move); c.removeEventListener('touchend', end);
+    };
+  }, []);
+
+  const clearSig = () => {
+    const c = canvasRef.current;
+    if (!c) return;
+    c.getContext('2d').clearRect(0, 0, c.width, c.height);
+  };
+
+  const isCanvasBlank = () => {
+    const c = canvasRef.current;
+    if (!c) return true;
+    const ctx = c.getContext('2d');
+    const d = ctx.getImageData(0, 0, c.width, c.height).data;
+    for (let i = 3; i < d.length; i += 4) if (d[i] !== 0) return false;
+    return true;
+  };
+
+  const submit = async () => {
+    if (!repName.trim()) { alert('יש להזין שם'); return; }
+    if (isCanvasBlank()) { alert('יש לחתום'); return; }
+    setSubmitting(true);
+    try {
+      const dataUrl = canvasRef.current.toDataURL('image/png');
+      const res = await base44.functions.signEventContractAsRep({
+        id: contract.id,
+        rep_name: repName.trim(),
+        signature_data_url: dataUrl,
+      });
+      const r = res?.data ?? res;
+      if (!r?.ok) throw new Error(r?.message || 'נכשל');
+      onClose();
+    } catch (e) {
+      alert('שגיאה: ' + (e?.message || e));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <Dialog open={true} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent dir="rtl" className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>✍️ חתימת נציג עלינא — {contract.contract_number || ''}</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3 py-2">
+          <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-900">
+            הלקוח חתם ב-{contract.signed_at ? new Date(contract.signed_at).toLocaleString('he-IL', { dateStyle: 'short', timeStyle: 'short' }) : '—'}.
+            חתום עכשיו כנציג עלינא להשלמת התקשרות מחייבת.
+          </div>
+          <Field label="שם הנציג">
+            <Input value={repName} onChange={e => setRepName(e.target.value)} placeholder="שם מלא" />
+          </Field>
+          <div>
+            <Label className="block text-xs text-gray-600 mb-1">חתימה</Label>
+            <canvas
+              ref={canvasRef}
+              width={800}
+              height={200}
+              className="w-full h-32 border-2 border-amber-300 rounded-lg bg-white touch-none"
+            />
+            <button type="button" onClick={clearSig} className="mt-1 text-xs text-gray-500 underline">נקה</button>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>ביטול</Button>
+          <Button onClick={submit} disabled={submitting} className="bg-amber-600 hover:bg-amber-700">
+            {submitting ? 'חותם...' : '✅ חתום ושמור'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
