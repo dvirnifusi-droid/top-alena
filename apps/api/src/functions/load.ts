@@ -13035,27 +13035,58 @@ registerFn('getKitchenScreenData', async ({ user }) => {
     out.arriving_soon_count = arriving.reduce((s, a) => s + a.party, 0);
   } catch (e: any) { console.warn('[kitchen-screen] reservations failed:', e?.message); }
 
-  // 7. Low inventory — items where current_stock <= min_threshold, split by category
+  // 7. Low inventory — primary source is InventoryAlert (existing system,
+  // populated by InventoryScanner photo OCR). Falls back to Inventory table
+  // if there are also items there with current_stock <= min_threshold.
+  // Categories are inferred from item_name (Hebrew keywords for bar items).
   try {
-    const lowAll: any[] = await (db as any).inventory.findMany({
-      where: { min_threshold: { not: null } },
-      select: { item_name: true, category: true, current_stock: true, min_threshold: true, unit: true },
+    const isBarName = (name: string) => /יין|בירה|וודקה|ויסקי|טקילה|רום|ג['י]ין|ליקר|שמפניה|פרוסקו|אבסולוט|ארבק|וויסקי|וודק|מאיירס|כוס|בקבוק|אלכוהול|קוקטייל|מארטיני|אפרול|לימונדה|קולה|מיץ|סודה|טוניק|שתי/i.test(String(name || ''));
+    // From InventoryAlert (pending only — not resolved)
+    const alerts: any[] = await (db as any).inventoryAlert.findMany({
+      where: { OR: [{ status: 'pending' }, { status: null }] },
+      orderBy: { createdAt: 'desc' },
+      take: 50,
     });
-    const low = lowAll.filter(i => Number(i.current_stock) <= Number(i.min_threshold));
-    const isBar = (cat: string) => /bar|בר|שתי|אלכוהול|משקאות|יין|בירה/.test(String(cat || '').toLowerCase());
+    const fromAlerts = alerts.map(a => ({
+      name: String(a.item_name || ''),
+      current: Number(a.current_quantity) || 0,
+      min: Number(a.suggested_quantity) || 0,
+      unit: '',
+      urgency: String(a.urgency || ''),
+      source: 'alert',
+    }));
+    // Also pull Inventory rows that have explicit min_threshold set
+    let fromInventory: any[] = [];
+    try {
+      const lowAll: any[] = await (db as any).inventory.findMany({
+        where: { min_threshold: { not: null } },
+        select: { item_name: true, category: true, current_stock: true, min_threshold: true, unit: true },
+      });
+      fromInventory = lowAll
+        .filter(i => Number(i.current_stock) <= Number(i.min_threshold))
+        .map(i => ({
+          name: String(i.item_name || ''),
+          current: Number(i.current_stock) || 0,
+          min: Number(i.min_threshold) || 0,
+          unit: String(i.unit || ''),
+          urgency: '',
+          source: 'inventory',
+          category: String(i.category || ''),
+        }));
+    } catch { /* table may not exist on some envs */ }
+
+    // Dedupe by lowercased item_name
+    const dedup = new Map<string, any>();
+    for (const x of [...fromAlerts, ...fromInventory]) {
+      const k = x.name.toLowerCase().trim();
+      if (!k) continue;
+      if (!dedup.has(k)) dedup.set(k, x);
+    }
+    const all = [...dedup.values()];
+    const isBar = (it: any) => isBarName(it.name) || /bar|בר|שתי|אלכוהול|משקאות|יין|בירה/.test(String(it.category || '').toLowerCase());
     out.low_inventory = {
-      kitchen: low.filter(i => !isBar(i.category)).slice(0, 8).map(i => ({
-        name: i.item_name,
-        current: Number(i.current_stock) || 0,
-        min: Number(i.min_threshold) || 0,
-        unit: i.unit || '',
-      })),
-      bar: low.filter(i => isBar(i.category)).slice(0, 8).map(i => ({
-        name: i.item_name,
-        current: Number(i.current_stock) || 0,
-        min: Number(i.min_threshold) || 0,
-        unit: i.unit || '',
-      })),
+      kitchen: all.filter(x => !isBar(x)).slice(0, 10),
+      bar: all.filter(x => isBar(x)).slice(0, 10),
     };
   } catch (e: any) { console.warn('[kitchen-screen] inventory failed:', e?.message); }
 
