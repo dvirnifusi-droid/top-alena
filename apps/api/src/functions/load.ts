@@ -2204,6 +2204,28 @@ registerFn('markWhatsAppConversationRead', async ({ body, user }) => {
   return { ok: true, updated: r.count };
 });
 
+// Delete an entire WhatsApp conversation (all inbound + outbound messages
+// for a given contact_phone). Admin-only, irreversible.
+registerFn('deleteWhatsAppConversation', async ({ body, user }) => {
+  if (!user) throw new Error('auth required');
+  if ((user as any).role !== 'admin' && (user as any).role !== 'owner') {
+    throw new Error('admin only');
+  }
+  const b = (body as any) || {};
+  const phone = String(b.contact_phone || '');
+  if (!phone) throw new Error('contact_phone required');
+  const stripped = phone.replace(/^whatsapp:/i, '');
+  const r = await (db as any).whatsAppMessage.deleteMany({
+    where: {
+      OR: [
+        { contact_phone: stripped },
+        { contact_phone: `whatsapp:${stripped}` },
+      ],
+    },
+  });
+  return { ok: true, deleted: r.count };
+});
+
 // Send WhatsApp reply — uses the lib (normalizes + uses template if needed)
 // and persists the outbound message so it shows up in the inbox.
 registerFn('sendWhatsAppReply', async ({ body, user }) => {

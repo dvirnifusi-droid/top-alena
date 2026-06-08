@@ -88,7 +88,7 @@ function ConversationList({ conversations, activeContact, onSelect, loading }) {
     );
 }
 
-function MessageThread({ messages, sending, error, onSend, onMarkRead, contactPhone, contactName, onBack }) {
+function MessageThread({ messages, sending, error, onSend, onMarkRead, contactPhone, contactName, onBack, onDelete }) {
     const [text, setText] = useState('');
     const scrollRef = useRef(null);
 
@@ -127,6 +127,14 @@ function MessageThread({ messages, sending, error, onSend, onMarkRead, contactPh
                     <div className="font-bold">{contactName || fmtPhone(contactPhone)}</div>
                     <div className="text-xs text-gray-500">{fmtPhone(contactPhone)}</div>
                 </div>
+                <button
+                    onClick={() => onDelete?.()}
+                    className="text-red-600 hover:text-red-800 hover:bg-red-50 rounded-lg px-2 py-1 text-sm"
+                    title="מחק שיחה"
+                    aria-label="מחק שיחה"
+                >
+                    🗑️
+                </button>
             </div>
 
             {/* Messages */}
@@ -210,6 +218,22 @@ export default function AdminWhatsAppInbox() {
         } catch (e) { /* silent */ }
     };
 
+    const deleteConv = async () => {
+        if (!activeContact) return;
+        const name = conversations.find(c => c.contact_phone === activeContact)?.contact_name || activeContact;
+        if (!confirm(`למחוק את כל השיחה עם ${name}?\n\nכל ההודעות (נכנסות + יוצאות) יימחקו לצמיתות מהDB. הלקוח עדיין יוכל לשלוח הודעה חדשה — היא תפתח שיחה חדשה.`)) return;
+        try {
+            const res = await base44.functions.deleteWhatsAppConversation({ contact_phone: activeContact });
+            const r = res?.data ?? res;
+            if (!r?.ok) throw new Error(r?.message || 'failed');
+            setActiveContact(null);
+            setMessages([]);
+            loadConversations();
+        } catch (e) {
+            alert('שגיאה במחיקה: ' + (e?.message || e));
+        }
+    };
+
     const send = async (text) => {
         if (!activeContact) return;
         setSending(true); setSendError(null);
@@ -278,6 +302,7 @@ export default function AdminWhatsAppInbox() {
                     onSend={send}
                     onMarkRead={markRead}
                     onBack={() => setActiveContact(null)}
+                    onDelete={deleteConv}
                     contactPhone={activeContact}
                     contactName={activeContactName}
                 />
