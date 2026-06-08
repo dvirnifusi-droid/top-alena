@@ -29,7 +29,7 @@ export default function EmployeesHub() {
     return (
         <div className="p-4" dir="rtl">
             <h1 className="text-2xl font-bold mb-3 flex items-center gap-2">
-                <Users className="w-6 h-6 text-emerald-600" />
+                <Users className="w-6 h-6 text-[#44512C]" />
                 עובדים וסידור
             </h1>
             <Tabs value={tab} onValueChange={onChange}>

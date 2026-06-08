@@ -22,19 +22,23 @@ import AutoCloseNoticeBanner from "./components/shift/AutoCloseNoticeBanner";
 import InstallAppBanner from "./components/sales/InstallAppBanner";
 import { logActivity } from "./lib/activityLogger";
 
-// Color presets for the per-category accent. Tailwind purges by content scan
-// so the full class names must appear literally in the file.
+// Brand palette — verbatim from /PublicReservation:
+//   #A04A2E cinnamon (primary), #44512C olive (secondary), #B89556 gold,
+//   #D9BD83 wheat, #F4ECD8 cream, #FAF5E8 ivory, #1F1B17 espresso (text).
+// Tailwind purges by content scan so arbitrary-value classes must appear
+// literally in this file once — references via colorOf() still work.
 const COLOR_CLASSES = {
-  violet:  { cat: 'text-violet-700',  bar: 'bg-violet-500',  active: 'bg-violet-100 text-violet-900',   hover: 'hover:bg-violet-50/60' },
-  orange:  { cat: 'text-orange-700',  bar: 'bg-orange-500',  active: 'bg-orange-100 text-orange-900',   hover: 'hover:bg-orange-50/60' },
-  cyan:    { cat: 'text-cyan-700',    bar: 'bg-cyan-500',    active: 'bg-cyan-100 text-cyan-900',       hover: 'hover:bg-cyan-50/60' },
-  emerald: { cat: 'text-emerald-700', bar: 'bg-emerald-500', active: 'bg-emerald-100 text-emerald-900', hover: 'hover:bg-emerald-50/60' },
-  blue:    { cat: 'text-blue-700',    bar: 'bg-blue-500',    active: 'bg-blue-100 text-blue-900',       hover: 'hover:bg-blue-50/60' },
-  indigo:  { cat: 'text-indigo-700',  bar: 'bg-indigo-500',  active: 'bg-indigo-100 text-indigo-900',   hover: 'hover:bg-indigo-50/60' },
-  amber:   { cat: 'text-amber-700',   bar: 'bg-amber-500',   active: 'bg-amber-100 text-amber-900',     hover: 'hover:bg-amber-50/60' },
-  pink:    { cat: 'text-pink-700',    bar: 'bg-pink-500',    active: 'bg-pink-100 text-pink-900',       hover: 'hover:bg-pink-50/60' },
-  rose:    { cat: 'text-rose-700',    bar: 'bg-rose-500',    active: 'bg-rose-100 text-rose-900',       hover: 'hover:bg-rose-50/60' },
-  slate:   { cat: 'text-slate-700',   bar: 'bg-slate-500',   active: 'bg-slate-100 text-slate-900',     hover: 'hover:bg-slate-50/60' },
+  // Brand
+  cinnamon: { cat: 'text-[#A04A2E]', bar: 'bg-[#A04A2E]', active: 'bg-[#F4ECD8] text-[#7A3722]', hover: 'hover:bg-[#FAF5E8]' },
+  olive:    { cat: 'text-[#44512C]', bar: 'bg-[#44512C]', active: 'bg-[#E8D9B5] text-[#2E3819]', hover: 'hover:bg-[#FAF5E8]' },
+  gold:     { cat: 'text-[#8A6E3A]', bar: 'bg-[#B89556]', active: 'bg-[#F4ECD8] text-[#5D4920]', hover: 'hover:bg-[#FAF5E8]' },
+  espresso: { cat: 'text-[#1F1B17]', bar: 'bg-[#1F1B17]', active: 'bg-[#F4ECD8] text-[#1F1B17]', hover: 'hover:bg-[#FAF5E8]' },
+  // Legacy Tailwind keys — kept so any straggling links still render
+  amber:    { cat: 'text-amber-700',   bar: 'bg-amber-500',   active: 'bg-amber-100 text-amber-900',     hover: 'hover:bg-amber-50/60' },
+  orange:   { cat: 'text-orange-700',  bar: 'bg-orange-500',  active: 'bg-orange-100 text-orange-900',   hover: 'hover:bg-orange-50/60' },
+  emerald:  { cat: 'text-emerald-700', bar: 'bg-emerald-500', active: 'bg-emerald-100 text-emerald-900', hover: 'hover:bg-emerald-50/60' },
+  stone:    { cat: 'text-stone-700',   bar: 'bg-stone-500',   active: 'bg-stone-100 text-stone-900',     hover: 'hover:bg-stone-50/60' },
+  slate:    { cat: 'text-stone-700',   bar: 'bg-stone-500',   active: 'bg-stone-100 text-stone-900',     hover: 'hover:bg-stone-50/60' },
 };
 const colorOf = (key) => COLOR_CLASSES[key] || COLOR_CLASSES.slate;
 
@@ -45,75 +49,75 @@ const colorOf = (key) => COLOR_CLASSES[key] || COLOR_CLASSES.slate;
 // /PublicReservation — amber / orange / emerald / stone. No more
 // violet/cyan/pink/indigo/rose/blue — feels colder than the brand.
 const adminLinks = [
-  { title: "לוח בקרה", url: createPageUrl("Dashboard"), icon: LayoutGrid, color: "stone" },
+  { title: "לוח בקרה", url: createPageUrl("Dashboard"), icon: LayoutGrid, color: "cinnamon" },
 
-  { title: "🤖 כלי AI", url: createPageUrl("AIHub"), icon: Sparkles, color: "amber" },
+  { title: "🤖 כלי AI", url: createPageUrl("AIHub"), icon: Sparkles, color: "gold" },
 
-  { title: "תפעול המסעדה", url: "#", icon: Utensils, isCategory: true, color: "orange" },
-  { title: "ניהול תדריכים", url: createPageUrl("BriefingManagement"), icon: Megaphone, isSubItem: true, color: "orange" },
-  { title: "ניהול שולחנות", url: createPageUrl("TablesManagement"), icon: Utensils, isSubItem: true, color: "orange" },
-  { title: "ניהול הושבה", url: createPageUrl("SeatingSetup"), icon: Map, isSubItem: true, color: "orange" },
-  { title: "ניקיון שירותים 🚽", url: createPageUrl("RestroomCleaning"), icon: ClipboardCheck, isSubItem: true, color: "orange" },
-  { title: "צ'קליסטים", url: createPageUrl("Checklists"), icon: CheckSquare, isSubItem: true, color: "orange" },
-  { title: "תקריות", url: createPageUrl("Incidents"), icon: AlertTriangle, isSubItem: true, color: "orange" },
-  { title: "דוח סיום משמרת", url: createPageUrl("ShiftEndReport"), icon: ClipboardCheck, isSubItem: true, color: "orange" },
+  { title: "תפעול המסעדה", url: "#", icon: Utensils, isCategory: true, color: "cinnamon" },
+  { title: "ניהול תדריכים", url: createPageUrl("BriefingManagement"), icon: Megaphone, isSubItem: true, color: "cinnamon" },
+  { title: "ניהול שולחנות", url: createPageUrl("TablesManagement"), icon: Utensils, isSubItem: true, color: "cinnamon" },
+  { title: "ניהול הושבה", url: createPageUrl("SeatingSetup"), icon: Map, isSubItem: true, color: "cinnamon" },
+  { title: "ניקיון שירותים 🚽", url: createPageUrl("RestroomCleaning"), icon: ClipboardCheck, isSubItem: true, color: "cinnamon" },
+  { title: "צ'קליסטים", url: createPageUrl("Checklists"), icon: CheckSquare, isSubItem: true, color: "cinnamon" },
+  { title: "תקריות", url: createPageUrl("Incidents"), icon: AlertTriangle, isSubItem: true, color: "cinnamon" },
+  { title: "דוח סיום משמרת", url: createPageUrl("ShiftEndReport"), icon: ClipboardCheck, isSubItem: true, color: "cinnamon" },
 
-  { title: "📞 תור והזמנות", url: createPageUrl("QueueHub"), icon: QrCode, color: "amber" },
+  { title: "📞 תור והזמנות", url: createPageUrl("QueueHub"), icon: QrCode, color: "gold" },
 
-  { title: "כספים ודוחות", url: "#", icon: TrendingUp, isCategory: true, color: "emerald" },
-  { title: "📥 WhatsApp Inbox", url: createPageUrl("AdminWhatsAppInbox"), icon: Zap, isSubItem: true, color: "emerald" },
-  { title: "📊 קופה Live", url: createPageUrl("BeecommLive"), icon: Zap, isSubItem: true, color: "emerald" },
-  { title: "דוחות", url: createPageUrl("Reports"), icon: BarChart3, isSubItem: true, color: "emerald" },
-  { title: "ניהול טיפים", url: createPageUrl("Tips"), icon: Banknote, isSubItem: true, color: "emerald" },
-  { title: "חשבוניות", url: createPageUrl("Invoices"), icon: FileText, isSubItem: true, color: "emerald" },
-  { title: "ספקים", url: createPageUrl("Suppliers"), icon: Building, isSubItem: true, color: "emerald" },
+  { title: "כספים ודוחות", url: "#", icon: TrendingUp, isCategory: true, color: "olive" },
+  { title: "📥 WhatsApp Inbox", url: createPageUrl("AdminWhatsAppInbox"), icon: Zap, isSubItem: true, color: "olive" },
+  { title: "📊 קופה Live", url: createPageUrl("BeecommLive"), icon: Zap, isSubItem: true, color: "olive" },
+  { title: "דוחות", url: createPageUrl("Reports"), icon: BarChart3, isSubItem: true, color: "olive" },
+  { title: "ניהול טיפים", url: createPageUrl("Tips"), icon: Banknote, isSubItem: true, color: "olive" },
+  { title: "חשבוניות", url: createPageUrl("Invoices"), icon: FileText, isSubItem: true, color: "olive" },
+  { title: "ספקים", url: createPageUrl("Suppliers"), icon: Building, isSubItem: true, color: "olive" },
 
-  { title: "👥 עובדים וסידור", url: createPageUrl("EmployeesHub"), icon: Users, color: "emerald" },
-  { title: "🎓 גיוס והכשרה", url: createPageUrl("RecruitmentHub"), icon: GraduationCap, color: "amber" },
-  { title: "🌿 אירועים פרטיים", url: createPageUrl("EventsHub"), icon: CalendarHeart, color: "orange" },
-  { title: "📦 משלוחים", url: createPageUrl("DeliveriesHub"), icon: Package, color: "amber" },
-  { title: "📢 שיווק ולקוחות", url: createPageUrl("MarketingHub"), icon: Megaphone, color: "emerald" },
-  { title: "🏆 גמיפיקציה וסטוריז", url: createPageUrl("StoriesHub"), icon: Trophy, color: "orange" },
+  { title: "👥 עובדים וסידור", url: createPageUrl("EmployeesHub"), icon: Users, color: "olive" },
+  { title: "🎓 גיוס והכשרה", url: createPageUrl("RecruitmentHub"), icon: GraduationCap, color: "gold" },
+  { title: "🌿 אירועים פרטיים", url: createPageUrl("EventsHub"), icon: CalendarHeart, color: "cinnamon" },
+  { title: "📦 משלוחים", url: createPageUrl("DeliveriesHub"), icon: Package, color: "gold" },
+  { title: "📢 שיווק ולקוחות", url: createPageUrl("MarketingHub"), icon: Megaphone, color: "olive" },
+  { title: "🏆 גמיפיקציה וסטוריז", url: createPageUrl("StoriesHub"), icon: Trophy, color: "cinnamon" },
 
-  { title: "הגדרות ואינטגרציות ⚙️", url: "#", icon: Settings, isCategory: true, color: "stone" },
-  { title: "מרכז הגדרות וחיבורים", url: createPageUrl("AdminSettings"), icon: Settings, isSubItem: true, color: "stone" },
-  { title: "ייצוא דאטה", url: createPageUrl("DataExport"), icon: Download, isSubItem: true, color: "stone" },
-  { title: "שליחת Push ידני", url: createPageUrl("PushNotifications"), icon: Bell, isSubItem: true, color: "stone" },
-  { title: "פופ-אפים מתוזמנים 🔔", url: createPageUrl("Popups"), icon: Megaphone, isSubItem: true, color: "stone" },
+  { title: "הגדרות ואינטגרציות ⚙️", url: "#", icon: Settings, isCategory: true, color: "espresso" },
+  { title: "מרכז הגדרות וחיבורים", url: createPageUrl("AdminSettings"), icon: Settings, isSubItem: true, color: "espresso" },
+  { title: "ייצוא דאטה", url: createPageUrl("DataExport"), icon: Download, isSubItem: true, color: "espresso" },
+  { title: "שליחת Push ידני", url: createPageUrl("PushNotifications"), icon: Bell, isSubItem: true, color: "espresso" },
+  { title: "פופ-אפים מתוזמנים 🔔", url: createPageUrl("Popups"), icon: Megaphone, isSubItem: true, color: "espresso" },
 ];
 
-// Employee menu — warm palette only (amber/orange/emerald/stone).
+// Employee menu — full brand palette (cinnamon/olive/gold/espresso).
 const employeeLinks = [
-  { title: "בית", url: createPageUrl("EmployeeHome"), icon: LayoutGrid, color: "stone" },
+  { title: "בית", url: createPageUrl("EmployeeHome"), icon: LayoutGrid, color: "cinnamon" },
 
-  { title: "כלי עבודה יומיים", url: "#", icon: Zap, isCategory: true, color: "orange" },
-  { title: "דאשבורד תור", url: createPageUrl("QueueDashboard"), icon: Users, isSubItem: true, color: "orange" },
-  { title: "השולחנות שלי", url: createPageUrl("WaiterTables"), icon: Utensils, isSubItem: true, color: "orange" },
-  { title: "ניהול הושבה", url: createPageUrl("SeatingSetup"), icon: Map, isSubItem: true, color: "orange" },
-  { title: "תדריכים", url: createPageUrl("BriefingManagement"), icon: Megaphone, isSubItem: true, color: "orange" },
-  { title: "צ'קליסטים", url: createPageUrl("Checklists"), icon: CheckSquare, isSubItem: true, color: "orange" },
-  { title: "דיווח תקרית", url: createPageUrl("Incidents"), icon: AlertTriangle, isSubItem: true, color: "orange" },
-  { title: "דוח סיום משמרת", url: createPageUrl("ShiftEndReport"), icon: ClipboardCheck, isSubItem: true, color: "orange" },
+  { title: "כלי עבודה יומיים", url: "#", icon: Zap, isCategory: true, color: "cinnamon" },
+  { title: "דאשבורד תור", url: createPageUrl("QueueDashboard"), icon: Users, isSubItem: true, color: "cinnamon" },
+  { title: "השולחנות שלי", url: createPageUrl("WaiterTables"), icon: Utensils, isSubItem: true, color: "cinnamon" },
+  { title: "ניהול הושבה", url: createPageUrl("SeatingSetup"), icon: Map, isSubItem: true, color: "cinnamon" },
+  { title: "תדריכים", url: createPageUrl("BriefingManagement"), icon: Megaphone, isSubItem: true, color: "cinnamon" },
+  { title: "צ'קליסטים", url: createPageUrl("Checklists"), icon: CheckSquare, isSubItem: true, color: "cinnamon" },
+  { title: "דיווח תקרית", url: createPageUrl("Incidents"), icon: AlertTriangle, isSubItem: true, color: "cinnamon" },
+  { title: "דוח סיום משמרת", url: createPageUrl("ShiftEndReport"), icon: ClipboardCheck, isSubItem: true, color: "cinnamon" },
 
-  { title: "משלוחים", url: "#", icon: Package, isCategory: true, color: "amber" },
-  { title: "משלוחים", url: createPageUrl("Deliveries"), icon: Package, isSubItem: true, color: "amber" },
-  { title: "אפליקציית שליח", url: createPageUrl("CourierDashboard"), icon: Package, isSubItem: true, color: "amber" },
-  { title: "מועדון לקוחות משלוחים", url: createPageUrl("DeliveryCustomerClub"), icon: Users, isSubItem: true, color: "amber" },
+  { title: "משלוחים", url: "#", icon: Package, isCategory: true, color: "gold" },
+  { title: "משלוחים", url: createPageUrl("Deliveries"), icon: Package, isSubItem: true, color: "gold" },
+  { title: "אפליקציית שליח", url: createPageUrl("CourierDashboard"), icon: Package, isSubItem: true, color: "gold" },
+  { title: "מועדון לקוחות משלוחים", url: createPageUrl("DeliveryCustomerClub"), icon: Users, isSubItem: true, color: "gold" },
 
-  { title: "מעקב אישי וזמינות", url: "#", icon: BarChart3, isCategory: true, color: "emerald" },
-  { title: "הביצועים שלי", url: createPageUrl("MyPerformance"), icon: BarChart3, isSubItem: true, color: "emerald" },
-  { title: "ניהול טיפים", url: createPageUrl("Tips"), icon: Banknote, isSubItem: true, color: "emerald" },
-  { title: "סידור עבודה", url: createPageUrl("WorkScheduling"), icon: Calendar, isSubItem: true, color: "emerald" },
-  { title: "הגשת זמינות", url: createPageUrl("AvailabilityForm"), icon: Calendar, isSubItem: true, color: "emerald" },
-  { title: "בקשות חופשה", url: createPageUrl("LeaveRequests"), icon: CalendarDays, isSubItem: true, color: "emerald" },
-  { title: "צ'אט משמרת", url: createPageUrl("ShiftChat"), icon: MessageSquare, isSubItem: true, color: "emerald" },
+  { title: "מעקב אישי וזמינות", url: "#", icon: BarChart3, isCategory: true, color: "olive" },
+  { title: "הביצועים שלי", url: createPageUrl("MyPerformance"), icon: BarChart3, isSubItem: true, color: "olive" },
+  { title: "ניהול טיפים", url: createPageUrl("Tips"), icon: Banknote, isSubItem: true, color: "olive" },
+  { title: "סידור עבודה", url: createPageUrl("WorkScheduling"), icon: Calendar, isSubItem: true, color: "olive" },
+  { title: "הגשת זמינות", url: createPageUrl("AvailabilityForm"), icon: Calendar, isSubItem: true, color: "olive" },
+  { title: "בקשות חופשה", url: createPageUrl("LeaveRequests"), icon: CalendarDays, isSubItem: true, color: "olive" },
+  { title: "צ'אט משמרת", url: createPageUrl("ShiftChat"), icon: MessageSquare, isSubItem: true, color: "olive" },
 
-  { title: "פיתוח וגמיפיקציה", url: "#", icon: GraduationCap, isCategory: true, color: "amber" },
-  { title: "הכשרות ואימונים", url: createPageUrl("Training"), icon: GraduationCap, isSubItem: true, color: "amber" },
-  { title: "סרטוני הדרכה", url: createPageUrl("TrainingVideos"), icon: GraduationCap, isSubItem: true, color: "amber" },
-  { title: "לוח המובילים", url: createPageUrl("Leaderboard"), icon: Trophy, isSubItem: true, color: "amber" },
-  { title: "סלון דמויות", url: createPageUrl("CharacterLounge"), icon: Trophy, isSubItem: true, color: "amber" },
-  { title: "🪙 המטבעות שלי", url: createPageUrl("GamificationCenter"), icon: Trophy, isSubItem: true, color: "amber" },
+  { title: "פיתוח וגמיפיקציה", url: "#", icon: GraduationCap, isCategory: true, color: "gold" },
+  { title: "הכשרות ואימונים", url: createPageUrl("Training"), icon: GraduationCap, isSubItem: true, color: "gold" },
+  { title: "סרטוני הדרכה", url: createPageUrl("TrainingVideos"), icon: GraduationCap, isSubItem: true, color: "gold" },
+  { title: "לוח המובילים", url: createPageUrl("Leaderboard"), icon: Trophy, isSubItem: true, color: "gold" },
+  { title: "סלון דמויות", url: createPageUrl("CharacterLounge"), icon: Trophy, isSubItem: true, color: "gold" },
+  { title: "🪙 המטבעות שלי", url: createPageUrl("GamificationCenter"), icon: Trophy, isSubItem: true, color: "gold" },
 ];
 
 // Real-time search filter. If empty, returns the list as-is. Otherwise hides

@@ -40,7 +40,7 @@ export default function AdminSettings() {
         <div className="p-4 md:p-6 max-w-6xl mx-auto" dir="rtl">
             <div className="mb-6">
                 <h1 className="text-2xl font-bold flex items-center gap-2">
-                    <Settings className="w-6 h-6 text-stone-600" />
+                    <Settings className="w-6 h-6 text-[#1F1B17]" />
                     הגדרות ואינטגרציות
                 </h1>
                 <p className="text-sm text-gray-600 mt-1">
