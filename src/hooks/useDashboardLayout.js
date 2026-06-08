@@ -28,6 +28,7 @@ export const ADMIN_WIDGETS = [
   { id: 'beecomm_live', label: 'Beecomm Live · קופה בזמן אמת', emoji: '🔴', defaultOn: true },
   { id: 'gomiley_live', label: 'Gomiley Live · משלוחים בזמן אמת', emoji: '🛵', defaultOn: true },
   { id: 'gomiley_dashboard', label: 'Gomiley לוח · KPI ופלטפורמות', emoji: '📊', defaultOn: true },
+  { id: 'shift_insights', label: 'תובנות משמרת · דורש תשומת לב', emoji: '🎯', defaultOn: true },
   { id: 'smart_tools', label: 'כלי עבודה חכמים', emoji: '🤖', defaultOn: true },
   { id: 'recruitment', label: 'דשבורד גיוס', emoji: '👥', defaultOn: true },
   { id: 'quick_stats', label: 'מבט מהיר - סטטיסטיקות', emoji: '📊', defaultOn: true },

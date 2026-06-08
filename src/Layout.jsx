@@ -357,6 +357,11 @@ export default function Layout({ children, currentPageName }) {
 
   const themeVars = THEME_VARS[appTheme] || '';
 
+  // Kitchen TV display — no sidebar, no chrome, fullscreen content only
+  if (currentPageName === 'KitchenScreen') {
+    return <div dir="rtl">{children}</div>;
+  }
+
   return (
     <div className="relative h-screen bg-background text-foreground" dir="rtl">
       {themeVars && <style>{`:root, [dir="rtl"] { ${themeVars.split(';').filter(Boolean).map(v => v.trim()).join('; ')} }`}</style>}

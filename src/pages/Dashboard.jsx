@@ -31,6 +31,7 @@ import TodayTipsWidget from '../components/dashboard/TodayTipsWidget';
 import BeecommLiveWidget from '../components/dashboard/BeecommLiveWidget';
 import GomileyLiveWidget from '../components/dashboard/GomileyLiveWidget';
 import GomileyDashboardWidget from '../components/dashboard/GomileyDashboardWidget';
+import ShiftInsightsWidget from '../components/dashboard/ShiftInsightsWidget';
 import LowInventoryWidget from '../components/dashboard/LowInventoryWidget';
 import ActiveDeliveriesWidget from '../components/dashboard/ActiveDeliveriesWidget';
 import PendingRequestsWidget from '../components/dashboard/PendingRequestsWidget';
@@ -311,6 +312,7 @@ function DashboardInner() {
         beecomm_live: isVisible('beecomm_live') && <BeecommLiveWidget key="beecomm_live" />,
         gomiley_live: isVisible('gomiley_live') && <GomileyLiveWidget key="gomiley_live" />,
         gomiley_dashboard: isVisible('gomiley_dashboard') && <GomileyDashboardWidget key="gomiley_dashboard" />,
+        shift_insights: isVisible('shift_insights') && <ShiftInsightsWidget key="shift_insights" />,
         active_employees: isVisible('active_employees') && <ActiveEmployeesWidget key="active_employees" />,
         treats_report: isVisible('treats_report') && <TreatsReport key="treats_report" />,
         brief_readers: isVisible('brief_readers') && <BriefReadersWidget key="brief_readers" />,

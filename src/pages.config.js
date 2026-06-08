@@ -131,6 +131,7 @@ import SalesGoalTemplates from './pages/SalesGoalTemplates';
 import BeecommLive from './pages/BeecommLive';
 import AdminReopenShifts from './pages/AdminReopenShifts';
 import AdminGomileyCookies from './pages/AdminGomileyCookies';
+import KitchenScreen from './pages/KitchenScreen';
 import __Layout from './Layout.jsx';
 
 
@@ -219,6 +220,7 @@ export const PAGES = {
     "BeecommLive": BeecommLive,
     "AdminReopenShifts": AdminReopenShifts,
     "AdminGomileyCookies": AdminGomileyCookies,
+    "KitchenScreen": KitchenScreen,
 }
 
 export const pagesConfig = {

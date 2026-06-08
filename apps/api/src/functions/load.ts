@@ -12895,3 +12895,394 @@ if (!(globalThis as any).__gomileySnapshotTimer) {
       });
   }, 75 * 1000);
 }
+
+// ============================================================================
+// KitchenScreen — single aggregated endpoint that returns everything an
+// ambient kitchen TV needs: live revenue, active waiters, hot stats, Gomiley
+// pending count, top dishes, predicted hour, leaderboard, active goal.
+// Polled every 30s by /KitchenScreen page. NO auth gate (display screens
+// shouldn't need a user) — but endpoint reads existing snapshots only.
+// ============================================================================
+registerFn('getKitchenScreenData', async ({ user }) => {
+  // Allow anonymous read — kiosk-style display screens
+  void user;
+  const out: any = {
+    server_time: new Date().toISOString(),
+    beecomm: null,
+    gomiley: null,
+    sales_goal: null,
+    leaderboard: null,
+    predicted_hour: null,
+  };
+
+  // 1. Beecomm latest snapshot — use fallback to last-with-data if today empty
+  try {
+    const latest: any = await (db as any).beecommSnapshot.findFirst({
+      orderBy: { captured_at: 'desc' },
+    });
+    if (latest) {
+      const todayEmpty = (Number(latest.total_today) || 0) === 0
+        && (!Array.isArray(latest.workers) || latest.workers.length === 0);
+      let src = latest;
+      let fallback_date: string | null = null;
+      if (todayEmpty) {
+        const lwd: any = await (db as any).beecommSnapshot.findFirst({
+          where: { total_today: { gt: 0 } },
+          orderBy: { captured_at: 'desc' },
+        });
+        if (lwd) {
+          src = lwd;
+          fallback_date = new Intl.DateTimeFormat('he-IL', { timeZone: 'Asia/Jerusalem', day: '2-digit', month: '2-digit' }).format(new Date(lwd.captured_at));
+        }
+      }
+      out.beecomm = {
+        total_today: Number(latest.total_today) || 0,  // always today's real
+        total_tips: Number(latest.total_tips) || 0,
+        open_money: Number(latest.open_money) || 0,
+        predicted_month: Number(latest.predicted_month) || 0,
+        workers: Array.isArray(src.workers) ? src.workers : [],
+        top_dishes: Array.isArray(src.top_dishes) ? src.top_dishes.slice(0, 5) : [],
+        orders_by_hour: src.orders_by_hour || {},
+        dine_in: src.dine_in || null,
+        takeaway: src.takeaway || null,
+        delivery: src.delivery || null,
+        captured_at: latest.captured_at,
+        fallback_date,
+      };
+    }
+  } catch (e: any) { console.warn('[kitchen-screen] beecomm read failed:', e?.message); }
+
+  // 2. Gomiley pending — count of orders not yet delivered
+  try {
+    const gSnap: any = await (db as any).gomileySnapshot.findFirst({
+      orderBy: { captured_at: 'desc' },
+    });
+    if (gSnap) {
+      const orders: any[] = Array.isArray(gSnap.orders) ? gSnap.orders : [];
+      const pending = orders.filter(o =>
+        o.status && !/delivered|completed|cancelled|בוצע|מבוטל|נמסר/.test(String(o.status).toLowerCase())
+      );
+      // "Stuck" orders — pending and older than 10 minutes (rough check from delivery_at)
+      const now = Date.now();
+      const stuck = pending.filter(o => {
+        const t = o.created_at ? new Date(o.created_at).getTime() : 0;
+        return t > 0 && (now - t) > 10 * 60 * 1000;
+      });
+      out.gomiley = {
+        pending_count: pending.length,
+        stuck_count: stuck.length,
+        total_today: Number(gSnap.total_orders) || 0,
+        total_income_today: Number(gSnap.total_income) || 0,
+        captured_at: gSnap.captured_at,
+      };
+    }
+  } catch (e: any) { console.warn('[kitchen-screen] gomiley read failed:', e?.message); }
+
+  // 3. Active sales goal — same logic as getActiveSalesGoals but minimal
+  try {
+    const now = new Date();
+    const active: any[] = await (db as any).salesGoal.findMany({
+      where: { status: 'active', shift_start: { lte: now }, shift_end: { gte: now } },
+      orderBy: { shift_start: 'desc' },
+      take: 1,
+    });
+    if (active.length > 0) {
+      const g = active[0];
+      const events: any[] = await (db as any).saleEvent.findMany({
+        where: { goal_id: g.id, voided: false },
+      });
+      const totalSold = events.length;
+      out.sales_goal = {
+        template_label: g.template_label || g.title || 'יעד פעיל',
+        target: Number(g.target) || 0,
+        sold: totalSold,
+        bonus: Number(g.bonus_per_unit) || 0,
+        ends_at: g.shift_end,
+      };
+    }
+  } catch (e: any) { console.warn('[kitchen-screen] sales-goal read failed:', e?.message); }
+
+  // 4. Leaderboard — top 5 waiters by sales today
+  try {
+    const today00 = new Date();
+    today00.setHours(0, 0, 0, 0);
+    const events: any[] = await (db as any).saleEvent.findMany({
+      where: { created_at: { gte: today00 }, voided: false },
+    });
+    const byUser = new Map<string, { user_email: string; user_name: string; count: number; bonus_sum: number }>();
+    for (const e of events) {
+      const key = String(e.user_email || '').toLowerCase();
+      if (!key) continue;
+      const cur = byUser.get(key) || { user_email: key, user_name: e.user_name || key, count: 0, bonus_sum: 0 };
+      cur.count += 1;
+      cur.bonus_sum += Number(e.bonus_amount) || 0;
+      byUser.set(key, cur);
+    }
+    out.leaderboard = [...byUser.values()].sort((a, b) => b.count - a.count).slice(0, 5);
+  } catch (e: any) { console.warn('[kitchen-screen] leaderboard read failed:', e?.message); }
+
+  // 5. Predicted next-hour load — average of same hour over last 7 same-weekdays
+  try {
+    const now = new Date();
+    const ilHour = Number(new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Jerusalem', hour: '2-digit', hour12: false }).format(now));
+    const nextHour = (ilHour + 1) % 24;
+    const since = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
+    const recent: any[] = await (db as any).beecommSnapshot.findMany({
+      where: { captured_at: { gte: since } },
+      select: { orders_by_hour: true, captured_at: true },
+      orderBy: { captured_at: 'desc' },
+    });
+    const sameHourValues: number[] = [];
+    const seen = new Set<string>();
+    for (const r of recent) {
+      const d = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jerusalem' }).format(r.captured_at);
+      if (seen.has(d)) continue;
+      seen.add(d);
+      const v = Number(r.orders_by_hour?.[String(nextHour)]?.diners) || 0;
+      if (v > 0) sameHourValues.push(v);
+      if (sameHourValues.length >= 7) break;
+    }
+    const avg = sameHourValues.length > 0
+      ? Math.round(sameHourValues.reduce((s, v) => s + v, 0) / sameHourValues.length)
+      : 0;
+    out.predicted_hour = {
+      hour: nextHour,
+      avg_diners: avg,
+      sample_size: sameHourValues.length,
+    };
+  } catch (e: any) { console.warn('[kitchen-screen] predicted-hour failed:', e?.message); }
+
+  return out;
+});
+
+// ============================================================================
+// Morning Report — daily summary email at 07:30 IL with one Gemini insight.
+// Pulls yesterday's Beecomm + Gomiley + SaleEvents; asks Gemini for ONE
+// concrete recommendation; sends to owner inbox.
+// ============================================================================
+async function buildMorningReportData() {
+  // Compute yesterday's IL date window
+  const now = new Date();
+  const ilYesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+  const dateStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jerusalem' }).format(ilYesterday);
+  const dayStart = new Date(`${dateStr}T00:00:00.000+03:00`);
+  const dayEnd = new Date(`${dateStr}T23:59:59.999+03:00`);
+
+  // Beecomm — use historical day if exists, else max-total snapshot from yesterday
+  let beecomm: any = null;
+  try {
+    const histRow: any = await (db as any).beecommHistoricalDay.findFirst({
+      where: { date: dateStr },
+    });
+    if (histRow) {
+      beecomm = {
+        total: Number(histRow.total_sum) || 0,
+        tips: Number(histRow.total_tips) || 0,
+        diners: Number(histRow.total_diners) || 0,
+        source: 'historical',
+      };
+    } else {
+      const snaps: any[] = await (db as any).beecommSnapshot.findMany({
+        where: { captured_at: { gte: dayStart, lte: dayEnd } },
+        orderBy: { total_today: 'desc' },
+        take: 1,
+      });
+      if (snaps[0]) {
+        beecomm = {
+          total: Number(snaps[0].total_today) || 0,
+          tips: Number(snaps[0].total_tips) || 0,
+          diners: (snaps[0].workers || []).reduce((s: number, w: any) => s + (Number(w.diners) || 0), 0),
+          top_dishes: (snaps[0].top_dishes || []).slice(0, 3),
+          source: 'snapshot',
+        };
+      }
+    }
+  } catch (e: any) { console.warn('[morning-report] beecomm failed:', e?.message); }
+
+  // Gomiley
+  let gomiley: any = null;
+  try {
+    const snaps: any[] = await (db as any).gomileySnapshot.findMany({
+      where: { captured_at: { gte: dayStart, lte: dayEnd } },
+      orderBy: { total_income: 'desc' },
+      take: 1,
+    });
+    if (snaps[0]) {
+      gomiley = {
+        total_orders: Number(snaps[0].total_orders) || 0,
+        total_income: Number(snaps[0].total_income) || 0,
+      };
+    }
+  } catch (e: any) { console.warn('[morning-report] gomiley failed:', e?.message); }
+
+  // Sales events from yesterday
+  let salesEvents: { count: number; bonus_sum: number; by_template: Record<string, number>; top_waiter: { name: string; count: number } | null } | null = null;
+  try {
+    const events: any[] = await (db as any).saleEvent.findMany({
+      where: { created_at: { gte: dayStart, lte: dayEnd }, voided: false },
+    });
+    const byTemplate: Record<string, number> = {};
+    const byWaiter = new Map<string, number>();
+    let bonus = 0;
+    for (const e of events) {
+      const tpl = e.template_label || 'אחר';
+      byTemplate[tpl] = (byTemplate[tpl] || 0) + 1;
+      bonus += Number(e.bonus_amount) || 0;
+      if (e.user_name) byWaiter.set(e.user_name, (byWaiter.get(e.user_name) || 0) + 1);
+    }
+    const topW = [...byWaiter.entries()].sort((a, b) => b[1] - a[1])[0];
+    salesEvents = {
+      count: events.length,
+      bonus_sum: bonus,
+      by_template: byTemplate,
+      top_waiter: topW ? { name: topW[0], count: topW[1] } : null,
+    };
+  } catch (e: any) { console.warn('[morning-report] sales events failed:', e?.message); }
+
+  // Pending requests that may need owner action
+  let pending: any = { availability: 0, swap: 0, vacation: 0 };
+  try {
+    pending.availability = await (db as any).availabilityRequest.count({ where: { status: 'pending' } }).catch(() => 0);
+    pending.swap = await (db as any).shiftSwapRequest?.count({ where: { status: 'pending' } }).catch(() => 0) || 0;
+    pending.vacation = await (db as any).vacationRequest?.count({ where: { status: 'pending' } }).catch(() => 0) || 0;
+  } catch { /* ignore */ }
+
+  return { date: dateStr, beecomm, gomiley, sales_events: salesEvents, pending };
+}
+
+async function callGeminiForMorningInsight(data: any): Promise<string> {
+  const key = process.env.GEMINI_API_KEY;
+  if (!key) return 'ההמלצה לא זמינה (חסר GEMINI_API_KEY)';
+  const prompt = `אתה יועץ ניהול למסעדת "עלינא" בראשון לציון. הנה נתוני אתמול:\n${JSON.stringify(data, null, 2)}\n\nתן המלצה אחת קונקרטית בעברית — משפט אחד עד שניים, מעשי, שיעזור לבעלים לפעול היום. ללא הקדמות, רק ההמלצה.`;
+  try {
+    const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${key}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: { maxOutputTokens: 200, temperature: 0.4 },
+      }),
+    });
+    if (!r.ok) return `ההמלצה לא זמינה (Gemini ${r.status})`;
+    const json: any = await r.json();
+    const text = json?.candidates?.[0]?.content?.parts?.[0]?.text;
+    return (text || 'אין המלצה היום').trim();
+  } catch (e: any) {
+    return `ההמלצה לא זמינה (${e?.message})`;
+  }
+}
+
+export async function sendMorningReport() {
+  const data = await buildMorningReportData();
+  const insight = await callGeminiForMorningInsight(data);
+
+  const fmtIls = (n: number) => '₪' + Math.round(n || 0).toLocaleString('he-IL');
+  const beecommTxt = data.beecomm
+    ? `🔴 קופה: ${fmtIls(data.beecomm.total)} · ${data.beecomm.diners || '?'} סועדים · טיפ ${fmtIls(data.beecomm.tips)}`
+    : '🔴 קופה: אין נתונים';
+  const gomileyTxt = data.gomiley
+    ? `🛵 משלוחים: ${data.gomiley.total_orders} הזמנות · ${fmtIls(data.gomiley.total_income)}`
+    : '🛵 משלוחים: אין נתונים';
+  const salesTxt = data.sales_events
+    ? `💰 מכירות גמיפיקציה: ${data.sales_events.count} פעולות${data.sales_events.top_waiter ? ` · מוביל: ${data.sales_events.top_waiter.name} (${data.sales_events.top_waiter.count})` : ''}`
+    : '';
+  const pendingItems: string[] = [];
+  if (data.pending.availability > 0) pendingItems.push(`${data.pending.availability} זמינויות`);
+  if (data.pending.swap > 0) pendingItems.push(`${data.pending.swap} החלפות`);
+  if (data.pending.vacation > 0) pendingItems.push(`${data.pending.vacation} חופשות`);
+  const pendingTxt = pendingItems.length > 0 ? `📋 ממתינים לאישור: ${pendingItems.join(' · ')}` : '';
+
+  const subject = `☀️ עלינא · סיכום ${data.date}`;
+  const html = `
+<div dir="rtl" style="font-family:system-ui,-apple-system,sans-serif;max-width:600px;margin:0 auto;padding:20px;">
+  <h2 style="color:#92400e;margin-bottom:8px;">☀️ בוקר טוב, דביר</h2>
+  <p style="color:#64748b;font-size:14px;margin-top:0;">סיכום ${data.date}</p>
+
+  <div style="background:#fef3c7;border-right:4px solid #f59e0b;padding:16px;border-radius:8px;margin:16px 0;">
+    <div style="font-weight:bold;color:#92400e;margin-bottom:8px;">💡 ההמלצה היומית</div>
+    <div style="color:#451a03;line-height:1.6;">${insight}</div>
+  </div>
+
+  <div style="background:#f8fafc;border-radius:8px;padding:16px;margin:16px 0;">
+    <div style="margin:6px 0;">${beecommTxt}</div>
+    <div style="margin:6px 0;">${gomileyTxt}</div>
+    ${salesTxt ? `<div style="margin:6px 0;">${salesTxt}</div>` : ''}
+  </div>
+
+  ${pendingTxt ? `<div style="background:#fef2f2;border-right:4px solid #ef4444;padding:12px;border-radius:8px;margin:16px 0;color:#991b1b;">${pendingTxt}</div>` : ''}
+
+  <hr style="border:none;border-top:1px solid #e2e8f0;margin:24px 0;" />
+  <p style="font-size:11px;color:#94a3b8;text-align:center;">topalena.com · דוח אוטומטי</p>
+</div>`.trim();
+  const text = `בוקר טוב, דביר\nסיכום ${data.date}\n\n${insight}\n\n${beecommTxt}\n${gomileyTxt}\n${salesTxt}\n${pendingTxt}`.trim();
+
+  await sendEmail({ to: 'dvirnifusi@gmail.com', subject, text, html });
+  return { ok: true, sent_to: 'dvirnifusi@gmail.com', date: data.date, insight };
+}
+
+registerFn('sendMorningReport', async ({ user }) => {
+  if (!user) throw new Error('auth required');
+  if ((user as any).role !== 'admin' && (user as any).role !== 'owner') {
+    throw new Error('admin only');
+  }
+  return sendMorningReport();
+});
+
+// Daily cron — 07:30 IL
+if (!(globalThis as any).__morningReportTimer) {
+  (globalThis as any).__morningReportTimer = setTimeout(function loop() {
+    void (async () => {
+      try {
+        const parts = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Jerusalem', hour: '2-digit', minute: '2-digit', hour12: false }).formatToParts(new Date());
+        const hour = parts.find(p => p.type === 'hour')?.value;
+        const minute = parts.find(p => p.type === 'minute')?.value;
+        const dateStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jerusalem' }).format(new Date());
+        const lastRun = (globalThis as any).__morningReportLastRun;
+        if (hour === '07' && Number(minute) >= 30 && lastRun !== dateStr) {
+          (globalThis as any).__morningReportLastRun = dateStr;
+          const r = await sendMorningReport();
+          console.log('[morning-report cron]', JSON.stringify(r));
+        }
+      } catch (e: any) { console.warn('[morning-report cron] failed:', e?.message); }
+      (globalThis as any).__morningReportTimer = setTimeout(loop, 15 * 60 * 1000);
+    })();
+  }, 10 * 60 * 1000);
+}
+
+// ============================================================================
+// Critical-3 push filter — wrapper that:
+//   1. Suppresses non-critical pushes during quiet hours (13:00-15:00, 19:00-22:00)
+//   2. Limits to max 3 pushes per category per day
+// Categories: shift_alert, gomiley_alert, ops_alert. Critical bypasses all.
+// ============================================================================
+const __pushCounters = new Map<string, { count: number; date: string }>();
+
+function isQuietHourIL(): boolean {
+  const h = Number(new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Jerusalem', hour: '2-digit', hour12: false }).format(new Date()));
+  return (h >= 13 && h < 15) || (h >= 19 && h < 22);
+}
+
+export function shouldSendThrottledPush(category: string, opts: { critical?: boolean } = {}): boolean {
+  if (opts.critical) return true;
+  if (isQuietHourIL()) return false;
+  const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jerusalem' }).format(new Date());
+  const cur = __pushCounters.get(category);
+  if (!cur || cur.date !== today) {
+    __pushCounters.set(category, { count: 1, date: today });
+    return true;
+  }
+  if (cur.count >= 3) return false;
+  cur.count += 1;
+  return true;
+}
+
+registerFn('getCritical3Status', async ({ user }) => {
+  if (!user) throw new Error('auth required');
+  const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jerusalem' }).format(new Date());
+  const out: any = { quiet_hour_now: isQuietHourIL(), today, counters: {} };
+  for (const [k, v] of __pushCounters.entries()) {
+    if (v.date === today) out.counters[k] = v.count;
+  }
+  return out;
+});
+
