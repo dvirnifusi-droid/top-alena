@@ -32,6 +32,7 @@ import BeecommLiveWidget from '../components/dashboard/BeecommLiveWidget';
 import GomileyLiveWidget from '../components/dashboard/GomileyLiveWidget';
 import GomileyDashboardWidget from '../components/dashboard/GomileyDashboardWidget';
 import ShiftInsightsWidget from '../components/dashboard/ShiftInsightsWidget';
+import WhatsAppInboxWidget from '../components/dashboard/WhatsAppInboxWidget';
 import LowInventoryWidget from '../components/dashboard/LowInventoryWidget';
 import ActiveDeliveriesWidget from '../components/dashboard/ActiveDeliveriesWidget';
 import PendingRequestsWidget from '../components/dashboard/PendingRequestsWidget';
@@ -313,6 +314,7 @@ function DashboardInner() {
         gomiley_live: isVisible('gomiley_live') && <GomileyLiveWidget key="gomiley_live" />,
         gomiley_dashboard: isVisible('gomiley_dashboard') && <GomileyDashboardWidget key="gomiley_dashboard" />,
         shift_insights: isVisible('shift_insights') && <ShiftInsightsWidget key="shift_insights" />,
+        whatsapp_inbox: isVisible('whatsapp_inbox') && <WhatsAppInboxWidget key="whatsapp_inbox" />,
         active_employees: isVisible('active_employees') && <ActiveEmployeesWidget key="active_employees" />,
         treats_report: isVisible('treats_report') && <TreatsReport key="treats_report" />,
         brief_readers: isVisible('brief_readers') && <BriefReadersWidget key="brief_readers" />,

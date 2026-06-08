@@ -52,7 +52,6 @@ const adminLinks = [
   { title: "סוכני שיווק (11)", url: createPageUrl("MarketingAgentsHub"), icon: Megaphone, isSubItem: true, color: "violet" },
   { title: "פרומפטים של סוכנים 🤖", url: createPageUrl("AgentPrompts"), icon: Brain, isSubItem: true, color: "violet" },
   { title: "תחזיות ותובנות AI", url: createPageUrl("RevenueForecasting"), icon: Brain, isSubItem: true, color: "violet" },
-  { title: "בדיקת פקודות קוליות 🎤", url: createPageUrl("VoiceTest"), icon: Sparkles, isSubItem: true, color: "violet" },
 
   { title: "תפעול המסעדה", url: "#", icon: Utensils, isCategory: true, color: "orange" },
   { title: "ניהול תדריכים", url: createPageUrl("BriefingManagement"), icon: Megaphone, isSubItem: true, color: "orange" },
@@ -69,13 +68,8 @@ const adminLinks = [
   { title: "ניתוח תור", url: createPageUrl("QueueAnalytics"), icon: BarChart3, isSubItem: true, color: "cyan" },
   { title: "ניהול משחקי ממתינים", url: createPageUrl("GamesAdmin"), icon: Trophy, isSubItem: true, color: "cyan" },
   { title: "שאלות משחקים", url: createPageUrl("GameQuestionsAdmin"), icon: FileText, isSubItem: true, color: "cyan" },
-  { title: "הגדרות הזמנות", url: createPageUrl("PublicReservationSettings"), icon: Settings, isSubItem: true, color: "cyan" },
-  { title: "הגדרות פיקדון 💳", url: createPageUrl("DepositSettings"), icon: Settings, isSubItem: true, color: "cyan" },
 
   { title: "כספים ודוחות", url: "#", icon: TrendingUp, isCategory: true, color: "emerald" },
-  { title: "📺 מסך מטבח (TV)", url: createPageUrl("KitchenScreen"), icon: Zap, isSubItem: true, color: "emerald" },
-  { title: "🌅 Ambient (דוח+TV+Push)", url: createPageUrl("AdminAmbient"), icon: Zap, isSubItem: true, color: "emerald" },
-  { title: "💬 WhatsApp Twilio", url: createPageUrl("AdminWhatsApp"), icon: Zap, isSubItem: true, color: "emerald" },
   { title: "📥 WhatsApp Inbox", url: createPageUrl("AdminWhatsAppInbox"), icon: Zap, isSubItem: true, color: "emerald" },
   { title: "📊 קופה Live", url: createPageUrl("BeecommLive"), icon: Zap, isSubItem: true, color: "emerald" },
   { title: "דוחות", url: createPageUrl("Reports"), icon: BarChart3, isSubItem: true, color: "emerald" },
@@ -91,25 +85,19 @@ const adminLinks = [
   { title: "בקשות חופשה", url: createPageUrl("LeaveRequests"), icon: CalendarDays, isSubItem: true, color: "blue" },
   { title: "צ'אט משמרת", url: createPageUrl("ShiftChat"), icon: MessageSquare, isSubItem: true, color: "blue" },
   { title: "משוב עובדים", url: createPageUrl("EmployeeFeedback"), icon: MessageSquare, isSubItem: true, color: "blue" },
-  { title: "הגדרות הגשת זמינות", url: createPageUrl("AvailabilityFormSettings"), icon: Settings, isSubItem: true, color: "blue" },
-  { title: "מיקום העסק וגיאופנס", url: createPageUrl("LocationSettings"), icon: Navigation, isSubItem: true, color: "blue" },
 
   { title: "גיוס והכשרה", url: "#", icon: GraduationCap, isCategory: true, color: "indigo" },
   { title: "ראיונות וגיוס 🎯", url: createPageUrl("RecruitmentInterviews"), icon: Users, isSubItem: true, color: "indigo" },
   { title: "סלוטים לראיונות", url: createPageUrl("InterviewSettings"), icon: Calendar, isSubItem: true, color: "indigo" },
   { title: "הכשרות ואימונים", url: createPageUrl("Training"), icon: GraduationCap, isSubItem: true, color: "indigo" },
   { title: "סרטוני הדרכה", url: createPageUrl("TrainingVideos"), icon: GraduationCap, isSubItem: true, color: "indigo" },
-  { title: "אירועים פרטיים 🌿", url: createPageUrl("EventsPrivate"), icon: CalendarHeart, isSubItem: true, color: "indigo" },
-  { title: "Sales Kit לאירועים", url: createPageUrl("EventsSalesKit"), icon: Utensils, isSubItem: true, color: "indigo" },
-  { title: "חוזי אירועים דיגיטליים 📄", url: createPageUrl("EventContracts"), icon: FileText, isSubItem: true, color: "indigo" },
-  { title: "ראש מלצרים דיגיטלי 🍷", url: createPageUrl("WaiterAdmin"), icon: Utensils, isSubItem: true, color: "indigo" },
+  { title: "אירועים פרטיים 🌿 (מרכז)", url: createPageUrl("EventsHub"), icon: CalendarHeart, isSubItem: true, color: "indigo" },
 
   { title: "משלוחים", url: "#", icon: Package, isCategory: true, color: "amber" },
   { title: "ניהול משלוחים", url: createPageUrl("Deliveries"), icon: Package, isSubItem: true, color: "amber" },
   { title: "ניהול שליחים", url: createPageUrl("Couriers"), icon: Package, isSubItem: true, color: "amber" },
   { title: "מעקב שליחים חי 🗺️", url: createPageUrl("CourierTracking"), icon: Navigation, isSubItem: true, color: "amber" },
   { title: "מועדון לקוחות משלוחים", url: createPageUrl("DeliveryCustomerClub"), icon: Users, isSubItem: true, color: "amber" },
-  { title: "ניהול ציוד (אייפדים/מסופונים)", url: createPageUrl("DevicesDashboard"), icon: Tablet, isSubItem: true, color: "amber" },
 
   { title: "שיווק ולקוחות", url: "#", icon: Megaphone, isCategory: true, color: "pink" },
   { title: "מועדון לקוחות", url: createPageUrl("CustomerClub"), icon: Users, isSubItem: true, color: "pink" },
@@ -130,11 +118,11 @@ const adminLinks = [
   { title: "ניתוח סטוריז", url: createPageUrl("StoriesAnalytics"), icon: BarChart3, isSubItem: true, color: "rose" },
   { title: "הודעות סטוריז", url: createPageUrl("StoriesNotifications"), icon: Bell, isSubItem: true, color: "rose" },
 
-  { title: "כלים נוספים", url: "#", icon: Settings, isCategory: true, color: "slate" },
+  { title: "הגדרות ואינטגרציות ⚙️", url: "#", icon: Settings, isCategory: true, color: "slate" },
+  { title: "מרכז הגדרות וחיבורים", url: createPageUrl("AdminSettings"), icon: Settings, isSubItem: true, color: "slate" },
   { title: "ייצוא דאטה", url: createPageUrl("DataExport"), icon: Download, isSubItem: true, color: "slate" },
   { title: "שליחת Push ידני", url: createPageUrl("PushNotifications"), icon: Bell, isSubItem: true, color: "slate" },
   { title: "פופ-אפים מתוזמנים 🔔", url: createPageUrl("Popups"), icon: Megaphone, isSubItem: true, color: "slate" },
-  { title: "חיבור קופה Beecomm 🐝", url: createPageUrl("BeecommIntegration"), icon: Package, isSubItem: true, color: "slate" },
 ];
 
 // Employee menu — same flat format, reorganised and color-coded.

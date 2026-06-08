@@ -135,6 +135,8 @@ import KitchenScreen from './pages/KitchenScreen';
 import AdminAmbient from './pages/AdminAmbient';
 import AdminWhatsApp from './pages/AdminWhatsApp';
 import AdminWhatsAppInbox from './pages/AdminWhatsAppInbox';
+import AdminSettings from './pages/AdminSettings';
+import EventsHub from './pages/EventsHub';
 import __Layout from './Layout.jsx';
 
 
@@ -227,6 +229,8 @@ export const PAGES = {
     "AdminAmbient": AdminAmbient,
     "AdminWhatsApp": AdminWhatsApp,
     "AdminWhatsAppInbox": AdminWhatsAppInbox,
+    "AdminSettings": AdminSettings,
+    "EventsHub": EventsHub,
 }
 
 export const pagesConfig = {
