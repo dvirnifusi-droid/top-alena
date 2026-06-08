@@ -1957,6 +1957,147 @@ registerFn('sendSms', async ({ body }) => {
   return sendSms(to, message);
 });
 
+// Diagnostic — exposes which Twilio env vars are set and tests if the
+// configured WhatsApp sender is registered with Twilio (cheap GET to the
+// IncomingPhoneNumbers list). Used by /AdminWhatsApp.
+registerFn('getWhatsAppStatus', async ({ user }) => {
+  if (!user) throw new Error('auth required');
+  if ((user as any).role !== 'admin' && (user as any).role !== 'owner') {
+    throw new Error('admin only');
+  }
+  const sid = process.env.TWILIO_ACCOUNT_SID;
+  const token = process.env.TWILIO_AUTH_TOKEN;
+  const from = process.env.TWILIO_WHATSAPP_FROM ?? (process.env.TWILIO_PHONE_NUMBER ? `whatsapp:${process.env.TWILIO_PHONE_NUMBER}` : '');
+  const templateSid = process.env.TWILIO_WA_TEMPLATE_SID || 'HX42bd4ae96abaa7312aeeae1af997c3da';
+  const mask = (s: string | undefined) => s ? `${s.slice(0, 6)}…${s.slice(-4)}` : '';
+  const out: any = {
+    has_sid: !!sid,
+    has_token: !!token,
+    has_from: !!from,
+    has_template: !!templateSid,
+    from_masked: from ? from.replace(/(\+?\d{4})\d+(\d{2})/, '$1…$2') : '',
+    template_masked: mask(templateSid),
+    sender_ok: null as boolean | null,
+    sender_error: null as string | null,
+  };
+  // Try a tiny send-validate call — Twilio rejects bad senders immediately.
+  // We use a fake number 'whatsapp:+15005550006' (Twilio magic test number).
+  if (sid && token && from) {
+    try {
+      const creds = Buffer.from(`${sid}:${token}`).toString('base64');
+      // Lookup the WhatsApp sender via /Channels API would be ideal, but
+      // simplest probe: POST a message to magic test number — Twilio returns
+      // 21606 if the From channel doesn't exist (our actual problem).
+      const r = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`, {
+        method: 'POST',
+        headers: { Authorization: `Basic ${creds}`, 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ From: from, To: 'whatsapp:+15005550006', Body: 'probe' }),
+      });
+      const data: any = await r.json();
+      if (r.ok) {
+        out.sender_ok = true;
+      } else {
+        out.sender_ok = false;
+        out.sender_error = `${data?.code || r.status}: ${data?.message || 'unknown'}`;
+      }
+    } catch (e: any) {
+      out.sender_ok = false;
+      out.sender_error = e?.message || String(e);
+    }
+  }
+  return out;
+});
+
+// Preview broadcast — counts how many recipients an audience filter matches,
+// without sending anything. Used by /AdminWhatsApp before "send" is clicked.
+registerFn('previewWhatsAppBroadcast', async ({ body, user }) => {
+  if (!user) throw new Error('auth required');
+  if ((user as any).role !== 'admin' && (user as any).role !== 'owner') {
+    throw new Error('admin only');
+  }
+  const audience = String((body as any)?.audience || '');
+  const ph = (s: string) => /^(\+?972|0)\d{8,9}$/.test(String(s || '').replace(/[\s-]/g, ''));
+  if (audience === 'delivery_customers') {
+    const all: any[] = await (db as any).deliveryCustomer.findMany({ select: { customer_phone: true } });
+    return { count: all.filter(c => ph(c.customer_phone || '')).length };
+  }
+  if (audience === 'delivery_inactive_30d') {
+    const cutoff = new Date(Date.now() - 30 * 86400_000);
+    const all: any[] = await (db as any).deliveryCustomer.findMany({ select: { customer_phone: true, last_order_date: true } });
+    return { count: all.filter(c => ph(c.customer_phone || '') && (!c.last_order_date || new Date(c.last_order_date) < cutoff)).length };
+  }
+  if (audience === 'reservations_past_30d') {
+    const since = new Date(Date.now() - 30 * 86400_000);
+    const all: any[] = await (db as any).reservation.findMany({
+      where: { date: { gte: since } },
+      select: { customer_phone: true },
+    });
+    const seen = new Set<string>();
+    for (const r of all) {
+      const p = String(r.customer_phone || '').replace(/[\s-]/g, '');
+      if (ph(p)) seen.add(p);
+    }
+    return { count: seen.size };
+  }
+  return { count: 0 };
+});
+
+// Send broadcast — iterates the matched audience and calls sendWhatsApp per
+// recipient. Best-effort; returns counts of sent/failed/skipped.
+registerFn('sendWhatsAppBroadcast', async ({ body, user }) => {
+  if (!user) throw new Error('auth required');
+  if ((user as any).role !== 'admin' && (user as any).role !== 'owner') {
+    throw new Error('admin only');
+  }
+  const b = (body as any) || {};
+  const audience = String(b.audience || '');
+  const message = String(b.message || '').trim();
+  if (!message) throw new Error('message required');
+  const ph = (s: string) => /^(\+?972|0)\d{8,9}$/.test(String(s || '').replace(/[\s-]/g, ''));
+
+  let recipients: string[] = [];
+  if (audience === 'delivery_customers') {
+    const all: any[] = await (db as any).deliveryCustomer.findMany({ select: { customer_phone: true } });
+    recipients = all.map(c => c.customer_phone || '').filter(ph);
+  } else if (audience === 'delivery_inactive_30d') {
+    const cutoff = new Date(Date.now() - 30 * 86400_000);
+    const all: any[] = await (db as any).deliveryCustomer.findMany({ select: { customer_phone: true, last_order_date: true } });
+    recipients = all
+      .filter(c => ph(c.customer_phone || '') && (!c.last_order_date || new Date(c.last_order_date) < cutoff))
+      .map(c => c.customer_phone as string);
+  } else if (audience === 'reservations_past_30d') {
+    const since = new Date(Date.now() - 30 * 86400_000);
+    const all: any[] = await (db as any).reservation.findMany({
+      where: { date: { gte: since } },
+      select: { customer_phone: true },
+    });
+    const seen = new Set<string>();
+    for (const r of all) {
+      const p = String(r.customer_phone || '').replace(/[\s-]/g, '');
+      if (ph(p)) seen.add(p);
+    }
+    recipients = [...seen];
+  } else {
+    throw new Error('unknown audience: ' + audience);
+  }
+
+  // Dedupe
+  recipients = [...new Set(recipients)];
+
+  let sent = 0, failed = 0;
+  for (const to of recipients) {
+    try {
+      await sendWhatsApp(to, message);
+      sent += 1;
+    } catch {
+      failed += 1;
+    }
+    // Throttle so we don't hammer Twilio (60 req/sec is the default)
+    await new Promise(r => setTimeout(r, 50));
+  }
+  return { sent, failed, skipped: 0, total: recipients.length };
+});
+
 registerFn('sendWhatsApp', async ({ body }) => {
   const { to, message } = body as any;
   const sid = process.env.TWILIO_ACCOUNT_SID;

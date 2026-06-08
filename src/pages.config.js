@@ -133,6 +133,7 @@ import AdminReopenShifts from './pages/AdminReopenShifts';
 import AdminGomileyCookies from './pages/AdminGomileyCookies';
 import KitchenScreen from './pages/KitchenScreen';
 import AdminAmbient from './pages/AdminAmbient';
+import AdminWhatsApp from './pages/AdminWhatsApp';
 import __Layout from './Layout.jsx';
 
 
@@ -223,6 +224,7 @@ export const PAGES = {
     "AdminGomileyCookies": AdminGomileyCookies,
     "KitchenScreen": KitchenScreen,
     "AdminAmbient": AdminAmbient,
+    "AdminWhatsApp": AdminWhatsApp,
 }
 
 export const pagesConfig = {
