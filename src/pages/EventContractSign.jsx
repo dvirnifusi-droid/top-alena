@@ -174,18 +174,27 @@ export default function EventContractSign() {
           </div>
         ) : (
           <>
-            {/* CLIENT DETAILS */}
+            {/* CLIENT DETAILS — split per official contract */}
+            <div className="bg-blue-50 rounded-xl p-4 space-y-2 text-sm">
+              <div className="font-bold text-blue-900 text-base mb-2">פרטי המזמין</div>
+              <Row k="👤 שם מלא" v={contract.customer_name} />
+              <Row k="📞 טלפון" v={contract.customer_phone} />
+              {contract.customer_email && <Row k="📧 אימייל" v={contract.customer_email} />}
+              {contract.customer_address && <Row k="🏠 כתובת" v={contract.customer_address} />}
+              {contract.customer_id_or_taxno && <Row k="🆔 ת.ז. / ח.פ." v={contract.customer_id_or_taxno} />}
+              {contract.company_or_event_label && <Row k="🏢 שם חברה" v={contract.company_or_event_label} />}
+            </div>
+
             <div className="space-y-2 text-sm">
               <div className="font-bold text-gray-800 text-base">פרטי האירוע</div>
-              <Row k="👤 שם הלקוח" v={contract.customer_name} />
-              <Row k="📞 טלפון" v={contract.customer_phone} />
-              {contract.company_or_event_label && <Row k="🏢 חברה / אירוע" v={contract.company_or_event_label} />}
+              {contract.event_type && <Row k="🎉 סוג האירוע" v={contract.event_type} />}
               <Row k="📍 מיקום" v={contract.event_location} />
               <Row k="📅 תאריך" v={contract.event_date} />
               {(contract.event_start_time || contract.event_end_time) && (
-                <Row k="🕐 שעות" v={`${contract.event_start_time || ''}${contract.event_end_time ? ' - ' + contract.event_end_time : ''}`} />
+                <Row k="🕐 שעת הגעה" v={`${contract.event_start_time || ''}${contract.event_end_time ? ' - ' + contract.event_end_time : ''}`} />
               )}
-              <Row k="👥 כמות סועדים" v={contract.guest_count} />
+              <Row k="👥 כמות סועדים מחויב" v={contract.guest_count} />
+              {contract.kids_count > 0 && <Row k="🧒 ילדים (עד גיל 12)" v={contract.kids_count} />}
               <Row k="🍽️ חבילה" v={contract.package_label} />
             </div>
 

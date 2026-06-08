@@ -260,7 +260,7 @@ function EditDialog({ contract, onClose }) {
     try {
       // Numeric coercion
       const payload = { ...c };
-      ['guest_count', 'price_per_guest_ils', 'upsells_total_ils', 'subtotal_ils', 'deposit_ils', 'balance_ils', 'tip_ils']
+      ['guest_count', 'kids_count', 'price_per_guest_ils', 'upsells_total_ils', 'subtotal_ils', 'deposit_ils', 'balance_ils', 'tip_ils']
         .forEach(k => { if (payload[k] !== '' && payload[k] !== null && payload[k] !== undefined) payload[k] = Number(payload[k]) || 0; });
       const res = await base44.functions.updateEventContract(payload);
       const data = res?.data || res;
@@ -282,15 +282,28 @@ function EditDialog({ contract, onClose }) {
           <DialogTitle>עריכת חוזה {c.contract_number || ''}</DialogTitle>
         </DialogHeader>
         <div className="space-y-4 py-2">
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+            <div className="text-xs font-bold text-blue-900 mb-2">פרטי המזמין</div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <Field label="שם מלא"><Input value={c.customer_name || ''} onChange={e => set('customer_name', e.target.value)} /></Field>
+              <Field label="טלפון"><Input value={c.customer_phone || ''} onChange={e => set('customer_phone', e.target.value)} placeholder="050-1234567" /></Field>
+              <Field label="אימייל"><Input type="email" value={c.customer_email || ''} onChange={e => set('customer_email', e.target.value)} placeholder="name@example.com" /></Field>
+              <Field label="ת.ז. / ח.פ."><Input value={c.customer_id_or_taxno || ''} onChange={e => set('customer_id_or_taxno', e.target.value)} placeholder="9 ספרות" /></Field>
+              <div className="md:col-span-2">
+                <Field label="כתובת מלאה"><Input value={c.customer_address || ''} onChange={e => set('customer_address', e.target.value)} placeholder="רחוב, מספר, עיר, מיקוד" /></Field>
+              </div>
+              <Field label="שם חברה (אם רלוונטי)"><Input value={c.company_or_event_label || ''} onChange={e => set('company_or_event_label', e.target.value)} /></Field>
+              <Field label="סוג האירוע"><Input value={c.event_type || ''} onChange={e => set('event_type', e.target.value)} placeholder="יום הולדת, בר מצווה, אירוע עסקי..." /></Field>
+            </div>
+          </div>
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <Field label="שם הלקוח"><Input value={c.customer_name || ''} onChange={e => set('customer_name', e.target.value)} /></Field>
-            <Field label="טלפון"><Input value={c.customer_phone || ''} onChange={e => set('customer_phone', e.target.value)} placeholder="050-1234567" /></Field>
-            <Field label="חברה / שם האירוע"><Input value={c.company_or_event_label || ''} onChange={e => set('company_or_event_label', e.target.value)} /></Field>
             <Field label="מיקום"><Input value={c.event_location || ''} onChange={e => set('event_location', e.target.value)} /></Field>
             <Field label="תאריך"><Input type="date" value={c.event_date || ''} onChange={e => set('event_date', e.target.value)} /></Field>
-            <Field label="שעת התחלה"><Input type="time" value={c.event_start_time || ''} onChange={e => set('event_start_time', e.target.value)} /></Field>
+            <Field label="שעת הגעה"><Input type="time" value={c.event_start_time || ''} onChange={e => set('event_start_time', e.target.value)} /></Field>
             <Field label="שעת סיום"><Input type="time" value={c.event_end_time || ''} onChange={e => set('event_end_time', e.target.value)} /></Field>
-            <Field label="כמות סועדים"><Input type="number" value={c.guest_count || ''} onChange={e => set('guest_count', e.target.value)} /></Field>
+            <Field label="כמות סועדים מחויב"><Input type="number" value={c.guest_count || ''} onChange={e => set('guest_count', e.target.value)} /></Field>
+            <Field label="ילדים (עד גיל 12)"><Input type="number" value={c.kids_count || ''} onChange={e => set('kids_count', e.target.value)} placeholder="0" /></Field>
             <Field label="חבילה (טקסט חופשי)"><Input value={c.package_label || ''} onChange={e => set('package_label', e.target.value)} placeholder="150 ₪ לסועד / שולחן שוק / תפריט מותאם" /></Field>
             <Field label="מחיר לסועד (₪)"><Input type="number" value={c.price_per_guest_ils || ''} onChange={e => set('price_per_guest_ils', e.target.value)} /></Field>
           </div>

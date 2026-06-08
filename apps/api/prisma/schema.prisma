@@ -2459,12 +2459,17 @@ model EventContract {
   // Customer-facing data (frozen at contract-sign moment for legal stability)
   customer_name          String?
   customer_phone         String?
+  customer_email         String?
+  customer_address       String?  // full address (street, city, apt) per official contract
+  customer_id_or_taxno   String?  // ת.ז. / ח.פ.
   company_or_event_label String?
+  event_type             String?  // bar-mitzvah / birthday / business / etc
   event_location         String?
   event_date             String?
   event_start_time       String?
   event_end_time         String?
   guest_count            Int?
+  kids_count             Int?     // children under 12
   package_label          String?  // e.g. "150 ₪ לסועד" / "שולחן שוק" / "תפריט מותאם"
   price_per_guest_ils    Int?
   upsells_total_ils      Int?

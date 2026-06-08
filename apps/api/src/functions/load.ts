@@ -8322,9 +8322,17 @@ async function ensureEventContractTable() {
     CREATE UNIQUE INDEX IF NOT EXISTS "EventContract_public_token_uq" ON "EventContract"("public_token");
   `);
   // Forward-compat: add columns that may be missing on tables created by older builds
-  await (prisma as any).$executeRawUnsafe(`
-    ALTER TABLE "EventContract" ADD COLUMN IF NOT EXISTS "tip_ils" INTEGER;
-  `).catch(() => {});
+  const addCol = async (col: string, type: string) => {
+    await (prisma as any).$executeRawUnsafe(
+      `ALTER TABLE "EventContract" ADD COLUMN IF NOT EXISTS "${col}" ${type};`
+    ).catch(() => {});
+  };
+  await addCol('tip_ils', 'INTEGER');
+  await addCol('customer_email', 'TEXT');
+  await addCol('customer_address', 'TEXT');
+  await addCol('customer_id_or_taxno', 'TEXT');
+  await addCol('event_type', 'TEXT');
+  await addCol('kids_count', 'INTEGER');
   eventContractTableReady = true;
 }
 
@@ -8424,12 +8432,17 @@ registerFn('createEventContract', async ({ body, user }) => {
       public_token: randomToken(28),
       customer_name: b.customer_name ?? booking?.customer_name ?? null,
       customer_phone: b.customer_phone ?? booking?.customer_phone ?? null,
+      customer_email: b.customer_email ?? booking?.customer_email ?? null,
+      customer_address: b.customer_address ?? booking?.customer_address ?? null,
+      customer_id_or_taxno: b.customer_id_or_taxno ?? null,
       company_or_event_label: b.company_or_event_label ?? null,
+      event_type: b.event_type ?? booking?.event_type ?? null,
       event_location: b.event_location ?? 'עלינא — רוטשילד 104, ראשון לציון',
       event_date: b.event_date ?? booking?.event_date ?? null,
       event_start_time: b.event_start_time ?? booking?.event_time ?? null,
       event_end_time: b.event_end_time ?? null,
       guest_count: guestCount || null,
+      kids_count: Number(b.kids_count ?? booking?.kids_count ?? 0) || null,
       package_label: packageLabel,
       price_per_guest_ils: pricePerGuest || null,
       upsells_total_ils: upsellsTotal || null,
@@ -8466,8 +8479,9 @@ registerFn('updateEventContract', async ({ body }) => {
   if (!existing) throw new Error('Not found');
   if (existing.status === 'signed') throw new Error('חוזה חתום — אי אפשר לערוך');
   const allowed = [
-    'customer_name', 'customer_phone', 'company_or_event_label', 'event_location',
-    'event_date', 'event_start_time', 'event_end_time', 'guest_count',
+    'customer_name', 'customer_phone', 'customer_email', 'customer_address',
+    'customer_id_or_taxno', 'company_or_event_label', 'event_type', 'event_location',
+    'event_date', 'event_start_time', 'event_end_time', 'guest_count', 'kids_count',
     'package_label', 'price_per_guest_ils', 'upsells_total_ils', 'subtotal_ils',
     'deposit_ils', 'balance_ils', 'tip_ils', 'menu_snapshot', 'upsells_snapshot',
     'terms_snapshot', 'notes', 'status',
