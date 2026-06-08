@@ -2633,69 +2633,74 @@ export default function SeatingSetup() {
                                 <div className={`${bigMapMode ? 'lg:col-span-3 lg:order-2' : 'lg:col-span-2 lg:order-2'} space-y-3 ${
                                     mobileView === 'map' ? 'block' : 'hidden lg:block'
                                 }`}>
-                                    {/* TOP ACTION BAR — compact on mobile, full on desktop */}
-                                    <div className="bg-white border border-gray-200 rounded-2xl shadow-sm p-1.5 md:p-3 flex items-center gap-1.5 flex-nowrap overflow-hidden">
-                                        <button
-                                            onClick={() => setSmartReserveOpen(true)}
-                                            className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs sm:text-sm px-2 sm:px-3 h-9 rounded-lg flex items-center justify-center gap-1 flex-1 sm:flex-initial min-w-0 truncate"
-                                        >
-                                            <Plus className="w-3.5 h-3.5 shrink-0" />
-                                            <span className="truncate">הזמנה חדשה</span>
-                                        </button>
-                                        <button
-                                            onClick={() => setQuickSeatOpen(true)}
-                                            className="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs sm:text-sm px-2 sm:px-3 h-9 rounded-lg flex items-center justify-center gap-1 flex-1 sm:flex-initial min-w-0 truncate"
-                                        >
-                                            <Plus className="w-3.5 h-3.5 shrink-0" />
-                                            <span className="truncate">הושבה מהירה</span>
-                                        </button>
-                                        <div className="hidden sm:block flex-1"></div>
-                                        {/* Clock — desktop only (mobile shows in the system bar anyway) */}
-                                        <div className="hidden sm:block text-center px-3 py-1 bg-gradient-to-bl from-slate-900 to-slate-700 text-white rounded-xl">
-                                            <div className="text-xl font-black tabular-nums leading-none">{format(clockTick, 'HH:mm')}</div>
-                                            <div className="text-[10px] opacity-80 mt-0.5">{format(clockTick, 'EEE dd/MM', { locale: he })}</div>
+                                    {/* UNIFIED HEADER BAR — actions, area filter, tools all in one strip */}
+                                    <div className="bg-white border border-gray-200 rounded-2xl shadow-sm p-2 flex flex-wrap items-center gap-2">
+                                        {/* Section 1 — Primary actions */}
+                                        <div className="flex gap-1.5 shrink-0">
+                                            <button
+                                                onClick={() => setSmartReserveOpen(true)}
+                                                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs sm:text-sm px-3 h-9 rounded-lg flex items-center gap-1"
+                                            >
+                                                <Plus className="w-3.5 h-3.5" />
+                                                הזמנה חדשה
+                                            </button>
+                                            <button
+                                                onClick={() => setQuickSeatOpen(true)}
+                                                className="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs sm:text-sm px-3 h-9 rounded-lg flex items-center gap-1"
+                                            >
+                                                <Plus className="w-3.5 h-3.5" />
+                                                הושבה מהירה
+                                            </button>
                                         </div>
-                                    </div>
 
-                                    {/* פילטר אזורים — horizontal scroll on mobile, wrap on desktop */}
-                                    <div className="flex sm:flex-wrap gap-1 p-1.5 bg-white border border-gray-200 rounded-2xl overflow-x-auto sm:overflow-visible whitespace-nowrap">
-                                        {[
-                                            { key: 'all', label: 'הכל' },
-                                            { key: 'אזור חום', label: 'אזור חום' },
-                                            { key: 'כניסה', label: 'כניסה' },
-                                            { key: 'אדום מרוכזי', label: 'אדום מרוכזי' },
-                                            { key: 'זוהרה', label: 'זוהרה' },
-                                            { key: 'מספרה', label: 'מספרה' },
-                                            { key: 'גבטה', label: 'גבטה' },
-                                            { key: 'ורוד', label: 'ורוד' },
-                                        ].map(area => {
-                                            const active = selectedAreas.includes(area.key);
-                                            return (
-                                                <button
-                                                    key={area.key}
-                                                    onClick={() => toggleArea(area.key)}
-                                                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-colors
-                                                        ${active
-                                                            ? 'bg-slate-900 text-white shadow-sm'
-                                                            : 'bg-gray-50 text-gray-600 hover:bg-gray-100'}`}
-                                                >{area.label}</button>
-                                            );
-                                        })}
-                                    </div>
-                                    <div className="bg-white p-2 border rounded-lg shadow-sm flex justify-between items-center">
-                                        <Button
-                                            variant="outline"
-                                            onClick={() => window.open(window.location.origin + '/PublicReservation', '_blank')}
-                                            className="bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100 hidden sm:flex"
-                                        >
-                                            <Eye className="w-4 h-4 ml-2" />
-                                            צפה בעמוד הזמנות
-                                        </Button>
+                                        {/* Divider */}
+                                        <div className="hidden md:block h-7 w-px bg-gray-200" />
+
+                                        {/* Section 2 — Area filter (scrollable on overflow) */}
+                                        <div className="flex gap-1 flex-1 min-w-0 overflow-x-auto whitespace-nowrap py-0.5">
+                                            {[
+                                                { key: 'all', label: 'הכל' },
+                                                { key: 'אזור חום', label: 'אזור חום' },
+                                                { key: 'כניסה', label: 'כניסה' },
+                                                { key: 'אדום מרוכזי', label: 'אדום מרוכזי' },
+                                                { key: 'זוהרה', label: 'זוהרה' },
+                                                { key: 'מספרה', label: 'מספרה' },
+                                                { key: 'גבטה', label: 'גבטה' },
+                                                { key: 'ורוד', label: 'ורוד' },
+                                            ].map(area => {
+                                                const active = selectedAreas.includes(area.key);
+                                                return (
+                                                    <button
+                                                        key={area.key}
+                                                        onClick={() => toggleArea(area.key)}
+                                                        className={`px-2.5 h-8 rounded-lg text-xs font-bold transition-colors shrink-0
+                                                            ${active
+                                                                ? 'bg-slate-900 text-white shadow-sm'
+                                                                : 'bg-gray-50 text-gray-600 hover:bg-gray-100'}`}
+                                                    >{area.label}</button>
+                                                );
+                                            })}
+                                        </div>
+
+                                        {/* Divider */}
+                                        <div className="hidden md:block h-7 w-px bg-gray-200" />
+
+                                        {/* Section 3 — Tools + view links + clock */}
+                                        <div className="flex items-center gap-1.5 shrink-0">
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={() => window.open(window.location.origin + '/PublicReservation', '_blank')}
+                                                className="bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100 hidden md:flex h-9"
+                                            >
+                                                <Eye className="w-3.5 h-3.5 ml-1" />
+                                                <span className="text-xs">הזמנות</span>
+                                            </Button>
                                         <Popover>
                                             <PopoverTrigger asChild>
-                                                <Button variant="outline">
-                                                    <Wrench className="w-4 h-4 ml-2" />
-                                                    כלים
+                                                <Button variant="outline" size="sm" className="h-9">
+                                                    <Wrench className="w-3.5 h-3.5 ml-1" />
+                                                    <span className="text-xs">כלים</span>
                                                 </Button>
                                             </PopoverTrigger>
                                             <PopoverContent className="w-60" dir="rtl">
@@ -2720,6 +2725,12 @@ export default function SeatingSetup() {
                                                 </div>
                                             </PopoverContent>
                                         </Popover>
+                                            {/* Clock */}
+                                            <div className="hidden sm:block text-center px-2.5 py-1 bg-gradient-to-bl from-slate-900 to-slate-700 text-white rounded-lg shrink-0">
+                                                <div className="text-base font-black tabular-nums leading-none">{format(clockTick, 'HH:mm')}</div>
+                                                <div className="text-[9px] opacity-80 mt-0.5">{format(clockTick, 'EEE dd/MM', { locale: he })}</div>
+                                            </div>
+                                        </div>
                                     </div>
 
                                     {/* Zoom controls — small floating cluster, hidden on print */}
