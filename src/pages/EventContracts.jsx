@@ -10,7 +10,8 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { FileText, Plus, Send, Copy, Check, ExternalLink, Eye, Pencil, Calendar, Users, X } from 'lucide-react';
+import { FileText, Plus, Send, Copy, Check, ExternalLink, Eye, Pencil, Calendar, Users, X, RotateCcw } from 'lucide-react';
+import { OFFICIAL_EVENT_TERMS } from '@/data/eventContractTerms';
 
 // Default catalogue mirrored from the owner's Word sign-off form.
 // Editable manually in the dialog after pre-checking what's relevant.
@@ -443,13 +444,29 @@ function TermsEditor({ value, onChange }) {
 
   return (
     <div>
-      <Label className="mb-1 block text-xs text-gray-600">תנאים (שורה לכל סעיף)</Label>
+      <div className="flex items-center justify-between mb-1">
+        <Label className="text-xs text-gray-600">תנאים (שורה לכל סעיף · שורה שמתחילה ב-<code className="bg-gray-100 px-1 rounded">## </code> תוצג ככותרת ראשית)</Label>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={() => {
+            if (text.trim() && !confirm('זה ידרוס את כל התנאים הנוכחיים בתבנית הרשמית של עלינא. להמשיך?')) return;
+            onChange([...OFFICIAL_EVENT_TERMS]);
+          }}
+          className="h-7 text-xs text-amber-700 hover:text-amber-900"
+        >
+          <RotateCcw className="w-3 h-3 ml-1" />
+          טען תבנית רשמית
+        </Button>
+      </div>
       <Textarea
-        rows={5}
+        rows={12}
         value={text}
         // Don't filter blanks — that's what blocked typing previously
         onChange={(e) => onChange(e.target.value.split('\n'))}
-        placeholder="ביטול אירוע עד 7 ימים לפני — המקדמה לא חוזרת&#10;שעות נוספות מעבר לסוכם יחויבו ב-X₪ לשעה&#10;..."
+        placeholder="## כותרת סעיף&#10;הסעיף הראשון&#10;הסעיף השני&#10;## כותרת סעיף נוסף..."
+        className="font-mono text-xs"
       />
     </div>
   );

@@ -238,23 +238,46 @@ export default function EventContractSign() {
               </div>
             )}
 
-            {/* TERMS */}
+            {/* TERMS — render section headers (lines starting with "## ") as bold subtitles */}
             {terms.length > 0 && (
-              <div className="bg-gray-50 rounded-xl p-3 text-xs text-gray-700">
-                <div className="font-bold mb-2 text-gray-800">📜 תנאים</div>
-                <ul className="space-y-1 list-disc pr-5">
-                  {terms.filter(Boolean).map((t, i) => (
-                    <li key={i}>{typeof t === 'string' ? t : (t.text || JSON.stringify(t))}</li>
-                  ))}
-                </ul>
+              <div className="bg-gray-50 rounded-xl p-4 text-sm text-gray-700">
+                <div className="font-bold mb-3 text-gray-800 text-base">📜 תנאי ההסכם</div>
+                {(() => {
+                  // Group consecutive bullets under each "## " section header
+                  const sections = [];
+                  let current = null;
+                  for (const raw of terms.filter(Boolean)) {
+                    const t = typeof raw === 'string' ? raw : (raw.text || '');
+                    if (!t) continue;
+                    if (t.startsWith('## ')) {
+                      if (current) sections.push(current);
+                      current = { title: t.slice(3).trim(), items: [] };
+                    } else {
+                      if (!current) current = { title: '', items: [] };
+                      current.items.push(t);
+                    }
+                  }
+                  if (current) sections.push(current);
+                  return sections.map((sec, i) => (
+                    <div key={i} className="mb-3 last:mb-0">
+                      {sec.title && <div className="font-bold text-gray-900 mb-1">{sec.title}</div>}
+                      {sec.items.length > 0 && (
+                        <ul className="space-y-1 list-disc pr-5 text-gray-700">
+                          {sec.items.map((it, j) => <li key={j}>{it}</li>)}
+                        </ul>
+                      )}
+                    </div>
+                  ));
+                })()}
               </div>
             )}
 
             {/* SIGN BLOCK */}
             <div className="border-2 border-dashed border-amber-400 rounded-xl p-4 space-y-3 bg-white">
               <div className="font-bold text-gray-800">✍️ אישור וחתימה</div>
-              <p className="text-xs text-gray-600">
-                בחתימתי להלן אני מאשר/ת את כל פרטי האירוע, התפריט, המחיר והתנאים שלעיל.
+              <p className="text-xs text-gray-600 leading-relaxed">
+                אני החתום מטה מאשר כי קראתי את הסכם ההתקשרות, הבנתי את תנאיו, ואני מסכים לכל התנאים המפורטים בו ובנספחי ההזמנה המצורפים אליו.
+                ידוע לי כי טופס בחירת התפריט המצורף מהווה חלק בלתי נפרד מהסכם זה ומסומן כנספח א׳.
               </p>
               <input
                 type="text"
