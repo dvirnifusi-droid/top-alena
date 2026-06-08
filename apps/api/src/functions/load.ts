@@ -7697,9 +7697,14 @@ registerFn('clockInWithLocation', async ({ user, body }) => {
   //   (b) A previous day's shift that was never clocked out → close it
   //       gracefully before creating today's, so the employee doesn't end up
   //       with two "active" shifts at once.
+  // Match on BOTH User.id and Employee.id (when emp exists) — they are
+  // different entities for Google-auth users, and previous shifts may have
+  // been stored under either.
+  const lookupIds: string[] = [String(user.id)];
+  if (emp?.id && emp.id !== user.id) lookupIds.push(String(emp.id));
   const openRows: any[] = await (prisma as any).$queryRaw`
     SELECT id, shift_start, status, date, last_location_at FROM "ShiftTracking"
-    WHERE employee_id = ${user.id} AND status = 'active'
+    WHERE employee_id = ANY(${lookupIds}::text[]) AND status = 'active'
     ORDER BY shift_start DESC
   `;
   const todayStr = new Date().toISOString().slice(0, 10);
@@ -7775,6 +7780,18 @@ registerFn('clockInWithLocation', async ({ user, body }) => {
 // this so ShiftClockWidget can detect an open shift after page refresh.
 registerFn('getMyActiveShift', async ({ user }) => {
   if (!user?.id) throw new Error('unauthorized');
+  // CRITICAL: User.id and Employee.id are DIFFERENT entities for Google-auth
+  // users — clockInWithLocation stores Employee.id via email match, but the
+  // JWT carries User.id. If we query by user.id only, Google users never
+  // see their own active shift and the UI shows them as 'not on shift'.
+  // → match on EITHER id.
+  const userEmail = String((user as any).email || '').toLowerCase();
+  const empMatch: any[] = userEmail ? await (prisma as any).$queryRaw`
+    SELECT id FROM "Employee" WHERE LOWER(email) = ${userEmail} LIMIT 1
+  ` : [];
+  const empId = empMatch?.[0]?.id || null;
+  const ids: string[] = [String(user.id)];
+  if (empId && empId !== user.id) ids.push(String(empId));
   const rows: any[] = await (prisma as any).$queryRaw`
     SELECT id, employee_id, employee_name,
            date::text AS date,
@@ -7782,7 +7799,7 @@ registerFn('getMyActiveShift', async ({ user }) => {
            breaks, total_break_minutes, had_meal, meal_details,
            total_hours, effective_hours
     FROM "ShiftTracking"
-    WHERE employee_id = ${user.id}
+    WHERE employee_id = ANY(${ids}::text[])
       AND (status = 'active' OR status = 'on_break')
     ORDER BY shift_start DESC
     LIMIT 1
