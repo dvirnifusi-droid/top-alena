@@ -13286,3 +13286,208 @@ registerFn('getCritical3Status', async ({ user }) => {
   return out;
 });
 
+// ============================================================================
+// Auto-credit Sales Gamification from Beecomm top_dishes deltas.
+// Runs after each snapshot. For each active goal, finds delta-dishes whose
+// name contains goal.dish_label (Hebrew substring), credits the units to the
+// waiter with the highest sum-delta in this snapshot. Marks events as
+// credited_by_id='beecomm_auto' so they're distinguishable from manual.
+// OFF by default — owner enables via toggleBeecommAutoCredit endpoint.
+// ============================================================================
+const __autoCreditLog: Array<{ at: string; details: any }> = [];
+
+function pushAutoCreditLog(details: any) {
+  __autoCreditLog.push({ at: new Date().toISOString(), details });
+  if (__autoCreditLog.length > 50) __autoCreditLog.shift();
+}
+
+async function autoCreditFromBeecomm(): Promise<{ ok: boolean; credited?: number; reason?: string; details?: any }> {
+  const g: any = globalThis as any;
+  if (!g.__beecommAutoCreditEnabled) return { ok: false, reason: 'disabled' };
+
+  // 2 most-recent snapshots from today
+  const today00 = new Date();
+  today00.setHours(0, 0, 0, 0);
+  const recent: any[] = await (db as any).beecommSnapshot.findMany({
+    where: { captured_at: { gte: today00 } },
+    orderBy: { captured_at: 'desc' },
+    take: 2,
+  });
+  if (recent.length < 2) {
+    return { ok: false, reason: 'need 2 snapshots today' };
+  }
+  const [now, prev] = recent;
+
+  // Delta of top_dishes (dishId → qty diff)
+  const nowDishes: any[] = Array.isArray(now.top_dishes) ? now.top_dishes : [];
+  const prevDishes: any[] = Array.isArray(prev.top_dishes) ? prev.top_dishes : [];
+  const prevQtyById = new Map<string, number>();
+  for (const d of prevDishes) prevQtyById.set(String(d.dishId || d.netId || ''), Number(d.quantity) || 0);
+  const dishDeltas: Array<{ dishId: string; name: string; delta: number }> = [];
+  for (const d of nowDishes) {
+    const id = String(d.dishId || d.netId || '');
+    const cur = Number(d.quantity) || 0;
+    const prv = prevQtyById.get(id) || 0;
+    if (cur > prv) dishDeltas.push({ dishId: id, name: String(d.name || ''), delta: cur - prv });
+  }
+  if (dishDeltas.length === 0) return { ok: true, credited: 0, reason: 'no dish growth' };
+
+  // Worker sum-delta (workerId → sumDelta) — used to attribute credit
+  const nowWorkers: any[] = Array.isArray(now.workers) ? now.workers : [];
+  const prevWorkers: any[] = Array.isArray(prev.workers) ? prev.workers : [];
+  const prevSumById = new Map<string, number>();
+  for (const w of prevWorkers) prevSumById.set(String(w.workerId), Number(w.sum) || 0);
+  const workerDeltas = nowWorkers.map((w: any) => ({
+    name: String(w.name || '').trim(),
+    workerId: String(w.workerId),
+    delta: Math.max(0, (Number(w.sum) || 0) - (prevSumById.get(String(w.workerId)) || 0)),
+  })).sort((a, b) => b.delta - a.delta);
+  const topWorker = workerDeltas[0];
+  if (!topWorker || topWorker.delta === 0) {
+    return { ok: false, reason: 'no worker sum delta' };
+  }
+
+  // Match top worker name to an Employee record (case-insensitive contains)
+  const allEmps: any[] = await (db as any).employee.findMany({
+    where: { active: true },
+    select: { id: true, full_name: true, email: true },
+  });
+  const matchEmp = (beeName: string) => {
+    const n = beeName.replace(/\s+/g, ' ').trim().toLowerCase();
+    if (!n) return null;
+    // Try exact, then first-name match
+    let m = allEmps.find(e => String(e.full_name).toLowerCase().trim() === n);
+    if (m) return m;
+    const firstWord = n.split(/\s+/)[0];
+    m = allEmps.find(e => String(e.full_name).toLowerCase().includes(firstWord));
+    return m || null;
+  };
+  const waiter = matchEmp(topWorker.name);
+  if (!waiter) {
+    pushAutoCreditLog({ skip: 'no employee match', beecomm_name: topWorker.name });
+    return { ok: false, reason: `no employee match for "${topWorker.name}"` };
+  }
+
+  // Active goals for current shift
+  const activeGoals: any[] = await (db as any).salesGoal.findMany({
+    where: { status: { in: ['active', 'completed'] } },
+  });
+  if (activeGoals.length === 0) return { ok: true, credited: 0, reason: 'no active goals' };
+
+  let totalCredited = 0;
+  const creditedDetails: any[] = [];
+
+  for (const goal of activeGoals) {
+    const label = String(goal.dish_label || '').trim();
+    if (!label) continue;
+    // Find dish deltas where name contains the goal label (Hebrew/English)
+    const matchingDeltas = dishDeltas.filter(d => d.name.includes(label));
+    if (matchingDeltas.length === 0) continue;
+    const totalUnits = matchingDeltas.reduce((s, d) => s + d.delta, 0);
+
+    for (let i = 0; i < totalUnits; i++) {
+      const isBonus = goal.status === 'completed';
+      const coins = isBonus ? goal.coins_per_sale * 2 : goal.coins_per_sale;
+      // Coin transaction
+      const ct: any = await (db as any).coinTransaction.create({
+        data: {
+          employee_id: waiter.id,
+          employee_name: waiter.full_name,
+          amount: coins,
+          reason: `מכירת ${goal.dish_label}${isBonus ? ' (בונוס)' : ''} · אוטומטי מ-Beecomm`,
+          type: 'sale_bonus',
+          trigger: `sales_goal:${goal.id}:beecomm_auto`,
+          status: 'approved',
+          approved_by: 'beecomm_auto',
+        },
+      });
+      // SaleEvent — marked as beecomm_auto in credited_by_id
+      await (db as any).saleEvent.create({
+        data: {
+          goal_id: goal.id,
+          waiter_id: waiter.id,
+          waiter_name: waiter.full_name,
+          credited_by_id: 'beecomm_auto',
+          credited_by_name: 'מערכת אוטומטית (Beecomm)',
+          coins_amount: coins,
+          is_bonus: isBonus,
+          coin_transaction_id: ct.id,
+        },
+      });
+      const newCount = goal.current_count + 1;
+      const justCompleted = !isBonus && newCount === goal.target;
+      await (db as any).salesGoal.update({
+        where: { id: goal.id },
+        data: {
+          current_count: { increment: 1 },
+          status: justCompleted ? 'completed' : goal.status,
+          completed_at: justCompleted ? new Date() : undefined,
+        },
+      });
+      goal.current_count = newCount;
+      if (justCompleted) goal.status = 'completed';
+      totalCredited += 1;
+    }
+    creditedDetails.push({
+      goal_label: label,
+      units: totalUnits,
+      to_waiter: waiter.full_name,
+      matched_dishes: matchingDeltas.map(d => d.name),
+    });
+  }
+
+  pushAutoCreditLog({ credited: totalCredited, details: creditedDetails, top_worker: topWorker });
+  return { ok: true, credited: totalCredited, details: creditedDetails };
+}
+
+registerFn('toggleBeecommAutoCredit', async ({ body, user }) => {
+  if (!user) throw new Error('auth required');
+  if ((user as any).role !== 'admin' && (user as any).role !== 'owner') {
+    throw new Error('admin only');
+  }
+  const enabled = !!(body as any)?.enabled;
+  (globalThis as any).__beecommAutoCreditEnabled = enabled;
+  return { ok: true, enabled };
+});
+
+registerFn('getBeecommAutoCreditStatus', async ({ user }) => {
+  if (!user) throw new Error('auth required');
+  return {
+    enabled: !!(globalThis as any).__beecommAutoCreditEnabled,
+    recent_log: __autoCreditLog.slice(-20).reverse(),
+  };
+});
+
+registerFn('runBeecommAutoCreditNow', async ({ user }) => {
+  if (!user) throw new Error('auth required');
+  if ((user as any).role !== 'admin' && (user as any).role !== 'owner') {
+    throw new Error('admin only');
+  }
+  // Temporarily enable to allow a one-shot manual run for testing
+  const wasEnabled = (globalThis as any).__beecommAutoCreditEnabled;
+  (globalThis as any).__beecommAutoCreditEnabled = true;
+  try {
+    return await autoCreditFromBeecomm();
+  } finally {
+    (globalThis as any).__beecommAutoCreditEnabled = wasEnabled;
+  }
+});
+
+// Run auto-credit after each Beecomm snapshot — but only if enabled.
+// Piggybacks on the existing snapshot cron (every 3 min).
+if (!(globalThis as any).__beecommAutoCreditTimer) {
+  (globalThis as any).__beecommAutoCreditTimer = setTimeout(function loop() {
+    void (async () => {
+      try {
+        if ((globalThis as any).__beecommAutoCreditEnabled) {
+          const r = await autoCreditFromBeecomm();
+          if (r.credited && r.credited > 0) {
+            console.log('[beecomm-auto-credit cron]', JSON.stringify(r));
+          }
+        }
+      } catch (e: any) { console.warn('[beecomm-auto-credit cron] failed:', e?.message); }
+      (globalThis as any).__beecommAutoCreditTimer = setTimeout(loop, 3 * 60 * 1000 + 30 * 1000); // 30s after snapshot
+    })();
+  }, 4 * 60 * 1000);
+}
+

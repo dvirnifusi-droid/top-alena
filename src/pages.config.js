@@ -132,6 +132,7 @@ import BeecommLive from './pages/BeecommLive';
 import AdminReopenShifts from './pages/AdminReopenShifts';
 import AdminGomileyCookies from './pages/AdminGomileyCookies';
 import KitchenScreen from './pages/KitchenScreen';
+import AdminAmbient from './pages/AdminAmbient';
 import __Layout from './Layout.jsx';
 
 
@@ -221,6 +222,7 @@ export const PAGES = {
     "AdminReopenShifts": AdminReopenShifts,
     "AdminGomileyCookies": AdminGomileyCookies,
     "KitchenScreen": KitchenScreen,
+    "AdminAmbient": AdminAmbient,
 }
 
 export const pagesConfig = {

@@ -74,6 +74,7 @@ const adminLinks = [
 
   { title: "כספים ודוחות", url: "#", icon: TrendingUp, isCategory: true, color: "emerald" },
   { title: "📺 מסך מטבח (TV)", url: createPageUrl("KitchenScreen"), icon: Zap, isSubItem: true, color: "emerald" },
+  { title: "🌅 Ambient (דוח+TV+Push)", url: createPageUrl("AdminAmbient"), icon: Zap, isSubItem: true, color: "emerald" },
   { title: "📊 קופה Live", url: createPageUrl("BeecommLive"), icon: Zap, isSubItem: true, color: "emerald" },
   { title: "דוחות", url: createPageUrl("Reports"), icon: BarChart3, isSubItem: true, color: "emerald" },
   { title: "ניהול טיפים", url: createPageUrl("Tips"), icon: Banknote, isSubItem: true, color: "emerald" },
