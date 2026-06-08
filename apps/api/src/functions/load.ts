@@ -12276,12 +12276,31 @@ function parseGomileyCustomerRow(row: string[]): GomileyCustomerRow | null {
       break;
     }
   }
-  // Numeric totals — find cells that are pure numbers
+  // Numeric totals — orders count is a small int (≤500), spent is in ₪
+  // marker. Skip cells that look like phone numbers (9-10 digits) or huge IDs
+  // (>10000) when picking total_orders.
   let total_orders = 0;
   let total_spent = 0;
-  const numericCells = row.map(c => Number(stripHtml(c).replace(/[^\d.]/g, ''))).filter(n => n > 0);
-  if (numericCells.length > 0) total_orders = Math.round(numericCells[0]);
-  if (numericCells.length > 1) total_spent = numericCells[1];
+  for (const cell of row) {
+    const cleaned = stripHtml(cell);
+    if (!cleaned) continue;
+    // Spent: any cell containing ₪
+    if (/₪/.test(cleaned) && total_spent === 0) {
+      const n = Number(cleaned.replace(/[^\d.]/g, ''));
+      if (n > 0 && n < 10_000_000) total_spent = n;
+      continue;
+    }
+    // Orders: a small positive integer that doesn't look like a phone/ID/date
+    if (total_orders === 0) {
+      const digitsOnly = cleaned.replace(/\D/g, '');
+      // Skip phone-like (9-10 digits) and obvious IDs/timestamps
+      if (digitsOnly.length >= 9) continue;
+      if (/^\s*\d{1,4}\s*$/.test(cleaned)) {
+        const n = Number(cleaned.replace(/[^\d]/g, ''));
+        if (n > 0 && n < 10_000) total_orders = n;
+      }
+    }
+  }
   if (!phone && !name) return null;
   return { name, phone, email, address, total_orders, total_spent };
 }
@@ -12457,6 +12476,10 @@ export async function runGomileyCustomersBackfill() {
             const finalName = (existingNameDirty && newNameClean)
               ? c.name
               : (existing.customer_name || c.name);
+            // If existing totals look corrupted (huge IDs leaked from old
+            // parser), trust the new clean value. Otherwise keep the max.
+            const existingOrdersBad = Number(existing.total_orders) > 10_000;
+            const existingSpentBad = Number(existing.total_spent) > 10_000_000;
             await (db as any).deliveryCustomer.update({
               where: { id: existing.id },
               data: {
@@ -12465,8 +12488,12 @@ export async function runGomileyCustomersBackfill() {
                 notes: noteHasGomiley
                   ? existing.notes
                   : `${existing.notes || ''}\nסונכרן מ-Gomiley (backfill) ב-${today}`.trim(),
-                total_orders: Math.max(Number(existing.total_orders) || 0, c.total_orders),
-                total_spent: Math.max(Number(existing.total_spent) || 0, c.total_spent),
+                total_orders: existingOrdersBad
+                  ? c.total_orders
+                  : Math.max(Number(existing.total_orders) || 0, c.total_orders),
+                total_spent: existingSpentBad
+                  ? c.total_spent
+                  : Math.max(Number(existing.total_spent) || 0, c.total_spent),
               },
             });
             status.updated += 1;
