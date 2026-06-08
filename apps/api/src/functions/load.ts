@@ -1119,7 +1119,7 @@ registerFn('getRecruitmentInbox', async () => {
   const traineeIds = trainees.map((t: any) => t.id);
   const menuExams = traineeIds.length
     ? await db.interview.findMany({
-        where: { candidate_id: { in: traineeIds }, type_: 'menu_exam' },
+        where: { candidate_id: { in: traineeIds }, type: 'menu_exam' },
         orderBy: [{ scheduled_date: 'desc' }, { scheduled_time: 'desc' }],
       })
     : [];
