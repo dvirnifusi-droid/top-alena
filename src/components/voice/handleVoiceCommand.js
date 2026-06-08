@@ -92,6 +92,8 @@ const MUTATING_INTENTS = new Set([
     'inventory_set', 'inventory_remove',
     'customer_add', 'customer_update_phone',
     'push_to_role',
+    'checklist_create', 'restaurant_close_now', 'restaurant_open_now',
+    'reservation_blacklist', 'customer_unblacklist', 'staff_meeting',
 ]);
 
 export async function handleVoiceCommand(cmd) {
@@ -2051,6 +2053,170 @@ async function dispatchCommand(cmd, state) {
                     });
                     return { ok: true, message: `בוצע ✓ הודעה נשלחה ל-${cmd.role || 'כל הצוות'}` };
                 } catch { return { ok: false, message: 'שגיאה בשליחה' }; }
+            }
+
+            // ---------- Checklists ----------
+            case 'checklist_create': {
+                try {
+                    const items = Array.isArray(cmd.items) && cmd.items.length
+                        ? cmd.items.map((t, i) => ({ id: 'i' + i, text: t, done: false }))
+                        : (cmd.description || '').split(/[,،]/).map(t => t.trim()).filter(Boolean)
+                            .map((t, i) => ({ id: 'i' + i, text: t, done: false }));
+                    await base44.entities.Checklist.create({
+                        title: cmd.title || cmd.name || 'צ׳קליסט חדש',
+                        category: cmd.category || 'general',
+                        frequency: cmd.frequency || 'daily',
+                        assigned_role: cmd.role || null,
+                        shift: cmd.shift_type || 'all',
+                        items,
+                        status: 'active',
+                    });
+                    return { ok: true, message: `בוצע ✓ צ׳קליסט "${cmd.title || cmd.name}" נוצר (${items.length} פריטים)` };
+                } catch (e) { return { ok: false, message: 'שגיאה: ' + (e?.message || '') }; }
+            }
+            case 'q_checklist_pending': {
+                try {
+                    const checklists = await base44.entities.Checklist.list();
+                    const active = (checklists || []).filter(c => c.status === 'active');
+                    const pending = active.filter(c => {
+                        const items = Array.isArray(c.items) ? c.items : [];
+                        return items.some(i => !i.done);
+                    });
+                    if (pending.length === 0) return { ok: true, message: 'כל הצ׳קליסטים הושלמו ✓' };
+                    const names = pending.slice(0, 5).map(c => c.title).join(', ');
+                    return { ok: true, message: `${pending.length} צ׳קליסטים ממתינים: ${names}` };
+                } catch { return { ok: false, message: 'לא הצלחתי לבדוק' }; }
+            }
+
+            // ---------- Restaurant emergency open/close ----------
+            case 'restaurant_close_now':
+            case 'restaurant_open_now': {
+                const enable = cmd.intent === 'restaurant_open_now';
+                try {
+                    const settings = await base44.entities.ReservationSettings.list();
+                    const s = settings?.[0];
+                    if (!s) return { ok: false, message: 'הגדרות הזמנות לא נמצאו' };
+                    await base44.entities.ReservationSettings.update(s.id, { reservations_enabled: enable });
+                    const msg = enable
+                        ? '🟢 הזמנות מקוונות חזרו לפעול'
+                        : '🔴 הזמנות מקוונות נסגרו (סגירה זמנית)';
+                    try { await base44.functions.sendTeamWhatsApp({ message: msg }); } catch {}
+                    return { ok: true, message: `בוצע ✓ ${enable ? 'מסעדה פתוחה להזמנות' : 'הזמנות סגורות'} + צוות עודכן` };
+                } catch (e) { return { ok: false, message: 'שגיאה: ' + (e?.message || '') }; }
+            }
+
+            // ---------- Blacklist (uses Customer.loyalty_tier = 'blacklist') ----------
+            case 'reservation_blacklist': {
+                try {
+                    const customers = await base44.entities.Customer.list();
+                    let c = (customers || []).find(c =>
+                        (cmd.name && (c.name || '').includes(cmd.name)) ||
+                        (cmd.phone && c.phone === String(cmd.phone).replace(/[^\d]/g, ''))
+                    );
+                    if (!c) {
+                        // Create new customer entry just to track blacklist
+                        if (!cmd.phone && !cmd.name) return { ok: false, message: 'צריך שם או טלפון' };
+                        c = await base44.entities.Customer.create({
+                            name: cmd.name || 'לקוח חסום',
+                            phone: String(cmd.phone || '').replace(/[^\d]/g, '') || `bl-${Date.now()}`,
+                            loyalty_tier: 'blacklist',
+                            tags: ['blacklist', cmd.reason || ''].filter(Boolean),
+                        });
+                        return { ok: true, message: `בוצע ✓ ${c.name} נוסף לרשימה השחורה` };
+                    }
+                    await base44.entities.Customer.update(c.id, {
+                        loyalty_tier: 'blacklist',
+                        tags: [...new Set([...(Array.isArray(c.tags) ? c.tags : []), 'blacklist'])],
+                    });
+                    return { ok: true, message: `בוצע ✓ ${c.name || cmd.name} סומן כחסום` };
+                } catch (e) { return { ok: false, message: 'שגיאה: ' + (e?.message || '') }; }
+            }
+            case 'customer_unblacklist': {
+                try {
+                    const customers = await base44.entities.Customer.list();
+                    const c = (customers || []).find(c =>
+                        c.loyalty_tier === 'blacklist' && (c.name || '').includes(cmd.name)
+                    );
+                    if (!c) return { ok: false, message: `${cmd.name} לא ברשימה החסומה` };
+                    await base44.entities.Customer.update(c.id, {
+                        loyalty_tier: 'regular',
+                        tags: (Array.isArray(c.tags) ? c.tags : []).filter(t => t !== 'blacklist'),
+                    });
+                    return { ok: true, message: `בוצע ✓ ${c.name} הוסר מהרשימה השחורה` };
+                } catch (e) { return { ok: false, message: 'שגיאה: ' + (e?.message || '') }; }
+            }
+            case 'q_check_phone': {
+                try {
+                    const phone = String(cmd.phone || '').replace(/[^\d]/g, '');
+                    const matches = await base44.entities.Customer.filter({ phone });
+                    if (!matches || matches.length === 0) return { ok: true, message: `${cmd.phone}: לקוח חדש` };
+                    const c = matches[0];
+                    const tier = c.loyalty_tier || 'regular';
+                    const flag = tier === 'blacklist' ? '🚫 חסום!' : tier === 'vip' ? '⭐ VIP' : '';
+                    return { ok: true, message: `${c.name || 'לקוח'} ${flag} (${c.visit_count || 0} ביקורים)` };
+                } catch { return { ok: false, message: 'לא הצלחתי לבדוק' }; }
+            }
+
+            // ---------- Staff meeting (creates broadcast + announcement) ----------
+            case 'staff_meeting': {
+                try {
+                    const msg = `📢 פגישת צוות ב-${cmd.time || 'בקרוב'}: ${cmd.message || 'נושא להודיע'}`;
+                    await base44.functions.sendTeamWhatsApp({ message: msg });
+                    return { ok: true, message: `בוצע ✓ פגישת צוות הודיעה ב-${cmd.time || 'הקדם'}` };
+                } catch { return { ok: false, message: 'שגיאה בשליחה' }; }
+            }
+
+            // ---------- Today executive summary ----------
+            case 'q_today_summary': {
+                try {
+                    const today = new Date().toISOString().slice(0, 10);
+                    const [resv, sessions, queue, tips, shifts] = await Promise.all([
+                        base44.entities.Reservation.filter({ date: today }).catch(() => []),
+                        base44.entities.TableSession.filter({ status: 'active' }).catch(() => []),
+                        base44.entities.QueueEntry.list('-timestamp_register').catch(() => []),
+                        base44.entities.TipReport.list('-date', 5).catch(() => []),
+                        base44.entities.WorkShift.filter({ date: today }).catch(() => []),
+                    ]);
+                    const validResv = (resv || []).filter(r => !['cancelled', 'no_show'].includes(r.status || ''));
+                    const guests = validResv.reduce((s, r) => s + (Number(r.party_size) || 0), 0);
+                    const inQueue = (queue || []).filter(q => q.status === 'pending' || q.status === 'active').length;
+                    const staff = (shifts || []).flatMap(s => s.assigned_staff || []).length;
+                    const todayTips = (tips || []).find(t => (t.date || '').slice(0, 10) === today);
+                    const tipMsg = todayTips ? `, ₪${Math.round(todayTips.total_tips_collected || 0)} טיפים` : '';
+                    return {
+                        ok: true,
+                        message: `${validResv.length} הזמנות, ${guests} אורחים, ${sessions.length} שולחנות פעילים, ${inQueue} בתור, ${staff} עובדים${tipMsg}`,
+                    };
+                } catch { return { ok: false, message: 'לא הצלחתי לחשב סיכום' }; }
+            }
+
+            // ---------- Compare revenue (this week vs last week) ----------
+            case 'q_compare_revenue': {
+                try {
+                    const today = new Date();
+                    const thisDates = [], lastDates = [];
+                    for (let i = 0; i < 7; i++) {
+                        const d1 = new Date(today); d1.setDate(d1.getDate() - i);
+                        thisDates.push(d1.toISOString().slice(0, 10));
+                        const d2 = new Date(today); d2.setDate(d2.getDate() - i - 7);
+                        lastDates.push(d2.toISOString().slice(0, 10));
+                    }
+                    const [thisRes, lastRes] = await Promise.all([
+                        Promise.all(thisDates.map(d => base44.entities.Reservation.filter({ date: d }).catch(() => []))),
+                        Promise.all(lastDates.map(d => base44.entities.Reservation.filter({ date: d }).catch(() => []))),
+                    ]);
+                    const calc = arr => arr.flat()
+                        .filter(r => ['seated', 'completed'].includes(r.status))
+                        .reduce((s, r) => s + (Number(r.party_size) || 0), 0) * 220;
+                    const thisRev = calc(thisRes), lastRev = calc(lastRes);
+                    const diff = thisRev - lastRev;
+                    const pct = lastRev > 0 ? Math.round((diff / lastRev) * 100) : 0;
+                    const arrow = diff >= 0 ? '↑' : '↓';
+                    return {
+                        ok: true,
+                        message: `השבוע: ₪${thisRev}, שעבר: ₪${lastRev} (${arrow}${Math.abs(pct)}%)`,
+                    };
+                } catch { return { ok: false, message: 'לא הצלחתי להשוות' }; }
             }
 
             // ---------- Popups ----------

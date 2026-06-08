@@ -10998,6 +10998,52 @@ PUSH_BROADCAST:
   {"intent":"order_from_supplier","item":"חזה עוף","quantity":20}
 ]}
 
+CHECKLISTS_EXTRA:
+- checklist_create {title, items?, role?, frequency?}: צ׳קליסט חדש — "תוסיף צ׳קליסט סיום משמרת — לכבות מנורות, לסגור מקרר, לבדוק קופה"
+- q_checklist_pending: צ׳קליסטים שלא הושלמו — "מה לא הושלם", "מה עוד פתוח בצ׳קליסטים"
+
+RESTAURANT_EMERGENCY:
+- restaurant_close_now: סגירת מסעדה זמנית — "סגור את המסעדה", "אנחנו סגורים", "תכבה הכל"
+- restaurant_open_now: חזרה לפעילות — "פתח את המסעדה", "אנחנו פתוחים"
+
+BLACKLIST_FLOW:
+- reservation_blacklist {name?, phone?, reason?}: חסום — "תחסום את דביר", "תוסיף לרשימה שחורה 0501234567"
+- customer_unblacklist {name}: שחרר חסימה — "תוריד חסימה מדביר", "דביר לא חסום"
+- q_check_phone {phone}: בדוק מי בעל טלפון — "מי בעל המספר 0501234567", "תבדוק את המספר"
+
+STAFF_COMMS:
+- staff_meeting {time, message}: פגישת צוות — "תקבע פגישת צוות מחר ב-15:00 על תפריט חדש"
+
+EXEC_SUMMARY:
+- q_today_summary: סיכום מנהל ליום — "תן לי סיכום", "מה המצב היום", "תגיד הכל"
+- q_compare_revenue: השוואת השבוע מול שעבר — "תשווה הכנסות לשבוע שעבר", "השבוע יחסית לשעבר"
+
+# === Examples for phase-4 intents ===
+"תוסיף צ׳קליסט סיום משמרת" → {"intent":"checklist_create","title":"סיום משמרת"}
+"מה לא הושלם" → {"intent":"q_checklist_pending"}
+"סגור את המסעדה" → {"intent":"restaurant_close_now"}
+"פתח את המסעדה" → {"intent":"restaurant_open_now"}
+"תחסום את דביר" → {"intent":"reservation_blacklist","name":"דביר"}
+"תוסיף לרשימה שחורה 0501234567" → {"intent":"reservation_blacklist","phone":"0501234567"}
+"תוריד חסימה מדביר" → {"intent":"customer_unblacklist","name":"דביר"}
+"מי בעל המספר 0501234567" → {"intent":"q_check_phone","phone":"0501234567"}
+"תקבע פגישת צוות מחר ב-15:00" → {"intent":"staff_meeting","time":"מחר 15:00","message":"פגישת צוות"}
+"תן לי סיכום" → {"intent":"q_today_summary"}
+"מה המצב היום" → {"intent":"q_today_summary"}
+"תשווה הכנסות לשבוע שעבר" → {"intent":"q_compare_revenue"}
+
+# Big multi-step examples (combine many phases)
+"סגור הזמנות, תגיד לצוות שאנחנו סוגרים מוקדם, ותכבה כל הפופאפים" → {"intent":"plan","steps":[
+  {"intent":"restaurant_close_now"},
+  {"intent":"send_team_message","message":"סוגרים מוקדם היום, ביי"},
+  {"intent":"popup_disable"}
+]}
+"אסתר סיימה, תוסיף אותה לטיפים 7 שעות, ותוסיף עוד 100 מטבעות בונוס" → {"intent":"plan","steps":[
+  {"intent":"clock_out","name":"אסתר"},
+  {"intent":"tips_add_employee","name":"אסתר","hours":7,"when":"היום"},
+  {"intent":"coins_give","name":"אסתר","amount":100,"reason":"בונוס סיום משמרת"}
+]}
+
 RESTROOM:
 - q_last_clean: מתי ניקיון אחרון
 - mark_clean: סמן ניקיון
