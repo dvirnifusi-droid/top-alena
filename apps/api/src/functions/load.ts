@@ -12782,26 +12782,24 @@ registerFn('getLatestGomileyDashboard', async ({ user }) => {
   return { snapshot: rest };
 });
 
-// Daily cron — 04:30 IL, 30 min after customers sync. Gomiley's dashboard
-// reflects yesterday's full activity by then.
+// Cron — every 15 min during open hours (08:00-03:00 IL). Gomiley dashboard
+// numbers update slowly so 15 min is plenty fresh for the kitchen TV.
 if (!(globalThis as any).__gomileyDashboardTimer) {
   (globalThis as any).__gomileyDashboardTimer = setTimeout(function loop() {
     void (async () => {
       try {
-        const parts = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Jerusalem', hour: '2-digit', minute: '2-digit', hour12: false }).formatToParts(new Date());
-        const hour = parts.find(p => p.type === 'hour')?.value;
-        const minute = parts.find(p => p.type === 'minute')?.value;
-        const dateStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jerusalem' }).format(new Date());
-        const lastRun = (globalThis as any).__gomileyDashboardLastRun;
-        if (hour === '04' && Number(minute) >= 30 && lastRun !== dateStr) {
-          (globalThis as any).__gomileyDashboardLastRun = dateStr;
+        const hour = Number(new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Jerusalem', hour: '2-digit', hour12: false }).format(new Date()));
+        // Run between 08:00 and 03:59 IL (kitchen open hours + buffer)
+        const inOpenHours = hour >= 8 || hour <= 3;
+        if (inOpenHours) {
           const r = await captureGomileyDashboard();
-          console.log('[gomiley dashboard cron]', JSON.stringify(r));
+          if (r.ok) console.log('[gomiley dashboard cron]', JSON.stringify({ total_income: r.total_income, platforms: r.platforms_count }));
+          else console.warn('[gomiley dashboard cron] skipped:', r.reason);
         }
       } catch (e: any) { console.warn('[gomiley dashboard cron] failed:', e?.message); }
       (globalThis as any).__gomileyDashboardTimer = setTimeout(loop, 15 * 60 * 1000);
     })();
-  }, 7 * 60 * 1000);
+  }, 30 * 1000);  // First run 30s after server boots
 }
 
 // Daily cron — 04:00 IL, after the kitchen is closed and Gomiley has all of
