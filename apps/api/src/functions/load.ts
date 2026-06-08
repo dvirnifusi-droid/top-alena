@@ -10884,6 +10884,71 @@ EXTRA_NAV_TARGETS (in nav_open):
 - employees: עובדים
 - reports: דוחות
 
+CLOCK_IN_OUT (שעון נוכחות עובד ספציפי — מנהל מסמן עבור עובד):
+- clock_in {name}: "תכניס את אסתר למשמרת", "אסתר התחילה", "אסתר נכנסה לעבודה", "תפתח שעון לאסתר"
+- clock_out {name}: "אסתר סיימה", "תוציא את אסתר מהמשמרת", "תסגור שעון לאסתר", "אסתר הולכת"
+- break_start {name}: "אסתר יצאה להפסקה", "תן הפסקה לאסתר", "אסתר ב20 דק"
+- break_end {name}: "אסתר חזרה מהפסקה", "אסתר חזרה לעבודה"
+- q_clocked_in_now: "מי עובד עכשיו", "מי בעבודה", "מי במשמרת בפועל"
+
+SCHEDULE_EDIT_EXTRA:
+- schedule_change_position {name, position, when?, shift_type?}: שנה תפקיד בסידור — "תעשה את אסתר ברמן הערב", "אסתר תהיה מארחת היום"
+- tips_add_employee {name, hours, when?, position?}: הוסף עובד ידנית לדוח טיפים — "תוסיף את אסתר 5 שעות לטיפים", "אסתר 4 שעות בטיפים"
+
+EVENTS_EDIT:
+- event_update_date {name, date}: שנה תאריך אירוע — "תזיז אירוע של מורן ל28/12", "אירוע ניב עובר ל15 בחודש"
+- event_update_guests {name, guest_count}: שנה כמות סועדים — "אירוע של מורן 80 אנשים במקום 60", "תעדכן אירוע ניב ל-100 סועדים"
+- event_payment_received {name, amount}: תשלום התקבל — "התקבלו 2000 מאירוע מורן", "קיבלתי 5000 פיקדון מניב לאירוע"
+- event_cancel {name}: בטל אירוע — "בטל אירוע של מורן", "אירוע ניב מבוטל"
+
+POPUPS_EDIT:
+- popup_disable {title?}: כבה פופאפ — "כבה את הפופאפ", "תוריד פופאפ של אירועים", "תכבה הפופאפ"
+
+# === SPOKEN VARIANTS for new intents (real-life owner dictation) ===
+"תכניס את אסתר למשמרת" → {"intent":"clock_in","name":"אסתר"}
+"אסתר התחילה" → {"intent":"clock_in","name":"אסתר"}
+"אסתר נכנסה לעבודה" → {"intent":"clock_in","name":"אסתר"}
+"תפתח שעון לאסתר" → {"intent":"clock_in","name":"אסתר"}
+"אסתר סיימה" → {"intent":"clock_out","name":"אסתר"}
+"תסגור שעון לאסתר" → {"intent":"clock_out","name":"אסתר"}
+"אסתר הולכת" → {"intent":"clock_out","name":"אסתר"}
+"תוציא את אסתר מהמשמרת" → {"intent":"clock_out","name":"אסתר"}
+"אסתר יצאה להפסקה" → {"intent":"break_start","name":"אסתר"}
+"תן הפסקה לאסתר" → {"intent":"break_start","name":"אסתר"}
+"אסתר חזרה מהפסקה" → {"intent":"break_end","name":"אסתר"}
+"מי עובד עכשיו" → {"intent":"q_clocked_in_now"}
+"מי בעבודה" → {"intent":"q_clocked_in_now"}
+
+"תעשה את אסתר ברמן הערב" → {"intent":"schedule_change_position","name":"אסתר","position":"ברמן","when":"היום","shift_type":"dinner"}
+"אסתר תהיה מארחת היום" → {"intent":"schedule_change_position","name":"אסתר","position":"מארחת","when":"היום"}
+
+"תוסיף את אסתר 5 שעות לטיפים" → {"intent":"tips_add_employee","name":"אסתר","hours":5,"when":"היום"}
+"אסתר 4 שעות בטיפים" → {"intent":"tips_add_employee","name":"אסתר","hours":4,"when":"היום"}
+
+"תזיז אירוע של מורן ל28/12" → {"intent":"event_update_date","name":"מורן","date":"28/12"}
+"אירוע מורן 80 אנשים" → {"intent":"event_update_guests","name":"מורן","guest_count":80}
+"התקבלו 2000 מאירוע מורן" → {"intent":"event_payment_received","name":"מורן","amount":2000}
+"בטל את אירוע של מורן" → {"intent":"event_cancel","name":"מורן"}
+
+"כבה את הפופאפ" → {"intent":"popup_disable"}
+"תוריד פופאפ של אירועים" → {"intent":"popup_disable","title":"אירועים"}
+
+# Multi-step examples (chained operations)
+"תסיים משמרת לאסתר ותוסיף אותה לטיפים 5 שעות" → {"intent":"plan","steps":[
+  {"intent":"clock_out","name":"אסתר"},
+  {"intent":"tips_add_employee","name":"אסתר","hours":5,"when":"היום"}
+]}
+"תפתח טיפים, סנכרן שעות, סהכ 1800, ותגיד כמה לשעה" → {"intent":"plan","steps":[
+  {"intent":"tips_sync_hours","when":"היום"},
+  {"intent":"tips_set_total","amount":1800,"when":"היום"},
+  {"intent":"q_tips_per_hour","when":"היום"},
+  {"intent":"nav_open","target":"tips"}
+]}
+"אירוע של מורן עובר ל28/12 ויהיו 80 אנשים" → {"intent":"plan","steps":[
+  {"intent":"event_update_date","name":"מורן","date":"28/12"},
+  {"intent":"event_update_guests","name":"מורן","guest_count":80}
+]}
+
 RESTROOM:
 - q_last_clean: מתי ניקיון אחרון
 - mark_clean: סמן ניקיון

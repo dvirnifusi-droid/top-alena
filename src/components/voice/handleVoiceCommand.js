@@ -85,6 +85,9 @@ const MUTATING_INTENTS = new Set([
     'sale_credit', 'sales_goal_activate',
     'schedule_set_end_time', 'schedule_set_start_time',
     'tips_sync_hours', 'tips_set_total',
+    'clock_in', 'clock_out', 'break_start', 'break_end',
+    'event_update_date', 'event_update_guests', 'event_payment_received', 'event_cancel',
+    'popup_disable', 'schedule_change_position', 'tips_add_employee',
 ]);
 
 export async function handleVoiceCommand(cmd) {
@@ -1746,6 +1749,191 @@ async function dispatchCommand(cmd, state) {
                     const tph = totalHours > 0 ? Math.round(total / totalHours) : (Number(report.tip_per_hour) || 0);
                     return { ok: true, message: `${total}₪ טיפים, ${totalHours.toFixed(1)} שעות, ${tph}₪ לשעה` };
                 } catch (e) { return { ok: false, message: 'לא הצלחתי לבדוק' }; }
+            }
+
+            // ---------- Clock-in / Clock-out / Breaks ----------
+            case 'clock_in': {
+                try {
+                    const emps = await base44.entities.Employee.list();
+                    const emp = (emps || []).find(e => (e.full_name || '').includes(cmd.name));
+                    if (!emp) return { ok: false, message: `${cmd.name} לא נמצא` };
+                    const todayStr = new Date().toISOString().slice(0, 10);
+                    const existing = await base44.entities.ShiftTracking.filter({ employee_id: emp.id });
+                    const active = (existing || []).find(s => s.status === 'active' && (s.date || '').slice(0, 10) === todayStr);
+                    if (active) return { ok: false, message: `${emp.full_name} כבר פעיל מ-${new Date(active.shift_start).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}` };
+                    await base44.entities.ShiftTracking.create({
+                        employee_id: emp.id,
+                        employee_name: emp.full_name,
+                        date: new Date().toISOString(),
+                        shift_start: new Date().toISOString(),
+                        status: 'active',
+                    });
+                    return { ok: true, message: `בוצע ✓ ${emp.full_name} נכנס למשמרת` };
+                } catch (e) { return { ok: false, message: 'שגיאה: ' + (e?.message || '') }; }
+            }
+            case 'clock_out': {
+                try {
+                    const emps = await base44.entities.Employee.list();
+                    const emp = (emps || []).find(e => (e.full_name || '').includes(cmd.name));
+                    if (!emp) return { ok: false, message: `${cmd.name} לא נמצא` };
+                    const tracks = await base44.entities.ShiftTracking.filter({ employee_id: emp.id });
+                    const active = (tracks || []).find(t => t.status === 'active');
+                    if (!active) return { ok: false, message: `${emp.full_name} לא בעבודה כרגע` };
+                    const now = new Date();
+                    const start = new Date(active.shift_start);
+                    const totalHours = (now - start) / 3600000;
+                    const breakMin = Number(active.total_break_minutes) || 0;
+                    const effective = Math.max(0, totalHours - breakMin / 60);
+                    await base44.entities.ShiftTracking.update(active.id, {
+                        shift_end: now.toISOString(),
+                        status: 'completed',
+                        total_hours: Number(totalHours.toFixed(2)),
+                        effective_hours: Number(effective.toFixed(2)),
+                    });
+                    return { ok: true, message: `בוצע ✓ ${emp.full_name} יצא — ${effective.toFixed(1)} שעות עבודה` };
+                } catch (e) { return { ok: false, message: 'שגיאה: ' + (e?.message || '') }; }
+            }
+            case 'break_start': {
+                try {
+                    const emps = await base44.entities.Employee.list();
+                    const emp = (emps || []).find(e => (e.full_name || '').includes(cmd.name));
+                    if (!emp) return { ok: false, message: `${cmd.name} לא נמצא` };
+                    const tracks = await base44.entities.ShiftTracking.filter({ employee_id: emp.id });
+                    const active = (tracks || []).find(t => t.status === 'active');
+                    if (!active) return { ok: false, message: `${emp.full_name} לא בעבודה` };
+                    const breaks = Array.isArray(active.breaks) ? [...active.breaks] : [];
+                    const openBreak = breaks.find(b => !b.end);
+                    if (openBreak) return { ok: false, message: `${emp.full_name} כבר בהפסקה` };
+                    breaks.push({ start: new Date().toISOString(), end: null });
+                    await base44.entities.ShiftTracking.update(active.id, { breaks });
+                    return { ok: true, message: `בוצע ✓ ${emp.full_name} יצא להפסקה` };
+                } catch (e) { return { ok: false, message: 'שגיאה: ' + (e?.message || '') }; }
+            }
+            case 'break_end': {
+                try {
+                    const emps = await base44.entities.Employee.list();
+                    const emp = (emps || []).find(e => (e.full_name || '').includes(cmd.name));
+                    if (!emp) return { ok: false, message: `${cmd.name} לא נמצא` };
+                    const tracks = await base44.entities.ShiftTracking.filter({ employee_id: emp.id });
+                    const active = (tracks || []).find(t => t.status === 'active');
+                    if (!active) return { ok: false, message: `${emp.full_name} לא בעבודה` };
+                    const breaks = Array.isArray(active.breaks) ? [...active.breaks] : [];
+                    const openIdx = breaks.findIndex(b => !b.end);
+                    if (openIdx < 0) return { ok: false, message: `${emp.full_name} לא בהפסקה` };
+                    const endTime = new Date().toISOString();
+                    const startTime = new Date(breaks[openIdx].start);
+                    const mins = Math.round((new Date(endTime) - startTime) / 60000);
+                    breaks[openIdx] = { ...breaks[openIdx], end: endTime, minutes: mins };
+                    const totalMin = breaks.reduce((s, b) => s + (Number(b.minutes) || 0), 0);
+                    await base44.entities.ShiftTracking.update(active.id, { breaks, total_break_minutes: totalMin });
+                    return { ok: true, message: `בוצע ✓ ${emp.full_name} חזר מהפסקה (${mins} דק׳)` };
+                } catch (e) { return { ok: false, message: 'שגיאה: ' + (e?.message || '') }; }
+            }
+            case 'q_clocked_in_now': {
+                try {
+                    const tracks = await base44.entities.ShiftTracking.list('-shift_start', 30);
+                    const active = (tracks || []).filter(t => t.status === 'active');
+                    if (active.length === 0) return { ok: true, message: 'אין עובדים פעילים כרגע' };
+                    const names = active.map(t => t.employee_name).join(', ');
+                    return { ok: true, message: `${active.length} פעילים: ${names}` };
+                } catch { return { ok: false, message: 'לא הצלחתי לבדוק' }; }
+            }
+
+            // ---------- Schedule: change position in shift ----------
+            case 'schedule_change_position': {
+                const dateStr = resolveWhenDate(cmd.when);
+                try {
+                    const shifts = await base44.entities.WorkShift.filter({ date: dateStr });
+                    if (!shifts || shifts.length === 0) return { ok: false, message: `אין סידור ל-${cmd.when || 'היום'}` };
+                    let updated = 0, fullName = cmd.name;
+                    for (const s of shifts) {
+                        if (cmd.shift_type && s.shift_type !== cmd.shift_type) continue;
+                        const staff = Array.isArray(s.assigned_staff) ? [...s.assigned_staff] : [];
+                        let touched = false;
+                        for (let i = 0; i < staff.length; i++) {
+                            if ((staff[i].employee_name || '').includes(cmd.name)) {
+                                staff[i] = { ...staff[i], position: cmd.position };
+                                fullName = staff[i].employee_name || cmd.name;
+                                touched = true; updated++;
+                            }
+                        }
+                        if (touched) await base44.entities.WorkShift.update(s.id, { assigned_staff: staff });
+                    }
+                    if (!updated) return { ok: false, message: `${cmd.name} לא בסידור` };
+                    return { ok: true, message: `בוצע ✓ ${fullName} → ${cmd.position}` };
+                } catch (e) { return { ok: false, message: 'שגיאה: ' + (e?.message || '') }; }
+            }
+
+            // ---------- Tips: add employee manually ----------
+            case 'tips_add_employee': {
+                const dateStr = resolveWhenDate(cmd.when);
+                try {
+                    const reports = await base44.entities.TipReport.list('-date', 50);
+                    let report = (reports || []).find(r => (r.date || '').slice(0, 10) === dateStr);
+                    const newEntry = { employee_name: cmd.name, hours: Number(cmd.hours) || 0, position: cmd.position || '' };
+                    if (!report) {
+                        report = await base44.entities.TipReport.create({
+                            date: dateStr, total_tips_collected: 0,
+                            staff_details: [newEntry], status: 'draft',
+                        });
+                    } else {
+                        const staff = [...(report.staff_details || [])];
+                        const i = staff.findIndex(x => (x.employee_name || '').includes(cmd.name));
+                        if (i >= 0) staff[i] = { ...staff[i], hours: newEntry.hours };
+                        else staff.push(newEntry);
+                        await base44.entities.TipReport.update(report.id, { staff_details: staff });
+                    }
+                    return { ok: true, message: `בוצע ✓ ${cmd.name} נוסף לדוח טיפים (${cmd.hours} שעות)` };
+                } catch (e) { return { ok: false, message: 'שגיאה: ' + (e?.message || '') }; }
+            }
+
+            // ---------- Events: update / cancel / payment ----------
+            case 'event_update_date':
+            case 'event_update_guests':
+            case 'event_cancel':
+            case 'event_payment_received': {
+                try {
+                    const bookings = await base44.entities.EventBooking.list('-event_date', 100);
+                    const ev = (bookings || []).find(b =>
+                        (b.customer_name || '').includes(cmd.name) &&
+                        !['cancelled', 'completed'].includes(b.status || '')
+                    );
+                    if (!ev) return { ok: false, message: `אירוע של ${cmd.name} לא נמצא` };
+                    let patch = {}, msg = '';
+                    if (cmd.intent === 'event_update_date') {
+                        patch = { event_date: cmd.date };
+                        msg = `תאריך אירוע ${ev.customer_name} → ${cmd.date}`;
+                    } else if (cmd.intent === 'event_update_guests') {
+                        patch = { guest_count: Number(cmd.guest_count) || ev.guest_count };
+                        msg = `${ev.customer_name}: ${patch.guest_count} סועדים`;
+                    } else if (cmd.intent === 'event_cancel') {
+                        patch = { status: 'cancelled' };
+                        msg = `אירוע של ${ev.customer_name} בוטל`;
+                    } else if (cmd.intent === 'event_payment_received') {
+                        const prevDeposit = Number(ev.deposit_amount_ils) || 0;
+                        const added = Number(cmd.amount) || 0;
+                        patch = {
+                            deposit_amount_ils: prevDeposit + added,
+                            payment_status: (prevDeposit + added) >= Number(ev.total_ils || 0) ? 'paid' : 'partial',
+                        };
+                        msg = `${ev.customer_name}: התקבל ${added}₪ (סה"כ ${patch.deposit_amount_ils}₪)`;
+                    }
+                    await base44.entities.EventBooking.update(ev.id, patch);
+                    return { ok: true, message: `בוצע ✓ ${msg}` };
+                } catch (e) { return { ok: false, message: 'שגיאה: ' + (e?.message || '') }; }
+            }
+
+            // ---------- Popups ----------
+            case 'popup_disable': {
+                try {
+                    const popups = await base44.entities.Popup.list('-created_date', 50);
+                    const target = (popups || []).find(p =>
+                        p.is_active && (!cmd.title || (p.title || '').includes(cmd.title))
+                    );
+                    if (!target) return { ok: false, message: `אין פופאפ פעיל ${cmd.title ? 'בשם ' + cmd.title : ''}` };
+                    await base44.entities.Popup.update(target.id, { is_active: false });
+                    return { ok: true, message: `בוצע ✓ פופאפ "${target.title}" כובה` };
+                } catch (e) { return { ok: false, message: 'שגיאה: ' + (e?.message || '') }; }
             }
 
             default:
