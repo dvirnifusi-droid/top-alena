@@ -144,6 +144,7 @@ import RecruitmentHub from './pages/RecruitmentHub';
 import DeliveriesHub from './pages/DeliveriesHub';
 import AIHub from './pages/AIHub';
 import QueueHub from './pages/QueueHub';
+import ColorPreview from './pages/ColorPreview';
 import __Layout from './Layout.jsx';
 
 
@@ -245,6 +246,7 @@ export const PAGES = {
     "DeliveriesHub": DeliveriesHub,
     "AIHub": AIHub,
     "QueueHub": QueueHub,
+    "ColorPreview": ColorPreview,
 }
 
 export const pagesConfig = {
