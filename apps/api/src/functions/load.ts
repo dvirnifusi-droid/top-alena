@@ -12541,6 +12541,36 @@ registerFn('resetGomileyCustomerTotals', async ({ user }) => {
   return { ok: true, rows_updated: Number(r) || 0 };
 });
 
+// One-shot SQL: normalize Israeli phone numbers stored in international form
+// (e.g. 972523409696) to local form (0523409696). Skips numbers that would
+// collide with an existing local-format row (rare; logged as skipped).
+registerFn('normalizeIsraeliPhones', async ({ user }) => {
+  if (!user) throw new Error('auth required');
+  if ((user as any).role !== 'admin' && (user as any).role !== 'owner') {
+    throw new Error('admin only');
+  }
+  // Only update rows where converting 972XXX → 0XXX won't conflict with an
+  // existing row. Conflicting rows are left alone — owner can merge manually.
+  const r: any = await (db as any).$executeRawUnsafe(`
+    UPDATE "DeliveryCustomer" d
+    SET customer_phone = '0' || substring(d.customer_phone from 4)
+    WHERE d.customer_phone ~ '^972[0-9]{8,9}$'
+      AND NOT EXISTS (
+        SELECT 1 FROM "DeliveryCustomer" d2
+        WHERE d2.customer_phone = '0' || substring(d.customer_phone from 4)
+      )
+  `);
+  const conflicts: any = await (db as any).$queryRawUnsafe(`
+    SELECT COUNT(*)::int AS c FROM "DeliveryCustomer"
+    WHERE customer_phone ~ '^972[0-9]{8,9}$'
+  `);
+  return {
+    ok: true,
+    rows_normalized: Number(r) || 0,
+    rows_left_with_conflicts: Number((conflicts?.[0]?.c) || 0),
+  };
+});
+
 // ============================================================================
 // Gomiley dashboard scrape — /system/pages/index/ is server-rendered HTML.
 // We fetch it with the existing session cookies, convert to text (preserving

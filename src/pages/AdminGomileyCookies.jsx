@@ -120,6 +120,44 @@ function BackfillAllCustomersButton() {
     );
 }
 
+function NormalizePhonesButton() {
+    const [running, setRunning] = useState(false);
+    const [result, setResult] = useState(null);
+    const [error, setError] = useState(null);
+
+    const run = async () => {
+        if (!confirm('להמיר את כל הטלפונים בפורמט בינלאומי (972XXXXXXXXX) לפורמט מקומי (0XXXXXXXXX)?\n\nרשומות עם התנגשות (אם כבר קיים לקוח עם אותו טלפון בפורמט המקומי) ידולגו ויסומנו במניין.')) return;
+        setRunning(true); setError(null); setResult(null);
+        try {
+            const res = await base44.functions.normalizeIsraeliPhones({});
+            const r = res?.data ?? res;
+            setResult(r);
+        } catch (e) { setError(e?.message || String(e)); }
+        finally { setRunning(false); }
+    };
+
+    return (
+        <div className="mt-4 pt-4 border-t border-blue-200">
+            <h4 className="font-bold text-sm mb-1">📞 נרמל טלפונים לפורמט ישראלי</h4>
+            <p className="text-xs text-gray-600 mb-2">
+                ממיר טלפונים שמאוכסנים כ-<code className="bg-gray-100 px-1">972523409696</code> ל-
+                <code className="bg-gray-100 px-1">0523409696</code>. בלי זה המערכת לא תזהה את הלקוח כשייתקשר.
+            </p>
+            <Button onClick={run} disabled={running} variant="outline" className="border-blue-300 text-blue-700 hover:bg-blue-50">
+                {running ? <Loader2 className="w-4 h-4 animate-spin ml-2" /> : null}
+                {running ? 'מנרמל...' : '📞 נרמל פורמט טלפונים'}
+            </Button>
+            {result?.ok && (
+                <p className="text-xs text-emerald-700 mt-2">
+                    ✅ נורמלו {result.rows_normalized} טלפונים
+                    {result.rows_left_with_conflicts > 0 && ` · ${result.rows_left_with_conflicts} דולגו (כבר קיימים בפורמט המקומי)`}
+                </p>
+            )}
+            {error && <p className="text-xs text-red-700 mt-2">❌ {error}</p>}
+        </div>
+    );
+}
+
 function ResetTotalsButton() {
     const [running, setRunning] = useState(false);
     const [result, setResult] = useState(null);
@@ -316,6 +354,7 @@ export default function AdminGomileyCookies() {
                     <SyncCustomersButton />
                     <BackfillAllCustomersButton />
                     <ResetTotalsButton />
+                    <NormalizePhonesButton />
                 </CardContent>
             </Card>
 
