@@ -88,9 +88,6 @@ export default function KitchenScreen() {
   const platforms = Array.isArray(data?.deliveries_by_platform) ? data.deliveries_by_platform : [];
   const workers = Array.isArray(data?.beecomm?.workers) ? data.beecomm.workers.slice(0, 6) : [];
 
-  const gomileyUrgent = gm && (gm.stuck_count >= 3 || gm.pending_count >= 8);
-  const gomileyWarn = gm && (gm.stuck_count >= 1 || gm.pending_count >= 5);
-
   return (
     <div dir="rtl" style={{
       minHeight: '100vh',
@@ -137,10 +134,9 @@ export default function KitchenScreen() {
 
       {data && (
         <>
-          {/* Row 1 — Deliveries hero (2 big tiles) */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '20px' }}>
+          {/* Row 1 — Deliveries hero (full-width with platform breakdown) */}
+          <div style={{ marginBottom: '20px' }}>
             <DeliveriesTodayTile gm={gm} platforms={platforms} />
-            <PendingDeliveriesTile gm={gm} urgent={gomileyUrgent} warn={gomileyWarn} />
           </div>
 
           {/* Row 2 — People (3 tiles) */}
@@ -240,25 +236,6 @@ function DeliveriesTodayTile({ gm, platforms }) {
       {platforms.length === 0 && (
         <div style={{ fontSize: '11px', color: '#64748b', marginTop: '6px' }}>אין פירוט פלטפורמות עדיין — יסרק ב-04:30 IL</div>
       )}
-    </div>
-  );
-}
-
-function PendingDeliveriesTile({ gm, urgent, warn }) {
-  const bg = urgent ? 'linear-gradient(135deg, #7f1d1d, #991b1b)' : warn ? 'linear-gradient(135deg, #78350f, #92400e)' : 'rgba(255,255,255,0.06)';
-  const accent = urgent ? '#fca5a5' : warn ? '#fbbf24' : '#94a3b8';
-  return (
-    <div style={{ background: bg, borderRadius: '16px', padding: '20px', textAlign: 'center', border: `2px solid ${accent}40` }}>
-      <div style={{ fontSize: '14px', color: accent, marginBottom: '8px' }}>🛵 משלוחים פתוחים עכשיו</div>
-      <div style={{ fontSize: '96px', fontWeight: 'bold', color: '#f1f5f9', lineHeight: 1 }}>
-        {gm ? gm.pending_count : 0}
-      </div>
-      {gm?.stuck_count > 0 && (
-        <div style={{ fontSize: '20px', color: '#fca5a5', marginTop: '12px', fontWeight: 'bold' }}>
-          ⚠️ {gm.stuck_count} ממתינים 10+ דק׳
-        </div>
-      )}
-      {!gm && <div style={{ fontSize: '11px', color: '#64748b', marginTop: '8px' }}>אין נתונים</div>}
     </div>
   );
 }
