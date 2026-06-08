@@ -137,6 +137,13 @@ import AdminWhatsApp from './pages/AdminWhatsApp';
 import AdminWhatsAppInbox from './pages/AdminWhatsAppInbox';
 import AdminSettings from './pages/AdminSettings';
 import EventsHub from './pages/EventsHub';
+import MarketingHub from './pages/MarketingHub';
+import StoriesHub from './pages/StoriesHub';
+import EmployeesHub from './pages/EmployeesHub';
+import RecruitmentHub from './pages/RecruitmentHub';
+import DeliveriesHub from './pages/DeliveriesHub';
+import AIHub from './pages/AIHub';
+import QueueHub from './pages/QueueHub';
 import __Layout from './Layout.jsx';
 
 
@@ -231,6 +238,13 @@ export const PAGES = {
     "AdminWhatsAppInbox": AdminWhatsAppInbox,
     "AdminSettings": AdminSettings,
     "EventsHub": EventsHub,
+    "MarketingHub": MarketingHub,
+    "StoriesHub": StoriesHub,
+    "EmployeesHub": EmployeesHub,
+    "RecruitmentHub": RecruitmentHub,
+    "DeliveriesHub": DeliveriesHub,
+    "AIHub": AIHub,
+    "QueueHub": QueueHub,
 }
 
 export const pagesConfig = {

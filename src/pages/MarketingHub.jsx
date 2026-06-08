@@ -1,0 +1,52 @@
+// Marketing hub — all marketing/customer-comms admin pages in one shell.
+import React, { useState } from 'react';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { Megaphone, Users, Send, MessageSquare, QrCode, Image, FileText } from 'lucide-react';
+import MarketingDashboard from './MarketingDashboard';
+import CustomerClub from './CustomerClub';
+import MarketingCampaigns from './MarketingCampaigns';
+import InstagramStudio from './InstagramStudio';
+import MessageTemplates from './MessageTemplates';
+import CustomerSurveys from './CustomerSurveys';
+import SurveyQRCodes from './SurveyQRCodes';
+
+const TABS = [
+    { id: 'dashboard', label: 'דשבורד', icon: Megaphone, C: MarketingDashboard },
+    { id: 'club', label: 'מועדון לקוחות', icon: Users, C: CustomerClub },
+    { id: 'campaigns', label: 'קמפיינים', icon: Send, C: MarketingCampaigns },
+    { id: 'instagram', label: 'Instagram', icon: Image, C: InstagramStudio },
+    { id: 'templates', label: 'תבניות הודעה', icon: FileText, C: MessageTemplates },
+    { id: 'surveys', label: 'סקרי לקוחות', icon: MessageSquare, C: CustomerSurveys },
+    { id: 'qr', label: 'QR סקרים', icon: QrCode, C: SurveyQRCodes },
+];
+
+export default function MarketingHub() {
+    const [tab, setTab] = useState(() => {
+        const h = (typeof window !== 'undefined' && window.location.hash.replace('#', '')) || '';
+        return TABS.find(t => t.id === h) ? h : 'dashboard';
+    });
+    const onChange = (v) => { setTab(v); if (typeof window !== 'undefined') window.location.hash = v; };
+    return (
+        <div className="p-4" dir="rtl">
+            <h1 className="text-2xl font-bold mb-3 flex items-center gap-2">
+                <Megaphone className="w-6 h-6 text-pink-600" />
+                שיווק ולקוחות
+            </h1>
+            <Tabs value={tab} onValueChange={onChange}>
+                <TabsList className="grid grid-cols-3 md:grid-cols-7 mb-4 h-auto">
+                    {TABS.map(t => (
+                        <TabsTrigger key={t.id} value={t.id} className="text-xs py-2">
+                            <t.icon className="w-3.5 h-3.5 ml-1 hidden md:inline" />
+                            {t.label}
+                        </TabsTrigger>
+                    ))}
+                </TabsList>
+                {TABS.map(t => (
+                    <TabsContent key={t.id} value={t.id} className="mt-0">
+                        <t.C />
+                    </TabsContent>
+                ))}
+            </Tabs>
+        </div>
+    );
+}

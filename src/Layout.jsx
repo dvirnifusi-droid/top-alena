@@ -44,14 +44,10 @@ const colorOf = (key) => COLOR_CLASSES[key] || COLOR_CLASSES.slate;
 const adminLinks = [
   { title: "לוח בקרה", url: createPageUrl("Dashboard"), icon: LayoutGrid, color: "slate" },
 
-  { title: "כלי AI", url: "#", icon: Sparkles, isCategory: true, color: "violet" },
-  { title: "תיבת הסוכן 🧠", url: createPageUrl("AgentInbox"), icon: Brain, isSubItem: true, color: "violet" },
-  { title: "מרכז בקרת AI", url: createPageUrl("AiDashboard"), icon: Sparkles, isSubItem: true, color: "violet" },
-  { title: "חיזוי עומסים AI", url: createPageUrl("SmartPrediction"), icon: Brain, isSubItem: true, color: "violet" },
-  { title: "יועץ שיווק AI 🚀", url: createPageUrl("MarketingAdvisor"), icon: Rocket, isSubItem: true, color: "violet" },
-  { title: "סוכני שיווק (11)", url: createPageUrl("MarketingAgentsHub"), icon: Megaphone, isSubItem: true, color: "violet" },
-  { title: "פרומפטים של סוכנים 🤖", url: createPageUrl("AgentPrompts"), icon: Brain, isSubItem: true, color: "violet" },
-  { title: "תחזיות ותובנות AI", url: createPageUrl("RevenueForecasting"), icon: Brain, isSubItem: true, color: "violet" },
+  // Each category here is now a SINGLE hub link (with internal tabs) instead
+  // of 5-9 sub-items. Detail pages still exist at their old URLs for direct
+  // links / bookmarks; they're just not listed individually here anymore.
+  { title: "🤖 כלי AI", url: createPageUrl("AIHub"), icon: Sparkles, color: "violet" },
 
   { title: "תפעול המסעדה", url: "#", icon: Utensils, isCategory: true, color: "orange" },
   { title: "ניהול תדריכים", url: createPageUrl("BriefingManagement"), icon: Megaphone, isSubItem: true, color: "orange" },
@@ -62,12 +58,7 @@ const adminLinks = [
   { title: "תקריות", url: createPageUrl("Incidents"), icon: AlertTriangle, isSubItem: true, color: "orange" },
   { title: "דוח סיום משמרת", url: createPageUrl("ShiftEndReport"), icon: ClipboardCheck, isSubItem: true, color: "orange" },
 
-  { title: "תור והזמנות", url: "#", icon: QrCode, isCategory: true, color: "cyan" },
-  { title: "דאשבורד מארחת", url: createPageUrl("QueueDashboard"), icon: Users, isSubItem: true, color: "cyan" },
-  { title: "היסטוריית תור", url: createPageUrl("QueueHistory"), icon: Users, isSubItem: true, color: "cyan" },
-  { title: "ניתוח תור", url: createPageUrl("QueueAnalytics"), icon: BarChart3, isSubItem: true, color: "cyan" },
-  { title: "ניהול משחקי ממתינים", url: createPageUrl("GamesAdmin"), icon: Trophy, isSubItem: true, color: "cyan" },
-  { title: "שאלות משחקים", url: createPageUrl("GameQuestionsAdmin"), icon: FileText, isSubItem: true, color: "cyan" },
+  { title: "📞 תור והזמנות", url: createPageUrl("QueueHub"), icon: QrCode, color: "cyan" },
 
   { title: "כספים ודוחות", url: "#", icon: TrendingUp, isCategory: true, color: "emerald" },
   { title: "📥 WhatsApp Inbox", url: createPageUrl("AdminWhatsAppInbox"), icon: Zap, isSubItem: true, color: "emerald" },
@@ -77,46 +68,12 @@ const adminLinks = [
   { title: "חשבוניות", url: createPageUrl("Invoices"), icon: FileText, isSubItem: true, color: "emerald" },
   { title: "ספקים", url: createPageUrl("Suppliers"), icon: Building, isSubItem: true, color: "emerald" },
 
-  { title: "עובדים וסידור", url: "#", icon: Users, isCategory: true, color: "blue" },
-  { title: "רשימת עובדים", url: createPageUrl("Employees"), icon: Users, isSubItem: true, color: "blue" },
-  { title: "ניהול תפקידים", url: createPageUrl("PositionsManagement"), icon: Briefcase, isSubItem: true, color: "blue" },
-  { title: "סידור עבודה", url: createPageUrl("WorkScheduling"), icon: Calendar, isSubItem: true, color: "blue" },
-  { title: "בקשות זמינות", url: createPageUrl("AvailabilityRequests"), icon: Calendar, isSubItem: true, color: "blue" },
-  { title: "בקשות חופשה", url: createPageUrl("LeaveRequests"), icon: CalendarDays, isSubItem: true, color: "blue" },
-  { title: "צ'אט משמרת", url: createPageUrl("ShiftChat"), icon: MessageSquare, isSubItem: true, color: "blue" },
-  { title: "משוב עובדים", url: createPageUrl("EmployeeFeedback"), icon: MessageSquare, isSubItem: true, color: "blue" },
-
-  { title: "גיוס והכשרה", url: "#", icon: GraduationCap, isCategory: true, color: "indigo" },
-  { title: "ראיונות וגיוס 🎯", url: createPageUrl("RecruitmentInterviews"), icon: Users, isSubItem: true, color: "indigo" },
-  { title: "סלוטים לראיונות", url: createPageUrl("InterviewSettings"), icon: Calendar, isSubItem: true, color: "indigo" },
-  { title: "הכשרות ואימונים", url: createPageUrl("Training"), icon: GraduationCap, isSubItem: true, color: "indigo" },
-  { title: "סרטוני הדרכה", url: createPageUrl("TrainingVideos"), icon: GraduationCap, isSubItem: true, color: "indigo" },
-  { title: "אירועים פרטיים 🌿 (מרכז)", url: createPageUrl("EventsHub"), icon: CalendarHeart, isSubItem: true, color: "indigo" },
-
-  { title: "משלוחים", url: "#", icon: Package, isCategory: true, color: "amber" },
-  { title: "ניהול משלוחים", url: createPageUrl("Deliveries"), icon: Package, isSubItem: true, color: "amber" },
-  { title: "ניהול שליחים", url: createPageUrl("Couriers"), icon: Package, isSubItem: true, color: "amber" },
-  { title: "מעקב שליחים חי 🗺️", url: createPageUrl("CourierTracking"), icon: Navigation, isSubItem: true, color: "amber" },
-  { title: "מועדון לקוחות משלוחים", url: createPageUrl("DeliveryCustomerClub"), icon: Users, isSubItem: true, color: "amber" },
-
-  { title: "שיווק ולקוחות", url: "#", icon: Megaphone, isCategory: true, color: "pink" },
-  { title: "מועדון לקוחות", url: createPageUrl("CustomerClub"), icon: Users, isSubItem: true, color: "pink" },
-  { title: "דאשבורד שיווקי", url: createPageUrl("MarketingDashboard"), icon: TrendingUp, isSubItem: true, color: "pink" },
-  { title: "קמפיינים", url: "/MarketingCampaigns", icon: Megaphone, isSubItem: true, color: "pink" },
-  { title: "Instagram Studio 📸", url: "/InstagramStudio", icon: Megaphone, isSubItem: true, color: "pink" },
-  { title: "תבניות הודעה", url: createPageUrl("MessageTemplates"), icon: FileText, isSubItem: true, color: "pink" },
-  { title: "סקרי לקוחות", url: createPageUrl("CustomerSurveys"), icon: MessageSquare, isSubItem: true, color: "pink" },
-  { title: "ברקודי סקרים", url: createPageUrl("SurveyQRCodes"), icon: QrCode, isSubItem: true, color: "pink" },
-
-  { title: "גמיפיקציה וסטוריז", url: "#", icon: Trophy, isCategory: true, color: "rose" },
-  { title: "לוח המובילים", url: createPageUrl("Leaderboard"), icon: Trophy, isSubItem: true, color: "rose" },
-  { title: "מרכז גמיפיקציה", url: createPageUrl("GamificationAdmin"), icon: Trophy, isSubItem: true, color: "rose" },
-  { title: "ניהול חנות בגדים", url: createPageUrl("ApparelManagement"), icon: Trophy, isSubItem: true, color: "rose" },
-  { title: "סלון דמויות", url: createPageUrl("CharacterLounge"), icon: Trophy, isSubItem: true, color: "rose" },
-  { title: "ארכיון סטוריז", url: createPageUrl("StoriesArchive"), icon: FileText, isSubItem: true, color: "rose" },
-  { title: "לוח דירוג סטוריז", url: createPageUrl("StoriesLeaderboard"), icon: Trophy, isSubItem: true, color: "rose" },
-  { title: "ניתוח סטוריז", url: createPageUrl("StoriesAnalytics"), icon: BarChart3, isSubItem: true, color: "rose" },
-  { title: "הודעות סטוריז", url: createPageUrl("StoriesNotifications"), icon: Bell, isSubItem: true, color: "rose" },
+  { title: "👥 עובדים וסידור", url: createPageUrl("EmployeesHub"), icon: Users, color: "blue" },
+  { title: "🎓 גיוס והכשרה", url: createPageUrl("RecruitmentHub"), icon: GraduationCap, color: "indigo" },
+  { title: "🌿 אירועים פרטיים", url: createPageUrl("EventsHub"), icon: CalendarHeart, color: "indigo" },
+  { title: "📦 משלוחים", url: createPageUrl("DeliveriesHub"), icon: Package, color: "amber" },
+  { title: "📢 שיווק ולקוחות", url: createPageUrl("MarketingHub"), icon: Megaphone, color: "pink" },
+  { title: "🏆 גמיפיקציה וסטוריז", url: createPageUrl("StoriesHub"), icon: Trophy, color: "rose" },
 
   { title: "הגדרות ואינטגרציות ⚙️", url: "#", icon: Settings, isCategory: true, color: "slate" },
   { title: "מרכז הגדרות וחיבורים", url: createPageUrl("AdminSettings"), icon: Settings, isSubItem: true, color: "slate" },
