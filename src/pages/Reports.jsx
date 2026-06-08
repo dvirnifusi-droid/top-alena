@@ -195,10 +195,10 @@ function ReportsInner() {
                 }
                 
                 const empData = employeeData[key];
-                empData.totalHours += staff.effective_hours || 0;
-                empData.totalTips += staff.final_tip || 0;
-                empData.totalMealCost += staff.meal_cost || 0;
-                empData.totalSupplement += staff.supplement || 0; 
+                empData.totalHours += Number(staff.effective_hours) || 0;
+                empData.totalTips += Number(staff.final_tip) || 0;
+                empData.totalMealCost += Number(staff.meal_cost) || 0;
+                empData.totalSupplement += Number(staff.supplement) || 0;
                 empData.shifts += 1;
             });
         });
@@ -227,10 +227,10 @@ function ReportsInner() {
                 // Calculate hours for this shift
                 if (staff.start_time && staff.end_time) {
                     const hours = calculateHours(staff.start_time, staff.end_time);
-                    const breakMinutes = staff.total_break_minutes || 0;
+                    const breakMinutes = Number(staff.total_break_minutes) || 0;
                     const effectiveHours = Math.max(0, hours - (breakMinutes / 60));
-                    
-                    empData.totalHours += effectiveHours;
+
+                    empData.totalHours += Number(effectiveHours) || 0;
                     empData.shifts += 1;
                     empData.position = staff.position;
                 }
@@ -250,12 +250,12 @@ function ReportsInner() {
                 emp.name,
                 emp.position || 'לא צוין',
                 emp.employeeType === 'tip_based' ? 'עובד טיפים' : 'עובד שכר',
-                emp.totalHours.toFixed(2),
-                emp.totalTips.toFixed(2),
-                emp.totalSupplement.toFixed(2), 
-                emp.totalMealCost.toFixed(2),
+                (Number(emp.totalHours) || 0).toFixed(2),
+                (Number(emp.totalTips) || 0).toFixed(2),
+                (Number(emp.totalSupplement) || 0).toFixed(2),
+                (Number(emp.totalMealCost) || 0).toFixed(2),
                 emp.shifts,
-                emp.totalHours > 0 ? ((emp.totalTips + emp.totalSupplement) / emp.totalHours).toFixed(2) : '0.00'
+                Number(emp.totalHours) > 0 ? (((Number(emp.totalTips) || 0) + (Number(emp.totalSupplement) || 0)) / Number(emp.totalHours)).toFixed(2) : '0.00'
             ].join(','))
         ].join('\n');
         
@@ -484,7 +484,7 @@ function ReportsInner() {
                             <Clock className="w-4 h-4 text-purple-600" />
                         </CardHeader>
                         <CardContent>
-                            <div className="text-2xl font-bold text-purple-600">{monthlyTotals.totalHours.toFixed(1)}</div>
+                            <div className="text-2xl font-bold text-purple-600">{(Number(monthlyTotals.totalHours) || 0).toFixed(1)}</div>
                         </CardContent>
                     </Card>
                 </div>
@@ -526,17 +526,17 @@ function ReportsInner() {
                                                 {emp.employeeType === 'tip_based' ? 'עובד טיפים' : 'עובד שכר'}
                                             </Badge>
                                         </TableCell>
-                                        <TableCell className="font-semibold">{emp.totalHours.toFixed(2)}</TableCell>
-                                        <TableCell className={emp.totalTips > 0 ? "text-green-600 font-bold" : "text-gray-400"}>
-                                            ₪{emp.totalTips.toFixed(2)}
+                                        <TableCell className="font-semibold">{(Number(emp.totalHours) || 0).toFixed(2)}</TableCell>
+                                        <TableCell className={Number(emp.totalTips) > 0 ? "text-green-600 font-bold" : "text-gray-400"}>
+                                            ₪{(Number(emp.totalTips) || 0).toFixed(2)}
                                         </TableCell>
-                                        <TableCell className={emp.totalSupplement > 0 ? "text-orange-600 font-bold" : "text-gray-400"}>
-                                            ₪{emp.totalSupplement.toFixed(2)}
+                                        <TableCell className={Number(emp.totalSupplement) > 0 ? "text-orange-600 font-bold" : "text-gray-400"}>
+                                            ₪{(Number(emp.totalSupplement) || 0).toFixed(2)}
                                         </TableCell>
-                                        <TableCell>₪{emp.totalMealCost.toFixed(2)}</TableCell>
+                                        <TableCell>₪{(Number(emp.totalMealCost) || 0).toFixed(2)}</TableCell>
                                         <TableCell>{emp.shifts}</TableCell>
                                         <TableCell className="font-medium">
-                                            ₪{emp.totalHours > 0 ? ((emp.totalTips + emp.totalSupplement) / emp.totalHours).toFixed(2) : '0.00'}
+                                            ₪{Number(emp.totalHours) > 0 ? (((Number(emp.totalTips) || 0) + (Number(emp.totalSupplement) || 0)) / Number(emp.totalHours)).toFixed(2) : '0.00'}
                                         </TableCell>
                                     </TableRow>
                                 ))}
