@@ -6,9 +6,10 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Loader2, Plus, Trash2, Save, Utensils, Sparkles, Settings, MessageSquareCode } from 'lucide-react';
+import { Loader2, Plus, Trash2, Save, Utensils, Sparkles, Settings, MessageSquareCode, RotateCcw, ChevronDown, ChevronUp } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import toast from 'react-hot-toast';
+import { OFFICIAL_EVENT_GROUP_MENU } from '@/data/eventGroupMenu';
 
 const blankMenu = () => ({ id: `m_${Date.now()}`, name: '', description: '', price_per_person_ils: 0, min_guests: 10, max_guests: 60, dishes: [] });
 const blankUpsell = () => ({ id: `u_${Date.now()}`, name: '', price_ils: 0, unit: 'per_event' });
@@ -77,6 +78,11 @@ export default function EventsSalesKit() {
   const updateMenu = (idx, patch) => setKit({ ...kit, menus: menus.map((m, i) => i === idx ? { ...m, ...patch } : m) });
   const addMenu = () => setKit({ ...kit, menus: [...menus, blankMenu()] });
   const removeMenu = (idx) => setKit({ ...kit, menus: menus.filter((_, i) => i !== idx) });
+  const loadOfficialGroupMenu = () => {
+    if (menus.length > 0 && !confirm('להחליף את כל החבילות הקיימות בתפריט הקבוצות הרשמי?')) return;
+    setKit({ ...kit, menus: [{ ...OFFICIAL_EVENT_GROUP_MENU }] });
+    toast.success('התפריט הרשמי נטען — לחץ "שמור" לסיום');
+  };
   const updateUpsell = (idx, patch) => setKit({ ...kit, upsells: upsells.map((u, i) => i === idx ? { ...u, ...patch } : u) });
   const addUpsell = () => setKit({ ...kit, upsells: [...upsells, blankUpsell()] });
   const removeUpsell = (idx) => setKit({ ...kit, upsells: upsells.filter((_, i) => i !== idx) });
@@ -108,22 +114,24 @@ export default function EventsSalesKit() {
         </TabsList>
 
         <TabsContent value="menus" className="space-y-3">
+          <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 flex items-center justify-between gap-2">
+            <div className="text-sm text-amber-900">
+              📋 <b>תפריט קבוצות רשמי</b> — ₪195 לסועד, 6 קטגוריות בחירה, שדרוגי בשר, חבילות שתייה
+            </div>
+            <Button variant="outline" size="sm" onClick={loadOfficialGroupMenu} className="border-amber-400 text-amber-900">
+              <RotateCcw className="w-3 h-3 ml-1" />
+              טען תפריט רשמי
+            </Button>
+          </div>
+
           {menus.length === 0 && <p className="text-sm text-muted-foreground">אין חבילות. הוסיפו את הראשונה.</p>}
           {menus.map((m, idx) => (
-            <Card key={m.id || idx}>
-              <CardContent className="p-4 space-y-2">
-                <div className="grid md:grid-cols-2 gap-2">
-                  <div><Label>שם חבילה</Label><Input value={m.name || ''} onChange={(e) => updateMenu(idx, { name: e.target.value })} placeholder="תפריט בוקר ישראלי עשיר" /></div>
-                  <div><Label>מחיר לסועד (₪)</Label><Input type="number" value={m.price_per_person_ils || 0} onChange={(e) => updateMenu(idx, { price_per_person_ils: parseInt(e.target.value) || 0 })} /></div>
-                  <div><Label>מינ׳ אורחים</Label><Input type="number" value={m.min_guests || 0} onChange={(e) => updateMenu(idx, { min_guests: parseInt(e.target.value) || 0 })} /></div>
-                  <div><Label>מקס׳ אורחים</Label><Input type="number" value={m.max_guests || 0} onChange={(e) => updateMenu(idx, { max_guests: parseInt(e.target.value) || 0 })} /></div>
-                </div>
-                <div><Label>תיאור / מנות כלולות (טקסט חופשי)</Label>
-                  <Textarea rows={4} value={m.description || ''} onChange={(e) => updateMenu(idx, { description: e.target.value })} placeholder="פירוט המנות, מה כלול בחבילה, אופציות בחירה..." />
-                </div>
-                <Button variant="outline" size="sm" onClick={() => removeMenu(idx)} className="text-red-600"><Trash2 className="w-3 h-3 ml-1" /> מחק חבילה</Button>
-              </CardContent>
-            </Card>
+            <MenuCard
+              key={m.id || idx}
+              menu={m}
+              onChange={(patch) => updateMenu(idx, patch)}
+              onRemove={() => removeMenu(idx)}
+            />
           ))}
           <Button variant="outline" onClick={addMenu}><Plus className="w-4 h-4 ml-1" /> הוסף חבילה</Button>
         </TabsContent>
@@ -181,5 +189,104 @@ export default function EventsSalesKit() {
         </TabsContent>
       </Tabs>
     </div>
+  );
+}
+
+function MenuCard({ menu, onChange, onRemove }) {
+  const [expanded, setExpanded] = useState(false);
+  const m = menu || {};
+  const isStructured = Array.isArray(m.categories) && m.categories.length > 0;
+  const includes = Array.isArray(m.includes) ? m.includes : [];
+  const meatUpgrades = Array.isArray(m.meat_upgrades) ? m.meat_upgrades : [];
+  const drinkPackages = Array.isArray(m.drink_packages) ? m.drink_packages : [];
+
+  return (
+    <Card>
+      <CardContent className="p-4 space-y-3">
+        <div className="grid md:grid-cols-2 gap-2">
+          <div><Label>שם חבילה</Label><Input value={m.name || ''} onChange={(e) => onChange({ name: e.target.value })} placeholder="תפריט אירוח קבוצות" /></div>
+          <div><Label>מחיר לסועד (₪)</Label><Input type="number" value={m.price_per_person_ils || 0} onChange={(e) => onChange({ price_per_person_ils: parseInt(e.target.value) || 0 })} /></div>
+          <div><Label>מינ׳ אורחים</Label><Input type="number" value={m.min_guests || 0} onChange={(e) => onChange({ min_guests: parseInt(e.target.value) || 0 })} /></div>
+          <div><Label>מקס׳ אורחים</Label><Input type="number" value={m.max_guests || 0} onChange={(e) => onChange({ max_guests: parseInt(e.target.value) || 0 })} /></div>
+          {isStructured && (
+            <>
+              <div><Label>הנחת ילדים (%)</Label><Input type="number" value={m.kids_discount_pct || 0} onChange={(e) => onChange({ kids_discount_pct: parseInt(e.target.value) || 0 })} /></div>
+              <div><Label>גיל מקס׳ ילדים</Label><Input type="number" value={m.kids_age_max || 12} onChange={(e) => onChange({ kids_age_max: parseInt(e.target.value) || 12 })} /></div>
+            </>
+          )}
+        </div>
+
+        {isStructured && (
+          <div className="border-2 border-emerald-200 rounded-lg p-3 bg-emerald-50/40">
+            <button
+              type="button"
+              onClick={() => setExpanded(!expanded)}
+              className="flex items-center gap-2 text-sm font-bold text-emerald-900 w-full text-right"
+            >
+              {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+              📋 מבנה התפריט המפורט ({m.categories?.length || 0} קטגוריות + {meatUpgrades.length} שדרוגי בשר + {drinkPackages.length} חבילות שתייה)
+            </button>
+            {expanded && (
+              <div className="mt-3 space-y-3 text-sm">
+                {includes.length > 0 && (
+                  <div>
+                    <div className="font-bold text-emerald-800 mb-1">✓ כלול במחיר:</div>
+                    <ul className="list-disc pr-5 space-y-0.5 text-gray-700">
+                      {includes.map((it, i) => <li key={i}>{it}</li>)}
+                    </ul>
+                  </div>
+                )}
+                {(m.categories || []).map((cat, ci) => (
+                  <div key={ci} className="bg-white rounded-lg p-2 border border-gray-100">
+                    <div className="font-bold text-gray-800 text-xs">
+                      {cat.label}
+                      {cat.pick === 'fixed' ? <span className="text-gray-500 font-normal"> · קבוע</span> : <span className="text-amber-700 font-normal"> · יש לבחור {cat.pick}</span>}
+                      {cat.note && <span className="text-gray-500 font-normal"> · {cat.note}</span>}
+                    </div>
+                    <div className="text-xs text-gray-600 mt-1">
+                      {(cat.items || []).join(' · ')}
+                    </div>
+                    {cat.extra_cost_per_person_ils > 0 && (
+                      <div className="text-[10px] text-amber-700 mt-1">+ ₪{cat.extra_cost_per_person_ils} לסועד עבור: {cat.extra_cost_label || 'תוספת'}</div>
+                    )}
+                  </div>
+                ))}
+                {meatUpgrades.length > 0 && (
+                  <div className="bg-white rounded-lg p-2 border border-gray-100">
+                    <div className="font-bold text-gray-800 text-xs mb-1">🥩 שדרוגי בשר (תוספת לסועד)</div>
+                    {meatUpgrades.map((u, i) => (
+                      <div key={i} className="text-xs text-gray-700">{u.name} — <b>+₪{u.surcharge_per_person_ils}</b></div>
+                    ))}
+                  </div>
+                )}
+                {drinkPackages.length > 0 && (
+                  <div className="bg-white rounded-lg p-2 border border-gray-100">
+                    <div className="font-bold text-gray-800 text-xs mb-1">🥂 חבילות שתייה (בחירה אחת)</div>
+                    {drinkPackages.map((d, i) => (
+                      <div key={i} className="text-xs text-gray-700">{d.name} — <b>₪{d.price_per_person_ils} לסועד</b></div>
+                    ))}
+                    {m.alcohol_bottles_discount_pct > 0 && (
+                      <div className="text-[11px] text-gray-500 mt-1">* {m.alcohol_bottles_note || `בקבוקי אלכוהול — ${m.alcohol_bottles_discount_pct}% הנחה`}</div>
+                    )}
+                  </div>
+                )}
+                <div className="text-[11px] text-gray-500 italic">
+                  עריכה ידנית של פריטים: לחץ "טען תפריט רשמי" אחרי שתעדכן את <code>src/data/eventGroupMenu.js</code> ב-repo.
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        <div>
+          <Label>{isStructured ? 'תיאור חופשי (אופציונלי)' : 'תיאור / מנות כלולות (טקסט חופשי)'}</Label>
+          <Textarea rows={isStructured ? 2 : 4} value={m.description || ''} onChange={(e) => onChange({ description: e.target.value })} placeholder="הערות, פרטים נוספים..." />
+        </div>
+
+        <Button variant="outline" size="sm" onClick={onRemove} className="text-red-600">
+          <Trash2 className="w-3 h-3 ml-1" /> מחק חבילה
+        </Button>
+      </CardContent>
+    </Card>
   );
 }
