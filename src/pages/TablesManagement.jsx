@@ -353,7 +353,7 @@ export default function TablesManagementPage() {
                         {filteredSessions.length}/{sessions.length} שולחנות מוצגים
                     </Badge>
                      <div className="flex items-center gap-2 text-sm text-gray-600">
-                        <Star className="w-4 h-4 text-purple-500 fill-purple-200" />
+                        <Star className="w-4 h-4 text-[#A04A2E] fill-purple-200" />
                         <span>לקוח חוזר</span>
                     </div>
                 </div>
@@ -375,7 +375,7 @@ export default function TablesManagementPage() {
 
                             return (
                                 <Card key={session.id} className={`relative shadow-md hover:shadow-lg transition-all ${isReturning ? 'border-2 border-purple-400' : ''}`}>
-                                    {isReturning && <div className="absolute -top-2 -right-2 bg-purple-500 text-white p-1 rounded-full"><Star className="w-3 h-3" /></div>}
+                                    {isReturning && <div className="absolute -top-2 -right-2 bg-[#A04A2E] text-white p-1 rounded-full"><Star className="w-3 h-3" /></div>}
                                     <CardHeader className="pb-2">
                                         <div className="flex justify-between items-start">
                                             <div>
@@ -389,7 +389,7 @@ export default function TablesManagementPage() {
                                                     <Users className="w-4 h-4 text-gray-500" />
                                                     <span className="text-sm text-gray-600">{session.party_size} סועדים</span>
                                                     <span className="text-gray-400">•</span>
-                                                    <span className="text-sm text-blue-600">{getTableStyleLabel(session.table_style)}</span>
+                                                    <span className="text-sm text-[#44512C]">{getTableStyleLabel(session.table_style)}</span>
                                                 </div>
                                                 <div className="flex items-center gap-2 mt-1">
                                                     <Clock className="w-4 h-4 text-gray-500" />
@@ -425,13 +425,13 @@ export default function TablesManagementPage() {
                                     <CardContent className="pt-2">
                                         <div className="space-y-4">
                                             {/* Current Step */}
-                                            <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
+                                            <div className="p-3 bg-[#F4ECD8] rounded-lg border border-[#E8D9B5]">
                                                 <div className="flex items-start justify-between mb-2">
                                                     <div className="flex items-center gap-2">
-                                                        <div className="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-bold">
+                                                        <div className="w-6 h-6 bg-[#44512C] text-white rounded-full flex items-center justify-center text-xs font-bold">
                                                             {session.current_step}
                                                         </div>
-                                                        <h4 className="font-semibold text-blue-800 text-sm">{currentStepInfo.step_name}</h4>
+                                                        <h4 className="font-semibold text-[#2E3819] text-sm">{currentStepInfo.step_name}</h4>
                                                     </div>
                                                     <Button
                                                         size="sm"
@@ -441,7 +441,7 @@ export default function TablesManagementPage() {
                                                         <Edit className="w-3 h-3" />
                                                     </Button>
                                                 </div>
-                                                <p className="text-xs text-blue-700 mb-2">{currentStepInfo.description}</p>
+                                                <p className="text-xs text-[#44512C] mb-2">{currentStepInfo.description}</p>
                                             </div>
 
                                             {/* Manager Actions */}
@@ -475,7 +475,7 @@ export default function TablesManagementPage() {
                                                     </div>
                                                 )}
                                                 {session.notes && (
-                                                    <div className="text-xs bg-yellow-50 p-2 rounded border border-yellow-200">
+                                                    <div className="text-xs bg-[#FAF5E8] p-2 rounded border border-yellow-200">
                                                         <strong>הערות:</strong> {session.notes}
                                                     </div>
                                                 )}

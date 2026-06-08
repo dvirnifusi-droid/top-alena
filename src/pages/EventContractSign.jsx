@@ -153,7 +153,7 @@ export default function EventContractSign() {
   })();
 
   return (
-    <div dir="rtl" className="min-h-screen bg-gradient-to-br from-amber-50 to-rose-50 py-6 px-3">
+    <div dir="rtl" className="min-h-screen bg-gradient-to-br from-amber-50 to-[#F4ECD8] py-6 px-3">
       <div className="max-w-2xl mx-auto bg-white rounded-2xl shadow-xl p-6 space-y-6">
 
         {/* HEADER */}
@@ -205,7 +205,7 @@ export default function EventContractSign() {
         ) : (
           <>
             {/* CLIENT DETAILS — split per official contract */}
-            <div className="bg-blue-50 rounded-xl p-4 space-y-2 text-sm">
+            <div className="bg-[#F4ECD8] rounded-xl p-4 space-y-2 text-sm">
               <div className="font-bold text-blue-900 text-base mb-2">פרטי המזמין</div>
               <Row k="👤 שם מלא" v={contract.customer_name} />
               <Row k="📞 טלפון" v={contract.customer_phone} />
@@ -245,7 +245,7 @@ export default function EventContractSign() {
 
             {/* UPSELLS */}
             {upsells.length > 0 && (
-              <div className="bg-rose-50 rounded-xl p-4 space-y-1 text-sm">
+              <div className="bg-[#F4ECD8] rounded-xl p-4 space-y-1 text-sm">
                 <div className="font-bold text-rose-900 mb-2">✨ תוספות</div>
                 {upsells.map((u, i) => (
                   <div key={i} className="text-gray-800 flex justify-between">
@@ -271,7 +271,7 @@ export default function EventContractSign() {
 
             {/* NOTES */}
             {contract.notes && (
-              <div className="bg-yellow-50 rounded-xl p-3 text-sm">
+              <div className="bg-[#FAF5E8] rounded-xl p-3 text-sm">
                 <div className="font-bold mb-1">📝 הערות</div>
                 <div className="whitespace-pre-wrap text-gray-700">{contract.notes}</div>
               </div>

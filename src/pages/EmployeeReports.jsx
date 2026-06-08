@@ -506,7 +506,7 @@ function EmployeeReportsInner() {
     if (loading) {
         return (
             <div className="flex items-center justify-center h-screen">
-                <Loader2 className="w-12 h-12 animate-spin text-blue-600" />
+                <Loader2 className="w-12 h-12 animate-spin text-[#44512C]" />
             </div>
         );
     }
@@ -625,7 +625,7 @@ function EmployeeReportsInner() {
                             <Calendar className="w-4 h-4" />
                             שעות עבודה (סידור)
                             {calculations.totalHourlyShifts > 0 && (
-                                <Badge className="mr-1 bg-blue-600 text-white text-xs">{calculations.totalHourlyShifts}</Badge>
+                                <Badge className="mr-1 bg-[#44512C] text-white text-xs">{calculations.totalHourlyShifts}</Badge>
                             )}
                         </TabsTrigger>
                         <TabsTrigger value="tips" className="flex items-center gap-2">
@@ -644,17 +644,17 @@ function EmployeeReportsInner() {
                                 <span>📱</span>
                                 שלח לוואטסאפ
                             </Button>
-                            <Button onClick={exportMonthlySummaryExcel} variant="outline" className="flex items-center gap-2 border-blue-300 text-blue-700 hover:bg-blue-50">
+                            <Button onClick={exportMonthlySummaryExcel} variant="outline" className="flex items-center gap-2 border-[#D9BD83] text-[#44512C] hover:bg-[#F4ECD8]">
                                 <FileDown className="w-4 h-4" />
                                 ייצוא סיכום חודשי לאקסל
                             </Button>
                         </div>
                         {/* כרטיסי סיכום */}
                         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-                            <Card className="border-2 border-blue-200">
+                            <Card className="border-2 border-[#E8D9B5]">
                                 <CardContent className="p-5">
                                     <p className="text-sm text-gray-500 mb-1">סה"כ שעות בחודש</p>
-                                    <p className="text-3xl font-bold text-blue-600">{monthlyBreakdown.totalHours}</p>
+                                    <p className="text-3xl font-bold text-[#44512C]">{monthlyBreakdown.totalHours}</p>
                                     <p className="text-xs text-gray-400 mt-1">שעות</p>
                                 </CardContent>
                             </Card>
@@ -744,7 +744,7 @@ function EmployeeReportsInner() {
                                                 </div>
                                                 <div className="w-full bg-gray-200 rounded-full h-2">
                                                     <div
-                                                        className={`h-2 rounded-full transition-all ${overGoal ? 'bg-green-500' : 'bg-blue-500'}`}
+                                                        className={`h-2 rounded-full transition-all ${overGoal ? 'bg-green-500' : 'bg-[#44512C]'}`}
                                                         style={{ width: `${pct}%` }}
                                                     />
                                                 </div>
@@ -764,7 +764,7 @@ function EmployeeReportsInner() {
                                 <span>📱</span>
                                 שלח לוואטסאפ
                             </Button>
-                            <Button onClick={exportHourlyShiftsExcel} variant="outline" className="flex items-center gap-2 border-blue-300 text-blue-700 hover:bg-blue-50" disabled={filteredData.hourlyShiftEntries.length === 0}>
+                            <Button onClick={exportHourlyShiftsExcel} variant="outline" className="flex items-center gap-2 border-[#D9BD83] text-[#44512C] hover:bg-[#F4ECD8]" disabled={filteredData.hourlyShiftEntries.length === 0}>
                                 <FileDown className="w-4 h-4" />
                                 ייצוא שעות סידור לאקסל
                             </Button>
@@ -845,14 +845,14 @@ function EmployeeReportsInner() {
                         )}
 
                         <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
-                            <Card className="border-2 border-blue-200">
+                            <Card className="border-2 border-[#E8D9B5]">
                                 <CardContent className="p-6">
                                     <div className="flex items-center justify-between">
                                         <div>
                                             <p className="text-sm text-gray-600">משמרות מהסידור</p>
-                                            <p className="text-2xl font-bold text-blue-600">{calculations.totalHourlyShifts}</p>
+                                            <p className="text-2xl font-bold text-[#44512C]">{calculations.totalHourlyShifts}</p>
                                         </div>
-                                        <BarChart3 className="w-8 h-8 text-blue-600 opacity-50" />
+                                        <BarChart3 className="w-8 h-8 text-[#44512C] opacity-50" />
                                     </div>
                                 </CardContent>
                             </Card>
@@ -878,9 +878,9 @@ function EmployeeReportsInner() {
                             Object.values(byDate2).forEach(h => { const b = calcOvertimeBreakdown(h); r += b.regular; h1 += b.h125; h2 += b.h150; });
                             return (
                                 <>
-                                <tr className="border-t-2 border-gray-400 bg-blue-50">
-                                    <td colSpan={isAdmin ? 7 : 6} className="py-3 px-4 font-bold text-right text-blue-800">סה"כ שעות לתקופה:</td>
-                                    <td className="py-3 px-4 font-bold text-xl text-blue-700">{calculations.totalHourlyHours}</td>
+                                <tr className="border-t-2 border-gray-400 bg-[#F4ECD8]">
+                                    <td colSpan={isAdmin ? 7 : 6} className="py-3 px-4 font-bold text-right text-[#2E3819]">סה"כ שעות לתקופה:</td>
+                                    <td className="py-3 px-4 font-bold text-xl text-[#44512C]">{calculations.totalHourlyHours}</td>
                                     <td className="py-3 px-4 font-bold text-xl text-orange-600">{totalGross > 0 ? `₪${totalGross.toFixed(2)}` : ''}</td>
                                 </tr>
                                 <tr className="bg-slate-50 border-t border-slate-200">
@@ -923,7 +923,7 @@ function EmployeeReportsInner() {
                             <CardContent>
                                 {loading2 ? (
                                     <div className="flex items-center justify-center py-8">
-                                        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+                                        <Loader2 className="w-8 h-8 animate-spin text-[#44512C]" />
                                     </div>
                                 ) : filteredData.hourlyShiftEntries.length === 0 ? (
                                     <p className="text-center text-gray-500 py-8">אין משמרות בסידור העבודה לתקופה זו לעובד זה</p>
@@ -938,7 +938,7 @@ function EmployeeReportsInner() {
                                                             <th className="text-right py-3 px-4">כניסה</th>
                                                             <th className="text-right py-3 px-4">יציאה</th>
                                                             <th className="text-right py-3 px-4">הפסקה (דק')</th>
-                                                            <th className="text-right py-3 px-4 font-bold text-blue-700">שעות נטו</th>
+                                                            <th className="text-right py-3 px-4 font-bold text-[#44512C]">שעות נטו</th>
                                                             <th className="text-right py-3 px-4 font-bold text-orange-600">ברוטו</th>
                                                             {isAdmin && <th className="py-3 px-4" colSpan={2}></th>}
                                                         </tr>
@@ -966,13 +966,13 @@ function EmployeeReportsInner() {
                                                                          <td className="py-3 px-4">{entry.start_time}</td>
                                                                          <td className="py-3 px-4">{entry.end_time}</td>
                                                                          <td className="py-3 px-4 text-gray-500">{entry.break_minutes > 0 ? entry.break_minutes : '-'}</td>
-                                                                         <td className="py-3 px-4 font-bold text-blue-700">{Number(entry.net_hours || 0).toFixed(2)}</td>
+                                                                         <td className="py-3 px-4 font-bold text-[#44512C]">{Number(entry.net_hours || 0).toFixed(2)}</td>
                                                                          <td className="py-3 px-4 font-bold text-orange-600">
                                                                          {positionRates[entry.position] > 0 ? `₪${(Number(entry.net_hours || 0) * parseFloat(positionRates[entry.position])).toFixed(2)}` : '-'}
                                                                          </td>
                                                                          {isAdmin && (
                                                                          <td className="py-3 px-4">
-                                                                         <button onClick={() => setEditShift({ entry, workShiftId: entry.workShiftId })} className="text-gray-500 hover:text-blue-600 p-1">
+                                                                         <button onClick={() => setEditShift({ entry, workShiftId: entry.workShiftId })} className="text-gray-500 hover:text-[#44512C] p-1">
                                                                          <Pencil className="w-3.5 h-3.5" />
                                                                          </button>
                                                                          </td>
@@ -998,9 +998,9 @@ function EmployeeReportsInner() {
                                                                          Object.values(byDate2).forEach(h => { const b = calcOvertimeBreakdown(h); r += b.regular; h1 += b.h125; h2 += b.h150; });
                                                                          return (
                                                                          <>
-                                                                         <tr className="border-t-2 border-gray-400 bg-blue-50">
-                                                                         <td colSpan={isAdmin ? 7 : 6} className="py-3 px-4 font-bold text-right text-blue-800">סה"כ שעות לתקופה:</td>
-                                                                         <td className="py-3 px-4 font-bold text-xl text-blue-700">{calculations.totalHourlyHours}</td>
+                                                                         <tr className="border-t-2 border-gray-400 bg-[#F4ECD8]">
+                                                                         <td colSpan={isAdmin ? 7 : 6} className="py-3 px-4 font-bold text-right text-[#2E3819]">סה"כ שעות לתקופה:</td>
+                                                                         <td className="py-3 px-4 font-bold text-xl text-[#44512C]">{calculations.totalHourlyHours}</td>
                                                                          <td className="py-3 px-4 font-bold text-xl text-orange-600">{totalGross > 0 ? `₪${totalGross.toFixed(2)}` : ''}</td>
                                                                          </tr>
                                                                          <tr className="bg-slate-50 border-t border-slate-200">
@@ -1036,14 +1036,14 @@ function EmployeeReportsInner() {
                             </Button>
                         </div>
                         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-                            <Card className="border-2 border-blue-200">
+                            <Card className="border-2 border-[#E8D9B5]">
                                 <CardContent className="p-6">
                                     <div className="flex items-center justify-between">
                                         <div>
                                             <p className="text-sm text-gray-600">משמרות בטיפים</p>
-                                            <p className="text-2xl font-bold text-blue-600">{calculations.totalTipShifts}</p>
+                                            <p className="text-2xl font-bold text-[#44512C]">{calculations.totalTipShifts}</p>
                                         </div>
-                                        <BarChart3 className="w-8 h-8 text-blue-600 opacity-50" />
+                                        <BarChart3 className="w-8 h-8 text-[#44512C] opacity-50" />
                                     </div>
                                 </CardContent>
                             </Card>
@@ -1074,9 +1074,9 @@ function EmployeeReportsInner() {
                                     <div className="flex items-center justify-between">
                                         <div>
                                             <p className="text-sm text-gray-600">ממוצע לשעה</p>
-                                            <p className="text-2xl font-bold text-purple-600">₪{calculations.hourlyAverage}</p>
+                                            <p className="text-2xl font-bold text-[#A04A2E]">₪{calculations.hourlyAverage}</p>
                                         </div>
-                                        <TrendingUp className="w-8 h-8 text-purple-600 opacity-50" />
+                                        <TrendingUp className="w-8 h-8 text-[#A04A2E] opacity-50" />
                                     </div>
                                 </CardContent>
                             </Card>
@@ -1089,7 +1089,7 @@ function EmployeeReportsInner() {
                             <CardContent>
                                 {loading2 ? (
                                     <div className="flex items-center justify-center py-8">
-                                        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+                                        <Loader2 className="w-8 h-8 animate-spin text-[#44512C]" />
                                     </div>
                                 ) : filteredData.tipEntries.length === 0 ? (
                                     <p className="text-center text-gray-500 py-8">אין נתוני טיפים לתקופה זו</p>
@@ -1120,14 +1120,14 @@ function EmployeeReportsInner() {
                                                         </td>
                                                         <td className="py-3 px-4 text-gray-600">{entry.position || '-'}</td>
                                                         <td className="py-3 px-4">{(entry.effectiveHours || 0).toFixed(2)}</td>
-                                                        <td className="py-3 px-4 text-blue-600">₪{(entry.grossTip || 0).toFixed(2)}</td>
+                                                        <td className="py-3 px-4 text-[#44512C]">₪{(entry.grossTip || 0).toFixed(2)}</td>
                                                         <td className="py-3 px-4 text-red-500">
                                                             {Number(entry.meal_cost) > 0 ? `-₪${Number(entry.meal_cost).toFixed(2)}` : '-'}
                                                         </td>
                                                         <td className="py-3 px-4 text-green-600">
                                                             {Number(entry.sales_bonus) > 0 ? `+₪${Number(entry.sales_bonus).toFixed(2)}` : '-'}
                                                         </td>
-                                                        <td className="py-3 px-4 text-purple-600">
+                                                        <td className="py-3 px-4 text-[#A04A2E]">
                                                             {Number(entry.supplement) > 0 ? `+₪${Number(entry.supplement).toFixed(2)}` : '-'}
                                                         </td>
                                                         <td className="py-3 px-4 font-bold text-green-700">₪{(entry.totalEarnings || 0).toFixed(2)}</td>
@@ -1433,14 +1433,14 @@ function AllEmployeesSummary({ workShifts, employees, selectedMonth, tipReports,
 
             {/* סיכום מרוכז לפי תפקיד */}
             {Object.keys(positionSummary).length > 0 && (
-                <Card className="border-2 border-purple-200 bg-purple-50">
+                <Card className="border-2 border-purple-200 bg-[#F4ECD8]">
                     <CardHeader className="pb-3">
-                        <CardTitle className="text-purple-800">📊 סיכום כללי לפי תפקיד - כל העובדים</CardTitle>
+                        <CardTitle className="text-[#7A3722]">📊 סיכום כללי לפי תפקיד - כל העובדים</CardTitle>
                     </CardHeader>
                     <CardContent>
                         <div className="overflow-x-auto">
                             <table className="w-full text-sm">
-                                <thead className="border-b-2 border-purple-300 bg-purple-100">
+                                <thead className="border-b-2 border-[#D9BD83] bg-[#F4ECD8]">
                                     <tr>
                                         <th className="text-right py-2 px-3">תפקיד</th>
                                         <th className="text-right py-2 px-3">עובדים</th>
@@ -1448,15 +1448,15 @@ function AllEmployeesSummary({ workShifts, employees, selectedMonth, tipReports,
                                         <th className="text-right py-2 px-3 text-green-700">רגילות (100%)</th>
                                         <th className="text-right py-2 px-3 text-orange-600">125%</th>
                                         <th className="text-right py-2 px-3 text-red-600">150%</th>
-                                        <th className="text-right py-2 px-3 text-blue-700">סה"כ טיפ / עלות</th>
+                                        <th className="text-right py-2 px-3 text-[#44512C]">סה"כ טיפ / עלות</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {Object.entries(positionSummary).map(([pos, s]) => (
-                                        <tr key={pos} className="border-b border-purple-100 hover:bg-purple-50">
+                                        <tr key={pos} className="border-b border-[#F4ECD8] hover:bg-[#F4ECD8]">
                                             <td className="py-2 px-3 font-semibold">{pos}</td>
                                             <td className="py-2 px-3 text-gray-600">{s.empSet.size}</td>
-                                            <td className="py-2 px-3 font-bold text-blue-700">{s.hours.toFixed(2)}</td>
+                                            <td className="py-2 px-3 font-bold text-[#44512C]">{s.hours.toFixed(2)}</td>
                                             <td className="py-2 px-3 text-green-700">{s.isTip ? '-' : s.regular.toFixed(2)}</td>
                                             <td className="py-2 px-3 text-orange-600">{s.isTip ? '-' : s.h125.toFixed(2)}</td>
                                             <td className="py-2 px-3 text-red-600">{s.isTip ? '-' : s.h150.toFixed(2)}</td>
@@ -1486,7 +1486,7 @@ function AllEmployeesSummary({ workShifts, employees, selectedMonth, tipReports,
                                 <p className="text-sm text-gray-500 mt-0.5">סה"כ <span className="font-bold text-gray-700">{totalDays}</span> ימי עבודה</p>
                             </div>
                             <div className="flex gap-2 flex-wrap items-center">
-                                {totalHourlyHours > 0 && <Badge className="bg-blue-100 text-blue-800">שעות: {totalHourlyHours.toFixed(2)}</Badge>}
+                                {totalHourlyHours > 0 && <Badge className="bg-[#F4ECD8] text-[#2E3819]">שעות: {totalHourlyHours.toFixed(2)}</Badge>}
                                 {totalTipEarnings > 0 && <Badge className="bg-green-100 text-green-800">טיפים: ₪{totalTipEarnings.toFixed(2)}</Badge>}
                                 <button
                                     onClick={() => toggleApproved(emp.id)}
@@ -1505,9 +1505,9 @@ function AllEmployeesSummary({ workShifts, employees, selectedMonth, tipReports,
                     <CardContent>
                         <div className="space-y-2">
                             {Object.entries(hourlyByPosition).map(([pos, hours]) => (
-                                <div key={pos} className="flex items-center justify-between p-2 rounded-lg bg-blue-50 border border-blue-100">
+                                <div key={pos} className="flex items-center justify-between p-2 rounded-lg bg-[#F4ECD8] border border-[#F4ECD8]">
                                     <span className="font-medium text-gray-700">📌 {pos}</span>
-                                    <span className="font-bold text-blue-700">סה"כ {hours.toFixed(2)} שעות</span>
+                                    <span className="font-bold text-[#44512C]">סה"כ {hours.toFixed(2)} שעות</span>
                                 </div>
                             ))}
                             {totalHourlyHours > 0 && (

@@ -89,7 +89,7 @@ export default function SurveyQRGenerator() {
     return (
         <Card className="shadow-lg border-purple-200">
             <CardHeader className="flex flex-row items-center gap-3">
-                <QrCode className="w-6 h-6 text-purple-500" />
+                <QrCode className="w-6 h-6 text-[#A04A2E]" />
                 <div>
                     <CardTitle className="text-slate-800">ברקוד סקר שביעות רצון</CardTitle>
                     <CardDescription>הדפס ברקוד זה על כל חשבון כדי שלקוחות יוכלו למלא סקר</CardDescription>
@@ -112,9 +112,9 @@ export default function SurveyQRGenerator() {
                 </div>
 
                 {/* Instructions */}
-                <div className="bg-blue-50 p-4 rounded-lg">
+                <div className="bg-[#F4ECD8] p-4 rounded-lg">
                     <h4 className="font-semibold text-blue-900 mb-2">📱 הוראות ללקוח:</h4>
-                    <div className="text-sm text-blue-800 space-y-1">
+                    <div className="text-sm text-[#2E3819] space-y-1">
                         <p>1. פתח את המצלמה בטלפון שלך</p>
                         <p>2. כוון על הברקוד</p>
                         <p>3. לחץ על הקישור שיופיע</p>
@@ -154,7 +154,7 @@ export default function SurveyQRGenerator() {
                     </Button>
                     <Button 
                         onClick={handlePrint}
-                        className="bg-purple-600 hover:bg-purple-700"
+                        className="bg-[#A04A2E] hover:bg-[#7A3722]"
                     >
                         <Printer className="w-4 h-4 ml-2" />
                         הדפס ברקוד
@@ -162,7 +162,7 @@ export default function SurveyQRGenerator() {
                 </div>
 
                 {/* Usage Tips */}
-                <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200">
+                <div className="bg-[#FAF5E8] p-4 rounded-lg border border-yellow-200">
                     <h4 className="font-semibold text-yellow-900 mb-2">💡 עצות שימוש:</h4>
                     <div className="text-sm text-yellow-800 space-y-1">
                         <p>• הדפס את הברקוד על כל חשבון</p>

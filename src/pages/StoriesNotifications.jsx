@@ -129,8 +129,8 @@ export default function StoriesNotifications() {
   const getIcon = (type) => {
     switch (type) {
       case "like": return <Heart className="w-5 h-5 text-red-500" />;
-      case "comment": return <MessageCircle className="w-5 h-5 text-blue-500" />;
-      case "view": return <Eye className="w-5 h-5 text-purple-500" />;
+      case "comment": return <MessageCircle className="w-5 h-5 text-[#44512C]" />;
+      case "view": return <Eye className="w-5 h-5 text-[#A04A2E]" />;
       case "question": return <MessageCircle className="w-5 h-5 text-green-500" />;
       default: return null;
     }
@@ -149,8 +149,8 @@ export default function StoriesNotifications() {
   const getColor = (type) => {
     switch (type) {
       case "like": return "bg-red-50 border-red-200";
-      case "comment": return "bg-blue-50 border-blue-200";
-      case "view": return "bg-purple-50 border-purple-200";
+      case "comment": return "bg-[#F4ECD8] border-[#E8D9B5]";
+      case "view": return "bg-[#F4ECD8] border-purple-200";
       case "question": return "bg-green-50 border-green-200";
       default: return "";
     }

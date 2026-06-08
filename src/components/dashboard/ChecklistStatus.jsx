@@ -16,7 +16,7 @@ export default function ChecklistStatus({ executions = [], isLoading = false }) 
   return (
     <Card className="shadow-lg border-slate-200">
       <CardHeader className="flex flex-row items-center gap-3">
-        <CheckSquare className="w-6 h-6 text-purple-500" />
+        <CheckSquare className="w-6 h-6 text-[#A04A2E]" />
         <CardTitle className="text-slate-800">בדיקות אחרונות</CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
@@ -24,7 +24,7 @@ export default function ChecklistStatus({ executions = [], isLoading = false }) 
           Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-8 w-full" />)
         ) : (
           displayExecutions.slice(0, 5).map((exec) => (
-            <div key={exec.id} className="flex items-center justify-between p-2 rounded-lg bg-slate-50/70">
+            <div key={exec.id} className="flex items-center justify-between p-2 rounded-lg bg-[#FAF5E8]/70">
               <p className="font-medium text-sm text-slate-700">{exec.title || 'בדיקה כללית'}</p>
               {exec.status === 'completed' ? (
                 <div className="flex items-center gap-1 text-green-600">

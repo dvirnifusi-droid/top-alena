@@ -100,7 +100,7 @@ function TestSendSection() {
         <Card className="mb-4" dir="rtl">
             <CardContent className="p-4">
                 <h3 className="font-bold text-lg flex items-center gap-2 mb-3">
-                    <Send className="w-5 h-5 text-blue-600" />
+                    <Send className="w-5 h-5 text-[#44512C]" />
                     שליחת בדיקה
                 </h3>
                 <div className="space-y-2">
@@ -108,7 +108,7 @@ function TestSendSection() {
                     <Input value={phone} onChange={e => setPhone(e.target.value)} placeholder="0501234567 או +972501234567" dir="ltr" />
                     <Label className="text-xs">הודעה</Label>
                     <Textarea rows={3} value={message} onChange={e => setMessage(e.target.value)} />
-                    <Button onClick={send} disabled={sending || !phone} className="bg-blue-600 hover:bg-blue-700">
+                    <Button onClick={send} disabled={sending || !phone} className="bg-[#44512C] hover:bg-[#44512C]">
                         {sending ? <Loader2 className="w-4 h-4 animate-spin ml-2" /> : <Send className="w-4 h-4 ml-2" />}
                         שלח בדיקה
                     </Button>
@@ -168,7 +168,7 @@ function BroadcastSection() {
         <Card className="mb-4" dir="rtl">
             <CardContent className="p-4">
                 <h3 className="font-bold text-lg flex items-center gap-2 mb-3">
-                    <Users className="w-5 h-5 text-purple-600" />
+                    <Users className="w-5 h-5 text-[#A04A2E]" />
                     שליחת broadcast שיווקי
                 </h3>
 
@@ -176,7 +176,7 @@ function BroadcastSection() {
                     <Label className="text-xs">קהל יעד</Label>
                     <div className="space-y-1">
                         {audiences.map(a => (
-                            <label key={a.id} className={`flex items-center gap-2 p-2 rounded border cursor-pointer ${audience === a.id ? 'bg-purple-50 border-purple-300' : 'bg-white border-gray-200'}`}>
+                            <label key={a.id} className={`flex items-center gap-2 p-2 rounded border cursor-pointer ${audience === a.id ? 'bg-[#F4ECD8] border-[#D9BD83]' : 'bg-white border-gray-200'}`}>
                                 <input type="radio" checked={audience === a.id} onChange={() => setAudience(a.id)} />
                                 <span className="text-sm">{a.icon} {a.label}</span>
                             </label>
@@ -195,7 +195,7 @@ function BroadcastSection() {
                     <Button
                         onClick={send}
                         disabled={sending || !message.trim() || typeof count !== 'number' || count === 0}
-                        className="bg-purple-600 hover:bg-purple-700"
+                        className="bg-[#A04A2E] hover:bg-[#7A3722]"
                     >
                         {sending ? <Loader2 className="w-4 h-4 animate-spin ml-2" /> : <Send className="w-4 h-4 ml-2" />}
                         שלח broadcast

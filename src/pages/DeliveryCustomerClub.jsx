@@ -170,8 +170,8 @@ export default function DeliveryCustomerClub() {
 
       {/* סיכום */}
       <div className="grid grid-cols-3 gap-3">
-        <Card className="bg-blue-50"><CardContent className="p-3 text-center"><div className="text-2xl font-bold text-blue-700">{customers.length}</div><div className="text-xs text-muted-foreground">לקוחות</div></CardContent></Card>
-        <Card className="bg-purple-50"><CardContent className="p-3 text-center"><div className="text-2xl font-bold text-purple-700">{totalOrders}</div><div className="text-xs text-muted-foreground">הזמנות</div></CardContent></Card>
+        <Card className="bg-[#F4ECD8]"><CardContent className="p-3 text-center"><div className="text-2xl font-bold text-[#44512C]">{customers.length}</div><div className="text-xs text-muted-foreground">לקוחות</div></CardContent></Card>
+        <Card className="bg-[#F4ECD8]"><CardContent className="p-3 text-center"><div className="text-2xl font-bold text-[#7A3722]">{totalOrders}</div><div className="text-xs text-muted-foreground">הזמנות</div></CardContent></Card>
         <Card className="bg-green-50"><CardContent className="p-3 text-center"><div className="text-2xl font-bold text-green-700">₪{totalRevenue.toFixed(0)}</div><div className="text-xs text-muted-foreground">סה״כ הכנסה</div></CardContent></Card>
       </div>
 
@@ -236,7 +236,7 @@ export default function DeliveryCustomerClub() {
                 <Button size="sm" variant="outline" className="flex-1" onClick={() => { setEditingCustomer(selected); setShowEditForm(true); }}>
                   <Pencil className="w-3.5 h-3.5 ml-1" /> ערוך
                 </Button>
-                <Button size="sm" variant="outline" className="flex-1 text-blue-600" onClick={() => { setMessageTarget(selected); setShowMessageDialog(true); }}>
+                <Button size="sm" variant="outline" className="flex-1 text-[#44512C]" onClick={() => { setMessageTarget(selected); setShowMessageDialog(true); }}>
                   <MessageSquare className="w-3.5 h-3.5 ml-1" /> שלח הודעה
                 </Button>
                 <Button size="sm" variant="outline" className="text-red-600" onClick={() => handleDelete(selected)}>
@@ -270,7 +270,7 @@ export default function DeliveryCustomerClub() {
                           <div className="flex items-center gap-2">
                             <span className="text-muted-foreground text-xs">{order.date ? format(new Date(order.date), "dd/MM/yyyy") : ""}</span>
                             {order.platform && (
-                              <span className="text-xs bg-blue-50 text-blue-700 border border-blue-200 rounded px-1.5 py-0.5">{PLATFORM_LABELS[order.platform] || order.platform}</span>
+                              <span className="text-xs bg-[#F4ECD8] text-[#44512C] border border-[#E8D9B5] rounded px-1.5 py-0.5">{PLATFORM_LABELS[order.platform] || order.platform}</span>
                             )}
                           </div>
                           <span className="font-bold text-green-700">₪{order.amount}</span>

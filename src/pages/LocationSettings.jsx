@@ -82,7 +82,7 @@ export default function LocationSettings() {
                     {hasLocation ? (
                         <p className="text-sm text-slate-600">
                             {profile.restaurant_lat.toFixed(5)}, {profile.restaurant_lng.toFixed(5)}{' '}
-                            <a href={mapsHref} target="_blank" rel="noopener" className="text-blue-600 underline">פתח במפה</a>
+                            <a href={mapsHref} target="_blank" rel="noopener" className="text-[#44512C] underline">פתח במפה</a>
                         </p>
                     ) : (
                         <p className="text-sm text-orange-600">⚠️ עוד לא הוגדר מיקום — geofence כבוי.</p>

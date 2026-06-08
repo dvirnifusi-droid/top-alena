@@ -93,7 +93,7 @@ function KitchenScreenSection() {
         <Card className="mb-4" dir="rtl">
             <CardContent className="p-4">
                 <div className="flex items-start gap-3 mb-3">
-                    <Tv className="w-6 h-6 text-cyan-600 flex-shrink-0 mt-1" />
+                    <Tv className="w-6 h-6 text-[#B89556] flex-shrink-0 mt-1" />
                     <div className="flex-1">
                         <h3 className="font-bold text-lg">מסך מטבח (TV)</h3>
                         <p className="text-sm text-gray-600 mt-1">
@@ -104,7 +104,7 @@ function KitchenScreenSection() {
                 </div>
 
                 <div className="flex gap-2 mb-3">
-                    <Button onClick={() => window.open(url, '_blank')} className="bg-cyan-600 hover:bg-cyan-700">
+                    <Button onClick={() => window.open(url, '_blank')} className="bg-[#B89556] hover:bg-[#8A6E3A]">
                         <ExternalLink className="w-4 h-4 ml-2" />
                         פתח בחלון חדש
                     </Button>
@@ -159,7 +159,7 @@ function Critical3Section() {
         <Card className="mb-4" dir="rtl">
             <CardContent className="p-4">
                 <div className="flex items-start gap-3 mb-3">
-                    <Bell className="w-6 h-6 text-purple-600 flex-shrink-0 mt-1" />
+                    <Bell className="w-6 h-6 text-[#A04A2E] flex-shrink-0 mt-1" />
                     <div className="flex-1">
                         <h3 className="font-bold text-lg">Critical-3 — סינון Push</h3>
                         <p className="text-sm text-gray-600 mt-1">
@@ -173,7 +173,7 @@ function Critical3Section() {
                 </div>
 
                 {status && (
-                    <div className={`p-3 rounded-lg mb-3 ${status.quiet_hour_now ? 'bg-purple-50 border border-purple-200' : 'bg-emerald-50 border border-emerald-200'}`}>
+                    <div className={`p-3 rounded-lg mb-3 ${status.quiet_hour_now ? 'bg-[#F4ECD8] border border-purple-200' : 'bg-emerald-50 border border-emerald-200'}`}>
                         <div className="flex items-center gap-2 font-bold text-sm mb-1">
                             {status.quiet_hour_now ? '🤫 שעת שקט כרגע' : '🔔 פעיל — pushים יוצאים'}
                         </div>
@@ -290,7 +290,7 @@ function BeecommAutoCreditSection() {
                 </div>
 
                 {runResult && (
-                    <div className={`mt-3 p-3 rounded-lg text-sm ${runResult.ok ? 'bg-blue-50 border border-blue-200' : 'bg-amber-50 border border-amber-200'}`}>
+                    <div className={`mt-3 p-3 rounded-lg text-sm ${runResult.ok ? 'bg-[#F4ECD8] border border-[#E8D9B5]' : 'bg-amber-50 border border-amber-200'}`}>
                         <div className="font-bold mb-1">תוצאת ריצה ידנית:</div>
                         {runResult.ok ? (
                             <div>

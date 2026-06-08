@@ -44,13 +44,13 @@ export default function AiQuickAdd() {
 
     if (!isOpen) {
         return (
-            <Card className="bg-gradient-to-r from-purple-500 to-blue-500 text-white cursor-pointer hover:shadow-lg transition-all duration-300" onClick={() => setIsOpen(true)}>
+            <Card className="bg-gradient-to-r from-[#A04A2E] to-[#44512C] text-white cursor-pointer hover:shadow-lg transition-all duration-300" onClick={() => setIsOpen(true)}>
                 <CardContent className="p-6">
                     <div className="flex items-center gap-4">
                         <Brain className="w-10 h-10" />
                         <div>
                             <h3 className="text-xl font-bold">הוסף ידע לעוזר הדיגיטלי</h3>
-                            <p className="text-purple-100">הכנס מתכונים, נהלים ומידע חדש</p>
+                            <p className="text-[#F4ECD8]">הכנס מתכונים, נהלים ומידע חדש</p>
                         </div>
                         <Plus className="w-6 h-6" />
                     </div>
@@ -61,7 +61,7 @@ export default function AiQuickAdd() {
 
     return (
         <Card className="shadow-xl">
-            <CardHeader className="bg-gradient-to-r from-purple-600 to-blue-600 text-white">
+            <CardHeader className="bg-gradient-to-r from-[#A04A2E] to-[#44512C] text-white">
                 <CardTitle className="flex items-center gap-2">
                     <Brain className="w-6 h-6" />
                     הוספת ידע חדש לעוזר הדיגיטלי
@@ -126,7 +126,7 @@ export default function AiQuickAdd() {
                             <Button 
                                 onClick={handleSave} 
                                 disabled={saving || !formData.title || !formData.content || !formData.category}
-                                className="flex-1 bg-purple-600 hover:bg-purple-700"
+                                className="flex-1 bg-[#A04A2E] hover:bg-[#7A3722]"
                             >
                                 {saving ? 'שומר...' : 'שמור'}
                             </Button>

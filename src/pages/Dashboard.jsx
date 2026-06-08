@@ -81,7 +81,7 @@ function QuickStats() {
         { title: "צ'קליסטים", value: loading ? "טוען..." : `${realTimeData.completedChecklists}/${realTimeData.totalChecklists}`, icon: CheckCircle, color: "purple", trend: `נותרו ${realTimeData.totalChecklists - realTimeData.completedChecklists}`, clickUrl: createPageUrl("Checklists") },
         { title: "תקריות פתוחות", value: loading ? "טוען..." : realTimeData.openIncidents.toString(), icon: AlertTriangle, color: "orange", trend: realTimeData.openIncidents > 0 ? "דורש טיפול" : "הכל תקין", clickUrl: createPageUrl("Incidents") }
     ];
-    const colorVariants = { blue: "from-blue-500 to-blue-600", green: "from-green-500 to-green-600", purple: "from-purple-500 to-purple-600", orange: "from-orange-500 to-orange-600" };
+    const colorVariants = { blue: "from-[#44512C] to-[#44512C]", green: "from-green-500 to-green-600", purple: "from-[#A04A2E] to-[#A04A2E]", orange: "from-orange-500 to-orange-600" };
 
     return (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 mb-8">
@@ -146,12 +146,12 @@ function SmartToolsPanel() {
     return (
         <>
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <Card className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white cursor-pointer hover:shadow-xl transition-all duration-300 transform hover:scale-105" onClick={() => setIsOpen(true)}>
+                <Card className="bg-gradient-to-r from-[#A04A2E] to-[#A04A2E] text-white cursor-pointer hover:shadow-xl transition-all duration-300 transform hover:scale-105" onClick={() => setIsOpen(true)}>
                     <CardContent className="p-6">
                         <div className="flex items-center justify-between">
                             <div>
                                 <h3 className="text-xl font-bold mb-2">🤖 כלי עבודה חכמים</h3>
-                                <p className="text-indigo-100 mb-4">כלים מבוססי AI לחיסכון בזמן</p>
+                                <p className="text-[#F4ECD8] mb-4">כלים מבוססי AI לחיסכון בזמן</p>
                                 <Badge variant="secondary" className="bg-white/20 text-white">{tools.length} כלים</Badge>
                             </div>
                             <div className="flex flex-col items-center">
@@ -257,9 +257,9 @@ function DashboardInner() {
                                 <CardContent className="space-y-4">
                                     <p className="text-gray-600">גש לתפריט הניווט עבור:</p>
                                     <div className="grid grid-cols-2 gap-3 text-sm">
-                                        <div className="p-3 bg-blue-50 rounded-lg"><h4 className="font-semibold text-blue-900">הכשרות</h4><p className="text-blue-700">קורסים ואימונים</p></div>
+                                        <div className="p-3 bg-[#F4ECD8] rounded-lg"><h4 className="font-semibold text-blue-900">הכשרות</h4><p className="text-[#44512C]">קורסים ואימונים</p></div>
                                         <div className="p-3 bg-green-50 rounded-lg"><h4 className="font-semibold text-green-900">צ'קליסטים</h4><p className="text-green-700">בדיקות יומיות</p></div>
-                                        <div className="p-3 bg-purple-50 rounded-lg"><h4 className="font-semibold text-purple-900">לוח מובילים</h4><p className="text-purple-700">הישגים ונקודות</p></div>
+                                        <div className="p-3 bg-[#F4ECD8] rounded-lg"><h4 className="font-semibold text-purple-900">לוח מובילים</h4><p className="text-[#7A3722]">הישגים ונקודות</p></div>
                                         <div className="p-3 bg-orange-50 rounded-lg"><h4 className="font-semibold text-orange-900">דיווח תקריות</h4><p className="text-orange-700">דיווח מהיר</p></div>
                                     </div>
                                 </CardContent>
@@ -278,7 +278,7 @@ function DashboardInner() {
     const adminWidgets = {
         smart_tools: isVisible('smart_tools') && (
             <section key="smart_tools">
-                <h2 className="text-2xl font-bold text-slate-900 mb-4 flex items-center gap-2">🤖 כלי עבודה חכמים <Badge className="bg-indigo-100 text-indigo-800">AI</Badge></h2>
+                <h2 className="text-2xl font-bold text-slate-900 mb-4 flex items-center gap-2">🤖 כלי עבודה חכמים <Badge className="bg-[#F4ECD8] text-indigo-800">AI</Badge></h2>
                 <SmartToolsPanel />
             </section>
         ),

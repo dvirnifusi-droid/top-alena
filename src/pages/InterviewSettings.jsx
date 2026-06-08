@@ -42,8 +42,8 @@ function chipFor(date) {
   const n = daysUntil(date);
   if (n === 0) return { text: 'היום', cls: 'bg-emerald-100 text-emerald-800 border-emerald-300' };
   if (n === 1) return { text: 'מחר', cls: 'bg-emerald-100 text-emerald-800 border-emerald-300' };
-  if (n <= 3) return { text: `בעוד ${n} ימים`, cls: 'bg-blue-100 text-blue-800 border-blue-300' };
-  if (n <= 7) return { text: `בעוד ${n} ימים`, cls: 'bg-cyan-100 text-cyan-800 border-cyan-300' };
+  if (n <= 3) return { text: `בעוד ${n} ימים`, cls: 'bg-[#F4ECD8] text-[#2E3819] border-[#D9BD83]' };
+  if (n <= 7) return { text: `בעוד ${n} ימים`, cls: 'bg-[#F4ECD8] text-cyan-800 border-[#D9BD83]' };
   return { text: `בעוד ${n} ימים`, cls: 'bg-amber-100 text-amber-800 border-amber-300' };
 }
 
@@ -157,7 +157,7 @@ export default function InterviewSettings() {
                         const wd = new Date(v + 'T00:00').getDay();
                         updateRow(i, { specific_date: v, weekday: wd });
                       }}
-                      className={`border rounded-lg px-2 py-1 text-xs ${isOneOff ? 'border-purple-400 bg-purple-50 font-semibold' : 'border-slate-300 bg-white'}`}
+                      className={`border rounded-lg px-2 py-1 text-xs ${isOneOff ? 'border-purple-400 bg-[#F4ECD8] font-semibold' : 'border-slate-300 bg-white'}`}
                     />
                     {chip && (
                       <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${chip.cls}`}>{chip.text}</span>
@@ -197,7 +197,7 @@ export default function InterviewSettings() {
           {saved && <span className="text-emerald-600 text-sm font-bold">✓ נשמר</span>}
         </div>
 
-        <div className="mt-4 bg-blue-50 border border-blue-200 rounded-xl p-3 text-xs text-blue-700">
+        <div className="mt-4 bg-[#F4ECD8] border border-[#E8D9B5] rounded-xl p-3 text-xs text-[#44512C]">
           💡 הסלוטים הם שבועיים חוזרים — מועמדים יראו את ה‑14 הימים הבאים, פחות מועדים שכבר נתפסו.
         </div>
       </div>

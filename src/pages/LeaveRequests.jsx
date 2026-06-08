@@ -16,15 +16,15 @@ import { he } from 'date-fns/locale';
 import PageGuard from '../components/shared/PageGuard';
 
 const LEAVE_TYPES = {
-    vacation: { label: 'חופשה', color: 'bg-blue-100 text-blue-800', emoji: '🏖️' },
+    vacation: { label: 'חופשה', color: 'bg-[#F4ECD8] text-[#2E3819]', emoji: '🏖️' },
     sick: { label: 'מחלה', color: 'bg-red-100 text-red-800', emoji: '🤒' },
-    personal: { label: 'אישי', color: 'bg-purple-100 text-purple-800', emoji: '👤' },
+    personal: { label: 'אישי', color: 'bg-[#F4ECD8] text-[#7A3722]', emoji: '👤' },
     military: { label: 'מילואים', color: 'bg-green-100 text-green-800', emoji: '🎖️' },
     other: { label: 'אחר', color: 'bg-gray-100 text-gray-800', emoji: '📝' },
 };
 
 const STATUS_CONFIG = {
-    pending: { label: 'ממתין לאישור', color: 'bg-yellow-100 text-yellow-800', icon: Clock },
+    pending: { label: 'ממתין לאישור', color: 'bg-[#F4ECD8] text-yellow-800', icon: Clock },
     approved: { label: 'מאושר', color: 'bg-green-100 text-green-800', icon: Check },
     rejected: { label: 'נדחה', color: 'bg-red-100 text-red-800', icon: X },
 };
@@ -153,7 +153,7 @@ function NewLeaveRequestDialog({ open, onClose, currentEmployee, onSaved }) {
             <DialogContent dir="rtl" className="max-w-md">
                 <DialogHeader>
                     <DialogTitle className="flex items-center gap-2">
-                        <CalendarDays className="w-5 h-5 text-blue-600" />
+                        <CalendarDays className="w-5 h-5 text-[#44512C]" />
                         בקשת חופשה / מחלה
                     </DialogTitle>
                 </DialogHeader>
@@ -270,10 +270,10 @@ function LeaveCalendar({ requests }) {
                                     const onLeave = date ? getEmployeesOnLeave(date) : [];
                                     const isToday = date && format(date, 'yyyy-MM-dd') === format(today, 'yyyy-MM-dd');
                                     return (
-                                        <td key={ci} className={`align-top p-0.5 border text-xs ${!date ? 'border-transparent' : isToday ? 'border-blue-400 bg-blue-50' : 'border-gray-100'}`} style={{height: '44px'}}>
+                                        <td key={ci} className={`align-top p-0.5 border text-xs ${!date ? 'border-transparent' : isToday ? 'border-blue-400 bg-[#F4ECD8]' : 'border-gray-100'}`} style={{height: '44px'}}>
                                             {date && (
                                                 <>
-                                                    <div className={`font-bold text-xs leading-none mb-0.5 ${isToday ? 'text-blue-700' : 'text-gray-700'}`}>{date.getDate()}</div>
+                                                    <div className={`font-bold text-xs leading-none mb-0.5 ${isToday ? 'text-[#44512C]' : 'text-gray-700'}`}>{date.getDate()}</div>
                                                     {onLeave.slice(0, 1).map((r, j) => (
                                                         <div key={j} className={`rounded px-0.5 truncate text-[9px] leading-tight ${LEAVE_TYPES[r.leave_type]?.color || 'bg-gray-100'}`}>
                                                             {r.employee_name.split(' ')[0]}
@@ -354,7 +354,7 @@ function LeaveRequestsInner() {
             <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-6">
                 <div className="flex-1 min-w-0">
                     <h1 className="text-xl md:text-2xl font-bold flex items-center gap-2 flex-wrap">
-                        <CalendarDays className="w-6 h-6 md:w-7 md:h-7 text-blue-600 flex-shrink-0" />
+                        <CalendarDays className="w-6 h-6 md:w-7 md:h-7 text-[#44512C] flex-shrink-0" />
                         {isAdmin ? 'ניהול בקשות חופשה' : 'הבקשות שלי'}
                     </h1>
                     <p className="text-gray-500 text-xs md:text-sm mt-1">{isAdmin ? 'אשר או דחה בקשות חופשה ומחלה של עובדים' : 'הגש בקשת חופשה, מחלה או היעדרות'}</p>

@@ -133,7 +133,7 @@ export default function GomileyLiveWidget() {
                             <div className="text-xs text-gray-500 mt-1">סה״כ היום</div>
                         </div>
                         <div className="bg-white rounded-lg p-3 text-center shadow-sm">
-                            <div className="text-2xl font-bold text-blue-700">{snap.total_orders || 0}</div>
+                            <div className="text-2xl font-bold text-[#44512C]">{snap.total_orders || 0}</div>
                             <div className="text-xs text-gray-500 mt-1">משלוחים</div>
                         </div>
                         <div className="bg-white rounded-lg p-3 text-center shadow-sm">

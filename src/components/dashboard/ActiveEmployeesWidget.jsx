@@ -45,8 +45,8 @@ function normalizePhoneIL(raw) {
 
 const DEPT_LABEL = {
   kitchen: { label: '🍳 מטבח', color: 'bg-orange-100 text-orange-700 border-orange-300' },
-  floor: { label: '🍽️ פלור', color: 'bg-blue-100 text-blue-700 border-blue-300' },
-  bar: { label: '🍷 בר', color: 'bg-purple-100 text-purple-700 border-purple-300' },
+  floor: { label: '🍽️ פלור', color: 'bg-[#F4ECD8] text-[#44512C] border-[#D9BD83]' },
+  bar: { label: '🍷 בר', color: 'bg-[#F4ECD8] text-[#7A3722] border-[#D9BD83]' },
   unknown: { label: '? לא מוגדר', color: 'bg-slate-100 text-slate-500 border-slate-300' },
 };
 
@@ -161,8 +161,8 @@ export default function ActiveEmployeesWidget() {
   const filterChips = [
     { key: 'all', label: 'הכל', count: counts.all, color: 'bg-slate-700 text-white' },
     { key: 'kitchen', label: '🍳 מטבח', count: counts.kitchen, color: 'bg-orange-500 text-white' },
-    { key: 'floor', label: '🍽️ פלור', count: counts.floor, color: 'bg-blue-500 text-white' },
-    { key: 'bar', label: '🍷 בר', count: counts.bar, color: 'bg-purple-500 text-white' },
+    { key: 'floor', label: '🍽️ פלור', count: counts.floor, color: 'bg-[#44512C] text-white' },
+    { key: 'bar', label: '🍷 בר', count: counts.bar, color: 'bg-[#A04A2E] text-white' },
     { key: 'on_break', label: '💤 בהפסקה', count: counts.on_break, color: 'bg-yellow-500 text-white' },
   ];
 
@@ -212,7 +212,7 @@ export default function ActiveEmployeesWidget() {
               const deptInfo = DEPT_LABEL[emp.dept];
 
               const cardClass = onBreak
-                ? 'bg-yellow-50 border-yellow-300'
+                ? 'bg-[#FAF5E8] border-[#D9BD83]'
                 : isCritical
                   ? 'bg-red-50 border-red-300'
                   : isOvertime

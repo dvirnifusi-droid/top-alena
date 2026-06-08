@@ -299,7 +299,7 @@ export default function CustomerClubPage() {
         const configs = {
             satisfied: { text: 'מרוצה', className: 'bg-green-100 text-green-800', icon: Heart },
             unsatisfied: { text: 'לא מרוצה', className: 'bg-red-100 text-red-800', icon: Frown },
-            recovering: { text: 'בטיפול', className: 'bg-yellow-100 text-yellow-800', icon: RefreshCw },
+            recovering: { text: 'בטיפול', className: 'bg-[#F4ECD8] text-yellow-800', icon: RefreshCw },
             neutral: { text: 'ניטרלי', className: 'bg-gray-100 text-gray-800', icon: Users }
         };
 
@@ -328,7 +328,7 @@ export default function CustomerClubPage() {
                     <div className="flex justify-between items-center">
                         <div>
                             <CardTitle className="flex items-center gap-2 text-2xl">
-                                <Users className="w-6 h-6 text-purple-600" />
+                                <Users className="w-6 h-6 text-[#A04A2E]" />
                                 מועדון לקוחות
                             </CardTitle>
                             <CardDescription>רשימת כל הלקוחות, ביקורים וסטטוס שביעות רצון.</CardDescription>
@@ -341,7 +341,7 @@ export default function CustomerClubPage() {
                                     <AlertTriangle className="w-3 h-3 ml-1" />
                                     {unsatisfiedCount} לקוחות לא מרוצים
                                 </Badge>
-                                <Badge className="bg-yellow-100 text-yellow-800">
+                                <Badge className="bg-[#F4ECD8] text-yellow-800">
                                     {recoveringCount} בטיפול
                                 </Badge>
                             </div>
@@ -356,7 +356,7 @@ export default function CustomerClubPage() {
                                     className="pl-10 w-60"
                                 />
                             </div>
-                            <Button onClick={() => setShowAddCustomer(true)} className="bg-purple-600 hover:bg-purple-700 text-white">
+                            <Button onClick={() => setShowAddCustomer(true)} className="bg-[#A04A2E] hover:bg-[#7A3722] text-white">
                                 <UserPlus className="w-4 h-4 ml-1" />
                                 הוסף לקוח
                             </Button>
@@ -364,7 +364,7 @@ export default function CustomerClubPage() {
                                 <Upload className="w-4 h-4 ml-1" />
                                 ייבוא מאקסל
                             </Button>
-                            <Button variant="outline" onClick={() => { setShowEmail(true); setEmailResult(null); }} className="bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100">
+                            <Button variant="outline" onClick={() => { setShowEmail(true); setEmailResult(null); }} className="bg-[#F4ECD8] border-[#E8D9B5] text-[#44512C] hover:bg-[#F4ECD8]">
                                 <Mail className="w-4 h-4 ml-1" />
                                 שלח דיוור ({selectedCustomers.length})
                             </Button>
@@ -418,7 +418,7 @@ export default function CustomerClubPage() {
 
                     {loading ? (
                         <div className="flex justify-center items-center h-64">
-                            <Loader2 className="w-8 h-8 animate-spin text-purple-600" />
+                            <Loader2 className="w-8 h-8 animate-spin text-[#A04A2E]" />
                         </div>
                     ) : (
                         <>
@@ -453,7 +453,7 @@ export default function CustomerClubPage() {
                                                 )}
                                             </TableCell>
                                             <TableCell className="font-medium">
-                                                <Link to={createPageUrl(`CustomerDetails?id=${customer.id}`)} className="text-blue-600 hover:underline font-semibold">
+                                                <Link to={createPageUrl(`CustomerDetails?id=${customer.id}`)} className="text-[#44512C] hover:underline font-semibold">
                                                     {customer.name}
                                                 </Link>
                                             </TableCell>
@@ -536,7 +536,7 @@ export default function CustomerClubPage() {
                             <Label>הערות</Label>
                             <Textarea value={newCustomer.notes} onChange={e => setNewCustomer(p => ({ ...p, notes: e.target.value }))} placeholder="הערות על הלקוח..." rows={2} className="mt-1" />
                         </div>
-                        <Button onClick={handleAddCustomer} disabled={savingCustomer || !newCustomer.name || !newCustomer.phone} className="w-full bg-purple-600 hover:bg-purple-700">
+                        <Button onClick={handleAddCustomer} disabled={savingCustomer || !newCustomer.name || !newCustomer.phone} className="w-full bg-[#A04A2E] hover:bg-[#7A3722]">
                             {savingCustomer ? <><Loader2 className="w-4 h-4 animate-spin ml-2" />שומר...</> : <><UserPlus className="w-4 h-4 ml-2" />הוסף לקוח</>}
                         </Button>
                     </div>
@@ -561,7 +561,7 @@ export default function CustomerClubPage() {
                             className="block w-full text-sm border rounded p-2"
                         />
                         {importing && (
-                            <div className="flex items-center gap-2 text-blue-600">
+                            <div className="flex items-center gap-2 text-[#44512C]">
                                 <Loader2 className="w-4 h-4 animate-spin" />
                                 מייבא...
                             </div>
@@ -686,7 +686,7 @@ export default function CustomerClubPage() {
                                     <button
                                         onClick={() => emailImageRef.current?.click()}
                                         disabled={uploadingImage}
-                                        className="flex items-center gap-2 px-4 py-2 border-2 border-dashed border-gray-300 rounded-lg text-sm text-gray-500 hover:border-blue-400 hover:text-blue-500 transition-colors"
+                                        className="flex items-center gap-2 px-4 py-2 border-2 border-dashed border-gray-300 rounded-lg text-sm text-gray-500 hover:border-blue-400 hover:text-[#44512C] transition-colors"
                                     >
                                         {uploadingImage ? <Loader2 className="w-4 h-4 animate-spin" /> : <ImagePlus className="w-4 h-4" />}
                                         {uploadingImage ? 'מעלה...' : 'העלה תמונה'}

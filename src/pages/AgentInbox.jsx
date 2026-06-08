@@ -17,15 +17,15 @@ const ROLE_LABEL = {
 };
 
 const ROLE_COLOR = {
-  executive: 'border-purple-300 bg-purple-50',
-  vp:        'border-indigo-300 bg-indigo-50',
-  campaign_crew: 'border-pink-300 bg-pink-50',
-  support:   'border-rose-300 bg-rose-50',
+  executive: 'border-[#D9BD83] bg-[#F4ECD8]',
+  vp:        'border-[#D9BD83] bg-[#F4ECD8]',
+  campaign_crew: 'border-pink-300 bg-[#F4ECD8]',
+  support:   'border-[#D9BD83] bg-[#F4ECD8]',
   operations:'border-amber-300 bg-amber-50',
 };
 
 const TYPE_BADGE = {
-  brief:    { label: '📋 תדריך',  cls: 'bg-blue-100 text-blue-700' },
+  brief:    { label: '📋 תדריך',  cls: 'bg-[#F4ECD8] text-[#44512C]' },
   result:   { label: '✓ תוצאה',   cls: 'bg-emerald-100 text-emerald-700' },
   info:     { label: 'ℹ️ מידע',    cls: 'bg-slate-100 text-slate-700' },
   approval: { label: '👉 אישור',   cls: 'bg-amber-100 text-amber-700' },
@@ -130,12 +130,12 @@ function AgentInboxInner() {
   }, [agents]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-indigo-50 p-4 sm:p-6" dir="rtl">
+    <div className="min-h-screen bg-gradient-to-br from-[#F4ECD8] via-white to-[#F4ECD8] p-4 sm:p-6" dir="rtl">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-purple-600 to-indigo-600 text-white flex items-center justify-center shadow-lg">
+            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#A04A2E] to-[#A04A2E] text-white flex items-center justify-center shadow-lg">
               <Brain className="w-7 h-7" />
             </div>
             <div>
@@ -148,7 +148,7 @@ function AgentInboxInner() {
               <RefreshCw className={`w-4 h-4 ml-1 ${loading ? 'animate-spin' : ''}`} /> רענן
             </Button>
             {agents.length === 0 && (
-              <Button onClick={seed} disabled={seeding} className="bg-purple-600 hover:bg-purple-700">
+              <Button onClick={seed} disabled={seeding} className="bg-[#A04A2E] hover:bg-[#7A3722]">
                 {seeding ? <Loader2 className="w-4 h-4 animate-spin ml-1" /> : <Sparkles className="w-4 h-4 ml-1" />}
                 אתחל 23 סוכנים
               </Button>
@@ -171,14 +171,14 @@ function AgentInboxInner() {
                     <button
                       key={s.value}
                       onClick={() => setStatusFilter(s.value)}
-                      className={`text-xs px-3 py-1.5 rounded-full font-bold transition ${statusFilter === s.value ? 'bg-purple-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                      className={`text-xs px-3 py-1.5 rounded-full font-bold transition ${statusFilter === s.value ? 'bg-[#A04A2E] text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
                     >
                       {s.label}
                     </button>
                   ))}
                 </div>
                 {agentFilter && (
-                  <button onClick={() => setAgentFilter('')} className="text-xs text-purple-700 hover:underline mr-auto">
+                  <button onClick={() => setAgentFilter('')} className="text-xs text-[#7A3722] hover:underline mr-auto">
                     × נקה פילטר סוכן: {agentFilter}
                   </button>
                 )}
@@ -207,7 +207,7 @@ function AgentInboxInner() {
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 flex-wrap mb-1">
                               <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${tBadge.cls}`}>{tBadge.label}</span>
-                              <button onClick={() => setAgentFilter(item.agent_name)} className="text-xs font-bold text-purple-700 hover:underline">{item.agent_name}</button>
+                              <button onClick={() => setAgentFilter(item.agent_name)} className="text-xs font-bold text-[#7A3722] hover:underline">{item.agent_name}</button>
                               <span className="text-[10px] text-slate-400">{fmt(item.created_date)}</span>
                             </div>
                             <h3 className="font-bold text-slate-800">{item.title}</h3>
@@ -245,7 +245,7 @@ function AgentInboxInner() {
               <Card className="border-0 shadow-md">
                 <CardHeader className="pb-3">
                   <CardTitle className="text-base flex items-center gap-2">
-                    <Settings className="w-5 h-5 text-purple-600" />
+                    <Settings className="w-5 h-5 text-[#A04A2E]" />
                     עץ הסוכנים ({agents.length})
                   </CardTitle>
                 </CardHeader>
@@ -267,7 +267,7 @@ function AgentInboxInner() {
                               onClick={() => runAgent(a)}
                               disabled={runningAgentId === a.id || !a.is_active}
                               title="הרץ עכשיו"
-                              className="p-1 rounded hover:bg-white text-purple-700 disabled:opacity-30"
+                              className="p-1 rounded hover:bg-white text-[#7A3722] disabled:opacity-30"
                             >
                               {runningAgentId === a.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5" />}
                             </button>

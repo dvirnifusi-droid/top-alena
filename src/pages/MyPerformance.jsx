@@ -123,7 +123,7 @@ export default function MyPerformance() {
 
     if (isLoading) {
         return (
-            <div className="p-4 md:p-8 bg-gradient-to-br from-blue-50 to-indigo-100 min-h-screen" dir="rtl">
+            <div className="p-4 md:p-8 bg-gradient-to-br from-[#F4ECD8] to-[#F4ECD8] min-h-screen" dir="rtl">
                 <div className="max-w-6xl mx-auto">
                     <div className="mb-8">
                         <Skeleton className="h-10 w-64 mb-2" />
@@ -149,7 +149,7 @@ export default function MyPerformance() {
 
     if (!employee) {
         return (
-            <div className="p-4 md:p-8 bg-gradient-to-br from-blue-50 to-indigo-100 min-h-screen" dir="rtl">
+            <div className="p-4 md:p-8 bg-gradient-to-br from-[#F4ECD8] to-[#F4ECD8] min-h-screen" dir="rtl">
                 <div className="max-w-6xl mx-auto">
                     <Card className="text-center p-8 border-2 border-orange-200 bg-orange-50">
                         <AlertCircle className="w-16 h-16 mx-auto text-orange-500 mb-4" />
@@ -164,14 +164,14 @@ export default function MyPerformance() {
                                 
                                 <div className="space-y-3">
                                     <div className="border-r-4 border-blue-400 pr-3">
-                                        <h4 className="font-semibold text-blue-700">פתרון מהיר - צור פרופיל אוטומטי</h4>
+                                        <h4 className="font-semibold text-[#44512C]">פתרון מהיר - צור פרופיל אוטומטי</h4>
                                         <p className="text-sm text-gray-600 mb-2">
                                             נוכל ליצור עבורך פרופיל עובד אוטומטי עם הפרטים מחשבון הGoogle שלך
                                         </p>
                                         <Button 
                                             onClick={handleCreateEmployee}
                                             disabled={isCreating || !user?.email}
-                                            className="bg-blue-600 hover:bg-blue-700"
+                                            className="bg-[#44512C] hover:bg-[#44512C]"
                                         >
                                             {isCreating ? (
                                                 <>
@@ -193,7 +193,7 @@ export default function MyPerformance() {
                                     </div>
 
                                     <div className="border-r-4 border-purple-400 pr-3">
-                                        <h4 className="font-semibold text-purple-700">בדוק במחלקת עובדים</h4>
+                                        <h4 className="font-semibold text-[#7A3722]">בדוק במחלקת עובדים</h4>
                                         <p className="text-sm text-gray-600">
                                             יתכן שהמייל שלך רשום שונה במערכת העובדים
                                         </p>
@@ -208,12 +208,12 @@ export default function MyPerformance() {
     }
 
     return (
-        <div className="p-4 md:p-8 bg-gradient-to-br from-blue-50 to-indigo-100 min-h-screen" dir="rtl">
+        <div className="p-4 md:p-8 bg-gradient-to-br from-[#F4ECD8] to-[#F4ECD8] min-h-screen" dir="rtl">
             <div className="max-w-6xl mx-auto">
                 {/* Header */}
                 <div className="mb-8">
                     <div className="flex items-center gap-4 mb-2">
-                        <div className="w-12 h-12 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-full flex items-center justify-center shadow-lg">
+                        <div className="w-12 h-12 bg-gradient-to-br from-[#44512C] to-[#A04A2E] rounded-full flex items-center justify-center shadow-lg">
                             <span className="text-white font-bold text-lg">
                                 {employee.full_name.charAt(0).toUpperCase()}
                             </span>
@@ -238,18 +238,18 @@ export default function MyPerformance() {
                         </CardContent>
                     </Card>
 
-                    <Card className="bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200">
+                    <Card className="bg-gradient-to-br from-[#F4ECD8] to-[#F4ECD8] border-[#E8D9B5]">
                         <CardHeader className="flex flex-row items-center justify-between pb-3">
-                            <CardTitle className="text-sm font-medium text-blue-800">שעות עבודה</CardTitle>
-                            <Clock className="w-5 h-5 text-blue-600" />
+                            <CardTitle className="text-sm font-medium text-[#2E3819]">שעות עבודה</CardTitle>
+                            <Clock className="w-5 h-5 text-[#44512C]" />
                         </CardHeader>
                         <CardContent>
                             <div className="text-2xl font-bold text-blue-900">{monthlyStats.totalHours}</div>
-                            <p className="text-xs text-blue-700">שעות החודש</p>
+                            <p className="text-xs text-[#44512C]">שעות החודש</p>
                         </CardContent>
                     </Card>
 
-                    <Card className="bg-gradient-to-br from-yellow-50 to-amber-100 border-yellow-200">
+                    <Card className="bg-gradient-to-br from-[#FAF5E8] to-amber-100 border-yellow-200">
                         <CardHeader className="flex flex-row items-center justify-between pb-3">
                             <CardTitle className="text-sm font-medium text-yellow-800">דירוג מנהל</CardTitle>
                             <Star className="w-5 h-5 text-yellow-600" />
@@ -260,10 +260,10 @@ export default function MyPerformance() {
                         </CardContent>
                     </Card>
 
-                    <Card className="bg-gradient-to-br from-purple-50 to-purple-100 border-purple-200">
+                    <Card className="bg-gradient-to-br from-[#F4ECD8] to-[#F4ECD8] border-purple-200">
                         <CardHeader className="flex flex-row items-center justify-between pb-3">
-                            <CardTitle className="text-sm font-medium text-purple-800">עמידה ביעדים</CardTitle>
-                            <Target className="w-5 h-5 text-purple-600" />
+                            <CardTitle className="text-sm font-medium text-[#7A3722]">עמידה ביעדים</CardTitle>
+                            <Target className="w-5 h-5 text-[#A04A2E]" />
                         </CardHeader>
                         <CardContent>
                             <div className="text-2xl font-bold text-purple-900">{monthlyStats.targetAchievementRate}%</div>

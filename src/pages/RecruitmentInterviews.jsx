@@ -25,7 +25,7 @@ function MinScoreControl({ currentScore, onSaved }) {
     { label: '🔥 לחץ מקסימלי — קבל הרבה', val: 60, color: 'bg-red-100 text-red-700 border-red-300' },
     { label: '⚡ לחץ — קבל יותר', val: 70, color: 'bg-orange-100 text-orange-700 border-orange-300' },
     { label: '📅 רגיל', val: 80, color: 'bg-emerald-100 text-emerald-700 border-emerald-300' },
-    { label: '⭐ רק מעולים', val: 90, color: 'bg-indigo-100 text-indigo-700 border-indigo-300' },
+    { label: '⭐ רק מעולים', val: 90, color: 'bg-[#F4ECD8] text-[#7A3722] border-[#D9BD83]' },
   ];
   return (
     <div className="mt-4 pt-3 border-t border-indigo-200">
@@ -138,8 +138,8 @@ function daysFromNow(d) {
 
 const TONE_CLASSES = {
   today:     'bg-emerald-100 text-emerald-800 border-emerald-300',
-  soon:      'bg-blue-100 text-blue-800 border-blue-300',
-  this_week: 'bg-cyan-100 text-cyan-800 border-cyan-300',
+  soon:      'bg-[#F4ECD8] text-[#2E3819] border-[#D9BD83]',
+  this_week: 'bg-[#F4ECD8] text-cyan-800 border-[#D9BD83]',
   next_week: 'bg-amber-100 text-amber-800 border-amber-300',
   far:       'bg-red-100 text-red-800 border-red-300',
 };
@@ -293,7 +293,7 @@ export default function RecruitmentInterviews() {
 
       {/* Funnel dashboard — application pipeline with conversion % */}
       {inbox.funnel && (
-        <section className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-2xl shadow border border-indigo-200 p-4">
+        <section className="bg-gradient-to-br from-[#F4ECD8] to-[#F4ECD8] rounded-2xl shadow border border-indigo-200 p-4">
           <div className="flex items-center justify-between mb-3">
             <p className="font-black text-slate-800">📊 משפך הגיוס</p>
             <span className="text-xs text-slate-500">סה"כ במאגר: {inbox.funnel.total}</span>
@@ -302,11 +302,11 @@ export default function RecruitmentInterviews() {
           {(() => {
             const steps = [
               { label: 'התחילו', icon: '👋', val: inbox.funnel.started, color: 'bg-slate-100 text-slate-700' },
-              { label: 'נתנו טלפון', icon: '📞', val: inbox.funnel.gave_phone, color: 'bg-blue-100 text-blue-700' },
-              { label: 'בחרו תפקיד', icon: '💼', val: inbox.funnel.gave_role, color: 'bg-cyan-100 text-cyan-700' },
+              { label: 'נתנו טלפון', icon: '📞', val: inbox.funnel.gave_phone, color: 'bg-[#F4ECD8] text-[#44512C]' },
+              { label: 'בחרו תפקיד', icon: '💼', val: inbox.funnel.gave_role, color: 'bg-[#F4ECD8] text-[#8A6E3A]' },
               { label: 'סיימו סינון', icon: '✔️', val: inbox.funnel.completed_screening, color: 'bg-emerald-100 text-emerald-700' },
               { label: 'מועמדים מעולים', icon: '🌟', val: inbox.funnel.approved, color: 'bg-amber-100 text-amber-700' },
-              { label: 'ראיון נקבע', icon: '📅', val: inbox.funnel.interview_scheduled, color: 'bg-purple-100 text-purple-700' },
+              { label: 'ראיון נקבע', icon: '📅', val: inbox.funnel.interview_scheduled, color: 'bg-[#F4ECD8] text-[#7A3722]' },
               { label: 'התקבלו', icon: '🎉', val: inbox.funnel.hired, color: 'bg-green-200 text-green-800' },
             ];
             return (
@@ -366,7 +366,7 @@ export default function RecruitmentInterviews() {
                     <div
                       key={t.date}
                       title={`${t.date}: ${t.count}`}
-                      className="flex-1 bg-indigo-300 hover:bg-indigo-500 transition-colors rounded-t"
+                      className="flex-1 bg-[#D9BD83] hover:bg-[#A04A2E] transition-colors rounded-t"
                       style={{ height: `${(t.count / max) * 100}%`, minHeight: t.count > 0 ? '4px' : '0' }}
                     />
                   ))}
@@ -720,7 +720,7 @@ export default function RecruitmentInterviews() {
                     <div className="flex-1 min-w-[160px]">
                       <p className="font-bold text-slate-800">{c.full_name || 'ללא שם'} {c.age && <span className="text-slate-400 text-xs">({c.age})</span>}</p>
                       <p className="text-xs text-slate-500">{c.role_applied || '—'} · {c.city || '-'} · 📞 {c.phone || '-'}</p>
-                      {c.ai_summary && <p className="text-xs text-indigo-700 bg-indigo-50 px-2 py-1 mt-1 rounded">🤖 {String(c.ai_summary).slice(0, 200)}</p>}
+                      {c.ai_summary && <p className="text-xs text-[#7A3722] bg-[#F4ECD8] px-2 py-1 mt-1 rounded">🤖 {String(c.ai_summary).slice(0, 200)}</p>}
                       {c.notes && <p className="text-xs text-slate-600 mt-1 line-clamp-2">💬 {c.notes}</p>}
                     </div>
                     {c.score != null && <span className="text-xs font-bold bg-slate-200 text-slate-700 px-2 py-1 rounded-full">ציון: {c.score}</span>}
@@ -753,7 +753,7 @@ export default function RecruitmentInterviews() {
             </div>
             <div className="overflow-y-auto p-4 space-y-2 flex-1">
               {(transcriptCand.transcript || []).map((m, i) => (
-                <div key={i} className={`p-3 rounded-xl text-sm ${m.role === 'user' ? 'bg-blue-50 mr-12' : 'bg-slate-50 ml-12'}`}>
+                <div key={i} className={`p-3 rounded-xl text-sm ${m.role === 'user' ? 'bg-[#F4ECD8] mr-12' : 'bg-slate-50 ml-12'}`}>
                   <p className="text-[10px] uppercase font-bold text-slate-400 mb-1">{m.role === 'user' ? 'המועמד' : 'הסוכן'}</p>
                   <p className="whitespace-pre-wrap text-slate-800">{m.content}</p>
                 </div>
@@ -781,13 +781,13 @@ function TraineeCard({ cand, actionId, openSlotCand, slots, slotsLoading, onOpen
   })();
 
   return (
-    <div className="border-2 border-indigo-100 rounded-xl p-3 bg-indigo-50/30">
+    <div className="border-2 border-[#F4ECD8] rounded-xl p-3 bg-[#F4ECD8]/30">
       <div className="flex flex-wrap items-center gap-2">
         <div className="flex-1 min-w-[160px]">
           <p className="font-bold text-slate-800">{cand.full_name}</p>
           <p className="text-xs text-slate-500">{cand.role_applied || '—'} · {phone || '-'}</p>
         </div>
-        <span className="text-xs px-2 py-1 rounded-full font-bold bg-indigo-100 text-indigo-700">{stageLabel(stage)}</span>
+        <span className="text-xs px-2 py-1 rounded-full font-bold bg-[#F4ECD8] text-[#7A3722]">{stageLabel(stage)}</span>
         {stage === 'training' && (
           <span className="text-xs px-2 py-1 rounded-full font-bold bg-emerald-100 text-emerald-700">
             התלמדות #{sessions}
@@ -803,7 +803,7 @@ function TraineeCard({ cand, actionId, openSlotCand, slots, slotsLoading, onOpen
       {/* Stage-specific actions */}
       <div className="mt-3 flex flex-wrap gap-2">
         {stage === 'hired' && (
-          <button disabled={busy} onClick={() => onAdvance(cand, 'learning_menu')} className="text-xs bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-bold px-3 py-1.5 rounded-lg">
+          <button disabled={busy} onClick={() => onAdvance(cand, 'learning_menu')} className="text-xs bg-[#A04A2E] hover:bg-[#7A3722] disabled:opacity-50 text-white font-bold px-3 py-1.5 rounded-lg">
             📖 התחל ללמד תפריט
           </button>
         )}
@@ -841,7 +841,7 @@ function TraineeCard({ cand, actionId, openSlotCand, slots, slotsLoading, onOpen
 
         {stage === 'training' && (
           <>
-            <button disabled={busy} onClick={() => onAddTraining(cand)} className="text-xs bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-bold px-3 py-1.5 rounded-lg">
+            <button disabled={busy} onClick={() => onAddTraining(cand)} className="text-xs bg-[#A04A2E] hover:bg-[#7A3722] disabled:opacity-50 text-white font-bold px-3 py-1.5 rounded-lg">
               ✓ סיים התלמדות #{sessions + 1}
             </button>
             <button disabled={busy} onClick={() => onAdvance(cand, 'active_waiter')} className="text-xs bg-slate-800 hover:bg-slate-900 disabled:opacity-50 text-white font-bold px-3 py-1.5 rounded-lg">

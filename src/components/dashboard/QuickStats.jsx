@@ -3,12 +3,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from '@/components/ui/skeleton';
 
 const colorSchemes = {
-  blue: { bg: 'bg-blue-100', text: 'text-blue-800', iconBg: 'bg-blue-500' },
+  blue: { bg: 'bg-[#F4ECD8]', text: 'text-[#2E3819]', iconBg: 'bg-[#44512C]' },
   green: { bg: 'bg-green-100', text: 'text-green-800', iconBg: 'bg-green-500' },
   orange: { bg: 'bg-orange-100', text: 'text-orange-800', iconBg: 'bg-orange-500' },
-  purple: { bg: 'bg-purple-100', text: 'text-purple-800', iconBg: 'bg-purple-500' },
+  purple: { bg: 'bg-[#F4ECD8]', text: 'text-[#7A3722]', iconBg: 'bg-[#A04A2E]' },
   red: { bg: 'bg-red-100', text: 'text-red-800', iconBg: 'bg-red-500' },
-  yellow: { bg: 'bg-yellow-100', text: 'text-yellow-800', iconBg: 'bg-yellow-500' },
+  yellow: { bg: 'bg-[#F4ECD8]', text: 'text-yellow-800', iconBg: 'bg-yellow-500' },
 };
 
 export default function QuickStats({ title, value, icon: Icon, color = 'blue', trend, isLoading }) {

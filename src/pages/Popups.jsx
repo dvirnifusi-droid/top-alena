@@ -211,7 +211,7 @@ function PopupsInner() {
           <h1 className="text-2xl font-bold text-gray-900">ניהול פופ-אפים</h1>
           <p className="text-gray-500 text-sm mt-1">הודעות מתוזמנות לעובדים ולמשתמשים</p>
         </div>
-        <button onClick={openNew} className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 font-medium">
+        <button onClick={openNew} className="flex items-center gap-2 bg-[#44512C] text-white px-4 py-2 rounded-lg hover:bg-[#44512C] font-medium">
           <Plus size={18} /> פופ-אפ חדש
         </button>
       </div>
@@ -289,7 +289,7 @@ function PopupsInner() {
                         className="flex-1 border rounded-lg px-3 py-2 text-sm"
                         placeholder="הדבק קישור או העלה קובץ"
                       />
-                      <label className={`flex items-center gap-1 px-3 py-2 rounded-lg border text-sm cursor-pointer ${uploadingImage ? 'bg-gray-100 text-gray-400' : 'bg-blue-50 text-blue-700 hover:bg-blue-100 border-blue-200'}`}>
+                      <label className={`flex items-center gap-1 px-3 py-2 rounded-lg border text-sm cursor-pointer ${uploadingImage ? 'bg-gray-100 text-gray-400' : 'bg-[#F4ECD8] text-[#44512C] hover:bg-[#F4ECD8] border-[#E8D9B5]'}`}>
                         <Upload size={14} /> {uploadingImage ? 'מעלה...' : 'העלה'}
                         <input
                           type="file"
@@ -328,7 +328,7 @@ function PopupsInner() {
                     <button
                       key={d.value}
                       onClick={() => set('display_type', d.value)}
-                      className={`border rounded-xl p-3 text-center transition-all ${form.display_type === d.value ? 'border-blue-500 bg-blue-50' : 'hover:border-gray-300'}`}
+                      className={`border rounded-xl p-3 text-center transition-all ${form.display_type === d.value ? 'border-[#44512C] bg-[#F4ECD8]' : 'hover:border-gray-300'}`}
                     >
                       <div className="text-2xl mb-1">{d.icon}</div>
                       <div className="text-xs font-medium">{d.label}</div>
@@ -345,7 +345,7 @@ function PopupsInner() {
                     <button
                       key={s.value}
                       onClick={() => set('schedule_type', s.value)}
-                      className={`border rounded-lg px-3 py-2 text-sm text-right transition-all ${form.schedule_type === s.value ? 'border-blue-500 bg-blue-50 font-medium' : 'hover:border-gray-300'}`}
+                      className={`border rounded-lg px-3 py-2 text-sm text-right transition-all ${form.schedule_type === s.value ? 'border-[#44512C] bg-[#F4ECD8] font-medium' : 'hover:border-gray-300'}`}
                     >
                       {s.label}
                     </button>
@@ -375,7 +375,7 @@ function PopupsInner() {
                     <button
                       key={a.value}
                       onClick={() => set('target_audience', a.value)}
-                      className={`border rounded-lg px-3 py-2 text-sm text-right transition-all ${form.target_audience === a.value ? 'border-blue-500 bg-blue-50 font-medium' : 'hover:border-gray-300'}`}
+                      className={`border rounded-lg px-3 py-2 text-sm text-right transition-all ${form.target_audience === a.value ? 'border-[#44512C] bg-[#F4ECD8] font-medium' : 'hover:border-gray-300'}`}
                     >
                       {a.label}
                     </button>
@@ -388,7 +388,7 @@ function PopupsInner() {
                       {ROLE_OPTIONS.map(r => {
                         const checked = form.target_roles?.includes(r.value);
                         return (
-                          <label key={r.value} className={`flex items-center gap-2 border rounded-lg px-3 py-2 text-sm cursor-pointer transition-colors ${checked ? 'border-blue-500 bg-blue-50 font-medium' : 'border-gray-200 bg-white hover:border-gray-300'}`}>
+                          <label key={r.value} className={`flex items-center gap-2 border rounded-lg px-3 py-2 text-sm cursor-pointer transition-colors ${checked ? 'border-[#44512C] bg-[#F4ECD8] font-medium' : 'border-gray-200 bg-white hover:border-gray-300'}`}>
                             <input
                               type="checkbox"
                               checked={!!checked}
@@ -429,7 +429,7 @@ function PopupsInner() {
                               {emps.map(emp => {
                                 const checked = form.target_user_ids?.includes(emp.id);
                                 return (
-                                  <label key={emp.id} className={`flex items-center gap-2 border rounded-md px-2 py-1 text-sm cursor-pointer transition-colors ${checked ? 'border-blue-500 bg-blue-50 font-medium' : 'border-gray-200 bg-white hover:border-gray-300'}`}>
+                                  <label key={emp.id} className={`flex items-center gap-2 border rounded-md px-2 py-1 text-sm cursor-pointer transition-colors ${checked ? 'border-[#44512C] bg-[#F4ECD8] font-medium' : 'border-gray-200 bg-white hover:border-gray-300'}`}>
                                     <input
                                       type="checkbox"
                                       checked={!!checked}
@@ -472,7 +472,7 @@ function PopupsInner() {
                     <button
                       key={b.value}
                       onClick={() => set('seen_behavior', b.value)}
-                      className={`border rounded-lg px-3 py-2 text-sm text-center transition-all ${form.seen_behavior === b.value ? 'border-blue-500 bg-blue-50 font-medium' : 'hover:border-gray-300'}`}
+                      className={`border rounded-lg px-3 py-2 text-sm text-center transition-all ${form.seen_behavior === b.value ? 'border-[#44512C] bg-[#F4ECD8] font-medium' : 'hover:border-gray-300'}`}
                     >
                       {b.label}
                     </button>
@@ -492,7 +492,7 @@ function PopupsInner() {
                 <label className="text-sm font-medium text-gray-700">פעיל מיד</label>
                 <button
                   onClick={() => set('is_active', !form.is_active)}
-                  className={`relative w-12 h-6 rounded-full transition-colors ${form.is_active ? 'bg-blue-500' : 'bg-gray-300'}`}
+                  className={`relative w-12 h-6 rounded-full transition-colors ${form.is_active ? 'bg-[#44512C]' : 'bg-gray-300'}`}
                 >
                   <span className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-all ${form.is_active ? 'left-7' : 'left-1'}`} />
                 </button>
@@ -500,7 +500,7 @@ function PopupsInner() {
             </div>
 
             <div className="sticky bottom-0 bg-white border-t px-6 py-4 flex gap-3">
-              <button onClick={save} disabled={saving} className="flex-1 bg-blue-600 text-white py-2.5 rounded-xl font-semibold hover:bg-blue-700 disabled:opacity-50">
+              <button onClick={save} disabled={saving} className="flex-1 bg-[#44512C] text-white py-2.5 rounded-xl font-semibold hover:bg-[#44512C] disabled:opacity-50">
                 {saving ? 'שומר...' : editing ? 'שמור שינויים' : 'צור פופ-אפ'}
               </button>
               <button onClick={() => setShowForm(false)} className="px-6 py-2.5 border rounded-xl text-gray-600 hover:bg-gray-50">

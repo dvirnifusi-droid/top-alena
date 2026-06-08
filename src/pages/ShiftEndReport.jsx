@@ -100,7 +100,7 @@ const ZReportScanner = ({ onScanComplete, onDataExtracted, children }) => {
                     <div className="flex items-center justify-center p-6 border-2 border-dashed border-gray-300 rounded-lg">
                         <input id="z-report-scan" type="file" accept="image/*" onChange={handleFileChange} className="hidden" disabled={isScanning} />
                         <label htmlFor="z-report-scan" className={`flex flex-col items-center justify-center gap-2 cursor-pointer ${isScanning ? 'opacity-50' : ''}`}>
-                            {isScanning ? <Loader2 className="w-8 h-8 animate-spin text-purple-600" /> : <Camera className="w-8 h-8 text-purple-600" />}
+                            {isScanning ? <Loader2 className="w-8 h-8 animate-spin text-[#A04A2E]" /> : <Camera className="w-8 h-8 text-[#A04A2E]" />}
                             <span className="text-sm font-medium">{isScanning ? 'סורק...' : 'צלם או העלה תמונה'}</span>
                         </label>
                     </div>
@@ -371,7 +371,7 @@ export default function ShiftEndReportPage() {
                            {isSaving ? <Loader2 className="w-4 h-4 ml-2 animate-spin" /> : <Save className="w-4 h-4 ml-2" />} שמור דוח
                         </Button>
                         <ZReportScanner onScanComplete={uri => updateReportData('z_report_image_uri', uri)} onDataExtracted={handleDataExtracted}>
-                           <Button variant="outline" className="text-purple-600 border-purple-200 hover:bg-purple-50"><Camera className="w-4 h-4 ml-2" /> סרוק דוח Z</Button>
+                           <Button variant="outline" className="text-[#A04A2E] border-purple-200 hover:bg-[#F4ECD8]"><Camera className="w-4 h-4 ml-2" /> סרוק דוח Z</Button>
                         </ZReportScanner>
                         <DeliveryReportScanner onDataExtracted={handleDataExtracted}>
                              <Button variant="outline" className="text-orange-600 border-orange-200 hover:bg-orange-50"><Truck className="w-4 h-4 ml-2" /> סרוק משלוחים</Button>
@@ -390,7 +390,7 @@ export default function ShiftEndReportPage() {
                                     onClick={() => setActiveTab(tab.id)}
                                     className={`py-3 px-4 sm:px-6 font-medium text-sm transition-colors duration-200 ${
                                         activeTab === tab.id
-                                            ? 'border-b-2 border-blue-600 text-blue-600'
+                                            ? 'border-b-2 border-[#44512C] text-[#44512C]'
                                             : 'border-b-2 border-transparent text-gray-500 hover:text-gray-700'
                                     }`}
                                 >

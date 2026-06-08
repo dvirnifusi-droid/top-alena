@@ -29,10 +29,10 @@ export default function RecentFeedbackWidget() {
       <Card className="hover:shadow-lg transition-all cursor-pointer hover:scale-[1.02]">
         <CardHeader className="pb-2 pt-4 px-5">
           <CardTitle className="text-sm font-bold flex items-center gap-2">
-            <MessageSquare className="w-4 h-4 text-pink-500" />
+            <MessageSquare className="w-4 h-4 text-[#A04A2E]" />
             סקרי לקוחות אחרונים
             {avgRating > 0 && (
-              <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full flex items-center gap-1 mr-auto">
+              <span className="text-xs bg-[#F4ECD8] text-yellow-700 px-2 py-0.5 rounded-full flex items-center gap-1 mr-auto">
                 <Star className="w-3 h-3" />{avgRating}
               </span>
             )}

@@ -66,10 +66,10 @@ export default function MessageTemplates() {
         <div className="p-4 md:p-8" dir="rtl">
             <div className="flex justify-between items-center mb-6">
                 <div className="flex items-center gap-2">
-                    <FileText className="w-6 h-6 text-purple-600" />
+                    <FileText className="w-6 h-6 text-[#A04A2E]" />
                     <h1 className="text-2xl font-bold">תבניות הודעה</h1>
                 </div>
-                <Button onClick={openNew} className="bg-purple-600 hover:bg-purple-700 text-white">
+                <Button onClick={openNew} className="bg-[#A04A2E] hover:bg-[#7A3722] text-white">
                     <Plus className="w-4 h-4 ml-1" /> תבנית חדשה
                 </Button>
             </div>
@@ -84,7 +84,7 @@ export default function MessageTemplates() {
 
             {loading ? (
                 <div className="flex justify-center items-center h-48">
-                    <Loader2 className="w-8 h-8 animate-spin text-purple-600" />
+                    <Loader2 className="w-8 h-8 animate-spin text-[#A04A2E]" />
                 </div>
             ) : filtered.length === 0 ? (
                 <div className="text-center text-gray-400 py-20">
@@ -98,7 +98,7 @@ export default function MessageTemplates() {
                             <CardHeader className="pb-2">
                                 <div className="flex justify-between items-start">
                                     <CardTitle className="text-base">{t.name}</CardTitle>
-                                    <Badge className={t.type === 'email' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'}>
+                                    <Badge className={t.type === 'email' ? 'bg-[#F4ECD8] text-[#44512C]' : 'bg-green-100 text-green-700'}>
                                         {t.type === 'email' ? <><Mail className="w-3 h-3 ml-1" />מייל</> : <><MessageSquare className="w-3 h-3 ml-1" />SMS</>}
                                     </Badge>
                                 </div>
@@ -159,7 +159,7 @@ export default function MessageTemplates() {
                                 className="mt-1"
                             />
                         </div>
-                        <Button onClick={handleSave} disabled={saving || !form.name || !form.body} className="w-full bg-purple-600 hover:bg-purple-700">
+                        <Button onClick={handleSave} disabled={saving || !form.name || !form.body} className="w-full bg-[#A04A2E] hover:bg-[#7A3722]">
                             {saving ? <><Loader2 className="w-4 h-4 animate-spin ml-2" />שומר...</> : 'שמור תבנית'}
                         </Button>
                     </div>

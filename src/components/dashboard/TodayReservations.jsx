@@ -14,8 +14,8 @@ const mockReservations = [
 
 const statusConfig = {
     confirmed: { label: "אושר", color: "bg-green-100 text-green-800" },
-    pending: { label: "ממתין", color: "bg-yellow-100 text-yellow-800" },
-    seated: { label: "הושב", color: "bg-blue-100 text-blue-800" }
+    pending: { label: "ממתין", color: "bg-[#F4ECD8] text-yellow-800" },
+    seated: { label: "הושב", color: "bg-[#F4ECD8] text-[#2E3819]" }
 };
 
 export default function TodayReservations({ reservations = [], isLoading = false }) {
@@ -72,7 +72,7 @@ export default function TodayReservations({ reservations = [], isLoading = false
                     </div>
                 ) : (
                     displayReservations.map((reservation) => (
-                        <div key={reservation.id} className="p-3 bg-slate-50/70 rounded-lg hover:bg-slate-100/70 transition-colors">
+                        <div key={reservation.id} className="p-3 bg-[#FAF5E8]/70 rounded-lg hover:bg-slate-100/70 transition-colors">
                             <div className="flex items-center justify-between mb-2">
                                 <div className="flex items-center gap-2">
                                     <Clock className="w-4 h-4 text-slate-500" />

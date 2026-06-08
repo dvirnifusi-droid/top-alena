@@ -155,9 +155,9 @@ const DeliveryScanner = ({ onDeliveryData }) => {
                     className={`flex flex-col items-center justify-center gap-2 cursor-pointer ${scanning ? 'opacity-50' : ''}`}
                 >
                     {scanning ? (
-                        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+                        <Loader2 className="w-8 h-8 animate-spin text-[#44512C]" />
                     ) : (
-                        <Smartphone className="w-8 h-8 text-blue-600" />
+                        <Smartphone className="w-8 h-8 text-[#44512C]" />
                     )}
                     <span className="text-sm font-medium">
                         {scanning ? 'סורק נתוני משלוחים...' : 'צלם דוח משלוחים'}
@@ -586,8 +586,8 @@ export default function ShiftEndReportDetailsPage() {
                                                     <p className="text-xl font-bold">{deliveryData.cibus_deliveries || 0}</p>
                                                 )}
                                             </div>
-                                            <div className="text-center p-3 bg-blue-50 rounded-lg">
-                                                <p className="text-sm text-blue-600">Ten Bis</p>
+                                            <div className="text-center p-3 bg-[#F4ECD8] rounded-lg">
+                                                <p className="text-sm text-[#44512C]">Ten Bis</p>
                                                 {isEditing ? (
                                                     <Input
                                                         type="number"
@@ -599,8 +599,8 @@ export default function ShiftEndReportDetailsPage() {
                                                     <p className="text-xl font-bold">{deliveryData.ten_bis_deliveries || 0}</p>
                                                 )}
                                             </div>
-                                            <div className="text-center p-3 bg-purple-50 rounded-lg">
-                                                <p className="text-sm text-purple-600">ValueCard</p>
+                                            <div className="text-center p-3 bg-[#F4ECD8] rounded-lg">
+                                                <p className="text-sm text-[#A04A2E]">ValueCard</p>
                                                 {isEditing ? (
                                                     <Input
                                                         type="number"
@@ -657,8 +657,8 @@ export default function ShiftEndReportDetailsPage() {
                                                             <p className="text-2xl font-bold text-green-800">₪{(deliveryData.credit_deliveries_amount || 0).toLocaleString()}</p>
                                                         )}
                                                     </div>
-                                                    <div className="text-center p-4 bg-blue-100 rounded-lg border border-blue-200">
-                                                        <p className="text-sm text-blue-700 font-medium">סך הכל כסף משלוחים במזומן</p>
+                                                    <div className="text-center p-4 bg-[#F4ECD8] rounded-lg border border-[#E8D9B5]">
+                                                        <p className="text-sm text-[#44512C] font-medium">סך הכל כסף משלוחים במזומן</p>
                                                         {isEditing ? (
                                                             <Input
                                                                 type="number"
@@ -667,11 +667,11 @@ export default function ShiftEndReportDetailsPage() {
                                                                 className="h-9 mt-1 font-bold text-lg p-1 text-center"
                                                             />
                                                         ) : (
-                                                            <p className="text-2xl font-bold text-blue-800">₪{(deliveryData.cash_deliveries_amount || 0).toLocaleString()}</p>
+                                                            <p className="text-2xl font-bold text-[#2E3819]">₪{(deliveryData.cash_deliveries_amount || 0).toLocaleString()}</p>
                                                         )}
                                                     </div>
-                                                    <div className="text-center p-4 bg-purple-100 rounded-lg border border-purple-200">
-                                                        <p className="text-sm text-purple-700 font-medium">סך הכל כסף ממשלוחים</p>
+                                                    <div className="text-center p-4 bg-[#F4ECD8] rounded-lg border border-purple-200">
+                                                        <p className="text-sm text-[#7A3722] font-medium">סך הכל כסף ממשלוחים</p>
                                                         {isEditing ? (
                                                             <Input
                                                                 type="number"
@@ -680,7 +680,7 @@ export default function ShiftEndReportDetailsPage() {
                                                                 className="h-9 mt-1 font-bold text-lg p-1 text-center"
                                                             />
                                                         ) : (
-                                                            <p className="text-2xl font-bold text-purple-800">₪{(deliveryData.total_deliveries_amount || 0).toLocaleString()}</p>
+                                                            <p className="text-2xl font-bold text-[#7A3722]">₪{(deliveryData.total_deliveries_amount || 0).toLocaleString()}</p>
                                                         )}
                                                     </div>
                                                 </div>

@@ -61,7 +61,7 @@ function VoiceTestInner() {
                 <h1 className="text-2xl font-black">🎤 בדיקת פקודות קוליות</h1>
                 <button
                     onClick={testTTS}
-                    className="bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold px-3 py-2 rounded-xl"
+                    className="bg-[#A04A2E] hover:bg-[#7A3722] text-white text-xs font-bold px-3 py-2 rounded-xl"
                 >🔊 בדיקת קול (TTS)</button>
             </div>
             <p className="text-sm text-gray-600">
@@ -75,12 +75,12 @@ function VoiceTestInner() {
                     onChange={e => setText(e.target.value)}
                     onKeyDown={e => e.key === 'Enter' && test()}
                     placeholder="הקלד פקודה לבדיקה..."
-                    className="flex-1 text-sm border-2 border-gray-300 rounded-xl px-3 py-2 focus:outline-none focus:border-blue-500"
+                    className="flex-1 text-sm border-2 border-gray-300 rounded-xl px-3 py-2 focus:outline-none focus:border-[#44512C]"
                 />
                 <button
                     onClick={() => test()}
                     disabled={loading || !text.trim()}
-                    className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 text-white font-black px-5 py-2 rounded-xl text-sm"
+                    className="bg-[#44512C] hover:bg-[#44512C] disabled:bg-gray-300 text-white font-black px-5 py-2 rounded-xl text-sm"
                 >{loading ? 'בודק...' : '▶ בדוק'}</button>
             </div>
 
@@ -113,7 +113,7 @@ function VoiceTestInner() {
                                 key={c}
                                 onClick={() => { setText(c); test(c); }}
                                 disabled={loading}
-                                className="text-xs font-bold px-2.5 py-1 rounded-lg border border-gray-200 hover:border-blue-400 hover:bg-blue-50 disabled:opacity-40"
+                                className="text-xs font-bold px-2.5 py-1 rounded-lg border border-gray-200 hover:border-blue-400 hover:bg-[#F4ECD8] disabled:opacity-40"
                             >{c}</button>
                         ))}
                     </div>

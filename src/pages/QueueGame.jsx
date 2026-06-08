@@ -95,15 +95,15 @@ function TriviaGame({ playerName, entryId, allQuestions }) {
           <div className="text-5xl mb-3">{correct >= 5 ? '🏆' : correct >= 3 ? '🎉' : '💪'}</div>
           <p className="font-black text-2xl text-gray-800">{playerName}</p>
           <p className="text-gray-500 text-sm mb-4">{correct}/{TOTAL_Q} נכונות</p>
-          <div className="bg-purple-50 rounded-2xl p-4 mb-4">
-            <p className="text-4xl font-black text-purple-700">{score}</p>
-            <p className="text-purple-500 text-sm">נקודות</p>
+          <div className="bg-[#F4ECD8] rounded-2xl p-4 mb-4">
+            <p className="text-4xl font-black text-[#7A3722]">{score}</p>
+            <p className="text-[#A04A2E] text-sm">נקודות</p>
           </div>
           <button
             onClick={() => navigator.share ? navigator.share({ title: `${score} נקודות בטריוויה של עלינא!`, url: shareUrl }) : (navigator.clipboard.writeText(shareUrl), alert('הועתק!'))}
-            className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 rounded-2xl text-sm mb-2 transition-all"
+            className="w-full bg-[#A04A2E] hover:bg-[#7A3722] text-white font-bold py-3 rounded-2xl text-sm mb-2 transition-all"
           >📤 שתף את הניקוד</button>
-          <button onClick={() => setPhase(null)} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-2xl text-sm mb-2 transition-all">🎮 המשך לשחק</button>
+          <button onClick={() => setPhase(null)} className="w-full bg-[#44512C] hover:bg-[#44512C] text-white font-bold py-3 rounded-2xl text-sm mb-2 transition-all">🎮 המשך לשחק</button>
           <button onClick={() => window.history.back()} className="w-full bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold py-3 rounded-2xl text-sm transition-all">🔙 חזור לתור</button>
         </div>
         <div className="bg-white/10 backdrop-blur rounded-3xl p-4 w-full">
@@ -111,9 +111,9 @@ function TriviaGame({ playerName, entryId, allQuestions }) {
           {leaderboard.length === 0 ? <p className="text-white/50 text-center text-sm">אין עדיין שחקנים...</p> : (
             <div className="space-y-2">
               {leaderboard.map((s, i) => (
-                <div key={s.id} className={`flex items-center justify-between px-4 py-2.5 rounded-2xl ${s.player_name === playerName ? 'bg-purple-400/40 border border-purple-300' : 'bg-white/10'}`}>
+                <div key={s.id} className={`flex items-center justify-between px-4 py-2.5 rounded-2xl ${s.player_name === playerName ? 'bg-purple-400/40 border border-[#D9BD83]' : 'bg-white/10'}`}>
                   <span className="text-white font-bold text-sm">{getRankEmoji(i)} {s.player_name}</span>
-                  <span className="text-yellow-300 font-black">{s.score}</span>
+                  <span className="text-[#D9BD83] font-black">{s.score}</span>
                 </div>
               ))}
             </div>
@@ -185,8 +185,8 @@ export default function QueueGame() {
   const shareUrl = `${window.location.origin}/QueueGame?entry=${entryId}&name=${encodeURIComponent(playerName)}`;
 
   const GAMES = [
-    { id: 'trivia', emoji: '🧠', title: 'טריוויה', desc: 'שאלות על המסעדה — תתחרו בניקוד!', color: 'from-purple-600 to-indigo-600' },
-    { id: 'tictactoe', emoji: '✕○', title: 'איקס עיגול', desc: 'שחק נגד המחשב', color: 'from-emerald-500 to-teal-600' },
+    { id: 'trivia', emoji: '🧠', title: 'טריוויה', desc: 'שאלות על המסעדה — תתחרו בניקוד!', color: 'from-[#A04A2E] to-[#A04A2E]' },
+    { id: 'tictactoe', emoji: '✕○', title: 'איקס עיגול', desc: 'שחק נגד המחשב', color: 'from-emerald-500 to-[#44512C]' },
     { id: 'setup', emoji: '🎪', title: 'משחקי קבוצה', desc: 'גלגל מזל ושאלות מחדדות', color: 'from-amber-500 to-orange-600' },
   ];
 
@@ -198,7 +198,7 @@ export default function QueueGame() {
           <div className="text-center mb-8">
             <div className="text-6xl mb-3 animate-bounce">🎮</div>
             <h1 className="text-3xl font-black text-white">משחקי ממתינים</h1>
-            <p className="text-purple-300 mt-1">שלום, {playerName}! בחר משחק 👇</p>
+            <p className="text-[#D9BD83] mt-1">שלום, {playerName}! בחר משחק 👇</p>
           </div>
 
           <div className="w-full max-w-sm space-y-4 mb-6">
@@ -273,7 +273,7 @@ export default function QueueGame() {
         <div className="w-full max-w-sm">
           <div className="text-center mb-6">
             <h2 className="text-2xl font-black text-white">✕○ איקס עיגול</h2>
-            <p className="text-purple-300 text-sm">אתה X, המחשב O</p>
+            <p className="text-[#D9BD83] text-sm">אתה X, המחשב O</p>
           </div>
           <TicTacToe playerName={playerName} onBack={() => setGame(null)} />
         </div>

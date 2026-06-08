@@ -201,7 +201,7 @@ export default function StoriesArchive() {
               <div className="grid grid-cols-3 gap-3">
                 <Card><CardContent className="p-3 text-center"><Eye className="w-5 h-5 mx-auto text-muted-foreground mb-1" /><div className="font-bold text-lg">{selectedStory.views?.length || 0}</div><div className="text-xs text-muted-foreground">צפיות</div></CardContent></Card>
                 <Card><CardContent className="p-3 text-center"><Heart className="w-5 h-5 mx-auto text-red-500 mb-1" /><div className="font-bold text-lg">{selectedStory.likes?.length || 0}</div><div className="text-xs text-muted-foreground">לייקים</div></CardContent></Card>
-                <Card><CardContent className="p-3 text-center"><MessageCircle className="w-5 h-5 mx-auto text-blue-500 mb-1" /><div className="font-bold text-lg">{selectedStory.comments?.length || 0}</div><div className="text-xs text-muted-foreground">תגובות</div></CardContent></Card>
+                <Card><CardContent className="p-3 text-center"><MessageCircle className="w-5 h-5 mx-auto text-[#44512C] mb-1" /><div className="font-bold text-lg">{selectedStory.comments?.length || 0}</div><div className="text-xs text-muted-foreground">תגובות</div></CardContent></Card>
               </div>
 
               {/* Comments */}
@@ -225,7 +225,7 @@ export default function StoriesArchive() {
                   <h3 className="font-semibold text-sm">שאלות</h3>
                   <div className="space-y-2 max-h-48 overflow-y-auto">
                     {selectedStory.questions.map((q, i) => (
-                      <div key={i} className="bg-blue-50 rounded p-2 text-sm">
+                      <div key={i} className="bg-[#F4ECD8] rounded p-2 text-sm">
                         <div className="font-medium text-xs">{q.employee_name}</div>
                         <div className="text-muted-foreground">{q.text}</div>
                       </div>

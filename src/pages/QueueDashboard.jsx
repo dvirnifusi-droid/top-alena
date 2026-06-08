@@ -36,8 +36,8 @@ function isGuestFarAway(entry) {
 }
 
 const STATUS_LABELS = {
-  pending: { label: 'ממתין לאישור', color: 'bg-yellow-100 text-yellow-800' },
-  active: { label: 'פעיל בתור', color: 'bg-blue-100 text-blue-800' },
+  pending: { label: 'ממתין לאישור', color: 'bg-[#F4ECD8] text-yellow-800' },
+  active: { label: 'פעיל בתור', color: 'bg-[#F4ECD8] text-[#2E3819]' },
   seated: { label: 'הוּשב', color: 'bg-green-100 text-green-800' },
   abandoned: { label: 'נטש', color: 'bg-red-100 text-red-800' },
 };
@@ -51,12 +51,12 @@ function WaitTime({ timestamp_approved }) {
     const t = setInterval(update, 30000);
     return () => clearInterval(t);
   }, [timestamp_approved]);
-  return <span className="text-blue-600 font-semibold">{mins} דק'</span>;
+  return <span className="text-[#44512C] font-semibold">{mins} דק'</span>;
 }
 
 function PartySizeIcon({ size }) {
-  if (size <= 2) return <span className="text-pink-500">👫</span>;
-  if (size === 3) return <span className="text-purple-500">👨‍👩‍👦</span>;
+  if (size <= 2) return <span className="text-[#A04A2E]">👫</span>;
+  if (size === 3) return <span className="text-[#A04A2E]">👨‍👩‍👦</span>;
   return <span className="text-orange-500">👨‍👩‍👧‍👦</span>;
 }
 
@@ -587,7 +587,7 @@ export default function QueueDashboard() {
               </div>
             </div>
             <div className="bg-white rounded-xl p-2 border border-emerald-200">
-              <p className="text-xs text-blue-600 break-all">{qrUrl}</p>
+              <p className="text-xs text-[#44512C] break-all">{qrUrl}</p>
             </div>
             <button
               onClick={() => navigator.clipboard.writeText(qrUrl)}
@@ -606,16 +606,16 @@ export default function QueueDashboard() {
 
       {/* סטטיסטיקה */}
       <div className="grid grid-cols-3 gap-3 mb-6">
-        <Card className="bg-yellow-50 border-yellow-200">
+        <Card className="bg-[#FAF5E8] border-yellow-200">
           <CardContent className="p-3 text-center">
             <p className="text-2xl font-black text-yellow-700">{pendingEntries.length}</p>
             <p className="text-xs text-yellow-600">ממתינים לאישור</p>
           </CardContent>
         </Card>
-        <Card className="bg-blue-50 border-blue-200">
+        <Card className="bg-[#F4ECD8] border-[#E8D9B5]">
           <CardContent className="p-3 text-center">
-            <p className="text-2xl font-black text-blue-700">{activeEntries.length}</p>
-            <p className="text-xs text-blue-600">פעילים בתור</p>
+            <p className="text-2xl font-black text-[#44512C]">{activeEntries.length}</p>
+            <p className="text-xs text-[#44512C]">פעילים בתור</p>
           </CardContent>
         </Card>
         <Card className="bg-green-50 border-green-200">
@@ -648,10 +648,10 @@ export default function QueueDashboard() {
 
       {/* Live Stats - סועדים ממוצע המתנה */}
       <div className="mb-4 grid grid-cols-2 gap-3">
-        <Card className="bg-indigo-50 border-indigo-200">
+        <Card className="bg-[#F4ECD8] border-indigo-200">
           <CardContent className="p-3 text-center">
-            <p className="text-3xl font-black text-indigo-700">{totalDinersInQueue}</p>
-            <p className="text-xs text-indigo-600 font-medium">סועדים כולל בתור עכשיו</p>
+            <p className="text-3xl font-black text-[#7A3722]">{totalDinersInQueue}</p>
+            <p className="text-xs text-[#A04A2E] font-medium">סועדים כולל בתור עכשיו</p>
           </CardContent>
         </Card>
         <Card className="bg-orange-50 border-orange-200">
@@ -700,14 +700,14 @@ export default function QueueDashboard() {
                 onClick={() => setPartySizeFilter(partySizeFilter === Number(size) ? null : Number(size))}
                 className={`px-3 py-1.5 rounded-full text-sm font-bold transition-all flex items-center gap-1 ${
                   partySizeFilter === Number(size)
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-blue-50 text-blue-700 hover:bg-blue-100'
+                    ? 'bg-[#44512C] text-white'
+                    : 'bg-[#F4ECD8] text-[#44512C] hover:bg-[#F4ECD8]'
                 }`}
               >
                 {Number(size) === 1 ? '👤' : Number(size) === 2 ? '👫' : Number(size) <= 3 ? '👨‍👩‍👦' : '👨‍👩‍👧‍👦'}
                 {size} סועדים
                 <span className={`text-xs rounded-full px-1.5 py-0.5 ${
-                  partySizeFilter === Number(size) ? 'bg-white text-blue-600' : 'bg-blue-200 text-blue-800'
+                  partySizeFilter === Number(size) ? 'bg-white text-[#44512C]' : 'bg-[#E8D9B5] text-[#2E3819]'
                 }`}>{count}</span>
               </button>
             ))}
@@ -723,7 +723,7 @@ export default function QueueDashboard() {
           </h2>
           <div className="space-y-2">
             {pendingEntries.map(entry => (
-              <Card key={entry.id} className="border-yellow-300 bg-yellow-50">
+              <Card key={entry.id} className="border-[#D9BD83] bg-[#FAF5E8]">
                 <CardContent className="p-3 flex items-center justify-between gap-2">
                   <div className="flex items-center gap-3 flex-1 min-w-0">
                   <PartySizeIcon size={entry.party_size} />
@@ -736,18 +736,18 @@ export default function QueueDashboard() {
                     </div>
                   </div>
                   <div className="flex gap-2 mb-1">
-                    <button onClick={() => navigator.clipboard.writeText(entry.customer_name)} className="flex items-center gap-1 text-xs bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 px-2 py-1 rounded-lg font-bold transition-all">📋 העתק שם</button>
+                    <button onClick={() => navigator.clipboard.writeText(entry.customer_name)} className="flex items-center gap-1 text-xs bg-[#F4ECD8] hover:bg-[#F4ECD8] text-[#44512C] border border-[#E8D9B5] px-2 py-1 rounded-lg font-bold transition-all">📋 העתק שם</button>
                     <button onClick={() => navigator.clipboard.writeText(entry.phone)} className="flex items-center gap-1 text-xs bg-green-50 hover:bg-green-100 text-green-700 border border-green-200 px-2 py-1 rounded-lg font-bold transition-all">📋 {entry.phone}</button>
                   </div>
                   <div className="flex gap-1 flex-wrap mt-0.5 mb-1">
-                    {entry.seating_preference === 'inside' && <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">🏠 בפנים</span>}
+                    {entry.seating_preference === 'inside' && <span className="text-xs bg-[#F4ECD8] text-[#44512C] px-2 py-0.5 rounded-full">🏠 בפנים</span>}
                     {entry.seating_preference === 'outside' && <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">🌳 בחוץ</span>}
                     {(!entry.seating_preference || entry.seating_preference === 'no_preference') && <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">🤷 לא משנה</span>}
                     {(entry.table_duration_preference === 'one_hour_only' || entry.table_duration_preference === 'one_hour') && <span className="text-xs bg-orange-100 text-orange-800 font-bold px-2 py-0.5 rounded-full border border-orange-300">✅ בסדר שולחן לשעה</span>}
                     {(!entry.table_duration_preference || entry.table_duration_preference === 'any') && <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full">❌ צריך יותר משעה</span>}
                   </div>
                   {entry.customer_notes && (
-                    <div className="mb-1 bg-yellow-50 border border-yellow-200 rounded-lg px-2 py-1.5">
+                    <div className="mb-1 bg-[#FAF5E8] border border-yellow-200 rounded-lg px-2 py-1.5">
                       <p className="text-xs text-yellow-800"><span className="font-bold">💬 הערות:</span> {entry.customer_notes}</p>
                     </div>
                   )}
@@ -797,7 +797,7 @@ export default function QueueDashboard() {
 
       {/* תור פעיל - Drag & Drop */}
       <div>
-        <h2 className="text-lg font-bold text-blue-700 mb-3 flex items-center gap-2">
+        <h2 className="text-lg font-bold text-[#44512C] mb-3 flex items-center gap-2">
           <Clock className="w-5 h-5" />
           תור פעיל ({activeEntries.length})
           <span className="text-xs font-normal text-gray-400">ניתן לגרירה לשינוי סדר</span>
@@ -822,9 +822,9 @@ export default function QueueDashboard() {
                         const proxPending = entry.proximity_response === 'pending' && entry.proximity_check_at;
                         const proxNo = entry.proximity_response === 'no';
                         const proxYes = entry.proximity_response === 'yes';
-                        let cardBg = 'bg-white border-blue-200';
-                        if (snapshot.isDragging) cardBg = 'bg-blue-50 border-blue-200';
-                        else if (proxNo) cardBg = 'bg-purple-100 border-purple-400';
+                        let cardBg = 'bg-white border-[#E8D9B5]';
+                        if (snapshot.isDragging) cardBg = 'bg-[#F4ECD8] border-[#E8D9B5]';
+                        else if (proxNo) cardBg = 'bg-[#F4ECD8] border-purple-400';
                         else if (proxYes) cardBg = 'bg-green-50 border-green-300';
                         else if (farAway) cardBg = 'bg-red-50 border-red-300';
 
@@ -838,29 +838,29 @@ export default function QueueDashboard() {
                             proxNo ? 'border-2 border-purple-400' :
                             proxYes ? 'border-2 border-green-400' :
                             farAway ? 'border-2 border-red-300' :
-                            'border border-blue-100'
+                            'border border-[#F4ECD8]'
                           }`}
                         >
                           {/* פס צבע עליון */}
                           <div className={`h-1.5 w-full ${
-                            proxNo ? 'bg-purple-500' :
+                            proxNo ? 'bg-[#A04A2E]' :
                             proxYes ? 'bg-green-500' :
                             farAway ? 'bg-red-400' :
-                            index === 0 ? 'bg-gradient-to-l from-blue-500 to-indigo-500' : 'bg-blue-300'
+                            index === 0 ? 'bg-gradient-to-l from-[#44512C] to-[#A04A2E]' : 'bg-[#D9BD83]'
                           }`} />
 
                           <CardContent className="p-3">
                             {/* שורה 1: מספר בתור + שם + סועדים */}
                             <div className="flex items-center gap-2 mb-2">
                               <div className={`w-9 h-9 rounded-2xl text-white flex items-center justify-center font-black text-lg flex-shrink-0 shadow ${
-                                proxNo ? 'bg-purple-500' : proxYes ? 'bg-green-500' : index === 0 ? 'bg-gradient-to-br from-blue-500 to-indigo-600' : 'bg-blue-500'
+                                proxNo ? 'bg-[#A04A2E]' : proxYes ? 'bg-green-500' : index === 0 ? 'bg-gradient-to-br from-[#44512C] to-[#A04A2E]' : 'bg-[#44512C]'
                               }`}>
                                 {index + 1}
                               </div>
                               <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-2">
                                   <p className={`font-black text-lg leading-tight truncate ${
-                                    proxNo ? 'text-purple-800' : proxYes ? 'text-green-700' : farAway ? 'text-red-600' : 'text-gray-900'
+                                    proxNo ? 'text-[#7A3722]' : proxYes ? 'text-green-700' : farAway ? 'text-red-600' : 'text-gray-900'
                                   }`}>
                                     {entry.customer_name}
                                     {proxPending && !proxNo && !proxYes && <span className="mr-1 animate-pulse">🟡</span>}
@@ -873,7 +873,7 @@ export default function QueueDashboard() {
                               </div>
                               {/* כמות סועדים */}
                               <div className={`flex items-center gap-1 px-3 py-1.5 rounded-2xl flex-shrink-0 shadow-sm ${
-                                proxNo ? 'bg-purple-100' : proxYes ? 'bg-green-100' : 'bg-blue-50 border border-blue-200'
+                                proxNo ? 'bg-[#F4ECD8]' : proxYes ? 'bg-green-100' : 'bg-[#F4ECD8] border border-[#E8D9B5]'
                               }`}>
                                 <PartySizeIcon size={entry.party_size} />
                                 <span className="font-black text-2xl text-gray-800">{entry.party_size}</span>
@@ -884,7 +884,7 @@ export default function QueueDashboard() {
                             <div className="flex gap-2 mb-2">
                               <button
                                 onClick={() => navigator.clipboard.writeText(entry.customer_name)}
-                                className="flex-1 flex items-center justify-center gap-1 text-xs bg-blue-50 active:bg-blue-200 text-blue-700 border border-blue-200 px-2 py-2 rounded-xl font-bold transition-all"
+                                className="flex-1 flex items-center justify-center gap-1 text-xs bg-[#F4ECD8] active:bg-[#E8D9B5] text-[#44512C] border border-[#E8D9B5] px-2 py-2 rounded-xl font-bold transition-all"
                               >📋 העתק שם</button>
                               <button
                                 onClick={() => navigator.clipboard.writeText(entry.phone)}
@@ -894,12 +894,12 @@ export default function QueueDashboard() {
 
                             {/* שורה 3: תגיות העדפות */}
                             <div className="flex gap-1.5 flex-wrap mb-2">
-                              {entry.seating_preference === 'inside' && <span className="text-xs bg-blue-100 text-blue-700 px-2.5 py-1 rounded-full font-semibold">🏠 בפנים</span>}
+                              {entry.seating_preference === 'inside' && <span className="text-xs bg-[#F4ECD8] text-[#44512C] px-2.5 py-1 rounded-full font-semibold">🏠 בפנים</span>}
                               {entry.seating_preference === 'outside' && <span className="text-xs bg-emerald-100 text-emerald-700 px-2.5 py-1 rounded-full font-semibold">🌳 בחוץ</span>}
                               {(!entry.seating_preference || entry.seating_preference === 'no_preference') && <span className="text-xs bg-gray-100 text-gray-500 px-2.5 py-1 rounded-full">🤷 לא משנה</span>}
                               {(entry.table_duration_preference === 'one_hour_only' || entry.table_duration_preference === 'one_hour') && <span className="text-xs bg-orange-100 text-orange-800 font-bold px-2.5 py-1 rounded-full border border-orange-200">✅ שעה בסדר</span>}
                               {(!entry.table_duration_preference || entry.table_duration_preference === 'any') && <span className="text-xs bg-red-100 text-red-700 px-2.5 py-1 rounded-full font-semibold">⏳ צריך יותר</span>}
-                              {proxNo && <span className="text-xs bg-purple-100 text-purple-700 px-2.5 py-1 rounded-full">🟣 לא בסביבה</span>}
+                              {proxNo && <span className="text-xs bg-[#F4ECD8] text-[#7A3722] px-2.5 py-1 rounded-full">🟣 לא בסביבה</span>}
                               {proxYes && <span className="text-xs bg-green-100 text-green-700 px-2.5 py-1 rounded-full">🟢 בסביבה</span>}
                             </div>
 
@@ -915,8 +915,8 @@ export default function QueueDashboard() {
 
                             {/* פרס שנבחר */}
                             {entry.selected_treat_id && (
-                              <div className="mb-2 bg-purple-50 border border-purple-200 rounded-xl px-3 py-2">
-                                <p className="text-xs font-bold text-purple-700">
+                              <div className="mb-2 bg-[#F4ECD8] border border-purple-200 rounded-xl px-3 py-2">
+                                <p className="text-xs font-bold text-[#7A3722]">
                                   🎁 {treats.find(t => t.id === entry.selected_treat_id)?.name || 'פרס'}
                                 </p>
                               </div>
@@ -969,21 +969,21 @@ export default function QueueDashboard() {
                             <div className="flex items-center justify-between pt-2 border-t border-gray-100">
                               {/* צד שמאל: פעולות משניות */}
                               <div className="flex gap-2">
-                                <button onClick={() => openCustomerHistory(entry.phone)} title="היסטוריה" className="w-10 h-10 rounded-2xl bg-purple-100 active:bg-purple-200 text-purple-700 flex items-center justify-center transition-all">
+                                <button onClick={() => openCustomerHistory(entry.phone)} title="היסטוריה" className="w-10 h-10 rounded-2xl bg-[#F4ECD8] active:bg-purple-200 text-[#7A3722] flex items-center justify-center transition-all">
                                   <History className="w-4 h-4" />
                                 </button>
-                                <button onClick={() => handleToggleTreat(entry)} title="פינוק" className={`w-10 h-10 rounded-2xl flex items-center justify-center transition-all text-lg ${entry.treated ? 'bg-pink-200 text-pink-700' : 'bg-gray-100 active:bg-pink-100'}`}>🎁</button>
+                                <button onClick={() => handleToggleTreat(entry)} title="פינוק" className={`w-10 h-10 rounded-2xl flex items-center justify-center transition-all text-lg ${entry.treated ? 'bg-pink-200 text-[#7A3722]' : 'bg-gray-100 active:bg-[#F4ECD8]'}`}>🎁</button>
                                 {!bonusAmount[entry.id] ? (
-                                  <button onClick={() => setBonusAmount(prev => ({ ...prev, [entry.id]: 100 }))} title="בונוס" className="w-10 h-10 rounded-2xl bg-yellow-100 active:bg-yellow-200 text-yellow-700 flex items-center justify-center transition-all text-lg">⭐</button>
+                                  <button onClick={() => setBonusAmount(prev => ({ ...prev, [entry.id]: 100 }))} title="בונוס" className="w-10 h-10 rounded-2xl bg-[#F4ECD8] active:bg-yellow-200 text-yellow-700 flex items-center justify-center transition-all text-lg">⭐</button>
                                 ) : (
-                                  <div className="flex items-center gap-0.5 bg-yellow-50 px-2 py-1 rounded-xl border border-yellow-200">
+                                  <div className="flex items-center gap-0.5 bg-[#FAF5E8] px-2 py-1 rounded-xl border border-yellow-200">
                                     <input type="number" min="1" max="999" value={bonusAmount[entry.id]} onChange={(e) => setBonusAmount(prev => ({ ...prev, [entry.id]: parseInt(e.target.value) || 100 }))} className="w-10 text-center text-xs border-0 bg-transparent text-yellow-700 font-black outline-none" />
                                     <button onClick={() => handleGiveBonus(entry)} className="text-xs font-black text-yellow-700">✓</button>
                                     <button onClick={() => setBonusAmount(prev => { const n = {...prev}; delete n[entry.id]; return n; })} className="text-xs font-black text-yellow-500">✕</button>
                                   </div>
                                 )}
                                 {callCountdowns[entry.id] === undefined && !proxPending && (
-                                  <button onClick={() => handleProximityCheck(entry)} title="בדוק קרבה" className={`w-10 h-10 rounded-2xl flex items-center justify-center transition-all text-lg ${proxNo ? 'bg-purple-200' : proxYes ? 'bg-green-200' : 'bg-blue-100 active:bg-blue-200'}`}>📍</button>
+                                  <button onClick={() => handleProximityCheck(entry)} title="בדוק קרבה" className={`w-10 h-10 rounded-2xl flex items-center justify-center transition-all text-lg ${proxNo ? 'bg-purple-200' : proxYes ? 'bg-green-200' : 'bg-[#F4ECD8] active:bg-[#E8D9B5]'}`}>📍</button>
                                 )}
                                 {proxPending && <div className="w-10 h-10 rounded-2xl bg-yellow-200 flex items-center justify-center text-lg animate-pulse">📍</div>}
                                 {callCountdowns[entry.id] === undefined && (
@@ -1083,7 +1083,7 @@ export default function QueueDashboard() {
                         <span className={`text-xs font-bold px-2 py-1 rounded-full ${
                           e.status === 'seated' ? 'bg-green-100 text-green-700' :
                           e.status === 'abandoned' ? 'bg-red-100 text-red-700' :
-                          'bg-yellow-100 text-yellow-700'
+                          'bg-[#F4ECD8] text-yellow-700'
                         }`}>
                           {e.status === 'seated' ? '✅ הוּשב' : e.status === 'abandoned' ? '❌ נטש' : '⏳ ממתין'}
                         </span>
@@ -1108,7 +1108,7 @@ export default function QueueDashboard() {
                             fetchEntries();
                             setHistoryEntries(prev => prev.map(x => x.id === e.id ? { ...x, status: 'active' } : x));
                           }}
-                          className="mt-2 w-full bg-blue-500 hover:bg-blue-600 text-white text-xs font-black py-2 rounded-lg transition-all active:scale-95"
+                          className="mt-2 w-full bg-[#44512C] hover:bg-[#44512C] text-white text-xs font-black py-2 rounded-lg transition-all active:scale-95"
                         >
                           ↩️ החזר לתור
                         </button>

@@ -11,7 +11,7 @@ const CAMPAIGNS = [
     desc: 'עדכון מנות חדשות ואירועים',
     fn: 'sendWeeklyNewsletter',
     icon: Mail,
-    color: 'from-blue-500 to-blue-600',
+    color: 'from-[#44512C] to-[#44512C]',
     target: 'לקוחות עם coins',
   },
   {
@@ -20,7 +20,7 @@ const CAMPAIGNS = [
     desc: 'ערב רומנטי באמצע שבוע',
     fn: 'sendCoupleOffer',
     icon: Heart,
-    color: 'from-pink-500 to-rose-600',
+    color: 'from-[#A04A2E] to-[#A04A2E]',
     target: 'זוגות (2 סועדים)',
   },
   {
@@ -29,7 +29,7 @@ const CAMPAIGNS = [
     desc: 'אירועים וימי הולדת',
     fn: 'sendGroupOffer',
     icon: Users,
-    color: 'from-purple-500 to-purple-600',
+    color: 'from-[#A04A2E] to-[#A04A2E]',
     target: 'קבוצות (6+ סועדים)',
   },
   {
@@ -155,8 +155,8 @@ export default function MarketingCampaigns() {
       </div>
 
       {/* הערה */}
-      <Card className="bg-blue-50 border-blue-200">
-        <CardContent className="p-4 text-sm text-blue-800">
+      <Card className="bg-[#F4ECD8] border-[#E8D9B5]">
+        <CardContent className="p-4 text-sm text-[#2E3819]">
           <p className="font-bold mb-2">ℹ️ הערות חשובות:</p>
           <ul className="list-disc list-inside space-y-1">
             <li>כל הודעה נשלחת דרך WhatsApp ל-Twilio</li>

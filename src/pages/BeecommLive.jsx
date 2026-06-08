@@ -85,7 +85,7 @@ export default function BeecommLive() {
                     href="https://beeport.web.app/x"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-sm text-blue-600 hover:underline flex items-center gap-1"
+                    className="text-sm text-[#44512C] hover:underline flex items-center gap-1"
                 >
                     פתח ב-BeePort <ExternalLink className="w-3 h-3" />
                 </a>
@@ -138,7 +138,7 @@ export default function BeecommLive() {
                             <Button size="sm" disabled={backfilling} onClick={() => runBackfill(180)}>6 חודשים</Button>
                         </div>
                     </div>
-                    {backfilling && <p className="text-xs text-blue-600 mt-1">⏳ מושך... זה לוקח כ-300ms פר יום (חודש = ~10 שניות)</p>}
+                    {backfilling && <p className="text-xs text-[#44512C] mt-1">⏳ מושך... זה לוקח כ-300ms פר יום (חודש = ~10 שניות)</p>}
                     {backfillMsg && <p className="text-xs mt-1">{backfillMsg}</p>}
                 </CardContent>
             </Card>
@@ -168,7 +168,7 @@ export default function BeecommLive() {
                                 {breakdown.days_covered} ימים ({breakdown.days_historical || 0} היסטוריים, {breakdown.days_live || 0} חי) · סה״כ {fmtIls(breakdown.totals?.sum)} · {breakdown.totals?.diners || 0} סועדים · 💰 {fmtIls(breakdown.totals?.tips)}
                             </div>
                             {Array.isArray(breakdown.categories) && breakdown.categories.length > 0 && (
-                                <div className="bg-purple-50 rounded-lg p-3 mb-3">
+                                <div className="bg-[#F4ECD8] rounded-lg p-3 mb-3">
                                     <p className="text-xs font-bold mb-2">📂 קטגוריות מובילות</p>
                                     <div className="grid grid-cols-2 md:grid-cols-4 gap-1 text-xs">
                                         {breakdown.categories.slice(0, 8).map((c, i) => (
@@ -181,7 +181,7 @@ export default function BeecommLive() {
                                 </div>
                             )}
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                                <div className="bg-blue-50 rounded-lg p-3">
+                                <div className="bg-[#F4ECD8] rounded-lg p-3">
                                     <p className="text-xs font-bold mb-2">🏆 מלצרים מובילים</p>
                                     <div className="space-y-1 text-xs">
                                         {(breakdown.waiters || []).slice(0, 8).map((w, i) => (

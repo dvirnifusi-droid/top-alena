@@ -26,10 +26,10 @@ export default function MyNotificationsWidget() {
       <Card className="hover:shadow-lg transition-all cursor-pointer hover:scale-[1.02]">
         <CardHeader className="pb-2 pt-4 px-5">
           <CardTitle className="text-sm font-bold flex items-center gap-2">
-            <Bell className="w-4 h-4 text-blue-500" />
+            <Bell className="w-4 h-4 text-[#44512C]" />
             הודעות אחרונות
             {messages.length > 0 && (
-              <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full mr-auto">{messages.length}</span>
+              <span className="text-xs bg-[#F4ECD8] text-[#44512C] px-2 py-0.5 rounded-full mr-auto">{messages.length}</span>
             )}
           </CardTitle>
         </CardHeader>
@@ -39,8 +39,8 @@ export default function MyNotificationsWidget() {
             <div className="space-y-2">
               {messages.map((m, i) => (
                 <div key={m.id || i} className="flex items-start gap-2">
-                  <div className="w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-                    <span className="text-xs font-bold text-blue-700">{(m.sender_name || m.author || '?').charAt(0)}</span>
+                  <div className="w-6 h-6 bg-[#F4ECD8] rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <span className="text-xs font-bold text-[#44512C]">{(m.sender_name || m.author || '?').charAt(0)}</span>
                   </div>
                   <p className="text-xs text-muted-foreground truncate flex-1">{m.message || m.content || '...'}</p>
                 </div>

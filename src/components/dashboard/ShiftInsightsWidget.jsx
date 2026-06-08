@@ -99,7 +99,7 @@ export default function ShiftInsightsWidget() {
                             ? 'bg-red-50 border-red-300 text-red-900'
                             : ins.level === 'warn'
                                 ? 'bg-amber-50 border-amber-300 text-amber-900'
-                                : 'bg-blue-50 border-blue-300 text-blue-900';
+                                : 'bg-[#F4ECD8] border-[#D9BD83] text-blue-900';
                         return (
                             <div key={i} className={`border rounded-lg p-2.5 flex gap-2 ${colors}`}>
                                 <Icon className="w-5 h-5 flex-shrink-0 mt-0.5" />

@@ -54,7 +54,7 @@ export default function GomileyDashboardWidget() {
 
     if (!snap) {
         return (
-            <Card className="mb-4 bg-slate-50 border-slate-200" dir="rtl">
+            <Card className="mb-4 bg-[#FAF5E8] border-slate-200" dir="rtl">
                 <CardContent className="p-4 text-center">
                     <p className="text-sm text-gray-600">📊 Gomiley לוח בקרה · אין נתונים עדיין</p>
                     <Button size="sm" onClick={refresh} disabled={refreshing} className="mt-2">
@@ -74,7 +74,7 @@ export default function GomileyDashboardWidget() {
     const platformsTotal = platforms.reduce((s, p) => s + (Number(p.total) || 0), 0);
 
     return (
-        <Card className="mb-4 bg-gradient-to-br from-cyan-50 to-blue-50 border-2 border-cyan-300" dir="rtl">
+        <Card className="mb-4 bg-gradient-to-br from-[#F4ECD8] to-[#F4ECD8] border-2 border-[#D9BD83]" dir="rtl">
             <CardContent className="p-4">
                 <div className="flex items-center justify-between mb-3">
                     <div>
@@ -96,11 +96,11 @@ export default function GomileyDashboardWidget() {
                         <div className="text-xs text-gray-500 mt-1">הכנסות</div>
                     </div>
                     <div className="bg-white rounded-lg p-3 text-center shadow-sm">
-                        <div className="text-2xl font-bold text-blue-700">{snap.total_orders ?? '—'}</div>
+                        <div className="text-2xl font-bold text-[#44512C]">{snap.total_orders ?? '—'}</div>
                         <div className="text-xs text-gray-500 mt-1">הזמנות</div>
                     </div>
                     <div className="bg-white rounded-lg p-3 text-center shadow-sm">
-                        <div className="text-2xl font-bold text-purple-700">{snap.new_customers ?? '—'}</div>
+                        <div className="text-2xl font-bold text-[#7A3722]">{snap.new_customers ?? '—'}</div>
                         <div className="text-xs text-gray-500 mt-1">לקוחות חדשים</div>
                     </div>
                     <div className="bg-white rounded-lg p-3 text-center shadow-sm">
@@ -117,7 +117,7 @@ export default function GomileyDashboardWidget() {
                             <div className="flex-1">
                                 <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden flex">
                                     <div
-                                        className="bg-cyan-500 h-3"
+                                        className="bg-[#B89556] h-3"
                                         style={{ width: `${100 - Number(snap.onetime_percent)}%` }}
                                         title={`חוזרים: ${snap.returning_count ?? '?'}`}
                                     />

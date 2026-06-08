@@ -41,7 +41,7 @@ export default function PendingRequestsWidget() {
           {!loading && total > 0 && (
             <div className="flex gap-3 mt-2">
               {data.leaves > 0 && <span className="text-xs text-orange-600 flex items-center gap-1"><Calendar className="w-3 h-3" />{data.leaves} חופשות</span>}
-              {data.swaps > 0 && <span className="text-xs text-blue-600 flex items-center gap-1"><ArrowLeftRight className="w-3 h-3" />{data.swaps} החלפות</span>}
+              {data.swaps > 0 && <span className="text-xs text-[#44512C] flex items-center gap-1"><ArrowLeftRight className="w-3 h-3" />{data.swaps} החלפות</span>}
             </div>
           )}
         </CardContent>

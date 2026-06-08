@@ -44,7 +44,7 @@ const DEFAULT_MENU_CATEGORIES = [
 
 const STATUS_BADGE = {
   draft: { label: 'טיוטה', cls: 'bg-gray-100 text-gray-700 border-gray-300' },
-  sent: { label: 'נשלח ללקוח', cls: 'bg-blue-100 text-blue-800 border-blue-300' },
+  sent: { label: 'נשלח ללקוח', cls: 'bg-[#F4ECD8] text-[#2E3819] border-[#D9BD83]' },
   signed: { label: 'חתום ✅', cls: 'bg-green-100 text-green-800 border-green-300' },
   cancelled: { label: 'בוטל', cls: 'bg-red-100 text-red-800 border-red-300' },
 };
@@ -123,7 +123,7 @@ export default function EventContracts() {
   };
 
   return (
-    <div className="min-h-screen p-4 md:p-8 bg-gradient-to-br from-amber-50 to-rose-50" dir="rtl">
+    <div className="min-h-screen p-4 md:p-8 bg-gradient-to-br from-amber-50 to-[#F4ECD8]" dir="rtl">
       <div className="max-w-7xl mx-auto space-y-6">
 
         <div className="flex items-center justify-between">
@@ -396,7 +396,7 @@ function EditDialog({ contract, onClose }) {
           <DialogTitle>עריכת חוזה {c.contract_number || ''}</DialogTitle>
         </DialogHeader>
         <div className="space-y-4 py-2">
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+          <div className="bg-[#F4ECD8] border border-[#E8D9B5] rounded-lg p-3">
             <div className="text-xs font-bold text-blue-900 mb-2">פרטי המזמין</div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <Field label="שם מלא"><Input value={c.customer_name || ''} onChange={e => set('customer_name', e.target.value)} /></Field>
@@ -444,7 +444,7 @@ function EditDialog({ contract, onClose }) {
 
           <Field label="הערות"><Textarea rows={2} value={c.notes || ''} onChange={e => set('notes', e.target.value)} /></Field>
 
-          <div className="bg-blue-50 border border-blue-200 rounded p-3 text-xs text-blue-700">
+          <div className="bg-[#F4ECD8] border border-[#E8D9B5] rounded p-3 text-xs text-[#44512C]">
             🔗 קישור לחתימה: <code className="bg-white px-1 rounded text-[10px]">{window.location.origin}/EventContractSign?token={c.public_token}</code>
             <button onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/EventContractSign?token=${c.public_token}`); alert('הועתק'); }} className="ml-2 underline">העתק</button>
           </div>

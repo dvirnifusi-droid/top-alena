@@ -87,13 +87,13 @@ function BackfillAllCustomersButton() {
         : 0;
 
     return (
-        <div className="mt-4 pt-4 border-t border-blue-200">
+        <div className="mt-4 pt-4 border-t border-[#E8D9B5]">
             <h4 className="font-bold text-sm mb-1">📥 ייבוא מלא — כל ה-17K לקוחות</h4>
             <p className="text-xs text-gray-600 mb-2">
                 עובר על כל העמודים ב-Gomiley (~17,621 לקוחות), מכניס שם + טלפון + כתובת.
                 לקוחות בלי טלפון (וולט/אנונימי) ידולגו אוטומטית. רץ ברקע ~3-5 דקות, אפשר לסגור את הדף.
             </p>
-            <Button onClick={start} disabled={starting || running} variant="default" className="bg-blue-600 hover:bg-blue-700">
+            <Button onClick={start} disabled={starting || running} variant="default" className="bg-[#44512C] hover:bg-[#44512C]">
                 {(starting || running) ? <Loader2 className="w-4 h-4 animate-spin ml-2" /> : null}
                 {running ? `רץ... (עמוד ${status?.page})` : starting ? 'מפעיל...' : '📥 ייבא הכל מ-Gomiley'}
             </Button>
@@ -101,14 +101,14 @@ function BackfillAllCustomersButton() {
                 <div className="mt-3 text-xs">
                     {status.total_expected > 0 && (
                         <div className="w-full bg-gray-200 rounded-full h-2 mb-2">
-                            <div className="bg-blue-600 h-2 rounded-full transition-all" style={{ width: `${pct}%` }} />
+                            <div className="bg-[#44512C] h-2 rounded-full transition-all" style={{ width: `${pct}%` }} />
                         </div>
                     )}
                     <div className="grid grid-cols-2 gap-1 text-gray-700">
                         <div>📊 סרקתי: <b>{status.scanned}</b> / {status.total_expected || '?'}</div>
                         <div>📄 עמוד: <b>{status.page}</b></div>
                         <div className="text-emerald-700">✅ חדשים: <b>{status.created}</b></div>
-                        <div className="text-blue-700">🔄 עודכנו: <b>{status.updated}</b></div>
+                        <div className="text-[#44512C]">🔄 עודכנו: <b>{status.updated}</b></div>
                         <div className="text-amber-700">⊘ דולגו (וולט/בלי טלפון): <b>{status.skipped_no_phone}</b></div>
                         <div>{status.finished_at ? '✓ סיים' : status.running ? '⏳ רץ...' : ''}</div>
                     </div>
@@ -137,13 +137,13 @@ function NormalizePhonesButton() {
     };
 
     return (
-        <div className="mt-4 pt-4 border-t border-blue-200">
+        <div className="mt-4 pt-4 border-t border-[#E8D9B5]">
             <h4 className="font-bold text-sm mb-1">📞 נרמל טלפונים לפורמט ישראלי</h4>
             <p className="text-xs text-gray-600 mb-2">
                 ממיר טלפונים שמאוכסנים כ-<code className="bg-gray-100 px-1">972523409696</code> ל-
                 <code className="bg-gray-100 px-1">0523409696</code>. בלי זה המערכת לא תזהה את הלקוח כשייתקשר.
             </p>
-            <Button onClick={run} disabled={running} variant="outline" className="border-blue-300 text-blue-700 hover:bg-blue-50">
+            <Button onClick={run} disabled={running} variant="outline" className="border-[#D9BD83] text-[#44512C] hover:bg-[#F4ECD8]">
                 {running ? <Loader2 className="w-4 h-4 animate-spin ml-2" /> : null}
                 {running ? 'מנרמל...' : '📞 נרמל פורמט טלפונים'}
             </Button>
@@ -175,7 +175,7 @@ function ResetTotalsButton() {
     };
 
     return (
-        <div className="mt-4 pt-4 border-t border-blue-200">
+        <div className="mt-4 pt-4 border-t border-[#E8D9B5]">
             <h4 className="font-bold text-sm mb-1">🧹 אפס נתונים מקולקלים</h4>
             <p className="text-xs text-gray-600 mb-2">
                 ה-parser הישן הכניס מספרי לקוח/טלפון בשגגה ל-total_orders ו-total_spent
@@ -344,7 +344,7 @@ export default function AdminGomileyCookies() {
                 </Card>
             )}
 
-            <Card className="mb-4 bg-blue-50 border-blue-200">
+            <Card className="mb-4 bg-[#F4ECD8] border-[#E8D9B5]">
                 <CardContent className="p-4">
                     <h3 className="font-bold mb-2">👥 סנכרון לקוחות מ-Gomiley</h3>
                     <p className="text-xs text-gray-600 mb-3">
@@ -362,7 +362,7 @@ export default function AdminGomileyCookies() {
                 <CardContent className="p-3 text-xs text-gray-600 space-y-2">
                     <p className="font-bold text-gray-800">איך להשיג את הCookies:</p>
                     <ol className="list-decimal pr-5 space-y-1">
-                        <li>תפתח <a href="https://app.gomiley.com" target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">app.gomiley.com</a> ותתחבר</li>
+                        <li>תפתח <a href="https://app.gomiley.com" target="_blank" rel="noopener noreferrer" className="text-[#44512C] underline">app.gomiley.com</a> ותתחבר</li>
                         <li>F12 → טאב <b>Application</b> → <b>Cookies</b> → app.gomiley.com</li>
                         <li>תעתיק את הערכים של PHPSESSID, arena, device_token</li>
                         <li>תדביק כאן ותלחץ שמור</li>

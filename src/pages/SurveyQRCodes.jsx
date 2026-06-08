@@ -17,17 +17,17 @@ export default function SurveyQRCodes() {
                 <SurveyQRGenerator />
 
                 {/* Additional Info */}
-                <Card className="border-blue-200">
+                <Card className="border-[#E8D9B5]">
                     <CardHeader>
                         <div className="flex items-center gap-3">
-                            <Info className="w-5 h-5 text-blue-500" />
+                            <Info className="w-5 h-5 text-[#44512C]" />
                             <CardTitle className="text-blue-900">מידע חשוב</CardTitle>
                         </div>
                     </CardHeader>
                     <CardContent className="space-y-4">
-                        <div className="bg-blue-50 p-4 rounded-lg">
+                        <div className="bg-[#F4ECD8] p-4 rounded-lg">
                             <h4 className="font-semibold text-blue-900 mb-2">איך זה עובד:</h4>
-                            <ul className="text-sm text-blue-800 space-y-1 list-disc list-inside">
+                            <ul className="text-sm text-[#2E3819] space-y-1 list-disc list-inside">
                                 <li>לקוחות סורקים את הברקוד עם המצלמה</li>
                                 <li>הם מועברים אוטומטית לסקר שביעות רצון</li>
                                 <li>הסקר קצר ופשוט למילוי</li>

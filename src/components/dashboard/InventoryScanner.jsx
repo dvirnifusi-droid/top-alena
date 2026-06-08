@@ -126,7 +126,7 @@ export default function InventoryScanner() {
             <Card className="shadow-lg border-0 bg-gradient-to-br from-white to-green-50/30">
                 <CardHeader>
                     <CardTitle className="flex items-center gap-3">
-                        <div className="w-8 h-8 bg-gradient-to-br from-green-500 to-blue-600 rounded-lg flex items-center justify-center">
+                        <div className="w-8 h-8 bg-gradient-to-br from-green-500 to-[#44512C] rounded-lg flex items-center justify-center">
                             <Camera className="w-5 h-5 text-white" />
                         </div>
                         סורק מלאי חכם

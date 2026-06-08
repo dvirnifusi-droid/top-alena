@@ -42,7 +42,7 @@ export default function RecentAbandonedSection({ entries, recentAbandoned, fetch
                       });
                       fetchEntries();
                     }}
-                    className="flex-shrink-0 bg-blue-500 hover:bg-blue-600 text-white text-xs font-black px-3 py-2 rounded-xl transition-all active:scale-95"
+                    className="flex-shrink-0 bg-[#44512C] hover:bg-[#44512C] text-white text-xs font-black px-3 py-2 rounded-xl transition-all active:scale-95"
                   >
                     ↩️ החזר לתור
                   </button>

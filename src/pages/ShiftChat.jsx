@@ -115,13 +115,13 @@ export default function ShiftChat() {
 
     const msgTypeStyle = {
         text: 'bg-white border border-gray-200',
-        announcement: 'bg-blue-50 border border-blue-200',
+        announcement: 'bg-[#F4ECD8] border border-[#E8D9B5]',
         urgent: 'bg-red-50 border border-red-200'
     };
 
     const msgTypeIcon = {
         text: null,
-        announcement: <Megaphone className="w-3.5 h-3.5 text-blue-500" />,
+        announcement: <Megaphone className="w-3.5 h-3.5 text-[#44512C]" />,
         urgent: <AlertCircle className="w-3.5 h-3.5 text-red-500" />
     };
 
@@ -138,12 +138,12 @@ export default function ShiftChat() {
                         <img 
                             src={currentEmployee.avatar_url} 
                             alt="avatar" 
-                            className="w-12 h-12 rounded-full object-cover border-2 border-indigo-500 shadow-md flex-shrink-0"
+                            className="w-12 h-12 rounded-full object-cover border-2 border-[#A04A2E] shadow-md flex-shrink-0"
                         />
                     )}
                     <div>
                         <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
-                            <MessageCircle className="w-6 h-6 text-indigo-600" />
+                            <MessageCircle className="w-6 h-6 text-[#A04A2E]" />
                             צ'אט משמרת
                         </h1>
                         <p className="text-slate-500 text-sm mt-1">תקשורת פנימית לצוות המשמרת</p>
@@ -185,11 +185,11 @@ export default function ShiftChat() {
                                 <div className="flex items-center gap-1.5 mb-1">
                                     {!isMe && (
                                         <>
-                                            <div className="w-6 h-6 rounded-full bg-indigo-100 flex items-center justify-center text-xs font-bold text-indigo-700">
+                                            <div className="w-6 h-6 rounded-full bg-[#F4ECD8] flex items-center justify-center text-xs font-bold text-[#7A3722]">
                                                 {msg.sender_name?.charAt(0)}
                                             </div>
                                             <span className="text-xs font-semibold text-slate-600">{msg.sender_name}</span>
-                                            {isAdmin && <Badge className="text-[10px] py-0 px-1.5 h-4 bg-indigo-600">מנהל</Badge>}
+                                            {isAdmin && <Badge className="text-[10px] py-0 px-1.5 h-4 bg-[#A04A2E]">מנהל</Badge>}
                                             {msgTypeIcon[msg.message_type]}
                                         </>
                                     )}
@@ -200,7 +200,7 @@ export default function ShiftChat() {
                                 </div>
                                 <div className={`max-w-xs md:max-w-md rounded-2xl px-4 py-2.5 text-sm shadow-sm whitespace-pre-wrap ${
                                     isMe
-                                        ? 'bg-indigo-600 text-white rounded-tr-sm'
+                                        ? 'bg-[#A04A2E] text-white rounded-tr-sm'
                                         : `${msgTypeStyle[msg.message_type]} text-slate-800 rounded-tl-sm`
                                 }`}>
                                     {msg.message_type === 'urgent' && !isMe && (
@@ -209,7 +209,7 @@ export default function ShiftChat() {
                                         </div>
                                     )}
                                     {msg.message_type === 'announcement' && !isMe && (
-                                        <div className="text-blue-600 font-bold text-xs mb-1 flex items-center gap-1">
+                                        <div className="text-[#44512C] font-bold text-xs mb-1 flex items-center gap-1">
                                             <Megaphone className="w-3 h-3" /> הודעה לצוות
                                         </div>
                                     )}
@@ -236,8 +236,8 @@ export default function ShiftChat() {
                                 onClick={() => setMessageType(t.value)}
                                 className={`text-xs px-3 py-1 rounded-full border transition-all ${
                                     messageType === t.value
-                                        ? 'bg-indigo-600 text-white border-indigo-600'
-                                        : 'bg-white text-slate-600 border-slate-200 hover:border-indigo-300'
+                                        ? 'bg-[#A04A2E] text-white border-[#A04A2E]'
+                                        : 'bg-white text-slate-600 border-slate-200 hover:border-[#D9BD83]'
                                 }`}
                             >
                                 {t.label}
@@ -257,7 +257,7 @@ export default function ShiftChat() {
                     <Button
                         onClick={sendMessage}
                         disabled={!newMessage.trim()}
-                        className="bg-indigo-600 hover:bg-indigo-700 h-11 w-11 p-0"
+                        className="bg-[#A04A2E] hover:bg-[#7A3722] h-11 w-11 p-0"
                     >
                         <Send className="w-4 h-4" />
                     </Button>

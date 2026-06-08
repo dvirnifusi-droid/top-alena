@@ -69,16 +69,16 @@ export default function GamesAdmin() {
             <h1 className="text-2xl font-black text-gray-800">🎮 ניהול משחקי ממתינים</h1>
             <p className="text-gray-500 text-sm">ערוך שאלות טריוויה שמוצגות ללקוחות בתור</p>
           </div>
-          <Button onClick={openNew} className="bg-purple-600 hover:bg-purple-700">
+          <Button onClick={openNew} className="bg-[#A04A2E] hover:bg-[#7A3722]">
             <Plus className="w-4 h-4 ml-1" /> שאלה חדשה
           </Button>
         </div>
 
         {/* Edit / New Form */}
         {editing && (
-          <Card className="mb-6 border-purple-300 bg-purple-50">
+          <Card className="mb-6 border-[#D9BD83] bg-[#F4ECD8]">
             <CardHeader className="pb-3">
-              <CardTitle className="text-base text-purple-800">
+              <CardTitle className="text-base text-[#7A3722]">
                 {editing === 'new' ? '➕ הוספת שאלה חדשה' : '✏️ עריכת שאלה'}
               </CardTitle>
             </CardHeader>
@@ -122,7 +122,7 @@ export default function GamesAdmin() {
               </div>
 
               <div className="flex gap-2 pt-1">
-                <Button onClick={save} className="bg-purple-600 hover:bg-purple-700">
+                <Button onClick={save} className="bg-[#A04A2E] hover:bg-[#7A3722]">
                   <Save className="w-4 h-4 ml-1" /> שמור
                 </Button>
                 <Button variant="outline" onClick={cancel}>
@@ -164,7 +164,7 @@ export default function GamesAdmin() {
                     <button onClick={() => toggleActive(q)} className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-100 transition-all" title={q.is_active ? 'השבת' : 'הפעל'}>
                       {q.is_active ? <ToggleRight className="w-4 h-4 text-green-500" /> : <ToggleLeft className="w-4 h-4 text-gray-400" />}
                     </button>
-                    <button onClick={() => openEdit(q)} className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-blue-50 text-blue-500 transition-all">
+                    <button onClick={() => openEdit(q)} className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-[#F4ECD8] text-[#44512C] transition-all">
                       <Pencil className="w-4 h-4" />
                     </button>
                     <button onClick={() => remove(q.id)} className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-red-50 text-red-400 transition-all">

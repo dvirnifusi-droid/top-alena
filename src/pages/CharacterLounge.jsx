@@ -175,7 +175,7 @@ export default function CharacterLounge() {
         )}
 
         {/* Info section */}
-        <Card className="bg-blue-50 border-blue-200">
+        <Card className="bg-[#F4ECD8] border-[#E8D9B5]">
           <CardHeader>
             <CardTitle className="text-lg">💡 קצת על סלון הדמויות</CardTitle>
           </CardHeader>
@@ -279,7 +279,7 @@ function CharacterDetailModal({ employee, apparel, coins, isCurrentUser, onClose
           </div>
 
           {/* Coins display */}
-          <div className="bg-yellow-50 border-2 border-yellow-300 rounded-xl p-4">
+          <div className="bg-[#FAF5E8] border-2 border-[#D9BD83] rounded-xl p-4">
             <p className="text-sm text-gray-600 mb-1">מטבעות זמינים</p>
             <div className="flex items-center gap-2">
               <Coins className="w-6 h-6 text-yellow-500" />
@@ -291,7 +291,7 @@ function CharacterDetailModal({ employee, apparel, coins, isCurrentUser, onClose
           {!isCurrentUser && (
             <Button
               onClick={onTransfer}
-              className="w-full bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 text-white py-6"
+              className="w-full bg-gradient-to-r from-[#A04A2E] to-[#A04A2E] hover:from-[#A04A2E] hover:to-[#7A3722] text-white py-6"
             >
               <Send className="w-5 h-5 mr-2" />
               שלח מטבעות
@@ -299,8 +299,8 @@ function CharacterDetailModal({ employee, apparel, coins, isCurrentUser, onClose
           )}
 
           {isCurrentUser && (
-            <div className="bg-blue-50 border-2 border-blue-300 rounded-xl p-4 text-center">
-              <p className="text-sm text-blue-800">זה הקרדיט שלך שאתה יכול להשתמש בו</p>
+            <div className="bg-[#F4ECD8] border-2 border-[#D9BD83] rounded-xl p-4 text-center">
+              <p className="text-sm text-[#2E3819]">זה הקרדיט שלך שאתה יכול להשתמש בו</p>
             </div>
           )}
         </div>

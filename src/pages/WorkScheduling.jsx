@@ -23,8 +23,8 @@ import ApparelCustomizer from '../components/gamification/ApparelCustomizer';
 import ScheduleInsights from '../components/scheduling/ScheduleInsights';
 
 const shiftTypesConfig = {
-    lunch: { label: 'צהריים', color: 'bg-blue-100 border-blue-300' },
-    dinner: { label: 'ערב', color: 'bg-indigo-100 border-indigo-300' }
+    lunch: { label: 'צהריים', color: 'bg-[#F4ECD8] border-[#D9BD83]' },
+    dinner: { label: 'ערב', color: 'bg-[#F4ECD8] border-[#D9BD83]' }
 };
 
 // New Fixed Order Definitions
@@ -265,7 +265,7 @@ const MobileScheduleView = ({ week, positions, employees, onCellClick, onAssignm
                         <button
                             key={day.toISOString()}
                             onClick={() => setSelectedDay(day)}
-                            className={`flex flex-col items-center p-2 rounded-lg transition-colors ${format(day, 'yyyy-MM-dd') === format(selectedDay, 'yyyy-MM-dd') ? 'bg-blue-100 text-blue-700' : 'text-gray-600'} ${isToday(day) ? 'border-2 border-orange-400' : ''}`}
+                            className={`flex flex-col items-center p-2 rounded-lg transition-colors ${format(day, 'yyyy-MM-dd') === format(selectedDay, 'yyyy-MM-dd') ? 'bg-[#F4ECD8] text-[#44512C]' : 'text-gray-600'} ${isToday(day) ? 'border-2 border-orange-400' : ''}`}
                         >
                             <span className="font-bold text-xs">{format(day, 'E', { locale: he })}</span>
                             <span className="text-xs">{format(day, 'd/M')}</span>
@@ -315,13 +315,13 @@ const MobileScheduleView = ({ week, positions, employees, onCellClick, onAssignm
                                                              {getAssignmentsFor(selectedDay, shiftKey, position.position_name).map(assignment => {
                                                                  const dateStr = format(selectedDay, 'yyyy-MM-dd');
                                                                  const tipRole = getMobileTipRole(assignment, dateStr, shiftKey);
-                                                                 let cardClass = 'bg-blue-100 text-blue-800';
+                                                                 let cardClass = 'bg-[#F4ECD8] text-[#2E3819]';
                                                                  if (isMyAssignment(assignment)) {
                                                                      cardClass = 'bg-gradient-to-r from-green-400 to-yellow-400 text-gray-900 font-bold shadow-lg border-2 border-yellow-500';
                                                                  } else if (tipRole === 'closing') {
                                                                      cardClass = 'bg-red-100 text-red-800 border border-red-300';
                                                                  } else if (tipRole === 'opening') {
-                                                                     cardClass = 'bg-purple-100 text-purple-800 border border-purple-300';
+                                                                     cardClass = 'bg-[#F4ECD8] text-[#7A3722] border border-[#D9BD83]';
                                                                  }
                                                                  return (
                                                                  <div
@@ -809,8 +809,8 @@ export default function WorkScheduling() {
         if (!avg) return null;
         const n = parseFloat(avg);
         if (n >= 4.5) return { text: 'חזקה מאוד 💪', color: 'text-green-700 bg-green-50' };
-        if (n >= 3.5) return { text: 'חזקה 👍', color: 'text-blue-700 bg-blue-50' };
-        if (n >= 2.5) return { text: 'בינונית 😐', color: 'text-yellow-700 bg-yellow-50' };
+        if (n >= 3.5) return { text: 'חזקה 👍', color: 'text-[#44512C] bg-[#F4ECD8]' };
+        if (n >= 2.5) return { text: 'בינונית 😐', color: 'text-yellow-700 bg-[#FAF5E8]' };
         return { text: 'חלשה ⚠️', color: 'text-red-700 bg-red-50' };
     };
 
@@ -832,7 +832,7 @@ export default function WorkScheduling() {
         <div className="p-4 md:p-6" dir="rtl">
             {/* הודעה מובילה */}
             {currentEmployee && (
-                <Alert className="mb-6 bg-gradient-to-r from-green-50 to-yellow-50 border-green-300">
+                <Alert className="mb-6 bg-gradient-to-r from-green-50 to-[#FAF5E8] border-green-300">
                     <Crown className="w-5 h-5 text-yellow-600" />
                     <AlertDescription className="text-gray-900">
                         <span className="font-bold">שלום {currentEmployee.full_name}! </span>
@@ -843,16 +843,16 @@ export default function WorkScheduling() {
 
             {/* Undo banners */}
             {lastEditedShift && (
-                <div className="mb-4 flex items-center justify-between bg-blue-50 border border-blue-300 rounded-lg px-4 py-3">
-                    <span className="text-blue-800 font-medium text-sm">
+                <div className="mb-4 flex items-center justify-between bg-[#F4ECD8] border border-[#D9BD83] rounded-lg px-4 py-3">
+                    <span className="text-[#2E3819] font-medium text-sm">
                         🔄 שינוי אחרון: {lastEditedShift.employeeName} - מ"{lastEditedShift.oldPosition}" ל"{lastEditedShift.newPosition}"
                     </span>
                     <div className="flex gap-2">
-                        <Button size="sm" variant="outline" className="border-blue-400 text-blue-700 hover:bg-blue-100" onClick={handleUndoLastEdit}>
+                        <Button size="sm" variant="outline" className="border-blue-400 text-[#44512C] hover:bg-[#F4ECD8]" onClick={handleUndoLastEdit}>
                             <RotateCcw className="w-4 h-4 ml-1" />
                             ביטול שינוי אחרון
                         </Button>
-                        <Button size="sm" variant="ghost" className="text-blue-600" onClick={() => setLastEditedShift(null)}>
+                        <Button size="sm" variant="ghost" className="text-[#44512C]" onClick={() => setLastEditedShift(null)}>
                             <X className="w-4 h-4" />
                         </Button>
                     </div>
@@ -876,7 +876,7 @@ export default function WorkScheduling() {
 
             {/* בחר הלבוש - מודגש וזעיר */}
             {currentEmployee && (
-                <div className="mb-4 p-3 bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg border-2 border-purple-200">
+                <div className="mb-4 p-3 bg-gradient-to-r from-[#F4ECD8] to-[#F4ECD8] rounded-lg border-2 border-purple-200">
                     <h3 className="text-sm font-bold text-slate-800 mb-2">🎨 התאימו את הדמות שלכם</h3>
                     <ApparelCustomizer 
                         employeeId={currentEmployee.id}
@@ -996,7 +996,7 @@ export default function WorkScheduling() {
                             </Button>
                             <Button
                                 variant="outline"
-                                className="border-indigo-300 text-indigo-600 hover:bg-indigo-50"
+                                className="border-[#D9BD83] text-[#A04A2E] hover:bg-[#F4ECD8]"
                                 onClick={async () => {
                                     if (!confirm('להעתיק את כל המשמרות מהשבוע שעבר לשבוע הזה?\nשיבוצים שכבר קיימים בשבוע הנוכחי לא ייפגעו.')) return;
                                     try {
@@ -1026,7 +1026,7 @@ export default function WorkScheduling() {
                     {/* מקרא צבעים */}
                     <div className="flex gap-3 mb-3 text-xs flex-wrap">
                         <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-red-200 border border-red-300 inline-block"></span> 🔴 סגירה (מניהול טיפים)</span>
-                        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-purple-200 border border-purple-300 inline-block"></span> 🟣 פתיחה (מניהול טיפים)</span>
+                        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-purple-200 border border-[#D9BD83] inline-block"></span> 🟣 פתיחה (מניהול טיפים)</span>
                         <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-gradient-to-r from-green-400 to-yellow-400 inline-block"></span> 👑 המשמרת שלי</span>
                     </div>
                     <div className="grid grid-cols-[200px_repeat(7,1fr)] min-w-[1200px]">
@@ -1099,7 +1099,7 @@ export default function WorkScheduling() {
                                                             {shift && positionIdx === 0 && (
                                                                 <button
                                                                     title="העבר משמרת לתאריך אחר"
-                                                                    className="absolute top-1 left-1 opacity-0 group-hover:opacity-100 transition-opacity bg-white border rounded p-0.5 text-gray-500 hover:text-blue-600 z-10"
+                                                                    className="absolute top-1 left-1 opacity-0 group-hover:opacity-100 transition-opacity bg-white border rounded p-0.5 text-gray-500 hover:text-[#44512C] z-10"
                                                                     onClick={(e) => { e.stopPropagation(); setMoveShiftDialog({ shift }); setMoveShiftDate(shift.date); }}
                                                                 >
                                                                     <MoveRight className="w-3 h-3" />
@@ -1109,13 +1109,13 @@ export default function WorkScheduling() {
                                                                 const tipRole = getAssignmentTipRole(assignment, dateStr, type);
                                                                 const emp = employees.find(e => e.id === assignment.employee_id);
                                                                 const rating = emp?.manager_quality_rating || 0;
-                                                                let cardClass = 'bg-blue-100 hover:bg-blue-200';
+                                                                let cardClass = 'bg-[#F4ECD8] hover:bg-[#E8D9B5]';
                                                                 if (isMyAssignment(assignment)) {
                                                                     cardClass = 'bg-gradient-to-r from-green-400 to-yellow-400 text-gray-900 font-bold shadow-lg border-2 border-yellow-500 hover:shadow-xl';
                                                                 } else if (tipRole === 'closing') {
                                                                     cardClass = 'bg-red-100 border border-red-300 hover:bg-red-200';
                                                                 } else if (tipRole === 'opening') {
-                                                                    cardClass = 'bg-purple-100 border border-purple-300 hover:bg-purple-200';
+                                                                    cardClass = 'bg-[#F4ECD8] border border-[#D9BD83] hover:bg-purple-200';
                                                                 }
                                                                 return (
                                                                 <div

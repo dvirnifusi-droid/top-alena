@@ -102,7 +102,7 @@ export default function CourierDashboard() {
 
   const getStatusColor = (status) => {
     switch (status) {
-      case "picked_up": return "bg-blue-100 text-blue-800";
+      case "picked_up": return "bg-[#F4ECD8] text-[#2E3819]";
       case "delivered": return "bg-green-100 text-green-800";
       default: return "bg-red-100 text-red-800";
     }
@@ -162,7 +162,7 @@ export default function CourierDashboard() {
           {/* בדרך */}
           {pickedUp.length > 0 && (
             <>
-              <div className="text-sm font-semibold text-blue-700 flex items-center gap-1 mt-6">
+              <div className="text-sm font-semibold text-[#44512C] flex items-center gap-1 mt-6">
                 <Clock className="w-4 h-4" /> בדרך ({pickedUp.length})
               </div>
               <div className="space-y-3">
@@ -224,7 +224,7 @@ export default function CourierDashboard() {
                 </div>
               </div>
 
-              <div className="bg-blue-50 rounded-lg p-3">
+              <div className="bg-[#F4ECD8] rounded-lg p-3">
                 <p className="text-xs font-semibold text-blue-900 mb-2">סטטוס משלוח</p>
                 <Badge className={getStatusColor(selectedDelivery.delivery_status)}>
                   {getStatusLabel(selectedDelivery.delivery_status)}
@@ -283,7 +283,7 @@ function DeliveryCard({ delivery, onDetails, onPickup, onDeliver }) {
             <Badge
               className={
                 delivery.delivery_status === "picked_up"
-                  ? "bg-blue-100 text-blue-800"
+                  ? "bg-[#F4ECD8] text-[#2E3819]"
                   : delivery.delivery_status === "delivered"
                   ? "bg-green-100 text-green-800"
                   : "bg-red-100 text-red-800"
@@ -303,7 +303,7 @@ function DeliveryCard({ delivery, onDetails, onPickup, onDeliver }) {
                     e.stopPropagation();
                     onPickup();
                   }}
-                  className="bg-blue-600 hover:bg-blue-700 h-7"
+                  className="bg-[#44512C] hover:bg-[#44512C] h-7"
                 >
                   הרם
                 </Button>

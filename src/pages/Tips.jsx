@@ -102,7 +102,7 @@ function UnlockedReportsAlert() {
                                         <td className="py-1 px-2">{r.shift_type === 'lunch' ? 'צהריים' : 'ערב'}</td>
                                         <td className="py-1 px-2 font-medium">₪{(r.total_tips_collected || 0).toFixed(2)}</td>
                                         <td className="py-1 px-2">
-                                            <span className="bg-yellow-100 text-yellow-800 text-xs px-2 py-0.5 rounded-full font-medium">
+                                            <span className="bg-[#F4ECD8] text-yellow-800 text-xs px-2 py-0.5 rounded-full font-medium">
                                                 {r.status === 'draft' ? 'טיוטה' : r.status}
                                             </span>
                                         </td>
@@ -487,7 +487,7 @@ function TipsInner() {
                                 </Card>
                                 <Card>
                                     <CardHeader className="pb-2"><CardTitle className="text-sm font-medium">טיפ לשעה</CardTitle></CardHeader>
-                                    <CardContent><p className="text-2xl font-bold text-blue-600">₪{calculatedResults.tipPerHour.toFixed(2)}</p></CardContent>
+                                    <CardContent><p className="text-2xl font-bold text-[#44512C]">₪{calculatedResults.tipPerHour.toFixed(2)}</p></CardContent>
                                 </Card>
                             </div>
 
@@ -495,7 +495,7 @@ function TipsInner() {
                             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                                 <Card className="border-r-4 border-purple-400">
                                     <CardHeader className="pb-2"><CardTitle className="text-sm font-medium">סה"כ שעות מלצרים</CardTitle></CardHeader>
-                                    <CardContent><p className="text-2xl font-bold text-purple-600">{calculatedResults.waiterHours.toFixed(2)} שע'</p></CardContent>
+                                    <CardContent><p className="text-2xl font-bold text-[#A04A2E]">{calculatedResults.waiterHours.toFixed(2)} שע'</p></CardContent>
                                 </Card>
                                 <Card className="border-r-4 border-orange-400">
                                     <CardHeader className="pb-2"><CardTitle className="text-sm font-medium">סה"כ שעות ראנרים</CardTitle></CardHeader>
@@ -645,7 +645,7 @@ function TipsInner() {
                                         </Label>
                                         <div className="space-y-1 max-h-48 overflow-y-auto border rounded-lg bg-white p-2">
                                             {staffDetails.filter(s => s.employee_id).map(s => (
-                                                <label key={s.employee_id} className="flex items-center gap-2 cursor-pointer hover:bg-purple-50 rounded px-2 py-1">
+                                                <label key={s.employee_id} className="flex items-center gap-2 cursor-pointer hover:bg-[#F4ECD8] rounded px-2 py-1">
                                                     <input
                                                         type="checkbox"
                                                         checked={openingEmployeeIds.includes(s.employee_id)}
@@ -702,7 +702,7 @@ function TipsInner() {
 
                             <div className="flex justify-start gap-2 flex-wrap">
                                 <Button variant="outline" onClick={handleAddStaff}><UserPlus className="w-4 h-4 ml-2"/>הוסף עובד ידנית</Button>
-                                <Button variant="outline" className="border-blue-400 text-blue-600 hover:bg-blue-50" onClick={async () => {
+                                <Button variant="outline" className="border-blue-400 text-[#44512C] hover:bg-[#F4ECD8]" onClick={async () => {
                                     const dateString = format(date, 'yyyy-MM-dd');
                                     const shifts = await WorkShift.filter({ date: dateString, shift_type: shiftType });
                                     if (shifts.length > 0) {

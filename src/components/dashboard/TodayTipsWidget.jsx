@@ -27,7 +27,7 @@ export default function TodayTipsWidget() {
       <Card className="hover:shadow-lg transition-all cursor-pointer hover:scale-[1.02]">
         <CardContent className="p-5">
           <div className="flex items-center justify-between mb-3">
-            <div className="p-2.5 bg-yellow-100 rounded-xl"><Banknote className="w-5 h-5 text-yellow-600" /></div>
+            <div className="p-2.5 bg-[#F4ECD8] rounded-xl"><Banknote className="w-5 h-5 text-yellow-600" /></div>
             <span className="text-xs text-muted-foreground">היום</span>
           </div>
           <p className="text-2xl font-black text-foreground">

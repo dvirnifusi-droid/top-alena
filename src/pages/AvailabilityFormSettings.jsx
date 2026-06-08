@@ -26,7 +26,7 @@ const DEFAULT_DEPARTMENTS = [
 const DEFAULT_AVAILABILITY_TYPES = [
     { key: 'available', label: '✅ פנוי/ה', color: 'bg-green-100 text-green-800 border-green-300' },
     { key: 'unavailable', label: '❌ לא פנוי/ה', color: 'bg-red-100 text-red-800 border-red-300' },
-    { key: 'partial', label: '⏰ פנוי/ה חלקית', color: 'bg-yellow-100 text-yellow-800 border-yellow-300' },
+    { key: 'partial', label: '⏰ פנוי/ה חלקית', color: 'bg-[#F4ECD8] text-yellow-800 border-[#D9BD83]' },
     { key: 'preferred_off', label: '🙏 מעדיף/ה לא', color: 'bg-orange-100 text-orange-800 border-orange-300' },
 ];
 

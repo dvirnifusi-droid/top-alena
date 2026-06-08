@@ -171,7 +171,7 @@ function BookingsCard() {
                         👤 {b.customer_name || 'ללא שם — שאל בטלפון'}
                       </div>
                       {b.customer_phone && (
-                        <a href={`tel:${b.customer_phone}`} className="text-blue-700 font-semibold hover:underline text-base">
+                        <a href={`tel:${b.customer_phone}`} className="text-[#44512C] font-semibold hover:underline text-base">
                           📞 {b.customer_phone}
                         </a>
                       )}
@@ -311,7 +311,7 @@ function CustomerConfirmModal({ booking, onClose }) {
               <MessageCircle className="w-4 h-4" /> WhatsApp
             </a>
             <a href={smsLink}
-               className="flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg py-3 px-4 font-bold transition">
+               className="flex items-center justify-center gap-2 bg-[#44512C] hover:bg-[#44512C] text-white rounded-lg py-3 px-4 font-bold transition">
               <Phone className="w-4 h-4" /> SMS
             </a>
           </div>
@@ -355,7 +355,7 @@ function UpcomingEventsTimeline() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base flex items-center gap-2"><CalendarDays className="w-4 h-4 text-blue-500" /> אירועים מאושרים — הבאים בתור</CardTitle>
+        <CardTitle className="text-base flex items-center gap-2"><CalendarDays className="w-4 h-4 text-[#44512C]" /> אירועים מאושרים — הבאים בתור</CardTitle>
         <CardDescription>אירועים שאישרת. ה-Reservation שלהם חסום ב-SeatingSetup. סדר כרונולוגי.</CardDescription>
       </CardHeader>
       <CardContent>
@@ -389,7 +389,7 @@ function UpcomingEventsTimeline() {
                       const phoneClean = (e.customer_phone || '').replace(/\D/g, '');
                       const waNum = phoneClean.startsWith('0') ? '972' + phoneClean.slice(1) : phoneClean;
                       return (
-                        <div key={e.id} className="flex items-center gap-3 p-2 bg-blue-50 border border-blue-200 rounded-lg text-sm">
+                        <div key={e.id} className="flex items-center gap-3 p-2 bg-[#F4ECD8] border border-[#E8D9B5] rounded-lg text-sm">
                           <div className="font-mono text-blue-900 font-bold text-xs whitespace-nowrap">
                             {e.event_time || '—'}{endTime ? `-${endTime}` : ''}
                           </div>
@@ -565,7 +565,7 @@ export default function EventsPrivatePage() {
                         <div className="text-sm flex-1 min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
                             <strong>{l.contact_name || 'ללא שם'}</strong>
-                            {l.contact_phone && <a href={`tel:${l.contact_phone}`} className="text-blue-600 hover:underline">📞 {l.contact_phone}</a>}
+                            {l.contact_phone && <a href={`tel:${l.contact_phone}`} className="text-[#44512C] hover:underline">📞 {l.contact_phone}</a>}
                             {scoreBadge(l.score)}
                             <Badge className={status.cls}>{status.label}</Badge>
                           </div>

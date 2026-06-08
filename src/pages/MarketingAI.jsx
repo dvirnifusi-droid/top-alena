@@ -241,19 +241,19 @@ export default function MarketingAIPage() {
 
     if (loading) {
         return (
-            <div className="flex justify-center items-center min-h-screen bg-gradient-to-br from-purple-50 via-blue-50 to-indigo-100">
-                <Loader2 className="w-12 h-12 text-purple-600 animate-spin" />
+            <div className="flex justify-center items-center min-h-screen bg-gradient-to-br from-[#F4ECD8] via-[#F4ECD8] to-[#F4ECD8]">
+                <Loader2 className="w-12 h-12 text-[#A04A2E] animate-spin" />
             </div>
         );
     }
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-purple-50 via-blue-50 to-indigo-100 p-6" dir="rtl">
+        <div className="min-h-screen bg-gradient-to-br from-[#F4ECD8] via-[#F4ECD8] to-[#F4ECD8] p-6" dir="rtl">
             <div className="max-w-7xl mx-auto space-y-8">
                 {/* Header */}
                 <div className="text-center">
                     <h1 className="text-4xl font-bold text-gray-900 mb-2 flex items-center justify-center gap-3">
-                        <Brain className="w-10 h-10 text-purple-600" />
+                        <Brain className="w-10 h-10 text-[#A04A2E]" />
                         יועץ השיווק החכם 🚀
                     </h1>
                     <p className="text-gray-600 text-lg">המערכת שתכפיל את המכירות שלך תוך 6 חודשים</p>
@@ -261,14 +261,14 @@ export default function MarketingAIPage() {
 
                 {/* Stats Cards */}
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                    <Card className="bg-gradient-to-br from-blue-500 to-blue-600 text-white">
+                    <Card className="bg-gradient-to-br from-[#44512C] to-[#44512C] text-white">
                         <CardContent className="p-6">
                             <div className="flex items-center justify-between">
                                 <div>
-                                    <p className="text-blue-100">משימות היום</p>
+                                    <p className="text-[#F4ECD8]">משימות היום</p>
                                     <p className="text-3xl font-bold">{todaysTasks.length}</p>
                                 </div>
-                                <Calendar className="w-10 h-10 text-blue-200" />
+                                <Calendar className="w-10 h-10 text-[#E8D9B5]" />
                             </div>
                         </CardContent>
                     </Card>
@@ -285,11 +285,11 @@ export default function MarketingAIPage() {
                         </CardContent>
                     </Card>
 
-                    <Card className="bg-gradient-to-br from-purple-500 to-purple-600 text-white">
+                    <Card className="bg-gradient-to-br from-[#A04A2E] to-[#A04A2E] text-white">
                         <CardContent className="p-6">
                             <div className="flex items-center justify-between">
                                 <div>
-                                    <p className="text-purple-100">יעדים פעילים</p>
+                                    <p className="text-[#F4ECD8]">יעדים פעילים</p>
                                     <p className="text-3xl font-bold">{goals.length}</p>
                                 </div>
                                 <TrendingUp className="w-10 h-10 text-purple-200" />
@@ -312,29 +312,29 @@ export default function MarketingAIPage() {
 
                 <Tabs defaultValue="daily" className="w-full">
                     <TabsList className="grid w-full grid-cols-8 bg-gradient-to-r from-white/80 via-white/60 to-white/80 backdrop-blur-xl p-2 h-auto rounded-2xl border border-white/20 shadow-xl">
-                        <TabsTrigger value="daily" className="py-3 px-6 text-sm font-bold rounded-xl data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-500 data-[state=active]:to-purple-500 data-[state=active]:text-white transition-all duration-300">
+                        <TabsTrigger value="daily" className="py-3 px-6 text-sm font-bold rounded-xl data-[state=active]:bg-gradient-to-r data-[state=active]:from-[#44512C] data-[state=active]:to-[#A04A2E] data-[state=active]:text-white transition-all duration-300">
                             📅 תוכנית יומית
                         </TabsTrigger>
                         <TabsTrigger value="suggestions" className="py-3 px-6 text-sm font-bold rounded-xl data-[state=active]:bg-gradient-to-r data-[state=active]:from-green-500 data-[state=active]:to-emerald-500 data-[state=active]:text-white transition-all duration-300">
                             💾 מאגר הצעות
                         </TabsTrigger>
-                        <TabsTrigger value="profile" className="py-3 px-6 text-sm font-bold rounded-xl data-[state=active]:bg-gradient-to-r data-[state=active]:from-rose-500 data-[state=active]:to-orange-500 data-[state=active]:text-white transition-all duration-300">
+                        <TabsTrigger value="profile" className="py-3 px-6 text-sm font-bold rounded-xl data-[state=active]:bg-gradient-to-r data-[state=active]:from-[#A04A2E] data-[state=active]:to-orange-500 data-[state=active]:text-white transition-all duration-300">
                             🚀 פרופיל
                         </TabsTrigger>
-                        <TabsTrigger value="lab" className="py-3 px-6 text-sm font-bold rounded-xl data-[state=active]:bg-gradient-to-r data-[state=active]:from-indigo-500 data-[state=active]:to-blue-500 data-[state=active]:text-white transition-all duration-300">
+                        <TabsTrigger value="lab" className="py-3 px-6 text-sm font-bold rounded-xl data-[state=active]:bg-gradient-to-r data-[state=active]:from-[#A04A2E] data-[state=active]:to-[#44512C] data-[state=active]:text-white transition-all duration-300">
                             <TestTube2 className="w-4 h-4 ml-2" />
                              מעבדה
                         </TabsTrigger>
-                        <TabsTrigger value="brainstorm" className="py-3 px-6 text-sm font-bold rounded-xl data-[state=active]:bg-gradient-to-r data-[state=active]:from-purple-500 data-[state=active]:to-pink-500 data-[state=active]:text-white transition-all duration-300">
+                        <TabsTrigger value="brainstorm" className="py-3 px-6 text-sm font-bold rounded-xl data-[state=active]:bg-gradient-to-r data-[state=active]:from-[#A04A2E] data-[state=active]:to-[#A04A2E] data-[state=active]:text-white transition-all duration-300">
                             💡 סיעור מוחות
                         </TabsTrigger>
-                        <TabsTrigger value="goals" className="py-3 px-6 text-sm font-bold rounded-xl data-[state=active]:bg-gradient-to-r data-[state=active]:from-green-500 data-[state=active]:to-teal-500 data-[state=active]:text-white transition-all duration-300">
+                        <TabsTrigger value="goals" className="py-3 px-6 text-sm font-bold rounded-xl data-[state=active]:bg-gradient-to-r data-[state=active]:from-green-500 data-[state=active]:to-[#44512C] data-[state=active]:text-white transition-all duration-300">
                             🎯 יעדים
                         </TabsTrigger>
                         <TabsTrigger value="insights" className="py-3 px-6 text-sm font-bold rounded-xl data-[state=active]:bg-gradient-to-r data-[state=active]:from-orange-500 data-[state=active]:to-red-500 data-[state=active]:text-white transition-all duration-300">
                             📊 תובנות
                         </TabsTrigger>
-                        <TabsTrigger value="analytics" className="py-3 px-6 text-sm font-bold rounded-xl data-[state=active]:bg-gradient-to-r data-[state=active]:from-pink-500 data-[state=active]:to-rose-500 data-[state=active]:text-white transition-all duration-300">
+                        <TabsTrigger value="analytics" className="py-3 px-6 text-sm font-bold rounded-xl data-[state=active]:bg-gradient-to-r data-[state=active]:from-[#A04A2E] data-[state=active]:to-[#A04A2E] data-[state=active]:text-white transition-all duration-300">
                             📈 ניתוח
                         </TabsTrigger>
                     </TabsList>

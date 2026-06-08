@@ -250,18 +250,18 @@ export default function QueueHistory() {
 
       {/* סטטיסטיקה Analytics */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
-        <Card className="bg-purple-50 border-purple-200">
+        <Card className="bg-[#F4ECD8] border-purple-200">
           <CardContent className="p-3 text-center">
-            <p className="text-sm text-purple-600 font-bold">זמן המתנה ממוצע</p>
-            <p className="text-2xl font-black text-purple-700">{stats.avgWaitTime}</p>
-            <p className="text-xs text-purple-500">דקות</p>
+            <p className="text-sm text-[#A04A2E] font-bold">זמן המתנה ממוצע</p>
+            <p className="text-2xl font-black text-[#7A3722]">{stats.avgWaitTime}</p>
+            <p className="text-xs text-[#A04A2E]">דקות</p>
           </CardContent>
         </Card>
         <Card className="bg-teal-50 border-teal-200">
           <CardContent className="p-3 text-center">
-            <p className="text-sm text-teal-600 font-bold">יחס המרה</p>
+            <p className="text-sm text-[#44512C] font-bold">יחס המרה</p>
             <p className="text-2xl font-black text-teal-700">{stats.conversionRate}%</p>
-            <p className="text-xs text-teal-500">{stats.seatedCount}/{stats.totalCount}</p>
+            <p className="text-xs text-[#44512C]">{stats.seatedCount}/{stats.totalCount}</p>
           </CardContent>
         </Card>
         <Card className="bg-orange-50 border-orange-200">
@@ -271,11 +271,11 @@ export default function QueueHistory() {
             <p className="text-xs text-orange-500">:00</p>
           </CardContent>
         </Card>
-        <Card className="bg-indigo-50 border-indigo-200">
+        <Card className="bg-[#F4ECD8] border-indigo-200">
           <CardContent className="p-3 text-center">
-            <p className="text-sm text-indigo-600 font-bold">סה"כ סועדים</p>
-            <p className="text-2xl font-black text-indigo-700">{stats.totalDiners}</p>
-            <p className="text-xs text-indigo-500">הרשומים</p>
+            <p className="text-sm text-[#A04A2E] font-bold">סה"כ סועדים</p>
+            <p className="text-2xl font-black text-[#7A3722]">{stats.totalDiners}</p>
+            <p className="text-xs text-[#A04A2E]">הרשומים</p>
           </CardContent>
         </Card>
         <Card className="bg-green-50 border-green-300">
@@ -285,11 +285,11 @@ export default function QueueHistory() {
             <p className="text-xs text-green-600">סועדים</p>
           </CardContent>
         </Card>
-        <Card className="bg-pink-50 border-pink-200">
+        <Card className="bg-[#F4ECD8] border-pink-200">
           <CardContent className="p-3 text-center">
-            <p className="text-sm text-pink-600 font-bold">❌ נטשו</p>
-            <p className="text-2xl font-black text-pink-700">{stats.abandonedDiners}</p>
-            <p className="text-xs text-pink-500">סועדים</p>
+            <p className="text-sm text-[#A04A2E] font-bold">❌ נטשו</p>
+            <p className="text-2xl font-black text-[#7A3722]">{stats.abandonedDiners}</p>
+            <p className="text-xs text-[#A04A2E]">סועדים</p>
           </CardContent>
         </Card>
         <Card className="bg-red-50 border-red-200">
@@ -318,7 +318,7 @@ export default function QueueHistory() {
             placeholder="חפש לפי שם או טלפון"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full border-2 border-gray-200 rounded-lg px-4 py-2 pr-10 text-sm focus:outline-none focus:border-blue-500"
+            className="w-full border-2 border-gray-200 rounded-lg px-4 py-2 pr-10 text-sm focus:outline-none focus:border-[#44512C]"
           />
         </div>
 
@@ -326,7 +326,7 @@ export default function QueueHistory() {
         <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
-          className="border-2 border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
+          className="border-2 border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#44512C]"
         >
           <option value="all">כל הסטטוסים</option>
           <option value="pending">ממתין לאישור</option>
@@ -339,7 +339,7 @@ export default function QueueHistory() {
         <select
           value={dateFilter}
           onChange={(e) => setDateFilter(e.target.value)}
-          className="border-2 border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
+          className="border-2 border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#44512C]"
         >
           <option value="all">כל הזמן</option>
           <option value="today">היום</option>
@@ -351,7 +351,7 @@ export default function QueueHistory() {
         <select
           value={partySizeFilter}
           onChange={(e) => setPartySizeFilter(e.target.value)}
-          className="border-2 border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
+          className="border-2 border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#44512C]"
         >
           <option value="all">כל גודל קבוצה</option>
           <option value="1">1 סועד בלבד</option>
@@ -364,7 +364,7 @@ export default function QueueHistory() {
           type="date"
           value={specificDate}
           onChange={(e) => setSpecificDate(e.target.value)}
-          className="border-2 border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
+          className="border-2 border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#44512C]"
         />
 
         {/* סנן נטישות */}
@@ -385,7 +385,7 @@ export default function QueueHistory() {
             type="number"
             value={avgOrderValue}
             onChange={(e) => setAvgOrderValue(parseInt(e.target.value) || 120)}
-            className="w-full border-2 border-gray-200 rounded-lg px-2 py-2 text-sm focus:outline-none focus:border-blue-500"
+            className="w-full border-2 border-gray-200 rounded-lg px-2 py-2 text-sm focus:outline-none focus:border-[#44512C]"
             placeholder="120"
           />
         </div>
@@ -432,7 +432,7 @@ export default function QueueHistory() {
             ) : (
               filteredEntries.map(entry => {
                  const waitTime = getWaitTime(entry);
-                 const waitColor = waitTime > 40 ? 'text-red-700 bg-red-50' : waitTime > 20 ? 'text-yellow-700 bg-yellow-50' : 'text-green-700 bg-green-50';
+                 const waitColor = waitTime > 40 ? 'text-red-700 bg-red-50' : waitTime > 20 ? 'text-yellow-700 bg-[#FAF5E8]' : 'text-green-700 bg-green-50';
                  const customer = customers[entry.phone];
                  const tierEmoji = { vip: '👑', frequent: '⭐', regular: '👤' };
                  const churnRisk = getChurnRisk(entry);
@@ -459,7 +459,7 @@ export default function QueueHistory() {
                        </span>
                      )}
                      {churnRisk === 'medium' && (
-                       <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-1 rounded-full font-bold">⚠️ בינונית</span>
+                       <span className="text-xs bg-[#F4ECD8] text-yellow-700 px-2 py-1 rounded-full font-bold">⚠️ בינונית</span>
                      )}
                      {churnRisk === 'low' && (
                        <span className="text-xs text-gray-400">-</span>
@@ -481,7 +481,7 @@ export default function QueueHistory() {
                       const redeemed = entry.treat_redeemed;
                       return (
                         <div className="flex flex-col items-center gap-1">
-                          <span className="text-sm font-bold text-purple-700">
+                          <span className="text-sm font-bold text-[#7A3722]">
                             {treat.emoji} {treat.name}
                           </span>
                           {redeemed ? (
@@ -494,7 +494,7 @@ export default function QueueHistory() {
                                 await base44.entities.QueueEntry.update(entry.id, { treat_redeemed: true });
                                 setEntries(prev => prev.map(e => e.id === entry.id ? { ...e, treat_redeemed: true } : e));
                               }}
-                              className="text-xs bg-purple-500 hover:bg-purple-600 text-white px-2 py-0.5 rounded-full font-bold transition-all active:scale-95"
+                              className="text-xs bg-[#A04A2E] hover:bg-[#A04A2E] text-white px-2 py-0.5 rounded-full font-bold transition-all active:scale-95"
                             >
                               ✓ מממש
                             </button>
@@ -525,7 +525,7 @@ export default function QueueHistory() {
                   </td>
                   <td className="px-4 py-3 text-center">
                     {customer ? (
-                      <span className="font-bold text-purple-700">{customer.coin_balance}</span>
+                      <span className="font-bold text-[#7A3722]">{customer.coin_balance}</span>
                     ) : (
                       <span className="text-gray-300 text-sm">-</span>
                     )}
@@ -541,7 +541,7 @@ export default function QueueHistory() {
                     <a
                       href={`sms:${entry.phone}`}
                       title="שלח SMS"
-                      className="w-8 h-8 rounded-lg bg-blue-100 hover:bg-blue-200 text-blue-700 flex items-center justify-center transition-all"
+                      className="w-8 h-8 rounded-lg bg-[#F4ECD8] hover:bg-[#E8D9B5] text-[#44512C] flex items-center justify-center transition-all"
                     >
                       <MessageSquare className="w-4 h-4" />
                     </a>
@@ -566,7 +566,7 @@ export default function QueueHistory() {
       </div>
 
       {/* הערה */}
-      <div className="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm text-blue-700">
+      <div className="mt-6 bg-[#F4ECD8] border border-[#E8D9B5] rounded-lg p-4 text-sm text-[#44512C]">
         <p className="font-bold mb-2">💡 עמודות חדשות:</p>
         <ul className="list-disc list-inside space-y-1">
           <li><strong>⏱️ זמן המתנה:</strong> אדום (40+ דק'), צהוב (20-40 דק'), ירוק (פחות מ-20)</li>

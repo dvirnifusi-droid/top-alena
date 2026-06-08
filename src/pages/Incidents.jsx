@@ -33,27 +33,27 @@ import IncidentAiAnalysis from '@/components/ai/IncidentAiAnalysis';
 
 // קטגוריות עם אייקונים
 const categoryConfig = {
-  customer_service: { name: 'שירות לקוחות', icon: Users, color: 'bg-blue-100 text-blue-800' },
+  customer_service: { name: 'שירות לקוחות', icon: Users, color: 'bg-[#F4ECD8] text-[#2E3819]' },
   maintenance: { name: 'תחזוקה וציוד', icon: Wrench, color: 'bg-orange-100 text-orange-800' },
   cleanliness: { name: 'נקיון', icon: Sparkles, color: 'bg-green-100 text-green-800' },
-  staff: { name: 'כוח אדם', icon: Users, color: 'bg-purple-100 text-purple-800' },
+  staff: { name: 'כוח אדם', icon: Users, color: 'bg-[#F4ECD8] text-[#7A3722]' },
   security: { name: 'ביטחון', icon: Shield, color: 'bg-red-100 text-red-800' },
-  safety: { name: 'בטיחות', icon: Shield, color: 'bg-yellow-100 text-yellow-800' },
+  safety: { name: 'בטיחות', icon: Shield, color: 'bg-[#F4ECD8] text-yellow-800' },
   kitchen: { name: 'מטבח', icon: ChefHat, color: 'bg-amber-100 text-amber-800' },
-  bar: { name: 'בר', icon: Wine, color: 'bg-indigo-100 text-indigo-800' },
+  bar: { name: 'בר', icon: Wine, color: 'bg-[#F4ECD8] text-indigo-800' },
   pos_system: { name: 'מערכת קופות', icon: CreditCard, color: 'bg-gray-100 text-gray-800' }
 };
 
 const severityConfig = {
-  low: 'bg-blue-100 text-blue-800',
-  medium: 'bg-yellow-100 text-yellow-800', 
+  low: 'bg-[#F4ECD8] text-[#2E3819]',
+  medium: 'bg-[#F4ECD8] text-yellow-800', 
   high: 'bg-orange-100 text-orange-800',
   critical: 'bg-red-100 text-red-800'
 };
 
 const statusConfig = {
   reported: { name: 'חדש', color: 'bg-red-100 text-red-800' },
-  investigating: { name: 'בבדיקה', color: 'bg-yellow-100 text-yellow-800' },
+  investigating: { name: 'בבדיקה', color: 'bg-[#F4ECD8] text-yellow-800' },
   in_progress: { name: 'בטיפול', color: 'bg-orange-100 text-orange-800' },
   resolved: { name: 'נפתר', color: 'bg-green-100 text-green-800' },
   closed: { name: 'סגור', color: 'bg-gray-200 text-gray-800' }
@@ -61,15 +61,15 @@ const statusConfig = {
 
 const visibilityConfig = { // Added
   managers_only: { name: 'מנהלים בלבד', icon: Shield, color: 'bg-red-100 text-red-800' },
-  managers_and_employees: { name: 'מנהלים ועובדים', icon: Users, color: 'bg-blue-100 text-blue-800' },
+  managers_and_employees: { name: 'מנהלים ועובדים', icon: Users, color: 'bg-[#F4ECD8] text-[#2E3819]' },
   employees_only: { name: 'עובדים בלבד', icon: Eye, color: 'bg-green-100 text-green-800' },
-  owners_only: { name: 'בעלים בלבד', icon: EyeOff, color: 'bg-purple-100 text-purple-800' }
+  owners_only: { name: 'בעלים בלבד', icon: EyeOff, color: 'bg-[#F4ECD8] text-[#7A3722]' }
 };
 
 const cardBackgroundByStatus = {
   reported: 'bg-red-50 border border-red-100',
-  investigating: 'bg-yellow-50 border border-yellow-100',
-  in_progress: 'bg-yellow-50 border border-yellow-100',
+  investigating: 'bg-[#FAF5E8] border border-[#F4ECD8]',
+  in_progress: 'bg-[#FAF5E8] border border-[#F4ECD8]',
   resolved: 'bg-green-50 border border-green-100',
   closed: 'bg-white'
 };
@@ -530,7 +530,7 @@ function IncidentsInner() {
                 {visibleIncidents.length - openIncidents} תקריות סגורות
               </Badge>
               {!isAdmin && currentUser && (
-                <Badge className="bg-blue-100 text-blue-800 text-xs lg:text-sm px-2 lg:px-3 py-1">
+                <Badge className="bg-[#F4ECD8] text-[#2E3819] text-xs lg:text-sm px-2 lg:px-3 py-1">
                   מוצגות תקריות לפי הרשאות
                 </Badge>
               )}

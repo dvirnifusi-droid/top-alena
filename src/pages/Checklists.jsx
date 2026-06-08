@@ -115,9 +115,9 @@ function ChecklistsInner() {
 
     if (loading) {
         return (
-            <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-cyan-50 to-blue-100 flex justify-center items-center">
+            <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-[#F4ECD8] to-[#F4ECD8] flex justify-center items-center">
                 <div className="text-center">
-                    <div className="w-20 h-20 bg-gradient-to-r from-emerald-500 to-cyan-500 rounded-full flex items-center justify-center mx-auto mb-6 animate-pulse">
+                    <div className="w-20 h-20 bg-gradient-to-r from-emerald-500 to-[#B89556] rounded-full flex items-center justify-center mx-auto mb-6 animate-pulse">
                         <CheckSquare className="w-10 h-10 text-white animate-bounce" />
                     </div>
                     <p className="text-gray-700 text-lg font-medium">טוען צ'קליסטים נהדרים...</p>
@@ -138,18 +138,18 @@ function ChecklistsInner() {
     }
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-cyan-50 to-blue-100 p-4 md:p-8" dir="rtl">
+        <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-[#F4ECD8] to-[#F4ECD8] p-4 md:p-8" dir="rtl">
             <div className="max-w-7xl mx-auto">
                 {/* Header מושלם */}
                 <div className="text-center mb-12 relative">
                     <div className="absolute inset-0 bg-gradient-to-r from-emerald-400/20 via-cyan-400/20 to-blue-400/20 rounded-3xl -rotate-1"></div>
                     <div className="relative bg-white/70 backdrop-blur-sm rounded-3xl p-8 shadow-lg border border-white/50">
-                        <h1 className="text-5xl font-black text-transparent bg-gradient-to-r from-emerald-600 via-cyan-600 to-blue-600 bg-clip-text mb-4 flex items-center justify-center gap-4">
-                            <div className="w-16 h-16 bg-gradient-to-r from-emerald-500 to-cyan-500 rounded-2xl flex items-center justify-center shadow-xl rotate-3 hover:rotate-0 transition-transform duration-500">
+                        <h1 className="text-5xl font-black text-transparent bg-gradient-to-r from-emerald-600 via-[#B89556] to-[#44512C] bg-clip-text mb-4 flex items-center justify-center gap-4">
+                            <div className="w-16 h-16 bg-gradient-to-r from-emerald-500 to-[#B89556] rounded-2xl flex items-center justify-center shadow-xl rotate-3 hover:rotate-0 transition-transform duration-500">
                                 <CheckSquare className="w-8 h-8 text-white" />
                             </div>
                             רשימות בדיקה
-                            <div className="w-16 h-16 bg-gradient-to-r from-cyan-500 to-blue-500 rounded-2xl flex items-center justify-center shadow-xl -rotate-3 hover:rotate-0 transition-transform duration-500">
+                            <div className="w-16 h-16 bg-gradient-to-r from-[#B89556] to-[#44512C] rounded-2xl flex items-center justify-center shadow-xl -rotate-3 hover:rotate-0 transition-transform duration-500">
                                 <CheckSquare className="w-8 h-8 text-white" />
                             </div>
                         </h1>
@@ -166,10 +166,10 @@ function ChecklistsInner() {
                         <TabsTrigger value="procedures" className="py-3 px-3 text-sm font-bold rounded-xl data-[state=active]:bg-orange-500 data-[state=active]:text-white transition-all">
                             📋 נהלים
                         </TabsTrigger>
-                        <TabsTrigger value="archive" className="py-3 px-3 text-sm font-bold rounded-xl data-[state=active]:bg-purple-500 data-[state=active]:text-white transition-all">
+                        <TabsTrigger value="archive" className="py-3 px-3 text-sm font-bold rounded-xl data-[state=active]:bg-[#A04A2E] data-[state=active]:text-white transition-all">
                             🗂️ ארכיון
                         </TabsTrigger>
-                        <TabsTrigger value="stats" className="py-3 px-3 text-sm font-bold rounded-xl data-[state=active]:bg-blue-500 data-[state=active]:text-white transition-all">
+                        <TabsTrigger value="stats" className="py-3 px-3 text-sm font-bold rounded-xl data-[state=active]:bg-[#44512C] data-[state=active]:text-white transition-all">
                             📊 סטטיסטיקות
                         </TabsTrigger>
                     </TabsList>
@@ -228,7 +228,7 @@ function ChecklistsInner() {
 
                     <TabsContent value="procedures">
                         <Card className="shadow-2xl border-0 bg-gradient-to-br from-white via-orange-50 to-red-50 backdrop-blur-sm overflow-hidden">
-                            <CardHeader className="bg-gradient-to-r from-orange-600 via-red-600 to-pink-600 text-white rounded-t-lg relative overflow-hidden">
+                            <CardHeader className="bg-gradient-to-r from-orange-600 via-red-600 to-[#A04A2E] text-white rounded-t-lg relative overflow-hidden">
                                 <div className="absolute inset-0 bg-gradient-to-r from-yellow-400/20 via-orange-400/20 to-red-400/20"></div>
                                 <div className="flex justify-between items-center relative">
                                     <CardTitle className="text-3xl flex items-center gap-4 font-black">
@@ -328,17 +328,17 @@ function ChecklistsInner() {
                                 </div>
 
                                 {/* הנחיות מיוחדות */}
-                                <div className="mt-8 p-6 bg-blue-50 rounded-lg border border-blue-200">
-                                    <h3 className="text-xl font-bold text-blue-800 mb-4">📋 הנחיות מיוחדות</h3>
+                                <div className="mt-8 p-6 bg-[#F4ECD8] rounded-lg border border-[#E8D9B5]">
+                                    <h3 className="text-xl font-bold text-[#2E3819] mb-4">📋 הנחיות מיוחדות</h3>
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                         <div className="space-y-3">
-                                            <div className="p-4 bg-white rounded-lg border border-blue-100">
+                                            <div className="p-4 bg-white rounded-lg border border-[#F4ECD8]">
                                                 <h4 className="font-bold text-gray-800 mb-2">🥖 פרנה בשרים</h4>
                                                 <p className="text-sm text-gray-600">• לצד מנה: טחינה 1 בלבד</p>
                                                 <p className="text-sm text-gray-600">• במשלוח: הטחינה שביקשו בפנים</p>
                                             </div>
                                             
-                                            <div className="p-4 bg-white rounded-lg border border-blue-100">
+                                            <div className="p-4 bg-white rounded-lg border border-[#F4ECD8]">
                                                 <h4 className="font-bold text-gray-800 mb-2">🥙 עלינא בפיתה</h4>
                                                 <p className="text-sm text-gray-600">• לצד מנה: טחינה 1 בלבד</p>
                                                 <p className="text-sm text-gray-600">• במשלוח (לא וולט): הטחינה שביקשו בפנים</p>
@@ -346,12 +346,12 @@ function ChecklistsInner() {
                                         </div>
                                         
                                         <div className="space-y-3">
-                                            <div className="p-4 bg-white rounded-lg border border-blue-100">
+                                            <div className="p-4 bg-white rounded-lg border border-[#F4ECD8]">
                                                 <h4 className="font-bold text-gray-800 mb-2">🥖 פרנה אסאדו</h4>
                                                 <p className="text-sm text-gray-600">• איולי</p>
                                             </div>
                                             
-                                            <div className="p-4 bg-white rounded-lg border border-blue-100">
+                                            <div className="p-4 bg-white rounded-lg border border-[#F4ECD8]">
                                                 <h4 className="font-bold text-gray-800 mb-2">🥙 פיתה ילדים</h4>
                                                 <p className="text-sm text-gray-600">• לא שמים כלום כברירת מחדל</p>
                                                 <p className="text-sm text-gray-600">• אם ביקשו טחינה בפנים → טחינה בפנים + עוד בצד</p>
@@ -359,7 +359,7 @@ function ChecklistsInner() {
                                         </div>
                                     </div>
                                     
-                                    <div className="mt-4 p-4 bg-yellow-50 rounded-lg border border-yellow-200">
+                                    <div className="mt-4 p-4 bg-[#FAF5E8] rounded-lg border border-yellow-200">
                                         <h4 className="font-bold text-yellow-800 mb-2">💰 תוספת פיתה</h4>
                                         <p className="text-sm text-yellow-700">יש לחייב ב-3 שקלים</p>
                                     </div>
@@ -410,10 +410,10 @@ function ChecklistsInner() {
                                 </CardContent>
                             </Card>
 
-                            <Card className="bg-gradient-to-br from-red-50 to-pink-100 border-0 shadow-xl hover:shadow-2xl transition-all duration-500 hover:scale-105">
+                            <Card className="bg-gradient-to-br from-red-50 to-[#F4ECD8] border-0 shadow-xl hover:shadow-2xl transition-all duration-500 hover:scale-105">
                                 <CardHeader>
                                     <CardTitle className="flex items-center gap-3 text-red-800">
-                                        <div className="w-12 h-12 bg-gradient-to-r from-red-500 to-pink-500 rounded-xl flex items-center justify-center shadow-lg">
+                                        <div className="w-12 h-12 bg-gradient-to-r from-red-500 to-[#A04A2E] rounded-xl flex items-center justify-center shadow-lg">
                                             <AlertTriangle className="w-6 h-6 text-white" />
                                         </div>
                                         דורשים תשומת לב

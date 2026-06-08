@@ -592,18 +592,18 @@ export default function RevenueForecastingPage() {
     if (loading) {
         return (
             <div className="flex justify-center items-center min-h-screen">
-                <Loader2 className="w-12 h-12 text-blue-600 animate-spin" />
+                <Loader2 className="w-12 h-12 text-[#44512C] animate-spin" />
             </div>
         );
     }
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-6" dir="rtl">
+        <div className="min-h-screen bg-gradient-to-br from-[#F4ECD8] to-[#F4ECD8] p-6" dir="rtl">
             <div className="max-w-7xl mx-auto space-y-8">
                 {/* Header */}
                 <div className="text-center">
                     <h1 className="text-4xl font-bold text-gray-900 mb-2 flex items-center justify-center gap-3">
-                        <Brain className="w-10 h-10 text-blue-600" />
+                        <Brain className="w-10 h-10 text-[#44512C]" />
                         תחזיות ותובנות AI 🎯
                     </h1>
                     <p className="text-gray-600 text-lg">ניתוח חכם של ביצועי המסעדה והמלצות להגדלת רווחים</p>
@@ -613,7 +613,7 @@ export default function RevenueForecastingPage() {
                         <Button 
                             onClick={() => setShowAddOpportunityDialog(true)}
                             variant="outline"
-                            className="bg-white hover:bg-gray-50 border-blue-300 text-blue-700"
+                            className="bg-white hover:bg-gray-50 border-[#D9BD83] text-[#44512C]"
                         >
                             <Plus className="w-4 h-4 mr-2" />
                             הוסף הזדמנות למאגר 💡
@@ -626,11 +626,11 @@ export default function RevenueForecastingPage() {
                     <>
                         {/* Current Month Progress */}
                         {forecast.current_month_end_forecast && (
-                            <Card className="bg-gradient-to-br from-purple-500 to-purple-600 text-white">
+                            <Card className="bg-gradient-to-br from-[#A04A2E] to-[#A04A2E] text-white">
                                 <CardContent className="p-6">
                                     <div className="flex items-center justify-between">
                                         <div>
-                                            <p className="text-purple-100 text-sm">תחזית לסוף החודש הנוכחי</p>
+                                            <p className="text-[#F4ECD8] text-sm">תחזית לסוף החודש הנוכחי</p>
                                             <p className="text-3xl font-bold">₪{forecast.current_month_end_forecast.forecasted_revenue?.toLocaleString()}</p>
                                             <p className="text-sm text-purple-200 mt-1">
                                                 נותרו {forecast.current_month_end_forecast.days_remaining} ימים
@@ -687,26 +687,26 @@ export default function RevenueForecastingPage() {
                                 </CardContent>
                             </Card>
 
-                            <Card className="bg-gradient-to-br from-blue-500 to-blue-600 text-white">
+                            <Card className="bg-gradient-to-br from-[#44512C] to-[#44512C] text-white">
                                 <CardContent className="p-6">
                                     <div className="flex items-center justify-between">
                                         <div>
-                                            <p className="text-blue-100">מגמת הכנסות</p>
+                                            <p className="text-[#F4ECD8]">מגמת הכנסות</p>
                                             <p className="text-2xl font-bold">
                                                 {forecast.trends_analysis?.revenue_trend === 'increasing' ? '📈 עולה' : 
                                                  forecast.trends_analysis?.revenue_trend === 'decreasing' ? '📉 יורדת' : '➡️ יציבה'}
                                             </p>
                                         </div>
-                                        <BarChart3 className="w-12 h-12 text-blue-200" />
+                                        <BarChart3 className="w-12 h-12 text-[#E8D9B5]" />
                                     </div>
                                 </CardContent>
                             </Card>
 
-                            <Card className="bg-gradient-to-br from-indigo-500 to-indigo-600 text-white">
+                            <Card className="bg-gradient-to-br from-[#A04A2E] to-[#A04A2E] text-white">
                                 <CardContent className="p-6">
                                     <div className="flex items-center justify-between">
                                         <div>
-                                            <p className="text-indigo-100">הזדמנויות זוהו</p>
+                                            <p className="text-[#F4ECD8]">הזדמנויות זוהו</p>
                                             <p className="text-3xl font-bold">{forecast.revenue_opportunities?.length || 0}</p>
                                         </div>
                                         <Target className="w-12 h-12 text-indigo-200" />
@@ -763,8 +763,8 @@ export default function RevenueForecastingPage() {
                                         onClick={() => setChartFilter(f.value)}
                                         className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
                                             chartFilter === f.value
-                                                ? 'bg-blue-600 text-white shadow'
-                                                : 'bg-white border border-slate-200 text-slate-600 hover:bg-blue-50'
+                                                ? 'bg-[#44512C] text-white shadow'
+                                                : 'bg-white border border-slate-200 text-slate-600 hover:bg-[#F4ECD8]'
                                         }`}
                                     >
                                         {f.label}
@@ -803,13 +803,13 @@ export default function RevenueForecastingPage() {
                         {forecast?.revenue_opportunities?.map((opp, index) => (
                             <Card 
                                 key={index} 
-                                className="shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer hover:scale-105 border-2 hover:border-purple-300"
+                                className="shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer hover:scale-105 border-2 hover:border-[#D9BD83]"
                                 onClick={() => handleOpportunityClick(opp)}
                             >
                                 <CardHeader>
                                     <div className="flex justify-between items-start">
                                         <div className="flex items-start gap-3 flex-1">
-                                            <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-blue-500 text-white rounded-full flex items-center justify-center font-bold text-sm">
+                                            <div className="w-8 h-8 bg-gradient-to-br from-[#A04A2E] to-[#44512C] text-white rounded-full flex items-center justify-center font-bold text-sm">
                                                 {index + 1}
                                             </div>
                                             <div className="flex-1">
@@ -818,7 +818,7 @@ export default function RevenueForecastingPage() {
                                                     <Button
                                                         size="sm"
                                                         variant="ghost"
-                                                        className="p-1 hover:bg-yellow-100"
+                                                        className="p-1 hover:bg-[#F4ECD8]"
                                                         onClick={(e) => {
                                                             e.stopPropagation(); // מונע את הלחיצה על הכרטיס
                                                             handleSaveOpportunityToBank(opp);
@@ -840,7 +840,7 @@ export default function RevenueForecastingPage() {
                                 <CardContent>
                                     <div className="flex justify-between items-center">
                                         <p className="text-gray-600">לחץ כאן להפוך למשימה מפורטת עם שלבי ביצוע</p>
-                                        <div className="flex items-center gap-2 text-purple-600">
+                                        <div className="flex items-center gap-2 text-[#A04A2E]">
                                             <Play className="w-4 h-4" />
                                             <span className="text-sm font-semibold">התחל עכשיו</span>
                                         </div>
@@ -857,18 +857,18 @@ export default function RevenueForecastingPage() {
                                     <div className="flex items-start gap-4">
                                         <div className={`p-2 rounded-full ${
                                             insight.impact === 'high' ? 'bg-red-100' : 
-                                            insight.impact === 'medium' ? 'bg-yellow-100' : 'bg-blue-100'
+                                            insight.impact === 'medium' ? 'bg-[#F4ECD8]' : 'bg-[#F4ECD8]'
                                         }`}>
                                             {insight.impact === 'high' ? <AlertCircle className="w-6 h-6 text-red-600" /> :
                                              insight.impact === 'medium' ? <TrendingUp className="w-6 h-6 text-yellow-600" /> :
-                                             <Lightbulb className="w-6 h-6 text-blue-600" />}
+                                             <Lightbulb className="w-6 h-6 text-[#44512C]" />}
                                         </div>
                                         <div className="flex-1">
                                             <h3 className="text-lg font-bold mb-2">{insight.title}</h3>
                                             <p className="text-gray-700 mb-3">{insight.description}</p>
-                                            <div className="bg-blue-50 p-3 rounded-lg">
+                                            <div className="bg-[#F4ECD8] p-3 rounded-lg">
                                                 <h4 className="font-semibold text-blue-900 mb-1">פעולה נדרשת:</h4>
-                                                <p className="text-blue-800 text-sm">{insight.action_required}</p>
+                                                <p className="text-[#2E3819] text-sm">{insight.action_required}</p>
                                             </div>
                                         </div>
                                     </div>
@@ -907,10 +907,10 @@ export default function RevenueForecastingPage() {
                         </Card>
 
                         {generating && (
-                            <Card className="bg-blue-50">
+                            <Card className="bg-[#F4ECD8]">
                                 <CardContent className="p-6 text-center">
-                                    <Loader2 className="w-8 h-8 text-blue-600 animate-spin mx-auto mb-2" />
-                                    <p className="text-blue-800">AI מנתח את הנתונים ומכין תחזיות חדשות...</p>
+                                    <Loader2 className="w-8 h-8 text-[#44512C] animate-spin mx-auto mb-2" />
+                                    <p className="text-[#2E3819]">AI מנתח את הנתונים ומכין תחזיות חדשות...</p>
                                 </CardContent>
                             </Card>
                         )}
@@ -962,9 +962,9 @@ export default function RevenueForecastingPage() {
                                 </CardContent>
                             </Card>
 
-                            <div className="bg-blue-50 p-4 rounded-lg">
+                            <div className="bg-[#F4ECD8] p-4 rounded-lg">
                                 <h4 className="font-semibold text-blue-900 mb-2">🚀 מה יקרה כשתלחץ "צור משימה"?</h4>
-                                <ul className="text-blue-800 text-sm space-y-1">
+                                <ul className="text-[#2E3819] text-sm space-y-1">
                                     <li>✅ תיווצר משימה מפורטת עם כל השלבים</li>
                                     <li>⭐ תוכל לסמן אותה בכוכב למועד מאוחר</li>
                                     <li>🤖 תקבל יעוץ AI בכל שלב</li>
@@ -982,7 +982,7 @@ export default function RevenueForecastingPage() {
                                 </Button>
                                 <Button 
                                     onClick={() => convertOpportunityToTask(selectedOpportunity)}
-                                    className="bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600"
+                                    className="bg-gradient-to-r from-[#A04A2E] to-[#44512C] hover:from-[#A04A2E] hover:to-[#44512C]"
                                 >
                                     <Target className="w-4 h-4 mr-2" />
                                     צור משימה מפורטת 🎯
@@ -1095,9 +1095,9 @@ export default function RevenueForecastingPage() {
                             />
                         </div>
 
-                        <div className="bg-blue-50 p-4 rounded-lg">
+                        <div className="bg-[#F4ECD8] p-4 rounded-lg">
                             <h4 className="font-semibold text-blue-900 mb-2">💡 למה להוסיף למאגר?</h4>
-                            <ul className="text-blue-800 text-sm space-y-1 list-disc list-inside">
+                            <ul className="text-[#2E3819] text-sm space-y-1 list-disc list-inside">
                                 <li>הרעיון יישמר ולא יאבד</li>
                                 <li>תוכל לחזור אליו מתי שתרצה</li>
                                 <li>ה-AI יוכל לעזור לפתח אותו למשימה מפורטת</li>
@@ -1115,7 +1115,7 @@ export default function RevenueForecastingPage() {
                         </Button>
                         <Button 
                             onClick={handleAddManualOpportunity}
-                            className="bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600"
+                            className="bg-gradient-to-r from-[#44512C] to-[#A04A2E] hover:from-[#44512C] hover:to-[#A04A2E]"
                         >
                             <Plus className="w-4 h-4 mr-2" />
                             שמור במאגר 💾

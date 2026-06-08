@@ -8,8 +8,8 @@ import { formatDistanceToNow } from 'date-fns';
 import { he } from 'date-fns/locale';
 
 const severityConfig = {
-    low: "bg-blue-100 text-blue-800",
-    medium: "bg-yellow-100 text-yellow-800",
+    low: "bg-[#F4ECD8] text-[#2E3819]",
+    medium: "bg-[#F4ECD8] text-yellow-800",
     high: "bg-orange-100 text-orange-800",
     critical: "bg-red-100 text-red-800",
 };
@@ -73,7 +73,7 @@ export default function RecentIncidents({ incidents = [], isLoading = false, onR
             ))
           ) : (
             displayIncidents.slice(0, 5).map((incident) => (
-              <div key={incident.id} className="flex items-center gap-4 p-2 rounded-lg hover:bg-slate-50 transition-colors">
+              <div key={incident.id} className="flex items-center gap-4 p-2 rounded-lg hover:bg-[#FAF5E8] transition-colors">
                 <div className="flex-1">
                   <p className="font-semibold text-slate-800">{incident.title}</p>
                   <div className="flex items-center gap-2 text-sm text-slate-500 mt-1">

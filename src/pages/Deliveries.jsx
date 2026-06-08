@@ -403,8 +403,8 @@ export default function Deliveries() {
       </div>
 
       {scanning && (
-        <Card className="border-blue-200 bg-blue-50">
-          <CardContent className="p-4 text-center text-blue-700 font-medium">⏳ מנתח את הפתק...</CardContent>
+        <Card className="border-[#E8D9B5] bg-[#F4ECD8]">
+          <CardContent className="p-4 text-center text-[#44512C] font-medium">⏳ מנתח את הפתק...</CardContent>
         </Card>
       )}
 
@@ -591,7 +591,7 @@ export default function Deliveries() {
                 </div>
               </div>
 
-              <div className="bg-blue-50 rounded p-2 text-xs text-blue-700 font-mono text-center">
+              <div className="bg-[#F4ECD8] rounded p-2 text-xs text-[#44512C] font-mono text-center">
                 /{showTelegramDialog.address || "???"}&{showTelegramDialog.customer_phone || "??"}, {prepTime} דקות
               </div>
 
@@ -615,7 +615,7 @@ export default function Deliveries() {
             <DialogTitle>🔑 הגדרות Telegram</DialogTitle>
           </DialogHeader>
           <div className="space-y-3 text-sm">
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-blue-900">
+            <div className="bg-[#F4ECD8] border border-[#E8D9B5] rounded-lg p-3 text-blue-900">
               <p className="font-semibold mb-2">📚 איך להשיג Session Token?</p>
               <ol className="space-y-1 text-xs list-decimal list-inside">
                 <li>בPython: <code className="bg-white px-1 rounded">from telethon.sync import TelegramClient</code></li>
@@ -748,7 +748,7 @@ function DeliveryCard({ delivery, onAction, onEdit, onDelete, onNote, onTelegram
             )}
             <div className="flex items-center gap-2 flex-wrap">
               {delivery.platform && (
-                <span className="text-xs bg-blue-50 text-blue-700 border border-blue-200 rounded px-1.5 py-0.5 font-medium">{delivery.platform}</span>
+                <span className="text-xs bg-[#F4ECD8] text-[#44512C] border border-[#E8D9B5] rounded px-1.5 py-0.5 font-medium">{delivery.platform}</span>
               )}
               {delivery.created_date && (
                 <span className="text-xs text-muted-foreground">
@@ -758,7 +758,7 @@ function DeliveryCard({ delivery, onAction, onEdit, onDelete, onNote, onTelegram
             </div>
             {/* הערה */}
             {(delivery.issue_type || delivery.notes) && (
-              <div className="mt-1 bg-yellow-50 border border-yellow-200 rounded p-2 text-xs space-y-0.5">
+              <div className="mt-1 bg-[#FAF5E8] border border-yellow-200 rounded p-2 text-xs space-y-0.5">
                 {issueLabel && <div className="font-semibold text-yellow-800">{issueLabel}</div>}
                 {delivery.notes && <div className="text-yellow-700">{delivery.notes}</div>}
               </div>
@@ -767,7 +767,7 @@ function DeliveryCard({ delivery, onAction, onEdit, onDelete, onNote, onTelegram
           <div className="flex flex-col items-end gap-2 flex-shrink-0">
             <div className="text-right space-y-0.5">
               {delivery.cash_amount > 0 && <div className="font-bold text-base text-green-700">💵 ₪{delivery.cash_amount}</div>}
-              {delivery.credit_amount > 0 && <div className="text-sm font-semibold text-blue-700">💳 ₪{delivery.credit_amount}</div>}
+              {delivery.credit_amount > 0 && <div className="text-sm font-semibold text-[#44512C]">💳 ₪{delivery.credit_amount}</div>}
               {delivery.total_delivery_amount > 0 && <div className="text-xs text-muted-foreground">סה״כ: ₪{delivery.total_delivery_amount}</div>}
             </div>
             <Badge
@@ -781,10 +781,10 @@ function DeliveryCard({ delivery, onAction, onEdit, onDelete, onNote, onTelegram
               <button onClick={onTelegram} className="p-1 rounded hover:bg-green-100 text-green-600" title="צוות משלוח">
                 <Send className="w-3.5 h-3.5" />
               </button>
-              <button onClick={onNote} className="p-1 rounded hover:bg-yellow-100 text-yellow-600" title="הוסף הערה">
+              <button onClick={onNote} className="p-1 rounded hover:bg-[#F4ECD8] text-yellow-600" title="הוסף הערה">
                 <MessageSquare className="w-3.5 h-3.5" />
               </button>
-              <button onClick={onEdit} className="p-1 rounded hover:bg-blue-100 text-blue-600" title="ערוך">
+              <button onClick={onEdit} className="p-1 rounded hover:bg-[#F4ECD8] text-[#44512C]" title="ערוך">
                 <Pencil className="w-3.5 h-3.5" />
               </button>
               <button onClick={onDelete} className="p-1 rounded hover:bg-red-100 text-red-600" title="מחק">

@@ -17,7 +17,7 @@ const DEFAULT_POSITIONS = ['מלצר', 'ברמן', 'ראנר', 'מארח/ת'];
 const DEFAULT_AVAILABILITY_TYPES = {
     available: { label: '✅ פנוי/ה', color: 'bg-green-100 text-green-800 border-green-300' },
     unavailable: { label: '❌ לא פנוי/ה', color: 'bg-red-100 text-red-800 border-red-300' },
-    partial: { label: '⏰ פנוי/ה חלקית', color: 'bg-yellow-100 text-yellow-800 border-yellow-300' },
+    partial: { label: '⏰ פנוי/ה חלקית', color: 'bg-[#F4ECD8] text-yellow-800 border-[#D9BD83]' },
     preferred_off: { label: '🙏 מעדיף/ה לא', color: 'bg-orange-100 text-orange-800 border-orange-300' },
 };
 
@@ -582,7 +582,7 @@ export default function AvailabilityForm() {
                 <p className="text-gray-500 mb-2">שלום {selectedEmployee?.full_name}!</p>
                 <p className="text-gray-500 mb-4">המנהל יראה את הזמינות שלך ויוכל לשבץ אותך בסידור.</p>
                 {coinsAwarded > 0 && (
-                    <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 mb-6 flex items-center justify-center gap-3">
+                    <div className="bg-[#FAF5E8] border border-yellow-200 rounded-xl p-4 mb-6 flex items-center justify-center gap-3">
                         <span className="text-4xl">🪙</span>
                         <div>
                             <p className="font-bold text-yellow-800 text-lg">+{coinsAwarded} מטבעות!</p>
@@ -591,7 +591,7 @@ export default function AvailabilityForm() {
                     </div>
                 )}
                 <div className="flex gap-2 flex-col">
-                    <Button onClick={() => setSubmitted(false)} className="bg-blue-600 hover:bg-blue-700">
+                    <Button onClick={() => setSubmitted(false)} className="bg-[#44512C] hover:bg-[#44512C]">
                         עדכן שוב
                     </Button>
                     <Button onClick={handleReset} variant="outline">
@@ -643,7 +643,7 @@ export default function AvailabilityForm() {
             </div>
 
             {/* Global role picker — one-shot, applies to every available day */}
-            <Card className="mb-4 border-2 border-blue-200 bg-blue-50/50">
+            <Card className="mb-4 border-2 border-[#E8D9B5] bg-[#F4ECD8]/50">
                     <CardContent className="p-4">
                         <Label className="block font-bold mb-1">
                             🎯 התפקידים שאני יודע/ת למלא <span className="text-red-500">*</span>
@@ -658,7 +658,7 @@ export default function AvailabilityForm() {
                                     onClick={() => toggleMyRole(pos)}
                                     className={`px-3 py-1.5 rounded-full border-2 text-sm font-bold transition-all ${
                                         myRoles.includes(pos)
-                                            ? 'bg-blue-600 text-white border-blue-600 shadow'
+                                            ? 'bg-[#44512C] text-white border-[#44512C] shadow'
                                             : 'bg-white border-gray-300 text-gray-700 hover:border-blue-400'
                                     }`}
                                 >
@@ -668,7 +668,7 @@ export default function AvailabilityForm() {
                             {EXTRA_POSITIONS.length > 0 && (
                                 <button
                                     onClick={() => setShowExtraPositions(v => !v)}
-                                    className="px-3 py-1.5 rounded-full border-2 border-dashed border-blue-400 text-blue-700 hover:bg-blue-100 text-sm font-bold transition-all"
+                                    className="px-3 py-1.5 rounded-full border-2 border-dashed border-blue-400 text-[#44512C] hover:bg-[#F4ECD8] text-sm font-bold transition-all"
                                 >
                                     {showExtraPositions ? '▲ הסתר תפקידים נוספים' : `➕ עוד ${EXTRA_POSITIONS.length} תפקידים`}
                                 </button>
@@ -682,7 +682,7 @@ export default function AvailabilityForm() {
                             </button>
                         </div>
                         {showExtraPositions && EXTRA_POSITIONS.length > 0 && (
-                            <div className="mt-3 pt-3 border-t border-blue-200">
+                            <div className="mt-3 pt-3 border-t border-[#E8D9B5]">
                                 <p className="text-xs text-gray-600 mb-2">תפקידים נוספים מהמערכת:</p>
                                 <div className="flex flex-wrap gap-2">
                                     {EXTRA_POSITIONS.map(pos => (
@@ -691,7 +691,7 @@ export default function AvailabilityForm() {
                                             onClick={() => toggleMyRole(pos)}
                                             className={`px-3 py-1.5 rounded-full border-2 text-sm font-bold transition-all ${
                                                 myRoles.includes(pos)
-                                                    ? 'bg-blue-600 text-white border-blue-600 shadow'
+                                                    ? 'bg-[#44512C] text-white border-[#44512C] shadow'
                                                     : 'bg-white border-gray-300 text-gray-700 hover:border-blue-400'
                                             }`}
                                         >

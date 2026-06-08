@@ -63,7 +63,7 @@ export default function MarketingDashboard() {
             <div className="flex justify-between items-center flex-wrap gap-3">
                 <div>
                     <h1 className="text-2xl font-bold flex items-center gap-2">
-                        <TrendingUp className="w-6 h-6 text-blue-600" />
+                        <TrendingUp className="w-6 h-6 text-[#44512C]" />
                         דאשבורד שיווקי
                     </h1>
                     <p className="text-gray-500 text-sm mt-1">מעקב אחרי קמפיינים, שליחות מייל ו-SMS</p>
@@ -82,8 +82,8 @@ export default function MarketingDashboard() {
                 <Card>
                     <CardContent className="pt-6">
                         <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                                <Send className="w-5 h-5 text-blue-600" />
+                            <div className="w-10 h-10 bg-[#F4ECD8] rounded-lg flex items-center justify-center">
+                                <Send className="w-5 h-5 text-[#44512C]" />
                             </div>
                             <div>
                                 <p className="text-sm text-gray-500">סה"כ קמפיינים</p>
@@ -96,8 +96,8 @@ export default function MarketingDashboard() {
                 <Card>
                     <CardContent className="pt-6">
                         <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 bg-indigo-100 rounded-lg flex items-center justify-center">
-                                <Mail className="w-5 h-5 text-indigo-600" />
+                            <div className="w-10 h-10 bg-[#F4ECD8] rounded-lg flex items-center justify-center">
+                                <Mail className="w-5 h-5 text-[#A04A2E]" />
                             </div>
                             <div>
                                 <p className="text-sm text-gray-500">מיילים נשלחו</p>
@@ -124,8 +124,8 @@ export default function MarketingDashboard() {
                 <Card>
                     <CardContent className="pt-6">
                         <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
-                                <Users className="w-5 h-5 text-purple-600" />
+                            <div className="w-10 h-10 bg-[#F4ECD8] rounded-lg flex items-center justify-center">
+                                <Users className="w-5 h-5 text-[#A04A2E]" />
                             </div>
                             <div>
                                 <p className="text-sm text-gray-500">ממוצע נמענים</p>
@@ -177,9 +177,9 @@ export default function MarketingDashboard() {
                             {recentCampaigns.map(log => (
                                 <div key={log.id} className="flex items-center justify-between p-3 rounded-lg border bg-gray-50 gap-3">
                                     <div className="flex items-center gap-3 min-w-0">
-                                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${log.type === 'email' ? 'bg-indigo-100' : 'bg-green-100'}`}>
+                                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${log.type === 'email' ? 'bg-[#F4ECD8]' : 'bg-green-100'}`}>
                                             {log.type === 'email'
-                                                ? <Mail className="w-4 h-4 text-indigo-600" />
+                                                ? <Mail className="w-4 h-4 text-[#A04A2E]" />
                                                 : <MessageSquare className="w-4 h-4 text-green-600" />}
                                         </div>
                                         <div className="min-w-0">

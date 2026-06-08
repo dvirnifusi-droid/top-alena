@@ -275,13 +275,13 @@ export default function UploadChecklists() {
                     <h3 className="font-bold text-gray-900">{checklist.title}</h3>
                     <p className="text-gray-600 text-sm">{checklist.description}</p>
                     <div className="flex gap-2 mt-2">
-                      <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
+                      <span className="text-xs bg-[#F4ECD8] text-[#2E3819] px-2 py-1 rounded">
                         {checklist.category}
                       </span>
                       <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded">
                         {checklist.frequency}
                       </span>
-                      <span className="text-xs bg-purple-100 text-purple-800 px-2 py-1 rounded">
+                      <span className="text-xs bg-[#F4ECD8] text-[#7A3722] px-2 py-1 rounded">
                         {checklist.items?.length || 0} סעיפים
                       </span>
                     </div>

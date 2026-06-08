@@ -100,9 +100,9 @@ function ReservationEditDialog({ open, setOpen, reservation, onUpdate, tables, r
                     <SheetTitle className="text-center bg-emerald-500 text-white py-2 rounded">עריכת הזמנה</SheetTitle>
                 </SheetHeader>
 
-                <div className="bg-sky-500 text-white p-3 rounded flex items-center justify-between mt-2">
+                <div className="bg-[#B89556] text-white p-3 rounded flex items-center justify-between mt-2">
                     <Select value={editedReservation.status || 'pending'} onValueChange={value => setEditedReservation({...editedReservation, status: value})}>
-                        <SelectTrigger className="w-[180px] bg-sky-500 text-white border-0 font-bold">
+                        <SelectTrigger className="w-[180px] bg-[#B89556] text-white border-0 font-bold">
                             <SelectValue placeholder="בחר סטטוס" />
                         </SelectTrigger>
                         <SelectContent>
@@ -126,7 +126,7 @@ function ReservationEditDialog({ open, setOpen, reservation, onUpdate, tables, r
                     
                     <div className="grid grid-cols-2 gap-4 text-sm">
                         <div className="text-right">
-                            <span className="text-blue-600">תאריך</span>
+                            <span className="text-[#44512C]">תאריך</span>
                         </div>
                         <div className="text-left">
                             <span>יום ה, {editedReservation.date}</span>
@@ -257,11 +257,11 @@ const GRID_SIZE = 4; // fine snap so tables can be placed precisely (was 20px = 
 const FACILITY_TYPES = {
     restroom: { name: 'שירותים', icon: '🚻', color: 'bg-gray-300 border-gray-500 text-gray-900' },
     kitchen: { name: 'מטבח', icon: '👨‍🍳', color: 'bg-red-300 border-red-500 text-red-900' },
-    bar: { name: 'בר', icon: '🍸', color: 'bg-blue-300 border-blue-500 text-blue-900' },
+    bar: { name: 'בר', icon: '🍸', color: 'bg-[#D9BD83] border-[#44512C] text-blue-900' },
     reception: { name: 'דלפק קבלה', icon: '🏪', color: 'bg-green-300 border-green-500 text-green-900' },
-    storage: { name: 'מחסן', icon: '📦', color: 'bg-yellow-300 border-yellow-500 text-yellow-900' },
-    entrance: { name: 'כניסה', icon: '🚪', color: 'bg-purple-300 border-purple-500 text-purple-900' },
-    stage: { name: 'במה', icon: '🎭', color: 'bg-pink-300 border-pink-500 text-pink-900' },
+    storage: { name: 'מחסן', icon: '📦', color: 'bg-[#D9BD83] border-yellow-500 text-yellow-900' },
+    entrance: { name: 'כניסה', icon: '🚪', color: 'bg-[#D9BD83] border-[#A04A2E] text-purple-900' },
+    stage: { name: 'במה', icon: '🎭', color: 'bg-pink-300 border-[#A04A2E] text-pink-900' },
     cashier: { name: 'קופה', icon: '💳', color: 'bg-emerald-300 border-emerald-500 text-emerald-900' }
 };
 
@@ -935,14 +935,14 @@ export default function SeatingSetup() {
     // cardBg colors softened one shade lighter — easier on the eye in long sessions
     const STATUS_CONFIGS = {
         request:         { label: 'בקשה',          color: 'bg-orange-100 text-orange-800',    bgColor: 'bg-orange-50',    cardBg: 'bg-orange-500',    cardText: 'text-white' },
-        pending:         { label: 'ממתין',          color: 'bg-yellow-100 text-yellow-800',    bgColor: 'bg-yellow-50',    cardBg: 'bg-amber-400',     cardText: 'text-amber-950' },
-        confirmed:       { label: 'מאושר',         color: 'bg-blue-100 text-blue-800',        bgColor: 'bg-blue-50',      cardBg: 'bg-sky-500',       cardText: 'text-white' },
-        standby:         { label: 'סטנדבי',        color: 'bg-purple-100 text-purple-800',    bgColor: 'bg-purple-50',    cardBg: 'bg-violet-500',    cardText: 'text-white' },
+        pending:         { label: 'ממתין',          color: 'bg-[#F4ECD8] text-yellow-800',    bgColor: 'bg-[#FAF5E8]',    cardBg: 'bg-amber-400',     cardText: 'text-amber-950' },
+        confirmed:       { label: 'מאושר',         color: 'bg-[#F4ECD8] text-[#2E3819]',        bgColor: 'bg-[#F4ECD8]',      cardBg: 'bg-[#B89556]',       cardText: 'text-white' },
+        standby:         { label: 'סטנדבי',        color: 'bg-[#F4ECD8] text-[#7A3722]',    bgColor: 'bg-[#F4ECD8]',    cardBg: 'bg-[#A04A2E]',    cardText: 'text-white' },
         seated:          { label: 'יושב',           color: 'bg-green-100 text-green-800',      bgColor: 'bg-green-50',     cardBg: 'bg-emerald-500',   cardText: 'text-white' },
         finishing_soon:  { label: 'מסיים בקרוב',   color: 'bg-amber-100 text-amber-800',      bgColor: 'bg-amber-50',     cardBg: 'bg-amber-500',     cardText: 'text-white' },
         completed:       { label: 'סיים',           color: 'bg-gray-100 text-gray-800',        bgColor: 'bg-gray-50',      cardBg: 'bg-slate-500',     cardText: 'text-white' },
-        cancelled:       { label: 'בוטל',           color: 'bg-red-100 text-red-700',          bgColor: 'bg-red-50',       cardBg: 'bg-rose-500',      cardText: 'text-white' },
-        no_show:         { label: 'הבריז',          color: 'bg-rose-100 text-rose-900',        bgColor: 'bg-rose-50',      cardBg: 'bg-rose-800',      cardText: 'text-white' },
+        cancelled:       { label: 'בוטל',           color: 'bg-red-100 text-red-700',          bgColor: 'bg-red-50',       cardBg: 'bg-[#A04A2E]',      cardText: 'text-white' },
+        no_show:         { label: 'הבריז',          color: 'bg-rose-100 text-rose-900',        bgColor: 'bg-[#F4ECD8]',      cardBg: 'bg-rose-800',      cardText: 'text-white' },
         deleted:         { label: 'מחוק',           color: 'bg-zinc-200 text-zinc-700',        bgColor: 'bg-zinc-100',     cardBg: 'bg-slate-600',     cardText: 'text-white' },
     };
     const getReservationStatusConfig = (status, assigned) => {
@@ -1337,7 +1337,7 @@ export default function SeatingSetup() {
                             data-popover-trigger
                             onClick={askAiForThis}
                             title="שאל את AI לאיזה שולחן להושיב"
-                            className="text-base w-7 h-7 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 text-white shadow hover:scale-110 transition-transform flex items-center justify-center"
+                            className="text-base w-7 h-7 rounded-full bg-gradient-to-br from-[#A04A2E] to-[#A04A2E] text-white shadow hover:scale-110 transition-transform flex items-center justify-center"
                         >✨</button>
                         <div className="font-black text-2xl leading-none">
                             {reservation.time?.slice(0, 5) || '--:--'}
@@ -1514,7 +1514,7 @@ export default function SeatingSetup() {
             <div className="bg-white rounded-lg p-4 shadow-sm border">
                 <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
                     <h3 className="text-lg font-bold flex items-center gap-2">
-                        <Calendar className="w-5 h-5 text-blue-600" />
+                        <Calendar className="w-5 h-5 text-[#44512C]" />
                         הזמנות ({filteredReservations.length}) - סה"כ {totalGuests} אורחים
                     </h3>
                     
@@ -1753,19 +1753,19 @@ export default function SeatingSetup() {
                     </div>
 
                     {futureReservations.length > 0 && (
-                        <div className="border rounded-lg p-4 bg-blue-50">
+                        <div className="border rounded-lg p-4 bg-[#F4ECD8]">
                             <h3 className="font-bold text-lg mb-3 flex items-center gap-2">
-                                <Calendar className="w-5 h-5 text-blue-600" />
+                                <Calendar className="w-5 h-5 text-[#44512C]" />
                                 הזמנות עתידיות ({futureReservations.length})
                             </h3>
                             <div className="space-y-2">
                                 {futureReservations.map((reservation) => (
-                                    <div key={reservation.id} className="bg-white p-3 rounded border border-blue-200 flex justify-between items-center group">
+                                    <div key={reservation.id} className="bg-white p-3 rounded border border-[#E8D9B5] flex justify-between items-center group">
                                         <div>
                                             <div className="flex items-center gap-2">
-                                                <span className="font-semibold text-blue-800">{reservation.customer_name}</span>
+                                                <span className="font-semibold text-[#2E3819]">{reservation.customer_name}</span>
                                                 <span className="text-sm text-gray-600">({reservation.party_size} אנשים)</span>
-                                                <span className="text-sm text-blue-700">
+                                                <span className="text-sm text-[#44512C]">
                                                     {format(new Date(reservation.date), 'dd/MM')} בשעה {reservation.time?.slice(0, 5)}
                                                 </span>
                                             </div>
@@ -1789,9 +1789,9 @@ export default function SeatingSetup() {
                     
                     {session ? (
                         <>
-                            <div className="border rounded-lg p-4 bg-blue-50">
+                            <div className="border rounded-lg p-4 bg-[#F4ECD8]">
                                 <h3 className="font-bold text-lg mb-3 flex items-center gap-2">
-                                    <Users className="w-5 h-5 text-blue-600" />
+                                    <Users className="w-5 h-5 text-[#44512C]" />
                                     פרטי הפגישה הפעילה
                                 </h3>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1826,7 +1826,7 @@ export default function SeatingSetup() {
                                     <Button 
                                         onClick={() => handleReleaseTable(table.table_number)}
                                         variant="outline"
-                                        className="bg-yellow-100 border-yellow-300 text-yellow-800 hover:bg-yellow-200"
+                                        className="bg-[#F4ECD8] border-[#D9BD83] text-yellow-800 hover:bg-yellow-200"
                                     >
                                         <Ban className="w-4 h-4 ml-2" />
                                         הוצא מישיבה
@@ -1834,7 +1834,7 @@ export default function SeatingSetup() {
                                     <Button 
                                         onClick={() => handleTableStatusChange(table.table_number, 'cleaning')}
                                         variant="outline"
-                                        className="bg-yellow-100 border-yellow-300 text-yellow-800 hover:bg-yellow-200"
+                                        className="bg-[#F4ECD8] border-[#D9BD83] text-yellow-800 hover:bg-yellow-200"
                                     >
                                         <Ban className="w-4 h-4 ml-2" />
                                         העבר לניקוי
@@ -1898,19 +1898,19 @@ export default function SeatingSetup() {
                                 </div>
                             </div>
 
-                            <div className="border rounded-lg p-4 bg-purple-50">
+                            <div className="border rounded-lg p-4 bg-[#F4ECD8]">
                                 <h3 className="font-bold text-lg mb-3 flex items-center gap-2">
-                                    <ChefHat className="w-5 h-5 text-purple-600" />
+                                    <ChefHat className="w-5 h-5 text-[#A04A2E]" />
                                     התקדמות השירות
                                 </h3>
                                 <div className="space-y-3">
                                     <div className="flex justify-between items-center">
                                         <span className="text-sm font-semibold">שלב נוכחי: {session.current_step}/23</span>
-                                        <span className="text-lg font-bold text-purple-600">{progress}%</span>
+                                        <span className="text-lg font-bold text-[#A04A2E]">{progress}%</span>
                                     </div>
                                     <Progress value={progress} className="h-3" />
                                     <div className="bg-white p-3 rounded border">
-                                        <div className="font-semibold text-purple-800">{currentStepInfo?.step_name || 'שלב לא ידוע'}</div>
+                                        <div className="font-semibold text-[#7A3722]">{currentStepInfo?.step_name || 'שלב לא ידוע'}</div>
                                         <div className="text-sm text-gray-600 mt-1">{currentStepInfo?.description || ''}</div>
                                     </div>
                                     <div className="text-sm text-gray-600">
@@ -1942,7 +1942,7 @@ export default function SeatingSetup() {
                                         </div>
                                     </div>
                                 </div>
-                                <div className="mt-3 p-3 bg-yellow-100 rounded-lg">
+                                <div className="mt-3 p-3 bg-[#F4ECD8] rounded-lg">
                                     <div className="text-sm text-yellow-800">
                                         💡 <strong>הערה:</strong> מערכת ההזמנות עדיין לא מחוברת. בעתיד כאן יופיעו פרטי המנות שהוזמנו ומה עדיין חסר.
                                     </div>
@@ -2253,7 +2253,7 @@ export default function SeatingSetup() {
                 <div className="fixed top-0 left-0 right-0 bg-purple-400 text-white p-2 text-center z-50 font-bold flex items-center justify-center gap-4">
                     מצב שיוך שולחנות מרובים: בחר שולחנות עבור הזמנה {multiAssignReservationId?.slice(-4)}.
                     שולחנות נבחרים: {selectedTablesForReservation.length > 0 ? selectedTablesForReservation.join(', ') : 'אף אחד'}
-                    <Button variant="ghost" size="sm" onClick={saveMultiTableAssignment} className="bg-white text-purple-700 hover:bg-gray-100">
+                    <Button variant="ghost" size="sm" onClick={saveMultiTableAssignment} className="bg-white text-[#7A3722] hover:bg-gray-100">
                         שמור שיוך
                     </Button>
                     <Button variant="ghost" size="sm" onClick={cancelMultiTableAssignment}>
@@ -2286,7 +2286,7 @@ export default function SeatingSetup() {
                                         variant={bigMapMode ? 'default' : 'outline'}
                                         size="sm"
                                         onClick={() => setBigMapMode(v => !v)}
-                                        className={`hidden lg:flex ${bigMapMode ? 'bg-indigo-600 hover:bg-indigo-700 text-white' : ''}`}
+                                        className={`hidden lg:flex ${bigMapMode ? 'bg-[#A04A2E] hover:bg-[#7A3722] text-white' : ''}`}
                                     >
                                         <Maximize2 className="w-4 h-4 ml-1" />
                                         {bigMapMode ? 'צא ממפה גדולה' : 'מפה גדולה'}
@@ -2430,14 +2430,14 @@ export default function SeatingSetup() {
                                     onClick={() => setMobileView('reservations')}
                                     className={`flex-1 text-sm font-bold py-2 rounded-lg border transition-colors flex items-center justify-center gap-1
                                         ${mobileView === 'reservations'
-                                            ? 'bg-indigo-600 border-indigo-700 text-white shadow'
+                                            ? 'bg-[#A04A2E] border-[#7A3722] text-white shadow'
                                             : 'bg-white border-gray-200 text-gray-600'}`}
                                 >📋 הזמנות</button>
                                 <button
                                     onClick={() => setMobileView('map')}
                                     className={`flex-1 text-sm font-bold py-2 rounded-lg border transition-colors flex items-center justify-center gap-1
                                         ${mobileView === 'map'
-                                            ? 'bg-indigo-600 border-indigo-700 text-white shadow'
+                                            ? 'bg-[#A04A2E] border-[#7A3722] text-white shadow'
                                             : 'bg-white border-gray-200 text-gray-600'}`}
                                 >🗺️ מפה</button>
                             </div>
@@ -2467,15 +2467,15 @@ export default function SeatingSetup() {
                                             onClick={() => { setRailTab('tonight'); setDashboardDrawerOpen(false); }}
                                             className={`flex-1 text-xs font-bold py-1.5 rounded-lg border transition-colors
                                                 ${railTab === 'tonight'
-                                                    ? 'bg-indigo-600 border-indigo-700 text-white shadow'
-                                                    : 'bg-white border-gray-200 text-gray-600 hover:border-indigo-300'}`}
+                                                    ? 'bg-[#A04A2E] border-[#7A3722] text-white shadow'
+                                                    : 'bg-white border-gray-200 text-gray-600 hover:border-[#D9BD83]'}`}
                                         >🌙 הערב</button>
                                         <button
                                             onClick={() => { setRailTab('full'); setDashboardDrawerOpen(true); }}
                                             className={`flex-1 text-xs font-bold py-1.5 rounded-lg border transition-colors
                                                 ${railTab === 'full'
-                                                    ? 'bg-indigo-600 border-indigo-700 text-white shadow'
-                                                    : 'bg-white border-gray-200 text-gray-600 hover:border-indigo-300'}`}
+                                                    ? 'bg-[#A04A2E] border-[#7A3722] text-white shadow'
+                                                    : 'bg-white border-gray-200 text-gray-600 hover:border-[#D9BD83]'}`}
                                         >📅 לוח מלא</button>
                                         <button
                                             onClick={() => { setRailTab('queue'); setDashboardDrawerOpen(false); }}
@@ -2493,15 +2493,15 @@ export default function SeatingSetup() {
                                             onClick={() => { setRailTab('live'); setDashboardDrawerOpen(false); }}
                                             className={`flex-1 text-xs font-bold py-1.5 rounded-lg border transition-colors
                                                 ${railTab === 'live'
-                                                    ? 'bg-purple-600 border-purple-700 text-white shadow'
-                                                    : 'bg-white border-gray-200 text-gray-600 hover:border-purple-300'}`}
+                                                    ? 'bg-[#A04A2E] border-[#7A3722] text-white shadow'
+                                                    : 'bg-white border-gray-200 text-gray-600 hover:border-[#D9BD83]'}`}
                                         >📋 חי</button>
                                         <button
                                             onClick={() => { setRailTab('ai'); setDashboardDrawerOpen(false); }}
                                             className={`flex-1 text-xs font-bold py-1.5 rounded-lg border transition-colors
                                                 ${railTab === 'ai'
-                                                    ? 'bg-gradient-to-br from-indigo-500 to-purple-600 border-indigo-600 text-white shadow'
-                                                    : 'bg-white border-gray-200 text-gray-600 hover:border-indigo-300'}`}
+                                                    ? 'bg-gradient-to-br from-[#A04A2E] to-[#A04A2E] border-[#A04A2E] text-white shadow'
+                                                    : 'bg-white border-gray-200 text-gray-600 hover:border-[#D9BD83]'}`}
                                         >✨ AI</button>
                                     </div>
 
@@ -2593,7 +2593,7 @@ export default function SeatingSetup() {
 
                                     {/* Collapsible Smart Booker */}
                                     {smartBookerOpen && (
-                                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-2">
+                                        <div className="bg-[#F4ECD8] border border-[#E8D9B5] rounded-lg p-2">
                                             <ReservationTool onReservationCreated={() => { loadLayout(); setSmartBookerOpen(false); }} />
                                         </div>
                                     )}
@@ -2646,7 +2646,7 @@ export default function SeatingSetup() {
                                             </button>
                                             <button
                                                 onClick={() => setQuickSeatOpen(true)}
-                                                className="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs sm:text-sm px-3 h-9 rounded-lg flex items-center gap-1"
+                                                className="bg-[#44512C] hover:bg-[#44512C] text-white font-bold text-xs sm:text-sm px-3 h-9 rounded-lg flex items-center gap-1"
                                             >
                                                 <Plus className="w-3.5 h-3.5" />
                                                 הושבה מהירה
@@ -2691,7 +2691,7 @@ export default function SeatingSetup() {
                                                 variant="outline"
                                                 size="sm"
                                                 onClick={() => window.open(window.location.origin + '/PublicReservation', '_blank')}
-                                                className="bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100 hidden md:flex h-9"
+                                                className="bg-[#F4ECD8] border-[#E8D9B5] text-[#44512C] hover:bg-[#F4ECD8] hidden md:flex h-9"
                                             >
                                                 <Eye className="w-3.5 h-3.5 ml-1" />
                                                 <span className="text-xs">הזמנות</span>
@@ -2766,7 +2766,7 @@ export default function SeatingSetup() {
                                         <button
                                             onClick={() => setIsSmartMapMode(v => !v)}
                                             className={`text-[10px] font-bold px-2 py-1 rounded transition-colors ${
-                                                isSmartMapMode ? 'bg-indigo-600 text-white' : 'bg-white text-gray-500 border border-gray-200 hover:border-indigo-400'
+                                                isSmartMapMode ? 'bg-[#A04A2E] text-white' : 'bg-white text-gray-500 border border-gray-200 hover:border-indigo-400'
                                             }`}
                                             title="הצג המלצות AI"
                                         >✨ AI</button>
@@ -2944,13 +2944,13 @@ export default function SeatingSetup() {
                                         if (isFinishingSoon) {
                                             tableColorClass = 'bg-amber-200 border-amber-500 text-amber-900 animate-pulse';
                                         } else if (isOvertime) {
-                                            tableColorClass = 'bg-rose-500 border-rose-700 text-white';
+                                            tableColorClass = 'bg-[#A04A2E] border-rose-700 text-white';
                                         } else if (isReallyOccupied) {
                                             // SEATED — pastel pink/red
                                             tableColorClass = 'bg-rose-100 border-rose-400 text-rose-900';
                                         } else if (upcomingToday) {
                                             // RESERVED — pastel yellow
-                                            tableColorClass = 'bg-yellow-50 border-yellow-400 text-yellow-900';
+                                            tableColorClass = 'bg-[#FAF5E8] border-yellow-400 text-yellow-900';
                                         } else {
                                             // AVAILABLE — clean white w/ soft green border (indoor) or soft amber (outdoor)
                                             tableColorClass = table.location === 'indoor'
@@ -3016,7 +3016,7 @@ export default function SeatingSetup() {
                                                                     e.stopPropagation();
                                                                     handleTableStatusChange(table.table_number, 'cleaning');
                                                                 }}
-                                                                className="px-2 py-1 text-xs rounded bg-yellow-100 hover:bg-yellow-200 text-yellow-800"
+                                                                className="px-2 py-1 text-xs rounded bg-[#F4ECD8] hover:bg-yellow-200 text-yellow-800"
                                                                 title="שנה לניקוי"
                                                             >
                                                                 ניקוי
@@ -3061,7 +3061,7 @@ export default function SeatingSetup() {
                                                                 ) : null}
                                                                 {/* NEXT seating chip — only if exists, smaller line */}
                                                                 {nextSeating && (
-                                                                    <div className="mt-0.5 w-full bg-blue-600 text-white rounded px-1 text-[11px] font-bold truncate leading-tight">
+                                                                    <div className="mt-0.5 w-full bg-[#44512C] text-white rounded px-1 text-[11px] font-bold truncate leading-tight">
                                                                         ↓ {nextSeating.time?.slice(0,5)} · {getFirstName(nextSeating.customer_name)} ×{nextSeating.party_size}
                                                                     </div>
                                                                 )}
@@ -3069,14 +3069,14 @@ export default function SeatingSetup() {
                                                         ) : futureReservationsForTable.length > 0 ? (
                                                             <div className="w-full flex flex-col gap-0.5">
                                                                 {futureReservationsForTable.slice(0, 2).map(res => (
-                                                                    <div key={res.id} className="w-full bg-blue-600 text-white px-1 rounded text-[11px] font-bold flex items-center justify-between leading-tight">
+                                                                    <div key={res.id} className="w-full bg-[#44512C] text-white px-1 rounded text-[11px] font-bold flex items-center justify-between leading-tight">
                                                                         <span>{res.time?.slice(0, 5)}</span>
                                                                         <span className="truncate mx-1">{getFirstName(res.customer_name)}</span>
                                                                         <span>×{res.party_size}</span>
                                                                     </div>
                                                                 ))}
                                                                 {futureReservationsForTable.length > 2 && (
-                                                                    <div className="text-[11px] text-blue-700 font-black">
+                                                                    <div className="text-[11px] text-[#44512C] font-black">
                                                                         +{futureReservationsForTable.length - 2}
                                                                     </div>
                                                                 )}
@@ -3189,7 +3189,7 @@ export default function SeatingSetup() {
             {/* FAB — bottom-right corner. Shows badge if there are auto-recs. */}
             <button
                 onClick={() => setAiOpen(true)}
-                className="fixed bottom-4 right-4 z-[55] w-14 h-14 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 text-white shadow-2xl flex items-center justify-center text-2xl hover:scale-105 transition-transform"
+                className="fixed bottom-4 right-4 z-[55] w-14 h-14 rounded-full bg-gradient-to-br from-[#A04A2E] to-[#A04A2E] text-white shadow-2xl flex items-center justify-center text-2xl hover:scale-105 transition-transform"
                 title="עוזר AI"
             >✨</button>
 
@@ -3313,7 +3313,7 @@ function CompactTonightStrip({ reservations, selectedDate, onEdit, onOpenFullDas
     // Status pill color
     const statusPill = (s) => {
         if (s === 'seated') return 'bg-emerald-100 text-emerald-700 border-emerald-200';
-        if (s === 'confirmed') return 'bg-blue-100 text-blue-700 border-blue-200';
+        if (s === 'confirmed') return 'bg-[#F4ECD8] text-[#44512C] border-[#E8D9B5]';
         if (s === 'pending') return 'bg-amber-100 text-amber-700 border-amber-200';
         return 'bg-gray-100 text-gray-600 border-gray-200';
     };
@@ -3330,7 +3330,7 @@ function CompactTonightStrip({ reservations, selectedDate, onEdit, onOpenFullDas
             <div className="sticky top-0 bg-white border-2 border-indigo-200 rounded-2xl p-3 z-10 shadow-sm">
                 <div className="flex items-center justify-between">
                     <div>
-                        <div className="text-[10px] font-bold text-indigo-600 uppercase tracking-wider">הזמנות הערב</div>
+                        <div className="text-[10px] font-bold text-[#A04A2E] uppercase tracking-wider">הזמנות הערב</div>
                         <div className="text-2xl font-black text-gray-900">{tonight.length}</div>
                     </div>
                     <div className="text-right">
@@ -3366,7 +3366,7 @@ function CompactTonightStrip({ reservations, selectedDate, onEdit, onOpenFullDas
                     <button
                         key={r.id}
                         onClick={() => onEdit && onEdit(r)}
-                        className="w-full text-right bg-white hover:bg-indigo-50 border border-gray-200 hover:border-indigo-400 rounded-xl p-2.5 transition-colors relative overflow-hidden"
+                        className="w-full text-right bg-white hover:bg-[#F4ECD8] border border-gray-200 hover:border-indigo-400 rounded-xl p-2.5 transition-colors relative overflow-hidden"
                     >
                         {flagColor && (
                             <div className={`absolute top-0 bottom-0 right-0 w-1 ${flagColor}`}></div>
@@ -3381,12 +3381,12 @@ function CompactTonightStrip({ reservations, selectedDate, onEdit, onOpenFullDas
                         <div className="flex items-center justify-between text-[11px] text-gray-500 mt-0.5">
                             <span className="flex items-center gap-0.5"><Users className="w-3 h-3"/>{r.party_size || '?'}</span>
                             {r.assigned_table && (
-                                <span className="font-bold text-indigo-600">
+                                <span className="font-bold text-[#A04A2E]">
                                     🪑 {Array.isArray(r.assigned_table) ? r.assigned_table.join(',') : r.assigned_table}
                                 </span>
                             )}
                             {r.special_occasion && (
-                                <span className="text-rose-500" title={r.special_occasion}>🎂</span>
+                                <span className="text-[#A04A2E]" title={r.special_occasion}>🎂</span>
                             )}
                         </div>
                     </button>
@@ -3621,15 +3621,15 @@ function TableCombosBreakdown({ tables, combos = [], onAddCombo, onRemoveCombo, 
         const COLORS = {
             gray: 'bg-gray-100 text-gray-700 border-gray-300',
             green: 'bg-emerald-100 text-emerald-800 border-emerald-300',
-            blue: 'bg-blue-100 text-blue-800 border-blue-300',
-            purple: 'bg-purple-100 text-purple-800 border-purple-300',
+            blue: 'bg-[#F4ECD8] text-[#2E3819] border-[#D9BD83]',
+            purple: 'bg-[#F4ECD8] text-[#7A3722] border-[#D9BD83]',
         };
         return <span className={`inline-block text-xs font-bold px-2 py-1 rounded-full border ${COLORS[color]}`}>{children}</span>;
     };
 
     return (
-        <div className="mt-6 border-2 border-indigo-200 rounded-2xl bg-gradient-to-b from-indigo-50/40 to-white" dir="rtl">
-            <button onClick={() => setOpen(o => !o)} className="w-full flex items-center justify-between p-4 hover:bg-indigo-50/60 rounded-2xl">
+        <div className="mt-6 border-2 border-indigo-200 rounded-2xl bg-gradient-to-b from-[#F4ECD8]/40 to-white" dir="rtl">
+            <button onClick={() => setOpen(o => !o)} className="w-full flex items-center justify-between p-4 hover:bg-[#F4ECD8]/60 rounded-2xl">
                 <div className="flex items-center gap-2">
                     <span className="text-2xl">🪑</span>
                     <div className="text-right">
@@ -3637,7 +3637,7 @@ function TableCombosBreakdown({ tables, combos = [], onAddCombo, onRemoveCombo, 
                         <div className="text-[11px] text-gray-500">נגזר אוטומטית מקיבולת השולחנות + שולחנות לחיבור. מעדכן את עצמו לפי הקיבולת שהוגדרה למעלה.</div>
                     </div>
                 </div>
-                <span className="text-indigo-600 text-lg">{open ? '▲' : '▼'}</span>
+                <span className="text-[#A04A2E] text-lg">{open ? '▲' : '▼'}</span>
             </button>
 
             {open && (
@@ -3703,9 +3703,9 @@ function TableCombosBreakdown({ tables, combos = [], onAddCombo, onRemoveCombo, 
                                     </div>
 
                                     {/* Wildcard slots — fill at seating time with whichever free table fits */}
-                                    <div className="mb-2 p-2 bg-purple-50 border border-purple-200 rounded">
-                                        <div className="text-xs font-bold text-purple-800 mb-1">🃏 הוסף שולחן וויילדקארד (פנוי בזמן אמת):</div>
-                                        <div className="text-[10px] text-purple-700 mb-1.5">
+                                    <div className="mb-2 p-2 bg-[#F4ECD8] border border-purple-200 rounded">
+                                        <div className="text-xs font-bold text-[#7A3722] mb-1">🃏 הוסף שולחן וויילדקארד (פנוי בזמן אמת):</div>
+                                        <div className="text-[10px] text-[#7A3722] mb-1.5">
                                             ההגבלה היא לפי <strong>max_capacity של השולחן עצמו</strong>: "זוגי" = רק שולחנות שה-max שלהם הוא 2 (לא רביעייה שמכילה 2).
                                         </div>
                                         <div className="flex flex-wrap gap-1">
@@ -3718,7 +3718,7 @@ function TableCombosBreakdown({ tables, combos = [], onAddCombo, onRemoveCombo, 
                                                     className={`text-[11px] font-bold px-2 py-1 rounded-full border
                                                         ${flexCounts[opt.key] === 0
                                                             ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
-                                                            : 'bg-white text-purple-900 border-purple-300 hover:bg-purple-100'}`}
+                                                            : 'bg-white text-purple-900 border-[#D9BD83] hover:bg-[#F4ECD8]'}`}
                                                 >+ {opt.label} <span className="opacity-60">({flexCounts[opt.key]})</span></button>
                                             ))}
                                         </div>
@@ -3729,7 +3729,7 @@ function TableCombosBreakdown({ tables, combos = [], onAddCombo, onRemoveCombo, 
                                                     const excluded = new Set((f.exclude_tables || []).map(String));
                                                     const includedCount = matching.filter(t => !excluded.has(t)).length;
                                                     return (
-                                                        <div key={i} className="bg-white border border-purple-300 rounded p-1.5">
+                                                        <div key={i} className="bg-white border border-[#D9BD83] rounded p-1.5">
                                                             <div className="flex items-center justify-between gap-2 mb-1">
                                                                 <span className="text-[11px] font-bold text-purple-900">
                                                                     🃏 {f.label} <span className="opacity-70">— זמינים {includedCount}/{matching.length}</span>
@@ -3747,7 +3747,7 @@ function TableCombosBreakdown({ tables, combos = [], onAddCombo, onRemoveCombo, 
                                                                             className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full border transition-colors
                                                                                 ${isExcluded
                                                                                     ? 'bg-gray-100 text-gray-400 border-gray-200 line-through'
-                                                                                    : 'bg-purple-100 text-purple-900 border-purple-300 hover:bg-purple-200'}`}
+                                                                                    : 'bg-[#F4ECD8] text-purple-900 border-[#D9BD83] hover:bg-purple-200'}`}
                                                                             title={isExcluded ? 'מוחרג — לחץ כדי להחזיר' : 'לחץ כדי להוציא'}
                                                                         >#{t}</button>
                                                                     );
@@ -3758,7 +3758,7 @@ function TableCombosBreakdown({ tables, combos = [], onAddCombo, onRemoveCombo, 
                                                 })}
                                             </div>
                                         )}
-                                        <div className="mt-1 text-[10px] text-purple-700">
+                                        <div className="mt-1 text-[10px] text-[#7A3722]">
                                             דוגמה: 700+701 + שולחן זוגי פנוי → בזמן אמת ה-AI יציע איזה שולחן 2 לקחת.
                                         </div>
                                     </div>
@@ -3881,14 +3881,14 @@ function TableCombosBreakdown({ tables, combos = [], onAddCombo, onRemoveCombo, 
                                         <div className="text-[10px] font-bold text-gray-500 mb-1">🔗 בחיבור (אוטומטי)</div>
                                         <div className="flex flex-wrap gap-1.5">
                                             {autoCombos.map((c, i) => (
-                                                <span key={i} className="inline-flex items-center gap-1 text-xs font-bold px-2 py-1 rounded-full border bg-blue-100 text-blue-800 border-blue-300">
+                                                <span key={i} className="inline-flex items-center gap-1 text-xs font-bold px-2 py-1 rounded-full border bg-[#F4ECD8] text-[#2E3819] border-[#D9BD83]">
                                                     {c.ids.map(id => `#${id}`).join(' + ')}
                                                     <span className="opacity-60">({c.sumMin}-{c.sumMax})</span>
                                                     {onSetConnection && (
                                                         <button
                                                             onClick={(e) => { e.stopPropagation(); disconnectCombo(c.ids); }}
                                                             title="נתק חיבור"
-                                                            className="ml-0.5 w-4 h-4 rounded-full bg-blue-200 hover:bg-red-500 hover:text-white text-blue-900 text-[10px] flex items-center justify-center"
+                                                            className="ml-0.5 w-4 h-4 rounded-full bg-[#E8D9B5] hover:bg-red-500 hover:text-white text-blue-900 text-[10px] flex items-center justify-center"
                                                         >×</button>
                                                     )}
                                                 </span>
@@ -3904,10 +3904,10 @@ function TableCombosBreakdown({ tables, combos = [], onAddCombo, onRemoveCombo, 
                     })}
 
                     {/* Event combos: 13+ guests */}
-                    <div className="border-2 border-purple-200 rounded-xl p-3 bg-purple-50/40">
+                    <div className="border-2 border-purple-200 rounded-xl p-3 bg-[#F4ECD8]/40">
                         <div className="flex items-center justify-between mb-2">
                             <div className="font-black text-sm text-purple-900">🎉 לאירועים — 13+ סועדים</div>
-                            <div className="text-[11px] text-purple-700">{eventCombos.length} אפשרויות</div>
+                            <div className="text-[11px] text-[#7A3722]">{eventCombos.length} אפשרויות</div>
                         </div>
                         {eventCombos.length === 0 ? (
                             <div className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1">
@@ -3916,7 +3916,7 @@ function TableCombosBreakdown({ tables, combos = [], onAddCombo, onRemoveCombo, 
                         ) : (
                             <div className="flex flex-wrap gap-1.5">
                                 {eventCombos.map((c, i) => (
-                                    <span key={i} className="inline-flex items-center gap-1 text-xs font-bold px-2 py-1 rounded-full border bg-purple-100 text-purple-800 border-purple-300">
+                                    <span key={i} className="inline-flex items-center gap-1 text-xs font-bold px-2 py-1 rounded-full border bg-[#F4ECD8] text-[#7A3722] border-[#D9BD83]">
                                         {c.ids.map(id => `#${id}`).join(' + ')}
                                         <span className="opacity-60">({c.sumMin}-{c.sumMax})</span>
                                         {onSetConnection && (
@@ -4056,12 +4056,12 @@ function QueueApprovalBanner({ banner, onApprove, onReject, onDismiss, onOpenTab
 
             {/* AI suggestion */}
             {(banner.aiLoading || banner.aiSuggestion) && (
-                <div className="mb-2 bg-gradient-to-br from-indigo-50 to-purple-50 border border-indigo-200 rounded-lg p-2">
-                    <div className="flex items-center gap-1 text-[10px] font-black text-indigo-700 mb-1">
+                <div className="mb-2 bg-gradient-to-br from-[#F4ECD8] to-[#F4ECD8] border border-indigo-200 rounded-lg p-2">
+                    <div className="flex items-center gap-1 text-[10px] font-black text-[#7A3722] mb-1">
                         <span>✨</span><span>הצעה של AI:</span>
                     </div>
                     {banner.aiLoading ? (
-                        <div className="text-xs text-indigo-600 animate-pulse">חושב...</div>
+                        <div className="text-xs text-[#A04A2E] animate-pulse">חושב...</div>
                     ) : (
                         <div className="text-xs text-gray-800 whitespace-pre-wrap leading-snug">{banner.aiSuggestion}</div>
                     )}
@@ -4100,7 +4100,7 @@ function QueueApprovalBanner({ banner, onApprove, onReject, onDismiss, onOpenTab
             {/* Secondary link */}
             <button
                 onClick={() => { onOpenTab(); onDismiss(); }}
-                className="mt-2 w-full text-[11px] text-indigo-600 hover:text-indigo-800"
+                className="mt-2 w-full text-[11px] text-[#A04A2E] hover:text-indigo-800"
             >
                 פתח טאב התור לפרטים נוספים →
             </button>
@@ -4341,32 +4341,32 @@ function AiAssistantPanel({ tables, reservations, activeSessions, queueEntries, 
 
     const levelStyle = {
         amber:  'bg-amber-50 border-amber-300 text-amber-900',
-        blue:   'bg-blue-50 border-blue-300 text-blue-900',
-        violet: 'bg-violet-50 border-violet-300 text-violet-900',
+        blue:   'bg-[#F4ECD8] border-[#D9BD83] text-blue-900',
+        violet: 'bg-[#F4ECD8] border-[#D9BD83] text-violet-900',
         red:    'bg-red-50 border-red-400 text-red-900',
         green:  'bg-emerald-50 border-emerald-300 text-emerald-900',
     };
 
     const wrapperCls = inlinePanel
-        ? 'h-full bg-gradient-to-b from-indigo-50 to-white border-2 border-indigo-200 rounded-2xl shadow-sm flex flex-col overflow-y-auto'
+        ? 'h-full bg-gradient-to-b from-[#F4ECD8] to-white border-2 border-indigo-200 rounded-2xl shadow-sm flex flex-col overflow-y-auto'
         : inDrawer
-            ? 'bg-gradient-to-b from-indigo-50 to-white max-h-[80vh] overflow-y-auto'
-            : 'sticky top-0 z-30 bg-gradient-to-b from-indigo-50 to-white border-2 border-indigo-200 rounded-2xl shadow-sm';
+            ? 'bg-gradient-to-b from-[#F4ECD8] to-white max-h-[80vh] overflow-y-auto'
+            : 'sticky top-0 z-30 bg-gradient-to-b from-[#F4ECD8] to-white border-2 border-indigo-200 rounded-2xl shadow-sm';
 
     return (
         <div className={wrapperCls}>
-            <div className="flex items-center justify-between px-3 py-2 border-b border-indigo-200/50 sticky top-0 bg-indigo-50 z-10">
+            <div className="flex items-center justify-between px-3 py-2 border-b border-indigo-200/50 sticky top-0 bg-[#F4ECD8] z-10">
                 <div className="flex items-center gap-1.5">
                     <span className="text-base">✨</span>
-                    <span className="text-sm font-black text-indigo-700">עוזר AI</span>
+                    <span className="text-sm font-black text-[#7A3722]">עוזר AI</span>
                     {recs.length > 0 && (
-                        <span className="text-[9px] font-bold bg-indigo-600 text-white px-1.5 py-0.5 rounded-full">{recs.length}</span>
+                        <span className="text-[9px] font-bold bg-[#A04A2E] text-white px-1.5 py-0.5 rounded-full">{recs.length}</span>
                     )}
                 </div>
                 {onClose ? (
                     <button onClick={onClose} className="text-gray-400 hover:text-gray-700"><X className="w-4 h-4"/></button>
                 ) : (
-                    <button onClick={() => setCollapsed(c => !c)} className="text-xs text-indigo-600">{collapsed ? '▼' : '▲'}</button>
+                    <button onClick={() => setCollapsed(c => !c)} className="text-xs text-[#A04A2E]">{collapsed ? '▼' : '▲'}</button>
                 )}
             </div>
             {!collapsed && (
@@ -4386,7 +4386,7 @@ function AiAssistantPanel({ tables, reservations, activeSessions, queueEntries, 
 
                     {/* Chat input — ask AI for help with any dilemma */}
                     <div className="pt-1.5 border-t border-indigo-200">
-                        <div className="text-[10px] font-bold text-indigo-700 mb-1">💬 שאל את ה-AI:</div>
+                        <div className="text-[10px] font-bold text-[#7A3722] mb-1">💬 שאל את ה-AI:</div>
                         <div className="flex gap-1">
                             <input
                                 value={chatQuestion}
@@ -4394,7 +4394,7 @@ function AiAssistantPanel({ tables, reservations, activeSessions, queueEntries, 
                                 onKeyDown={e => { if (e.key === 'Enter' && !chatLoading) askAi(); }}
                                 placeholder='לדוגמה: "איפה לשבת קבוצה של 6?"'
                                 disabled={chatLoading}
-                                className="flex-1 text-xs border border-indigo-300 rounded-lg px-2 py-1 focus:outline-none focus:border-indigo-500"
+                                className="flex-1 text-xs border border-[#D9BD83] rounded-lg px-2 py-1 focus:outline-none focus:border-[#A04A2E]"
                             />
                             {chatLoading ? (
                                 <button
@@ -4406,12 +4406,12 @@ function AiAssistantPanel({ tables, reservations, activeSessions, queueEntries, 
                                 <button
                                     onClick={askAi}
                                     disabled={!chatQuestion.trim()}
-                                    className="bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-300 text-white text-xs font-bold px-3 rounded-lg"
+                                    className="bg-[#A04A2E] hover:bg-[#7A3722] disabled:bg-gray-300 text-white text-xs font-bold px-3 rounded-lg"
                                 >שלח</button>
                             )}
                         </div>
                         {chatLoading && (
-                            <div className="mt-1.5 flex items-center gap-2 text-[11px] text-indigo-700">
+                            <div className="mt-1.5 flex items-center gap-2 text-[11px] text-[#7A3722]">
                                 <span className="animate-pulse">🤔 חושב...</span>
                                 <span className="font-mono">{chatElapsed}s</span>
                                 {chatElapsed >= 10 && <span className="text-amber-600">(טוען לאט — אפשר לבטל)</span>}
@@ -4423,7 +4423,7 @@ function AiAssistantPanel({ tables, reservations, activeSessions, queueEntries, 
                                 {Array.isArray(chatAnswer.actions) && chatAnswer.actions.length > 0 && (
                                     <div className="mt-2 flex flex-col gap-1.5">
                                         {chatAnswer.actions.map((a, i) => (
-                                            <div key={i} className="flex items-center justify-between gap-2 bg-indigo-50 border border-indigo-200 rounded-lg p-2">
+                                            <div key={i} className="flex items-center justify-between gap-2 bg-[#F4ECD8] border border-indigo-200 rounded-lg p-2">
                                                 <div className="text-xs font-bold text-indigo-900 flex-1 min-w-0">
                                                     {a.label}
                                                     {a.table && <span className="block text-[10px] opacity-70">🪑 שולחן {a.table}</span>}
@@ -4452,7 +4452,7 @@ function AiAssistantPanel({ tables, reservations, activeSessions, queueEntries, 
                                     </div>
                                     {seatMode === 'pick' && (
                                         <div className="space-y-2">
-                                            <button onClick={() => setSeatMode('existing')} className="w-full text-right p-3 rounded-lg bg-indigo-50 hover:bg-indigo-100 border border-indigo-200">
+                                            <button onClick={() => setSeatMode('existing')} className="w-full text-right p-3 rounded-lg bg-[#F4ECD8] hover:bg-[#F4ECD8] border border-indigo-200">
                                                 <div className="font-bold text-sm">📅 צרף להזמנה קיימת</div>
                                                 <div className="text-[11px] text-gray-600">בחר לקוח מתוך ההזמנות של היום</div>
                                             </button>
@@ -4468,7 +4468,7 @@ function AiAssistantPanel({ tables, reservations, activeSessions, queueEntries, 
                                                 value={existingSearch}
                                                 onChange={e => setExistingSearch(e.target.value)}
                                                 placeholder="🔍 חפש לפי שם או טלפון..."
-                                                className="w-full text-sm border border-gray-300 rounded px-2 py-1.5 focus:outline-none focus:border-indigo-500"
+                                                className="w-full text-sm border border-gray-300 rounded px-2 py-1.5 focus:outline-none focus:border-[#A04A2E]"
                                                 autoFocus
                                             />
                                             <div className="max-h-72 overflow-y-auto space-y-1">
@@ -4478,14 +4478,14 @@ function AiAssistantPanel({ tables, reservations, activeSessions, queueEntries, 
                                                     <button
                                                         key={r.id}
                                                         onClick={() => submitExisting(r.id)}
-                                                        className="w-full text-right p-2 rounded border border-gray-200 hover:border-indigo-400 hover:bg-indigo-50"
+                                                        className="w-full text-right p-2 rounded border border-gray-200 hover:border-indigo-400 hover:bg-[#F4ECD8]"
                                                     >
                                                         <div className="flex items-center justify-between gap-2">
                                                             <div>
                                                                 <div className="text-sm font-bold">{r.customer_name || 'ללא שם'}</div>
                                                                 <div className="text-[10px] text-gray-500">{r.customer_phone} · 👥{r.party_size}</div>
                                                             </div>
-                                                            <div className="text-xs font-black text-indigo-700">{r.time?.slice(0,5)}</div>
+                                                            <div className="text-xs font-black text-[#7A3722]">{r.time?.slice(0,5)}</div>
                                                         </div>
                                                     </button>
                                                 ))}
@@ -4521,7 +4521,7 @@ function AiAssistantPanel({ tables, reservations, activeSessions, queueEntries, 
                     {/* Quick link: settings */}
                     <button
                         onClick={onSwitchToListMode}
-                        className="w-full text-[10px] text-indigo-600 hover:text-indigo-800 underline text-center pt-1"
+                        className="w-full text-[10px] text-[#A04A2E] hover:text-indigo-800 underline text-center pt-1"
                     >🔗 הגדר חיבורי שולחנות (עבור לתצוגת רשימה)</button>
                 </div>
             )}
@@ -4578,7 +4578,7 @@ function LiveAccordionPanel({ reservations, queueEntries, selectedDate, onEditRe
             <span className="font-bold flex-1 truncate text-right">{r.customer_name}</span>
             <span className="text-gray-500">👥{r.party_size}</span>
             {Array.isArray(r.assigned_table) && r.assigned_table.length > 0 && (
-                <span className="text-indigo-600 font-bold">🪑{r.assigned_table.join(',')}</span>
+                <span className="text-[#A04A2E] font-bold">🪑{r.assigned_table.join(',')}</span>
             )}
         </button>
     );
@@ -4594,11 +4594,11 @@ function LiveAccordionPanel({ reservations, queueEntries, selectedDate, onEditRe
                         </div>
                     ))}
             </Section>
-            <Section k="arriving" title="📅 מגיעים" count={arriving.length} accent="bg-blue-50 border-blue-200">
+            <Section k="arriving" title="📅 מגיעים" count={arriving.length} accent="bg-[#F4ECD8] border-[#E8D9B5]">
                 {arriving.length === 0 ? <div className="text-[11px] text-gray-400 text-center py-2">אין הזמנות פתוחות</div>
                     : arriving.map(r => <ResRow key={r.id} r={r} />)}
             </Section>
-            <Section k="seated" title="🪑 יושבים" count={seated.length} accent="bg-rose-50 border-rose-200">
+            <Section k="seated" title="🪑 יושבים" count={seated.length} accent="bg-[#F4ECD8] border-rose-200">
                 {seated.length === 0 ? <div className="text-[11px] text-gray-400 text-center py-2">אין יושבים כעת</div>
                     : seated.map(r => <ResRow key={r.id} r={r} />)}
             </Section>
@@ -4707,7 +4707,7 @@ function QuickSeatDialog({ open, onClose, tables, reservations, activeSessions, 
                         {[1,2,3,4,5,6,8,10,12,15].map(n => (
                             <button key={n} onClick={() => setPartySize(n)}
                                 className={`min-w-[42px] h-10 px-3 rounded-xl font-bold text-sm border transition-all
-                                    ${partySize === n ? 'bg-blue-600 text-white border-blue-700 shadow scale-105'
+                                    ${partySize === n ? 'bg-[#44512C] text-white border-[#44512C] shadow scale-105'
                                                       : 'bg-white text-gray-700 border-gray-200 hover:border-blue-400'}`}
                             >{n}</button>
                         ))}
@@ -4749,7 +4749,7 @@ function QuickSeatDialog({ open, onClose, tables, reservations, activeSessions, 
                                         disabled={disabled}
                                         onClick={() => setSelectedTable(tn)}
                                         className={`p-2 rounded-lg border text-center transition-all
-                                            ${active ? 'bg-blue-600 text-white border-blue-700 shadow'
+                                            ${active ? 'bg-[#44512C] text-white border-[#44512C] shadow'
                                                 : disabled ? 'bg-gray-50 text-gray-300 border-gray-100 cursor-not-allowed'
                                                 : 'bg-white border-gray-200 hover:border-blue-400'}`}
                                     >
@@ -4893,7 +4893,7 @@ function CompactQueueStrip({ queueEntries, abandonedEntries, onSeat, onAbandon, 
                             <button
                                 key={k}
                                 onClick={() => setSizeFilter(k)}
-                                className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${sizeFilter === k ? 'bg-indigo-600 text-white border-indigo-700' : 'bg-white text-gray-600 border-gray-200'}`}
+                                className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${sizeFilter === k ? 'bg-[#A04A2E] text-white border-[#7A3722]' : 'bg-white text-gray-600 border-gray-200'}`}
                             >👥 {k} · {sizeCounts[k]}</button>
                         ))}
                     </div>
@@ -4920,10 +4920,10 @@ function CompactQueueStrip({ queueEntries, abandonedEntries, onSeat, onAbandon, 
                     const proxNo = q.proximity_response === 'no';
                     const proxPending = q.proximity_response === 'pending';
                     // Border color reflects proximity status
-                    const borderColor = proxNo ? 'border-purple-400 bg-purple-50'
+                    const borderColor = proxNo ? 'border-purple-400 bg-[#F4ECD8]'
                         : proxYes ? 'border-emerald-400 bg-emerald-50'
                         : farAway ? 'border-red-400 bg-red-50'
-                        : idx === 0 ? 'border-blue-300 bg-blue-50/40'
+                        : idx === 0 ? 'border-[#D9BD83] bg-[#F4ECD8]/40'
                         : 'border-gray-200 bg-white';
                     return (
                         <div key={q.id} className={`border-2 rounded-xl p-3 shadow-sm ${borderColor}`}>
@@ -4931,7 +4931,7 @@ function CompactQueueStrip({ queueEntries, abandonedEntries, onSeat, onAbandon, 
                             <div className="flex items-center justify-between gap-2">
                                 <div className="flex items-center gap-2">
                                     <span className={`w-7 h-7 rounded-xl text-white flex items-center justify-center font-black text-sm
-                                        ${idx === 0 ? 'bg-gradient-to-br from-blue-500 to-indigo-600' : 'bg-blue-500'}`}>
+                                        ${idx === 0 ? 'bg-gradient-to-br from-[#44512C] to-[#A04A2E]' : 'bg-[#44512C]'}`}>
                                         {idx + 1}
                                     </span>
                                     {q.treated && <span title="טופל">🎁</span>}
@@ -4956,7 +4956,7 @@ function CompactQueueStrip({ queueEntries, abandonedEntries, onSeat, onAbandon, 
                             {phoneClean && (
                                 <a
                                     href={`tel:${phoneClean}`}
-                                    className="mt-1 block text-sm font-bold text-rose-500 hover:text-rose-700 underline"
+                                    className="mt-1 block text-sm font-bold text-[#A04A2E] hover:text-rose-700 underline"
                                     dir="ltr"
                                 >📞 {q.phone}</a>
                             )}
@@ -4993,7 +4993,7 @@ function CompactQueueStrip({ queueEntries, abandonedEntries, onSeat, onAbandon, 
 
                             {/* SEATING PREFERENCE */}
                             <div className="mt-1 flex items-center gap-1 flex-wrap text-[10px]">
-                                {q.seating_preference === 'inside' && <span className="bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full font-bold">🏠 בפנים</span>}
+                                {q.seating_preference === 'inside' && <span className="bg-[#F4ECD8] text-[#44512C] px-1.5 py-0.5 rounded-full font-bold">🏠 בפנים</span>}
                                 {q.seating_preference === 'outside' && <span className="bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full font-bold">🌳 בחוץ</span>}
                                 {(!q.seating_preference || q.seating_preference === 'no_preference') && <span className="bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-full">🤷 לא משנה</span>}
                                 {(q.table_duration_preference === 'one_hour_only' || q.table_duration_preference === 'one_hour')
@@ -5002,7 +5002,7 @@ function CompactQueueStrip({ queueEntries, abandonedEntries, onSeat, onAbandon, 
                             </div>
 
                             {q.customer_notes && (
-                                <div className="mt-1 bg-yellow-50 border border-yellow-200 rounded px-1.5 py-1 text-[10px] text-yellow-900">
+                                <div className="mt-1 bg-[#FAF5E8] border border-yellow-200 rounded px-1.5 py-1 text-[10px] text-yellow-900">
                                     💬 {q.customer_notes}
                                 </div>
                             )}
@@ -5011,24 +5011,24 @@ function CompactQueueStrip({ queueEntries, abandonedEntries, onSeat, onAbandon, 
                             {!aiSuggestions[q.id] ? (
                                 <button
                                     onClick={() => fetchAiSuggestion(q)}
-                                    className="mt-2 w-full text-xs font-bold py-2 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 text-white shadow hover:scale-[1.02] transition-transform flex items-center justify-center gap-1"
+                                    className="mt-2 w-full text-xs font-bold py-2 rounded-lg bg-gradient-to-br from-[#A04A2E] to-[#A04A2E] text-white shadow hover:scale-[1.02] transition-transform flex items-center justify-center gap-1"
                                 >✨ קבל הצעת AI להושבה</button>
                             ) : (
-                                <div className="mt-2 bg-gradient-to-br from-indigo-50 to-purple-50 border border-indigo-200 rounded-lg p-2">
+                                <div className="mt-2 bg-gradient-to-br from-[#F4ECD8] to-[#F4ECD8] border border-indigo-200 rounded-lg p-2">
                                     <div className="flex items-center justify-between mb-1">
-                                        <div className="flex items-center gap-1 text-[10px] font-black text-indigo-700">
+                                        <div className="flex items-center gap-1 text-[10px] font-black text-[#7A3722]">
                                             <span>✨</span><span>הצעת AI להושבה:</span>
                                         </div>
                                         {!aiSuggestions[q.id].loading && (
                                             <button
                                                 onClick={() => fetchAiSuggestion(q)}
                                                 title="חשב שוב"
-                                                className="text-[10px] text-indigo-600 hover:text-indigo-900"
+                                                className="text-[10px] text-[#A04A2E] hover:text-indigo-900"
                                             >🔄</button>
                                         )}
                                     </div>
                                     {aiSuggestions[q.id].loading ? (
-                                        <div className="text-[11px] text-indigo-600 animate-pulse">חושב...</div>
+                                        <div className="text-[11px] text-[#A04A2E] animate-pulse">חושב...</div>
                                     ) : aiSuggestions[q.id].error ? (
                                         <div className="text-[11px] text-amber-700">לא הצלחתי לקבל הצעה — נסה ידני</div>
                                     ) : (
@@ -5100,19 +5100,19 @@ function CompactQueueStrip({ queueEntries, abandonedEntries, onSeat, onAbandon, 
                                     onClick={() => checkProximity(q)}
                                     title="בדוק אם בסביבה"
                                     className={`w-8 h-8 rounded-lg flex items-center justify-center ${
-                                        proxYes ? 'bg-emerald-200' : proxNo ? 'bg-purple-200' : proxPending ? 'bg-yellow-200 animate-pulse' : 'bg-blue-100 hover:bg-blue-200'
+                                        proxYes ? 'bg-emerald-200' : proxNo ? 'bg-purple-200' : proxPending ? 'bg-yellow-200 animate-pulse' : 'bg-[#F4ECD8] hover:bg-[#E8D9B5]'
                                     }`}
                                 >📍</button>
                                 <button
                                     onClick={() => toggleTreated(q)}
                                     title={q.treated ? 'בטל סימון פינוק' : 'סמן כפינוק (🎁)'}
-                                    className={`w-8 h-8 rounded-lg flex items-center justify-center ${q.treated ? 'bg-pink-200' : 'bg-gray-100 hover:bg-pink-100'}`}
+                                    className={`w-8 h-8 rounded-lg flex items-center justify-center ${q.treated ? 'bg-pink-200' : 'bg-gray-100 hover:bg-[#F4ECD8]'}`}
                                 >🎁</button>
                                 <a
                                     href={`/QueueDashboard`}
                                     target="_blank"
                                     title="היסטוריה / בונוס מטבעות (לוח תור מלא)"
-                                    className="w-8 h-8 rounded-lg bg-purple-100 hover:bg-purple-200 text-purple-700 flex items-center justify-center text-sm"
+                                    className="w-8 h-8 rounded-lg bg-[#F4ECD8] hover:bg-purple-200 text-[#7A3722] flex items-center justify-center text-sm"
                                 >🕓</a>
                                 <button
                                     onClick={() => onAbandon(q)}
@@ -5129,7 +5129,7 @@ function CompactQueueStrip({ queueEntries, abandonedEntries, onSeat, onAbandon, 
             <a
                 href="/QueueDashboard"
                 target="_blank"
-                className="text-[11px] text-indigo-600 hover:text-indigo-800 underline mt-2 inline-block"
+                className="text-[11px] text-[#A04A2E] hover:text-indigo-800 underline mt-2 inline-block"
             >פתח לוח תור מלא ↗ (גרירה, בדיקת אזור, מטבעות)</a>
 
             {/* Recently abandoned section (collapsible) */}
@@ -5137,7 +5137,7 @@ function CompactQueueStrip({ queueEntries, abandonedEntries, onSeat, onAbandon, 
                 <div className="mt-3">
                     <button
                         onClick={() => setShowAbandoned(v => !v)}
-                        className="w-full text-right text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg px-3 py-2 flex items-center justify-between"
+                        className="w-full text-right text-xs font-bold text-rose-700 bg-[#F4ECD8] hover:bg-rose-100 border border-rose-200 rounded-lg px-3 py-2 flex items-center justify-between"
                     >
                         <span>{showAbandoned ? '▲' : '▼'}</span>
                         <span>נטשו לאחרונה ({abandonedEntries.length})</span>
@@ -5149,21 +5149,21 @@ function CompactQueueStrip({ queueEntries, abandonedEntries, onSeat, onAbandon, 
                                     ? Math.max(0, Math.floor((now - new Date(q.timestamp_register).getTime()) / 60000))
                                     : 0;
                                 return (
-                                    <div key={q.id} className="bg-rose-50 border border-rose-200 rounded-xl p-3">
+                                    <div key={q.id} className="bg-[#F4ECD8] border border-rose-200 rounded-xl p-3">
                                         <div className="flex items-center gap-2">
                                             <span className="text-lg font-black">{q.party_size}</span>
                                             <span className="w-px h-5 bg-rose-200"></span>
                                             <div className="font-bold text-sm flex-1 truncate">{q.customer_name}</div>
                                         </div>
                                         {q.phone && (
-                                            <a href={`tel:${q.phone.replace(/\D/g, '')}`} className="text-[11px] text-rose-500" dir="ltr">
+                                            <a href={`tel:${q.phone.replace(/\D/g, '')}`} className="text-[11px] text-[#A04A2E]" dir="ltr">
                                                 {q.phone}
                                             </a>
                                         )}
                                         <div className="text-[10px] text-gray-500 mt-0.5">לפני {waitMin} דק׳</div>
                                         <button
                                             onClick={() => onRestore(q)}
-                                            className="mt-2 w-full bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold py-1.5 rounded"
+                                            className="mt-2 w-full bg-[#44512C] hover:bg-[#44512C] text-white text-xs font-bold py-1.5 rounded"
                                         >↩ החזר לתור</button>
                                     </div>
                                 );
@@ -5180,9 +5180,9 @@ function CompactQueueStrip({ queueEntries, abandonedEntries, onSeat, onAbandon, 
 function LiveStat({ icon, label, value, sub, accent = 'slate', pulse = false }) {
     const colorMap = {
         emerald: 'border-emerald-200 bg-emerald-50 text-emerald-900',
-        blue:    'border-blue-200 bg-blue-50 text-blue-900',
+        blue:    'border-[#E8D9B5] bg-[#F4ECD8] text-blue-900',
         amber:   'border-amber-200 bg-amber-50 text-amber-900',
-        violet:  'border-violet-200 bg-violet-50 text-violet-900',
+        violet:  'border-violet-200 bg-[#F4ECD8] text-violet-900',
         slate:   'border-slate-200 bg-slate-50 text-slate-900',
     };
     return (

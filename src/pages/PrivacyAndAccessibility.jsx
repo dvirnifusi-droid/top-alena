@@ -84,7 +84,7 @@ export default function PrivacyAndAccessibility() {
               </ul>
               <p className="text-gray-500 text-sm mt-3">
                 לממש זכויות אלו, ניתן ללחוץ על כפתור <strong>"מחק את המידע שלי"</strong> בדף התור, 
-                או ליצור קשר: <a href="tel:+972500000000" className="text-blue-600 underline">050-0000000</a>
+                או ליצור קשר: <a href="tel:+972500000000" className="text-[#44512C] underline">050-0000000</a>
               </p>
             </section>
 
@@ -97,7 +97,7 @@ export default function PrivacyAndAccessibility() {
             </section>
 
             <div className="bg-gray-50 rounded-2xl p-4 text-center">
-              <p className="text-gray-500 text-xs">שאלות? צרו קשר: <a href="mailto:info@alena.co.il" className="text-blue-600 underline">info@alena.co.il</a></p>
+              <p className="text-gray-500 text-xs">שאלות? צרו קשר: <a href="mailto:info@alena.co.il" className="text-[#44512C] underline">info@alena.co.il</a></p>
             </div>
           </div>
         )}
@@ -145,10 +145,10 @@ export default function PrivacyAndAccessibility() {
                 נתקלת בבעיית נגישות? אנחנו מבקשים שתיידע אותנו:
               </p>
               <div className="mt-3 space-y-2">
-                <a href="tel:+972500000000" className="flex items-center gap-2 text-blue-600 text-sm font-bold">
+                <a href="tel:+972500000000" className="flex items-center gap-2 text-[#44512C] text-sm font-bold">
                   📞 050-000-0000
                 </a>
-                <a href="mailto:accessibility@alena.co.il" className="flex items-center gap-2 text-blue-600 text-sm font-bold">
+                <a href="mailto:accessibility@alena.co.il" className="flex items-center gap-2 text-[#44512C] text-sm font-bold">
                   ✉️ accessibility@alena.co.il
                 </a>
               </div>
@@ -162,8 +162,8 @@ export default function PrivacyAndAccessibility() {
               </p>
             </section>
 
-            <div className="bg-blue-50 rounded-2xl p-4 text-center">
-              <p className="text-blue-700 text-xs font-medium">
+            <div className="bg-[#F4ECD8] rounded-2xl p-4 text-center">
+              <p className="text-[#44512C] text-xs font-medium">
                 הצהרה זו עודכנה לאחרונה: אפריל 2026
               </p>
             </div>

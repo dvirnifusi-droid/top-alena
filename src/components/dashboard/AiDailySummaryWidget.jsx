@@ -47,7 +47,7 @@ export default function AiDailySummaryWidget() {
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
           <CardTitle className="text-base flex items-center gap-2">
-            <Sparkles className="w-4 h-4 text-purple-500" />
+            <Sparkles className="w-4 h-4 text-[#A04A2E]" />
             סיכום יומי AI
           </CardTitle>
           <div className="flex items-center gap-2">
@@ -96,15 +96,15 @@ export default function AiDailySummaryWidget() {
             )}
 
             {summary.action_for_tomorrow && (
-              <div className="bg-purple-50 rounded-lg p-2 border border-purple-100">
-                <p className="text-xs font-medium text-purple-700">פעולה למחר:</p>
+              <div className="bg-[#F4ECD8] rounded-lg p-2 border border-[#F4ECD8]">
+                <p className="text-xs font-medium text-[#7A3722]">פעולה למחר:</p>
                 <p className="text-xs">{summary.action_for_tomorrow}</p>
               </div>
             )}
 
             {summary.instagram_post_idea && (
-              <div className="bg-pink-50 rounded-lg p-2 border border-pink-100">
-                <p className="text-xs font-medium text-pink-700">📸 רעיון לאינסטגרם:</p>
+              <div className="bg-[#F4ECD8] rounded-lg p-2 border border-[#F4ECD8]">
+                <p className="text-xs font-medium text-[#7A3722]">📸 רעיון לאינסטגרם:</p>
                 <p className="text-xs">{summary.instagram_post_idea}</p>
               </div>
             )}

@@ -142,7 +142,7 @@ export default function AgentPrompts() {
           <button
             key={k}
             onClick={() => setFilter(k)}
-            className={`text-sm px-3 py-2 rounded-lg font-bold ${filter === k ? 'bg-indigo-600 text-white' : 'bg-white border border-slate-300 text-slate-600'}`}
+            className={`text-sm px-3 py-2 rounded-lg font-bold ${filter === k ? 'bg-[#A04A2E] text-white' : 'bg-white border border-slate-300 text-slate-600'}`}
           >
             {label}
           </button>
@@ -172,7 +172,7 @@ export default function AgentPrompts() {
                   {!hasPrompt && (
                     <button
                       onClick={() => useTemplate(agent)}
-                      className="text-xs bg-indigo-500 hover:bg-indigo-600 text-white font-bold px-2.5 py-1.5 rounded-lg"
+                      className="text-xs bg-[#A04A2E] hover:bg-[#A04A2E] text-white font-bold px-2.5 py-1.5 rounded-lg"
                     >
                       ✨ הכנס תבנית
                     </button>

@@ -73,7 +73,7 @@ export default function BeecommLiveWidget() {
 
     if (!snap) {
         return (
-            <Card className="mb-4 bg-slate-50 border-slate-200">
+            <Card className="mb-4 bg-[#FAF5E8] border-slate-200">
                 <CardContent className="p-4 text-center">
                     <p className="text-sm text-gray-600">🔴 Beecomm Live · אין נתונים עדיין</p>
                     <Button size="sm" onClick={refresh} disabled={refreshing} className="mt-2">
@@ -263,7 +263,7 @@ function ChannelsSection({ dineIn, takeaway, delivery }) {
     const channels = [
         { name: '🪑 במקום', data: dineIn, color: 'bg-emerald-50 text-emerald-800' },
         { name: '🥡 איסוף', data: takeaway, color: 'bg-amber-50 text-amber-800' },
-        { name: '🛵 משלוח', data: delivery, color: 'bg-blue-50 text-blue-800' },
+        { name: '🛵 משלוח', data: delivery, color: 'bg-[#F4ECD8] text-[#2E3819]' },
     ];
     const any = channels.some(c => c.data && (Number(c.data.sum) || Number(c.data.count) || Number(c.data.diners)));
     if (!any) return null;

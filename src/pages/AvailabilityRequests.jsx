@@ -16,7 +16,7 @@ import PageGuard from '../components/shared/PageGuard';
 const AVAILABILITY_TYPES = {
     available: { label: '✅ פנוי/ה', color: 'bg-green-100 text-green-800' },
     unavailable: { label: '❌ לא פנוי/ה', color: 'bg-red-100 text-red-800' },
-    partial: { label: '⏰ חלקית', color: 'bg-yellow-100 text-yellow-800' },
+    partial: { label: '⏰ חלקית', color: 'bg-[#F4ECD8] text-yellow-800' },
     preferred_off: { label: '🙏 מעדיף לא', color: 'bg-orange-100 text-orange-800' },
 };
 

@@ -267,7 +267,7 @@ function PositionViewPage({ position, onBack }) {
                                 <ul className="space-y-3">
                                     {position.responsibilities.map((resp, index) => (
                                         <li key={index} className="flex items-start gap-3">
-                                            <span className="text-blue-600 font-bold">•</span>
+                                            <span className="text-[#44512C] font-bold">•</span>
                                             <span className="text-lg text-gray-700">{resp}</span>
                                         </li>
                                     ))}
@@ -325,7 +325,7 @@ function PositionViewPage({ position, onBack }) {
                                 <ol className="space-y-4">
                                     {position.interview_questions.map((question, index) => (
                                         <li key={index} className="flex items-start gap-4">
-                                            <span className="flex-shrink-0 w-8 h-8 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center font-bold">
+                                            <span className="flex-shrink-0 w-8 h-8 bg-[#F4ECD8] text-[#44512C] rounded-full flex items-center justify-center font-bold">
                                                 {index + 1}
                                             </span>
                                             <span className="text-lg text-gray-700">{question}</span>
@@ -410,7 +410,7 @@ export default function PositionsManagementPage() {
                 <div className="flex justify-between items-center mb-8">
                     <div>
                         <h1 className="text-3xl font-bold flex items-center gap-3">
-                            <Briefcase className="w-8 h-8 text-blue-600"/>
+                            <Briefcase className="w-8 h-8 text-[#44512C]"/>
                             ניהול תפקידים
                         </h1>
                         <p className="text-gray-600 mt-2">הגדרת תפקידים, תיאורים ונהלי גיוס</p>
@@ -438,7 +438,7 @@ export default function PositionsManagementPage() {
                                         <TableCell className="font-medium">
                                             <button 
                                                 onClick={() => setViewingPosition(pos)}
-                                                className="flex items-center gap-3 hover:text-blue-600 transition-colors"
+                                                className="flex items-center gap-3 hover:text-[#44512C] transition-colors"
                                             >
                                                 <span className="text-xl">{pos.emoji || '👔'}</span>
                                                 <span className="underline">{pos.position_name}</span>

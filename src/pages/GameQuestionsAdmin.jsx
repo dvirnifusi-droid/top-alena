@@ -105,10 +105,10 @@ export default function GameQuestionsAdmin() {
 
       {/* סטטיסטיקה */}
       <div className="grid grid-cols-2 gap-3 mb-6">
-        <Card className="bg-blue-50 border-blue-200">
+        <Card className="bg-[#F4ECD8] border-[#E8D9B5]">
           <CardContent className="p-3 text-center">
-            <p className="text-2xl font-black text-blue-700">{totalQuestions}</p>
-            <p className="text-xs text-blue-600">סה"כ שאלות</p>
+            <p className="text-2xl font-black text-[#44512C]">{totalQuestions}</p>
+            <p className="text-xs text-[#44512C]">סה"כ שאלות</p>
           </CardContent>
         </Card>
         <Card className="bg-green-50 border-green-200">
@@ -209,7 +209,7 @@ export default function GameQuestionsAdmin() {
                       <div className="flex gap-1 flex-shrink-0">
                         <button
                           onClick={() => handleEdit(q)}
-                          className="w-8 h-8 rounded-lg bg-blue-100 hover:bg-blue-200 text-blue-700 flex items-center justify-center transition-all"
+                          className="w-8 h-8 rounded-lg bg-[#F4ECD8] hover:bg-[#E8D9B5] text-[#44512C] flex items-center justify-center transition-all"
                           title="עריכה"
                         >
                           <Edit2 className="w-4 h-4" />
@@ -243,12 +243,12 @@ export default function GameQuestionsAdmin() {
       )}
 
       {/* עדכון מהיר */}
-      <div className="mt-8 bg-purple-50 border-2 border-purple-300 rounded-xl p-4 text-sm text-purple-700">
+      <div className="mt-8 bg-[#F4ECD8] border-2 border-[#D9BD83] rounded-xl p-4 text-sm text-[#7A3722]">
         <p className="font-bold mb-2">💡 טיפ:</p>
         <p>
           השתמש בתבנית [שם] כדי שהשם יוחלף אוטומטית בזמן המשחק. לדוגמה:
           <br />
-          <code className="bg-purple-100 px-1 rounded">"[שם]: מה הפאדיחה הגדולה ביותר שלך?"</code>
+          <code className="bg-[#F4ECD8] px-1 rounded">"[שם]: מה הפאדיחה הגדולה ביותר שלך?"</code>
         </p>
       </div>
     </div>

@@ -75,7 +75,7 @@ function ConversationList({ conversations, activeContact, onSelect, loading }) {
                                     )}
                                 </div>
                                 <div className="text-xs text-gray-600 truncate mt-1">
-                                    {last.direction === 'outbound' && <span className="text-blue-600">↳ </span>}
+                                    {last.direction === 'outbound' && <span className="text-[#44512C]">↳ </span>}
                                     {last.body || (last.num_media > 0 ? '📎 קובץ מצורף' : '—')}
                                 </div>
                                 <div className="text-[10px] text-gray-400 mt-1">{fmtTime(last.created_at)}</div>
@@ -122,7 +122,7 @@ function MessageThread({ messages, sending, error, onSend, onMarkRead, contactPh
         <div className="flex-1 flex flex-col bg-gray-50 w-full" style={{ maxHeight: 'calc(100vh - 120px)' }}>
             {/* Header */}
             <div className="bg-white border-b p-3 flex items-center gap-2">
-                <button onClick={() => onBack?.()} className="md:hidden text-blue-600 text-xl px-1" aria-label="חזרה לרשימה">←</button>
+                <button onClick={() => onBack?.()} className="md:hidden text-[#44512C] text-xl px-1" aria-label="חזרה לרשימה">←</button>
                 <div className="flex-1">
                     <div className="font-bold">{contactName || fmtPhone(contactPhone)}</div>
                     <div className="text-xs text-gray-500">{fmtPhone(contactPhone)}</div>

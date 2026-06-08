@@ -65,7 +65,7 @@ export default function EventsInquiry() {
     <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-teal-50 to-emerald-100 flex flex-col" dir={isRtl ? 'rtl' : 'ltr'}>
       <header className="bg-white/80 backdrop-blur border-b border-emerald-100 p-4">
         <div className="max-w-2xl mx-auto flex items-center gap-3">
-          <div className="w-10 h-10 bg-gradient-to-br from-emerald-600 to-teal-600 rounded-full flex items-center justify-center">
+          <div className="w-10 h-10 bg-gradient-to-br from-emerald-600 to-[#44512C] rounded-full flex items-center justify-center">
             <Sparkles className="w-5 h-5 text-white" />
           </div>
           <div className="flex-1">
@@ -103,7 +103,7 @@ export default function EventsInquiry() {
 
         {paymentUrl && (
           <a href={paymentUrl} target="_blank" rel="noreferrer"
-             className="block rounded-2xl p-4 my-3 bg-gradient-to-br from-emerald-600 to-teal-600 text-white shadow-lg hover:shadow-xl transition">
+             className="block rounded-2xl p-4 my-3 bg-gradient-to-br from-emerald-600 to-[#44512C] text-white shadow-lg hover:shadow-xl transition">
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-3">
                 <CreditCard className="w-6 h-6 flex-shrink-0" />

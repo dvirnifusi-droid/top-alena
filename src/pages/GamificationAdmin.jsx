@@ -327,7 +327,7 @@ export default function GamificationAdmin() {
               </Card>
 
               {/* הגדרות קופסת הפתעה */}
-              <Card className="border-2 border-purple-200 bg-purple-50">
+              <Card className="border-2 border-purple-200 bg-[#F4ECD8]">
                 <CardHeader><CardTitle>🎲 הגדרות קופסת הפתעה</CardTitle></CardHeader>
                 <CardContent className="space-y-3">
                   <div className="flex items-center gap-3 flex-wrap">
@@ -355,7 +355,7 @@ export default function GamificationAdmin() {
                       setLootSettingsSaved(true);
                       setTimeout(() => setLootSettingsSaved(false), 2000);
                     }}
-                    className="bg-purple-600 hover:bg-purple-700 text-white font-bold"
+                    className="bg-[#A04A2E] hover:bg-[#7A3722] text-white font-bold"
                   >
                     {lootSettingsSaved ? '✅ נשמר!' : '💾 שמור הגדרות'}
                   </Button>
@@ -367,7 +367,7 @@ export default function GamificationAdmin() {
                 <Card><CardContent className="p-6 text-center text-gray-500">אין פרסים עדיין — הוסף את הראשון!</CardContent></Card>
               )}
               {rewards.map(r => (
-                <Card key={r.id} className={`border-2 ${r.is_active ? 'border-yellow-200 bg-yellow-50' : 'border-gray-200 bg-gray-50 opacity-60'}`}>
+                <Card key={r.id} className={`border-2 ${r.is_active ? 'border-yellow-200 bg-[#FAF5E8]' : 'border-gray-200 bg-gray-50 opacity-60'}`}>
                   <CardContent className="p-4 flex items-center gap-3">
                     <span className="text-3xl">{r.emoji}</span>
                     <div className="flex-1">

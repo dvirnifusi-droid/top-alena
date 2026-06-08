@@ -10,7 +10,7 @@ import CandidateAiScore from '@/components/ai/CandidateAiScore';
 
 const STATUS_LABELS = {
     approved: { label: 'סיים בהצלחה', color: 'bg-green-100 text-green-800' },
-    pending: { label: 'ממתין / באמצע', color: 'bg-yellow-100 text-yellow-800' },
+    pending: { label: 'ממתין / באמצע', color: 'bg-[#F4ECD8] text-yellow-800' },
     rejected: { label: 'נדחה', color: 'bg-red-100 text-red-800' },
 };
 
@@ -181,7 +181,7 @@ function CandidateRow({ candidate, onRatingChange, onNoteChange, onSendPush }) {
         <div className="border border-slate-200 rounded-xl overflow-hidden">
             {/* שורה ראשית */}
             <div
-                className="flex items-center gap-3 p-3 bg-white hover:bg-slate-50 cursor-pointer"
+                className="flex items-center gap-3 p-3 bg-white hover:bg-[#FAF5E8] cursor-pointer"
                 onClick={() => setExpanded(e => !e)}
             >
                 <div className="flex-1 min-w-0">
@@ -194,7 +194,7 @@ function CandidateRow({ candidate, onRatingChange, onNoteChange, onSendPush }) {
                                 <a
                                     href={`tel:${candidate.phone}`}
                                     onClick={e => e.stopPropagation()}
-                                    className="text-xs text-blue-600 font-mono hover:underline flex items-center gap-0.5"
+                                    className="text-xs text-[#44512C] font-mono hover:underline flex items-center gap-0.5"
                                     title="התקשר"
                                 >
                                     <Phone className="w-3 h-3" />{candidate.phone}
@@ -274,7 +274,7 @@ function CandidateRow({ candidate, onRatingChange, onNoteChange, onSendPush }) {
                     <button
                         onClick={e => { e.stopPropagation(); setShowInterviewModal(true); }}
                         title="שלח הצעת ראיון פרונטלי"
-                        className="p-1.5 rounded-lg bg-indigo-50 text-indigo-700 hover:bg-indigo-100 transition-colors text-xs font-semibold flex items-center gap-1"
+                        className="p-1.5 rounded-lg bg-[#F4ECD8] text-[#7A3722] hover:bg-[#F4ECD8] transition-colors text-xs font-semibold flex items-center gap-1"
                     >
                         📅
                     </button>
@@ -289,12 +289,12 @@ function CandidateRow({ candidate, onRatingChange, onNoteChange, onSendPush }) {
 
             {/* פרטים מורחבים */}
             {expanded && (
-            <div className="p-3 bg-slate-50 border-t border-slate-200 space-y-3">
+            <div className="p-3 bg-[#FAF5E8] border-t border-slate-200 space-y-3">
             <CandidateAiScore candidate={candidate} />
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-sm">
                         {candidate.phone && (
                             <span className="text-slate-600 col-span-2 sm:col-span-1">
-                                📱 טלפון: <a href={`tel:${candidate.phone}`} className="font-bold text-blue-600 hover:underline">{candidate.phone}</a>
+                                📱 טלפון: <a href={`tel:${candidate.phone}`} className="font-bold text-[#44512C] hover:underline">{candidate.phone}</a>
                             </span>
                         )}
                         {candidate.age && <span className="text-slate-600">גיל: <b>{candidate.age}</b></span>}
@@ -435,9 +435,9 @@ export default function RecruitmentDashboard() {
     const incomplete = candidates.filter(c => c.status === 'pending' && !c.score).length;
 
     const statsItems = [
-        { label: 'סה״כ', value: total, icon: Users, color: 'text-blue-600', bg: 'bg-blue-50', filter: 'all' },
+        { label: 'סה״כ', value: total, icon: Users, color: 'text-[#44512C]', bg: 'bg-[#F4ECD8]', filter: 'all' },
         { label: 'סיימו', value: completed, icon: CheckCircle, color: 'text-green-600', bg: 'bg-green-50', filter: 'approved' },
-        { label: 'ממתינים', value: pending, icon: Clock, color: 'text-yellow-600', bg: 'bg-yellow-50', filter: 'pending' },
+        { label: 'ממתינים', value: pending, icon: Clock, color: 'text-yellow-600', bg: 'bg-[#FAF5E8]', filter: 'pending' },
         { label: 'לא סיימו', value: incomplete, icon: AlertTriangle, color: 'text-orange-600', bg: 'bg-orange-50', filter: 'incomplete' },
         { label: 'נדחו', value: rejected, icon: XCircle, color: 'text-red-500', bg: 'bg-red-50', filter: 'rejected' },
     ];
@@ -482,7 +482,7 @@ export default function RecruitmentDashboard() {
 
                 {/* פס התקדמות */}
                 {!loading && total > 0 && (
-                    <div className="mb-4 bg-slate-50 rounded-lg p-3">
+                    <div className="mb-4 bg-[#FAF5E8] rounded-lg p-3">
                         <div className="flex justify-between text-sm text-slate-600 mb-1">
                             <span>אחוז השלמה</span>
                             <span className="font-bold">{Math.round((completed / total) * 100)}%</span>

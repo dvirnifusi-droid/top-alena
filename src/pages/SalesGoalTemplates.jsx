@@ -50,7 +50,7 @@ export default function SalesGoalTemplates() {
         <div className="p-6 max-w-4xl mx-auto" dir="rtl">
             <h1 className="text-2xl font-bold mb-6">🎯 תבניות יעדי מכירה</h1>
 
-            <Card className="mb-6 bg-blue-50 border-blue-200">
+            <Card className="mb-6 bg-[#F4ECD8] border-[#E8D9B5]">
                 <CardContent className="p-4">
                     <h2 className="font-bold mb-3 flex items-center gap-2"><Plus className="w-4 h-4" /> תבנית חדשה</h2>
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-3">

@@ -18,16 +18,16 @@ const RANKS = [
   { min: 0,     max: 499,      title: 'מתחיל',         emoji: '🥉', color: 'from-amber-400 to-orange-500' },
   { min: 500,   max: 1999,     title: 'מלצר מקצוען',   emoji: '🥈', color: 'from-gray-400 to-slate-500' },
   { min: 2000,  max: 4999,     title: 'כוכב המשמרת',   emoji: '⭐', color: 'from-yellow-400 to-amber-500' },
-  { min: 5000,  max: 9999,     title: 'Ninja Waiter',   emoji: '🥷', color: 'from-indigo-500 to-purple-600' },
+  { min: 5000,  max: 9999,     title: 'Ninja Waiter',   emoji: '🥷', color: 'from-[#A04A2E] to-[#A04A2E]' },
   { min: 10000, max: Infinity, title: 'אלוף המסעדה',   emoji: '👑', color: 'from-yellow-500 to-orange-600' },
 ];
 
 const THEMES = [
   { id: 'light',  label: 'לבן',   icon: Sun,     preview: 'bg-gradient-to-br from-white to-gray-100 border border-gray-200' },
-  { id: 'purple', label: 'סגול',  icon: Palette, preview: 'bg-gradient-to-br from-purple-100 to-purple-200 border border-purple-300' },
+  { id: 'purple', label: 'סגול',  icon: Palette, preview: 'bg-gradient-to-br from-[#F4ECD8] to-purple-200 border border-[#D9BD83]' },
   { id: 'green',  label: 'ירוק',  icon: Palette, preview: 'bg-gradient-to-br from-green-100 to-emerald-200 border border-green-300' },
-  { id: 'pink',   label: 'ורוד',  icon: Palette, preview: 'bg-gradient-to-br from-pink-100 to-rose-200 border border-pink-300' },
-  { id: 'blue',   label: 'כחול',  icon: Palette, preview: 'bg-gradient-to-br from-blue-100 to-sky-200 border border-blue-300' },
+  { id: 'pink',   label: 'ורוד',  icon: Palette, preview: 'bg-gradient-to-br from-[#F4ECD8] to-rose-200 border border-pink-300' },
+  { id: 'blue',   label: 'כחול',  icon: Palette, preview: 'bg-gradient-to-br from-[#F4ECD8] to-sky-200 border border-[#D9BD83]' },
 ];
 
 const AVATAR_OPTIONS = ['😎', '🤩', '🥷', '👨‍🍳', '👩‍🍳', '🦁', '🐯', '🔥', '⭐', '💎', '🎯', '🏆'];
@@ -197,7 +197,7 @@ export default function GamificationCenter() {
                    {employee && avatarImageUrl && (
                      <button
                        onClick={() => setShowShop(true)}
-                       className="absolute -bottom-1 -left-1 bg-purple-600 hover:bg-purple-700 text-white rounded-full w-7 h-7 flex items-center justify-center text-sm shadow-lg border border-white/40 transition-all"
+                       className="absolute -bottom-1 -left-1 bg-[#A04A2E] hover:bg-[#7A3722] text-white rounded-full w-7 h-7 flex items-center justify-center text-sm shadow-lg border border-white/40 transition-all"
                        title="חנות בגדים"
                      >
                        👗
@@ -237,7 +237,7 @@ export default function GamificationCenter() {
 
             <Button
               onClick={() => setShowRedeem(true)}
-              className="mt-4 w-full bg-white text-orange-600 font-bold hover:bg-yellow-50 shadow-lg"
+              className="mt-4 w-full bg-white text-orange-600 font-bold hover:bg-[#FAF5E8] shadow-lg"
             >
               🎁 פדה פרס עם המטבעות שלך
             </Button>
@@ -279,12 +279,12 @@ export default function GamificationCenter() {
 
         {/* פדיון בהמתנה */}
         {pendingRedemptions.length > 0 && (
-          <Card className="border-2 border-blue-200 bg-blue-50">
+          <Card className="border-2 border-[#E8D9B5] bg-[#F4ECD8]">
             <CardContent className="p-4">
-              <p className="font-bold text-blue-700">⏳ בקשות פדיון ממתינות לאישור מנהל</p>
+              <p className="font-bold text-[#44512C]">⏳ בקשות פדיון ממתינות לאישור מנהל</p>
               {pendingRedemptions.map(r => (
-                <div key={r.id} className="text-sm text-blue-600 mt-1 flex items-center gap-2">
-                  <Badge className="bg-blue-200 text-blue-800">ממתין</Badge>
+                <div key={r.id} className="text-sm text-[#44512C] mt-1 flex items-center gap-2">
+                  <Badge className="bg-[#E8D9B5] text-[#2E3819]">ממתין</Badge>
                   {r.reason}
                 </div>
               ))}
@@ -350,7 +350,7 @@ export default function GamificationCenter() {
                   <button
                     key={a}
                     onClick={() => setAndSaveAvatar(a, false)}
-                    className={`text-2xl rounded p-1 hover:bg-yellow-100 transition-all aspect-square flex items-center justify-center ${!avatarIsImage && avatar === a ? 'bg-yellow-200 ring-2 ring-yellow-500' : ''}`}
+                    className={`text-2xl rounded p-1 hover:bg-[#F4ECD8] transition-all aspect-square flex items-center justify-center ${!avatarIsImage && avatar === a ? 'bg-yellow-200 ring-2 ring-yellow-500' : ''}`}
                   >
                     {a}
                   </button>
@@ -416,7 +416,7 @@ export default function GamificationCenter() {
                   key={reward.id}
                   disabled={!canAfford}
                   onClick={() => setSelectedReward(reward)}
-                  className={`w-full flex items-center gap-3 p-3 rounded-xl border-2 transition-all text-right ${canAfford ? 'border-yellow-300 bg-yellow-50 hover:bg-yellow-100 cursor-pointer' : 'border-gray-200 bg-gray-50 opacity-50 cursor-not-allowed'}`}
+                  className={`w-full flex items-center gap-3 p-3 rounded-xl border-2 transition-all text-right ${canAfford ? 'border-[#D9BD83] bg-[#FAF5E8] hover:bg-[#F4ECD8] cursor-pointer' : 'border-gray-200 bg-gray-50 opacity-50 cursor-not-allowed'}`}
                 >
                   <span className="text-2xl">{reward.emoji}</span>
                   <div className="flex-1">

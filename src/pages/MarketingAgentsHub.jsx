@@ -25,8 +25,8 @@ const AGENTS = [
 ];
 
 const GROUPS = [
-  { key: 'leadership', label: 'הנהלת שיווק', color: 'bg-gradient-to-br from-violet-50 to-fuchsia-50 border-violet-300' },
-  { key: 'creative', label: 'צוות קריאייטיב', color: 'bg-purple-50 border-purple-200' },
+  { key: 'leadership', label: 'הנהלת שיווק', color: 'bg-gradient-to-br from-[#F4ECD8] to-[#F4ECD8] border-[#D9BD83]' },
+  { key: 'creative', label: 'צוות קריאייטיב', color: 'bg-[#F4ECD8] border-purple-200' },
   { key: 'media',    label: 'צוות מדיה',     color: 'bg-amber-50 border-amber-200' },
   { key: 'sales',    label: 'מכירות וצמיחה', color: 'bg-emerald-50 border-emerald-200' },
 ];
@@ -143,7 +143,7 @@ function RunOutputView({ run }) {
     return (
       <div className="space-y-4">
         {out.goal_understood && (
-          <div className="bg-gradient-to-br from-violet-600 to-fuchsia-600 text-white p-3 rounded">
+          <div className="bg-gradient-to-br from-[#A04A2E] to-[#A04A2E] text-white p-3 rounded">
             <div className="text-xs opacity-80 mb-1">היעד כפי שהמנהל מבין אותו</div>
             <div className="font-semibold">{out.goal_understood}</div>
           </div>
@@ -167,7 +167,7 @@ function RunOutputView({ run }) {
               {out.plan.map((s, i) => (
                 <div key={i} className="border-r-4 border-violet-400 bg-white pr-3 pl-2 py-2 rounded-l">
                   <div className="flex items-start gap-2">
-                    <div className="bg-violet-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold shrink-0">{s.step || i + 1}</div>
+                    <div className="bg-[#A04A2E] text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold shrink-0">{s.step || i + 1}</div>
                     <div className="flex-1">
                       <div className="font-semibold text-sm">{s.title}</div>
                       <div className="text-xs text-slate-500 mb-1">סוכן: <strong>{s.agent_type}</strong>{s.depends_on ? ` · אחרי צעד ${s.depends_on}` : ''}</div>
@@ -254,7 +254,7 @@ function RunOutputView({ run }) {
             <div className="text-xs text-slate-500 mb-1">וריאציה {i + 1}</div>
             {v.hook && <div className="font-bold mb-1">{v.hook}</div>}
             {v.body && <div className="text-sm whitespace-pre-wrap mb-2">{v.body}</div>}
-            {Array.isArray(v.hashtags) && <div className="text-xs text-blue-600">{v.hashtags.join(' ')}</div>}
+            {Array.isArray(v.hashtags) && <div className="text-xs text-[#44512C]">{v.hashtags.join(' ')}</div>}
           </div>
         ))}
       </div>
@@ -268,7 +268,7 @@ function RunOutputView({ run }) {
         {out.subject && <div className="font-bold text-lg">{out.subject}</div>}
         {out.intro && <div className="text-sm">{out.intro}</div>}
         {Array.isArray(out.sections) && out.sections.map((s, i) => (
-          <div key={i} className="border-r-2 border-violet-300 pr-3">
+          <div key={i} className="border-r-2 border-[#D9BD83] pr-3">
             <div className="font-semibold">{s.heading}</div>
             <div className="text-sm whitespace-pre-wrap">{s.body}</div>
           </div>
@@ -283,7 +283,7 @@ function RunOutputView({ run }) {
     return (
       <div className="space-y-2">
         {out.trends.map((t, i) => (
-          <div key={i} className="border rounded p-3 bg-purple-50">
+          <div key={i} className="border rounded p-3 bg-[#F4ECD8]">
             <div className="font-bold">{i + 1}. {t.title}</div>
             {t.hook && <div className="text-sm mt-1">{t.hook}</div>}
             {t.why_it_works && <div className="text-xs mt-1 text-slate-600">למה זה עובד: {t.why_it_works}</div>}
@@ -638,7 +638,7 @@ export default function MarketingAgentsHub() {
           <p className="text-slate-600 text-sm mt-1">צוות שיווק אוטונומי תחת סגן השיווק. סוכנים מבוססי-LLM פעילים מיד; סוכני מדיה ועיצוב חזותי דורשים מפתחות API.</p>
         </div>
         <div className="flex gap-2 flex-wrap">
-          <Button onClick={() => setShowPipeline(true)} className="bg-gradient-to-l from-fuchsia-600 to-violet-600 hover:from-fuchsia-700 hover:to-violet-700 text-white">
+          <Button onClick={() => setShowPipeline(true)} className="bg-gradient-to-l from-[#A04A2E] to-[#A04A2E] hover:from-fuchsia-700 hover:to-[#7A3722] text-white">
             <Zap className="w-4 h-4 ml-1" /> בנה קמפיין אוטומטי
           </Button>
           <Button variant="outline" onClick={() => setShowSecrets(true)}>
@@ -701,7 +701,7 @@ export default function MarketingAgentsHub() {
                       <Badge variant={STATUS_BADGE[latestRun.status]?.variant}>{STATUS_BADGE[latestRun.status]?.label}</Badge>
                     </div>
                     {latestRun.status === 'completed' && (
-                      <Button size="sm" variant="default" onClick={createBriefFromRun} disabled={briefBusy} className="bg-fuchsia-600 hover:bg-fuchsia-700">
+                      <Button size="sm" variant="default" onClick={createBriefFromRun} disabled={briefBusy} className="bg-[#A04A2E] hover:bg-fuchsia-700">
                         {briefBusy ? <Loader2 className="w-3 h-3 animate-spin ml-1" /> : <FileCheck className="w-3 h-3 ml-1" />}
                         צור Brief לשיגור ל-Meta
                       </Button>
@@ -754,7 +754,7 @@ export default function MarketingAgentsHub() {
         <DialogContent className="max-w-xl" dir="rtl">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Zap className="w-5 h-5 text-fuchsia-600" /> בנה קמפיין מקצה לקצה
+              <Zap className="w-5 h-5 text-[#A04A2E]" /> בנה קמפיין מקצה לקצה
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
@@ -806,7 +806,7 @@ export default function MarketingAgentsHub() {
             <Button
               onClick={runPipeline}
               disabled={!!pipelineStage}
-              className="bg-gradient-to-l from-fuchsia-600 to-violet-600 hover:from-fuchsia-700 hover:to-violet-700 w-full text-base py-6"
+              className="bg-gradient-to-l from-[#A04A2E] to-[#A04A2E] hover:from-fuchsia-700 hover:to-[#7A3722] w-full text-base py-6"
             >
               {pipelineStage ? <Loader2 className="w-5 h-5 animate-spin ml-2" /> : <Zap className="w-5 h-5 ml-2" />}
               {pipelineStage === 'copy' ? '1/3 כותב קופי…'
@@ -868,7 +868,7 @@ export default function MarketingAgentsHub() {
             <div className="space-y-4">
               {/* Status banner */}
               <div className={`p-3 rounded ${
-                activeBrief.status === 'launched' ? 'bg-fuchsia-50 border border-fuchsia-300' :
+                activeBrief.status === 'launched' ? 'bg-[#F4ECD8] border border-fuchsia-300' :
                 activeBrief.status === 'approved' ? 'bg-emerald-50 border border-emerald-300' :
                 activeBrief.status === 'rejected' ? 'bg-slate-100 border border-slate-300' :
                 activeBrief.status === 'launch_failed' ? 'bg-red-50 border border-red-300' :
@@ -924,9 +924,9 @@ export default function MarketingAgentsHub() {
 
               {/* Landing URL */}
               {activeBrief.landing_url && (
-                <div className="border rounded p-3 bg-blue-50">
+                <div className="border rounded p-3 bg-[#F4ECD8]">
                   <div className="text-xs font-semibold mb-1 text-blue-900">דף נחיתה (לאן המודעה תפנה)</div>
-                  <a href={activeBrief.landing_url} target="_blank" rel="noreferrer" className="text-sm text-blue-700 underline break-all">{activeBrief.landing_url}</a>
+                  <a href={activeBrief.landing_url} target="_blank" rel="noreferrer" className="text-sm text-[#44512C] underline break-all">{activeBrief.landing_url}</a>
                 </div>
               )}
 
@@ -970,7 +970,7 @@ export default function MarketingAgentsHub() {
               <div className="flex flex-col gap-2 pt-3 border-t">
                 {activeBrief.status === 'pending_approval' && (
                   <>
-                    <Button onClick={approveAndLaunchBrief} disabled={briefBusy} className="bg-fuchsia-600 hover:bg-fuchsia-700 w-full text-base py-6">
+                    <Button onClick={approveAndLaunchBrief} disabled={briefBusy} className="bg-[#A04A2E] hover:bg-fuchsia-700 w-full text-base py-6">
                       {briefBusy ? <Loader2 className="w-5 h-5 animate-spin ml-2" /> : <Rocket className="w-5 h-5 ml-2" />}
                       אשר והשק LIVE (Meta תבדוק עד 24 שעות ואז המודעה רצה)
                     </Button>
@@ -985,7 +985,7 @@ export default function MarketingAgentsHub() {
                   </>
                 )}
                 {activeBrief.status === 'approved' && (
-                  <Button onClick={launchBrief} disabled={briefBusy} className="bg-fuchsia-600 hover:bg-fuchsia-700 w-full">
+                  <Button onClick={launchBrief} disabled={briefBusy} className="bg-[#A04A2E] hover:bg-fuchsia-700 w-full">
                     {briefBusy ? <Loader2 className="w-4 h-4 animate-spin ml-1" /> : <Rocket className="w-4 h-4 ml-1" />}
                     שגר ל-Meta (PAUSED — לא יוציא כסף עד שתפעיל ידנית)
                   </Button>
@@ -996,7 +996,7 @@ export default function MarketingAgentsHub() {
                     target="_blank" rel="noreferrer"
                     className="w-full"
                   >
-                    <Button className="w-full bg-fuchsia-600 hover:bg-fuchsia-700">
+                    <Button className="w-full bg-[#A04A2E] hover:bg-fuchsia-700">
                       <ExternalLink className="w-4 h-4 ml-1" /> פתח ב-Meta Ads Manager (הוסף יצירתי + הפעל)
                     </Button>
                   </a>

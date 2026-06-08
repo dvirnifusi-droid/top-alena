@@ -9,7 +9,7 @@ import { format } from 'date-fns';
 
 const STATUS_LABELS = {
     available: { label: 'פנוי', color: 'bg-green-100 text-green-700 border-green-300' },
-    in_use: { label: 'בשימוש', color: 'bg-blue-100 text-blue-700 border-blue-300' },
+    in_use: { label: 'בשימוש', color: 'bg-[#F4ECD8] text-[#44512C] border-[#D9BD83]' },
     maintenance: { label: 'בתיקון', color: 'bg-red-100 text-red-700 border-red-300' },
 };
 
@@ -80,7 +80,7 @@ export default function DevicesDashboard() {
             <div className="bg-white border rounded-xl p-4 space-y-3 shadow-sm">
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                        <Icon className={`w-5 h-5 ${isIpad ? 'text-blue-500' : 'text-purple-500'}`} />
+                        <Icon className={`w-5 h-5 ${isIpad ? 'text-[#44512C]' : 'text-[#A04A2E]'}`} />
                         <span className="font-bold text-slate-800">
                             {isIpad ? 'אייפד' : 'מסופון'} #{device.device_number}
                         </span>
@@ -89,10 +89,10 @@ export default function DevicesDashboard() {
                 </div>
 
                 {device.status === 'in_use' && (
-                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-2 text-xs space-y-1">
-                        <p className="text-blue-800 font-medium">👤 {device.current_holder_name}</p>
+                    <div className="bg-[#F4ECD8] border border-[#E8D9B5] rounded-lg p-2 text-xs space-y-1">
+                        <p className="text-[#2E3819] font-medium">👤 {device.current_holder_name}</p>
                         {device.checked_out_at && (
-                            <p className="text-blue-600 flex items-center gap-1">
+                            <p className="text-[#44512C] flex items-center gap-1">
                                 <Clock className="w-3 h-3" />
                                 נלקח: {format(new Date(device.checked_out_at), 'HH:mm dd/MM')}
                             </p>
@@ -103,7 +103,7 @@ export default function DevicesDashboard() {
                 {device.return_photo_url && (
                     <button
                         onClick={() => setSelectedPhoto(device.return_photo_url)}
-                        className="flex items-center gap-1 text-xs text-indigo-600 hover:underline"
+                        className="flex items-center gap-1 text-xs text-[#A04A2E] hover:underline"
                     >
                         <Camera className="w-3 h-3" />
                         תמונת החזרה האחרונה
@@ -131,10 +131,10 @@ export default function DevicesDashboard() {
         <div className="p-4 space-y-6" dir="rtl">
             <div className="flex items-center justify-between flex-wrap gap-3">
                 <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
-                    <Tablet className="w-7 h-7 text-blue-500" />
+                    <Tablet className="w-7 h-7 text-[#44512C]" />
                     ניהול ציוד מלצרים
                 </h1>
-                <Button onClick={() => setShowAddDialog(true)} className="bg-blue-600 hover:bg-blue-700 text-white">
+                <Button onClick={() => setShowAddDialog(true)} className="bg-[#44512C] hover:bg-[#44512C] text-white">
                     <Plus className="w-4 h-4 ml-1" />
                     הוסף מכשיר
                 </Button>
@@ -148,10 +148,10 @@ export default function DevicesDashboard() {
                         <p className="text-xs text-green-600 font-medium">פנויים</p>
                     </CardContent>
                 </Card>
-                <Card className="border-blue-200 bg-blue-50">
+                <Card className="border-[#E8D9B5] bg-[#F4ECD8]">
                     <CardContent className="p-4 text-center">
-                        <p className="text-2xl font-bold text-blue-700">{inUse.length}</p>
-                        <p className="text-xs text-blue-600 font-medium">בשימוש</p>
+                        <p className="text-2xl font-bold text-[#44512C]">{inUse.length}</p>
+                        <p className="text-xs text-[#44512C] font-medium">בשימוש</p>
                     </CardContent>
                 </Card>
                 <Card className="border-red-200 bg-red-50">
@@ -167,16 +167,16 @@ export default function DevicesDashboard() {
                 <Card>
                     <CardHeader className="pb-3">
                         <CardTitle className="text-base flex items-center gap-2">
-                            <Clock className="w-4 h-4 text-blue-500" />
+                            <Clock className="w-4 h-4 text-[#44512C]" />
                             מחזיקי ציוד פעילים
                         </CardTitle>
                     </CardHeader>
                     <CardContent>
                         <div className="space-y-2">
                             {inUse.map(d => (
-                                <div key={d.id} className="flex items-center justify-between bg-blue-50 rounded-lg p-3">
+                                <div key={d.id} className="flex items-center justify-between bg-[#F4ECD8] rounded-lg p-3">
                                     <div className="flex items-center gap-2">
-                                        {d.device_type === 'ipad' ? <Tablet className="w-4 h-4 text-blue-500" /> : <CreditCard className="w-4 h-4 text-purple-500" />}
+                                        {d.device_type === 'ipad' ? <Tablet className="w-4 h-4 text-[#44512C]" /> : <CreditCard className="w-4 h-4 text-[#A04A2E]" />}
                                         <span className="text-sm font-medium">
                                             {d.device_type === 'ipad' ? 'אייפד' : 'מסופון'} #{d.device_number}
                                         </span>
@@ -203,7 +203,7 @@ export default function DevicesDashboard() {
                     {/* אייפדים */}
                     <div>
                         <h2 className="text-lg font-bold text-slate-700 mb-3 flex items-center gap-2">
-                            <Tablet className="w-5 h-5 text-blue-500" /> אייפדים
+                            <Tablet className="w-5 h-5 text-[#44512C]" /> אייפדים
                         </h2>
                         {ipads.length === 0 ? (
                             <p className="text-slate-400 text-sm">אין אייפדים. לחץ "הוסף מכשיר".</p>
@@ -217,7 +217,7 @@ export default function DevicesDashboard() {
                     {/* מסופונים */}
                     <div>
                         <h2 className="text-lg font-bold text-slate-700 mb-3 flex items-center gap-2">
-                            <CreditCard className="w-5 h-5 text-purple-500" /> מסופונים
+                            <CreditCard className="w-5 h-5 text-[#A04A2E]" /> מסופונים
                         </h2>
                         {terminals.length === 0 ? (
                             <p className="text-slate-400 text-sm">אין מסופונים. לחץ "הוסף מכשיר".</p>
@@ -244,7 +244,7 @@ export default function DevicesDashboard() {
                                     <button
                                         key={type}
                                         onClick={() => setNewDevice(p => ({ ...p, device_type: type }))}
-                                        className={`flex-1 py-2 rounded-lg border-2 text-sm font-medium transition-all ${newDevice.device_type === type ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-slate-200 text-slate-600'}`}
+                                        className={`flex-1 py-2 rounded-lg border-2 text-sm font-medium transition-all ${newDevice.device_type === type ? 'border-[#44512C] bg-[#F4ECD8] text-[#44512C]' : 'border-slate-200 text-slate-600'}`}
                                     >
                                         {type === 'ipad' ? '📱 אייפד' : '💳 מסופון'}
                                     </button>
@@ -265,7 +265,7 @@ export default function DevicesDashboard() {
                         <Button
                             onClick={addDevice}
                             disabled={!newDevice.device_number || saving}
-                            className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+                            className="w-full bg-[#44512C] hover:bg-[#44512C] text-white"
                         >
                             {saving ? <Loader2 className="w-4 h-4 animate-spin ml-1" /> : <Plus className="w-4 h-4 ml-1" />}
                             הוסף

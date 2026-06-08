@@ -115,7 +115,7 @@ export default function StoriesLeaderboard() {
       ) : (
         <div className="space-y-3">
           {leaderboard.map((employee, index) => (
-            <Card key={employee.employee_id} className={`border-2 ${index < 3 ? "bg-yellow-50 border-yellow-200" : ""}`}>
+            <Card key={employee.employee_id} className={`border-2 ${index < 3 ? "bg-[#FAF5E8] border-yellow-200" : ""}`}>
               <CardContent className="p-4">
                 <div className="flex items-center gap-4">
                   {/* Rank */}
@@ -159,7 +159,7 @@ export default function StoriesLeaderboard() {
                       </div>
                     </div>
                     <div className="text-center">
-                      <div className="text-2xl font-bold text-blue-500">{employee.total_comments}</div>
+                      <div className="text-2xl font-bold text-[#44512C]">{employee.total_comments}</div>
                       <div className="text-xs text-muted-foreground">תגובות</div>
                     </div>
                   </div>

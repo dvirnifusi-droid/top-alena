@@ -67,7 +67,7 @@ export default function ReservationView() {
   const willBeLateCancel = hoursUntil < 2 && hoursUntil >= -1;
 
   return (
-    <div dir="rtl" className="min-h-screen bg-gradient-to-br from-amber-50 via-rose-50 to-orange-100 p-4 py-8">
+    <div dir="rtl" className="min-h-screen bg-gradient-to-br from-amber-50 via-[#F4ECD8] to-orange-100 p-4 py-8">
       <div className="max-w-md mx-auto bg-white rounded-3xl shadow-2xl p-6 space-y-5">
 
         {/* Header */}
@@ -103,15 +103,15 @@ export default function ReservationView() {
         </div>
 
         {/* Address + Waze */}
-        <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4">
+        <div className="bg-[#F4ECD8] border border-[#E8D9B5] rounded-2xl p-4">
           <div className="font-bold text-blue-900 flex items-center gap-2 mb-2">
             <MapPin className="w-4 h-4" /> איפה אנחנו
           </div>
-          <div className="text-sm text-blue-800">רוטשילד 104, ראשון לציון</div>
+          <div className="text-sm text-[#2E3819]">רוטשילד 104, ראשון לציון</div>
           <a
             href="https://waze.com/ul?ll=31.96,34.79&navigate=yes"
             target="_blank" rel="noopener noreferrer"
-            className="mt-2 inline-flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold py-2 px-4 rounded-lg"
+            className="mt-2 inline-flex items-center gap-1.5 bg-[#44512C] hover:bg-[#44512C] text-white text-sm font-bold py-2 px-4 rounded-lg"
           >
             <Navigation className="w-4 h-4" /> ניווט בוייז
           </a>
@@ -127,7 +127,7 @@ export default function ReservationView() {
         </div>
 
         {/* Policy */}
-        <div className="bg-yellow-50 border border-yellow-200 rounded-2xl p-4 text-sm text-yellow-900">
+        <div className="bg-[#FAF5E8] border border-yellow-200 rounded-2xl p-4 text-sm text-yellow-900">
           <div className="font-bold mb-1">📋 מדיניות</div>
           <ul className="space-y-1 list-disc pr-5">
             <li>השולחן ימתין לכם עד 10 דקות מעבר לשעה</li>
@@ -165,7 +165,7 @@ export default function ReservationView() {
           <div className="bg-white rounded-2xl max-w-sm w-full p-5 space-y-3" onClick={e => e.stopPropagation()}>
             <div className="text-lg font-black text-gray-900">ביטול הזמנה</div>
             {willBeLateCancel ? (
-              <div className="bg-rose-50 border border-rose-200 rounded-xl p-3 text-sm text-rose-800 flex items-start gap-2">
+              <div className="bg-[#F4ECD8] border border-rose-200 rounded-xl p-3 text-sm text-rose-800 flex items-start gap-2">
                 <AlertTriangle className="w-5 h-5 flex-shrink-0 mt-0.5" />
                 <div>
                   <div className="font-bold">⚠️ ביטול מאוחר</div>

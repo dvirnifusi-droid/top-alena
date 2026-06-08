@@ -19,9 +19,9 @@ export default function RecruitmentStats() {
     }, []);
 
     const items = [
-        { label: 'סה״כ פנו', value: stats.total, icon: Users, color: 'text-blue-600', bg: 'bg-blue-50' },
+        { label: 'סה״כ פנו', value: stats.total, icon: Users, color: 'text-[#44512C]', bg: 'bg-[#F4ECD8]' },
         { label: 'סיימו בהצלחה', value: stats.completed, icon: CheckCircle, color: 'text-green-600', bg: 'bg-green-50' },
-        { label: 'ממתינים', value: stats.pending, icon: Clock, color: 'text-yellow-600', bg: 'bg-yellow-50' },
+        { label: 'ממתינים', value: stats.pending, icon: Clock, color: 'text-yellow-600', bg: 'bg-[#FAF5E8]' },
         { label: 'נדחו', value: stats.rejected, icon: XCircle, color: 'text-red-500', bg: 'bg-red-50' },
     ];
 
@@ -43,7 +43,7 @@ export default function RecruitmentStats() {
                     ))}
                 </div>
                 {!loading && stats.total > 0 && (
-                    <div className="mt-4 bg-slate-50 rounded-lg p-3">
+                    <div className="mt-4 bg-[#FAF5E8] rounded-lg p-3">
                         <div className="flex justify-between text-sm text-slate-600 mb-1">
                             <span>אחוז השלמה</span>
                             <span className="font-bold text-slate-800">

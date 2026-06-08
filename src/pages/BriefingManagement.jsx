@@ -172,7 +172,7 @@ export default function BriefingManagement() {
             <div className="max-w-7xl mx-auto space-y-6">
                 {/* Header */}
                 <div className="bg-white rounded-2xl border p-5 shadow-sm flex items-center gap-4">
-                    <div className="w-12 h-12 bg-gradient-to-br from-emerald-500 to-cyan-500 rounded-xl flex items-center justify-center flex-shrink-0 shadow-md">
+                    <div className="w-12 h-12 bg-gradient-to-br from-emerald-500 to-[#B89556] rounded-xl flex items-center justify-center flex-shrink-0 shadow-md">
                         <FileText className="w-6 h-6 text-white" />
                     </div>
                     <div>
@@ -214,7 +214,7 @@ export default function BriefingManagement() {
                                 <Card className="shadow-sm">
                                     <CardHeader className="pb-2 pt-4 px-4">
                                         <CardTitle className="text-sm font-bold text-gray-700 flex items-center gap-2">
-                                            <FileText className="w-4 h-4 text-blue-600" />
+                                            <FileText className="w-4 h-4 text-[#44512C]" />
                                             תדריכים ל-{format(date, 'd/M', { locale: he })}
                                         </CardTitle>
                                     </CardHeader>
@@ -244,7 +244,7 @@ export default function BriefingManagement() {
                                                             <Button
                                                                 size="sm"
                                                                 onClick={() => setCurrentBriefData(brief)}
-                                                                className="w-full bg-blue-600 hover:bg-blue-700 text-white h-8"
+                                                                className="w-full bg-[#44512C] hover:bg-[#44512C] text-white h-8"
                                                             >
                                                                 <Eye className="w-3 h-3 ml-1" /> צפה / ערוך
                                                             </Button>
@@ -343,7 +343,7 @@ export default function BriefingManagement() {
                                             <p className="text-xs text-gray-500 mb-2">נוצר ע"י: {brief.created_by_name}</p>
                                             {brief.ai_summary && (
                                                 <p className="text-sm text-gray-600 bg-gray-50 rounded-lg p-2 flex items-start gap-1.5">
-                                                    <Sparkles className="w-3 h-3 text-purple-500 mt-0.5 flex-shrink-0" />
+                                                    <Sparkles className="w-3 h-3 text-[#A04A2E] mt-0.5 flex-shrink-0" />
                                                     {brief.ai_summary}
                                                 </p>
                                             )}

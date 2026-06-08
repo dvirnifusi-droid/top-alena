@@ -128,7 +128,7 @@ export default function Suppliers() {
   const statusColors = {
     active: "bg-green-100 text-green-800",
     inactive: "bg-red-100 text-red-800",
-    pending_approval: "bg-yellow-100 text-yellow-800",
+    pending_approval: "bg-[#F4ECD8] text-yellow-800",
   };
 
   const categoryTranslations = {

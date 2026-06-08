@@ -190,10 +190,10 @@ export default function SeatingAiHelper() {
     }
 
     return (
-        <Card className="shadow-lg border-0 bg-gradient-to-br from-white to-blue-50/30">
+        <Card className="shadow-lg border-0 bg-gradient-to-br from-white to-[#F4ECD8]/30">
             <CardHeader>
                 <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg flex items-center justify-center">
+                    <div className="w-8 h-8 bg-gradient-to-br from-[#44512C] to-[#A04A2E] rounded-lg flex items-center justify-center">
                         <BrainCircuit className="w-5 h-5 text-white" />
                     </div>
                     <CardTitle className="text-lg text-slate-800">עוזר הושבה חכם</CardTitle>
@@ -219,7 +219,7 @@ export default function SeatingAiHelper() {
                     </TabsList>
                     <TabsContent value="live" className="pt-4">
                         {!layoutExists && (
-                            <div className="p-3 bg-yellow-50 border border-yellow-300 rounded-lg text-sm text-yellow-800 flex items-center gap-2">
+                            <div className="p-3 bg-[#FAF5E8] border border-[#D9BD83] rounded-lg text-sm text-yellow-800 flex items-center gap-2">
                                 <AlertCircle className="w-5 h-5" />
                                 <span>כדי להשתמש במצב זה, יש להגדיר מפת הושבה בעמוד 'הגדרות הושבה'.</span>
                             </div>
@@ -239,7 +239,7 @@ export default function SeatingAiHelper() {
                     </TabsContent>
                 </Tabs>
 
-                <Button onClick={handleAnalyze} disabled={isButtonDisabled()} className="w-full bg-blue-600 hover:bg-blue-700">
+                <Button onClick={handleAnalyze} disabled={isButtonDisabled()} className="w-full bg-[#44512C] hover:bg-[#44512C]">
                     {isLoading ? (
                         <>
                             <Loader2 className="w-4 h-4 ml-2 animate-spin" />
@@ -256,7 +256,7 @@ export default function SeatingAiHelper() {
                 {error && <p className="text-sm text-red-600 text-center">{error}</p>}
                 
                 {aiResponse && (
-                    <div className="p-4 bg-blue-50/70 border border-blue-200 rounded-lg mt-4 text-sm max-h-96 overflow-y-auto">
+                    <div className="p-4 bg-[#F4ECD8]/70 border border-[#E8D9B5] rounded-lg mt-4 text-sm max-h-96 overflow-y-auto">
                         <ReactMarkdown className="prose prose-sm max-w-none text-slate-800">{aiResponse}</ReactMarkdown>
                     </div>
                 )}

@@ -97,7 +97,7 @@ export default function CustomerDetailsPage() {
     const satisfactionConfig = {
         satisfied: { text: 'מרוצה', className: 'bg-green-100 text-green-800' },
         unsatisfied: { text: 'לא מרוצה', className: 'bg-red-100 text-red-800' },
-        recovering: { text: 'בטיפול', className: 'bg-yellow-100 text-yellow-800' },
+        recovering: { text: 'בטיפול', className: 'bg-[#F4ECD8] text-yellow-800' },
         neutral: { text: 'ניטרלי', className: 'bg-gray-100 text-gray-800' }
     };
     const currentSatisfaction = satisfactionConfig[customer.satisfaction_status] || satisfactionConfig.neutral;
@@ -118,7 +118,7 @@ export default function CustomerDetailsPage() {
                     <CardHeader className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                         <div>
                             <CardTitle className="text-3xl font-bold flex items-center gap-3">
-                                <User className="w-8 h-8 text-purple-600" />
+                                <User className="w-8 h-8 text-[#A04A2E]" />
                                 {customer.name}
                             </CardTitle>
                             <CardDescription className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-2">
@@ -144,7 +144,7 @@ export default function CustomerDetailsPage() {
                             <CardContent>
                                 <div className="space-y-3">
                                     {benefits.length > 0 ? benefits.map(b => (
-                                        <div key={b.id} className="flex justify-between items-center p-3 bg-blue-50 rounded-lg">
+                                        <div key={b.id} className="flex justify-between items-center p-3 bg-[#F4ECD8] rounded-lg">
                                             <div>
                                                 <p className="font-semibold">{b.description}</p>
                                                 <Badge variant="outline" className="mt-1">{b.type === 'compensation' ? 'פיצוי' : 'הטבה'}</Badge>

@@ -562,7 +562,7 @@ ${JSON.stringify(salesData.map(sale => ({
                 return <Sun className="w-5 h-5 text-yellow-500" />;
             case 'negative':
             case 'very_negative':
-                return <CloudSnow className="w-5 h-5 text-blue-500" />; // Changed to Snow for more negative connotation
+                return <CloudSnow className="w-5 h-5 text-[#44512C]" />; // Changed to Snow for more negative connotation
             default:
                 return <CloudRain className="w-5 h-5 text-gray-500" />;
         }
@@ -570,7 +570,7 @@ ${JSON.stringify(salesData.map(sale => ({
 
     const getConfidenceColor = (confidence) => {
         if (confidence >= 80) return 'text-green-600 bg-green-100';
-        if (confidence >= 60) return 'text-yellow-600 bg-yellow-100';
+        if (confidence >= 60) return 'text-yellow-600 bg-[#F4ECD8]';
         return 'text-red-600 bg-red-100';
     };
 
@@ -583,11 +583,11 @@ ${JSON.stringify(salesData.map(sale => ({
             <div className="max-w-7xl mx-auto">
                 <div className="mb-8">
                     <div className="flex items-center gap-3 mb-2">
-                        <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-blue-600 rounded-lg flex items-center justify-center">
+                        <div className="w-10 h-10 bg-gradient-to-br from-[#A04A2E] to-[#44512C] rounded-lg flex items-center justify-center">
                             <Brain className="w-6 h-6 text-white" />
                         </div>
                         <h1 className="text-3xl font-bold text-slate-900">מערכת ביקוש חכם AI</h1>
-                        <Sparkles className="w-6 h-6 text-purple-500" />
+                        <Sparkles className="w-6 h-6 text-[#A04A2E]" />
                     </div>
                     <p className="text-slate-600">חיזוי עומסים מתקדם המבוסס על בינה מלאכותית וניתוח נתונים</p>
                 </div>
@@ -621,7 +621,7 @@ ${JSON.stringify(salesData.map(sale => ({
                         <Card className="shadow-lg">
                             <CardHeader>
                                 <CardTitle className="flex items-center gap-2">
-                                    <Zap className="w-5 h-5 text-blue-500" />
+                                    <Zap className="w-5 h-5 text-[#44512C]" />
                                     יצירת חיזוי מתקדם
                                 </CardTitle>
                             </CardHeader>
@@ -652,7 +652,7 @@ ${JSON.stringify(salesData.map(sale => ({
                                     <Button 
                                         onClick={() => generateMultiDayPrediction(selectedDate, selectedEndDate)}
                                         disabled={loading}
-                                        className="bg-purple-600 hover:bg-purple-700"
+                                        className="bg-[#A04A2E] hover:bg-[#7A3722]"
                                     >
                                         {loading ? (
                                             <>
@@ -702,7 +702,7 @@ ${JSON.stringify(salesData.map(sale => ({
                                                     </div>
                                                 </div>
                                                 <div className="text-right">
-                                                    <div className="text-2xl font-bold text-blue-600">
+                                                    <div className="text-2xl font-bold text-[#44512C]">
                                                         {prediction.predicted_covers}
                                                     </div>
                                                     <div className="text-sm text-gray-500">סועדים</div>
@@ -723,8 +723,8 @@ ${JSON.stringify(salesData.map(sale => ({
 
                                             {/* כוח אדם */}
                                             <div className="grid grid-cols-3 gap-2 text-sm">
-                                                <div className="text-center p-2 bg-blue-50 rounded">
-                                                    <Users className="w-4 h-4 mx-auto mb-1 text-blue-600" />
+                                                <div className="text-center p-2 bg-[#F4ECD8] rounded">
+                                                    <Users className="w-4 h-4 mx-auto mb-1 text-[#44512C]" />
                                                     <div className="font-semibold">{prediction.recommended_waiters}</div>
                                                     <div className="text-xs text-gray-600">מלצרים</div>
                                                 </div>
@@ -741,7 +741,7 @@ ${JSON.stringify(salesData.map(sale => ({
                                             </div>
 
                                             {prediction.peak_hours && prediction.peak_hours.length > 0 && (
-                                                <div className="bg-yellow-50 p-2 rounded">
+                                                <div className="bg-[#FAF5E8] p-2 rounded">
                                                     <div className="flex items-center gap-1 text-sm font-semibold text-yellow-800 mb-1">
                                                         <Clock className="w-3 h-3" />
                                                         שעות שיא
@@ -766,16 +766,16 @@ ${JSON.stringify(salesData.map(sale => ({
 
                                             {/* המלצות הכנה */}
                                             {prepData.prep_recommendations && prepData.prep_recommendations.length > 0 && (
-                                                <div className="bg-blue-50 p-3 rounded">
-                                                    <div className="flex items-center gap-1 text-sm font-semibold text-blue-800 mb-2">
+                                                <div className="bg-[#F4ECD8] p-3 rounded">
+                                                    <div className="flex items-center gap-1 text-sm font-semibold text-[#2E3819] mb-2">
                                                         <ChefHat className="w-3 h-3" />
                                                         המלצות הכנה מוקדמת
                                                     </div>
-                                                    <div className="text-xs text-blue-700 space-y-1">
+                                                    <div className="text-xs text-[#44512C] space-y-1">
                                                         {prepData.prep_recommendations.slice(0, 3).map((prep, i) => (
                                                             <div key={i}>• {prep.item}: {prep.quantity}</div>
                                                         ))}
-                                                        {prepData.prep_recommendations.length > 3 && <div className="text-xs text-blue-700">ועוד...</div>}
+                                                        {prepData.prep_recommendations.length > 3 && <div className="text-xs text-[#44512C]">ועוד...</div>}
                                                     </div>
                                                 </div>
                                             )}
@@ -835,7 +835,7 @@ ${JSON.stringify(salesData.map(sale => ({
                         <Card className="shadow-lg">
                             <CardHeader>
                                 <CardTitle className="flex items-center gap-2">
-                                    <TrendingUp className="w-5 h-5 text-blue-500" />
+                                    <TrendingUp className="w-5 h-5 text-[#44512C]" />
                                     ניתוח נתונים היסטוריים
                                 </CardTitle>
                             </CardHeader>
@@ -843,8 +843,8 @@ ${JSON.stringify(salesData.map(sale => ({
                                 {historicalData.length > 0 ? (
                                     <div className="space-y-4">
                                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                                            <div className="bg-blue-50 p-4 rounded-lg">
-                                                <div className="text-2xl font-bold text-blue-600">
+                                            <div className="bg-[#F4ECD8] p-4 rounded-lg">
+                                                <div className="text-2xl font-bold text-[#44512C]">
                                                     {Math.round(historicalData.reduce((sum, day) => sum + (day.covers || 0), 0) / historicalData.length)}
                                                 </div>
                                                 <div className="text-sm text-gray-600">ממוצע סועדים יומי</div>
@@ -855,8 +855,8 @@ ${JSON.stringify(salesData.map(sale => ({
                                                 </div>
                                                 <div className="text-sm text-gray-600">ממוצע הכנסות</div>
                                             </div>
-                                            <div className="bg-purple-50 p-4 rounded-lg">
-                                                <div className="text-2xl font-bold text-purple-600">
+                                            <div className="bg-[#F4ECD8] p-4 rounded-lg">
+                                                <div className="text-2xl font-bold text-[#A04A2E]">
                                                     {Math.max(...historicalData.map(day => day.covers || 0))}
                                                 </div>
                                                 <div className="text-sm text-gray-600">יום הכי עמוס</div>
@@ -945,13 +945,13 @@ ${JSON.stringify(salesData.map(sale => ({
                                         </div>
 
                                         {/* המלצות לפעולה */}
-                                        <div className="bg-blue-50 p-3 rounded">
-                                            <div className="flex items-center gap-1 text-sm font-semibold text-blue-800 mb-2">💡 פעולות מומלצות:</div>
-                                            <div className="text-xs text-blue-700 space-y-1">
+                                        <div className="bg-[#F4ECD8] p-3 rounded">
+                                            <div className="flex items-center gap-1 text-sm font-semibold text-[#2E3819] mb-2">💡 פעולות מומלצות:</div>
+                                            <div className="text-xs text-[#44512C] space-y-1">
                                                 {risk.recommended_actions?.slice(0, 3).map((action, i) => (
                                                     <div key={i}>• {action}</div>
                                                 ))}
-                                                {risk.recommended_actions.length > 3 && <div className="text-xs text-blue-700">ועוד...</div>}
+                                                {risk.recommended_actions.length > 3 && <div className="text-xs text-[#44512C]">ועוד...</div>}
                                             </div>
                                         </div>
 
@@ -968,9 +968,9 @@ ${JSON.stringify(salesData.map(sale => ({
 
                                         {/* אסטרטגיית מוטיבציה */}
                                         {risk.motivation_strategy && (
-                                            <div className="bg-purple-50 p-3 rounded">
-                                                <div className="flex items-center gap-1 text-sm font-semibold text-purple-800 mb-1">🎯 אסטרטגיית מוטיבציה:</div>
-                                                <div className="text-xs text-purple-700">{risk.motivation_strategy}</div>
+                                            <div className="bg-[#F4ECD8] p-3 rounded">
+                                                <div className="flex items-center gap-1 text-sm font-semibold text-[#7A3722] mb-1">🎯 אסטרטגיית מוטיבציה:</div>
+                                                <div className="text-xs text-[#7A3722]">{risk.motivation_strategy}</div>
                                             </div>
                                         )}
                                     </CardContent>
@@ -1026,11 +1026,11 @@ ${JSON.stringify(salesData.map(sale => ({
                                                 <CardTitle className="text-lg">{item.menu_item_name}</CardTitle>
                                                 <Badge className={`
                                                     ${item.popularity_score >= 80 ? 'bg-green-100 text-green-800' :
-                                                      item.popularity_score >= 50 ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800'}
+                                                      item.popularity_score >= 50 ? 'bg-[#F4ECD8] text-yellow-800' : 'bg-red-100 text-red-800'}
                                                 `}>פופולריות: {item.popularity_score}%</Badge>
                                                 <Badge className={`ml-2 
                                                     ${item.profitability_score >= 80 ? 'bg-green-100 text-green-800' :
-                                                      item.profitability_score >= 50 ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800'}
+                                                      item.profitability_score >= 50 ? 'bg-[#F4ECD8] text-yellow-800' : 'bg-red-100 text-red-800'}
                                                 `}>רווחיות: {item.profitability_score}%</Badge>
                                             </div>
                                             <div className="text-right">
@@ -1049,12 +1049,12 @@ ${JSON.stringify(salesData.map(sale => ({
                                         {item.sales_trend && (
                                             <div className="flex justify-between items-center text-sm">
                                                 <span className="text-gray-600">מגמת מכירות:</span>
-                                                <span className="font-semibold text-blue-600">{item.sales_trend}</span>
+                                                <span className="font-semibold text-[#44512C]">{item.sales_trend}</span>
                                             </div>
                                         )}
 
                                         {item.key_ingredients_impact && item.key_ingredients_impact.length > 0 && (
-                                            <div className="bg-yellow-50 p-2 rounded">
+                                            <div className="bg-[#FAF5E8] p-2 rounded">
                                                 <div className="flex items-center gap-1 text-sm font-semibold text-yellow-800 mb-1">
                                                     <ShoppingCart className="w-3 h-3" />
                                                     מרכיבים קריטיים
@@ -1083,7 +1083,7 @@ ${JSON.stringify(salesData.map(sale => ({
                         <Card className="shadow-lg">
                             <CardHeader>
                                 <CardTitle className="flex items-center gap-2">
-                                    <Settings className="w-5 h-5 text-blue-500" />
+                                    <Settings className="w-5 h-5 text-[#44512C]" />
                                     הגדרות מערכת החיזוי
                                 </CardTitle>
                             </CardHeader>
@@ -1178,7 +1178,7 @@ ${JSON.stringify(salesData.map(sale => ({
                                 <div className="mt-6">
                                     <Button 
                                         onClick={() => updateSettings(settings)}
-                                        className="bg-blue-600 hover:bg-blue-700"
+                                        className="bg-[#44512C] hover:bg-[#44512C]"
                                     >
                                         שמור הגדרות
                                     </Button>

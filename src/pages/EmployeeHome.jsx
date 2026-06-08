@@ -104,10 +104,10 @@ export default function EmployeeHome() {
     };
 
     const smartTools = [
-        { component: InvoiceScanner, title: "סריקת חשבוניות ספק", description: "סרוק חשבונית ועדכן מלאי אוטומטית", icon: FileText, color: "from-blue-500 to-indigo-600" },
+        { component: InvoiceScanner, title: "סריקת חשבוניות ספק", description: "סרוק חשבונית ועדכן מלאי אוטומטית", icon: FileText, color: "from-[#44512C] to-[#A04A2E]" },
         { component: ManualSurveyTool, title: "שליחת סקר ללקוח", description: "שלח סקר שביעות רצון בוואטסאפ", icon: Star, color: "from-green-500 to-emerald-600" },
-        { component: SeatingAiHelper, title: "עוזר הושבה חכם", description: "קבל המלצות הושבה מבוסס AI", icon: Brain, color: "from-blue-500 to-indigo-600" },
-        { component: AiQuickAdd, title: "הוספת ידע לעוזר AI", description: "הכנס מתכונים, נהלים ומידע חדש", icon: Sparkles, color: "from-purple-500 to-blue-600" }
+        { component: SeatingAiHelper, title: "עוזר הושבה חכם", description: "קבל המלצות הושבה מבוסס AI", icon: Brain, color: "from-[#44512C] to-[#A04A2E]" },
+        { component: AiQuickAdd, title: "הוספת ידע לעוזר AI", description: "הכנס מתכונים, נהלים ומידע חדש", icon: Sparkles, color: "from-[#A04A2E] to-[#44512C]" }
     ];
 
     // סדר הגאדג'טים לפי layout
@@ -201,7 +201,7 @@ export default function EmployeeHome() {
         smart_tools: isVisible('smart_tools') && (
             <div key="smart_tools" className="mb-8">
                 <Card
-                    className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white cursor-pointer hover:shadow-xl transition-all duration-300 transform hover:scale-105"
+                    className="bg-gradient-to-r from-[#A04A2E] to-[#A04A2E] text-white cursor-pointer hover:shadow-xl transition-all duration-300 transform hover:scale-105"
                     onClick={() => setShowSmartTools(true)}
                 >
                     <CardContent className="p-6">
@@ -211,7 +211,7 @@ export default function EmployeeHome() {
                                     <Brain className="w-6 h-6" />
                                     🤖 כלי עבודה חכמים
                                 </h3>
-                                <p className="text-indigo-100 mb-4">כלים מבוססי AI לחיסכון בזמן ושיפור היעילות</p>
+                                <p className="text-[#F4ECD8] mb-4">כלים מבוססי AI לחיסכון בזמן ושיפור היעילות</p>
                                 <div className="flex items-center gap-2">
                                     <Badge variant="secondary" className="bg-white/20 text-white">{smartTools.length} כלים</Badge>
                                     <Badge variant="secondary" className="bg-white/20 text-white">זמין עבורך!</Badge>
@@ -235,17 +235,17 @@ export default function EmployeeHome() {
         quick_access: isVisible('quick_access') && (
             <div key="quick_access" className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 {[
-                    { to: createPageUrl("Training"), icon: GraduationCap, color: "from-blue-500 to-blue-600", title: "הכשרות ואימונים", desc: "קורסים ומשחקים לשיפור הביצועים" },
+                    { to: createPageUrl("Training"), icon: GraduationCap, color: "from-[#44512C] to-[#44512C]", title: "הכשרות ואימונים", desc: "קורסים ומשחקים לשיפור הביצועים" },
                     { to: createPageUrl("Checklists"), icon: CheckSquare, color: "from-green-500 to-green-600", title: "צ'קליסטים", desc: "בדיקות יומיות ומשימות" },
                     { to: createPageUrl("Incidents"), icon: AlertTriangle, color: "from-orange-500 to-orange-600", title: "דיווח תקריות", desc: "דיווח מהיר על בעיות" },
-                    { to: createPageUrl("Leaderboard"), icon: Star, color: "from-purple-500 to-purple-600", title: "לוח מובילים", desc: "הישגים ונקודות" },
-                    { to: createPageUrl("WorkScheduling"), icon: Calendar, color: "from-cyan-500 to-cyan-600", title: "סידור העבודה", desc: "המשמרות שלך השבוע" },
-                    { to: createPageUrl("WaiterTables"), icon: Utensils, color: "from-pink-500 to-pink-600", title: "השולחנות שלי", desc: "ניהול שולחנות במשמרת" },
+                    { to: createPageUrl("Leaderboard"), icon: Star, color: "from-[#A04A2E] to-[#A04A2E]", title: "לוח מובילים", desc: "הישגים ונקודות" },
+                    { to: createPageUrl("WorkScheduling"), icon: Calendar, color: "from-[#B89556] to-[#B89556]", title: "סידור העבודה", desc: "המשמרות שלך השבוע" },
+                    { to: createPageUrl("WaiterTables"), icon: Utensils, color: "from-[#A04A2E] to-[#A04A2E]", title: "השולחנות שלי", desc: "ניהול שולחנות במשמרת" },
                     { to: createPageUrl("MyPerformance"), icon: Star, color: "from-amber-500 to-amber-600", title: "הביצועים שלי", desc: "נתונים ודירוגים" },
-                    { to: createPageUrl("ShiftEndReport"), icon: CheckSquare, color: "from-teal-500 to-teal-600", title: "דוח סיום משמרת", desc: "סיכום המשמרת" },
-                    { to: createPageUrl("EmployeeReports"), icon: FileText, color: "from-red-500 to-rose-600", title: "דוחות עובדים", desc: "שעות, טיפים וביצועים" },
-                    { to: createPageUrl("LeaveRequests"), icon: CalendarDays, color: "from-blue-400 to-blue-600", title: "בקשות חופשה", desc: "הגש בקשת חופשה או מחלה" },
-                    { to: createPageUrl("ShiftChat"), icon: MessageCircle, color: "from-indigo-500 to-violet-600", title: "צ'אט משמרת", desc: "תקשורת פנימית לצוות" },
+                    { to: createPageUrl("ShiftEndReport"), icon: CheckSquare, color: "from-[#44512C] to-[#44512C]", title: "דוח סיום משמרת", desc: "סיכום המשמרת" },
+                    { to: createPageUrl("EmployeeReports"), icon: FileText, color: "from-red-500 to-[#A04A2E]", title: "דוחות עובדים", desc: "שעות, טיפים וביצועים" },
+                    { to: createPageUrl("LeaveRequests"), icon: CalendarDays, color: "from-blue-400 to-[#44512C]", title: "בקשות חופשה", desc: "הגש בקשת חופשה או מחלה" },
+                    { to: createPageUrl("ShiftChat"), icon: MessageCircle, color: "from-[#A04A2E] to-[#A04A2E]", title: "צ'אט משמרת", desc: "תקשורת פנימית לצוות" },
                     { to: "/UserGuide", icon: BookOpen, color: "from-green-500 to-emerald-600", title: "מדריך שימוש", desc: "הסברים וסרטוני הדרכה", special: true },
                 ].map((item) => (
                     <Link key={item.to} to={item.to}>
@@ -274,7 +274,7 @@ export default function EmployeeHome() {
                     <div className="flex items-start justify-between">
                         <div className="flex items-start gap-4">
                             {currentEmployee?.avatar_url && (
-                                <img src={currentEmployee.avatar_url} alt="avatar" className="w-16 h-16 rounded-full object-cover border-2 border-indigo-500 shadow-lg flex-shrink-0" />
+                                <img src={currentEmployee.avatar_url} alt="avatar" className="w-16 h-16 rounded-full object-cover border-2 border-[#A04A2E] shadow-lg flex-shrink-0" />
                             )}
                             <div>
                                 <h1 className="text-3xl font-bold text-slate-900 mb-2">
@@ -283,7 +283,7 @@ export default function EmployeeHome() {
                                 <div className="flex items-center gap-3 flex-wrap">
                                     <p className="text-slate-600">הכלים שלך למשמרת היום</p>
                                     {todayPosition && (
-                                        <Badge className="bg-indigo-600 text-white flex items-center gap-1">
+                                        <Badge className="bg-[#A04A2E] text-white flex items-center gap-1">
                                             <Briefcase className="w-4 h-4" />
                                             {todayPosition}
                                         </Badge>
@@ -343,8 +343,8 @@ export default function EmployeeHome() {
                         <div className="bg-slate-50 rounded-xl p-3 border-2 border-indigo-200">
                             <p className="text-xs text-slate-500 mb-1">מחובר כרגע:</p>
                             <div className="flex items-center gap-2">
-                                <div className="w-8 h-8 bg-indigo-100 rounded-full flex items-center justify-center">
-                                    <span className="text-sm font-bold text-indigo-600">{user?.full_name?.charAt(0) || '?'}</span>
+                                <div className="w-8 h-8 bg-[#F4ECD8] rounded-full flex items-center justify-center">
+                                    <span className="text-sm font-bold text-[#A04A2E]">{user?.full_name?.charAt(0) || '?'}</span>
                                 </div>
                                 <div>
                                     <p className="font-bold text-sm">{user?.full_name || 'משתמש'}</p>
@@ -354,7 +354,7 @@ export default function EmployeeHome() {
                         </div>
                         <button
                             onClick={() => base44.auth.redirectToLogin()}
-                            className="w-full flex items-center justify-center gap-2 bg-white border-2 border-blue-300 text-blue-700 rounded-xl py-3 font-bold hover:bg-blue-50 transition-colors shadow-sm"
+                            className="w-full flex items-center justify-center gap-2 bg-white border-2 border-[#D9BD83] text-[#44512C] rounded-xl py-3 font-bold hover:bg-[#F4ECD8] transition-colors shadow-sm"
                         >
                             <img src="https://www.google.com/favicon.ico" alt="Google" className="w-4 h-4" />
                             התחבר עם חשבון Google

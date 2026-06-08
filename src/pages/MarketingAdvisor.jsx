@@ -404,7 +404,7 @@ function MenuPhotosField({ field: f, value, onChange }) {
         </div>
       )}
       {urls.length > 0 && (
-        <button onClick={extract} disabled={extracting} className="mt-3 w-full bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-bold py-2 rounded-xl text-sm">
+        <button onClick={extract} disabled={extracting} className="mt-3 w-full bg-[#A04A2E] hover:bg-[#7A3722] disabled:opacity-50 text-white font-bold py-2 rounded-xl text-sm">
           {extracting ? '🤔 קורא את התפריט…' : '🔍 חלץ פריטים בעזרת AI'}
         </button>
       )}
@@ -454,7 +454,7 @@ function StrategyView({ profile, strategy, generating, onGenerate }) {
   const months = Array.isArray(strategy?.months_plan) ? strategy.months_plan : [];
   return (
     <div className="space-y-3">
-      <div className="bg-gradient-to-l from-emerald-600 to-teal-600 text-white rounded-2xl p-5">
+      <div className="bg-gradient-to-l from-emerald-600 to-[#44512C] text-white rounded-2xl p-5">
         <p className="text-xs opacity-80">🎯 היעד</p>
         <p className="font-black text-base">{strategy.goal_summary}</p>
       </div>
@@ -463,7 +463,7 @@ function StrategyView({ profile, strategy, generating, onGenerate }) {
           <div key={i} className="bg-white border border-slate-200 rounded-2xl p-4">
             <div className="flex items-center justify-between mb-2">
               <p className="font-black text-slate-800">חודש {m.month || i + 1} · {m.focus || ''}</p>
-              {m.theme && <span className="text-xs bg-indigo-100 text-indigo-700 px-2 py-1 rounded-full font-bold">{m.theme}</span>}
+              {m.theme && <span className="text-xs bg-[#F4ECD8] text-[#7A3722] px-2 py-1 rounded-full font-bold">{m.theme}</span>}
             </div>
             {Array.isArray(m.expected_outcomes) && m.expected_outcomes.length > 0 && (
               <div className="mt-2">
@@ -596,7 +596,7 @@ function TasksView({ tasks, onChange, hasProfile, strategy }) {
                 key={m}
                 onClick={() => setSelectedMonth(m)}
                 className={`py-2 rounded-xl text-sm font-black transition ${
-                  isCurrent ? 'bg-indigo-600 text-white shadow' : cnt > 0 ? 'bg-slate-100 text-slate-700 hover:bg-slate-200' : 'bg-slate-50 text-slate-400'
+                  isCurrent ? 'bg-[#A04A2E] text-white shadow' : cnt > 0 ? 'bg-slate-100 text-slate-700 hover:bg-slate-200' : 'bg-slate-50 text-slate-400'
                 }`}
               >
                 <div>חודש {m}</div>
@@ -609,7 +609,7 @@ function TasksView({ tasks, onChange, hasProfile, strategy }) {
 
       {/* Month context card */}
       {monthInfo && (
-        <div className="bg-gradient-to-l from-indigo-500 to-purple-600 text-white rounded-2xl p-4">
+        <div className="bg-gradient-to-l from-[#A04A2E] to-[#A04A2E] text-white rounded-2xl p-4">
           <p className="text-xs opacity-80">חודש {selectedMonth} · {monthInfo.theme || ''}</p>
           <p className="font-black text-base mt-0.5">{monthInfo.focus || 'מיקוד החודש'}</p>
           <div className="mt-2 h-2 bg-white/30 rounded-full overflow-hidden">
@@ -623,7 +623,7 @@ function TasksView({ tasks, onChange, hasProfile, strategy }) {
         <div className="bg-white border border-slate-200 rounded-2xl p-6 text-center">
           <p className="text-slate-400 text-sm mb-3">אין עדיין משימות לחודש זה</p>
           {selectedMonth > 1 && (
-            <button onClick={generateNextMonth} disabled={generatingNext} className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-bold px-5 py-2.5 rounded-xl">
+            <button onClick={generateNextMonth} disabled={generatingNext} className="bg-[#A04A2E] hover:bg-[#7A3722] disabled:opacity-50 text-white font-bold px-5 py-2.5 rounded-xl">
               {generatingNext ? '🤔 מייצר…' : `✨ ייצר את חודש ${selectedMonth}`}
             </button>
           )}
@@ -691,7 +691,7 @@ function Section({ title, empty, children }) {
 }
 
 const TYPE_STYLES = {
-  online:  { label: '🌐 דיגיטל', cls: 'bg-blue-100 text-blue-700' },
+  online:  { label: '🌐 דיגיטל', cls: 'bg-[#F4ECD8] text-[#44512C]' },
   offline: { label: '🏃 שטח',  cls: 'bg-amber-100 text-amber-700' },
 };
 const PRIORITY_STYLES = {
@@ -713,13 +713,13 @@ function TaskCard({ t, onComplete, onExpand, expanded, expansion, loadingExp }) 
           <div className="flex flex-wrap gap-1.5 mt-1">
             <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${ts.cls}`}>{ts.label}</span>
             {t.platform && <span className="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full font-bold">{t.platform}</span>}
-            {t.estimated_time && <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full font-bold">⏱ {t.estimated_time} דק'</span>}
+            {t.estimated_time && <span className="text-xs bg-[#F4ECD8] text-[#7A3722] px-2 py-0.5 rounded-full font-bold">⏱ {t.estimated_time} דק'</span>}
             {t.budget_required > 0 && <span className="text-xs bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full font-bold">💸 ₪{t.budget_required}</span>}
             {t.due_date && <span className="text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full font-bold">📅 {t.due_date}</span>}
           </div>
           <p className="text-sm text-slate-600 mt-1.5">{t.description}</p>
           {t.ai_reasoning && (
-            <p className="text-xs text-indigo-700 mt-1 italic">💡 {t.ai_reasoning}</p>
+            <p className="text-xs text-[#7A3722] mt-1 italic">💡 {t.ai_reasoning}</p>
           )}
           <button onClick={() => onExpand(t)} className="text-xs text-emerald-700 font-bold mt-2 underline">
             {expanded ? '▲ סגור הסבר' : '📖 הסבר לי בפירוט איך לעשות'}
@@ -842,7 +842,7 @@ function ProgressView({ tasks, strategy, profile }) {
 
   return (
     <div className="space-y-3">
-      <div className="bg-gradient-to-l from-indigo-500 to-purple-600 text-white rounded-2xl p-5">
+      <div className="bg-gradient-to-l from-[#A04A2E] to-[#A04A2E] text-white rounded-2xl p-5">
         <p className="text-xs opacity-80">📈 התקדמות כללית</p>
         <p className="font-black text-3xl">{pct}%</p>
         <div className="h-2 bg-white/30 rounded-full overflow-hidden mt-2">

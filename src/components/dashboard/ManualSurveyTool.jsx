@@ -211,15 +211,15 @@ export default function ManualSurveyTool() {
                 )}
 
                 {/* QR Code Section */}
-                <div className="bg-purple-50 p-4 rounded-lg border border-purple-200">
+                <div className="bg-[#F4ECD8] p-4 rounded-lg border border-purple-200">
                     <h4 className="font-semibold text-purple-900 mb-2">📱 ברקוד להדפסה</h4>
-                    <p className="text-sm text-purple-800 mb-3">
+                    <p className="text-sm text-[#7A3722] mb-3">
                         במקום לשלוח SMS לכל לקוח, אפשר להדפיס ברקוד על כל חשבון
                     </p>
                     <Button 
                         onClick={() => window.open('/SurveyQRCodes', '_blank')}
                         variant="outline"
-                        className="border-purple-300 text-purple-700 hover:bg-purple-100"
+                        className="border-[#D9BD83] text-[#7A3722] hover:bg-[#F4ECD8]"
                     >
                         <QrCode className="w-4 h-4 ml-2" />
                         צור ברקוד לסקרים
@@ -235,7 +235,7 @@ export default function ManualSurveyTool() {
                         </div>
                         <div className="space-y-2">
                             {recentSurveys.map((survey) => (
-                                <div key={survey.id} className="flex items-center justify-between p-2 bg-slate-50 rounded-lg">
+                                <div key={survey.id} className="flex items-center justify-between p-2 bg-[#FAF5E8] rounded-lg">
                                     <div>
                                         <p className="text-sm font-medium">{survey.customer_name}</p>
                                         <p className="text-xs text-slate-600">{formatPhoneForDisplay(survey.customer_phone)}</p>

@@ -330,7 +330,7 @@ function ReportsInner() {
                 <div className="flex justify-between items-center mb-8">
                     <div>
                         <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
-                            <FileText className="w-8 h-8 text-blue-600" />
+                            <FileText className="w-8 h-8 text-[#44512C]" />
                             דוחות טיפים ומשכורות
                         </h1>
                         <p className="text-gray-600 mt-2">ניהול ומעקב אחר חלוקת טיפים ונתוני משכורות</p>
@@ -452,10 +452,10 @@ function ReportsInner() {
                      <Card>
                         <CardHeader className="flex flex-row items-center justify-between pb-2">
                             <CardTitle className="text-sm font-medium text-gray-600">סה"כ סועדים</CardTitle>
-                            <Users className="w-4 h-4 text-blue-600" />
+                            <Users className="w-4 h-4 text-[#44512C]" />
                         </CardHeader>
                         <CardContent>
-                            <div className="text-2xl font-bold text-blue-600">{shiftEndReportTotals.totalCovers.toLocaleString()}</div>
+                            <div className="text-2xl font-bold text-[#44512C]">{shiftEndReportTotals.totalCovers.toLocaleString()}</div>
                         </CardContent>
                     </Card>
                     <Card>
@@ -471,20 +471,20 @@ function ReportsInner() {
                     <Card>
                         <CardHeader className="flex flex-row items-center justify-between pb-2">
                             <CardTitle className="text-sm font-medium text-gray-600">חולק לעובדים (טיפים)</CardTitle>
-                            <Users className="w-4 h-4 text-blue-600" />
+                            <Users className="w-4 h-4 text-[#44512C]" />
                         </CardHeader>
                         <CardContent>
-                            <div className="text-2xl font-bold text-blue-600">₪{monthlyTotals.totalPayouts.toLocaleString()}</div>
+                            <div className="text-2xl font-bold text-[#44512C]">₪{monthlyTotals.totalPayouts.toLocaleString()}</div>
                         </CardContent>
                     </Card>
                     
                     <Card>
                         <CardHeader className="flex flex-row items-center justify-between pb-2">
                             <CardTitle className="text-sm font-medium text-gray-600">סה״כ שעות כל העובדים</CardTitle>
-                            <Clock className="w-4 h-4 text-purple-600" />
+                            <Clock className="w-4 h-4 text-[#A04A2E]" />
                         </CardHeader>
                         <CardContent>
-                            <div className="text-2xl font-bold text-purple-600">{(Number(monthlyTotals.totalHours) || 0).toFixed(1)}</div>
+                            <div className="text-2xl font-bold text-[#A04A2E]">{(Number(monthlyTotals.totalHours) || 0).toFixed(1)}</div>
                         </CardContent>
                     </Card>
                 </div>
@@ -517,7 +517,7 @@ function ReportsInner() {
                                     <TableRow key={index}>
                                         <TableCell className="font-medium">{emp.name}</TableCell>
                                         <TableCell>
-                                            <Badge variant="outline" className={emp.employeeType === 'tip_based' ? 'bg-blue-50' : 'bg-gray-50'}>
+                                            <Badge variant="outline" className={emp.employeeType === 'tip_based' ? 'bg-[#F4ECD8]' : 'bg-gray-50'}>
                                                 {emp.position || 'לא צוין'}
                                             </Badge>
                                         </TableCell>

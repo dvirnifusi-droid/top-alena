@@ -257,20 +257,20 @@ export default function WaiterTablesPage() {
                                 </CardHeader>
                                 <CardContent>
                                     <div className="space-y-4">
-                                        <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+                                        <div className="p-4 bg-[#F4ECD8] rounded-lg border border-[#E8D9B5]">
                                             <div className="flex items-center gap-2 mb-2">
-                                                <div className="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-sm font-bold">
+                                                <div className="w-6 h-6 bg-[#44512C] text-white rounded-full flex items-center justify-center text-sm font-bold">
                                                     {session.current_step}
                                                 </div>
-                                                <h4 className="font-semibold text-blue-800">{currentStepInfo.step_name}</h4>
+                                                <h4 className="font-semibold text-[#2E3819]">{currentStepInfo.step_name}</h4>
                                             </div>
-                                            <p className="text-sm text-blue-700 mb-3">{currentStepInfo.description}</p>
+                                            <p className="text-sm text-[#44512C] mb-3">{currentStepInfo.description}</p>
                                             
                                             {currentStepInfo.tips && (
                                                 <div className="space-y-1">
-                                                    <p className="text-xs font-semibold text-blue-800">טיפים:</p>
+                                                    <p className="text-xs font-semibold text-[#2E3819]">טיפים:</p>
                                                     {currentStepInfo.tips.map((tip, idx) => (
-                                                        <p key={idx} className="text-xs text-blue-600">• {tip}</p>
+                                                        <p key={idx} className="text-xs text-[#44512C]">• {tip}</p>
                                                     ))}
                                                 </div>
                                             )}

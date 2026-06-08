@@ -28,9 +28,9 @@ export default function TodayReservationsWidget() {
       <Card className="hover:shadow-lg transition-all cursor-pointer hover:scale-[1.02]">
         <CardHeader className="pb-2 pt-4 px-5">
           <CardTitle className="text-sm font-bold flex items-center gap-2">
-            <CalendarCheck className="w-4 h-4 text-indigo-500" />
+            <CalendarCheck className="w-4 h-4 text-[#A04A2E]" />
             הזמנות שולחנות היום
-            <span className="text-xs bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full mr-auto">{reservations.length}</span>
+            <span className="text-xs bg-[#F4ECD8] text-[#7A3722] px-2 py-0.5 rounded-full mr-auto">{reservations.length}</span>
           </CardTitle>
         </CardHeader>
         <CardContent className="px-5 pb-4">
@@ -46,7 +46,7 @@ export default function TodayReservationsWidget() {
                   <span className="text-xs text-muted-foreground flex items-center gap-1 flex-shrink-0">
                     <Clock className="w-3 h-3" />{r.time || '--:--'}
                   </span>
-                  <span className="text-xs text-indigo-600 flex-shrink-0">x{r.party_size || r.guests || 1}</span>
+                  <span className="text-xs text-[#A04A2E] flex-shrink-0">x{r.party_size || r.guests || 1}</span>
                 </div>
               ))}
             </div>

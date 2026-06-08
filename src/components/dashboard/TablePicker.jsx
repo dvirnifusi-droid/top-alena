@@ -6,8 +6,8 @@ const ZONES = [
     id: 'inside',
     label: 'פנים',
     emoji: '🏠',
-    color: 'bg-blue-100 text-blue-700 border-blue-300',
-    activeColor: 'bg-blue-600 text-white border-blue-600',
+    color: 'bg-[#F4ECD8] text-[#44512C] border-[#D9BD83]',
+    activeColor: 'bg-[#44512C] text-white border-[#44512C]',
     tables: [9,10,11,12,13,20,30,31,40,41,50,60,61,70,71,80,81],
   },
   {
@@ -84,8 +84,8 @@ export default function TablePicker({ entry, onSave }) {
           }}
           className={`flex-1 text-sm border-2 border-dashed rounded-xl px-3 py-1.5 font-bold text-right transition-all ${
             currentDisplay
-              ? 'border-blue-400 bg-blue-50 text-blue-700'
-              : 'border-gray-200 bg-gray-50 text-gray-400 hover:border-blue-300'
+              ? 'border-blue-400 bg-[#F4ECD8] text-[#44512C]'
+              : 'border-gray-200 bg-gray-50 text-gray-400 hover:border-[#D9BD83]'
           }`}
         >
           {currentDisplay || 'בחר שולחן...'}
@@ -97,7 +97,7 @@ export default function TablePicker({ entry, onSave }) {
 
       {/* פאנל בחירה */}
       {open && (
-        <div className="mt-2 bg-white border-2 border-blue-200 rounded-2xl p-3 shadow-lg">
+        <div className="mt-2 bg-white border-2 border-[#E8D9B5] rounded-2xl p-3 shadow-lg">
 
           {/* שולחנות שנבחרו + כפתור שמירה */}
           <div className="flex items-center gap-2 mb-3 min-h-[36px]">
@@ -108,7 +108,7 @@ export default function TablePicker({ entry, onSave }) {
                 <span
                   key={t}
                   onClick={() => setSelected(prev => prev.filter(x => x !== t))}
-                  className="bg-blue-600 text-white text-xs font-black px-2.5 py-1 rounded-lg cursor-pointer hover:bg-red-400 transition-all"
+                  className="bg-[#44512C] text-white text-xs font-black px-2.5 py-1 rounded-lg cursor-pointer hover:bg-red-400 transition-all"
                   title="לחץ להסרה"
                 >{t}</span>
               ))}
@@ -134,7 +134,7 @@ export default function TablePicker({ entry, onSave }) {
             <button
               onClick={handleCustomAdd}
               disabled={!customVal.trim()}
-              className="px-3 py-2 bg-blue-500 disabled:opacity-40 text-white rounded-xl text-sm font-black"
+              className="px-3 py-2 bg-[#44512C] disabled:opacity-40 text-white rounded-xl text-sm font-black"
             >+</button>
           </div>
 
@@ -164,8 +164,8 @@ export default function TablePicker({ entry, onSave }) {
                     onClick={() => toggleTable(t)}
                     className={`py-2 rounded-xl text-sm font-black border-2 transition-all active:scale-95 ${
                       isSelected
-                        ? 'bg-blue-600 text-white border-blue-600'
-                        : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-blue-50 hover:border-blue-300'
+                        ? 'bg-[#44512C] text-white border-[#44512C]'
+                        : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-[#F4ECD8] hover:border-[#D9BD83]'
                     }`}
                   >
                     {t}

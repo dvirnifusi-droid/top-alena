@@ -65,7 +65,7 @@ export default function TreatsReport() {
 
   if (stats.loading) {
     return (
-      <Card className="bg-gradient-to-br from-pink-50 to-rose-50 border-pink-200">
+      <Card className="bg-gradient-to-br from-[#F4ECD8] to-[#F4ECD8] border-pink-200">
         <CardContent className="p-6 text-center">
           <p className="text-gray-500">טוען נתונים...</p>
         </CardContent>
@@ -74,8 +74,8 @@ export default function TreatsReport() {
   }
 
   return (
-    <Card className="bg-gradient-to-br from-pink-50 to-rose-50 border-pink-200 overflow-hidden">
-      <CardHeader className="bg-gradient-to-r from-pink-500 to-rose-600 text-white">
+    <Card className="bg-gradient-to-br from-[#F4ECD8] to-[#F4ECD8] border-pink-200 overflow-hidden">
+      <CardHeader className="bg-gradient-to-r from-[#A04A2E] to-[#A04A2E] text-white">
         <CardTitle className="flex items-center gap-2">
           <Gift className="w-5 h-5" />
           דוח פינוקים מומשו
@@ -85,15 +85,15 @@ export default function TreatsReport() {
         {/* סטטיסטיקות */}
         <div className="grid grid-cols-3 gap-4">
           <div className="bg-white rounded-lg p-4 border border-pink-200 text-center">
-            <p className="text-3xl font-black text-pink-600">{stats.totalTreats}</p>
+            <p className="text-3xl font-black text-[#A04A2E]">{stats.totalTreats}</p>
             <p className="text-xs text-gray-600 mt-1">פינוקים מומשו</p>
           </div>
           <div className="bg-white rounded-lg p-4 border border-pink-200 text-center">
-            <p className="text-3xl font-black text-purple-600">{stats.totalSpent}</p>
+            <p className="text-3xl font-black text-[#A04A2E]">{stats.totalSpent}</p>
             <p className="text-xs text-gray-600 mt-1">💰 מטבעות הוצאו</p>
           </div>
           <div className="bg-white rounded-lg p-4 border border-pink-200 text-center">
-            <p className="text-3xl font-black text-rose-600">{stats.uniqueCustomers}</p>
+            <p className="text-3xl font-black text-[#A04A2E]">{stats.uniqueCustomers}</p>
             <p className="text-xs text-gray-600 mt-1">👥 לקוחות ייחודיים</p>
           </div>
         </div>
@@ -107,7 +107,7 @@ export default function TreatsReport() {
             </h4>
             <div className="space-y-2">
               {stats.topTreats.map((treat, i) => (
-                <div key={i} className="flex items-center justify-between bg-white p-3 rounded-lg border border-pink-100">
+                <div key={i} className="flex items-center justify-between bg-white p-3 rounded-lg border border-[#F4ECD8]">
                   <div className="flex items-center gap-3">
                     <span className="text-2xl">{treat.emoji}</span>
                     <div>
@@ -116,7 +116,7 @@ export default function TreatsReport() {
                     </div>
                   </div>
                   <div className="text-right">
-                    <p className="font-black text-pink-600">{treat.count}</p>
+                    <p className="font-black text-[#A04A2E]">{treat.count}</p>
                     <p className="text-xs text-gray-500">פעמים</p>
                   </div>
                 </div>
@@ -126,7 +126,7 @@ export default function TreatsReport() {
         )}
 
         {/* הערה */}
-        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+        <div className="bg-[#FAF5E8] border border-yellow-200 rounded-lg p-3">
           <p className="text-xs text-yellow-800">
             <span className="font-bold">💡 הערה:</span> פינוקים מומשו כאשר לקוח בחר treat בזמן ההמתנה בתור
           </p>

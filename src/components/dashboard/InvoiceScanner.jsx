@@ -229,7 +229,7 @@ export default function InvoiceScanner() {
             <Card className="shadow-lg">
                 <CardHeader>
                     <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-lg flex items-center justify-center">
+                        <div className="w-8 h-8 bg-gradient-to-br from-[#A04A2E] to-[#A04A2E] rounded-lg flex items-center justify-center">
                             <Brain className="w-5 h-5 text-white" />
                         </div>
                         <CardTitle className="text-lg text-slate-800">סריקת חשבונית ספק</CardTitle>
@@ -242,7 +242,7 @@ export default function InvoiceScanner() {
                         <Input id="invoice-file" type="file" accept="image/*,application/pdf" onChange={handleFileChange} className="text-xs"/>
                     </div>
                     
-                    <Button onClick={handleScanInvoice} disabled={isLoading || !file} className="w-full bg-indigo-600 hover:bg-indigo-700">
+                    <Button onClick={handleScanInvoice} disabled={isLoading || !file} className="w-full bg-[#A04A2E] hover:bg-[#7A3722]">
                         {isLoading ? (
                             <>
                                 <Loader2 className="w-4 h-4 ml-2 animate-spin" />

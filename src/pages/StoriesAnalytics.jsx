@@ -106,7 +106,7 @@ export default function StoriesAnalytics() {
             <Card>
               <CardContent className="p-4">
                 <div className="flex items-center gap-2 mb-2">
-                  <Upload className="w-5 h-5 text-blue-500" />
+                  <Upload className="w-5 h-5 text-[#44512C]" />
                   <span className="text-xs text-muted-foreground">סטוריז</span>
                 </div>
                 <div className="text-2xl font-bold">{totalPosts}</div>
@@ -115,7 +115,7 @@ export default function StoriesAnalytics() {
             <Card>
               <CardContent className="p-4">
                 <div className="flex items-center gap-2 mb-2">
-                  <Eye className="w-5 h-5 text-purple-500" />
+                  <Eye className="w-5 h-5 text-[#A04A2E]" />
                   <span className="text-xs text-muted-foreground">צפיות</span>
                 </div>
                 <div className="text-2xl font-bold">{totalViews}</div>
@@ -142,7 +142,7 @@ export default function StoriesAnalytics() {
           </div>
 
           {/* Engagement Score */}
-          <Card className="bg-gradient-to-r from-blue-50 to-purple-50 border-blue-200">
+          <Card className="bg-gradient-to-r from-[#F4ECD8] to-[#F4ECD8] border-[#E8D9B5]">
             <CardContent className="p-6">
               <div className="flex items-center gap-4">
                 <div className="text-5xl font-black">{avgEngagement}</div>

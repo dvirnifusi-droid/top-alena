@@ -249,19 +249,19 @@ export default function EmployeeDetailsPage() {
                 {/* Header */}
                 <div className="flex justify-between items-center">
                     <div>
-                        <Link to={createPageUrl('Employees')} className="text-blue-600 hover:underline flex items-center gap-2 mb-2">
+                        <Link to={createPageUrl('Employees')} className="text-[#44512C] hover:underline flex items-center gap-2 mb-2">
                             <ArrowRight className="w-4 h-4" />
                             חזרה לכל העובדים
                         </Link>
                         <h1 className="text-4xl font-bold text-gray-900 flex items-center gap-3">
-                            <User className="w-10 h-10 text-blue-600" />
+                            <User className="w-10 h-10 text-[#44512C]" />
                             {employee.full_name}
                         </h1>
                         <p className="text-gray-600 mt-2">{employee.role}</p>
                     </div>
                     <Dialog open={isShiftFormOpen} onOpenChange={setIsShiftFormOpen}>
                         <DialogTrigger asChild>
-                            <Button onClick={() => { setEditingShift(null); setIsShiftFormOpen(true); }} className="bg-blue-600 hover:bg-blue-700">
+                            <Button onClick={() => { setEditingShift(null); setIsShiftFormOpen(true); }} className="bg-[#44512C] hover:bg-[#44512C]">
                                 <Plus className="w-5 h-5 ml-2" />
                                 הוסף משמרת
                             </Button>
@@ -287,7 +287,7 @@ export default function EmployeeDetailsPage() {
                 <Card>
                     <CardHeader className="flex flex-row items-center justify-between">
                         <div className="flex items-center gap-3">
-                            <Briefcase className="w-6 h-6 text-blue-600" />
+                            <Briefcase className="w-6 h-6 text-[#44512C]" />
                             <CardTitle>תפקידים ושכר</CardTitle>
                         </div>
                         {!isEditingPositions ? (

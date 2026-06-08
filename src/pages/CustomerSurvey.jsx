@@ -418,7 +418,7 @@ export default function CustomerSurveyPage() {
                                         className={`w-12 h-12 cursor-pointer transition-all duration-200 ${
                                             starValue <= (hover || rating) 
                                                 ? 'text-yellow-400 fill-yellow-400 scale-110' 
-                                                : 'text-gray-300 hover:text-yellow-300'
+                                                : 'text-gray-300 hover:text-[#D9BD83]'
                                         }`}
                                         onClick={() => setRating(starValue)}
                                         onMouseEnter={() => setHover(starValue)}
@@ -485,9 +485,9 @@ export default function CustomerSurveyPage() {
                             </div>
 
                             {/* פרטי קשר - חדש */}
-                            <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                            <div className="bg-[#F4ECD8] p-4 rounded-lg border border-[#E8D9B5]">
                                 <h4 className="font-semibold text-blue-900 mb-3">📞 פרטי קשר (אופציונלי)</h4>
-                                <p className="text-sm text-blue-800 mb-3">אם תרצו שנחזור אליכם לטיפול אישי בנושא</p>
+                                <p className="text-sm text-[#2E3819] mb-3">אם תרצו שנחזור אליכם לטיפול אישי בנושא</p>
                                 <div className="grid grid-cols-2 gap-4">
                                     <div>
                                         <Label htmlFor="contact-name">שם מלא</Label>
@@ -521,7 +521,7 @@ export default function CustomerSurveyPage() {
                                                 className={`w-8 h-8 cursor-pointer transition-all duration-200 ${
                                                     starValue <= (foodHover || feedbackForm.food_rating) 
                                                         ? 'text-yellow-400 fill-yellow-400 scale-110' 
-                                                        : 'text-gray-300 hover:text-yellow-300'
+                                                        : 'text-gray-300 hover:text-[#D9BD83]'
                                                 }`}
                                                 onClick={() => setFeedbackForm({...feedbackForm, food_rating: starValue})}
                                                 onMouseEnter={() => setFoodHover(starValue)}
@@ -543,7 +543,7 @@ export default function CustomerSurveyPage() {
                                                 className={`w-8 h-8 cursor-pointer transition-all duration-200 ${
                                                     starValue <= (serviceHover || feedbackForm.service_rating) 
                                                         ? 'text-yellow-400 fill-yellow-400 scale-110' 
-                                                        : 'text-gray-300 hover:text-yellow-300'
+                                                        : 'text-gray-300 hover:text-[#D9BD83]'
                                                 }`}
                                                 onClick={() => setFeedbackForm({...feedbackForm, service_rating: starValue})}
                                                 onMouseEnter={() => setServiceHover(starValue)}
@@ -597,7 +597,7 @@ export default function CustomerSurveyPage() {
                                     <p className="text-gray-600 mb-4">
                                         ההערות שלכם חשובות לנו מאוד. שלחנו את המשוב למנהל המסעדה לטיפול מיידי. 
                                         {(feedbackForm.contact_name || feedbackForm.contact_phone) && (
-                                            <span className="text-blue-600 font-semibold"> נחזור אליכם בהקדם האפשרי.</span>
+                                            <span className="text-[#44512C] font-semibold"> נחזור אליכם בהקדם האפשרי.</span>
                                         )}
                                     </p>
                                     <p className="text-gray-600">
@@ -648,14 +648,14 @@ export default function CustomerSurveyPage() {
                             )}
                             
                             {step === 'thanks_good' && (
-                                <div className="bg-blue-50 p-6 rounded-lg border border-blue-200 mt-6 text-center">
+                                <div className="bg-[#F4ECD8] p-6 rounded-lg border border-[#E8D9B5] mt-6 text-center">
                                     <h3 className="font-bold text-blue-900 text-xl mb-2">עזרתם לנו המון! ❤️</h3>
-                                    <p className="text-blue-800 mb-4">
+                                    <p className="text-[#2E3819] mb-4">
                                         ביקורת חיובית בגוגל היא הדלק שלנו להמשיך ולהשתפר. זה לוקח רק רגע, ועוזר לעסקים מקומיים כמונו יותר ממה שאתם חושבים.
                                     </p>
                                     <Button 
                                         onClick={() => window.open(GOOGLE_REVIEW_LINK, '_blank')}
-                                        className="bg-blue-600 hover:bg-blue-700 text-white h-12 px-8 text-lg rounded-full shadow-lg transition-transform hover:scale-105"
+                                        className="bg-[#44512C] hover:bg-[#44512C] text-white h-12 px-8 text-lg rounded-full shadow-lg transition-transform hover:scale-105"
                                     >
                                         🌟 אכתוב לכם ביקורת מפרגנת
                                     </Button>
@@ -663,7 +663,7 @@ export default function CustomerSurveyPage() {
                             )}
 
                              {/* Customer Club Signup */}
-                            <div className="bg-purple-50 p-6 rounded-lg border border-purple-200 mt-6">
+                            <div className="bg-[#F4ECD8] p-6 rounded-lg border border-purple-200 mt-6">
                                 {clubSignupSuccess ? (
                                     <div className="text-center">
                                         <CheckCircle className="w-12 h-12 text-green-500 mx-auto mb-3" />
@@ -673,7 +673,7 @@ export default function CustomerSurveyPage() {
                                 ) : (
                                     <>
                                         <h3 className="font-bold text-purple-900 mb-2">הצטרפו למועדון הלקוחות שלנו!</h3>
-                                        <p className="text-purple-800 mb-4 text-sm">קבלו הטבות, הנחות ועדכונים לפני כולם.</p>
+                                        <p className="text-[#7A3722] mb-4 text-sm">קבלו הטבות, הנחות ועדכונים לפני כולם.</p>
                                         <form onSubmit={handleJoinClub} className="space-y-3">
                                             <Input 
                                                 placeholder="שם מלא"
@@ -690,7 +690,7 @@ export default function CustomerSurveyPage() {
                                             />
                                             <Button 
                                                 type="submit"
-                                                className="w-full bg-purple-600 hover:bg-purple-700"
+                                                className="w-full bg-[#A04A2E] hover:bg-[#7A3722]"
                                                 disabled={isJoiningClub}
                                             >
                                                 {isJoiningClub ? 'מצטרף...' : 'כן, אני רוצה להצטרף!'}

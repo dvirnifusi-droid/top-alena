@@ -100,7 +100,7 @@ export default function TipReportDetailsPage() {
     );
 }
 
-const InfoCard = ({ title, value, icon: Icon, color = 'text-blue-600' }) => (
+const InfoCard = ({ title, value, icon: Icon, color = 'text-[#44512C]' }) => (
     <Card>
         <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium">{title}</CardTitle>

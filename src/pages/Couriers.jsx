@@ -169,7 +169,7 @@ export default function Couriers() {
                 </CardHeader>
                 <CardContent className="space-y-3">
                   {/* סטטיסטיקות היום */}
-                  <div className="bg-blue-50 rounded-lg p-3 space-y-1">
+                  <div className="bg-[#F4ECD8] rounded-lg p-3 space-y-1">
                     <p className="text-xs font-semibold text-blue-900">היום</p>
                     <div className="grid grid-cols-2 gap-2 text-sm">
                       <div><span className="text-muted-foreground">משלוחים:</span> <span className="font-bold">{stats.deliveriesToday}</span></div>
@@ -290,7 +290,7 @@ export default function Couriers() {
             </DialogHeader>
             <div className="space-y-4">
               {/* פרטי השליח */}
-              <div className="bg-blue-50 rounded-lg p-4 space-y-3 border border-blue-200">
+              <div className="bg-[#F4ECD8] rounded-lg p-4 space-y-3 border border-[#E8D9B5]">
                 <p className="text-sm font-semibold text-blue-900">פרטי השליח</p>
                 <div>
                   <Label>שם</Label>
@@ -339,7 +339,7 @@ export default function Couriers() {
                             <div className="text-xs text-muted-foreground">📅 {delivery.date} • ₪{delivery.cash_amount}</div>
                           </div>
                           {delivery.delivery_status && (
-                            <Badge className={delivery.delivery_status === "delivered" ? "bg-green-100 text-green-800 text-xs" : "bg-blue-100 text-blue-800 text-xs"}>
+                            <Badge className={delivery.delivery_status === "delivered" ? "bg-green-100 text-green-800 text-xs" : "bg-[#F4ECD8] text-[#2E3819] text-xs"}>
                               {delivery.delivery_status === "delivered" ? "✅ הוריד" : "🚴 בדרך"}
                             </Badge>
                           )}

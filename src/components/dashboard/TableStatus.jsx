@@ -73,8 +73,8 @@ export default function TableStatus({ isLoading = false }) {
         const configs = {
             occupied: { label: "תפוס", color: "bg-red-100 text-red-800" },
             available: { label: "פנוי", color: "bg-green-100 text-green-800" },
-            reserved: { label: "שמור", color: "bg-blue-100 text-blue-800" },
-            cleaning: { label: "ניקוי", color: "bg-yellow-100 text-yellow-800" }
+            reserved: { label: "שמור", color: "bg-[#F4ECD8] text-[#2E3819]" },
+            cleaning: { label: "ניקוי", color: "bg-[#F4ECD8] text-yellow-800" }
         };
         return configs[status] || configs.occupied;
     };
@@ -85,11 +85,11 @@ export default function TableStatus({ isLoading = false }) {
     }
 
     return (
-        <Card className="shadow-lg border-0 bg-gradient-to-br from-white to-purple-50/30">
+        <Card className="shadow-lg border-0 bg-gradient-to-br from-white to-[#F4ECD8]/30">
             <CardHeader>
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-pink-600 rounded-lg flex items-center justify-center">
+                        <div className="w-8 h-8 bg-gradient-to-br from-[#A04A2E] to-[#A04A2E] rounded-lg flex items-center justify-center">
                             <Users className="w-4 h-4 text-white" />
                         </div>
                         <CardTitle className="text-lg text-slate-800">סטטוס שולחנות פעילים</CardTitle>
@@ -122,7 +122,7 @@ export default function TableStatus({ isLoading = false }) {
                         const statusConfig = getStatusConfig(table.status);
                         
                         return (
-                            <div key={table.number} className="flex items-center justify-between p-3 bg-slate-50/70 rounded-lg hover:bg-slate-100/70 transition-colors">
+                            <div key={table.number} className="flex items-center justify-between p-3 bg-[#FAF5E8]/70 rounded-lg hover:bg-slate-100/70 transition-colors">
                                 <div className="flex items-center gap-3">
                                     <div className="w-8 h-8 bg-slate-200 rounded-full flex items-center justify-center font-bold text-sm">
                                         {table.number}

@@ -58,7 +58,7 @@ function EmployeeForm({ employee, onSave, onCancel }) {
           required
         />
         {employee ? (
-          <Alert className="mt-2 bg-yellow-50 border-yellow-300">
+          <Alert className="mt-2 bg-[#FAF5E8] border-[#D9BD83]">
             <AlertDescription className="text-xs text-yellow-800">
               ⚠️ שינוי המייל ישפיע על זיהוי העובד במערכת. ודא שזה המייל הנכון שבו העובד מתחבר.
             </AlertDescription>
@@ -244,14 +244,14 @@ function AccessCodeDialog({ isOpen, onClose, employee, onRefresh }) {
       <DialogContent dir="rtl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Key className="w-5 h-5 text-purple-600" />
+            <Key className="w-5 h-5 text-[#A04A2E]" />
             קוד גישה - {employee?.full_name}
           </DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4 py-4">
-          <div className="bg-purple-50 p-4 rounded-lg">
-            <p className="text-sm text-purple-800">
+          <div className="bg-[#F4ECD8] p-4 rounded-lg">
+            <p className="text-sm text-[#7A3722]">
               קוד זה נדרש לעובד כדי להגיש זמינות לדף עמוד הזמינות
             </p>
           </div>
@@ -292,7 +292,7 @@ function AccessCodeDialog({ isOpen, onClose, employee, onRefresh }) {
           <Button 
             onClick={handleSave}
             disabled={loading || !accessCode}
-            className="bg-purple-600 hover:bg-purple-700"
+            className="bg-[#A04A2E] hover:bg-[#7A3722]"
           >
             {loading ? 'שומר...' : 'שמור קוד'}
           </Button>
@@ -341,17 +341,17 @@ function PermissionsDialog({ isOpen, onClose, employee, onRefresh }) {
       <DialogContent dir="rtl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Shield className="w-5 h-5 text-blue-600" />
+            <Shield className="w-5 h-5 text-[#44512C]" />
             ניהול הרשאות - {employee?.full_name}
           </DialogTitle>
         </DialogHeader>
         
         <div className="space-y-4 py-4">
-          <div className="bg-blue-50 p-4 rounded-lg">
-            <p className="text-sm text-blue-800">
+          <div className="bg-[#F4ECD8] p-4 rounded-lg">
+            <p className="text-sm text-[#2E3819]">
               <strong>מייל:</strong> {employee?.email}
             </p>
-            <p className="text-sm text-blue-800 mt-1">
+            <p className="text-sm text-[#2E3819] mt-1">
               <strong>תפקיד נוכחי:</strong> {employee?.role}
             </p>
           </div>
@@ -416,7 +416,7 @@ function PermissionsDialog({ isOpen, onClose, employee, onRefresh }) {
           <Button
             onClick={handleGrantAdmin}
             disabled={loading}
-            className="bg-blue-600 hover:bg-blue-700"
+            className="bg-[#44512C] hover:bg-[#44512C]"
           >
             {loading ? 'מעדכן...' : 'הענק הרשאות Admin'}
           </Button>
@@ -651,16 +651,16 @@ function EmployeesInner() {
         <div className="flex justify-between items-center mb-8">
            <div>
              <h1 className="text-4xl font-bold text-gray-900 flex items-center gap-3">
-               <Users className="w-10 h-10 text-blue-600" />
+               <Users className="w-10 h-10 text-[#44512C]" />
                ניהול עובדים
              </h1>
              <p className="text-gray-600 mt-2">הוספה, עריכה וניהול של צוות המסעדה</p>
            </div>
            <div className="flex gap-2">
-             <Button onClick={syncAllEmails} variant="outline" className="border-purple-300 text-purple-700 hover:bg-purple-50">
+             <Button onClick={syncAllEmails} variant="outline" className="border-[#D9BD83] text-[#7A3722] hover:bg-[#F4ECD8]">
                🔄 סנכרן מיילים
              </Button>
-             <Button onClick={openAddForm} className="bg-blue-600 hover:bg-blue-700">
+             <Button onClick={openAddForm} className="bg-[#44512C] hover:bg-[#44512C]">
                <Plus className="w-5 h-5 ml-2" />
                הוסף עובד חדש
              </Button>
@@ -687,7 +687,7 @@ function EmployeesInner() {
                   {employees.map((employee) => (
                     <TableRow key={employee.id} className="hover:bg-muted/50">
                       <TableCell className="font-medium">
-                        <Link to={createPageUrl(`EmployeeDetails?id=${employee.id}`)} className="text-blue-600 hover:underline">
+                        <Link to={createPageUrl(`EmployeeDetails?id=${employee.id}`)} className="text-[#44512C] hover:underline">
                           {employee.full_name}
                         </Link>
                       </TableCell>

@@ -37,7 +37,7 @@ const CourseCard = ({ course, enrollment, onSelect, onDelete, isAdmin }) => {
             <CardHeader className="cursor-pointer" onClick={() => onSelect(course)}>
                 <div className="flex justify-between items-start">
                     <Badge variant="outline" className="font-semibold">{course.assigned_role}</Badge>
-                    <GraduationCap className="w-8 h-8 p-2 bg-gradient-to-br from-blue-500 to-indigo-600 text-white rounded-lg shadow-md" />
+                    <GraduationCap className="w-8 h-8 p-2 bg-gradient-to-br from-[#44512C] to-[#A04A2E] text-white rounded-lg shadow-md" />
                 </div>
                 <CardTitle className="pt-4 text-slate-800">{course.title}</CardTitle>
                 <CardDescription className="text-slate-600 h-10">{course.description}</CardDescription>
@@ -167,7 +167,7 @@ const QuizView = ({ quizId, onComplete }) => {
                                 <p className="font-semibold text-slate-800">{item.question}</p>
                                 <p className="text-sm mt-2">התשובה שלך: <span className="font-medium text-red-700">{item.yourAnswer}</span></p>
                                 <p className="text-sm">התשובה הנכונה: <span className="font-medium text-green-700">{item.correctAnswer}</span></p>
-                                <p className="text-xs mt-2 p-2 bg-yellow-50 rounded italic text-slate-600">הסבר: {item.explanation}</p>
+                                <p className="text-xs mt-2 p-2 bg-[#FAF5E8] rounded italic text-slate-600">הסבר: {item.explanation}</p>
                             </div>
                         ))}
                     </div>
@@ -181,10 +181,10 @@ const QuizView = ({ quizId, onComplete }) => {
                 </Button>
                 
                 {result.score >= 80 && (
-                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
-                        <h4 className="text-lg font-bold text-blue-800 mb-3">🎉 מוכן לאתגר הבא?</h4>
-                        <p className="text-blue-700 mb-4">עברת את המבחן בהצלחה! עכשיו בואו נתרגל עם לקוח אמיתי (AI)</p>
-                        <Button className="bg-blue-600 hover:bg-blue-700" onClick={() => window.scrollTo({top: document.body.scrollHeight, behavior: 'smooth'})}>
+                    <div className="bg-[#F4ECD8] border border-[#E8D9B5] rounded-lg p-6">
+                        <h4 className="text-lg font-bold text-[#2E3819] mb-3">🎉 מוכן לאתגר הבא?</h4>
+                        <p className="text-[#44512C] mb-4">עברת את המבחן בהצלחה! עכשיו בואו נתרגל עם לקוח אמיתי (AI)</p>
+                        <Button className="bg-[#44512C] hover:bg-[#44512C]" onClick={() => window.scrollTo({top: document.body.scrollHeight, behavior: 'smooth'})}>
                             🤖 תתחיל סימולציה חיה איתי
                         </Button>
                     </div>
@@ -210,7 +210,7 @@ const QuizView = ({ quizId, onComplete }) => {
                         onClick={() => handleAnswer(currentQuestion.id, option)}
                         className={`w-full text-right p-4 border rounded-lg transition-colors ${
                             answers[currentQuestion.id] === option 
-                                ? 'bg-blue-100 border-blue-400' 
+                                ? 'bg-[#F4ECD8] border-blue-400' 
                                 : 'bg-white hover:bg-slate-50'
                         }`}
                     >
@@ -341,7 +341,7 @@ const SimulationView = ({ scriptId, onComplete }) => {
                 </div>
 
                 <div className="mt-8 text-center">
-                    <Button onClick={completeSimulation} className="bg-blue-600 hover:bg-blue-700">
+                    <Button onClick={completeSimulation} className="bg-[#44512C] hover:bg-[#44512C]">
                         המשך לשיעור הבא
                     </Button>
                 </div>
@@ -505,9 +505,9 @@ const SimulationView = ({ scriptId, onComplete }) => {
             </div>
 
             {/* Lesson Explanation */}
-            <Card className="bg-blue-50 border-blue-200">
+            <Card className="bg-[#F4ECD8] border-[#E8D9B5]">
                 <CardHeader>
-                    <CardTitle className="text-blue-800 flex items-center gap-2">
+                    <CardTitle className="text-[#2E3819] flex items-center gap-2">
                         <BookOpen className="w-5 h-5" />
                         הסבר השלב: {currentScript.situation_name}
                     </CardTitle>
@@ -571,7 +571,7 @@ const SimulationView = ({ scriptId, onComplete }) => {
                         <Button 
                             onClick={nextStep} // This will trigger setShowResults(true)
                             disabled={!hasAnsweredCurrentStep}
-                            className="bg-blue-600 hover:bg-blue-700"
+                            className="bg-[#44512C] hover:bg-[#44512C]"
                         >
                             השלב הבא
                             <ArrowLeft className="w-4 h-4 mr-2"/>
@@ -811,7 +811,7 @@ const CourseDetails = ({ course, user, onBack }) => {
                                                 <ChevronDown className="w-4 h-4" />
                                             </Button>
                                             <Button variant="ghost" size="sm" onClick={() => editLesson(lesson)}>
-                                                <Edit className="w-4 h-4 text-blue-600" />
+                                                <Edit className="w-4 h-4 text-[#44512C]" />
                                             </Button>
                                             <Button variant="ghost" size="sm" onClick={() => deleteLesson(lesson.id)}>
                                                 <Trash2 className="w-4 h-4 text-red-600" />
@@ -1047,7 +1047,7 @@ function TrainingInner() {
                                 <ArrowRight className="w-4 h-4 ml-2" /> 
                                 חזור להכשרות
                             </Button>
-                            <Badge variant="default" className="bg-blue-600 text-white">
+                            <Badge variant="default" className="bg-[#44512C] text-white">
                                 תרגול מהיר
                             </Badge>
                         </div>
@@ -1093,7 +1093,7 @@ function TrainingInner() {
                                         variant={showQuizManager ? 'default' : 'ghost'}
                                         size="sm"
                                         onClick={() => { setShowQuizManager(true); setEditingSimulationScript(null); }}
-                                        className={showQuizManager ? 'bg-blue-600 hover:bg-blue-700 text-white' : ''}
+                                        className={showQuizManager ? 'bg-[#44512C] hover:bg-[#44512C] text-white' : ''}
                                     >
                                         📝 מבחנים
                                     </Button>
@@ -1133,7 +1133,7 @@ function TrainingInner() {
                                 <div className="mb-8 text-center">
                                     <Button 
                                         onClick={handleQuickPractice}
-                                        className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white text-lg px-8 py-4 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300"
+                                        className="bg-gradient-to-r from-[#44512C] to-[#A04A2E] hover:from-[#44512C] hover:to-[#7A3722] text-white text-lg px-8 py-4 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300"
                                     >
                                         <MessageSquare className="w-6 h-6 mr-3" />
                                         🚀 תרגול מהיר עם לקוח AI

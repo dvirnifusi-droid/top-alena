@@ -78,12 +78,12 @@ export default function QueueAnalytics() {
   const highAbandonHours = hourlyData.filter(h => h['נטישה %'] > 30 && h.נרשמו >= 3);
 
   const kpis = [
-    { label: 'סה"כ נרשמו', value: total, icon: Users, color: 'text-blue-600', bg: 'bg-blue-50', border: 'border-blue-200' },
+    { label: 'סה"כ נרשמו', value: total, icon: Users, color: 'text-[#44512C]', bg: 'bg-[#F4ECD8]', border: 'border-[#E8D9B5]' },
     { label: 'הוּשבו', value: seated.length, icon: UserCheck, color: 'text-green-600', bg: 'bg-green-50', border: 'border-green-200' },
     { label: 'אחוז נטישה', value: `${abandonRate}%`, icon: TrendingDown, color: abandonRate > 25 ? 'text-red-600' : 'text-orange-600', bg: abandonRate > 25 ? 'bg-red-50' : 'bg-orange-50', border: abandonRate > 25 ? 'border-red-200' : 'border-orange-200' },
-    { label: 'המתנה ממוצע (הוּשב)', value: `${avgWaitSeated} דק'`, icon: Clock, color: 'text-purple-600', bg: 'bg-purple-50', border: 'border-purple-200' },
+    { label: 'המתנה ממוצע (הוּשב)', value: `${avgWaitSeated} דק'`, icon: Clock, color: 'text-[#A04A2E]', bg: 'bg-[#F4ECD8]', border: 'border-purple-200' },
     { label: 'המתנה ממוצע (נטש)', value: `${avgWaitAbandoned} דק'`, icon: Clock, color: 'text-orange-600', bg: 'bg-orange-50', border: 'border-orange-200' },
-    { label: 'קיבלו פינוק', value: treated.length, icon: Gift, color: 'text-pink-600', bg: 'bg-pink-50', border: 'border-pink-200' },
+    { label: 'קיבלו פינוק', value: treated.length, icon: Gift, color: 'text-[#A04A2E]', bg: 'bg-[#F4ECD8]', border: 'border-pink-200' },
   ];
 
   return (
@@ -139,7 +139,7 @@ export default function QueueAnalytics() {
                       <div key={h.hour} className="bg-white rounded-xl p-3 border border-amber-200">
                         <div className="flex items-center justify-between mb-1">
                           <span className="font-black text-amber-700 text-lg">{h.hour}</span>
-                          <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${i === 0 ? 'bg-red-100 text-red-700' : i === 1 ? 'bg-orange-100 text-orange-700' : 'bg-yellow-100 text-yellow-700'}`}>
+                          <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${i === 0 ? 'bg-red-100 text-red-700' : i === 1 ? 'bg-orange-100 text-orange-700' : 'bg-[#F4ECD8] text-yellow-700'}`}>
                             #{i + 1} שיא
                           </span>
                         </div>
@@ -243,18 +243,18 @@ export default function QueueAnalytics() {
                         let bgColor = 'bg-green-50';
                         if (abandonPct > 50) bgColor = 'bg-red-100';
                         else if (abandonPct > 30) bgColor = 'bg-orange-100';
-                        else if (abandonPct > 10) bgColor = 'bg-yellow-100';
+                        else if (abandonPct > 10) bgColor = 'bg-[#F4ECD8]';
                         
                         return (
                           <tr key={h.hour} className={`border-b ${bgColor} hover:opacity-70`}>
                             <td className="p-2 font-bold text-gray-700">{h.hour}</td>
-                            <td className="p-2 text-center text-blue-600 font-semibold">{h.נרשמו}</td>
+                            <td className="p-2 text-center text-[#44512C] font-semibold">{h.נרשמו}</td>
                             <td className="p-2 text-center text-green-600 font-semibold">{h.הוּשבו}</td>
                             <td className="p-2 text-center text-red-600 font-semibold">{h.נטשו}</td>
                             <td className={`p-2 text-center font-black ${abandonPct > 40 ? 'text-red-700' : abandonPct > 20 ? 'text-orange-700' : 'text-green-700'}`}>
                               {abandonPct}%
                             </td>
-                            <td className="p-2 text-center text-purple-600 font-semibold">{h['המתנה ממוצע']}</td>
+                            <td className="p-2 text-center text-[#A04A2E] font-semibold">{h['המתנה ממוצע']}</td>
                           </tr>
                         );
                       })}
@@ -267,7 +267,7 @@ export default function QueueAnalytics() {
                     <span>0-10% נטישה</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <div className="w-4 h-4 bg-yellow-100 border border-yellow-300 rounded"></div>
+                    <div className="w-4 h-4 bg-[#F4ECD8] border border-[#D9BD83] rounded"></div>
                     <span>10-30% נטישה</span>
                   </div>
                   <div className="flex items-center gap-2">
@@ -383,7 +383,7 @@ export default function QueueAnalytics() {
                           ? Math.round((new Date(e.timestamp_end) - new Date(e.timestamp_approved)) / 60000)
                           : null;
                         const statusMap = { pending: 'ממתין', active: 'בתור', seated: 'הוּשב', abandoned: 'נטש' };
-                        const statusColor = { pending: 'text-yellow-600', active: 'text-blue-600', seated: 'text-green-600', abandoned: 'text-red-600' };
+                        const statusColor = { pending: 'text-yellow-600', active: 'text-[#44512C]', seated: 'text-green-600', abandoned: 'text-red-600' };
                         return (
                           <tr key={e.id} className="border-b hover:bg-gray-50">
                             <td className="p-3 font-medium">{e.customer_name}</td>

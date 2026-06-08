@@ -97,13 +97,13 @@ const CHANGELOG = [
 ];
 
 const CATEGORY_CONFIG = {
-  dashboard: { label: 'דשבורד', color: 'bg-blue-100 text-blue-800' },
-  hr: { label: 'עובדים', color: 'bg-purple-100 text-purple-800' },
+  dashboard: { label: 'דשבורד', color: 'bg-[#F4ECD8] text-[#2E3819]' },
+  hr: { label: 'עובדים', color: 'bg-[#F4ECD8] text-[#7A3722]' },
   queue: { label: 'תור', color: 'bg-green-100 text-green-800' },
-  training: { label: 'הכשרות', color: 'bg-yellow-100 text-yellow-800' },
+  training: { label: 'הכשרות', color: 'bg-[#F4ECD8] text-yellow-800' },
   reports: { label: 'דוחות', color: 'bg-orange-100 text-orange-800' },
-  shifts: { label: 'משמרות', color: 'bg-pink-100 text-pink-800' },
-  marketing: { label: 'שיווק', color: 'bg-indigo-100 text-indigo-800' },
+  shifts: { label: 'משמרות', color: 'bg-[#F4ECD8] text-pink-800' },
+  marketing: { label: 'שיווק', color: 'bg-[#F4ECD8] text-indigo-800' },
   media: { label: 'מדיה', color: 'bg-teal-100 text-teal-800' },
 };
 
@@ -137,7 +137,7 @@ function PromptCard({ item }) {
     <div className="border border-slate-200 rounded-xl overflow-hidden">
       <button
         onClick={() => setOpen(v => !v)}
-        className="w-full flex items-center justify-between p-4 hover:bg-slate-50 transition-colors text-right"
+        className="w-full flex items-center justify-between p-4 hover:bg-[#FAF5E8] transition-colors text-right"
       >
         <div className="flex items-center gap-3 flex-1 min-w-0">
           <Badge className={`${CATEGORY_CONFIG[item.category]?.color || 'bg-slate-100 text-slate-700'} text-xs flex-shrink-0`}>
@@ -200,16 +200,16 @@ export default function ChangelogWidget({ defaultFilter = 'week' }) {
         <CardHeader className="pb-3 pt-4 px-5">
           <div className="flex items-center justify-between">
             <CardTitle className="text-base font-bold flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-indigo-500" />
+              <Sparkles className="w-4 h-4 text-[#A04A2E]" />
               יומן שינויים
-              <Badge className="bg-indigo-100 text-indigo-700 text-xs">{filtered.length} עדכונים</Badge>
+              <Badge className="bg-[#F4ECD8] text-[#7A3722] text-xs">{filtered.length} עדכונים</Badge>
             </CardTitle>
             <div className="flex items-center gap-1">
               {['week', 'month', 'all'].map(f => (
                 <button
                   key={f}
                   onClick={() => setFilter(f)}
-                  className={`text-xs px-2.5 py-1 rounded-lg transition-colors ${filter === f ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                  className={`text-xs px-2.5 py-1 rounded-lg transition-colors ${filter === f ? 'bg-[#A04A2E] text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
                 >
                   {f === 'week' ? 'שבוע' : f === 'month' ? 'חודש' : 'הכל'}
                 </button>
@@ -239,7 +239,7 @@ export default function ChangelogWidget({ defaultFilter = 'week' }) {
               {filtered.length > 3 && (
                 <button
                   onClick={() => setShowDialog(true)}
-                  className="mt-3 w-full text-xs text-indigo-600 hover:text-indigo-800 font-medium py-1.5 hover:bg-indigo-50 rounded-lg transition-colors"
+                  className="mt-3 w-full text-xs text-[#A04A2E] hover:text-indigo-800 font-medium py-1.5 hover:bg-[#F4ECD8] rounded-lg transition-colors"
                 >
                   + {filtered.length - 3} עוד שינויים — לחץ לפירוט מלא עם Prompts
                 </button>
@@ -247,7 +247,7 @@ export default function ChangelogWidget({ defaultFilter = 'week' }) {
               {filtered.length <= 3 && (
                 <button
                   onClick={() => setShowDialog(true)}
-                  className="mt-3 w-full text-xs text-indigo-600 hover:text-indigo-800 font-medium py-1.5 hover:bg-indigo-50 rounded-lg transition-colors"
+                  className="mt-3 w-full text-xs text-[#A04A2E] hover:text-indigo-800 font-medium py-1.5 hover:bg-[#F4ECD8] rounded-lg transition-colors"
                 >
                   לחץ לפירוט מלא עם Prompts
                 </button>
@@ -262,9 +262,9 @@ export default function ChangelogWidget({ defaultFilter = 'week' }) {
         <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto" dir="rtl">
           <DialogHeader>
             <DialogTitle className="text-xl flex items-center gap-2">
-              <Sparkles className="w-5 h-5 text-indigo-500" />
+              <Sparkles className="w-5 h-5 text-[#A04A2E]" />
               יומן שינויים מלא
-              <Badge className="bg-indigo-100 text-indigo-700">{filtered.length} עדכונים</Badge>
+              <Badge className="bg-[#F4ECD8] text-[#7A3722]">{filtered.length} עדכונים</Badge>
             </DialogTitle>
           </DialogHeader>
 
@@ -275,7 +275,7 @@ export default function ChangelogWidget({ defaultFilter = 'week' }) {
               <button
                 key={f}
                 onClick={() => setFilter(f)}
-                className={`text-sm px-3 py-1 rounded-lg transition-colors ${filter === f ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                className={`text-sm px-3 py-1 rounded-lg transition-colors ${filter === f ? 'bg-[#A04A2E] text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
               >
                 {f === 'week' ? '7 ימים אחרונים' : f === 'month' ? 'חודש אחרון' : 'הכל'}
               </button>

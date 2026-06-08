@@ -201,19 +201,19 @@ export default function BeecommIntegrationPage() {
   };
 
   return (
-    <div className="min-h-screen p-4 md:p-8 bg-gradient-to-br from-blue-50 to-purple-50" dir="rtl">
+    <div className="min-h-screen p-4 md:p-8 bg-gradient-to-br from-[#F4ECD8] to-[#F4ECD8]" dir="rtl">
       <div className="max-w-7xl mx-auto space-y-6">
         
         <div className="text-center">
           <h1 className="text-4xl font-bold text-gray-900 mb-2 flex items-center justify-center gap-3">
-            <Wifi className="w-10 h-10 text-blue-600" />
+            <Wifi className="w-10 h-10 text-[#44512C]" />
             חיבור מערכת קופות Beecomm
           </h1>
           <p className="text-gray-600 text-lg">ניהול הזמנות וסנכרון נתונים</p>
         </div>
 
         {/* Connection Status */}
-        <Card className="border-2 border-blue-200">
+        <Card className="border-2 border-[#E8D9B5]">
           <CardHeader>
             <div className="flex items-center justify-between">
               <CardTitle className="flex items-center gap-3">
@@ -287,7 +287,7 @@ export default function BeecommIntegrationPage() {
                   <Button 
                     onClick={saveConfig} 
                     disabled={loading}
-                    className="bg-blue-600 hover:bg-blue-700"
+                    className="bg-[#44512C] hover:bg-[#44512C]"
                   >
                     {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
                     שמור הגדרות
@@ -303,9 +303,9 @@ export default function BeecommIntegrationPage() {
                   </Button>
                 </div>
 
-                <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
-                  <h4 className="font-semibold text-blue-800 mb-2">🔐 אבטחה</h4>
-                  <p className="text-blue-700 text-sm">
+                <div className="bg-[#F4ECD8] p-4 rounded-lg border border-[#E8D9B5]">
+                  <h4 className="font-semibold text-[#2E3819] mb-2">🔐 אבטחה</h4>
+                  <p className="text-[#44512C] text-sm">
                     האימות מבוצע כולו ב-Backend (apps/api). ה-Client Secret אינו עוזב את השרת
                     ו-Token מתחדש אוטומטית כל ~50 דקות.
                   </p>
@@ -559,9 +559,9 @@ export default function BeecommIntegrationPage() {
                           <div className="text-left">
                             <Badge className={
                               order.status === 'delivered' ? 'bg-green-100 text-green-800' :
-                              order.status === 'sent' ? 'bg-blue-100 text-blue-800' :
+                              order.status === 'sent' ? 'bg-[#F4ECD8] text-[#2E3819]' :
                               order.status === 'error' ? 'bg-red-100 text-red-800' :
-                              'bg-yellow-100 text-yellow-800'
+                              'bg-[#F4ECD8] text-yellow-800'
                             }>
                               {order.status === 'sent' ? 'נשלחה' :
                                order.status === 'confirmed' ? 'אושרה' :
@@ -585,12 +585,12 @@ export default function BeecommIntegrationPage() {
         </Tabs>
 
         {/* Instructions */}
-        <Card className="bg-blue-50 border-blue-200">
+        <Card className="bg-[#F4ECD8] border-[#E8D9B5]">
           <CardHeader>
-            <CardTitle className="text-blue-800">הנחיות להפעלה</CardTitle>
+            <CardTitle className="text-[#2E3819]">הנחיות להפעלה</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-2 text-blue-700">
+            <div className="space-y-2 text-[#44512C]">
               <p>📋 <strong>שלב 1:</strong> הזן את פרטי הגישה שקיבלת מ-Beecomm</p>
               <p>🔗 <strong>שלב 2:</strong> לחץ על "בדוק חיבור" לקבלת טוקן</p>
               <p>🧪 <strong>שלב 3:</strong> בדוק שליחת הזמנה לבדיקה</p>

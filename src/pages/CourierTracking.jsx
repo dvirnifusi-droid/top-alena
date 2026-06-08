@@ -146,9 +146,9 @@ export default function CourierTracking() {
             const courierDeliveries = getCourierDeliveries(courier.name);
 
             return (
-              <Card key={courier.id} className="border-2 border-blue-100">
+              <Card key={courier.id} className="border-2 border-[#F4ECD8]">
                 {/* Courier Header */}
-                <CardHeader className="bg-blue-50 pb-3">
+                <CardHeader className="bg-[#F4ECD8] pb-3">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 bg-primary text-primary-foreground rounded-full flex items-center justify-center font-bold">
@@ -159,7 +159,7 @@ export default function CourierTracking() {
                         {courier.phone && (
                           <a
                             href={`tel:${courier.phone}`}
-                            className="text-xs text-blue-600 hover:underline flex items-center gap-1"
+                            className="text-xs text-[#44512C] hover:underline flex items-center gap-1"
                           >
                             <Phone className="w-3 h-3" /> {courier.phone}
                           </a>
@@ -177,13 +177,13 @@ export default function CourierTracking() {
                   {/* Stats Row */}
                   <div className="flex gap-2 mt-3 flex-wrap items-center">
                     <Badge className="bg-red-100 text-red-800">⏳ {stats.pending}</Badge>
-                    <Badge className="bg-blue-100 text-blue-800">🚴 {stats.pickedUp}</Badge>
+                    <Badge className="bg-[#F4ECD8] text-[#2E3819]">🚴 {stats.pickedUp}</Badge>
                     <Badge className="bg-green-100 text-green-800">✅ {stats.delivered}</Badge>
                     {stats.totalAmount > 0 && (
                       <Badge className="bg-amber-100 text-amber-800">₪{stats.totalAmount}</Badge>
                     )}
                     {stats.total > 0 && stats.pickedUp + stats.pending > 0 && (
-                      <Button size="sm" onClick={() => openRoundTrip(courier)} className="bg-blue-600 hover:bg-blue-700 text-white text-xs h-7">
+                      <Button size="sm" onClick={() => openRoundTrip(courier)} className="bg-[#44512C] hover:bg-[#44512C] text-white text-xs h-7">
                         <Send className="w-3 h-3 ml-1" /> צוות סיבוב
                       </Button>
                     )}
@@ -222,7 +222,7 @@ export default function CourierTracking() {
                             {delivery.customer_phone && (
                               <a
                                 href={`tel:${delivery.customer_phone}`}
-                                className="flex items-center gap-1 text-xs text-blue-600 hover:underline"
+                                className="flex items-center gap-1 text-xs text-[#44512C] hover:underline"
                               >
                                 <Phone className="w-3 h-3 flex-shrink-0" />
                                 <span>{delivery.customer_phone}</span>
@@ -252,7 +252,7 @@ export default function CourierTracking() {
                                 delivery.delivery_status === "delivered"
                                   ? "bg-green-100 text-green-800"
                                   : delivery.delivery_status === "picked_up"
-                                  ? "bg-blue-100 text-blue-800"
+                                  ? "bg-[#F4ECD8] text-[#2E3819]"
                                   : "bg-red-100 text-red-800"
                               }
                             >
@@ -329,17 +329,17 @@ export default function CourierTracking() {
 
       {/* Summary */}
       {!loading && deliveries.length > 0 && (
-        <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200">
+        <Card className="bg-gradient-to-r from-[#F4ECD8] to-[#F4ECD8] border-[#E8D9B5]">
           <CardContent className="p-4">
             <div className="grid grid-cols-4 gap-4 text-center">
               <div>
-                <div className="text-2xl font-bold text-blue-600">
+                <div className="text-2xl font-bold text-[#44512C]">
                   {deliveries.filter((d) => d.delivery_status === "pending").length}
                 </div>
                 <div className="text-xs text-muted-foreground">ממתינים</div>
               </div>
               <div>
-                <div className="text-2xl font-bold text-blue-600">
+                <div className="text-2xl font-bold text-[#44512C]">
                   {deliveries.filter((d) => d.delivery_status === "picked_up").length}
                 </div>
                 <div className="text-xs text-muted-foreground">בדרך</div>

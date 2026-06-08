@@ -105,13 +105,13 @@ export default function EmployeeFeedbackPage() {
   const stats = getAverageRatings();
 
   return (
-    <div className="min-h-screen p-4 md:p-8 bg-gradient-to-br from-blue-50 to-indigo-100" dir="rtl">
+    <div className="min-h-screen p-4 md:p-8 bg-gradient-to-br from-[#F4ECD8] to-[#F4ECD8]" dir="rtl">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-8 gap-4">
           <div>
             <h1 className="text-3xl lg:text-4xl font-bold text-gray-900 flex items-center gap-3">
-              <MessageSquare className="w-8 h-8 lg:w-10 lg:h-10 text-blue-600" />
+              <MessageSquare className="w-8 h-8 lg:w-10 lg:h-10 text-[#44512C]" />
               משוב עובדים
             </h1>
             <p className="text-gray-600 mt-2">תובנות ומשוב מהעובדים על המשמרות</p>

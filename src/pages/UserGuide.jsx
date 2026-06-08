@@ -25,7 +25,7 @@ const sections = [
     id: "dashboard",
     icon: BarChart3,
     title: "לוח בקרה למנהל",
-    color: "bg-blue-100 text-blue-700",
+    color: "bg-[#F4ECD8] text-[#44512C]",
     audience: ["מנהל"],
     content: [
       { title: "סטטיסטיקות מהירות", text: "בחלק העליון רואים: הזמנות היום, הכנסות, סטטוס צ'קליסטים ותקריות פתוחות." },
@@ -37,7 +37,7 @@ const sections = [
     id: "scheduling",
     icon: Calendar,
     title: "סידור עבודה",
-    color: "bg-purple-100 text-purple-700",
+    color: "bg-[#F4ECD8] text-[#7A3722]",
     audience: ["מנהל", "עובד"],
     content: [
       { title: "יצירת משמרת (מנהל)", text: "נכנסים לסידור עבודה → לחיצה על + → בוחרים תאריך, סוג משמרת (צהריים/ערב) ומוסיפים עובדים." },
@@ -50,7 +50,7 @@ const sections = [
     id: "tips",
     icon: Banknote,
     title: "ניהול טיפים",
-    color: "bg-yellow-100 text-yellow-700",
+    color: "bg-[#F4ECD8] text-yellow-700",
     audience: ["מנהל", "עובד"],
     content: [
       { title: "פתיחת דוח טיפים", text: "נכנסים לניהול טיפים → בוחרים תאריך ומשמרת → מזינים סך הטיפים שנאספו." },
@@ -87,7 +87,7 @@ const sections = [
     id: "queue",
     icon: Users,
     title: "ניהול תור",
-    color: "bg-pink-100 text-pink-700",
+    color: "bg-[#F4ECD8] text-[#7A3722]",
     audience: ["מנהל", "עובד"],
     content: [
       { title: "הרשמה לתור (לקוח)", text: "הלקוח סורק QR או נכנס לקישור → ממלא שם, טלפון וגודל קבוצה → מקבל SMS עם מיקום בתור." },
@@ -110,7 +110,7 @@ const sections = [
     id: "deliveries",
     icon: Package,
     title: "משלוחים",
-    color: "bg-indigo-100 text-indigo-700",
+    color: "bg-[#F4ECD8] text-[#7A3722]",
     audience: ["מנהל", "עובד"],
     content: [
       { title: "רישום משלוח", text: "נכנסים למשלוחים → + חדש → מזינים פרטי לקוח, כתובת ופלטפורמה (Wolt/תן ביס/וכד')." },
@@ -221,7 +221,7 @@ const MediaManager = ({ videoUrl, imageUrl, imagePosition, onSaveVideo, onSaveIm
             {isAdmin && (
               <div className="p-2 bg-muted/30 flex flex-wrap gap-2 items-center">
                 <button onClick={() => setEditingImage(true)} className="text-xs text-muted-foreground underline">החלף תמונה</button>
-                <button onClick={() => setEditingPosition(p => !p)} className="flex items-center gap-1 text-xs text-blue-600 underline">
+                <button onClick={() => setEditingPosition(p => !p)} className="flex items-center gap-1 text-xs text-[#44512C] underline">
                   <Move className="w-3 h-3" /> מיקום תמונה
                 </button>
                 <button onClick={() => { onSaveImage(""); setImageInput(""); }} className="text-xs text-red-500 underline">הסר</button>

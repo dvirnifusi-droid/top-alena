@@ -104,7 +104,7 @@ export default function ApparelManagement() {
       <div>
         <h1 className="text-3xl font-bold mb-6">📦 ניהול חנות בגדים</h1>
         
-        <Card className="p-6 bg-gradient-to-br from-blue-50 to-purple-50 border-2 border-blue-200 space-y-4">
+        <Card className="p-6 bg-gradient-to-br from-[#F4ECD8] to-[#F4ECD8] border-2 border-[#E8D9B5] space-y-4">
           <h2 className="text-xl font-bold">הוספת פריט חדש</h2>
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -185,7 +185,7 @@ export default function ApparelManagement() {
           <Button
             onClick={handleAddItem}
             disabled={submitting}
-            className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-bold"
+            className="w-full bg-gradient-to-r from-[#44512C] to-[#A04A2E] hover:from-[#44512C] hover:to-[#7A3722] text-white font-bold"
           >
             <Plus className="w-4 h-4 mr-2" />
             {submitting ? 'מוסיף...' : 'הוסף פריט'}

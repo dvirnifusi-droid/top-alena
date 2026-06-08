@@ -53,12 +53,12 @@ function MockSidebar({ items }) {
         amber: { bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-200' },
         teal: { bg: 'bg-teal-50', text: 'text-teal-700', border: 'border-teal-200' },
         slate: { bg: 'bg-slate-50', text: 'text-slate-700', border: 'border-slate-200' },
-        violet: { bg: 'bg-violet-50', text: 'text-violet-700', border: 'border-violet-200' },
-        cyan: { bg: 'bg-cyan-50', text: 'text-cyan-700', border: 'border-cyan-200' },
-        blue: { bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-200' },
-        indigo: { bg: 'bg-indigo-50', text: 'text-indigo-700', border: 'border-indigo-200' },
-        pink: { bg: 'bg-pink-50', text: 'text-pink-700', border: 'border-pink-200' },
-        rose: { bg: 'bg-rose-50', text: 'text-rose-700', border: 'border-rose-200' },
+        violet: { bg: 'bg-[#F4ECD8]', text: 'text-[#7A3722]', border: 'border-violet-200' },
+        cyan: { bg: 'bg-[#F4ECD8]', text: 'text-[#8A6E3A]', border: 'border-cyan-200' },
+        blue: { bg: 'bg-[#F4ECD8]', text: 'text-[#44512C]', border: 'border-[#E8D9B5]' },
+        indigo: { bg: 'bg-[#F4ECD8]', text: 'text-[#7A3722]', border: 'border-indigo-200' },
+        pink: { bg: 'bg-[#F4ECD8]', text: 'text-[#7A3722]', border: 'border-pink-200' },
+        rose: { bg: 'bg-[#F4ECD8]', text: 'text-rose-700', border: 'border-rose-200' },
     };
     return (
         <div className="bg-white border rounded-xl overflow-hidden">
@@ -79,8 +79,8 @@ function MockHub({ accent }) {
     const map = {
         emerald: { icon: 'text-emerald-600', btn: 'bg-emerald-600 hover:bg-emerald-700', card: 'border-emerald-200 bg-emerald-50' },
         amber: { icon: 'text-amber-600', btn: 'bg-amber-600 hover:bg-amber-700', card: 'border-amber-200 bg-amber-50' },
-        pink: { icon: 'text-pink-600', btn: 'bg-pink-600 hover:bg-pink-700', card: 'border-pink-200 bg-pink-50' },
-        violet: { icon: 'text-violet-600', btn: 'bg-violet-600 hover:bg-violet-700', card: 'border-violet-200 bg-violet-50' },
+        pink: { icon: 'text-[#A04A2E]', btn: 'bg-[#A04A2E] hover:bg-[#7A3722]', card: 'border-pink-200 bg-[#F4ECD8]' },
+        violet: { icon: 'text-[#A04A2E]', btn: 'bg-[#A04A2E] hover:bg-[#7A3722]', card: 'border-violet-200 bg-[#F4ECD8]' },
     };
     const c = map[accent] || map.emerald;
     return (
@@ -180,9 +180,9 @@ export default function ColorPreview() {
                 />
             </div>
 
-            <div className="mt-8 bg-blue-50 border border-blue-200 rounded-xl p-4 text-sm">
+            <div className="mt-8 bg-[#F4ECD8] border border-[#E8D9B5] rounded-xl p-4 text-sm">
                 <b className="text-blue-900">🎯 איך בוחרים:</b>
-                <p className="text-blue-800 mt-1">
+                <p className="text-[#2E3819] mt-1">
                     תגיד לי A / B / C ואני מתחיל. אם רוצה משהו ביניים — תיאר לי במילים ואני בונה גרסה רביעית.
                 </p>
             </div>

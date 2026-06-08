@@ -361,14 +361,14 @@ function AiDashboardInner() {
 
     const categoryColors = {
         menu: 'bg-orange-100 text-orange-800',
-        procedures: 'bg-blue-100 text-blue-800',
-        policies: 'bg-purple-100 text-purple-800',
+        procedures: 'bg-[#F4ECD8] text-[#2E3819]',
+        policies: 'bg-[#F4ECD8] text-[#7A3722]',
         safety: 'bg-red-100 text-red-800',
         customer_service: 'bg-green-100 text-green-800',
         technical: 'bg-gray-100 text-gray-800',
-        training: 'bg-indigo-100 text-indigo-800',
-        general: 'bg-yellow-100 text-yellow-800',
-        qa_pairs: 'bg-pink-100 text-pink-800'
+        training: 'bg-[#F4ECD8] text-indigo-800',
+        general: 'bg-[#F4ECD8] text-yellow-800',
+        qa_pairs: 'bg-[#F4ECD8] text-pink-800'
     };
 
     const infoTypeLabels = {
@@ -385,7 +385,7 @@ function AiDashboardInner() {
 
     const priorityColors = {
         low: 'bg-gray-100 text-gray-800',
-        medium: 'bg-blue-100 text-blue-800',
+        medium: 'bg-[#F4ECD8] text-[#2E3819]',
         high: 'bg-orange-100 text-orange-800',
         critical: 'bg-red-100 text-red-800'
     };
@@ -397,12 +397,12 @@ function AiDashboardInner() {
     );
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-6" dir="rtl">
+        <div className="min-h-screen bg-gradient-to-br from-[#F4ECD8] to-[#F4ECD8] p-6" dir="rtl">
             <div className="max-w-7xl mx-auto space-y-8">
                 {/* Header */}
                 <div className="text-center">
                     <h1 className="text-4xl font-bold text-gray-900 mb-2 flex items-center justify-center gap-3">
-                        <Brain className="w-10 h-10 text-blue-600" />
+                        <Brain className="w-10 h-10 text-[#44512C]" />
                         מרכז בקרת AI
                     </h1>
                     <p className="text-gray-600 text-lg">ניהול בסיס הידע של המערכת החכמה</p>
@@ -413,14 +413,14 @@ function AiDashboardInner() {
 
                 {/* Stats Cards */}
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                    <Card className="bg-gradient-to-br from-blue-500 to-blue-600 text-white">
+                    <Card className="bg-gradient-to-br from-[#44512C] to-[#44512C] text-white">
                         <CardContent className="p-6">
                             <div className="flex items-center justify-between">
                                 <div>
-                                    <p className="text-blue-100">פריטי ידע</p>
+                                    <p className="text-[#F4ECD8]">פריטי ידע</p>
                                     <p className="text-3xl font-bold">{knowledgeItems.length}</p>
                                 </div>
-                                <BookOpen className="w-10 h-10 text-blue-200" />
+                                <BookOpen className="w-10 h-10 text-[#E8D9B5]" />
                             </div>
                         </CardContent>
                     </Card>
@@ -437,11 +437,11 @@ function AiDashboardInner() {
                         </CardContent>
                     </Card>
 
-                    <Card className="bg-gradient-to-br from-purple-500 to-purple-600 text-white">
+                    <Card className="bg-gradient-to-br from-[#A04A2E] to-[#A04A2E] text-white">
                         <CardContent className="p-6">
                             <div className="flex items-center justify-between">
                                 <div>
-                                    <p className="text-purple-100">מתכונים</p>
+                                    <p className="text-[#F4ECD8]">מתכונים</p>
                                     <p className="text-3xl font-bold">{knowledgeItems.filter(item => item.category === 'menu').length}</p>
                                 </div>
                                 <Coffee className="w-10 h-10 text-purple-200" />
@@ -449,7 +449,7 @@ function AiDashboardInner() {
                         </CardContent>
                     </Card>
 
-                    <Card className="bg-gradient-to-br from-red-500 to-pink-600 text-white">
+                    <Card className="bg-gradient-to-br from-red-500 to-[#A04A2E] text-white">
                         <CardContent className="p-6">
                             <div className="flex items-center justify-between">
                                 <div>
@@ -527,10 +527,10 @@ function AiDashboardInner() {
                         <TabsTrigger value="menu" className="py-3 px-6 text-sm font-bold rounded-xl data-[state=active]:bg-gradient-to-r data-[state=active]:from-green-500 data-[state=active]:to-emerald-500 data-[state=active]:text-white transition-all duration-300">
                             🍽️ ניהול תפריט
                         </TabsTrigger>
-                        <TabsTrigger value="info" className="py-3 px-6 text-sm font-bold rounded-xl data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-500 data-[state=active]:to-cyan-500 data-[state=active]:text-white transition-all duration-300">
+                        <TabsTrigger value="info" className="py-3 px-6 text-sm font-bold rounded-xl data-[state=active]:bg-gradient-to-r data-[state=active]:from-[#44512C] data-[state=active]:to-[#B89556] data-[state=active]:text-white transition-all duration-300">
                             📋 מידע כללי על המסעדה
                         </TabsTrigger>
-                        <TabsTrigger value="files" className="py-3 px-6 text-sm font-bold rounded-xl data-[state=active]:bg-gradient-to-r data-[state=active]:from-purple-500 data-[state=active]:to-fuchsia-500 data-[state=active]:text-white transition-all duration-300">
+                        <TabsTrigger value="files" className="py-3 px-6 text-sm font-bold rounded-xl data-[state=active]:bg-gradient-to-r data-[state=active]:from-[#A04A2E] data-[state=active]:to-[#A04A2E] data-[state=active]:text-white transition-all duration-300">
                             📚 ידע של דביר
                         </TabsTrigger>
                     </TabsList>
@@ -589,10 +589,10 @@ function AiDashboardInner() {
                             <CardHeader>
                                 <div className="flex justify-between items-center">
                                     <CardTitle className="flex items-center gap-2">
-                                        <Info className="w-6 h-6 text-blue-600" />
+                                        <Info className="w-6 h-6 text-[#44512C]" />
                                         מידע כללי על המסעדה לסימולציות
                                     </CardTitle>
-                                    <Button onClick={() => handleOpenInfoDialog()} className="bg-blue-600 hover:bg-blue-700">
+                                    <Button onClick={() => handleOpenInfoDialog()} className="bg-[#44512C] hover:bg-[#44512C]">
                                         <Plus className="w-4 h-4 ml-2"/>
                                         הוסף מידע
                                     </Button>
@@ -749,10 +749,10 @@ function AiDashboardInner() {
                     <CardHeader>
                         <div className="flex justify-between items-center">
                             <CardTitle className="flex items-center gap-2">
-                                <MessageSquare className="w-6 h-6 text-pink-600" />
+                                <MessageSquare className="w-6 h-6 text-[#A04A2E]" />
                                 הוספת שאלה-תשובה מהירה
                             </CardTitle>
-                            <Button onClick={() => setIsAddingQA(!isAddingQA)} className="bg-pink-600 hover:bg-pink-700">
+                            <Button onClick={() => setIsAddingQA(!isAddingQA)} className="bg-[#A04A2E] hover:bg-[#7A3722]">
                                 {isAddingQA ? 'ביטול' : 'הוסף ש"ת'}
                             </Button>
                         </div>
@@ -784,7 +784,7 @@ function AiDashboardInner() {
                                     placeholder="למשל: חמוץ, מתוק, משקאות, בר"
                                 />
                             </div>
-                            <Button onClick={handleAddQA} className="w-full bg-pink-600 hover:bg-pink-700">
+                            <Button onClick={handleAddQA} className="w-full bg-[#A04A2E] hover:bg-[#7A3722]">
                                 שמור שאלה ותשובה
                             </Button>
                         </CardContent>
@@ -851,7 +851,7 @@ function AiDashboardInner() {
                                     placeholder="למשל: חומוס, מתכון, טחינה, איך מכינים"
                                 />
                             </div>
-                            <Button onClick={handleItemSubmit} className="w-full bg-blue-600 hover:bg-blue-700">
+                            <Button onClick={handleItemSubmit} className="w-full bg-[#44512C] hover:bg-[#44512C]">
                                 {editingItem ? 'שמור שינויים' : 'שמור פריט'}
                             </Button>
                         </CardContent>

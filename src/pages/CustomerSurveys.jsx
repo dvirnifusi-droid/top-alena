@@ -10,7 +10,7 @@ import { format } from 'date-fns';
 const ratingColors = {
     1: 'bg-red-100 text-red-800',
     2: 'bg-red-100 text-red-800',
-    3: 'bg-yellow-100 text-yellow-800',
+    3: 'bg-[#F4ECD8] text-yellow-800',
     4: 'bg-green-100 text-green-800',
     5: 'bg-green-100 text-green-800',
 };
@@ -53,8 +53,8 @@ function FeedbackCard({ feedback }) {
                         </div>
                     )}
                     {isCustomerClubCandidate && (
-                        <div className="flex items-center gap-2 text-purple-700 font-semibold">
-                            <Award className="w-4 h-4 text-purple-600" />
+                        <div className="flex items-center gap-2 text-[#7A3722] font-semibold">
+                            <Award className="w-4 h-4 text-[#A04A2E]" />
                             <span>מועמד/ת למועדון לקוחות</span>
                         </div>
                     )}
@@ -109,7 +109,7 @@ export default function CustomerSurveysPage() {
         return (
             <div className="flex justify-center items-center h-screen" dir="rtl">
                 <div className="text-center">
-                    <Loader2 className="w-12 h-12 mx-auto animate-spin text-purple-600" />
+                    <Loader2 className="w-12 h-12 mx-auto animate-spin text-[#A04A2E]" />
                     <p className="mt-4 text-lg">טוען משובים...</p>
                 </div>
             </div>
@@ -132,7 +132,7 @@ export default function CustomerSurveysPage() {
             <div className="max-w-7xl mx-auto">
                 <div className="mb-8">
                     <h1 className="text-3xl font-bold flex items-center gap-3">
-                        <MessageSquare className="w-8 h-8 text-purple-600" />
+                        <MessageSquare className="w-8 h-8 text-[#A04A2E]" />
                         סקרי לקוחות
                     </h1>
                     <p className="text-gray-600 mt-2">כל המשובים מהלקוחות שלך במקום אחד.</p>

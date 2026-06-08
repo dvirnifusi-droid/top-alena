@@ -211,7 +211,7 @@ export default function InstagramStudio() {
     <div className="max-w-7xl mx-auto p-4 space-y-6" dir="rtl">
       {/* Header */}
       <div className="flex items-center gap-3">
-        <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-purple-500 via-pink-500 to-orange-400 flex items-center justify-center">
+        <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#A04A2E] via-[#A04A2E] to-orange-400 flex items-center justify-center">
           <Instagram className="w-6 h-6 text-white" />
         </div>
         <div>
@@ -244,7 +244,7 @@ export default function InstagramStudio() {
                       key={t}
                       onClick={() => { setTopic(t); setCustomTopic(''); }}
                       className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${
-                        topic === t && !customTopic ? 'bg-pink-100 border-pink-400 text-pink-700' : 'border-border hover:bg-muted'
+                        topic === t && !customTopic ? 'bg-[#F4ECD8] border-pink-400 text-[#7A3722]' : 'border-border hover:bg-muted'
                       }`}
                     >
                       {t}
@@ -276,7 +276,7 @@ export default function InstagramStudio() {
                 <span>💡 AI ישתמש אוטומטית בפריטי התפריט מהמערכת</span>
               </div>
 
-              <Button onClick={handleGenerate} disabled={loading} className="w-full bg-gradient-to-r from-purple-500 to-pink-500 text-white">
+              <Button onClick={handleGenerate} disabled={loading} className="w-full bg-gradient-to-r from-[#A04A2E] to-[#A04A2E] text-white">
                 {loading ? <><Loader2 className="w-4 h-4 ml-2 animate-spin" /> יוצר פוסט...</> : <><Sparkles className="w-4 h-4 ml-2" /> צור פוסט עם AI</>}
               </Button>
             </CardContent>
@@ -344,15 +344,15 @@ export default function InstagramStudio() {
                   </div>
 
                   {imageAnalysis && (
-                    <div className="text-xs text-muted-foreground bg-purple-50 border border-purple-100 rounded-lg p-2">
-                      <span className="font-medium text-purple-700">🔍 ניתוח התמונה: </span>{imageAnalysis}
+                    <div className="text-xs text-muted-foreground bg-[#F4ECD8] border border-[#F4ECD8] rounded-lg p-2">
+                      <span className="font-medium text-[#7A3722]">🔍 ניתוח התמונה: </span>{imageAnalysis}
                     </div>
                   )}
 
                   <Button
                     onClick={handleAnalyzeAndGenerate}
                     disabled={analyzingImage}
-                    className="w-full bg-gradient-to-r from-purple-500 to-pink-500 text-white"
+                    className="w-full bg-gradient-to-r from-[#A04A2E] to-[#A04A2E] text-white"
                   >
                     {analyzingImage
                       ? <><Loader2 className="w-4 h-4 ml-2 animate-spin" /> מנתח תמונה ויוצר פוסט...</>
@@ -392,7 +392,7 @@ export default function InstagramStudio() {
                       <Button
                         onClick={() => handlePublish(false)}
                         disabled={publishing || !generatedImageUrl}
-                        className="flex-1 bg-gradient-to-r from-purple-500 via-pink-500 to-orange-400 text-white"
+                        className="flex-1 bg-gradient-to-r from-[#A04A2E] via-[#A04A2E] to-orange-400 text-white"
                       >
                         {publishing ? <><Loader2 className="w-4 h-4 ml-2 animate-spin" /> מפרסם...</> : <><Send className="w-4 h-4 ml-2" /> פרסם עכשיו</>}
                       </Button>
@@ -419,7 +419,7 @@ export default function InstagramStudio() {
                             <Button
                               onClick={() => handlePublish(true)}
                               disabled={publishing || !scheduledDateTime}
-                              className="w-full bg-gradient-to-r from-purple-500 to-pink-500 text-white"
+                              className="w-full bg-gradient-to-r from-[#A04A2E] to-[#A04A2E] text-white"
                             >
                               {publishing ? <><Loader2 className="w-4 h-4 ml-2 animate-spin" /> תזמון...</> : <><Clock className="w-4 h-4 ml-2" /> תזמן פוסט</>}
                             </Button>
@@ -453,13 +453,13 @@ export default function InstagramStudio() {
                           {post.image_url ? (
                             <img src={post.image_url} alt={post.topic} className="w-full h-full object-cover group-hover:scale-110 transition-transform" />
                           ) : (
-                            <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-purple-100 to-pink-100">
+                            <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-[#F4ECD8] to-[#F4ECD8]">
                               <Image className="w-6 h-6 text-muted-foreground" />
                             </div>
                           )}
                           <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-end p-2">
                             <div className="text-white text-xs line-clamp-2 w-full">
-                              <Badge className="text-xs bg-gradient-to-r from-purple-500 to-pink-500">{post.status === 'scheduled' ? '📅' : '✅'} {post.topic}</Badge>
+                              <Badge className="text-xs bg-gradient-to-r from-[#A04A2E] to-[#A04A2E]">{post.status === 'scheduled' ? '📅' : '✅'} {post.topic}</Badge>
                             </div>
                           </div>
                         </div>
@@ -479,7 +479,7 @@ export default function InstagramStudio() {
                             <Badge variant="outline">{post.status === 'scheduled' ? '📅 תוזמן' : '✅ פורסם'}</Badge>
                             <Badge variant="outline">{new Date(post.created_date).toLocaleDateString('he-IL')}</Badge>
                             {post.scheduled_date && (
-                              <Badge className="bg-blue-100 text-blue-700">{new Date(post.scheduled_date).toLocaleDateString('he-IL')}</Badge>
+                              <Badge className="bg-[#F4ECD8] text-[#44512C]">{new Date(post.scheduled_date).toLocaleDateString('he-IL')}</Badge>
                             )}
                           </div>
                         </div>
@@ -528,7 +528,7 @@ export default function InstagramStudio() {
                         <span>{post.startDate}</span>
                         <span>→</span>
                         <span>{post.endDate}</span>
-                        <Badge className={post.status === 'scheduled' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'}>
+                        <Badge className={post.status === 'scheduled' ? 'bg-[#F4ECD8] text-[#44512C]' : 'bg-green-100 text-green-700'}>
                           {post.status === 'scheduled' ? 'מתוזמן' : 'פורסם'}
                         </Badge>
                       </div>

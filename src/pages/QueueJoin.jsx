@@ -528,28 +528,28 @@ function QueueJoinInner() {
           <h2 className="text-2xl font-black text-slate-800 mb-2">שלום שוב!</h2>
           <p className="text-slate-600 text-sm mb-6">אנחנו כבר זוכרים אותך</p>
           
-          <div className="bg-blue-50 border-2 border-blue-300 rounded-2xl p-4 mb-6 space-y-3">
+          <div className="bg-[#F4ECD8] border-2 border-[#D9BD83] rounded-2xl p-4 mb-6 space-y-3">
             <div className="text-center">
-              <p className="text-sm text-blue-600 font-medium">🟢 סטטוס</p>
-              <p className="text-base font-black text-blue-700 mt-1">
+              <p className="text-sm text-[#44512C] font-medium">🟢 סטטוס</p>
+              <p className="text-base font-black text-[#44512C] mt-1">
                 {existingEntry.status === 'pending' ? '⏳ ממתין לאישור' : '🎯 פעיל בתור'}
               </p>
             </div>
             
             {existingEntry.status === 'active' && (
-              <div className="text-center pt-2 border-t border-blue-200">
-                <p className="text-xs text-blue-600 mb-1">⏱️ זמן המתנה</p>
-                <p className="font-bold text-blue-700 text-lg">{waitTime} דקות</p>
+              <div className="text-center pt-2 border-t border-[#E8D9B5]">
+                <p className="text-xs text-[#44512C] mb-1">⏱️ זמן המתנה</p>
+                <p className="font-bold text-[#44512C] text-lg">{waitTime} דקות</p>
               </div>
             )}
 
-            <div className="text-center pt-2 border-t border-blue-200">
-              <p className="text-xs text-blue-600 mb-1">👥 גודל קבוצה</p>
-              <p className="font-bold text-blue-700">{existingEntry.party_size} סועדים</p>
+            <div className="text-center pt-2 border-t border-[#E8D9B5]">
+              <p className="text-xs text-[#44512C] mb-1">👥 גודל קבוצה</p>
+              <p className="font-bold text-[#44512C]">{existingEntry.party_size} סועדים</p>
             </div>
 
             {existingEntry.time_credits_earned > 0 && (
-              <div className="text-center pt-2 border-t border-blue-200 bg-yellow-50 rounded-xl p-2">
+              <div className="text-center pt-2 border-t border-[#E8D9B5] bg-[#FAF5E8] rounded-xl p-2">
                 <p className="text-xs text-yellow-600 mb-1">💰 מטבעות שצברת</p>
                 <p className="font-black text-yellow-700">{existingEntry.time_credits_earned}</p>
               </div>
@@ -622,7 +622,7 @@ function QueueJoinInner() {
         <div className="text-center mb-10">
           <div className={`${accessibilityMode ? 'text-8xl' : 'text-7xl'} mb-4 drop-shadow-lg`}>🍽️</div>
           <h1 className={`${accessibilityMode ? 'text-5xl' : 'text-4xl'} font-black ${accessibilityMode ? 'text-white' : 'text-white'} tracking-wider`}>עלינא</h1>
-          <p className={`${accessibilityMode ? 'text-base text-yellow-300' : 'text-slate-300 text-sm'} mt-2 font-${accessibilityMode ? 'bold' : 'light'}`}>ברוכים הבאים לחוויה קולינרית עדינה</p>
+          <p className={`${accessibilityMode ? 'text-base text-[#D9BD83]' : 'text-slate-300 text-sm'} mt-2 font-${accessibilityMode ? 'bold' : 'light'}`}>ברוכים הבאים לחוויה קולינרית עדינה</p>
         </div>
 
         {/* כרטיסית */}
@@ -656,10 +656,10 @@ function QueueJoinInner() {
               
               {/* בנר היסטוריה קודמת - אוטומטי */}
               {customerHistory && (
-                <div className="mt-3 bg-gradient-to-r from-blue-50 to-cyan-50 border-2 border-blue-300 rounded-2xl p-3 space-y-2">
+                <div className="mt-3 bg-gradient-to-r from-[#F4ECD8] to-[#F4ECD8] border-2 border-[#D9BD83] rounded-2xl p-3 space-y-2">
                   <div className="flex items-center justify-between">
-                    <span className="text-sm font-bold text-blue-700">👋 שלום שוב!</span>
-                    <span className="text-xs text-blue-600">ביקור #{customerHistory.visitCount + 1}</span>
+                    <span className="text-sm font-bold text-[#44512C]">👋 שלום שוב!</span>
+                    <span className="text-xs text-[#44512C]">ביקור #{customerHistory.visitCount + 1}</span>
                   </div>
                   
                   <div className="flex gap-2 flex-wrap text-xs">
@@ -674,7 +674,7 @@ function QueueJoinInner() {
                       </div>
                     )}
                     {customerHistory.totalCredits > 0 && (
-                      <div className="bg-yellow-100 text-yellow-700 px-2 py-1 rounded-full font-bold">
+                      <div className="bg-[#F4ECD8] text-yellow-700 px-2 py-1 rounded-full font-bold">
                         💰 {customerHistory.totalCredits} מטבעות
                       </div>
                     )}
@@ -778,7 +778,7 @@ function QueueJoinInner() {
                   href="/PrivacyAndAccessibility"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-blue-600 underline font-bold"
+                  className="text-[#44512C] underline font-bold"
                   onClick={e => e.stopPropagation()}
                 >
                   תקנון השימוש ומדיניות הפרטיות
@@ -787,14 +787,14 @@ function QueueJoinInner() {
             </div>
 
             {/* הסכמה לדיוור */}
-            <div className="flex items-start gap-3 bg-blue-50 rounded-2xl p-3 border border-blue-200">
+            <div className="flex items-start gap-3 bg-[#F4ECD8] rounded-2xl p-3 border border-[#E8D9B5]">
               <input
                 type="checkbox"
                 id="newsletter-consent"
                 className="mt-0.5 w-5 h-5 accent-blue-600 flex-shrink-0 cursor-pointer"
                 aria-label="הסכמה לקבל עדכונים בדיוור"
               />
-              <label htmlFor="newsletter-consent" className="text-xs text-blue-700 leading-relaxed cursor-pointer font-medium">
+              <label htmlFor="newsletter-consent" className="text-xs text-[#44512C] leading-relaxed cursor-pointer font-medium">
                 🔔 אני מסכים לקבל עדכונים ודיוור מהמסעדה (אופציונלי)
               </label>
             </div>
@@ -887,11 +887,11 @@ function QueueJoinInner() {
           )}
           {/* מתנה שנרכשה */}
           {selectedTreat && (
-            <div className="mt-4 bg-gradient-to-r from-purple-50 to-pink-50 border-2 border-purple-300 rounded-2xl p-5">
-              <p className="text-purple-700 font-bold text-sm mb-2">🎁 המתנה שרכשת:</p>
+            <div className="mt-4 bg-gradient-to-r from-[#F4ECD8] to-[#F4ECD8] border-2 border-[#D9BD83] rounded-2xl p-5">
+              <p className="text-[#7A3722] font-bold text-sm mb-2">🎁 המתנה שרכשת:</p>
               <div className="text-4xl mb-2">{selectedTreat.emoji}</div>
-              <p className="font-black text-purple-800 text-lg">{selectedTreat.name}</p>
-              <p className="text-purple-600 text-sm mt-1">{selectedTreat.description}</p>
+              <p className="font-black text-[#7A3722] text-lg">{selectedTreat.name}</p>
+              <p className="text-[#A04A2E] text-sm mt-1">{selectedTreat.description}</p>
               <div className="mt-3 rounded-xl p-2">
                 {entry?.treat_redeemed ? (
                   <div className="bg-green-100 border border-green-300 rounded-xl p-2">
@@ -899,7 +899,7 @@ function QueueJoinInner() {
                   </div>
                 ) : (
                   <div className="bg-white/60 rounded-xl p-2">
-                    <p className="text-xs text-purple-500 font-bold">הצג כרטיס זה לצוות המסעדה לממש את המתנה שלך</p>
+                    <p className="text-xs text-[#A04A2E] font-bold">הצג כרטיס זה לצוות המסעדה לממש את המתנה שלך</p>
                   </div>
                 )}
               </div>
@@ -948,7 +948,7 @@ function QueueJoinInner() {
     {/* כותרת */}
     <div className={`p-6 text-white text-center ${
       entry?.proximity_response === 'yes' ? 'bg-green-600' : 
-      entry?.proximity_response === 'no' ? 'bg-purple-600' :
+      entry?.proximity_response === 'no' ? 'bg-[#A04A2E]' :
       isPending ? 'bg-amber-600' : 'bg-slate-800'
     }`}>
         <p className="font-black text-2xl">{entry?.customer_name || ''}</p>
@@ -1002,11 +1002,11 @@ function QueueJoinInner() {
               {/* מקום בתור עם אנימציה */}
               {queuePosition != null && (
                 <div className={`rounded-2xl p-4 text-center mb-2 border-2 transition-all ${
-                  queueMovedUp ? 'bg-green-100 border-green-400 scale-110 shadow-lg' : 'bg-blue-50 border-blue-300'
+                  queueMovedUp ? 'bg-green-100 border-green-400 scale-110 shadow-lg' : 'bg-[#F4ECD8] border-[#D9BD83]'
                 }`}>
                   <div className="relative inline-block">
                     <p className={`font-black text-5xl transition-all ${
-                      queueMovedUp ? 'text-green-700 animate-bounce' : 'text-blue-800'
+                      queueMovedUp ? 'text-green-700 animate-bounce' : 'text-[#2E3819]'
                     }`}>
                       {queuePosition}
                     </p>
@@ -1017,7 +1017,7 @@ function QueueJoinInner() {
                     )}
                   </div>
                   <p className={`text-sm mt-2 font-bold transition-colors ${
-                    queueMovedUp ? 'text-green-700' : 'text-blue-600'
+                    queueMovedUp ? 'text-green-700' : 'text-[#44512C]'
                   }`}>
                     {queueMovedUp ? '🎉 התור התקדם!' : 'מקום בתור'}
                   </p>
@@ -1038,14 +1038,14 @@ function QueueJoinInner() {
                 <div className={`rounded-2xl px-4 py-3 mb-3 text-center border-2 ${
                   samePartyAhead === 0
                     ? 'bg-emerald-50 border-emerald-300'
-                    : 'bg-indigo-50 border-indigo-200'
+                    : 'bg-[#F4ECD8] border-indigo-200'
                 }`}>
                   {samePartyAhead === 0 ? (
                     <p className="text-emerald-700 font-black text-sm">
                       🎯 אין קבוצות של {entry.party_size} לפניכם — אתם הבאים בתור לשולחן!
                     </p>
                   ) : (
-                    <p className="text-indigo-700 font-bold text-sm">
+                    <p className="text-[#7A3722] font-bold text-sm">
                       👥 {samePartyAhead} קבוצ{samePartyAhead === 1 ? 'ה' : 'ות'} של {entry.party_size} סועדים לפניכם
                     </p>
                   )}
@@ -1054,25 +1054,25 @@ function QueueJoinInner() {
 
               {/* הערות מיוחדות */}
               {entry?.customer_notes && (
-                <div className="bg-purple-50 border border-purple-200 rounded-2xl p-3">
-                  <p className="text-xs text-purple-600 font-bold mb-1">💬 הערות מיוחדות שלך:</p>
-                  <p className="text-sm text-purple-700">{entry.customer_notes}</p>
+                <div className="bg-[#F4ECD8] border border-purple-200 rounded-2xl p-3">
+                  <p className="text-xs text-[#A04A2E] font-bold mb-1">💬 הערות מיוחדות שלך:</p>
+                  <p className="text-sm text-[#7A3722]">{entry.customer_notes}</p>
                 </div>
               )}
 
               {/* פרסים זמינים */}
               {treats.length > 0 && (
-                <div className="bg-gradient-to-r from-purple-50 to-pink-50 border-2 border-purple-200 rounded-2xl p-4">
-                  <p className="font-black text-purple-800 text-sm mb-3 text-center">🎁 פרסים שאתה יכול להרוויח</p>
+                <div className="bg-gradient-to-r from-[#F4ECD8] to-[#F4ECD8] border-2 border-purple-200 rounded-2xl p-4">
+                  <p className="font-black text-[#7A3722] text-sm mb-3 text-center">🎁 פרסים שאתה יכול להרוויח</p>
                   <div className="space-y-2">
                     {treats.map(treat => (
-                      <div key={treat.id} className="bg-white rounded-xl p-3 flex items-center justify-between border border-purple-100">
+                      <div key={treat.id} className="bg-white rounded-xl p-3 flex items-center justify-between border border-[#F4ECD8]">
                         <div className="flex-1 min-w-0">
                           <p className="font-bold text-sm text-gray-800">{treat.emoji} {treat.name}</p>
                           <p className="text-xs text-gray-500">{treat.description}</p>
                         </div>
                         <div className="text-right ml-3 flex-shrink-0">
-                          <p className={`font-black text-sm ${timeCreditsEarned >= treat.cost ? 'text-purple-700' : 'text-gray-400'}`}>
+                          <p className={`font-black text-sm ${timeCreditsEarned >= treat.cost ? 'text-[#7A3722]' : 'text-gray-400'}`}>
                             {treat.cost} 💰
                           </p>
                           {timeCreditsEarned >= treat.cost && (
@@ -1082,7 +1082,7 @@ function QueueJoinInner() {
                       </div>
                     ))}
                   </div>
-                  <p className="text-xs text-purple-600 text-center mt-3">
+                  <p className="text-xs text-[#A04A2E] text-center mt-3">
                     💡 צבור עוד {treats.length > 0 ? Math.max(0, treats[0].cost - timeCreditsEarned) : 0} מטבעות להפוך לאפשרי
                   </p>
                 </div>
@@ -1092,10 +1092,10 @@ function QueueJoinInner() {
 
           {/* באנר בדיקת קרבה */}
           {showProximityBanner && (
-            <div className="bg-blue-50 border-2 border-blue-400 rounded-2xl p-5 text-center animate-pulse">
+            <div className="bg-[#F4ECD8] border-2 border-blue-400 rounded-2xl p-5 text-center animate-pulse">
               <div className="text-4xl mb-2">📍</div>
-              <p className="font-black text-blue-800 text-lg mb-1">המארחת שואלת:</p>
-              <p className="text-blue-600 text-base mb-4">האם אתם בסביבת המסעדה?</p>
+              <p className="font-black text-[#2E3819] text-lg mb-1">המארחת שואלת:</p>
+              <p className="text-[#44512C] text-base mb-4">האם אתם בסביבת המסעדה?</p>
               <div className="flex gap-3">
                <button
                  onClick={async () => {
@@ -1131,7 +1131,7 @@ function QueueJoinInner() {
 
           {/* סטטוס - ממתין לאישור */}
           {isPending && (
-            <div className="bg-gradient-to-b from-yellow-50 to-amber-50 border-2 border-yellow-300 rounded-2xl p-5 text-center">
+            <div className="bg-gradient-to-b from-[#FAF5E8] to-amber-50 border-2 border-[#D9BD83] rounded-2xl p-5 text-center">
               <div className="text-5xl mb-3">⏳</div>
               <p className="font-black text-amber-800 text-2xl mb-2">המארחת בודקת אתכם</p>
               <p className="text-amber-700 text-base leading-relaxed">המארחת תאשר את נוכחותך בקרוב<br/><span className="text-sm">בקשה זו בדרך כלל מאושרת תוך דקה אחת</span></p>
@@ -1206,7 +1206,7 @@ function QueueJoinInner() {
               {entry?.timestamp_approved && (
                 <div className="text-center space-y-2">
                   <p className="text-gray-400 text-xs">ממתינים {waitMinutes} דקות</p>
-                  <div className="bg-gradient-to-r from-yellow-50 to-amber-50 border border-yellow-200 rounded-2xl p-3">
+                  <div className="bg-gradient-to-r from-[#FAF5E8] to-amber-50 border border-yellow-200 rounded-2xl p-3">
                     <p className="text-3xl font-black text-yellow-600 mb-1">💰 {timeCreditsEarned}</p>
                     <p className="text-xs text-yellow-700">מטבעות עלינא שצברת</p>
                     {treats.length > 0 && (
@@ -1221,12 +1221,12 @@ function QueueJoinInner() {
                   
                   {/* הצגת הפרס שנבחר */}
                   {entry?.selected_treat_id && (
-                    <div className="bg-purple-100 border-2 border-purple-400 rounded-2xl p-3 animate-pulse">
-                      <p className="text-xs text-purple-700 font-bold mb-1">✅ פרס שלך מחכה:</p>
-                      <p className="text-lg font-black text-purple-800">
+                    <div className="bg-[#F4ECD8] border-2 border-purple-400 rounded-2xl p-3 animate-pulse">
+                      <p className="text-xs text-[#7A3722] font-bold mb-1">✅ פרס שלך מחכה:</p>
+                      <p className="text-lg font-black text-[#7A3722]">
                         {treats.find(t => t.id === entry.selected_treat_id)?.emoji} {treats.find(t => t.id === entry.selected_treat_id)?.name}
                       </p>
-                      <p className="text-xs text-purple-600 mt-1">{treats.find(t => t.id === entry.selected_treat_id)?.description}</p>
+                      <p className="text-xs text-[#A04A2E] mt-1">{treats.find(t => t.id === entry.selected_treat_id)?.description}</p>
                     </div>
                   )}
                 </div>
@@ -1399,7 +1399,7 @@ function QueueJoinInner() {
               פעולה זו תסיר את שמך ומספרך מהמערכת לצמיתות.<br/>
               <strong>לא ניתן לבטל פעולה זו.</strong>
             </p>
-            <div className="bg-yellow-50 border border-yellow-200 rounded-2xl p-3 mb-5">
+            <div className="bg-[#FAF5E8] border border-yellow-200 rounded-2xl p-3 mb-5">
               <p className="text-yellow-700 text-xs leading-relaxed">
                 ⚠️ בהתאם לחוק הגנת הפרטיות הישראלי, יש לך זכות לבקש מחיקת המידע שלך מהמאגר שלנו.
               </p>

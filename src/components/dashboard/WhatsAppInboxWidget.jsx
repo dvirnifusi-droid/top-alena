@@ -103,7 +103,7 @@ export default function WhatsAppInboxWidget() {
                                             )}
                                         </div>
                                         <div className="text-xs text-gray-600 truncate">
-                                            {last.direction === 'outbound' && <span className="text-blue-600">↳ </span>}
+                                            {last.direction === 'outbound' && <span className="text-[#44512C]">↳ </span>}
                                             {last.body || (last.num_media > 0 ? '📎 קובץ' : '—')}
                                         </div>
                                     </div>
