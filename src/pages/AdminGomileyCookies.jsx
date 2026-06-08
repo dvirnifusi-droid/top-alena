@@ -46,6 +46,80 @@ function SyncCustomersButton() {
     );
 }
 
+function BackfillAllCustomersButton() {
+    const [starting, setStarting] = useState(false);
+    const [status, setStatus] = useState(null);
+    const [error, setError] = useState(null);
+
+    const loadStatus = async () => {
+        try {
+            const res = await base44.functions.getGomileyBackfillStatus({});
+            const r = res?.data ?? res;
+            if (r && (r.scanned > 0 || r.running || r.finished_at)) setStatus(r);
+        } catch (e) { /* ignore */ }
+    };
+
+    useEffect(() => {
+        loadStatus();
+        const t = setInterval(loadStatus, 3000);
+        return () => clearInterval(t);
+    }, []);
+
+    const start = async () => {
+        setStarting(true); setError(null);
+        try {
+            const res = await base44.functions.backfillGomileyCustomers({});
+            const r = res?.data ?? res;
+            if (r?.ok) {
+                setStatus(r.status);
+            } else {
+                setError(r?.reason || 'נכשל');
+                if (r?.status) setStatus(r.status);
+            }
+        } catch (e) {
+            setError(e?.message || String(e));
+        } finally { setStarting(false); }
+    };
+
+    const running = status?.running;
+    const pct = status?.total_expected
+        ? Math.min(100, Math.round((status.scanned / status.total_expected) * 100))
+        : 0;
+
+    return (
+        <div className="mt-4 pt-4 border-t border-blue-200">
+            <h4 className="font-bold text-sm mb-1">📥 ייבוא מלא — כל ה-17K לקוחות</h4>
+            <p className="text-xs text-gray-600 mb-2">
+                עובר על כל העמודים ב-Gomiley (~17,621 לקוחות), מכניס שם + טלפון + כתובת.
+                לקוחות בלי טלפון (וולט/אנונימי) ידולגו אוטומטית. רץ ברקע ~3-5 דקות, אפשר לסגור את הדף.
+            </p>
+            <Button onClick={start} disabled={starting || running} variant="default" className="bg-blue-600 hover:bg-blue-700">
+                {(starting || running) ? <Loader2 className="w-4 h-4 animate-spin ml-2" /> : null}
+                {running ? `רץ... (עמוד ${status?.page})` : starting ? 'מפעיל...' : '📥 ייבא הכל מ-Gomiley'}
+            </Button>
+            {status && (status.scanned > 0 || status.running) && (
+                <div className="mt-3 text-xs">
+                    {status.total_expected > 0 && (
+                        <div className="w-full bg-gray-200 rounded-full h-2 mb-2">
+                            <div className="bg-blue-600 h-2 rounded-full transition-all" style={{ width: `${pct}%` }} />
+                        </div>
+                    )}
+                    <div className="grid grid-cols-2 gap-1 text-gray-700">
+                        <div>📊 סרקתי: <b>{status.scanned}</b> / {status.total_expected || '?'}</div>
+                        <div>📄 עמוד: <b>{status.page}</b></div>
+                        <div className="text-emerald-700">✅ חדשים: <b>{status.created}</b></div>
+                        <div className="text-blue-700">🔄 עודכנו: <b>{status.updated}</b></div>
+                        <div className="text-amber-700">⊘ דולגו (וולט/בלי טלפון): <b>{status.skipped_no_phone}</b></div>
+                        <div>{status.finished_at ? '✓ סיים' : status.running ? '⏳ רץ...' : ''}</div>
+                    </div>
+                    {status.error && <p className="text-red-700 mt-2">❌ {status.error}</p>}
+                </div>
+            )}
+            {error && <p className="text-xs text-red-700 mt-2">❌ {error}</p>}
+        </div>
+    );
+}
+
 export default function AdminGomileyCookies() {
     const [phpSessId, setPhpSessId] = useState('');
     const [arena, setArena] = useState('');
@@ -204,6 +278,7 @@ export default function AdminGomileyCookies() {
                         רץ אוטומטית כל יום ב-04:00 לפנות בוקר. אפשר גם להפעיל ידנית כאן.
                     </p>
                     <SyncCustomersButton />
+                    <BackfillAllCustomersButton />
                 </CardContent>
             </Card>
 

@@ -12321,6 +12321,149 @@ registerFn('captureGomileyCustomers', async ({ user }) => {
   return captureGomileyCustomers();
 });
 
+// ============================================================================
+// Full backfill — paginates through ALL Gomiley customers (17K+ rows).
+// Runs in the background, status is exposed via getGomileyBackfillStatus.
+// Skips rows without a phone (Wolt orders, anonymous walk-ins).
+// ============================================================================
+async function fetchGomileyCustomersPage(start: number, length: number, cookieHeader: string): Promise<{ rows: any[]; recordsTotal: number } | { error: string }> {
+  const url = `${GOMILEY_BASE}/system/pages/customers/ajax.php?move=&moveorderid=`;
+  const payload = gomileyDataTablesPayload(length, start);
+  const r = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Accept': 'application/json, text/javascript, */*; q=0.01',
+      'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+      'X-Requested-With': 'XMLHttpRequest',
+      'Cookie': cookieHeader,
+      'Referer': `${GOMILEY_BASE}/system/pages/customers/`,
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36',
+    },
+    body: payload.toString(),
+  });
+  if (!r.ok) return { error: `http ${r.status}` };
+  const text = await r.text();
+  try {
+    const json = JSON.parse(text);
+    return { rows: Array.isArray(json?.data) ? json.data : [], recordsTotal: Number(json?.recordsTotal) || 0 };
+  } catch { return { error: 'session expired or unparseable' }; }
+}
+
+export async function runGomileyCustomersBackfill() {
+  const g: any = globalThis as any;
+  if (g.__gomileyBackfillRunning) {
+    return { ok: false, reason: 'כבר רץ backfill — בדוק סטטוס', status: g.__gomileyBackfillStatus };
+  }
+  const cookieHeader = await gomileyCookieHeader();
+  if (!cookieHeader.includes('PHPSESSID')) {
+    return { ok: false, reason: 'אין cookies — תגדיר ב-/AdminGomileyCookies' };
+  }
+  g.__gomileyBackfillRunning = true;
+  g.__gomileyBackfillStatus = {
+    running: true,
+    started_at: new Date().toISOString(),
+    page: 0,
+    scanned: 0,
+    created: 0,
+    updated: 0,
+    skipped_no_phone: 0,
+    total_expected: 0,
+    finished_at: null,
+    error: null,
+  };
+  const status = g.__gomileyBackfillStatus;
+
+  void (async () => {
+    try {
+      const PAGE_SIZE = 500;
+      let start = 0;
+      const today = new Date().toISOString().slice(0, 10);
+      while (true) {
+        status.page += 1;
+        const pageResult = await fetchGomileyCustomersPage(start, PAGE_SIZE, cookieHeader);
+        if ('error' in pageResult) {
+          status.error = pageResult.error;
+          break;
+        }
+        if (status.total_expected === 0 && pageResult.recordsTotal) {
+          status.total_expected = pageResult.recordsTotal;
+        }
+        if (pageResult.rows.length === 0) break;
+
+        const customers = pageResult.rows.map(parseGomileyCustomerRow).filter((c): c is GomileyCustomerRow => !!c);
+        for (const c of customers) {
+          const phone = c.phone;
+          if (!phone || phone.length < 9) { status.skipped_no_phone += 1; continue; }
+          const existing: any = await (db as any).deliveryCustomer.findFirst({
+            where: { customer_phone: phone },
+          });
+          if (existing) {
+            const noteHasGomiley = (existing.notes || '').includes('Gomiley');
+            await (db as any).deliveryCustomer.update({
+              where: { id: existing.id },
+              data: {
+                customer_name: existing.customer_name || c.name,
+                address: existing.address || c.address,
+                notes: noteHasGomiley
+                  ? existing.notes
+                  : `${existing.notes || ''}\nסונכרן מ-Gomiley (backfill) ב-${today}`.trim(),
+                total_orders: Math.max(Number(existing.total_orders) || 0, c.total_orders),
+                total_spent: Math.max(Number(existing.total_spent) || 0, c.total_spent),
+              },
+            });
+            status.updated += 1;
+          } else {
+            await (db as any).deliveryCustomer.create({
+              data: {
+                customer_name: c.name || 'לקוח Gomiley',
+                customer_phone: phone,
+                email: c.email || null,
+                address: c.address || null,
+                notes: `נכנס מ-Gomiley (backfill) ב-${today}`,
+                total_orders: c.total_orders,
+                total_spent: c.total_spent,
+              },
+            });
+            status.created += 1;
+          }
+        }
+        status.scanned += pageResult.rows.length;
+        if (pageResult.rows.length < PAGE_SIZE) break;
+        start += PAGE_SIZE;
+        // Small delay so we don't hammer Gomiley and trip rate limits
+        await new Promise(r => setTimeout(r, 800));
+      }
+      status.running = false;
+      status.finished_at = new Date().toISOString();
+    } catch (e: any) {
+      status.error = e?.message || String(e);
+      status.running = false;
+      status.finished_at = new Date().toISOString();
+    } finally {
+      g.__gomileyBackfillRunning = false;
+    }
+  })();
+
+  return { ok: true, started: true, status };
+}
+
+registerFn('backfillGomileyCustomers', async ({ user }) => {
+  if (!user) throw new Error('auth required');
+  if ((user as any).role !== 'admin' && (user as any).role !== 'owner') {
+    throw new Error('admin only');
+  }
+  return runGomileyCustomersBackfill();
+});
+
+registerFn('getGomileyBackfillStatus', async ({ user }) => {
+  if (!user) throw new Error('auth required');
+  if ((user as any).role !== 'admin' && (user as any).role !== 'owner') {
+    throw new Error('admin only');
+  }
+  const g: any = globalThis as any;
+  return g.__gomileyBackfillStatus || { running: false, scanned: 0, message: 'לא הופעל עדיין' };
+});
+
 // Daily cron — 04:00 IL, after the kitchen is closed and Gomiley has all of
 // yesterday's orders attributed.
 if (!(globalThis as any).__gomileyCustomersTimer) {
