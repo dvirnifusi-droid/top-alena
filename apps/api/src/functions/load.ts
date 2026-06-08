@@ -9452,6 +9452,31 @@ if (!(globalThis as any).__startupDriftRepair) {
       console.error('[startup] ensure GomileySnapshot failed:', e?.message);
     }
     try {
+      await prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "GomileyDashboardSnapshot" (
+        "id" TEXT PRIMARY KEY,
+        "restaurant_id" TEXT NOT NULL,
+        "captured_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "date_range_label" TEXT,
+        "total_income" DOUBLE PRECISION,
+        "total_orders" INTEGER,
+        "new_customers" INTEGER,
+        "new_companies" INTEGER,
+        "onetime_percent" DOUBLE PRECISION,
+        "returning_count" INTEGER,
+        "onetime_count" INTEGER,
+        "platforms" JSONB,
+        "top_dishes" JSONB,
+        "top_customers" JSONB,
+        "top_companies" JSONB,
+        "raw_text" TEXT,
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );`);
+      await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "GomileyDashboardSnapshot_restaurant_captured_idx" ON "GomileyDashboardSnapshot" ("restaurant_id", "captured_at");`);
+      console.log('[startup] GomileyDashboardSnapshot table + index ensured');
+    } catch (e: any) {
+      console.error('[startup] ensure GomileyDashboardSnapshot failed:', e?.message);
+    }
+    try {
       await prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "BeecommHistoricalDay" (
         "id" TEXT PRIMARY KEY,
         "pos_id" TEXT NOT NULL,
@@ -12496,6 +12521,239 @@ registerFn('getGomileyBackfillStatus', async ({ user }) => {
   const g: any = globalThis as any;
   return g.__gomileyBackfillStatus || { running: false, scanned: 0, message: 'לא הופעל עדיין' };
 });
+
+// ============================================================================
+// Gomiley dashboard scrape — /system/pages/index/ is server-rendered HTML.
+// We fetch it with the existing session cookies, convert to text (preserving
+// table row+col structure), then regex-parse the four KPI tiles, platforms
+// table, top dishes/customers/companies, and returning-vs-onetime ratio.
+// ============================================================================
+function htmlToStructuredText(html: string): string {
+  return String(html || '')
+    .replace(/<script[\s\S]*?<\/script>/gi, '')
+    .replace(/<style[\s\S]*?<\/style>/gi, '')
+    .replace(/<\/(td|th)>/gi, '\t')
+    .replace(/<\/(tr|p|div|h[1-6]|li)>/gi, '\n')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/[ \t]+\n/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+function parseIls(s: string): number {
+  if (!s) return 0;
+  return Number(String(s).replace(/[₪,\s]/g, '')) || 0;
+}
+
+function parseGomileyDashboard(html: string) {
+  const text = htmlToStructuredText(html);
+  const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+
+  const result: any = {
+    total_income: null,
+    total_orders: null,
+    new_customers: null,
+    new_companies: null,
+    onetime_percent: null,
+    returning_count: null,
+    onetime_count: null,
+    platforms: [],
+    top_dishes: [],
+    top_customers: [],
+    top_companies: [],
+  };
+
+  // 4 KPI tiles: a value line followed by a label line. Order in the Gomiley
+  // page is: הכנסות / הזמנות / לקוחות חדשים / חברות חדשות.
+  for (let i = 0; i < lines.length - 1; i++) {
+    const value = lines[i];
+    const label = lines[i + 1];
+    if (label === 'הכנסות' && /₪/.test(value)) result.total_income = parseIls(value);
+    else if (label === 'הזמנות' && /^\d/.test(value) && result.total_orders === null) result.total_orders = Number(value.replace(/[,\s]/g, '')) || 0;
+    else if (label === 'לקוחות חדשים' && /^\d/.test(value)) result.new_customers = Number(value.replace(/[,\s]/g, '')) || 0;
+    else if (label === 'חברות חדשות' && /^\d/.test(value)) result.new_companies = Number(value.replace(/[,\s]/g, '')) || 0;
+  }
+
+  // Returning vs one-time customers — line "לקוחות חד-פעמיים" followed by a %,
+  // then a "כמות חזרות / אחוז / כמות" header row, then "9 / 181" style row.
+  for (let i = 0; i < lines.length; i++) {
+    if (/לקוחות חד-?פעמיים/.test(lines[i])) {
+      const pctLine = lines.slice(i, i + 6).find(l => /\d+(\.\d+)?%/.test(l));
+      if (pctLine) {
+        const m = pctLine.match(/(\d+(?:\.\d+)?)%/);
+        if (m) result.onetime_percent = Number(m[1]);
+      }
+      // Find the data row — two integers separated by whitespace/tab
+      const dataLine = lines.slice(i, i + 10).find(l => /^\d+\s+\d+$/.test(l) || /^\d+\t\d+$/.test(l));
+      if (dataLine) {
+        const nums = dataLine.split(/\s+/).map(Number).filter(n => !Number.isNaN(n));
+        if (nums.length >= 2) {
+          result.returning_count = nums[0];
+          result.onetime_count = nums[1];
+        }
+      }
+      break;
+    }
+  }
+
+  // Platforms table — rows look like:
+  //   Wolt\t170\t₪0.00\t₪0.00\t₪0.00\t₪19,014.00\t₪111.85
+  // Each row has exactly 7 tab-separated cells (name + 6 numbers).
+  for (const raw of text.split('\n')) {
+    const cells = raw.split('\t').map(c => c.trim()).filter(Boolean);
+    if (cells.length === 7
+        && /^[A-Za-zא-ת]/.test(cells[0])
+        && /^\d/.test(cells[1])
+        && cells.slice(2).every(c => /₪/.test(c) || /^\d/.test(c))) {
+      result.platforms.push({
+        name: cells[0],
+        orders: Number(cells[1]) || 0,
+        delivery: parseIls(cells[2]),
+        tip: parseIls(cells[3]),
+        discount: parseIls(cells[4]),
+        total: parseIls(cells[5]),
+        avg: parseIls(cells[6]),
+      });
+    }
+  }
+  // Drop the totals row (name is empty / numeric only) — already filtered by name check above
+
+  // Top-N tables — rank \t name \t orders \t sum
+  // Section anchors: "המנות הנמכרות ביותר", "הלקוחות החוזרים ביותר",
+  // "החברות שמזמינות הכי הרבה"
+  function extractTopTable(anchor: string, maxRows = 10) {
+    const idx = lines.findIndex(l => l.includes(anchor));
+    if (idx === -1) return [];
+    const out: any[] = [];
+    for (let j = idx + 1; j < Math.min(idx + 80, lines.length); j++) {
+      const line = lines[j];
+      // Stop at next section header
+      if (/הצג עוד/.test(line)) break;
+      const cells = line.split(/\t|  +/).map(c => c.trim()).filter(Boolean);
+      if (cells.length >= 4
+          && /^\d+$/.test(cells[0])
+          && /^[A-Za-zא-ת]/.test(cells[1])
+          && /^\d/.test(cells[2])) {
+        out.push({
+          rank: Number(cells[0]),
+          name: cells[1],
+          orders: Number(cells[2].replace(/[,\s]/g, '')) || 0,
+          total: parseIls(cells[3]),
+        });
+        if (out.length >= maxRows) break;
+      }
+    }
+    return out;
+  }
+  result.top_dishes = extractTopTable('המנות הנמכרות ביותר');
+  result.top_customers = extractTopTable('הלקוחות החוזרים ביותר');
+  result.top_companies = extractTopTable('החברות שמזמינות הכי הרבה');
+
+  return { ...result, raw_text: text };
+}
+
+export async function captureGomileyDashboard() {
+  const cookieHeader = await gomileyCookieHeader();
+  if (!cookieHeader.includes('PHPSESSID')) {
+    return { ok: false, reason: 'אין cookies — תגדיר ב-/AdminGomileyCookies' };
+  }
+  const url = `${GOMILEY_BASE}/system/pages/index/`;
+  try {
+    const r = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language': 'he-IL,he;q=0.9,en;q=0.8',
+        'Cookie': cookieHeader,
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36',
+      },
+    });
+    if (!r.ok) return { ok: false, reason: `http ${r.status}` };
+    const html = await r.text();
+    if (!/לוח בקרה|הכנסות|הזמנות/.test(html)) {
+      return { ok: false, reason: 'session expired — login page returned', preview: html.slice(0, 200) };
+    }
+    const parsed = parseGomileyDashboard(html);
+    const snap: any = await (db as any).gomileyDashboardSnapshot.create({
+      data: {
+        restaurant_id: '1968',
+        date_range_label: 'החודש הנוכחי',
+        total_income: parsed.total_income,
+        total_orders: parsed.total_orders,
+        new_customers: parsed.new_customers,
+        new_companies: parsed.new_companies,
+        onetime_percent: parsed.onetime_percent,
+        returning_count: parsed.returning_count,
+        onetime_count: parsed.onetime_count,
+        platforms: parsed.platforms,
+        top_dishes: parsed.top_dishes,
+        top_customers: parsed.top_customers,
+        top_companies: parsed.top_companies,
+        raw_text: parsed.raw_text?.slice(0, 20000) || null,
+      },
+    });
+    return {
+      ok: true,
+      snapshot_id: snap.id,
+      total_income: parsed.total_income,
+      total_orders: parsed.total_orders,
+      platforms_count: parsed.platforms.length,
+      top_dishes_count: parsed.top_dishes.length,
+      top_customers_count: parsed.top_customers.length,
+      top_companies_count: parsed.top_companies.length,
+    };
+  } catch (e: any) {
+    return { ok: false, reason: e?.message };
+  }
+}
+
+registerFn('captureGomileyDashboard', async ({ user }) => {
+  if (!user) throw new Error('auth required');
+  if ((user as any).role !== 'admin' && (user as any).role !== 'owner') {
+    throw new Error('admin only');
+  }
+  return captureGomileyDashboard();
+});
+
+registerFn('getLatestGomileyDashboard', async ({ user }) => {
+  if (!user) throw new Error('auth required');
+  const latest: any = await (db as any).gomileyDashboardSnapshot.findFirst({
+    orderBy: { captured_at: 'desc' },
+  });
+  if (!latest) return { snapshot: null };
+  // Strip raw_text from response — too heavy, kept in DB for debugging only
+  const { raw_text, ...rest } = latest;
+  return { snapshot: rest };
+});
+
+// Daily cron — 04:30 IL, 30 min after customers sync. Gomiley's dashboard
+// reflects yesterday's full activity by then.
+if (!(globalThis as any).__gomileyDashboardTimer) {
+  (globalThis as any).__gomileyDashboardTimer = setTimeout(function loop() {
+    void (async () => {
+      try {
+        const parts = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Jerusalem', hour: '2-digit', minute: '2-digit', hour12: false }).formatToParts(new Date());
+        const hour = parts.find(p => p.type === 'hour')?.value;
+        const minute = parts.find(p => p.type === 'minute')?.value;
+        const dateStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jerusalem' }).format(new Date());
+        const lastRun = (globalThis as any).__gomileyDashboardLastRun;
+        if (hour === '04' && Number(minute) >= 30 && lastRun !== dateStr) {
+          (globalThis as any).__gomileyDashboardLastRun = dateStr;
+          const r = await captureGomileyDashboard();
+          console.log('[gomiley dashboard cron]', JSON.stringify(r));
+        }
+      } catch (e: any) { console.warn('[gomiley dashboard cron] failed:', e?.message); }
+      (globalThis as any).__gomileyDashboardTimer = setTimeout(loop, 15 * 60 * 1000);
+    })();
+  }, 7 * 60 * 1000);
+}
 
 // Daily cron — 04:00 IL, after the kitchen is closed and Gomiley has all of
 // yesterday's orders attributed.
