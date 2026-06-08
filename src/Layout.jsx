@@ -371,8 +371,8 @@ const DesktopSidebar = ({ userName, isCurrentViewAdmin, isOriginalAdmin, navigat
   <div className="fixed top-0 bottom-0 right-0 w-80 bg-card border-l border-border z-40">
     <div className="border-b border-border p-6">
       <div className="flex items-center gap-4 mb-4">
-        <div className="w-14 h-14 bg-gradient-to-br from-primary to-accent rounded-xl flex items-center justify-center shadow-xl">
-          <Crown className="w-7 h-7 text-primary-foreground" />
+        <div className="w-14 h-14 bg-gradient-to-br from-[#A04A2E] to-[#B89556] rounded-xl flex items-center justify-center shadow-xl">
+          <Crown className="w-7 h-7 text-white" />
         </div>
         <div>
           <h2 className="font-black text-xl text-foreground">TOP ALENA</h2>
@@ -429,8 +429,8 @@ const DesktopSidebar = ({ userName, isCurrentViewAdmin, isOriginalAdmin, navigat
 
     <div className="absolute bottom-0 left-0 right-0 border-t border-border p-6 bg-card">
       <div className="flex items-center gap-4 px-4 py-4 rounded-xl border-2 bg-muted/30 mb-4">
-        <div className="w-14 h-14 bg-gradient-to-br from-primary to-accent rounded-full flex items-center justify-center flex-shrink-0 shadow-lg">
-          <span className="text-lg font-black text-primary-foreground">{userName.charAt(0).toUpperCase()}</span>
+        <div className="w-14 h-14 bg-gradient-to-br from-[#A04A2E] to-[#B89556] rounded-full flex items-center justify-center flex-shrink-0 shadow-lg">
+          <span className="text-lg font-black text-white">{userName.charAt(0).toUpperCase()}</span>
         </div>
         <div className="flex-1">
           <p className="text-base font-bold text-foreground">{userName}</p>
@@ -470,8 +470,8 @@ const MobileSidebar = ({ userName, isCurrentViewAdmin, isOriginalAdmin, navigati
   <Sidebar className="bg-card z-50">
     <SidebarHeader className="border-b border-border p-3">
       <div className="flex items-center gap-2 mb-2">
-        <div className="w-8 h-8 bg-gradient-to-br from-primary to-accent rounded-lg flex items-center justify-center shadow-lg">
-          <Crown className="w-4 h-4 text-primary-foreground" />
+        <div className="w-8 h-8 bg-gradient-to-br from-[#A04A2E] to-[#B89556] rounded-lg flex items-center justify-center shadow-lg">
+          <Crown className="w-4 h-4 text-white" />
         </div>
         <div className="min-w-0">
           <h2 className="font-bold text-base text-foreground truncate">TOP ALENA</h2>
@@ -583,8 +583,8 @@ const MobileHeader = ({ isCurrentViewAdmin }) => (
         <h1 className="text-base font-bold text-foreground truncate">TOP ALENA</h1>
         <p className="text-xs text-muted-foreground truncate">{isCurrentViewAdmin ? 'ניהול' : 'אזור אישי'}</p>
       </div>
-      <div className="w-9 h-9 bg-gradient-to-br from-primary to-accent rounded-lg flex items-center justify-center shadow-md flex-shrink-0">
-        <Crown className="w-5 h-5 text-primary-foreground" />
+      <div className="w-9 h-9 bg-gradient-to-br from-[#A04A2E] to-[#B89556] rounded-lg flex items-center justify-center shadow-md flex-shrink-0">
+        <Crown className="w-5 h-5 text-white" />
       </div>
     </div>
   </header>

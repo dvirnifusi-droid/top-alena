@@ -107,7 +107,7 @@ export default function BeecommLiveWidget() {
         : null;
 
     return (
-        <Card className="mb-4 bg-gradient-to-br from-amber-50 to-yellow-50 border-2 border-amber-300" dir="rtl">
+        <Card className="mb-4 bg-gradient-to-br from-[#FAF5E8] to-[#F4ECD8] border-2 border-[#D9BD83]" dir="rtl">
             <CardContent className="p-4">
                 <div className="flex items-center justify-between mb-3">
                     <div>
@@ -124,7 +124,7 @@ export default function BeecommLiveWidget() {
 
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
                     <div className="bg-white rounded-lg p-3 text-center shadow-sm">
-                        <div className="text-2xl font-bold text-amber-700">{fmtIls(snap.total_today)}</div>
+                        <div className="text-2xl font-bold text-[#A04A2E]">{fmtIls(snap.total_today)}</div>
                         <div className="text-xs text-gray-500 mt-1">סה״כ היום</div>
                         {delta !== null && (
                             <div className={`text-[10px] mt-1 ${delta >= 0 ? 'text-green-600' : 'text-red-600'}`}>
@@ -133,7 +133,7 @@ export default function BeecommLiveWidget() {
                         )}
                     </div>
                     <div className="bg-white rounded-lg p-3 text-center shadow-sm">
-                        <div className="text-2xl font-bold text-blue-700">{fmtIls(snap.total_tips)}</div>
+                        <div className="text-2xl font-bold text-[#44512C]">{fmtIls(snap.total_tips)}</div>
                         <div className="text-xs text-gray-500 mt-1">טיפים</div>
                     </div>
                     <div className="bg-white rounded-lg p-3 text-center shadow-sm">
@@ -141,13 +141,13 @@ export default function BeecommLiveWidget() {
                         <div className="text-xs text-gray-500 mt-1">כסף פתוח</div>
                     </div>
                     <div className="bg-white rounded-lg p-3 text-center shadow-sm">
-                        <div className="text-2xl font-bold text-purple-700">{fmtIls(snap.predicted_month)}</div>
+                        <div className="text-2xl font-bold text-[#A04A2E]">{fmtIls(snap.predicted_month)}</div>
                         <div className="text-xs text-gray-500 mt-1">סה״כ חודשי</div>
                     </div>
                 </div>
 
                 {showingFallback && (
-                    <div className="bg-amber-100 border border-amber-300 rounded-lg p-2 mb-3 text-xs text-amber-900">
+                    <div className="bg-[#F4ECD8] border border-[#D9BD83] rounded-lg p-2 mb-3 text-xs text-[#7A3722]">
                         ℹ️ אין עדיין מכירות היום (Z חדש נפתח). מציג פירוט מ-{fallbackDate}
                     </div>
                 )}
@@ -302,7 +302,7 @@ function HarigotSection({ harigot }) {
                 {rows.map((r, i) => (
                     <div key={i} className="flex justify-between bg-amber-50 px-2 py-1 rounded">
                         <span>{r.label}</span>
-                        <span className="text-amber-900 font-bold">{Number(r.d.count) || 0}{Number(r.d.sum) ? ` · ${fmtIls(r.d.sum)}` : ''}</span>
+                        <span className="text-[#7A3722] font-bold">{Number(r.d.count) || 0}{Number(r.d.sum) ? ` · ${fmtIls(r.d.sum)}` : ''}</span>
                     </div>
                 ))}
             </div>
