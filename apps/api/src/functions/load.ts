@@ -11635,9 +11635,20 @@ registerFn('getLatestBeecommSnapshot', async ({ user }) => {
     where: { captured_at: { gte: yWindow, lte: yWindow2 } },
     orderBy: { captured_at: 'desc' },
   });
+  // If today has no sales yet (e.g. fresh Z opened, restaurant just opened),
+  // also return the most recent snapshot that had real data so the widget can
+  // still show waiters/dishes/payments breakdown instead of empty zeroes.
+  let lastWithData: any = null;
+  if ((Number(latest.total_today) || 0) === 0) {
+    lastWithData = await (db as any).beecommSnapshot.findFirst({
+      where: { total_today: { gt: 0 } },
+      orderBy: { captured_at: 'desc' },
+    });
+  }
   return {
     snapshot: serializeBigInts(latest),
     yesterday: ySnap ? serializeBigInts(ySnap) : null,
+    last_with_data: lastWithData ? serializeBigInts(lastWithData) : null,
   };
 });
 

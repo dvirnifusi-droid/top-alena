@@ -29,6 +29,7 @@ function fmtAgo(ts) {
 export default function BeecommLiveWidget() {
     const [snap, setSnap] = useState(null);
     const [yesterday, setYesterday] = useState(null);
+    const [lastWithData, setLastWithData] = useState(null);
     const [refreshing, setRefreshing] = useState(false);
     const [error, setError] = useState(null);
 
@@ -39,6 +40,7 @@ export default function BeecommLiveWidget() {
             const r = res?.data ?? res;
             setSnap(r?.snapshot || null);
             setYesterday(r?.yesterday || null);
+            setLastWithData(r?.last_with_data || null);
             setError(null);
         } catch (e) { setError(e?.message); }
     };
@@ -83,14 +85,26 @@ export default function BeecommLiveWidget() {
         );
     }
 
-    const workers = Array.isArray(snap.workers) ? snap.workers : [];
-    const topDishes = Array.isArray(snap.top_dishes) ? snap.top_dishes : [];
-    const stations = Array.isArray(snap.stations) ? snap.stations : [];
-    const ordersByHour = snap.orders_by_hour || {};
+    // When today is fresh (no sales yet, e.g. Z just opened), fall back to the
+    // most recent snapshot that has real data — so the owner still sees the
+    // waiters/dishes/payments breakdown from the last real session.
+    const todayEmpty = (Number(snap.total_today) || 0) === 0
+        && (!Array.isArray(snap.workers) || snap.workers.length === 0);
+    const breakdownSrc = (todayEmpty && lastWithData) ? lastWithData : snap;
+    const showingFallback = todayEmpty && !!lastWithData;
+
+    const workers = Array.isArray(breakdownSrc.workers) ? breakdownSrc.workers : [];
+    const topDishes = Array.isArray(breakdownSrc.top_dishes) ? breakdownSrc.top_dishes : [];
+    const stations = Array.isArray(breakdownSrc.stations) ? breakdownSrc.stations : [];
+    const ordersByHour = breakdownSrc.orders_by_hour || {};
     const hourKeys = Object.keys(ordersByHour).sort((a, b) => Number(a) - Number(b));
     const maxHourTotal = hourKeys.reduce((m, k) => Math.max(m, Number(ordersByHour[k]?.totalSum) || 0), 1);
 
     const delta = yesterday ? snap.total_today - yesterday.total_today : null;
+
+    const fallbackDate = showingFallback
+        ? new Date(breakdownSrc.captured_at).toLocaleDateString('he-IL', { day: '2-digit', month: '2-digit', timeZone: 'Asia/Jerusalem' })
+        : null;
 
     return (
         <Card className="mb-4 bg-gradient-to-br from-amber-50 to-yellow-50 border-2 border-amber-300" dir="rtl">
@@ -131,6 +145,12 @@ export default function BeecommLiveWidget() {
                         <div className="text-xs text-gray-500 mt-1">סה״כ חודשי</div>
                     </div>
                 </div>
+
+                {showingFallback && (
+                    <div className="bg-amber-100 border border-amber-300 rounded-lg p-2 mb-3 text-xs text-amber-900">
+                        ℹ️ אין עדיין מכירות היום (Z חדש נפתח). מציג פירוט מ-{fallbackDate}
+                    </div>
+                )}
 
                 {workers.length > 0 && (
                     <div className="bg-white rounded-lg p-3 mb-3 shadow-sm">
@@ -195,9 +215,9 @@ export default function BeecommLiveWidget() {
                     </div>
                 )}
 
-                <PaymentsSection payments={snap.payments} raw={snap.raw} />
-                <ChannelsSection dineIn={snap.dine_in} takeaway={snap.takeaway} delivery={snap.delivery} />
-                <HarigotSection harigot={snap.harigot} />
+                <PaymentsSection payments={breakdownSrc.payments} raw={breakdownSrc.raw} />
+                <ChannelsSection dineIn={breakdownSrc.dine_in} takeaway={breakdownSrc.takeaway} delivery={breakdownSrc.delivery} />
+                <HarigotSection harigot={breakdownSrc.harigot} />
             </CardContent>
         </Card>
     );
