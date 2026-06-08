@@ -12191,14 +12191,20 @@ type GomileyCustomerRow = {
 
 function parseGomileyCustomerRow(row: string[]): GomileyCustomerRow | null {
   if (!Array.isArray(row) || row.length < 4) return null;
-  // We don't yet know the exact column order. Use defensive scanning across
-  // all cells: pick the longest phone-like string, longest-looking name,
-  // first email, first address-like text.
+  // Phone: Gomiley renders as "052-619-6523" — dashes break a digit regex.
+  // Strip non-digits per cell and check for 9-10 digit Israeli pattern.
+  let phone = '';
+  for (const cell of row) {
+    const digitsOnly = String(stripHtml(cell)).replace(/\D/g, '');
+    if (!digitsOnly) continue;
+    const normalized = digitsOnly.replace(/^972/, '0');
+    if (/^0[2-9]\d{7,8}$/.test(normalized)) {
+      phone = normalized;
+      break;
+    }
+  }
+  // Email: standard regex across the joined row
   const joined = row.join(' ');
-  // Phone: 9-10 digit Israeli number after digit-only normalization
-  const phoneMatch = joined.match(/\b0[2-9]\d{7,8}\b/) || joined.match(/\b972\d{8,9}\b/);
-  const phone = phoneMatch ? normPhone(phoneMatch[0]) : '';
-  // Email: standard regex
   const emailMatch = joined.match(/[\w.+-]+@[\w.-]+\.\w{2,}/);
   const email = emailMatch ? emailMatch[0] : '';
   // Name: first cell that contains Hebrew/English letters and isn't a date/phone
