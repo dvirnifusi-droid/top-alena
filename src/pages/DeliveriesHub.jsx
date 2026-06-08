@@ -27,14 +27,16 @@ export default function DeliveriesHub() {
                 משלוחים
             </h1>
             <Tabs value={tab} onValueChange={onChange}>
-                <TabsList className="grid grid-cols-2 md:grid-cols-4 mb-4 max-w-3xl h-auto">
-                    {TABS.map(t => (
-                        <TabsTrigger key={t.id} value={t.id} className="text-xs sm:text-sm py-2">
-                            <t.icon className="w-3.5 h-3.5 ml-1" />
-                            {t.label}
-                        </TabsTrigger>
-                    ))}
-                </TabsList>
+                <div className="sticky top-0 z-10 bg-white -mx-4 px-4 pb-2 mb-3 border-b">
+                    <TabsList className="flex w-full overflow-x-auto h-auto p-1 gap-1 justify-start md:grid md:grid-cols-4 md:max-w-3xl">
+                        {TABS.map(t => (
+                            <TabsTrigger key={t.id} value={t.id} className="text-sm py-2.5 px-3 whitespace-nowrap flex-shrink-0">
+                                <t.icon className="w-4 h-4 ml-1.5" />
+                                {t.label}
+                            </TabsTrigger>
+                        ))}
+                    </TabsList>
+                </div>
                 {TABS.map(t => (
                     <TabsContent key={t.id} value={t.id} className="mt-0">
                         <t.C />

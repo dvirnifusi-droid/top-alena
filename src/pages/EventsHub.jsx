@@ -39,24 +39,26 @@ export default function EventsHub() {
             </div>
 
             <Tabs value={tab} onValueChange={onTabChange}>
-                <TabsList className="grid w-full grid-cols-4 max-w-2xl mb-4">
-                    <TabsTrigger value="leads" className="text-xs sm:text-sm">
-                        <CalendarHeart className="w-4 h-4 ml-1" />
-                        לידים ופניות
-                    </TabsTrigger>
-                    <TabsTrigger value="kit" className="text-xs sm:text-sm">
-                        <Utensils className="w-4 h-4 ml-1" />
-                        Sales Kit
-                    </TabsTrigger>
-                    <TabsTrigger value="contracts" className="text-xs sm:text-sm">
-                        <FileText className="w-4 h-4 ml-1" />
-                        חוזים
-                    </TabsTrigger>
-                    <TabsTrigger value="waiter" className="text-xs sm:text-sm">
-                        <Wine className="w-4 h-4 ml-1" />
-                        ראש מלצרים
-                    </TabsTrigger>
-                </TabsList>
+                <div className="sticky top-0 z-10 bg-white -mx-4 px-4 pb-2 mb-3 border-b">
+                    <TabsList className="flex w-full overflow-x-auto h-auto p-1 gap-1 justify-start md:grid md:grid-cols-4 md:max-w-2xl">
+                        <TabsTrigger value="leads" className="text-sm py-2.5 px-3 whitespace-nowrap flex-shrink-0">
+                            <CalendarHeart className="w-4 h-4 ml-1.5" />
+                            לידים ופניות
+                        </TabsTrigger>
+                        <TabsTrigger value="kit" className="text-sm py-2.5 px-3 whitespace-nowrap flex-shrink-0">
+                            <Utensils className="w-4 h-4 ml-1.5" />
+                            Sales Kit
+                        </TabsTrigger>
+                        <TabsTrigger value="contracts" className="text-sm py-2.5 px-3 whitespace-nowrap flex-shrink-0">
+                            <FileText className="w-4 h-4 ml-1.5" />
+                            חוזים
+                        </TabsTrigger>
+                        <TabsTrigger value="waiter" className="text-sm py-2.5 px-3 whitespace-nowrap flex-shrink-0">
+                            <Wine className="w-4 h-4 ml-1.5" />
+                            ראש מלצרים
+                        </TabsTrigger>
+                    </TabsList>
+                </div>
 
                 <TabsContent value="leads" className="mt-0">
                     <EventsPrivate />
