@@ -2432,6 +2432,28 @@ model EventBooking {
   updated_date        String?
 }
 
+// WhatsApp message log — every inbound (from Twilio webhook) and outbound
+// (sent via the AdminWhatsAppInbox UI or other code paths). One row per
+// message. Grouped by contact_phone for conversation view.
+model WhatsAppMessage {
+  id            String   @id @default(cuid())
+  twilio_sid    String?  @unique
+  direction     String   // 'inbound' | 'outbound'
+  from_phone    String   // E.164 (e.g. +972532181900) or whatsapp: prefix
+  to_phone      String
+  contact_phone String   // normalized E.164 of the customer side (for grouping)
+  body          String?  @db.Text
+  num_media     Int?     @default(0)
+  status        String?  // 'sent', 'delivered', 'read', 'failed', 'received'
+  error_code    String?
+  is_read       Boolean  @default(false)  // owner has seen it (UI flag)
+  raw           Json?    // full webhook payload for debugging
+  created_at    DateTime @default(now())
+
+  @@index([contact_phone, created_at])
+  @@index([direction, is_read])
+}
+
 model EventSalesKit {
   id                   String   @id @default(cuid())
   singleton            Boolean

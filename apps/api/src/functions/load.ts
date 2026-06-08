@@ -2106,6 +2106,139 @@ registerFn('sendWhatsApp', async ({ body }) => {
   return sendWhatsApp(String(to), String(message));
 });
 
+// ============================================================================
+// WhatsApp Inbox — list conversations + per-contact messages + send reply.
+// Powered by the WhatsAppMessage table populated by /api/twilio webhook.
+// ============================================================================
+
+// List of conversations (one per contact_phone) with last message + unread count
+registerFn('getWhatsAppConversations', async ({ user }) => {
+  if (!user) throw new Error('auth required');
+  if ((user as any).role !== 'admin' && (user as any).role !== 'owner') {
+    throw new Error('admin only');
+  }
+  // Get all messages, grouped by contact_phone client-side (easier than complex Prisma group)
+  const all: any[] = await (db as any).whatsAppMessage.findMany({
+    orderBy: { created_at: 'desc' },
+    take: 1000,
+  });
+  const byContact = new Map<string, any>();
+  for (const m of all) {
+    const key = m.contact_phone;
+    if (!byContact.has(key)) {
+      byContact.set(key, {
+        contact_phone: key,
+        last_message: m,
+        unread_count: 0,
+        total_count: 0,
+      });
+    }
+    const conv = byContact.get(key);
+    conv.total_count += 1;
+    if (m.direction === 'inbound' && !m.is_read) conv.unread_count += 1;
+  }
+  // Try to enrich with name from DeliveryCustomer or Reservation
+  const phones = [...byContact.keys()];
+  const norm = (s: string) => String(s || '').replace(/\D/g, '').replace(/^972/, '0');
+  const customers: any[] = await (db as any).deliveryCustomer.findMany({
+    where: { customer_phone: { in: phones.map(norm) } },
+    select: { customer_phone: true, customer_name: true },
+  }).catch(() => []);
+  const nameByPhone = new Map<string, string>();
+  for (const c of customers) {
+    if (c.customer_phone && c.customer_name) nameByPhone.set(c.customer_phone, c.customer_name);
+  }
+  return {
+    conversations: [...byContact.values()].map(c => ({
+      ...c,
+      contact_name: nameByPhone.get(norm(c.contact_phone)) || null,
+    })).sort((a, b) => new Date(b.last_message.created_at).getTime() - new Date(a.last_message.created_at).getTime()),
+  };
+});
+
+// Get all messages for a specific contact (paginated by `before` for older)
+registerFn('getWhatsAppMessages', async ({ body, user }) => {
+  if (!user) throw new Error('auth required');
+  if ((user as any).role !== 'admin' && (user as any).role !== 'owner') {
+    throw new Error('admin only');
+  }
+  const b = (body as any) || {};
+  const phone = String(b.contact_phone || '');
+  if (!phone) throw new Error('contact_phone required');
+  // Match both with and without whatsapp: prefix variants
+  const stripped = phone.replace(/^whatsapp:/i, '');
+  const messages: any[] = await (db as any).whatsAppMessage.findMany({
+    where: {
+      OR: [
+        { contact_phone: stripped },
+        { contact_phone: `whatsapp:${stripped}` },
+      ],
+    },
+    orderBy: { created_at: 'asc' },
+    take: 200,
+  });
+  return { messages };
+});
+
+// Mark conversation as read (all inbound messages from this contact)
+registerFn('markWhatsAppConversationRead', async ({ body, user }) => {
+  if (!user) throw new Error('auth required');
+  if ((user as any).role !== 'admin' && (user as any).role !== 'owner') {
+    throw new Error('admin only');
+  }
+  const b = (body as any) || {};
+  const phone = String(b.contact_phone || '');
+  if (!phone) throw new Error('contact_phone required');
+  const stripped = phone.replace(/^whatsapp:/i, '');
+  const r = await (db as any).whatsAppMessage.updateMany({
+    where: {
+      direction: 'inbound',
+      is_read: false,
+      OR: [
+        { contact_phone: stripped },
+        { contact_phone: `whatsapp:${stripped}` },
+      ],
+    },
+    data: { is_read: true },
+  });
+  return { ok: true, updated: r.count };
+});
+
+// Send WhatsApp reply — uses the lib (normalizes + uses template if needed)
+// and persists the outbound message so it shows up in the inbox.
+registerFn('sendWhatsAppReply', async ({ body, user }) => {
+  if (!user) throw new Error('auth required');
+  if ((user as any).role !== 'admin' && (user as any).role !== 'owner') {
+    throw new Error('admin only');
+  }
+  const b = (body as any) || {};
+  const contactPhone = String(b.contact_phone || '');
+  const message = String(b.message || '').trim();
+  if (!contactPhone || !message) throw new Error('contact_phone and message required');
+
+  const result = await sendWhatsApp(contactPhone, message);
+  const sid = (result as any)?.sid || null;
+  const stripped = contactPhone.replace(/^whatsapp:/i, '');
+  const fromEnv = process.env.TWILIO_WHATSAPP_FROM ?? `whatsapp:${process.env.TWILIO_PHONE_NUMBER || ''}`;
+  const fromPhone = fromEnv.replace(/^whatsapp:/i, '');
+
+  // Persist outbound row for UI
+  await (db as any).whatsAppMessage.create({
+    data: {
+      twilio_sid: sid,
+      direction: 'outbound',
+      from_phone: fromPhone,
+      to_phone: stripped,
+      contact_phone: stripped,
+      body: message,
+      status: (result as any)?.success ? 'sent' : 'failed',
+      is_read: true,  // outbound is always "read" by owner
+    },
+  }).catch(() => { /* best effort */ });
+
+  return { ok: true, sid, result };
+});
+
 registerFn('sendCustomerEmail', async ({ body }) => {
   const { to, subject, body: text, html } = body as any;
   return sendEmail({ to, subject, text, html });
@@ -9763,6 +9896,28 @@ if (!(globalThis as any).__startupDriftRepair) {
       console.log('[startup] GomileyDashboardSnapshot table + index ensured');
     } catch (e: any) {
       console.error('[startup] ensure GomileyDashboardSnapshot failed:', e?.message);
+    }
+    try {
+      await prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "WhatsAppMessage" (
+        "id" TEXT PRIMARY KEY,
+        "twilio_sid" TEXT UNIQUE,
+        "direction" TEXT NOT NULL,
+        "from_phone" TEXT NOT NULL,
+        "to_phone" TEXT NOT NULL,
+        "contact_phone" TEXT NOT NULL,
+        "body" TEXT,
+        "num_media" INTEGER DEFAULT 0,
+        "status" TEXT,
+        "error_code" TEXT,
+        "is_read" BOOLEAN DEFAULT FALSE,
+        "raw" JSONB,
+        "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );`);
+      await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "WhatsAppMessage_contact_created_idx" ON "WhatsAppMessage" ("contact_phone", "created_at");`);
+      await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "WhatsAppMessage_direction_is_read_idx" ON "WhatsAppMessage" ("direction", "is_read");`);
+      console.log('[startup] WhatsAppMessage table + indexes ensured');
+    } catch (e: any) {
+      console.error('[startup] ensure WhatsAppMessage failed:', e?.message);
     }
     try {
       await prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "BeecommHistoricalDay" (

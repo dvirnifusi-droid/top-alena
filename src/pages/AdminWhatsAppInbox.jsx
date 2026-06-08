@@ -1,0 +1,296 @@
+// WhatsApp Inbox — list conversations + thread view + reply input.
+// Polls every 8s for new messages. Layout: left rail = conversations,
+// right pane = active thread. Mobile = single pane that toggles.
+import React, { useEffect, useState, useRef } from 'react';
+import { base44 } from '@/api/base44Client';
+import { Card } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Loader2, Send, ArrowRight, MessageCircle, RefreshCw } from 'lucide-react';
+
+function fmtTime(ts) {
+    if (!ts) return '';
+    const d = new Date(ts);
+    const now = new Date();
+    const isToday = d.toDateString() === now.toDateString();
+    if (isToday) return d.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
+    return d.toLocaleDateString('he-IL', { day: '2-digit', month: '2-digit' }) + ' ' + d.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
+}
+
+function fmtPhone(p) {
+    if (!p) return '';
+    const s = String(p).replace(/^whatsapp:/, '');
+    // +972532181900 → 053-218-1900
+    if (/^\+972/.test(s)) {
+        const rest = '0' + s.slice(4);
+        return rest.replace(/^(\d{3})(\d{3})(\d{4})$/, '$1-$2-$3');
+    }
+    if (/^972/.test(s)) {
+        const rest = '0' + s.slice(3);
+        return rest.replace(/^(\d{3})(\d{3})(\d{4})$/, '$1-$2-$3');
+    }
+    return s;
+}
+
+function ConversationList({ conversations, activeContact, onSelect, loading }) {
+    return (
+        <div className="border-l border-gray-200 bg-white overflow-y-auto" style={{ width: '320px', maxHeight: 'calc(100vh - 120px)' }}>
+            <div className="p-3 border-b bg-gray-50">
+                <h2 className="font-bold text-sm flex items-center gap-2">
+                    <MessageCircle className="w-4 h-4 text-emerald-600" />
+                    שיחות ({conversations.length})
+                </h2>
+            </div>
+            {loading && conversations.length === 0 ? (
+                <div className="p-8 text-center text-gray-400">
+                    <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" />
+                    טוען...
+                </div>
+            ) : conversations.length === 0 ? (
+                <div className="p-8 text-center text-gray-400 text-sm">
+                    אין שיחות עדיין. הודעות נכנסות יופיעו כאן.
+                </div>
+            ) : (
+                <div className="divide-y divide-gray-100">
+                    {conversations.map(c => {
+                        const isActive = c.contact_phone === activeContact;
+                        const last = c.last_message;
+                        return (
+                            <button
+                                key={c.contact_phone}
+                                onClick={() => onSelect(c.contact_phone)}
+                                className={`w-full text-right p-3 hover:bg-gray-50 transition-colors ${isActive ? 'bg-emerald-50 border-r-4 border-emerald-500' : ''}`}
+                            >
+                                <div className="flex justify-between items-start mb-1">
+                                    <div className="flex-1 min-w-0">
+                                        <div className="font-bold text-sm truncate">
+                                            {c.contact_name || fmtPhone(c.contact_phone)}
+                                        </div>
+                                        <div className="text-xs text-gray-500">{fmtPhone(c.contact_phone)}</div>
+                                    </div>
+                                    {c.unread_count > 0 && (
+                                        <span className="bg-emerald-600 text-white text-xs font-bold rounded-full px-2 py-0.5 ml-2">
+                                            {c.unread_count}
+                                        </span>
+                                    )}
+                                </div>
+                                <div className="text-xs text-gray-600 truncate mt-1">
+                                    {last.direction === 'outbound' && <span className="text-blue-600">↳ </span>}
+                                    {last.body || (last.num_media > 0 ? '📎 קובץ מצורף' : '—')}
+                                </div>
+                                <div className="text-[10px] text-gray-400 mt-1">{fmtTime(last.created_at)}</div>
+                            </button>
+                        );
+                    })}
+                </div>
+            )}
+        </div>
+    );
+}
+
+function MessageThread({ messages, sending, error, onSend, onMarkRead, contactPhone, contactName }) {
+    const [text, setText] = useState('');
+    const scrollRef = useRef(null);
+
+    useEffect(() => {
+        if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }, [messages]);
+
+    useEffect(() => {
+        if (contactPhone) onMarkRead?.();
+    }, [contactPhone]);
+
+    const submit = async () => {
+        if (!text.trim()) return;
+        const t = text.trim();
+        setText('');
+        await onSend(t);
+    };
+
+    if (!contactPhone) {
+        return (
+            <div className="flex-1 flex items-center justify-center bg-gray-50 text-gray-400">
+                <div className="text-center">
+                    <MessageCircle className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+                    <p>בחר שיחה מהרשימה</p>
+                </div>
+            </div>
+        );
+    }
+
+    return (
+        <div className="flex-1 flex flex-col bg-gray-50" style={{ maxHeight: 'calc(100vh - 120px)' }}>
+            {/* Header */}
+            <div className="bg-white border-b p-3">
+                <div className="font-bold">{contactName || fmtPhone(contactPhone)}</div>
+                <div className="text-xs text-gray-500">{fmtPhone(contactPhone)}</div>
+            </div>
+
+            {/* Messages */}
+            <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-2">
+                {messages.length === 0 && <div className="text-center text-gray-400 text-sm py-8">אין הודעות עדיין</div>}
+                {messages.map(m => {
+                    const isMe = m.direction === 'outbound';
+                    return (
+                        <div key={m.id} className={`flex ${isMe ? 'justify-start' : 'justify-end'}`}>
+                            <div className={`max-w-md rounded-2xl px-3 py-2 shadow-sm ${isMe
+                                ? 'bg-emerald-100 border border-emerald-200'
+                                : 'bg-white border border-gray-200'}`}>
+                                <div className="text-sm whitespace-pre-wrap break-words">{m.body || (m.num_media > 0 ? '📎 קובץ מצורף' : '')}</div>
+                                <div className={`text-[10px] mt-1 ${isMe ? 'text-emerald-700' : 'text-gray-400'} flex items-center justify-end gap-1`}>
+                                    {fmtTime(m.created_at)}
+                                    {isMe && m.status && <span className="opacity-70">· {m.status}</span>}
+                                </div>
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
+
+            {/* Reply input */}
+            <div className="bg-white border-t p-3">
+                {error && <p className="text-xs text-red-700 mb-2">❌ {error}</p>}
+                <div className="flex gap-2">
+                    <Input
+                        value={text}
+                        onChange={e => setText(e.target.value)}
+                        onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit(); } }}
+                        placeholder="כתוב הודעה..."
+                        disabled={sending}
+                        className="flex-1"
+                    />
+                    <Button onClick={submit} disabled={sending || !text.trim()} className="bg-emerald-600 hover:bg-emerald-700">
+                        {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                    </Button>
+                </div>
+                <p className="text-[10px] text-gray-400 mt-1">Enter לשליחה · Shift+Enter לשורה חדשה</p>
+            </div>
+        </div>
+    );
+}
+
+export default function AdminWhatsAppInbox() {
+    const [conversations, setConversations] = useState([]);
+    const [activeContact, setActiveContact] = useState(null);
+    const [activeContactName, setActiveContactName] = useState(null);
+    const [messages, setMessages] = useState([]);
+    const [loadingList, setLoadingList] = useState(true);
+    const [sending, setSending] = useState(false);
+    const [sendError, setSendError] = useState(null);
+
+    const loadConversations = async () => {
+        try {
+            const res = await base44.functions.getWhatsAppConversations({});
+            const r = res?.data ?? res;
+            setConversations(r?.conversations || []);
+        } catch (e) {
+            // silent — keep showing existing data
+        } finally {
+            setLoadingList(false);
+        }
+    };
+
+    const loadMessages = async (phone) => {
+        if (!phone) { setMessages([]); return; }
+        try {
+            const res = await base44.functions.getWhatsAppMessages({ contact_phone: phone });
+            const r = res?.data ?? res;
+            setMessages(r?.messages || []);
+        } catch (e) { /* silent */ }
+    };
+
+    const markRead = async () => {
+        if (!activeContact) return;
+        try {
+            await base44.functions.markWhatsAppConversationRead({ contact_phone: activeContact });
+            loadConversations();  // refresh unread badges
+        } catch (e) { /* silent */ }
+    };
+
+    const send = async (text) => {
+        if (!activeContact) return;
+        setSending(true); setSendError(null);
+        try {
+            const res = await base44.functions.sendWhatsAppReply({ contact_phone: activeContact, message: text });
+            const r = res?.data ?? res;
+            if (!r?.ok) throw new Error(r?.result?.reason || r?.message || 'failed');
+            // Optimistic: add the message immediately
+            setMessages(prev => [...prev, {
+                id: 'temp-' + Date.now(),
+                direction: 'outbound',
+                body: text,
+                created_at: new Date().toISOString(),
+                status: 'sent',
+            }]);
+            // Refresh after a moment to get the real row
+            setTimeout(() => { loadMessages(activeContact); loadConversations(); }, 1200);
+        } catch (e) { setSendError(e?.message || String(e)); }
+        finally { setSending(false); }
+    };
+
+    useEffect(() => {
+        loadConversations();
+        const i = setInterval(() => {
+            loadConversations();
+            if (activeContact) loadMessages(activeContact);
+        }, 8_000);
+        return () => clearInterval(i);
+    }, [activeContact]);
+
+    useEffect(() => {
+        if (activeContact) {
+            loadMessages(activeContact);
+            const conv = conversations.find(c => c.contact_phone === activeContact);
+            setActiveContactName(conv?.contact_name || null);
+        }
+    }, [activeContact]);
+
+    return (
+        <div className="p-4" dir="rtl">
+            <div className="flex items-center justify-between mb-3">
+                <h1 className="text-2xl font-bold flex items-center gap-2">
+                    💬 WhatsApp Inbox
+                </h1>
+                <Button variant="outline" size="sm" onClick={loadConversations}>
+                    <RefreshCw className={`w-3 h-3 ml-1 ${loadingList ? 'animate-spin' : ''}`} />
+                    רענן
+                </Button>
+            </div>
+            <p className="text-sm text-gray-600 mb-4">
+                הודעות נכנסות מ-WhatsApp מופיעות כאן בזמן אמת (אחרי שתגדיר webhook ב-Twilio).
+                לחץ על שיחה כדי לראות את ההיסטוריה ולהגיב.
+            </p>
+
+            <Card className="overflow-hidden flex" style={{ minHeight: '600px' }}>
+                <ConversationList
+                    conversations={conversations}
+                    activeContact={activeContact}
+                    onSelect={setActiveContact}
+                    loading={loadingList}
+                />
+                <MessageThread
+                    messages={messages}
+                    sending={sending}
+                    error={sendError}
+                    onSend={send}
+                    onMarkRead={markRead}
+                    contactPhone={activeContact}
+                    contactName={activeContactName}
+                />
+            </Card>
+
+            <Card className="mt-4 bg-amber-50 border-amber-200 p-3">
+                <h3 className="text-sm font-bold text-amber-900 mb-1">📡 הגדרת Webhook ב-Twilio</h3>
+                <p className="text-xs text-amber-800 mb-2">
+                    כדי לקבל הודעות נכנסות, צריך להגדיר את ה-URL הזה ב-Twilio Console (פעם אחת):
+                </p>
+                <div className="bg-white border rounded p-2 font-mono text-xs select-all">
+                    https://topalena.com/api/twilio/whatsapp-inbox
+                </div>
+                <p className="text-xs text-amber-800 mt-2">
+                    <b>איך:</b> Twilio Console → Messaging → Senders → WhatsApp Senders → +1 681-293-1920 → Inbound Settings → "When a message comes in" → <b>Webhook</b> → הדבק את ה-URL → Method = POST → Save.
+                </p>
+            </Card>
+        </div>
+    );
+}

@@ -134,6 +134,7 @@ import AdminGomileyCookies from './pages/AdminGomileyCookies';
 import KitchenScreen from './pages/KitchenScreen';
 import AdminAmbient from './pages/AdminAmbient';
 import AdminWhatsApp from './pages/AdminWhatsApp';
+import AdminWhatsAppInbox from './pages/AdminWhatsAppInbox';
 import __Layout from './Layout.jsx';
 
 
@@ -225,6 +226,7 @@ export const PAGES = {
     "KitchenScreen": KitchenScreen,
     "AdminAmbient": AdminAmbient,
     "AdminWhatsApp": AdminWhatsApp,
+    "AdminWhatsAppInbox": AdminWhatsAppInbox,
 }
 
 export const pagesConfig = {
