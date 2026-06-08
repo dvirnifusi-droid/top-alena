@@ -106,11 +106,11 @@ export default function EventsSalesKit() {
       </div>
 
       <Tabs defaultValue="menus" className="w-full">
-        <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="menus"><Utensils className="w-4 h-4 ml-1" /> תפריטים</TabsTrigger>
-          <TabsTrigger value="upsells"><Sparkles className="w-4 h-4 ml-1" /> אפסיילים</TabsTrigger>
-          <TabsTrigger value="settings"><Settings className="w-4 h-4 ml-1" /> תנאים</TabsTrigger>
-          <TabsTrigger value="prompt"><MessageSquareCode className="w-4 h-4 ml-1" /> פרומפט</TabsTrigger>
+        <TabsList className="flex w-full overflow-x-auto h-auto p-1 gap-1 md:grid md:grid-cols-4">
+          <TabsTrigger value="menus" className="px-3 py-2 whitespace-nowrap flex-shrink-0"><Utensils className="w-4 h-4 ml-1" /> תפריטים</TabsTrigger>
+          <TabsTrigger value="upsells" className="px-3 py-2 whitespace-nowrap flex-shrink-0"><Sparkles className="w-4 h-4 ml-1" /> אפסיילים</TabsTrigger>
+          <TabsTrigger value="settings" className="px-3 py-2 whitespace-nowrap flex-shrink-0"><Settings className="w-4 h-4 ml-1" /> תנאים</TabsTrigger>
+          <TabsTrigger value="prompt" className="px-3 py-2 whitespace-nowrap flex-shrink-0"><MessageSquareCode className="w-4 h-4 ml-1" /> פרומפט</TabsTrigger>
         </TabsList>
 
         <TabsContent value="menus" className="space-y-3">

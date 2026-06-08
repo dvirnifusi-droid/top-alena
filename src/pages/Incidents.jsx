@@ -571,13 +571,13 @@ function IncidentsInner() {
 
         {/* Filters */}
         <Tabs value={filter} onValueChange={setFilter} className="mb-6">
-          <TabsList className="grid grid-cols-3 sm:grid-cols-6 w-full lg:w-auto gap-1">
-            <TabsTrigger value="all" className="text-xs lg:text-sm px-2 lg:px-4">הכל</TabsTrigger>
-            <TabsTrigger value="open" className="text-xs lg:text-sm px-2 lg:px-4">פתוחות</TabsTrigger>
-            <TabsTrigger value="in_progress" className="text-xs lg:text-sm px-2 lg:px-4">בטיפול</TabsTrigger>
-            <TabsTrigger value="resolved" className="text-xs lg:text-sm px-2 lg:px-4">נפתרו</TabsTrigger>
-            <TabsTrigger value="closed" className="text-xs lg:text-sm px-2 lg:px-4">סגורות</TabsTrigger>
-            <TabsTrigger value="critical" className="text-xs lg:text-sm px-2 lg:px-4">קריטיות</TabsTrigger>
+          <TabsList className="flex w-full overflow-x-auto gap-1 h-auto p-1 sm:grid sm:grid-cols-6 sm:w-auto">
+            <TabsTrigger value="all" className="text-sm px-3 py-2 whitespace-nowrap flex-shrink-0">הכל</TabsTrigger>
+            <TabsTrigger value="open" className="text-sm px-3 py-2 whitespace-nowrap flex-shrink-0">פתוחות</TabsTrigger>
+            <TabsTrigger value="in_progress" className="text-sm px-3 py-2 whitespace-nowrap flex-shrink-0">בטיפול</TabsTrigger>
+            <TabsTrigger value="resolved" className="text-sm px-3 py-2 whitespace-nowrap flex-shrink-0">נפתרו</TabsTrigger>
+            <TabsTrigger value="closed" className="text-sm px-3 py-2 whitespace-nowrap flex-shrink-0">סגורות</TabsTrigger>
+            <TabsTrigger value="critical" className="text-sm px-3 py-2 whitespace-nowrap flex-shrink-0">קריטיות</TabsTrigger>
           </TabsList>
         </Tabs>
 

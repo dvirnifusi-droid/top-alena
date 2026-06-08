@@ -593,24 +593,24 @@ ${JSON.stringify(salesData.map(sale => ({
                 </div>
 
                 <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-8">
-                    <TabsList className="grid w-full grid-cols-5 bg-white shadow-sm">
-                        <TabsTrigger value="predictions" className="flex items-center gap-2">
+                    <TabsList className="flex w-full overflow-x-auto h-auto p-1 gap-1 bg-white shadow-sm md:grid md:grid-cols-5">
+                        <TabsTrigger value="predictions" className="flex items-center gap-1.5 text-sm px-3 py-2 whitespace-nowrap flex-shrink-0">
                             <Target className="w-4 h-4" />
                             חיזויים
                         </TabsTrigger>
-                        <TabsTrigger value="analysis" className="flex items-center gap-2">
+                        <TabsTrigger value="analysis" className="flex items-center gap-1.5 text-sm px-3 py-2 whitespace-nowrap flex-shrink-0">
                             <BarChart3 className="w-4 h-4" />
                             ניתוח נתונים
                         </TabsTrigger>
-                        <TabsTrigger value="employees" className="flex items-center gap-2">
+                        <TabsTrigger value="employees" className="flex items-center gap-1.5 text-sm px-3 py-2 whitespace-nowrap flex-shrink-0">
                             <UserMinus className="w-4 h-4" />
                             חיזוי עזיבות
                         </TabsTrigger>
-                        <TabsTrigger value="menu" className="flex items-center gap-2">
+                        <TabsTrigger value="menu" className="flex items-center gap-1.5 text-sm px-3 py-2 whitespace-nowrap flex-shrink-0">
                             <ChefHat className="w-4 h-4" />
                             ניתוח תפריט
                         </TabsTrigger>
-                        <TabsTrigger value="settings" className="flex items-center gap-2">
+                        <TabsTrigger value="settings" className="flex items-center gap-1.5 text-sm px-3 py-2 whitespace-nowrap flex-shrink-0">
                             <Settings className="w-4 h-4" />
                             הגדרות
                         </TabsTrigger>

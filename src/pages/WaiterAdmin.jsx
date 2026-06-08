@@ -442,12 +442,12 @@ export default function WaiterAdmin() {
       </div>
 
       <Tabs defaultValue="menu" className="w-full">
-        <TabsList className="grid w-full grid-cols-5">
-          <TabsTrigger value="menu"><Utensils className="w-4 h-4 ml-1" /> תפריט</TabsTrigger>
-          <TabsTrigger value="specials"><Sparkles className="w-4 h-4 ml-1" /> ספיישלים</TabsTrigger>
-          <TabsTrigger value="out"><AlertCircle className="w-4 h-4 ml-1" /> חסר היום</TabsTrigger>
-          <TabsTrigger value="info"><Settings className="w-4 h-4 ml-1" /> מידע כללי</TabsTrigger>
-          <TabsTrigger value="prompt"><MessageSquareCode className="w-4 h-4 ml-1" /> פרומפט</TabsTrigger>
+        <TabsList className="flex w-full overflow-x-auto h-auto p-1 gap-1 md:grid md:grid-cols-5">
+          <TabsTrigger value="menu" className="px-3 py-2 whitespace-nowrap flex-shrink-0"><Utensils className="w-4 h-4 ml-1" /> תפריט</TabsTrigger>
+          <TabsTrigger value="specials" className="px-3 py-2 whitespace-nowrap flex-shrink-0"><Sparkles className="w-4 h-4 ml-1" /> ספיישלים</TabsTrigger>
+          <TabsTrigger value="out" className="px-3 py-2 whitespace-nowrap flex-shrink-0"><AlertCircle className="w-4 h-4 ml-1" /> חסר היום</TabsTrigger>
+          <TabsTrigger value="info" className="px-3 py-2 whitespace-nowrap flex-shrink-0"><Settings className="w-4 h-4 ml-1" /> מידע כללי</TabsTrigger>
+          <TabsTrigger value="prompt" className="px-3 py-2 whitespace-nowrap flex-shrink-0"><MessageSquareCode className="w-4 h-4 ml-1" /> פרומפט</TabsTrigger>
         </TabsList>
 
         <TabsContent value="menu"><MenuTab menu={kit.menu || { categories: [] }} setMenu={(m) => setKit({ ...kit, menu: m })} /></TabsContent>

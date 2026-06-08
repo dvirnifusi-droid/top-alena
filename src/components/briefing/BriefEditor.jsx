@@ -135,11 +135,11 @@ export default function BriefEditor({ briefData, onChange, onSave, onCancel, isL
 
             <CardContent className="pt-4">
                 <Tabs defaultValue="general">
-                    <TabsList className="grid w-full grid-cols-2 gap-1 h-auto bg-gray-100 p-1 rounded-xl">
-                        <TabsTrigger value="general" className="rounded-lg py-2.5 text-sm font-semibold data-[state=active]:bg-white data-[state=active]:shadow-sm">🎯 דגשים</TabsTrigger>
-                        <TabsTrigger value="operations" className="rounded-lg py-2.5 text-sm font-semibold data-[state=active]:bg-white data-[state=active]:shadow-sm">🔧 תפעול</TabsTrigger>
-                        <TabsTrigger value="goals" className="rounded-lg py-2.5 text-sm font-semibold data-[state=active]:bg-white data-[state=active]:shadow-sm">🏆 יעדים</TabsTrigger>
-                        <TabsTrigger value="assignments" className="rounded-lg py-2.5 text-sm font-semibold data-[state=active]:bg-white data-[state=active]:shadow-sm">👤 איוש</TabsTrigger>
+                    <TabsList className="flex w-full overflow-x-auto gap-1 h-auto bg-gray-100 p-1 rounded-xl md:grid md:grid-cols-4">
+                        <TabsTrigger value="general" className="rounded-lg py-2.5 px-3 text-sm font-semibold whitespace-nowrap flex-shrink-0 data-[state=active]:bg-white data-[state=active]:shadow-sm">🎯 דגשים</TabsTrigger>
+                        <TabsTrigger value="operations" className="rounded-lg py-2.5 px-3 text-sm font-semibold whitespace-nowrap flex-shrink-0 data-[state=active]:bg-white data-[state=active]:shadow-sm">🔧 תפעול</TabsTrigger>
+                        <TabsTrigger value="goals" className="rounded-lg py-2.5 px-3 text-sm font-semibold whitespace-nowrap flex-shrink-0 data-[state=active]:bg-white data-[state=active]:shadow-sm">🏆 יעדים</TabsTrigger>
+                        <TabsTrigger value="assignments" className="rounded-lg py-2.5 px-3 text-sm font-semibold whitespace-nowrap flex-shrink-0 data-[state=active]:bg-white data-[state=active]:shadow-sm">👤 איוש</TabsTrigger>
                     </TabsList>
 
                     <div className="mt-4 space-y-4 min-h-[300px]">
