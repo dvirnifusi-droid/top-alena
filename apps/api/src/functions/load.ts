@@ -12276,33 +12276,12 @@ function parseGomileyCustomerRow(row: string[]): GomileyCustomerRow | null {
       break;
     }
   }
-  // Numeric totals — orders count is a small int (≤500), spent is in ₪
-  // marker. Skip cells that look like phone numbers (9-10 digits) or huge IDs
-  // (>10000) when picking total_orders.
-  let total_orders = 0;
-  let total_spent = 0;
-  for (const cell of row) {
-    const cleaned = stripHtml(cell);
-    if (!cleaned) continue;
-    // Spent: any cell containing ₪
-    if (/₪/.test(cleaned) && total_spent === 0) {
-      const n = Number(cleaned.replace(/[^\d.]/g, ''));
-      if (n > 0 && n < 10_000_000) total_spent = n;
-      continue;
-    }
-    // Orders: a small positive integer that doesn't look like a phone/ID/date
-    if (total_orders === 0) {
-      const digitsOnly = cleaned.replace(/\D/g, '');
-      // Skip phone-like (9-10 digits) and obvious IDs/timestamps
-      if (digitsOnly.length >= 9) continue;
-      if (/^\s*\d{1,4}\s*$/.test(cleaned)) {
-        const n = Number(cleaned.replace(/[^\d]/g, ''));
-        if (n > 0 && n < 10_000) total_orders = n;
-      }
-    }
-  }
+  // total_orders / total_spent from Gomiley's customers table is unreliable —
+  // the layout puts customer IDs and phones in numeric cells that look like
+  // orders/spent. We deliberately keep these at 0 and only trust name/phone/
+  // address from Gomiley.
   if (!phone && !name) return null;
-  return { name, phone, email, address, total_orders, total_spent };
+  return { name, phone, email, address, total_orders: 0, total_spent: 0 };
 }
 
 export async function captureGomileyCustomers() {
@@ -12476,10 +12455,10 @@ export async function runGomileyCustomersBackfill() {
             const finalName = (existingNameDirty && newNameClean)
               ? c.name
               : (existing.customer_name || c.name);
-            // If existing totals look corrupted (huge IDs leaked from old
-            // parser), trust the new clean value. Otherwise keep the max.
-            const existingOrdersBad = Number(existing.total_orders) > 10_000;
-            const existingSpentBad = Number(existing.total_spent) > 10_000_000;
+            // Reset corrupted totals from old parser. We don't trust any
+            // Gomiley-sourced numeric data — only name/phone/address.
+            const existingOrdersBad = Number(existing.total_orders) > 1_000;
+            const existingSpentBad = Number(existing.total_spent) > 100_000;
             await (db as any).deliveryCustomer.update({
               where: { id: existing.id },
               data: {
@@ -12488,12 +12467,8 @@ export async function runGomileyCustomersBackfill() {
                 notes: noteHasGomiley
                   ? existing.notes
                   : `${existing.notes || ''}\nסונכרן מ-Gomiley (backfill) ב-${today}`.trim(),
-                total_orders: existingOrdersBad
-                  ? c.total_orders
-                  : Math.max(Number(existing.total_orders) || 0, c.total_orders),
-                total_spent: existingSpentBad
-                  ? c.total_spent
-                  : Math.max(Number(existing.total_spent) || 0, c.total_spent),
+                ...(existingOrdersBad ? { total_orders: 0 } : {}),
+                ...(existingSpentBad ? { total_spent: 0 } : {}),
               },
             });
             status.updated += 1;
@@ -12547,6 +12522,23 @@ registerFn('getGomileyBackfillStatus', async ({ user }) => {
   }
   const g: any = globalThis as any;
   return g.__gomileyBackfillStatus || { running: false, scanned: 0, message: 'לא הופעל עדיין' };
+});
+
+// One-shot SQL: reset total_orders and total_spent to 0 for every customer
+// that has 'Gomiley' in their notes. The old parser stored corrupted values
+// (customer IDs / phone digits) in these fields; the new code keeps them at 0.
+registerFn('resetGomileyCustomerTotals', async ({ user }) => {
+  if (!user) throw new Error('auth required');
+  if ((user as any).role !== 'admin' && (user as any).role !== 'owner') {
+    throw new Error('admin only');
+  }
+  const r: any = await (db as any).$executeRawUnsafe(`
+    UPDATE "DeliveryCustomer"
+    SET total_orders = 0, total_spent = 0
+    WHERE notes ILIKE '%Gomiley%'
+      AND (total_orders > 1000 OR total_spent > 100000)
+  `);
+  return { ok: true, rows_updated: Number(r) || 0 };
 });
 
 // ============================================================================

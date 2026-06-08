@@ -120,6 +120,42 @@ function BackfillAllCustomersButton() {
     );
 }
 
+function ResetTotalsButton() {
+    const [running, setRunning] = useState(false);
+    const [result, setResult] = useState(null);
+    const [error, setError] = useState(null);
+
+    const run = async () => {
+        if (!confirm('לאפס total_orders ו-total_spent עבור כל הלקוחות שמסומנים כ-Gomiley?\n\nזה ימחק את המספרים המקולקלים (10048 הזמנות, ₪903221813) מהכרטיסים, וישאיר רק שם/טלפון/כתובת.')) return;
+        setRunning(true); setError(null); setResult(null);
+        try {
+            const res = await base44.functions.resetGomileyCustomerTotals({});
+            const r = res?.data ?? res;
+            setResult(r);
+        } catch (e) { setError(e?.message || String(e)); }
+        finally { setRunning(false); }
+    };
+
+    return (
+        <div className="mt-4 pt-4 border-t border-blue-200">
+            <h4 className="font-bold text-sm mb-1">🧹 אפס נתונים מקולקלים</h4>
+            <p className="text-xs text-gray-600 mb-2">
+                ה-parser הישן הכניס מספרי לקוח/טלפון בשגגה ל-total_orders ו-total_spent
+                (נראה ככרטיסים עם "10048 הזמנות · ₪903221813"). הכפתור מאפס את הערכים האלה
+                לכל לקוחות Gomiley. שם/טלפון/כתובת לא נפגעים.
+            </p>
+            <Button onClick={run} disabled={running} variant="outline" className="border-red-300 text-red-700 hover:bg-red-50">
+                {running ? <Loader2 className="w-4 h-4 animate-spin ml-2" /> : null}
+                {running ? 'מאפס...' : '🧹 אפס נתונים מקולקלים'}
+            </Button>
+            {result?.ok && (
+                <p className="text-xs text-emerald-700 mt-2">✅ אופסו {result.rows_updated} כרטיסי לקוחות</p>
+            )}
+            {error && <p className="text-xs text-red-700 mt-2">❌ {error}</p>}
+        </div>
+    );
+}
+
 export default function AdminGomileyCookies() {
     const [phpSessId, setPhpSessId] = useState('');
     const [arena, setArena] = useState('');
@@ -279,6 +315,7 @@ export default function AdminGomileyCookies() {
                     </p>
                     <SyncCustomersButton />
                     <BackfillAllCustomersButton />
+                    <ResetTotalsButton />
                 </CardContent>
             </Card>
 
