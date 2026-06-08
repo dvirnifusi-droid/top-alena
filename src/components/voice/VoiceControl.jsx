@@ -212,10 +212,10 @@ export default function VoiceControl({
                 onClick={toggle}
                 disabled={!supported}
                 title={supported ? (listening ? 'לחץ שוב לסיום' : 'לחץ להתחלת הקלטה') : 'הדפדפן לא תומך'}
-                className={`fixed bottom-24 left-4 z-[55] w-16 h-16 rounded-full shadow-2xl flex items-center justify-center text-2xl transition-all
+                className={`fixed bottom-4 left-3 md:bottom-24 md:left-4 z-[55] w-11 h-11 md:w-16 md:h-16 rounded-full shadow-2xl flex items-center justify-center text-2xl transition-all
                     ${listening
                         ? 'bg-gradient-to-br from-red-500 to-red-700 text-white scale-110 ring-4 ring-red-300 animate-pulse'
-                        : 'bg-gradient-to-br from-blue-500 to-blue-700 text-white hover:scale-110 hover:from-blue-600 hover:to-blue-800'}
+                        : 'bg-gradient-to-br from-blue-500 to-blue-700 text-white hover:scale-110 hover:from-blue-600 hover:to-blue-800 opacity-80 hover:opacity-100'}
                     ${!supported ? 'opacity-40 cursor-not-allowed' : ''}`}
             >
                 {listening ? <Mic className="w-7 h-7" /> : <MicOff className="w-7 h-7" />}
@@ -223,14 +223,14 @@ export default function VoiceControl({
 
             {/* Tiny "click again to stop" hint while recording */}
             {listening && (
-                <div className="fixed bottom-44 left-4 z-[55] text-[10px] font-bold text-red-700 bg-white px-2 py-1 rounded-full shadow border border-red-300 animate-pulse">
+                <div className="fixed bottom-16 left-3 md:bottom-44 md:left-4 z-[55] text-[10px] font-bold text-red-700 bg-white px-2 py-1 rounded-full shadow border border-red-300 animate-pulse">
                     🔴 מקליט · לחץ שוב לסיום
                 </div>
             )}
 
             {/* Live transcript + result panel */}
             {(transcript || lastResult || error) && (
-                <div className="fixed bottom-40 left-4 z-[55] max-w-sm bg-white border-2 border-blue-300 rounded-2xl shadow-2xl p-3" dir="rtl">
+                <div className="fixed bottom-16 left-3 right-3 md:bottom-40 md:left-4 md:right-auto z-[55] max-w-sm bg-white border-2 border-blue-300 rounded-2xl shadow-2xl p-3" dir="rtl">
                     {transcript && (
                         <div className="text-sm font-bold text-gray-900 mb-1">
                             🎙️ "{transcript}"

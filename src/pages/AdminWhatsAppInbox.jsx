@@ -34,7 +34,7 @@ function fmtPhone(p) {
 
 function ConversationList({ conversations, activeContact, onSelect, loading }) {
     return (
-        <div className="border-l border-gray-200 bg-white overflow-y-auto" style={{ width: '320px', maxHeight: 'calc(100vh - 120px)' }}>
+        <div className={`border-l border-gray-200 bg-white overflow-y-auto w-full md:w-[320px] md:max-w-[320px] md:shrink-0 ${activeContact ? 'hidden md:block' : 'block'}`} style={{ maxHeight: 'calc(100vh - 120px)' }}>
             <div className="p-3 border-b bg-gray-50">
                 <h2 className="font-bold text-sm flex items-center gap-2">
                     <MessageCircle className="w-4 h-4 text-emerald-600" />
@@ -88,7 +88,7 @@ function ConversationList({ conversations, activeContact, onSelect, loading }) {
     );
 }
 
-function MessageThread({ messages, sending, error, onSend, onMarkRead, contactPhone, contactName }) {
+function MessageThread({ messages, sending, error, onSend, onMarkRead, contactPhone, contactName, onBack }) {
     const [text, setText] = useState('');
     const scrollRef = useRef(null);
 
@@ -109,7 +109,7 @@ function MessageThread({ messages, sending, error, onSend, onMarkRead, contactPh
 
     if (!contactPhone) {
         return (
-            <div className="flex-1 flex items-center justify-center bg-gray-50 text-gray-400">
+            <div className="hidden md:flex flex-1 items-center justify-center bg-gray-50 text-gray-400">
                 <div className="text-center">
                     <MessageCircle className="w-12 h-12 mx-auto mb-3 text-gray-300" />
                     <p>בחר שיחה מהרשימה</p>
@@ -119,11 +119,14 @@ function MessageThread({ messages, sending, error, onSend, onMarkRead, contactPh
     }
 
     return (
-        <div className="flex-1 flex flex-col bg-gray-50" style={{ maxHeight: 'calc(100vh - 120px)' }}>
+        <div className="flex-1 flex flex-col bg-gray-50 w-full" style={{ maxHeight: 'calc(100vh - 120px)' }}>
             {/* Header */}
-            <div className="bg-white border-b p-3">
-                <div className="font-bold">{contactName || fmtPhone(contactPhone)}</div>
-                <div className="text-xs text-gray-500">{fmtPhone(contactPhone)}</div>
+            <div className="bg-white border-b p-3 flex items-center gap-2">
+                <button onClick={() => onBack?.()} className="md:hidden text-blue-600 text-xl px-1" aria-label="חזרה לרשימה">←</button>
+                <div className="flex-1">
+                    <div className="font-bold">{contactName || fmtPhone(contactPhone)}</div>
+                    <div className="text-xs text-gray-500">{fmtPhone(contactPhone)}</div>
+                </div>
             </div>
 
             {/* Messages */}
@@ -274,23 +277,28 @@ export default function AdminWhatsAppInbox() {
                     error={sendError}
                     onSend={send}
                     onMarkRead={markRead}
+                    onBack={() => setActiveContact(null)}
                     contactPhone={activeContact}
                     contactName={activeContactName}
                 />
             </Card>
 
-            <Card className="mt-4 bg-amber-50 border-amber-200 p-3">
-                <h3 className="text-sm font-bold text-amber-900 mb-1">📡 הגדרת Webhook ב-Twilio</h3>
-                <p className="text-xs text-amber-800 mb-2">
-                    כדי לקבל הודעות נכנסות, צריך להגדיר את ה-URL הזה ב-Twilio Console (פעם אחת):
-                </p>
-                <div className="bg-white border rounded p-2 font-mono text-xs select-all">
-                    https://topalena.com/api/twilio/whatsapp-inbox
+            <details className="mt-4 bg-amber-50 border border-amber-200 rounded-lg">
+                <summary className="cursor-pointer p-3 text-sm font-bold text-amber-900 select-none">
+                    📡 הגדרת Webhook ב-Twilio (פעם אחת — לחץ להרחבה)
+                </summary>
+                <div className="p-3 pt-0 border-t border-amber-200">
+                    <p className="text-xs text-amber-800 mb-2">
+                        URL להעתיק ל-Twilio Console:
+                    </p>
+                    <div className="bg-white border rounded p-2 font-mono text-[10px] md:text-xs select-all break-all">
+                        https://topalena.com/api/twilio/whatsapp-inbox
+                    </div>
+                    <p className="text-xs text-amber-800 mt-2 leading-relaxed">
+                        <b>איך:</b> Twilio Console → Messaging → Senders → WhatsApp Senders → +1 681-293-1920 → Inbound Settings → "When a message comes in" → <b>Webhook</b> → הדבק את ה-URL → Method = POST → Save.
+                    </p>
                 </div>
-                <p className="text-xs text-amber-800 mt-2">
-                    <b>איך:</b> Twilio Console → Messaging → Senders → WhatsApp Senders → +1 681-293-1920 → Inbound Settings → "When a message comes in" → <b>Webhook</b> → הדבק את ה-URL → Method = POST → Save.
-                </p>
-            </Card>
+            </details>
         </div>
     );
 }
