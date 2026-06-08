@@ -4884,6 +4884,43 @@ registerFn('chatEventsInquiry', async ({ body }) => {
     }
   } catch { /* ignore */ }
 
+  // ── ESCALATION PUSH — buffet / venue rental / any case the agent flags
+  // for manual manager handling. Includes a full conversation summary so
+  // owner has everything they need to call the customer back.
+  try {
+    const stageStr = String(result?.stage || '').toLowerCase();
+    const isEscalated = result?.escalation === true || stageStr === 'escalated';
+    if (isEscalated && currentLead && !String(currentLead.notes || '').includes('escalation_alerted:')) {
+      // Build conversation transcript (last 15 turns max)
+      const tail = fullLog.slice(-15).map((t: any) => {
+        const who = t.role === 'assistant' ? '🤖' : '👤';
+        const text = String(t.content || '').replace(/\s+/g, ' ').slice(0, 200);
+        return `${who} ${text}`;
+      }).join('\n');
+      const c = currentLead;
+      const summary = [
+        '🚨 אירוע דורש את המנהל — לא נסגר אוטומטית',
+        `👤 ${c.contact_name || 'ללא שם'} · ${c.contact_phone || '-'}`,
+        c.event_date ? `📅 ${c.event_date}${c.event_time ? ` בשעה ${c.event_time}` : ''}` : null,
+        c.event_type ? `🎉 סוג: ${c.event_type}` : null,
+        c.guest_count ? `👥 ${c.guest_count} אורחים${c.kids_count ? ` (${c.kids_count} ילדים)` : ''}` : null,
+        c.budget_per_person ? `💰 תקציב: ₪${c.budget_per_person}/סועד` : null,
+        c.notes ? `📝 ${c.notes}` : null,
+        '',
+        '💬 שיחה:',
+        tail,
+      ].filter(Boolean).join('\n');
+      pushoverEventsOwners('🚨 אירוע להסלמה — מחכה לבדיקה', summary).catch(() => {});
+      db.eventLead.update({
+        where: { id: currentLead.id },
+        data: {
+          status: 'escalated',
+          notes: `${currentLead.notes || ''}${currentLead.notes ? ' | ' : ''}escalation_alerted:${new Date().toISOString()}`,
+        },
+      }).catch(() => {});
+    }
+  } catch { /* ignore */ }
+
   // Lower threshold for creating a draft booking — the moment we have a date + guest_count + the
   // agent is past the qualification stage, we have enough to push the customer to checkout. Missing
   // total_ils gets a sensible placeholder (guest_count × 250 ₪) so the stub flow always completes.
@@ -5128,7 +5165,7 @@ registerFn('listEventBookingsPublicDebug', async () => {
 const DEFAULT_EVENTS_PROMPT = `אתה הסוכן הדיגיטלי של מסעדת 'עלינא' לאירועים פרטיים. אתה מדבר בעברית טבעית, חמה וביטחונית. אתה גם מסווג וגם סוגר עסקה — מצטט מחיר, מנהל מו"מ בתוך התקרה שהוגדרה, ומגיע לסגירה.
 
 פתח רק אם זו ההודעה הראשונה (אין שיחה קודמת):
-"היי 🌿 אני הסוכנת הדיגיטלית של עלינא. שמחה שאתם חושבים עלינו לאירוע. ספרו לי בקצרה מה אתם מדמיינים — ארוחה משותפת, בופה, השכרת המקום, או משהו אחר — ונבנה את זה יחד."
+"היי 🌿 אני הסוכנת הדיגיטלית של עלינא. שמחה לשמוע שאתם חושבים עלינו לאירוע. נענה יחד על כמה שאלות קצרות כדי להתאים לכם את האירוע הטוב ביותר."
 
 3 פורמטים אפשריים — תזהה את הפורמט המבוקש מההודעה הראשונה של הלקוח:
 - **תפריט קבוצות (seated)** — ברירת המחדל. ארוחה מסביב לשולחן, מחיר לסועד קבוע, יש תפריט עם בחירות. כלול ב-MENUS.
