@@ -10949,6 +10949,55 @@ POPUPS_EDIT:
   {"intent":"event_update_guests","name":"מורן","guest_count":80}
 ]}
 
+DELIVERIES_EXTRA:
+- delivery_assign_courier {name, courier}: שבץ שליח למשלוח — "תן את משלוח של דביר ליוסי", "יוסי לוקח את המשלוח של דביר"
+- delivery_mark_delivered {name}: סמן נמסר — "המשלוח של דביר נמסר", "דביר קיבל את ההזמנה", "סיים משלוח של דביר"
+- q_pending_deliveries: משלוחים ממתינים — "אילו משלוחים מחכים", "מה בתור למשלוחים"
+
+INVENTORY_EXTRA:
+- inventory_set {item, quantity}: קבע מלאי (לא להוסיף — להחליף) — "המלאי של חזה עוף 50", "תעדכן מלאי חזה עוף ל-50"
+- inventory_remove {item, quantity}: הורד מהמלאי — "תוריד 5 חזה עוף", "הוצא 10 ביצים מהמלאי"
+- q_inventory_value: שווי מלאי כולל — "כמה שווה המלאי", "מה ערך המלאי"
+
+CUSTOMERS_EXTRA:
+- customer_add {name, phone}: הוסף לקוח חדש — "תוסיף לקוח דביר 050123", "תפתח כרטיס לקוח לדביר"
+- customer_update_phone {name, phone}: עדכן טלפון בלקוח — "תעדכן טלפון של דביר ל-0502222222"
+- q_customer_spend {name}: כמה הלקוח הוציא — "כמה דביר הוציא", "מה ההיסטוריה של דביר"
+
+PUSH_BROADCAST:
+- push_to_role {role, message}: דחוף לתפקיד ספציפי — "תגיד למלצרים שיש פגישה ב-15:00", "תשלח לטבחים — מוצרים חדשים"
+
+# === Examples for new intents ===
+"תן את המשלוח של דביר ליוסי" → {"intent":"delivery_assign_courier","name":"דביר","courier":"יוסי"}
+"יוסי לוקח את משלוח דביר" → {"intent":"delivery_assign_courier","name":"דביר","courier":"יוסי"}
+"המשלוח של דביר נמסר" → {"intent":"delivery_mark_delivered","name":"דביר"}
+"דביר קיבל את ההזמנה" → {"intent":"delivery_mark_delivered","name":"דביר"}
+"אילו משלוחים מחכים" → {"intent":"q_pending_deliveries"}
+
+"המלאי של חזה עוף 50" → {"intent":"inventory_set","item":"חזה עוף","quantity":50}
+"תעדכן מלאי חזה עוף ל50" → {"intent":"inventory_set","item":"חזה עוף","quantity":50}
+"תוריד 5 חזה עוף" → {"intent":"inventory_remove","item":"חזה עוף","quantity":5}
+"הוצא 10 ביצים מהמלאי" → {"intent":"inventory_remove","item":"ביצים","quantity":10}
+"כמה שווה המלאי" → {"intent":"q_inventory_value"}
+
+"תוסיף לקוח דביר 0501234567" → {"intent":"customer_add","name":"דביר","phone":"0501234567"}
+"תפתח כרטיס לקוח לדביר 0501234567" → {"intent":"customer_add","name":"דביר","phone":"0501234567"}
+"תעדכן טלפון של דביר ל0502222222" → {"intent":"customer_update_phone","name":"דביר","phone":"0502222222"}
+"כמה דביר הוציא" → {"intent":"q_customer_spend","name":"דביר"}
+
+"תגיד למלצרים שיש פגישה ב-15:00" → {"intent":"push_to_role","role":"waiter","message":"יש פגישה ב-15:00"}
+"תשלח לטבחים מוצרים חדשים" → {"intent":"push_to_role","role":"chef","message":"מוצרים חדשים"}
+
+# Multi-step new examples
+"תשבץ את יוסי למשלוח של דביר ותסמן שנמסר" → {"intent":"plan","steps":[
+  {"intent":"delivery_assign_courier","name":"דביר","courier":"יוסי"},
+  {"intent":"delivery_mark_delivered","name":"דביר"}
+]}
+"תוריד 5 חזה עוף, ותזמין עוד 20 מהספק" → {"intent":"plan","steps":[
+  {"intent":"inventory_remove","item":"חזה עוף","quantity":5},
+  {"intent":"order_from_supplier","item":"חזה עוף","quantity":20}
+]}
+
 RESTROOM:
 - q_last_clean: מתי ניקיון אחרון
 - mark_clean: סמן ניקיון
@@ -11248,6 +11297,8 @@ Output (JSON only, MUST include "intent"):`;
           // Sales gamification
           dish: { type: 'string' },
           template: { type: 'string' },
+          // New phase-3 fields
+          role: { type: 'string' },
           // Multi-step plan — array of {intent, ...params} executed in order
           steps: {
             type: 'array',
@@ -11268,6 +11319,14 @@ Output (JSON only, MUST include "intent"):`;
                 item: { type: 'string' },
                 quantity: { type: 'number' },
                 dish: { type: 'string' },
+                courier: { type: 'string' },
+                role: { type: 'string' },
+                phone: { type: 'string' },
+                position: { type: 'string' },
+                hours: { type: 'number' },
+                guest_count: { type: 'number' },
+                date: { type: 'string' },
+                title: { type: 'string' },
                 continue_on_error: { type: 'boolean' },
               },
               required: ['intent'],

@@ -88,6 +88,10 @@ const MUTATING_INTENTS = new Set([
     'clock_in', 'clock_out', 'break_start', 'break_end',
     'event_update_date', 'event_update_guests', 'event_payment_received', 'event_cancel',
     'popup_disable', 'schedule_change_position', 'tips_add_employee',
+    'delivery_assign_courier', 'delivery_mark_delivered',
+    'inventory_set', 'inventory_remove',
+    'customer_add', 'customer_update_phone',
+    'push_to_role',
 ]);
 
 export async function handleVoiceCommand(cmd) {
@@ -1921,6 +1925,132 @@ async function dispatchCommand(cmd, state) {
                     await base44.entities.EventBooking.update(ev.id, patch);
                     return { ok: true, message: `בוצע ✓ ${msg}` };
                 } catch (e) { return { ok: false, message: 'שגיאה: ' + (e?.message || '') }; }
+            }
+
+            // ---------- Deliveries ----------
+            case 'delivery_assign_courier': {
+                try {
+                    const deliveries = await base44.entities.Delivery.list('-createdAt', 50);
+                    const d = (deliveries || []).find(d =>
+                        (d.customer_name || '').includes(cmd.name || '') &&
+                        d.delivery_status !== 'delivered'
+                    );
+                    if (!d) return { ok: false, message: `משלוח של ${cmd.name} לא נמצא` };
+                    await base44.entities.Delivery.update(d.id, { courier_name: cmd.courier });
+                    return { ok: true, message: `בוצע ✓ ${cmd.courier} שובץ למשלוח של ${d.customer_name}` };
+                } catch (e) { return { ok: false, message: 'שגיאה: ' + (e?.message || '') }; }
+            }
+            case 'delivery_mark_delivered': {
+                try {
+                    const deliveries = await base44.entities.Delivery.list('-createdAt', 50);
+                    const d = (deliveries || []).find(dl =>
+                        (dl.customer_name || '').includes(cmd.name || '') &&
+                        dl.delivery_status !== 'delivered'
+                    );
+                    if (!d) return { ok: false, message: `משלוח של ${cmd.name} לא נמצא` };
+                    await base44.entities.Delivery.update(d.id, {
+                        delivery_status: 'delivered',
+                        delivered_at: new Date().toISOString(),
+                    });
+                    return { ok: true, message: `בוצע ✓ משלוח של ${d.customer_name} סומן כנמסר` };
+                } catch (e) { return { ok: false, message: 'שגיאה: ' + (e?.message || '') }; }
+            }
+            case 'q_pending_deliveries': {
+                try {
+                    const deliveries = await base44.entities.Delivery.list('-createdAt', 50);
+                    const pending = (deliveries || []).filter(d => d.delivery_status === 'pending' || !d.courier_name);
+                    if (pending.length === 0) return { ok: true, message: 'אין משלוחים ממתינים' };
+                    const names = pending.slice(0, 5).map(d => d.customer_name || 'ללא שם').join(', ');
+                    return { ok: true, message: `${pending.length} משלוחים ממתינים: ${names}` };
+                } catch { return { ok: false, message: 'לא הצלחתי לבדוק' }; }
+            }
+
+            // ---------- Inventory: SET / REMOVE ----------
+            case 'inventory_set': {
+                try {
+                    const items = await base44.entities.Inventory.list();
+                    const it = (items || []).find(i => (i.item_name || '').includes(cmd.item || ''));
+                    if (!it) return { ok: false, message: `${cmd.item} לא במלאי` };
+                    await base44.entities.Inventory.update(it.id, {
+                        current_stock: Number(cmd.quantity) || 0,
+                        last_updated: new Date().toISOString(),
+                    });
+                    return { ok: true, message: `בוצע ✓ ${it.item_name}: ${cmd.quantity} ${it.unit || ''}` };
+                } catch (e) { return { ok: false, message: 'שגיאה: ' + (e?.message || '') }; }
+            }
+            case 'inventory_remove': {
+                try {
+                    const items = await base44.entities.Inventory.list();
+                    const it = (items || []).find(i => (i.item_name || '').includes(cmd.item || ''));
+                    if (!it) return { ok: false, message: `${cmd.item} לא במלאי` };
+                    const newStock = Math.max(0, Number(it.current_stock || 0) - Number(cmd.quantity || 0));
+                    await base44.entities.Inventory.update(it.id, {
+                        current_stock: newStock,
+                        last_updated: new Date().toISOString(),
+                    });
+                    return { ok: true, message: `בוצע ✓ ${it.item_name}: נשארו ${newStock} ${it.unit || ''}` };
+                } catch (e) { return { ok: false, message: 'שגיאה: ' + (e?.message || '') }; }
+            }
+            case 'q_inventory_value': {
+                try {
+                    const items = await base44.entities.Inventory.list();
+                    const total = (items || []).reduce((s, i) =>
+                        s + (Number(i.current_stock || 0) * Number(i.cost_per_unit || 0)), 0);
+                    return { ok: true, message: `שווי מלאי: ₪${Math.round(total)}` };
+                } catch { return { ok: false, message: 'לא הצלחתי לבדוק' }; }
+            }
+
+            // ---------- Customers ----------
+            case 'customer_add': {
+                try {
+                    const phone = String(cmd.phone || '').replace(/[^\d]/g, '');
+                    if (phone.length < 7) return { ok: false, message: 'טלפון לא תקין' };
+                    const existing = await base44.entities.Customer.filter({ phone });
+                    if (existing && existing.length > 0) {
+                        return { ok: false, message: `${existing[0].name || 'לקוח'} כבר רשום עם הטלפון הזה` };
+                    }
+                    await base44.entities.Customer.create({
+                        name: cmd.name,
+                        phone,
+                        loyalty_tier: 'regular',
+                        visit_count: 0,
+                    });
+                    return { ok: true, message: `בוצע ✓ ${cmd.name} נוסף ללקוחות` };
+                } catch (e) { return { ok: false, message: 'שגיאה: ' + (e?.message || '') }; }
+            }
+            case 'customer_update_phone': {
+                try {
+                    const customers = await base44.entities.Customer.list();
+                    const c = (customers || []).find(c => (c.name || '').includes(cmd.name));
+                    if (!c) return { ok: false, message: `${cmd.name} לא נמצא` };
+                    const phone = String(cmd.phone || '').replace(/[^\d]/g, '');
+                    if (phone.length < 7) return { ok: false, message: 'טלפון לא תקין' };
+                    await base44.entities.Customer.update(c.id, { phone });
+                    return { ok: true, message: `בוצע ✓ טלפון של ${c.name} עודכן` };
+                } catch (e) { return { ok: false, message: 'שגיאה: ' + (e?.message || '') }; }
+            }
+            case 'q_customer_spend': {
+                try {
+                    const customers = await base44.entities.Customer.list();
+                    const c = (customers || []).find(c => (c.name || '').includes(cmd.name));
+                    if (!c) return { ok: false, message: `${cmd.name} לא נמצא` };
+                    // Estimate from visit_count * average bill (220 default)
+                    const estimated = (c.visit_count || 0) * 220;
+                    return { ok: true, message: `${c.name}: ${c.visit_count || 0} ביקורים, ~₪${estimated}` };
+                } catch { return { ok: false, message: 'לא הצלחתי לבדוק' }; }
+            }
+
+            // ---------- Push to role (urgent broadcast) ----------
+            case 'push_to_role': {
+                try {
+                    // Reuse sendTeamWhatsApp with role-filter prefix
+                    const rolePrefix = cmd.role ? `[${cmd.role}] ` : '';
+                    await base44.functions.sendTeamWhatsApp({
+                        message: rolePrefix + (cmd.message || ''),
+                        role: cmd.role,
+                    });
+                    return { ok: true, message: `בוצע ✓ הודעה נשלחה ל-${cmd.role || 'כל הצוות'}` };
+                } catch { return { ok: false, message: 'שגיאה בשליחה' }; }
             }
 
             // ---------- Popups ----------
