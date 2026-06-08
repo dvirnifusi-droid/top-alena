@@ -8,6 +8,34 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Loader2, Send, ArrowRight, MessageCircle, RefreshCw } from 'lucide-react';
 
+const QUICK_TEMPLATES = [
+    {
+        key: 'confirm',
+        label: '✅ אישור הזמנה',
+        text: 'שלום 🌿\nההזמנה שלך אצלנו אושרה!\nנשמח לראותך בעלינא — רוטשילד 104, ראשון לציון.\nלכל שאלה אנחנו כאן 03-6228055 שלוחה 3',
+    },
+    {
+        key: 'menu',
+        label: '📜 תפריט',
+        text: 'הנה התפריט שלנו 🍽️\nhttps://topalena.com/menu\nבתאבון!',
+    },
+    {
+        key: 'hours',
+        label: '🕐 שעות',
+        text: 'שעות הפתיחה שלנו:\nא׳–ה׳: 12:00–23:00\nו׳: 12:00–16:00\nשבת: סגור\nנשמח לראותך 🌿',
+    },
+    {
+        key: 'deposit',
+        label: '💳 פיקדון',
+        text: 'כדי להבטיח את ההזמנה, נבקש פיקדון של 50 ₪ לאדם.\nקישור לתשלום מאובטח:\nhttps://topalena.com/deposit\nההזמנה תאושר מיד עם השלמת התשלום ✅',
+    },
+    {
+        key: 'thanks',
+        label: '🙏 תודה',
+        text: 'תודה שבחרת בעלינא 🌿\nנשמח לראותך שוב בקרוב!\n— צוות עלינא',
+    },
+];
+
 function fmtTime(ts) {
     if (!ts) return '';
     const d = new Date(ts);
@@ -161,6 +189,20 @@ function MessageThread({ messages, sending, error, onSend, onMarkRead, contactPh
             {/* Reply input */}
             <div className="bg-white border-t p-3">
                 {error && <p className="text-xs text-red-700 mb-2">❌ {error}</p>}
+                <div className="flex flex-wrap gap-1.5 mb-2">
+                    {QUICK_TEMPLATES.map(t => (
+                        <button
+                            key={t.key}
+                            type="button"
+                            onClick={() => setText(t.text)}
+                            disabled={sending}
+                            className="text-xs px-2.5 py-1 rounded-full border border-[#D9BD83] bg-[#F4ECD8] hover:bg-[#D9BD83] text-[#7A3722] transition-colors disabled:opacity-50"
+                            title={t.text}
+                        >
+                            {t.label}
+                        </button>
+                    ))}
+                </div>
                 <div className="flex gap-2">
                     <Input
                         value={text}
