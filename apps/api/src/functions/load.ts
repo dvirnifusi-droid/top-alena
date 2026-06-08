@@ -12207,14 +12207,24 @@ function parseGomileyCustomerRow(row: string[]): GomileyCustomerRow | null {
   const joined = row.join(' ');
   const emailMatch = joined.match(/[\w.+-]+@[\w.-]+\.\w{2,}/);
   const email = emailMatch ? emailMatch[0] : '';
-  // Name: first cell that contains Hebrew/English letters and isn't a date/phone
+  // Name: clean each cell — strip phones, IDs, dates, times that leak from
+  // sibling badges in the same HTML cell. Then pick first cell with letters.
   let name = '';
   for (const cell of row) {
-    const clean = stripHtml(cell);
+    let clean = stripHtml(cell);
     if (!clean) continue;
-    if (/^[\d\s.,/-]+$/.test(clean)) continue; // numbers/dates only
-    if (clean === phone) continue;
-    if (clean === email) continue;
+    clean = clean
+      .replace(/0\d[-\s]?\d{3}[-\s]?\d{4}/g, '')          // 052-619-6523 / 0526196523
+      .replace(/\+?972[-\s]?\d[-\s]?\d{3}[-\s]?\d{4}/g, '') // +972-...
+      .replace(/\b\d{9,}\b/g, '')                          // long IDs / timestamps
+      .replace(/\d{1,2}[\/.\-]\d{1,2}[\/.\-]\d{2,4}/g, '') // dates
+      .replace(/\d{1,2}:\d{2}/g, '')                       // times
+      .replace(/ת\.?ז\.?\s*\d*/g, '')                      // israeli ID label
+      .replace(/\s+/g, ' ')
+      .trim();
+    if (!clean) continue;
+    if (/^[\d\s.,/-]+$/.test(clean)) continue;
+    if (clean === phone || clean === email) continue;
     if (clean.length > 1 && clean.length < 60 && /[א-תA-Za-z]/.test(clean)) {
       name = clean;
       break;
@@ -12405,10 +12415,16 @@ export async function runGomileyCustomersBackfill() {
           });
           if (existing) {
             const noteHasGomiley = (existing.notes || '').includes('Gomiley');
+            // Overwrite dirty names that contain embedded phones/IDs
+            const existingNameDirty = /\d{7,}/.test(existing.customer_name || '');
+            const newNameClean = c.name && !/\d{7,}/.test(c.name);
+            const finalName = (existingNameDirty && newNameClean)
+              ? c.name
+              : (existing.customer_name || c.name);
             await (db as any).deliveryCustomer.update({
               where: { id: existing.id },
               data: {
-                customer_name: existing.customer_name || c.name,
+                customer_name: finalName,
                 address: existing.address || c.address,
                 notes: noteHasGomiley
                   ? existing.notes
