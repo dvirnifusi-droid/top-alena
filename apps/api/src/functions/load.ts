@@ -7692,14 +7692,38 @@ registerFn('clockInWithLocation', async ({ user, body }) => {
     }
   }
 
-  // Don't double clock-in.
+  // Find any active shifts for this employee — could be:
+  //   (a) Today's shift → already clocked in, return as already_active
+  //   (b) A previous day's shift that was never clocked out → close it
+  //       gracefully before creating today's, so the employee doesn't end up
+  //       with two "active" shifts at once.
   const openRows: any[] = await (prisma as any).$queryRaw`
-    SELECT id, shift_start, status FROM "ShiftTracking"
+    SELECT id, shift_start, status, date, last_location_at FROM "ShiftTracking"
     WHERE employee_id = ${user.id} AND status = 'active'
-    LIMIT 1
+    ORDER BY shift_start DESC
   `;
-  if (openRows && openRows.length > 0) {
-    return { shift: openRows[0], already_active: true };
+  const todayStr = new Date().toISOString().slice(0, 10);
+  for (const row of openRows || []) {
+    const rowDateStr = row.date ? new Date(row.date).toISOString().slice(0, 10) : '';
+    if (rowDateStr === todayStr) {
+      // Already clocked in today — return existing
+      return { shift: row, already_active: true };
+    }
+    // Stale shift from a previous day — auto-close it
+    const startTs = new Date(row.shift_start).getTime();
+    const fallbackEnd = row.last_location_at ? new Date(row.last_location_at).getTime() : startTs + 8 * 3600 * 1000;
+    const closeAt = new Date(Math.max(startTs + 30 * 60 * 1000, fallbackEnd));
+    const totalHours = Math.round(((closeAt.getTime() - startTs) / 3600000) * 10) / 10;
+    await (prisma as any).$executeRaw`
+      UPDATE "ShiftTracking"
+      SET shift_end = ${closeAt},
+          status = 'completed',
+          total_hours = ${totalHours},
+          auto_close_reason = 'auto-closed on next clock-in (previous shift never clocked out)',
+          "updatedAt" = NOW()
+      WHERE id = ${row.id}
+    `;
+    console.log('[clockInWithLocation] auto-closed stale shift', { id: row.id, date: rowDateStr, employee_id: user.id, total_hours: totalHours });
   }
 
   const now = new Date();
