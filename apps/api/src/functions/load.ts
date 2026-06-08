@@ -12910,9 +12910,14 @@ registerFn('getKitchenScreenData', async ({ user }) => {
     server_time: new Date().toISOString(),
     beecomm: null,
     gomiley: null,
-    sales_goal: null,
+    sales_goals: [],         // all active goals (not just one)
     leaderboard: null,
     predicted_hour: null,
+    currently_dining: 0,     // sum party_size of seated reservations today
+    arriving_soon: [],       // pending/confirmed reservations next 60 min
+    arriving_soon_count: 0,
+    low_inventory: { kitchen: [], bar: [] },
+    deliveries_by_platform: [],  // [{name, orders, total}] from Gomiley dashboard
   };
 
   // 1. Beecomm latest snapshot — use fallback to last-with-data if today empty
@@ -12978,29 +12983,95 @@ registerFn('getKitchenScreenData', async ({ user }) => {
     }
   } catch (e: any) { console.warn('[kitchen-screen] gomiley read failed:', e?.message); }
 
-  // 3. Active sales goal — same logic as getActiveSalesGoals but minimal
+  // 3. All active sales goals (not just one) — sorted by progress %
+  try {
+    const active: any[] = await (db as any).salesGoal.findMany({
+      where: { status: { in: ['active', 'completed'] } },
+      orderBy: { activated_at: 'desc' },
+      take: 6,
+    });
+    out.sales_goals = active.map((g: any) => ({
+      id: g.id,
+      label: g.dish_label || 'יעד',
+      emoji: g.emoji || '🎯',
+      target: Number(g.target) || 0,
+      sold: Number(g.current_count) || 0,
+      bonus: Number(g.coins_per_sale) || 0,
+      status: g.status,
+    }));
+  } catch (e: any) { console.warn('[kitchen-screen] sales-goals read failed:', e?.message); }
+
+  // 6. Currently dining + arriving soon (next 60 min) from Reservations
   try {
     const now = new Date();
-    const active: any[] = await (db as any).salesGoal.findMany({
-      where: { status: 'active', shift_start: { lte: now }, shift_end: { gte: now } },
-      orderBy: { shift_start: 'desc' },
-      take: 1,
+    const today00 = new Date();
+    today00.setHours(0, 0, 0, 0);
+    const tomorrow00 = new Date(today00.getTime() + 24 * 60 * 60 * 1000);
+    const allToday: any[] = await (db as any).reservation.findMany({
+      where: { date: { gte: today00, lt: tomorrow00 } },
+      select: { id: true, status: true, time: true, party_size: true, customer_name: true },
     });
-    if (active.length > 0) {
-      const g = active[0];
-      const events: any[] = await (db as any).saleEvent.findMany({
-        where: { goal_id: g.id, voided: false },
-      });
-      const totalSold = events.length;
-      out.sales_goal = {
-        template_label: g.template_label || g.title || 'יעד פעיל',
-        target: Number(g.target) || 0,
-        sold: totalSold,
-        bonus: Number(g.bonus_per_unit) || 0,
-        ends_at: g.shift_end,
-      };
+    let dining = 0;
+    const arriving: Array<{ time: string; party: number; name: string }> = [];
+    const nowMs = now.getTime();
+    const cutoffMs = nowMs + 60 * 60 * 1000;
+    for (const r of allToday) {
+      const st = String(r.status || '').toLowerCase();
+      if (st === 'seated' || st === 'arrived' || st === 'in_progress') {
+        dining += Number(r.party_size) || 0;
+      } else if (st === 'pending' || st === 'confirmed' || st === '') {
+        // Build a date from today's date + the time string (HH:MM)
+        const [hh, mm] = String(r.time || '').split(':').map((x: string) => Number(x) || 0);
+        const resDt = new Date(today00.getTime());
+        resDt.setHours(hh, mm, 0, 0);
+        const t = resDt.getTime();
+        if (t >= nowMs && t <= cutoffMs) {
+          arriving.push({ time: r.time || '', party: Number(r.party_size) || 0, name: r.customer_name || '' });
+        }
+      }
     }
-  } catch (e: any) { console.warn('[kitchen-screen] sales-goal read failed:', e?.message); }
+    out.currently_dining = dining;
+    out.arriving_soon = arriving.sort((a, b) => a.time.localeCompare(b.time)).slice(0, 8);
+    out.arriving_soon_count = arriving.reduce((s, a) => s + a.party, 0);
+  } catch (e: any) { console.warn('[kitchen-screen] reservations failed:', e?.message); }
+
+  // 7. Low inventory — items where current_stock <= min_threshold, split by category
+  try {
+    const lowAll: any[] = await (db as any).inventory.findMany({
+      where: { min_threshold: { not: null } },
+      select: { item_name: true, category: true, current_stock: true, min_threshold: true, unit: true },
+    });
+    const low = lowAll.filter(i => Number(i.current_stock) <= Number(i.min_threshold));
+    const isBar = (cat: string) => /bar|בר|שתי|אלכוהול|משקאות|יין|בירה/.test(String(cat || '').toLowerCase());
+    out.low_inventory = {
+      kitchen: low.filter(i => !isBar(i.category)).slice(0, 8).map(i => ({
+        name: i.item_name,
+        current: Number(i.current_stock) || 0,
+        min: Number(i.min_threshold) || 0,
+        unit: i.unit || '',
+      })),
+      bar: low.filter(i => isBar(i.category)).slice(0, 8).map(i => ({
+        name: i.item_name,
+        current: Number(i.current_stock) || 0,
+        min: Number(i.min_threshold) || 0,
+        unit: i.unit || '',
+      })),
+    };
+  } catch (e: any) { console.warn('[kitchen-screen] inventory failed:', e?.message); }
+
+  // 8. Deliveries by platform — from latest Gomiley dashboard scrape
+  try {
+    const dash: any = await (db as any).gomileyDashboardSnapshot.findFirst({
+      orderBy: { captured_at: 'desc' },
+    });
+    if (dash && Array.isArray(dash.platforms)) {
+      out.deliveries_by_platform = dash.platforms.map((p: any) => ({
+        name: p.name,
+        orders: Number(p.orders) || 0,
+        total: Number(p.total) || 0,
+      }));
+    }
+  } catch (e: any) { console.warn('[kitchen-screen] platforms failed:', e?.message); }
 
   // 4. Leaderboard — top 5 waiters by sales today
   try {
