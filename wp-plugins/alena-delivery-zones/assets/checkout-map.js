@@ -98,5 +98,11 @@
     };
   }
 
-  $(init);
+  // Google Maps loader will invoke this when the API is ready
+  window.alenaDzCheckoutMapInit = init;
+
+  // Also try on DOM ready, in case the Maps API loaded before our script
+  $(function () {
+    if (typeof google !== 'undefined' && google.maps && !map) init();
+  });
 })(jQuery);

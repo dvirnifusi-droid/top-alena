@@ -22,9 +22,11 @@ class Alena_DZ_Checkout_Map {
         $key = get_option('alena_dz_google_key', '');
         if (!$key) return;
 
+        // No loading=async — we need synchronous availability of google.maps
+        // for our init() call. Maps JS without it is fine for a checkout map.
         wp_enqueue_script(
             'alena-dz-checkout-google-maps',
-            "https://maps.googleapis.com/maps/api/js?key={$key}&libraries=geometry&language=he&loading=async",
+            "https://maps.googleapis.com/maps/api/js?key={$key}&libraries=geometry&language=he&callback=alenaDzCheckoutMapInit",
             [], null, true
         );
         wp_enqueue_script(

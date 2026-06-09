@@ -39,7 +39,9 @@ class Alena_DZ_Checkout_Fields {
         unset($fields['state']);
         if (isset($fields['postcode'])) {
             $fields['postcode']['required'] = false;
-            $fields['postcode']['label']    = 'מיקוד (אופציונלי)';
+            // WC appends "(אופציונלי)" automatically when not required, so
+            // we keep the original label to avoid the double suffix.
+            $fields['postcode']['label']    = 'מיקוד';
         }
         return $fields;
     }
