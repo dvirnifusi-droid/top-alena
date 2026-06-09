@@ -555,12 +555,58 @@ function EmployeesInner() {
    const [isPushoverOpen, setIsPushoverOpen] = useState(false);
    const [currentUser, setCurrentUser] = useState(null);
 
+   // === Filter state ============================================================
+   // - searchText: matches name OR email (case-insensitive, partial)
+   // - permFilter: 'all' | 'owner' (admin) | 'manager' (dept manager) | 'employee'
+   // - positionFilter: 'all' | exact position string ('טבח', 'מלצר', ...)
+   // - statusFilter: 'all' | 'active' | 'inactive'
+   const [searchText, setSearchText] = useState('');
+   const [permFilter, setPermFilter] = useState('all');
+   const [positionFilter, setPositionFilter] = useState('all');
+   const [statusFilter, setStatusFilter] = useState('all');
+
    // Department managers (e.g. kitchen manager) see only employees in their
    // department. Admin sees everyone.
    const managedDept = currentUser?.managed_department || null;
-   const employees = managedDept
+   const baseEmployees = managedDept
      ? allEmployees.filter(e => (e.department || '').toLowerCase() === managedDept.toLowerCase())
      : allEmployees;
+
+   // Compute distinct positions for the dropdown
+   const distinctPositions = React.useMemo(() => {
+     const set = new Set();
+     for (const e of baseEmployees) {
+       if (e.employee_position) set.add(e.employee_position);
+     }
+     return [...set].sort();
+   }, [baseEmployees]);
+
+   // Permission category helper
+   const permCategory = (e) => {
+     if (e.role === 'admin') return 'owner';
+     if (e.managed_department) return 'manager';
+     return 'employee';
+   };
+
+   // Apply all filters to derive the visible list
+   const employees = React.useMemo(() => {
+     const q = searchText.trim().toLowerCase();
+     return baseEmployees.filter(e => {
+       if (q && !((e.full_name || '').toLowerCase().includes(q) || (e.email || '').toLowerCase().includes(q))) return false;
+       if (permFilter !== 'all' && permCategory(e) !== permFilter) return false;
+       if (positionFilter !== 'all' && e.employee_position !== positionFilter) return false;
+       if (statusFilter === 'active' && e.status !== 'active') return false;
+       if (statusFilter === 'inactive' && e.status === 'active') return false;
+       return true;
+     });
+   }, [baseEmployees, searchText, permFilter, positionFilter, statusFilter]);
+
+   // Counts per permission category (shown as badges in the filter chips)
+   const counts = React.useMemo(() => {
+     const c = { all: baseEmployees.length, owner: 0, manager: 0, employee: 0 };
+     for (const e of baseEmployees) c[permCategory(e)]++;
+     return c;
+   }, [baseEmployees]);
 
   useEffect(() => {
     User.me().then(setCurrentUser).catch(() => setCurrentUser(null));
@@ -731,6 +777,91 @@ function EmployeesInner() {
         {loading ? (
           <p>טוען עובדים...</p>
         ) : (
+          <>
+          {/* === Filters bar ============================================== */}
+          <Card className="mb-4 p-4 bg-white">
+            <div className="flex flex-col gap-3">
+              {/* Search input */}
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  value={searchText}
+                  onChange={(e) => setSearchText(e.target.value)}
+                  placeholder="🔎 חיפוש לפי שם או מייל..."
+                  className="flex-1 border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#44512C]"
+                />
+                {(searchText || permFilter !== 'all' || positionFilter !== 'all' || statusFilter !== 'all') && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => { setSearchText(''); setPermFilter('all'); setPositionFilter('all'); setStatusFilter('all'); }}
+                    className="text-xs"
+                  >
+                    ✕ נקה
+                  </Button>
+                )}
+              </div>
+
+              {/* Permission filter chips */}
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs font-bold text-gray-600">הרשאה:</span>
+                {[
+                  { key: 'all', label: 'הכל', emoji: '👥', color: 'gray' },
+                  { key: 'owner', label: 'בעלים / Admin', emoji: '🛡️', color: 'emerald' },
+                  { key: 'manager', label: 'מנהלי מחלקה', emoji: '👔', color: 'blue' },
+                  { key: 'employee', label: 'עובדים', emoji: '👤', color: 'purple' },
+                ].map(chip => {
+                  const isActive = permFilter === chip.key;
+                  const colors = {
+                    gray: isActive ? 'bg-gray-700 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200',
+                    emerald: isActive ? 'bg-emerald-600 text-white' : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100',
+                    blue: isActive ? 'bg-blue-600 text-white' : 'bg-blue-50 text-blue-700 hover:bg-blue-100',
+                    purple: isActive ? 'bg-purple-600 text-white' : 'bg-purple-50 text-purple-700 hover:bg-purple-100',
+                  };
+                  return (
+                    <button
+                      key={chip.key}
+                      onClick={() => setPermFilter(chip.key)}
+                      className={`px-3 py-1 rounded-full text-xs font-bold transition-colors ${colors[chip.color]}`}
+                    >
+                      {chip.emoji} {chip.label} ({counts[chip.key]})
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Position + status dropdowns */}
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-gray-600">תפקיד:</span>
+                  <select
+                    value={positionFilter}
+                    onChange={(e) => setPositionFilter(e.target.value)}
+                    className="border rounded-lg px-2 py-1 text-sm"
+                  >
+                    <option value="all">הכל</option>
+                    {distinctPositions.map(p => <option key={p} value={p}>{p}</option>)}
+                  </select>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-gray-600">סטטוס:</span>
+                  <select
+                    value={statusFilter}
+                    onChange={(e) => setStatusFilter(e.target.value)}
+                    className="border rounded-lg px-2 py-1 text-sm"
+                  >
+                    <option value="all">הכל</option>
+                    <option value="active">פעיל</option>
+                    <option value="inactive">לא פעיל</option>
+                  </select>
+                </div>
+                <div className="text-xs text-gray-500 mr-auto">
+                  מציג <strong>{employees.length}</strong> מתוך <strong>{baseEmployees.length}</strong> עובדים
+                </div>
+              </div>
+            </div>
+          </Card>
+
           <Card>
             <CardContent className="p-0">
               <Table>
@@ -739,6 +870,7 @@ function EmployeesInner() {
                     <TableHead>שם העובד</TableHead>
                     <TableHead>אימייל</TableHead>
                     <TableHead>תפקיד ראשי</TableHead>
+                    <TableHead>הרשאה</TableHead>
                     <TableHead>סטטוס</TableHead>
                     <TableHead>שכר שעתי</TableHead>
                     <TableHead className="text-left">פעולות</TableHead>
@@ -753,9 +885,22 @@ function EmployeesInner() {
                         </Link>
                       </TableCell>
                       <TableCell className="text-gray-600">{employee.email}</TableCell>
-                      <TableCell>{employee.role}</TableCell>
+                      <TableCell>{employee.employee_position || employee.role}</TableCell>
                       <TableCell>
-                        <Badge 
+                        {permCategory(employee) === 'owner' && (
+                          <Badge className="bg-emerald-600 text-white">🛡️ בעלים</Badge>
+                        )}
+                        {permCategory(employee) === 'manager' && (
+                          <Badge className="bg-blue-600 text-white">
+                            👔 {employee.managed_department === 'kitchen' ? 'מנהל מטבח' : 'מנהל פלור'}
+                          </Badge>
+                        )}
+                        {permCategory(employee) === 'employee' && (
+                          <Badge className="bg-purple-100 text-purple-800">👤 עובד</Badge>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <Badge
                           variant={employee.status === 'active' ? 'default' : 'secondary'}
                           className={employee.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}
                         >
@@ -814,6 +959,7 @@ function EmployeesInner() {
               </Table>
             </CardContent>
           </Card>
+          </>
         )}
 
         <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
