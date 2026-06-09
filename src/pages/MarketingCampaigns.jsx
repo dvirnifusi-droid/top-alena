@@ -1,171 +1,442 @@
-import React, { useState } from 'react';
+// Marketing Campaigns 2.0 — segment-driven bulk WhatsApp/SMS sender.
+//
+// Replaces the old 4 hardcoded send-buttons with a flexible workflow:
+//   1. Pick segment (or custom filter)
+//   2. Preview: see count + 5 sample customers
+//   3. Edit message template (with {name}, {coins}, {days_since_visit} placeholders)
+//   4. Send → bulk send via WhatsApp (default) or SMS, throttled 24h per customer
+//   5. History tab shows every past send
+//
+// All sends respect marketing_consent (חוק הספאם).
+import React, { useEffect, useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Send, Mail, Heart, Users } from 'lucide-react';
+import { Card, CardContent } from '@/components/ui/card';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { Send, Eye, Sparkles, History as HistoryIcon, Loader2, AlertCircle, CheckCircle2 } from 'lucide-react';
 
-const CAMPAIGNS = [
-  {
-    id: 'newsletter',
-    name: '📧 ניוזלטר שבועי',
-    desc: 'עדכון מנות חדשות ואירועים',
-    fn: 'sendWeeklyNewsletter',
-    icon: Mail,
-    color: 'from-[#44512C] to-[#44512C]',
-    target: 'לקוחות עם coins',
-  },
-  {
-    id: 'couple',
-    name: '💕 הצעה לזוגות',
-    desc: 'ערב רומנטי באמצע שבוע',
-    fn: 'sendCoupleOffer',
-    icon: Heart,
-    color: 'from-[#A04A2E] to-[#A04A2E]',
-    target: 'זוגות (2 סועדים)',
-  },
-  {
-    id: 'group',
-    name: '👥 הצעה לקבוצות',
-    desc: 'אירועים וימי הולדת',
-    fn: 'sendGroupOffer',
-    icon: Users,
-    color: 'from-[#A04A2E] to-[#A04A2E]',
-    target: 'קבוצות (6+ סועדים)',
-  },
-  {
-    id: 'abandoned',
-    name: '🎁 התגעגענו',
-    desc: 'הודעה לנוטשים - הקינוח עלינו',
-    fn: 'sendAbandonedReminder',
-    icon: Send,
-    color: 'from-orange-500 to-orange-600',
-    target: 'נטשו בתור 24-48 שעות אחורה',
-  },
+// === Predefined segments with default templates =============================
+const SEGMENTS = [
+    {
+        key: 'birthday_this_month',
+        emoji: '🎂',
+        label: 'יום הולדת החודש',
+        desc: 'לקוחות שהיום שלהם נופל החודש',
+        defaultTemplate: 'היי {name}! 🎂\nלקראת היום הגדול שלך החודש — מתנה ממסעדת עלינא:\n🍰 קינוח אישי על חשבון הבית כשתבוא לחגוג!\n\nתקף לחודש שלם. נשמח לראותך 🌿',
+        color: 'pink',
+    },
+    {
+        key: 'birthday_today',
+        emoji: '🎉',
+        label: 'חוגגים היום',
+        desc: 'מי שיום הולדתו ממש היום',
+        defaultTemplate: 'יום הולדת שמח, {name}! 🎉🎂\nאיזה יום מיוחד — אם תבוא היום, הקינוח עלינא 🍰\nרוטשילד 104, ראשון לציון. נשמח לחגוג איתך 🌿',
+        color: 'rose',
+    },
+    {
+        key: 'winback_30',
+        emoji: '👋',
+        label: 'מתגעגעים — 30 יום',
+        desc: 'לא ביקרו אצלנו 30-60 ימים',
+        defaultTemplate: 'היי {name}, מתגעגעים! ❤️\nכבר {days_since_visit} ימים מאז שביקרת אצלנו. הקפה הראשון עלינא — בוא נראה אותך השבוע 🌿\nעלינא, רוטשילד 104',
+        color: 'amber',
+    },
+    {
+        key: 'winback_60',
+        emoji: '💝',
+        label: 'התגעגענו — 60 יום',
+        desc: 'לא ביקרו 60-90 ימים — הצעה גדולה יותר',
+        defaultTemplate: 'היי {name}! 💝\nכבר {days_since_visit} ימים בלעדיך. בא ניזכר — 15% הנחה לכל ההזמנה החודש, רק תגיד שאמרת לי בוואטסאפ 🌿',
+        color: 'orange',
+    },
+    {
+        key: 'winback_90',
+        emoji: '✨',
+        label: 'חזרה דרמטית — 90 יום',
+        desc: 'לא ביקרו 90+ ימים — הצעה חזקה',
+        defaultTemplate: 'שלום {name} 🌿\nעבר זמן... כדי להחזיר אותך — קופון של 50₪ ללא תנאי, רק תבוא ותהנה.\nתקף עד סוף החודש. נשמח לראותך! ✨',
+        color: 'red',
+    },
+    {
+        key: 'vip',
+        emoji: '🏆',
+        label: 'VIP בלבד',
+        desc: 'לקוחות עם loyalty_tier=vip',
+        defaultTemplate: 'היי {name} 🏆\nכלקוח/ה VIP שלנו — הזמנה לטעימת המנה החדשה לפני כולם, ביום שלישי הקרוב ב-19:00.\nמספר מקומות מוגבל. רוצה? תגיב פה 🌿',
+        color: 'emerald',
+    },
+    {
+        key: 'almost_vip',
+        emoji: '⭐',
+        label: 'כמעט VIP',
+        desc: 'רגיל עם 5+ ביקורים',
+        defaultTemplate: 'היי {name} ⭐\nאתה כבר {visit_count} ביקורים אצלנו — עוד ביקור אחד ותקבל סטטוס VIP עם הטבות קבועות.\nנשמח לראותך בקרוב 🌿',
+        color: 'gold',
+    },
+    {
+        key: 'high_spenders',
+        emoji: '💎',
+        label: 'לקוחות מובילים (10+ ביקורים)',
+        desc: 'הלקוחות הכי נאמנים',
+        defaultTemplate: 'היי {name} 💎\nאתה אחד הלקוחות הכי יקרים שלנו ({visit_count} ביקורים) — תודה ענקית.\nמתנה אישית מחכה לך בביקור הבא, רק תגיד שראיתי הודעה זו 🌿',
+        color: 'purple',
+    },
+    {
+        key: 'with_coins',
+        emoji: '🪙',
+        label: 'עם מטבעות לא ממומשים',
+        desc: 'coin_balance > 0',
+        defaultTemplate: 'היי {name} 🪙\nיש לך {coins} מטבעות שמחכים לך! בוא לממש אותם — כל מטבע = ₪1 הנחה.\nנשמח לראותך 🌿',
+        color: 'yellow',
+    },
+    {
+        key: 'all_consented',
+        emoji: '📢',
+        label: 'כל הרשימה (consent בלבד)',
+        desc: 'הודעה לכל לקוח שאישר שיווק',
+        defaultTemplate: 'היי {name}! 🌿\n[הודעה כללית - מלא כאן]',
+        color: 'blue',
+    },
 ];
 
+const COLOR_BG = {
+    pink: 'bg-pink-50 border-pink-200 hover:border-pink-400',
+    rose: 'bg-rose-50 border-rose-200 hover:border-rose-400',
+    amber: 'bg-amber-50 border-amber-200 hover:border-amber-400',
+    orange: 'bg-orange-50 border-orange-200 hover:border-orange-400',
+    red: 'bg-red-50 border-red-200 hover:border-red-400',
+    emerald: 'bg-emerald-50 border-emerald-200 hover:border-emerald-400',
+    gold: 'bg-yellow-50 border-yellow-200 hover:border-yellow-400',
+    purple: 'bg-purple-50 border-purple-200 hover:border-purple-400',
+    yellow: 'bg-yellow-50 border-yellow-200 hover:border-yellow-400',
+    blue: 'bg-blue-50 border-blue-200 hover:border-blue-400',
+};
+
+const COLOR_ACTIVE = {
+    pink: 'bg-pink-500 text-white border-pink-700',
+    rose: 'bg-rose-500 text-white border-rose-700',
+    amber: 'bg-amber-500 text-white border-amber-700',
+    orange: 'bg-orange-500 text-white border-orange-700',
+    red: 'bg-red-500 text-white border-red-700',
+    emerald: 'bg-emerald-600 text-white border-emerald-800',
+    gold: 'bg-yellow-500 text-white border-yellow-700',
+    purple: 'bg-purple-500 text-white border-purple-700',
+    yellow: 'bg-yellow-500 text-white border-yellow-700',
+    blue: 'bg-blue-500 text-white border-blue-700',
+};
+
 export default function MarketingCampaigns() {
-  const [loading, setLoading] = useState({});
-  const [results, setResults] = useState({});
+    const [activeSegment, setActiveSegment] = useState(null); // SEGMENTS entry
+    const [template, setTemplate] = useState('');
+    const [channel, setChannel] = useState('whatsapp');
+    const [preview, setPreview] = useState(null); // { count, sample }
+    const [previewLoading, setPreviewLoading] = useState(false);
+    const [sending, setSending] = useState(false);
+    const [sendResult, setSendResult] = useState(null);
+    const [history, setHistory] = useState([]);
+    const [tab, setTab] = useState('compose');
 
-  const handleSend = async (campaign) => {
-    setLoading(prev => ({ ...prev, [campaign.id]: true }));
-    try {
-      const response = await base44.asServiceRole.functions.invoke(campaign.fn, {});
-      const sent = response.data?.sent || response.sent || 0;
-      setResults(prev => ({
-        ...prev,
-        [campaign.id]: { success: true, count: sent, time: new Date().toLocaleTimeString('he-IL') }
-      }));
-    } catch (e) {
-      setResults(prev => ({
-        ...prev,
-        [campaign.id]: { success: false, error: e.message }
-      }));
-    } finally {
-      setLoading(prev => ({ ...prev, [campaign.id]: false }));
-    }
-  };
+    // When segment is chosen, set default template + auto-preview
+    const pickSegment = async (seg) => {
+        setActiveSegment(seg);
+        setTemplate(seg.defaultTemplate);
+        setSendResult(null);
+        await runPreview(seg.key);
+    };
 
-  return (
-    <div className="p-6 min-h-screen bg-gradient-to-b from-gray-50 to-gray-100" dir="rtl">
-      {/* כותרת */}
-      <div className="mb-8">
-        <h1 className="text-4xl font-black text-gray-800 mb-2">📧 קמפיינים שיווקיים</h1>
-        <p className="text-gray-600">שלח הודעות WhatsApp מיוחדות לקבוצות שונות של לקוחות</p>
-      </div>
+    const runPreview = async (segmentKey) => {
+        setPreviewLoading(true);
+        setPreview(null);
+        try {
+            const r = await base44.functions.previewCustomerSegment({ segment: segmentKey });
+            setPreview(r?.data || r);
+        } catch (e) {
+            setPreview({ count: 0, sample: [], error: e?.message });
+        } finally {
+            setPreviewLoading(false);
+        }
+    };
 
-      {/* רשת קמפיינים */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-        {CAMPAIGNS.map(campaign => {
-          const Icon = campaign.icon;
-          const result = results[campaign.id];
-          const isLoading = loading[campaign.id];
+    const handleSend = async () => {
+        if (!activeSegment) return;
+        if (!template.trim()) { alert('כתוב הודעה לפני שליחה'); return; }
+        const count = preview?.count || 0;
+        if (count === 0) { alert('אין לקוחות תואמים לסגמנט הזה'); return; }
+        if (!confirm(`לשלוח ל-${count} לקוחות?\n\nסגמנט: ${activeSegment.label}\nערוץ: ${channel === 'whatsapp' ? 'WhatsApp' : 'SMS'}\n\nההודעות נשלחות מיידית.`)) return;
+        setSending(true);
+        setSendResult(null);
+        try {
+            const r = await base44.functions.sendCustomerCampaign({
+                segment: activeSegment.key,
+                message_template: template,
+                channel,
+                campaign_key: activeSegment.key,
+                campaign_label: activeSegment.label,
+            });
+            const data = r?.data || r;
+            setSendResult({ success: true, ...data });
+            loadHistory();
+        } catch (e) {
+            setSendResult({ success: false, error: e?.message || 'שגיאה' });
+        } finally {
+            setSending(false);
+        }
+    };
 
-          return (
-            <Card key={campaign.id} className="overflow-hidden shadow-lg hover:shadow-xl transition-shadow">
-              {/* כותרת צבעונית */}
-              <div className={`bg-gradient-to-l ${campaign.color} text-white p-6`}>
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <h3 className="text-xl font-black mb-1">{campaign.name}</h3>
-                    <p className="text-white/80 text-sm font-medium">{campaign.desc}</p>
-                  </div>
-                  <div className="text-3xl">
-                    <Icon className="w-8 h-8" />
-                  </div>
+    const loadHistory = async () => {
+        try {
+            const r = await base44.functions.getCampaignHistory({ limit: 50 });
+            setHistory((r?.data || r)?.rows || []);
+        } catch (e) {
+            console.warn('history load failed', e);
+        }
+    };
+
+    useEffect(() => { loadHistory(); }, []);
+
+    // Render placeholder preview
+    const renderedSample = (() => {
+        if (!preview?.sample?.[0]) return '';
+        const c = preview.sample[0];
+        const replacements = {
+            name: c.name || 'אורח/ת יקר/ה',
+            coins: String(c.coin_balance || 0),
+            days_since_visit: c.last_visit ? String(Math.floor((Date.now() - new Date(c.last_visit).getTime()) / 86400000)) : '0',
+            visit_count: String(c.visit_count || 0),
+            tier: c.loyalty_tier === 'vip' ? 'VIP' : 'רגיל',
+        };
+        return template.replace(/\{(\w+)\}/g, (m, k) => replacements[k] ?? m);
+    })();
+
+    return (
+        <div className="p-4 md:p-6 min-h-screen bg-gradient-to-b from-gray-50 to-gray-100" dir="rtl">
+            <div className="max-w-6xl mx-auto">
+                <div className="mb-6">
+                    <h1 className="text-3xl md:text-4xl font-black text-gray-800 mb-2 flex items-center gap-2">
+                        <Sparkles className="w-8 h-8 text-[#A04A2E]" />
+                        קמפיינים שיווקיים
+                    </h1>
+                    <p className="text-gray-600 text-sm">בחר סגמנט → ערוך טמפלייט → ראה תצוגה מקדימה → שלח</p>
                 </div>
-              </div>
 
-              {/* תוכן */}
-              <CardContent className="p-6">
-                {/* מטרה */}
-                <div className="mb-4 p-3 bg-gray-50 rounded-lg border border-gray-200">
-                  <p className="text-sm text-gray-600">
-                    <span className="font-bold text-gray-800">🎯 יעד: </span>
-                    {campaign.target}
-                  </p>
-                </div>
+                <Tabs value={tab} onValueChange={setTab} className="space-y-4">
+                    <TabsList className="grid grid-cols-2 max-w-md">
+                        <TabsTrigger value="compose">📝 צור קמפיין</TabsTrigger>
+                        <TabsTrigger value="history">📊 היסטוריה ({history.length})</TabsTrigger>
+                    </TabsList>
 
-                {/* תוצאה */}
-                {result && (
-                  <div className={`mb-4 p-3 rounded-lg border-2 ${
-                    result.success
-                      ? 'bg-green-50 border-green-300 text-green-800'
-                      : 'bg-red-50 border-red-300 text-red-800'
-                  }`}>
-                    {result.success ? (
-                      <>
-                        <p className="font-bold text-sm">✅ נשלח בהצלחה!</p>
-                        <p className="text-sm">{result.count} הודעות בשעה {result.time}</p>
-                      </>
-                    ) : (
-                      <>
-                        <p className="font-bold text-sm">❌ שגיאה</p>
-                        <p className="text-sm">{result.error}</p>
-                      </>
-                    )}
-                  </div>
-                )}
+                    {/* === Compose tab === */}
+                    <TabsContent value="compose" className="space-y-4">
+                        {/* Segment chips */}
+                        <Card>
+                            <CardContent className="p-4">
+                                <h3 className="font-bold mb-3 text-sm text-gray-700">1️⃣ בחר קהל יעד:</h3>
+                                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2">
+                                    {SEGMENTS.map(seg => {
+                                        const isActive = activeSegment?.key === seg.key;
+                                        return (
+                                            <button
+                                                key={seg.key}
+                                                onClick={() => pickSegment(seg)}
+                                                className={`border-2 rounded-xl p-3 text-right transition-all ${
+                                                    isActive ? COLOR_ACTIVE[seg.color] : COLOR_BG[seg.color]
+                                                }`}
+                                            >
+                                                <div className="text-2xl mb-1">{seg.emoji}</div>
+                                                <div className={`font-bold text-sm ${isActive ? 'text-white' : 'text-gray-900'}`}>{seg.label}</div>
+                                                <div className={`text-[10px] mt-0.5 ${isActive ? 'text-white/90' : 'text-gray-500'}`}>{seg.desc}</div>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </CardContent>
+                        </Card>
 
-                {/* כפתור שליחה */}
-                <Button
-                  onClick={() => handleSend(campaign)}
-                  disabled={isLoading}
-                  className="w-full font-bold"
-                >
-                  {isLoading ? (
-                    <span className="flex items-center gap-2">
-                      <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
-                      </svg>
-                      שולח...
-                    </span>
-                  ) : (
-                    <span className="flex items-center gap-2">
-                      <Send className="w-4 h-4" />
-                      שלח עכשיו
-                    </span>
-                  )}
-                </Button>
-              </CardContent>
-            </Card>
-          );
-        })}
-      </div>
+                        {activeSegment && (
+                            <>
+                                {/* Preview */}
+                                <Card>
+                                    <CardContent className="p-4">
+                                        <div className="flex items-center justify-between mb-3">
+                                            <h3 className="font-bold text-sm text-gray-700">2️⃣ תצוגה מקדימה של הקהל:</h3>
+                                            <Button size="sm" variant="outline" onClick={() => runPreview(activeSegment.key)} disabled={previewLoading}>
+                                                {previewLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Eye className="w-3 h-3 ml-1" />}
+                                                רענן
+                                            </Button>
+                                        </div>
+                                        {previewLoading ? (
+                                            <div className="text-center py-6 text-gray-400">
+                                                <Loader2 className="w-6 h-6 animate-spin mx-auto" />
+                                            </div>
+                                        ) : preview ? (
+                                            <div>
+                                                <div className="text-3xl font-black text-emerald-700 mb-1">
+                                                    {preview.count} לקוחות תואמים
+                                                </div>
+                                                {preview.count === 0 && (
+                                                    <p className="text-sm text-orange-600 mt-2">⚠️ אין לקוחות תואמים. תוודא שיש לקוחות עם marketing_consent + נתונים מתאימים לסגמנט.</p>
+                                                )}
+                                                {preview.sample?.length > 0 && (
+                                                    <div className="mt-3 space-y-1">
+                                                        <p className="text-xs text-gray-500 font-bold">דוגמאות:</p>
+                                                        {preview.sample.map(c => (
+                                                            <div key={c.id} className="text-xs bg-gray-50 rounded px-2 py-1 flex items-center gap-2">
+                                                                <span className="font-semibold">{c.name || '(ללא שם)'}</span>
+                                                                <span className="text-gray-400">·</span>
+                                                                <span className="text-gray-500">{c.phone}</span>
+                                                                {c.visit_count > 0 && (
+                                                                    <span className="text-emerald-600 mr-auto">{c.visit_count} ביקורים</span>
+                                                                )}
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        ) : null}
+                                    </CardContent>
+                                </Card>
 
-      {/* הערה */}
-      <Card className="bg-[#F4ECD8] border-[#E8D9B5]">
-        <CardContent className="p-4 text-sm text-[#2E3819]">
-          <p className="font-bold mb-2">ℹ️ הערות חשובות:</p>
-          <ul className="list-disc list-inside space-y-1">
-            <li>כל הודעה נשלחת דרך WhatsApp ל-Twilio</li>
-            <li>ההודעות מותאמות אישית לפי מספר הטלפון</li>
-            <li>הנוטשים - רק מ-24 עד 48 שעות אחרי הנטישה</li>
-            <li>אפשר גם להשתמש באוטומציות המתוזמנות כל שבוע</li>
-          </ul>
-        </CardContent>
-      </Card>
-    </div>
-  );
+                                {/* Template editor */}
+                                <Card>
+                                    <CardContent className="p-4">
+                                        <h3 className="font-bold mb-3 text-sm text-gray-700">3️⃣ ערוך הודעה (תוצג ללקוח):</h3>
+                                        <div className="text-xs text-gray-500 mb-2">
+                                            placeholders זמינים: <code className="bg-gray-100 px-1 rounded">{`{name}`}</code> <code className="bg-gray-100 px-1 rounded">{`{coins}`}</code> <code className="bg-gray-100 px-1 rounded">{`{days_since_visit}`}</code> <code className="bg-gray-100 px-1 rounded">{`{visit_count}`}</code> <code className="bg-gray-100 px-1 rounded">{`{tier}`}</code>
+                                        </div>
+                                        <textarea
+                                            value={template}
+                                            onChange={(e) => setTemplate(e.target.value)}
+                                            rows={6}
+                                            className="w-full border rounded-lg p-3 text-sm font-medium focus:ring-2 focus:ring-[#44512C] focus:outline-none"
+                                            placeholder="כתוב את ההודעה..."
+                                        />
+                                        {renderedSample && (
+                                            <div className="mt-3 p-3 bg-emerald-50 border border-emerald-200 rounded-lg">
+                                                <p className="text-[10px] font-bold text-emerald-800 mb-1">📱 תצוגה מקדימה (בהתאמה ללקוח הראשון):</p>
+                                                <pre className="text-sm whitespace-pre-wrap font-sans text-gray-800">{renderedSample}</pre>
+                                            </div>
+                                        )}
+                                    </CardContent>
+                                </Card>
+
+                                {/* Channel + Send */}
+                                <Card>
+                                    <CardContent className="p-4">
+                                        <h3 className="font-bold mb-3 text-sm text-gray-700">4️⃣ בחר ערוץ ושלח:</h3>
+                                        <div className="flex items-center gap-3 mb-4">
+                                            <button
+                                                onClick={() => setChannel('whatsapp')}
+                                                className={`px-4 py-2 rounded-lg font-bold text-sm transition-colors ${
+                                                    channel === 'whatsapp' ? 'bg-emerald-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                                }`}
+                                            >
+                                                💬 WhatsApp
+                                            </button>
+                                            <button
+                                                onClick={() => setChannel('sms')}
+                                                className={`px-4 py-2 rounded-lg font-bold text-sm transition-colors ${
+                                                    channel === 'sms' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                                }`}
+                                            >
+                                                📨 SMS
+                                            </button>
+                                        </div>
+
+                                        <Button
+                                            onClick={handleSend}
+                                            disabled={sending || !preview?.count}
+                                            className="w-full bg-[#44512C] hover:bg-[#7A3722] text-white font-bold text-base py-6"
+                                        >
+                                            {sending ? (
+                                                <><Loader2 className="w-5 h-5 animate-spin ml-2" /> שולח...</>
+                                            ) : (
+                                                <><Send className="w-5 h-5 ml-2" /> שלח ל-{preview?.count || 0} לקוחות</>
+                                            )}
+                                        </Button>
+
+                                        <p className="text-[10px] text-gray-500 mt-2 text-center">
+                                            ⚠️ הודעות נשלחות רק ללקוחות שאישרו שיווק. לקוחות שקיבלו הודעה ב-24 שעות אחרונות יושמטו אוטומטית.
+                                        </p>
+                                    </CardContent>
+                                </Card>
+
+                                {/* Send result */}
+                                {sendResult && (
+                                    <Card>
+                                        <CardContent className="p-4">
+                                            {sendResult.success ? (
+                                                <div className="flex items-start gap-3 text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-lg p-3">
+                                                    <CheckCircle2 className="w-6 h-6 mt-0.5" />
+                                                    <div className="flex-1">
+                                                        <p className="font-bold">✅ נשלח בהצלחה!</p>
+                                                        <p className="text-sm mt-1">
+                                                            📤 {sendResult.sent} הודעות נשלחו · ❌ {sendResult.failed} נכשלו · 🎯 {sendResult.total_matched} סך כל היעד
+                                                        </p>
+                                                        {sendResult.failure_sample?.length > 0 && (
+                                                            <details className="mt-2 text-xs">
+                                                                <summary className="cursor-pointer text-red-700">מה נכשל? ({sendResult.failure_sample.length} דוגמאות)</summary>
+                                                                {sendResult.failure_sample.map((f, i) => (
+                                                                    <div key={i} className="mt-1">{f.phone}: {f.reason}</div>
+                                                                ))}
+                                                            </details>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                <div className="flex items-start gap-3 text-red-800 bg-red-50 border border-red-200 rounded-lg p-3">
+                                                    <AlertCircle className="w-6 h-6 mt-0.5" />
+                                                    <div>
+                                                        <p className="font-bold">❌ שגיאה</p>
+                                                        <p className="text-sm">{sendResult.error}</p>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </CardContent>
+                                    </Card>
+                                )}
+                            </>
+                        )}
+                    </TabsContent>
+
+                    {/* === History tab === */}
+                    <TabsContent value="history" className="space-y-3">
+                        {history.length === 0 ? (
+                            <Card>
+                                <CardContent className="p-12 text-center text-gray-400">
+                                    <HistoryIcon className="w-12 h-12 mx-auto mb-3" />
+                                    <p>אין עדיין היסטוריית קמפיינים</p>
+                                </CardContent>
+                            </Card>
+                        ) : (
+                            history.map(h => (
+                                <Card key={h.id}>
+                                    <CardContent className="p-4">
+                                        <div className="flex items-start justify-between gap-3">
+                                            <div className="flex-1">
+                                                <div className="flex items-center gap-2 mb-1">
+                                                    <span className="font-bold text-sm">{h.campaign_label || h.campaign_key}</span>
+                                                    <span className={`text-[10px] px-2 py-0.5 rounded-full ${
+                                                        h.channel === 'whatsapp' ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700'
+                                                    }`}>
+                                                        {h.channel === 'whatsapp' ? '💬 WhatsApp' : '📨 SMS'}
+                                                    </span>
+                                                </div>
+                                                <p className="text-xs text-gray-600 line-clamp-2 mb-2">{h.message_template}</p>
+                                                <div className="flex gap-3 text-xs">
+                                                    <span className="text-emerald-700 font-bold">✓ {h.success_count}</span>
+                                                    {h.failure_count > 0 && <span className="text-red-700 font-bold">✗ {h.failure_count}</span>}
+                                                    <span className="text-gray-500">🎯 {h.recipient_count}</span>
+                                                    <span className="text-gray-400">{new Date(h.sent_at).toLocaleString('he-IL')}</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </CardContent>
+                                </Card>
+                            ))
+                        )}
+                    </TabsContent>
+                </Tabs>
+            </div>
+        </div>
+    );
 }
