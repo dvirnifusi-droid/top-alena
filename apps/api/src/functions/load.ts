@@ -2943,6 +2943,24 @@ registerFn('sendCustomerCampaign', async ({ body, user }) => {
 // ============================================================================
 // SAVED SEGMENTS — owner-defined custom filters for re-use
 // ============================================================================
+// Bulk-grant marketing consent to manually-added customers.
+// Used when owner imports/adds customers offline and wants them included in
+// campaigns. Only updates customers without an existing consent record,
+// so this is safe to re-run.
+registerFn('bulkGrantMarketingConsent', async ({ body, user }) => {
+  if ((user as any)?.role !== 'admin') throw new Error('admin only');
+  const { scope } = body as any;  // 'all' | 'no_consent_only' (default no_consent_only)
+  const where: any = { phone: { not: '' } };
+  if (scope !== 'all') where.marketing_consent = false;
+  // Don't auto-re-consent customers who explicitly unsubscribed
+  where.marketing_unsubscribed_at = null;
+  const result = await db.customer.updateMany({
+    where,
+    data: { marketing_consent: true, marketing_consent_at: new Date() },
+  });
+  return { updated: result.count };
+});
+
 registerFn('listSavedSegments', async () => {
   const rows = await db.savedSegment.findMany({ orderBy: { use_count: 'desc' }, take: 50 });
   return { rows };

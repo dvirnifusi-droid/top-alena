@@ -34,7 +34,7 @@ export default function CustomerClubPage() {
 
     // Add Customer
     const [showAddCustomer, setShowAddCustomer] = useState(false);
-    const [newCustomer, setNewCustomer] = useState({ name: '', phone: '', email: '', birthday: '', anniversary: '', anniversary_label: '', notes: '' });
+    const [newCustomer, setNewCustomer] = useState({ name: '', phone: '', email: '', birthday: '', anniversary: '', anniversary_label: '', notes: '', marketing_consent: true });
     const [savingCustomer, setSavingCustomer] = useState(false);
 
     // Import Excel
@@ -226,14 +226,29 @@ export default function CustomerClubPage() {
             ...(birthday_mmdd ? { birthday_mmdd } : {}),
             ...(anniversary_mmdd ? { anniversary_mmdd } : {}),
             ...(newCustomer.anniversary_label ? { anniversary_label: newCustomer.anniversary_label } : {}),
+            // marketing_consent: from the checkbox (default true since owner is manually adding).
+            // Stamp consent_at so we have a timestamp for audit/legal purposes.
+            marketing_consent: !!newCustomer.marketing_consent,
+            marketing_consent_at: newCustomer.marketing_consent ? new Date().toISOString() : null,
             satisfaction_status: 'neutral',
             total_visits: 0,
             total_spent: 0,
         });
         setSavingCustomer(false);
-        setNewCustomer({ name: '', phone: '', email: '', birthday: '', anniversary: '', anniversary_label: '', notes: '' });
+        setNewCustomer({ name: '', phone: '', email: '', birthday: '', anniversary: '', anniversary_label: '', notes: '', marketing_consent: true });
         setShowAddCustomer(false);
         loadCustomers();
+    };
+
+    const handleBulkGrantConsent = async () => {
+        if (!confirm('להעניק הסכמה לקבלת הודעות שיווק לכל הלקוחות הקיימים?\n\n• רק אם אישרו בעצמם בעבר.\n• לקוחות שביטלו בעצמם — לא ייפגעו.')) return;
+        try {
+            const r = await base44.functions.bulkGrantMarketingConsent({});
+            alert(`✅ ${(r?.data || r)?.updated || 0} לקוחות עודכנו ויכולים לקבל קמפיינים`);
+            loadCustomers();
+        } catch (e) {
+            alert('שגיאה: ' + (e?.message || ''));
+        }
     };
 
     const handleUploadEmailImage = async (e) => {
@@ -379,6 +394,14 @@ export default function CustomerClubPage() {
                             <Button variant="outline" onClick={() => { setShowImport(true); setImportResult(null); }}>
                                 <Upload className="w-4 h-4 ml-1" />
                                 ייבוא מאקסל
+                            </Button>
+                            <Button
+                                variant="outline"
+                                onClick={handleBulkGrantConsent}
+                                className="border-emerald-300 text-emerald-700 hover:bg-emerald-50"
+                                title="הענק לכל הלקוחות הסכמה לקבל שיווק — שימושי אחרי ייבוא או הוספה ידנית"
+                            >
+                                📢 הענק הסכמה לכולם
                             </Button>
                             <Button variant="outline" onClick={() => { setShowEmail(true); setEmailResult(null); }} className="bg-[#F4ECD8] border-[#E8D9B5] text-[#44512C] hover:bg-[#F4ECD8]">
                                 <Mail className="w-4 h-4 ml-1" />
@@ -563,6 +586,18 @@ export default function CustomerClubPage() {
                             <Label>הערות</Label>
                             <Textarea value={newCustomer.notes} onChange={e => setNewCustomer(p => ({ ...p, notes: e.target.value }))} placeholder="הערות על הלקוח..." rows={2} className="mt-1" />
                         </div>
+                        <label className="flex items-start gap-2 p-3 bg-emerald-50 border border-emerald-200 rounded-lg cursor-pointer hover:bg-emerald-100">
+                            <input
+                                type="checkbox"
+                                checked={newCustomer.marketing_consent}
+                                onChange={e => setNewCustomer(p => ({ ...p, marketing_consent: e.target.checked }))}
+                                className="mt-0.5"
+                            />
+                            <div className="flex-1">
+                                <p className="text-sm font-bold text-emerald-900">📢 מאשר/ת לקבל הודעות שיווק</p>
+                                <p className="text-[10px] text-emerald-700">חובה לחוק הספאם — סמן רק אם הלקוח אישר בעצמו. ללא זה, לקוח לא יקבל קמפיינים.</p>
+                            </div>
+                        </label>
                         <Button onClick={handleAddCustomer} disabled={savingCustomer || !newCustomer.name || !newCustomer.phone} className="w-full bg-[#A04A2E] hover:bg-[#7A3722]">
                             {savingCustomer ? <><Loader2 className="w-4 h-4 animate-spin ml-2" />שומר...</> : <><UserPlus className="w-4 h-4 ml-2" />הוסף לקוח</>}
                         </Button>
