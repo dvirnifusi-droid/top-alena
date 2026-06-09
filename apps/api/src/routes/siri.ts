@@ -322,6 +322,46 @@ export const siriRoutes: FastifyPluginAsync = async (app) => {
   // Health check (no auth) — Siri uses this to verify connectivity.
   app.get('/ping', async () => ({ ok: true, version: VERSION }));
 
+  // Plain-text variant — same logic, returns ONLY the spoken response as
+  // text/plain. Lets iOS Shortcuts just `Speak Contents of URL` directly,
+  // skipping the Get-Dictionary-Value step entirely.
+  app.post('/command-text', async (req, reply) => {
+    const sentKey = (req.headers['x-api-key'] || req.headers['x-siri-key'] || '') as string;
+    const expectedKey = process.env.SIRI_API_KEY || '';
+    if (!expectedKey || sentKey !== expectedKey) {
+      reply.type('text/plain; charset=utf-8');
+      return reply.code(401).send('אין הרשאה');
+    }
+    const body = (req.body || {}) as any;
+    const text = String(body.text || '').trim();
+    if (!text) {
+      reply.type('text/plain; charset=utf-8');
+      return reply.code(400).send('לא קיבלתי טקסט');
+    }
+    try {
+      const handler = functionHandlers['parseVoiceCommand'];
+      if (!handler) {
+        reply.type('text/plain; charset=utf-8');
+        return reply.code(500).send('מערכת הפענוח לא זמינה');
+      }
+      const fakeUser = { id: 'siri-owner', email: 'siri@topalena.com', role: 'admin' };
+      const parsed: any = await handler({ body: { text }, user: fakeUser as any, query: {} } as any);
+      reply.type('text/plain; charset=utf-8');
+      if (!parsed?.intent || parsed.intent === 'unknown') {
+        return `לא הבנתי: ${text}`;
+      }
+      if (SUPPORTED_QUERY_INTENTS.has(parsed.intent)) {
+        const spoken = await executeQuery(parsed);
+        return spoken;
+      }
+      const intentTxt = String(parsed.intent).replace(/_/g, ' ');
+      return `הבנתי ${intentTxt}. פתח את האפליקציה לבצע פעולות`;
+    } catch (e: any) {
+      reply.type('text/plain; charset=utf-8');
+      return reply.code(500).send('שגיאה בעיבוד');
+    }
+  });
+
   app.post('/command', async (req, reply) => {
     // Auth via x-api-key header (matches env SIRI_API_KEY).
     const sentKey = (req.headers['x-api-key'] || req.headers['x-siri-key'] || '') as string;
