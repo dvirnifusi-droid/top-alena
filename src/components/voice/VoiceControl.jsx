@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Mic, MicOff, X } from 'lucide-react';
 import { handleVoiceCommand as globalHandler } from './handleVoiceCommand';
 import { parseIntent } from './voiceIntents';
+import { findNextMissingSlot, parseSlotAnswer, buildPrompt, isCancelAnswer } from './intentSlots';
 
 // === Hebrew number normalization =============================================
 // People say numbers in many ways: "מאה ועשרים", "120", "שולחן מאה". We map
@@ -32,10 +33,11 @@ if (typeof window !== 'undefined' && window.speechSynthesis) {
     setTimeout(pickHebrewVoice, 500);
 }
 
-function speak(text) {
+function speak(text, onDone) {
     try {
         if (!window.speechSynthesis) {
             console.warn('[voice] SpeechSynthesis not available');
+            onDone?.();
             return;
         }
         window.speechSynthesis.cancel();
@@ -46,10 +48,12 @@ function speak(text) {
         u.volume = 1.0;
         const heVoice = pickHebrewVoice();
         if (heVoice) u.voice = heVoice;
-        u.onerror = (e) => console.warn('[voice] TTS error:', e?.error);
+        u.onerror = (e) => { console.warn('[voice] TTS error:', e?.error); onDone?.(); };
+        u.onend = () => onDone?.();
         window.speechSynthesis.speak(u);
     } catch (e) {
         console.warn('[voice] speak failed:', e);
+        onDone?.();
     }
 }
 
@@ -64,6 +68,10 @@ export default function VoiceControl({
     const [lastResult, setLastResult] = useState(null); // { ok, message, intent }
     const [error, setError] = useState(null);
     const recRef = useRef(null);
+    // Slot-filling conversation state (kept in refs so async callbacks see latest)
+    const pendingCmdRef = useRef(null);
+    const askingSlotRef = useRef(null);
+    const [chatQuestion, setChatQuestion] = useState(null); // current prompt shown in UI
 
     // Check browser support once
     const SpeechRecognition =
@@ -162,14 +170,31 @@ export default function VoiceControl({
         else start();
     };
 
-    const handleFinalTranscript = async (txt) => {
-        // LLM-FIRST strategy (owner's request): always ask the LLM to understand
-        // meaning semantically, regardless of phrasing. Regex is used only as a
-        // fast cache for the most-frequent exact phrasings (instant + free).
+    // === Slot-filling helpers ==========================================
+    // Speaks a question, shows it in the panel, then auto-starts listening
+    // after TTS finishes so the user can answer hands-free.
+    const askSlot = (slot, cmd) => {
+        const prompt = buildPrompt(slot, cmd);
+        pendingCmdRef.current = cmd;
+        askingSlotRef.current = slot;
+        setChatQuestion(prompt);
+        setLastResult({ ok: true, message: '🤖 ' + prompt });
+        speak(prompt, () => {
+            // Wait one more tick for TTS audio context cleanup, then auto-listen
+            setTimeout(() => { if (!recRef.current || !listening) start(); }, 250);
+        });
+    };
+
+    const finishConversation = (clearChat = true) => {
+        pendingCmdRef.current = null;
+        askingSlotRef.current = null;
+        if (clearChat) setChatQuestion(null);
+    };
+
+    // Run the LLM + regex parser on user's text. Returns parsed command.
+    const parseUtterance = async (txt) => {
         let parsed = parseIntent(txt);
         const regexHit = parsed.intent !== 'unknown';
-        // Always run LLM in parallel — even if regex matched, the LLM result is
-        // preferred for non-trivial intents (more accurate name/time/etc.).
         let llmParsed = null;
         try {
             const tok = localStorage.getItem('auth_token') || '';
@@ -180,27 +205,79 @@ export default function VoiceControl({
             });
             const data = await r.json();
             if (data?.intent && data.intent !== 'unknown') llmParsed = { ...data, raw: txt };
-        } catch (e) {
-            console.warn('[voice] LLM call failed', e);
-        }
-        // Decision: prefer LLM. Fall back to regex only if LLM failed entirely.
+        } catch (e) { console.warn('[voice] LLM call failed', e); }
         if (llmParsed) parsed = llmParsed;
         else if (!regexHit) parsed = { intent: 'unknown', raw: txt };
-        if (parsed.intent === 'unknown') {
-            const msg = `לא הבנתי: "${parsed.raw || txt}". נסה לנסח אחרת.`;
-            setLastResult({ ok: false, message: msg });
-            speak('לא הבנתי, נסה לנסח אחרת');
+        return parsed;
+    };
+
+    // Dispatch a fully-resolved command (or kick off the slot-filling flow)
+    const runOrAsk = async (cmd) => {
+        const nextSlot = findNextMissingSlot(cmd);
+        if (nextSlot) {
+            askSlot(nextSlot, cmd);
             return;
         }
+        finishConversation();
         try {
-            const result = await handler(parsed);
-            setLastResult({ ok: !!result?.ok, message: result?.message || 'בוצע ✓', intent: parsed.intent });
+            const result = await handler(cmd);
+            setLastResult({ ok: !!result?.ok, message: result?.message || 'בוצע ✓', intent: cmd.intent });
             if (result?.message) speak(result.message);
         } catch (e) {
             const msg = 'שגיאה: ' + (e?.message || 'נסה שוב');
             setLastResult({ ok: false, message: msg });
             speak(msg);
         }
+    };
+
+    const handleFinalTranscript = async (txt) => {
+        // === SLOT-FILLING MODE — answering a follow-up question ===========
+        if (pendingCmdRef.current && askingSlotRef.current) {
+            const txtTrim = String(txt || '').trim();
+            // Cancel?
+            if (isCancelAnswer(txtTrim)) {
+                finishConversation();
+                setLastResult({ ok: false, message: 'בוטל' });
+                speak('בוטל');
+                return;
+            }
+            const slot = askingSlotRef.current;
+            const cmd = pendingCmdRef.current;
+            const value = parseSlotAnswer(slot, txtTrim);
+            if (value === null || value === undefined || value === '') {
+                // Couldn't parse — re-ask once with a hint
+                speak('לא הבנתי, ' + buildPrompt(slot, cmd), () => {
+                    setTimeout(() => start(), 250);
+                });
+                return;
+            }
+            const updated = { ...cmd, [slot.key]: value };
+            await runOrAsk(updated);
+            return;
+        }
+
+        // === NORMAL MODE — first command ==================================
+        const parsed = await parseUtterance(txt);
+        if (parsed.intent === 'unknown') {
+            const msg = `לא הבנתי: "${parsed.raw || txt}". נסה לנסח אחרת.`;
+            setLastResult({ ok: false, message: msg });
+            speak('לא הבנתי, נסה לנסח אחרת');
+            return;
+        }
+        // Multi-step plans don't slot-fill (LLM is expected to provide all params).
+        if (Array.isArray(parsed.steps) && parsed.steps.length > 0) {
+            try {
+                const result = await handler(parsed);
+                setLastResult({ ok: !!result?.ok, message: result?.message || 'בוצע ✓', intent: 'plan' });
+                if (result?.message) speak(result.message);
+            } catch (e) {
+                const msg = 'שגיאה: ' + (e?.message || 'נסה שוב');
+                setLastResult({ ok: false, message: msg });
+                speak(msg);
+            }
+            return;
+        }
+        await runOrAsk(parsed);
     };
 
     if (!enabled) return null;
@@ -238,10 +315,15 @@ export default function VoiceControl({
                     )}
                     {lastResult && (
                         <div className={`text-xs ${lastResult.ok ? 'text-emerald-700' : 'text-amber-700'} font-bold flex items-center justify-between gap-2`}>
-                            <span>{lastResult.ok ? '✅' : '⚠️'} {lastResult.message}</span>
-                            <button onClick={() => setLastResult(null)} className="text-gray-400 hover:text-gray-700">
+                            <span>{lastResult.ok ? (chatQuestion ? '🤖' : '✅') : '⚠️'} {lastResult.message}</span>
+                            <button onClick={() => { setLastResult(null); finishConversation(); }} className="text-gray-400 hover:text-gray-700">
                                 <X className="w-3 h-3" />
                             </button>
+                        </div>
+                    )}
+                    {chatQuestion && (
+                        <div className="text-[10px] text-gray-500 mt-1 italic">
+                            ענה בקול · אמר "ביטול" כדי לעצור
                         </div>
                     )}
                     {error && (
