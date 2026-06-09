@@ -310,15 +310,16 @@ function PermissionsDialog({ isOpen, onClose, employee, onRefresh }) {
    // dialog reflects the new state without needing to close+reopen.
    const [localEmployee, setLocalEmployee] = useState(employee);
 
-  // Pre-fill the dropdown with the employee's CURRENT managed_department so
-  // the owner sees what's actually saved (not an empty selector).
+  // Pre-fill the dropdown with the employee's CURRENT managed_department.
+  // Permissions are stored on the User record, joined into employee as
+  // `_managed_dept` and `_admin_role` by loadEmployees.
   useEffect(() => {
     if (isOpen) {
-      setManagedDept(employee?.managed_department || '');
+      setManagedDept(employee?._managed_dept || employee?.managed_department || '');
       setLocalEmployee(employee);
       setResult(null);
     }
-  }, [isOpen, employee?.id, employee?.managed_department]);
+  }, [isOpen, employee?.id, employee?._managed_dept]);
 
   const callSetRole = async ({ role, managed_department }) => {
     setLoading(true);
@@ -330,12 +331,13 @@ function PermissionsDialog({ isOpen, onClose, employee, onRefresh }) {
       const res = await base44.functions.setUserRoleAndDepartment(payload);
       const ok = res?.status === 200 || res?.data;
       if (!ok) throw new Error(res?.data?.error || 'failed');
-      // Update local snapshot so the "תפקיד נוכחי" section reflects the new state
-      // immediately — owner can SEE the change before closing the dialog.
+      // Update local snapshot so the "הרשאות פעילות" badges reflect the new
+      // state immediately — owner can SEE the change before closing the dialog.
+      // Updates the _admin_role + _managed_dept fields (joined from User).
       setLocalEmployee(prev => ({
         ...prev,
-        role: role !== undefined ? role : prev.role,
-        managed_department: managed_department !== undefined ? managed_department : prev.managed_department,
+        _admin_role: role !== undefined ? role : prev._admin_role,
+        _managed_dept: managed_department !== undefined ? managed_department : prev._managed_dept,
       }));
       const action =
         role === 'admin' ? 'הוענקו הרשאות Admin'
@@ -360,9 +362,13 @@ function PermissionsDialog({ isOpen, onClose, employee, onRefresh }) {
   const handleSetDeptManager = () => callSetRole({ managed_department: managedDept || null });
 
   // Helpers for the "current state" badges
-  const isAdmin = localEmployee?.role === 'admin';
-  const currentDept = localEmployee?.managed_department;
-  const deptLabel = currentDept === 'kitchen' ? 'מנהל מטבח' : currentDept === 'floor' ? 'מנהל פלור' : null;
+  // _admin_role and _managed_dept come from the joined User record.
+  const isAdmin = localEmployee?._admin_role === 'admin';
+  const currentDept = localEmployee?._managed_dept;
+  const deptLabel = currentDept === 'kitchen' ? 'מנהל מטבח'
+    : currentDept === 'floor' ? 'מנהל פלור'
+    : currentDept === 'bar' ? 'מנהל בר'
+    : null;
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -395,9 +401,9 @@ function PermissionsDialog({ isOpen, onClose, employee, onRefresh }) {
                   👔 {deptLabel}
                 </span>
               )}
-              {localEmployee?.employee_position && (
+              {localEmployee?.role && (
                 <span className="inline-flex items-center gap-1 px-3 py-1 bg-purple-100 text-purple-800 text-xs rounded-full">
-                  💼 {localEmployee.employee_position}
+                  💼 {localEmployee.role}
                 </span>
               )}
             </div>
@@ -564,6 +570,10 @@ function EmployeesInner() {
    const [permFilter, setPermFilter] = useState('all');
    const [positionFilter, setPositionFilter] = useState('all');
    const [statusFilter, setStatusFilter] = useState('all');
+   // Department filter — 'all' | 'floor' | 'bar' | 'kitchen' | 'managers'
+   // ('managers' is a cross-cutting view of anyone with managed_department
+   // or role=admin, regardless of their actual department.)
+   const [deptFilter, setDeptFilter] = useState('all');
 
    // Department managers (e.g. kitchen manager) see only employees in their
    // department. Admin sees everyone.
@@ -581,10 +591,12 @@ function EmployeesInner() {
      return [...set].sort();
    }, [baseEmployees]);
 
-   // Permission category helper
+   // Permission category helper — reads from joined User data (_admin_role,
+   // _managed_dept) NOT from Employee.role (which is the job title in Hebrew
+   // like "מנהל מטבח", not the permission level).
    const permCategory = (e) => {
-     if (e.role === 'admin') return 'owner';
-     if (e.managed_department) return 'manager';
+     if (e._admin_role === 'admin') return 'owner';
+     if (e._managed_dept) return 'manager';
      return 'employee';
    };
 
@@ -616,8 +628,25 @@ function EmployeesInner() {
   const loadEmployees = async () => {
     setLoading(true);
     try {
-      const data = await Employee.list('-created_date');
-      setAllEmployees(data);
+      // Permissions (admin role + managed_department) live on User, not on
+      // Employee. Load both, join by email, expose merged shape to the UI.
+      const [empData, userData] = await Promise.all([
+        Employee.list('-created_date'),
+        User.list().catch(() => []),
+      ]);
+      const userByEmail = new Map();
+      for (const u of (userData || [])) {
+        if (u?.email) userByEmail.set(String(u.email).toLowerCase(), u);
+      }
+      const merged = (empData || []).map(e => {
+        const u = userByEmail.get(String(e.email || '').toLowerCase());
+        return {
+          ...e,
+          _admin_role: u?.role || null,                     // 'admin' | 'user' | ...
+          _managed_dept: u?.managed_department || null,     // 'kitchen' | 'floor' | null
+        };
+      });
+      setAllEmployees(merged);
     } catch (error) {
       console.error("שגיאה בטעינת עובדים:", error);
     }
@@ -892,7 +921,7 @@ function EmployeesInner() {
                         )}
                         {permCategory(employee) === 'manager' && (
                           <Badge className="bg-blue-600 text-white">
-                            👔 {employee.managed_department === 'kitchen' ? 'מנהל מטבח' : 'מנהל פלור'}
+                            👔 {employee._managed_dept === 'kitchen' ? 'מנהל מטבח' : employee._managed_dept === 'floor' ? 'מנהל פלור' : employee._managed_dept === 'bar' ? 'מנהל בר' : 'מנהל'}
                           </Badge>
                         )}
                         {permCategory(employee) === 'employee' && (
