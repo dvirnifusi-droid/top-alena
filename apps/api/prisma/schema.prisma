@@ -653,6 +653,53 @@ model CampaignSend {
   sent_at         DateTime @default(now())
 }
 
+// Custom segment + template combinations the owner saved for re-use.
+// E.g. "VIP בקיץ" = {segment: vip, custom_filter: {months: [6,7,8]}}
+model SavedSegment {
+  id              String   @id @default(cuid())
+  name            String   // owner-facing label
+  description     String?
+  segment_key     String   // base segment key
+  custom_filter   Json?
+  default_template String?
+  default_channel String?  @default("whatsapp")
+  created_by      String?
+  use_count       Int      @default(0)
+  last_used_at    DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+// Referral codes — each customer gets a unique short code. When a new
+// reservation includes ?ref=<code>, both referrer and referee get a reward.
+model ReferralCode {
+  id              String   @id @default(cuid())
+  code            String   @unique  // short, e.g. "DAVID-X4B7"
+  customer_id     String?
+  customer_phone  String?
+  customer_name   String?
+  reward_referrer_amount Int? @default(50)   // ILS coupon for referrer
+  reward_referee_amount  Int? @default(50)   // ILS coupon for the new customer
+  total_uses      Int      @default(0)
+  total_conversions Int    @default(0)       // referrals who actually showed up
+  is_active       Boolean  @default(true)
+  createdAt       DateTime @default(now())
+}
+
+model ReferralUse {
+  id              String   @id @default(cuid())
+  referral_code   String
+  used_by_phone   String
+  used_by_name    String?
+  reservation_id  String?
+  status          String   @default("pending")  // pending|completed|cancelled
+  reward_issued_at DateTime?
+  createdAt       DateTime @default(now())
+
+  @@index([referral_code])
+  @@index([used_by_phone])
+}
+
 // Per-recipient detail row for a CampaignSend. Tracks Twilio's delivery
 // lifecycle (queued → sent → delivered → read) plus our attribution
 // (did this customer make a reservation within 7 days of receiving?).

@@ -154,6 +154,7 @@ export default function MarketingCampaigns() {
     const [tab, setTab] = useState('compose');
     const [detailsOpen, setDetailsOpen] = useState(null); // CampaignSend selected for drill-down
     const [details, setDetails] = useState(null);
+    const [holidays, setHolidays] = useState([]);
 
     // Cost preview — Twilio WhatsApp marketing pricing for Israel
     const estCost = preview?.count
@@ -217,7 +218,13 @@ export default function MarketingCampaigns() {
         }
     };
 
-    useEffect(() => { loadHistory(); }, []);
+    useEffect(() => {
+        loadHistory();
+        // Load holiday template library
+        base44.functions.listHolidayTemplates({}).then(r => {
+            setHolidays((r?.data || r)?.templates || []);
+        }).catch(() => {});
+    }, []);
 
     // Render placeholder preview
     const renderedSample = (() => {
@@ -245,8 +252,9 @@ export default function MarketingCampaigns() {
                 </div>
 
                 <Tabs value={tab} onValueChange={setTab} className="space-y-4">
-                    <TabsList className="grid grid-cols-2 max-w-md">
+                    <TabsList className="grid grid-cols-3 max-w-2xl">
                         <TabsTrigger value="compose">📝 צור קמפיין</TabsTrigger>
+                        <TabsTrigger value="holidays">🎉 חגים</TabsTrigger>
                         <TabsTrigger value="history">📊 היסטוריה ({history.length})</TabsTrigger>
                     </TabsList>
 
@@ -435,6 +443,14 @@ export default function MarketingCampaigns() {
                                             >
                                                 📨 SMS
                                             </button>
+                                            <button
+                                                onClick={() => setChannel('email')}
+                                                className={`px-4 py-2 rounded-lg font-bold text-sm transition-colors ${
+                                                    channel === 'email' ? 'bg-purple-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                                }`}
+                                            >
+                                                ✉️ Email (חינם)
+                                            </button>
                                         </div>
 
                                         {/* Cost preview */}
@@ -505,6 +521,37 @@ export default function MarketingCampaigns() {
                                 )}
                             </>
                         )}
+                    </TabsContent>
+
+                    {/* === Holidays tab === */}
+                    <TabsContent value="holidays" className="space-y-3">
+                        <Card>
+                            <CardContent className="p-4">
+                                <h3 className="font-bold mb-2">🎉 ספריית תבניות לחגים</h3>
+                                <p className="text-xs text-gray-600 mb-3">לחץ על חג → הטמפלייט יטען בעורך הקמפיין → ערוך → שלח לכל הלקוחות.</p>
+                                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
+                                    {holidays.map(h => (
+                                        <button
+                                            key={h.key}
+                                            onClick={() => {
+                                                const allConsented = SEGMENTS.find(s => s.key === 'all_consented');
+                                                if (allConsented) {
+                                                    setActiveSegment(allConsented);
+                                                    setTemplate(h.template);
+                                                    setTab('compose');
+                                                    runPreview('all_consented');
+                                                }
+                                            }}
+                                            className="border-2 border-amber-200 bg-amber-50 hover:border-amber-400 hover:bg-amber-100 rounded-xl p-3 text-right transition-all"
+                                        >
+                                            <div className="text-2xl mb-1">{h.emoji}</div>
+                                            <div className="font-bold text-sm">{h.label}</div>
+                                            <div className="text-[10px] text-gray-500 mt-1 line-clamp-2">{h.template.slice(0, 60)}...</div>
+                                        </button>
+                                    ))}
+                                </div>
+                            </CardContent>
+                        </Card>
                     </TabsContent>
 
                     {/* === History tab === */}

@@ -2821,8 +2821,9 @@ registerFn('sendCustomerCampaign', async ({ body, user }) => {
   };
   const recipients = await db.customer.findMany({ where: finalWhere, take: 500 });
   const useWa = channel === 'whatsapp' || !channel;
-  const channelStr = useWa ? 'whatsapp' : 'sms';
-  const estimatedCost = estimateCampaignCostIls(recipients.length, channelStr);
+  const useEmail = channel === 'email';
+  const channelStr = useEmail ? 'email' : useWa ? 'whatsapp' : 'sms';
+  const estimatedCost = useEmail ? 0 : estimateCampaignCostIls(recipients.length, channelStr);
 
   // Create the parent CampaignSend row FIRST so child rows can reference it.
   let parentSend: any = null;
@@ -2869,13 +2870,24 @@ registerFn('sendCustomerCampaign', async ({ body, user }) => {
     }
     try {
       const rendered = renderTemplate(message_template, c as any);
-      const out = useWa
-        ? await sendWhatsApp(c.phone, rendered, {
-            mediaUrl: media_url,
-            statusCallback,
-            recipientId: recipient?.id,
-          })
-        : await sendSms(c.phone, rendered);
+      let out: any;
+      if (useEmail) {
+        // Email channel requires an email address (not all customers have one).
+        if (!(c as any).email) {
+          out = { skipped: true, reason: 'no_email' };
+        } else {
+          const html = `<div dir="rtl" style="font-family:Arial,sans-serif;line-height:1.6;padding:20px;max-width:600px;margin:auto;background:#FAF5E8;border-radius:12px"><h2 style="color:#A04A2E">עלינא 🌿</h2><pre style="white-space:pre-wrap;font-family:inherit">${rendered.replace(/[<>]/g, '')}</pre>${media_url ? `<img src="${media_url}" style="max-width:100%;margin-top:16px;border-radius:8px"/>` : ''}<p style="color:#888;font-size:12px;margin-top:24px">רוטשילד 104, ראשון לציון</p></div>`;
+          out = await sendEmail({ to: (c as any).email, subject: campaign_label || 'הודעה ממסעדת עלינא', html });
+        }
+      } else if (useWa) {
+        out = await sendWhatsApp(c.phone, rendered, {
+          mediaUrl: media_url,
+          statusCallback,
+          recipientId: recipient?.id,
+        });
+      } else {
+        out = await sendSms(c.phone, rendered);
+      }
       if ((out as any)?.skipped) {
         failures.push({ phone: c.phone, reason: (out as any).reason || 'skipped' });
         if (recipient) await db.campaignRecipient.update({
@@ -2919,14 +2931,153 @@ registerFn('sendCustomerCampaign', async ({ body, user }) => {
     skipped: 0,
     total_matched: recipients.length,
     estimated_cost_ils: estimatedCost,
-    cost_breakdown: useWa
+    cost_breakdown: useEmail
+      ? `${recipients.length} × ₪0 (Email — חינם) = ₪0`
+      : useWa
       ? `${recipients.length} × ₪0.13 (WhatsApp Marketing) = ₪${estimatedCost}`
       : `${recipients.length} × ₪0.10 (SMS) = ₪${estimatedCost}`,
     failure_sample: failures.slice(0, 5),
   };
 });
 
-// Per-campaign drill-down — used by the stats panel in the UI.
+// ============================================================================
+// SAVED SEGMENTS — owner-defined custom filters for re-use
+// ============================================================================
+registerFn('listSavedSegments', async () => {
+  const rows = await db.savedSegment.findMany({ orderBy: { use_count: 'desc' }, take: 50 });
+  return { rows };
+});
+
+registerFn('createSavedSegment', async ({ body, user }) => {
+  if ((user as any)?.role !== 'admin') throw new Error('admin only');
+  const { name, description, segment_key, custom_filter, default_template, default_channel } = body as any;
+  if (!name || !segment_key) throw new Error('name + segment_key required');
+  const saved = await db.savedSegment.create({
+    data: {
+      name, description: description || null, segment_key,
+      custom_filter: custom_filter || undefined,
+      default_template: default_template || null,
+      default_channel: default_channel || 'whatsapp',
+      created_by: (user as any)?.email || null,
+    },
+  });
+  return { saved };
+});
+
+registerFn('deleteSavedSegment', async ({ body, user }) => {
+  if ((user as any)?.role !== 'admin') throw new Error('admin only');
+  const { id } = body as any;
+  if (!id) throw new Error('id required');
+  await db.savedSegment.delete({ where: { id } });
+  return { ok: true };
+});
+
+registerFn('incrementSavedSegmentUse', async ({ body }) => {
+  const { id } = body as any;
+  if (!id) return { ok: false };
+  await db.savedSegment.update({
+    where: { id },
+    data: { use_count: { increment: 1 }, last_used_at: new Date() },
+  }).catch(() => {});
+  return { ok: true };
+});
+
+// ============================================================================
+// REFERRAL PROGRAM — each customer gets a unique code that brings rewards
+// ============================================================================
+function generateReferralCode(name?: string): string {
+  const namePart = (name || 'GUEST').replace(/[^A-Zא-ת]/gi, '').slice(0, 6).toUpperCase();
+  const random = Math.random().toString(36).substring(2, 6).toUpperCase();
+  return `${namePart}-${random}`;
+}
+
+registerFn('createReferralCode', async ({ body }) => {
+  const { customer_id, customer_phone, reward_referrer_amount, reward_referee_amount } = body as any;
+  let customer: any = null;
+  if (customer_id) customer = await db.customer.findUnique({ where: { id: customer_id } });
+  else if (customer_phone) customer = await db.customer.findFirst({ where: { phone: String(customer_phone).replace(/[^\d]/g, '') } });
+  if (!customer) throw new Error('customer not found');
+  // One active code per customer
+  const existing = await db.referralCode.findFirst({ where: { customer_id: customer.id, is_active: true } });
+  if (existing) return { code: existing, existing: true };
+  const code = generateReferralCode(customer.name || undefined);
+  const created = await db.referralCode.create({
+    data: {
+      code, customer_id: customer.id, customer_phone: customer.phone, customer_name: customer.name,
+      reward_referrer_amount: reward_referrer_amount || 50,
+      reward_referee_amount: reward_referee_amount || 50,
+    },
+  });
+  return { code: created, existing: false };
+});
+
+registerFn('useReferralCode', async ({ body }) => {
+  const { code, used_by_phone, used_by_name, reservation_id } = body as any;
+  if (!code || !used_by_phone) throw new Error('code + phone required');
+  const ref = await db.referralCode.findUnique({ where: { code: String(code).toUpperCase() } });
+  if (!ref || !ref.is_active) throw new Error('invalid_code');
+  // Can't refer yourself
+  const cleanPhone = String(used_by_phone).replace(/[^\d]/g, '');
+  if (ref.customer_phone === cleanPhone) throw new Error('cannot_refer_self');
+  // Already used by this phone?
+  const prior = await db.referralUse.findFirst({ where: { referral_code: code, used_by_phone: cleanPhone } });
+  if (prior) return { use: prior, existing: true };
+  const use = await db.referralUse.create({
+    data: { referral_code: String(code).toUpperCase(), used_by_phone: cleanPhone, used_by_name: used_by_name || null, reservation_id: reservation_id || null },
+  });
+  await db.referralCode.update({ where: { id: ref.id }, data: { total_uses: { increment: 1 } } }).catch(() => {});
+  return { use, referral: ref };
+});
+
+registerFn('getReferralCodeForCustomer', async ({ body }) => {
+  const { customer_id, customer_phone } = body as any;
+  let customer: any = null;
+  if (customer_id) customer = await db.customer.findUnique({ where: { id: customer_id } });
+  else if (customer_phone) customer = await db.customer.findFirst({ where: { phone: String(customer_phone).replace(/[^\d]/g, '') } });
+  if (!customer) return { code: null };
+  const ref = await db.referralCode.findFirst({ where: { customer_id: customer.id, is_active: true } });
+  if (!ref) return { code: null };
+  // Pull recent uses
+  const uses = await db.referralUse.findMany({ where: { referral_code: ref.code }, orderBy: { createdAt: 'desc' }, take: 20 });
+  return { code: ref, uses };
+});
+
+// ============================================================================
+// HOLIDAY TEMPLATE LIBRARY — pre-made Hebrew greetings for major dates
+// ============================================================================
+registerFn('listHolidayTemplates', async () => {
+  // Hardcoded list — owner picks one, gets ready-to-edit template
+  return {
+    templates: [
+      { key: 'rosh_hashana', emoji: '🍎🍯', label: 'ראש השנה',
+        template: 'שנה טובה ומתוקה, {name}! 🍎🍯\nשתהיה לך שנה של בריאות, אושר ושפע — ועוד הרבה ארוחות טובות אצלנו 🌿\nעלינא, רוטשילד 104' },
+      { key: 'yom_kippur', emoji: '🕊️', label: 'יום כיפור',
+        template: 'גמר חתימה טובה, {name} 🕊️\nשתחתם בספר החיים, הבריאות והאושר 🌿\n— צוות עלינא' },
+      { key: 'sukkot', emoji: '🌿', label: 'סוכות',
+        template: 'חג סוכות שמח, {name}! 🌿\nרוצה להזמין שולחן בסוכה אצלנו? נשמח לארח 🍂\nרוטשילד 104, ראשון לציון' },
+      { key: 'hanukkah', emoji: '🕎', label: 'חנוכה',
+        template: 'חג אורים שמח, {name}! 🕎\nבחנוכה, הסופגנייה החמה אצלנו על חשבון הבית — בוא להאיר את החג איתנו 🌿' },
+      { key: 'tu_bishvat', emoji: '🌳', label: 'ט"ו בשבט',
+        template: 'חג ט"ו בשבט שמח, {name}! 🌳\nתפריט מיוחד של פירות יבשים ותבלינים מחכה לך 🌿' },
+      { key: 'purim', emoji: '🎭', label: 'פורים',
+        template: 'פורים שמח, {name}! 🎭\nבוא להתחפש לאוכל טוב — מנה מיוחדת אצלנו לכבוד החג 🌿' },
+      { key: 'pesach', emoji: '🍷', label: 'פסח',
+        template: 'חג פסח שמח, {name}! 🍷\nאחרי הסדר — בוא לחזור לטעמים שאוהבים. מתפריט מיוחד לפסח 🌿' },
+      { key: 'yom_atzmaut', emoji: '🇮🇱', label: 'יום העצמאות',
+        template: 'יום עצמאות שמח, {name}! 🇮🇱\nחוגגים יחד את ישראל — ערב עצמאות אצלנו עם מוזיקה ומנגל מיוחד 🌿' },
+      { key: 'lag_baomer', emoji: '🔥', label: 'ל"ג בעומר',
+        template: 'ל"ג בעומר שמח, {name}! 🔥\nבא לעבור לארוחה אמיתית אחרי המדורה? פתוחים עד מאוחר 🌿' },
+      { key: 'shavuot', emoji: '🥛', label: 'שבועות',
+        template: 'חג שבועות שמח, {name}! 🥛\nמנות חלביות מיוחדות לחג — בוא לטעום 🌿' },
+      { key: 'valentine', emoji: '❤️', label: 'ולנטיין',
+        template: 'יום ולנטיין שמח, {name}! ❤️\nערב רומנטי לזוגות — קבל בקבוק יין במתנה כשמגיעים זוגות.\nהזמן שולחן 🌿' },
+      { key: 'mother_day', emoji: '💐', label: 'יום האם',
+        template: 'יום אם שמח, {name}! 💐\nתפנק את האמא הכי טובה — הזמן שולחן ויש מתנה לאמא במקום.\nרוטשילד 104 🌿' },
+      { key: 'father_day', emoji: '👔', label: 'יום האב',
+        template: 'יום האב שמח, {name}! 👔\nתפנק את אבא — סטייק מיוחד לחג, על חשבון הבית עם כל מנה ראשונה.\nעלינא 🌿' },
+    ],
+  };
+});
 // Returns the parent CampaignSend + all CampaignRecipient rows.
 registerFn('getCampaignDetails', async ({ body }) => {
   const { campaign_send_id } = body as any;
@@ -10624,6 +10775,47 @@ if (!(globalThis as any).__startupDriftRepair) {
       await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "CampaignRecipient_campaign_send_id_idx" ON "CampaignRecipient"("campaign_send_id");`);
       await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "CampaignRecipient_customer_id_idx" ON "CampaignRecipient"("customer_id");`);
       await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "CampaignRecipient_twilio_sid_idx" ON "CampaignRecipient"("twilio_sid");`);
+
+      // SavedSegment — owner-saved custom filters for re-use
+      await prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "SavedSegment" (
+        "id" TEXT PRIMARY KEY,
+        "name" TEXT NOT NULL,
+        "description" TEXT,
+        "segment_key" TEXT NOT NULL,
+        "custom_filter" JSONB,
+        "default_template" TEXT,
+        "default_channel" TEXT DEFAULT 'whatsapp',
+        "created_by" TEXT,
+        "use_count" INTEGER NOT NULL DEFAULT 0,
+        "last_used_at" TIMESTAMP(3),
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );`);
+      // ReferralCode + ReferralUse — referral program
+      await prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "ReferralCode" (
+        "id" TEXT PRIMARY KEY,
+        "code" TEXT UNIQUE NOT NULL,
+        "customer_id" TEXT,
+        "customer_phone" TEXT,
+        "customer_name" TEXT,
+        "reward_referrer_amount" INTEGER DEFAULT 50,
+        "reward_referee_amount" INTEGER DEFAULT 50,
+        "total_uses" INTEGER NOT NULL DEFAULT 0,
+        "total_conversions" INTEGER NOT NULL DEFAULT 0,
+        "is_active" BOOLEAN NOT NULL DEFAULT TRUE,
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );`);
+      await prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "ReferralUse" (
+        "id" TEXT PRIMARY KEY,
+        "referral_code" TEXT NOT NULL,
+        "used_by_phone" TEXT NOT NULL,
+        "used_by_name" TEXT,
+        "reservation_id" TEXT,
+        "status" TEXT NOT NULL DEFAULT 'pending',
+        "reward_issued_at" TIMESTAMP(3),
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );`);
+      await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "ReferralUse_referral_code_idx" ON "ReferralUse"("referral_code");`);
       console.log('[startup] Reservation deposit + marketing consent + shift reminder + Checklist.department + Customer marketing + CampaignSend columns ensured');
     } catch (e: any) {
       console.error('[startup] ensure Reservation deposit cols failed:', e?.message);
