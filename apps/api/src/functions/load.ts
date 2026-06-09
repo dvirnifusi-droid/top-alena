@@ -2517,17 +2517,28 @@ registerFn('previewCustomerSegment', async ({ body }) => {
   return { count, sample };
 });
 
+// Twilio WhatsApp pricing (ILS, approx — updated 2026-06).
+// 'marketing' conversation (template-initiated): ~₪0.13 / message to Israel
+// 'utility' conversation: ~₪0.025 / message
+// 'service' (24h customer-initiated window): free up to 1000/month
+function estimateCampaignCostIls(recipientCount: number, channel: string): number {
+  if (channel === 'sms') return recipientCount * 0.10;  // ~₪0.10 per SMS in Israel
+  // WhatsApp marketing default
+  return Number((recipientCount * 0.13).toFixed(2));
+}
+
 // Bulk send. Respects:
 //  - marketing_consent gate (built into segment where)
 //  - 24-hour throttle (no customer gets 2+ messages in a day)
-//  - records every attempt to CampaignSend for history
+//  - records every attempt to CampaignSend + per-recipient CampaignRecipient
+//  - supports media_url (image attached to message)
+//  - includes Twilio status callback URL so we get delivery/read receipts
 registerFn('sendCustomerCampaign', async ({ body, user }) => {
   if ((user as any)?.role !== 'admin') throw new Error('admin only');
-  const { segment, message_template, channel, campaign_key, campaign_label, custom_filter } = body as any;
+  const { segment, message_template, channel, campaign_key, campaign_label, custom_filter, media_url } = body as any;
   if (!message_template) throw new Error('message_template required');
   if (!segment) throw new Error('segment required');
   const where = buildSegmentWhere(segment, custom_filter);
-  // 24h throttle — exclude anyone we already messaged in last 24h.
   const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
   const finalWhere: any = {
     ...where,
@@ -2535,49 +2546,129 @@ registerFn('sendCustomerCampaign', async ({ body, user }) => {
   };
   const recipients = await db.customer.findMany({ where: finalWhere, take: 500 });
   const useWa = channel === 'whatsapp' || !channel;
-  const successes: string[] = [];
-  const failures: Array<{ phone: string; reason: string }> = [];
-  for (const c of recipients) {
-    try {
-      const rendered = renderTemplate(message_template, c as any);
-      const out = useWa ? await sendWhatsApp(c.phone, rendered) : await sendSms(c.phone, rendered);
-      if ((out as any)?.skipped) {
-        failures.push({ phone: c.phone, reason: (out as any).reason || 'skipped' });
-      } else {
-        successes.push(c.id);
-        await db.customer.update({ where: { id: c.id }, data: { last_marketing_sent_at: new Date() } }).catch(() => {});
-      }
-    } catch (e: any) {
-      failures.push({ phone: c.phone, reason: e?.message?.slice(0, 100) || 'unknown' });
-    }
-  }
-  // Log to history
+  const channelStr = useWa ? 'whatsapp' : 'sms';
+  const estimatedCost = estimateCampaignCostIls(recipients.length, channelStr);
+
+  // Create the parent CampaignSend row FIRST so child rows can reference it.
+  let parentSend: any = null;
   try {
-    await db.campaignSend.create({
+    parentSend = await db.campaignSend.create({
       data: {
         campaign_key: campaign_key || segment,
         campaign_label: campaign_label || null,
         segment_key: segment,
         segment_filter: custom_filter || undefined,
-        channel: useWa ? 'whatsapp' : 'sms',
+        channel: channelStr,
         message_template,
+        media_url: media_url || null,
         recipient_count: recipients.length,
-        success_count: successes.length,
-        failure_count: failures.length,
-        failure_reasons: failures.slice(0, 20).length ? failures.slice(0, 20) : undefined,
+        success_count: 0,
+        failure_count: 0,
+        estimated_cost_ils: estimatedCost,
         sent_by: (user as any)?.email || null,
       },
     });
   } catch (e: any) {
-    console.warn('[sendCustomerCampaign] log failed:', e?.message);
+    console.warn('[sendCustomerCampaign] parent log failed:', e?.message);
+  }
+
+  const successes: string[] = [];
+  const failures: Array<{ phone: string; reason: string }> = [];
+  const statusCallback = `${process.env.PUBLIC_BASE_URL || 'https://topalena.com'}/api/twilio/campaign-status`;
+
+  for (const c of recipients) {
+    // Pre-create the recipient row so the status webhook has somewhere to write
+    let recipient: any = null;
+    if (parentSend) {
+      try {
+        recipient = await db.campaignRecipient.create({
+          data: {
+            campaign_send_id: parentSend.id,
+            customer_id: c.id,
+            phone: c.phone,
+            customer_name: c.name || null,
+            status: 'queued',
+          },
+        });
+      } catch (e) { /* ignore — still try to send */ }
+    }
+    try {
+      const rendered = renderTemplate(message_template, c as any);
+      const out = useWa
+        ? await sendWhatsApp(c.phone, rendered, {
+            mediaUrl: media_url,
+            statusCallback,
+            recipientId: recipient?.id,
+          })
+        : await sendSms(c.phone, rendered);
+      if ((out as any)?.skipped) {
+        failures.push({ phone: c.phone, reason: (out as any).reason || 'skipped' });
+        if (recipient) await db.campaignRecipient.update({
+          where: { id: recipient.id },
+          data: { status: 'failed', failed_at: new Date(), failure_reason: (out as any).reason || 'skipped' },
+        }).catch(() => {});
+      } else {
+        successes.push(c.id);
+        await db.customer.update({ where: { id: c.id }, data: { last_marketing_sent_at: new Date() } }).catch(() => {});
+        if (recipient && (out as any)?.sid) {
+          await db.campaignRecipient.update({
+            where: { id: recipient.id },
+            data: { status: 'sent', twilio_sid: (out as any).sid },
+          }).catch(() => {});
+        }
+      }
+    } catch (e: any) {
+      const reason = e?.message?.slice(0, 100) || 'unknown';
+      failures.push({ phone: c.phone, reason });
+      if (recipient) await db.campaignRecipient.update({
+        where: { id: recipient.id },
+        data: { status: 'failed', failed_at: new Date(), failure_reason: reason },
+      }).catch(() => {});
+    }
+  }
+  // Update parent row with final counts
+  if (parentSend) {
+    await db.campaignSend.update({
+      where: { id: parentSend.id },
+      data: {
+        success_count: successes.length,
+        failure_count: failures.length,
+        failure_reasons: failures.slice(0, 20).length ? failures.slice(0, 20) : undefined,
+      },
+    }).catch(() => {});
   }
   return {
+    campaign_send_id: parentSend?.id,
     sent: successes.length,
     failed: failures.length,
     skipped: 0,
     total_matched: recipients.length,
+    estimated_cost_ils: estimatedCost,
+    cost_breakdown: useWa
+      ? `${recipients.length} × ₪0.13 (WhatsApp Marketing) = ₪${estimatedCost}`
+      : `${recipients.length} × ₪0.10 (SMS) = ₪${estimatedCost}`,
     failure_sample: failures.slice(0, 5),
   };
+});
+
+// Per-campaign drill-down — used by the stats panel in the UI.
+// Returns the parent CampaignSend + all CampaignRecipient rows.
+registerFn('getCampaignDetails', async ({ body }) => {
+  const { campaign_send_id } = body as any;
+  if (!campaign_send_id) throw new Error('campaign_send_id required');
+  const send = await db.campaignSend.findUnique({ where: { id: campaign_send_id } });
+  if (!send) throw new Error('not found');
+  const recipients = await db.campaignRecipient.findMany({
+    where: { campaign_send_id },
+    orderBy: { created_at: 'asc' },
+    take: 500,
+  });
+  // Pull reservations for converted recipients to show what they ordered
+  const convertedIds = recipients.filter(r => r.converted_reservation_id).map(r => r.converted_reservation_id as string);
+  const convertedReservations = convertedIds.length > 0
+    ? await db.reservation.findMany({ where: { id: { in: convertedIds } } })
+    : [];
+  return { send, recipients, conversions: convertedReservations };
 });
 
 // Recent campaign history — last 50 sends, newest first
@@ -4275,6 +4366,34 @@ registerFn('createPublicReservation', async ({ body }) => {
         updateData.anniversary_label = 'יום נישואין';
       }
       await db.customer.update({ where: { id: existing.id }, data: updateData });
+
+      // CAMPAIGN ATTRIBUTION — if this customer received a campaign in the
+      // last 7 days and the recipient row isn't yet linked to a reservation,
+      // link this reservation. Powers the 'who converted' analytics.
+      try {
+        const sevenDaysAgo = new Date(Date.now() - 7 * 86400000);
+        const recentRecipient = await db.campaignRecipient.findFirst({
+          where: {
+            customer_id: existing.id,
+            converted_reservation_id: null,
+            status: { in: ['sent', 'delivered', 'read'] },
+            created_at: { gte: sevenDaysAgo },
+          },
+          orderBy: { created_at: 'desc' },
+        });
+        if (recentRecipient && reservation?.id) {
+          await db.campaignRecipient.update({
+            where: { id: recentRecipient.id },
+            data: { converted_reservation_id: reservation.id, converted_at: new Date() },
+          });
+          await db.campaignSend.update({
+            where: { id: recentRecipient.campaign_send_id },
+            data: { converted_count: { increment: 1 } },
+          }).catch(() => {});
+        }
+      } catch (e: any) {
+        console.warn('[attribution] failed:', e?.message);
+      }
     } else {
       await db.customer.create({ data: {
         phone, name: customer_name, visit_count: 1, last_visit: bookingDate,
@@ -10188,13 +10307,44 @@ if (!(globalThis as any).__startupDriftRepair) {
         "segment_filter" JSONB,
         "channel" TEXT NOT NULL,
         "message_template" TEXT NOT NULL,
+        "media_url" TEXT,
         "recipient_count" INTEGER NOT NULL DEFAULT 0,
         "success_count" INTEGER NOT NULL DEFAULT 0,
         "failure_count" INTEGER NOT NULL DEFAULT 0,
         "failure_reasons" JSONB,
+        "delivered_count" INTEGER NOT NULL DEFAULT 0,
+        "read_count" INTEGER NOT NULL DEFAULT 0,
+        "converted_count" INTEGER NOT NULL DEFAULT 0,
+        "estimated_cost_ils" DOUBLE PRECISION,
         "sent_by" TEXT,
         "sent_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
       );`);
+      // Add new cols to existing CampaignSend if upgrading
+      await prisma.$executeRawUnsafe(`ALTER TABLE "CampaignSend" ADD COLUMN IF NOT EXISTS "media_url" TEXT;`);
+      await prisma.$executeRawUnsafe(`ALTER TABLE "CampaignSend" ADD COLUMN IF NOT EXISTS "delivered_count" INTEGER NOT NULL DEFAULT 0;`);
+      await prisma.$executeRawUnsafe(`ALTER TABLE "CampaignSend" ADD COLUMN IF NOT EXISTS "read_count" INTEGER NOT NULL DEFAULT 0;`);
+      await prisma.$executeRawUnsafe(`ALTER TABLE "CampaignSend" ADD COLUMN IF NOT EXISTS "converted_count" INTEGER NOT NULL DEFAULT 0;`);
+      await prisma.$executeRawUnsafe(`ALTER TABLE "CampaignSend" ADD COLUMN IF NOT EXISTS "estimated_cost_ils" DOUBLE PRECISION;`);
+      // Per-recipient tracking — lifecycle + attribution
+      await prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "CampaignRecipient" (
+        "id" TEXT PRIMARY KEY,
+        "campaign_send_id" TEXT NOT NULL,
+        "customer_id" TEXT,
+        "phone" TEXT NOT NULL,
+        "customer_name" TEXT,
+        "twilio_sid" TEXT UNIQUE,
+        "status" TEXT NOT NULL DEFAULT 'queued',
+        "delivered_at" TIMESTAMP(3),
+        "read_at" TIMESTAMP(3),
+        "failed_at" TIMESTAMP(3),
+        "failure_reason" TEXT,
+        "converted_reservation_id" TEXT,
+        "converted_at" TIMESTAMP(3),
+        "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );`);
+      await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "CampaignRecipient_campaign_send_id_idx" ON "CampaignRecipient"("campaign_send_id");`);
+      await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "CampaignRecipient_customer_id_idx" ON "CampaignRecipient"("customer_id");`);
+      await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "CampaignRecipient_twilio_sid_idx" ON "CampaignRecipient"("twilio_sid");`);
       console.log('[startup] Reservation deposit + marketing consent + shift reminder + Checklist.department + Customer marketing + CampaignSend columns ensured');
     } catch (e: any) {
       console.error('[startup] ensure Reservation deposit cols failed:', e?.message);

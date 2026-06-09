@@ -634,12 +634,45 @@ model CampaignSend {
   segment_filter  Json?    // serialized custom filter for re-run
   channel         String   // 'whatsapp' | 'sms'
   message_template String  // raw template with {placeholders}
+  media_url       String?  // optional attached image/PDF
   recipient_count Int      // how many we tried to send
   success_count   Int      @default(0)
   failure_count   Int      @default(0)
   failure_reasons Json?
+  // Aggregate stats (updated by Twilio status webhook)
+  delivered_count Int      @default(0)
+  read_count      Int      @default(0)
+  converted_count Int      @default(0)  // recipients who made a reservation within 7d
+  // Estimated cost in ILS (Twilio WhatsApp pricing — marketing conversation ~13ag/msg)
+  estimated_cost_ils Float?
   sent_by         String?  // admin email
   sent_at         DateTime @default(now())
+}
+
+// Per-recipient detail row for a CampaignSend. Tracks Twilio's delivery
+// lifecycle (queued → sent → delivered → read) plus our attribution
+// (did this customer make a reservation within 7 days of receiving?).
+model CampaignRecipient {
+  id              String   @id @default(cuid())
+  campaign_send_id String
+  customer_id     String?
+  phone           String
+  customer_name   String?
+  twilio_sid      String?  @unique
+  status          String   @default("queued")  // queued|sent|delivered|read|failed
+  delivered_at    DateTime?
+  read_at         DateTime?
+  failed_at       DateTime?
+  failure_reason  String?
+  // Attribution: filled when this customer creates a reservation in the
+  // 7-day window after delivery. Lets us measure campaign ROI.
+  converted_reservation_id String?
+  converted_at    DateTime?
+  created_at      DateTime @default(now())
+
+  @@index([campaign_send_id])
+  @@index([customer_id])
+  @@index([twilio_sid])
 }
 
 model CustomerBenefit {

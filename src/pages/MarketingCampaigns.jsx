@@ -145,12 +145,20 @@ export default function MarketingCampaigns() {
     const [activeSegment, setActiveSegment] = useState(null); // SEGMENTS entry
     const [template, setTemplate] = useState('');
     const [channel, setChannel] = useState('whatsapp');
+    const [mediaUrl, setMediaUrl] = useState(''); // optional image attachment
     const [preview, setPreview] = useState(null); // { count, sample }
     const [previewLoading, setPreviewLoading] = useState(false);
     const [sending, setSending] = useState(false);
     const [sendResult, setSendResult] = useState(null);
     const [history, setHistory] = useState([]);
     const [tab, setTab] = useState('compose');
+    const [detailsOpen, setDetailsOpen] = useState(null); // CampaignSend selected for drill-down
+    const [details, setDetails] = useState(null);
+
+    // Cost preview — Twilio WhatsApp marketing pricing for Israel
+    const estCost = preview?.count
+        ? (channel === 'whatsapp' ? (preview.count * 0.13).toFixed(2) : (preview.count * 0.10).toFixed(2))
+        : '0.00';
 
     // When segment is chosen, set default template + auto-preview
     const pickSegment = async (seg) => {
@@ -188,6 +196,7 @@ export default function MarketingCampaigns() {
                 channel,
                 campaign_key: activeSegment.key,
                 campaign_label: activeSegment.label,
+                media_url: mediaUrl || undefined,
             });
             const data = r?.data || r;
             setSendResult({ success: true, ...data });
@@ -335,6 +344,28 @@ export default function MarketingCampaigns() {
                                     </CardContent>
                                 </Card>
 
+                                {/* Image attachment (WhatsApp only) */}
+                                {channel === 'whatsapp' && (
+                                    <Card>
+                                        <CardContent className="p-4">
+                                            <h3 className="font-bold mb-2 text-sm text-gray-700">📷 תמונה מצורפת (אופציונלי):</h3>
+                                            <p className="text-xs text-gray-500 mb-2">URL ציבורי לתמונה (JPG/PNG). תוצג בהודעה לפני הטקסט.</p>
+                                            <input
+                                                type="url"
+                                                value={mediaUrl}
+                                                onChange={(e) => setMediaUrl(e.target.value)}
+                                                placeholder="https://topalena.com/images/birthday-cake.jpg"
+                                                className="w-full border rounded-lg p-2 text-sm focus:ring-2 focus:ring-emerald-400 focus:outline-none"
+                                            />
+                                            {mediaUrl && (
+                                                <div className="mt-2">
+                                                    <img src={mediaUrl} alt="preview" className="max-h-32 rounded-lg border" onError={(e) => { e.target.style.display = 'none'; }} />
+                                                </div>
+                                            )}
+                                        </CardContent>
+                                    </Card>
+                                )}
+
                                 {/* Channel + Send */}
                                 <Card>
                                     <CardContent className="p-4">
@@ -357,6 +388,20 @@ export default function MarketingCampaigns() {
                                                 📨 SMS
                                             </button>
                                         </div>
+
+                                        {/* Cost preview */}
+                                        {preview?.count > 0 && (
+                                            <div className="mb-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                                                <p className="text-sm font-bold text-amber-900 mb-1">💰 עלות משוערת:</p>
+                                                <p className="text-2xl font-black text-amber-700">₪{estCost}</p>
+                                                <p className="text-[10px] text-amber-700 mt-1">
+                                                    {preview.count} × ₪{channel === 'whatsapp' ? '0.13' : '0.10'} {channel === 'whatsapp' ? '(WhatsApp Marketing לישראל)' : '(SMS לישראל)'}
+                                                </p>
+                                                <p className="text-[10px] text-gray-600 mt-1">
+                                                    💡 שיחות שירות (24h חלון אחרי הודעה נכנסת) חינמיות עד 1000/חודש
+                                                </p>
+                                            </div>
+                                        )}
 
                                         <Button
                                             onClick={handleSend}
@@ -424,35 +469,125 @@ export default function MarketingCampaigns() {
                                 </CardContent>
                             </Card>
                         ) : (
-                            history.map(h => (
-                                <Card key={h.id}>
+                            history.map(h => {
+                                const convRate = h.success_count > 0 ? Math.round((h.converted_count || 0) / h.success_count * 100) : 0;
+                                const readRate = h.success_count > 0 ? Math.round((h.read_count || 0) / h.success_count * 100) : 0;
+                                return (
+                                <Card key={h.id} className="hover:shadow-md transition-shadow cursor-pointer" onClick={async () => {
+                                    setDetailsOpen(h.id);
+                                    try {
+                                        const r = await base44.functions.getCampaignDetails({ campaign_send_id: h.id });
+                                        setDetails(r?.data || r);
+                                    } catch {}
+                                }}>
                                     <CardContent className="p-4">
-                                        <div className="flex items-start justify-between gap-3">
+                                        <div className="flex items-start justify-between gap-3 mb-2">
                                             <div className="flex-1">
-                                                <div className="flex items-center gap-2 mb-1">
+                                                <div className="flex items-center gap-2 mb-1 flex-wrap">
                                                     <span className="font-bold text-sm">{h.campaign_label || h.campaign_key}</span>
                                                     <span className={`text-[10px] px-2 py-0.5 rounded-full ${
                                                         h.channel === 'whatsapp' ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700'
                                                     }`}>
                                                         {h.channel === 'whatsapp' ? '💬 WhatsApp' : '📨 SMS'}
                                                     </span>
+                                                    {h.media_url && <span className="text-[10px] bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">🖼️ עם תמונה</span>}
                                                 </div>
-                                                <p className="text-xs text-gray-600 line-clamp-2 mb-2">{h.message_template}</p>
-                                                <div className="flex gap-3 text-xs">
-                                                    <span className="text-emerald-700 font-bold">✓ {h.success_count}</span>
-                                                    {h.failure_count > 0 && <span className="text-red-700 font-bold">✗ {h.failure_count}</span>}
-                                                    <span className="text-gray-500">🎯 {h.recipient_count}</span>
-                                                    <span className="text-gray-400">{new Date(h.sent_at).toLocaleString('he-IL')}</span>
-                                                </div>
+                                                <p className="text-xs text-gray-600 line-clamp-2">{h.message_template}</p>
+                                            </div>
+                                            <span className="text-[10px] text-gray-400 whitespace-nowrap">{new Date(h.sent_at).toLocaleString('he-IL')}</span>
+                                        </div>
+                                        {/* Stats grid */}
+                                        <div className="grid grid-cols-2 md:grid-cols-5 gap-2 mt-3 pt-3 border-t">
+                                            <div className="text-center">
+                                                <div className="text-lg font-bold text-gray-700">{h.recipient_count}</div>
+                                                <div className="text-[10px] text-gray-500">נשלחו</div>
+                                            </div>
+                                            <div className="text-center">
+                                                <div className="text-lg font-bold text-emerald-700">{h.delivered_count || 0}</div>
+                                                <div className="text-[10px] text-gray-500">נמסרו</div>
+                                            </div>
+                                            <div className="text-center">
+                                                <div className="text-lg font-bold text-blue-700">{h.read_count || 0}</div>
+                                                <div className="text-[10px] text-gray-500">נפתחו ({readRate}%)</div>
+                                            </div>
+                                            <div className="text-center">
+                                                <div className="text-lg font-bold text-purple-700">{h.converted_count || 0}</div>
+                                                <div className="text-[10px] text-gray-500">הזמינו ({convRate}%)</div>
+                                            </div>
+                                            <div className="text-center">
+                                                <div className="text-lg font-bold text-amber-700">₪{(h.estimated_cost_ils || 0).toFixed(2)}</div>
+                                                <div className="text-[10px] text-gray-500">עלות</div>
                                             </div>
                                         </div>
+                                        <p className="text-[10px] text-center text-gray-400 mt-2">לחץ לפרטים מלאים</p>
                                     </CardContent>
                                 </Card>
-                            ))
+                                );
+                            })
                         )}
                     </TabsContent>
                 </Tabs>
             </div>
+
+            {/* === Per-campaign drill-down === */}
+            {detailsOpen && (
+                <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => { setDetailsOpen(null); setDetails(null); }}>
+                    <div className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+                        <div className="sticky top-0 bg-white border-b p-4 flex items-center justify-between">
+                            <h3 className="font-black text-lg">📊 פרטי קמפיין</h3>
+                            <button onClick={() => { setDetailsOpen(null); setDetails(null); }} className="text-2xl text-gray-400 hover:text-gray-700">✕</button>
+                        </div>
+                        <div className="p-4">
+                            {!details ? (
+                                <div className="text-center py-12"><Loader2 className="w-8 h-8 animate-spin mx-auto" /></div>
+                            ) : (
+                                <>
+                                    <div className="bg-gray-50 rounded-lg p-3 mb-4">
+                                        <p className="font-bold text-sm">{details.send?.campaign_label}</p>
+                                        <p className="text-xs text-gray-600 mt-1 whitespace-pre-wrap">{details.send?.message_template}</p>
+                                        {details.send?.media_url && (
+                                            <img src={details.send.media_url} alt="" className="max-h-32 mt-2 rounded" />
+                                        )}
+                                    </div>
+                                    <div className="grid grid-cols-5 gap-2 mb-4 text-center">
+                                        <div><div className="text-2xl font-black">{details.send?.recipient_count}</div><div className="text-[10px] text-gray-500">נשלחו</div></div>
+                                        <div><div className="text-2xl font-black text-emerald-700">{details.send?.delivered_count || 0}</div><div className="text-[10px] text-gray-500">נמסרו</div></div>
+                                        <div><div className="text-2xl font-black text-blue-700">{details.send?.read_count || 0}</div><div className="text-[10px] text-gray-500">נפתחו</div></div>
+                                        <div><div className="text-2xl font-black text-purple-700">{details.send?.converted_count || 0}</div><div className="text-[10px] text-gray-500">הזמינו</div></div>
+                                        <div><div className="text-2xl font-black text-amber-700">₪{(details.send?.estimated_cost_ils || 0).toFixed(2)}</div><div className="text-[10px] text-gray-500">עלות</div></div>
+                                    </div>
+                                    <h4 className="font-bold text-sm mb-2">🧑‍🤝‍🧑 רשימת לקוחות ({details.recipients?.length}):</h4>
+                                    <div className="space-y-1 max-h-96 overflow-y-auto">
+                                        {details.recipients?.map(r => {
+                                            const statusColor = {
+                                                queued: 'bg-gray-100 text-gray-700',
+                                                sent: 'bg-gray-100 text-gray-700',
+                                                delivered: 'bg-emerald-100 text-emerald-700',
+                                                read: 'bg-blue-100 text-blue-700',
+                                                failed: 'bg-red-100 text-red-700',
+                                            }[r.status] || 'bg-gray-100 text-gray-700';
+                                            return (
+                                                <div key={r.id} className="flex items-center gap-2 p-2 border rounded-lg text-xs hover:bg-gray-50">
+                                                    <span className="font-bold flex-1">{r.customer_name || r.phone}</span>
+                                                    <span className="text-gray-500">{r.phone}</span>
+                                                    <span className={`px-2 py-0.5 rounded-full font-bold ${statusColor}`}>
+                                                        {r.status === 'read' ? '👁️ פתח' : r.status === 'delivered' ? '✅ נמסר' : r.status === 'sent' ? '📤 נשלח' : r.status === 'failed' ? '❌ נכשל' : '⏳ ממתין'}
+                                                    </span>
+                                                    {r.converted_reservation_id && (
+                                                        <span className="px-2 py-0.5 rounded-full bg-purple-200 text-purple-800 font-bold">
+                                                            🎉 הזמין!
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

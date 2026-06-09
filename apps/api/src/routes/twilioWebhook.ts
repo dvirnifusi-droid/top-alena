@@ -112,4 +112,52 @@ export const twilioWebhookRoutes: FastifyPluginAsync = async (app) => {
     // Twilio expects a TwiML response (empty is fine — no auto-reply)
     reply.type('text/xml').send('<?xml version="1.0" encoding="UTF-8"?><Response></Response>');
   });
+
+  // Twilio delivery/read status callback for marketing campaigns.
+  // Twilio POSTs here with MessageStatus values: queued, sent, delivered, read, failed.
+  // We use the ?rid=<CampaignRecipient.id> query param (set when we created the message)
+  // to update the right row, and also update the parent CampaignSend aggregate counts.
+  app.post('/campaign-status', async (req, reply) => {
+    const b = (req.body || {}) as Record<string, string>;
+    const status = String(b.MessageStatus || b.SmsStatus || '').toLowerCase();
+    const sid = b.MessageSid || b.SmsSid;
+    const recipientId = (req.query as any)?.rid;
+    const errorCode = b.ErrorCode;
+    const errorMessage = b.ErrorMessage;
+    if (!status) { reply.code(200).send('ok'); return; }
+    try {
+      // Find the recipient: prefer ?rid= (faster), fallback to twilio_sid match.
+      let recipient: any = null;
+      if (recipientId) {
+        recipient = await prisma.campaignRecipient.findUnique({ where: { id: String(recipientId) } });
+      }
+      if (!recipient && sid) {
+        recipient = await prisma.campaignRecipient.findUnique({ where: { twilio_sid: String(sid) } });
+      }
+      if (!recipient) { reply.code(200).send('ok'); return; }
+
+      const updates: any = { status };
+      if (status === 'delivered' && !recipient.delivered_at) updates.delivered_at = new Date();
+      if (status === 'read' && !recipient.read_at) updates.read_at = new Date();
+      if (status === 'failed' || status === 'undelivered') {
+        updates.failed_at = new Date();
+        updates.failure_reason = errorMessage || errorCode || 'failed';
+      }
+      if (sid && !recipient.twilio_sid) updates.twilio_sid = sid;
+      await prisma.campaignRecipient.update({ where: { id: recipient.id }, data: updates });
+
+      // Update parent aggregate counts (only on first time each status hits)
+      if ((status === 'delivered' && !recipient.delivered_at) ||
+          (status === 'read' && !recipient.read_at)) {
+        const field = status === 'delivered' ? 'delivered_count' : 'read_count';
+        await prisma.campaignSend.update({
+          where: { id: recipient.campaign_send_id },
+          data: { [field]: { increment: 1 } },
+        }).catch(() => {});
+      }
+    } catch (e: any) {
+      app.log.warn({ err: e?.message, status }, 'campaign-status update failed');
+    }
+    reply.code(200).type('text/xml').send('<?xml version="1.0" encoding="UTF-8"?><Response></Response>');
+  });
 };

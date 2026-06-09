@@ -70,7 +70,11 @@ export async function sendWhatsAppTemplate(
 // requires a pre-approved template, which is what sendWhatsAppTemplate is for.
 // IMPORTANT: never auto-attach a ContentSid here — Twilio will silently use
 // the template and IGNORE the Body, sending the wrong message to the customer.
-export async function sendWhatsApp(to: string, body: string) {
+export async function sendWhatsApp(
+  to: string,
+  body: string,
+  opts: { mediaUrl?: string; statusCallback?: string; recipientId?: string } = {},
+) {
   const sid = process.env.TWILIO_ACCOUNT_SID;
   const token = process.env.TWILIO_AUTH_TOKEN;
   const from =
@@ -83,6 +87,16 @@ export async function sendWhatsApp(to: string, body: string) {
   const creds = Buffer.from(`${sid}:${token}`).toString('base64');
   const toN = normalizeIsraeliPhone(to);
   const params: Record<string, string> = { From: from, To: `whatsapp:${toN}`, Body: body };
+  // Optional media attachment (image/PDF). Twilio supports JPG/PNG/MP4 etc.
+  if (opts.mediaUrl) params.MediaUrl = opts.mediaUrl;
+  // Status callback URL — Twilio will POST delivery + read receipt events here.
+  // We include the recipient id in the URL so the webhook can update the right row.
+  if (opts.statusCallback) {
+    const url = opts.recipientId
+      ? `${opts.statusCallback}?rid=${encodeURIComponent(opts.recipientId)}`
+      : opts.statusCallback;
+    params.StatusCallback = url;
+  }
   const res = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`, {
     method: 'POST',
     headers: { Authorization: `Basic ${creds}`, 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -90,7 +104,6 @@ export async function sendWhatsApp(to: string, body: string) {
   });
   const data: any = await res.json();
   if (!res.ok) {
-    // Surface the full Twilio error code + message so we can diagnose (e.g., 63016 = needs template).
     console.error('[twilio-wa] failed', { status: res.status, code: data?.code, message: data?.message, to: toN });
     throw new Error(`twilio_wa_${data?.code || res.status}: ${data?.message || 'unknown'}`);
   }
