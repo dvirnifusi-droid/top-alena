@@ -9834,7 +9834,9 @@ if (!(globalThis as any).__startupDriftRepair) {
       await prisma.$executeRawUnsafe(`ALTER TABLE "Customer" ADD COLUMN IF NOT EXISTS "marketing_consent_at" TIMESTAMP(3);`);
       await prisma.$executeRawUnsafe(`ALTER TABLE "Customer" ADD COLUMN IF NOT EXISTS "marketing_unsubscribed_at" TIMESTAMP(3);`);
       await prisma.$executeRawUnsafe(`ALTER TABLE "ShiftTracking" ADD COLUMN IF NOT EXISTS "end_reminder_sent_at" TIMESTAMP(3);`);
-      console.log('[startup] Reservation deposit + marketing consent + shift reminder columns ensured');
+      // Checklist.department — added for dept-filter UI (floor/bar/kitchen/managers)
+      await prisma.$executeRawUnsafe(`ALTER TABLE "Checklist" ADD COLUMN IF NOT EXISTS "department" TEXT;`);
+      console.log('[startup] Reservation deposit + marketing consent + shift reminder + Checklist.department columns ensured');
     } catch (e: any) {
       console.error('[startup] ensure Reservation deposit cols failed:', e?.message);
     }

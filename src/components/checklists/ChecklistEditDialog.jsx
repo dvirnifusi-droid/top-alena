@@ -17,6 +17,7 @@ export default function ChecklistEditDialog({ isOpen, checklist, employees, onCl
         category: 'operational',
         frequency: 'daily',
         assigned_role: '',
+        department: '',
         shift: 'all',
         color: 'emerald',
         items: []
@@ -34,12 +35,13 @@ export default function ChecklistEditDialog({ isOpen, checklist, employees, onCl
                 category: checklist.category || 'operational',
                 frequency: checklist.frequency || 'daily',
                 assigned_role: checklist.assigned_role || '',
+                department: checklist.department || '',
                 shift: checklist.shift || 'all',
                 color: checklist.color || 'emerald',
                 items: checklist.items ? checklist.items.map(item => ({ ...item })) : []
             });
         } else {
-            setFormData({ title: '', description: '', category: 'operational', frequency: 'daily', assigned_role: '', shift: 'all', color: 'emerald', items: [] });
+            setFormData({ title: '', description: '', category: 'operational', frequency: 'daily', assigned_role: '', department: '', shift: 'all', color: 'emerald', items: [] });
         }
     }, [checklist, isOpen]);
 
@@ -189,7 +191,7 @@ export default function ChecklistEditDialog({ isOpen, checklist, employees, onCl
                                 </div>
                             </div>
 
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                 <div>
                                     <Label>משמרת</Label>
                                     <Select value={formData.shift} onValueChange={(v) => setFormData(prev => ({ ...prev, shift: v }))}>
@@ -199,6 +201,19 @@ export default function ChecklistEditDialog({ isOpen, checklist, employees, onCl
                                             <SelectItem value="morning">🌅 בוקר</SelectItem>
                                             <SelectItem value="evening">🌆 ערב</SelectItem>
                                             <SelectItem value="thursday">🎉 חמישי</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                <div>
+                                    <Label>מחלקה</Label>
+                                    <Select value={formData.department || 'none'} onValueChange={(v) => setFormData(prev => ({ ...prev, department: v === 'none' ? '' : v }))}>
+                                        <SelectTrigger><SelectValue /></SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="none">— ללא מחלקה —</SelectItem>
+                                            <SelectItem value="floor">🍽️ פלור</SelectItem>
+                                            <SelectItem value="bar">🍷 בר</SelectItem>
+                                            <SelectItem value="kitchen">🍳 מטבח</SelectItem>
+                                            <SelectItem value="managers">👔 מנהלים</SelectItem>
                                         </SelectContent>
                                     </Select>
                                 </div>

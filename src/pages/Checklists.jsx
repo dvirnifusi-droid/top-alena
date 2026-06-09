@@ -27,6 +27,8 @@ function ChecklistsInner() {
     const [employees, setEmployees] = useState([]);
     const [assigningTasksFor, setAssigningTasksFor] = useState(null);
     const [shiftFilter, setShiftFilter] = useState('all');
+    // Department filter — 'all' | 'floor' | 'bar' | 'kitchen' | 'managers'
+    const [deptFilter, setDeptFilter] = useState('all');
 
     useEffect(() => {
         loadData();
@@ -201,8 +203,40 @@ function ChecklistsInner() {
                                 <Plus className="w-4 h-4 ml-1" /> צ'קליסט חדש
                             </Button>
                         </div>
+                        {/* Department chip row — second-level filter */}
+                        <div className="flex flex-wrap gap-2">
+                            {[
+                                { value: 'all', label: '🗂️ כל המחלקות', color: 'gray' },
+                                { value: 'floor', label: '🍽️ פלור', color: 'amber' },
+                                { value: 'bar', label: '🍷 בר', color: 'rose' },
+                                { value: 'kitchen', label: '🍳 מטבח', color: 'orange' },
+                                { value: 'managers', label: '👔 מנהלים', color: 'blue' },
+                            ].map(d => {
+                                const isActive = deptFilter === d.value;
+                                const palette = {
+                                    gray: isActive ? 'bg-gray-700 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200',
+                                    amber: isActive ? 'bg-amber-600 text-white' : 'bg-amber-50 text-amber-700 hover:bg-amber-100',
+                                    rose: isActive ? 'bg-rose-600 text-white' : 'bg-rose-50 text-rose-700 hover:bg-rose-100',
+                                    orange: isActive ? 'bg-orange-600 text-white' : 'bg-orange-50 text-orange-700 hover:bg-orange-100',
+                                    blue: isActive ? 'bg-blue-600 text-white' : 'bg-blue-50 text-blue-700 hover:bg-blue-100',
+                                };
+                                return (
+                                    <button
+                                        key={d.value}
+                                        onClick={() => setDeptFilter(d.value)}
+                                        className={`px-3 py-1.5 rounded-xl text-sm font-bold transition-colors ${palette[d.color]}`}
+                                    >
+                                        {d.label}
+                                    </button>
+                                );
+                            })}
+                        </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                            {checklists.filter(c => shiftFilter === 'all' || !c.shift || c.shift === 'all' || c.shift === shiftFilter).map((checklist, index) => (
+                            {checklists.filter(c => {
+                                if (shiftFilter !== 'all' && c.shift && c.shift !== 'all' && c.shift !== shiftFilter) return false;
+                                if (deptFilter !== 'all' && c.department !== deptFilter) return false;
+                                return true;
+                            }).map((checklist, index) => (
                                 <div key={checklist.id} className="transform hover:scale-105 transition-all duration-500" style={{ animationDelay: `${index * 100}ms` }}>
                                     <ChecklistCard
                                         checklist={checklist}

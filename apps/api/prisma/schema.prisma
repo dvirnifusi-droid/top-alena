@@ -466,6 +466,8 @@ model Checklist {
   category                     String
   frequency                    String
   assigned_role                String?
+  // Department: 'floor' | 'bar' | 'kitchen' | 'managers' (NULL = unassigned, shows in "הכל")
+  department                   String?
   shift                        String?  @default("all")
   color                        String?  @default("emerald")
   items                        Json
