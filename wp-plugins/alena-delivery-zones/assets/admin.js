@@ -1,9 +1,16 @@
 (function ($) {
   'use strict';
 
-  let map, drawingManager;
-  // Each entry: { id, name, color, delivery_fee, min_order, coords?, googlePoly }
+  let map;
+  // Each entry: { id, name, color, delivery_fee, min_order, googlePoly }
   let polygons = [];
+
+  // Active drawing state
+  let drawing = false;
+  let draftPath = null;          // google.maps.MVCArray<LatLng>
+  let draftPoly = null;          // google.maps.Polygon for the in-progress shape
+  let mapClickListener = null;
+  let mapDblClickListener = null;
 
   function init() {
     const mapEl = document.getElementById('alena-dz-map');
@@ -17,40 +24,87 @@
       zoom: 13,
       streetViewControl: false,
       mapTypeControl: true,
+      clickableIcons: false,
     });
 
-    drawingManager = new google.maps.drawing.DrawingManager({
-      drawingMode: null,
-      drawingControl: true,
-      drawingControlOptions: {
-        position: google.maps.ControlPosition.TOP_CENTER,
-        drawingModes: ['polygon'],
-      },
-      polygonOptions: {
-        editable: true,
-        draggable: false,
-        fillOpacity: 0.35,
-        strokeWeight: 2,
-        fillColor: '#3388ff',
-        strokeColor: '#3388ff',
-      },
-    });
-    drawingManager.setMap(map);
-    google.maps.event.addListener(drawingManager, 'polygoncomplete', onPolygonDrawn);
-
+    addCustomToolbar();
     loadExisting();
     $('#alena-dz-save-all').on('click', saveAll);
   }
 
-  function onPolygonDrawn(poly) {
+  // -------------------- Custom drawing toolbar (no DrawingManager dependency) --------------------
+
+  function addCustomToolbar() {
+    const $bar = $('<div class="alena-dz-toolbar"></div>');
+    const $draw = $('<button class="button button-primary" id="alena-dz-draw">✏️ צייר אזור חדש</button>').on('click', startDrawing);
+    const $cancel = $('<button class="button" id="alena-dz-cancel" style="display:none">בטל ציור</button>').on('click', cancelDrawing);
+    const $finish = $('<button class="button button-primary" id="alena-dz-finish" style="display:none">✓ סיים פוליגון</button>').on('click', finishDrawing);
+    const $hint = $('<span id="alena-dz-hint" style="margin-right:12px;color:#666"></span>');
+    $bar.append($draw, $cancel, $finish, $hint);
+    $('#alena-dz-map').before($bar);
+  }
+
+  function startDrawing() {
+    if (drawing) return;
+    drawing = true;
+    draftPath = new google.maps.MVCArray([]);
+    draftPoly = new google.maps.Polygon({
+      paths: draftPath,
+      strokeColor: '#ff5722',
+      strokeWeight: 2,
+      fillColor: '#ff5722',
+      fillOpacity: 0.15,
+      map: map,
+      clickable: false,
+    });
+    $('#alena-dz-draw').hide();
+    $('#alena-dz-cancel, #alena-dz-finish').show();
+    setHint('לחץ על המפה להוסיף נקודות. דאבל-קליק או "סיים" כשגמרת.');
+
+    mapClickListener = google.maps.event.addListener(map, 'click', (e) => {
+      draftPath.push(e.latLng);
+      setHint('נקודות: ' + draftPath.getLength() + ' (לפחות 3 כדי לסיים)');
+    });
+    mapDblClickListener = google.maps.event.addListener(map, 'dblclick', () => {
+      finishDrawing();
+    });
+    // Disable zoom on double-click while drawing
+    map.setOptions({ disableDoubleClickZoom: true });
+  }
+
+  function cancelDrawing() {
+    if (!drawing) return;
+    if (draftPoly) draftPoly.setMap(null);
+    cleanupDrawing();
+  }
+
+  function finishDrawing() {
+    if (!drawing) return;
+    if (!draftPath || draftPath.getLength() < 3) {
+      alert('צריך לפחות 3 נקודות. הוסף עוד או בטל.');
+      return;
+    }
     const name = prompt('שם הפוליגון (לדוגמה: ראשון לציון – מרכז):', 'אזור חדש');
-    if (!name) { poly.setMap(null); return; }
+    if (!name) { cancelDrawing(); return; }
     const feeStr = prompt('דמי משלוח (₪):', '20');
     const fee = parseFloat(feeStr);
-    if (isNaN(fee) || fee < 0) { poly.setMap(null); alert('מחיר לא תקין'); return; }
+    if (isNaN(fee) || fee < 0) { cancelDrawing(); alert('מחיר לא תקין'); return; }
     const minStr = prompt('מינ׳ הזמנה (₪) — 0 לבטל:', '60');
     const min = parseFloat(minStr);
-    if (isNaN(min) || min < 0) { poly.setMap(null); alert('מינימום לא תקין'); return; }
+    if (isNaN(min) || min < 0) { cancelDrawing(); alert('מינימום לא תקין'); return; }
+
+    // Convert the draft to a permanent editable polygon
+    const finalPoly = new google.maps.Polygon({
+      paths: draftPath,
+      strokeColor: '#3388ff',
+      strokeWeight: 2,
+      fillColor: '#3388ff',
+      fillOpacity: 0.35,
+      map: map,
+      editable: true,
+    });
+    // Remove draft
+    if (draftPoly) draftPoly.setMap(null);
 
     polygons.push({
       id: 'p' + Date.now(),
@@ -58,18 +112,35 @@
       color: '#3388ff',
       delivery_fee: fee,
       min_order: min,
-      googlePoly: poly,
+      googlePoly: finalPoly,
     });
-    poly.addListener('click', () => focusOnPolygon(poly));
+    finalPoly.addListener('click', () => focusOnPolygon(finalPoly));
+
+    cleanupDrawing();
     renderList();
-    drawingManager.setDrawingMode(null);
+    setHint('נשמר! צייר אזור נוסף או לחץ "שמור את כל הפוליגונים".');
   }
+
+  function cleanupDrawing() {
+    if (mapClickListener) { google.maps.event.removeListener(mapClickListener); mapClickListener = null; }
+    if (mapDblClickListener) { google.maps.event.removeListener(mapDblClickListener); mapDblClickListener = null; }
+    map.setOptions({ disableDoubleClickZoom: false });
+    draftPath = null;
+    draftPoly = null;
+    drawing = false;
+    $('#alena-dz-cancel, #alena-dz-finish').hide();
+    $('#alena-dz-draw').show();
+  }
+
+  function setHint(t) { $('#alena-dz-hint').text(t); }
 
   function focusOnPolygon(poly) {
     const bounds = new google.maps.LatLngBounds();
     poly.getPath().forEach(c => bounds.extend(c));
     map.fitBounds(bounds);
   }
+
+  // -------------------- Load / save existing polygons --------------------
 
   function loadExisting() {
     setStatus('טוען פוליגונים קיימים…');
@@ -104,7 +175,7 @@
   function renderList() {
     const $list = $('#alena-dz-list').empty();
     if (polygons.length === 0) {
-      $list.append('<p style="color:#666">אין עדיין פוליגונים. צייר אחד על המפה (לחץ על הסמל בחלק העליון).</p>');
+      $list.append('<p style="color:#666">אין עדיין פוליגונים. לחץ "צייר אזור חדש" כדי להתחיל.</p>');
       return;
     }
     polygons.forEach((p, idx) => {

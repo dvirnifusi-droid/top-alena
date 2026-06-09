@@ -26,12 +26,11 @@ class Alena_DZ_Admin {
         $api_key = get_option('alena_dz_google_key', '');
         if (!$api_key) return; // Render will show key-entry form.
 
-        // NOTE: Pinned to v=3.55 — DrawingManager was removed in v3.65 (deprecated).
-        // The async loader nag on >=3.55 is harmless. Replace with custom drawing
-        // logic + the new importLibrary() API in a future plan.
+        // Maps JS without the deprecated drawing package. Polygon drawing is
+        // implemented manually in admin.js using click handlers on the map.
         wp_enqueue_script(
             'alena-dz-google-maps',
-            "https://maps.googleapis.com/maps/api/js?key={$api_key}&libraries=drawing,geometry&language=he&v=3.55&loading=async",
+            "https://maps.googleapis.com/maps/api/js?key={$api_key}&libraries=geometry&language=he&loading=async",
             [],
             null,
             true

@@ -1,3 +1,19 @@
+.alena-dz-toolbar {
+  margin: 10px 0;
+  padding: 12px;
+  background: #fff;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+#alena-dz-hint {
+  font-size: 14px;
+}
+
 .alena-dz-row {
   padding: 10px 12px;
   border-bottom: 1px solid #e5e5e5;
