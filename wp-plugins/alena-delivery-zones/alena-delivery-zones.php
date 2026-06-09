@@ -4,7 +4,7 @@
  * Description: Google Maps polygon-based delivery zones for WooCommerce. Owner draws delivery polygons on a map; the plugin adds a WC shipping method that geocodes the customer address and matches it to the right polygon (fee, min-order).
  * Version: 0.1.0
  * Author: Alena / TOPALENA
- * Requires PHP: 8.0
+ * Requires PHP: 7.4
  * Requires at least: 6.5
  * WC tested up to: 9.9
  * Text Domain: alena-dz
