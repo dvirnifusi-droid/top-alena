@@ -1813,7 +1813,282 @@ async function runDailyCelebrationCampaigns(force = false) {
   }
 }
 
-if (!(globalThis as any).__dailyCelebrationsTimer) {
+// ============================================================================
+// DRIP CAMPAIGNS — automated lifecycle messages
+// ============================================================================
+// Three drips run via the same cron tick (every 30 min):
+//   - Welcome: 18-36h after first ever visit
+//   - NPS: 2-4 days after any completed visit
+//   - Pre-birthday: 7 days before customer's birthday_mmdd
+//
+// Each drip is gated by a per-customer column so we never double-send.
+// All respect marketing_consent + last_marketing_sent_at 24h throttle.
+// ============================================================================
+
+const DRIP_TEMPLATES = {
+  welcome: 'תודה ששמת אותנו במפה שלך, {name} 🌿\nתקווה שנהניתם — לקראת הביקור הבא יש לך 10% הנחה.\nרק תגיד "ראיתי בוואטסאפ" למלצר.\nעלינא, רוטשילד 104',
+  nps_high: 'היי {name}, איך היה אצלנו?\nאם נהנית — נשמח לביקורת קטנה ב-Google:\nhttps://g.page/r/topalena-review\nתודה רבה 🌿',
+  nps_low: 'היי {name},\nאיך היה אצלנו? תן לנו 1-5 בקצרה.\nכל משוב נכנס ישירות למנהל ועוזר לנו להשתפר 🌿',
+  pre_birthday: 'היי {name}! 🎂\nבעוד שבוע יש לך יום הולדת — נשמח לחגוג איתך!\nתזמין שולחן וקבל קינוח חינם.\nרוטשילד 104, ראשון לציון 🌿',
+};
+
+async function runDripCampaigns() {
+  const now = new Date();
+  const cutoff24h = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+  const baseGate: any = {
+    marketing_consent: true,
+    marketing_unsubscribed_at: null,
+    phone: { not: '' },
+    OR: [{ last_marketing_sent_at: null }, { last_marketing_sent_at: { lt: cutoff24h } }],
+  };
+
+  // === 1) Welcome drip — first visit 18-36h ago ============================
+  try {
+    const minAge = new Date(now.getTime() - 36 * 60 * 60 * 1000);
+    const maxAge = new Date(now.getTime() - 18 * 60 * 60 * 1000);
+    const candidates = await db.customer.findMany({
+      where: { ...baseGate, visit_count: 1, last_visit: { gte: minAge, lte: maxAge }, welcome_sent_at: null },
+      take: 50,
+    });
+    if (candidates.length > 0) {
+      let ok = 0, fail = 0;
+      for (const c of candidates) {
+        try {
+          const msg = DRIP_TEMPLATES.welcome.replace(/\{name\}/g, c.name || 'אורח/ת יקר/ה');
+          const out = await sendWhatsApp(c.phone, msg);
+          if (!(out as any)?.skipped) {
+            ok++;
+            await db.customer.update({ where: { id: c.id }, data: {
+              welcome_sent_at: new Date(), last_marketing_sent_at: new Date(),
+            }}).catch(() => {});
+          } else { fail++; }
+        } catch { fail++; }
+      }
+      await db.campaignSend.create({ data: {
+        campaign_key: 'drip_welcome', campaign_label: 'ברוך הבא (אוטומטי)',
+        segment_key: 'first_visit_24h', channel: 'whatsapp',
+        message_template: DRIP_TEMPLATES.welcome,
+        recipient_count: candidates.length, success_count: ok, failure_count: fail,
+        estimated_cost_ils: Number((candidates.length * 0.13).toFixed(2)),
+        sent_by: 'drip@topalena.com',
+      }}).catch(() => {});
+      console.log(`[drip] welcome: ${ok}/${candidates.length}`);
+    }
+  } catch (e: any) { console.warn('[drip] welcome failed:', e?.message); }
+
+  // === 2) NPS drip — visit completed 2-4 days ago =========================
+  try {
+    const minAge = new Date(now.getTime() - 4 * 86400000);
+    const maxAge = new Date(now.getTime() - 2 * 86400000);
+    const candidates = await db.customer.findMany({
+      where: { ...baseGate, last_visit: { gte: minAge, lte: maxAge }, nps_sent_at: null },
+      take: 100,
+    });
+    if (candidates.length > 0) {
+      let ok = 0, fail = 0;
+      for (const c of candidates) {
+        try {
+          // Use 'high' template for VIPs (assume happy), 'low' template for everyone else
+          const template = c.loyalty_tier === 'vip' ? DRIP_TEMPLATES.nps_high : DRIP_TEMPLATES.nps_low;
+          const msg = template.replace(/\{name\}/g, c.name || 'אורח/ת יקר/ה');
+          const out = await sendWhatsApp(c.phone, msg);
+          if (!(out as any)?.skipped) {
+            ok++;
+            await db.customer.update({ where: { id: c.id }, data: {
+              nps_sent_at: new Date(), last_marketing_sent_at: new Date(),
+            }}).catch(() => {});
+          } else { fail++; }
+        } catch { fail++; }
+      }
+      await db.campaignSend.create({ data: {
+        campaign_key: 'drip_nps', campaign_label: 'NPS / משוב (אוטומטי)',
+        segment_key: 'recent_visitors', channel: 'whatsapp',
+        message_template: DRIP_TEMPLATES.nps_low,
+        recipient_count: candidates.length, success_count: ok, failure_count: fail,
+        estimated_cost_ils: Number((candidates.length * 0.13).toFixed(2)),
+        sent_by: 'drip@topalena.com',
+      }}).catch(() => {});
+      console.log(`[drip] nps: ${ok}/${candidates.length}`);
+    }
+  } catch (e: any) { console.warn('[drip] nps failed:', e?.message); }
+
+  // === 3) Pre-birthday — 7 days before ====================================
+  try {
+    const future = new Date(now.getTime() + 7 * 86400000);
+    const targetMmdd = String(future.getMonth() + 1).padStart(2, '0') + '-' + String(future.getDate()).padStart(2, '0');
+    const currentYear = now.getFullYear();
+    const candidates = await db.customer.findMany({
+      where: {
+        ...baseGate,
+        birthday_mmdd: targetMmdd,
+        OR: [
+          ...(baseGate.OR || []),
+          { pre_birthday_sent_year: null },
+          { pre_birthday_sent_year: { lt: currentYear } },
+        ],
+      },
+      take: 100,
+    });
+    if (candidates.length > 0) {
+      let ok = 0, fail = 0;
+      for (const c of candidates) {
+        if (c.pre_birthday_sent_year === currentYear) continue; // double-check
+        try {
+          const msg = DRIP_TEMPLATES.pre_birthday.replace(/\{name\}/g, c.name || 'אורח/ת יקר/ה');
+          const out = await sendWhatsApp(c.phone, msg);
+          if (!(out as any)?.skipped) {
+            ok++;
+            await db.customer.update({ where: { id: c.id }, data: {
+              pre_birthday_sent_year: currentYear, last_marketing_sent_at: new Date(),
+            }}).catch(() => {});
+          } else { fail++; }
+        } catch { fail++; }
+      }
+      await db.campaignSend.create({ data: {
+        campaign_key: 'drip_pre_birthday', campaign_label: 'שבוע לפני יום הולדת (אוטומטי)',
+        segment_key: 'birthday_in_7d', channel: 'whatsapp',
+        message_template: DRIP_TEMPLATES.pre_birthday,
+        recipient_count: candidates.length, success_count: ok, failure_count: fail,
+        estimated_cost_ils: Number((candidates.length * 0.13).toFixed(2)),
+        sent_by: 'drip@topalena.com',
+      }}).catch(() => {});
+      console.log(`[drip] pre_birthday: ${ok}/${candidates.length}`);
+    }
+  } catch (e: any) { console.warn('[drip] pre_birthday failed:', e?.message); }
+}
+
+if (!(globalThis as any).__dripCampaignsTimer) {
+  // Tick every 30 min — each drip self-gates so we won't re-send.
+  (globalThis as any).__dripCampaignsTimer = setTimeout(function loop() {
+    runDripCampaigns().finally(() => {
+      (globalThis as any).__dripCampaignsTimer = setTimeout(loop, 30 * 60 * 1000);
+    });
+  }, 5 * 60 * 1000); // first run 5 min after startup
+}
+
+registerFn('runDripCampaignsNow', async ({ user }) => {
+  if ((user as any)?.role !== 'admin') throw new Error('admin only');
+  await runDripCampaigns();
+  return { triggered: true };
+});
+
+// ============================================================================
+// AI PERSONALIZATION — Gemini rewrites a generic template to be customer-specific
+// ============================================================================
+// Owner clicks ✨ Personalize → backend calls Gemini with customer context →
+// returns a custom opening sentence + adapted body.
+// Optional: not part of automated flow, used in compose UI.
+registerFn('personalizeWithAI', async ({ body }) => {
+  const { template, customer_id, customer_phone } = body as any;
+  if (!template) throw new Error('template required');
+  let customer: any = null;
+  if (customer_id) customer = await db.customer.findUnique({ where: { id: customer_id } });
+  else if (customer_phone) customer = await db.customer.findFirst({ where: { phone: String(customer_phone).replace(/[^\d]/g, '') } });
+  if (!customer) {
+    // Synthetic "average" customer profile for preview without specific match
+    customer = { name: 'אורח לדוגמה', visit_count: 3, loyalty_tier: 'regular', last_visit: new Date(Date.now() - 30 * 86400000) };
+  }
+  const prompt = `אתה כותב הודעה אישית בעברית למסעדת "עלינא" בראשון לציון.
+פרטי הלקוח:
+- שם: ${customer.name || 'אורח'}
+- מספר ביקורים: ${customer.visit_count || 0}
+- סטטוס: ${customer.loyalty_tier === 'vip' ? 'VIP' : 'רגיל'}
+- ביקור אחרון: ${customer.last_visit ? new Date(customer.last_visit).toLocaleDateString('he-IL') : 'אין נתון'}
+
+הטמפלייט הגנרי:
+"""${template}"""
+
+המשימה: שכתב את ההודעה כך שתהיה אישית ומדויקת ללקוח הזה. שמור על הטון הקיים. עברית טבעית, חמה אבל לא מתחנפת. עד 4 שורות. ללא המילה "יקר/ה". בלי placeholders.
+
+החזר רק את הטקסט הסופי, ללא הסבר.`;
+
+  try {
+    const result: any = await invokeLLM({ prompt, timeoutMs: 15000, maxOutputTokens: 400, maxAttempts: 2 } as any);
+    const text = (typeof result === 'string' ? result : result?.text || result?.response || '').trim();
+    if (!text) return { ok: false, error: 'empty_response', personalized: template };
+    return { ok: true, personalized: text, customer: { name: customer.name, visits: customer.visit_count, tier: customer.loyalty_tier } };
+  } catch (e: any) {
+    return { ok: false, error: e?.message, personalized: template };
+  }
+});
+
+// ============================================================================
+// A/B TEST — send N variants 50/50 (or evenly split) and track per-variant
+// ============================================================================
+// Each variant gets a separate CampaignSend row with the same campaign_key
+// but different campaign_label suffix ("(A)", "(B)") so analytics can compare.
+registerFn('sendABTestCampaign', async ({ body, user }) => {
+  if ((user as any)?.role !== 'admin') throw new Error('admin only');
+  const { segment, variants, channel, campaign_key, campaign_label, custom_filter, media_url } = body as any;
+  if (!Array.isArray(variants) || variants.length < 2) throw new Error('Need >= 2 variants');
+  if (variants.length > 5) throw new Error('Max 5 variants');
+  if (!segment) throw new Error('segment required');
+
+  // Resolve recipients ONCE so we can split them
+  const where = buildSegmentWhere(segment, custom_filter);
+  const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  const finalWhere: any = {
+    ...where,
+    OR: [{ last_marketing_sent_at: null }, { last_marketing_sent_at: { lt: cutoff } }],
+  };
+  const allRecipients = await db.customer.findMany({ where: finalWhere, take: 500 });
+  // Shuffle + chunk
+  const shuffled = [...allRecipients].sort(() => Math.random() - 0.5);
+  const chunkSize = Math.ceil(shuffled.length / variants.length);
+  const useWa = channel === 'whatsapp' || !channel;
+  const channelStr = useWa ? 'whatsapp' : 'sms';
+  const sends: any[] = [];
+
+  for (let i = 0; i < variants.length; i++) {
+    const variantLabel = String.fromCharCode(65 + i); // A, B, C...
+    const chunk = shuffled.slice(i * chunkSize, (i + 1) * chunkSize);
+    if (chunk.length === 0) continue;
+
+    const parentSend = await db.campaignSend.create({
+      data: {
+        campaign_key: (campaign_key || segment) + `_ab_${variantLabel}`,
+        campaign_label: `${campaign_label || segment} (${variantLabel})`,
+        segment_key: segment,
+        segment_filter: custom_filter || undefined,
+        channel: channelStr,
+        message_template: variants[i],
+        media_url: media_url || null,
+        recipient_count: chunk.length,
+        estimated_cost_ils: Number((chunk.length * 0.13).toFixed(2)),
+        sent_by: (user as any)?.email || null,
+      },
+    });
+
+    let ok = 0, fail = 0;
+    const statusCallback = `${process.env.PUBLIC_BASE_URL || 'https://topalena.com'}/api/twilio/campaign-status`;
+    for (const c of chunk) {
+      const recipient = await db.campaignRecipient.create({
+        data: {
+          campaign_send_id: parentSend.id, customer_id: c.id, phone: c.phone,
+          customer_name: c.name || null, status: 'queued',
+        },
+      }).catch(() => null);
+      try {
+        const rendered = renderTemplate(variants[i], c as any);
+        const out = useWa
+          ? await sendWhatsApp(c.phone, rendered, { mediaUrl: media_url, statusCallback, recipientId: recipient?.id })
+          : await sendSms(c.phone, rendered);
+        if ((out as any)?.skipped) { fail++; }
+        else {
+          ok++;
+          await db.customer.update({ where: { id: c.id }, data: { last_marketing_sent_at: new Date() } }).catch(() => {});
+          if (recipient && (out as any)?.sid) {
+            await db.campaignRecipient.update({ where: { id: recipient.id }, data: { status: 'sent', twilio_sid: (out as any).sid } }).catch(() => {});
+          }
+        }
+      } catch { fail++; }
+    }
+    await db.campaignSend.update({ where: { id: parentSend.id }, data: { success_count: ok, failure_count: fail } }).catch(() => {});
+    sends.push({ variant: variantLabel, send_id: parentSend.id, recipients: chunk.length, sent: ok, failed: fail });
+  }
+
+  return { ok: true, sends, total: allRecipients.length };
+});
   // Tick every 15 min, the function self-gates to 09:00 IL + once-per-day.
   (globalThis as any).__dailyCelebrationsTimer = setTimeout(function loop() {
     runDailyCelebrationCampaigns().finally(() => {
@@ -10298,6 +10573,10 @@ if (!(globalThis as any).__startupDriftRepair) {
       await prisma.$executeRawUnsafe(`ALTER TABLE "Customer" ADD COLUMN IF NOT EXISTS "anniversary_mmdd" TEXT;`);
       await prisma.$executeRawUnsafe(`ALTER TABLE "Customer" ADD COLUMN IF NOT EXISTS "anniversary_label" TEXT;`);
       await prisma.$executeRawUnsafe(`ALTER TABLE "Customer" ADD COLUMN IF NOT EXISTS "last_marketing_sent_at" TIMESTAMP(3);`);
+      // Drip-campaign tracking columns
+      await prisma.$executeRawUnsafe(`ALTER TABLE "Customer" ADD COLUMN IF NOT EXISTS "welcome_sent_at" TIMESTAMP(3);`);
+      await prisma.$executeRawUnsafe(`ALTER TABLE "Customer" ADD COLUMN IF NOT EXISTS "nps_sent_at" TIMESTAMP(3);`);
+      await prisma.$executeRawUnsafe(`ALTER TABLE "Customer" ADD COLUMN IF NOT EXISTS "pre_birthday_sent_year" INTEGER;`);
       // CampaignSend table — log of every marketing campaign for analytics + history
       await prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "CampaignSend" (
         "id" TEXT PRIMARY KEY,

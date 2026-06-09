@@ -324,7 +324,55 @@ export default function MarketingCampaigns() {
                                 {/* Template editor */}
                                 <Card>
                                     <CardContent className="p-4">
-                                        <h3 className="font-bold mb-3 text-sm text-gray-700">3️⃣ ערוך הודעה (תוצג ללקוח):</h3>
+                                        <div className="flex items-center justify-between mb-3 gap-2 flex-wrap">
+                                            <h3 className="font-bold text-sm text-gray-700">3️⃣ ערוך הודעה (תוצג ללקוח):</h3>
+                                            <div className="flex gap-2">
+                                                <Button
+                                                    size="sm"
+                                                    variant="outline"
+                                                    onClick={async () => {
+                                                        const sampleId = preview?.sample?.[0]?.id;
+                                                        if (!sampleId) { alert('בחר סגמנט עם לקוחות לפני שיוצרים אישית'); return; }
+                                                        try {
+                                                            const r = await base44.functions.personalizeWithAI({ template, customer_id: sampleId });
+                                                            const data = r?.data || r;
+                                                            if (data?.ok) setTemplate(data.personalized);
+                                                            else alert('AI נכשל: ' + (data?.error || 'unknown'));
+                                                        } catch (e) { alert('שגיאה: ' + e?.message); }
+                                                    }}
+                                                    className="text-purple-700 border-purple-300 hover:bg-purple-50"
+                                                >
+                                                    ✨ AI אישי (Gemini)
+                                                </Button>
+                                                <Button
+                                                    size="sm"
+                                                    variant="outline"
+                                                    onClick={() => {
+                                                        const second = prompt('נוסח B (חלופי) — חצי מהלקוחות יקבלו:', '');
+                                                        if (!second?.trim()) return;
+                                                        if (!confirm(`לשלוח A/B Test ל-${preview?.count || 0} לקוחות?\n50% נוסח A, 50% נוסח B`)) return;
+                                                        (async () => {
+                                                            try {
+                                                                const r = await base44.functions.sendABTestCampaign({
+                                                                    segment: activeSegment.key,
+                                                                    variants: [template, second],
+                                                                    channel,
+                                                                    campaign_key: activeSegment.key,
+                                                                    campaign_label: activeSegment.label,
+                                                                    media_url: mediaUrl || undefined,
+                                                                });
+                                                                const data = r?.data || r;
+                                                                setSendResult({ success: data?.ok, ...data });
+                                                                loadHistory();
+                                                            } catch (e) { alert('שגיאה: ' + e?.message); }
+                                                        })();
+                                                    }}
+                                                    className="text-blue-700 border-blue-300 hover:bg-blue-50"
+                                                >
+                                                    🆎 A/B Test
+                                                </Button>
+                                            </div>
+                                        </div>
                                         <div className="text-xs text-gray-500 mb-2">
                                             placeholders זמינים: <code className="bg-gray-100 px-1 rounded">{`{name}`}</code> <code className="bg-gray-100 px-1 rounded">{`{coins}`}</code> <code className="bg-gray-100 px-1 rounded">{`{days_since_visit}`}</code> <code className="bg-gray-100 px-1 rounded">{`{visit_count}`}</code> <code className="bg-gray-100 px-1 rounded">{`{tier}`}</code>
                                         </div>
