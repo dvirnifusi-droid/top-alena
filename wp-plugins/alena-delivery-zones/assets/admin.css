@@ -1,0 +1,28 @@
+.alena-dz-row {
+  padding: 10px 12px;
+  border-bottom: 1px solid #e5e5e5;
+  background: #fff;
+  margin-bottom: 4px;
+  border-radius: 4px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.alena-dz-row strong {
+  display: inline-block;
+  min-width: 220px;
+}
+
+.alena-dz-row .button {
+  margin-left: 4px;
+}
+
+#alena-dz-save-all {
+  margin-top: 16px;
+}
+
+#alena-dz-status {
+  font-size: 13px;
+}
