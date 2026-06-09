@@ -306,24 +306,47 @@ function PermissionsDialog({ isOpen, onClose, employee, onRefresh }) {
    const [loading, setLoading] = useState(false);
    const [result, setResult] = useState(null);
    const [managedDept, setManagedDept] = useState('');
+   // Local snapshot of the employee record — updated after each save so the
+   // dialog reflects the new state without needing to close+reopen.
+   const [localEmployee, setLocalEmployee] = useState(employee);
 
-  // Reset the dropdown when the dialog re-opens for a different employee.
+  // Pre-fill the dropdown with the employee's CURRENT managed_department so
+  // the owner sees what's actually saved (not an empty selector).
   useEffect(() => {
-    if (isOpen) setManagedDept('');
-  }, [isOpen, employee?.id]);
+    if (isOpen) {
+      setManagedDept(employee?.managed_department || '');
+      setLocalEmployee(employee);
+      setResult(null);
+    }
+  }, [isOpen, employee?.id, employee?.managed_department]);
 
   const callSetRole = async ({ role, managed_department }) => {
     setLoading(true);
     setResult(null);
     try {
-      const payload = { email: employee.email };
+      const payload = { email: localEmployee.email };
       if (role !== undefined) payload.role = role;
       if (managed_department !== undefined) payload.managed_department = managed_department;
       const res = await base44.functions.setUserRoleAndDepartment(payload);
       const ok = res?.status === 200 || res?.data;
       if (!ok) throw new Error(res?.data?.error || 'failed');
-      setResult({ type: 'success', message: 'הרשאות עודכנו בהצלחה!' });
-      setTimeout(() => { onClose(); onRefresh(); }, 1500);
+      // Update local snapshot so the "תפקיד נוכחי" section reflects the new state
+      // immediately — owner can SEE the change before closing the dialog.
+      setLocalEmployee(prev => ({
+        ...prev,
+        role: role !== undefined ? role : prev.role,
+        managed_department: managed_department !== undefined ? managed_department : prev.managed_department,
+      }));
+      const action =
+        role === 'admin' ? 'הוענקו הרשאות Admin'
+        : role === 'user' ? 'הוסרו הרשאות Admin'
+        : managed_department === 'kitchen' ? 'הוגדר כמנהל מטבח'
+        : managed_department === 'floor' ? 'הוגדר כמנהל פלור'
+        : managed_department === null ? 'הוסר תפקיד מנהל מחלקה'
+        : 'עודכנו הרשאות';
+      setResult({ type: 'success', message: `✅ ${action} בהצלחה — השינוי שמור במערכת` });
+      // Refresh parent list in background (no auto-close — let owner verify)
+      onRefresh?.();
     } catch (error) {
       console.error('Error updating role:', error);
       setResult({ type: 'error', message: error?.message || 'שגיאה בעדכון ההרשאות' });
@@ -335,6 +358,11 @@ function PermissionsDialog({ isOpen, onClose, employee, onRefresh }) {
   const handleGrantAdmin = () => callSetRole({ role: 'admin' });
   const handleRevokeAdmin = () => callSetRole({ role: 'user', managed_department: null });
   const handleSetDeptManager = () => callSetRole({ managed_department: managedDept || null });
+
+  // Helpers for the "current state" badges
+  const isAdmin = localEmployee?.role === 'admin';
+  const currentDept = localEmployee?.managed_department;
+  const deptLabel = currentDept === 'kitchen' ? 'מנהל מטבח' : currentDept === 'floor' ? 'מנהל פלור' : null;
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -349,11 +377,30 @@ function PermissionsDialog({ isOpen, onClose, employee, onRefresh }) {
         <div className="space-y-4 py-4">
           <div className="bg-[#F4ECD8] p-4 rounded-lg">
             <p className="text-sm text-[#2E3819]">
-              <strong>מייל:</strong> {employee?.email}
+              <strong>מייל:</strong> {localEmployee?.email}
             </p>
-            <p className="text-sm text-[#2E3819] mt-1">
-              <strong>תפקיד נוכחי:</strong> {employee?.role}
-            </p>
+            <div className="mt-2 flex flex-wrap gap-2 items-center">
+              <strong className="text-sm text-[#2E3819]">הרשאות פעילות:</strong>
+              {isAdmin ? (
+                <span className="inline-flex items-center gap-1 px-3 py-1 bg-emerald-600 text-white text-xs font-bold rounded-full shadow">
+                  🛡️ Admin מלא
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1 px-3 py-1 bg-gray-300 text-gray-700 text-xs font-medium rounded-full">
+                  👤 משתמש רגיל
+                </span>
+              )}
+              {deptLabel && (
+                <span className="inline-flex items-center gap-1 px-3 py-1 bg-blue-600 text-white text-xs font-bold rounded-full shadow">
+                  👔 {deptLabel}
+                </span>
+              )}
+              {localEmployee?.employee_position && (
+                <span className="inline-flex items-center gap-1 px-3 py-1 bg-purple-100 text-purple-800 text-xs rounded-full">
+                  💼 {localEmployee.employee_position}
+                </span>
+              )}
+            </div>
           </div>
 
           {result && (
@@ -384,6 +431,7 @@ function PermissionsDialog({ isOpen, onClose, employee, onRefresh }) {
                 value={managedDept}
                 onChange={(e) => setManagedDept(e.target.value)}
                 className="flex-1 border rounded-lg px-3 py-2 text-sm"
+                disabled={loading}
               >
                 <option value="">-- ללא ניהול מחלקה --</option>
                 <option value="kitchen">מנהל מטבח</option>
@@ -391,13 +439,22 @@ function PermissionsDialog({ isOpen, onClose, employee, onRefresh }) {
               </select>
               <Button
                 onClick={handleSetDeptManager}
-                disabled={loading}
+                disabled={loading || (managedDept || '') === (currentDept || '')}
                 variant="outline"
-                className="border-emerald-300 text-emerald-700 hover:bg-emerald-50"
+                className={
+                  (managedDept || '') === (currentDept || '')
+                    ? 'border-gray-200 text-gray-400'
+                    : 'border-emerald-300 text-emerald-700 hover:bg-emerald-50'
+                }
               >
-                שמור
+                {(managedDept || '') === (currentDept || '') ? '✓ שמור' : 'שמור'}
               </Button>
             </div>
+            {currentDept && (
+              <p className="text-xs text-emerald-700 font-bold mt-2">
+                ✅ כרגע פעיל: {deptLabel}
+              </p>
+            )}
           </div>
         </div>
 
@@ -407,18 +464,22 @@ function PermissionsDialog({ isOpen, onClose, employee, onRefresh }) {
           </Button>
           <Button
             onClick={handleRevokeAdmin}
-            disabled={loading}
+            disabled={loading || !isAdmin}
             variant="outline"
-            className="border-orange-300 text-orange-700 hover:bg-orange-50"
+            className={isAdmin
+              ? 'border-orange-300 text-orange-700 hover:bg-orange-50'
+              : 'border-gray-200 text-gray-400'}
           >
             הסר הרשאות Admin
           </Button>
           <Button
             onClick={handleGrantAdmin}
-            disabled={loading}
-            className="bg-[#44512C] hover:bg-[#44512C]"
+            disabled={loading || isAdmin}
+            className={isAdmin
+              ? 'bg-gray-300 hover:bg-gray-300 cursor-not-allowed'
+              : 'bg-[#44512C] hover:bg-[#44512C]'}
           >
-            {loading ? 'מעדכן...' : 'הענק הרשאות Admin'}
+            {loading ? 'מעדכן...' : isAdmin ? '✓ כבר Admin' : 'הענק הרשאות Admin'}
           </Button>
         </DialogFooter>
       </DialogContent>
