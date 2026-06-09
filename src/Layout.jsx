@@ -98,7 +98,6 @@ const employeeLinks = [
   { title: "צ'קליסטים", url: createPageUrl("Checklists"), icon: CheckSquare, isSubItem: true, color: "cinnamon" },
   { title: "ניקיון שירותים 🚽", url: createPageUrl("RestroomCleaning"), icon: ClipboardCheck, isSubItem: true, color: "cinnamon" },
   { title: "דיווח תקרית", url: createPageUrl("Incidents"), icon: AlertTriangle, isSubItem: true, color: "cinnamon" },
-  { title: "דוח סיום משמרת", url: createPageUrl("ShiftEndReport"), icon: ClipboardCheck, isSubItem: true, color: "cinnamon" },
 
   { title: "משלוחים", url: "#", icon: Package, isCategory: true, color: "gold" },
   { title: "משלוחים", url: createPageUrl("Deliveries"), icon: Package, isSubItem: true, color: "gold" },

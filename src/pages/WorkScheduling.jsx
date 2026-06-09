@@ -843,17 +843,6 @@ export default function WorkScheduling() {
 
     return (
         <div className="p-4 md:p-6" dir="rtl">
-            {/* הודעה מובילה */}
-            {currentEmployee && (
-                <Alert className="mb-6 bg-gradient-to-r from-green-50 to-[#FAF5E8] border-green-300">
-                    <Crown className="w-5 h-5 text-yellow-600" />
-                    <AlertDescription className="text-gray-900">
-                        <span className="font-bold">שלום {currentEmployee.full_name}! </span>
-                        המשמרות שלך מסומנות בירוק-זהב עם כתר 👑
-                    </AlertDescription>
-                </Alert>
-            )}
-
             {/* Undo banners */}
             {lastEditedShift && (
                 <div className="mb-4 flex items-center justify-between bg-[#F4ECD8] border border-[#D9BD83] rounded-lg px-4 py-3">
