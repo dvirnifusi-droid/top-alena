@@ -32,21 +32,30 @@ class Alena_DZ_Shipping_Method extends WC_Shipping_Method {
     }
 
     public function calculate_shipping($package = []) {
-        $dest = $package['destination'] ?? [];
-        $address_parts = array_filter([
-            $dest['address']   ?? '',
-            $dest['address_2'] ?? '',
-            $dest['city']      ?? '',
-            $dest['postcode']  ?? '',
-            ($dest['country'] ?? '') === 'IL' ? 'Israel' : ($dest['country'] ?? ''),
-        ]);
-        $full_address = trim(implode(', ', $address_parts));
-        if ($full_address === '') return;
+        // Customer-pinned location wins over text geocoding when available.
+        $session = function_exists('WC') ? WC()->session : null;
+        $pin_lat = $session ? (float) $session->get('alena_pin_lat') : 0.0;
+        $pin_lng = $session ? (float) $session->get('alena_pin_lng') : 0.0;
 
-        $coords = Alena_DZ_Geocoder::geocode($full_address);
-        if (!$coords) {
-            // Address could not be geocoded — don't offer this rate
-            return;
+        if ($pin_lat && $pin_lng) {
+            $coords = ['lat' => $pin_lat, 'lng' => $pin_lng];
+        } else {
+            $dest = $package['destination'] ?? [];
+            $address_parts = array_filter([
+                $dest['address']   ?? '',
+                $dest['address_2'] ?? '',
+                $dest['city']      ?? '',
+                $dest['postcode']  ?? '',
+                ($dest['country'] ?? '') === 'IL' ? 'Israel' : ($dest['country'] ?? ''),
+            ]);
+            $full_address = trim(implode(', ', $address_parts));
+            if ($full_address === '') return;
+
+            $coords = Alena_DZ_Geocoder::geocode($full_address);
+            if (!$coords) {
+                // Address could not be geocoded — don't offer this rate
+                return;
+            }
         }
 
         $polygon = Alena_DZ_Polygon_Store::find_containing($coords['lat'], $coords['lng']);

@@ -1,0 +1,34 @@
+.alena-dz-checkout-map-wrap {
+  margin: 16px 0 24px;
+  padding: 14px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  background: #fafafa;
+}
+
+.alena-dz-checkout-map-wrap h3 {
+  margin: 0 0 4px;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.alena-dz-checkout-map-wrap p {
+  margin: 0 0 10px;
+  font-size: 13px;
+  color: #555;
+}
+
+#alena-dz-checkout-map {
+  width: 100%;
+  height: 320px;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+  background: #e9e9e9;
+}
+
+.alena-dz-pin-status {
+  margin-top: 8px !important;
+  font-size: 13px;
+  color: #198754 !important;
+  min-height: 1em;
+}
