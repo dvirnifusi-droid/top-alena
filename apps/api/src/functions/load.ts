@@ -2334,6 +2334,14 @@ function buildSegmentWhere(segment: string, customFilter?: any): any {
       const mmdd = String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
       return { ...baseGate, birthday_mmdd: mmdd };
     }
+    case 'anniversary_this_month': {
+      const mm = String(now.getMonth() + 1).padStart(2, '0');
+      return { ...baseGate, anniversary_mmdd: { startsWith: mm + '-' } };
+    }
+    case 'anniversary_today': {
+      const mmdd = String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
+      return { ...baseGate, anniversary_mmdd: mmdd };
+    }
     case 'winback_30': {
       const cutoff = new Date(now.getTime() - 30 * 86400000);
       const noEarlier = new Date(now.getTime() - 60 * 86400000);
@@ -2481,6 +2489,21 @@ registerFn('setCustomerBirthday', async ({ body }) => {
   else if (phone) c = await db.customer.findFirst({ where: { phone: String(phone).replace(/[^\d]/g, '') } });
   if (!c) throw new Error('customer not found');
   await db.customer.update({ where: { id: c.id }, data: { birthday_mmdd: mmdd } });
+  return { ok: true, customer_id: c.id };
+});
+
+// Update a customer's anniversary (wedding / first-visit / etc.)
+registerFn('setCustomerAnniversary', async ({ body }) => {
+  const { customer_id, phone, mmdd, label } = body as any;
+  if (!mmdd || !/^\d{2}-\d{2}$/.test(mmdd)) throw new Error('mmdd must be "MM-DD"');
+  let c: any = null;
+  if (customer_id) c = await db.customer.findUnique({ where: { id: customer_id } });
+  else if (phone) c = await db.customer.findFirst({ where: { phone: String(phone).replace(/[^\d]/g, '') } });
+  if (!c) throw new Error('customer not found');
+  await db.customer.update({
+    where: { id: c.id },
+    data: { anniversary_mmdd: mmdd, ...(label ? { anniversary_label: String(label).slice(0, 80) } : {}) },
+  });
   return { ok: true, customer_id: c.id };
 });
 
@@ -10023,8 +10046,10 @@ if (!(globalThis as any).__startupDriftRepair) {
       await prisma.$executeRawUnsafe(`ALTER TABLE "ShiftTracking" ADD COLUMN IF NOT EXISTS "end_reminder_sent_at" TIMESTAMP(3);`);
       // Checklist.department — added for dept-filter UI (floor/bar/kitchen/managers)
       await prisma.$executeRawUnsafe(`ALTER TABLE "Checklist" ADD COLUMN IF NOT EXISTS "department" TEXT;`);
-      // Customer.birthday_mmdd + last_marketing_sent_at — for birthday campaigns + throttling
+      // Customer marketing fields — birthday/anniversary for campaigns + throttling
       await prisma.$executeRawUnsafe(`ALTER TABLE "Customer" ADD COLUMN IF NOT EXISTS "birthday_mmdd" TEXT;`);
+      await prisma.$executeRawUnsafe(`ALTER TABLE "Customer" ADD COLUMN IF NOT EXISTS "anniversary_mmdd" TEXT;`);
+      await prisma.$executeRawUnsafe(`ALTER TABLE "Customer" ADD COLUMN IF NOT EXISTS "anniversary_label" TEXT;`);
       await prisma.$executeRawUnsafe(`ALTER TABLE "Customer" ADD COLUMN IF NOT EXISTS "last_marketing_sent_at" TIMESTAMP(3);`);
       // CampaignSend table — log of every marketing campaign for analytics + history
       await prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "CampaignSend" (

@@ -34,6 +34,22 @@ const SEGMENTS = [
         color: 'rose',
     },
     {
+        key: 'anniversary_this_month',
+        emoji: '💝',
+        label: 'יום נישואים החודש',
+        desc: 'ציון מיוחד (חתונה / יום השנה לעלינא) החודש',
+        defaultTemplate: 'היי {name} 💝\nהחודש יש לך ציון חשוב לחגוג. למה לא לחגוג איתנו?\nהזמן שולחן ותקבל מתנה אישית מבית עלינא 🌿',
+        color: 'rose',
+    },
+    {
+        key: 'anniversary_today',
+        emoji: '🥂',
+        label: 'יום נישואים היום',
+        desc: 'מי שיש לו ציון מיוחד היום',
+        defaultTemplate: 'מזל טוב, {name}! 🥂\nהיום יום מיוחד — בוא לחגוג אצלנו ויש לנו מתנה.\nרוטשילד 104, ראשון לציון 🌿',
+        color: 'pink',
+    },
+    {
         key: 'winback_30',
         emoji: '👋',
         label: 'מתגעגעים — 30 יום',

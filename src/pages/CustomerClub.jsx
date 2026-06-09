@@ -34,7 +34,7 @@ export default function CustomerClubPage() {
 
     // Add Customer
     const [showAddCustomer, setShowAddCustomer] = useState(false);
-    const [newCustomer, setNewCustomer] = useState({ name: '', phone: '', email: '', birthday: '', notes: '' });
+    const [newCustomer, setNewCustomer] = useState({ name: '', phone: '', email: '', birthday: '', anniversary: '', anniversary_label: '', notes: '' });
     const [savingCustomer, setSavingCustomer] = useState(false);
 
     // Import Excel
@@ -213,9 +213,25 @@ export default function CustomerClubPage() {
     const handleAddCustomer = async () => {
         if (!newCustomer.name || !newCustomer.phone) return;
         setSavingCustomer(true);
-        await base44.entities.Customer.create({ ...newCustomer, satisfaction_status: 'neutral', total_visits: 0, total_spent: 0 });
+        // Extract MM-DD from full date strings (YYYY-MM-DD) for campaign matching.
+        // Keep the original `birthday` field too so existing displays still work.
+        const birthday_mmdd = newCustomer.birthday && /^\d{4}-\d{2}-\d{2}$/.test(newCustomer.birthday)
+            ? newCustomer.birthday.slice(5)
+            : null;
+        const anniversary_mmdd = newCustomer.anniversary && /^\d{4}-\d{2}-\d{2}$/.test(newCustomer.anniversary)
+            ? newCustomer.anniversary.slice(5)
+            : null;
+        await base44.entities.Customer.create({
+            ...newCustomer,
+            ...(birthday_mmdd ? { birthday_mmdd } : {}),
+            ...(anniversary_mmdd ? { anniversary_mmdd } : {}),
+            ...(newCustomer.anniversary_label ? { anniversary_label: newCustomer.anniversary_label } : {}),
+            satisfaction_status: 'neutral',
+            total_visits: 0,
+            total_spent: 0,
+        });
         setSavingCustomer(false);
-        setNewCustomer({ name: '', phone: '', email: '', birthday: '', notes: '' });
+        setNewCustomer({ name: '', phone: '', email: '', birthday: '', anniversary: '', anniversary_label: '', notes: '' });
         setShowAddCustomer(false);
         loadCustomers();
     };
@@ -529,8 +545,19 @@ export default function CustomerClubPage() {
                             <Input value={newCustomer.email} onChange={e => setNewCustomer(p => ({ ...p, email: e.target.value }))} placeholder="email@example.com" className="mt-1" />
                         </div>
                         <div>
-                            <Label>תאריך לידה</Label>
+                            <Label>🎂 תאריך לידה</Label>
                             <Input type="date" value={newCustomer.birthday} onChange={e => setNewCustomer(p => ({ ...p, birthday: e.target.value }))} className="mt-1" />
+                            <p className="text-[10px] text-gray-500 mt-1">משמש לקמפיין יום הולדת חודשי</p>
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                            <div>
+                                <Label>💝 יום נישואים / ציון מיוחד</Label>
+                                <Input type="date" value={newCustomer.anniversary} onChange={e => setNewCustomer(p => ({ ...p, anniversary: e.target.value }))} className="mt-1" />
+                            </div>
+                            <div>
+                                <Label>תווית (אופציונלי)</Label>
+                                <Input value={newCustomer.anniversary_label} onChange={e => setNewCustomer(p => ({ ...p, anniversary_label: e.target.value }))} placeholder="יום נישואים / יום בעולם / ..." className="mt-1" />
+                            </div>
                         </div>
                         <div>
                             <Label>הערות</Label>

@@ -605,9 +605,14 @@ model Customer {
   marketing_consent            Boolean  @default(false)
   marketing_consent_at         DateTime?
   marketing_unsubscribed_at    DateTime?
-  // MM-DD string ("03-15") so birthday campaigns can match by month-day
-  // without timezone surprises. Year is irrelevant for marketing purposes.
+  // MM-DD strings ("03-15") so birthday/anniversary campaigns can match by
+  // month-day without timezone surprises. Year is irrelevant for marketing.
   birthday_mmdd                String?
+  // Anniversary date — wedding anniversary, parent anniversary, "first visit"
+  // etc. Owner uses for "celebrate with us" campaigns.
+  anniversary_mmdd             String?
+  // Free-text label for the anniversary type ("יום נישואים", "ראשונה לעלינא")
+  anniversary_label            String?
   // Last contact via marketing campaign — used to throttle (don't send 2 in a week)
   last_marketing_sent_at       DateTime?
   // Legacy base44 columns — exist in DB; declared so frontend code that
