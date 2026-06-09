@@ -3,29 +3,40 @@ if (!defined('ABSPATH')) exit;
 
 /**
  * Adjusts the WooCommerce checkout fields to match the restaurant's delivery
- * needs:
- *   - removes state/district, company
- *   - makes phone required
- *   - relaxes postal code requirement (Israel addresses often have no zip)
- *   - adds entrance / floor / apartment to the shipping address
- *   - persists the customer's pinned location (set by the map JS) as order meta
- *   - shows the extra info on the order detail page in the admin
+ * needs. Uses both filter-based and direct-injection approaches because some
+ * themes / WC modes ignore the standard filters.
  */
 class Alena_DZ_Checkout_Fields {
 
+    const META_ENTRANCE = '_shipping_entrance';
+    const META_FLOOR    = '_shipping_floor';
+    const META_APT      = '_shipping_apartment';
+    const META_PIN_LAT  = '_alena_pin_lat';
+    const META_PIN_LNG  = '_alena_pin_lng';
+
     public function __construct() {
+        // Filter-based adjustments (caught by most themes)
         add_filter('woocommerce_default_address_fields', [$this, 'tune_address_fields'], 20);
         add_filter('woocommerce_billing_fields',         [$this, 'tune_billing_fields'],  20);
         add_filter('woocommerce_shipping_fields',        [$this, 'tune_shipping_fields'], 20);
+        add_filter('woocommerce_checkout_fields',        [$this, 'tune_checkout_fields'], 20);
+
+        // Direct-render fallback — appended after the billing form so the
+        // fields show even when "ship to same address" is checked.
+        add_action('woocommerce_after_checkout_billing_form', [$this, 'render_direct_fields'], 5);
+
+        // Persistence
         add_action('woocommerce_checkout_update_order_meta', [$this, 'save_custom_meta']);
         add_action('woocommerce_admin_order_data_after_shipping_address', [$this, 'show_in_admin']);
+
+        // JS: force phone required regardless of filter behavior
+        add_action('wp_footer', [$this, 'inline_js_polish']);
     }
 
+    /* ----------------------- Filter-based ----------------------- */
+
     public function tune_address_fields($fields) {
-        // Drop the district/state selector — caused the "DC/CA" confusion.
         unset($fields['state']);
-        // Make postcode optional. Some Israeli addresses don't have one and
-        // we use coords (geocoding/pin) for delivery matching anyway.
         if (isset($fields['postcode'])) {
             $fields['postcode']['required'] = false;
             $fields['postcode']['label']    = 'מיקוד (אופציונלי)';
@@ -34,16 +45,12 @@ class Alena_DZ_Checkout_Fields {
     }
 
     public function tune_billing_fields($fields) {
-        // Phone is required.
         if (isset($fields['billing_phone'])) {
             $fields['billing_phone']['required']    = true;
             $fields['billing_phone']['label']       = 'טלפון';
             $fields['billing_phone']['placeholder'] = '05X-XXXXXXX';
         }
-        // No "company" field in a restaurant checkout.
         unset($fields['billing_company']);
-        // We removed the state field via default_address_fields, but billing
-        // pulls its own copy — remove here too defensively.
         unset($fields['billing_state']);
         return $fields;
     }
@@ -51,51 +58,75 @@ class Alena_DZ_Checkout_Fields {
     public function tune_shipping_fields($fields) {
         unset($fields['shipping_company']);
         unset($fields['shipping_state']);
-
-        $fields['shipping_entrance'] = [
-            'label'       => 'כניסה',
-            'placeholder' => 'א / ב / ראשית',
-            'required'    => false,
-            'class'       => ['form-row-third'],
-            'priority'    => 55,
-        ];
-        $fields['shipping_floor'] = [
-            'label'       => 'קומה',
-            'placeholder' => 'קרקע / 1 / 2',
-            'required'    => false,
-            'class'       => ['form-row-third'],
-            'priority'    => 56,
-        ];
-        $fields['shipping_apartment'] = [
-            'label'       => 'דירה',
-            'placeholder' => 'מס׳ דירה',
-            'required'    => false,
-            'class'       => ['form-row-third'],
-            'priority'    => 57,
-        ];
         return $fields;
     }
 
+    public function tune_checkout_fields($fields) {
+        // Extra-strong phone required
+        if (isset($fields['billing']['billing_phone'])) {
+            $fields['billing']['billing_phone']['required'] = true;
+        }
+        unset($fields['billing']['billing_state']);
+        unset($fields['billing']['billing_company']);
+        unset($fields['shipping']['shipping_state']);
+        unset($fields['shipping']['shipping_company']);
+        return $fields;
+    }
+
+    /* ----------------------- Direct injection ----------------------- */
+
+    public function render_direct_fields($checkout) {
+        $entrance = $checkout ? $checkout->get_value('shipping_entrance') : '';
+        $floor    = $checkout ? $checkout->get_value('shipping_floor')    : '';
+        $apt      = $checkout ? $checkout->get_value('shipping_apartment'): '';
+        ?>
+        <div class="alena-dz-extra-fields">
+          <h3>פרטי כתובת נוספים</h3>
+          <div class="alena-dz-extra-row">
+            <p class="form-row form-row-third">
+              <label for="shipping_entrance">כניסה</label>
+              <input type="text" class="input-text" name="shipping_entrance" id="shipping_entrance"
+                     placeholder="א / ב / ראשית" value="<?php echo esc_attr($entrance); ?>" />
+            </p>
+            <p class="form-row form-row-third">
+              <label for="shipping_floor">קומה</label>
+              <input type="text" class="input-text" name="shipping_floor" id="shipping_floor"
+                     placeholder="קרקע / 1 / 2" value="<?php echo esc_attr($floor); ?>" />
+            </p>
+            <p class="form-row form-row-third">
+              <label for="shipping_apartment">דירה</label>
+              <input type="text" class="input-text" name="shipping_apartment" id="shipping_apartment"
+                     placeholder="מס׳ דירה" value="<?php echo esc_attr($apt); ?>" />
+            </p>
+            <div style="clear:both"></div>
+          </div>
+        </div>
+        <?php
+    }
+
+    /* ----------------------- Persistence ----------------------- */
+
     public function save_custom_meta($order_id) {
-        foreach (['shipping_entrance', 'shipping_floor', 'shipping_apartment'] as $k) {
-            if (isset($_POST[$k]) && $_POST[$k] !== '') {
-                update_post_meta($order_id, '_' . $k, sanitize_text_field(wp_unslash($_POST[$k])));
+        foreach (['shipping_entrance' => self::META_ENTRANCE,
+                  'shipping_floor'    => self::META_FLOOR,
+                  'shipping_apartment'=> self::META_APT] as $post_key => $meta_key) {
+            if (isset($_POST[$post_key]) && $_POST[$post_key] !== '') {
+                update_post_meta($order_id, $meta_key, sanitize_text_field(wp_unslash($_POST[$post_key])));
             }
         }
-        // Persist the pinned location too, if the customer dragged the marker.
         if (!empty($_POST['alena_pin_lat']) && !empty($_POST['alena_pin_lng'])) {
-            update_post_meta($order_id, '_alena_pin_lat', (float) $_POST['alena_pin_lat']);
-            update_post_meta($order_id, '_alena_pin_lng', (float) $_POST['alena_pin_lng']);
+            update_post_meta($order_id, self::META_PIN_LAT, (float) $_POST['alena_pin_lat']);
+            update_post_meta($order_id, self::META_PIN_LNG, (float) $_POST['alena_pin_lng']);
         }
     }
 
     public function show_in_admin($order) {
         $id       = $order->get_id();
-        $entrance = get_post_meta($id, '_shipping_entrance', true);
-        $floor    = get_post_meta($id, '_shipping_floor', true);
-        $apt      = get_post_meta($id, '_shipping_apartment', true);
-        $pin_lat  = get_post_meta($id, '_alena_pin_lat', true);
-        $pin_lng  = get_post_meta($id, '_alena_pin_lng', true);
+        $entrance = get_post_meta($id, self::META_ENTRANCE, true);
+        $floor    = get_post_meta($id, self::META_FLOOR,    true);
+        $apt      = get_post_meta($id, self::META_APT,      true);
+        $pin_lat  = get_post_meta($id, self::META_PIN_LAT,  true);
+        $pin_lng  = get_post_meta($id, self::META_PIN_LNG,  true);
 
         $parts = array_filter([
             $entrance ? 'כניסה: ' . $entrance : '',
@@ -110,9 +141,37 @@ class Alena_DZ_Checkout_Fields {
             printf(
                 '<p><strong>מיקום מדויק:</strong> <a href="%s" target="_blank" rel="noopener">%s, %s ↗</a></p>',
                 esc_url($url),
-                esc_html(number_format((float)$pin_lat, 5)),
-                esc_html(number_format((float)$pin_lng, 5))
+                esc_html(number_format((float) $pin_lat, 5)),
+                esc_html(number_format((float) $pin_lng, 5))
             );
         }
+    }
+
+    /* ----------------------- JS polish ----------------------- */
+
+    public function inline_js_polish() {
+        if (!function_exists('is_checkout') || !is_checkout()) return;
+        ?>
+        <script>
+        (function ($) {
+          function polish() {
+            var $phone = $('#billing_phone');
+            if ($phone.length) {
+              $phone.prop('required', true).attr('required', 'required');
+              var $label = $('label[for="billing_phone"]');
+              if ($label.length && !$label.find('.required').length) {
+                $label.append(' <abbr class="required" title="חובה">*</abbr>');
+              }
+              $('#billing_phone_field').removeClass('woocommerce-validated').addClass('validate-required');
+              $('#billing_phone_field').find('.optional').remove();
+            }
+            // Mark postcode as optional visually
+            $('#billing_postcode_field, #shipping_postcode_field').addClass('alena-dz-optional');
+          }
+          $(document).ready(polish);
+          $(document.body).on('updated_checkout', polish);
+        })(jQuery);
+        </script>
+        <?php
     }
 }
