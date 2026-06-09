@@ -1719,6 +1719,116 @@ if (!(globalThis as any).__ceoDailyBriefTimer) {
   }, 60 * 1000);
 }
 
+// ============================================================================
+// DAILY BIRTHDAY + ANNIVERSARY CRON — fires once per day around 09:00 IL.
+// Sends a celebratory WhatsApp to every customer whose birthday/anniversary
+// is today and who consented to marketing. De-duplicated via the existing
+// last_marketing_sent_at + 24h throttle baked into sendCustomerCampaign logic.
+// ============================================================================
+async function runDailyCelebrationCampaigns(force = false) {
+  if (!force) {
+    const ilHour = (new Date().getUTCHours() + 3) % 24;
+    if (ilHour !== 9) return; // only at 09:00 IL
+    // Use a daily lock so we don't re-fire if the timer ticks twice within 9:00 IL hour.
+    const today = new Date().toISOString().slice(0, 10);
+    const lockKey = (globalThis as any).__lastDailyCelebrationsDate;
+    if (lockKey === today) return;
+    (globalThis as any).__lastDailyCelebrationsDate = today;
+  }
+
+  const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  const now = new Date();
+  const mmdd = String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
+  const baseGate: any = {
+    marketing_consent: true,
+    marketing_unsubscribed_at: null,
+    phone: { not: '' },
+    OR: [{ last_marketing_sent_at: null }, { last_marketing_sent_at: { lt: cutoff } }],
+  };
+
+  // 1) Birthday today
+  const bdayTemplate = 'יום הולדת שמח, {name}! 🎉🎂\nאיזה יום מיוחד — אם תבוא היום, הקינוח עלינא 🍰\nרוטשילד 104, ראשון לציון. נשמח לחגוג איתך 🌿';
+  try {
+    const bdayList = await db.customer.findMany({
+      where: { ...baseGate, birthday_mmdd: mmdd },
+      take: 200,
+    });
+    let ok = 0, fail = 0;
+    const failures: any[] = [];
+    for (const c of bdayList) {
+      try {
+        const rendered = bdayTemplate.replace(/\{name\}/g, c.name || 'אורח/ת יקר/ה');
+        const out = await sendWhatsApp(c.phone, rendered);
+        if ((out as any)?.skipped) { fail++; failures.push({ phone: c.phone, reason: 'skipped' }); }
+        else { ok++; await db.customer.update({ where: { id: c.id }, data: { last_marketing_sent_at: new Date() } }).catch(() => {}); }
+      } catch (e: any) {
+        fail++; failures.push({ phone: c.phone, reason: e?.message?.slice(0, 100) });
+      }
+    }
+    if (bdayList.length > 0) {
+      await db.campaignSend.create({ data: {
+        campaign_key: 'birthday_today_auto', campaign_label: 'יום הולדת היום (אוטומטי)',
+        segment_key: 'birthday_today', channel: 'whatsapp', message_template: bdayTemplate,
+        recipient_count: bdayList.length, success_count: ok, failure_count: fail,
+        failure_reasons: failures.length ? failures.slice(0, 20) : undefined,
+        sent_by: 'cron@topalena.com',
+      }}).catch(() => {});
+      console.log(`[cron] birthday_today: ${ok}/${bdayList.length} sent`);
+    }
+  } catch (e: any) {
+    console.warn('[cron] birthday cron failed:', e?.message);
+  }
+
+  // 2) Anniversary today
+  const annivTemplate = 'מזל טוב, {name}! 🥂\nהיום יום מיוחד — בוא לחגוג אצלנו ויש לנו מתנה.\nרוטשילד 104, ראשון לציון 🌿';
+  try {
+    const annList = await db.customer.findMany({
+      where: { ...baseGate, anniversary_mmdd: mmdd },
+      take: 200,
+    });
+    let ok = 0, fail = 0;
+    const failures: any[] = [];
+    for (const c of annList) {
+      try {
+        const rendered = annivTemplate.replace(/\{name\}/g, c.name || 'אורח/ת יקר/ה');
+        const out = await sendWhatsApp(c.phone, rendered);
+        if ((out as any)?.skipped) { fail++; failures.push({ phone: c.phone, reason: 'skipped' }); }
+        else { ok++; await db.customer.update({ where: { id: c.id }, data: { last_marketing_sent_at: new Date() } }).catch(() => {}); }
+      } catch (e: any) {
+        fail++; failures.push({ phone: c.phone, reason: e?.message?.slice(0, 100) });
+      }
+    }
+    if (annList.length > 0) {
+      await db.campaignSend.create({ data: {
+        campaign_key: 'anniversary_today_auto', campaign_label: 'יום נישואים היום (אוטומטי)',
+        segment_key: 'anniversary_today', channel: 'whatsapp', message_template: annivTemplate,
+        recipient_count: annList.length, success_count: ok, failure_count: fail,
+        failure_reasons: failures.length ? failures.slice(0, 20) : undefined,
+        sent_by: 'cron@topalena.com',
+      }}).catch(() => {});
+      console.log(`[cron] anniversary_today: ${ok}/${annList.length} sent`);
+    }
+  } catch (e: any) {
+    console.warn('[cron] anniversary cron failed:', e?.message);
+  }
+}
+
+if (!(globalThis as any).__dailyCelebrationsTimer) {
+  // Tick every 15 min, the function self-gates to 09:00 IL + once-per-day.
+  (globalThis as any).__dailyCelebrationsTimer = setTimeout(function loop() {
+    runDailyCelebrationCampaigns().finally(() => {
+      (globalThis as any).__dailyCelebrationsTimer = setTimeout(loop, 15 * 60 * 1000);
+    });
+  }, 60 * 1000);
+}
+
+// Manual trigger (admin can force-run from anywhere)
+registerFn('runDailyCelebrationsNow', async ({ user }) => {
+  if ((user as any)?.role !== 'admin') throw new Error('admin only');
+  await runDailyCelebrationCampaigns(true);
+  return { triggered: true };
+});
+
 registerFn('advanceCandidateStage', async ({ body }) => {
   const { candidate_id, stage } = body as any;
   if (!candidate_id || !stage) throw new Error('missing_params');
@@ -4137,6 +4247,15 @@ registerFn('createPublicReservation', async ({ body }) => {
   try {
     const phone = String(customer_phone).trim();
     const existing = await db.customer.findFirst({ where: { phone } });
+    // Extract MM-DD from occasion_date if guest declared birthday/anniversary
+    // celebration. Stored on Customer so future marketing campaigns can match.
+    const occasionDate: string | null = (body as any).occasion_date || null;
+    const occasionMmdd = occasionDate && /^\d{4}-\d{2}-\d{2}$/.test(occasionDate)
+      ? occasionDate.slice(5)
+      : null;
+    const isBirthday = (body as any).special_occasion === 'birthday' && occasionMmdd;
+    const isAnniversary = (body as any).special_occasion === 'anniversary' && occasionMmdd;
+
     if (existing) {
       const updateData: any = {
         last_visit: bookingDate,
@@ -4148,12 +4267,21 @@ registerFn('createPublicReservation', async ({ body }) => {
         updateData.marketing_consent = true;
         updateData.marketing_consent_at = new Date();
       }
+      // Only set birthday/anniversary if we got one AND the customer doesn't
+      // already have one (don't overwrite owner-set dates from CustomerClub).
+      if (isBirthday && !(existing as any).birthday_mmdd) updateData.birthday_mmdd = occasionMmdd;
+      if (isAnniversary && !(existing as any).anniversary_mmdd) {
+        updateData.anniversary_mmdd = occasionMmdd;
+        updateData.anniversary_label = 'יום נישואין';
+      }
       await db.customer.update({ where: { id: existing.id }, data: updateData });
     } else {
       await db.customer.create({ data: {
         phone, name: customer_name, visit_count: 1, last_visit: bookingDate,
         marketing_consent,
         marketing_consent_at: marketing_consent ? new Date() : null,
+        ...(isBirthday ? { birthday_mmdd: occasionMmdd } : {}),
+        ...(isAnniversary ? { anniversary_mmdd: occasionMmdd, anniversary_label: 'יום נישואין' } : {}),
       } as any });
     }
   } catch (e) {
@@ -11165,6 +11293,15 @@ POPUPS_EDIT:
 
 "כבה את הפופאפ" → {"intent":"popup_disable"}
 "תוריד פופאפ של אירועים" → {"intent":"popup_disable","title":"אירועים"}
+
+CUSTOMER_CELEBRATIONS:
+- customer_set_birthday {name, date|mmdd}: שמור יום הולדת לקוח — "יום הולדת של דביר 15 במרץ", "תעדכן יום הולדת רן ל5/3"
+- customer_set_anniversary {name, date|mmdd, label?}: שמור יום נישואים — "יום נישואים של דביר ושירה 22 ביולי", "תעדכן ציון מיוחד של רן ל14/2"
+
+"יום הולדת של דביר ב15 במרץ" → {"intent":"customer_set_birthday","name":"דביר","date":"15 במרץ"}
+"תעדכן יום הולדת רן ל5/3" → {"intent":"customer_set_birthday","name":"רן","date":"5/3"}
+"דביר חוגג יום הולדת ב22 ביוני" → {"intent":"customer_set_birthday","name":"דביר","date":"22 ביוני"}
+"יום נישואים של רן ב14/2" → {"intent":"customer_set_anniversary","name":"רן","date":"14/2"}
 
 # Multi-step examples (chained operations)
 "תסיים משמרת לאסתר ותוסיף אותה לטיפים 5 שעות" → {"intent":"plan","steps":[

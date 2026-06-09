@@ -148,6 +148,11 @@ export default function PublicReservationPage() {
   const [marketingConsent, setMarketingConsent] = useState(false);
   const [specialRequests, setSpecialRequests] = useState('');
   const [occasion, setOccasion] = useState('');  // chip-selected celebration
+  // Date of the celebrated occasion (full YYYY-MM-DD). Shown inline when user
+  // picks 'birthday' or 'anniversary' chip. Stored on Customer.birthday_mmdd
+  // / Customer.anniversary_mmdd so birthday/anniversary marketing campaigns
+  // can target this guest in future months.
+  const [occasionDate, setOccasionDate] = useState('');
 
   const [settings, setSettings] = useState(null);
   const [openingHours, setOpeningHours] = useState(getOpeningHours(new Date()));
@@ -338,6 +343,11 @@ export default function PublicReservationPage() {
         party_size: parseInt(partySize),
         special_requests: specialRequests.trim() || null,
         special_occasion: occasion || null,
+        // Capture date for birthday/anniversary so we can run targeted
+        // campaigns to this guest in future years (matching by MM-DD).
+        occasion_date: (occasion === 'birthday' || occasion === 'anniversary') && occasionDate
+          ? occasionDate
+          : null,
         accept_standby: acceptStandby,
         ...attr,
       });
@@ -928,6 +938,22 @@ export default function PublicReservationPage() {
                 </button>
               ))}
             </div>
+            {/* Inline date picker — only shows when birthday/anniversary chip is selected.
+                Captured to Customer record so we can send celebrations next year too. */}
+            {(occasion === 'birthday' || occasion === 'anniversary') && (
+              <div className="mt-3 p-3 bg-[#F4ECD8] border border-[#D9BD83] rounded-lg">
+                <Label className="text-xs">
+                  {occasion === 'birthday' ? '🎂 מה התאריך של יום ההולדת?' : '💐 מה התאריך של יום הנישואין?'}
+                  <span className="font-normal text-gray-500"> (כדי שנזכור גם בשנה הבאה)</span>
+                </Label>
+                <input
+                  type="date"
+                  value={occasionDate}
+                  onChange={(e) => setOccasionDate(e.target.value)}
+                  className="mt-1 w-full px-3 py-2 rounded-md border border-[#D9BD83] bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#A04A2E]"
+                />
+              </div>
+            )}
           </div>
 
           {/* Name + Phone */}

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
+import { base44 } from '@/api/base44Client';
 import { Customer } from '@/entities/Customer';
 import { TableSession } from '@/entities/TableSession';
 import { CustomerBenefit } from '@/entities/CustomerBenefit';
@@ -14,6 +15,81 @@ import { Loader2, ArrowRight, User, Phone, Mail, PlusCircle, Edit } from 'lucide
 import { createPageUrl } from '@/utils';
 import { format } from 'date-fns';
 import { he } from 'date-fns/locale';
+
+// Small inline editor for birthday + anniversary MM-DD strings. Used in the
+// customer profile header — owner can capture/update these any time and the
+// marketing campaigns will pick them up.
+function CelebrationsEditor({ customer, onUpdate }) {
+    const [editing, setEditing] = useState(false);
+    const [bday, setBday] = useState(customer.birthday_mmdd || '');
+    const [anniv, setAnniv] = useState(customer.anniversary_mmdd || '');
+    const [annivLabel, setAnnivLabel] = useState(customer.anniversary_label || '');
+    const [saving, setSaving] = useState(false);
+
+    useEffect(() => {
+        setBday(customer.birthday_mmdd || '');
+        setAnniv(customer.anniversary_mmdd || '');
+        setAnnivLabel(customer.anniversary_label || '');
+    }, [customer.id]);
+
+    const validateMmdd = (s) => !s || /^\d{2}-\d{2}$/.test(s);
+
+    const handleSave = async () => {
+        if (!validateMmdd(bday) || !validateMmdd(anniv)) {
+            alert('פורמט תאריך חייב להיות MM-DD (לדוגמה: 03-15)');
+            return;
+        }
+        setSaving(true);
+        try {
+            if (bday !== (customer.birthday_mmdd || '')) {
+                if (bday) await base44.functions.setCustomerBirthday({ customer_id: customer.id, mmdd: bday });
+            }
+            if (anniv !== (customer.anniversary_mmdd || '') || annivLabel !== (customer.anniversary_label || '')) {
+                if (anniv) await base44.functions.setCustomerAnniversary({ customer_id: customer.id, mmdd: anniv, label: annivLabel || null });
+            }
+            onUpdate?.({ birthday_mmdd: bday || null, anniversary_mmdd: anniv || null, anniversary_label: annivLabel || null });
+            setEditing(false);
+        } catch (e) {
+            alert('שגיאה: ' + (e?.message || ''));
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    if (!editing) {
+        return (
+            <button onClick={() => setEditing(true)} className="text-xs text-[#A04A2E] hover:underline">
+                ✏️ ערוך יום הולדת / יום נישואים
+            </button>
+        );
+    }
+
+    return (
+        <div className="bg-[#F4ECD8] p-3 rounded-lg border border-[#D9BD83]">
+            <p className="text-xs text-gray-600 mb-2">פורמט: MM-DD (לדוגמה: 03-15 לT15 במרץ)</p>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
+                <div>
+                    <Label className="text-xs">🎂 יום הולדת</Label>
+                    <input type="text" placeholder="03-15" value={bday} onChange={(e) => setBday(e.target.value)} className="w-full mt-1 px-2 py-1 border rounded text-sm" />
+                </div>
+                <div>
+                    <Label className="text-xs">💝 יום נישואים</Label>
+                    <input type="text" placeholder="07-22" value={anniv} onChange={(e) => setAnniv(e.target.value)} className="w-full mt-1 px-2 py-1 border rounded text-sm" />
+                </div>
+                <div>
+                    <Label className="text-xs">תווית</Label>
+                    <input type="text" placeholder="יום נישואים" value={annivLabel} onChange={(e) => setAnnivLabel(e.target.value)} className="w-full mt-1 px-2 py-1 border rounded text-sm" />
+                </div>
+            </div>
+            <div className="flex gap-2">
+                <Button size="sm" onClick={handleSave} disabled={saving} className="bg-[#44512C] hover:bg-[#7A3722]">
+                    {saving ? 'שומר...' : 'שמור'}
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => setEditing(false)} disabled={saving}>ביטול</Button>
+            </div>
+        </div>
+    );
+}
 
 export default function CustomerDetailsPage() {
     const [searchParams] = useSearchParams();
@@ -124,6 +200,8 @@ export default function CustomerDetailsPage() {
                             <CardDescription className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-2">
                                 <span className="flex items-center gap-2"><Phone className="w-4 h-4" /> {customer.phone}</span>
                                 {customer.email && <span className="flex items-center gap-2"><Mail className="w-4 h-4" /> {customer.email}</span>}
+                                {customer.birthday_mmdd && <span className="flex items-center gap-2">🎂 {customer.birthday_mmdd}</span>}
+                                {customer.anniversary_mmdd && <span className="flex items-center gap-2">💝 {customer.anniversary_label || 'יום נישואים'}: {customer.anniversary_mmdd}</span>}
                             </CardDescription>
                         </div>
                         <div className="flex flex-col items-start md:items-end gap-2">
@@ -131,6 +209,10 @@ export default function CustomerDetailsPage() {
                             <span className="text-sm text-gray-500">סה"כ ביקורים: {customer.total_visits || 0}</span>
                         </div>
                     </CardHeader>
+                    {/* Inline edit for birthday/anniversary */}
+                    <CardContent className="pt-0">
+                        <CelebrationsEditor customer={customer} onUpdate={(patch) => setCustomer({ ...customer, ...patch })} />
+                    </CardContent>
                 </Card>
 
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

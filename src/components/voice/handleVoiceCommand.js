@@ -94,6 +94,7 @@ const MUTATING_INTENTS = new Set([
     'push_to_role',
     'checklist_create', 'restaurant_close_now', 'restaurant_open_now',
     'reservation_blacklist', 'customer_unblacklist', 'staff_meeting',
+    'customer_set_birthday', 'customer_set_anniversary',
 ]);
 
 export async function handleVoiceCommand(cmd) {
@@ -2217,6 +2218,42 @@ async function dispatchCommand(cmd, state) {
                         message: `השבוע: ₪${thisRev}, שעבר: ₪${lastRev} (${arrow}${Math.abs(pct)}%)`,
                     };
                 } catch { return { ok: false, message: 'לא הצלחתי להשוות' }; }
+            }
+
+            // ---------- Customer celebrations ----------
+            case 'customer_set_birthday':
+            case 'customer_set_anniversary': {
+                // Accept Hebrew month names + numbers: "15 במרץ", "5/3", "5 לחודש"
+                const HEB_MONTHS = { 'ינואר': 1, 'פברואר': 2, 'מרץ': 3, 'מארס': 3, 'אפריל': 4, 'מאי': 5, 'יוני': 6, 'יולי': 7, 'אוגוסט': 8, 'ספטמבר': 9, 'אוקטובר': 10, 'נובמבר': 11, 'דצמבר': 12 };
+                let mmdd = null;
+                if (cmd.mmdd && /^\d{2}-\d{2}$/.test(cmd.mmdd)) mmdd = cmd.mmdd;
+                else if (cmd.date) {
+                    const d = String(cmd.date);
+                    // DD/MM or DD-MM
+                    let m = d.match(/^(\d{1,2})[\/\-](\d{1,2})$/);
+                    if (m) mmdd = `${String(m[2]).padStart(2, '0')}-${String(m[1]).padStart(2, '0')}`;
+                    // "15 במרץ" / "15 ב מרץ"
+                    if (!mmdd) {
+                        for (const [w, mo] of Object.entries(HEB_MONTHS)) {
+                            const re = new RegExp(`(\\d{1,2}).*${w}`);
+                            const m2 = d.match(re);
+                            if (m2) { mmdd = `${String(mo).padStart(2, '0')}-${String(m2[1]).padStart(2, '0')}`; break; }
+                        }
+                    }
+                }
+                if (!mmdd) return { ok: false, message: 'לא הבנתי את התאריך. דוגמה: "15 במרץ" או "5/3"' };
+                try {
+                    const customers = await base44.entities.Customer.list();
+                    const c = (customers || []).find(c => (c.name || '').includes(cmd.name));
+                    if (!c) return { ok: false, message: `${cmd.name} לא נמצא בלקוחות` };
+                    const fn = cmd.intent === 'customer_set_birthday' ? 'setCustomerBirthday' : 'setCustomerAnniversary';
+                    const payload = cmd.intent === 'customer_set_birthday'
+                        ? { customer_id: c.id, mmdd }
+                        : { customer_id: c.id, mmdd, label: cmd.label || 'יום נישואים' };
+                    await base44.functions[fn](payload);
+                    const what = cmd.intent === 'customer_set_birthday' ? 'יום הולדת' : 'יום נישואים';
+                    return { ok: true, message: `בוצע ✓ ${what} של ${c.name} עודכן ל-${mmdd}` };
+                } catch (e) { return { ok: false, message: 'שגיאה: ' + (e?.message || '') }; }
             }
 
             // ---------- Popups ----------
