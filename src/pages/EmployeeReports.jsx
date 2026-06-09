@@ -227,7 +227,17 @@ function EmployeeReportsInner() {
             inPeriod(s.date)
         );
 
-        // משמרות מסידור העבודה לעובדים שאינם על טיפים
+        // משמרות מסידור העבודה לעובדים שאינם על טיפים.
+        // *** חדש: מסננים שיבוצים שהעובד לא נכנס לשעון בפועל. ***
+        // עובד שיש לו משמרת בסידור אבל אין רשומת ShiftTracking לאותו יום
+        // נחשב "הבריז" — שעותיו לא נספרות בדוח. הלוגיקה חלה רק על ימים בעבר;
+        // ימים עתידיים נספרים מראש כדי שתוכל לצפות בשעות הצפויות.
+        const todayStr = format(new Date(), 'yyyy-MM-dd');
+        const clockedDays = new Set(
+            (shifts || [])
+                .filter(s => s.employee_name === selectedEmp?.full_name)
+                .map(s => s.date)
+        );
         const hourlyShiftEntries = [];
         workShifts.forEach(ws => {
             if (!inPeriod(ws.date)) return;
@@ -236,6 +246,9 @@ function EmployeeReportsInner() {
                 if (TIP_POSITIONS.includes(a.position)) return; // טיפ-based - לא כאן
                 const hours = calcHours(a.start_time, a.end_time);
                 if (hours <= 0) return;
+                // No-show filter: אם היום עבר ואין שעון נוכחות → לא סופרים
+                const isPast = ws.date < todayStr;
+                if (isPast && !clockedDays.has(ws.date)) return;
                 hourlyShiftEntries.push({
                     date: ws.date,
                     shift_type: ws.shift_type,
