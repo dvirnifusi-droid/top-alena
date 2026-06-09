@@ -117,6 +117,7 @@ export const twilioWebhookRoutes: FastifyPluginAsync = async (app) => {
   // Twilio POSTs here with MessageStatus values: queued, sent, delivered, read, failed.
   // We use the ?rid=<CampaignRecipient.id> query param (set when we created the message)
   // to update the right row, and also update the parent CampaignSend aggregate counts.
+  // Forced rebuild 2026-06-09 — Prisma client needs CampaignRecipient regen.
   app.post('/campaign-status', async (req, reply) => {
     const b = (req.body || {}) as Record<string, string>;
     const status = String(b.MessageStatus || b.SmsStatus || '').toLowerCase();
