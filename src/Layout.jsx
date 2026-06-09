@@ -367,6 +367,69 @@ export default function Layout({ children, currentPageName }) {
 
 // --- Sub-components for cleaner structure ---
 
+// ── Role impersonation dropdown — admin-only ──────────────────────────────
+// Lets an admin temporarily switch their VIEW to see what each role sees.
+// Affects only local React state (setUser) — doesn't touch the server, doesn't
+// persist between sessions. Critical for permission-design — owner wants to
+// know what menus/pages each role sees before granting permissions.
+//
+// Four impersonation modes:
+//   admin          → full adminLinks (default for admins)
+//   employee       → default employeeLinks (waiter/runner/host etc.)
+//   cook           → cookLinks (kitchen-focused)
+//   kitchen_manager→ kitchenManagerLinks (cook + manage)
+const RoleImpersonationDropdown = ({ user, setUser, compact = false }) => {
+  const currentMode = user?.role === 'admin'
+    ? 'admin'
+    : user?.employee_position === 'טבח'
+      ? 'cook'
+      : user?.employee_position === 'מנהל מטבח'
+        ? 'kitchen_manager'
+        : 'employee';
+
+  const handleChange = (e) => {
+    const mode = e.target.value;
+    setUser(prev => ({
+      ...prev,
+      role: mode === 'admin' ? 'admin' : 'temp_employee',
+      employee_position:
+        mode === 'cook' ? 'טבח' :
+        mode === 'kitchen_manager' ? 'מנהל מטבח' :
+        mode === 'admin' ? prev._original_position || null :
+        null, // employee = clear
+      // Snapshot original position on first switch so we can restore it.
+      _original_position: prev._original_position !== undefined
+        ? prev._original_position
+        : (prev.employee_position || null),
+    }));
+  };
+
+  return (
+    <div className={`w-full ${compact ? 'mb-1' : 'mb-2'}`}>
+      <label className={`block text-[10px] text-blue-700 font-bold mb-0.5 ${compact ? '' : ''}`}>
+        👁️ צפה כ:
+      </label>
+      <select
+        value={currentMode}
+        onChange={handleChange}
+        className={`w-full rounded-md border border-blue-300 bg-blue-50 text-blue-900 font-semibold focus:outline-none focus:ring-2 focus:ring-blue-400 ${
+          compact ? 'text-xs py-1 px-2' : 'text-sm py-1.5 px-2'
+        }`}
+      >
+        <option value="admin">⚙️ מנהל (ניהול מלא)</option>
+        <option value="employee">👤 עובד רגיל (מלצר/ראנר/מארחת)</option>
+        <option value="cook">👨‍🍳 טבח</option>
+        <option value="kitchen_manager">👨‍🍳⚙️ מנהל מטבח</option>
+      </select>
+      {currentMode !== 'admin' && (
+        <p className="text-[9px] text-orange-700 font-bold mt-0.5 text-center">
+          🔄 מצב צפייה — חזור ל"מנהל" לעבודה רגילה
+        </p>
+      )}
+    </div>
+  );
+};
+
 const DesktopSidebar = ({ userName, isCurrentViewAdmin, isOriginalAdmin, navigationItems, location, user, setUser, hasUnreadChat, navFilter, setNavFilter }) => (
   <div className="fixed top-0 bottom-0 right-0 w-80 bg-card border-l border-border z-40">
     <div className="border-b border-border p-6">
@@ -439,19 +502,7 @@ const DesktopSidebar = ({ userName, isCurrentViewAdmin, isOriginalAdmin, navigat
       </div>
 
       {isOriginalAdmin && (
-        <Button
-          onClick={() => {
-            setUser(prevUser => ({
-              ...prevUser,
-              role: prevUser.role === 'admin' ? 'temp_employee' : 'admin'
-            }));
-          }}
-          variant="outline"
-          size="sm"
-          className="w-full bg-blue-50 hover:bg-blue-100 border-blue-200 text-blue-700"
-        >
-          {user?.role === 'admin' ? '👁️ צפה כעובד' : '⚙️ חזור לניהול'}
-        </Button>
+        <RoleImpersonationDropdown user={user} setUser={setUser} />
       )}
       <Button
         onClick={() => base44.auth.logout()}
@@ -538,19 +589,7 @@ const MobileSidebar = ({ userName, isCurrentViewAdmin, isOriginalAdmin, navigati
       </div>
 
       {isOriginalAdmin && (
-        <Button
-          onClick={() => {
-            setUser(prevUser => ({
-              ...prevUser,
-              role: prevUser.role === 'admin' ? 'temp_employee' : 'admin'
-            }));
-          }}
-          variant="outline"
-          size="sm"
-          className="w-full text-xs bg-blue-50 hover:bg-blue-100"
-        >
-          {user?.role === 'admin' ? '👁️ צפה כעובד' : '⚙️ חזור'}
-        </Button>
+        <RoleImpersonationDropdown user={user} setUser={setUser} compact />
       )}
       <Button
         onClick={() => base44.auth.logout()}
