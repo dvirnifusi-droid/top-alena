@@ -74,10 +74,16 @@ class Alena_DZ_Admin {
         echo '<div id="alena-dz-list" style="margin-top:16px"></div>';
         echo '<button id="alena-dz-save-all" class="button button-primary" style="margin-top:12px">שמור את כל הפוליגונים</button>';
         echo ' <span id="alena-dz-status" style="margin-right:10px;color:#666"></span>';
-        echo '<details style="margin-top:20px"><summary>החלפת מפתח Google Maps</summary>';
+        $server_key = get_option('alena_dz_google_server_key', '');
+        echo '<details style="margin-top:20px"><summary>מפתחות Google Maps</summary>';
         echo '<form method="post" action="options.php" style="margin-top:10px">';
         settings_fields('alena_dz');
-        echo '<input type="text" name="alena_dz_google_key" value="' . esc_attr($api_key) . '" style="width:420px" />';
+        echo '<p><label><strong>מפתח דפדפן (Browser)</strong> — להצגת המפה. מוגבל ל-HTTP referrers.<br />';
+        echo '<input type="text" name="alena_dz_google_key" value="' . esc_attr($api_key) . '" style="width:420px;direction:ltr" />';
+        echo '</label></p>';
+        echo '<p><label><strong>מפתח שרת (Server)</strong> — ל-Geocoding בקופה. <em>חייב</em> להיות לא מוגבל ל-referrer (השתמש ב-IP restriction או None).<br />';
+        echo '<input type="text" name="alena_dz_google_server_key" value="' . esc_attr($server_key) . '" style="width:420px;direction:ltr" placeholder="AIza..." />';
+        echo '</label></p>';
         submit_button('שמור');
         echo '</form></details>';
         echo '</div>';

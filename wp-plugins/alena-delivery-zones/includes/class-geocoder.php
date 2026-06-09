@@ -10,7 +10,14 @@ class Alena_DZ_Geocoder {
         $address = trim($address);
         if ($address === '') return null;
 
-        $key = get_option('alena_dz_google_key', '');
+        // Server-side calls cannot use a key restricted to HTTP referrers
+        // (Google rejects them with REQUEST_DENIED). Prefer a separate
+        // server-side key; fall back to the browser key only if no server
+        // key is configured.
+        $key = get_option('alena_dz_google_server_key', '');
+        if (!$key) {
+            $key = get_option('alena_dz_google_key', '');
+        }
         if (!$key) return null;
 
         $cache_key = 'alena_dz_geo_' . md5($address);
