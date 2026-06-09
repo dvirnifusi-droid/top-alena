@@ -2297,6 +2297,193 @@ registerFn('sendAbandonedReminder', async ({ body }) => {
   return sendSms(phone, message);
 });
 
+// ============================================================================
+// CUSTOMER SEGMENTATION + BULK MARKETING CAMPAIGNS
+// ============================================================================
+// Replaces the 4 hardcoded one-shot campaigns with a flexible system:
+//   1. Owner picks a SEGMENT (birthday this month / not visited 30d / VIP / ...)
+//   2. Owner sees preview: count of matched customers + 5 sample names
+//   3. Owner edits the TEMPLATE (with {name}, {coins}, {days_since_visit} placeholders)
+//   4. System bulk-sends via WhatsApp/SMS, throttling per customer
+//   5. Every send is logged to CampaignSend for history + analytics
+// ============================================================================
+
+type CustomerLike = {
+  id: string; phone: string; name: string | null;
+  visit_count: number | null; coin_balance: number | null;
+  loyalty_tier: string | null; last_visit: Date | string | null;
+  birthday_mmdd: string | null;
+  marketing_consent: boolean; marketing_unsubscribed_at: Date | string | null;
+  last_marketing_sent_at: Date | string | null;
+};
+
+// Build a Prisma `where` clause for a named segment.
+function buildSegmentWhere(segment: string, customFilter?: any): any {
+  const now = new Date();
+  const baseGate: any = {
+    marketing_consent: true,
+    marketing_unsubscribed_at: null,
+    phone: { not: '' },
+  };
+  switch (segment) {
+    case 'birthday_this_month': {
+      const mm = String(now.getMonth() + 1).padStart(2, '0');
+      return { ...baseGate, birthday_mmdd: { startsWith: mm + '-' } };
+    }
+    case 'birthday_today': {
+      const mmdd = String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
+      return { ...baseGate, birthday_mmdd: mmdd };
+    }
+    case 'winback_30': {
+      const cutoff = new Date(now.getTime() - 30 * 86400000);
+      const noEarlier = new Date(now.getTime() - 60 * 86400000);
+      return { ...baseGate, last_visit: { lt: cutoff, gte: noEarlier } };
+    }
+    case 'winback_60': {
+      const cutoff = new Date(now.getTime() - 60 * 86400000);
+      const noEarlier = new Date(now.getTime() - 90 * 86400000);
+      return { ...baseGate, last_visit: { lt: cutoff, gte: noEarlier } };
+    }
+    case 'winback_90': {
+      const cutoff = new Date(now.getTime() - 90 * 86400000);
+      return { ...baseGate, last_visit: { lt: cutoff } };
+    }
+    case 'vip': return { ...baseGate, loyalty_tier: 'vip' };
+    case 'almost_vip': return { ...baseGate, loyalty_tier: 'regular', visit_count: { gte: 5 } };
+    case 'high_spenders': return { ...baseGate, visit_count: { gte: 10 } };
+    case 'with_coins': return { ...baseGate, coin_balance: { gt: 0 } };
+    case 'all_consented': return baseGate;
+    case 'custom': {
+      const w: any = { ...baseGate };
+      if (customFilter?.tier) w.loyalty_tier = customFilter.tier;
+      if (customFilter?.min_visits) w.visit_count = { gte: Number(customFilter.min_visits) };
+      if (customFilter?.min_coins) w.coin_balance = { gte: Number(customFilter.min_coins) };
+      if (customFilter?.days_since_visit_min) {
+        const c = new Date(now.getTime() - Number(customFilter.days_since_visit_min) * 86400000);
+        w.last_visit = { ...(w.last_visit || {}), lt: c };
+      }
+      return w;
+    }
+    default: return baseGate;
+  }
+}
+
+// Render a template with {name}, {coins}, {days_since_visit}, {visit_count}, {tier}
+function renderTemplate(template: string, c: CustomerLike): string {
+  const now = Date.now();
+  const lastVisitMs = c.last_visit ? new Date(c.last_visit).getTime() : null;
+  const daysSinceVisit = lastVisitMs ? Math.floor((now - lastVisitMs) / 86400000) : 0;
+  const replacements: Record<string, string> = {
+    name: c.name || 'אורח/ת יקר/ה',
+    coins: String(c.coin_balance || 0),
+    days_since_visit: String(daysSinceVisit),
+    visit_count: String(c.visit_count || 0),
+    tier: c.loyalty_tier === 'vip' ? 'VIP' : 'רגיל',
+  };
+  return template.replace(/\{(\w+)\}/g, (m, k) => replacements[k] ?? m);
+}
+
+// Preview: count + 5 sample customers matching the segment.
+registerFn('previewCustomerSegment', async ({ body }) => {
+  const { segment, custom_filter } = body as any;
+  const where = buildSegmentWhere(segment || 'all_consented', custom_filter);
+  const [count, sample] = await Promise.all([
+    db.customer.count({ where }),
+    db.customer.findMany({
+      where,
+      take: 5,
+      orderBy: { last_visit: 'desc' },
+      select: { id: true, name: true, phone: true, visit_count: true, coin_balance: true, loyalty_tier: true, last_visit: true, birthday_mmdd: true },
+    }),
+  ]);
+  return { count, sample };
+});
+
+// Bulk send. Respects:
+//  - marketing_consent gate (built into segment where)
+//  - 24-hour throttle (no customer gets 2+ messages in a day)
+//  - records every attempt to CampaignSend for history
+registerFn('sendCustomerCampaign', async ({ body, user }) => {
+  if ((user as any)?.role !== 'admin') throw new Error('admin only');
+  const { segment, message_template, channel, campaign_key, campaign_label, custom_filter } = body as any;
+  if (!message_template) throw new Error('message_template required');
+  if (!segment) throw new Error('segment required');
+  const where = buildSegmentWhere(segment, custom_filter);
+  // 24h throttle — exclude anyone we already messaged in last 24h.
+  const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  const finalWhere: any = {
+    ...where,
+    OR: [{ last_marketing_sent_at: null }, { last_marketing_sent_at: { lt: cutoff } }],
+  };
+  const recipients = await db.customer.findMany({ where: finalWhere, take: 500 });
+  const useWa = channel === 'whatsapp' || !channel;
+  const successes: string[] = [];
+  const failures: Array<{ phone: string; reason: string }> = [];
+  for (const c of recipients) {
+    try {
+      const rendered = renderTemplate(message_template, c as any);
+      const out = useWa ? await sendWhatsApp(c.phone, rendered) : await sendSms(c.phone, rendered);
+      if ((out as any)?.skipped) {
+        failures.push({ phone: c.phone, reason: (out as any).reason || 'skipped' });
+      } else {
+        successes.push(c.id);
+        await db.customer.update({ where: { id: c.id }, data: { last_marketing_sent_at: new Date() } }).catch(() => {});
+      }
+    } catch (e: any) {
+      failures.push({ phone: c.phone, reason: e?.message?.slice(0, 100) || 'unknown' });
+    }
+  }
+  // Log to history
+  try {
+    await db.campaignSend.create({
+      data: {
+        campaign_key: campaign_key || segment,
+        campaign_label: campaign_label || null,
+        segment_key: segment,
+        segment_filter: custom_filter || undefined,
+        channel: useWa ? 'whatsapp' : 'sms',
+        message_template,
+        recipient_count: recipients.length,
+        success_count: successes.length,
+        failure_count: failures.length,
+        failure_reasons: failures.slice(0, 20).length ? failures.slice(0, 20) : undefined,
+        sent_by: (user as any)?.email || null,
+      },
+    });
+  } catch (e: any) {
+    console.warn('[sendCustomerCampaign] log failed:', e?.message);
+  }
+  return {
+    sent: successes.length,
+    failed: failures.length,
+    skipped: 0,
+    total_matched: recipients.length,
+    failure_sample: failures.slice(0, 5),
+  };
+});
+
+// Recent campaign history — last 50 sends, newest first
+registerFn('getCampaignHistory', async ({ body }) => {
+  const limit = Math.min(Number((body as any)?.limit) || 50, 200);
+  const rows = await db.campaignSend.findMany({
+    orderBy: { sent_at: 'desc' },
+    take: limit,
+  });
+  return { rows };
+});
+
+// Update a customer's birthday — used by the admin UI + by reservation form
+registerFn('setCustomerBirthday', async ({ body }) => {
+  const { customer_id, phone, mmdd } = body as any;
+  if (!mmdd || !/^\d{2}-\d{2}$/.test(mmdd)) throw new Error('mmdd must be "MM-DD"');
+  let c: any = null;
+  if (customer_id) c = await db.customer.findUnique({ where: { id: customer_id } });
+  else if (phone) c = await db.customer.findFirst({ where: { phone: String(phone).replace(/[^\d]/g, '') } });
+  if (!c) throw new Error('customer not found');
+  await db.customer.update({ where: { id: c.id }, data: { birthday_mmdd: mmdd } });
+  return { ok: true, customer_id: c.id };
+});
+
 registerFn('sendDeliveryMessage', async ({ body }) => {
   const { channel, recipients, message, phone } = body as any;
   // Accept both the bulk form ({channel, recipients:[{phone}], message}) used by
@@ -9836,7 +10023,26 @@ if (!(globalThis as any).__startupDriftRepair) {
       await prisma.$executeRawUnsafe(`ALTER TABLE "ShiftTracking" ADD COLUMN IF NOT EXISTS "end_reminder_sent_at" TIMESTAMP(3);`);
       // Checklist.department — added for dept-filter UI (floor/bar/kitchen/managers)
       await prisma.$executeRawUnsafe(`ALTER TABLE "Checklist" ADD COLUMN IF NOT EXISTS "department" TEXT;`);
-      console.log('[startup] Reservation deposit + marketing consent + shift reminder + Checklist.department columns ensured');
+      // Customer.birthday_mmdd + last_marketing_sent_at — for birthday campaigns + throttling
+      await prisma.$executeRawUnsafe(`ALTER TABLE "Customer" ADD COLUMN IF NOT EXISTS "birthday_mmdd" TEXT;`);
+      await prisma.$executeRawUnsafe(`ALTER TABLE "Customer" ADD COLUMN IF NOT EXISTS "last_marketing_sent_at" TIMESTAMP(3);`);
+      // CampaignSend table — log of every marketing campaign for analytics + history
+      await prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "CampaignSend" (
+        "id" TEXT PRIMARY KEY,
+        "campaign_key" TEXT NOT NULL,
+        "campaign_label" TEXT,
+        "segment_key" TEXT NOT NULL,
+        "segment_filter" JSONB,
+        "channel" TEXT NOT NULL,
+        "message_template" TEXT NOT NULL,
+        "recipient_count" INTEGER NOT NULL DEFAULT 0,
+        "success_count" INTEGER NOT NULL DEFAULT 0,
+        "failure_count" INTEGER NOT NULL DEFAULT 0,
+        "failure_reasons" JSONB,
+        "sent_by" TEXT,
+        "sent_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );`);
+      console.log('[startup] Reservation deposit + marketing consent + shift reminder + Checklist.department + Customer marketing + CampaignSend columns ensured');
     } catch (e: any) {
       console.error('[startup] ensure Reservation deposit cols failed:', e?.message);
     }
