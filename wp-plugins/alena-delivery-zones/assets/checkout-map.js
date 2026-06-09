@@ -17,7 +17,7 @@
 
     map = new google.maps.Map(el, {
       center: AlenaDZCheckout.center,
-      zoom: 13,
+      zoom: 17,
       streetViewControl: false,
       mapTypeControl: false,
       fullscreenControl: false,
@@ -45,7 +45,7 @@
     }
     marker.setPosition(latlng);
     map.panTo(latlng);
-    map.setZoom(Math.max(map.getZoom(), 16));
+    map.setZoom(18); // close-in view so the customer can see entrances/parking
     onPinChanged(latlng);
   }
 
