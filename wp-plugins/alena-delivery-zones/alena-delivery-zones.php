@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Alena Delivery Zones
  * Description: Google Maps polygon-based delivery zones for WooCommerce. Owner draws delivery polygons on a map; the plugin adds a WC shipping method that geocodes the customer address and matches it to the right polygon (fee, min-order).
- * Version: 0.10.0
+ * Version: 0.11.0
  * Author: Alena / TOPALENA
  * Requires PHP: 7.4
  * Requires at least: 6.5
@@ -12,7 +12,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('ALENA_DZ_VERSION', '0.10.0');
+define('ALENA_DZ_VERSION', '0.11.0');
 define('ALENA_DZ_PATH', plugin_dir_path(__FILE__));
 define('ALENA_DZ_URL',  plugin_dir_url(__FILE__));
 
@@ -27,6 +27,11 @@ require_once ALENA_DZ_PATH . 'includes/class-hours-checkout.php';
 require_once ALENA_DZ_PATH . 'includes/class-wolt-importer.php';
 require_once ALENA_DZ_PATH . 'includes/class-shop-styling.php';
 require_once ALENA_DZ_PATH . 'includes/class-modifiers.php';
+require_once ALENA_DZ_PATH . 'includes/class-cart-enhancements.php';
+require_once ALENA_DZ_PATH . 'includes/class-mobile-ux.php';
+require_once ALENA_DZ_PATH . 'includes/class-thank-you.php';
+require_once ALENA_DZ_PATH . 'includes/class-order-scheduling.php';
+require_once ALENA_DZ_PATH . 'includes/class-pwa.php';
 
 add_action('plugins_loaded', function () {
     if (!class_exists('WooCommerce')) {
@@ -43,6 +48,16 @@ add_action('plugins_loaded', function () {
     new Alena_DZ_Wolt_Importer();
     new Alena_DZ_Shop_Styling();
     new Alena_DZ_Modifiers();
+    new Alena_DZ_Cart_Enhancements();
+    new Alena_DZ_Mobile_UX();
+    new Alena_DZ_Thank_You();
+    new Alena_DZ_Order_Scheduling();
+    new Alena_DZ_PWA();
+});
+
+register_activation_hook(__FILE__, function () {
+    // Flush rewrites so the PWA manifest/SW endpoints are reachable
+    flush_rewrite_rules();
 });
 
 // Shipping method (class loads only after WC is ready)

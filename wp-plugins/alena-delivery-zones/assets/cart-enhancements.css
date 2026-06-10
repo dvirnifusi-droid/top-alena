@@ -1,0 +1,407 @@
+/* ============================================================
+   Cart enhancements — mini cart, min-order notice, tip, empty cart
+   ============================================================ */
+
+/* ---------- Sticky mini-cart badge ---------- */
+.alena-dz-mini-cart {
+  position: fixed;
+  top: 14px;
+  left: 14px;
+  z-index: 9000;
+  background: #1e4a3a;
+  color: #fff !important;
+  border-radius: 999px;
+  padding: 8px 16px 8px 12px;
+  font-size: 14px;
+  font-weight: 700;
+  text-decoration: none !important;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  box-shadow: 0 4px 14px rgba(30,74,58,0.30);
+  transition: all 0.18s ease;
+  direction: ltr;
+}
+.alena-dz-mini-cart:hover {
+  background: #2e6850;
+  transform: translateY(-1px);
+}
+.alena-dz-mini-cart-icon { font-size: 18px; }
+.alena-dz-mini-cart-label { font-size: 13px; }
+.alena-dz-mini-cart-count {
+  background: #f4a895;
+  color: #fff;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  min-width: 22px;
+  text-align: center;
+}
+.alena-dz-mini-cart-total {
+  padding: 0 4px;
+  font-size: 13px;
+}
+.alena-dz-mini-cart:not(.has-items) .alena-dz-mini-cart-total {
+  display: none;
+}
+@media (max-width: 700px) {
+  .alena-dz-mini-cart { top: 8px; left: 8px; padding: 6px 12px 6px 10px; }
+  .alena-dz-mini-cart-label { display: none; }
+}
+
+/* ---------- Min-order notice ---------- */
+.alena-dz-min-notice {
+  background: linear-gradient(135deg, #fff7e6, #fef3ec);
+  border: 1px solid #f4d39a;
+  border-right: 4px solid #f4a895;
+  padding: 12px 16px;
+  border-radius: 10px;
+  margin: 16px 0;
+  font-size: 14px;
+  color: #4a4a4a;
+}
+.alena-dz-min-notice strong { color: #c83a3a; }
+
+/* ---------- Tip picker ---------- */
+.alena-dz-tip {
+  background: #fff;
+  border: 1px solid #eadfd1;
+  border-radius: 12px;
+  padding: 16px 18px;
+  margin: 20px 0;
+}
+.alena-dz-tip h3 {
+  margin: 0 0 4px;
+  font-size: 17px;
+  font-weight: 700;
+  color: #1c1c1c;
+}
+.alena-dz-tip p {
+  margin: 0 0 12px;
+  color: #6a5a4d;
+  font-size: 13px;
+}
+.alena-dz-tip-options {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.alena-dz-tip-opt {
+  flex: 0 0 auto;
+  padding: 10px 18px;
+  background: #faf6f1;
+  border: 2px solid #eadfd1;
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.alena-dz-tip-opt:hover {
+  border-color: #1e4a3a;
+  color: #1e4a3a;
+}
+.alena-dz-tip-opt.active {
+  background: #1e4a3a;
+  color: #fff;
+  border-color: #1e4a3a;
+}
+.alena-dz-tip-custom {
+  flex: 0 0 auto;
+  width: 90px;
+  padding: 10px 12px;
+  background: #faf6f1;
+  border: 2px solid #eadfd1;
+  border-radius: 999px;
+  font-size: 14px;
+  text-align: center;
+}
+
+/* ---------- Empty cart state ---------- */
+.alena-dz-empty-cart {
+  text-align: center;
+  padding: 60px 20px;
+  max-width: 480px;
+  margin: 0 auto;
+}
+.alena-dz-empty-icon { font-size: 64px; margin-bottom: 12px; }
+.alena-dz-empty-cart h2 {
+  font-family: "Frank Ruhl Libre", serif !important;
+  font-size: 28px;
+  font-weight: 800;
+  margin: 0 0 4px;
+}
+.alena-dz-empty-cart p {
+  color: #6a5a4d;
+  font-size: 15px;
+  margin: 0 0 24px;
+}
+.alena-dz-empty-cta {
+  display: inline-block;
+  background: #1e4a3a;
+  color: #fff !important;
+  padding: 14px 32px;
+  border-radius: 999px;
+  font-weight: 700;
+  text-decoration: none !important;
+  transition: all 0.15s ease;
+}
+.alena-dz-empty-cta:hover {
+  background: #2e6850;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(30,74,58,0.25);
+}
+
+/* ---------- Cart page polish ---------- */
+.woocommerce-cart table.cart {
+  background: #fff;
+  border-radius: 12px;
+  border: 1px solid #eadfd1;
+  border-collapse: separate;
+  border-spacing: 0;
+  overflow: hidden;
+}
+.woocommerce-cart table.cart thead { background: #faf6f1; }
+.woocommerce-cart table.cart th { padding: 14px !important; font-size: 13px; }
+.woocommerce-cart table.cart td { padding: 14px !important; vertical-align: middle; }
+.woocommerce-cart table.cart img { width: 70px !important; border-radius: 8px; }
+.woocommerce-cart .product-name a {
+  font-weight: 700;
+  color: #1c1c1c !important;
+  text-decoration: none !important;
+}
+
+/* Coupon entry */
+.woocommerce-cart .coupon {
+  background: linear-gradient(135deg, #fef3ec, #fff);
+  padding: 14px;
+  border-radius: 10px;
+  border: 1px dashed #f4a895;
+  display: inline-block;
+}
+.woocommerce-cart .coupon input[name="coupon_code"] {
+  padding: 10px 14px !important;
+  border: 1px solid #eadfd1 !important;
+  border-radius: 8px !important;
+  margin-left: 6px;
+}
+.woocommerce-cart .coupon button[name="apply_coupon"] {
+  background: #c8a25a !important;
+  color: #fff !important;
+  border-radius: 8px !important;
+  padding: 10px 18px !important;
+  font-weight: 700 !important;
+}
+
+/* ---------- Order scheduling picker ---------- */
+.alena-dz-schedule {
+  background: #fff;
+  border: 1px solid #eadfd1;
+  border-radius: 12px;
+  padding: 16px 18px;
+  margin: 16px 0;
+}
+.alena-dz-schedule h3 {
+  margin: 0 0 12px;
+  font-size: 17px;
+  font-weight: 700;
+}
+.alena-dz-sched-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.alena-dz-sched-tab {
+  flex: 1;
+  cursor: pointer;
+}
+.alena-dz-sched-tab input { display: none; }
+.alena-dz-sched-tab span {
+  display: block;
+  text-align: center;
+  padding: 10px;
+  background: #faf6f1;
+  border: 2px solid #eadfd1;
+  border-radius: 8px;
+  font-weight: 700;
+  font-size: 14px;
+  transition: all 0.15s ease;
+}
+.alena-dz-sched-tab input:checked + span {
+  background: #1e4a3a;
+  color: #fff;
+  border-color: #1e4a3a;
+}
+.alena-dz-sched-picker input[type="datetime-local"] {
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid #eadfd1;
+  border-radius: 8px;
+  font-size: 14px;
+  direction: ltr;
+  text-align: center;
+}
+.alena-dz-sched-hint {
+  font-size: 12px;
+  color: #6a5a4d;
+  margin: 8px 0 0;
+}
+
+/* ---------- Thank-you page ---------- */
+.alena-dz-thank-you {
+  max-width: 580px;
+  margin: 30px auto;
+  background: #fff;
+  border-radius: 18px;
+  padding: 36px 28px;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.06);
+  text-align: center;
+}
+.alena-dz-ty-icon { font-size: 64px; margin-bottom: 8px; }
+.alena-dz-ty-title {
+  font-family: "Frank Ruhl Libre", serif !important;
+  font-size: 32px !important;
+  font-weight: 800;
+  color: #1e4a3a;
+  margin: 0 0 8px !important;
+}
+.alena-dz-ty-thanks {
+  font-size: 15px;
+  color: #4a4a4a;
+  margin: 0 0 24px;
+  line-height: 1.5;
+}
+.alena-dz-ty-card {
+  background: linear-gradient(135deg, #faf6f1, #fef3ec);
+  border-radius: 12px;
+  padding: 18px 20px;
+  margin: 0 0 18px;
+  text-align: right;
+}
+.alena-dz-ty-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 0;
+  border-bottom: 1px solid rgba(244,168,149,0.25);
+}
+.alena-dz-ty-row:last-child { border-bottom: none; }
+.alena-dz-ty-label { color: #6a5a4d; font-size: 13px; }
+.alena-dz-ty-value {
+  font-weight: 700;
+  font-size: 14px;
+  color: #1c1c1c;
+}
+.alena-dz-ty-items {
+  text-align: right;
+  margin: 18px 0;
+  padding: 16px;
+  background: #fff;
+  border: 1px solid #eadfd1;
+  border-radius: 10px;
+}
+.alena-dz-ty-items h3 {
+  margin: 0 0 10px;
+  font-size: 15px;
+  font-weight: 700;
+  color: #1c1c1c;
+}
+.alena-dz-ty-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0;
+  font-size: 14px;
+}
+.alena-dz-ty-item-qty {
+  background: #1e4a3a;
+  color: #fff;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+}
+.alena-dz-ty-item-name { flex: 1; }
+.alena-dz-ty-item-price { font-weight: 700; }
+.alena-dz-ty-cta-row {
+  display: flex;
+  gap: 10px;
+  margin-top: 18px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+.alena-dz-ty-btn {
+  padding: 12px 22px;
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: 14px;
+  text-decoration: none !important;
+  border: 2px solid #1e4a3a;
+  background: #fff;
+  color: #1e4a3a !important;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.alena-dz-ty-btn:hover { background: #faf6f1; }
+.alena-dz-ty-btn.primary {
+  background: #1e4a3a;
+  color: #fff !important;
+}
+.alena-dz-ty-btn.primary:hover {
+  background: #2e6850;
+}
+
+/* ---------- Mobile bottom nav ---------- */
+.alena-dz-bottom-nav {
+  display: none;
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 8500;
+  background: #fff;
+  border-top: 1px solid #eadfd1;
+  box-shadow: 0 -2px 12px rgba(0,0,0,0.08);
+  padding: 6px 0 8px;
+}
+@media (max-width: 768px) {
+  .alena-dz-bottom-nav { display: flex; }
+  /* push page content above the nav */
+  body { padding-bottom: 70px; }
+}
+.alena-dz-bn-item {
+  flex: 1;
+  text-align: center;
+  color: #6a5a4d !important;
+  text-decoration: none !important;
+  position: relative;
+  padding: 6px 4px;
+  font-size: 11px;
+  font-weight: 600;
+}
+.alena-dz-bn-item:hover { color: #1e4a3a !important; }
+.alena-dz-bn-icon {
+  display: block;
+  font-size: 22px;
+  line-height: 1;
+}
+.alena-dz-bn-label { display: block; margin-top: 2px; }
+.alena-dz-bn-badge {
+  position: absolute;
+  top: 0;
+  right: 50%;
+  margin-right: -22px;
+  background: #c83a3a;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 999px;
+  min-width: 18px;
+}
+.alena-dz-bn-cart .alena-dz-bn-icon { color: #1e4a3a; }
+
+/* Don't show under modal */
+body.alena-modal-open .alena-dz-bottom-nav,
+body.alena-modal-open .alena-dz-mini-cart {
+  display: none !important;
+}

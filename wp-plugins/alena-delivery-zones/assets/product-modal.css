@@ -222,3 +222,49 @@ body.alena-modal-open { overflow: hidden; }
 /* Hide the running-total/sticky bar that came in from the source page */
 .alena-modal #alena-dz-sticky-bar,
 .alena-modal #alena-dz-running-price { display: none !important; }
+
+/* Per-item note */
+.alena-modal-note {
+  margin: 14px 0;
+  padding: 14px 16px;
+  background: #fef3ec;
+  border-radius: 10px;
+  border: 1px solid #eadfd1;
+}
+.alena-modal-note label {
+  display: block;
+  font-weight: 700;
+  font-size: 14px;
+  margin-bottom: 6px;
+  color: #1c1c1c;
+}
+.alena-modal-note textarea {
+  width: 100%;
+  border: 1px solid #eadfd1;
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 14px;
+  resize: vertical;
+  min-height: 56px;
+  font-family: inherit;
+}
+
+/* WhatsApp share button */
+.alena-modal-share {
+  display: block;
+  width: 100%;
+  margin: 12px 0 0;
+  padding: 11px 14px;
+  background: #fff;
+  border: 2px solid #25D366;
+  border-radius: 999px;
+  color: #25D366;
+  font-weight: 700;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.alena-modal-share:hover {
+  background: #25D366;
+  color: #fff;
+}

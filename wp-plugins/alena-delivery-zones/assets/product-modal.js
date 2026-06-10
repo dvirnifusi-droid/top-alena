@@ -72,6 +72,14 @@
       recomputeTotal();
     });
     modalEl.on('click', '.alena-modal-add', submitAddToCart);
+
+    // WhatsApp share — uses current page URL + product title
+    modalEl.on('click', '.alena-modal-share', function () {
+      const title = $(this).data('share-title') || document.title;
+      const url   = modalEl.data('product-url') || window.location.href;
+      const text  = encodeURIComponent('בוא ניזמין מ-עלינא: ' + title + ' ' + url);
+      window.open('https://wa.me/?text=' + text, '_blank');
+    });
   }
 
   function openModalForCard($card) {
@@ -128,6 +136,19 @@
       $form.append('<input type="hidden" name="quantity" value="1" class="alena-modal-form-qty" />');
       $wrap.before($form);
       $form.append($wrap.detach());
+      // Per-item notes textarea
+      $form.append(
+        '<div class="alena-modal-note">' +
+          '<label>הערה למנה (אופציונלי)</label>' +
+          '<textarea name="alena_item_note" rows="2" placeholder="פחות חריף, ללא קצף, וכו׳" maxlength="240"></textarea>' +
+        '</div>'
+      );
+      // WhatsApp share button
+      $form.append(
+        '<button type="button" class="alena-modal-share" data-share-title="' + (title || '') + '">' +
+          '📤 שתף ב-WhatsApp' +
+        '</button>'
+      );
     }
     applyGating();
     enforceMax();
