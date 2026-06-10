@@ -1,0 +1,233 @@
+/* ==========================================================
+   Insane cart page — 2-column layout, animations, atmosphere
+   ========================================================== */
+
+.alena-cart-wrap {
+  max-width: 1200px;
+  margin: 24px auto;
+  padding: 0 16px;
+}
+
+.alena-cart-header {
+  text-align: center;
+  margin-bottom: 18px;
+}
+.alena-cart-header h1 {
+  font-family: "Frank Ruhl Libre", serif !important;
+  font-size: 40px !important;
+  font-weight: 800;
+  margin: 0 0 4px !important;
+}
+.alena-cart-sub {
+  color: #6a5a4d;
+  font-size: 14px;
+  margin: 0;
+}
+
+/* Trust pills */
+.alena-trust-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: center;
+  margin-bottom: 22px;
+}
+.alena-trust-pill {
+  background: #fff;
+  border: 1px solid #eadfd1;
+  border-radius: 999px;
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #4a4a4a;
+}
+.alena-trust-pill strong { color: #1c1c1c; }
+
+/* The whole WC cart inside our layout — overrides */
+.alena-cart-main .woocommerce form { display: block; }
+
+/* Two-column layout (right: items / left: totals) */
+.woocommerce-cart .alena-cart-main .cart-collaterals {
+  position: sticky;
+  top: 90px;
+}
+@media (min-width: 980px) {
+  .woocommerce-cart .alena-cart-main form.woocommerce-cart-form {
+    float: right;
+    width: 60% !important;
+  }
+  .woocommerce-cart .alena-cart-main .cart-collaterals {
+    float: left;
+    width: 36% !important;
+    margin-right: 4%;
+  }
+}
+
+/* Summary extras card (ETA + points) */
+.alena-summary-extras {
+  background: linear-gradient(135deg, #1e4a3a, #2e6850);
+  color: #fff;
+  border-radius: 14px;
+  padding: 18px 20px;
+  margin-bottom: 14px;
+  box-shadow: 0 4px 16px rgba(30,74,58,0.20);
+}
+.alena-summary-eta,
+.alena-summary-points {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 8px 0;
+}
+.alena-summary-eta + .alena-summary-points {
+  border-top: 1px solid rgba(255,255,255,0.15);
+  margin-top: 4px;
+}
+.alena-summary-eta-icon {
+  font-size: 28px;
+  flex: 0 0 auto;
+}
+.alena-summary-eta-label {
+  font-size: 12px;
+  opacity: 0.85;
+  font-weight: 500;
+}
+.alena-summary-eta-value {
+  font-size: 18px;
+  font-weight: 800;
+  margin-top: 2px;
+}
+
+/* Upsell row */
+.alena-upsell {
+  background: linear-gradient(135deg, #fef3ec, #fff);
+  border: 2px dashed #f4a895;
+  border-radius: 14px;
+  padding: 18px;
+  margin-bottom: 14px;
+}
+.alena-upsell h3 {
+  font-family: "Frank Ruhl Libre", serif !important;
+  font-size: 18px !important;
+  font-weight: 700;
+  margin: 0 0 12px;
+}
+.alena-upsell-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 10px;
+}
+.alena-upsell-card {
+  background: #fff;
+  border: 1px solid #eadfd1;
+  border-radius: 10px;
+  padding: 10px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  position: relative;
+  transition: all 0.15s ease;
+}
+.alena-upsell-card:hover {
+  border-color: #f4a895;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.06);
+}
+.alena-upsell-img {
+  width: 52px !important;
+  height: 52px !important;
+  object-fit: cover;
+  border-radius: 6px;
+  flex: 0 0 auto;
+}
+.alena-upsell-meta { flex: 1; min-width: 0; }
+.alena-upsell-name {
+  display: block;
+  font-size: 13px;
+  font-weight: 700;
+  color: #1c1c1c;
+  line-height: 1.2;
+  margin-bottom: 2px;
+}
+.alena-upsell-price {
+  font-size: 12px;
+  font-weight: 800;
+  color: #1e4a3a;
+}
+.alena-upsell-add {
+  background: #1e4a3a;
+  color: #fff !important;
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 18px;
+  text-decoration: none !important;
+  transition: all 0.15s ease;
+  flex: 0 0 auto;
+}
+.alena-upsell-add:hover {
+  background: #2e6850;
+  transform: scale(1.1) rotate(90deg);
+}
+
+/* Modifier tags inside each cart line */
+.alena-cart-mod-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+}
+.alena-cart-mod-tag {
+  background: #fef3ec;
+  color: #c83a3a;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  border: 1px solid #f4d1c3;
+}
+.alena-cart-note {
+  margin-top: 4px;
+  font-size: 12px;
+  color: #6a5a4d;
+  font-style: italic;
+}
+
+/* MEGA checkout button */
+.woocommerce-cart .checkout-button {
+  background: linear-gradient(135deg, #1e4a3a, #2e6850) !important;
+  font-size: 17px !important;
+  padding: 18px 26px !important;
+  letter-spacing: 0.5px;
+  position: relative;
+  overflow: hidden;
+}
+.woocommerce-cart .checkout-button::after {
+  content: " →";
+  display: inline-block;
+  margin-right: 6px;
+}
+
+/* Subtle slide-in for new items */
+.woocommerce-cart table.cart tbody tr {
+  animation: alena-cart-slide-in 0.35s ease both;
+}
+@keyframes alena-cart-slide-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* Mobile */
+@media (max-width: 700px) {
+  .alena-cart-header h1 { font-size: 28px !important; }
+  .alena-summary-extras {
+    margin-bottom: 18px;
+    padding: 14px 16px;
+  }
+  .alena-summary-eta-value { font-size: 16px; }
+  .alena-upsell-row { grid-template-columns: 1fr; }
+}
