@@ -286,33 +286,65 @@ body.woocommerce      .elementor-element.e-con-full[class*="elementor-element-"]
   display: none !important;
 }
 
-/* Hero */
+/* Hero — Wolt-style with background image */
 .alena-dz-hero {
   position: relative;
-  background: linear-gradient(135deg, var(--alena-coral), #f7c8b6);
+  background-color: var(--alena-coral);
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
   border-radius: 16px;
-  padding: 36px 28px;
+  padding: 70px 36px;
   margin: 16px 0 24px;
-  color: var(--alena-ink);
+  color: #fff;
+  min-height: 240px;
+  display: flex;
+  align-items: flex-end;
+  overflow: hidden;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+}
+.alena-dz-hero-inner {
+  position: relative;
+  z-index: 2;
   text-align: right;
+  width: 100%;
 }
 .alena-dz-hero-title {
   font-family: "Frank Ruhl Libre", "David", serif !important;
-  font-size: 42px !important;
+  font-size: 48px !important;
   font-weight: 800;
-  margin: 0 0 4px;
+  color: #fff !important;
+  margin: 0 0 6px !important;
+  text-shadow: 0 2px 12px rgba(0,0,0,0.4);
+  letter-spacing: 0.5px;
 }
 .alena-dz-hero-sub {
-  font-size: 16px;
-  color: #5a4a40;
-  margin: 0 0 16px;
+  font-size: 17px;
+  color: #fff;
+  opacity: 0.95;
+  margin: 0 0 18px;
+  text-shadow: 0 1px 6px rgba(0,0,0,0.4);
 }
 .alena-dz-hero-info {
   display: flex;
   flex-wrap: wrap;
-  gap: 16px;
-  font-size: 14px;
-  color: var(--alena-ink-soft);
+  gap: 8px;
+}
+.alena-dz-hero-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: rgba(255, 255, 255, 0.95);
+  color: var(--alena-ink);
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+  backdrop-filter: blur(6px);
+}
+@media (max-width: 700px) {
+  .alena-dz-hero { padding: 50px 20px; }
+  .alena-dz-hero-title { font-size: 36px !important; }
 }
 
 /* Sticky category nav */

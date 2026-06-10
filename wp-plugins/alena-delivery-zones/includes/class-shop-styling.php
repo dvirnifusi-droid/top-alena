@@ -103,15 +103,54 @@ class Alena_DZ_Shop_Styling {
     }
 
     public function render_shop_hero() {
-        echo '<section class="alena-dz-hero">';
+        // Pick a hero image: first featured product image, else first product image
+        $hero_url = $this->find_hero_image_url();
+        $hero_style = $hero_url ? sprintf('style="background-image: linear-gradient(rgba(0,0,0,0.45), rgba(0,0,0,0.55)), url(%s)"', esc_url($hero_url)) : '';
+
+        // Open / closed status from Hours Engine
+        $status = '⏰ פתוח';
+        if (class_exists('Alena_DZ_Hours_Engine')) {
+            try {
+                $now = new DateTimeImmutable('now', new DateTimeZone('Asia/Jerusalem'));
+                $s   = Alena_DZ_Hours_Engine::get()->status('delivery', $now);
+                $status = $s['open'] ? '🟢 פתוח עכשיו' : '🔴 סגור · ' . ($s['reason'] ?? '');
+            } catch (Exception $e) { /* ignore */ }
+        }
+
+        echo '<section class="alena-dz-hero" ' . $hero_style . '>';
+        echo '<div class="alena-dz-hero-inner">';
         echo '<h1 class="alena-dz-hero-title">עלינא בפיתה</h1>';
-        echo '<p class="alena-dz-hero-sub">מטבח ישראלי שמח וצבעוני · כשר</p>';
+        echo '<p class="alena-dz-hero-sub">מטבח ים-תיכוני שמח וצבעוני · כשר</p>';
         echo '<div class="alena-dz-hero-info">';
-        echo '<span>⏰ פתוח 11:00 – 23:00</span>';
-        echo '<span>📍 רוטשילד 104, ראשון לציון</span>';
-        echo '<span>🚚 משלוחים מ-₪17</span>';
+        echo '<span class="alena-dz-hero-chip">' . esc_html($status) . '</span>';
+        echo '<span class="alena-dz-hero-chip">📍 רוטשילד 104, ראשון לציון</span>';
+        echo '<span class="alena-dz-hero-chip">🚚 משלוחים מ-₪17</span>';
+        echo '<span class="alena-dz-hero-chip">💰 מינ׳ הזמנה ₪70</span>';
+        echo '</div>';
         echo '</div>';
         echo '</section>';
+    }
+
+    private function find_hero_image_url(): ?string {
+        // Try featured products first
+        $featured = wc_get_featured_product_ids();
+        $candidates = !empty($featured) ? array_slice($featured, 0, 6) : [];
+
+        // Else random visible products with images
+        if (empty($candidates)) {
+            $candidates = get_posts([
+                'post_type'      => 'product',
+                'posts_per_page' => 20,
+                'orderby'        => 'rand',
+                'fields'         => 'ids',
+                'meta_query'     => [['key' => '_thumbnail_id', 'compare' => 'EXISTS']],
+            ]);
+        }
+        foreach ($candidates as $pid) {
+            $img = wp_get_attachment_image_url(get_post_thumbnail_id($pid), 'large');
+            if ($img) return $img;
+        }
+        return null;
     }
 
     public function render_search_bar() {
