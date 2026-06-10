@@ -15,21 +15,17 @@ class Alena_DZ_Mobile_UX {
     public function render_bottom_nav() {
         if (is_admin()) return;
         $shop_url    = function_exists('wc_get_page_permalink') ? wc_get_page_permalink('shop') : '/shop/';
-        $cart_url    = function_exists('wc_get_cart_url') ? wc_get_cart_url() : '/cart/';
+        $home_url    = home_url('/');
         $account_url = function_exists('wc_get_page_permalink') ? wc_get_page_permalink('myaccount') : '/my-account/';
-        $count       = function_exists('WC') && WC()->cart ? (int) WC()->cart->get_cart_contents_count() : 0;
         ?>
         <nav class="alena-dz-bottom-nav" aria-label="ניווט מהיר">
           <a href="<?php echo esc_url($shop_url); ?>" class="alena-dz-bn-item">
             <span class="alena-dz-bn-icon">🍽️</span>
             <span class="alena-dz-bn-label">תפריט</span>
           </a>
-          <a href="<?php echo esc_url($cart_url); ?>" class="alena-dz-bn-item alena-dz-bn-cart">
-            <span class="alena-dz-bn-icon">🛒</span>
-            <span class="alena-dz-bn-label">סל</span>
-            <?php if ($count > 0): ?>
-              <span class="alena-dz-bn-badge"><?php echo $count; ?></span>
-            <?php endif; ?>
+          <a href="<?php echo esc_url($home_url); ?>" class="alena-dz-bn-item">
+            <span class="alena-dz-bn-icon">🏠</span>
+            <span class="alena-dz-bn-label">בית</span>
           </a>
           <a href="<?php echo esc_url($account_url); ?>" class="alena-dz-bn-item">
             <span class="alena-dz-bn-icon">👤</span>

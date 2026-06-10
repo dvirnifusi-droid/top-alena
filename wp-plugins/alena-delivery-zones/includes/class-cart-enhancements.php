@@ -50,10 +50,9 @@ class Alena_DZ_Cart_Enhancements {
         $cart_url   = function_exists('wc_get_cart_url') ? wc_get_cart_url() : '/cart/';
         $cart_total = function_exists('WC') && WC()->cart ? WC()->cart->get_cart_total() : '';
         ?>
-        <a id="alena-dz-mini-cart" class="alena-dz-mini-cart<?php echo $cart_count ? ' has-items' : ''; ?>" href="<?php echo esc_url($cart_url); ?>" aria-label="הסל שלי">
-          <span class="alena-dz-mini-cart-icon">🛒</span>
-          <span class="alena-dz-mini-cart-label">הסל שלי</span>
+        <a id="alena-dz-mini-cart" class="alena-dz-mini-cart<?php echo $cart_count ? ' has-items' : ''; ?>" href="<?php echo esc_url($cart_url); ?>" aria-label="הצגת פריטים">
           <span class="alena-dz-mini-cart-count"><?php echo (int) $cart_count; ?></span>
+          <span class="alena-dz-mini-cart-label">הצגת פריטים</span>
           <span class="alena-dz-mini-cart-total"><?php echo wp_kses_post($cart_total); ?></span>
         </a>
         <?php

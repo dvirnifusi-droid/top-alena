@@ -2,51 +2,74 @@
    Cart enhancements — mini cart, min-order notice, tip, empty cart
    ============================================================ */
 
-/* ---------- Sticky mini-cart badge ---------- */
+/* ---------- Floating Wolt-style cart pill (bottom-left) ---------- */
 .alena-dz-mini-cart {
   position: fixed;
-  top: 14px;
-  left: 14px;
+  bottom: 24px;
+  left: 24px;
   z-index: 9000;
-  background: #1e4a3a;
+  background: #1e4a3a !important;
   color: #fff !important;
   border-radius: 999px;
-  padding: 8px 16px 8px 12px;
-  font-size: 14px;
+  padding: 8px 22px 8px 8px;
+  font-size: 15px;
   font-weight: 700;
   text-decoration: none !important;
-  display: inline-flex;
+  display: none; /* shown only when has-items */
   align-items: center;
-  gap: 8px;
-  box-shadow: 0 4px 14px rgba(30,74,58,0.30);
+  gap: 14px;
+  box-shadow: 0 8px 28px rgba(30,74,58,0.35);
   transition: all 0.18s ease;
   direction: ltr;
+  min-height: 48px;
 }
+.alena-dz-mini-cart.has-items { display: inline-flex; }
 .alena-dz-mini-cart:hover {
-  background: #2e6850;
-  transform: translateY(-1px);
+  background: #2e6850 !important;
+  transform: translateY(-2px);
+  box-shadow: 0 12px 32px rgba(30,74,58,0.45);
 }
-.alena-dz-mini-cart-icon { font-size: 18px; }
-.alena-dz-mini-cart-label { font-size: 13px; }
+.alena-dz-mini-cart-icon { display: none; }
 .alena-dz-mini-cart-count {
-  background: #f4a895;
-  color: #fff;
-  padding: 2px 8px;
+  background: #fff;
+  color: #1e4a3a !important;
+  width: 32px;
+  height: 32px;
   border-radius: 999px;
-  font-size: 12px;
-  min-width: 22px;
-  text-align: center;
+  font-size: 15px;
+  font-weight: 800;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+}
+.alena-dz-mini-cart-label {
+  font-size: 15px;
+  font-weight: 700;
+  color: #fff !important;
 }
 .alena-dz-mini-cart-total {
-  padding: 0 4px;
-  font-size: 13px;
+  font-size: 15px;
+  font-weight: 800;
+  color: #fff !important;
+  padding-right: 6px;
+  border-right: 1px solid rgba(255,255,255,0.30);
+  margin-right: -6px;
 }
-.alena-dz-mini-cart:not(.has-items) .alena-dz-mini-cart-total {
-  display: none;
-}
-@media (max-width: 700px) {
-  .alena-dz-mini-cart { top: 8px; left: 8px; padding: 6px 12px 6px 10px; }
-  .alena-dz-mini-cart-label { display: none; }
+
+/* Hide when modal is open or page is loading */
+body.alena-modal-open .alena-dz-mini-cart { display: none !important; }
+
+/* Mobile — sit above the bottom nav */
+@media (max-width: 768px) {
+  .alena-dz-mini-cart {
+    bottom: 84px;
+    left: 12px;
+    right: 12px;
+    padding: 10px 18px 10px 8px;
+    justify-content: space-between;
+    min-height: 52px;
+  }
 }
 
 /* ---------- Min-order notice ---------- */
