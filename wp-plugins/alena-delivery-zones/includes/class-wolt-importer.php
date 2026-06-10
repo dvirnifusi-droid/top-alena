@@ -95,6 +95,13 @@ class Alena_DZ_Wolt_Importer {
         $menu = json_decode(wp_remote_retrieve_body($resp), true);
         if (!is_array($menu) || empty($menu['items'])) wp_send_json_error('bad_menu_json', 500);
 
+        // Build a lookup of option groups by id (top-level menu.options[])
+        $options_lookup = [];
+        foreach (($menu['options'] ?? []) as $o) {
+            if (!isset($o['id'])) continue;
+            $options_lookup[$o['id']] = $o;
+        }
+
         // 1. Categories
         $cat_lookup = [];
         $cat_created = 0;
@@ -192,6 +199,34 @@ class Alena_DZ_Wolt_Importer {
                     $images_attached++;
                 }
             }
+
+            // Modifiers: walk item.options, resolve via parent against options_lookup
+            $modifiers = [];
+            foreach (($it['options'] ?? []) as $ref) {
+                $parent_id = $ref['parent'] ?? null;
+                $group = $parent_id ? ($options_lookup[$parent_id] ?? null) : null;
+                if (!$group) continue;
+                $vals = [];
+                foreach (($group['values'] ?? []) as $v) {
+                    $vals[] = [
+                        'id'    => $v['id'] ?? '',
+                        'name'  => $v['name'] ?? '',
+                        'price' => isset($v['price']) ? (float)$v['price'] / 100 : 0,
+                    ];
+                }
+                if (!$vals) continue;
+                $modifiers[] = [
+                    'id'       => $ref['id'] ?? $parent_id,
+                    'name'     => $ref['name'] ?? ($group['name'] ?? ''),
+                    'type'     => $group['type'] ?? 'Choice',  // "Choice" = radio, "Multichoice" = checkbox
+                    'min'      => (int)($ref['minimum_total_selections'] ?? 0),
+                    'max'      => (int)($ref['maximum_total_selections'] ?? 0),
+                    'max_single' => (int)($ref['maximum_single_selections'] ?? 1),
+                    'free'     => (int)($ref['free_selections'] ?? 0),
+                    'values'   => $vals,
+                ];
+            }
+            update_post_meta($product_id, '_alena_modifiers', wp_json_encode($modifiers, JSON_UNESCAPED_UNICODE));
         }
 
         $summary = sprintf(

@@ -1,0 +1,101 @@
+.alena-dz-modifiers {
+  margin: 20px 0 28px;
+  padding: 20px;
+  background: #fff;
+  border-radius: 12px;
+  border: 1px solid #eadfd1;
+}
+
+.alena-dz-mod-group {
+  margin-bottom: 18px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #f0e7d6;
+}
+.alena-dz-mod-group:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+  margin-bottom: 0;
+}
+
+.alena-dz-mod-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+.alena-dz-mod-title {
+  font-size: 16px;
+  font-weight: 700;
+  margin: 0;
+  color: #1c1c1c;
+}
+.alena-dz-mod-hint {
+  font-size: 12px;
+  color: #888;
+  font-weight: 500;
+}
+.alena-dz-req {
+  color: #c83a3a;
+  margin-right: 2px;
+}
+
+.alena-dz-mod-values {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.alena-dz-mod-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: #faf6f1;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+.alena-dz-mod-row:hover { background: #f3ebdd; }
+.alena-dz-mod-row input { margin: 0; cursor: pointer; }
+.alena-dz-mod-row input:checked + .alena-dz-mod-name { font-weight: 700; }
+.alena-dz-mod-row:has(input:checked) {
+  background: #e8efe9;
+  border-color: #1e4a3a;
+}
+
+.alena-dz-mod-name {
+  flex: 1;
+  font-size: 14px;
+  color: #1c1c1c;
+}
+.alena-dz-mod-price {
+  font-size: 13px;
+  font-weight: 600;
+  color: #1e4a3a;
+}
+
+.alena-dz-mod-running-total {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 2px solid #eadfd1;
+  font-size: 16px;
+  font-weight: 600;
+  color: #1c1c1c;
+  text-align: left;
+}
+#alena-dz-running-price {
+  font-size: 22px;
+  font-weight: 800;
+  color: #1e4a3a;
+  margin-right: 4px;
+}
+
+.alena-dz-mod-error {
+  background: #ffe5e0;
+  color: #a92424;
+  padding: 10px 12px;
+  border-radius: 6px;
+  margin-bottom: 12px;
+  font-size: 13px;
+  display: none;
+}
