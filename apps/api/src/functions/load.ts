@@ -10834,6 +10834,44 @@ if (!(globalThis as any).__startupDriftRepair) {
         "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
       );`);
       await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "ReferralUse_referral_code_idx" ON "ReferralUse"("referral_code");`);
+
+      // ============================================================
+      // ONE-TIME MIGRATION: grant marketing_consent to existing customers
+      // ============================================================
+      // Frontend deploy lag prevented the owner from clicking the
+      // "📢 הענק הסכמה לכולם" button in /CustomerClub. Run it once here.
+      // Idempotent: skipped if already run (gated by SystemFlag row).
+      try {
+        await prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "SystemFlag" (
+          "key" TEXT PRIMARY KEY,
+          "value" TEXT,
+          "set_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );`);
+        const flagKey = 'bulk_grant_consent_v1_done';
+        const existing: any = await prisma.$queryRawUnsafe(
+          `SELECT key FROM "SystemFlag" WHERE key = $1 LIMIT 1`,
+          flagKey,
+        );
+        if (!existing || existing.length === 0) {
+          const result: any = await prisma.$executeRawUnsafe(`
+            UPDATE "Customer"
+               SET marketing_consent = true,
+                   marketing_consent_at = COALESCE(marketing_consent_at, NOW())
+             WHERE marketing_consent = false
+               AND marketing_unsubscribed_at IS NULL
+               AND phone IS NOT NULL AND phone != '';
+          `);
+          await prisma.$executeRawUnsafe(
+            `INSERT INTO "SystemFlag" (key, value) VALUES ($1, $2) ON CONFLICT (key) DO NOTHING`,
+            flagKey, String(result),
+          );
+          console.log(`[migration] bulk_grant_consent_v1: granted consent to ${result} existing customers`);
+        } else {
+          console.log('[migration] bulk_grant_consent_v1: already run, skipping');
+        }
+      } catch (e: any) {
+        console.warn('[migration] bulk_grant_consent_v1 failed:', e?.message);
+      }
       console.log('[startup] Reservation deposit + marketing consent + shift reminder + Checklist.department + Customer marketing + CampaignSend columns ensured');
     } catch (e: any) {
       console.error('[startup] ensure Reservation deposit cols failed:', e?.message);
