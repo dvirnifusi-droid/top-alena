@@ -76,10 +76,13 @@ class Alena_DZ_Shop_Styling {
             return;
         }
         $original = ob_get_clean();
-        // Render hero + category nav + per-category sections
+        // Render hero + search + featured + nav + per-category sections
         $this->render_shop_hero();
+        $this->render_search_bar();
         $this->render_sticky_catnav();
+        $this->render_featured_section();
         $this->render_grouped_products();
+        $this->render_inline_script();
     }
 
     public function render_shop_hero() {
@@ -92,6 +95,83 @@ class Alena_DZ_Shop_Styling {
         echo '<span>🚚 משלוחים מ-₪17</span>';
         echo '</div>';
         echo '</section>';
+    }
+
+    public function render_search_bar() {
+        echo '<div class="alena-dz-search">';
+        echo '<input type="search" id="alena-dz-search-input" placeholder="🔍 חיפוש מנה — חומוס, פיתה, סלט…" autocomplete="off" />';
+        echo '<button type="button" id="alena-dz-search-clear" aria-label="נקה" style="display:none">✕</button>';
+        echo '</div>';
+        echo '<p id="alena-dz-search-empty" class="alena-dz-empty" style="display:none">לא מצאנו מנה שתואמת לחיפוש שלך 😅</p>';
+    }
+
+    public function render_featured_section() {
+        $featured_ids = wc_get_featured_product_ids();
+        if (empty($featured_ids)) {
+            // Fallback: top sellers by total_sales meta
+            $top = get_posts([
+                'post_type'      => 'product',
+                'posts_per_page' => 6,
+                'meta_key'       => 'total_sales',
+                'orderby'        => 'meta_value_num',
+                'order'          => 'DESC',
+                'fields'         => 'ids',
+            ]);
+            $featured_ids = $top;
+        }
+        if (empty($featured_ids)) return;
+
+        echo '<section class="alena-dz-cat-section alena-dz-featured-section" id="alena-featured">';
+        echo '<h2 class="alena-dz-cat-title">המוזמנים ביותר 💙</h2>';
+        echo '<p class="alena-dz-cat-desc">מנות שאהבנו, ושותפינו אהבו</p>';
+        echo '<ul class="alena-dz-products products">';
+        $count = 0;
+        foreach ($featured_ids as $pid) {
+            if ($count >= 6) break;
+            $product = wc_get_product($pid);
+            if (!$product || !$product->is_visible()) continue;
+            $this->render_product_card($product);
+            $count++;
+        }
+        echo '</ul>';
+        echo '</section>';
+    }
+
+    public function render_inline_script() {
+        ?>
+        <script>
+        (function () {
+          const input = document.getElementById('alena-dz-search-input');
+          const clearBtn = document.getElementById('alena-dz-search-clear');
+          const empty = document.getElementById('alena-dz-search-empty');
+          const sections = document.querySelectorAll('.alena-dz-cat-section');
+          if (!input) return;
+
+          function normalize(t) { return (t || '').toLowerCase().trim(); }
+
+          function applyFilter(q) {
+            q = normalize(q);
+            let anyVisible = false;
+            sections.forEach(section => {
+              let sectionHasMatch = false;
+              section.querySelectorAll('.alena-dz-card').forEach(card => {
+                const text = normalize(card.textContent);
+                const match = !q || text.includes(q);
+                card.style.display = match ? '' : 'none';
+                if (match) sectionHasMatch = true;
+              });
+              section.style.display = sectionHasMatch ? '' : 'none';
+              if (sectionHasMatch) anyVisible = true;
+            });
+            empty.style.display = (q && !anyVisible) ? '' : 'none';
+            clearBtn.style.display = q ? '' : 'none';
+          }
+
+          input.addEventListener('input', e => applyFilter(e.target.value));
+          clearBtn.addEventListener('click', () => { input.value = ''; applyFilter(''); input.focus(); });
+        })();
+        </script>
+        <?php
     }
 
     public function render_sticky_catnav() {
