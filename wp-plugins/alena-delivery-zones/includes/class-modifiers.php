@@ -121,7 +121,12 @@ class Alena_DZ_Modifiers {
             echo '</div>';
             echo '</div>';
         }
-        echo '<div class="alena-dz-mod-running-total">סה״כ: <span id="alena-dz-running-price">₪' . number_format($product->get_price(), 0) . '</span></div>';
+        echo '</div>'; // close .alena-dz-modifiers
+
+        // Sticky bottom cart bar (shown on all screens; mobile-friendly)
+        echo '<div class="alena-dz-sticky-bar" id="alena-dz-sticky-bar">';
+        echo '<div class="alena-dz-sticky-total">סה״כ <span id="alena-dz-running-price">₪' . number_format($product->get_price(), 0) . '</span></div>';
+        echo '<button type="submit" form="alena-dz-cart-form-marker" class="alena-dz-sticky-cta">הוסף לסל →</button>';
         echo '</div>';
     }
 

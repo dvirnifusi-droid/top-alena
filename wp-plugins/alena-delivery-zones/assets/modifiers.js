@@ -53,6 +53,18 @@
     recalc();
     enforceMaxOnCheckboxes();
 
+    // Show the sticky bar once modifiers exist on the page
+    if ($('.alena-dz-modifiers').length) {
+      $('#alena-dz-sticky-bar').css('display', 'flex');
+      // Wire the sticky CTA to the WC add-to-cart form
+      $('#alena-dz-sticky-bar .alena-dz-sticky-cta').on('click', function (e) {
+        e.preventDefault();
+        const $form = $('form.cart');
+        if (!validateAndBlockAdd()) return false;
+        $form.trigger('submit');
+      });
+    }
+
     // Block add-to-cart if required modifiers missing
     $('form.cart').on('submit', function (e) {
       if (!validateAndBlockAdd()) {

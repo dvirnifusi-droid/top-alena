@@ -254,6 +254,11 @@ class Alena_DZ_Shop_Styling {
                 'orderby'  => 'menu_order title',
                 'order'    => 'ASC',
             ]);
+            // Hide products with no price (placeholder / incomplete imports)
+            $products = array_filter($products, function ($p) {
+                $price = $p->get_price();
+                return $price !== '' && (float) $price > 0;
+            });
             if (!$products) continue;
 
             printf('<section class="alena-dz-cat-section" id="alena-cat-%d">', (int) $term->term_id);

@@ -207,9 +207,13 @@ body.woocommerce {
 }
 
 /* ---------- Single product page ---------- */
+body.single-product .woocommerce {
+  max-width: 1200px;
+  margin: 0 auto;
+}
 .woocommerce div.product .product_title {
   font-family: "Frank Ruhl Libre", serif !important;
-  font-size: 38px !important;
+  font-size: 36px !important;
   font-weight: 700;
   color: var(--alena-ink);
   margin-bottom: 12px;
@@ -229,6 +233,29 @@ body.woocommerce {
 }
 .woocommerce div.product form.cart .button:hover {
   background: var(--alena-green-hover) !important;
+}
+
+/* Hide duplicate excerpt (it duplicates the tab content) */
+.woocommerce div.product .woocommerce-product-details__short-description {
+  background: linear-gradient(135deg, #faf6f1, #fef3ec);
+  padding: 14px 18px;
+  border-radius: 10px;
+  border-right: 4px solid var(--alena-coral);
+  margin: 14px 0 20px;
+  color: var(--alena-ink-soft);
+  font-size: 15px;
+}
+/* Hide the long tab description since it's the same content */
+body.single-product .woocommerce-tabs { display: none; }
+/* Hide "Related products" section */
+body.single-product .related.products { display: none; }
+/* Constrain product image */
+body.single-product .woocommerce div.product div.images { max-width: 480px; }
+@media (max-width: 700px) {
+  body.single-product .woocommerce div.product div.images { max-width: 100%; }
+  .woocommerce div.product .product_title { font-size: 26px !important; }
+  .woocommerce div.product p.price,
+  .woocommerce div.product span.price { font-size: 22px !important; }
 }
 
 /* ---------- Cart & Checkout polish ---------- */
@@ -492,21 +519,37 @@ body.woocommerce      .elementor-element.e-con-full[class*="elementor-element-"]
 .alena-dz-cat-section {
   scroll-margin-top: 110px; /* anchor offset under sticky nav */
   margin: 36px 0;
+  padding: 24px 0 0;
+  border-top: 3px dashed transparent;
+}
+.alena-dz-cat-section:not(:first-child) {
+  border-top-color: rgba(244, 168, 149, 0.30);
 }
 .alena-dz-cat-title {
   font-family: "Frank Ruhl Libre", serif !important;
-  font-size: 30px !important;
-  font-weight: 700;
+  font-size: 32px !important;
+  font-weight: 800;
   color: var(--alena-ink);
-  margin: 0 0 4px;
-  padding-bottom: 8px;
-  border-bottom: 2px solid var(--alena-coral);
+  margin: 0 0 6px;
+  padding-bottom: 10px;
+  border-bottom: 3px solid var(--alena-coral);
   display: inline-block;
+  position: relative;
+}
+.alena-dz-cat-title::after {
+  content: "";
+  position: absolute;
+  bottom: -3px;
+  right: 0;
+  width: 30%;
+  height: 3px;
+  background: var(--alena-gold);
 }
 .alena-dz-cat-desc {
   color: var(--alena-ink-soft);
   font-size: 14px;
   margin: 4px 0 18px;
+  font-style: italic;
 }
 
 /* Product grid — compact Wolt-style: 3 columns, horizontal cards.
