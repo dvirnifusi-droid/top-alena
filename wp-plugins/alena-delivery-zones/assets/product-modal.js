@@ -206,7 +206,7 @@
       window.location.href = modalEl.data('product-url') || '/shop/';
       return;
     }
-    // Validate required modifier groups
+    // Validate required modifier groups (only visible ones)
     let firstError = null;
     modalEl.find('.alena-dz-mod-group:visible').each(function () {
       const min = parseInt($(this).data('min'), 10) || 0;
@@ -218,10 +218,56 @@
       }
     });
     if (firstError) { alert(firstError); return; }
-    // Set quantity into hidden field
+
+    // Set quantity, build payload, send via WC's AJAX endpoint so we
+    // stay on the shop page and just close the modal afterwards.
     const qty = parseInt(modalEl.find('.alena-modal-qty-value').text(), 10) || 1;
     $form.find('.alena-modal-form-qty').val(qty);
-    $form.trigger('submit')[0].submit();
+
+    const $btn = modalEl.find('.alena-modal-add');
+    const originalLabel = $btn.html();
+    $btn.prop('disabled', true).text('מוסיף לסל…');
+
+    // Build a FormData from the form
+    const fd = new FormData($form[0]);
+    // WC's add-to-cart AJAX expects 'product_id'
+    const pid = $form.find('input[name="add-to-cart"]').val();
+    fd.append('product_id', pid);
+
+    $.ajax({
+      url: '/?wc-ajax=add_to_cart',
+      type: 'POST',
+      data: fd,
+      processData: false,
+      contentType: false,
+      success: function (res) {
+        // WC returns a JSON object with cart fragments + error info
+        if (res && res.error && res.product_url) {
+          // Server says we should navigate (e.g. variation required)
+          window.location.href = res.product_url;
+          return;
+        }
+        // Trigger WC events so the mini-cart updates
+        $(document.body).trigger('added_to_cart', [res && res.fragments, res && res.cart_hash, $btn]);
+        closeModal();
+        toast('המנה התווספה לסל ✓');
+      },
+      error: function () {
+        toast('שגיאה — נסה שוב');
+        $btn.prop('disabled', false).html(originalLabel);
+      },
+      complete: function () {
+        $btn.prop('disabled', false).html(originalLabel);
+      }
+    });
+  }
+
+  function toast(text) {
+    const $t = $('<div class="alena-toast"></div>').text(text);
+    $('body').append($t);
+    setTimeout(() => $t.addClass('show'), 10);
+    setTimeout(() => $t.removeClass('show'), 2200);
+    setTimeout(() => $t.remove(), 2600);
   }
 
   function closeModal() {
