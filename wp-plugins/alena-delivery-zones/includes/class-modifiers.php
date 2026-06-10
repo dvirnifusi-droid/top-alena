@@ -34,11 +34,17 @@ class Alena_DZ_Modifiers {
     }
 
     public function enqueue() {
-        if (!is_product()) return;
+        if (!function_exists('is_product') || !is_product()) return;
         wp_enqueue_style('alena-dz-modifiers', ALENA_DZ_URL . 'assets/modifiers.css', [], ALENA_DZ_VERSION);
         wp_enqueue_script('alena-dz-modifiers', ALENA_DZ_URL . 'assets/modifiers.js', ['jquery'], ALENA_DZ_VERSION, true);
-        global $product;
-        if ($product) {
+        // Pull the product from the queried post — global $product isn't reliably
+        // set at wp_enqueue_scripts time.
+        $product = null;
+        if (function_exists('wc_get_product')) {
+            $pid = get_queried_object_id();
+            if ($pid) $product = wc_get_product($pid);
+        }
+        if ($product && is_object($product) && method_exists($product, 'get_price')) {
             wp_localize_script('alena-dz-modifiers', 'AlenaDZModifiers', [
                 'basePrice' => (float) $product->get_price(),
             ]);
@@ -57,8 +63,12 @@ class Alena_DZ_Modifiers {
 
     public function render_modifiers_form() {
         global $product;
-        if (!$product) return;
-        $mods = self::get_modifiers($product->get_id());
+        if (!$product || !is_object($product) || !method_exists($product, 'get_id')) return;
+        try {
+            $mods = self::get_modifiers((int) $product->get_id());
+        } catch (\Throwable $e) {
+            return;
+        }
         if (!$mods) return;
 
         echo '<div class="alena-dz-modifiers">';
@@ -153,36 +163,48 @@ class Alena_DZ_Modifiers {
     }
 
     public function apply_modifier_price($cart) {
-        if (is_admin() && !defined('DOING_AJAX')) return;
-        if (did_action('woocommerce_before_calculate_totals') >= 2) return;
-        foreach ($cart->get_cart() as $cart_item) {
-            if (empty($cart_item['alena_modifiers'])) continue;
-            $extra = 0;
-            foreach ($cart_item['alena_modifiers'] as $m) $extra += (float) $m['price'];
-            $base = (float) $cart_item['data']->get_price('edit');
-            if ($extra > 0) $cart_item['data']->set_price($base + $extra);
-        }
+        try {
+            if (is_admin() && !defined('DOING_AJAX')) return;
+            if (did_action('woocommerce_before_calculate_totals') >= 2) return;
+            if (!$cart || !method_exists($cart, 'get_cart')) return;
+            foreach ($cart->get_cart() as $cart_item) {
+                if (empty($cart_item['alena_modifiers']) || !is_array($cart_item['alena_modifiers'])) continue;
+                $extra = 0;
+                foreach ($cart_item['alena_modifiers'] as $m) {
+                    if (is_array($m) && isset($m['price'])) $extra += (float) $m['price'];
+                }
+                if (!isset($cart_item['data']) || !is_object($cart_item['data']) || !method_exists($cart_item['data'], 'set_price')) continue;
+                $base = (float) $cart_item['data']->get_price('edit');
+                if ($extra > 0) $cart_item['data']->set_price($base + $extra);
+            }
+        } catch (\Throwable $e) { /* swallow */ }
     }
 
     public function display_in_cart($item_data, $cart_item) {
-        if (empty($cart_item['alena_modifiers'])) return $item_data;
-        foreach ($cart_item['alena_modifiers'] as $m) {
-            $label = $m['name'];
-            if ((float) $m['price'] > 0) $label .= ' (+₪' . number_format($m['price'], 0) . ')';
-            $item_data[] = [
-                'key'   => $m['group'] ?: 'תוספת',
-                'value' => $label,
-            ];
-        }
+        try {
+            if (empty($cart_item['alena_modifiers']) || !is_array($cart_item['alena_modifiers'])) return $item_data;
+            foreach ($cart_item['alena_modifiers'] as $m) {
+                if (!is_array($m)) continue;
+                $label = (string) ($m['name'] ?? '');
+                if ((float) ($m['price'] ?? 0) > 0) $label .= ' (+₪' . number_format((float) $m['price'], 0) . ')';
+                $item_data[] = [
+                    'key'   => (string) ($m['group'] ?? '') ?: 'תוספת',
+                    'value' => $label,
+                ];
+            }
+        } catch (\Throwable $e) { /* swallow */ }
         return $item_data;
     }
 
     public function save_to_order($item, $cart_item_key, $values, $order) {
-        if (empty($values['alena_modifiers'])) return;
-        foreach ($values['alena_modifiers'] as $i => $m) {
-            $label = $m['name'];
-            if ((float) $m['price'] > 0) $label .= ' (+₪' . number_format($m['price'], 0) . ')';
-            $item->add_meta_data($m['group'] ?: ('תוספת ' . ($i + 1)), $label);
-        }
+        try {
+            if (empty($values['alena_modifiers']) || !is_array($values['alena_modifiers'])) return;
+            foreach ($values['alena_modifiers'] as $i => $m) {
+                if (!is_array($m)) continue;
+                $label = (string) ($m['name'] ?? '');
+                if ((float) ($m['price'] ?? 0) > 0) $label .= ' (+₪' . number_format((float) $m['price'], 0) . ')';
+                $item->add_meta_data((string) ($m['group'] ?? '') ?: ('תוספת ' . ($i + 1)), $label);
+            }
+        } catch (\Throwable $e) { /* swallow */ }
     }
 }
