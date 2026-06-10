@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Alena Delivery Zones
  * Description: Google Maps polygon-based delivery zones for WooCommerce. Owner draws delivery polygons on a map; the plugin adds a WC shipping method that geocodes the customer address and matches it to the right polygon (fee, min-order).
- * Version: 0.4.3
+ * Version: 0.5.0
  * Author: Alena / TOPALENA
  * Requires PHP: 7.4
  * Requires at least: 6.5
@@ -12,7 +12,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('ALENA_DZ_VERSION', '0.4.3');
+define('ALENA_DZ_VERSION', '0.5.0');
 define('ALENA_DZ_PATH', plugin_dir_path(__FILE__));
 define('ALENA_DZ_URL',  plugin_dir_url(__FILE__));
 
@@ -21,6 +21,9 @@ require_once ALENA_DZ_PATH . 'includes/class-geocoder.php';
 require_once ALENA_DZ_PATH . 'includes/class-admin.php';
 require_once ALENA_DZ_PATH . 'includes/class-checkout-fields.php';
 require_once ALENA_DZ_PATH . 'includes/class-checkout-map.php';
+require_once ALENA_DZ_PATH . 'includes/class-hours-engine.php';
+require_once ALENA_DZ_PATH . 'includes/class-hours-admin.php';
+require_once ALENA_DZ_PATH . 'includes/class-hours-checkout.php';
 
 add_action('plugins_loaded', function () {
     if (!class_exists('WooCommerce')) {
@@ -32,6 +35,8 @@ add_action('plugins_loaded', function () {
     new Alena_DZ_Admin();
     new Alena_DZ_Checkout_Fields();
     new Alena_DZ_Checkout_Map();
+    new Alena_DZ_Hours_Admin();
+    new Alena_DZ_Hours_Checkout();
 });
 
 // Shipping method (class loads only after WC is ready)

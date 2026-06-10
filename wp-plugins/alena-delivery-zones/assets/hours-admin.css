@@ -1,0 +1,23 @@
+.alena-dz-hours-table {
+  margin-top: 16px;
+  background: #fff;
+}
+.alena-dz-hours-table th,
+.alena-dz-hours-table td {
+  padding: 8px 10px;
+  vertical-align: middle;
+}
+.alena-dz-hours-table input.alena-dz-time {
+  width: 120px;
+  direction: ltr;
+  text-align: center;
+  font-family: monospace;
+}
+.alena-dz-hours-table input.alena-dz-cat {
+  width: 200px;
+  direction: ltr;
+}
+#alena-dz-hours-status {
+  color: #198754;
+  font-size: 14px;
+}
