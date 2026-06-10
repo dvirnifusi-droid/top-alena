@@ -386,19 +386,34 @@ body.alena-modal-open .alena-dz-mini-cart { display: none !important; }
   box-shadow: 0 4px 14px rgba(30,74,58,0.25);
 }
 
-/* Shipping calculator: prettier, less alarming */
-.woocommerce-cart .shipping-calculator-button {
-  color: #1e4a3a !important;
-  font-weight: 700;
-}
-.woocommerce-cart .woocommerce-shipping-destination {
-  font-size: 13px;
-  color: #6a5a4d;
-}
-.woocommerce-cart ul#shipping_method,
+/* Shipping: hide EVERYTHING related to shipping on the cart page.
+   The polygon method needs the customer's pinned location which is
+   only set on the checkout page, so it's misleading to show "no
+   shipping available" on the cart. Move the choice entirely to
+   checkout. */
+.woocommerce-cart .shipping,
+.woocommerce-cart tr.shipping,
+.woocommerce-cart .shipping-calculator-form,
+.woocommerce-cart .shipping-calculator-button,
+.woocommerce-cart .woocommerce-shipping-calculator,
+.woocommerce-cart .woocommerce-shipping-destination,
 .woocommerce-cart .woocommerce-shipping-methods,
-.woocommerce-cart .woocommerce-shipping-totals {
-  display: none !important; /* shipping is picked at checkout */
+.woocommerce-cart .woocommerce-shipping-totals,
+.woocommerce-cart ul#shipping_method {
+  display: none !important;
+}
+/* Custom friendly notice in place of the missing shipping row */
+.woocommerce-cart .cart_totals tr.order-total::before {
+  content: "💡 דמי המשלוח יחושבו בקופה לפי הכתובת שלך";
+  display: block;
+  padding: 10px 14px;
+  margin: 10px 0;
+  background: linear-gradient(135deg, #fff7e6, #fef3ec);
+  border-right: 4px solid #f4a895;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #6a5a4d;
 }
 
 /* Mobile */
