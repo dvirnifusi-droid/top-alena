@@ -195,9 +195,9 @@ body.alena-modal-open { overflow: hidden; }
 
 .alena-modal-add {
   flex: 1;
-  background: var(--alena-green);
-  color: #fff;
-  border: none;
+  background: #1e4a3a !important;
+  color: #fff !important;
+  border: none !important;
   border-radius: 12px;
   padding: 14px 18px;
   font-size: 15px;
@@ -210,10 +210,11 @@ body.alena-modal-open { overflow: hidden; }
   transition: all 0.15s ease;
 }
 .alena-modal-add:hover {
-  background: var(--alena-green-hover);
+  background: #2e6850 !important;
   transform: translateY(-1px);
   box-shadow: 0 4px 14px rgba(30,74,58,0.25);
 }
+.alena-modal-add * { color: #fff !important; }
 .alena-modal-total {
   font-size: 17px;
   font-weight: 800;

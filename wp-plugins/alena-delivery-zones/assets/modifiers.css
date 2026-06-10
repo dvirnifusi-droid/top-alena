@@ -1,5 +1,7 @@
 /* ==========================================================
    Modifiers — refreshed visual hierarchy + warm food atmosphere
+   Hardcoded colors so we don't depend on CSS vars not loaded
+   in every context (e.g. injected into the modal).
    ========================================================== */
 .alena-dz-modifiers {
   margin: 24px 0 100px; /* extra bottom space for the sticky cart bar */
@@ -8,6 +10,9 @@
   border: none;
   border-radius: 0;
 }
+/* Tighten when injected inside the product modal */
+.alena-modal .alena-dz-modifiers { margin: 0; }
+.alena-modal .alena-dz-modifiers .alena-dz-mod-group { box-shadow: none; }
 
 .alena-dz-mod-group {
   margin-bottom: 14px;

@@ -34,20 +34,30 @@ class Alena_DZ_Modifiers {
     }
 
     public function enqueue() {
-        if (!function_exists('is_product') || !is_product()) return;
+        if (!function_exists('is_woocommerce')) return;
+        // Load the modifiers CSS on shop/category pages too, because the
+        // product modal injects modifier markup there.
+        $on_shop_like = (function_exists('is_shop') && is_shop())
+            || (function_exists('is_product_category') && is_product_category())
+            || (function_exists('is_product_taxonomy') && is_product_taxonomy());
+        $on_product   = function_exists('is_product') && is_product();
+        if (!$on_shop_like && !$on_product) return;
+
         wp_enqueue_style('alena-dz-modifiers', ALENA_DZ_URL . 'assets/modifiers.css', [], ALENA_DZ_VERSION);
-        wp_enqueue_script('alena-dz-modifiers', ALENA_DZ_URL . 'assets/modifiers.js', ['jquery'], ALENA_DZ_VERSION, true);
-        // Pull the product from the queried post — global $product isn't reliably
-        // set at wp_enqueue_scripts time.
-        $product = null;
-        if (function_exists('wc_get_product')) {
-            $pid = get_queried_object_id();
-            if ($pid) $product = wc_get_product($pid);
-        }
-        if ($product && is_object($product) && method_exists($product, 'get_price')) {
-            wp_localize_script('alena-dz-modifiers', 'AlenaDZModifiers', [
-                'basePrice' => (float) $product->get_price(),
-            ]);
+
+        // The companion JS only matters on single product pages
+        if ($on_product) {
+            wp_enqueue_script('alena-dz-modifiers', ALENA_DZ_URL . 'assets/modifiers.js', ['jquery'], ALENA_DZ_VERSION, true);
+            $product = null;
+            if (function_exists('wc_get_product')) {
+                $pid = get_queried_object_id();
+                if ($pid) $product = wc_get_product($pid);
+            }
+            if ($product && is_object($product) && method_exists($product, 'get_price')) {
+                wp_localize_script('alena-dz-modifiers', 'AlenaDZModifiers', [
+                    'basePrice' => (float) $product->get_price(),
+                ]);
+            }
         }
     }
 
