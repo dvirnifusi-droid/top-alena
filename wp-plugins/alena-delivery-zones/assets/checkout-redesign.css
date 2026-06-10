@@ -1,0 +1,167 @@
+/* =====================================================
+   Wolt-style checkout — hero map + sections + sticky summary
+   ===================================================== */
+
+.alena-checkout-wrap {
+  max-width: 1200px;
+  margin: 0 auto 60px;
+}
+
+/* Hero map at top */
+.alena-checkout-hero {
+  position: relative;
+  margin: 0 -16px 24px;
+  height: 220px;
+  overflow: hidden;
+  border-radius: 0 0 18px 18px;
+  background: linear-gradient(135deg, #fef3ec, #faf6f1);
+}
+#alena-checkout-overview-map {
+  width: 100%;
+  height: 100%;
+}
+.alena-checkout-hero-overlay {
+  position: absolute;
+  bottom: 14px;
+  right: 24px;
+  background: rgba(255,255,255,0.92);
+  backdrop-filter: blur(6px);
+  border-radius: 14px;
+  padding: 12px 18px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+}
+.alena-checkout-hero-overlay h1 {
+  font-family: "Frank Ruhl Libre", serif !important;
+  font-size: 26px !important;
+  font-weight: 800;
+  margin: 0 !important;
+  color: #1e4a3a;
+}
+.alena-checkout-hero-sub {
+  margin: 0;
+  font-size: 13px;
+  color: #6a5a4d;
+}
+
+.alena-checkout-main {
+  padding: 0 16px;
+}
+
+/* WC's checkout columns side-by-side */
+@media (min-width: 980px) {
+  .woocommerce-checkout .alena-checkout-main #customer_details {
+    width: 60% !important;
+    float: right !important;
+  }
+  .woocommerce-checkout .alena-checkout-main #order_review_heading,
+  .woocommerce-checkout .alena-checkout-main #order_review {
+    width: 36% !important;
+    float: left !important;
+    margin-right: 4% !important;
+  }
+  .woocommerce-checkout .alena-checkout-main #order_review {
+    position: sticky;
+    top: 90px;
+  }
+}
+
+/* Section headings inside the order review table */
+.alena-co-section-head td {
+  font-weight: 700;
+  font-size: 14px;
+  color: #1c1c1c;
+  background: linear-gradient(135deg, #fef3ec, #faf6f1);
+  padding: 12px 14px !important;
+  border-radius: 8px 8px 0 0;
+}
+.alena-co-add-more {
+  float: left;
+  color: #1e4a3a !important;
+  font-size: 13px;
+  text-decoration: none !important;
+}
+.alena-co-add-more:hover { text-decoration: underline !important; }
+
+/* Cash on delivery banner row */
+.alena-co-payplus-note td {
+  border: none !important;
+  padding: 0 0 12px !important;
+}
+.alena-co-payplus-banner {
+  background: linear-gradient(135deg, #e8efe9, #d4e3d8);
+  color: #1e4a3a;
+  border-radius: 10px;
+  padding: 12px 14px;
+  font-size: 13px;
+  border-right: 4px solid #1e4a3a;
+}
+
+/* Inline qty controls in order_review */
+.alena-co-qty {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #faf6f1;
+  border: 1px solid #eadfd1;
+  border-radius: 999px;
+  padding: 2px;
+}
+.alena-co-qty button {
+  width: 26px;
+  height: 26px;
+  border: none;
+  background: #fff;
+  border-radius: 999px;
+  cursor: pointer;
+  font-weight: 700;
+  font-size: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.alena-co-qty button:hover { background: #f4a895; color: #fff; }
+.alena-co-qty-val {
+  min-width: 20px;
+  text-align: center;
+  font-weight: 700;
+}
+.alena-co-qty-remove {
+  margin-right: 4px;
+  color: #c83a3a !important;
+  text-decoration: none !important;
+  font-size: 14px;
+  padding: 2px 6px;
+}
+.alena-co-qty-remove:hover {
+  background: #ffe5e0;
+  border-radius: 999px;
+}
+
+/* Polish the order review table */
+.woocommerce-checkout #order_review_heading {
+  font-family: "Frank Ruhl Libre", serif !important;
+  font-size: 22px !important;
+  font-weight: 800;
+  color: #1c1c1c;
+}
+.woocommerce-checkout table.shop_table {
+  background: #fff;
+  border: 1px solid #eadfd1;
+  border-radius: 14px;
+  overflow: hidden;
+}
+
+/* HIDE the duplicated tax/subtotal rows on checkout (prices include tax) */
+.woocommerce-checkout tr.cart-subtotal,
+.woocommerce-checkout tr.tax-rate,
+.woocommerce-checkout tr.tax-total,
+.woocommerce-checkout tr.cart-subtotal-tax {
+  display: none !important;
+}
+
+/* Mobile */
+@media (max-width: 700px) {
+  .alena-checkout-hero { height: 160px; }
+  .alena-checkout-hero-overlay { right: 12px; padding: 10px 14px; }
+  .alena-checkout-hero-overlay h1 { font-size: 20px !important; }
+}
