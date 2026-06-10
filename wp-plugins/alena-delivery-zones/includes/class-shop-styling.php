@@ -25,6 +25,23 @@ class Alena_DZ_Shop_Styling {
         'כללי',
     ];
 
+    // Display order for the shop page — restaurant menu logic, not alphabet.
+    // Categories not in this list are appended at the end alphabetically.
+    const CATEGORY_DISPLAY_ORDER = [
+        'פיתות עלינא',
+        'פיתות שף',
+        'בצלחת',
+        'בשרים',
+        'המבורגר',
+        'ראשונות',
+        'פרנה',
+        'סלט',
+        'הסלטייה שלנו',
+        'מנות ילדים',
+        'תוספות',
+        'שתייה קלה',
+    ];
+
     public function __construct() {
         add_action('wp_enqueue_scripts',                  [$this, 'enqueue']);
         add_filter('woocommerce_product_query_tax_query', [$this, 'hide_merch_in_query'], 10, 2);
@@ -175,14 +192,8 @@ class Alena_DZ_Shop_Styling {
     }
 
     public function render_sticky_catnav() {
-        $terms = get_terms([
-            'taxonomy'   => 'product_cat',
-            'hide_empty' => true,
-            'exclude'    => $this->hidden_term_ids(),
-            'orderby'    => 'count',
-            'order'      => 'DESC',
-        ]);
-        if (is_wp_error($terms) || !$terms) return;
+        $terms = $this->ordered_visible_terms();
+        if (!$terms) return;
         echo '<nav class="alena-dz-catnav alena-dz-catnav-sticky">';
         echo '<div class="alena-dz-catnav-inner">';
         foreach ($terms as $t) {
@@ -197,14 +208,8 @@ class Alena_DZ_Shop_Styling {
     }
 
     public function render_grouped_products() {
-        $terms = get_terms([
-            'taxonomy'   => 'product_cat',
-            'hide_empty' => true,
-            'exclude'    => $this->hidden_term_ids(),
-            'orderby'    => 'count',
-            'order'      => 'DESC',
-        ]);
-        if (is_wp_error($terms) || !$terms) {
+        $terms = $this->ordered_visible_terms();
+        if (!$terms) {
             echo '<p>אין מוצרים זמינים כרגע.</p>';
             return;
         }
@@ -236,16 +241,20 @@ class Alena_DZ_Shop_Styling {
     }
 
     private function render_product_card($product) {
-        $id     = $product->get_id();
-        $name   = $product->get_name();
-        $price  = $product->get_price_html();
-        $desc   = $product->get_short_description() ?: $product->get_description();
-        $desc   = wp_trim_words(strip_tags($desc), 18, '…');
-        $img    = $product->get_image('woocommerce_thumbnail', ['class' => 'alena-dz-card-img']);
-        $url    = get_permalink($id);
+        $id      = $product->get_id();
+        $name    = $product->get_name();
+        $price   = $product->get_price_html();
+        $desc    = $product->get_short_description() ?: $product->get_description();
+        $desc    = wp_trim_words(strip_tags($desc), 18, '…');
+        $img     = $product->get_image('woocommerce_thumbnail', ['class' => 'alena-dz-card-img']);
+        $url     = get_permalink($id);
         $add_url = '?add-to-cart=' . $id;
+        $is_featured = $product->is_featured();
         ?>
         <li class="alena-dz-card">
+          <?php if ($is_featured): ?>
+            <span class="alena-dz-popular-badge">⭐ פופולרי</span>
+          <?php endif; ?>
           <a class="alena-dz-card-imgwrap" href="<?php echo esc_url($url); ?>"><?php echo $img; ?></a>
           <div class="alena-dz-card-body">
             <a class="alena-dz-card-title" href="<?php echo esc_url($url); ?>"><?php echo esc_html($name); ?></a>
@@ -258,6 +267,7 @@ class Alena_DZ_Shop_Styling {
                  href="<?php echo esc_url($add_url); ?>"
                  data-product_id="<?php echo $id; ?>"
                  data-quantity="1"
+                 aria-label="הוסף לסל"
                  rel="nofollow">+</a>
             </div>
           </div>
@@ -272,6 +282,33 @@ class Alena_DZ_Shop_Styling {
             if ($t) $ids[] = (int) $t->term_id;
         }
         return $ids;
+    }
+
+    /**
+     * Returns visible product categories sorted by the brand's menu order
+     * (pitot first, drinks last), with anything unrecognized appended.
+     */
+    private function ordered_visible_terms(): array {
+        $terms = get_terms([
+            'taxonomy'   => 'product_cat',
+            'hide_empty' => true,
+            'exclude'    => $this->hidden_term_ids(),
+        ]);
+        if (is_wp_error($terms) || !$terms) return [];
+
+        $by_name = [];
+        foreach ($terms as $t) $by_name[$t->name] = $t;
+
+        $ordered = [];
+        foreach (self::CATEGORY_DISPLAY_ORDER as $name) {
+            if (isset($by_name[$name])) {
+                $ordered[] = $by_name[$name];
+                unset($by_name[$name]);
+            }
+        }
+        // Append any unrecognized categories at the end
+        foreach ($by_name as $t) $ordered[] = $t;
+        return $ordered;
     }
 
     public function sale_flash($html) {
