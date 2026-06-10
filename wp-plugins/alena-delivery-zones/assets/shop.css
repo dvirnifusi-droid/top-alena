@@ -206,24 +206,96 @@ body.woocommerce {
   background: #fff;
 }
 
-/* ---------- Single product page ---------- */
-body.single-product .woocommerce {
-  max-width: 1200px;
-  margin: 0 auto;
+/* ===================================================
+   Single product page — Wolt-style modal layout
+   Big image at top, content stacked below in a card
+   =================================================== */
+body.single-product .woocommerce,
+body.single-product .site-main,
+body.single-product #primary {
+  max-width: 760px !important;
+  margin: 24px auto !important;
+  padding: 0 16px;
 }
+
+body.single-product div.product {
+  display: block !important;
+  background: #fff;
+  border-radius: 18px;
+  overflow: hidden;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+}
+
+/* Big image at top, full card width */
+body.single-product div.product div.images {
+  width: 100% !important;
+  max-width: 100% !important;
+  float: none !important;
+  margin: 0 !important;
+  position: relative;
+}
+body.single-product div.product div.images img {
+  width: 100% !important;
+  height: auto !important;
+  aspect-ratio: 1.6 / 1;
+  object-fit: cover;
+  border-radius: 0 !important;
+  display: block;
+}
+body.single-product div.product div.images .woocommerce-product-gallery__trigger {
+  background: rgba(255,255,255,0.92);
+  border-radius: 999px;
+  padding: 6px;
+}
+
+/* Summary stacked below, padded */
+body.single-product div.product div.summary {
+  width: 100% !important;
+  max-width: 100% !important;
+  float: none !important;
+  margin: 0 !important;
+  padding: 24px !important;
+  clear: both !important;
+}
+
 .woocommerce div.product .product_title {
   font-family: "Frank Ruhl Libre", serif !important;
-  font-size: 36px !important;
-  font-weight: 700;
+  font-size: 32px !important;
+  font-weight: 800;
   color: var(--alena-ink);
-  margin-bottom: 12px;
+  margin: 0 0 10px !important;
+  line-height: 1.2;
 }
 .woocommerce div.product p.price,
 .woocommerce div.product span.price {
   color: var(--alena-green) !important;
   font-size: 28px !important;
-  font-weight: 700;
+  font-weight: 800;
+  margin: 0 0 16px !important;
 }
+
+/* Pretty short description block */
+.woocommerce div.product .woocommerce-product-details__short-description {
+  background: linear-gradient(135deg, #fef3ec, #faf6f1);
+  padding: 14px 16px;
+  border-radius: 10px;
+  border-right: 4px solid var(--alena-coral);
+  margin: 0 0 20px;
+  color: var(--alena-ink-soft);
+  font-size: 14px;
+  line-height: 1.55;
+}
+.woocommerce div.product .woocommerce-product-details__short-description p { margin: 0 0 6px; }
+.woocommerce div.product .woocommerce-product-details__short-description p:last-child { margin: 0; }
+
+/* Hide the qty + native add-to-cart row only — modifiers live INSIDE this
+   form, so we mustn't hide the whole form. Sticky bottom bar submits it. */
+body.single-product form.cart .quantity,
+body.single-product form.cart button.single_add_to_cart_button {
+  display: none !important;
+}
+
+/* Native CTA fallback styling (in case sticky bar not loaded) */
 .woocommerce div.product form.cart .button {
   background: var(--alena-green) !important;
   color: #fff !important;
@@ -231,29 +303,27 @@ body.single-product .woocommerce {
   font-size: 15px !important;
   border-radius: 8px !important;
 }
-.woocommerce div.product form.cart .button:hover {
-  background: var(--alena-green-hover) !important;
-}
 
-/* Hide duplicate excerpt (it duplicates the tab content) */
-.woocommerce div.product .woocommerce-product-details__short-description {
-  background: linear-gradient(135deg, #faf6f1, #fef3ec);
-  padding: 14px 18px;
-  border-radius: 10px;
-  border-right: 4px solid var(--alena-coral);
-  margin: 14px 0 20px;
-  color: var(--alena-ink-soft);
-  font-size: 15px;
-}
-/* Hide the long tab description since it's the same content */
+/* Hide redundant blocks */
 body.single-product .woocommerce-tabs { display: none; }
-/* Hide "Related products" section */
 body.single-product .related.products { display: none; }
-/* Constrain product image */
-body.single-product .woocommerce div.product div.images { max-width: 480px; }
+body.single-product .upsells.products { display: none; }
+body.single-product .product_meta { display: none; }
+
+/* Mobile tweaks */
 @media (max-width: 700px) {
-  body.single-product .woocommerce div.product div.images { max-width: 100%; }
-  .woocommerce div.product .product_title { font-size: 26px !important; }
+  body.single-product .woocommerce,
+  body.single-product .site-main,
+  body.single-product #primary {
+    padding: 0 8px;
+    margin: 12px auto !important;
+  }
+  body.single-product div.product { border-radius: 12px; }
+  body.single-product div.product div.images img {
+    aspect-ratio: 1.3 / 1;
+  }
+  body.single-product div.product div.summary { padding: 18px !important; }
+  .woocommerce div.product .product_title { font-size: 24px !important; }
   .woocommerce div.product p.price,
   .woocommerce div.product span.price { font-size: 22px !important; }
 }
