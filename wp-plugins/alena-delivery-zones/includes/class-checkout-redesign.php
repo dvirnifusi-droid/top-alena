@@ -28,6 +28,7 @@ class Alena_DZ_Checkout_Redesign {
         add_filter('woocommerce_payment_gateways', [$this, 'ensure_cod_enabled']);
         add_filter('woocommerce_available_payment_gateways', [$this, 'filter_gateways']);
         add_action('init',                          [$this, 'enable_cod_option'], 5);
+        add_action('init',                          [$this, 'fix_tax_settings'], 6);
 
         // Allow inline qty change on the order review
         add_action('woocommerce_review_order_after_cart_contents', [$this, 'render_payplus_banner']);
@@ -195,6 +196,20 @@ class Alena_DZ_Checkout_Redesign {
             $gateways[] = 'WC_Gateway_COD';
         }
         return $gateways;
+    }
+
+    /**
+     * One-time tax-settings fix: menu prices already include VAT, so WC
+     * must treat entered prices as tax-inclusive and display them as such
+     * (otherwise it adds 17% on top at checkout).
+     */
+    public function fix_tax_settings() {
+        if (get_option('alena_dz_tax_fixed') === '2') return;
+        update_option('woocommerce_prices_include_tax', 'yes');
+        update_option('woocommerce_tax_display_shop',  'incl');
+        update_option('woocommerce_tax_display_cart',  'incl');
+        update_option('woocommerce_tax_total_display', 'single');
+        update_option('alena_dz_tax_fixed', '2');
     }
 
     public function enable_cod_option() {

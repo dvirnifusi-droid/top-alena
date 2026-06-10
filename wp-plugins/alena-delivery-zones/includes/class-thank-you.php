@@ -18,14 +18,21 @@ class Alena_DZ_Thank_You {
         if (!$order) return;
 
         $shop_url = function_exists('wc_get_page_permalink') ? wc_get_page_permalink('shop') : '/shop/';
+        $is_pickup = get_post_meta($order_id, '_alena_fulfillment', true) === 'pickup';
 
-        // Estimate delivery time: 35-50 min from now if open
-        $eta = '35-50 דקות';
+        // ETA per fulfillment type, from the configurable option
+        $eta_cfg  = get_option('alena_cart_eta', []);
+        $svc      = $is_pickup ? 'pickup' : 'delivery';
+        $eta_min  = is_array($eta_cfg) && isset($eta_cfg[$svc . '_min']) ? (int) $eta_cfg[$svc . '_min'] : ($is_pickup ? 15 : 35);
+        $eta_max  = is_array($eta_cfg) && isset($eta_cfg[$svc . '_max']) ? (int) $eta_cfg[$svc . '_max'] : ($is_pickup ? 25 : 50);
+        $eta      = $eta_min . '–' . $eta_max . ' דקות';
         try {
             if (class_exists('Alena_DZ_Hours_Engine')) {
                 $now = new DateTimeImmutable('now', new DateTimeZone('Asia/Jerusalem'));
-                $status = Alena_DZ_Hours_Engine::get()->status('delivery', $now);
-                if (!$status['open']) $eta = 'יישלח בשעות הפעילות הבאות';
+                $status = Alena_DZ_Hours_Engine::get()->status($svc, $now);
+                if (!$status['open']) {
+                    $eta = $is_pickup ? 'מוכן לאיסוף בשעות הפעילות הבאות' : 'יישלח בשעות הפעילות הבאות';
+                }
             }
         } catch (\Throwable $e) { /* default eta */ }
 
@@ -41,7 +48,7 @@ class Alena_DZ_Thank_You {
               <span class="alena-dz-ty-value">#<?php echo $order->get_order_number(); ?></span>
             </div>
             <div class="alena-dz-ty-row">
-              <span class="alena-dz-ty-label">זמן מוערך לקבלה</span>
+              <span class="alena-dz-ty-label"><?php echo $is_pickup ? 'זמן מוערך לאיסוף' : 'זמן מוערך לקבלה'; ?></span>
               <span class="alena-dz-ty-value"><?php echo esc_html($eta); ?></span>
             </div>
             <div class="alena-dz-ty-row">
@@ -49,12 +56,16 @@ class Alena_DZ_Thank_You {
               <span class="alena-dz-ty-value"><?php echo wp_kses_post($order->get_formatted_order_total()); ?></span>
             </div>
             <?php
-            $addr = trim($order->get_shipping_address_1() . ' ' . $order->get_shipping_address_2() . ', ' . $order->get_shipping_city());
-            if ($addr && trim($addr, ', ')) {
-                printf(
-                    '<div class="alena-dz-ty-row"><span class="alena-dz-ty-label">כתובת משלוח</span><span class="alena-dz-ty-value">%s</span></div>',
-                    esc_html($addr)
-                );
+            if ($is_pickup) {
+                echo '<div class="alena-dz-ty-row"><span class="alena-dz-ty-label">איסוף עצמי מ-</span><span class="alena-dz-ty-value">🏠 רוטשילד 104, ראשון לציון</span></div>';
+            } else {
+                $addr = trim($order->get_shipping_address_1() . ' ' . $order->get_shipping_address_2() . ', ' . $order->get_shipping_city());
+                if ($addr && trim($addr, ', ')) {
+                    printf(
+                        '<div class="alena-dz-ty-row"><span class="alena-dz-ty-label">כתובת משלוח</span><span class="alena-dz-ty-value">%s</span></div>',
+                        esc_html($addr)
+                    );
+                }
             }
             ?>
           </div>
