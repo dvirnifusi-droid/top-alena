@@ -1,7 +1,10 @@
 (function ($) {
   'use strict';
 
-  const base = (typeof AlenaDZModifiers !== 'undefined') ? AlenaDZModifiers.basePrice : 0;
+  // wp_localize_script serializes all values as strings — must parse.
+  const base = (typeof AlenaDZModifiers !== 'undefined')
+    ? (parseFloat(AlenaDZModifiers.basePrice) || 0)
+    : 0;
 
   function recalc() {
     let extra = 0;
