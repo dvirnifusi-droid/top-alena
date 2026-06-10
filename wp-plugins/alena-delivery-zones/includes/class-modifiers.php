@@ -31,6 +31,10 @@ class Alena_DZ_Modifiers {
         // Display chosen modifiers
         add_filter('woocommerce_get_item_data',                [$this, 'display_in_cart'], 10, 2);
         add_action('woocommerce_checkout_create_order_line_item', [$this, 'save_to_order'], 10, 4);
+
+        // Force WC NOT to redirect to cart after add — we manage the flow ourselves.
+        add_filter('option_woocommerce_cart_redirect_after_add', '__return_false');
+        add_filter('pre_option_woocommerce_cart_redirect_after_add', function () { return 'no'; });
     }
 
     public function enqueue() {

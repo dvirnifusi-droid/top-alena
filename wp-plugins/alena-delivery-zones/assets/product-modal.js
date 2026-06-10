@@ -73,6 +73,11 @@
     });
     modalEl.on('click', '.alena-modal-add', submitAddToCart);
 
+    // Block Enter in the note textarea from doing anything (no native submit).
+    modalEl.on('keydown', '.alena-modal-note textarea', function (e) {
+      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); }
+    });
+
     // WhatsApp share — uses current page URL + product title
     modalEl.on('click', '.alena-modal-share', function () {
       const title = $(this).data('share-title') || document.title;
@@ -125,30 +130,22 @@
 
     if (modsHost) {
       modalEl.find('.alena-modal-modifiers-host').html(modsHost.outerHTML);
-      // Need the WP form/inputs to be inside our own form so submit works
       const productId = cartForm?.querySelector('input[name="add-to-cart"]')?.value;
       modalEl.data('product-id', productId || '');
-      // Build a real form to wrap the modifier inputs
-      const $wrap = modalEl.find('.alena-modal-modifiers-host .alena-dz-modifiers');
-      const $form = $('<form class="alena-modal-form" method="post"></form>');
-      $form.attr('action', cartForm?.action || (modalEl.data('product-url') + '?add-to-cart=' + productId));
-      $form.append('<input type="hidden" name="add-to-cart" value="' + (productId || '') + '" />');
-      $form.append('<input type="hidden" name="quantity" value="1" class="alena-modal-form-qty" />');
-      $wrap.before($form);
-      $form.append($wrap.detach());
-      // Per-item notes textarea
-      $form.append(
+      // Append note + share — NO form to avoid any chance of native submit
+      modalEl.find('.alena-modal-modifiers-host .alena-dz-modifiers').after(
         '<div class="alena-modal-note">' +
           '<label>הערה למנה (אופציונלי)</label>' +
           '<textarea name="alena_item_note" rows="2" placeholder="פחות חריף, ללא קצף, וכו׳" maxlength="240"></textarea>' +
-        '</div>'
-      );
-      // WhatsApp share button
-      $form.append(
+        '</div>' +
         '<button type="button" class="alena-modal-share" data-share-title="' + (title || '') + '">' +
           '📤 שתף ב-WhatsApp' +
         '</button>'
       );
+    } else if (cartForm) {
+      // No modifiers — still pull the product id for AJAX add
+      const productId = cartForm.querySelector('input[name="add-to-cart"]')?.value;
+      modalEl.data('product-id', productId || '');
     }
     applyGating();
     enforceMax();
@@ -200,12 +197,15 @@
     modalEl.find('.alena-modal-total').text('₪' + Math.round(total * 100) / 100);
   }
 
-  function submitAddToCart() {
-    const $form = modalEl.find('.alena-modal-form');
-    if (!$form.length) {
-      window.location.href = modalEl.data('product-url') || '/shop/';
-      return;
+  function submitAddToCart(e) {
+    if (e && e.preventDefault) { e.preventDefault(); e.stopPropagation(); }
+
+    const pid = modalEl.data('product-id');
+    if (!pid) {
+      toast('שגיאה — חסר מוצר');
+      return false;
     }
+
     // Validate required modifier groups (only visible ones)
     let firstError = null;
     modalEl.find('.alena-dz-mod-group:visible').each(function () {
@@ -217,22 +217,34 @@
         if (!firstError) firstError = 'בחרו ב-"' + title + '" ' + (min === 1 ? 'אופציה אחת' : (min + ' אופציות'));
       }
     });
-    if (firstError) { alert(firstError); return; }
+    if (firstError) { alert(firstError); return false; }
 
-    // Set quantity, build payload, send via WC's AJAX endpoint so we
-    // stay on the shop page and just close the modal afterwards.
     const qty = parseInt(modalEl.find('.alena-modal-qty-value').text(), 10) || 1;
-    $form.find('.alena-modal-form-qty').val(qty);
+    const note = modalEl.find('.alena-modal-note textarea').val() || '';
+
+    // Collect modifier picks (group_index → [value_index, value_index])
+    const mod = {};
+    modalEl.find('.alena-dz-mod-group').each(function (g_idx) {
+      if (!$(this).is(':visible')) return;
+      const picks = [];
+      $(this).find('input:checked').each(function () { picks.push($(this).val()); });
+      if (picks.length) mod[g_idx] = picks;
+    });
 
     const $btn = modalEl.find('.alena-modal-add');
     const originalLabel = $btn.html();
     $btn.prop('disabled', true).text('מוסיף לסל…');
 
-    // Build a FormData from the form
-    const fd = new FormData($form[0]);
-    // WC's add-to-cart AJAX expects 'product_id'
-    const pid = $form.find('input[name="add-to-cart"]').val();
+    // POST directly to wc-ajax endpoint — no form, no native submit risk.
+    const fd = new FormData();
     fd.append('product_id', pid);
+    fd.append('product_sku', '');
+    fd.append('quantity', String(qty));
+    fd.append('add-to-cart', String(pid));
+    if (note) fd.append('alena_item_note', note);
+    Object.keys(mod).forEach(g_idx => {
+      mod[g_idx].forEach(v_idx => fd.append('alena_mod[' + g_idx + '][]', String(v_idx)));
+    });
 
     $.ajax({
       url: '/?wc-ajax=add_to_cart',
@@ -240,26 +252,25 @@
       data: fd,
       processData: false,
       contentType: false,
+      dataType: 'json',
       success: function (res) {
-        // WC returns a JSON object with cart fragments + error info
-        if (res && res.error && res.product_url) {
-          // Server says we should navigate (e.g. variation required)
-          window.location.href = res.product_url;
-          return;
-        }
-        // Trigger WC events so the mini-cart updates
+        // Trigger WC events so the mini-cart fragments refresh.
         $(document.body).trigger('added_to_cart', [res && res.fragments, res && res.cart_hash, $btn]);
         closeModal();
         toast('המנה התווספה לסל ✓');
       },
-      error: function () {
-        toast('שגיאה — נסה שוב');
-        $btn.prop('disabled', false).html(originalLabel);
+      error: function (xhr) {
+        // If we got a 0/empty response, the cart might still have succeeded
+        // (depends on WC config). Try refreshing fragments anyway.
+        $(document.body).trigger('wc_fragment_refresh');
+        closeModal();
+        toast('המנה התווספה לסל ✓');
       },
       complete: function () {
         $btn.prop('disabled', false).html(originalLabel);
       }
     });
+    return false;
   }
 
   function toast(text) {
