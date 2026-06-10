@@ -157,8 +157,8 @@ class Alena_DZ_Cart_Redesign {
 
     public function get_eta(string $service = 'delivery'): string {
         $cfg = $this->get_eta_config();
-        $min = (int) ($cfg["${service}_min"] ?? 35);
-        $max = (int) ($cfg["${service}_max"] ?? 50);
+        $min = (int) ($cfg[$service . '_min'] ?? 35);
+        $max = (int) ($cfg[$service . '_max'] ?? 50);
         return $min . '–' . $max . ' דקות';
     }
 

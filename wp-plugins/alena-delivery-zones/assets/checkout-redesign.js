@@ -4,8 +4,28 @@
   function init() {
     initHeroMap();
     bindQtyControls();
+    bindFulfillmentTabs();
+    applyFulfillmentMode((typeof AlenaDZCheckoutR !== 'undefined' && AlenaDZCheckoutR.fulfillment) || 'delivery');
     woltSummary();
     $(document.body).on('updated_checkout', woltSummary);
+  }
+
+  // ---------- Delivery / Pickup tabs ----------
+  function bindFulfillmentTabs() {
+    $(document).on('click', '.alena-co-tab', function () {
+      const mode = $(this).data('mode');
+      if ($(this).hasClass('active')) return;
+      $('.alena-co-tab').removeClass('active');
+      $(this).addClass('active');
+      applyFulfillmentMode(mode);
+      $.post('/?wc-ajax=alena_set_fulfillment', { mode: mode }).always(function () {
+        $('body').trigger('update_checkout');
+      });
+    });
+  }
+
+  function applyFulfillmentMode(mode) {
+    $('.alena-checkout-wrap').toggleClass('alena-pickup-mode', mode === 'pickup');
   }
 
   // ---------- Wolt-style summary card polish ----------

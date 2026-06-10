@@ -38,11 +38,13 @@ class Alena_DZ_Order_Scheduling {
             $slots[] = sprintf('%02d:%02d', $h, $m);
         }
 
-        // Default ETA from the cart-redesign config (or 35-50 dz fallback)
-        $eta = '35–50 דק׳';
-        if (class_exists('Alena_DZ_Cart_Redesign')) {
-            $eta = (new Alena_DZ_Cart_Redesign())->get_eta('delivery');
-        }
+        // Default ETA from the cart-redesign config (or 35-50 fallback).
+        // Read the option directly — instantiating the class here would
+        // re-register all its hooks.
+        $eta_cfg = get_option('alena_cart_eta', []);
+        $eta_min = is_array($eta_cfg) && isset($eta_cfg['delivery_min']) ? (int) $eta_cfg['delivery_min'] : 35;
+        $eta_max = is_array($eta_cfg) && isset($eta_cfg['delivery_max']) ? (int) $eta_cfg['delivery_max'] : 50;
+        $eta = $eta_min . '–' . $eta_max . ' דק׳';
         ?>
         <h2 class="alena-co-h">⏰ מתי?</h2>
         <div class="alena-dz-schedule">

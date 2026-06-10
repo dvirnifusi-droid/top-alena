@@ -320,6 +320,102 @@
   color: #9a8a7a;
 }
 
+/* =====================================================
+   Fulfillment tabs — 🚚 משלוח / 🚶 איסוף עצמי
+   ===================================================== */
+.alena-co-tabs {
+  display: flex;
+  gap: 6px;
+  background: #fff;
+  border: 1px solid #eee3d4;
+  border-radius: 999px;
+  padding: 5px;
+  margin: 0 16px 8px;
+  max-width: 380px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+}
+.alena-co-tab {
+  flex: 1;
+  border: none;
+  background: transparent;
+  padding: 11px 18px;
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 700;
+  color: #6a5a4d;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.alena-co-tab.active {
+  background: #1e4a3a;
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(30,74,58,0.25);
+}
+.alena-co-tab:not(.active):hover { background: #faf6f1; }
+
+/* Pickup info card — hidden in delivery mode */
+.alena-co-pickup-card {
+  display: none;
+  align-items: center;
+  gap: 14px;
+  background: linear-gradient(135deg, #e8efe9, #d4e3d8) !important;
+  border: 1px solid #bcd3c4 !important;
+  border-radius: 16px;
+  padding: 18px 20px;
+  margin-bottom: 14px;
+  color: #1e4a3a;
+  font-size: 14px;
+}
+.alena-co-pickup-icon { font-size: 30px; }
+
+/* ---- Pickup mode: hide delivery-only sections ---- */
+.alena-pickup-mode .alena-co-pickup-card { display: flex; }
+.alena-pickup-mode #billing_address_1_field,
+.alena-pickup-mode #billing_city_field,
+.alena-pickup-mode .alena-dz-extra-fields,
+.alena-pickup-mode .alena-dz-checkout-map-wrap,
+.alena-pickup-mode .alena-dz-tip,
+.alena-pickup-mode .alena-co-h:has(+ .alena-dz-tip),
+.alena-pickup-mode .alena-dz-min-notice {
+  display: none !important;
+}
+
+/* =====================================================
+   Final cleanup
+   ===================================================== */
+/* Hide theme page title (our hero has its own) */
+.woocommerce-checkout h1.entry-title,
+.woocommerce-checkout .page-header,
+.woocommerce-checkout header.entry-header {
+  display: none !important;
+}
+/* Hide "ship to a different address?" — we use billing only */
+.woocommerce-checkout #ship-to-different-address,
+.woocommerce-checkout .woocommerce-shipping-fields {
+  display: none !important;
+}
+/* Order notes — style as a card to match */
+.woocommerce-checkout .woocommerce-additional-fields {
+  background: #fff;
+  border: 1px solid #eee3d4;
+  border-radius: 16px;
+  padding: 18px 20px;
+  margin-bottom: 14px;
+}
+.woocommerce-checkout .woocommerce-additional-fields h3 {
+  font-size: 15px;
+  font-weight: 700;
+  margin: 0 0 10px;
+}
+/* Coupon notice — compact */
+.woocommerce-checkout .woocommerce-form-coupon-toggle .woocommerce-info {
+  background: #fff7e6;
+  border: 1px dashed #f4a895;
+  border-radius: 10px;
+  color: #6a5a4d;
+  font-size: 13px;
+}
+
 /* Mobile */
 @media (max-width: 700px) {
   .alena-checkout-hero { height: 160px; }
@@ -327,4 +423,5 @@
   .alena-checkout-hero-overlay h1 { font-size: 20px !important; }
   .alena-co-h { font-size: 20px !important; margin: 18px 0 10px !important; }
   .woocommerce-checkout .alena-checkout-main #order_review { padding: 16px; }
+  .alena-co-tabs { margin: 0 8px 8px; max-width: none; }
 }

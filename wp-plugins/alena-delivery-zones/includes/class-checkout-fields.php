@@ -78,6 +78,14 @@ class Alena_DZ_Checkout_Fields {
         unset($fields['billing']['billing_company']);
         unset($fields['shipping']['shipping_state']);
         unset($fields['shipping']['shipping_company']);
+
+        // Self-pickup: street address + city are not needed
+        if (class_exists('Alena_DZ_Checkout_Redesign')
+            && Alena_DZ_Checkout_Redesign::current_fulfillment() === 'pickup') {
+            foreach (['billing_address_1', 'billing_city'] as $k) {
+                if (isset($fields['billing'][$k])) $fields['billing'][$k]['required'] = false;
+            }
+        }
         return $fields;
     }
 

@@ -41,10 +41,81 @@ class Alena_DZ_Checkout_Redesign {
 
         // Wolt-style place-order button text (JS appends the live total)
         add_filter('woocommerce_order_button_text', function () { return 'להזמין'; });
+
+        // ---- Fulfillment: delivery vs. self-pickup ----
+        add_action('wc_ajax_alena_set_fulfillment',        [$this, 'ajax_set_fulfillment']);
+        add_action('wc_ajax_nopriv_alena_set_fulfillment', [$this, 'ajax_set_fulfillment']);
+        // Runs AFTER the hours filter (50) so pickup logic wins last
+        add_filter('woocommerce_package_rates',            [$this, 'apply_fulfillment_rates'], 60, 2);
+        add_action('woocommerce_checkout_update_order_meta', [$this, 'save_fulfillment_meta']);
+        add_action('woocommerce_admin_order_data_after_shipping_address', [$this, 'show_fulfillment_in_admin']);
+    }
+
+    public static function current_fulfillment(): string {
+        if (function_exists('WC') && WC()->session) {
+            $v = WC()->session->get('alena_fulfillment');
+            if ($v === 'pickup') return 'pickup';
+        }
+        return 'delivery';
+    }
+
+    public function ajax_set_fulfillment() {
+        if (!function_exists('WC') || !WC()->session) wp_send_json_error('no_session', 500);
+        $mode = (isset($_POST['mode']) && $_POST['mode'] === 'pickup') ? 'pickup' : 'delivery';
+        WC()->session->set('alena_fulfillment', $mode);
+        wp_send_json_success(['mode' => $mode]);
+    }
+
+    public function apply_fulfillment_rates($rates, $package) {
+        $mode = self::current_fulfillment();
+        if ($mode === 'pickup') {
+            // Drop delivery rates; offer a single free pickup rate.
+            foreach ($rates as $id => $rate) {
+                if (strpos($id, 'alena_polygon') === 0) unset($rates[$id]);
+            }
+            $has_pickup = false;
+            foreach ($rates as $rate) {
+                if ($rate->get_method_id() === 'local_pickup' || $rate->get_method_id() === 'alena_pickup') { $has_pickup = true; break; }
+            }
+            if (!$has_pickup && class_exists('WC_Shipping_Rate')) {
+                $rates['alena_pickup'] = new WC_Shipping_Rate(
+                    'alena_pickup',
+                    'איסוף עצמי — רוטשילד 104, ראשון לציון',
+                    0,
+                    [],
+                    'alena_pickup'
+                );
+            }
+        } else {
+            // Delivery mode: hide any pickup rates so the polygon price shows
+            foreach ($rates as $id => $rate) {
+                if ($rate->get_method_id() === 'local_pickup' || $rate->get_method_id() === 'alena_pickup') {
+                    unset($rates[$id]);
+                }
+            }
+        }
+        return $rates;
+    }
+
+    public function save_fulfillment_meta($order_id) {
+        update_post_meta($order_id, '_alena_fulfillment', self::current_fulfillment());
+    }
+
+    public function show_fulfillment_in_admin($order) {
+        $mode = get_post_meta($order->get_id(), '_alena_fulfillment', true);
+        if (!$mode) return;
+        echo '<p><strong>סוג הזמנה:</strong> ' . ($mode === 'pickup' ? '🚶 איסוף עצמי' : '🚚 משלוח') . '</p>';
     }
 
     public function section_where() {
+        $mode = self::current_fulfillment();
         echo '<h2 class="alena-co-h">📍 איפה?</h2>';
+        // Pickup info card — shown via CSS only when pickup mode is active
+        echo '<div class="alena-co-pickup-card">';
+        echo '<div class="alena-co-pickup-icon">🏠</div>';
+        echo '<div><strong>איסוף עצמי מהמסעדה</strong><br />';
+        echo '<span>רוטשילד 104, ראשון לציון · מוכן בדרך כלל תוך 15–25 דק׳</span></div>';
+        echo '</div>';
     }
 
     public function enqueue() {
@@ -52,9 +123,10 @@ class Alena_DZ_Checkout_Redesign {
         wp_enqueue_style('alena-dz-checkout-redesign', ALENA_DZ_URL . 'assets/checkout-redesign.css', [], ALENA_DZ_VERSION);
         wp_enqueue_script('alena-dz-checkout-redesign', ALENA_DZ_URL . 'assets/checkout-redesign.js', ['jquery'], ALENA_DZ_VERSION, true);
         wp_localize_script('alena-dz-checkout-redesign', 'AlenaDZCheckoutR', [
-            'business' => ['lat' => self::BUSINESS_LAT, 'lng' => self::BUSINESS_LNG],
-            'polygons' => class_exists('Alena_DZ_Polygon_Store') ? Alena_DZ_Polygon_Store::all() : [],
-            'ajaxUrl'  => admin_url('admin-ajax.php'),
+            'business'    => ['lat' => self::BUSINESS_LAT, 'lng' => self::BUSINESS_LNG],
+            'polygons'    => class_exists('Alena_DZ_Polygon_Store') ? Alena_DZ_Polygon_Store::all() : [],
+            'ajaxUrl'     => admin_url('admin-ajax.php'),
+            'fulfillment' => self::current_fulfillment(),
         ]);
     }
 
@@ -63,13 +135,19 @@ class Alena_DZ_Checkout_Redesign {
        =========================================================== */
 
     public function open_layout() {
-        echo '<div class="alena-checkout-wrap">';
+        $mode = self::current_fulfillment();
+        echo '<div class="alena-checkout-wrap' . ($mode === 'pickup' ? ' alena-pickup-mode' : '') . '">';
         echo '<div class="alena-checkout-hero">';
         echo '<div id="alena-checkout-overview-map"></div>';
         echo '<div class="alena-checkout-hero-overlay">';
         echo '<h1>מעבר לתשלום</h1>';
         echo '<p class="alena-checkout-hero-sub">עוד רגע אתה אצלנו 💚</p>';
         echo '</div>';
+        echo '</div>';
+        // Wolt-style fulfillment tabs
+        echo '<div class="alena-co-tabs" role="tablist">';
+        echo '<button type="button" class="alena-co-tab' . ($mode === 'delivery' ? ' active' : '') . '" data-mode="delivery">🚚 משלוח</button>';
+        echo '<button type="button" class="alena-co-tab' . ($mode === 'pickup' ? ' active' : '') . '" data-mode="pickup">🚶 איסוף עצמי</button>';
         echo '</div>';
         echo '<div class="alena-checkout-main">';
     }
