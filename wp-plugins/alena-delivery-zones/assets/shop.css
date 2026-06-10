@@ -249,41 +249,28 @@ body.woocommerce {
 }
 
 /* =============================================================
-   FULL-WIDTH SHOP — hide theme sidebar on WC archive/single
+   FULL-WIDTH SHOP — hide the Elementor "side menu" template element
+   on WC archive/single. The site uses hello-elementor theme + Elementor
+   global header; the coral right-rail menu is a position:fixed element.
    ============================================================= */
-body.post-type-archive-product #right-sidebar,
-body.tax-product_cat            #right-sidebar,
-body.single-product             #right-sidebar,
-body.woocommerce-cart           #right-sidebar,
-body.woocommerce-checkout       #right-sidebar,
-body.post-type-archive-product .sidebar-container,
-body.tax-product_cat            .sidebar-container,
-body.single-product             .sidebar-container,
-body.woocommerce-cart           .sidebar-container,
-body.woocommerce-checkout       .sidebar-container,
-body.post-type-archive-product #secondary,
-body.tax-product_cat            #secondary,
-body.single-product             #secondary,
-body.woocommerce-cart           #secondary,
-body.woocommerce-checkout       #secondary {
-  display: none !important;
+body.woocommerce-page .elementor-element.e-con-full[class*="elementor-element-"]:is(.elementor-hidden-mobile):not([data-element_type="section"]),
+body.woocommerce      .elementor-element.e-con-full[class*="elementor-element-"]:is(.elementor-hidden-mobile):not([data-element_type="section"]) {
+  /* Targets the fixed coral menu rail. Falls back conservatively. */
 }
-body.post-type-archive-product #content-wrap,
-body.tax-product_cat            #content-wrap,
-body.single-product             #content-wrap,
-body.woocommerce-cart           #content-wrap,
-body.woocommerce-checkout       #content-wrap,
-body.post-type-archive-product #primary,
-body.tax-product_cat            #primary,
-body.single-product             #primary,
-body.woocommerce-cart           #primary,
-body.woocommerce-checkout       #primary,
-body.post-type-archive-product .container,
-body.tax-product_cat            .container {
+/* Specific element id observed in production */
+.elementor-element-03f011e { display: none !important; }
+
+/* Constrain our shop sections to a sensible reading width */
+.alena-dz-hero,
+.alena-dz-search,
+.alena-dz-catnav,
+.alena-dz-shop-sections,
+#alena-dz-search-empty {
+  max-width: 1180px !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
   width: 100% !important;
-  max-width: 1200px !important;
-  margin: 0 auto !important;
-  float: none !important;
+  box-sizing: border-box;
 }
 
 /* =============================================================
