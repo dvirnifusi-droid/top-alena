@@ -343,8 +343,105 @@ body.woocommerce      .elementor-element.e-con-full[class*="elementor-element-"]
   backdrop-filter: blur(6px);
 }
 @media (max-width: 700px) {
-  .alena-dz-hero { padding: 50px 20px; }
-  .alena-dz-hero-title { font-size: 36px !important; }
+  .alena-dz-hero {
+    padding: 32px 16px !important;
+    min-height: 150px !important;
+    border-radius: 10px;
+    margin: 8px 0 14px;
+  }
+  .alena-dz-hero-title { font-size: 28px !important; margin-bottom: 2px !important; }
+  .alena-dz-hero-sub { font-size: 13px; margin-bottom: 10px; }
+  .alena-dz-hero-chip {
+    padding: 4px 8px !important;
+    font-size: 11px !important;
+    gap: 4px;
+  }
+  .alena-dz-hero-info { gap: 6px; }
+}
+
+@media (max-width: 700px) {
+  /* Tighter search */
+  #alena-dz-search-input {
+    padding: 10px 14px !important;
+    font-size: 14px !important;
+  }
+  /* Sticky nav: smaller chips */
+  .alena-dz-catnav-sticky {
+    padding: 8px !important;
+    top: 0 !important;
+    border-radius: 8px;
+  }
+  .alena-dz-catnav-item {
+    padding: 6px 12px !important;
+    font-size: 12px !important;
+  }
+  /* Category titles smaller */
+  .alena-dz-cat-title {
+    font-size: 22px !important;
+  }
+  .alena-dz-cat-section {
+    margin: 20px 0 !important;
+    scroll-margin-top: 80px !important;
+  }
+  /* Featured section less padding */
+  .alena-dz-featured-section {
+    padding: 14px !important;
+  }
+  /* Cards: tighter padding, smaller image, smaller text */
+  .alena-dz-card {
+    min-height: 110px !important;
+    border-radius: 10px;
+  }
+  .alena-dz-card-imgwrap {
+    flex: 0 0 90px !important;
+    width: 90px !important;
+    height: 90px !important;
+    margin: 8px !important;
+    border-radius: 8px;
+  }
+  .alena-dz-card-imgwrap:has(img[src*="placeholder"])::before { font-size: 28px; }
+  .alena-dz-card-body {
+    padding: 10px 12px !important;
+  }
+  .alena-dz-card-title {
+    font-size: 14px !important;
+    line-height: 1.25 !important;
+  }
+  .alena-dz-card-desc {
+    font-size: 11.5px !important;
+    -webkit-line-clamp: 2 !important;
+  }
+  .alena-dz-card-price {
+    font-size: 14px !important;
+  }
+  .alena-dz-card-add {
+    width: 26px !important;
+    height: 26px !important;
+    font-size: 16px !important;
+    bottom: 4px !important;
+    left: 4px !important;
+  }
+  .alena-dz-popular-badge {
+    font-size: 10px !important;
+    padding: 2px 6px !important;
+  }
+  /* Tighter grid gap on mobile */
+  ul.alena-dz-products,
+  .woocommerce ul.alena-dz-products {
+    gap: 10px !important;
+  }
+}
+
+/* Extra-small phones: keep 1-col but cards still compact */
+@media (max-width: 380px) {
+  .alena-dz-hero-title { font-size: 24px !important; }
+  .alena-dz-cat-title { font-size: 19px !important; }
+  .alena-dz-card-title { font-size: 13px !important; }
+  .alena-dz-card-imgwrap {
+    flex: 0 0 80px !important;
+    width: 80px !important;
+    height: 80px !important;
+  }
 }
 
 /* Sticky category nav */
