@@ -247,3 +247,221 @@ body.woocommerce {
 .woocommerce-store-notice {
   display: none !important;
 }
+
+/* =============================================================
+   GROUPED-BY-CATEGORY SHOP LAYOUT (Wolt-style)
+   ============================================================= */
+
+/* Hide the default WC shop loop machinery — we render our own. */
+.woocommerce-products-header,
+.woocommerce-result-count,
+.woocommerce-ordering,
+.woocommerce-pagination,
+.woocommerce-notices-wrapper:empty {
+  display: none !important;
+}
+
+/* Hero */
+.alena-dz-hero {
+  position: relative;
+  background: linear-gradient(135deg, var(--alena-coral), #f7c8b6);
+  border-radius: 16px;
+  padding: 36px 28px;
+  margin: 16px 0 24px;
+  color: var(--alena-ink);
+  text-align: right;
+}
+.alena-dz-hero-title {
+  font-family: "Frank Ruhl Libre", "David", serif !important;
+  font-size: 42px !important;
+  font-weight: 800;
+  margin: 0 0 4px;
+}
+.alena-dz-hero-sub {
+  font-size: 16px;
+  color: #5a4a40;
+  margin: 0 0 16px;
+}
+.alena-dz-hero-info {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  font-size: 14px;
+  color: var(--alena-ink-soft);
+}
+
+/* Sticky category nav */
+.alena-dz-catnav-sticky {
+  position: sticky;
+  top: 32px; /* below WP admin bar */
+  z-index: 50;
+  margin: 0 0 24px;
+  padding: 12px;
+  background: rgba(250, 246, 241, 0.94);
+  backdrop-filter: blur(10px);
+  border-radius: 12px;
+  border: 1px solid #eadfd1;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.06);
+  overflow: hidden;
+}
+.alena-dz-catnav-inner {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+.alena-dz-catnav-inner::-webkit-scrollbar { height: 4px; }
+.alena-dz-catnav-inner::-webkit-scrollbar-thumb { background: #d8cbb6; border-radius: 2px; }
+
+.alena-dz-catnav-item {
+  flex: 0 0 auto;
+  padding: 8px 18px;
+  background: #fff;
+  border: 1px solid #eadfd1;
+  border-radius: 999px;
+  color: var(--alena-ink);
+  font-weight: 600;
+  font-size: 14px;
+  text-decoration: none !important;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+.alena-dz-catnav-item:hover,
+.alena-dz-catnav-item:focus {
+  background: var(--alena-green);
+  color: #fff;
+  border-color: var(--alena-green);
+}
+
+/* Category section */
+.alena-dz-shop-sections { margin-bottom: 40px; }
+.alena-dz-cat-section {
+  scroll-margin-top: 110px; /* anchor offset under sticky nav */
+  margin: 36px 0;
+}
+.alena-dz-cat-title {
+  font-family: "Frank Ruhl Libre", serif !important;
+  font-size: 30px !important;
+  font-weight: 700;
+  color: var(--alena-ink);
+  margin: 0 0 4px;
+  padding-bottom: 8px;
+  border-bottom: 2px solid var(--alena-coral);
+  display: inline-block;
+}
+.alena-dz-cat-desc {
+  color: var(--alena-ink-soft);
+  font-size: 14px;
+  margin: 4px 0 18px;
+}
+
+/* Product grid */
+.alena-dz-products {
+  list-style: none !important;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  padding: 0 !important;
+  margin: 0 !important;
+}
+@media (max-width: 980px) { .alena-dz-products { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 560px) { .alena-dz-products { grid-template-columns: 1fr; } }
+
+.alena-dz-card {
+  background: #fff;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+  transition: all 0.2s ease;
+  display: flex;
+  flex-direction: row-reverse; /* image on right (RTL) */
+  position: relative;
+}
+.alena-dz-card:hover {
+  box-shadow: 0 6px 18px rgba(0,0,0,0.10);
+  transform: translateY(-2px);
+}
+
+.alena-dz-card-imgwrap {
+  flex: 0 0 130px;
+  display: block;
+  background: linear-gradient(135deg, #fce5dd, #f8d7c6);
+  position: relative;
+}
+.alena-dz-card-imgwrap img,
+.alena-dz-card-img {
+  width: 130px;
+  height: 130px;
+  object-fit: cover;
+  display: block;
+}
+.alena-dz-card-imgwrap:has(img[src*="placeholder"]) { background: linear-gradient(135deg, var(--alena-coral), var(--alena-cream)); }
+.alena-dz-card-imgwrap:has(img[src*="placeholder"]) img { opacity: 0; }
+.alena-dz-card-imgwrap:has(img[src*="placeholder"])::before {
+  content: "🍽️";
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 44px;
+}
+
+.alena-dz-card-body {
+  flex: 1;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.alena-dz-card-title {
+  font-weight: 700;
+  font-size: 15px;
+  color: var(--alena-ink);
+  text-decoration: none !important;
+  line-height: 1.3;
+  margin-bottom: 6px;
+}
+.alena-dz-card-title:hover { color: var(--alena-green); }
+
+.alena-dz-card-desc {
+  font-size: 13px;
+  color: var(--alena-ink-soft);
+  margin: 0 0 8px;
+  line-height: 1.4;
+  flex: 1;
+}
+
+.alena-dz-card-bottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 4px;
+}
+.alena-dz-card-price {
+  font-weight: 700;
+  font-size: 16px;
+  color: var(--alena-green);
+}
+.alena-dz-card-price del { color: #aaa; font-weight: 400; font-size: 13px; }
+.alena-dz-card-price ins { background: none; text-decoration: none; }
+
+.alena-dz-card-add {
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  background: var(--alena-green);
+  color: #fff !important;
+  text-decoration: none !important;
+  font-weight: 700;
+  font-size: 20px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+.alena-dz-card-add:hover {
+  background: var(--alena-green-hover);
+  transform: scale(1.1);
+}

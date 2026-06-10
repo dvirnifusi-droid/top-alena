@@ -28,16 +28,15 @@ class Alena_DZ_Shop_Styling {
     public function __construct() {
         add_action('wp_enqueue_scripts',                  [$this, 'enqueue']);
         add_filter('woocommerce_product_query_tax_query', [$this, 'hide_merch_in_query'], 10, 2);
-        add_action('woocommerce_before_shop_loop',        [$this, 'render_category_nav'], 15);
         add_filter('woocommerce_show_page_title',         '__return_true');
-        // Replace default sale flash with nothing
         add_filter('woocommerce_sale_flash',              [$this, 'sale_flash']);
-        // Hide "Default sorting" dropdown
         add_filter('woocommerce_catalog_orderby',         [$this, 'simplify_sort']);
-        // 3 columns
         add_filter('loop_shop_columns',                   function() { return 3; });
-        // 18 per page
-        add_filter('loop_shop_per_page',                  function() { return 18; });
+        add_filter('loop_shop_per_page',                  function() { return 100; });
+
+        // Replace the default shop loop with our grouped-by-category render
+        add_action('woocommerce_before_main_content',     [$this, 'start_buffer_on_shop'], 1);
+        add_action('woocommerce_after_main_content',      [$this, 'flush_buffer_on_shop'], 999);
     }
 
     public function enqueue() {
@@ -65,24 +64,125 @@ class Alena_DZ_Shop_Styling {
         return $tax_query;
     }
 
-    public function render_category_nav() {
+    /* ---------------- Custom shop layout: grouped by category ---------------- */
+
+    public function start_buffer_on_shop() {
         if (!is_shop()) return;
+        ob_start();
+    }
+
+    public function flush_buffer_on_shop() {
+        if (!is_shop()) {
+            return;
+        }
+        $original = ob_get_clean();
+        // Render hero + category nav + per-category sections
+        $this->render_shop_hero();
+        $this->render_sticky_catnav();
+        $this->render_grouped_products();
+    }
+
+    public function render_shop_hero() {
+        echo '<section class="alena-dz-hero">';
+        echo '<h1 class="alena-dz-hero-title">עלינא בפיתה</h1>';
+        echo '<p class="alena-dz-hero-sub">מטבח ישראלי שמח וצבעוני · כשר</p>';
+        echo '<div class="alena-dz-hero-info">';
+        echo '<span>⏰ פתוח 11:00 – 23:00</span>';
+        echo '<span>📍 רוטשילד 104, ראשון לציון</span>';
+        echo '<span>🚚 משלוחים מ-₪17</span>';
+        echo '</div>';
+        echo '</section>';
+    }
+
+    public function render_sticky_catnav() {
         $terms = get_terms([
             'taxonomy'   => 'product_cat',
             'hide_empty' => true,
             'exclude'    => $this->hidden_term_ids(),
+            'orderby'    => 'count',
+            'order'      => 'DESC',
         ]);
         if (is_wp_error($terms) || !$terms) return;
-        echo '<nav class="alena-dz-catnav">';
+        echo '<nav class="alena-dz-catnav alena-dz-catnav-sticky">';
+        echo '<div class="alena-dz-catnav-inner">';
         foreach ($terms as $t) {
             printf(
-                '<a class="alena-dz-catnav-item" href="%s">%s <span class="count">(%d)</span></a>',
-                esc_url(get_term_link($t)),
-                esc_html($t->name),
-                (int) $t->count
+                '<a class="alena-dz-catnav-item" href="#alena-cat-%d">%s</a>',
+                (int) $t->term_id,
+                esc_html($t->name)
             );
         }
+        echo '</div>';
         echo '</nav>';
+    }
+
+    public function render_grouped_products() {
+        $terms = get_terms([
+            'taxonomy'   => 'product_cat',
+            'hide_empty' => true,
+            'exclude'    => $this->hidden_term_ids(),
+            'orderby'    => 'count',
+            'order'      => 'DESC',
+        ]);
+        if (is_wp_error($terms) || !$terms) {
+            echo '<p>אין מוצרים זמינים כרגע.</p>';
+            return;
+        }
+        echo '<div class="alena-dz-shop-sections">';
+        foreach ($terms as $term) {
+            $products = wc_get_products([
+                'category' => [$term->slug],
+                'status'   => 'publish',
+                'limit'    => -1,
+                'orderby'  => 'menu_order title',
+                'order'    => 'ASC',
+            ]);
+            if (!$products) continue;
+
+            printf('<section class="alena-dz-cat-section" id="alena-cat-%d">', (int) $term->term_id);
+            printf('<h2 class="alena-dz-cat-title">%s</h2>', esc_html($term->name));
+            if ($term->description) {
+                printf('<p class="alena-dz-cat-desc">%s</p>', esc_html($term->description));
+            }
+
+            echo '<ul class="alena-dz-products products">';
+            foreach ($products as $product) {
+                $this->render_product_card($product);
+            }
+            echo '</ul>';
+            echo '</section>';
+        }
+        echo '</div>';
+    }
+
+    private function render_product_card($product) {
+        $id     = $product->get_id();
+        $name   = $product->get_name();
+        $price  = $product->get_price_html();
+        $desc   = $product->get_short_description() ?: $product->get_description();
+        $desc   = wp_trim_words(strip_tags($desc), 18, '…');
+        $img    = $product->get_image('woocommerce_thumbnail', ['class' => 'alena-dz-card-img']);
+        $url    = get_permalink($id);
+        $add_url = '?add-to-cart=' . $id;
+        ?>
+        <li class="alena-dz-card">
+          <a class="alena-dz-card-imgwrap" href="<?php echo esc_url($url); ?>"><?php echo $img; ?></a>
+          <div class="alena-dz-card-body">
+            <a class="alena-dz-card-title" href="<?php echo esc_url($url); ?>"><?php echo esc_html($name); ?></a>
+            <?php if ($desc): ?>
+              <p class="alena-dz-card-desc"><?php echo esc_html($desc); ?></p>
+            <?php endif; ?>
+            <div class="alena-dz-card-bottom">
+              <span class="alena-dz-card-price"><?php echo $price; ?></span>
+              <a class="alena-dz-card-add"
+                 href="<?php echo esc_url($add_url); ?>"
+                 data-product_id="<?php echo $id; ?>"
+                 data-quantity="1"
+                 rel="nofollow">+</a>
+            </div>
+          </div>
+        </li>
+        <?php
     }
 
     private function hidden_term_ids(): array {
