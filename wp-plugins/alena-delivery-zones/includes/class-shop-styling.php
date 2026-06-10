@@ -253,9 +253,13 @@ class Alena_DZ_Shop_Styling {
         ?>
         <li class="alena-dz-card">
           <?php if ($is_featured): ?>
-            <span class="alena-dz-popular-badge">⭐ פופולרי</span>
+            <span class="alena-dz-popular-badge">פופולרי</span>
           <?php endif; ?>
-          <a class="alena-dz-card-imgwrap" href="<?php echo esc_url($url); ?>"><?php echo $img; ?></a>
+          <a class="alena-dz-card-imgwrap" href="<?php echo esc_url($url); ?>">
+            <?php echo $img; ?>
+            <span class="alena-dz-card-add" data-product_id="<?php echo $id; ?>" aria-label="הוסף לסל"
+                  onclick="event.preventDefault(); event.stopPropagation(); window.location.href='<?php echo esc_url($add_url); ?>';">+</span>
+          </a>
           <div class="alena-dz-card-body">
             <a class="alena-dz-card-title" href="<?php echo esc_url($url); ?>"><?php echo esc_html($name); ?></a>
             <?php if ($desc): ?>
@@ -263,12 +267,6 @@ class Alena_DZ_Shop_Styling {
             <?php endif; ?>
             <div class="alena-dz-card-bottom">
               <span class="alena-dz-card-price"><?php echo $price; ?></span>
-              <a class="alena-dz-card-add"
-                 href="<?php echo esc_url($add_url); ?>"
-                 data-product_id="<?php echo $id; ?>"
-                 data-quantity="1"
-                 aria-label="הוסף לסל"
-                 rel="nofollow">+</a>
             </div>
           </div>
         </li>
