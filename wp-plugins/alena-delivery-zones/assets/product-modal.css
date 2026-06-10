@@ -1,0 +1,224 @@
+/* ==================================================
+   Product modal — opens on product card click
+   ================================================== */
+
+body.alena-modal-open { overflow: hidden; }
+
+.alena-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(2px);
+  z-index: 100000;
+  display: none;
+  align-items: stretch;
+  justify-content: center;
+  padding: 0;
+}
+.alena-modal-backdrop.open { display: flex; }
+
+.alena-modal {
+  background: #fff;
+  width: 100%;
+  max-width: 540px;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  border-radius: 0;
+  overflow: hidden;
+  box-shadow: 0 12px 60px rgba(0, 0, 0, 0.35);
+  animation: alena-modal-in 0.22s ease;
+}
+@keyframes alena-modal-in {
+  from { transform: translateY(20px); opacity: 0; }
+  to   { transform: translateY(0); opacity: 1; }
+}
+@media (min-width: 600px) {
+  .alena-modal-backdrop { padding: 24px; align-items: center; }
+  .alena-modal {
+    max-height: calc(100vh - 48px);
+    height: auto;
+    border-radius: 18px;
+  }
+}
+
+.alena-modal-close {
+  position: absolute;
+  top: 14px;
+  left: 14px;
+  z-index: 5;
+  background: rgba(255, 255, 255, 0.94);
+  color: var(--alena-ink);
+  border: none;
+  border-radius: 999px;
+  width: 36px;
+  height: 36px;
+  font-size: 18px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+.alena-modal-close:hover {
+  background: #fff;
+  transform: scale(1.05);
+}
+
+.alena-modal-scroll {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.alena-modal-image-wrap {
+  width: 100%;
+  aspect-ratio: 1.5 / 1;
+  background: linear-gradient(135deg, #fce5dd, #f7d5c4);
+  position: relative;
+  overflow: hidden;
+}
+.alena-modal-image-wrap img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.alena-modal-loading {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--alena-ink-soft);
+  font-size: 14px;
+}
+
+.alena-modal-body {
+  padding: 20px 22px 24px;
+}
+
+.alena-modal-title {
+  font-family: "Frank Ruhl Libre", serif !important;
+  font-size: 28px !important;
+  font-weight: 800;
+  color: var(--alena-ink);
+  margin: 0 0 8px !important;
+  line-height: 1.2;
+}
+
+.alena-modal-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.alena-modal-price {
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--alena-green);
+}
+.alena-modal-pop-badge {
+  background: #4a90e2;
+  color: #fff;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.alena-modal-desc {
+  background: linear-gradient(135deg, #fef3ec, #faf6f1);
+  padding: 12px 14px;
+  border-radius: 10px;
+  border-right: 4px solid var(--alena-coral);
+  margin: 0 0 18px;
+  color: var(--alena-ink-soft);
+  font-size: 14px;
+  line-height: 1.55;
+}
+.alena-modal-desc p { margin: 0 0 6px; }
+.alena-modal-desc p:last-child { margin: 0; }
+
+.alena-modal-modifiers-host { margin-top: 8px; }
+.alena-modal-modifiers-host .alena-dz-modifiers {
+  margin: 0;
+  padding: 0;
+}
+
+.alena-modal-foot {
+  background: #fff;
+  border-top: 1px solid #eadfd1;
+  padding: 14px 18px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+  box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.08);
+}
+
+.alena-modal-qty {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: #faf6f1;
+  border: 1px solid #eadfd1;
+  border-radius: 999px;
+  padding: 4px;
+  flex: 0 0 auto;
+}
+.alena-modal-qty button {
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  border: none;
+  background: #fff;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--alena-ink);
+  cursor: pointer;
+  transition: all 0.12s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.alena-modal-qty button:hover { background: var(--alena-coral); color: #fff; }
+.alena-modal-qty-value {
+  min-width: 24px;
+  text-align: center;
+  font-weight: 700;
+  font-size: 15px;
+}
+
+.alena-modal-add {
+  flex: 1;
+  background: var(--alena-green);
+  color: #fff;
+  border: none;
+  border-radius: 12px;
+  padding: 14px 18px;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  transition: all 0.15s ease;
+}
+.alena-modal-add:hover {
+  background: var(--alena-green-hover);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(30,74,58,0.25);
+}
+.alena-modal-total {
+  font-size: 17px;
+  font-weight: 800;
+}
+
+/* Hide the running-total/sticky bar that came in from the source page */
+.alena-modal #alena-dz-sticky-bar,
+.alena-modal #alena-dz-running-price { display: none !important; }

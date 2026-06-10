@@ -60,6 +60,12 @@ class Alena_DZ_Shop_Styling {
         if (!function_exists('is_woocommerce')) return;
         if (!(is_woocommerce() || is_cart() || is_checkout() || is_account_page())) return;
         wp_enqueue_style('alena-dz-shop', ALENA_DZ_URL . 'assets/shop.css', [], ALENA_DZ_VERSION);
+
+        // Product modal — only on shop / category pages
+        if (is_shop() || is_product_category() || is_product_taxonomy()) {
+            wp_enqueue_style('alena-dz-product-modal', ALENA_DZ_URL . 'assets/product-modal.css', ['alena-dz-shop'], ALENA_DZ_VERSION);
+            wp_enqueue_script('alena-dz-product-modal', ALENA_DZ_URL . 'assets/product-modal.js', ['jquery'], ALENA_DZ_VERSION, true);
+        }
     }
 
     public function hide_merch_in_query($tax_query, $query) {
