@@ -128,10 +128,19 @@
 
     modalEl.find('.alena-modal-desc').html(shortDesc);
 
+    // Find the product ID from multiple possible sources (WC uses different
+    // structures depending on theme — try them all).
+    const productId =
+        cartForm?.querySelector('input[name="add-to-cart"]')?.value
+     || cartForm?.querySelector('button[name="add-to-cart"]')?.value
+     || (cartForm?.action || '').match(/add-to-cart=(\d+)/)?.[1]
+     || (doc.body.className.match(/postid-(\d+)/) || [])[1]
+     || (doc.querySelector('[data-product_id]')?.getAttribute('data-product_id'))
+     || '';
+    modalEl.data('product-id', productId);
+
     if (modsHost) {
       modalEl.find('.alena-modal-modifiers-host').html(modsHost.outerHTML);
-      const productId = cartForm?.querySelector('input[name="add-to-cart"]')?.value;
-      modalEl.data('product-id', productId || '');
       // Append note + share — NO form to avoid any chance of native submit
       modalEl.find('.alena-modal-modifiers-host .alena-dz-modifiers').after(
         '<div class="alena-modal-note">' +
@@ -142,10 +151,6 @@
           '📤 שתף ב-WhatsApp' +
         '</button>'
       );
-    } else if (cartForm) {
-      // No modifiers — still pull the product id for AJAX add
-      const productId = cartForm.querySelector('input[name="add-to-cart"]')?.value;
-      modalEl.data('product-id', productId || '');
     }
     applyGating();
     enforceMax();
