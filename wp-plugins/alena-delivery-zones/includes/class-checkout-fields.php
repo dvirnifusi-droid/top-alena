@@ -21,8 +21,8 @@ class Alena_DZ_Checkout_Fields {
         add_filter('woocommerce_shipping_fields',        [$this, 'tune_shipping_fields'], 20);
         add_filter('woocommerce_checkout_fields',        [$this, 'tune_checkout_fields'], 20);
 
-        // Direct-render fallback — appended after the billing form so the
-        // fields show even when "ship to same address" is checked.
+        // Inject right after the address field via JS — see inline_js_polish().
+        // Falls back to the after-billing-form hook if JS is disabled.
         add_action('woocommerce_after_checkout_billing_form', [$this, 'render_direct_fields'], 5);
 
         // Persistence
@@ -36,13 +36,11 @@ class Alena_DZ_Checkout_Fields {
     /* ----------------------- Filter-based ----------------------- */
 
     public function tune_address_fields($fields) {
+        // Strip noise: state, postcode, the "address line 2" duplicate of apartment.
         unset($fields['state']);
-        if (isset($fields['postcode'])) {
-            $fields['postcode']['required'] = false;
-            // WC appends "(אופציונלי)" automatically when not required, so
-            // we keep the original label to avoid the double suffix.
-            $fields['postcode']['label']    = 'מיקוד';
-        }
+        unset($fields['postcode']);
+        unset($fields['address_2']);
+        // Lock the country dropdown to Israel (handled separately in tune_billing_fields)
         return $fields;
     }
 
@@ -52,8 +50,16 @@ class Alena_DZ_Checkout_Fields {
             $fields['billing_phone']['label']       = 'טלפון';
             $fields['billing_phone']['placeholder'] = '05X-XXXXXXX';
         }
+        // Lock country to Israel — pre-filled, not editable
+        if (isset($fields['billing_country'])) {
+            $fields['billing_country']['type']     = 'hidden';
+            $fields['billing_country']['default']  = 'IL';
+            $fields['billing_country']['required'] = false;
+        }
         unset($fields['billing_company']);
         unset($fields['billing_state']);
+        unset($fields['billing_postcode']);
+        unset($fields['billing_address_2']);
         return $fields;
     }
 
@@ -80,25 +86,19 @@ class Alena_DZ_Checkout_Fields {
     public function render_direct_fields($checkout) {
         $entrance = $checkout ? $checkout->get_value('shipping_entrance') : '';
         $floor    = $checkout ? $checkout->get_value('shipping_floor')    : '';
-        $apt      = $checkout ? $checkout->get_value('shipping_apartment'): '';
         ?>
         <div class="alena-dz-extra-fields">
           <h3>פרטי כתובת נוספים</h3>
           <div class="alena-dz-extra-row">
-            <p class="form-row form-row-third">
+            <p class="form-row form-row-first">
               <label for="shipping_entrance">כניסה</label>
               <input type="text" class="input-text" name="shipping_entrance" id="shipping_entrance"
                      placeholder="א / ב / ראשית" value="<?php echo esc_attr($entrance); ?>" />
             </p>
-            <p class="form-row form-row-third">
+            <p class="form-row form-row-last">
               <label for="shipping_floor">קומה</label>
               <input type="text" class="input-text" name="shipping_floor" id="shipping_floor"
                      placeholder="קרקע / 1 / 2" value="<?php echo esc_attr($floor); ?>" />
-            </p>
-            <p class="form-row form-row-third">
-              <label for="shipping_apartment">דירה</label>
-              <input type="text" class="input-text" name="shipping_apartment" id="shipping_apartment"
-                     placeholder="מס׳ דירה" value="<?php echo esc_attr($apt); ?>" />
             </p>
             <div style="clear:both"></div>
           </div>
@@ -167,8 +167,14 @@ class Alena_DZ_Checkout_Fields {
               $('#billing_phone_field').removeClass('woocommerce-validated').addClass('validate-required');
               $('#billing_phone_field').find('.optional').remove();
             }
-            // Mark postcode as optional visually
-            $('#billing_postcode_field, #shipping_postcode_field').addClass('alena-dz-optional');
+            // Move the entrance/floor block to right after the address field
+            var $extra = $('.alena-dz-extra-fields');
+            var $addr  = $('#billing_address_1_field');
+            if ($extra.length && $addr.length && $extra.prev('.alena-dz-anchor').length === 0) {
+              $extra.detach();
+              $addr.after($extra);
+              $extra.before('<div class="alena-dz-anchor" style="display:none"></div>');
+            }
           }
           $(document).ready(polish);
           $(document.body).on('updated_checkout', polish);

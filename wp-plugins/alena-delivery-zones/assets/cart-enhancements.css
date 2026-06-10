@@ -480,6 +480,36 @@ body.alena-modal-open .alena-dz-mini-cart { display: none !important; }
   direction: ltr;
   text-align: center;
 }
+.alena-dz-sched-tab span strong {
+  display: block;
+  font-size: 14px;
+}
+.alena-dz-sched-tab span small {
+  display: block;
+  font-size: 11px;
+  opacity: 0.75;
+  margin-top: 2px;
+  font-weight: 500;
+}
+.alena-dz-sched-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.alena-dz-sched-row label {
+  flex: 0 0 60px;
+  font-size: 13px;
+  color: #6a5a4d;
+}
+.alena-dz-sched-row select {
+  flex: 1;
+  padding: 10px 12px;
+  border: 1px solid #eadfd1;
+  border-radius: 8px;
+  background: #fff;
+  font-size: 14px;
+}
 .alena-dz-sched-hint {
   font-size: 12px;
   color: #6a5a4d;
