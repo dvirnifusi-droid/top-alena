@@ -1,20 +1,17 @@
-FROM node:20-alpine AS build
-WORKDIR /app
-COPY package.json package-lock.json* ./
-RUN npm install --no-audit --no-fund
-COPY . .
-# Vite bakes these in at build time, so they must be present here.
-ARG VITE_API_BASE_URL=/api
-ARG VITE_GOOGLE_CLIENT_ID=
-ARG VITE_VAPID_PUBLIC_KEY=
-ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
-ENV VITE_GOOGLE_CLIENT_ID=$VITE_GOOGLE_CLIENT_ID
-ENV VITE_VAPID_PUBLIC_KEY=$VITE_VAPID_PUBLIC_KEY
-# 2GB VPS — give Node more heap so Vite build doesn't OOM.
-ENV NODE_OPTIONS="--max-old-space-size=1800"
-RUN npm run build
-
+# Serves the PREBUILT frontend bundle from dist/.
+#
+# Why no build stage: the 2GB Hetzner VPS OOMs running `vite build` (bundle
+# grew past 4MB), which silently froze frontend deploys — the API kept
+# updating while web served a stale image. Since 2026-06-11 the workflow is:
+#
+#   1. Build locally:  npx vite build   (uses .env.production.local for
+#      VITE_API_BASE_URL=/api + Google client ID + VAPID public key)
+#   2. Commit dist/ together with the source changes
+#   3. Push → server cron copies dist into this nginx image (seconds, no RAM)
+#
+# IMPORTANT: a frontend change without a fresh committed dist/ will deploy
+# stale UI. Always run vite build before pushing frontend changes.
 FROM nginx:1.27-alpine
-COPY --from=build /app/dist /usr/share/nginx/html
+COPY dist /usr/share/nginx/html
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 EXPOSE 80

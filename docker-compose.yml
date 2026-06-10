@@ -34,13 +34,11 @@ services:
       - "3001:3001"
 
   web:
+    # Image just copies the prebuilt, committed dist/ — vite build runs on the
+    # dev machine, NOT here (2GB VPS OOMs on it). See Dockerfile.web header.
     build:
       context: .
       dockerfile: Dockerfile.web
-      args:
-        VITE_API_BASE_URL: /api
-        VITE_GOOGLE_CLIENT_ID: ${VITE_GOOGLE_CLIENT_ID:-}
-        VITE_VAPID_PUBLIC_KEY: ${VITE_VAPID_PUBLIC_KEY:-}
     restart: unless-stopped
     depends_on:
       - api

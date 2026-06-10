@@ -296,7 +296,11 @@ Line ending warnings (`LF will be replaced by CRLF`) on commit are normal and ha
 cd /c/Users/97253/top-alena-migration/apps/api && npx tsc --noEmit
 
 # Build the frontend (always from repo root)
-cd /c/Users/97253/top-alena-migration && timeout 280 npx vite build
+# ⚠️ CRITICAL since 2026-06-11: dist/ is COMMITTED. The server does NOT run
+# vite build (2GB VPS OOMs on it — frontend deploys silently froze for 2 days).
+# Every frontend change MUST be: vite build → git add dist → commit → push.
+# Prod env vars are baked from .env.production.local (gitignored, on Dvir's PC).
+cd /c/Users/97253/top-alena-migration && timeout 280 npx vite build && git add dist
 
 # Verify a deploy landed
 curl -s -m 10 -X POST https://topalena.com/api/public/fn/deployInfo -H "Content-Type: application/json" -d '{}'

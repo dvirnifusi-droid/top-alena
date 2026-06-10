@@ -12,7 +12,7 @@ pnpm-debug.log*
 lerna-debug.log*
 
 node_modules
-dist
+# dist — now committed: server copies prebuilt bundle (2GB VPS OOMs on vite build)
 dist-ssr
 *.local
 
