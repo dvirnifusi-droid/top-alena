@@ -47,6 +47,8 @@ class Alena_DZ_Checkout_Redesign {
         add_action('wc_ajax_nopriv_alena_set_fulfillment', [$this, 'ajax_set_fulfillment']);
         // Runs AFTER the hours filter (50) so pickup logic wins last
         add_filter('woocommerce_package_rates',            [$this, 'apply_fulfillment_rates'], 60, 2);
+        // Embed the mode into the package so WC's cache hash changes per mode
+        add_filter('woocommerce_cart_shipping_packages',   [$this, 'tag_packages_with_mode']);
         add_action('woocommerce_checkout_update_order_meta', [$this, 'save_fulfillment_meta']);
         add_action('woocommerce_admin_order_data_after_shipping_address', [$this, 'show_fulfillment_in_admin']);
     }
@@ -63,7 +65,24 @@ class Alena_DZ_Checkout_Redesign {
         if (!function_exists('WC') || !WC()->session) wp_send_json_error('no_session', 500);
         $mode = (isset($_POST['mode']) && $_POST['mode'] === 'pickup') ? 'pickup' : 'delivery';
         WC()->session->set('alena_fulfillment', $mode);
+
+        // Bust WC's per-package shipping cache + the previously chosen method,
+        // otherwise switching tabs serves stale rates ("no shipping method").
+        WC()->session->set('chosen_shipping_methods', []);
+        if (WC()->cart) {
+            foreach (array_keys(WC()->cart->get_shipping_packages()) as $key) {
+                WC()->session->set('shipping_for_package_' . $key, false);
+            }
+        }
         wp_send_json_success(['mode' => $mode]);
+    }
+
+    public function tag_packages_with_mode($packages) {
+        $mode = self::current_fulfillment();
+        foreach ($packages as &$p) {
+            $p['alena_fulfillment'] = $mode;
+        }
+        return $packages;
     }
 
     public function apply_fulfillment_rates($rates, $package) {
