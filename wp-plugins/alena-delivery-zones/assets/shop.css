@@ -380,17 +380,42 @@ body.woocommerce      .elementor-element.e-con-full[class*="elementor-element-"]
   margin: 4px 0 18px;
 }
 
-/* Product grid — compact Wolt-style: 3 columns, horizontal cards */
-.alena-dz-products {
+/* Product grid — compact Wolt-style: 3 columns, horizontal cards.
+   The selectors are intentionally aggressive (!important on display/width)
+   because WC / hello-elementor add their own float + width to ul.products
+   and li.product that override grid layout. */
+ul.alena-dz-products,
+.woocommerce ul.alena-dz-products,
+.alena-dz-cat-section ul.alena-dz-products {
   list-style: none !important;
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 14px;
+  display: grid !important;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  gap: 14px !important;
   padding: 0 !important;
   margin: 0 !important;
+  width: 100% !important;
+  float: none !important;
 }
-@media (max-width: 1024px) { .alena-dz-products { grid-template-columns: repeat(2, 1fr); } }
-@media (max-width: 560px)  { .alena-dz-products { grid-template-columns: 1fr; } }
+ul.alena-dz-products > li,
+ul.alena-dz-products > li.product,
+.woocommerce ul.alena-dz-products > li,
+.woocommerce ul.alena-dz-products > li.product {
+  width: 100% !important;
+  max-width: 100% !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  float: none !important;
+  clear: none !important;
+  list-style: none !important;
+}
+@media (max-width: 1024px) {
+  ul.alena-dz-products,
+  .woocommerce ul.alena-dz-products { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+}
+@media (max-width: 560px) {
+  ul.alena-dz-products,
+  .woocommerce ul.alena-dz-products { grid-template-columns: 1fr !important; }
+}
 
 .alena-dz-card {
   background: #fff;

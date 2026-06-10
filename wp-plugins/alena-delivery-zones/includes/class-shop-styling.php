@@ -124,32 +124,25 @@ class Alena_DZ_Shop_Styling {
 
     public function render_featured_section() {
         $featured_ids = wc_get_featured_product_ids();
-        if (empty($featured_ids)) {
-            // Fallback: top sellers by total_sales meta
-            $top = get_posts([
-                'post_type'      => 'product',
-                'posts_per_page' => 6,
-                'meta_key'       => 'total_sales',
-                'orderby'        => 'meta_value_num',
-                'order'          => 'DESC',
-                'fields'         => 'ids',
-            ]);
-            $featured_ids = $top;
-        }
+        // Only render this section if the owner has explicitly marked
+        // products as "featured" in WC — otherwise it's noise.
         if (empty($featured_ids)) return;
+
+        $visible = [];
+        foreach ($featured_ids as $pid) {
+            $p = wc_get_product($pid);
+            if ($p && $p->is_visible() && $p->get_image_id()) {
+                $visible[] = $p;
+            }
+            if (count($visible) >= 6) break;
+        }
+        if (!$visible) return;
 
         echo '<section class="alena-dz-cat-section alena-dz-featured-section" id="alena-featured">';
         echo '<h2 class="alena-dz-cat-title">המוזמנים ביותר 💙</h2>';
         echo '<p class="alena-dz-cat-desc">מנות שאהבנו, ושותפינו אהבו</p>';
-        echo '<ul class="alena-dz-products products">';
-        $count = 0;
-        foreach ($featured_ids as $pid) {
-            if ($count >= 6) break;
-            $product = wc_get_product($pid);
-            if (!$product || !$product->is_visible()) continue;
-            $this->render_product_card($product);
-            $count++;
-        }
+        echo '<ul class="alena-dz-products">';
+        foreach ($visible as $p) $this->render_product_card($p);
         echo '</ul>';
         echo '</section>';
     }
@@ -230,7 +223,7 @@ class Alena_DZ_Shop_Styling {
                 printf('<p class="alena-dz-cat-desc">%s</p>', esc_html($term->description));
             }
 
-            echo '<ul class="alena-dz-products products">';
+            echo '<ul class="alena-dz-products">';
             foreach ($products as $product) {
                 $this->render_product_card($product);
             }
