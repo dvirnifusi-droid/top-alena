@@ -21,6 +21,9 @@ class Alena_DZ_Checkout_Redesign {
         add_action('woocommerce_after_checkout_form', [$this, 'close_layout'], 999);
         add_action('woocommerce_review_order_before_cart_contents', [$this, 'render_items_header']);
 
+        // Wolt-style section headers in the main column
+        add_action('woocommerce_before_checkout_billing_form', [$this, 'section_where'], 1);
+
         // Enable cash on delivery + soft-gate other methods until owner sets up
         add_filter('woocommerce_payment_gateways', [$this, 'ensure_cod_enabled']);
         add_filter('woocommerce_available_payment_gateways', [$this, 'filter_gateways']);
@@ -35,6 +38,13 @@ class Alena_DZ_Checkout_Redesign {
         // AJAX handler for qty updates
         add_action('wc_ajax_update_cart_qty',         [$this, 'ajax_update_qty']);
         add_action('wc_ajax_nopriv_update_cart_qty',  [$this, 'ajax_update_qty']);
+
+        // Wolt-style place-order button text (JS appends the live total)
+        add_filter('woocommerce_order_button_text', function () { return 'להזמין'; });
+    }
+
+    public function section_where() {
+        echo '<h2 class="alena-co-h">📍 איפה?</h2>';
     }
 
     public function enqueue() {

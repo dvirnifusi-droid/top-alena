@@ -9,7 +9,8 @@ if (!defined('ABSPATH')) exit;
 class Alena_DZ_Order_Scheduling {
 
     public function __construct() {
-        add_action('woocommerce_review_order_before_payment',     [$this, 'render_picker']);
+        // Main column, after the address map (map renders at priority 10)
+        add_action('woocommerce_after_checkout_billing_form',     [$this, 'render_picker'], 40);
         add_action('woocommerce_checkout_update_order_meta',      [$this, 'save_meta']);
         add_action('woocommerce_admin_order_data_after_billing_address', [$this, 'show_in_admin']);
     }
@@ -43,8 +44,8 @@ class Alena_DZ_Order_Scheduling {
             $eta = (new Alena_DZ_Cart_Redesign())->get_eta('delivery');
         }
         ?>
+        <h2 class="alena-co-h">⏰ מתי?</h2>
         <div class="alena-dz-schedule">
-          <h3>מתי לקבל את ההזמנה? ⏰</h3>
           <div class="alena-dz-sched-tabs">
             <label class="alena-dz-sched-tab">
               <input type="radio" name="alena_schedule" value="now" checked />

@@ -4,6 +4,30 @@
   function init() {
     initHeroMap();
     bindQtyControls();
+    woltSummary();
+    $(document.body).on('updated_checkout', woltSummary);
+  }
+
+  // ---------- Wolt-style summary card polish ----------
+  function woltSummary() {
+    const $review = $('#order_review');
+    if (!$review.length) return;
+    // Inject "סיכום" title once
+    if (!$review.find('.alena-co-summary-title').length) {
+      $review.prepend(
+        '<h3 class="alena-co-summary-title">סיכום</h3>' +
+        '<p class="alena-co-summary-sub">כולל מיסים (אם רלוונטי)</p>'
+      );
+    }
+    // Append the live total to the place-order button
+    const totalText = $review.find('tr.order-total .amount').first().text().trim();
+    const $btn = $('#place_order');
+    if ($btn.length && totalText) {
+      if (!$btn.find('.alena-co-btn-total').length) {
+        $btn.html('<span>להזמין</span><span class="alena-co-btn-total"></span>');
+      }
+      $btn.find('.alena-co-btn-total').text(totalText);
+    }
   }
 
   // ---------- Hero map showing business + customer + polygons ----------

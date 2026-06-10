@@ -23,8 +23,8 @@ class Alena_DZ_Cart_Enhancements {
         add_action('woocommerce_before_cart',              [$this, 'render_min_notice'], 5);
         add_action('woocommerce_before_checkout_form',     [$this, 'render_min_notice'], 6);
 
-        // Driver tip
-        add_action('woocommerce_review_order_before_payment', [$this, 'render_tip_picker']);
+        // Driver tip — main checkout column, after the scheduling section
+        add_action('woocommerce_after_checkout_billing_form', [$this, 'render_tip_picker'], 50);
         add_action('wp_ajax_alena_dz_set_tip',             [$this, 'ajax_set_tip']);
         add_action('wp_ajax_nopriv_alena_dz_set_tip',      [$this, 'ajax_set_tip']);
         add_action('woocommerce_cart_calculate_fees',      [$this, 'apply_tip_fee']);
@@ -96,9 +96,9 @@ class Alena_DZ_Cart_Enhancements {
         $current = (float) (function_exists('WC') && WC()->session ? WC()->session->get(self::TIP_SESSION_KEY) : 0);
         $nonce = wp_create_nonce('alena_dz_tip');
         ?>
+        <h2 class="alena-co-h">💚 טיפ לשליח</h2>
         <div class="alena-dz-tip">
-          <h3>טיפ לשליח 💚</h3>
-          <p>בחר סכום נוסף לשליח שלך — תודה!</p>
+          <p>השליח יראה את הטיפ לאחר המשלוח ויקבל את הסכום ישירות אליו</p>
           <div class="alena-dz-tip-options">
             <?php foreach ([0, 5, 10, 15] as $amount): ?>
               <button type="button" class="alena-dz-tip-opt<?php echo abs($current - $amount) < 0.01 ? ' active' : ''; ?>"
