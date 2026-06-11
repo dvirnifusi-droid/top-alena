@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Alena Delivery Zones
  * Description: Google Maps polygon-based delivery zones for WooCommerce. Owner draws delivery polygons on a map; the plugin adds a WC shipping method that geocodes the customer address and matches it to the right polygon (fee, min-order).
- * Version: 0.16.2
+ * Version: 0.17.0
  * Author: Alena / TOPALENA
  * Requires PHP: 7.4
  * Requires at least: 6.5
@@ -12,7 +12,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('ALENA_DZ_VERSION', '0.16.2');
+define('ALENA_DZ_VERSION', '0.17.0');
 define('ALENA_DZ_PATH', plugin_dir_path(__FILE__));
 define('ALENA_DZ_URL',  plugin_dir_url(__FILE__));
 
@@ -43,6 +43,7 @@ add_action('plugins_loaded', function () {
         return;
     }
     new Alena_DZ_Admin();
+    new Alena_DZ_Manager();
     new Alena_DZ_Checkout_Fields();
     new Alena_DZ_Checkout_Map();
     new Alena_DZ_Hours_Admin();

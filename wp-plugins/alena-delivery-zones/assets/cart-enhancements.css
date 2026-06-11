@@ -787,3 +787,16 @@ body.woocommerce-cart header.entry-header { display: none !important; }
 .woocommerce-cart .cart_totals tr.order-total th { font-size: 17px !important; color: #1c1c1c !important; }
 .woocommerce-cart .cart_totals tr.order-total td { font-size: 19px !important; color: #1e4a3a !important; }
 .woocommerce-cart .cart_totals tr.order-total td small { display:block; font-size:11px; font-weight:500; color:#9a8a7a; }
+
+
+/* alena proceed-button full width */
+.woocommerce-cart .wc-proceed-to-checkout { margin-top:16px; }
+.woocommerce-cart .wc-proceed-to-checkout a.checkout-button {
+  display:flex !important; align-items:center; justify-content:center; gap:8px;
+  width:100% !important; box-sizing:border-box;
+  background:linear-gradient(135deg,#1e4a3a,#2e6850) !important; color:#fff !important;
+  border-radius:999px !important; padding:16px 22px !important;
+  font-size:17px !important; font-weight:800 !important; text-align:center;
+}
+.woocommerce-cart .wc-proceed-to-checkout a.checkout-button::after { content:" 90"; }
+.woocommerce-cart .wc-proceed-to-checkout a.checkout-button:hover { background:#2e6850 !important; transform:translateY(-1px); }

@@ -6,9 +6,15 @@
     bindQtyControls();
     bindFulfillmentTabs();
     bindUpsell();
-    applyFulfillmentMode((typeof AlenaDZCheckoutR !== 'undefined' && AlenaDZCheckoutR.fulfillment) || 'delivery');
+    const startMode = (typeof AlenaDZCheckoutR !== 'undefined' && AlenaDZCheckoutR.fulfillment) || 'delivery';
+    applyFulfillmentMode(startMode);
     woltSummary();
-    $(document.body).on('updated_checkout', woltSummary);
+    $(document.body).on('updated_checkout', function () {
+      woltSummary();
+      // Re-apply the current mode in case WC re-rendered fields
+      const m = $('.alena-co-tab.active').data('mode') || startMode;
+      applyFulfillmentMode(m);
+    });
   }
 
   // ---------- One-click upsell add ----------
@@ -49,7 +55,19 @@
   }
 
   function applyFulfillmentMode(mode) {
-    $('.alena-checkout-wrap').toggleClass('alena-pickup-mode', mode === 'pickup');
+    const pickup = (mode === 'pickup');
+    $('.alena-checkout-wrap').toggleClass('alena-pickup-mode', pickup);
+    // Hide delivery-only fields in pickup mode, wherever WC placed them.
+    const sels = ['#shipping_entrance', '#shipping_floor', '#shipping_apartment',
+                  '#shipping_lobbycode', '#shipping_doorname',
+                  '#billing_address_1', '#billing_city'];
+    sels.forEach(function (s) {
+      const $f = $(s).closest('.form-row, p');
+      if (!$f.length) return;
+      if (pickup) $f.hide(); else $f.show();
+    });
+    // The whole extra-fields card + the address map
+    $('.alena-dz-extra-fields, .alena-dz-checkout-map-wrap')[pickup ? 'hide' : 'show']();
   }
 
   // ---------- Wolt-style summary card polish ----------
