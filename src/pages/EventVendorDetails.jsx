@@ -321,13 +321,33 @@ export default function EventVendorDetails() {
                                     ) : (
                                         <div className="space-y-1">
                                             {agreements.map(a => (
-                                                <div key={a.id} className="flex items-center justify-between text-xs p-2 bg-gray-50 rounded">
-                                                    <div>
-                                                        <span className="font-bold">{a.title || 'הסכם'}</span>
-                                                        <span className="text-gray-500 mr-2">{a.commission_pct ? `${a.commission_pct}%` : ''}</span>
-                                                        <span className={`mr-2 px-2 py-0.5 rounded-full ${a.status === 'active' ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-200 text-gray-600'}`}>{a.status}</span>
+                                                <div key={a.id} className="text-xs p-2 bg-gray-50 rounded">
+                                                    <div className="flex items-center justify-between flex-wrap gap-2">
+                                                        <div className="flex items-center gap-2 flex-wrap">
+                                                            <span className="font-bold">{a.title || 'הסכם'}</span>
+                                                            {a.commission_pct ? <span className="text-gray-500">{a.commission_pct}%</span> : null}
+                                                            <span className={`px-2 py-0.5 rounded-full ${a.status === 'active' ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-200 text-gray-600'}`}>{a.status}</span>
+                                                            {a.signed_at
+                                                                ? <span className="px-2 py-0.5 rounded-full bg-emerald-600 text-white font-bold">✍️ חתום {a.signed_by_name ? `· ${a.signed_by_name}` : ''}</span>
+                                                                : <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">לא חתום</span>}
+                                                        </div>
+                                                        <div className="flex items-center gap-2">
+                                                            {a.file_url && <a href={a.file_url} target="_blank" rel="noopener noreferrer" className="text-[#A04A2E] underline">פתח קובץ</a>}
+                                                            {!a.signed_at && (
+                                                                <button onClick={async () => {
+                                                                    const name = prompt('שם החותם (אופציונלי):') || '';
+                                                                    const sig = prompt('קישור לקובץ חתימה (אופציונלי):') || '';
+                                                                    await base44.functions.markVendorAgreementSigned({ id: a.id, signed_by_name: name, signed_signature_url: sig });
+                                                                    load();
+                                                                }} className="text-xs px-2 py-0.5 rounded-full bg-[#44512C] text-white font-bold hover:bg-[#7A3722]">סמן כחתום</button>
+                                                            )}
+                                                        </div>
                                                     </div>
-                                                    {a.file_url && <a href={a.file_url} target="_blank" rel="noopener noreferrer" className="text-[#A04A2E] underline">פתח</a>}
+                                                    {a.signed_at && (
+                                                        <div className="text-[10px] text-gray-500 mt-1">
+                                                            נחתם בתאריך {new Date(a.signed_at).toLocaleString('he-IL')}
+                                                        </div>
+                                                    )}
                                                 </div>
                                             ))}
                                         </div>

@@ -8,7 +8,8 @@
 // in tabs so the owner has ONE place to manage everything events-related.
 import React, { useState } from 'react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { CalendarHeart, Utensils, FileText, Wine } from 'lucide-react';
+import { CalendarHeart, Utensils, FileText, Wine, BarChart3 } from 'lucide-react';
+import EventsDashboard from './EventsDashboard';
 import EventsPrivate from './EventsPrivate';
 import EventsSalesKit from './EventsSalesKit';
 import EventContracts from './EventContracts';
@@ -18,7 +19,7 @@ export default function EventsHub() {
     const [tab, setTab] = useState(() => {
         // Persist the selected tab in URL hash so refresh keeps the user's place
         const h = (typeof window !== 'undefined' && window.location.hash.replace('#', '')) || '';
-        return ['leads', 'kit', 'contracts', 'waiter'].includes(h) ? h : 'leads';
+        return ['dashboard', 'leads', 'kit', 'contracts', 'waiter'].includes(h) ? h : 'dashboard';
     });
 
     const onTabChange = (v) => {
@@ -40,7 +41,11 @@ export default function EventsHub() {
 
             <Tabs value={tab} onValueChange={onTabChange}>
                 <div className="sticky top-0 z-10 bg-white -mx-4 px-4 pb-2 mb-3 border-b">
-                    <TabsList className="flex w-full overflow-x-auto h-auto p-1 gap-1 justify-start md:grid md:grid-cols-4 md:max-w-2xl">
+                    <TabsList className="flex w-full overflow-x-auto h-auto p-1 gap-1 justify-start md:grid md:grid-cols-5 md:max-w-3xl">
+                        <TabsTrigger value="dashboard" className="text-sm py-2.5 px-3 whitespace-nowrap flex-shrink-0">
+                            <BarChart3 className="w-4 h-4 ml-1.5" />
+                            דשבורד וגאנט
+                        </TabsTrigger>
                         <TabsTrigger value="leads" className="text-sm py-2.5 px-3 whitespace-nowrap flex-shrink-0">
                             <CalendarHeart className="w-4 h-4 ml-1.5" />
                             לידים ופניות
@@ -60,6 +65,9 @@ export default function EventsHub() {
                     </TabsList>
                 </div>
 
+                <TabsContent value="dashboard" className="mt-0">
+                    <EventsDashboard />
+                </TabsContent>
                 <TabsContent value="leads" className="mt-0">
                     <EventsPrivate />
                 </TabsContent>

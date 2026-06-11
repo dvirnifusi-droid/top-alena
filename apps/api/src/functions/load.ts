@@ -3002,6 +3002,103 @@ registerFn('addVendorAgreement', async ({ body, user }) => {
   return { agreement: a };
 });
 
+// Mark a VendorAgreement as signed (offline). The owner clicks 'סמן כחתום'
+// after the vendor returned a signed PDF, optionally with a signature image URL.
+registerFn('markVendorAgreementSigned', async ({ body, user }) => {
+  if ((user as any)?.role !== 'admin') throw new Error('admin only');
+  const { id, signed_by_name, signed_signature_url, file_url } = body as any;
+  if (!id) throw new Error('id required');
+  const data: any = { signed_at: new Date() };
+  if (signed_by_name) data.signed_by_name = String(signed_by_name).slice(0, 80);
+  if (signed_signature_url) data.signed_signature_url = signed_signature_url;
+  if (file_url) data.file_url = file_url;
+  const a = await db.vendorAgreement.update({ where: { id }, data });
+  return { agreement: a };
+});
+
+// Events dashboard payload — open events list, status counts, monthly
+// rollup for a Gantt-style chart, and aggregate vendor/commission stats.
+registerFn('eventsDashboard', async ({ body, user }) => {
+  if ((user as any)?.role !== 'admin' && !(user as any)?.managed_department) throw new Error('admin only');
+  const { from, to } = (body as any) || {};
+  const today = new Date().toISOString().slice(0, 10);
+  // Default window: 3 months back → 9 months forward
+  const defaultFrom = new Date(Date.now() - 90 * 86400000).toISOString().slice(0, 10);
+  const defaultTo = new Date(Date.now() + 270 * 86400000).toISOString().slice(0, 10);
+  const rangeFrom = from || defaultFrom;
+  const rangeTo = to || defaultTo;
+
+  const allBookings: any[] = await (db.eventBooking.findMany as any)({
+    orderBy: { event_date: 'asc' },
+    take: 500,
+  });
+  // Filter by window
+  const events = allBookings.filter(e => {
+    const d = String(e.event_date || '').slice(0, 10);
+    return d >= rangeFrom && d <= rangeTo;
+  });
+
+  const isClosedEvent = (e: any) => {
+    const d = String(e.event_date || '').slice(0, 10);
+    const st = String(e.status || '').toLowerCase();
+    if (st === 'completed' || st === 'cancelled') return true;
+    if (d && d < today) return true;
+    return false;
+  };
+  const open = events.filter(e => !isClosedEvent(e));
+  const closed = events.filter(isClosedEvent);
+
+  // Vendors per event
+  const evIds = events.map(e => e.id);
+  const vendorLinks = evIds.length
+    ? await db.eventVendor.findMany({ where: { event_booking_id: { in: evIds } } })
+    : [];
+  const vendorIds = [...new Set(vendorLinks.map((l: any) => l.vendor_id))];
+  const vendors = vendorIds.length ? await db.vendor.findMany({ where: { id: { in: vendorIds } } }) : [];
+  const vById = new Map(vendors.map((v: any) => [v.id, v]));
+  const linksByEvent = new Map<string, any[]>();
+  for (const l of vendorLinks) {
+    const arr = linksByEvent.get(l.event_booking_id || '') || [];
+    arr.push({ ...l, vendor: vById.get(l.vendor_id) || null });
+    linksByEvent.set(l.event_booking_id || '', arr);
+  }
+  const enriched = events.map(e => ({
+    ...e,
+    is_closed: isClosedEvent(e),
+    vendor_links: linksByEvent.get(e.id) || [],
+  }));
+
+  // Monthly rollup for the Gantt header
+  const months = new Map<string, { key: string; open: number; closed: number; revenue: number }>();
+  for (const e of enriched) {
+    const ym = String(e.event_date || '').slice(0, 7);
+    if (!ym) continue;
+    if (!months.has(ym)) months.set(ym, { key: ym, open: 0, closed: 0, revenue: 0 });
+    const m = months.get(ym)!;
+    if (e.is_closed) m.closed++; else m.open++;
+    m.revenue += Number(e.total_ils || 0);
+  }
+  const monthly = [...months.values()].sort((a, b) => a.key.localeCompare(b.key));
+
+  const stats = {
+    total_open: open.length,
+    total_closed: closed.length,
+    revenue_pipeline_open: open.reduce((s, e) => s + (Number(e.total_ils) || 0), 0),
+    revenue_realized_closed: closed.reduce((s, e) => s + (Number(e.total_ils) || 0), 0),
+    deposits_received: events
+      .filter(e => (e as any).payment_status === 'paid' || (e as any).payment_status === 'partial')
+      .reduce((s, e) => s + (Number((e as any).deposit_amount_ils) || 0), 0),
+    commissions_due: vendorLinks
+      .filter((l: any) => l.payment_status !== 'paid' && l.payment_status !== 'waived')
+      .reduce((s: any, l: any) => s + (Number(l.commission_amount_ils) || 0), 0),
+    commissions_paid: vendorLinks
+      .filter((l: any) => l.payment_status === 'paid')
+      .reduce((s: any, l: any) => s + (Number(l.paid_amount_ils) || Number(l.commission_amount_ils) || 0), 0),
+  };
+
+  return { events: enriched, open, closed, monthly, stats, range: { from: rangeFrom, to: rangeTo } };
+});
+
 // === Event ↔ vendor linking + commissions ==================================
 function computeCommissionFromEvent(ev: any, pct?: number | null, fixed?: number | null): number {
   if (fixed && fixed > 0) return Math.round(Number(fixed));
@@ -11536,6 +11633,9 @@ if (!(globalThis as any).__startupDriftRepair) {
         "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
       );`);
       await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "VendorAgreement_vendor_id_idx" ON "VendorAgreement"("vendor_id");`);
+      await prisma.$executeRawUnsafe(`ALTER TABLE "VendorAgreement" ADD COLUMN IF NOT EXISTS "signed_at" TIMESTAMP(3);`);
+      await prisma.$executeRawUnsafe(`ALTER TABLE "VendorAgreement" ADD COLUMN IF NOT EXISTS "signed_by_name" TEXT;`);
+      await prisma.$executeRawUnsafe(`ALTER TABLE "VendorAgreement" ADD COLUMN IF NOT EXISTS "signed_signature_url" TEXT;`);
       await prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "EventVendor" (
         "id" TEXT PRIMARY KEY,
         "vendor_id" TEXT NOT NULL,

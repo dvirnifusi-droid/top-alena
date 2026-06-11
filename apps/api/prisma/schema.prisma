@@ -710,6 +710,11 @@ model VendorAgreement {
   valid_from      DateTime?
   valid_until     DateTime?
   status          String?  @default("active")  // 'active' | 'expired' | 'replaced' | 'terminated'
+  // Signed state — set when the vendor signed (either we mark it after they
+  // signed offline, or via the digital sign flow when wired).
+  signed_at       DateTime?
+  signed_by_name  String?
+  signed_signature_url String?  // optional PNG of the signature image
   notes           String?
   created_by      String?
   createdAt       DateTime @default(now())

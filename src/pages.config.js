@@ -98,6 +98,7 @@ import PublicReservationSettings from './pages/PublicReservationSettings';
 import EventVendors from './pages/EventVendors';
 import EventVendorDetails from './pages/EventVendorDetails';
 import EventVendorCampaign from './pages/EventVendorCampaign';
+import EventsDashboard from './pages/EventsDashboard';
 import DepositSettings from './pages/DepositSettings';
 import VoiceTest from './pages/VoiceTest';
 import Popups from './pages/Popups';
@@ -203,6 +204,7 @@ export const PAGES = {
     "EventVendors": EventVendors,
     "EventVendorDetails": EventVendorDetails,
     "EventVendorCampaign": EventVendorCampaign,
+    "EventsDashboard": EventsDashboard,
     "DepositSettings": DepositSettings,
     "VoiceTest": VoiceTest,
     "Popups": Popups,
