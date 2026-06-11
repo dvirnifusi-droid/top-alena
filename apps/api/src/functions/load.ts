@@ -2039,9 +2039,12 @@ registerFn('sendABTestCampaign', async ({ body, user }) => {
   // Resolve recipients ONCE so we can split them
   const where = buildSegmentWhere(segment, custom_filter);
   const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  // AND-combine — see sendCustomerCampaign comment (OR-clobbering hazard).
   const finalWhere: any = {
-    ...where,
-    OR: [{ last_marketing_sent_at: null }, { last_marketing_sent_at: { lt: cutoff } }],
+    AND: [
+      where,
+      { OR: [{ last_marketing_sent_at: null }, { last_marketing_sent_at: { lt: cutoff } }] },
+    ],
   };
   const allRecipients = await db.customer.findMany({ where: finalWhere, take: 500 });
   // Shuffle + chunk
@@ -2777,6 +2780,14 @@ function buildSegmentWhere(segment: string, customFilter?: any): any {
       const ids = Array.isArray(customFilter?.customer_ids) ? customFilter.customer_ids : [];
       return { ...baseGate, id: { in: ids } };
     }
+    // Customers missing club-profile details (birthday or city) — targets of
+    // the "complete your details, earn benefits" campaign with {update_link}.
+    case 'missing_details': {
+      return {
+        ...baseGate,
+        OR: [{ birthday_mmdd: null }, { city: null }],
+      };
+    }
     default: return baseGate;
   }
 }
@@ -2792,9 +2803,106 @@ function renderTemplate(template: string, c: CustomerLike): string {
     days_since_visit: String(daysSinceVisit),
     visit_count: String(c.visit_count || 0),
     tier: c.loyalty_tier === 'vip' ? 'VIP' : 'רגיל',
+    city: (c as any).city || '',
+    // Personal profile-completion link — cid doubles as an unguessable token.
+    update_link: `${process.env.PUBLIC_BASE_URL || 'https://topalena.com'}/ClubUpdate?cid=${c.id}`,
   };
   return template.replace(/\{(\w+)\}/g, (m, k) => replacements[k] ?? m);
 }
+
+// ============================================================================
+// CUSTOMER CLUB — public signup + profile completion + unsubscribe
+// ============================================================================
+// Flow:
+//   /ClubJoin (public page)   → clubJoin            — new member signup
+//   /ClubUpdate?cid=<id>      → clubGetProfile      — which fields are missing
+//                             → clubUpdateProfile   — fill them in
+//                             → clubUnsubscribe     — opt out of marketing
+// The cid is the Customer cuid — unguessable, acts as a personal token in
+// the links we send ({update_link} placeholder in campaign templates).
+
+const CLUB_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+const toMmdd = (d: string | null | undefined) =>
+  d && CLUB_DATE_RE.test(d) ? d.slice(5) : null;
+
+registerFn('clubJoin', async ({ body }) => {
+  const { name, phone, city, birthday, anniversary, email, marketing_consent } = body as any;
+  const cleanPhone = String(phone || '').replace(/[^\d]/g, '');
+  if (!name || cleanPhone.length < 9) throw new Error('שם וטלפון תקין הם שדות חובה');
+  if (!city || !String(city).trim()) throw new Error('עיר היא שדה חובה');
+  const data: any = {
+    name: String(name).trim().slice(0, 80),
+    city: String(city).trim().slice(0, 60),
+  };
+  if (email) data.email = String(email).trim().slice(0, 120);
+  const bMmdd = toMmdd(birthday);
+  const aMmdd = toMmdd(anniversary);
+  if (bMmdd) data.birthday_mmdd = bMmdd;
+  if (aMmdd) { data.anniversary_mmdd = aMmdd; data.anniversary_label = 'יום נישואין'; }
+  if (marketing_consent) { data.marketing_consent = true; data.marketing_consent_at = new Date(); }
+
+  const existing = await db.customer.findFirst({ where: { phone: cleanPhone } });
+  let customer;
+  if (existing) {
+    // Never null-out fields the customer already has; only fill/refresh.
+    const patch: any = {};
+    for (const [k, v] of Object.entries(data)) {
+      if (v !== undefined && v !== null) patch[k] = v;
+    }
+    customer = await db.customer.update({ where: { id: existing.id }, data: patch });
+  } else {
+    customer = await db.customer.create({
+      data: { phone: cleanPhone, visit_count: 0, loyalty_tier: 'regular', ...data },
+    });
+  }
+  return { ok: true, cid: customer.id, existing: !!existing };
+}, { public: true });
+
+registerFn('clubGetProfile', async ({ body }) => {
+  const { cid } = body as any;
+  if (!cid) throw new Error('cid required');
+  const c = await db.customer.findUnique({ where: { id: String(cid) } });
+  if (!c) throw new Error('not_found');
+  // Return only what the update page needs — not the full record.
+  return {
+    first_name: (c.name || '').split(' ')[0] || '',
+    has_birthday: !!(c as any).birthday_mmdd,
+    has_anniversary: !!(c as any).anniversary_mmdd,
+    has_city: !!(c as any).city,
+    has_email: !!(c as any).email,
+    unsubscribed: !!(c as any).marketing_unsubscribed_at,
+    visit_count: c.visit_count || 0,
+  };
+}, { public: true });
+
+registerFn('clubUpdateProfile', async ({ body }) => {
+  const { cid, birthday, anniversary, city, email } = body as any;
+  if (!cid) throw new Error('cid required');
+  const c = await db.customer.findUnique({ where: { id: String(cid) } });
+  if (!c) throw new Error('not_found');
+  const patch: any = {};
+  const bMmdd = toMmdd(birthday);
+  const aMmdd = toMmdd(anniversary);
+  if (bMmdd) patch.birthday_mmdd = bMmdd;
+  if (aMmdd) { patch.anniversary_mmdd = aMmdd; patch.anniversary_label = 'יום נישואין'; }
+  if (city && String(city).trim()) patch.city = String(city).trim().slice(0, 60);
+  if (email && String(email).trim()) patch.email = String(email).trim().slice(0, 120);
+  if (!Object.keys(patch).length) return { ok: true, updated: false };
+  await db.customer.update({ where: { id: c.id }, data: patch });
+  return { ok: true, updated: true };
+}, { public: true });
+
+registerFn('clubUnsubscribe', async ({ body }) => {
+  const { cid } = body as any;
+  if (!cid) throw new Error('cid required');
+  const c = await db.customer.findUnique({ where: { id: String(cid) } });
+  if (!c) throw new Error('not_found');
+  await db.customer.update({
+    where: { id: c.id },
+    data: { marketing_consent: false, marketing_unsubscribed_at: new Date() },
+  });
+  return { ok: true };
+}, { public: true });
 
 // Quick customer search for the manual-recipient picker in MarketingCampaigns.
 // Matches name OR phone (contains, case-insensitive), returns top 20.
@@ -2857,9 +2965,13 @@ registerFn('sendCustomerCampaign', async ({ body, user }) => {
   if (!segment) throw new Error('segment required');
   const where = buildSegmentWhere(segment, custom_filter);
   const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  // AND-combine: segments like missing_details carry their own OR — a plain
+  // spread would let the throttle OR overwrite it and blast the whole list.
   const finalWhere: any = {
-    ...where,
-    OR: [{ last_marketing_sent_at: null }, { last_marketing_sent_at: { lt: cutoff } }],
+    AND: [
+      where,
+      { OR: [{ last_marketing_sent_at: null }, { last_marketing_sent_at: { lt: cutoff } }] },
+    ],
   };
   const recipients = await db.customer.findMany({ where: finalWhere, take: 500 });
   const useWa = channel === 'whatsapp' || !channel;
@@ -10780,6 +10892,7 @@ if (!(globalThis as any).__startupDriftRepair) {
       // Checklist.department — added for dept-filter UI (floor/bar/kitchen/managers)
       await prisma.$executeRawUnsafe(`ALTER TABLE "Checklist" ADD COLUMN IF NOT EXISTS "department" TEXT;`);
       // Customer marketing fields — birthday/anniversary for campaigns + throttling
+      await prisma.$executeRawUnsafe(`ALTER TABLE "Customer" ADD COLUMN IF NOT EXISTS "city" TEXT;`);
       await prisma.$executeRawUnsafe(`ALTER TABLE "Customer" ADD COLUMN IF NOT EXISTS "birthday_mmdd" TEXT;`);
       await prisma.$executeRawUnsafe(`ALTER TABLE "Customer" ADD COLUMN IF NOT EXISTS "anniversary_mmdd" TEXT;`);
       await prisma.$executeRawUnsafe(`ALTER TABLE "Customer" ADD COLUMN IF NOT EXISTS "anniversary_label" TEXT;`);

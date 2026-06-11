@@ -605,6 +605,9 @@ model Customer {
   marketing_consent            Boolean  @default(false)
   marketing_consent_at         DateTime?
   marketing_unsubscribed_at    DateTime?
+  // Where the customer lives ("ראשון לציון", "רחובות"...) — required on the
+  // club signup form, used for geo-targeted campaigns.
+  city                         String?
   // MM-DD strings ("03-15") so birthday/anniversary campaigns can match by
   // month-day without timezone surprises. Year is irrelevant for marketing.
   birthday_mmdd                String?

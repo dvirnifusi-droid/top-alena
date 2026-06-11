@@ -114,6 +114,14 @@ const SEGMENTS = [
         color: 'blue',
     },
     {
+        key: 'missing_details',
+        emoji: '📋',
+        label: 'חסרים פרטים במועדון',
+        desc: 'לקוחות בלי יום הולדת או עיר — שלח קישור השלמה אישי',
+        defaultTemplate: 'היי {name} 👋\nראינו שחסרים לנו כמה פרטים שלך במועדון הלקוחות של עלינא — מגיע לך להתחיל לצבור הטבות! 🎁\nההשלמה לוקחת חצי דקה:\n{update_link}\n\nלהסרה מרשימת התפוצה — השיבו "הסר" 🌿',
+        color: 'amber',
+    },
+    {
         key: 'manual',
         emoji: '🎯',
         label: 'בחירה ידנית',
@@ -290,6 +298,8 @@ export default function MarketingCampaigns() {
             days_since_visit: c.last_visit ? String(Math.floor((Date.now() - new Date(c.last_visit).getTime()) / 86400000)) : '0',
             visit_count: String(c.visit_count || 0),
             tier: c.loyalty_tier === 'vip' ? 'VIP' : 'רגיל',
+            city: c.city || '',
+            update_link: `https://topalena.com/ClubUpdate?cid=${c.id}`,
         };
         return template.replace(/\{(\w+)\}/g, (m, k) => replacements[k] ?? m);
     })();
@@ -489,7 +499,7 @@ export default function MarketingCampaigns() {
                                             </div>
                                         </div>
                                         <div className="text-xs text-gray-500 mb-2">
-                                            placeholders זמינים: <code className="bg-gray-100 px-1 rounded">{`{name}`}</code> <code className="bg-gray-100 px-1 rounded">{`{coins}`}</code> <code className="bg-gray-100 px-1 rounded">{`{days_since_visit}`}</code> <code className="bg-gray-100 px-1 rounded">{`{visit_count}`}</code> <code className="bg-gray-100 px-1 rounded">{`{tier}`}</code>
+                                            placeholders זמינים: <code className="bg-gray-100 px-1 rounded">{`{name}`}</code> <code className="bg-gray-100 px-1 rounded">{`{coins}`}</code> <code className="bg-gray-100 px-1 rounded">{`{days_since_visit}`}</code> <code className="bg-gray-100 px-1 rounded">{`{visit_count}`}</code> <code className="bg-gray-100 px-1 rounded">{`{tier}`}</code> <code className="bg-gray-100 px-1 rounded">{`{city}`}</code> <code className="bg-gray-100 px-1 rounded">{`{update_link}`}</code>
                                         </div>
                                         <textarea
                                             value={template}

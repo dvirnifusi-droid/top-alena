@@ -81,6 +81,29 @@ export const twilioWebhookRoutes: FastifyPluginAsync = async (app) => {
         });
         req.log.info({ sid, messageStatus }, '[twilio-webhook] status update');
       } else if (from && body) {
+        // ── Self-service unsubscribe ──────────────────────────────────────
+        // Customer replied "הסר" (or similar) → opt them out of marketing
+        // immediately and confirm with an auto-reply. Required by spam law:
+        // the removal channel must be the same channel the message came on.
+        const isUnsubscribe = /^(הסר|הסירו|להסיר|הסרה|תסירו|stop|unsubscribe)\b/i.test(body.trim());
+        if (isUnsubscribe) {
+          const cleanPhone = from.replace(/[^\d]/g, '');
+          const variants = [cleanPhone, cleanPhone.replace(/^972/, '0'), cleanPhone.replace(/^0/, '972')];
+          try {
+            const updated = await (prisma as any).customer.updateMany({
+              where: { phone: { in: variants } },
+              data: { marketing_consent: false, marketing_unsubscribed_at: new Date() },
+            });
+            req.log.info({ from, count: updated.count }, '[twilio-webhook] unsubscribe processed');
+          } catch (e: any) {
+            req.log.error({ err: e?.message }, '[twilio-webhook] unsubscribe failed');
+          }
+          // TwiML auto-reply confirming the removal (free — service window)
+          reply.type('text/xml').send(
+            '<?xml version="1.0" encoding="UTF-8"?><Response><Message>הוסרת מרשימת הדיוור של עלינא ✅ לא תקבל/י מאיתנו עוד הודעות שיווק. אם תרצה/י לחזור — אפשר להירשם שוב בכל ביקור 🌿</Message></Response>'
+          );
+          return;
+        }
         // Inbound message — save and notify owner
         await (prisma as any).whatsAppMessage.create({
           data: {

@@ -38,6 +38,8 @@ import UserGuide from './pages/UserGuide';
 import InstagramStudio from './pages/InstagramStudio';
 import Login from './pages/Login';
 import PublicReservation from './pages/PublicReservation';
+import ClubJoin from './pages/ClubJoin';
+import ClubUpdate from './pages/ClubUpdate';
 import ErrorBoundary from '@/components/shared/ErrorBoundary';
 
 const { Pages, Layout, mainPage } = pagesConfig;
@@ -146,6 +148,9 @@ function App() {
           <Route path="/QueueGame" element={<QueueGame />} />
           <Route path="/QueueFeedback" element={<QueueFeedback />} />
           <Route path="/PublicReservation" element={<PublicReservation />} />
+          <Route path="/ClubJoin" element={<ClubJoin />} />
+          <Route path="/club" element={<ClubJoin />} />
+          <Route path="/ClubUpdate" element={<ClubUpdate />} />
           <Route path="/PrivacyAndAccessibility" element={<PrivacyAndAccessibility />} />
           <Route path="/JobApplication" element={<JobApplication />} />
           <Route path="/apply" element={<JobApplication />} />
