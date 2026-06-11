@@ -43,6 +43,9 @@ class Alena_DZ_Checkout_Redesign {
         // Wolt-style place-order button text (JS appends the live total)
         add_filter('woocommerce_order_button_text', function () { return 'להזמין'; });
 
+        // Upsell strip in the main column (after tip section)
+        add_action('woocommerce_after_checkout_billing_form', [$this, 'render_checkout_upsell'], 60);
+
         // ---- Fulfillment: delivery vs. self-pickup ----
         add_action('wc_ajax_alena_set_fulfillment',        [$this, 'ajax_set_fulfillment']);
         add_action('wc_ajax_nopriv_alena_set_fulfillment', [$this, 'ajax_set_fulfillment']);
@@ -125,6 +128,38 @@ class Alena_DZ_Checkout_Redesign {
         $mode = get_post_meta($order->get_id(), '_alena_fulfillment', true);
         if (!$mode) return;
         echo '<p><strong>סוג הזמנה:</strong> ' . ($mode === 'pickup' ? '🚶 איסוף עצמי' : '🚚 משלוח') . '</p>';
+    }
+
+    public function render_checkout_upsell() {
+        $raw = (string) get_option('alena_cart_upsell', '');
+        $ids = $raw ? array_filter(array_map('intval', array_map('trim', explode(',', $raw)))) : [];
+        if (!$ids) return;
+
+        // Don't suggest items already in the cart
+        $in_cart = [];
+        if (function_exists('WC') && WC()->cart) {
+            foreach (WC()->cart->get_cart() as $ci) { $in_cart[] = (int) ($ci['product_id'] ?? 0); }
+        }
+
+        $cards = '';
+        foreach ($ids as $pid) {
+            if (in_array($pid, $in_cart, true)) continue;
+            $product = wc_get_product($pid);
+            if (!$product || !$product->is_visible()) continue;
+            $img = $product->get_image('woocommerce_thumbnail', ['class' => 'alena-co-up-img']);
+            $cards .= '<div class="alena-co-up-card" data-pid="' . esc_attr($pid) . '">'
+                . $img
+                . '<div class="alena-co-up-meta">'
+                . '<span class="alena-co-up-name">' . esc_html($product->get_name()) . '</span>'
+                . '<span class="alena-co-up-price">' . $product->get_price_html() . '</span>'
+                . '</div>'
+                . '<button type="button" class="alena-co-up-add" data-pid="' . esc_attr($pid) . '" aria-label="הוסף">+</button>'
+                . '</div>';
+        }
+        if ($cards === '') return;
+
+        echo '<h2 class="alena-co-h">😋 אולי תרצו להוסיף?</h2>';
+        echo '<div class="alena-co-upsell-strip">' . $cards . '</div>';
     }
 
     public function section_where() {

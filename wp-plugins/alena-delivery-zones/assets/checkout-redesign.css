@@ -314,6 +314,77 @@
   font-size: 15px;
 }
 
+/* Subtle attention pulse on the place-order button */
+.woocommerce-checkout #place_order {
+  animation: alena-cta-glow 2.6s ease-in-out infinite;
+}
+@keyframes alena-cta-glow {
+  0%, 100% { box-shadow: 0 4px 14px rgba(30,74,58,0.20); }
+  50%      { box-shadow: 0 6px 22px rgba(30,74,58,0.42); }
+}
+
+/* ---- Checkout upsell strip ---- */
+.alena-co-upsell-strip {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  padding: 4px 2px 10px;
+  margin-bottom: 6px;
+  scrollbar-width: thin;
+}
+.alena-co-up-card {
+  flex: 0 0 150px;
+  background: #fff;
+  border: 1px solid #eee3d4;
+  border-radius: 14px;
+  padding: 10px;
+  position: relative;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+  transition: all 0.15s ease;
+}
+.alena-co-up-card:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(0,0,0,0.10); }
+.alena-co-up-img {
+  width: 100% !important;
+  height: 90px !important;
+  object-fit: cover;
+  border-radius: 8px;
+  display: block;
+  margin-bottom: 8px;
+}
+.alena-co-up-name {
+  display: block;
+  font-size: 13px;
+  font-weight: 700;
+  color: #1c1c1c;
+  line-height: 1.25;
+  min-height: 2.4em;
+}
+.alena-co-up-price {
+  display: block;
+  font-size: 14px;
+  font-weight: 800;
+  color: #1e4a3a;
+  margin-top: 2px;
+}
+.alena-co-up-add {
+  position: absolute;
+  top: 14px;
+  left: 14px;
+  width: 30px;
+  height: 30px;
+  border: none;
+  border-radius: 999px;
+  background: #1e4a3a;
+  color: #fff;
+  font-size: 18px;
+  font-weight: 800;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+  transition: all 0.15s ease;
+}
+.alena-co-up-add:hover { background: #2e6850; transform: scale(1.1) rotate(90deg); }
+/* Hide upsell in pickup mode too? keep it — sides still relevant */
+
 /* Privacy text smaller */
 .woocommerce-checkout .woocommerce-privacy-policy-text {
   font-size: 11px;

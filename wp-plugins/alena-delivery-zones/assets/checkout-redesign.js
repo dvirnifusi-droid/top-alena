@@ -5,9 +5,33 @@
     initHeroMap();
     bindQtyControls();
     bindFulfillmentTabs();
+    bindUpsell();
     applyFulfillmentMode((typeof AlenaDZCheckoutR !== 'undefined' && AlenaDZCheckoutR.fulfillment) || 'delivery');
     woltSummary();
     $(document.body).on('updated_checkout', woltSummary);
+  }
+
+  // ---------- One-click upsell add ----------
+  function bindUpsell() {
+    $(document).on('click', '.alena-co-up-add', function (e) {
+      e.preventDefault();
+      const pid = $(this).data('pid');
+      const $card = $(this).closest('.alena-co-up-card');
+      if (!pid) return;
+      $(this).prop('disabled', true).text('✓');
+      const fd = new FormData();
+      fd.append('product_id', pid);
+      fd.append('quantity', '1');
+      fd.append('add-to-cart', pid);
+      $.ajax({
+        url: '/?wc-ajax=add_to_cart', type: 'POST', data: fd,
+        processData: false, contentType: false,
+        complete: function () {
+          $card.slideUp(220, function () { $(this).remove(); });
+          $('body').trigger('update_checkout');
+        }
+      });
+    });
   }
 
   // ---------- Delivery / Pickup tabs ----------
