@@ -528,3 +528,32 @@
 /* Pickup mode: hide the polygon map (irrelevant for self-pickup) */
 .alena-pickup-mode .alena-checkout-hero { height: 90px; }
 .alena-pickup-mode #alena-checkout-overview-map { filter: grayscale(0.4) opacity(0.6); }
+
+/* alena scan-fixes v2 */
+/* Remove (×) on each checkout summary line */
+.alena-co-line-remove {
+  display: inline-block;
+  margin-right: 8px;
+  width: 22px; height: 22px; line-height: 22px;
+  text-align: center;
+  color: #c83a3a !important;
+  font-weight: 700;
+  font-size: 16px;
+  text-decoration: none !important;
+  border-radius: 999px;
+  vertical-align: middle;
+}
+.alena-co-line-remove:hover { color: #fff !important; background: #c83a3a; }
+
+/* Cash-payment acknowledgement */
+.alena-cash-ack {
+  background: #fff7e6;
+  border: 1px dashed #f4a895;
+  border-radius: 10px;
+  padding: 12px 14px;
+  font-size: 12.5px;
+  color: #6a5a4d;
+  margin: 12px 0;
+}
+.alena-cash-ack label { display: flex; gap: 8px; align-items: flex-start; cursor: pointer; line-height: 1.4; }
+.alena-cash-ack input { margin-top: 2px; flex: 0 0 auto; }

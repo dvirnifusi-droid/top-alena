@@ -23,8 +23,8 @@ class Alena_DZ_Thank_You {
         // ETA per fulfillment type, from the configurable option
         $eta_cfg  = get_option('alena_cart_eta', []);
         $svc      = $is_pickup ? 'pickup' : 'delivery';
-        $eta_min  = is_array($eta_cfg) && isset($eta_cfg[$svc . '_min']) ? (int) $eta_cfg[$svc . '_min'] : ($is_pickup ? 15 : 35);
-        $eta_max  = is_array($eta_cfg) && isset($eta_cfg[$svc . '_max']) ? (int) $eta_cfg[$svc . '_max'] : ($is_pickup ? 25 : 50);
+        $eta_min  = is_array($eta_cfg) && isset($eta_cfg[$svc . '_min']) ? (int) $eta_cfg[$svc . '_min'] : ($is_pickup ? 15 : 40);
+        $eta_max  = is_array($eta_cfg) && isset($eta_cfg[$svc . '_max']) ? (int) $eta_cfg[$svc . '_max'] : ($is_pickup ? 25 : 60);
         $eta      = $eta_min . '–' . $eta_max . ' דקות';
         try {
             if (class_exists('Alena_DZ_Hours_Engine')) {

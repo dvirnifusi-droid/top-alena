@@ -150,7 +150,7 @@ class Alena_DZ_Cart_Redesign {
        =========================================================== */
 
     private function get_eta_config(): array {
-        $defaults = ['delivery_min' => 35, 'delivery_max' => 50, 'pickup_min' => 15, 'pickup_max' => 25];
+        $defaults = ['delivery_min' => 40, 'delivery_max' => 60, 'pickup_min' => 15, 'pickup_max' => 25];
         $stored = get_option(self::ETA_OPTION, []);
         return is_array($stored) ? array_merge($defaults, $stored) : $defaults;
     }

@@ -46,6 +46,17 @@ class Alena_DZ_Checkout_Redesign {
         // Upsell strip in the main column (after tip section)
         add_action('woocommerce_after_checkout_billing_form', [$this, 'render_checkout_upsell'], 60);
 
+        // Pickup-aware COD title/description
+        add_filter('woocommerce_gateway_title',       [$this, 'cod_title'], 10, 2);
+        add_filter('woocommerce_gateway_description', [$this, 'cod_description'], 10, 2);
+
+        // Remove (×) per item in the checkout order-review summary
+        add_filter('woocommerce_checkout_cart_item_quantity', [$this, 'review_item_remove'], 10, 3);
+
+        // Cash-payment acknowledgement checkbox + save
+        add_action('woocommerce_review_order_before_submit', [$this, 'render_cash_ack']);
+        add_action('woocommerce_checkout_update_order_meta',  [$this, 'save_cash_ack']);
+
         // ---- Fulfillment: delivery vs. self-pickup ----
         add_action('wc_ajax_alena_set_fulfillment',        [$this, 'ajax_set_fulfillment']);
         add_action('wc_ajax_nopriv_alena_set_fulfillment', [$this, 'ajax_set_fulfillment']);
@@ -128,6 +139,61 @@ class Alena_DZ_Checkout_Redesign {
         $mode = get_post_meta($order->get_id(), '_alena_fulfillment', true);
         if (!$mode) return;
         echo '<p><strong>סוג הזמנה:</strong> ' . ($mode === 'pickup' ? '🚶 איסוף עצמי' : '🚚 משלוח') . '</p>';
+    }
+
+    public function cod_title($title, $id) {
+        if ($id === 'cod') return 'תשלום במזומן';
+        return $title;
+    }
+
+    public function cod_description($desc, $id) {
+        if ($id !== 'cod') return $desc;
+        if (self::current_fulfillment() === 'pickup') {
+            return 'שלם במזומן בעת איסוף ההזמנה מהמסעדה. אנא שמור על סכום מדויק או קרוב.';
+        }
+        return 'שלם לשליח שלנו במזומן בעת קבלת ההזמנה. אנא שמור על סכום מדויק או קרוב.';
+    }
+
+    public function review_item_remove($qty_html, $cart_item, $cart_item_key) {
+        $remove_url = wc_get_cart_remove_url($cart_item_key);
+        $btn = '<a href="' . esc_url($remove_url) . '" class="alena-co-line-remove" aria-label="הסר פריט" title="הסר">×</a>';
+        return $qty_html . $btn;
+    }
+
+    public function render_cash_ack() {
+        ?>
+        <p class="alena-cash-ack" id="alena-cash-ack-wrap" style="display:none">
+          <label>
+            <input type="checkbox" name="alena_cash_ack" id="alena_cash_ack" value="1" />
+            הבנתי — בתשלום במזומן לא ניתן לשנות לתשלום באשראי לאחר ביצוע ההזמנה.
+          </label>
+        </p>
+        <script>
+        (function($){
+          function toggle(){
+            var cod = $('#payment_method_cod').is(':checked');
+            $('#alena-cash-ack-wrap').toggle(cod);
+          }
+          $(document.body).on('change', 'input[name="payment_method"]', toggle);
+          $(document.body).on('updated_checkout', toggle);
+          $(toggle);
+          // Block placing the order until acknowledged (COD only)
+          $(document.body).on('checkout_place_order', function(){
+            if ($('#payment_method_cod').is(':checked') && !$('#alena_cash_ack').is(':checked')) {
+              alert('יש לאשר את תנאי התשלום במזומן כדי להמשיך.');
+              return false;
+            }
+            return true;
+          });
+        })(jQuery);
+        </script>
+        <?php
+    }
+
+    public function save_cash_ack($order_id) {
+        if (!empty($_POST['alena_cash_ack'])) {
+            update_post_meta($order_id, '_alena_cash_ack', 'yes');
+        }
     }
 
     public function render_checkout_upsell() {

@@ -42,8 +42,8 @@ class Alena_DZ_Order_Scheduling {
         // Read the option directly — instantiating the class here would
         // re-register all its hooks.
         $eta_cfg = get_option('alena_cart_eta', []);
-        $eta_min = is_array($eta_cfg) && isset($eta_cfg['delivery_min']) ? (int) $eta_cfg['delivery_min'] : 35;
-        $eta_max = is_array($eta_cfg) && isset($eta_cfg['delivery_max']) ? (int) $eta_cfg['delivery_max'] : 50;
+        $eta_min = is_array($eta_cfg) && isset($eta_cfg['delivery_min']) ? (int) $eta_cfg['delivery_min'] : 40;
+        $eta_max = is_array($eta_cfg) && isset($eta_cfg['delivery_max']) ? (int) $eta_cfg['delivery_max'] : 60;
         $eta = $eta_min . '–' . $eta_max . ' דק׳';
         ?>
         <h2 class="alena-co-h">⏰ מתי?</h2>

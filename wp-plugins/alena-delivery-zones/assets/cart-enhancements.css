@@ -776,3 +776,14 @@ body.woocommerce-cart header.entry-header { display: none !important; }
   text-decoration: none !important; font-size: 16px; transition: all .15s ease;
 }
 .alena-promo-cta:hover { background: #2e6850; transform: translateY(-1px); }
+
+/* alena cart-total tidy */
+.woocommerce-cart .cart_totals { padding: 18px 20px; }
+.woocommerce-cart .cart_totals table,
+.woocommerce-cart .cart_totals table tbody { width: 100% !important; display: table !important; }
+.woocommerce-cart .cart_totals table tr { display: table-row !important; }
+.woocommerce-cart .cart_totals table th { width: 55%; text-align: right !important; font-weight: 600; color: #6a5a4d; }
+.woocommerce-cart .cart_totals table td { text-align: left !important; font-weight: 700; color: #1c1c1c; }
+.woocommerce-cart .cart_totals tr.order-total th { font-size: 17px !important; color: #1c1c1c !important; }
+.woocommerce-cart .cart_totals tr.order-total td { font-size: 19px !important; color: #1e4a3a !important; }
+.woocommerce-cart .cart_totals tr.order-total td small { display:block; font-size:11px; font-weight:500; color:#9a8a7a; }
