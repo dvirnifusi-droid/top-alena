@@ -200,13 +200,25 @@ export default function CustomerDetailsPage() {
                             <CardDescription className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-2">
                                 <span className="flex items-center gap-2"><Phone className="w-4 h-4" /> {customer.phone}</span>
                                 {customer.email && <span className="flex items-center gap-2"><Mail className="w-4 h-4" /> {customer.email}</span>}
+                                {customer.city && <span className="flex items-center gap-2">📍 {customer.city}</span>}
                                 {customer.birthday_mmdd && <span className="flex items-center gap-2">🎂 {customer.birthday_mmdd}</span>}
                                 {customer.anniversary_mmdd && <span className="flex items-center gap-2">💝 {customer.anniversary_label || 'יום נישואים'}: {customer.anniversary_mmdd}</span>}
                             </CardDescription>
                         </div>
-                        <div className="flex flex-col items-start md:items-end gap-2">
+                        <div className="flex flex-col items-start md:items-end gap-1.5">
                              <Badge className={`${currentSatisfaction.className} px-3 py-1 text-sm`}>{currentSatisfaction.text}</Badge>
-                            <span className="text-sm text-gray-500">סה"כ ביקורים: {customer.total_visits || 0}</span>
+                            <span className="text-sm text-gray-500">סה"כ ביקורים: {customer.total_visits || customer.visit_count || 0}</span>
+                            {customer.last_visit && (
+                                <span className="text-xs text-gray-500">ביקור אחרון: {new Date(customer.last_visit).toLocaleDateString('he-IL')}</span>
+                            )}
+                            {(customer.created_date || customer.createdAt) && (
+                                <span className="text-xs text-gray-400">הצטרף/ה: {new Date(customer.created_date || customer.createdAt).toLocaleDateString('he-IL')}</span>
+                            )}
+                            <Badge className={customer.marketing_consent && !customer.marketing_unsubscribed_at
+                                ? 'bg-emerald-100 text-emerald-800'
+                                : 'bg-gray-200 text-gray-600'}>
+                                {customer.marketing_consent && !customer.marketing_unsubscribed_at ? '📢 מקבל/ת דיוור' : '🔕 ללא דיוור'}
+                            </Badge>
                         </div>
                     </CardHeader>
                     {/* Inline edit for birthday/anniversary */}

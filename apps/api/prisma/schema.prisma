@@ -592,6 +592,16 @@ model Customer {
   id        String   @id @default(cuid())
   phone                        String
   name                         String?
+  // Club-profile fields — written by /ClubJoin, /CustomerClub and campaigns.
+  // Declared here (with drift-repair ALTERs) because the base44 import created
+  // them in the DB but they were missing from this model, which made every
+  // Prisma select that touched them crash (broke the campaign search).
+  email                        String?
+  birthday                     String?
+  notes                        String?
+  satisfaction_status          String?
+  total_visits                 Float?  @default(0)
+  total_spent                  Float?  @default(0)
   visit_count                  Int?  @default(0)
   coin_balance                 Int?  @default(0)
   loyalty_tier                 String?  @default("regular")

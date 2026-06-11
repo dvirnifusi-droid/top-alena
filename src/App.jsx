@@ -40,6 +40,7 @@ import Login from './pages/Login';
 import PublicReservation from './pages/PublicReservation';
 import ClubJoin from './pages/ClubJoin';
 import ClubUpdate from './pages/ClubUpdate';
+import ClubQR from './pages/ClubQR';
 import ErrorBoundary from '@/components/shared/ErrorBoundary';
 
 const { Pages, Layout, mainPage } = pagesConfig;
@@ -151,6 +152,7 @@ function App() {
           <Route path="/ClubJoin" element={<ClubJoin />} />
           <Route path="/club" element={<ClubJoin />} />
           <Route path="/ClubUpdate" element={<ClubUpdate />} />
+          <Route path="/ClubQR" element={<ClubQR />} />
           <Route path="/PrivacyAndAccessibility" element={<PrivacyAndAccessibility />} />
           <Route path="/JobApplication" element={<JobApplication />} />
           <Route path="/apply" element={<JobApplication />} />

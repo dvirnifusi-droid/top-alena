@@ -2916,7 +2916,7 @@ registerFn('searchCustomers', async ({ body, user }) => {
   const results = await db.customer.findMany({
     where: { OR: or },
     take: 20,
-    orderBy: { last_visit: 'desc' },
+    orderBy: [{ last_visit: { sort: 'desc', nulls: 'last' } }],
     select: {
       id: true, name: true, phone: true, email: true,
       visit_count: true, loyalty_tier: true, last_visit: true,
@@ -2924,6 +2924,51 @@ registerFn('searchCustomers', async ({ body, user }) => {
     },
   });
   return { results };
+});
+
+// Server-side paginated customer list for /CustomerClub — replaces the old
+// load-everything-in-batches approach that crawled with 19K customers.
+// Returns one page + total count; search hits the DB, not the browser.
+registerFn('clubListCustomers', async ({ body, user }) => {
+  if ((user as any)?.role !== 'admin' && !(user as any)?.managed_department) throw new Error('admin only');
+  const { q, page, page_size, satisfaction, missing_only } = (body as any) || {};
+  const take = Math.min(Math.max(Number(page_size) || 50, 10), 200);
+  const skip = Math.max(Number(page) || 0, 0) * take;
+  const where: any = {};
+  const query = String(q || '').trim();
+  if (query.length >= 2) {
+    const digits = query.replace(/[^\d]/g, '');
+    const or: any[] = [
+      { name: { contains: query, mode: 'insensitive' } },
+      { email: { contains: query, mode: 'insensitive' } },
+    ];
+    if (digits.length >= 3) or.push({ phone: { contains: digits } });
+    where.OR = or;
+  }
+  if (satisfaction && satisfaction !== 'all') where.satisfaction_status = satisfaction;
+  // Customers missing club-profile fields — for the "fill your details" drive
+  if (missing_only) {
+    where.AND = [...(where.AND || []), { OR: [{ birthday_mmdd: null }, { city: null }] }];
+    if (where.OR) { where.AND.push({ OR: where.OR }); delete where.OR; }
+  }
+  const [total, rows] = await Promise.all([
+    db.customer.count({ where }),
+    db.customer.findMany({
+      where,
+      take,
+      skip,
+      orderBy: [{ last_visit: { sort: 'desc', nulls: 'last' } }],
+      select: {
+        id: true, name: true, phone: true, email: true, city: true,
+        birthday: true, birthday_mmdd: true, anniversary_mmdd: true, anniversary_label: true,
+        visit_count: true, total_visits: true, total_spent: true,
+        coin_balance: true, loyalty_tier: true, satisfaction_status: true, notes: true,
+        last_visit: true, marketing_consent: true, marketing_unsubscribed_at: true,
+        createdAt: true, created_date: true,
+      },
+    }),
+  ]);
+  return { total, rows, page: Math.max(Number(page) || 0, 0), page_size: take };
 });
 
 // Preview: count + 5 sample customers matching the segment.
@@ -10894,6 +10939,14 @@ if (!(globalThis as any).__startupDriftRepair) {
       // Customer marketing fields — birthday/anniversary for campaigns + throttling
       await prisma.$executeRawUnsafe(`ALTER TABLE "Customer" ADD COLUMN IF NOT EXISTS "city" TEXT;`);
       await prisma.$executeRawUnsafe(`ALTER TABLE "Customer" ADD COLUMN IF NOT EXISTS "birthday_mmdd" TEXT;`);
+      // Club-profile legacy/base44 columns — ensure they exist so the Prisma
+      // model declarations don't P2022 on rows that predate them.
+      await prisma.$executeRawUnsafe(`ALTER TABLE "Customer" ADD COLUMN IF NOT EXISTS "email" TEXT;`);
+      await prisma.$executeRawUnsafe(`ALTER TABLE "Customer" ADD COLUMN IF NOT EXISTS "birthday" TEXT;`);
+      await prisma.$executeRawUnsafe(`ALTER TABLE "Customer" ADD COLUMN IF NOT EXISTS "notes" TEXT;`);
+      await prisma.$executeRawUnsafe(`ALTER TABLE "Customer" ADD COLUMN IF NOT EXISTS "satisfaction_status" TEXT;`);
+      await prisma.$executeRawUnsafe(`ALTER TABLE "Customer" ADD COLUMN IF NOT EXISTS "total_visits" DOUBLE PRECISION DEFAULT 0;`);
+      await prisma.$executeRawUnsafe(`ALTER TABLE "Customer" ADD COLUMN IF NOT EXISTS "total_spent" DOUBLE PRECISION DEFAULT 0;`);
       await prisma.$executeRawUnsafe(`ALTER TABLE "Customer" ADD COLUMN IF NOT EXISTS "anniversary_mmdd" TEXT;`);
       await prisma.$executeRawUnsafe(`ALTER TABLE "Customer" ADD COLUMN IF NOT EXISTS "anniversary_label" TEXT;`);
       await prisma.$executeRawUnsafe(`ALTER TABLE "Customer" ADD COLUMN IF NOT EXISTS "last_marketing_sent_at" TIMESTAMP(3);`);

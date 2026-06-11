@@ -176,6 +176,7 @@ export default function MarketingCampaigns() {
     const [custSearch, setCustSearch] = useState('');
     const [custResults, setCustResults] = useState([]);
     const [custSearching, setCustSearching] = useState(false);
+    const [custError, setCustError] = useState('');
 
     const isManual = activeSegment?.key === 'manual';
 
@@ -204,10 +205,16 @@ export default function MarketingCampaigns() {
         if (!isManual || custSearch.trim().length < 2) { setCustResults([]); return; }
         const t = setTimeout(async () => {
             setCustSearching(true);
+            setCustError('');
             try {
                 const r = await base44.functions.searchCustomers({ q: custSearch.trim() });
-                setCustResults((r?.data || r)?.results || []);
-            } catch { setCustResults([]); }
+                const results = (r?.data || r)?.results || [];
+                setCustResults(results);
+                if (results.length === 0) setCustError('לא נמצאו לקוחות תואמים');
+            } catch (e) {
+                setCustResults([]);
+                setCustError('שגיאה בחיפוש: ' + (e?.message || 'נסה שוב'));
+            }
             finally { setCustSearching(false); }
         }, 400);
         return () => clearTimeout(t);
@@ -362,6 +369,7 @@ export default function MarketingCampaigns() {
                                         className="w-full border rounded-lg p-2 text-sm focus:ring-2 focus:ring-emerald-400 focus:outline-none"
                                     />
                                     {custSearching && <p className="text-xs text-gray-400 mt-2">מחפש...</p>}
+                                    {custError && !custSearching && <p className="text-xs text-orange-600 mt-2 font-bold">{custError}</p>}
                                     {custResults.length > 0 && (
                                         <div className="mt-2 border rounded-lg divide-y max-h-56 overflow-y-auto">
                                             {custResults.map(c => {

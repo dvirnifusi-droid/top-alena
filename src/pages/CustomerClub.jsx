@@ -31,6 +31,7 @@ export default function CustomerClubPage() {
     const [joinDateFrom, setJoinDateFrom] = useState('');
     const [joinDateTo, setJoinDateTo] = useState('');
     const [currentPage, setCurrentPage] = useState(1);
+    const [totalCount, setTotalCount] = useState(0);
 
     // Add Customer
     const [showAddCustomer, setShowAddCustomer] = useState(false);
@@ -65,7 +66,6 @@ export default function CustomerClubPage() {
     const [smsTemplates, setSmsTemplates] = useState([]);
 
     useEffect(() => {
-        loadCustomers();
         loadTemplates();
     }, []);
 
@@ -75,51 +75,54 @@ export default function CustomerClubPage() {
         setSmsTemplates(data.filter(t => t.type === 'sms'));
     };
 
-    useEffect(() => {
-        const lowercasedFilter = searchTerm.toLowerCase();
-        let filteredData = customers;
-        if (lowercasedFilter) {
-            filteredData = filteredData.filter(item =>
-                item.name?.toLowerCase().includes(lowercasedFilter) ||
-                item.phone?.toLowerCase().includes(lowercasedFilter) ||
-                item.email?.toLowerCase().includes(lowercasedFilter)
-            );
-        }
-        if (statusFilter !== 'all') {
-            filteredData = filteredData.filter(c => c.satisfaction_status === statusFilter);
-        }
-        if (vipFilter !== 'all') {
-            filteredData = filteredData.filter(c => c.vip_level === vipFilter);
-        }
-        if (joinDateFrom) {
-            filteredData = filteredData.filter(c => c.created_date && new Date(c.created_date) >= new Date(joinDateFrom));
-        }
-        if (joinDateTo) {
-            filteredData = filteredData.filter(c => c.created_date && new Date(c.created_date) <= new Date(joinDateTo + 'T23:59:59'));
-        }
-        setFilteredCustomers(filteredData);
-        setCurrentPage(1);
-    }, [searchTerm, customers, statusFilter, vipFilter, joinDateFrom, joinDateTo]);
-
-    const loadCustomers = async () => {
+    // ── Server-side loading ─────────────────────────────────────────────────
+    // The old version pulled ALL customers in 500-row batches (19K rows ≈ 40
+    // sequential requests) and filtered in the browser. Now one request per
+    // page: search + satisfaction filter run in the DB via clubListCustomers.
+    const loadCustomers = async (page, q, status) => {
         try {
             setLoading(true);
-            const BATCH = 500;
-            let all = [];
-            let skip = 0;
-            while (true) {
-                const batch = await base44.entities.Customer.list('-created_date', BATCH, skip);
-                all = all.concat(batch);
-                if (batch.length < BATCH) break;
-                skip += BATCH;
-            }
-            setCustomers(all);
+            const res = await base44.functions.clubListCustomers({
+                q: q || '',
+                page: Math.max((page || 1) - 1, 0),
+                page_size: PAGE_SIZE,
+                satisfaction: status && status !== 'all' ? status : undefined,
+            });
+            const data = res?.data ?? res;
+            setCustomers(data?.rows || []);
+            setTotalCount(data?.total || 0);
         } catch (error) {
             console.error("Failed to load customers:", error);
+            setCustomers([]);
+            setTotalCount(0);
         } finally {
             setLoading(false);
         }
     };
+
+    // Search is debounced 400ms; filter/page changes load immediately.
+    useEffect(() => {
+        const t = setTimeout(() => loadCustomers(currentPage, searchTerm, statusFilter), searchTerm ? 400 : 0);
+        return () => clearTimeout(t);
+    }, [searchTerm, statusFilter, currentPage]);
+
+    // Reset to page 1 when the query/filter changes
+    useEffect(() => { setCurrentPage(1); }, [searchTerm, statusFilter, vipFilter, joinDateFrom, joinDateTo]);
+
+    // Remaining client-side filters (rare) apply to the current page only.
+    useEffect(() => {
+        let filteredData = customers;
+        if (vipFilter !== 'all') {
+            filteredData = filteredData.filter(c => c.vip_level === vipFilter);
+        }
+        if (joinDateFrom) {
+            filteredData = filteredData.filter(c => (c.created_date || c.createdAt) && new Date(c.created_date || c.createdAt) >= new Date(joinDateFrom));
+        }
+        if (joinDateTo) {
+            filteredData = filteredData.filter(c => (c.created_date || c.createdAt) && new Date(c.created_date || c.createdAt) <= new Date(joinDateTo + 'T23:59:59'));
+        }
+        setFilteredCustomers(filteredData);
+    }, [customers, vipFilter, joinDateFrom, joinDateTo]);
 
     const handleImportExcel = async (e) => {
         const file = e.target.files[0];
@@ -345,8 +348,9 @@ export default function CustomerClubPage() {
         );
     };
 
-    const totalPages = Math.ceil(filteredCustomers.length / PAGE_SIZE);
-    const pagedCustomers = filteredCustomers.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+    // Server already returns exactly one page — no client-side slicing.
+    const totalPages = Math.max(Math.ceil(totalCount / PAGE_SIZE), 1);
+    const pagedCustomers = filteredCustomers;
 
     const unsatisfiedCount = customers.filter(c => c.satisfaction_status === 'unsatisfied').length;
     const satisfiedCount = customers.filter(c => c.satisfaction_status === 'satisfied').length;
@@ -452,7 +456,7 @@ export default function CustomerClubPage() {
                             </Button>
                         )}
 
-                        <span className="text-sm text-gray-500 mr-auto">{filteredCustomers.length} לקוחות</span>
+                        <span className="text-sm text-gray-500 mr-auto">{totalCount.toLocaleString()} לקוחות</span>
                     </div>
 
                     {loading ? (
@@ -539,7 +543,7 @@ export default function CustomerClubPage() {
                         {totalPages > 1 && (
                             <div className="flex items-center justify-center gap-2 mt-4">
                                 <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}>הקודם</Button>
-                                <span className="text-sm text-gray-600">{currentPage} / {totalPages} ({filteredCustomers.length} לקוחות)</span>
+                                <span className="text-sm text-gray-600">{currentPage} / {totalPages} ({totalCount.toLocaleString()} לקוחות)</span>
                                 <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}>הבא</Button>
                             </div>
                         )}
