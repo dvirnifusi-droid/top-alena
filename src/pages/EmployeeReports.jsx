@@ -71,6 +71,9 @@ function EmployeeReportsInner() {
     const [editShift, setEditShift] = useState(null); // { entry, workShiftId }
     // Add manual shift
     const [showAddShift, setShowAddShift] = useState(false);
+    // When on: past shifts with no clock-in record are included in the
+    // hourly table + totals (default: hidden, per the no-show rule).
+    const [includeNoShow, setIncludeNoShow] = useState(false);
     const [addShiftForm, setAddShiftForm] = useState({ date: format(new Date(), 'yyyy-MM-dd'), shift_type: 'dinner', position: '', start_time: '', end_time: '', break_minutes: 0 });
     const [savingAddShift, setSavingAddShift] = useState(false);
     // Rates per position for gross calculation
@@ -88,7 +91,9 @@ function EmployeeReportsInner() {
         if (!addShiftForm.end_time) { toast({ title: 'שגיאה', description: 'חסרה שעת יציאה', variant: 'destructive' }); return; }
         setSavingAddShift(true);
         const emp = employees.find(e => e.id === selectedEmployeeId);
-        const newEntry = { employee_id: selectedEmployeeId, employee_name: emp?.full_name || '', position: addShiftForm.position, start_time: addShiftForm.start_time, end_time: addShiftForm.end_time, total_break_minutes: Number(addShiftForm.break_minutes) || 0, status: 'scheduled' };
+        // manual_entry flags this as owner-confirmed real hours — the no-show
+        // filter (past day with no clock-in → excluded) must NOT hide these.
+        const newEntry = { employee_id: selectedEmployeeId, employee_name: emp?.full_name || '', position: addShiftForm.position, start_time: addShiftForm.start_time, end_time: addShiftForm.end_time, total_break_minutes: Number(addShiftForm.break_minutes) || 0, status: 'scheduled', manual_entry: true };
         const existing = await base44.entities.WorkShift.filter({ date: addShiftForm.date, shift_type: addShiftForm.shift_type });
         if (existing.length > 0) {
             await base44.entities.WorkShift.update(existing[0].id, { assigned_staff: [...(existing[0].assigned_staff || []), newEntry] });
@@ -246,9 +251,11 @@ function EmployeeReportsInner() {
                 if (TIP_POSITIONS.includes(a.position)) return; // טיפ-based - לא כאן
                 const hours = calcHours(a.start_time, a.end_time);
                 if (hours <= 0) return;
-                // No-show filter: אם היום עבר ואין שעון נוכחות → לא סופרים
+                // No-show filter: אם היום עבר ואין שעון נוכחות → לא סופרים.
+                // חריגים: (1) משמרת שהוזנה ידנית בדוח (manual_entry) — הבעלים
+                // אישר אותה בעצמו; (2) המתג "כלול משמרות ללא שעון" דולק.
                 const isPast = ws.date < todayStr;
-                if (isPast && !clockedDays.has(ws.date)) return;
+                if (isPast && !clockedDays.has(ws.date) && !a.manual_entry && !includeNoShow) return;
                 hourlyShiftEntries.push({
                     date: ws.date,
                     shift_type: ws.shift_type,
@@ -264,7 +271,7 @@ function EmployeeReportsInner() {
         });
 
         return { tipEntries, shifts: empShifts, hourlyShiftEntries };
-    }, [shifts, tipReports, workShifts, selectedEmployeeId, filterPeriod, selectedMonth, employees]);
+    }, [shifts, tipReports, workShifts, selectedEmployeeId, filterPeriod, selectedMonth, employees, includeNoShow]);
 
     // חישוב פילוח שבועי לחודש הנוכחי (לטאב החדש)
     const monthlyBreakdown = useMemo(() => {
@@ -916,6 +923,14 @@ function EmployeeReportsInner() {
                                     <div>
                                         <CardTitle>פירוט משמרות לפי סידור עבודה</CardTitle>
                                         <p className="text-sm text-gray-500 mt-1">תפקידים שאינם מלצר/ברמן/ראנר (אלו נמצאים בטאב הטיפים)</p>
+                                        <label className="flex items-center gap-2 mt-2 text-xs text-gray-600 cursor-pointer select-none">
+                                            <input
+                                                type="checkbox"
+                                                checked={includeNoShow}
+                                                onChange={(e) => setIncludeNoShow(e.target.checked)}
+                                            />
+                                            ⚠️ כלול גם משמרות מהסידור שלא נסגרו בשעון (הבריזים)
+                                        </label>
                                     </div>
                                     {isAdmin && (
                                         <div className="flex gap-2">
