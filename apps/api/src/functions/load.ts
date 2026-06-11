@@ -1727,6 +1727,9 @@ if (!(globalThis as any).__ceoDailyBriefTimer) {
 // ============================================================================
 async function runDailyCelebrationCampaigns(force = false) {
   if (!force) {
+    // Same kill switch as drips — no automatic customer sends until the
+    // owner sets DRIP_CAMPAIGNS_ENABLED=true in apps/api/.env.
+    if (process.env.DRIP_CAMPAIGNS_ENABLED !== 'true') return;
     const ilHour = (new Date().getUTCHours() + 3) % 24;
     if (ilHour !== 9) return; // only at 09:00 IL
     // Use a daily lock so we don't re-fire if the timer ticks twice within 9:00 IL hour.
@@ -1832,7 +1835,16 @@ const DRIP_TEMPLATES = {
   pre_birthday: 'היי {name}! 🎂\nבעוד שבוע יש לך יום הולדת — נשמח לחגוג איתך!\nתזמין שולחן וקבל קינוח חינם.\nרוטשילד 104, ראשון לציון 🌿',
 };
 
-async function runDripCampaigns() {
+async function runDripCampaigns(force = false) {
+  // ── KILL SWITCH ──────────────────────────────────────────────────────────
+  // Drips are OFF until the owner explicitly enables them by setting
+  // DRIP_CAMPAIGNS_ENABLED=true in apps/api/.env. Added 2026-06-11 after the
+  // bulk consent migration made 19K customers eligible — auto-sending without
+  // an explicit opt-in from the OWNER is not acceptable. The admin-only
+  // manual trigger (runDripCampaignsNow) passes force=true.
+  if (!force && process.env.DRIP_CAMPAIGNS_ENABLED !== 'true') {
+    return;
+  }
   const now = new Date();
   const cutoff24h = new Date(now.getTime() - 24 * 60 * 60 * 1000);
   const baseGate: any = {
@@ -1968,7 +1980,7 @@ if (!(globalThis as any).__dripCampaignsTimer) {
 
 registerFn('runDripCampaignsNow', async ({ user }) => {
   if ((user as any)?.role !== 'admin') throw new Error('admin only');
-  await runDripCampaigns();
+  await runDripCampaigns(true);
   return { triggered: true };
 });
 
