@@ -95,6 +95,9 @@ import MyPerformance from './pages/MyPerformance';
 import PositionsManagement from './pages/PositionsManagement';
 import PublicReservation from './pages/PublicReservation';
 import PublicReservationSettings from './pages/PublicReservationSettings';
+import EventVendors from './pages/EventVendors';
+import EventVendorDetails from './pages/EventVendorDetails';
+import EventVendorCampaign from './pages/EventVendorCampaign';
 import DepositSettings from './pages/DepositSettings';
 import VoiceTest from './pages/VoiceTest';
 import Popups from './pages/Popups';
@@ -197,6 +200,9 @@ export const PAGES = {
     "PositionsManagement": PositionsManagement,
     "PublicReservation": PublicReservation,
     "PublicReservationSettings": PublicReservationSettings,
+    "EventVendors": EventVendors,
+    "EventVendorDetails": EventVendorDetails,
+    "EventVendorCampaign": EventVendorCampaign,
     "DepositSettings": DepositSettings,
     "VoiceTest": VoiceTest,
     "Popups": Popups,

@@ -2811,6 +2811,416 @@ function renderTemplate(template: string, c: CustomerLike): string {
 }
 
 // ============================================================================
+// EVENT VENDORS — partner/supplier CRM
+// ============================================================================
+// Covers everything from event producers + group-tour operators to DJs and
+// photographers. Tracks commercial terms, agreements, activity timeline,
+// event attribution (referrer vs service provider), and commission payouts.
+
+registerFn('listVendors', async ({ body, user }) => {
+  if ((user as any)?.role !== 'admin' && !(user as any)?.managed_department) throw new Error('admin only');
+  const { q, category, status, page, page_size } = (body as any) || {};
+  const take = Math.min(Math.max(Number(page_size) || 50, 10), 200);
+  const skip = Math.max(Number(page) || 0, 0) * take;
+  const where: any = {};
+  const query = String(q || '').trim();
+  if (query.length >= 2) {
+    const digits = query.replace(/[^\d]/g, '');
+    const or: any[] = [
+      { business_name: { contains: query, mode: 'insensitive' } },
+      { contact_name: { contains: query, mode: 'insensitive' } },
+      { email: { contains: query, mode: 'insensitive' } },
+    ];
+    if (digits.length >= 3) {
+      or.push({ phone: { contains: digits } });
+      or.push({ whatsapp: { contains: digits } });
+    }
+    where.OR = or;
+  }
+  if (status && status !== 'all') where.status = status;
+  // category filter — Json array contains (Postgres jsonb @>)
+  if (category && category !== 'all') {
+    where.AND = [...(where.AND || []),
+      { categories: { array_contains: category } } as any,
+    ];
+  }
+  const [total, rows] = await Promise.all([
+    db.vendor.count({ where }),
+    db.vendor.findMany({
+      where, take, skip,
+      orderBy: [{ createdAt: 'desc' }],
+    }),
+  ]);
+  return { total, rows, page: Math.max(Number(page) || 0, 0), page_size: take };
+});
+
+registerFn('createVendor', async ({ body, user }) => {
+  if ((user as any)?.role !== 'admin') throw new Error('admin only');
+  const data = body as any;
+  if (!data?.business_name) throw new Error('business_name required');
+  const v = await db.vendor.create({
+    data: {
+      business_name: String(data.business_name).slice(0, 120),
+      contact_name: data.contact_name || null,
+      phone: data.phone ? String(data.phone).replace(/[^\d+]/g, '') : null,
+      whatsapp: data.whatsapp ? String(data.whatsapp).replace(/[^\d+]/g, '') : null,
+      email: data.email || null,
+      city: data.city || null,
+      website: data.website || null,
+      instagram: data.instagram || null,
+      business_id: data.business_id || null,
+      vat_type: data.vat_type || null,
+      categories: Array.isArray(data.categories) ? data.categories : undefined,
+      specialties: data.specialties || null,
+      default_commission_pct: data.default_commission_pct != null ? Number(data.default_commission_pct) : null,
+      default_commission_fixed_ils: data.default_commission_fixed_ils != null ? Number(data.default_commission_fixed_ils) : null,
+      commission_stage: data.commission_stage || 'on_event_date',
+      bank_name: data.bank_name || null,
+      bank_branch: data.bank_branch || null,
+      bank_account: data.bank_account || null,
+      bank_account_owner: data.bank_account_owner || null,
+      insurance_url: data.insurance_url || null,
+      insurance_expiry: data.insurance_expiry ? new Date(data.insurance_expiry) : null,
+      business_license_url: data.business_license_url || null,
+      business_license_expiry: data.business_license_expiry ? new Date(data.business_license_expiry) : null,
+      status: data.status || 'active',
+      rating: data.rating != null ? Number(data.rating) : null,
+      internal_notes: data.internal_notes || null,
+      marketing_consent: data.marketing_consent !== false,
+      marketing_consent_at: data.marketing_consent !== false ? new Date() : null,
+      created_by: (user as any)?.email || null,
+    },
+  });
+  return { vendor: v };
+});
+
+registerFn('updateVendor', async ({ body, user }) => {
+  if ((user as any)?.role !== 'admin') throw new Error('admin only');
+  const { id, ...patch } = body as any;
+  if (!id) throw new Error('id required');
+  // Normalize date fields
+  const data: any = { ...patch };
+  for (const k of ['insurance_expiry', 'business_license_expiry']) {
+    if (data[k] !== undefined) data[k] = data[k] ? new Date(data[k]) : null;
+  }
+  for (const k of ['default_commission_pct', 'default_commission_fixed_ils', 'rating']) {
+    if (data[k] !== undefined && data[k] !== null && data[k] !== '') data[k] = Number(data[k]);
+    else if (data[k] === '' || data[k] === null) data[k] = null;
+  }
+  const v = await db.vendor.update({ where: { id }, data });
+  return { vendor: v };
+});
+
+registerFn('getVendor', async ({ body, user }) => {
+  if ((user as any)?.role !== 'admin' && !(user as any)?.managed_department) throw new Error('admin only');
+  const { id } = body as any;
+  if (!id) throw new Error('id required');
+  const [vendor, agreements, eventLinks, timeline] = await Promise.all([
+    db.vendor.findUnique({ where: { id } }),
+    db.vendorAgreement.findMany({ where: { vendor_id: id }, orderBy: { createdAt: 'desc' } }),
+    db.eventVendor.findMany({ where: { vendor_id: id }, orderBy: { createdAt: 'desc' }, take: 200 }),
+    db.vendorContact.findMany({ where: { vendor_id: id }, orderBy: { createdAt: 'desc' }, take: 100 }),
+  ]);
+  if (!vendor) throw new Error('not_found');
+  // Hydrate event titles
+  const evIds = (eventLinks as any[]).map((e: any) => e.event_booking_id).filter(Boolean) as string[];
+  const events = evIds.length
+    ? await db.eventBooking.findMany({ where: { id: { in: evIds } } })
+    : [];
+  const eventsById = new Map(events.map((e: any) => [e.id, e]));
+  const enrichedLinks = eventLinks.map((l: any) => ({
+    ...l,
+    event: l.event_booking_id ? eventsById.get(l.event_booking_id) || null : null,
+  }));
+  // Quick stats
+  const stats = {
+    total_events: enrichedLinks.length,
+    total_commission_due: enrichedLinks
+      .filter((l: any) => l.payment_status !== 'paid' && l.payment_status !== 'waived')
+      .reduce((s: any, l: any) => s + (Number(l.commission_amount_ils) || 0), 0),
+    total_commission_paid: enrichedLinks
+      .filter((l: any) => l.payment_status === 'paid')
+      .reduce((s: any, l: any) => s + (Number(l.paid_amount_ils) || Number(l.commission_amount_ils) || 0), 0),
+  };
+  return { vendor, agreements, events: enrichedLinks, timeline, stats };
+});
+
+registerFn('deleteVendor', async ({ body, user }) => {
+  if ((user as any)?.role !== 'admin') throw new Error('admin only');
+  const { id } = body as any;
+  if (!id) throw new Error('id required');
+  await db.vendorContact.deleteMany({ where: { vendor_id: id } }).catch(() => {});
+  await db.vendorAgreement.deleteMany({ where: { vendor_id: id } }).catch(() => {});
+  await db.eventVendor.deleteMany({ where: { vendor_id: id } }).catch(() => {});
+  await db.vendor.delete({ where: { id } });
+  return { ok: true };
+});
+
+// === Agreements ============================================================
+registerFn('addVendorAgreement', async ({ body, user }) => {
+  if ((user as any)?.role !== 'admin') throw new Error('admin only');
+  const d = body as any;
+  if (!d?.vendor_id) throw new Error('vendor_id required');
+  // Mark previous active agreements as 'replaced' so only one is current.
+  await db.vendorAgreement.updateMany({
+    where: { vendor_id: d.vendor_id, status: 'active' },
+    data: { status: 'replaced' },
+  }).catch(() => {});
+  const a = await db.vendorAgreement.create({
+    data: {
+      vendor_id: d.vendor_id,
+      title: d.title || null,
+      file_url: d.file_url || null,
+      commission_pct: d.commission_pct != null ? Number(d.commission_pct) : null,
+      commission_fixed_ils: d.commission_fixed_ils != null ? Number(d.commission_fixed_ils) : null,
+      commission_stage: d.commission_stage || null,
+      valid_from: d.valid_from ? new Date(d.valid_from) : null,
+      valid_until: d.valid_until ? new Date(d.valid_until) : null,
+      status: 'active',
+      notes: d.notes || null,
+      created_by: (user as any)?.email || null,
+    },
+  });
+  return { agreement: a };
+});
+
+// === Event ↔ vendor linking + commissions ==================================
+function computeCommissionFromEvent(ev: any, pct?: number | null, fixed?: number | null): number {
+  if (fixed && fixed > 0) return Math.round(Number(fixed));
+  const total = Number(ev?.total_ils) || 0;
+  if (pct && pct > 0 && total > 0) return Math.round(total * (Number(pct) / 100));
+  return 0;
+}
+
+registerFn('linkVendorToEvent', async ({ body, user }) => {
+  if ((user as any)?.role !== 'admin') throw new Error('admin only');
+  const { vendor_id, event_booking_id, role, service_type, commission_pct, commission_fixed_ils, commission_stage, notes } = body as any;
+  if (!vendor_id) throw new Error('vendor_id required');
+  if (!event_booking_id) throw new Error('event_booking_id required');
+  if (!role || !['referrer', 'service'].includes(role)) throw new Error("role must be 'referrer' or 'service'");
+  // Pull vendor defaults if per-event values not given
+  const vendor = await db.vendor.findUnique({ where: { id: vendor_id } });
+  const ev = await db.eventBooking.findUnique({ where: { id: event_booking_id } });
+  const usePct = commission_pct != null ? Number(commission_pct) : vendor?.default_commission_pct;
+  const useFixed = commission_fixed_ils != null ? Number(commission_fixed_ils) : vendor?.default_commission_fixed_ils;
+  const useStage = commission_stage || vendor?.commission_stage || 'on_event_date';
+  const amount = computeCommissionFromEvent(ev, usePct as any, useFixed as any);
+  const link = await db.eventVendor.create({
+    data: {
+      vendor_id, event_booking_id, role, service_type: service_type || null,
+      commission_pct: usePct as any,
+      commission_fixed_ils: useFixed as any,
+      commission_stage: useStage,
+      commission_amount_ils: amount || null,
+      payment_status: 'pending',
+      notes: notes || null,
+      created_by: (user as any)?.email || null,
+    },
+  });
+  return { link };
+});
+
+registerFn('updateEventVendor', async ({ body, user }) => {
+  if ((user as any)?.role !== 'admin') throw new Error('admin only');
+  const { id, ...patch } = body as any;
+  if (!id) throw new Error('id required');
+  const data: any = { ...patch };
+  if (data.paid_at !== undefined) data.paid_at = data.paid_at ? new Date(data.paid_at) : null;
+  for (const k of ['commission_pct', 'commission_fixed_ils', 'commission_amount_ils', 'paid_amount_ils']) {
+    if (data[k] !== undefined && data[k] !== '' && data[k] !== null) data[k] = Number(data[k]);
+  }
+  const link = await db.eventVendor.update({ where: { id }, data });
+  return { link };
+});
+
+registerFn('unlinkVendorFromEvent', async ({ body, user }) => {
+  if ((user as any)?.role !== 'admin') throw new Error('admin only');
+  const { id } = body as any;
+  if (!id) throw new Error('id required');
+  await db.eventVendor.delete({ where: { id } });
+  return { ok: true };
+});
+
+registerFn('listEventVendors', async ({ body, user }) => {
+  if ((user as any)?.role !== 'admin' && !(user as any)?.managed_department) throw new Error('admin only');
+  const { event_booking_id } = body as any;
+  if (!event_booking_id) throw new Error('event_booking_id required');
+  const links = await db.eventVendor.findMany({
+    where: { event_booking_id },
+    orderBy: { createdAt: 'asc' },
+  });
+  const vendorIds = [...new Set(links.map((l: any) => l.vendor_id))];
+  const vendors = vendorIds.length ? await db.vendor.findMany({ where: { id: { in: vendorIds } } }) : [];
+  const vMap = new Map(vendors.map((v: any) => [v.id, v]));
+  return { links: links.map((l: any) => ({ ...l, vendor: vMap.get(l.vendor_id) || null })) };
+});
+
+// === Commission report (across all events) =================================
+registerFn('vendorCommissionsReport', async ({ body, user }) => {
+  if ((user as any)?.role !== 'admin') throw new Error('admin only');
+  const { from, to, status } = (body as any) || {};
+  const where: any = {};
+  if (from || to) {
+    where.createdAt = {};
+    if (from) where.createdAt.gte = new Date(from);
+    if (to) where.createdAt.lte = new Date(to);
+  }
+  if (status && status !== 'all') where.payment_status = status;
+  const links = await db.eventVendor.findMany({ where, orderBy: { createdAt: 'desc' }, take: 1000 });
+  const vendorIds = [...new Set(links.map((l: any) => l.vendor_id))];
+  const vendors = vendorIds.length ? await db.vendor.findMany({ where: { id: { in: vendorIds } } }) : [];
+  const vMap = new Map(vendors.map((v: any) => [v.id, v]));
+  const evIds = [...new Set(links.map((l: any) => l.event_booking_id).filter(Boolean) as string[])];
+  const events = evIds.length ? await db.eventBooking.findMany({ where: { id: { in: evIds } } }) : [];
+  const eMap = new Map(events.map((e: any) => [e.id, e]));
+  const rows = links.map((l: any) => ({
+    ...l,
+    vendor: vMap.get(l.vendor_id) || null,
+    event: l.event_booking_id ? eMap.get(l.event_booking_id) || null : null,
+  }));
+  const totals = {
+    total_due: rows.filter((r: any) => r.payment_status === 'pending').reduce((s: any, r: any) => s + (Number(r.commission_amount_ils) || 0), 0),
+    total_paid: rows.filter((r: any) => r.payment_status === 'paid').reduce((s: any, r: any) => s + (Number(r.paid_amount_ils) || Number(r.commission_amount_ils) || 0), 0),
+    total_partial: rows.filter((r: any) => r.payment_status === 'partial').reduce((s: any, r: any) => s + (Number(r.paid_amount_ils) || 0), 0),
+    count: rows.length,
+  };
+  return { rows, totals };
+});
+
+// === Activity log helpers ===================================================
+registerFn('logVendorContact', async ({ body, user }) => {
+  if ((user as any)?.role !== 'admin') throw new Error('admin only');
+  const { vendor_id, kind, subject, body: text } = body as any;
+  if (!vendor_id || !kind) throw new Error('vendor_id + kind required');
+  const c = await db.vendorContact.create({
+    data: {
+      vendor_id, kind, subject: subject || null, body: text || null,
+      created_by: (user as any)?.email || null,
+    },
+  });
+  return { contact: c };
+});
+
+// One-shot: WhatsApp a vendor + log it to their timeline.
+registerFn('sendVendorWhatsApp', async ({ body, user }) => {
+  if ((user as any)?.role !== 'admin') throw new Error('admin only');
+  const { vendor_id, message } = body as any;
+  if (!vendor_id || !message) throw new Error('vendor_id + message required');
+  const v = await db.vendor.findUnique({ where: { id: vendor_id } });
+  if (!v) throw new Error('vendor not found');
+  const phone = v.whatsapp || v.phone;
+  if (!phone) throw new Error('no whatsapp/phone on vendor');
+  const out: any = await sendWhatsApp(phone, message);
+  await db.vendorContact.create({
+    data: {
+      vendor_id, kind: 'whatsapp_out',
+      subject: null, body: message,
+      twilio_sid: out?.sid || null,
+      created_by: (user as any)?.email || null,
+    },
+  }).catch(() => {});
+  return out;
+});
+
+// One-shot: Email a vendor + log it.
+registerFn('sendVendorEmail', async ({ body, user }) => {
+  if ((user as any)?.role !== 'admin') throw new Error('admin only');
+  const { vendor_id, subject, html } = body as any;
+  if (!vendor_id || !subject || !html) throw new Error('vendor_id + subject + html required');
+  const v = await db.vendor.findUnique({ where: { id: vendor_id } });
+  if (!v || !v.email) throw new Error('vendor has no email');
+  const out: any = await sendEmail({ to: v.email, subject, html });
+  await db.vendorContact.create({
+    data: {
+      vendor_id, kind: 'email_out',
+      subject, body: html,
+      resend_id: out?.id || null,
+      created_by: (user as any)?.email || null,
+    },
+  }).catch(() => {});
+  return out;
+});
+
+// === Vendor marketing campaigns ============================================
+// Same idea as customer campaigns but the audience is vendors. Lets the owner
+// announce 'we have new wedding packages' or 'special this month'.
+registerFn('previewVendorSegment', async ({ body }) => {
+  const { category, exclude_ids } = (body as any) || {};
+  const where: any = {
+    marketing_consent: true,
+    marketing_unsubscribed_at: null,
+    status: 'active',
+    OR: [{ whatsapp: { not: null } }, { phone: { not: null } }, { email: { not: null } }],
+  };
+  if (category && category !== 'all') where.AND = [{ categories: { array_contains: category } as any }];
+  if (Array.isArray(exclude_ids) && exclude_ids.length) {
+    where.AND = [...(where.AND || []), { id: { notIn: exclude_ids } }];
+  }
+  const [count, sample] = await Promise.all([
+    db.vendor.count({ where }),
+    db.vendor.findMany({
+      where, take: 5,
+      orderBy: { createdAt: 'desc' },
+      select: { id: true, business_name: true, contact_name: true, categories: true, phone: true, email: true },
+    }),
+  ]);
+  return { count, sample };
+});
+
+registerFn('sendVendorCampaign', async ({ body, user }) => {
+  if ((user as any)?.role !== 'admin') throw new Error('admin only');
+  const { category, channel, subject, message_template, exclude_ids, campaign_label } = body as any;
+  if (!message_template) throw new Error('message_template required');
+  const where: any = {
+    marketing_consent: true,
+    marketing_unsubscribed_at: null,
+    status: 'active',
+  };
+  if (category && category !== 'all') where.AND = [{ categories: { array_contains: category } as any }];
+  if (Array.isArray(exclude_ids) && exclude_ids.length) {
+    where.AND = [...(where.AND || []), { id: { notIn: exclude_ids } }];
+  }
+  const useEmail = channel === 'email';
+  const recipients = await db.vendor.findMany({ where, take: 500 });
+  let ok = 0, fail = 0;
+  const failures: any[] = [];
+  for (const v of recipients) {
+    try {
+      const rendered = String(message_template)
+        .replace(/\{business\}/g, v.business_name || '')
+        .replace(/\{contact\}/g, v.contact_name || v.business_name || 'שותף יקר');
+      let out: any;
+      if (useEmail) {
+        if (!v.email) { fail++; failures.push({ id: v.id, reason: 'no_email' }); continue; }
+        const html = `<div dir="rtl" style="font-family:Arial,sans-serif;line-height:1.6;padding:20px;max-width:600px;margin:auto;background:#FAF5E8;border-radius:12px"><h2 style="color:#A04A2E">עלינא 🌿 · שותפים</h2><pre style="white-space:pre-wrap;font-family:inherit">${rendered.replace(/[<>]/g, '')}</pre></div>`;
+        out = await sendEmail({ to: v.email, subject: subject || 'עדכון מעלינא', html });
+        await db.vendorContact.create({ data: { vendor_id: v.id, kind: 'email_out', subject: subject || null, body: rendered, resend_id: out?.id || null, created_by: 'campaign' } }).catch(() => {});
+      } else {
+        const phone = v.whatsapp || v.phone;
+        if (!phone) { fail++; failures.push({ id: v.id, reason: 'no_phone' }); continue; }
+        out = await sendWhatsApp(phone, rendered);
+        await db.vendorContact.create({ data: { vendor_id: v.id, kind: 'whatsapp_out', body: rendered, twilio_sid: out?.sid || null, created_by: 'campaign' } }).catch(() => {});
+      }
+      if ((out as any)?.skipped) { fail++; failures.push({ id: v.id, reason: (out as any).reason || 'skipped' }); }
+      else {
+        ok++;
+        await db.vendor.update({ where: { id: v.id }, data: { last_marketing_sent_at: new Date() } }).catch(() => {});
+      }
+    } catch (e: any) {
+      fail++; failures.push({ id: v.id, reason: e?.message?.slice(0, 100) });
+    }
+  }
+  return {
+    sent: ok, failed: fail, total_matched: recipients.length,
+    failure_sample: failures.slice(0, 5),
+    cost_breakdown: useEmail
+      ? `${recipients.length} × ₪0 (Email — חינם)`
+      : `${recipients.length} × ₪0.13 (WhatsApp Marketing) = ₪${(recipients.length * 0.13).toFixed(2)}`,
+    label: campaign_label || category || 'all',
+  };
+});
+
+// ============================================================================
 // CUSTOMER CLUB — public signup + profile completion + unsubscribe
 // ============================================================================
 // Flow:
@@ -3689,7 +4099,7 @@ registerFn('migrateDriveToAiAssistantFiles', async ({ user }) => {
       results.push({ file: file.name, status: 'error', error: e?.message });
     }
   }
-  return { migrated: results.filter(r => r.status === 'migrated').length, skipped: results.filter(r => r.status === 'skipped (already exists)').length, errors: results.filter(r => r.status === 'error').length, details: results };
+  return { migrated: results.filter((r: any) => r.status === 'migrated').length, skipped: results.filter((r: any) => r.status === 'skipped (already exists)').length, errors: results.filter((r: any) => r.status === 'error').length, details: results };
 });
 
 // ── askGemini ────────────────────────────────────────────────────────────────
@@ -9550,7 +9960,7 @@ registerFn('scrubNullBytesAllTables', async () => {
   }
   return {
     columns_scanned: cols.length,
-    rows_touched: results.filter((r) => r.ok).reduce((s, r) => s + (r.affected || 0), 0),
+    rows_touched: results.filter((r) => r.ok).reduce((s: any, r: any) => s + (r.affected || 0), 0),
     ok: results.filter((r) => r.ok).length,
     failed: results.filter((r) => !r.ok).length,
     results,
@@ -9589,7 +9999,7 @@ registerFn('backfillRequiredNulls', async () => {
     }
   }
   return {
-    rows_touched: results.filter((r) => r.ok).reduce((s, r) => s + (r.affected || 0), 0),
+    rows_touched: results.filter((r) => r.ok).reduce((s: any, r: any) => s + (r.affected || 0), 0),
     ok: results.filter((r) => r.ok).length,
     failed: results.filter((r) => !r.ok).length,
     results,
@@ -9652,7 +10062,7 @@ registerFn('backfillNullDateTimes', async () => {
     }
   }
   return {
-    rows_touched: results.filter((r) => r.ok).reduce((s, r) => s + (r.affected || 0), 0),
+    rows_touched: results.filter((r) => r.ok).reduce((s: any, r: any) => s + (r.affected || 0), 0),
     ok: results.filter((r) => r.ok).length,
     failed: results.filter((r) => !r.ok).length,
     results,
@@ -11071,6 +11481,73 @@ if (!(globalThis as any).__startupDriftRepair) {
       );`);
       await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "ReferralUse_referral_code_idx" ON "ReferralUse"("referral_code");`);
 
+      // === EVENT VENDORS ====================================================
+      await prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "Vendor" (
+        "id" TEXT PRIMARY KEY,
+        "business_name" TEXT NOT NULL,
+        "contact_name" TEXT, "phone" TEXT, "whatsapp" TEXT, "email" TEXT,
+        "city" TEXT, "website" TEXT, "instagram" TEXT,
+        "business_id" TEXT, "vat_type" TEXT,
+        "categories" JSONB, "specialties" TEXT,
+        "default_commission_pct" DOUBLE PRECISION,
+        "default_commission_fixed_ils" INTEGER,
+        "commission_stage" TEXT DEFAULT 'on_event_date',
+        "bank_name" TEXT, "bank_branch" TEXT, "bank_account" TEXT, "bank_account_owner" TEXT,
+        "insurance_url" TEXT, "insurance_expiry" TIMESTAMP(3),
+        "business_license_url" TEXT, "business_license_expiry" TIMESTAMP(3),
+        "status" TEXT DEFAULT 'active',
+        "rating" INTEGER, "internal_notes" TEXT,
+        "marketing_consent" BOOLEAN NOT NULL DEFAULT TRUE,
+        "marketing_consent_at" TIMESTAMP(3),
+        "marketing_unsubscribed_at" TIMESTAMP(3),
+        "last_marketing_sent_at" TIMESTAMP(3),
+        "created_by" TEXT,
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );`);
+      await prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "VendorAgreement" (
+        "id" TEXT PRIMARY KEY,
+        "vendor_id" TEXT NOT NULL,
+        "title" TEXT, "file_url" TEXT,
+        "commission_pct" DOUBLE PRECISION,
+        "commission_fixed_ils" INTEGER,
+        "commission_stage" TEXT,
+        "valid_from" TIMESTAMP(3), "valid_until" TIMESTAMP(3),
+        "status" TEXT DEFAULT 'active',
+        "notes" TEXT, "created_by" TEXT,
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );`);
+      await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "VendorAgreement_vendor_id_idx" ON "VendorAgreement"("vendor_id");`);
+      await prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "EventVendor" (
+        "id" TEXT PRIMARY KEY,
+        "vendor_id" TEXT NOT NULL,
+        "event_booking_id" TEXT,
+        "role" TEXT NOT NULL,
+        "service_type" TEXT,
+        "commission_pct" DOUBLE PRECISION,
+        "commission_fixed_ils" INTEGER,
+        "commission_stage" TEXT,
+        "commission_amount_ils" INTEGER,
+        "payment_status" TEXT NOT NULL DEFAULT 'pending',
+        "paid_at" TIMESTAMP(3),
+        "paid_amount_ils" INTEGER,
+        "notes" TEXT, "created_by" TEXT,
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );`);
+      await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "EventVendor_vendor_id_idx" ON "EventVendor"("vendor_id");`);
+      await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "EventVendor_event_booking_id_idx" ON "EventVendor"("event_booking_id");`);
+      await prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "VendorContact" (
+        "id" TEXT PRIMARY KEY,
+        "vendor_id" TEXT NOT NULL,
+        "kind" TEXT NOT NULL,
+        "subject" TEXT, "body" TEXT,
+        "twilio_sid" TEXT, "resend_id" TEXT,
+        "created_by" TEXT,
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );`);
+      await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "VendorContact_vendor_id_idx" ON "VendorContact"("vendor_id");`);
+
       // ============================================================
       // ONE-TIME MIGRATION: grant marketing_consent to existing customers
       // ============================================================
@@ -11461,15 +11938,15 @@ export async function maybeDailySummary() {
     const todayRes: any[] = await db.reservation.findMany({
       where: { date: { gte: dayStart, lt: dayNext } },
     });
-    const stat = (s: string) => todayRes.filter(r => String(r.status || '').toLowerCase() === s).length;
+    const stat = (s: string) => todayRes.filter((r: any) => String(r.status || '').toLowerCase() === s).length;
     const totalGuests = todayRes.reduce((sum, r) => sum + (Number(r.party_size) || 0), 0);
     const seated = stat('seated') + stat('completed');
     const no_show = stat('no_show');
     const cancelled = stat('cancelled');
     const confirmed = stat('confirmed');
     const seatedGuests = todayRes
-      .filter(r => ['seated', 'completed'].includes(String(r.status || '').toLowerCase()))
-      .reduce((s, r) => s + (Number(r.party_size) || 0), 0);
+      .filter((r: any) => ['seated', 'completed'].includes(String(r.status || '').toLowerCase()))
+      .reduce((s: any, r: any) => s + (Number(r.party_size) || 0), 0);
     const estRevenue = seatedGuests * 220; // ₪220/guest avg ticket — adjust if owner has real number
     const noShowRate = todayRes.length ? Math.round((no_show / todayRes.length) * 100) : 0;
     const body = [
@@ -13096,10 +13573,10 @@ registerFn('getActiveRewardsForMe', async ({ user }) => {
     where: { is_active: true },
     orderBy: { cost: 'asc' },
   });
-  const affordable = rewards.filter(r => Number(r.cost || 0) <= balance);
+  const affordable = rewards.filter((r: any) => Number(r.cost || 0) <= balance);
   // Show up to 6 "locked" rewards as motivation — always populated when there
   // are any active rewards in the catalog, even if the caller has 0 balance.
-  const locked = rewards.filter(r => Number(r.cost || 0) > balance).slice(0, 6);
+  const locked = rewards.filter((r: any) => Number(r.cost || 0) > balance).slice(0, 6);
   return { affordable, locked, balance };
 });
 
@@ -14650,7 +15127,7 @@ function parseIls(s: string): number {
 
 function parseGomileyDashboard(html: string) {
   const text = htmlToStructuredText(html);
-  const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+  const lines = text.split('\n').map((l: any) => l.trim()).filter(Boolean);
 
   const result: any = {
     total_income: null,
@@ -14687,9 +15164,9 @@ function parseGomileyDashboard(html: string) {
         if (m) result.onetime_percent = Number(m[1]);
       }
       // Find the data row — two integers separated by whitespace/tab
-      const dataLine = lines.slice(i, i + 10).find(l => /^\d+\s+\d+$/.test(l) || /^\d+\t\d+$/.test(l));
+      const dataLine = lines.slice(i, i + 10).find((l: any) => /^\d+\s+\d+$/.test(l) || /^\d+\t\d+$/.test(l));
       if (dataLine) {
-        const nums = dataLine.split(/\s+/).map(Number).filter(n => !Number.isNaN(n));
+        const nums = dataLine.split(/\s+/).map(Number).filter((n: any) => !Number.isNaN(n));
         if (nums.length >= 2) {
           result.returning_count = nums[0];
           result.onetime_count = nums[1];
@@ -14725,14 +15202,14 @@ function parseGomileyDashboard(html: string) {
   // Section anchors: "המנות הנמכרות ביותר", "הלקוחות החוזרים ביותר",
   // "החברות שמזמינות הכי הרבה"
   function extractTopTable(anchor: string, maxRows = 10) {
-    const idx = lines.findIndex(l => l.includes(anchor));
+    const idx = lines.findIndex((l: any) => l.includes(anchor));
     if (idx === -1) return [];
     const out: any[] = [];
     for (let j = idx + 1; j < Math.min(idx + 80, lines.length); j++) {
       const line = lines[j];
       // Stop at next section header
       if (/הצג עוד/.test(line)) break;
-      const cells = line.split(/\t|  +/).map(c => c.trim()).filter(Boolean);
+      const cells = line.split(/\t|  +/).map((c: any) => c.trim()).filter(Boolean);
       if (cells.length >= 4
           && /^\d+$/.test(cells[0])
           && /^[A-Za-zא-ת]/.test(cells[1])

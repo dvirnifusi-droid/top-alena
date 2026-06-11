@@ -641,6 +641,126 @@ model Customer {
   updatedAt  DateTime @updatedAt
 }
 
+// ============================================================================
+// EVENT VENDORS — partners for private-event work (producers, group-tour
+// operators, photographers, DJs, florists, etc.). Each vendor has commercial
+// terms (commission %, payout stage), agreements, an activity timeline, and
+// links to specific events they referred (brought us the client) or serviced
+// (worked at our event). Marketing campaigns can target vendors as a group.
+// ============================================================================
+model Vendor {
+  id              String   @id @default(cuid())
+  // Basics
+  business_name   String
+  contact_name    String?
+  phone           String?
+  whatsapp        String?
+  email           String?
+  city            String?
+  website         String?
+  instagram       String?
+  // Legal/tax
+  business_id     String?  // ח.פ. / ת.ז. עוסק
+  vat_type        String?  // 'company' | 'authorized' | 'exempt'
+  // What they do — array of categories ('producer', 'group_tours', 'dj',
+  // 'photographer', 'florist', 'catering_complement', 'sound', 'lighting',
+  // 'alcohol', 'security', 'transport', 'kids_entertainment', 'host', 'other')
+  categories      Json?
+  specialties     String?  // free-text further specialty notes
+  // Commercial defaults — per-event values can override on EventVendor.
+  default_commission_pct      Float?   // e.g. 7.5 for 7.5%
+  default_commission_fixed_ils Int?    // alt. flat fee
+  // When commission becomes payable: 'on_contract' | 'on_event_date' | 'on_payment'
+  commission_stage String?  @default("on_event_date")
+  // Bank details for payouts (kept loose — owner pastes from supplier form)
+  bank_name        String?
+  bank_branch      String?
+  bank_account     String?
+  bank_account_owner String?
+  // Compliance docs + expiry dates so we can remind
+  insurance_url    String?
+  insurance_expiry DateTime?
+  business_license_url String?
+  business_license_expiry DateTime?
+  // Internal
+  status           String?  @default("active")  // 'active' | 'paused' | 'terminated'
+  rating           Int?     // 1-5
+  internal_notes   String?
+  // Marketing consent — vendors are b2b but Israeli spam law still applies.
+  marketing_consent           Boolean   @default(true)
+  marketing_consent_at        DateTime?
+  marketing_unsubscribed_at   DateTime?
+  last_marketing_sent_at      DateTime?
+  // Audit
+  created_by       String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+}
+
+// Signed agreement versions — never overwrite; add a new row instead so we
+// keep history (which commission applied when, etc.).
+model VendorAgreement {
+  id              String   @id @default(cuid())
+  vendor_id       String
+  title           String?  // e.g. "Commission 7% — 2026"
+  file_url        String?  // uploaded PDF
+  commission_pct  Float?
+  commission_fixed_ils Int?
+  commission_stage String?
+  valid_from      DateTime?
+  valid_until     DateTime?
+  status          String?  @default("active")  // 'active' | 'expired' | 'replaced' | 'terminated'
+  notes           String?
+  created_by      String?
+  createdAt       DateTime @default(now())
+
+  @@index([vendor_id])
+}
+
+// Vendor↔Event link. role distinguishes a vendor who BROUGHT us the client
+// (referrer — they get a finder's fee) from one who WORKED AT the event
+// (service — they get paid for service rendered). Both can coexist.
+model EventVendor {
+  id              String   @id @default(cuid())
+  vendor_id       String
+  event_booking_id String?
+  role            String   // 'referrer' | 'service'
+  service_type    String?  // when role=service: 'dj', 'photographer', ...
+  // Per-event commission override (otherwise falls back to Vendor defaults)
+  commission_pct  Float?
+  commission_fixed_ils Int?
+  commission_stage String?  // 'on_contract' | 'on_event_date' | 'on_payment'
+  // Calculated amount when applicable
+  commission_amount_ils Int?
+  payment_status  String   @default("pending")  // 'pending' | 'paid' | 'partial' | 'waived'
+  paid_at         DateTime?
+  paid_amount_ils Int?
+  notes           String?
+  created_by      String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([vendor_id])
+  @@index([event_booking_id])
+}
+
+// Activity timeline — every outbound/inbound message + manual log entries.
+// Outbound WhatsApp/email auto-write here; owner can also add 'call'/'meeting'.
+model VendorContact {
+  id              String   @id @default(cuid())
+  vendor_id       String
+  kind            String   // 'whatsapp_out' | 'whatsapp_in' | 'email_out' | 'email_in' | 'call' | 'meeting' | 'note'
+  subject         String?
+  body            String?
+  // For outbound channel messages — link back to the platform send
+  twilio_sid      String?
+  resend_id       String?
+  created_by      String?
+  createdAt       DateTime @default(now())
+
+  @@index([vendor_id])
+}
+
 // History of every marketing campaign send — required for analytics +
 // throttling + 'don't send to anyone we sent to in last 24h' guards.
 model CampaignSend {

@@ -75,6 +75,7 @@ const adminLinks = [
   { title: "👥 עובדים וסידור", url: createPageUrl("EmployeesHub"), icon: Users, color: "olive" },
   { title: "🎓 גיוס והכשרה", url: createPageUrl("RecruitmentHub"), icon: GraduationCap, color: "gold" },
   { title: "🌿 אירועים פרטיים", url: createPageUrl("EventsHub"), icon: CalendarHeart, color: "cinnamon" },
+  { title: "🤝 ספקי אירועים", url: createPageUrl("EventVendors"), icon: Users, color: "cinnamon" },
   { title: "📦 משלוחים", url: createPageUrl("DeliveriesHub"), icon: Package, color: "gold" },
   { title: "📢 שיווק ולקוחות", url: createPageUrl("MarketingHub"), icon: Megaphone, color: "olive" },
   { title: "🏆 גמיפיקציה וסטוריז", url: createPageUrl("StoriesHub"), icon: Trophy, color: "cinnamon" },
