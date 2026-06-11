@@ -76,7 +76,7 @@ class Alena_DZ_Thank_You {
               <div class="alena-dz-ty-item">
                 <span class="alena-dz-ty-item-qty"><?php echo (int) $item->get_quantity(); ?>x</span>
                 <span class="alena-dz-ty-item-name"><?php echo esc_html($item->get_name()); ?></span>
-                <span class="alena-dz-ty-item-price"><?php echo wp_kses_post(wc_price($item->get_total())); ?></span>
+                <span class="alena-dz-ty-item-price"><?php echo wp_kses_post($order->get_formatted_line_subtotal($item)); ?></span>
               </div>
             <?php endforeach; ?>
           </div>

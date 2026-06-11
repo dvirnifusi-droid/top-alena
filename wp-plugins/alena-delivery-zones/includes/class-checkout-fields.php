@@ -92,23 +92,40 @@ class Alena_DZ_Checkout_Fields {
     /* ----------------------- Direct injection ----------------------- */
 
     public function render_direct_fields($checkout) {
-        $entrance = $checkout ? $checkout->get_value('shipping_entrance') : '';
-        $floor    = $checkout ? $checkout->get_value('shipping_floor')    : '';
+        $entrance = $checkout ? $checkout->get_value('shipping_entrance')  : '';
+        $floor    = $checkout ? $checkout->get_value('shipping_floor')     : '';
+        $apt      = $checkout ? $checkout->get_value('shipping_apartment') : '';
+        $doorname = $checkout ? $checkout->get_value('shipping_doorname')  : '';
+        $lobby    = $checkout ? $checkout->get_value('shipping_lobbycode')  : '';
         ?>
         <div class="alena-dz-extra-fields">
           <h3>פרטי כתובת נוספים</h3>
-          <div class="alena-dz-extra-row">
-            <p class="form-row form-row-first">
+          <div class="alena-dz-extra-grid">
+            <p class="form-row">
               <label for="shipping_entrance">כניסה</label>
               <input type="text" class="input-text" name="shipping_entrance" id="shipping_entrance"
                      placeholder="א / ב / ראשית" value="<?php echo esc_attr($entrance); ?>" />
             </p>
-            <p class="form-row form-row-last">
+            <p class="form-row">
               <label for="shipping_floor">קומה</label>
               <input type="text" class="input-text" name="shipping_floor" id="shipping_floor"
                      placeholder="קרקע / 1 / 2" value="<?php echo esc_attr($floor); ?>" />
             </p>
-            <div style="clear:both"></div>
+            <p class="form-row">
+              <label for="shipping_apartment">דירה</label>
+              <input type="text" class="input-text" name="shipping_apartment" id="shipping_apartment"
+                     placeholder="מס׳ דירה" value="<?php echo esc_attr($apt); ?>" />
+            </p>
+            <p class="form-row">
+              <label for="shipping_lobbycode">קוד ללובי</label>
+              <input type="text" class="input-text" name="shipping_lobbycode" id="shipping_lobbycode"
+                     placeholder="קוד כניסה לבניין" value="<?php echo esc_attr($lobby); ?>" />
+            </p>
+            <p class="form-row alena-dz-full">
+              <label for="shipping_doorname">שם על הדלת</label>
+              <input type="text" class="input-text" name="shipping_doorname" id="shipping_doorname"
+                     placeholder="אם השם על הדלת שונה" value="<?php echo esc_attr($doorname); ?>" />
+            </p>
           </div>
         </div>
         <?php
@@ -117,9 +134,14 @@ class Alena_DZ_Checkout_Fields {
     /* ----------------------- Persistence ----------------------- */
 
     public function save_custom_meta($order_id) {
-        foreach (['shipping_entrance' => self::META_ENTRANCE,
-                  'shipping_floor'    => self::META_FLOOR,
-                  'shipping_apartment'=> self::META_APT] as $post_key => $meta_key) {
+        $map = [
+            'shipping_entrance'  => self::META_ENTRANCE,
+            'shipping_floor'     => self::META_FLOOR,
+            'shipping_apartment' => self::META_APT,
+            'shipping_doorname'  => '_shipping_doorname',
+            'shipping_lobbycode' => '_shipping_lobbycode',
+        ];
+        foreach ($map as $post_key => $meta_key) {
             if (isset($_POST[$post_key]) && $_POST[$post_key] !== '') {
                 update_post_meta($order_id, $meta_key, sanitize_text_field(wp_unslash($_POST[$post_key])));
             }
@@ -138,10 +160,14 @@ class Alena_DZ_Checkout_Fields {
         $pin_lat  = get_post_meta($id, self::META_PIN_LAT,  true);
         $pin_lng  = get_post_meta($id, self::META_PIN_LNG,  true);
 
+        $doorname = get_post_meta($id, '_shipping_doorname', true);
+        $lobby    = get_post_meta($id, '_shipping_lobbycode', true);
         $parts = array_filter([
-            $entrance ? 'כניסה: ' . $entrance : '',
-            $floor    ? 'קומה: '   . $floor   : '',
-            $apt      ? 'דירה: '   . $apt     : '',
+            $entrance ? 'כניסה: '    . $entrance : '',
+            $floor    ? 'קומה: '      . $floor   : '',
+            $apt      ? 'דירה: '      . $apt     : '',
+            $lobby    ? 'קוד לובי: '  . $lobby   : '',
+            $doorname ? 'שם על הדלת: ' . $doorname : '',
         ]);
         if ($parts) {
             echo '<p><strong>פרטי בית:</strong><br />' . esc_html(implode(' | ', $parts)) . '</p>';
