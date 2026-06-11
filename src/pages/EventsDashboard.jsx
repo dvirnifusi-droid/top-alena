@@ -1,11 +1,9 @@
 // Events overview — KPIs + monthly Gantt + per-event status with vendor chips.
 // Embedded as the first tab of /EventsHub and reachable directly via the URL.
 import React, { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { Card, CardContent } from '@/components/ui/card';
-import { Loader2, RefreshCw, Calendar, TrendingUp, Coins, CheckCircle2 } from 'lucide-react';
-import { createPageUrl } from '@/utils';
+import { Loader2, RefreshCw, Calendar, TrendingUp, CheckCircle2 } from 'lucide-react';
 
 const STATUS_LABEL = {
     pending: '⏳ ממתין',
@@ -149,12 +147,12 @@ function GanttChart({ monthly, events }) {
                             {/* Per-event chips */}
                             <div className="space-y-1 mt-2 max-h-44 overflow-y-auto">
                                 {monthEvents.map(e => (
-                                    <Link key={e.id} to={createPageUrl(`EventLeadDetails?id=${e.lead_id || e.id}`)}
-                                        className={`block px-2 py-1 rounded text-[10px] truncate transition-colors ${e.is_closed ? 'bg-gray-100 text-gray-600' : 'bg-blue-50 text-blue-900 hover:bg-blue-100'}`}
+                                    <div key={e.id}
+                                        className={`px-2 py-1 rounded text-[10px] truncate ${e.is_closed ? 'bg-gray-100 text-gray-600' : 'bg-blue-50 text-blue-900'}`}
                                         title={`${e.customer_name || ''} · ${e.guest_count || 0} סועדים · ₪${(e.total_ils || 0).toLocaleString()}`}>
                                         {String(e.event_date || '').slice(8, 10)}: {(e.customer_name || '—').slice(0, 14)}
                                         {e.guest_count ? <span className="text-gray-500"> · {e.guest_count}</span> : null}
-                                    </Link>
+                                    </div>
                                 ))}
                                 {monthEvents.length === 0 && <div className="text-[10px] text-gray-300 italic">אין</div>}
                             </div>
@@ -173,8 +171,7 @@ function EventRow({ e, closed }) {
     const referrer = (e.vendor_links || []).find(l => l.role === 'referrer');
     const services = (e.vendor_links || []).filter(l => l.role === 'service');
     return (
-        <Link to={createPageUrl(`EventLeadDetails?id=${e.lead_id || e.id}`)}
-            className={`block p-3 rounded-lg border hover:shadow-sm transition-shadow ${closed ? 'bg-gray-50/60' : 'bg-white'}`}>
+        <div className={`p-3 rounded-lg border ${closed ? 'bg-gray-50/60' : 'bg-white'}`}>
             <div className="flex flex-wrap items-start justify-between gap-2">
                 <div className="flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
@@ -203,6 +200,6 @@ function EventRow({ e, closed }) {
                     {e.deposit_amount_ils ? <div className="text-gray-500">פיקדון ₪{Number(e.deposit_amount_ils).toLocaleString()}</div> : null}
                 </div>
             </div>
-        </Link>
+        </div>
     );
 }
