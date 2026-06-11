@@ -269,43 +269,91 @@ function RepSignDialog({ contract, onClose }) {
   const [repName, setRepName] = React.useState('דביר ניפוסי');
   const [submitting, setSubmitting] = React.useState(false);
   const drawing = React.useRef(false);
+  const hasInk = React.useRef(false);
+  // Bumped when 'clear' is pressed so the canvas re-initialises (resize + dpr).
+  const [version, setVersion] = React.useState(0);
 
-  React.useEffect(() => {
+  // Wire pointer events once the canvas is mounted in the Radix portal.
+  // useLayoutEffect runs after the canvas is in the DOM, so getBoundingClientRect
+  // returns real numbers (the original useEffect could race with the dialog's
+  // open animation and end up with rect.width === 0 → NaN coordinates).
+  React.useLayoutEffect(() => {
     const c = canvasRef.current;
     if (!c) return;
+    // Match backing-store resolution to the displayed CSS size × devicePixelRatio
+    // so strokes are crisp and coordinates line up 1:1 with cursor position.
+    const rect = c.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+    c.width = Math.max(1, Math.round(rect.width * dpr));
+    c.height = Math.max(1, Math.round(rect.height * dpr));
     const ctx = c.getContext('2d');
-    ctx.lineWidth = 2; ctx.lineCap = 'round'; ctx.strokeStyle = '#111';
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.lineWidth = 2.2;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = '#111';
+
     const pos = (e) => {
       const r = c.getBoundingClientRect();
-      const x = ((e.touches?.[0]?.clientX ?? e.clientX) - r.left) * (c.width / r.width);
-      const y = ((e.touches?.[0]?.clientY ?? e.clientY) - r.top) * (c.height / r.height);
-      return [x, y];
+      return [e.clientX - r.left, e.clientY - r.top];
     };
-    const start = (e) => { drawing.current = true; const [x, y] = pos(e); ctx.beginPath(); ctx.moveTo(x, y); e.preventDefault?.(); };
-    const move = (e) => { if (!drawing.current) return; const [x, y] = pos(e); ctx.lineTo(x, y); ctx.stroke(); e.preventDefault?.(); };
-    const end = () => { drawing.current = false; };
-    c.addEventListener('mousedown', start); c.addEventListener('mousemove', move); c.addEventListener('mouseup', end); c.addEventListener('mouseleave', end);
-    c.addEventListener('touchstart', start, { passive: false }); c.addEventListener('touchmove', move, { passive: false }); c.addEventListener('touchend', end);
+    const start = (e) => {
+      // Only react to primary mouse / pen / touch — ignore right-click.
+      if (e.button && e.button !== 0) return;
+      drawing.current = true;
+      try { c.setPointerCapture?.(e.pointerId); } catch {}
+      const [x, y] = pos(e);
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      // tiny dot so a single click still leaves a mark
+      ctx.lineTo(x + 0.01, y + 0.01);
+      ctx.stroke();
+      hasInk.current = true;
+      e.preventDefault();
+    };
+    const move = (e) => {
+      if (!drawing.current) return;
+      const [x, y] = pos(e);
+      ctx.lineTo(x, y);
+      ctx.stroke();
+      hasInk.current = true;
+      e.preventDefault();
+    };
+    const end = (e) => {
+      drawing.current = false;
+      try { c.releasePointerCapture?.(e.pointerId); } catch {}
+    };
+
+    c.addEventListener('pointerdown', start);
+    c.addEventListener('pointermove', move);
+    c.addEventListener('pointerup', end);
+    c.addEventListener('pointercancel', end);
+    c.addEventListener('pointerleave', end);
     return () => {
-      c.removeEventListener('mousedown', start); c.removeEventListener('mousemove', move); c.removeEventListener('mouseup', end); c.removeEventListener('mouseleave', end);
-      c.removeEventListener('touchstart', start); c.removeEventListener('touchmove', move); c.removeEventListener('touchend', end);
+      c.removeEventListener('pointerdown', start);
+      c.removeEventListener('pointermove', move);
+      c.removeEventListener('pointerup', end);
+      c.removeEventListener('pointercancel', end);
+      c.removeEventListener('pointerleave', end);
     };
-  }, []);
+  }, [version]);
 
   const clearSig = () => {
     const c = canvasRef.current;
     if (!c) return;
-    c.getContext('2d').clearRect(0, 0, c.width, c.height);
+    const ctx = c.getContext('2d');
+    ctx.save();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, c.width, c.height);
+    ctx.restore();
+    hasInk.current = false;
+    setVersion(v => v + 1);
   };
 
-  const isCanvasBlank = () => {
-    const c = canvasRef.current;
-    if (!c) return true;
-    const ctx = c.getContext('2d');
-    const d = ctx.getImageData(0, 0, c.width, c.height).data;
-    for (let i = 3; i < d.length; i += 4) if (d[i] !== 0) return false;
-    return true;
-  };
+  // Whether any pixels were drawn. Tracked via the hasInk ref so we don't need
+  // to scan the bitmap — that path read the device-pixel buffer and returned
+  // 'blank' when DPR != 1 because the alpha channel uses pre-multiplied math.
+  const isCanvasBlank = () => !hasInk.current;
 
   const submit = async () => {
     if (!repName.trim()) { alert('יש להזין שם'); return; }
@@ -346,9 +394,7 @@ function RepSignDialog({ contract, onClose }) {
             <Label className="block text-xs text-gray-600 mb-1">חתימה</Label>
             <canvas
               ref={canvasRef}
-              width={800}
-              height={200}
-              className="w-full h-32 border-2 border-amber-300 rounded-lg bg-white touch-none"
+              className="w-full h-32 border-2 border-amber-300 rounded-lg bg-white touch-none cursor-crosshair block"
             />
             <button type="button" onClick={clearSig} className="mt-1 text-xs text-gray-500 underline">נקה</button>
           </div>
