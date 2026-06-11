@@ -42,6 +42,12 @@ class Alena_DZ_Thank_You {
           <h1 class="alena-dz-ty-title">ההזמנה שלך התקבלה!</h1>
           <p class="alena-dz-ty-thanks">תודה רבה, <?php echo esc_html($order->get_billing_first_name()); ?> 💚<br>קיבלנו את ההזמנה והתחלנו להכין.</p>
 
+          <div class="alena-dz-ty-tracker">
+            <div class="alena-dz-ty-step done"><span class="alena-dz-ty-dot">✓</span>התקבלה</div>
+            <div class="alena-dz-ty-step active"><span class="alena-dz-ty-dot">👨‍🍳</span>בהכנה</div>
+            <div class="alena-dz-ty-step"><span class="alena-dz-ty-dot"><?php echo $is_pickup ? '🏠' : '🚚'; ?></span><?php echo $is_pickup ? 'מוכן לאיסוף' : 'בדרך אליך'; ?></div>
+          </div>
+
           <div class="alena-dz-ty-card">
             <div class="alena-dz-ty-row">
               <span class="alena-dz-ty-label">מס׳ הזמנה</span>

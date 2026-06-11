@@ -44,6 +44,7 @@ class Alena_DZ_Shop_Styling {
 
     public function __construct() {
         add_action('wp_enqueue_scripts',                  [$this, 'enqueue']);
+        add_action('wp_footer',                           [$this, 'render_promo_popup']);
         add_filter('woocommerce_product_query_tax_query', [$this, 'hide_merch_in_query'], 10, 2);
         add_filter('woocommerce_show_page_title',         '__return_true');
         add_filter('woocommerce_sale_flash',              [$this, 'sale_flash']);
@@ -106,6 +107,37 @@ class Alena_DZ_Shop_Styling {
         $this->render_featured_section();
         $this->render_grouped_products();
         $this->render_inline_script();
+    }
+
+    public function render_promo_popup() {
+        if (is_admin()) return;
+        if (!(function_exists('is_shop') && is_shop()) && !is_front_page()) return;
+        $shop_url = function_exists('wc_get_page_permalink') ? wc_get_page_permalink('shop') : '/shop/';
+        ?>
+        <div class="alena-promo-overlay" id="alena-promo">
+          <div class="alena-promo-box">
+            <button class="alena-promo-close" id="alena-promo-close" aria-label="סגור">✕</button>
+            <div class="alena-promo-emoji">🥙💚</div>
+            <h2>ברוכים הבאים לעלינא!</h2>
+            <p>מטבח ים-תיכוני שמח וצבעוני · כשר · משלוחים לראשון לציון והסביבה</p>
+            <a class="alena-promo-cta" href="<?php echo esc_url($shop_url); ?>" id="alena-promo-cta">לתפריט המלא →</a>
+          </div>
+        </div>
+        <script>
+        (function(){
+          try {
+            if (sessionStorage.getItem('alena_promo_seen')) return;
+            var ov = document.getElementById('alena-promo');
+            if (!ov) return;
+            setTimeout(function(){ ov.classList.add('open'); }, 1200);
+            function close(){ ov.classList.remove('open'); sessionStorage.setItem('alena_promo_seen','1'); }
+            document.getElementById('alena-promo-close').addEventListener('click', close);
+            document.getElementById('alena-promo-cta').addEventListener('click', function(){ sessionStorage.setItem('alena_promo_seen','1'); });
+            ov.addEventListener('click', function(e){ if(e.target===ov) close(); });
+          } catch(e){}
+        })();
+        </script>
+        <?php
     }
 
     public function render_shop_hero() {

@@ -681,3 +681,98 @@ body.alena-modal-open .alena-dz-mini-cart {
 .woocommerce-cart .page-title,
 body.woocommerce-cart .elementor-page-title,
 body.woocommerce-cart header.entry-header { display: none !important; }
+
+/* ---------- Thank-you status tracker ---------- */
+.alena-dz-ty-tracker {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  margin: 0 0 18px;
+  padding: 16px;
+  background: #faf6f1;
+  border-radius: 14px;
+  position: relative;
+}
+.alena-dz-ty-step {
+  flex: 1;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 700;
+  color: #b8a896;
+  position: relative;
+}
+.alena-dz-ty-dot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  margin: 0 auto 6px;
+  border-radius: 999px;
+  background: #e8ddcb;
+  font-size: 18px;
+}
+.alena-dz-ty-step.done { color: #1e4a3a; }
+.alena-dz-ty-step.done .alena-dz-ty-dot { background: #1e4a3a; color: #fff; }
+.alena-dz-ty-step.active { color: #c8852a; }
+.alena-dz-ty-step.active .alena-dz-ty-dot {
+  background: #f4a895; color: #fff;
+  animation: alena-ty-pulse 1.4s ease-in-out infinite;
+}
+@keyframes alena-ty-pulse {
+  0%,100% { box-shadow: 0 0 0 0 rgba(244,168,149,0.6); }
+  50%     { box-shadow: 0 0 0 8px rgba(244,168,149,0); }
+}
+/* connector lines */
+.alena-dz-ty-step:not(:last-child)::after {
+  content: "";
+  position: absolute;
+  top: 19px;
+  left: -50%;
+  width: 100%;
+  height: 2px;
+  background: #e8ddcb;
+  z-index: 0;
+}
+.alena-dz-ty-step.done:not(:last-child)::after { background: #1e4a3a; }
+
+/* ---------- Promo welcome popup ---------- */
+.alena-promo-overlay {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.5);
+  z-index: 100050;
+  display: none;
+  align-items: center; justify-content: center;
+  padding: 20px;
+}
+.alena-promo-overlay.open { display: flex; }
+.alena-promo-box {
+  background: #fff;
+  border-radius: 20px;
+  max-width: 380px;
+  width: 100%;
+  padding: 30px 26px;
+  text-align: center;
+  position: relative;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+  animation: alena-promo-in 0.3s ease;
+}
+@keyframes alena-promo-in { from{transform:scale(0.9);opacity:0} to{transform:scale(1);opacity:1} }
+.alena-promo-close {
+  position: absolute; top: 12px; left: 12px;
+  width: 30px; height: 30px; border-radius: 999px;
+  border: none; background: #f0e7d6; cursor: pointer; font-size: 16px;
+}
+.alena-promo-emoji { font-size: 54px; }
+.alena-promo-box h2 {
+  font-family: "Frank Ruhl Libre", serif !important;
+  font-size: 26px; font-weight: 800; margin: 6px 0 4px; color: #1c1c1c;
+}
+.alena-promo-box p { color: #6a5a4d; font-size: 15px; margin: 0 0 20px; }
+.alena-promo-cta {
+  display: inline-block; background: #1e4a3a; color: #fff !important;
+  padding: 14px 34px; border-radius: 999px; font-weight: 700;
+  text-decoration: none !important; font-size: 16px; transition: all .15s ease;
+}
+.alena-promo-cta:hover { background: #2e6850; transform: translateY(-1px); }
