@@ -38,8 +38,14 @@ export default function EventVendorDetails() {
     });
     const [agreements, setAgreements] = useState([]);
     const [eventLinks, setEventLinks] = useState([]);
+    const [openEvents, setOpenEvents] = useState([]);
+    const [closedEvents, setClosedEvents] = useState([]);
     const [timeline, setTimeline] = useState([]);
-    const [stats, setStats] = useState({ total_events: 0, total_commission_due: 0, total_commission_paid: 0 });
+    const [stats, setStats] = useState({
+        total_events: 0, open_count: 0, closed_count: 0,
+        revenue_brought_ils: 0,
+        total_commission_due: 0, total_commission_paid: 0,
+    });
     const [loading, setLoading] = useState(!isNew);
     const [saving, setSaving] = useState(false);
     const [msg, setMsg] = useState('');
@@ -59,6 +65,8 @@ export default function EventVendorDetails() {
                 setVendor(v);
                 setAgreements(d.agreements || []);
                 setEventLinks(d.events || []);
+                setOpenEvents(d.open_events || []);
+                setClosedEvents(d.closed_events || []);
                 setTimeline(d.timeline || []);
                 setStats(d.stats || stats);
             }
@@ -151,18 +159,26 @@ export default function EventVendorDetails() {
                 {msg && <div className="mb-3 p-2 text-sm rounded bg-emerald-50 text-emerald-800 border border-emerald-200">{msg}</div>}
 
                 {!isNew && (
-                    <div className="grid grid-cols-3 gap-3 mb-4">
+                    <div className="grid grid-cols-2 md:grid-cols-5 gap-2 md:gap-3 mb-4">
                         <Card><CardContent className="p-3 text-center">
-                            <div className="text-2xl font-black">{stats.total_events || 0}</div>
-                            <div className="text-[10px] text-gray-500">סה"כ אירועים</div>
+                            <div className="text-2xl font-black text-blue-700">{stats.open_count || 0}</div>
+                            <div className="text-[10px] text-gray-500">🟢 אירועים פתוחים</div>
+                        </CardContent></Card>
+                        <Card><CardContent className="p-3 text-center">
+                            <div className="text-2xl font-black text-gray-700">{stats.closed_count || 0}</div>
+                            <div className="text-[10px] text-gray-500">✅ אירועים סגורים</div>
+                        </CardContent></Card>
+                        <Card><CardContent className="p-3 text-center">
+                            <div className="text-2xl font-black text-[#A04A2E]">₪{(stats.revenue_brought_ils || 0).toLocaleString()}</div>
+                            <div className="text-[10px] text-gray-500">💰 הכנסות שהובאו</div>
                         </CardContent></Card>
                         <Card><CardContent className="p-3 text-center">
                             <div className="text-2xl font-black text-amber-700">₪{(stats.total_commission_due || 0).toLocaleString()}</div>
-                            <div className="text-[10px] text-gray-500">עמלות לתשלום</div>
+                            <div className="text-[10px] text-gray-500">⏳ עמלות לתשלום</div>
                         </CardContent></Card>
                         <Card><CardContent className="p-3 text-center">
                             <div className="text-2xl font-black text-emerald-700">₪{(stats.total_commission_paid || 0).toLocaleString()}</div>
-                            <div className="text-[10px] text-gray-500">שולמו</div>
+                            <div className="text-[10px] text-gray-500">✅ עמלות שולמו</div>
                         </CardContent></Card>
                     </div>
                 )}
@@ -323,30 +339,24 @@ export default function EventVendorDetails() {
 
                     {/* ===== Linked events + commissions ===== */}
                     <TabsContent value="events">
-                        <Card><CardContent className="p-4">
+                        <Card><CardContent className="p-4 space-y-5">
                             {eventLinks.length === 0 ? (
                                 <p className="text-sm text-gray-400 text-center py-6">אין אירועים מקושרים. אפשר לקשר ספק לאירוע ספציפי מתוך עמוד האירוע ב-EventsPrivate.</p>
                             ) : (
-                                <div className="space-y-2">
-                                    {eventLinks.map(l => (
-                                        <div key={l.id} className="p-3 border rounded-lg flex items-start justify-between gap-3 text-sm">
-                                            <div className="flex-1">
-                                                <div className="font-bold">{l.event?.customer_name || '—'} · {l.event?.event_date || '—'}</div>
-                                                <div className="text-xs text-gray-600 mt-0.5">
-                                                    {l.role === 'referrer' ? '🎯 הביא את הלקוח' : `🛠️ ספק שירות${l.service_type ? ' · ' + l.service_type : ''}`}
-                                                    {l.event?.guest_count ? ` · ${l.event.guest_count} סועדים` : ''}
-                                                </div>
-                                                {l.notes && <div className="text-xs text-gray-500 italic mt-1">{l.notes}</div>}
-                                            </div>
-                                            <div className="text-left">
-                                                <div className="font-black text-base">₪{(l.commission_amount_ils || 0).toLocaleString()}</div>
-                                                <div className={`text-[10px] inline-block px-2 py-0.5 rounded-full ${l.payment_status === 'paid' ? 'bg-emerald-100 text-emerald-700' : l.payment_status === 'partial' ? 'bg-amber-100 text-amber-700' : 'bg-gray-200 text-gray-600'}`}>
-                                                    {l.payment_status === 'paid' ? 'שולם' : l.payment_status === 'partial' ? 'חלקי' : l.payment_status === 'waived' ? 'בוטל' : 'ממתין'}
-                                                </div>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
+                                <>
+                                    <EventGroup
+                                        title={`🟢 אירועים פתוחים (${openEvents.length})`}
+                                        emptyText="אין אירועים פתוחים כרגע"
+                                        accent="border-blue-300 bg-blue-50/40"
+                                        links={openEvents}
+                                    />
+                                    <EventGroup
+                                        title={`✅ אירועים סגורים (${closedEvents.length})`}
+                                        emptyText="אין אירועים סגורים עדיין"
+                                        accent="border-gray-200 bg-gray-50/40"
+                                        links={closedEvents}
+                                    />
+                                </>
                             )}
                         </CardContent></Card>
                     </TabsContent>
@@ -395,6 +405,54 @@ function Field({ label, children }) {
         <div>
             <label className="block text-xs font-bold mb-1 text-gray-700">{label}</label>
             {children}
+        </div>
+    );
+}
+
+// Section that renders a labelled list of EventVendor links + a per-section
+// revenue/commission summary. Used twice on the vendor card — once for open
+// events, once for closed.
+function EventGroup({ title, emptyText, accent, links }) {
+    const totalRevenue = links
+        .filter(l => l.role === 'referrer' && l.event)
+        .reduce((s, l) => s + (Number(l.event?.total_ils) || 0), 0);
+    const totalCommission = links.reduce((s, l) => s + (Number(l.commission_amount_ils) || 0), 0);
+    return (
+        <div>
+            <div className="flex items-center justify-between mb-2">
+                <h4 className="font-bold text-sm">{title}</h4>
+                {links.length > 0 && (
+                    <span className="text-[11px] text-gray-500">
+                        הכנסות: <strong className="text-[#A04A2E]">₪{totalRevenue.toLocaleString()}</strong>
+                        {' · '}עמלות: <strong>₪{totalCommission.toLocaleString()}</strong>
+                    </span>
+                )}
+            </div>
+            {links.length === 0 ? (
+                <p className="text-xs text-gray-400 text-center py-3">{emptyText}</p>
+            ) : (
+                <div className="space-y-2">
+                    {links.map(l => (
+                        <div key={l.id} className={`p-3 border rounded-lg flex items-start justify-between gap-3 text-sm ${accent}`}>
+                            <div className="flex-1">
+                                <div className="font-bold">{l.event?.customer_name || '—'} · {l.event?.event_date || '—'}</div>
+                                <div className="text-xs text-gray-600 mt-0.5">
+                                    {l.role === 'referrer' ? '🎯 הביא את הלקוח' : `🛠️ ספק שירות${l.service_type ? ' · ' + l.service_type : ''}`}
+                                    {l.event?.guest_count ? ` · ${l.event.guest_count} סועדים` : ''}
+                                    {l.role === 'referrer' && l.event?.total_ils ? ` · אירוע ₪${Number(l.event.total_ils).toLocaleString()}` : ''}
+                                </div>
+                                {l.notes && <div className="text-xs text-gray-500 italic mt-1">{l.notes}</div>}
+                            </div>
+                            <div className="text-left">
+                                <div className="font-black text-base">₪{(l.commission_amount_ils || 0).toLocaleString()}</div>
+                                <div className={`text-[10px] inline-block px-2 py-0.5 rounded-full ${l.payment_status === 'paid' ? 'bg-emerald-100 text-emerald-700' : l.payment_status === 'partial' ? 'bg-amber-100 text-amber-700' : l.payment_status === 'waived' ? 'bg-gray-200 text-gray-500' : 'bg-amber-50 text-amber-800 border border-amber-200'}`}>
+                                    {l.payment_status === 'paid' ? '✅ שולם' : l.payment_status === 'partial' ? '🟡 חלקי' : l.payment_status === 'waived' ? 'בוטל' : '⏳ ממתין'}
+                                </div>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            )}
         </div>
     );
 }

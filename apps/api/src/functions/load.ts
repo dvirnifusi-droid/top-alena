@@ -2932,9 +2932,27 @@ registerFn('getVendor', async ({ body, user }) => {
     ...l,
     event: l.event_booking_id ? eventsById.get(l.event_booking_id) || null : null,
   }));
-  // Quick stats
+  // Split events into open (future, not cancelled/completed) vs closed
+  // so the owner sees at a glance what's still in flight vs. settled.
+  const todayIso = new Date().toISOString().slice(0, 10);
+  const isClosed = (l: any) => {
+    if (!l.event) return false; // unlinked stays in open
+    const d = String(l.event.event_date || '').slice(0, 10);
+    const st = String(l.event.status || '').toLowerCase();
+    if (st === 'completed' || st === 'cancelled') return true;
+    if (d && d < todayIso) return true;
+    return false;
+  };
+  const openLinks = enrichedLinks.filter((l: any) => !isClosed(l));
+  const closedLinks = enrichedLinks.filter(isClosed);
+  // Revenue ATTRIBUTED to this vendor — only referrer role (they brought the
+  // client). Service providers worked at the event but didn't bring it in.
+  const referrerLinks = enrichedLinks.filter((l: any) => l.role === 'referrer' && l.event);
   const stats = {
     total_events: enrichedLinks.length,
+    open_count: openLinks.length,
+    closed_count: closedLinks.length,
+    revenue_brought_ils: referrerLinks.reduce((s: any, l: any) => s + (Number(l.event?.total_ils) || 0), 0),
     total_commission_due: enrichedLinks
       .filter((l: any) => l.payment_status !== 'paid' && l.payment_status !== 'waived')
       .reduce((s: any, l: any) => s + (Number(l.commission_amount_ils) || 0), 0),
@@ -2942,7 +2960,7 @@ registerFn('getVendor', async ({ body, user }) => {
       .filter((l: any) => l.payment_status === 'paid')
       .reduce((s: any, l: any) => s + (Number(l.paid_amount_ils) || Number(l.commission_amount_ils) || 0), 0),
   };
-  return { vendor, agreements, events: enrichedLinks, timeline, stats };
+  return { vendor, agreements, events: enrichedLinks, open_events: openLinks, closed_events: closedLinks, timeline, stats };
 });
 
 registerFn('deleteVendor', async ({ body, user }) => {
