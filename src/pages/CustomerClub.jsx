@@ -16,12 +16,13 @@ import { Users, Search, Loader2, AlertTriangle, Heart, Frown, RefreshCw, Upload,
 import { sendSms } from '@/functions/sendSms';
 import { sendCustomerEmail } from '@/functions/sendCustomerEmail';
 import { format } from 'date-fns';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 
 const PAGE_SIZE = 50;
 
 export default function CustomerClubPage() {
+    const navigate = useNavigate();
     const [customers, setCustomers] = useState([]);
     const [filteredCustomers, setFilteredCustomers] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -486,8 +487,13 @@ export default function CustomerClubPage() {
                             <TableBody>
                                 {pagedCustomers.length > 0 ? (
                                     pagedCustomers.map(customer => (
-                                        <TableRow key={customer.id}>
-                                            <TableCell>
+                                        // Whole row opens the customer card; interactive cells stop propagation.
+                                        <TableRow
+                                            key={customer.id}
+                                            onClick={() => navigate(createPageUrl(`CustomerDetails?id=${customer.id}`))}
+                                            className="cursor-pointer hover:bg-[#FAF5E8] transition-colors"
+                                        >
+                                            <TableCell onClick={(e) => e.stopPropagation()}>
                                                 {customer.email && (
                                                     <Checkbox
                                                         checked={selectedCustomers.includes(customer.id)}
@@ -496,9 +502,14 @@ export default function CustomerClubPage() {
                                                 )}
                                             </TableCell>
                                             <TableCell className="font-medium">
-                                                <Link to={createPageUrl(`CustomerDetails?id=${customer.id}`)} className="text-[#44512C] hover:underline font-semibold">
-                                                    {customer.name}
-                                                </Link>
+                                                <span className="text-[#44512C] font-semibold flex items-center gap-1.5">
+                                                    👤 {customer.name || '(ללא שם)'}
+                                                </span>
+                                                <span className="text-[10px] text-gray-400 flex flex-wrap gap-2 mt-0.5">
+                                                    {customer.city && <span>📍 {customer.city}</span>}
+                                                    {customer.birthday_mmdd && <span>🎂 {customer.birthday_mmdd}</span>}
+                                                    {(customer.visit_count > 0 || customer.total_visits > 0) && <span>{customer.visit_count || customer.total_visits} ביקורים</span>}
+                                                </span>
                                             </TableCell>
                                             <TableCell>{customer.phone}</TableCell>
                                             <TableCell>{customer.email || '-'}</TableCell>
@@ -513,7 +524,7 @@ export default function CustomerClubPage() {
                                                     </div>
                                                 )}
                                             </TableCell>
-                                            <TableCell>
+                                            <TableCell onClick={(e) => e.stopPropagation()}>
                                                 <Select
                                                     value={customer.satisfaction_status || 'neutral'}
                                                     onValueChange={(value) => updateCustomerStatus(customer.id, value)}

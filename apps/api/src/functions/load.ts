@@ -2972,9 +2972,13 @@ registerFn('clubListCustomers', async ({ body, user }) => {
 });
 
 // Preview: count + 5 sample customers matching the segment.
+// exclude_ids: customers the owner explicitly removed from this send.
 registerFn('previewCustomerSegment', async ({ body }) => {
-  const { segment, custom_filter } = body as any;
-  const where = buildSegmentWhere(segment || 'all_consented', custom_filter);
+  const { segment, custom_filter, exclude_ids } = body as any;
+  let where = buildSegmentWhere(segment || 'all_consented', custom_filter);
+  if (Array.isArray(exclude_ids) && exclude_ids.length > 0) {
+    where = { AND: [where, { id: { notIn: exclude_ids } }] };
+  }
   const [count, sample] = await Promise.all([
     db.customer.count({ where }),
     db.customer.findMany({
@@ -3005,7 +3009,7 @@ function estimateCampaignCostIls(recipientCount: number, channel: string): numbe
 //  - includes Twilio status callback URL so we get delivery/read receipts
 registerFn('sendCustomerCampaign', async ({ body, user }) => {
   if ((user as any)?.role !== 'admin') throw new Error('admin only');
-  const { segment, message_template, channel, campaign_key, campaign_label, custom_filter, media_url } = body as any;
+  const { segment, message_template, channel, campaign_key, campaign_label, custom_filter, media_url, exclude_ids } = body as any;
   if (!message_template) throw new Error('message_template required');
   if (!segment) throw new Error('segment required');
   const where = buildSegmentWhere(segment, custom_filter);
@@ -3016,6 +3020,10 @@ registerFn('sendCustomerCampaign', async ({ body, user }) => {
     AND: [
       where,
       { OR: [{ last_marketing_sent_at: null }, { last_marketing_sent_at: { lt: cutoff } }] },
+      // Owner-excluded customers (hand-removed in the campaign UI)
+      ...(Array.isArray(exclude_ids) && exclude_ids.length > 0
+        ? [{ id: { notIn: exclude_ids } }]
+        : []),
     ],
   };
   const recipients = await db.customer.findMany({ where: finalWhere, take: 500 });

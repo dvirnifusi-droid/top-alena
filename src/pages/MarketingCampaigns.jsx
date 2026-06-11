@@ -177,6 +177,11 @@ export default function MarketingCampaigns() {
     const [custResults, setCustResults] = useState([]);
     const [custSearching, setCustSearching] = useState(false);
     const [custError, setCustError] = useState('');
+    // Exclusion list — customers the owner removed from a segment-based send
+    const [excludeList, setExcludeList] = useState([]);
+    const [exSearch, setExSearch] = useState('');
+    const [exResults, setExResults] = useState([]);
+    const [exSearching, setExSearching] = useState(false);
 
     const isManual = activeSegment?.key === 'manual';
 
@@ -192,6 +197,7 @@ export default function MarketingCampaigns() {
         setActiveSegment(seg);
         setTemplate(seg.defaultTemplate);
         setSendResult(null);
+        setExcludeList([]);
         if (seg.key === 'manual') {
             // Manual mode previews locally from the picked list — no server query.
             setPreview({ count: manualList.length, sample: manualList.slice(0, 5) });
@@ -232,7 +238,7 @@ export default function MarketingCampaigns() {
     };
     const removeManualCustomer = (id) => setManualList(prev => prev.filter(x => x.id !== id));
 
-    const runPreview = async (segmentKey) => {
+    const runPreview = async (segmentKey, excludes) => {
         if (segmentKey === 'manual') {
             setPreview({ count: manualList.length, sample: manualList.slice(0, 5) });
             return;
@@ -240,7 +246,11 @@ export default function MarketingCampaigns() {
         setPreviewLoading(true);
         setPreview(null);
         try {
-            const r = await base44.functions.previewCustomerSegment({ segment: segmentKey });
+            const ex = excludes ?? excludeList;
+            const r = await base44.functions.previewCustomerSegment({
+                segment: segmentKey,
+                exclude_ids: ex.length ? ex.map(c => c.id) : undefined,
+            });
             setPreview(r?.data || r);
         } catch (e) {
             setPreview({ count: 0, sample: [], error: e?.message });
@@ -248,6 +258,33 @@ export default function MarketingCampaigns() {
             setPreviewLoading(false);
         }
     };
+
+    // Debounced search for the EXCLUSION picker (shared backend fn)
+    useEffect(() => {
+        if (isManual || !activeSegment || exSearch.trim().length < 2) { setExResults([]); return; }
+        const t = setTimeout(async () => {
+            setExSearching(true);
+            try {
+                const r = await base44.functions.searchCustomers({ q: exSearch.trim() });
+                setExResults((r?.data || r)?.results || []);
+            } catch { setExResults([]); }
+            finally { setExSearching(false); }
+        }, 400);
+        return () => clearTimeout(t);
+    }, [exSearch, activeSegment, isManual]);
+
+    // Re-preview when exclusions change
+    useEffect(() => {
+        if (activeSegment && !isManual) runPreview(activeSegment.key, excludeList);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [excludeList]);
+
+    const addExclusion = (c) => {
+        setExcludeList(prev => prev.some(x => x.id === c.id) ? prev : [...prev, c]);
+        setExSearch('');
+        setExResults([]);
+    };
+    const removeExclusion = (id) => setExcludeList(prev => prev.filter(x => x.id !== id));
 
     const handleSend = async () => {
         if (!activeSegment) return;
@@ -267,6 +304,8 @@ export default function MarketingCampaigns() {
                 media_url: mediaUrl || undefined,
                 // Manual mode: send exactly to the hand-picked customers
                 custom_filter: isManual ? { customer_ids: manualList.map(c => c.id) } : undefined,
+                // Segment mode: owner-removed customers are excluded server-side
+                exclude_ids: !isManual && excludeList.length ? excludeList.map(c => c.id) : undefined,
             });
             const data = r?.data || r;
             setSendResult({ success: true, ...data });
@@ -453,6 +492,53 @@ export default function MarketingCampaigns() {
                                         ) : null}
                                     </CardContent>
                                 </Card>
+
+                                {/* Exclusion picker — remove specific people from a segment send */}
+                                {!isManual && (
+                                    <Card>
+                                        <CardContent className="p-4">
+                                            <h3 className="font-bold mb-1 text-sm text-gray-700">🚫 החרג לקוחות מהשליחה (אופציונלי):</h3>
+                                            <p className="text-[11px] text-gray-500 mb-2">חפש לפי שם או טלפון והסר אנשים ספציפיים מהקהל — הם לא יקבלו את ההודעה הזו.</p>
+                                            <input
+                                                type="text"
+                                                value={exSearch}
+                                                onChange={(e) => setExSearch(e.target.value)}
+                                                placeholder="הקלד שם או טלפון להחרגה..."
+                                                className="w-full border rounded-lg p-2 text-sm focus:ring-2 focus:ring-red-300 focus:outline-none"
+                                            />
+                                            {exSearching && <p className="text-xs text-gray-400 mt-2">מחפש...</p>}
+                                            {exResults.length > 0 && (
+                                                <div className="mt-2 border rounded-lg divide-y max-h-48 overflow-y-auto">
+                                                    {exResults.map(c => (
+                                                        <button
+                                                            key={c.id}
+                                                            onClick={() => addExclusion(c)}
+                                                            className="w-full text-right p-2 text-xs flex items-center gap-2 hover:bg-red-50"
+                                                        >
+                                                            <span className="font-bold">{c.name || '(ללא שם)'}</span>
+                                                            <span className="text-gray-500">{c.phone}</span>
+                                                            <span className="mr-auto text-red-600 font-bold">🚫 החרג</span>
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            )}
+                                            {excludeList.length > 0 && (
+                                                <div className="mt-3">
+                                                    <p className="text-xs font-bold text-red-700 mb-1">מוחרגים מהשליחה ({excludeList.length}):</p>
+                                                    <div className="flex flex-wrap gap-1.5">
+                                                        {excludeList.map(c => (
+                                                            <span key={c.id} className="inline-flex items-center gap-1 bg-red-100 text-red-800 text-xs font-bold px-2 py-1 rounded-full">
+                                                                {c.name || c.phone}
+                                                                <button onClick={() => removeExclusion(c.id)} className="text-red-500 hover:text-gray-700" title="בטל החרגה">✕</button>
+                                                            </span>
+                                                        ))}
+                                                        <button onClick={() => setExcludeList([])} className="text-xs text-gray-400 hover:text-red-600 underline">נקה הכל</button>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </CardContent>
+                                    </Card>
+                                )}
 
                                 {/* Template editor */}
                                 <Card>
