@@ -205,11 +205,15 @@
   function submitAddToCart(e) {
     if (e && e.preventDefault) { e.preventDefault(); e.stopPropagation(); }
 
+    // Hard guard against double-add (re-entrant clicks / double events)
+    if (window.__alenaAdding) return false;
+
     const pid = modalEl.data('product-id');
     if (!pid) {
       toast('שגיאה — חסר מוצר');
       return false;
     }
+    window.__alenaAdding = true;
 
     // Validate required modifier groups (only visible ones)
     let firstError = null;
@@ -273,6 +277,7 @@
       },
       complete: function () {
         $btn.prop('disabled', false).html(originalLabel);
+        setTimeout(function(){ window.__alenaAdding = false; }, 400);
       }
     });
     return false;
@@ -293,16 +298,12 @@
   }
 
   $(function () {
-    // Intercept product card clicks on the shop loop only
-    $(document).on('click', '.alena-dz-card a, .alena-dz-card .alena-dz-card-add', function (e) {
-      const $card = $(this).closest('.alena-dz-card');
-      if (!$card.length) return;
-      // Don't intercept the explicit cart-add (the "+") — it should still work
-      // straight away without opening the modal for items without modifiers.
-      // But if the product has modifiers we WANT to show the modal.
+    // One delegated handler on the whole card so it can't fire twice
+    // (clicking the '+' chip used to also bubble to the wrapping <a>).
+    $(document).on('click', '.alena-dz-card', function (e) {
       e.preventDefault();
       e.stopPropagation();
-      openModalForCard($card);
+      openModalForCard($(this));
     });
   });
 })(jQuery);
