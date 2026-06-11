@@ -2089,6 +2089,8 @@ registerFn('sendABTestCampaign', async ({ body, user }) => {
 
   return { ok: true, sends, total: allRecipients.length };
 });
+
+if (!(globalThis as any).__dailyCelebrationsTimer) {
   // Tick every 15 min, the function self-gates to 09:00 IL + once-per-day.
   (globalThis as any).__dailyCelebrationsTimer = setTimeout(function loop() {
     runDailyCelebrationCampaigns().finally(() => {
@@ -3108,7 +3110,7 @@ registerFn('getCampaignDetails', async ({ body }) => {
     take: 500,
   });
   // Pull reservations for converted recipients to show what they ordered
-  const convertedIds = recipients.filter(r => r.converted_reservation_id).map(r => r.converted_reservation_id as string);
+  const convertedIds = recipients.filter((r: any) => r.converted_reservation_id).map((r: any) => r.converted_reservation_id as string);
   const convertedReservations = convertedIds.length > 0
     ? await db.reservation.findMany({ where: { id: { in: convertedIds } } })
     : [];
