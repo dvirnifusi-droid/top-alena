@@ -2979,16 +2979,22 @@ registerFn('previewCustomerSegment', async ({ body }) => {
   if (Array.isArray(exclude_ids) && exclude_ids.length > 0) {
     where = { AND: [where, { id: { notIn: exclude_ids } }] };
   }
-  const [count, sample] = await Promise.all([
+  // Also count how many of these the 24h throttle will skip at send time —
+  // shown in the preview so the owner isn't surprised by a smaller send.
+  const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  const [count, throttledOut, sample] = await Promise.all([
     db.customer.count({ where }),
+    segment === 'manual'
+      ? Promise.resolve(0) // manual mode bypasses the throttle
+      : db.customer.count({ where: { AND: [where, { last_marketing_sent_at: { gte: cutoff } }] } }),
     db.customer.findMany({
       where,
       take: 5,
-      orderBy: { last_visit: 'desc' },
+      orderBy: [{ last_visit: { sort: 'desc', nulls: 'last' } }],
       select: { id: true, name: true, phone: true, visit_count: true, coin_balance: true, loyalty_tier: true, last_visit: true, birthday_mmdd: true },
     }),
   ]);
-  return { count, sample };
+  return { count, throttled_out: throttledOut, sample };
 });
 
 // Twilio WhatsApp pricing (ILS, approx — updated 2026-06).
@@ -3014,19 +3020,32 @@ registerFn('sendCustomerCampaign', async ({ body, user }) => {
   if (!segment) throw new Error('segment required');
   const where = buildSegmentWhere(segment, custom_filter);
   const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  const baseAnd: any[] = [
+    where,
+    // Owner-excluded customers (hand-removed in the campaign UI)
+    ...(Array.isArray(exclude_ids) && exclude_ids.length > 0
+      ? [{ id: { notIn: exclude_ids } }]
+      : []),
+  ];
+  // 24h throttle protects against accidental double-sends on bulk segments.
+  // MANUAL mode bypasses it — the owner hand-picked these exact people, so
+  // their intent is explicit. (This bit the owner: picked 1 customer, send
+  // reported success with 0 recipients because of an earlier test message.)
+  const isManualSegment = segment === 'manual';
   // AND-combine: segments like missing_details carry their own OR — a plain
   // spread would let the throttle OR overwrite it and blast the whole list.
-  const finalWhere: any = {
-    AND: [
-      where,
-      { OR: [{ last_marketing_sent_at: null }, { last_marketing_sent_at: { lt: cutoff } }] },
-      // Owner-excluded customers (hand-removed in the campaign UI)
-      ...(Array.isArray(exclude_ids) && exclude_ids.length > 0
-        ? [{ id: { notIn: exclude_ids } }]
-        : []),
-    ],
-  };
+  const finalWhere: any = isManualSegment
+    ? { AND: baseAnd }
+    : {
+        AND: [
+          ...baseAnd,
+          { OR: [{ last_marketing_sent_at: null }, { last_marketing_sent_at: { lt: cutoff } }] },
+        ],
+      };
+  // Count how many the throttle removed so the UI can say so honestly.
+  const matchedBeforeThrottle = await db.customer.count({ where: { AND: baseAnd } });
   const recipients = await db.customer.findMany({ where: finalWhere, take: 500 });
+  const skippedThrottled = Math.max(matchedBeforeThrottle - recipients.length, 0);
   const useWa = channel === 'whatsapp' || !channel;
   const useEmail = channel === 'email';
   const channelStr = useEmail ? 'email' : useWa ? 'whatsapp' : 'sms';
@@ -3136,6 +3155,7 @@ registerFn('sendCustomerCampaign', async ({ body, user }) => {
     sent: successes.length,
     failed: failures.length,
     skipped: 0,
+    skipped_throttled: skippedThrottled,
     total_matched: recipients.length,
     estimated_cost_ils: estimatedCost,
     cost_breakdown: useEmail

@@ -470,6 +470,12 @@ export default function MarketingCampaigns() {
                                                 <div className="text-3xl font-black text-emerald-700 mb-1">
                                                     {preview.count} לקוחות תואמים
                                                 </div>
+                                                {preview.throttled_out > 0 && (
+                                                    <p className="text-xs text-orange-700 font-bold bg-orange-50 border border-orange-200 rounded-lg px-2 py-1 inline-block">
+                                                        ⏳ {preview.throttled_out} מתוכם קיבלו הודעה ב-24 השעות האחרונות ויושמטו מהשליחה
+                                                        ({preview.count - preview.throttled_out} יקבלו בפועל)
+                                                    </p>
+                                                )}
                                                 {preview.count === 0 && (
                                                     <p className="text-sm text-orange-600 mt-2">⚠️ אין לקוחות תואמים. תוודא שיש לקוחות עם marketing_consent + נתונים מתאימים לסגמנט.</p>
                                                 )}
@@ -717,10 +723,15 @@ export default function MarketingCampaigns() {
                                                 <div className="flex items-start gap-3 text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-lg p-3">
                                                     <CheckCircle2 className="w-6 h-6 mt-0.5" />
                                                     <div className="flex-1">
-                                                        <p className="font-bold">✅ נשלח בהצלחה!</p>
+                                                        <p className="font-bold">{sendResult.sent > 0 ? '✅ נשלח בהצלחה!' : '⚠️ לא נשלחו הודעות'}</p>
                                                         <p className="text-sm mt-1">
                                                             📤 {sendResult.sent} הודעות נשלחו · ❌ {sendResult.failed} נכשלו · 🎯 {sendResult.total_matched} סך כל היעד
                                                         </p>
+                                                        {sendResult.skipped_throttled > 0 && (
+                                                            <p className="text-xs mt-1 text-orange-700 font-bold">
+                                                                ⏳ {sendResult.skipped_throttled} דולגו — קיבלו הודעה ב-24 השעות האחרונות (הגנה מכפל שליחות)
+                                                            </p>
+                                                        )}
                                                         {sendResult.failure_sample?.length > 0 && (
                                                             <details className="mt-2 text-xs">
                                                                 <summary className="cursor-pointer text-red-700">מה נכשל? ({sendResult.failure_sample.length} דוגמאות)</summary>
