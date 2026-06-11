@@ -674,3 +674,10 @@ body.alena-modal-open .alena-dz-bottom-nav,
 body.alena-modal-open .alena-dz-mini-cart {
   display: none !important;
 }
+
+/* alena cart title hide */
+.woocommerce-cart .entry-title,
+.woocommerce-cart h1.entry-title,
+.woocommerce-cart .page-title,
+body.woocommerce-cart .elementor-page-title,
+body.woocommerce-cart header.entry-header { display: none !important; }
