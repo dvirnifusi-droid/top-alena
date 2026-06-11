@@ -113,6 +113,14 @@ const SEGMENTS = [
         defaultTemplate: 'היי {name}! 🌿\n[הודעה כללית - מלא כאן]',
         color: 'blue',
     },
+    {
+        key: 'manual',
+        emoji: '🎯',
+        label: 'בחירה ידנית',
+        desc: 'חפש ובחר שמות / טלפונים ספציפיים',
+        defaultTemplate: 'היי {name}! 🌿\n[כתוב כאן את ההודעה]',
+        color: 'emerald',
+    },
 ];
 
 const COLOR_BG = {
@@ -155,21 +163,65 @@ export default function MarketingCampaigns() {
     const [detailsOpen, setDetailsOpen] = useState(null); // CampaignSend selected for drill-down
     const [details, setDetails] = useState(null);
     const [holidays, setHolidays] = useState([]);
+    // Manual recipient picker — owner searches + hand-picks specific customers
+    const [manualList, setManualList] = useState([]);
+    const [custSearch, setCustSearch] = useState('');
+    const [custResults, setCustResults] = useState([]);
+    const [custSearching, setCustSearching] = useState(false);
 
-    // Cost preview — Twilio WhatsApp marketing pricing for Israel
-    const estCost = preview?.count
-        ? (channel === 'whatsapp' ? (preview.count * 0.13).toFixed(2) : (preview.count * 0.10).toFixed(2))
-        : '0.00';
+    const isManual = activeSegment?.key === 'manual';
+
+    // Cost preview — Email is free (Resend, up to 3,000/mo); WhatsApp/SMS via Twilio
+    const estCost = channel === 'email'
+        ? '0.00'
+        : preview?.count
+            ? (channel === 'whatsapp' ? (preview.count * 0.13).toFixed(2) : (preview.count * 0.10).toFixed(2))
+            : '0.00';
 
     // When segment is chosen, set default template + auto-preview
     const pickSegment = async (seg) => {
         setActiveSegment(seg);
         setTemplate(seg.defaultTemplate);
         setSendResult(null);
+        if (seg.key === 'manual') {
+            // Manual mode previews locally from the picked list — no server query.
+            setPreview({ count: manualList.length, sample: manualList.slice(0, 5) });
+            return;
+        }
         await runPreview(seg.key);
     };
 
+    // Debounced customer search for the manual picker
+    useEffect(() => {
+        if (!isManual || custSearch.trim().length < 2) { setCustResults([]); return; }
+        const t = setTimeout(async () => {
+            setCustSearching(true);
+            try {
+                const r = await base44.functions.searchCustomers({ q: custSearch.trim() });
+                setCustResults((r?.data || r)?.results || []);
+            } catch { setCustResults([]); }
+            finally { setCustSearching(false); }
+        }, 400);
+        return () => clearTimeout(t);
+    }, [custSearch, isManual]);
+
+    // Keep the preview synced with the picked list in manual mode
+    useEffect(() => {
+        if (isManual) setPreview({ count: manualList.length, sample: manualList.slice(0, 5) });
+    }, [manualList, isManual]);
+
+    const addManualCustomer = (c) => {
+        setManualList(prev => prev.some(x => x.id === c.id) ? prev : [...prev, c]);
+        setCustSearch('');
+        setCustResults([]);
+    };
+    const removeManualCustomer = (id) => setManualList(prev => prev.filter(x => x.id !== id));
+
     const runPreview = async (segmentKey) => {
+        if (segmentKey === 'manual') {
+            setPreview({ count: manualList.length, sample: manualList.slice(0, 5) });
+            return;
+        }
         setPreviewLoading(true);
         setPreview(null);
         try {
@@ -198,6 +250,8 @@ export default function MarketingCampaigns() {
                 campaign_key: activeSegment.key,
                 campaign_label: activeSegment.label,
                 media_url: mediaUrl || undefined,
+                // Manual mode: send exactly to the hand-picked customers
+                custom_filter: isManual ? { customer_ids: manualList.map(c => c.id) } : undefined,
             });
             const data = r?.data || r;
             setSendResult({ success: true, ...data });
@@ -284,6 +338,59 @@ export default function MarketingCampaigns() {
                                 </div>
                             </CardContent>
                         </Card>
+
+                        {/* Manual recipient picker — search + hand-pick customers */}
+                        {isManual && (
+                            <Card>
+                                <CardContent className="p-4">
+                                    <h3 className="font-bold mb-2 text-sm text-gray-700">🎯 חפש והוסף לקוחות:</h3>
+                                    <input
+                                        type="text"
+                                        value={custSearch}
+                                        onChange={(e) => setCustSearch(e.target.value)}
+                                        placeholder="הקלד שם או מספר טלפון (לפחות 2 תווים)..."
+                                        className="w-full border rounded-lg p-2 text-sm focus:ring-2 focus:ring-emerald-400 focus:outline-none"
+                                    />
+                                    {custSearching && <p className="text-xs text-gray-400 mt-2">מחפש...</p>}
+                                    {custResults.length > 0 && (
+                                        <div className="mt-2 border rounded-lg divide-y max-h-56 overflow-y-auto">
+                                            {custResults.map(c => {
+                                                const blocked = !c.marketing_consent || c.marketing_unsubscribed_at;
+                                                return (
+                                                    <button
+                                                        key={c.id}
+                                                        onClick={() => !blocked && addManualCustomer(c)}
+                                                        disabled={blocked}
+                                                        className={`w-full text-right p-2 text-xs flex items-center gap-2 ${blocked ? 'opacity-40 cursor-not-allowed' : 'hover:bg-emerald-50'}`}
+                                                    >
+                                                        <span className="font-bold">{c.name || '(ללא שם)'}</span>
+                                                        <span className="text-gray-500">{c.phone}</span>
+                                                        {c.visit_count > 0 && <span className="text-emerald-600">{c.visit_count} ביקורים</span>}
+                                                        {blocked
+                                                            ? <span className="mr-auto text-red-600 font-bold">🚫 ללא הסכמת שיווק</span>
+                                                            : <span className="mr-auto text-emerald-700 font-bold">+ הוסף</span>}
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
+                                    {manualList.length > 0 && (
+                                        <div className="mt-3">
+                                            <p className="text-xs font-bold text-gray-600 mb-1">נבחרו ({manualList.length}):</p>
+                                            <div className="flex flex-wrap gap-1.5">
+                                                {manualList.map(c => (
+                                                    <span key={c.id} className="inline-flex items-center gap-1 bg-emerald-100 text-emerald-800 text-xs font-bold px-2 py-1 rounded-full">
+                                                        {c.name || c.phone}
+                                                        <button onClick={() => removeManualCustomer(c.id)} className="text-emerald-600 hover:text-red-600">✕</button>
+                                                    </span>
+                                                ))}
+                                                <button onClick={() => setManualList([])} className="text-xs text-gray-400 hover:text-red-600 underline">נקה הכל</button>
+                                            </div>
+                                        </div>
+                                    )}
+                                </CardContent>
+                            </Card>
+                        )}
 
                         {activeSegment && (
                             <>
@@ -455,16 +562,29 @@ export default function MarketingCampaigns() {
 
                                         {/* Cost preview */}
                                         {preview?.count > 0 && (
-                                            <div className="mb-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
-                                                <p className="text-sm font-bold text-amber-900 mb-1">💰 עלות משוערת:</p>
-                                                <p className="text-2xl font-black text-amber-700">₪{estCost}</p>
-                                                <p className="text-[10px] text-amber-700 mt-1">
-                                                    {preview.count} × ₪{channel === 'whatsapp' ? '0.13' : '0.10'} {channel === 'whatsapp' ? '(WhatsApp Marketing לישראל)' : '(SMS לישראל)'}
-                                                </p>
-                                                <p className="text-[10px] text-gray-600 mt-1">
-                                                    💡 שיחות שירות (24h חלון אחרי הודעה נכנסת) חינמיות עד 1000/חודש
-                                                </p>
-                                            </div>
+                                            channel === 'email' ? (
+                                                <div className="mb-3 p-3 bg-emerald-50 border border-emerald-200 rounded-lg">
+                                                    <p className="text-sm font-bold text-emerald-900 mb-1">💰 עלות משוערת:</p>
+                                                    <p className="text-2xl font-black text-emerald-700">חינם ₪0</p>
+                                                    <p className="text-[10px] text-emerald-700 mt-1">
+                                                        Email דרך Resend — חינם עד 3,000 מיילים בחודש
+                                                    </p>
+                                                    <p className="text-[10px] text-gray-600 mt-1">
+                                                        ⚠️ נשלח רק ללקוחות שיש להם כתובת מייל — השאר ידולגו אוטומטית
+                                                    </p>
+                                                </div>
+                                            ) : (
+                                                <div className="mb-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                                                    <p className="text-sm font-bold text-amber-900 mb-1">💰 עלות משוערת:</p>
+                                                    <p className="text-2xl font-black text-amber-700">₪{estCost}</p>
+                                                    <p className="text-[10px] text-amber-700 mt-1">
+                                                        {preview.count} × ₪{channel === 'whatsapp' ? '0.13' : '0.10'} {channel === 'whatsapp' ? '(WhatsApp Marketing לישראל)' : '(SMS לישראל)'}
+                                                    </p>
+                                                    <p className="text-[10px] text-gray-600 mt-1">
+                                                        💡 שיחות שירות (24h חלון אחרי הודעה נכנסת) חינמיות עד 1000/חודש
+                                                    </p>
+                                                </div>
+                                            )
                                         )}
 
                                         <Button

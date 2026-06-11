@@ -2771,6 +2771,12 @@ function buildSegmentWhere(segment: string, customFilter?: any): any {
       }
       return w;
     }
+    // Hand-picked recipients — owner selected specific customers in the UI.
+    // Still gated by consent + not-unsubscribed (baseGate) for spam-law safety.
+    case 'manual': {
+      const ids = Array.isArray(customFilter?.customer_ids) ? customFilter.customer_ids : [];
+      return { ...baseGate, id: { in: ids } };
+    }
     default: return baseGate;
   }
 }
@@ -2789,6 +2795,28 @@ function renderTemplate(template: string, c: CustomerLike): string {
   };
   return template.replace(/\{(\w+)\}/g, (m, k) => replacements[k] ?? m);
 }
+
+// Quick customer search for the manual-recipient picker in MarketingCampaigns.
+// Matches name OR phone (contains, case-insensitive), returns top 20.
+registerFn('searchCustomers', async ({ body, user }) => {
+  if ((user as any)?.role !== 'admin') throw new Error('admin only');
+  const q = String((body as any)?.q || '').trim();
+  if (q.length < 2) return { results: [] };
+  const digits = q.replace(/[^\d]/g, '');
+  const or: any[] = [{ name: { contains: q, mode: 'insensitive' } }];
+  if (digits.length >= 3) or.push({ phone: { contains: digits } });
+  const results = await db.customer.findMany({
+    where: { OR: or },
+    take: 20,
+    orderBy: { last_visit: 'desc' },
+    select: {
+      id: true, name: true, phone: true, email: true,
+      visit_count: true, loyalty_tier: true, last_visit: true,
+      marketing_consent: true, marketing_unsubscribed_at: true,
+    },
+  });
+  return { results };
+});
 
 // Preview: count + 5 sample customers matching the segment.
 registerFn('previewCustomerSegment', async ({ body }) => {
