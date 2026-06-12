@@ -7,6 +7,48 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Loader2, RefreshCw, ExternalLink, Send, CheckCircle2, Clock, XCircle, AlertTriangle } from 'lucide-react';
 
+// Per-template Hebrew explanation + whether it's a Twilio out-of-the-box
+// sample (English defaults that come pre-loaded with every Twilio account
+// and aren't useful for the restaurant — best to leave them or delete them).
+const TEMPLATE_INFO = {
+    booking_confirmation_he: {
+        purpose: '✅ אישור הזמנת שולחן ללקוח אחרי שהוא הזמין דרך האתר',
+        when: 'נשלח אוטומטית מיד אחרי שהזמנה נוצרת ב-/PublicReservation',
+        category_suggest: 'UTILITY',
+        sample: false,
+    },
+    notification_order_tracking: {
+        purpose: '📦 מעקב סטטוס משלוח (כפתורים: "איפה ההזמנה" / "צור קשר")',
+        when: 'דוגמה של Twilio — לא בשימוש אצלנו (אנחנו מסעדה, לא חנות שולחת משלוחים)',
+        category_suggest: 'UTILITY',
+        sample: true,
+    },
+    customer_care_greeting_template: {
+        purpose: '👋 ברכת פתיחה לשיחת תמיכה (באנגלית, גנרי)',
+        when: 'דוגמה של Twilio — לא בשימוש',
+        category_suggest: 'UTILITY',
+        sample: true,
+    },
+    customer_care_help_center_template: {
+        purpose: '❓ הפניית לקוח למרכז עזרה עם כפתור',
+        when: 'דוגמה של Twilio — לא בשימוש',
+        category_suggest: 'UTILITY',
+        sample: true,
+    },
+    message_opt_in: {
+        purpose: '✋ בקשת הסכמה מלקוח לקבל הודעות שיווק',
+        when: 'דוגמה של Twilio — לא בשימוש (אצלנו ההסכמה במועדון הלקוחות)',
+        category_suggest: 'UTILITY',
+        sample: true,
+    },
+    customer_support_routing_template: {
+        purpose: '🔀 ניתוב לקוח לנציג / מוצר (קטלוג)',
+        when: 'דוגמה של Twilio — לא בשימוש',
+        category_suggest: 'UTILITY',
+        sample: true,
+    },
+};
+
 const STATUS_STYLE = {
     approved:     { color: 'bg-emerald-100 text-emerald-800 border-emerald-300', icon: CheckCircle2, label: '✅ אושר ע"י Meta' },
     pending:      { color: 'bg-amber-100 text-amber-900 border-amber-300',      icon: Clock,        label: '⏳ ממתין לאישור Meta' },
@@ -79,8 +121,9 @@ export default function AdminWhatsAppTemplates() {
                             const st = STATUS_STYLE[t.whatsapp_status] || STATUS_STYLE.unsubmitted;
                             const Icon = st.icon;
                             const canSubmit = t.whatsapp_status === 'unsubmitted' || t.whatsapp_status === 'rejected';
+                            const info = TEMPLATE_INFO[t.friendly_name] || null;
                             return (
-                                <Card key={t.sid} className={`border-r-4 ${st.color.split(' ').find(c => c.startsWith('border-')) || 'border-gray-300'}`}>
+                                <Card key={t.sid} className={`border-r-4 ${st.color.split(' ').find(c => c.startsWith('border-')) || 'border-gray-300'} ${info?.sample ? 'opacity-70' : ''}`}>
                                     <CardContent className="p-4">
                                         <div className="flex items-start justify-between gap-3 flex-wrap">
                                             <div className="flex-1 min-w-[200px]">
@@ -90,7 +133,16 @@ export default function AdminWhatsAppTemplates() {
                                                     {(t.types || []).map(ty => (
                                                         <span key={ty} className="text-[10px] bg-purple-50 text-purple-700 px-2 py-0.5 rounded-full">{ty.replace('twilio/','')}</span>
                                                     ))}
+                                                    {info?.sample && (
+                                                        <span className="text-[10px] bg-gray-300 text-gray-700 px-2 py-0.5 rounded-full font-bold">🧪 דוגמה של Twilio</span>
+                                                    )}
                                                 </div>
+                                                {info && (
+                                                    <div className="mt-1.5 mb-1 text-xs">
+                                                        <div className="font-bold text-[#44512C]">{info.purpose}</div>
+                                                        <div className="text-gray-500 mt-0.5">{info.when}</div>
+                                                    </div>
+                                                )}
                                                 <code className="text-[10px] text-gray-400 select-all">{t.sid}</code>
                                             </div>
                                             <div className={`text-xs font-bold px-3 py-1.5 rounded-full border ${st.color} flex items-center gap-1`}>
