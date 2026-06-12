@@ -3002,6 +3002,103 @@ registerFn('addVendorAgreement', async ({ body, user }) => {
   return { agreement: a };
 });
 
+// ============================================================================
+// WHATSAPP TEMPLATES — list + submit-for-approval helpers (Twilio Content API)
+// ============================================================================
+// Surfaces Meta approval status inside the app so the owner doesn't have to
+// dig through the Twilio Console. Reuses the existing TWILIO_* env vars.
+
+function twilioBasicAuth(): string {
+  const sid = process.env.TWILIO_ACCOUNT_SID;
+  const token = process.env.TWILIO_AUTH_TOKEN;
+  if (!sid || !token) throw new Error('missing TWILIO credentials');
+  return 'Basic ' + Buffer.from(`${sid}:${token}`).toString('base64');
+}
+
+registerFn('listWhatsAppTemplates', async ({ user }) => {
+  if ((user as any)?.role !== 'admin') throw new Error('admin only');
+  const auth = twilioBasicAuth();
+  const res = await fetch('https://content.twilio.com/v1/Content?PageSize=50', {
+    headers: { Authorization: auth },
+  });
+  if (!res.ok) throw new Error('twilio_list_failed: ' + res.status);
+  const data: any = await res.json();
+  const contents = data.contents || [];
+  // For each, also fetch approval status (one request each, capped at 30).
+  const enriched: any[] = [];
+  for (const c of contents.slice(0, 30)) {
+    let approval: any = null;
+    try {
+      const ar = await fetch(`https://content.twilio.com/v1/Content/${c.sid}/ApprovalRequests`, {
+        headers: { Authorization: auth },
+      });
+      if (ar.ok) approval = await ar.json();
+    } catch { /* ignore */ }
+    enriched.push({
+      sid: c.sid,
+      friendly_name: c.friendly_name,
+      language: c.language,
+      types: Object.keys(c.types || {}),
+      body: (c.types?.['twilio/text']?.body) || '',
+      variables: c.variables || null,
+      date_created: c.date_created,
+      whatsapp_status: approval?.whatsapp?.status || 'unsubmitted',
+      whatsapp_category: approval?.whatsapp?.category || null,
+      rejection_reason: approval?.whatsapp?.rejection_reason || null,
+    });
+  }
+  return { templates: enriched, total: contents.length };
+});
+
+registerFn('submitWhatsAppTemplate', async ({ body, user }) => {
+  if ((user as any)?.role !== 'admin') throw new Error('admin only');
+  const { sid, name, category } = body as any;
+  if (!sid) throw new Error('sid required');
+  if (!name) throw new Error('name required (lowercase, snake_case, max 60)');
+  if (!['UTILITY', 'MARKETING', 'AUTHENTICATION'].includes(String(category))) {
+    throw new Error('category must be UTILITY | MARKETING | AUTHENTICATION');
+  }
+  const auth = twilioBasicAuth();
+  const res = await fetch(`https://content.twilio.com/v1/Content/${sid}/ApprovalRequests/whatsapp`, {
+    method: 'POST',
+    headers: { Authorization: auth, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: String(name).toLowerCase().replace(/[^a-z0-9_]/g, '_'), category }),
+  });
+  const data: any = await res.json();
+  if (!res.ok) throw new Error(`submit_failed: ${data?.message || res.status}`);
+  return { ok: true, approval: data };
+});
+
+// Helper: send a message using a pre-approved template (bypasses the 24h
+// service-window restriction). Variables are positional ({{1}}, {{2}}, ...).
+registerFn('sendWhatsAppViaTemplate', async ({ body, user }) => {
+  if ((user as any)?.role !== 'admin') throw new Error('admin only');
+  const { to, content_sid, variables } = body as any;
+  if (!to || !content_sid) throw new Error('to + content_sid required');
+  const sid = process.env.TWILIO_ACCOUNT_SID!;
+  const auth = twilioBasicAuth();
+  const from = process.env.TWILIO_WHATSAPP_FROM;
+  if (!from) throw new Error('TWILIO_WHATSAPP_FROM not set');
+  const cleanPhone = String(to).replace(/[^\d+]/g, '');
+  const normalized = cleanPhone.startsWith('+') ? cleanPhone : cleanPhone.startsWith('972') ? '+' + cleanPhone : cleanPhone.startsWith('0') ? '+972' + cleanPhone.slice(1) : '+' + cleanPhone;
+  const params = new URLSearchParams({
+    From: from,
+    To: `whatsapp:${normalized}`,
+    ContentSid: content_sid,
+  });
+  if (variables && typeof variables === 'object') {
+    params.append('ContentVariables', JSON.stringify(variables));
+  }
+  const res = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`, {
+    method: 'POST',
+    headers: { Authorization: auth, 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: params,
+  });
+  const data: any = await res.json();
+  if (!res.ok) throw new Error(`send_failed: ${data?.message || res.status}`);
+  return { ok: true, sid: data.sid, status: data.status };
+});
+
 // Mark a VendorAgreement as signed (offline). The owner clicks 'סמן כחתום'
 // after the vendor returned a signed PDF, optionally with a signature image URL.
 registerFn('markVendorAgreementSigned', async ({ body, user }) => {

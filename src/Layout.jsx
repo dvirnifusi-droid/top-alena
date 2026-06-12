@@ -66,6 +66,7 @@ const adminLinks = [
 
   { title: "כספים ודוחות", url: "#", icon: TrendingUp, isCategory: true, color: "olive" },
   { title: "📥 WhatsApp Inbox", url: createPageUrl("AdminWhatsAppInbox"), icon: Zap, isSubItem: true, color: "olive" },
+  { title: "📨 WhatsApp Templates", url: createPageUrl("AdminWhatsAppTemplates"), icon: Zap, isSubItem: true, color: "olive" },
   { title: "📊 קופה Live", url: createPageUrl("BeecommLive"), icon: Zap, isSubItem: true, color: "olive" },
   { title: "דוחות", url: createPageUrl("Reports"), icon: BarChart3, isSubItem: true, color: "olive" },
   { title: "ניהול טיפים", url: createPageUrl("Tips"), icon: Banknote, isSubItem: true, color: "olive" },

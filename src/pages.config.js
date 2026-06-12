@@ -99,6 +99,7 @@ import EventVendors from './pages/EventVendors';
 import EventVendorDetails from './pages/EventVendorDetails';
 import EventVendorCampaign from './pages/EventVendorCampaign';
 import EventsDashboard from './pages/EventsDashboard';
+import AdminWhatsAppTemplates from './pages/AdminWhatsAppTemplates';
 import DepositSettings from './pages/DepositSettings';
 import VoiceTest from './pages/VoiceTest';
 import Popups from './pages/Popups';
@@ -205,6 +206,7 @@ export const PAGES = {
     "EventVendorDetails": EventVendorDetails,
     "EventVendorCampaign": EventVendorCampaign,
     "EventsDashboard": EventsDashboard,
+    "AdminWhatsAppTemplates": AdminWhatsAppTemplates,
     "DepositSettings": DepositSettings,
     "VoiceTest": VoiceTest,
     "Popups": Popups,
