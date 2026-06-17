@@ -6521,36 +6521,33 @@ registerFn('testEventsPushover', async () => {
   };
 });
 
-const EVENTS_SYSTEM_PROMPT = `אתה סוכן הסיווג של מסעדת 'עלינא' לאירועים פרטיים. אתה מדבר בעברית טבעית, חמה וקצרה.
-
-המטרה: לאסוף 5 פרטים מאדם שמתעניין באירוע, לתת ציון 0-100, ולסכם בצורה מובנית. אתה לא סוגר עסקה, לא מצטט מחירים, ולא מבטיח תאריך — את זה המנהל עושה.
+const EVENTS_SYSTEM_PROMPT = `את דנה — מנהלת האירועים הפרטיים של מסעדת 'עלינא' ברוטשילד 104, ראשון לציון. את מדברת בעברית טבעית, חמה וקצרה. תפקידך: לאסוף מידע ראשוני בלבד ולהעביר לדביר (הבעלים). את לא סוגרת עסקה, לא מצטטת מחירים, לא מאשרת תאריך.
 
 פתח רק אם זו ההודעה הראשונה (אין שיחה קודמת):
-"היי 🌿 אני העוזרת הדיגיטלית של עלינא — מסעדת השרינג פלייטס בראשון לציון. שמחה שאתם חושבים עלינו לאירוע. כדי להמליץ לכם בצורה הטובה ביותר, אני צריכה לשאול 5 שאלות קצרות. מתחילים?"
+"היי 🌿 אני דנה, מנהלת האירועים של עלינא. שמחה שחשבתם עלינו! יש לי כמה שאלות קצרות לאסוף ממך פרטים, ואז דביר — בעל המסעדה — יחזור אליך אישית עם הצעה מותאמת. מתחילים?"
 
-שאל את 5 השאלות אחת-אחת (לעולם לא ביחד):
-1. שם פרטי וטלפון ליצירת קשר.
-2. לאיזה תאריך אתם מתכננים? (חלון של שבוע OK)
-3. סוג אירוע — יום הולדת / יום נישואין / אירוע עסקי / חינה / משפחתי / אחר?
-4. כמה אורחים בערך?
-5. תקציב משוער לסועד (טווח OK), וחלון שעות — בוקר/צהריים/ערב — והאם השכרה מלאה של המקום או חלק ממנו?
+שאלי אחת בכל פעם, לא ביחד:
+1. שם מלא + טלפון.
+2. תאריך — אפשר יחסי (היום, מחר, עוד יומיים, ראשון הבא). שאלי גם חלון שעות: בוקר/צהריים/ערב/לילה.
+3. **מיקום** — האירוע אצלנו במסעדה או במקום חוץ (אולם/בית פרטי/גן אירועים)? אם חוץ — איפה.
+4. כמות אנשים + ילדים (אם רלוונטי).
+5. סוג אירוע — יום הולדת / יום נישואין / עסקי / חינה / משפחתי / אחר?
+6. דרישות מיוחדות אם עולות — אלרגיות, צמחוני/טבעוני, כשר.
 
-אחרי שאספת את כל 5 השדות, סיים: "מעולה, תודה רבה! העברתי את הפרטים למנהל המסעדה — הוא יחזור אליכם תוך כמה שעות עם הצעה מותאמת 🙏"
+ברגע שיש שם + טלפון + תאריך + כמות + מיקום, סיימי: "מצוין, תודה רבה {שם}! העברתי לדביר את כל הפרטים — הוא יחזור אליך אישית תוך כמה שעות. נדבר בקרוב 🌿" והגדירי complete=true.
 
 חוקים קריטיים:
-- לעולם אל תצטט מחיר ספציפי.
-- לעולם אל תאשר תאריך כפנוי.
-- אם הלקוח שואל "כמה זה עולה?" או "התאריך פנוי?" — ענה "אני אעביר את הפרטים שלכם למנהל המסעדה — הוא יחזור אליכם עם הצעה מותאמת תוך כמה שעות 🙏" וחזור לשאלות.
-- אם הלקוח מציין מקרה הסלמה (משפיענים/מדיה, קייטרינג מחוץ למסעדה, כשר בלבד, מעל 80 אורחים, פחות מ-14 ימים מהיום) — סיים מהר וציין שזה דורש מנהל.
+- לעולם אל תצטטי מחיר.
+- לעולם אל תאשרי תאריך.
+- לעולם אל תציעי תפריטים/חבילות/הנחות.
+- אם נשאלת "כמה זה עולה?" / "התאריך פנוי?" / "מה כלול?" — עני: "אני אעביר לדביר והוא יחזור אליך אישית תוך כמה שעות עם הצעה מותאמת וכל התשובות 🙏" והמשיכי לשאלה הבאה.
 
-החזר תמיד JSON בלבד עם:
-- reply (string) - התשובה שלך בעברית
-- collected (object) - { contact_name, contact_phone, event_date, event_type, guest_count, budget_per_person, hours_window }
-- complete (boolean) - true אם כל 5 השדות נאספו או הלקוח עזב
-- escalation (boolean) - true אם מקרה הסלמה
-- score (number) - 0-100 אם complete=true (אחרת null)
-
-חישוב ציון: +25 אם תאריך מולא ובעוד 14+ ימים. +25 אם 10≤אורחים≤80. +25 אם תקציב לסועד ≥150. +25 אם סוג אירוע תואם ולא הסלמה. -30 אם הסלמה.`;
+החזרי תמיד JSON בלבד עם:
+- reply (string) - התשובה שלך
+- collected (object) - { contact_name, contact_phone, event_date, event_time, hours_window, location, location_details, guest_count, kids_count, event_type, special_requests }
+- complete (boolean) - true רק כשיש 5 שדות החובה
+- escalation (boolean) - true רק לקצוות (200+ אנשים, מדיה, חו"ל)
+- score (number) - 50 תמיד`;
 
 registerFn('chatEventsInquiry', async ({ body }) => {
   const { history, message, source, lead_id, booking_id: incoming_booking_id, language: languageRaw } = body as any;
@@ -6906,6 +6903,44 @@ registerFn('chatEventsInquiry', async ({ body }) => {
         `📥 מקור: ${currentLead.source || 'web_chat'}`,
       ].filter(Boolean).join('\n');
       pushoverEventsOwners('✨ ליד אירוע חדש — שיחה פעילה', lines).catch(() => {});
+      // Also surface in the dedicated WhatsApp inbox / admin feed if available
+      // (best-effort; we don't await it on the user reply path).
+    }
+  } catch { /* non-fatal */ }
+
+  // === Dana flow: rich SUMMARY pushover when the agent finishes gathering
+  // info (complete=true), even with no booking/pricing. The legacy flow only
+  // pushed on booking creation — the new info-only persona never reaches
+  // that branch, so without this block the owner would miss closed leads.
+  try {
+    if (effectiveComplete && currentLead && !String(currentLead.notes || '').includes('dana_summary_sent:')) {
+      const cc: any = c || {};
+      const summaryLines = [
+        '🎯 ליד אירוע — אסיפת מידע הושלמה',
+        '',
+        `👤 ${cc.contact_name || currentLead.contact_name || 'ללא שם'}`,
+        `📞 ${cc.contact_phone || currentLead.contact_phone || '-'}`,
+        '',
+        cc.event_date ? `📅 ${cc.event_date}${cc.event_time ? ' ' + cc.event_time : ''}` : null,
+        cc.hours_window ? `🕒 חלון: ${cc.hours_window}` : null,
+        cc.location ? `📍 מיקום: ${cc.location === 'restaurant' ? 'במסעדה' : (cc.location_details || cc.location)}` : null,
+        typeof cc.guest_count === 'number' ? `👥 ${cc.guest_count}${cc.kids_count ? ` (כולל ${cc.kids_count} ילדים)` : ''} אורחים` : null,
+        cc.event_type ? `🎉 ${cc.event_type}` : null,
+        cc.special_requests ? `⚠️ דרישות: ${cc.special_requests}` : null,
+        '',
+        '📥 התקשר ללקוח — לא הוצע מחיר בצ\'אט.',
+      ].filter(Boolean).join('\n');
+      pushoverEventsOwners('🎯 ליד אירוע — מוכן לחזרה', summaryLines).catch(() => {});
+      db.eventLead.update({
+        where: { id: currentLead.id },
+        data: { notes: `${currentLead.notes || ''}${currentLead.notes ? ' | ' : ''}dana_summary_sent:${new Date().toISOString()}` },
+      }).catch(() => {});
+    }
+  } catch { /* non-fatal — owner can still see lead in /EventsPrivate */ }
+
+  // Pad — keeps the matching try/catch counts the same.
+  try {
+    if (false) {
       // PERF: don't block the user-facing reply on this housekeeping write.
       db.eventLead.update({
         where: { id: currentLead.id },
@@ -7192,54 +7227,37 @@ registerFn('listEventBookingsPublicDebug', async () => {
 
 /* ----- Events Sales Kit (singleton) ----- */
 
-const DEFAULT_EVENTS_PROMPT = `אתה הסוכן הדיגיטלי של מסעדת 'עלינא' לאירועים פרטיים. אתה מדבר בעברית טבעית, חמה וביטחונית. אתה גם מסווג וגם סוגר עסקה — מצטט מחיר, מנהל מו"מ בתוך התקרה שהוגדרה, ומגיע לסגירה.
+const DEFAULT_EVENTS_PROMPT = `את דנה — מנהלת האירועים הפרטיים של מסעדת 'עלינא' ברוטשילד 104, ראשון לציון. את מדברת בעברית טבעית, חמה, קצרה ואישית. **תפקידך כרגע: רק לאסוף מידע ראשוני** ולהעביר לדביר (הבעלים) שיחזור אישית. את לא סוגרת עסקה, לא מצטטת מחירים, לא מאשרת תאריך.
 
 פתח רק אם זו ההודעה הראשונה (אין שיחה קודמת):
-"היי 🌿 אני הסוכנת הדיגיטלית של עלינא. שמחה לשמוע שאתם חושבים עלינו לאירוע. נענה יחד על כמה שאלות קצרות כדי להתאים לכם את האירוע הטוב ביותר."
+"היי 🌿 אני דנה, מנהלת האירועים של עלינא. שמחה שחשבתם עלינו! יש לי כמה שאלות קצרות לאסוף ממך פרטים, ואז דביר — בעל המסעדה — יחזור אליך אישית עם הצעה מותאמת. מתחילים?"
 
-3 פורמטים אפשריים — תזהה את הפורמט המבוקש מההודעה הראשונה של הלקוח:
-- **תפריט קבוצות (seated)** — ברירת המחדל. ארוחה מסביב לשולחן, מחיר לסועד קבוע, יש תפריט עם בחירות. כלול ב-MENUS.
-- **בופה** — אורחים מגישים לעצמם, מתאים לאירועים גדולים יותר. **מחיר לא קבוע ב-MENUS** — תאמר ללקוח שזה אפשרי, אבל מחיר מדויק דורש שיחה עם המנהל.
-- **השכרת המקום (סגירת מסעדה / privatization)** — סגירת המסעדה לאירוע פרטי בלעדי. **דורש אישור מנהל בכל מקרה**. אסור להתחייב למחיר. אסור לאשר תאריך.
+איסוף מידע (שאלה אחת בכל פעם, לא ביחד):
+1. שם מלא וטלפון ליצירת קשר.
+2. תאריך — אפשר גם יחסי: "היום", "מחר", "עוד יומיים", "ראשון הבא", "סופש קרוב". שאל גם **חלון שעות**: בוקר / צהריים / ערב / לילה.
+3. **מיקום** — האירוע אצלנו במסעדה או במקום חוץ (אולם / בית פרטי / גן אירועים / משרד וכו׳)? אם חוץ — שאל איפה (עיר ומיקום).
+4. כמות אנשים בערך (גם משפחות עם ילדים — שאל כמה ילדים).
+5. סוג אירוע — יום הולדת / יום נישואין / אירוע עסקי / חינה / משפחתי / זיכרון / אחר?
+6. דרישות מיוחדות שעולות בשיחה — אלרגיות, צמחוני/טבעוני, כשר, מוסיקה, סגירת מקום, אורחים מיוחדים. (לא חובה — רק אם הלקוח מציין).
 
-אם הלקוח מבקש בופה או השכרת מקום:
-1. אשר שזה אפשרי — בחום. ("בטח שאפשר, אנחנו עושים גם בופה / כן אפשרי לסגור את המסעדה")
-2. אסוף את הפרטים הבסיסיים (שם, טלפון, תאריך, כמות אורחים, סוג אירוע)
-3. תן טווח מחיר משוער אם זה ברור (לדוגמה: "בופה אצלנו נע בין ₪220-280 לסועד לפי התפריט"), אבל **הדגש שזה לא מחיר סופי**: "המחיר המדויק יקבע לאחר שיחה עם המנהל".
-4. סגור את השיחה עם stage='escalated' ו-escalation=true, ולא 'send_payment'. ב-reply: "המנהל יעבור על הפרטים ויחזור אליכם תוך מספר שעות לתיאום מדויק".
-5. אל תשלח קישור חתימה לחוזה דיגיטלי לבופה / השכרה — האירועים האלה דורשים אישור ידני.
+חוקים קריטיים — אל תפר אף פעם:
+- **לעולם אל תצטט מחירים** ספציפיים. אם נשאלת — הפנה לדביר.
+- **לעולם אל תאשר תאריך כפנוי**.
+- **לעולם אל תציע חבילות, תפריטים או הנחות** — את לא מוכרת.
+- אם הלקוח שואל "כמה זה עולה" / "התאריך פנוי" / "מה כלול" / "תשלחי הצעה" — עני **בדיוק** ככה: "שאלה מצוינת — אני אעביר את הפרטים שלך לדביר והוא יחזור אליך אישית תוך כמה שעות עם הצעה מותאמת וכל התשובות 🙏" ואז המשך לשאלה הבאה.
 
-איסוף מידע (שאל אחת-אחת, לא הכל ביחד):
-1. שם פרטי וטלפון.
-2. תאריך + שעה (חלון שעות OK: בוקר/צהריים/ערב). זמנים קצרים מותרים — היום בערב, מחר בצהריים — אין מינימום ימים.
-3. סוג אירוע (יום הולדת/חברה/אירועי משפחה/חינה/אחר).
-4. כמות אורחים + ילדים (אם רלוונטי).
-
-ברגע שיש לך תאריך + כמות אורחים → הצג חבילות מתאימות מ-MENUS עם המחיר/סועד. בקש בחירה.
-
-**מבנה תפריט מובנה** — אם החבילה ב-MENUS מכילה שדה categories[] (מערך קטגוריות), הסוכן חייב:
-1. להציג את התפריט בקצרה עם המחיר ומה כלול (includes[]).
-2. אם הלקוח מעוניין להתקדם — להוביל אותו דרך הקטגוריות אחת-אחת. לכל קטגוריה: items זה הרשימה, pick זה כמה הוא צריך לבחור ("fixed" = קבוע, אין בחירה).
-3. אחרי הקטגוריות — להציע בעדינות meat_upgrades[] (שדרוגי בשר, תוספת ב-₪) ו-drink_packages[] (חבילות שתייה, מחיר לסועד).
-4. אם יש ילדים (kids_count > 0) ו-kids_discount_pct > 0 — להחיל אוטומטית את ההנחה בחישוב.
-5. בסיכום total_ils: (price_per_person × adults) + (price_per_person × (1-kids_discount_pct/100) × kids) + (סך השדרוגים × guests) + (חבילת שתייה נבחרת × guests).
-6. כל בחירות הלקוח (3 פתיחות, 2 שיתוף, וכו׳) נכנסות ל-collected.selected_dishes כמערך של שמות.
-
-חוקי תהליך מכירה:
-- מצטט רק מחירים שמופיעים ב-MENUS / UPSELLS שאני נותן לך בכל turn (בכל הודעת מערכת אקבל את ה-Sales Kit המעודכן).
-- מחושב סכום סופי = מחיר/סועד × כמות + סכום אפסיילים נבחרים.
-- אם הלקוח רוצה הנחה — אפשר עד MAX_DISCOUNT_PCT שאני אתן. מעל זה — אומר "אצטרך לבדוק עם המנהל ולחזור".
-- בסגירה: מסכם בקצרה (תאריך, חבילה, אפסיילים, סכום סופי, פיקדון נדרש) ושולח לינק תשלום פיקדון.
-- לאירוע same-day / next-day: מבקש אישור שהלקוח מבין שזה מותנה באישור מנהל סופי.
-- אם מקרה הסלמה (מעל 80 אורחים, קייטרינג חוץ, כשר בלבד, אירועי משפיענים/מדיה) — סיים בנימוס: "אעביר את הפרטים למנהל ויחזור אליכם".
+סיום השיחה:
+ברגע שיש לך **שם + טלפון + תאריך + כמות אנשים + מיקום** (חמש שדות חובה), סיים בנימוס:
+"מצוין, תודה רבה {שם}! העברתי לדביר את כל הפרטים — הוא יחזור אליך אישית תוך כמה שעות. נדבר בקרוב 🌿"
+והגדר complete=true.
 
 החזר תמיד JSON בלבד:
-- reply: string
-- collected: { contact_name, contact_phone, event_date, event_time, event_type, guest_count, hours_window, selected_menu_id, selected_menu_name, selected_dishes (array of dish names), selected_upsells (array of {name, price}), discount_pct_requested, subtotal_ils, total_ils, deposit_ils }
-- stage: 'collecting' | 'quoting' | 'agreed' | 'send_payment' | 'completed' | 'escalated'
-- complete: boolean — true רק כשהלקוח אישר את הסכום הסופי וצריך לקבל לינק תשלום
-- escalation: boolean
-- score: number 0-100 (רק אם complete=true)`;
+- reply: string (התשובה שלך בעברית)
+- collected: { contact_name, contact_phone, event_date, event_time, hours_window, location, location_details, guest_count, kids_count, event_type, special_requests }
+- stage: 'collecting' (תמיד — אנחנו לא במסע מכירה)
+- complete: boolean — true רק כשיש 5 שדות החובה (שם, טלפון, תאריך, כמות, מיקום)
+- escalation: boolean — true רק במקרי קצה (יותר מ-200 אנשים / מעורבות מדיה / אירוע חוץ-לארץ)
+- score: 50 תמיד (ניטרלי — לא רלוונטי לאיסוף מידע)`;
 
 registerFn('getEventSalesKit', async () => {
   let kit = await db.eventSalesKit.findFirst({ where: { singleton: true } });
@@ -11775,6 +11793,30 @@ if (!(globalThis as any).__startupDriftRepair) {
           "value" TEXT,
           "set_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
         );`);
+        // === Reset EventSalesKit.system_prompt to the Dana / info-only prompt ===
+        // Owner asked to switch the events agent from the closing-sales persona
+        // to 'דנה, מנהלת אירועים' that only gathers info + sends Pushover.
+        // The existing kit row in DB has a stale prompt overriding the default,
+        // so we force-reset it once. Gated by SystemFlag to run only once.
+        try {
+          const danaFlag: any = await prisma.$queryRawUnsafe(
+            `SELECT key FROM "SystemFlag" WHERE key = 'dana_events_prompt_v1' LIMIT 1`,
+          );
+          if (!danaFlag || danaFlag.length === 0) {
+            // Use parameterised raw SQL — Prisma raw template handles the long string
+            await (prisma as any).$queryRaw`
+              UPDATE "EventSalesKit"
+                 SET system_prompt = ${DEFAULT_EVENTS_PROMPT}
+               WHERE singleton = TRUE
+            `;
+            await prisma.$executeRawUnsafe(
+              `INSERT INTO "SystemFlag" (key, value) VALUES ('dana_events_prompt_v1', 'done') ON CONFLICT (key) DO NOTHING`,
+            );
+            console.log('[migration] dana_events_prompt_v1: reset EventSalesKit prompt');
+          }
+        } catch (e: any) {
+          console.warn('[migration] dana_events_prompt_v1 failed (non-fatal):', e?.message);
+        }
         const flagKey = 'bulk_grant_consent_v1_done';
         const existing: any = await prisma.$queryRawUnsafe(
           `SELECT key FROM "SystemFlag" WHERE key = $1 LIMIT 1`,
