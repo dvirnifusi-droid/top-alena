@@ -6528,7 +6528,7 @@ const EVENTS_SYSTEM_PROMPT = `את דנה — מנהלת האירועים הפר
 
 שאלי אחת בכל פעם — 4 שדות בלבד:
 1. שם מלא + טלפון.
-2. תאריך — אפשר יחסי (היום, מחר, עוד יומיים, ראשון הבא). שאלי גם חלון שעות: בוקר/צהריים/ערב/לילה.
+2. תאריך + שעה מדויקת. אם הלקוח עונה רק בחלון ("צהריים") — בקשי פעם אחת שעה ספציפית. אם עדיין אין — רשמי את החלון.
 3. **מיקום + סוג אירוע יחד**: אצלנו במסעדה או חוץ (איפה)? ומה סוג האירוע (יום הולדת/חברה/חינה/וכו')?
 4. כמות אנשים בערך.
 
@@ -6554,6 +6554,12 @@ registerFn('chatEventsInquiry', async ({ body }) => {
   const leadSource = typeof source === 'string' && source.trim()
     ? source.trim().slice(0, 40).toLowerCase()
     : 'web_chat';
+  // Fetch the prior lead state up-front so we can MERGE collected fields
+  // across turns. Without this, every Gemini reply that omits a previously-
+  // captured field nulls it out and the final summary card loses data.
+  const priorLead: any = lead_id
+    ? await db.eventLead.findUnique({ where: { id: lead_id } }).catch(() => null)
+    : null;
   const language = (() => {
     const allowed = ['Hebrew', 'English', 'Russian'];
     const raw = typeof languageRaw === 'string' ? languageRaw.trim() : '';
@@ -6788,7 +6794,39 @@ registerFn('chatEventsInquiry', async ({ body }) => {
     c.contact_name = null;
   }
 
-  const hasMinInfo = !!(c.event_date || c.event_date_iso) && !!c.guest_count && !!c.contact_phone;
+  // ── Aggregate collected across turns ───────────────────────────────────
+  // Each LLM turn returns only what *that* turn captured — earlier values get
+  // dropped. We merge the freshly-collected fields on top of the prior lead
+  // state so the final summary always reflects every field gathered, not just
+  // what the last turn happened to repeat. Also coerces guest_count from a
+  // numeric string into a number — Gemini frequently returns "42".
+  const _coerceNum = (v: any) => typeof v === 'number' ? v : (typeof v === 'string' && /^\d+$/.test(v.trim()) ? Number(v.trim()) : null);
+  const merged: any = {
+    contact_name: c.contact_name || priorLead?.contact_name || null,
+    contact_phone: c.contact_phone || priorLead?.contact_phone || null,
+    event_date: c.event_date || c.event_date_iso || priorLead?.event_date || null,
+    event_time: c.event_time || (priorLead as any)?.event_time || null,
+    hours_window: c.hours_window || (priorLead as any)?.hours_window || null,
+    location: c.location || (priorLead as any)?.location || null,
+    location_details: c.location_details || (priorLead as any)?.location_details || null,
+    guest_count: _coerceNum(c.guest_count) ?? priorLead?.guest_count ?? null,
+    event_type: c.event_type || priorLead?.event_type || null,
+    special_requests: c.special_requests || (priorLead as any)?.special_requests || null,
+  };
+  // Overwrite c with merged so downstream code (summary, leadData) uses
+  // the aggregated state without re-plumbing every reference.
+  Object.assign(c, merged);
+
+  const hasMinInfo = !!(merged.event_date) && !!merged.guest_count && !!merged.contact_phone;
+
+  // ── Farewell-driven close ──────────────────────────────────────────────
+  // Gemini occasionally writes the goodbye sentence but forgets to set
+  // complete=true on the same turn, so the customer has to send a second
+  // 'אוקי' before the summary fires. If we see the goodbye phrase in the
+  // reply AND have minimum info, we trust the goodbye and force close.
+  const replyText = String(result?.reply || '');
+  const looksLikeGoodbye = /העברתי\s+(?:לדביר|למנהל|לבעלים|את\s+הפרטים|למנהל\s+המסעדה)|נדבר\s+בקרוב|יחזור\s+אלי?ך?\s+(?:אישית|תוך|בקרוב)|יצור\s+אית?כם\s+קשר/.test(replyText);
+  const farewellClose = looksLikeGoodbye && hasMinInfo;
 
   // Diagnostic — these show up in server logs so we can see why a close did or didn't fire.
   console.log('[chatEventsInquiry]', JSON.stringify({
@@ -6805,7 +6843,7 @@ registerFn('chatEventsInquiry', async ({ body }) => {
   }));
   // Force close when customer says yes AND we have enough info to call them back. This is the
   // critical anti-stall guard — the LLM tends to keep asking confirmations forever otherwise.
-  const forcedClose = customerExplicitClose && hasMinInfo;
+  const forcedClose = (customerExplicitClose && hasMinInfo) || farewellClose;
   const effectiveComplete = forcedClose || (!!result?.complete && (!endsWithQuestion || customerExplicitClose));
 
   const fullLog = [
@@ -6994,7 +7032,7 @@ registerFn('chatEventsInquiry', async ({ body }) => {
   const stage = String(result?.stage || '').toLowerCase();
   // Detect "agent thinks we should send a payment link" from MULTIPLE signals so we never
   // miss a closing turn just because the LLM picked an off-script stage label.
-  const replyText = String(result?.reply || '');
+  // (replyText declared earlier for the farewell-close detection — reuse it.)
   const looksLikeSendingPaymentInReply =
     /(שולח[א-ת]?|מעביר[א-ת]?|הנה|מקבל)[\s\S]{0,40}(לינק|קישור|תשלום|פיקדון|מאובטח)/i.test(replyText) ||
     /(תשלום\s*הפיקדון|payment\s*link)/i.test(replyText);
@@ -7285,7 +7323,7 @@ const DEFAULT_EVENTS_PROMPT = `את דנה — מנהלת האירועים הפ�
 
 איסוף מידע (שאלה אחת בכל פעם, לא ביחד) — ארבעה שדות בלבד:
 1. שם מלא וטלפון ליצירת קשר.
-2. תאריך + שעה — אפשר תאריך יחסי ("היום", "מחר", "עוד יומיים", "ראשון הבא"). שאל גם **שעה** — מועדפת שעה מדויקת ("19:00") או חלון אם אין שעה ברורה ("בוקר/צהריים/ערב/לילה"). **אל תמציאי שעה אם הלקוח לא ענה — תרשמי רק את החלון.**
+2. תאריך + שעה — אפשר תאריך יחסי ("היום", "מחר", "עוד יומיים", "ראשון הבא"). שאלי גם **שעה מדויקת**: "באיזו שעה בדיוק? (לדוגמה 13:00 או 20:30)". אם הלקוח עונה רק "בצהריים" / "בערב" — תבקשי שעה ספציפית פעם נוספת: "תוכל/י להגיד שעה מדויקת בערך? זה עוזר למנהל להחזיר תשובה". אם גם בפעם השנייה לא קיבלת שעה מדויקת — תרשמי את החלון בלבד (hours_window). **לעולם אל תמציאי שעה מספרית.**
 3. **מיקום + סוג אירוע** — שאל בשאלה אחת: "האם האירוע אצלנו במסעדה או במקום אחר? ומה סוג האירוע? (יום הולדת, יום נישואין, חברה, חינה, משפחתי וכו')." אם חוץ — שאל איפה (עיר/אולם/בית פרטי).
 4. כמות אנשים בערך. **אל תשאל על ילדים בנפרד** — זה ייסגר בשיחת הטלפון.
 
@@ -11852,7 +11890,7 @@ if (!(globalThis as any).__startupDriftRepair) {
         // so we force-reset it once. Gated by SystemFlag to run only once.
         try {
           const danaFlag: any = await prisma.$queryRawUnsafe(
-            `SELECT key FROM "SystemFlag" WHERE key = 'dana_events_prompt_v3' LIMIT 1`,
+            `SELECT key FROM "SystemFlag" WHERE key = 'dana_events_prompt_v4' LIMIT 1`,
           );
           if (!danaFlag || danaFlag.length === 0) {
             // Use parameterised raw SQL — Prisma raw template handles the long string
@@ -11862,12 +11900,12 @@ if (!(globalThis as any).__startupDriftRepair) {
                WHERE singleton = TRUE
             `;
             await prisma.$executeRawUnsafe(
-              `INSERT INTO "SystemFlag" (key, value) VALUES ('dana_events_prompt_v3', 'done') ON CONFLICT (key) DO NOTHING`,
+              `INSERT INTO "SystemFlag" (key, value) VALUES ('dana_events_prompt_v4', 'done') ON CONFLICT (key) DO NOTHING`,
             );
-            console.log('[migration] dana_events_prompt_v3: reset EventSalesKit prompt');
+            console.log('[migration] dana_events_prompt_v4: reset EventSalesKit prompt');
           }
         } catch (e: any) {
-          console.warn('[migration] dana_events_prompt_v3 failed (non-fatal):', e?.message);
+          console.warn('[migration] dana_events_prompt_v4 failed (non-fatal):', e?.message);
         }
         const flagKey = 'bulk_grant_consent_v1_done';
         const existing: any = await prisma.$queryRawUnsafe(
