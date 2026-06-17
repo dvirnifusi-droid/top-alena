@@ -4,47 +4,12 @@ import { Send, CheckCircle2, CreditCard } from 'lucide-react';
 import LanguagePicker from '@/components/shared/LanguagePicker';
 import { useI18n, LANG_NAMES_FOR_LLM } from '@/lib/i18n';
 
-// Inline SVG avatar for Dana — a friendly, restaurant-warm portrait that
-// makes the chat feel like a person not a bot. Embedded as a data: URL so
-// it loads instantly with the page (no extra request, no broken external
-// link). The art is intentionally stylised, not a real photo, so guests
-// don't expect a specific person on the other end.
-const DANA_AVATAR_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80">
-  <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#F4ECD8"/>
-      <stop offset="100%" stop-color="#D9BD83"/>
-    </linearGradient>
-    <linearGradient id="hair" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#5B3924"/>
-      <stop offset="100%" stop-color="#3D2412"/>
-    </linearGradient>
-  </defs>
-  <circle cx="40" cy="40" r="40" fill="url(#bg)"/>
-  <!-- hair back -->
-  <path d="M14 46c0-19 12-30 26-30s26 11 26 30c0 6-3 12-7 14V38c0-12-9-20-19-20s-19 8-19 20v22c-4-2-7-8-7-14z" fill="url(#hair)"/>
-  <!-- face -->
-  <ellipse cx="40" cy="44" rx="17" ry="20" fill="#F5D4B0"/>
-  <!-- soft cheeks -->
-  <circle cx="29" cy="50" r="3" fill="#F5B5A3" opacity="0.55"/>
-  <circle cx="51" cy="50" r="3" fill="#F5B5A3" opacity="0.55"/>
-  <!-- eyes -->
-  <ellipse cx="32" cy="43" rx="2" ry="2.5" fill="#3D2412"/>
-  <ellipse cx="48" cy="43" rx="2" ry="2.5" fill="#3D2412"/>
-  <circle cx="32.6" cy="42.4" r="0.7" fill="#fff"/>
-  <circle cx="48.6" cy="42.4" r="0.7" fill="#fff"/>
-  <!-- brows -->
-  <path d="M28 39c2-1.5 5-1.5 7 0" stroke="#3D2412" stroke-width="1.4" fill="none" stroke-linecap="round"/>
-  <path d="M45 39c2-1.5 5-1.5 7 0" stroke="#3D2412" stroke-width="1.4" fill="none" stroke-linecap="round"/>
-  <!-- smile -->
-  <path d="M34 54c2.5 3 9.5 3 12 0" stroke="#A04A2E" stroke-width="2" fill="none" stroke-linecap="round"/>
-  <!-- earring hints -->
-  <circle cx="22" cy="46" r="1.4" fill="#B89556"/>
-  <circle cx="58" cy="46" r="1.4" fill="#B89556"/>
-  <!-- olive leaf on shoulder, brand callback -->
-  <path d="M58 64c-3 1-6 0-7-3 2-1 5 0 7 3z" fill="#44512C"/>
-</svg>`;
-const DANA_AVATAR = `data:image/svg+xml;utf8,${encodeURIComponent(DANA_AVATAR_SVG)}`;
+// Dana's portrait — realistic photo generated via Imagen 4 and committed
+// under public/images. WebP loads first (23 KB), PNG is the fallback
+// (~360 KB, served only by browsers that don't speak WebP — practically
+// none in 2026 but a safe net regardless).
+const DANA_AVATAR = '/images/dana.webp';
+const DANA_AVATAR_FALLBACK = '/images/dana.png';
 
 function readUtmSource() {
   try { return new URLSearchParams(window.location.search).get('utm_source') || null; }
