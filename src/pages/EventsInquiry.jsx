@@ -1,8 +1,50 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { invokePublic } from '@/lib/publicFetch';
-import { Send, Sparkles, CheckCircle2, AlertCircle, CreditCard } from 'lucide-react';
+import { Send, CheckCircle2, CreditCard } from 'lucide-react';
 import LanguagePicker from '@/components/shared/LanguagePicker';
 import { useI18n, LANG_NAMES_FOR_LLM } from '@/lib/i18n';
+
+// Inline SVG avatar for Dana — a friendly, restaurant-warm portrait that
+// makes the chat feel like a person not a bot. Embedded as a data: URL so
+// it loads instantly with the page (no extra request, no broken external
+// link). The art is intentionally stylised, not a real photo, so guests
+// don't expect a specific person on the other end.
+const DANA_AVATAR_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#F4ECD8"/>
+      <stop offset="100%" stop-color="#D9BD83"/>
+    </linearGradient>
+    <linearGradient id="hair" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#5B3924"/>
+      <stop offset="100%" stop-color="#3D2412"/>
+    </linearGradient>
+  </defs>
+  <circle cx="40" cy="40" r="40" fill="url(#bg)"/>
+  <!-- hair back -->
+  <path d="M14 46c0-19 12-30 26-30s26 11 26 30c0 6-3 12-7 14V38c0-12-9-20-19-20s-19 8-19 20v22c-4-2-7-8-7-14z" fill="url(#hair)"/>
+  <!-- face -->
+  <ellipse cx="40" cy="44" rx="17" ry="20" fill="#F5D4B0"/>
+  <!-- soft cheeks -->
+  <circle cx="29" cy="50" r="3" fill="#F5B5A3" opacity="0.55"/>
+  <circle cx="51" cy="50" r="3" fill="#F5B5A3" opacity="0.55"/>
+  <!-- eyes -->
+  <ellipse cx="32" cy="43" rx="2" ry="2.5" fill="#3D2412"/>
+  <ellipse cx="48" cy="43" rx="2" ry="2.5" fill="#3D2412"/>
+  <circle cx="32.6" cy="42.4" r="0.7" fill="#fff"/>
+  <circle cx="48.6" cy="42.4" r="0.7" fill="#fff"/>
+  <!-- brows -->
+  <path d="M28 39c2-1.5 5-1.5 7 0" stroke="#3D2412" stroke-width="1.4" fill="none" stroke-linecap="round"/>
+  <path d="M45 39c2-1.5 5-1.5 7 0" stroke="#3D2412" stroke-width="1.4" fill="none" stroke-linecap="round"/>
+  <!-- smile -->
+  <path d="M34 54c2.5 3 9.5 3 12 0" stroke="#A04A2E" stroke-width="2" fill="none" stroke-linecap="round"/>
+  <!-- earring hints -->
+  <circle cx="22" cy="46" r="1.4" fill="#B89556"/>
+  <circle cx="58" cy="46" r="1.4" fill="#B89556"/>
+  <!-- olive leaf on shoulder, brand callback -->
+  <path d="M58 64c-3 1-6 0-7-3 2-1 5 0 7 3z" fill="#44512C"/>
+</svg>`;
+const DANA_AVATAR = `data:image/svg+xml;utf8,${encodeURIComponent(DANA_AVATAR_SVG)}`;
 
 function readUtmSource() {
   try { return new URLSearchParams(window.location.search).get('utm_source') || null; }
@@ -63,14 +105,24 @@ export default function EventsInquiry() {
   const isRtl = lang === 'he';
   return (
     <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-teal-50 to-emerald-100 flex flex-col" dir={isRtl ? 'rtl' : 'ltr'}>
-      <header className="bg-white/80 backdrop-blur border-b border-emerald-100 p-4">
+      <header className="bg-white/85 backdrop-blur border-b border-emerald-100 p-4">
         <div className="max-w-2xl mx-auto flex items-center gap-3">
-          <div className="w-10 h-10 bg-gradient-to-br from-emerald-600 to-[#44512C] rounded-full flex items-center justify-center">
-            <Sparkles className="w-5 h-5 text-white" />
+          {/* Dana's portrait — makes the page feel like a person, not a bot.
+              The green dot in the corner reads as 'online now'. */}
+          <div className="relative">
+            <img
+              src={DANA_AVATAR}
+              alt="דנה"
+              className="w-12 h-12 rounded-full ring-2 ring-emerald-300 shadow-sm object-cover bg-white"
+            />
+            <span className="absolute -bottom-0.5 -end-0.5 w-3 h-3 rounded-full bg-emerald-500 ring-2 ring-white" />
           </div>
-          <div className="flex-1">
-            <h1 className="text-lg font-bold text-emerald-900">{t('events_title')}</h1>
-            <p className="text-xs text-emerald-700">{t('events_subtitle')}</p>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-1.5">
+              <h1 className="text-base font-bold text-emerald-900 truncate">דנה · מנהלת אירועים</h1>
+              <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.5 rounded-full whitespace-nowrap">פעילה</span>
+            </div>
+            <p className="text-[11px] text-emerald-700 truncate">{t('events_subtitle')}</p>
           </div>
           <LanguagePicker />
         </div>
@@ -79,15 +131,20 @@ export default function EventsInquiry() {
       <main className="flex-1 max-w-2xl w-full mx-auto p-4 flex flex-col">
         <div ref={scrollRef} className="flex-1 overflow-y-auto space-y-3 pb-4">
           {messages.map((m, i) => (
-            <div key={i} className={`flex ${m.role === 'user' ? 'justify-start' : 'justify-end'}`}>
-              <div className={`max-w-[85%] rounded-2xl px-4 py-2.5 shadow-sm whitespace-pre-wrap leading-relaxed ${
+            <div key={i} className={`flex items-end gap-2 ${m.role === 'user' ? 'justify-start' : 'justify-end'}`}>
+              {/* Show Dana's small avatar next to her bubbles for a person-feel */}
+              {m.role !== 'user' && (
+                <img src={DANA_AVATAR} alt="דנה" className="w-7 h-7 rounded-full shadow-sm bg-white shrink-0" />
+              )}
+              <div className={`max-w-[80%] rounded-2xl px-4 py-2.5 shadow-sm whitespace-pre-wrap leading-relaxed ${
                 m.role === 'user' ? 'bg-emerald-600 text-white rounded-br-sm' : 'bg-white text-slate-800 rounded-bl-sm border border-emerald-100'
               }`}>{m.content}</div>
             </div>
           ))}
           {sending && (
-            <div className="flex justify-end">
-              <div className="bg-white text-slate-500 rounded-2xl rounded-bl-sm px-4 py-2 shadow-sm text-sm border border-emerald-100">כותבת…</div>
+            <div className="flex items-end gap-2 justify-end">
+              <img src={DANA_AVATAR} alt="דנה" className="w-7 h-7 rounded-full shadow-sm bg-white shrink-0" />
+              <div className="bg-white text-slate-500 rounded-2xl rounded-bl-sm px-4 py-2 shadow-sm text-sm border border-emerald-100">דנה כותבת…</div>
             </div>
           )}
         </div>
