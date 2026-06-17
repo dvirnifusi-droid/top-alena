@@ -7005,12 +7005,63 @@ registerFn('chatEventsInquiry', async ({ body }) => {
   // the manual callback. This is intentional — a partial booking the owner can recover from
   // beats a "perfect" zero-booking-ever flow that drops every conversation.
   const anyAgreementSignal = stageSignal || effectiveComplete || looksLikeSendingPaymentInReply || customerExplicitClose;
-  const wantsPayment = anyAgreementSignal && !!c.contact_phone;
+  // Dana flow is info-only — never auto-create an EventBooking with placeholder
+  // pricing. The legacy 'wantsPayment' branch below would default guests=20 and
+  // price = guests×250 = ₪5000, then print that fake amount to the customer.
+  // Owner asked: no quote in chat, ever. Disabled until/unless we re-enable the
+  // sales agent. (To revert, restore the original expression below.)
+  const wantsPayment = false; // legacy: anyAgreementSignal && !!c.contact_phone;
   // If we forced the close server-side because the customer said "yes/סגור" but the LLM kept stalling,
   // override the assistant reply with a clean closing instead of leaving the LLM's leftover question.
   let finalReply = forcedClose
     ? `מעולה! 🌿 רשמתי לעצמי את ההזמנה.`
     : (result?.reply || 'מצטערת, אירעה תקלה. תוכלו לנסות שוב?');
+
+  // === DANA SUMMARY (info-only flow) ==========================================
+  // When the conversation closes for info-gathering (no quote, no booking) we
+  // append a clean, deterministic summary built from the *validated* collected
+  // fields. Never invent numbers (the old flow defaulted guests=20 and
+  // price=guests×250 which leaked an invented ₪5000 to the customer).
+  // Triggered for every effectiveComplete close — the legacy booking-with-price
+  // path below is bypassed by the same guard.
+  if (effectiveComplete && !forcedClose) {
+    // Coerce guest count from string OR number — the LLM sometimes returns "56"
+    const rawGuests = c.guest_count;
+    const guests = typeof rawGuests === 'number'
+      ? rawGuests
+      : (typeof rawGuests === 'string' && /^\d+$/.test(rawGuests.trim()) ? Number(rawGuests.trim()) : null);
+
+    const dateTxt = c.event_date ? String(c.event_date) : null;
+    // Prefer explicit time (HH:MM), then hours_window label, then nothing —
+    // do NOT invent a time. If neither, the summary just shows the date.
+    const timeTxt = (typeof c.event_time === 'string' && /^\d{1,2}:\d{2}/.test(c.event_time))
+      ? c.event_time
+      : (c.hours_window ? c.hours_window : null);
+
+    const locationTxt = (() => {
+      if (c.location === 'restaurant' || /במסעדה|אצלכם|אצלנו/.test(String(c.location || ''))) return 'במסעדה (עלינא)';
+      const details = String(c.location_details || c.location || '').trim();
+      if (details && details !== 'external') return `אירוע חוץ — ${details}`;
+      if (c.location === 'external') return 'אירוע חוץ';
+      return null;
+    })();
+
+    const summaryLines = [
+      '',
+      '📋 סיכום ההזמנה:',
+      `👤 ${c.contact_name || currentLead?.contact_name || '—'}`,
+      `📞 ${c.contact_phone || currentLead?.contact_phone || '—'}`,
+      dateTxt
+        ? `📅 ${dateTxt}${timeTxt ? ' · ' + timeTxt : ''}`
+        : null,
+      guests ? `👥 ${guests} אורחים` : null,
+      locationTxt ? `📍 ${locationTxt}` : null,
+      c.event_type ? `🎉 סוג אירוע: ${c.event_type}` : null,
+      '',
+      '📞 מנהל המסעדה יצור איתכם קשר בהקדם לקבלת הצעת מחיר ותיאום התאריך 🌿',
+    ].filter(Boolean).join('\n');
+    finalReply = `${finalReply}\n${summaryLines}`;
+  }
   if (wantsPayment) {
     const guests = Number(c.guest_count) || 20; // placeholder so booking always saves
     const totalFromLLM = typeof c.total_ils === 'number' ? Math.round(c.total_ils) : null;
@@ -7234,7 +7285,7 @@ const DEFAULT_EVENTS_PROMPT = `את דנה — מנהלת האירועים הפ�
 
 איסוף מידע (שאלה אחת בכל פעם, לא ביחד) — ארבעה שדות בלבד:
 1. שם מלא וטלפון ליצירת קשר.
-2. תאריך — אפשר גם יחסי: "היום", "מחר", "עוד יומיים", "ראשון הבא", "סופש קרוב". שאל גם **חלון שעות**: בוקר / צהריים / ערב / לילה.
+2. תאריך + שעה — אפשר תאריך יחסי ("היום", "מחר", "עוד יומיים", "ראשון הבא"). שאל גם **שעה** — מועדפת שעה מדויקת ("19:00") או חלון אם אין שעה ברורה ("בוקר/צהריים/ערב/לילה"). **אל תמציאי שעה אם הלקוח לא ענה — תרשמי רק את החלון.**
 3. **מיקום + סוג אירוע** — שאל בשאלה אחת: "האם האירוע אצלנו במסעדה או במקום אחר? ומה סוג האירוע? (יום הולדת, יום נישואין, חברה, חינה, משפחתי וכו')." אם חוץ — שאל איפה (עיר/אולם/בית פרטי).
 4. כמות אנשים בערך. **אל תשאל על ילדים בנפרד** — זה ייסגר בשיחת הטלפון.
 
@@ -11801,7 +11852,7 @@ if (!(globalThis as any).__startupDriftRepair) {
         // so we force-reset it once. Gated by SystemFlag to run only once.
         try {
           const danaFlag: any = await prisma.$queryRawUnsafe(
-            `SELECT key FROM "SystemFlag" WHERE key = 'dana_events_prompt_v2' LIMIT 1`,
+            `SELECT key FROM "SystemFlag" WHERE key = 'dana_events_prompt_v3' LIMIT 1`,
           );
           if (!danaFlag || danaFlag.length === 0) {
             // Use parameterised raw SQL — Prisma raw template handles the long string
@@ -11811,12 +11862,12 @@ if (!(globalThis as any).__startupDriftRepair) {
                WHERE singleton = TRUE
             `;
             await prisma.$executeRawUnsafe(
-              `INSERT INTO "SystemFlag" (key, value) VALUES ('dana_events_prompt_v2', 'done') ON CONFLICT (key) DO NOTHING`,
+              `INSERT INTO "SystemFlag" (key, value) VALUES ('dana_events_prompt_v3', 'done') ON CONFLICT (key) DO NOTHING`,
             );
-            console.log('[migration] dana_events_prompt_v2: reset EventSalesKit prompt');
+            console.log('[migration] dana_events_prompt_v3: reset EventSalesKit prompt');
           }
         } catch (e: any) {
-          console.warn('[migration] dana_events_prompt_v2 failed (non-fatal):', e?.message);
+          console.warn('[migration] dana_events_prompt_v3 failed (non-fatal):', e?.message);
         }
         const flagKey = 'bulk_grant_consent_v1_done';
         const existing: any = await prisma.$queryRawUnsafe(
