@@ -6534,7 +6534,11 @@ const EVENTS_SYSTEM_PROMPT = `את דנה — מנהלת האירועים הפר
 
 ⚠️ **אסור** לשאול על ילדים, אלרגיות, אוכל מיוחד, תקציב. אם הלקוח מציין מעצמו — תרשמי.
 
-ברגע שיש 4 השדות, סיימי **באותה תשובה**: "מצוין, תודה רבה {שם}! העברתי למנהל המסעדה את כל הפרטים — הוא יחזור אליך אישית תוך כמה שעות. נדבר בקרוב 🌿" והגדירי complete=true. **אל תחכי לאישור** מהלקוח.
+ברגע שיש 4 השדות:
+1. "מצוין, תודה רבה {שם}! אז אני מסכמת:" — המערכת תוסיף סיכום מובנה. **אל תפרטי שדות בעצמך**.
+2. "הפרטים נכונים? תאשר/י ואני שולחת למנהל". complete=false.
+3. **תור הבא**: כשהלקוח מאשר ("כן"/"מאשר"/"נכון") — המערכת תכתוב את תשובת הסיום, את רק מחזירה complete=true.
+**אסור** להגיד "העברתי / נדבר בקרוב / יחזור אליך" לפני שהלקוח אישר.
 
 חוקים קריטיים:
 - לעולם אל תצטטי מחיר.
@@ -6716,7 +6720,18 @@ registerFn('chatEventsInquiry', async ({ body }) => {
   const tokenRe = new RegExp('(^|[\\s,.!?:;])(' + closeTokens.map(t => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|') + ')([\\s,.!?:;]|$)', 'i');
   // "כן" alone is also a close if the agent's previous turn was a close-confirmation question.
   const customerSaidYes = /^\s*כן\b/i.test(customerLastTurn) || /(^|\s)כן(\s|$|[.,!?])/i.test(customerLastTurn);
-  const agentAskedToClose = /(לסגור|לסגירה|להתקדם|נסגור|סוגרים|נמשיך|לאישור)/.test(replyRaw + ' ' + (turns.length ? String((turns[turns.length - 1] as any)?.content || '') : ''));
+  // Look at the PRIOR agent turn — that's the message the customer is now responding to.
+  // (Looking only at replyRaw, i.e. the LLM's reply on THIS turn, was a bug: it always
+  // includes the closing phrases we just generated, which made every customer reply
+  // look like a confirmation.)
+  const priorAgentTurn = (() => {
+    for (let i = turns.length - 1; i >= 0; i--) {
+      const t: any = turns[i];
+      if (t?.role === 'assistant' || t?.role === 'model') return String(t.content || '');
+    }
+    return '';
+  })();
+  const agentAskedToClose = /(לסגור|לסגירה|להתקדם|נסגור|סוגרים|נמשיך|לאישור|נכונים|תאשר|תאשרי|תאשרו|לאשר|אשלח\s+(?:את\s+הפרטים|למנהל))/.test(priorAgentTurn);
   const customerExplicitClose = tokenRe.test(customerLastTurn) || (customerSaidYes && agentAskedToClose);
 
   // Server-side fallback extraction. CRITICAL: scan only the CUSTOMER's messages,
@@ -6819,14 +6834,15 @@ registerFn('chatEventsInquiry', async ({ body }) => {
 
   const hasMinInfo = !!(merged.event_date) && !!merged.guest_count && !!merged.contact_phone;
 
-  // ── Farewell-driven close ──────────────────────────────────────────────
-  // Gemini occasionally writes the goodbye sentence but forgets to set
-  // complete=true on the same turn, so the customer has to send a second
-  // 'אוקי' before the summary fires. If we see the goodbye phrase in the
-  // reply AND have minimum info, we trust the goodbye and force close.
+  // ── Confirmation-driven close ──────────────────────────────────────────
+  // Dana's flow has two stages: (A) she asks 'הפרטים נכונים? תאשר/י',
+  // (B) customer confirms → we mark complete + push to manager.
+  // We do NOT auto-close on the goodbye phrase any more — that fired before
+  // the customer had a chance to verify the summary.
   const replyText = String(result?.reply || '');
-  const looksLikeGoodbye = /העברתי\s+(?:לדביר|למנהל|לבעלים|את\s+הפרטים|למנהל\s+המסעדה)|נדבר\s+בקרוב|יחזור\s+אלי?ך?\s+(?:אישית|תוך|בקרוב)|יצור\s+אית?כם\s+קשר/.test(replyText);
-  const farewellClose = looksLikeGoodbye && hasMinInfo;
+  const agentAskingConfirmation = /הפרטים\s+נכונים|תאשר[\?י]?|תאשרו|לאשר\s+(?:ואני|ושאלח|ושלח)|אז\s+אני\s+מסכמת/i.test(replyText);
+  // Confirmation close: customer said yes/confirm AFTER prior agent turn asked confirmation.
+  const confirmationClose = customerExplicitClose && hasMinInfo && agentAskedToClose;
 
   // Diagnostic — these show up in server logs so we can see why a close did or didn't fire.
   console.log('[chatEventsInquiry]', JSON.stringify({
@@ -6843,7 +6859,7 @@ registerFn('chatEventsInquiry', async ({ body }) => {
   }));
   // Force close when customer says yes AND we have enough info to call them back. This is the
   // critical anti-stall guard — the LLM tends to keep asking confirmations forever otherwise.
-  const forcedClose = (customerExplicitClose && hasMinInfo) || farewellClose;
+  const forcedClose = confirmationClose;
   const effectiveComplete = forcedClose || (!!result?.complete && (!endsWithQuestion || customerExplicitClose));
 
   const fullLog = [
@@ -7049,20 +7065,21 @@ registerFn('chatEventsInquiry', async ({ body }) => {
   // Owner asked: no quote in chat, ever. Disabled until/unless we re-enable the
   // sales agent. (To revert, restore the original expression below.)
   const wantsPayment = false; // legacy: anyAgreementSignal && !!c.contact_phone;
-  // If we forced the close server-side because the customer said "yes/סגור" but the LLM kept stalling,
-  // override the assistant reply with a clean closing instead of leaving the LLM's leftover question.
+  // Dana's closing line — fires when the customer confirmed the summary.
+  // Personal & warm, ends in an olive leaf to keep the brand voice.
   let finalReply = forcedClose
-    ? `מעולה! 🌿 רשמתי לעצמי את ההזמנה.`
+    ? `מעולה! 🌿 שלחתי למנהל את כל הפרטים. הוא יחזור אליך אישית תוך כמה שעות. נדבר בקרוב!`
     : (result?.reply || 'מצטערת, אירעה תקלה. תוכלו לנסות שוב?');
 
   // === DANA SUMMARY (info-only flow) ==========================================
-  // When the conversation closes for info-gathering (no quote, no booking) we
-  // append a clean, deterministic summary built from the *validated* collected
-  // fields. Never invent numbers (the old flow defaulted guests=20 and
-  // price=guests×250 which leaked an invented ₪5000 to the customer).
-  // Triggered for every effectiveComplete close — the legacy booking-with-price
-  // path below is bypassed by the same guard.
-  if (effectiveComplete && !forcedClose) {
+  // Appended on the AGENT-ASKING-CONFIRMATION turn — i.e. when Dana says
+  // 'הפרטים נכונים? תאשר/י' and we have the 4 required fields. The customer
+  // sees the structured summary AS PART of Dana's confirmation request, so
+  // they can verify it before saying 'כן'. Then on the next turn, when they
+  // confirm, we fire the actual close (confirmationClose above) with no
+  // further summary — we don't re-print what they just confirmed.
+  // Never invent numbers (the old flow defaulted guests=20 and total=₪5000).
+  if (agentAskingConfirmation && hasMinInfo && !forcedClose && !effectiveComplete) {
     // Coerce guest count from string OR number — the LLM sometimes returns "56"
     const rawGuests = c.guest_count;
     const guests = typeof rawGuests === 'number'
@@ -7096,7 +7113,7 @@ registerFn('chatEventsInquiry', async ({ body }) => {
       locationTxt ? `📍 ${locationTxt}` : null,
       c.event_type ? `🎉 סוג אירוע: ${c.event_type}` : null,
       '',
-      '📞 מנהל המסעדה יצור איתכם קשר בהקדם לקבלת הצעת מחיר ותיאום התאריך 🌿',
+      '✅ הפרטים נכונים? תאשר/י ואני שולחת למנהל המסעדה — הוא יחזור אליך אישית עם הצעת מחיר ולתאם תאריך 🌿',
     ].filter(Boolean).join('\n');
     finalReply = `${finalReply}\n${summaryLines}`;
   }
@@ -7336,10 +7353,22 @@ const DEFAULT_EVENTS_PROMPT = `את דנה — מנהלת האירועים הפ�
 - **אל תזכיר שמות פרטיים של עובדים** (לא "דביר", לא "הבעלים") — תמיד "המנהל" באופן כללי.
 - אם הלקוח שואל "כמה זה עולה" / "התאריך פנוי" / "מה כלול" / "תשלחי הצעה" — עני **בדיוק** ככה: "שאלה מצוינת — אני אעביר את הפרטים שלך למנהל המסעדה והוא יחזור אליך אישית תוך כמה שעות עם הצעה מותאמת וכל התשובות 🙏" ואז המשך לשאלה הבאה.
 
-🛑 **סיום השיחה — קריטי**:
-ברגע שיש לך את **4 השדות** (שם+טלפון, תאריך+שעה, מיקום+סוג, כמות) — סיים **באותה תשובה** עם הודעה אישית:
-"מצוין, תודה רבה {שם}! העברתי למנהל המסעדה את כל הפרטים — הוא יחזור אליך אישית תוך כמה שעות. נדבר בקרוב 🌿"
-**ובאותו JSON הגדר complete=true.** אל תחכי שהלקוח יגיד "אוקי" או "תודה" — הוא לא חייב, וזה רק יעכב את הסיכום אצל המנהל. ברגע שיש מספיק מידע — סוגרים.
+🛑 **שלב הסיכום והאישור — קריטי, בשתי תורות**:
+
+**תורת הסיכום** — ברגע שיש לך **4 השדות** (שם+טלפון, תאריך+שעה, מיקום+סוג, כמות):
+1. רשמי: "מצוין, תודה רבה {שם}! אז אני מסכמת:"
+2. **אל תפרטי את השדות בעצמך** — המערכת תוסיף סיכום מובנה אוטומטית מתחת לתשובה שלך.
+3. סיימי בשאלה: "הפרטים נכונים? תאשר/י ואני שולחת למנהל המסעדה."
+4. ב-JSON: **complete=false**, stage='awaiting_confirmation'. **אסור להגיד "העברתי" / "נדבר בקרוב" / "יחזור אליך" — עוד לא שלחנו**.
+
+**תורת השליחה** — כשהלקוח עונה בחיוב ("כן", "מאשר", "נכון", "מעולה", "אוקי") אחרי תורת הסיכום:
+1. **אל תכתבי כלום בעצמך** — המערכת תכתוב תשובת סיום מובנית ("מעולה! 🌿 שלחתי למנהל...").
+2. ב-JSON: **complete=true**, stage='completed'. אפשר להחזיר reply ריק או קצר אם בכל זאת רוצים.
+
+⚠️ **טעויות נפוצות שאסור לעשות**:
+- לרשום "העברתי למנהל" בתורת הסיכום — עוד לא העברנו! זה רק אחרי שהלקוח מאשר.
+- להציג את הפרטים בעצמך — המערכת מציגה אותם, את רק שואלת לאישור.
+- לסגור בלי לבקש אישור — חייבת לעבור דרך תורת האישור.
 
 החזר תמיד JSON בלבד:
 - reply: string (התשובה שלך בעברית)
@@ -11890,7 +11919,7 @@ if (!(globalThis as any).__startupDriftRepair) {
         // so we force-reset it once. Gated by SystemFlag to run only once.
         try {
           const danaFlag: any = await prisma.$queryRawUnsafe(
-            `SELECT key FROM "SystemFlag" WHERE key = 'dana_events_prompt_v4' LIMIT 1`,
+            `SELECT key FROM "SystemFlag" WHERE key = 'dana_events_prompt_v5' LIMIT 1`,
           );
           if (!danaFlag || danaFlag.length === 0) {
             // Use parameterised raw SQL — Prisma raw template handles the long string
@@ -11900,12 +11929,12 @@ if (!(globalThis as any).__startupDriftRepair) {
                WHERE singleton = TRUE
             `;
             await prisma.$executeRawUnsafe(
-              `INSERT INTO "SystemFlag" (key, value) VALUES ('dana_events_prompt_v4', 'done') ON CONFLICT (key) DO NOTHING`,
+              `INSERT INTO "SystemFlag" (key, value) VALUES ('dana_events_prompt_v5', 'done') ON CONFLICT (key) DO NOTHING`,
             );
-            console.log('[migration] dana_events_prompt_v4: reset EventSalesKit prompt');
+            console.log('[migration] dana_events_prompt_v5: reset EventSalesKit prompt');
           }
         } catch (e: any) {
-          console.warn('[migration] dana_events_prompt_v4 failed (non-fatal):', e?.message);
+          console.warn('[migration] dana_events_prompt_v5 failed (non-fatal):', e?.message);
         }
         const flagKey = 'bulk_grant_consent_v1_done';
         const existing: any = await prisma.$queryRawUnsafe(
