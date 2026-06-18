@@ -7076,10 +7076,13 @@ registerFn('chatEventsInquiry', async ({ body }) => {
   // 'הפרטים נכונים? תאשר/י' and we have the 4 required fields. The customer
   // sees the structured summary AS PART of Dana's confirmation request, so
   // they can verify it before saying 'כן'. Then on the next turn, when they
-  // confirm, we fire the actual close (confirmationClose above) with no
-  // further summary — we don't re-print what they just confirmed.
-  // Never invent numbers (the old flow defaulted guests=20 and total=₪5000).
-  if (agentAskingConfirmation && hasMinInfo && !forcedClose && !effectiveComplete) {
+  // confirm, we fire the actual close (confirmationClose above) and a clean
+  // Dana goodbye replaces the reply entirely.
+  // (Bugfix: previously gated by !effectiveComplete, but Gemini occasionally
+  // sets complete=true on the same turn it asks for confirmation — which
+  // suppressed the summary card and left the customer asked to confirm with
+  // nothing to verify against.)
+  if (agentAskingConfirmation && hasMinInfo && !forcedClose) {
     // Coerce guest count from string OR number — the LLM sometimes returns "56"
     const rawGuests = c.guest_count;
     const guests = typeof rawGuests === 'number'

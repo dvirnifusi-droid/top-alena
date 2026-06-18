@@ -66,9 +66,23 @@ export default function EventsInquiry() {
   const onKey = (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } };
 
   const isRtl = lang === 'he';
+  // WhatsApp-style mobile layout:
+  //   - 100dvh keeps the chat exactly the visible viewport (vh on iOS Safari
+  //     is the visual+toolbar height which jumps when the keyboard opens —
+  //     dvh updates as the keyboard slides in so the input stays glued just
+  //     above the keys).
+  //   - The wrapper is the scroll container itself (overflow-hidden); only
+  //     the messages list scrolls. Without this iOS scrolls the WHOLE PAGE
+  //     when the keyboard appears and pushes the header off screen.
+  //   - safe-area-inset-bottom pads the input above the home-indicator on
+  //     iPhones without notches still benefit from the env() fallback.
   return (
-    <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-teal-50 to-emerald-100 flex flex-col" dir={isRtl ? 'rtl' : 'ltr'}>
-      <header className="bg-white/85 backdrop-blur border-b border-emerald-100 p-4">
+    <div
+      className="bg-gradient-to-br from-emerald-50 via-teal-50 to-emerald-100 flex flex-col overflow-hidden"
+      style={{ height: '100dvh' }}
+      dir={isRtl ? 'rtl' : 'ltr'}
+    >
+      <header className="bg-white/85 backdrop-blur border-b border-emerald-100 p-4 flex-shrink-0">
         <div className="max-w-2xl mx-auto flex items-center gap-3">
           {/* Dana's portrait — makes the page feel like a person, not a bot.
               The green dot in the corner reads as 'online now'. */}
@@ -91,8 +105,8 @@ export default function EventsInquiry() {
         </div>
       </header>
 
-      <main className="flex-1 max-w-2xl w-full mx-auto p-4 flex flex-col">
-        <div ref={scrollRef} className="flex-1 overflow-y-auto space-y-3 pb-4">
+      <main className="flex-1 min-h-0 max-w-2xl w-full mx-auto px-3 pt-3 pb-2 flex flex-col">
+        <div ref={scrollRef} className="flex-1 overflow-y-auto space-y-3 pb-2 -mx-1 px-1">
           {messages.map((m, i) => (
             <div key={i} className={`flex items-end gap-2 ${m.role === 'user' ? 'justify-start' : 'justify-end'}`}>
               {/* Show Dana's small avatar next to her bubbles for a person-feel */}
@@ -139,21 +153,23 @@ export default function EventsInquiry() {
 
         {error && <div className="rounded-xl p-3 my-2 bg-red-50 border border-red-200 text-red-800 text-sm">{error}</div>}
 
-        <div className="bg-white border border-emerald-200 rounded-2xl p-2 flex items-end gap-2 shadow-sm">
+        {/* Input bar — sticky to the bottom of the flex column so it sits
+            exactly on top of the iOS keyboard. flex-shrink-0 keeps it from
+            collapsing when the message list grows. */}
+        <div
+          className="bg-white border border-emerald-200 rounded-2xl p-2 flex items-end gap-2 shadow-sm flex-shrink-0"
+          style={{ marginBottom: 'env(safe-area-inset-bottom, 0px)' }}
+        >
           <textarea value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={onKey}
             placeholder="הקלידו את התשובה ולחצו שלח…" disabled={sending} rows={1}
             className="flex-1 resize-none bg-transparent px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none disabled:opacity-50"
-            style={{ minHeight: '36px', maxHeight: '120px' }} />
+            style={{ minHeight: '36px', maxHeight: '120px', fontSize: '16px' /* prevents iOS auto-zoom on focus */ }} />
           <button onClick={send} disabled={!input.trim() || sending}
             className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white rounded-xl px-4 py-2 flex items-center gap-1 text-sm font-medium">
             שלח <Send className="w-4 h-4" />
           </button>
         </div>
       </main>
-
-      <footer className="text-center text-xs text-emerald-700/70 p-3">
-        🔒 הפרטים שלכם נשמרים במערכת הניהול של עלינא בלבד.
-      </footer>
     </div>
   );
 }
