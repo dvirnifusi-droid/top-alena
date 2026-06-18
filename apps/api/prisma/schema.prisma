@@ -2638,16 +2638,23 @@ model EventLead {
   contact_name      String?
   contact_phone     String?
   event_date        String?
+  event_time        String?
   event_type        String?
   guest_count       Int?
   budget_per_person Int?
   hours_window      String?
+  location          String?
+  location_details  String?
+  special_requests  String?
   status            String?
   score             Int?
   source            String?
   conversation_log  Json?
   ai_summary        String?
   notes             String?
+  callback_stage    String?
+  callback_at       String?
+  callback_notes    String?
   created_by        String?
   created_date      String?
   updated_date      String?

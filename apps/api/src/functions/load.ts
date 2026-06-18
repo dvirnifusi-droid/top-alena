@@ -7003,14 +7003,23 @@ registerFn('chatEventsInquiry', async ({ body }) => {
     contact_name: c.contact_name || null,
     contact_phone: c.contact_phone ? String(c.contact_phone) : null,
     event_date: c.event_date || null,
+    event_time: c.event_time || null,
     event_type: c.event_type || null,
     guest_count: typeof c.guest_count === 'number' ? c.guest_count : null,
     budget_per_person: typeof c.budget_per_person === 'number' ? c.budget_per_person : null,
     hours_window: c.hours_window || null,
+    location: c.location || null,
+    location_details: c.location_details || null,
+    special_requests: c.special_requests || null,
     conversation_log: fullLog as any,
     status, score,
     source: leadSource,
   };
+  // On the close turn, default callback_stage to 'pending' so the lead lands in the
+  // "מחכים שמנהל יתקשר" inbox. Manager moves it through stages from the UI.
+  if (effectiveComplete) {
+    (leadData as any).callback_stage = (priorLead as any)?.callback_stage || 'pending';
+  }
   let currentLeadId: string | null = lead_id || null;
   let currentLead: any = null;
   const nowIso = new Date().toISOString();
@@ -7692,6 +7701,23 @@ registerFn('deleteEventLead', async ({ body }) => {
   await db.eventBooking.deleteMany({ where: { lead_id } }).catch(() => {});
   await db.eventLead.delete({ where: { id: lead_id } });
   return { ok: true };
+});
+
+// AUTH — set the manager's callback stage on a lead.
+// Stages: 'pending' (default after Dana closes), 'contacted' (manager called),
+// 'quoted' (price/contract sent), 'won' (signed), 'lost' (declined / not relevant).
+registerFn('setLeadCallbackStage', async ({ body }) => {
+  const { lead_id, stage, notes } = body as any;
+  if (!lead_id) throw new Error('lead_id required');
+  const allowed = ['pending', 'contacted', 'quoted', 'won', 'lost'];
+  if (!allowed.includes(stage)) throw new Error(`stage must be one of ${allowed.join(',')}`);
+  const data: any = { callback_stage: stage, callback_at: new Date().toISOString(), updated_date: new Date().toISOString() };
+  if (typeof notes === 'string' && notes.trim()) data.callback_notes = notes.trim().slice(0, 2000);
+  // Bump lead.status to 'booked' on 'won' so the legacy quality filter shows it as closed.
+  if (stage === 'won') data.status = 'booked';
+  if (stage === 'lost') data.status = 'cold';
+  const lead = await db.eventLead.update({ where: { id: lead_id }, data });
+  return { ok: true, lead };
 });
 
 // AUTH — bulk delete (cleanup of test leads). Takes an array of ids.

@@ -95,6 +95,205 @@ const STATUS = {
   booked: { label: 'נסגר ✓', cls: 'bg-green-100 text-green-800' },
 };
 
+// New flow (June 2026): Dana is info-only — she never creates an EventBooking.
+// Every closed lead lands in EventLead with callback_stage='pending'. Manager works
+// the inbox: call → "התקשרתי", send price → "הצעת מחיר", signed → "נסגר", out → "לא רלוונטי".
+// This card is the manager's primary daily inbox.
+const CALLBACK_STAGES = {
+  pending:   { label: '🟠 מחכה לטלפון', cls: 'bg-orange-100 text-orange-800', accent: 'border-orange-300' },
+  contacted: { label: '📞 דיברנו',       cls: 'bg-blue-100 text-blue-800',     accent: 'border-blue-300' },
+  quoted:    { label: '💰 הצעת מחיר',   cls: 'bg-purple-100 text-purple-800', accent: 'border-purple-300' },
+  won:       { label: '✅ נסגר',         cls: 'bg-emerald-100 text-emerald-800', accent: 'border-emerald-400' },
+  lost:      { label: '❌ לא רלוונטי',  cls: 'bg-slate-100 text-slate-500',    accent: 'border-slate-300' },
+};
+
+function PendingCallbackCard() {
+  const [leads, setLeads] = React.useState([]);
+  const [loading, setLoading] = React.useState(true);
+  const [busy, setBusy] = React.useState(null);
+  const [view, setView] = React.useState('active'); // 'active' (pending+contacted+quoted) or 'closed' (won+lost)
+
+  const load = React.useCallback(async () => {
+    setLoading(true);
+    try {
+      const r = await base44.functions.listEventLeads({});
+      const arr = r?.data?.leads || r?.leads || [];
+      // Only leads Dana finished collecting — needs at least a phone.
+      setLeads(arr.filter((l) => l.contact_phone));
+    } catch { setLeads([]); }
+    finally { setLoading(false); }
+  }, []);
+  React.useEffect(() => { load(); }, [load]);
+  React.useEffect(() => {
+    const id = setInterval(() => { load(); }, 120000);
+    return () => clearInterval(id);
+  }, [load]);
+
+  const setStage = async (lead, stage) => {
+    let notes = '';
+    if (stage === 'lost') {
+      notes = window.prompt('סיבת ביטול / "לא רלוונטי" (אופציונלי):') || '';
+    } else if (stage === 'quoted') {
+      notes = window.prompt('פרט/י הצעת מחיר ששלחת (סכום, חבילה, אופציונלי):') || '';
+    }
+    setBusy(lead.id);
+    try {
+      await base44.functions.setLeadCallbackStage({ lead_id: lead.id, stage, notes });
+      await load();
+    } catch (e) { alert('שמירה נכשלה: ' + (e?.message || '')); }
+    finally { setBusy(null); }
+  };
+
+  const ACTIVE = ['pending', 'contacted', 'quoted'];
+  const CLOSED = ['won', 'lost'];
+  // Only show leads that have a callback_stage (i.e. Dana actually finished gathering info).
+  // Leads with no callback_stage are still in collection / abandoned — they show in the
+  // bottom "לידים אחרונים" list, not here.
+  const active = leads.filter((l) => ACTIVE.includes(l.callback_stage));
+  const closed = leads.filter((l) => CLOSED.includes(l.callback_stage));
+  const shown = view === 'active' ? active : closed;
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-orange-500" /> אירועים שמחכים שמנהל יתקשר ללקוח</CardTitle>
+        <CardDescription>דנה אספה את הפרטים — עכשיו דורש שיחת טלפון מהמנהל. סמן <strong>"📞 התקשרתי"</strong> אחרי השיחה, <strong>"💰 הצעת מחיר"</strong> כששלחת מחיר, <strong>"✅ נסגר"</strong> כשהלקוח חתם.</CardDescription>
+        <div className="flex gap-2 pt-2">
+          <Button size="sm" variant={view === 'active' ? 'default' : 'outline'} onClick={() => setView('active')} className={view === 'active' ? 'bg-orange-600 hover:bg-orange-700' : ''}>
+            🔥 פעילים ({active.length})
+          </Button>
+          <Button size="sm" variant={view === 'closed' ? 'default' : 'outline'} onClick={() => setView('closed')}>
+            📁 סגורים ({closed.length})
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {loading ? (
+          <div className="flex justify-center py-6"><Loader2 className="w-5 h-5 animate-spin text-slate-400" /></div>
+        ) : shown.length === 0 ? (
+          <p className="text-sm text-muted-foreground text-center py-4">
+            {view === 'active' ? 'אין לידים שמחכים. כשדנה תסיים שיחה — תופיע כאן.' : 'אין לידים סגורים עדיין.'}
+          </p>
+        ) : (
+          <div className="space-y-3">
+            {shown.map((l) => {
+              const stage = CALLBACK_STAGES[l.callback_stage] || CALLBACK_STAGES.pending;
+              const weekday = (() => {
+                if (!l.event_date) return null;
+                try {
+                  const d = new Date(l.event_date + 'T00:00');
+                  return ['ראשון','שני','שלישי','רביעי','חמישי','שישי','שבת'][d.getDay()];
+                } catch { return null; }
+              })();
+              const phoneClean = (l.contact_phone || '').replace(/\D/g, '');
+              const waNumber = phoneClean.startsWith('0') ? '972' + phoneClean.slice(1) : phoneClean;
+              const isFresh = (() => {
+                try { return (Date.now() - new Date(l.created_date).getTime()) < 60 * 60 * 1000; }
+                catch { return false; }
+              })();
+              const locationTxt = (() => {
+                if (l.location === 'restaurant') return 'במסעדה (עלינא)';
+                if (l.location_details) return `אירוע חוץ — ${l.location_details}`;
+                if (l.location === 'external') return 'אירוע חוץ';
+                return null;
+              })();
+              return (
+                <div key={l.id} className={`border-2 ${stage.accent} rounded-xl p-4 bg-orange-50/30`}>
+                  {/* Header */}
+                  <div className="flex items-start justify-between gap-2 flex-wrap mb-3 pb-2 border-b border-orange-200">
+                    <div>
+                      <div className="text-lg font-bold text-slate-900 flex items-center gap-2 flex-wrap">
+                        👤 {l.contact_name || 'ללא שם — שאל בטלפון'}
+                        {isFresh && <Badge className="bg-red-500 text-white text-xs animate-pulse">חדש 🔥</Badge>}
+                      </div>
+                      {l.contact_phone && (
+                        <div className="flex items-center gap-2 mt-1 flex-wrap">
+                          <a href={`tel:${l.contact_phone}`} className="text-[#44512C] font-semibold hover:underline text-base">📞 {l.contact_phone}</a>
+                          <a href={`https://wa.me/${waNumber}`} target="_blank" rel="noreferrer" className="text-green-700 hover:underline text-sm flex items-center gap-1"><MessageCircle className="w-3 h-3" /> WhatsApp</a>
+                        </div>
+                      )}
+                    </div>
+                    <Badge className={stage.cls + ' font-bold'}>{stage.label}</Badge>
+                  </div>
+
+                  {/* Details grid */}
+                  <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 text-sm mb-3">
+                    {l.event_date && <div><span className="text-slate-500">📅 תאריך:</span> <strong>{l.event_date}{weekday ? ` (יום ${weekday})` : ''}</strong></div>}
+                    {l.event_time && <div><span className="text-slate-500">🕒 שעה:</span> <strong>{l.event_time}</strong></div>}
+                    {l.guest_count != null && <div><span className="text-slate-500">👥 כמות אורחים:</span> <strong>{l.guest_count}</strong></div>}
+                    {l.event_type && <div><span className="text-slate-500">🎉 סוג אירוע:</span> <strong>{l.event_type}</strong></div>}
+                    {locationTxt && <div className="col-span-2"><span className="text-slate-500">📍 מיקום:</span> <strong>{locationTxt}</strong></div>}
+                    {l.hours_window && <div className="col-span-2"><span className="text-slate-500">🕓 חלון זמן:</span> {l.hours_window}</div>}
+                    {l.budget_per_person != null && <div className="col-span-2"><span className="text-slate-500">💰 תקציב לסועד:</span> <strong>₪{l.budget_per_person}</strong></div>}
+                  </div>
+
+                  {l.special_requests && (
+                    <div className="mb-3 p-2 bg-amber-50 border border-amber-200 rounded text-xs text-amber-900">
+                      <span className="font-bold">⚠️ דרישות מיוחדות: </span>{l.special_requests}
+                    </div>
+                  )}
+
+                  {/* Meta */}
+                  <div className="text-xs text-slate-500 mb-3">
+                    📥 מקור: <strong>{l.source || '—'}</strong> · 🆔 {l.id.slice(-8)} · נסגר ב-{fmt(l.created_date)}
+                    {l.callback_at && <> · עודכן {fmt(l.callback_at)}</>}
+                  </div>
+
+                  {l.ai_summary && (
+                    <div className="mb-3 p-2 bg-emerald-100 border border-emerald-200 rounded text-xs text-emerald-900">
+                      <span className="font-bold">🧠 סיכום שיחה: </span>{l.ai_summary}
+                    </div>
+                  )}
+
+                  {l.callback_notes && (
+                    <div className="mb-3 p-2 bg-blue-50 border border-blue-200 rounded text-xs text-blue-900">
+                      <span className="font-bold">📝 הערות מנהל: </span>{l.callback_notes}
+                    </div>
+                  )}
+
+                  {/* Actions — adapt to current stage */}
+                  {view === 'active' && (
+                    <div className="flex gap-2 flex-wrap pt-2 border-t border-orange-200">
+                      {l.callback_stage === 'pending' && (
+                        <>
+                          <Button size="sm" disabled={busy === l.id} onClick={() => setStage(l, 'contacted')} className="bg-blue-600 hover:bg-blue-700 flex-1">
+                            {busy === l.id ? <Loader2 className="w-4 h-4 animate-spin" /> : '📞 התקשרתי'}
+                          </Button>
+                          <Button size="sm" disabled={busy === l.id} onClick={() => setStage(l, 'quoted')} className="bg-purple-600 hover:bg-purple-700">💰 הצעת מחיר</Button>
+                          <Button size="sm" disabled={busy === l.id} variant="outline" onClick={() => setStage(l, 'lost')} className="text-red-600 border-red-300">❌ לא רלוונטי</Button>
+                        </>
+                      )}
+                      {l.callback_stage === 'contacted' && (
+                        <>
+                          <Button size="sm" disabled={busy === l.id} onClick={() => setStage(l, 'quoted')} className="bg-purple-600 hover:bg-purple-700 flex-1">💰 שלחתי הצעת מחיר</Button>
+                          <Button size="sm" disabled={busy === l.id} onClick={() => setStage(l, 'won')} className="bg-emerald-600 hover:bg-emerald-700">✅ נסגר</Button>
+                          <Button size="sm" disabled={busy === l.id} variant="outline" onClick={() => setStage(l, 'lost')} className="text-red-600 border-red-300">❌ לא רלוונטי</Button>
+                        </>
+                      )}
+                      {l.callback_stage === 'quoted' && (
+                        <>
+                          <Button size="sm" disabled={busy === l.id} onClick={() => setStage(l, 'won')} className="bg-emerald-600 hover:bg-emerald-700 flex-1">✅ נסגר וחתם</Button>
+                          <Button size="sm" disabled={busy === l.id} variant="outline" onClick={() => setStage(l, 'contacted')}>↩ חזור ל"דיברנו"</Button>
+                          <Button size="sm" disabled={busy === l.id} variant="outline" onClick={() => setStage(l, 'lost')} className="text-red-600 border-red-300">❌ לא רלוונטי</Button>
+                        </>
+                      )}
+                    </div>
+                  )}
+                  {view === 'closed' && (
+                    <div className="flex gap-2 pt-2 border-t border-slate-200">
+                      <Button size="sm" disabled={busy === l.id} variant="outline" onClick={() => setStage(l, 'pending')}>↩ החזר לפעילים</Button>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 function BookingsCard() {
   const [bookings, setBookings] = React.useState([]);
   const [loading, setLoading] = React.useState(true);
@@ -600,7 +799,7 @@ export default function EventsPrivatePage() {
         </CardContent>
       </Card>
 
-      <BookingsCard />
+      <PendingCallbackCard />
       <UpcomingEventsTimeline />
     </div>
   );
