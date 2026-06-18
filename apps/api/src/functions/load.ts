@@ -6887,7 +6887,7 @@ registerFn('chatEventsInquiry', async ({ body }) => {
   // STRONG name fallback: if the prior bot turn asked "מה השם?", the customer's next short
   // text reply IS the name — overrides whatever Gemini guessed. This fixes the case where the
   // customer wrote "דבירוש" but Gemini stored "חתי" or other hallucinated names.
-  const BANNED_NAMES = ['העוזרת', 'הסוכן', 'הסוכנת', 'עלינא', 'אלינא', 'בוט', 'דנה'];
+  const BANNED_NAMES = ['העוזרת', 'הסוכן', 'הסוכנת', 'עלינא', 'אלינא', 'בוט'];
   const botAskedName = /(מה\s+ה?שם|השם\s+(?:המלא|שלך|שלכם|הפרטי)|איך\s+קוראים\s+לך|תגיד[יה]?\s+(?:לי\s+את\s+)?ה?שם)/i.test(priorAgentTurn || '');
   if (botAskedName) {
     const lastMsg = String(message || '').trim();
