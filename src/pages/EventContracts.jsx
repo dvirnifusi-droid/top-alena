@@ -418,10 +418,17 @@ function EditDialog({ contract, onClose }) {
   const save = async () => {
     setSaving(true);
     try {
-      // Numeric coercion
+      // Coerce numeric fields: empty/null → null (so Prisma doesn't reject ''
+      // for an INT column with the cryptic 'Argument is invalid' that the user
+      // sees as 'function_error').
       const payload = { ...c };
       ['guest_count', 'kids_count', 'price_per_guest_ils', 'upsells_total_ils', 'subtotal_ils', 'deposit_ils', 'balance_ils', 'tip_ils']
-        .forEach(k => { if (payload[k] !== '' && payload[k] !== null && payload[k] !== undefined) payload[k] = Number(payload[k]) || 0; });
+        .forEach(k => {
+          const v = payload[k];
+          if (v === '' || v === null || v === undefined) { payload[k] = null; return; }
+          const n = Number(v);
+          payload[k] = Number.isFinite(n) ? Math.round(n) : null;
+        });
       const res = await base44.functions.updateEventContract(payload);
       const data = res?.data || res;
       if (!data?.ok) throw new Error(data?.message || 'שגיאה');

@@ -11007,8 +11007,25 @@ registerFn('updateEventContract', async ({ body }) => {
     'deposit_ils', 'balance_ils', 'tip_ils', 'menu_snapshot', 'upsells_snapshot',
     'terms_snapshot', 'notes', 'status',
   ];
+  // INTEGER columns — coerce defensively so the API never throws Prisma's cryptic
+  // 'invalid argument' (which surfaces in the UI as 'function_error') just because
+  // an old client sent '' instead of null for a cleared number field.
+  const INT_FIELDS = new Set([
+    'guest_count', 'kids_count', 'price_per_guest_ils', 'upsells_total_ils',
+    'subtotal_ils', 'deposit_ils', 'balance_ils', 'tip_ils',
+  ]);
   const data: Record<string, any> = {};
-  for (const k of allowed) if (b[k] !== undefined) data[k] = b[k];
+  for (const k of allowed) {
+    if (b[k] === undefined) continue;
+    let v = b[k];
+    if (INT_FIELDS.has(k)) {
+      if (v === '' || v === null) { data[k] = null; continue; }
+      const n = Number(v);
+      data[k] = Number.isFinite(n) ? Math.round(n) : null;
+    } else {
+      data[k] = v;
+    }
+  }
   const updated = await (prisma as any).eventContract.update({ where: { id: String(b.id) }, data });
   return { ok: true, contract: updated };
 });
