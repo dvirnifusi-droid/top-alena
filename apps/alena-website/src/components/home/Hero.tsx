@@ -49,7 +49,7 @@ export function Hero() {
             width={900}
             height={520}
             priority
-            className="mx-auto h-auto w-[78vw] max-w-[640px] drop-shadow-[0_12px_36px_rgba(0,0,0,0.55)]"
+            className="mx-auto h-auto w-[52vw] max-w-[420px] drop-shadow-[0_12px_36px_rgba(0,0,0,0.55)]"
           />
         </motion.h1>
 
