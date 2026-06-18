@@ -6749,80 +6749,85 @@ registerFn('chatEventsInquiry', async ({ body }) => {
     const guestsMatch = fullText.match(/(?:ל-?\s*|כ-?\s*|בערך\s*|סביבות\s*|בסביבות\s*|\s|^)(\d{1,3})\s*(?:איש|אורחים|סועדים|נפש|אנשים|מוזמנים)/);
     if (guestsMatch) c.guest_count = parseInt(guestsMatch[1]);
   }
-  if (!c.event_date && !c.event_date_iso) {
-    const HE_MONTHS: Record<string, number> = {
-      'ינואר': 1, 'פברואר': 2, 'מרץ': 3, 'מרס': 3, 'אפריל': 4, 'מאי': 5, 'יוני': 6,
-      'יולי': 7, 'אוגוסט': 8, 'ספטמבר': 9, 'אוקטובר': 10, 'נובמבר': 11, 'דצמבר': 12,
-    };
-    const heDateMatch = fullText.match(/(\d{1,2})\s*ב(ינואר|פברואר|מרץ|מרס|אפריל|מאי|יוני|יולי|אוגוסט|ספטמבר|אוקטובר|נובמבר|דצמבר)/);
-    if (heDateMatch) {
-      const day = parseInt(heDateMatch[1]);
-      const month = HE_MONTHS[heDateMatch[2]];
-      const year = tzNow.getFullYear();
-      const iso = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-      c.event_date_iso = iso;
-      c.event_date = iso;
-    } else {
-      const isoMatch = fullText.match(/(\d{4}-\d{2}-\d{2})/);
-      if (isoMatch) { c.event_date_iso = isoMatch[1]; c.event_date = isoMatch[1]; }
-      else {
-        // DD/MM, DD.MM, DD-MM (with optional year)
-        const dmMatch = fullText.match(/(\d{1,2})[\/.\-](\d{1,2})(?:[\/.\-](\d{2,4}))?/);
-        if (dmMatch) {
-          const d = parseInt(dmMatch[1]);
-          const m = parseInt(dmMatch[2]);
-          let y = dmMatch[3] ? parseInt(dmMatch[3]) : tzNow.getFullYear();
-          if (y < 100) y += 2000;
-          if (d >= 1 && d <= 31 && m >= 1 && m <= 12) {
-            const iso = `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-            c.event_date_iso = iso;
-            c.event_date = iso;
-          }
-        }
+  // === DATE EXTRACTION ===
+  // The customer's CURRENT message wins over whatever Gemini returned. Gemini
+  // hallucinates dates surprisingly often (e.g. "מחר" → 2026-07-25), and a
+  // simple `if (!c.event_date)` guard let those bad values stick forever.
+  // We now extract from the last customer message FIRST and override c.event_date.
+  const lastCustomerMsg = String(message || '').trim();
+  const HE_MONTHS: Record<string, number> = {
+    'ינואר': 1, 'פברואר': 2, 'מרץ': 3, 'מרס': 3, 'אפריל': 4, 'מאי': 5, 'יוני': 6,
+    'יולי': 7, 'אוגוסט': 8, 'ספטמבר': 9, 'אוקטובר': 10, 'נובמבר': 11, 'דצמבר': 12,
+  };
+  const extractDateFrom = (txt: string): string | null => {
+    if (!txt) return null;
+    // 1. ISO (YYYY-MM-DD)
+    const iso = txt.match(/(\d{4}-\d{2}-\d{2})/);
+    if (iso) return iso[1];
+    // 2. Hebrew "<day> ב<month>" → 2026
+    const he = txt.match(/(\d{1,2})\s*ב(ינואר|פברואר|מרץ|מרס|אפריל|מאי|יוני|יולי|אוגוסט|ספטמבר|אוקטובר|נובמבר|דצמבר)/);
+    if (he) {
+      const d = parseInt(he[1]); const m = HE_MONTHS[he[2]];
+      return `${tzNow.getFullYear()}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    }
+    // 3. DD.M.YYYY / DD/MM/YY / DD-MM (with optional year)
+    const dm = txt.match(/(\d{1,2})[\/.\-](\d{1,2})(?:[\/.\-](\d{2,4}))?/);
+    if (dm) {
+      const d = parseInt(dm[1]); const m = parseInt(dm[2]);
+      let y = dm[3] ? parseInt(dm[3]) : tzNow.getFullYear();
+      if (y < 100) y += 2000;
+      if (d >= 1 && d <= 31 && m >= 1 && m <= 12) {
+        return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
       }
     }
-    // Hebrew relative dates as a last resort
-    if (!c.event_date_iso) {
-      if (/היום|הערב/.test(fullText)) c.event_date_iso = todayISO;
-      else if (/מחרתיים/.test(fullText)) c.event_date_iso = dayAfterISO;
-      else if (/מחר/.test(fullText)) c.event_date_iso = tomorrowISO;
-      if (c.event_date_iso) c.event_date = c.event_date_iso;
+    // 4. Relative-date words — bounded by whitespace/punctuation to avoid false hits.
+    if (/(^|[\s,.!?])מחרתיים([\s,.!?]|$)/.test(txt)) return dayAfterISO;
+    if (/(^|[\s,.!?])מחר([\s,.!?]|$)/.test(txt)) return tomorrowISO;
+    if (/(^|[\s,.!?])(היום|הערב)([\s,.!?]|$)/.test(txt)) return todayISO;
+    return null;
+  };
+  // Customer's last message takes precedence over Gemini.
+  const dateFromLastMsg = extractDateFrom(lastCustomerMsg);
+  if (dateFromLastMsg) {
+    c.event_date_iso = dateFromLastMsg;
+    c.event_date = dateFromLastMsg;
+  } else if (!c.event_date && !c.event_date_iso) {
+    // Fallback: scan ALL customer turns (not just last) for any date signal.
+    const dateFromHistory = extractDateFrom(customerText) || extractDateFrom(fullText);
+    if (dateFromHistory) {
+      c.event_date_iso = dateFromHistory;
+      c.event_date = dateFromHistory;
     }
   }
-  if (!c.event_time) {
-    // Scan ONLY the customer's text — fullText includes the bot's own "13:00 או 20:30" examples,
-    // which were being picked up as the customer's chosen time.
-    const customerForTime = customerText;
-    const explicit = customerForTime.match(/(?:בשעה|ב-?\s*)(\d{1,2}[:.]\d{2})/) || customerForTime.match(/\b(\d{1,2}[:.]\d{2})\b/);
-    if (explicit) {
-      c.event_time = explicit[1].replace('.', ':');
-    } else {
-      // "N בצהריים/בערב/בלילה/בבוקר" — read the number BEFORE the period word.
-      // Hebrew speakers say "4 בצהריים" = 16:00 (PM), "10 בבוקר" = 10:00, "8 בערב" = 20:00.
-      const periodMatch = customerForTime.match(/(\d{1,2})\s*ב?(בוקר|צהריים|צהרים|אחה"?צ|אחר[\s-]?הצהריים|ערב|לילה)/);
-      if (periodMatch) {
-        let h = parseInt(periodMatch[1]);
-        const period = periodMatch[2];
-        if (/בוקר/.test(period)) {
-          // 1-11 בבוקר = as-is; "12 בבוקר" → 12:00
-        } else if (/צהריים|צהרים/.test(period)) {
-          // 12 בצהריים = 12, otherwise add 12 (1-6 בצהריים → 13-18)
-          if (h >= 1 && h <= 6) h += 12;
-        } else if (/אחה|אחר/.test(period)) {
-          if (h >= 1 && h <= 7) h += 12;
-        } else if (/ערב/.test(period)) {
-          // 5-11 בערב → 17-23
-          if (h >= 1 && h <= 11) h += 12;
-        } else if (/לילה/.test(period)) {
-          if (h >= 8 && h <= 11) h += 12; // 8-11 בלילה → 20-23
-          // 12 בלילה → 00; 1-5 בלילה stays
-          if (h === 12) h = 0;
-        }
-        if (h >= 0 && h <= 23) c.event_time = `${String(h).padStart(2, '0')}:00`;
-      } else if (/בערב|בלילה/.test(customerForTime)) c.event_time = '20:00';
-      else if (/בצהריים|בצהרים/.test(customerForTime)) c.event_time = '13:00';
-      else if (/בבוקר/.test(customerForTime)) c.event_time = '10:00';
+  // === TIME EXTRACTION ===
+  // Same principle as date: customer's CURRENT message wins over historical values.
+  // Otherwise after "השעה לא נכונה, 4 בצהריים" the old 20:00 from a prior turn stuck.
+  const extractTimeFrom = (txt: string): string | null => {
+    if (!txt) return null;
+    const explicit = txt.match(/(?:בשעה|ב-?\s*)(\d{1,2}[:.]\d{2})/) || txt.match(/\b(\d{1,2}[:.]\d{2})\b/);
+    if (explicit) return explicit[1].replace('.', ':');
+    // "N בצהריים/בערב/בלילה/בבוקר"
+    const periodMatch = txt.match(/(\d{1,2})\s*ב?(בוקר|צהריים|צהרים|אחה"?צ|אחר[\s-]?הצהריים|ערב|לילה)/);
+    if (periodMatch) {
+      let h = parseInt(periodMatch[1]);
+      const period = periodMatch[2];
+      if (/בוקר/.test(period)) { /* keep as-is */ }
+      else if (/צהריים|צהרים/.test(period)) { if (h >= 1 && h <= 6) h += 12; }
+      else if (/אחה|אחר/.test(period))      { if (h >= 1 && h <= 7) h += 12; }
+      else if (/ערב/.test(period))           { if (h >= 1 && h <= 11) h += 12; }
+      else if (/לילה/.test(period))          { if (h >= 8 && h <= 11) h += 12; if (h === 12) h = 0; }
+      if (h >= 0 && h <= 23) return `${String(h).padStart(2, '0')}:00`;
     }
+    if (/בערב|בלילה/.test(txt)) return '20:00';
+    if (/בצהריים|בצהרים/.test(txt)) return '13:00';
+    if (/בבוקר/.test(txt)) return '10:00';
+    return null;
+  };
+  const timeFromLastMsg = extractTimeFrom(lastCustomerMsg);
+  if (timeFromLastMsg) {
+    c.event_time = timeFromLastMsg;
+  } else if (!c.event_time) {
+    c.event_time = extractTimeFrom(customerText) || undefined;
   }
   // Event type fallback — scan customer text for occasion keywords.
   if (!c.event_type) {
@@ -6844,27 +6849,38 @@ registerFn('chatEventsInquiry', async ({ body }) => {
       if (re.test(customerText)) { c.event_type = label; break; }
     }
   }
-  // Location fallback — look at the prior bot turn; if it asked about location, take the customer's reply.
+  // === LOCATION EXTRACTION ===
+  // Two independent signals, both can override prior junk:
+  //  (A) The customer said something like "אצלנו במסעדה"/"אצלכם"/"במסעדה" → restaurant.
+  //      Or "אצלי בבית"/"אירוע חוץ"/"אצלי" → external (but DON'T fill location_details
+  //      with the phrase "אצלי בבית" — that's not an address).
+  //  (B) Any known Israeli city in the customer text → that's the address.
+  // Previously we treated the whole post-question reply as the location_details, which
+  // grabbed garbage like "אצלי בבית חינה" and then nothing could override it later.
+  const customerForLoc = customerText + ' ' + lastCustomerMsg;
+  // (A) High-level location type
+  if (/(אצלכם|במסעדה|אצלנו(?!\s+בבית)|במקום\s+שלכם|אצל\s+עלינא)/i.test(customerForLoc)) {
+    c.location = 'restaurant';
+  } else if (/(אצלי\s+בבית|אצל[נינ]?ו\s+בבית|בבית\s+שלי|בבית\s+שלנו|בגינה\s+שלי|בגינת\s+הבית|אירוע\s+חוץ|אצלי(?!\s+במסעדה))/i.test(customerForLoc)) {
+    if (c.location !== 'restaurant') c.location = 'external';
+  }
+  // (B) City detection — independent of (A). Override prior location_details if it
+  //     looks like junk (contains 'אצל' / 'בבית' / 'אירוע' or is empty).
+  const CITY_RE = /(קריי?ת[\s-]?גת|קריי?ת[\s-]?שמונה|קריי?ת[\s-]?אונו|קריי?ת[\s-]?ביאליק|קריי?ת[\s-]?ים|קריי?ת[\s-]?מוצקין|קריי?ת[\s-]?מלאכי|קריי?ת[\s-]?עקרון|קריי?ת[\s-]?טבעון|קריית[\s-]?ארבע|קצרין|רמת[\s-]?גן|תל[\s-]?אביב|ירושלים|חיפה|באר[\s-]?שבע|נתניה|הרצליה|ראשון[\s-]?לציון|רחובות|רעננה|כפר[\s-]?סבא|מודיעין|פתח[\s-]?תקו?ה|חולון|בת[\s-]?ים|אשדוד|אשקלון|הוד[\s-]?השרון|רמת[\s-]?השרון|זכרון[\s-]?יעקב|קיסריה|אילת|טבריה|צפת|נצרת|בית[\s-]?שמש|עפולה|לוד|רמלה|דימונה|ערד|מצפה[\s-]?רמון|ראש[\s-]?פינה|מירון|בנימינה|פרדס[\s-]?חנה|מטולה|כרמיאל|מעלות|כפר[\s-]?ורדים|יקנעם|רכסים|מגדל[\s-]?העמק|נצרת[\s-]?עילית|נוף[\s-]?הגליל|כפר[\s-]?תבור|פוריה|אריאל|אלפי[\s-]?מנשה|מעלה[\s-]?אדומים|גבעתיים|אור[\s-]?יהודה|יבנה|גדרה|אופקים|נתיבות|שדרות|רהט|טייבה|אום[\s-]?אל[\s-]?פחם|נהריה|עכו|כרמל|טירת[\s-]?כרמל|נשר|עתלית|זכרון|בנימינה|חדרה|אור[\s-]?עקיבא|פרדסיה|תל[\s-]?מונד|אבן[\s-]?יהודה)/;
+  const cityHit = customerForLoc.match(CITY_RE);
+  if (cityHit) {
+    if (!c.location) c.location = 'external';
+    const detailsLooksLikeJunk = !c.location_details ||
+      /אצל|בבית|אירוע\s+חוץ|external/i.test(String(c.location_details || ''));
+    if (detailsLooksLikeJunk) c.location_details = cityHit[1];
+  }
+  // (C) Fallback: prior bot asked for location AND none of the above caught it.
   if (!c.location && !c.location_details) {
     const lastBotAskedLocation = /אצלנו|במקום\s+אחר|איפה\s+(תרצו|רוצים|תהיה|יהיה|זה)|מיקום|איזה\s+עיר/i.test(priorAgentTurn || '');
-    if (lastBotAskedLocation) {
-      const lastCustomer = String(message || '').trim();
-      if (/אצלכם|במסעדה|אצלנו|אצלם בכם/i.test(lastCustomer)) {
-        c.location = 'restaurant';
-      } else if (lastCustomer && lastCustomer.length < 80 && !/^\d+$/.test(lastCustomer)) {
-        // Treat as free-text location (city/venue name)
-        c.location = 'external';
-        c.location_details = lastCustomer;
-      }
-    }
-    // Also: a known Israeli city/neighborhood mention anywhere is a strong location signal.
-    if (!c.location_details) {
-      const CITY_RE = /(קצרין|רמת[\s-]?גן|תל[\s-]?אביב|ירושלים|חיפה|באר[\s-]?שבע|נתניה|הרצליה|ראשון[\s-]?לציון|רחובות|רעננה|כפר[\s-]?סבא|מודיעין|פתח[\s-]?תקו?ה|חולון|בת[\s-]?ים|אשדוד|אשקלון|הוד[\s-]?השרון|רמת[\s-]?השרון|זכרון[\s-]?יעקב|קיסריה|אילת|טבריה|צפת|נצרת|בית[\s-]?שמש|עפולה|לוד|רמלה|דימונה|ערד|מצפה[\s-]?רמון|ראש[\s-]?פינה|מירון|בנימינה|פרדס[\s-]?חנה|זכרון|מטולה|כרמיאל|מעלות|כפר[\s-]?ורדים|יקנעם|רכסים|מגדל[\s-]?העמק|נצרת[\s-]?עילית|נוף[\s-]?הגליל|כפר[\s-]?תבור|פוריה|אריאל|אלפי[\s-]?מנשה|מעלה[\s-]?אדומים)/;
-      const cityHit = customerText.match(CITY_RE);
-      if (cityHit) {
-        if (!c.location) c.location = 'external';
-        if (!c.location_details) c.location_details = cityHit[1];
-      }
+    if (lastBotAskedLocation && lastCustomerMsg && lastCustomerMsg.length < 80 && !/^\d+$/.test(lastCustomerMsg)) {
+      c.location = 'external';
+      // Only store the message as details if it looks like an address (no "אצל"/"בבית" junk).
+      if (!/אצל|בבית|אירוע\s+חוץ/i.test(lastCustomerMsg)) c.location_details = lastCustomerMsg;
     }
   }
   // Correction detection — if the customer says "לא נכון / טעות / השעה לא / בעצם", clear the
@@ -7539,7 +7555,7 @@ const DEFAULT_EVENTS_PROMPT = `את דנה — מנהלת האירועים הפ�
 איסוף מידע (שאלה אחת בכל פעם, לא ביחד) — ארבעה שדות בלבד:
 1. שם מלא וטלפון ליצירת קשר.
 2. תאריך + שעה — אפשר תאריך יחסי ("היום", "מחר", "עוד יומיים", "ראשון הבא"). שאלי גם **שעה מדויקת**: "באיזו שעה בדיוק? (לדוגמה 13:00 או 20:30)". אם הלקוח עונה רק "בצהריים" / "בערב" — תבקשי שעה ספציפית פעם נוספת: "תוכל/י להגיד שעה מדויקת בערך? זה עוזר למנהל להחזיר תשובה". אם גם בפעם השנייה לא קיבלת שעה מדויקת — תרשמי את החלון בלבד (hours_window). **לעולם אל תמציאי שעה מספרית.**
-3. **מיקום + סוג אירוע** — שאל בשאלה אחת: "האם האירוע אצלנו במסעדה או במקום אחר? ומה סוג האירוע? (יום הולדת, יום נישואין, חברה, חינה, משפחתי וכו')." אם חוץ — שאל איפה (עיר/אולם/בית פרטי).
+3. **מיקום + סוג אירוע** — שאל בשאלה אחת: "האם האירוע אצלנו במסעדה או במקום אחר? ומה סוג האירוע? (יום הולדת, יום נישואין, חברה, חינה, משפחתי וכו')." **אם חוץ** — שאלי בנפרד: "באיזו עיר ומה הכתובת? (רחוב + מספר, או שם האולם)". אל תסתפקי בעיר בלבד — אם המנהל יוצא לאירוע חוץ הוא צריך כתובת מלאה. שמרי את התשובה ב-collected.location_details.
 4. כמות אנשים בערך. **אל תשאל על ילדים בנפרד** — זה ייסגר בשיחת הטלפון.
 
 ⚠️ **אסור** לשאול: כמה ילדים, אלרגיות, צמחוני/טבעוני, כשר, תקציב, חבילות, תפריטים. אם הלקוח עצמו מציין משהו כזה — תרשמי בלי לשאול עוד. כל הפירוט יישאר לשיחה אישית עם המנהל.
@@ -12155,7 +12171,7 @@ if (!(globalThis as any).__startupDriftRepair) {
         // so we force-reset it once. Gated by SystemFlag to run only once.
         try {
           const danaFlag: any = await prisma.$queryRawUnsafe(
-            `SELECT key FROM "SystemFlag" WHERE key = 'dana_events_prompt_v5' LIMIT 1`,
+            `SELECT key FROM "SystemFlag" WHERE key = 'dana_events_prompt_v6' LIMIT 1`,
           );
           if (!danaFlag || danaFlag.length === 0) {
             // Use parameterised raw SQL — Prisma raw template handles the long string
@@ -12165,12 +12181,12 @@ if (!(globalThis as any).__startupDriftRepair) {
                WHERE singleton = TRUE
             `;
             await prisma.$executeRawUnsafe(
-              `INSERT INTO "SystemFlag" (key, value) VALUES ('dana_events_prompt_v5', 'done') ON CONFLICT (key) DO NOTHING`,
+              `INSERT INTO "SystemFlag" (key, value) VALUES ('dana_events_prompt_v6', 'done') ON CONFLICT (key) DO NOTHING`,
             );
-            console.log('[migration] dana_events_prompt_v5: reset EventSalesKit prompt');
+            console.log('[migration] dana_events_prompt_v6: reset EventSalesKit prompt');
           }
         } catch (e: any) {
-          console.warn('[migration] dana_events_prompt_v5 failed (non-fatal):', e?.message);
+          console.warn('[migration] dana_events_prompt_v6 failed (non-fatal):', e?.message);
         }
         const flagKey = 'bulk_grant_consent_v1_done';
         const existing: any = await prisma.$queryRawUnsafe(
