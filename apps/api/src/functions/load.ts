@@ -6828,11 +6828,40 @@ registerFn('chatEventsInquiry', async ({ body }) => {
     event_type: c.event_type || priorLead?.event_type || null,
     special_requests: c.special_requests || (priorLead as any)?.special_requests || null,
   };
+
+  // Fallback: if Gemini omitted guest_count this turn but the customer's
+  // last message is just a 1-999 number AND we already have prior info
+  // (so the number isn't standing in for a date offset), trust it as
+  // guest_count. Gemini drops fields surprisingly often on long Hebrew
+  // prompts — this was the reason the summary card refused to render.
+  if (!merged.guest_count) {
+    const lastMsg = customerLastTurn.trim();
+    if (/^\d{1,3}$/.test(lastMsg)) {
+      const n = Number(lastMsg);
+      if (n > 0 && n < 1000 && (merged.event_date || merged.contact_phone)) {
+        merged.guest_count = n;
+      }
+    }
+  }
+  // Phone fallback — extract 9-10 digit Israeli mobile from the last
+  // customer message if Gemini missed it.
+  if (!merged.contact_phone) {
+    const digits = customerLastTurn.replace(/[^\d]/g, '');
+    if (/^0?5\d{8}$/.test(digits) || /^972\d{8,9}$/.test(digits)) {
+      merged.contact_phone = digits;
+    }
+  }
+
   // Overwrite c with merged so downstream code (summary, leadData) uses
   // the aggregated state without re-plumbing every reference.
   Object.assign(c, merged);
 
+  // Summary card fires whenever Dana asks for confirmation AND there's
+  // ANY collected data — not just when all 4 fields are present. Fields
+  // that ARE present render; missing ones are omitted from the card,
+  // so the worst case is a small card vs no card at all.
   const hasMinInfo = !!(merged.event_date) && !!merged.guest_count && !!merged.contact_phone;
+  const hasAnyInfo = !!merged.contact_phone || !!merged.contact_name || !!merged.event_date || !!merged.guest_count;
 
   // ── Confirmation-driven close ──────────────────────────────────────────
   // Dana's flow has two stages: (A) she asks 'הפרטים נכונים? תאשר/י',
@@ -6852,7 +6881,9 @@ registerFn('chatEventsInquiry', async ({ body }) => {
     customerExplicitClose,
     customerSaidYes,
     agentAskedToClose,
+    agentAskingConfirmation,
     hasMinInfo,
+    hasAnyInfo,
     has_date: !!(c.event_date || c.event_date_iso),
     has_guests: !!c.guest_count,
     has_phone: !!c.contact_phone,
@@ -7082,7 +7113,7 @@ registerFn('chatEventsInquiry', async ({ body }) => {
   // sets complete=true on the same turn it asks for confirmation — which
   // suppressed the summary card and left the customer asked to confirm with
   // nothing to verify against.)
-  if (agentAskingConfirmation && hasMinInfo && !forcedClose) {
+  if (agentAskingConfirmation && hasAnyInfo && !forcedClose) {
     // Coerce guest count from string OR number — the LLM sometimes returns "56"
     const rawGuests = c.guest_count;
     const guests = typeof rawGuests === 'number'
