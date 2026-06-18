@@ -6884,15 +6884,25 @@ registerFn('chatEventsInquiry', async ({ body }) => {
       (priorLead as any).event_type = null;
     }
   }
+  // STRONG name fallback: if the prior bot turn asked "מה השם?", the customer's next short
+  // text reply IS the name — overrides whatever Gemini guessed. This fixes the case where the
+  // customer wrote "דבירוש" but Gemini stored "חתי" or other hallucinated names.
+  const BANNED_NAMES = ['העוזרת', 'הסוכן', 'הסוכנת', 'עלינא', 'אלינא', 'בוט', 'דנה'];
+  const botAskedName = /(מה\s+ה?שם|השם\s+(?:המלא|שלך|שלכם|הפרטי)|איך\s+קוראים\s+לך|תגיד[יה]?\s+(?:לי\s+את\s+)?ה?שם)/i.test(priorAgentTurn || '');
+  if (botAskedName) {
+    const lastMsg = String(message || '').trim();
+    // Accept Hebrew-letter words, length 2-20, no digits, no obvious phone, no banned tokens.
+    const cleaned = lastMsg.replace(/[.,!?]/g, '').trim();
+    if (cleaned && cleaned.length >= 2 && cleaned.length <= 30 && /^[א-ת][א-ת\s'"-]*$/.test(cleaned) && !BANNED_NAMES.some((b) => cleaned.includes(b))) {
+      c.contact_name = cleaned;
+    }
+  }
   if (!c.contact_name) {
-    // Only scan CUSTOMER messages (not the agent's intro "אני העוזרת").
-    // Also blacklist the bot's known self-references so a stray match can't slip through.
-    const BANNED = ['העוזרת', 'הסוכן', 'הסוכנת', 'עלינא', 'אלינא', 'בוט'];
     const nameMatch = customerText.match(/(?:אני|שמי|השם שלי|קוראים לי)\s+([א-ת]{2,15})/);
-    if (nameMatch && !BANNED.includes(nameMatch[1])) c.contact_name = nameMatch[1];
+    if (nameMatch && !BANNED_NAMES.includes(nameMatch[1])) c.contact_name = nameMatch[1];
   }
   // Always sanitize: if c.contact_name slipped in as a banned agent self-reference, drop it.
-  if (c.contact_name && ['העוזרת', 'הסוכן', 'הסוכנת', 'עלינא', 'אלינא', 'בוט'].some((b) => String(c.contact_name).includes(b))) {
+  if (c.contact_name && BANNED_NAMES.some((b) => String(c.contact_name).includes(b))) {
     c.contact_name = null;
   }
 
