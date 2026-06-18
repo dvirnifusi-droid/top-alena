@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { Container } from "./Container";
 import { routes } from "@/lib/routes";
 import { env } from "@/lib/env";
@@ -8,8 +9,14 @@ export function Footer() {
     <footer className="mt-24 border-t border-brass/20 bg-charcoal py-14 text-sm text-cream/75">
       <Container className="grid gap-10 md:grid-cols-4">
         <div>
-          <p className="font-display text-3xl text-cream">עלינא</p>
-          <p className="mt-1 text-xs uppercase tracking-[0.3em] text-brass">חמארה · ראשון לציון</p>
+          <Image
+            src="/logo-alena-light.png"
+            alt="עלינא"
+            width={220}
+            height={140}
+            className="h-auto w-32"
+          />
+          <p className="mt-2 text-xs uppercase tracking-[0.3em] text-brass">חמארה · ראשון לציון</p>
           <p className="mt-4 max-w-xs leading-relaxed">
             חמארה ים-תיכונית כשרה. בר רחוב שמח שמתחפש לאוצר שכונתי.
           </p>

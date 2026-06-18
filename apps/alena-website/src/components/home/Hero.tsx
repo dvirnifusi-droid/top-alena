@@ -40,9 +40,17 @@ export function Hero() {
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 1.1, delay: 0.2, ease: [0.22, 1, 0.36, 1] }}
-          className="mt-6 font-display text-[5rem] font-black leading-[0.9] tracking-tight text-cream sm:text-[7rem] md:text-[10rem]"
+          className="mt-6"
+          aria-label="עלינא"
         >
-          עלינא
+          <Image
+            src="/logo-alena-light.png"
+            alt="עלינא"
+            width={900}
+            height={520}
+            priority
+            className="mx-auto h-auto w-[78vw] max-w-[640px] drop-shadow-[0_12px_36px_rgba(0,0,0,0.55)]"
+          />
         </motion.h1>
 
         <motion.div
