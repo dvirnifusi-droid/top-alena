@@ -93,6 +93,12 @@ const STATUS = {
   warm: { label: 'חמים', cls: 'bg-amber-100 text-amber-800' },
   cold: { label: 'קר', cls: 'bg-slate-100 text-slate-500' },
   booked: { label: 'נסגר ✓', cls: 'bg-green-100 text-green-800' },
+  // Manager pipeline (assigned after Dana closes):
+  pending:   { label: '🟠 מחכה לטלפון', cls: 'bg-orange-100 text-orange-800' },
+  contacted: { label: '📞 דיברנו',       cls: 'bg-blue-100 text-blue-800' },
+  quoted:    { label: '💰 הצעת מחיר',   cls: 'bg-purple-100 text-purple-800' },
+  won:       { label: '✅ נסגר',         cls: 'bg-emerald-100 text-emerald-800' },
+  lost:      { label: '❌ לא רלוונטי',  cls: 'bg-slate-100 text-slate-500' },
 };
 
 // New flow (June 2026): Dana is info-only — she never creates an EventBooking.
@@ -146,11 +152,12 @@ function PendingCallbackCard() {
 
   const ACTIVE = ['pending', 'contacted', 'quoted'];
   const CLOSED = ['won', 'lost'];
-  // Only show leads that have a callback_stage (i.e. Dana actually finished gathering info).
-  // Leads with no callback_stage are still in collection / abandoned — they show in the
-  // bottom "לידים אחרונים" list, not here.
-  const active = leads.filter((l) => ACTIVE.includes(l.callback_stage));
-  const closed = leads.filter((l) => CLOSED.includes(l.callback_stage));
+  // Lead pipeline stage lives in `status` (was a separate callback_stage column but the
+  // schema add kept failing on prisma db push — encoded as the existing status enum
+  // instead). Leads still in collection have status='new'/'qualified'/'warm'/'cold' and
+  // show only in the bottom "לידים אחרונים" list.
+  const active = leads.filter((l) => ACTIVE.includes(l.status));
+  const closed = leads.filter((l) => CLOSED.includes(l.status));
   const shown = view === 'active' ? active : closed;
 
   return (
@@ -177,7 +184,7 @@ function PendingCallbackCard() {
         ) : (
           <div className="space-y-3">
             {shown.map((l) => {
-              const stage = CALLBACK_STAGES[l.callback_stage] || CALLBACK_STAGES.pending;
+              const stage = CALLBACK_STAGES[l.status] || CALLBACK_STAGES.pending;
               const weekday = (() => {
                 if (!l.event_date) return null;
                 try {
@@ -254,7 +261,7 @@ function PendingCallbackCard() {
                   {/* Actions — adapt to current stage */}
                   {view === 'active' && (
                     <div className="flex gap-2 flex-wrap pt-2 border-t border-orange-200">
-                      {l.callback_stage === 'pending' && (
+                      {l.status === 'pending' && (
                         <>
                           <Button size="sm" disabled={busy === l.id} onClick={() => setStage(l, 'contacted')} className="bg-blue-600 hover:bg-blue-700 flex-1">
                             {busy === l.id ? <Loader2 className="w-4 h-4 animate-spin" /> : '📞 התקשרתי'}
@@ -263,14 +270,14 @@ function PendingCallbackCard() {
                           <Button size="sm" disabled={busy === l.id} variant="outline" onClick={() => setStage(l, 'lost')} className="text-red-600 border-red-300">❌ לא רלוונטי</Button>
                         </>
                       )}
-                      {l.callback_stage === 'contacted' && (
+                      {l.status === 'contacted' && (
                         <>
                           <Button size="sm" disabled={busy === l.id} onClick={() => setStage(l, 'quoted')} className="bg-purple-600 hover:bg-purple-700 flex-1">💰 שלחתי הצעת מחיר</Button>
                           <Button size="sm" disabled={busy === l.id} onClick={() => setStage(l, 'won')} className="bg-emerald-600 hover:bg-emerald-700">✅ נסגר</Button>
                           <Button size="sm" disabled={busy === l.id} variant="outline" onClick={() => setStage(l, 'lost')} className="text-red-600 border-red-300">❌ לא רלוונטי</Button>
                         </>
                       )}
-                      {l.callback_stage === 'quoted' && (
+                      {l.status === 'quoted' && (
                         <>
                           <Button size="sm" disabled={busy === l.id} onClick={() => setStage(l, 'won')} className="bg-emerald-600 hover:bg-emerald-700 flex-1">✅ נסגר וחתם</Button>
                           <Button size="sm" disabled={busy === l.id} variant="outline" onClick={() => setStage(l, 'contacted')}>↩ חזור ל"דיברנו"</Button>

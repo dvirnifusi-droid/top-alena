@@ -6999,27 +6999,63 @@ registerFn('chatEventsInquiry', async ({ body }) => {
   // Persist/upsert the EventLead row
   const score = effectiveComplete && typeof result?.score === 'number' ? Math.round(result.score) : null;
   const status = !effectiveComplete ? 'new' : score === null ? 'new' : score >= 60 ? 'qualified' : score < 30 ? 'cold' : 'warm';
+  // ── Encode extra fields (event_time, location, location_details, special_requests)
+  // and the manager callback workflow (callback_at, callback_notes) as a JSON suffix
+  // inside the existing `notes` column — we used to write them as their own columns
+  // but the prisma-db-push at boot was failing on Supabase, so the client expected
+  // columns that didn't exist and every findMany blew up. JSON-in-notes is uglier
+  // but bulletproof against schema drift.
+  const META_MARK = '---META---';
+  const prevMeta: any = (() => {
+    try {
+      const raw = (priorLead as any)?.notes || '';
+      const i = raw.indexOf(META_MARK);
+      if (i < 0) return {};
+      return JSON.parse(raw.slice(i + META_MARK.length).trim()) || {};
+    } catch { return {}; }
+  })();
+  const newMeta = {
+    ...prevMeta,
+    ...(c.event_time ? { event_time: c.event_time } : {}),
+    ...(c.location ? { location: c.location } : {}),
+    ...(c.location_details ? { location_details: c.location_details } : {}),
+    ...(c.special_requests ? { special_requests: c.special_requests } : {}),
+  };
+  // Existing notes markers (dana_summary_sent:, intent_alerted:, escalation_alerted:)
+  // live BEFORE the META block — preserve them verbatim.
+  const priorNotesHead = (() => {
+    const raw = (priorLead as any)?.notes || '';
+    const i = raw.indexOf(META_MARK);
+    return i < 0 ? raw : raw.slice(0, i).trimEnd();
+  })();
+  const notesWithMeta = `${priorNotesHead}${priorNotesHead ? '\n' : ''}${META_MARK}\n${JSON.stringify(newMeta)}`;
+
+  // Lead pipeline status — repurposes the existing `status` column for the manager
+  // workflow. Values: 'new' (collecting) → 'pending' (Dana finished, awaiting call)
+  // → 'contacted' / 'quoted' / 'won' / 'lost'. The legacy quality labels
+  // (qualified/warm/cold) are still emitted by the scoring code above but get
+  // overridden to 'pending' on the close turn so the manager inbox finds it.
+  let effectiveStatus = status;
+  if (effectiveComplete && c.contact_phone) {
+    const priorStatus = (priorLead as any)?.status;
+    // Don't downgrade leads the manager already advanced.
+    const PIPELINE_ADVANCED = ['contacted', 'quoted', 'won', 'lost'];
+    effectiveStatus = PIPELINE_ADVANCED.includes(priorStatus) ? priorStatus : 'pending';
+  }
+
   const leadData: any = {
     contact_name: c.contact_name || null,
     contact_phone: c.contact_phone ? String(c.contact_phone) : null,
     event_date: c.event_date || null,
-    event_time: c.event_time || null,
     event_type: c.event_type || null,
     guest_count: typeof c.guest_count === 'number' ? c.guest_count : null,
     budget_per_person: typeof c.budget_per_person === 'number' ? c.budget_per_person : null,
     hours_window: c.hours_window || null,
-    location: c.location || null,
-    location_details: c.location_details || null,
-    special_requests: c.special_requests || null,
     conversation_log: fullLog as any,
-    status, score,
+    status: effectiveStatus, score,
     source: leadSource,
+    notes: notesWithMeta,
   };
-  // On the close turn, default callback_stage to 'pending' so the lead lands in the
-  // "מחכים שמנהל יתקשר" inbox. Manager moves it through stages from the UI.
-  if (effectiveComplete) {
-    (leadData as any).callback_stage = (priorLead as any)?.callback_stage || 'pending';
-  }
   let currentLeadId: string | null = lead_id || null;
   let currentLead: any = null;
   const nowIso = new Date().toISOString();
@@ -7452,9 +7488,31 @@ registerFn('chatEventsInquiry', async ({ body }) => {
 // Order by id desc since cuid is time-sortable and many legacy rows have created_date=null
 // (which would sort first/last unpredictably and hide the newest leads).
 registerFn('listEventLeads', async () => {
-  const leads = await db.eventLead.findMany({
+  const rows = await db.eventLead.findMany({
     orderBy: { id: 'desc' },
     take: 200,
+  });
+  // Hydrate each lead with the JSON meta block stored inside `notes` (event_time,
+  // location, location_details, special_requests, callback_at, callback_notes).
+  // The frontend treats these as if they were real columns — see EventsPrivate.jsx.
+  const META_MARK = '---META---';
+  const leads = rows.map((l: any) => {
+    const raw = l.notes || '';
+    const i = raw.indexOf(META_MARK);
+    if (i < 0) return l;
+    let meta: any = {};
+    try { meta = JSON.parse(raw.slice(i + META_MARK.length).trim()) || {}; } catch { meta = {}; }
+    return {
+      ...l,
+      event_time: meta.event_time || null,
+      location: meta.location || null,
+      location_details: meta.location_details || null,
+      special_requests: meta.special_requests || null,
+      callback_at: meta.callback_at || null,
+      callback_notes: meta.callback_notes || null,
+      // Strip the META block from notes so the UI shows clean human text only.
+      notes: raw.slice(0, i).trimEnd() || null,
+    };
   });
   return { leads, _count: leads.length };
 });
@@ -7706,18 +7764,34 @@ registerFn('deleteEventLead', async ({ body }) => {
 // AUTH — set the manager's callback stage on a lead.
 // Stages: 'pending' (default after Dana closes), 'contacted' (manager called),
 // 'quoted' (price/contract sent), 'won' (signed), 'lost' (declined / not relevant).
+// Encoded directly in lead.status; callback_at + callback_notes go inside the
+// JSON meta block in lead.notes (see chatEventsInquiry comment for the format).
 registerFn('setLeadCallbackStage', async ({ body }) => {
-  const { lead_id, stage, notes } = body as any;
+  const { lead_id, stage, notes: cbNotes } = body as any;
   if (!lead_id) throw new Error('lead_id required');
   const allowed = ['pending', 'contacted', 'quoted', 'won', 'lost'];
   if (!allowed.includes(stage)) throw new Error(`stage must be one of ${allowed.join(',')}`);
-  const data: any = { callback_stage: stage, callback_at: new Date().toISOString(), updated_date: new Date().toISOString() };
-  if (typeof notes === 'string' && notes.trim()) data.callback_notes = notes.trim().slice(0, 2000);
-  // Bump lead.status to 'booked' on 'won' so the legacy quality filter shows it as closed.
-  if (stage === 'won') data.status = 'booked';
-  if (stage === 'lost') data.status = 'cold';
-  const lead = await db.eventLead.update({ where: { id: lead_id }, data });
-  return { ok: true, lead };
+
+  const META_MARK = '---META---';
+  const lead = await db.eventLead.findUnique({ where: { id: lead_id } });
+  if (!lead) throw new Error('lead not found');
+  const rawNotes = (lead as any).notes || '';
+  const i = rawNotes.indexOf(META_MARK);
+  let meta: any = {};
+  let head = rawNotes;
+  if (i >= 0) {
+    head = rawNotes.slice(0, i).trimEnd();
+    try { meta = JSON.parse(rawNotes.slice(i + META_MARK.length).trim()) || {}; } catch { meta = {}; }
+  }
+  meta.callback_at = new Date().toISOString();
+  if (typeof cbNotes === 'string' && cbNotes.trim()) meta.callback_notes = cbNotes.trim().slice(0, 2000);
+  const newNotes = `${head}${head ? '\n' : ''}${META_MARK}\n${JSON.stringify(meta)}`;
+
+  const updated = await db.eventLead.update({
+    where: { id: lead_id },
+    data: { status: stage, notes: newNotes, updated_date: new Date().toISOString() },
+  });
+  return { ok: true, lead: updated };
 });
 
 // AUTH — bulk delete (cleanup of test leads). Takes an array of ids.
