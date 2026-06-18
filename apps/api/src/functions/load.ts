@@ -6790,12 +6790,99 @@ registerFn('chatEventsInquiry', async ({ body }) => {
     }
   }
   if (!c.event_time) {
-    const timeMatch = fullText.match(/(?:בשעה|ב-?\s*)(\d{1,2}[:.]\d{2})/) || fullText.match(/\b(\d{1,2}[:.]\d{2})\b/);
-    if (timeMatch) c.event_time = timeMatch[1].replace('.', ':');
-    // Hebrew time-of-day → reasonable defaults
-    else if (/בערב|בלילה/.test(fullText)) c.event_time = '20:00';
-    else if (/בצהריים|בצהרים/.test(fullText)) c.event_time = '13:00';
-    else if (/בבוקר/.test(fullText)) c.event_time = '10:00';
+    // Scan ONLY the customer's text — fullText includes the bot's own "13:00 או 20:30" examples,
+    // which were being picked up as the customer's chosen time.
+    const customerForTime = customerText;
+    const explicit = customerForTime.match(/(?:בשעה|ב-?\s*)(\d{1,2}[:.]\d{2})/) || customerForTime.match(/\b(\d{1,2}[:.]\d{2})\b/);
+    if (explicit) {
+      c.event_time = explicit[1].replace('.', ':');
+    } else {
+      // "N בצהריים/בערב/בלילה/בבוקר" — read the number BEFORE the period word.
+      // Hebrew speakers say "4 בצהריים" = 16:00 (PM), "10 בבוקר" = 10:00, "8 בערב" = 20:00.
+      const periodMatch = customerForTime.match(/(\d{1,2})\s*ב?(בוקר|צהריים|צהרים|אחה"?צ|אחר[\s-]?הצהריים|ערב|לילה)/);
+      if (periodMatch) {
+        let h = parseInt(periodMatch[1]);
+        const period = periodMatch[2];
+        if (/בוקר/.test(period)) {
+          // 1-11 בבוקר = as-is; "12 בבוקר" → 12:00
+        } else if (/צהריים|צהרים/.test(period)) {
+          // 12 בצהריים = 12, otherwise add 12 (1-6 בצהריים → 13-18)
+          if (h >= 1 && h <= 6) h += 12;
+        } else if (/אחה|אחר/.test(period)) {
+          if (h >= 1 && h <= 7) h += 12;
+        } else if (/ערב/.test(period)) {
+          // 5-11 בערב → 17-23
+          if (h >= 1 && h <= 11) h += 12;
+        } else if (/לילה/.test(period)) {
+          if (h >= 8 && h <= 11) h += 12; // 8-11 בלילה → 20-23
+          // 12 בלילה → 00; 1-5 בלילה stays
+          if (h === 12) h = 0;
+        }
+        if (h >= 0 && h <= 23) c.event_time = `${String(h).padStart(2, '0')}:00`;
+      } else if (/בערב|בלילה/.test(customerForTime)) c.event_time = '20:00';
+      else if (/בצהריים|בצהרים/.test(customerForTime)) c.event_time = '13:00';
+      else if (/בבוקר/.test(customerForTime)) c.event_time = '10:00';
+    }
+  }
+  // Event type fallback — scan customer text for occasion keywords.
+  if (!c.event_type) {
+    const EVENT_TYPES: [RegExp, string][] = [
+      [/בר[\s-]?מצוו?ה/, 'בר מצווה'],
+      [/בת[\s-]?מצוו?ה/, 'בת מצווה'],
+      [/יום[\s-]?הולדת/, 'יום הולדת'],
+      [/חתונה|חתונת/, 'חתונה'],
+      [/אירוס[יםן]/, 'אירוסים'],
+      [/חינה|חינא/, 'חינה'],
+      [/ברית[\s-]?מילה|ברית|בריתה/, 'ברית'],
+      [/יום[\s-]?נישוא?ין/, 'יום נישואין'],
+      [/רווקות|רווקים/, 'מסיבת רווקות'],
+      [/פרישה/, 'פרישה'],
+      [/ערב[\s-]?צוות|אירוע[\s-]?חברה|מסיבת[\s-]?חברה/, 'אירוע חברה'],
+      [/מפגש[\s-]?משפחתי|ערב[\s-]?משפחתי|ארוחה[\s-]?משפחתית/, 'מפגש משפחתי'],
+    ];
+    for (const [re, label] of EVENT_TYPES) {
+      if (re.test(customerText)) { c.event_type = label; break; }
+    }
+  }
+  // Location fallback — look at the prior bot turn; if it asked about location, take the customer's reply.
+  if (!c.location && !c.location_details) {
+    const lastBotAskedLocation = /אצלנו|במקום\s+אחר|איפה\s+(תרצו|רוצים|תהיה|יהיה|זה)|מיקום|איזה\s+עיר/i.test(priorAgentTurn || '');
+    if (lastBotAskedLocation) {
+      const lastCustomer = String(message || '').trim();
+      if (/אצלכם|במסעדה|אצלנו|אצלם בכם/i.test(lastCustomer)) {
+        c.location = 'restaurant';
+      } else if (lastCustomer && lastCustomer.length < 80 && !/^\d+$/.test(lastCustomer)) {
+        // Treat as free-text location (city/venue name)
+        c.location = 'external';
+        c.location_details = lastCustomer;
+      }
+    }
+    // Also: a known Israeli city/neighborhood mention anywhere is a strong location signal.
+    if (!c.location_details) {
+      const CITY_RE = /(קצרין|רמת[\s-]?גן|תל[\s-]?אביב|ירושלים|חיפה|באר[\s-]?שבע|נתניה|הרצליה|ראשון[\s-]?לציון|רחובות|רעננה|כפר[\s-]?סבא|מודיעין|פתח[\s-]?תקו?ה|חולון|בת[\s-]?ים|אשדוד|אשקלון|הוד[\s-]?השרון|רמת[\s-]?השרון|זכרון[\s-]?יעקב|קיסריה|אילת|טבריה|צפת|נצרת|בית[\s-]?שמש|עפולה|לוד|רמלה|דימונה|ערד|מצפה[\s-]?רמון|ראש[\s-]?פינה|מירון|בנימינה|פרדס[\s-]?חנה|זכרון|מטולה|כרמיאל|מעלות|כפר[\s-]?ורדים|יקנעם|רכסים|מגדל[\s-]?העמק|נצרת[\s-]?עילית|נוף[\s-]?הגליל|כפר[\s-]?תבור|פוריה|אריאל|אלפי[\s-]?מנשה|מעלה[\s-]?אדומים)/;
+      const cityHit = customerText.match(CITY_RE);
+      if (cityHit) {
+        if (!c.location) c.location = 'external';
+        if (!c.location_details) c.location_details = cityHit[1];
+      }
+    }
+  }
+  // Correction detection — if the customer says "לא נכון / טעות / השעה לא / בעצם", clear the
+  // matching field from priorLead so the freshly-extracted value (from THIS turn's text) wins.
+  const correctionSignals = /(לא\s+נכון|טעו?ת|טעית|בעצם|תקני|תיקון|השעה\s+לא|התאריך\s+לא|לא\s+כתבת|לא\s+אמרתי)/i;
+  if (correctionSignals.test(customerLastTurn)) {
+    if (/שעה|בשעה|בערב|בבוקר|בצהריים|אחה|בלילה|\d{1,2}[:.]\d{2}|\d{1,2}\s*ב[בצא]/.test(customerLastTurn)) {
+      (priorLead as any).event_time = null;
+    }
+    if (/תאריך|מחר|היום|מחרתיים|ינואר|פברואר|מרץ|אפריל|מאי|יוני|יולי|אוגוסט|ספטמבר|אוקטובר|נובמבר|דצמבר|\d{1,2}[\/.\-]\d{1,2}/.test(customerLastTurn)) {
+      (priorLead as any).event_date = null;
+    }
+    if (/מיקום|אצלכם|אצלנו|בקצרין|בעיר|בעיירה|בקיבוץ/.test(customerLastTurn)) {
+      (priorLead as any).location = null; (priorLead as any).location_details = null;
+    }
+    if (/יום\s*הולדת|חתונה|בר[\s-]?מצוו?ה|בת[\s-]?מצוו?ה|חינה|אירוסים|ברית/.test(customerLastTurn)) {
+      (priorLead as any).event_type = null;
+    }
   }
   if (!c.contact_name) {
     // Only scan CUSTOMER messages (not the agent's intro "אני העוזרת").
