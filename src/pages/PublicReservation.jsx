@@ -550,29 +550,17 @@ export default function PublicReservationPage() {
           {/* Bottom fade for legibility of identity strip */}
           <div className="absolute inset-x-0 bottom-0 h-28" style={{ background: 'linear-gradient(to top, #FFFEFB 0%, rgba(255,254,251,0.72) 50%, transparent 100%)' }}></div>
 
-          {/* Hero center stack: logo + wordmark */}
+          {/* Hero center stack: official PNG wordmark */}
           <div className="absolute inset-0 z-[5] flex flex-col items-center justify-center text-center pointer-events-none px-4">
-            {/* Olive-branch logo medallion */}
-            <div className="w-20 h-20 md:w-24 md:h-24 rounded-full flex items-center justify-center mb-3 md:mb-4" style={{ background: 'rgba(31,27,23,0.55)', backdropFilter: 'blur(6px)', border: '1px solid rgba(217,189,131,0.45)' }}>
-              <svg viewBox="0 0 64 64" className="w-14 h-14 md:w-16 md:h-16" aria-hidden="true">
-                <path d="M6 38 Q20 22 32 28 Q44 34 58 22" fill="none" stroke="#D9BD83" strokeWidth="2.4" strokeLinecap="round" />
-                <ellipse cx="12" cy="32" rx="5" ry="2.8" transform="rotate(-30 12 32)" fill="#7A8A48" />
-                <ellipse cx="24" cy="27" rx="5" ry="2.8" transform="rotate(-10 24 27)" fill="#7A8A48" />
-                <ellipse cx="38" cy="29" rx="5" ry="2.8" transform="rotate(14 38 29)" fill="#7A8A48" />
-                <ellipse cx="52" cy="25" rx="5" ry="2.8" transform="rotate(-6 52 25)" fill="#7A8A48" />
-                <circle cx="6" cy="38" r="1.6" fill="#D9BD83" />
-                <circle cx="58" cy="22" r="1.6" fill="#D9BD83" />
-              </svg>
-            </div>
-            <p className="text-[10px] md:text-xs uppercase tracking-[0.4em] drop-shadow" style={{ color: '#D9BD83' }}>
+            <p className="text-[10px] md:text-xs uppercase tracking-[0.4em] drop-shadow mb-3" style={{ color: '#D9BD83' }}>
               רוטשילד 104 · ראשון לציון
             </p>
-            <h2
-              className="brand-display mt-2 drop-shadow-lg"
-              style={{ color: '#F4ECD8', fontSize: 'clamp(3.5rem, 10vw, 6.5rem)', lineHeight: 1 }}
-            >
-              עלינא
-            </h2>
+            <img
+              src="/logo-alena-light.png"
+              alt="עלינא"
+              className="mx-auto drop-shadow-2xl"
+              style={{ width: 'clamp(220px, 48vw, 480px)', height: 'auto', filter: 'drop-shadow(0 10px 28px rgba(0,0,0,0.55))' }}
+            />
             <div className="flex items-center justify-center gap-2 mt-3" aria-hidden="true">
               <span style={{ width: 32, height: 1, background: 'rgba(217,189,131,0.7)' }} />
               <span style={{ width: 4, height: 4, borderRadius: 2, background: '#D9BD83' }} />
