@@ -23,6 +23,12 @@ export const metadata: Metadata = {
   },
   description:
     "עלינא — בר מסעדה כשר ים-תיכוני ברוטשילד 104, ראשון לציון. המבורגרים, בשרים, חמארה, ארוחות בוקר ואירועים פרטיים. הזמן שולחן עכשיו.",
+  icons: {
+    icon: [
+      { url: "/favicon.png", type: "image/png", sizes: "64x64" },
+    ],
+    apple: "/favicon.png",
+  },
   verification: {
     google: env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION,
     other: env.NEXT_PUBLIC_BING_SITE_VERIFICATION

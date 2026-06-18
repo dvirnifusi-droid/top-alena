@@ -1,38 +1,36 @@
-// Brand wordmark — Hebrew "עלינא" in display serif with olive-branch flourish
-// and tracking-spaced kosher tagline. Designed against the cream palette.
+// Brand wordmark — owner's official hand-drawn "עָלֵינָא" PNG, with optional
+// tracking-spaced tagline. Two color variants live in /public:
+//   logo-alena-dark.png   →  charcoal ink, for cream/white backgrounds
+//   logo-alena-light.png  →  cream ink, for charcoal/olive/terracotta backgrounds
+//
+// Pass `variant="light"` on dark backgrounds. Default is "dark".
 
-export function Logo({ className, withTagline = true }: { className?: string; withTagline?: boolean }) {
+import Image from "next/image";
+
+type Props = {
+  className?: string;
+  withTagline?: boolean;
+  variant?: "dark" | "light";
+};
+
+export function Logo({ className, withTagline = true, variant = "dark" }: Props) {
+  const src = variant === "light" ? "/logo-alena-light.png" : "/logo-alena-dark.png";
+  const taglineColor = variant === "light" ? "text-brass-soft" : "text-brass";
   return (
-    <span className={`inline-flex items-center gap-3 ${className ?? ""}`} aria-label="עלינא">
-      {/* Olive-branch flourish */}
-      <svg
-        viewBox="0 0 56 32"
-        className="h-7 w-12 shrink-0 text-brass"
-        fill="currentColor"
-        aria-hidden="true"
-      >
-        <path
-          d="M2 18 Q14 8 28 14 Q42 20 54 12"
-          stroke="currentColor"
-          strokeWidth="1.3"
-          strokeLinecap="round"
-          fill="none"
-        />
-        <ellipse cx="10" cy="14" rx="3.5" ry="2" transform="rotate(-25 10 14)" fill="#44512C" />
-        <ellipse cx="22" cy="11.5" rx="3.5" ry="2" transform="rotate(-5 22 11.5)" fill="#44512C" />
-        <ellipse cx="34" cy="14.5" rx="3.5" ry="2" transform="rotate(15 34 14.5)" fill="#44512C" />
-        <ellipse cx="46" cy="13.5" rx="3.5" ry="2" transform="rotate(-10 46 13.5)" fill="#44512C" />
-      </svg>
-      <span className="flex flex-col leading-none">
-        <span className="font-display text-3xl font-black tracking-wide text-terracotta sm:text-4xl">
-          עלינא
+    <span className={`inline-flex flex-col items-center leading-none ${className ?? ""}`} aria-label="עלינא">
+      <Image
+        src={src}
+        alt="עלינא"
+        width={160}
+        height={108}
+        priority
+        className="h-12 w-auto sm:h-14"
+      />
+      {withTagline ? (
+        <span className={`mt-1.5 text-[0.55rem] uppercase tracking-[0.35em] ${taglineColor}`}>
+          חמארה · רוטשילד 104
         </span>
-        {withTagline ? (
-          <span className="mt-1 text-[0.55rem] uppercase tracking-[0.35em] text-brass">
-            חמארה · רוטשילד 104
-          </span>
-        ) : null}
-      </span>
+      ) : null}
     </span>
   );
 }
