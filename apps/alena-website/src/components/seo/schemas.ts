@@ -1,6 +1,15 @@
-import { aggregateRating as agg } from "@/content/reviews";
+import { aggregateRating as agg, reviews } from "@/content/reviews";
 
 type Restaurant = { name: string; phone: string; address: string; url: string; image?: string };
+
+// Sun-Wed 12:00-00:00, Thu 12:00-02:00, Fri closed, Sat 20:15-02:00
+const OPENING_HOURS = [
+  { "@type": "OpeningHoursSpecification", dayOfWeek: ["Sunday", "Monday", "Tuesday", "Wednesday"], opens: "12:00", closes: "23:59" },
+  { "@type": "OpeningHoursSpecification", dayOfWeek: "Thursday", opens: "12:00", closes: "23:59" },
+  { "@type": "OpeningHoursSpecification", dayOfWeek: "Thursday", opens: "00:00", closes: "02:00" },
+  { "@type": "OpeningHoursSpecification", dayOfWeek: "Saturday", opens: "20:15", closes: "23:59" },
+  { "@type": "OpeningHoursSpecification", dayOfWeek: "Saturday", opens: "00:00", closes: "02:00" },
+];
 
 export const restaurantSchema = (r: Restaurant) => ({
   "@context": "https://schema.org",
@@ -9,15 +18,32 @@ export const restaurantSchema = (r: Restaurant) => ({
   name: r.name,
   telephone: r.phone,
   url: r.url,
-  image: r.image,
+  image: [
+    `${r.url}/gallery/IMG_4682.JPG`,
+    `${r.url}/gallery/spread.jpg`,
+    `${r.url}/icon-512.png`,
+  ],
+  logo: `${r.url}/icon-512.png`,
   servesCuisine: ["Mediterranean", "Kosher", "Israeli"],
   priceRange: "₪₪",
+  hasMenu: `${r.url}/menu`,
+  acceptsReservations: "True",
+  paymentAccepted: "Cash, Credit Card",
+  currenciesAccepted: "ILS",
   address: {
     "@type": "PostalAddress",
     streetAddress: r.address,
     addressLocality: "ראשון לציון",
+    addressRegion: "מחוז המרכז",
+    postalCode: "7565419",
     addressCountry: "IL",
   },
+  geo: {
+    "@type": "GeoCoordinates",
+    latitude: 31.965,
+    longitude: 34.798,
+  },
+  openingHoursSpecification: OPENING_HOURS,
   sameAs: [
     "https://alenabepita.co.il",
     "https://topalena.com",
@@ -31,6 +57,18 @@ export const restaurantSchema = (r: Restaurant) => ({
     reviewCount: agg.reviewCount,
     bestRating: 5,
     worstRating: 1,
+  },
+  review: reviews.slice(0, 5).map((rv) => ({
+    "@type": "Review",
+    author: { "@type": "Person", name: rv.author },
+    reviewRating: { "@type": "Rating", ratingValue: rv.rating, bestRating: 5 },
+    reviewBody: rv.body,
+    ...(rv.date ? { datePublished: rv.date } : {}),
+  })),
+  potentialAction: {
+    "@type": "ReserveAction",
+    target: `${r.url}/reserve`,
+    name: "הזמן שולחן",
   },
 });
 
