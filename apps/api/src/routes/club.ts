@@ -17,6 +17,11 @@ const RegisterBody = z.object({
   phone: z.string().min(8).max(20),
   name: z.string().trim().min(1).max(120).optional(),
   marketing_consent: z.boolean(),
+  // Optional profile fields — same shape as the topalena.com/Club form
+  email: z.string().email().max(180).optional().or(z.literal('')),
+  city: z.string().trim().max(120).optional(),
+  birthday: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().or(z.literal('')),
+  anniversary: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().or(z.literal('')),
 });
 
 const OrderBody = z.object({
@@ -89,10 +94,20 @@ export async function clubRoutes(app: FastifyInstance) {
       });
     }
 
+    // Build optional profile fields; tags Json column carries data that has
+    // no dedicated column (anniversary lives there for now).
+    const tagsExtra: Record<string, unknown> = {};
+    if (parsed.data.anniversary) tagsExtra.anniversary = parsed.data.anniversary;
+    tagsExtra.source = 'alenabepita.co.il';
+
     const created = await prisma.customer.create({
       data: {
         phone,
         name: parsed.data.name ?? null,
+        email: parsed.data.email || null,
+        city:  parsed.data.city  || null,
+        birthday: parsed.data.birthday || null,
+        tags: Object.keys(tagsExtra).length ? tagsExtra : undefined,
         visit_count: 0,
         coin_balance: 0,
         loyalty_tier: 'regular',
