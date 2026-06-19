@@ -107,7 +107,7 @@ export async function clubRoutes(app: FastifyInstance) {
         email: parsed.data.email || null,
         city:  parsed.data.city  || null,
         birthday: parsed.data.birthday || null,
-        tags: Object.keys(tagsExtra).length ? tagsExtra : undefined,
+        tags: Object.keys(tagsExtra).length ? (tagsExtra as any) : undefined,
         visit_count: 0,
         coin_balance: 0,
         loyalty_tier: 'regular',
