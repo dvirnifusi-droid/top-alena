@@ -41,11 +41,17 @@ export default function TimePicker({ value, onChange, autoFocus = false, id }) {
   }, [value]);
 
   const emit = (newHH, newMM) => {
-    // Only emit when both fields look complete enough to be meaningful.
-    if (newHH === '' || newMM === '') {
+    // Only emit a FULL value when both fields have 2 digits. During typing
+    // (single-digit state), don't push back to the parent — otherwise the
+    // parent re-emits a padded "0X" that the useEffect sync clobbers the
+    // local state with, and the second digit the user types overwrites the
+    // padded "0X" instead of appending to "X". That's the bug where typing
+    // "2" then "0" landed as "02" instead of "20".
+    if (newHH === '' && newMM === '') {
       onChange('');
       return;
     }
+    if (newHH.length < 2 || newMM.length < 2) return; // hold until complete
     const h = clamp(parseInt(newHH, 10), 0, 23);
     const m = clamp(parseInt(newMM, 10), 0, 59);
     onChange(`${pad2(h)}:${pad2(m)}`);
@@ -54,8 +60,9 @@ export default function TimePicker({ value, onChange, autoFocus = false, id }) {
   const handleHHChange = (e) => {
     const raw = e.target.value.replace(/\D/g, '').slice(0, 2);
     setHH(raw);
-    // Auto-advance to minutes once 2 digits typed or user typed 3-9 (no room for more digits)
-    if (raw.length === 2 || /^[3-9]$/.test(raw)) {
+    // Auto-advance to minutes only AFTER 2 digits, never on a single 3-9 — that
+    // older heuristic stole focus before the user finished typing "20"/"21" etc.
+    if (raw.length === 2) {
       setTimeout(() => mmRef.current?.focus(), 0);
     }
     emit(raw, mm);
@@ -68,16 +75,18 @@ export default function TimePicker({ value, onChange, autoFocus = false, id }) {
   };
 
   const handleBlur = (which) => () => {
-    // Pad short values on blur so "9" becomes "09"
+    // Pad short values on blur so "9" becomes "09" and emit the now-complete value.
     if (which === 'hh' && hh.length === 1) {
       const padded = pad2(clamp(parseInt(hh, 10), 0, 23));
       setHH(padded);
       emit(padded, mm);
-    }
-    if (which === 'mm' && mm.length === 1) {
+    } else if (which === 'mm' && mm.length === 1) {
       const padded = pad2(clamp(parseInt(mm, 10), 0, 59));
       setMM(padded);
       emit(hh, padded);
+    } else {
+      // Both already 2 digits, or empty — make sure parent has the current value.
+      emit(hh, mm);
     }
   };
 
