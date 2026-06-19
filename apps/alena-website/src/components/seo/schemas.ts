@@ -5,6 +5,7 @@ type Restaurant = { name: string; phone: string; address: string; url: string; i
 export const restaurantSchema = (r: Restaurant) => ({
   "@context": "https://schema.org",
   "@type": "Restaurant",
+  "@id": `${r.url}#restaurant`,
   name: r.name,
   telephone: r.phone,
   url: r.url,
@@ -17,6 +18,13 @@ export const restaurantSchema = (r: Restaurant) => ({
     addressLocality: "ראשון לציון",
     addressCountry: "IL",
   },
+  sameAs: [
+    "https://alenabepita.co.il",
+    "https://topalena.com",
+    "https://www.instagram.com/alena.hamara",
+    "https://www.mishloha.co.il/restaurant/עלינא-בפיתה-ראשון-לציון",
+    "https://ontopo.com/he/il/page/alena",
+  ],
   aggregateRating: {
     "@type": "AggregateRating",
     ratingValue: agg.ratingValue.toFixed(1),
