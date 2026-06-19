@@ -2,7 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { prisma } from '../db.js';
 import { requireClubKey } from '../middleware/clubAuth.js';
-import { computeTier, coinsForOrder } from '../lib/clubTier.js';
+import { computeTier, coinsForOrder, ILS_PER_COIN_REDEEM } from '../lib/clubTier.js';
 
 // Israeli phone normalization — keeps only digits, strips leading 972
 function normalizePhone(raw: string): string {
@@ -28,6 +28,12 @@ const OrderBody = z.object({
     qty: z.number().int().positive(),
     price: z.number().nonnegative(),
   })).optional(),
+});
+
+const RedeemBody = z.object({
+  phone: z.string().min(8).max(20),
+  coins_to_redeem: z.number().int().positive(),
+  order_id: z.string().max(120).optional(),
 });
 
 export async function clubRoutes(app: FastifyInstance) {
@@ -140,6 +146,52 @@ export async function clubRoutes(app: FastifyInstance) {
       new_balance: newBalance,
       new_tier: newTier,
       visit_count: newVisitCount,
+    };
+  });
+
+  // -------- POST /api/club/redeem --------
+  // Burn N coins from the customer's balance in exchange for an ILS discount.
+  // Idempotency is enforced by the CALLER (the WP plugin) — it stores a flag
+  // on the WC order so retries don't double-debit. Keep this endpoint simple.
+  app.post('/redeem', async (req, reply) => {
+    const parsed = RedeemBody.safeParse(req.body);
+    if (!parsed.success) return reply.code(400).send({ error: 'bad_body', detail: parsed.error.flatten() });
+
+    const phone = normalizePhone(parsed.data.phone);
+    const coins = parsed.data.coins_to_redeem;
+
+    const customer = await prisma.customer.findFirst({
+      where: { phone },
+      orderBy: { createdAt: 'asc' },
+    });
+    if (!customer) return reply.code(404).send({ error: 'customer_not_found' });
+
+    const balance = customer.coin_balance ?? 0;
+    if (balance < coins) {
+      return reply.code(400).send({
+        error: 'insufficient_balance',
+        balance,
+        requested: coins,
+      });
+    }
+
+    const newBalance = balance - coins;
+    const ilsDiscount = coins * ILS_PER_COIN_REDEEM;
+
+    await prisma.customer.update({
+      where: { id: customer.id },
+      data: { coin_balance: newBalance },
+    });
+
+    req.log.info(
+      { phone, order_id: parsed.data.order_id, coins, newBalance, ilsDiscount },
+      'club_coins_redeemed'
+    );
+
+    return {
+      coins_redeemed: coins,
+      new_balance: newBalance,
+      ils_discount: ilsDiscount,
     };
   });
 
