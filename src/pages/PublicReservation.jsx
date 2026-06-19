@@ -185,6 +185,26 @@ export default function PublicReservationPage() {
   ];
   const TICKER_MINUTES = [3, 6, 8, 12, 15, 18, 23, 27];
 
+  // --- SEO: declare alena.topalena.com/reserve as the canonical
+  useEffect(() => {
+    const PRIMARY = 'https://alena.topalena.com/reserve';
+    let canonical = document.querySelector('link[rel="canonical"]');
+    if (!canonical) {
+      canonical = document.createElement('link');
+      canonical.rel = 'canonical';
+      document.head.appendChild(canonical);
+    }
+    canonical.href = PRIMARY;
+    // og:url too — keeps social shares pointing at the showcase site
+    let ogUrl = document.querySelector('meta[property="og:url"]');
+    if (!ogUrl) {
+      ogUrl = document.createElement('meta');
+      ogUrl.setAttribute('property', 'og:url');
+      document.head.appendChild(ogUrl);
+    }
+    ogUrl.setAttribute('content', PRIMARY);
+  }, []);
+
   // --- Load settings + live counter + featured menu + reviews once
   useEffect(() => {
     (async () => {
