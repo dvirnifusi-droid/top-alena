@@ -6,8 +6,11 @@ export function computeTier(visitCount: number, coinBalance: number): ClubTier {
   return 'regular';
 }
 
-// 1 ש"ח = 1 נקודה (ניתן לכוונון בעתיד מבלי לשבור clients)
+// 100 ש"ח = 1 נקודה (כל נקודה שווה 4 ש"ח בקופה = ~4% cashback)
+export const COINS_PER_ILS_RATE = 1 / 100;
+export const ILS_PER_COIN_REDEEM = 4;
+
 export function coinsForOrder(orderTotalIls: number): number {
   if (!Number.isFinite(orderTotalIls) || orderTotalIls <= 0) return 0;
-  return Math.floor(orderTotalIls);
+  return Math.floor(orderTotalIls * COINS_PER_ILS_RATE);
 }
