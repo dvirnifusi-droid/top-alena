@@ -95,7 +95,31 @@ async function emitFavicon() {
     })
     .png()
     .toFile(path.join(OUT_DIR, "favicon.png"));
-  console.log("✓ favicon.png + favicon-256.png");
+  // 192×192 (PWA + Android home screen)
+  await sharp(baseTrimmed)
+    .resize(192, 192, {
+      fit: "contain",
+      background: { r: 0xF4, g: 0xEC, b: 0xD8, alpha: 1 },
+    })
+    .png()
+    .toFile(path.join(OUT_DIR, "icon-192.png"));
+  // 512×512 (Google Knowledge Panel / Apple touch / share previews)
+  await sharp(baseTrimmed)
+    .resize(512, 512, {
+      fit: "contain",
+      background: { r: 0xF4, g: 0xEC, b: 0xD8, alpha: 1 },
+    })
+    .png()
+    .toFile(path.join(OUT_DIR, "icon-512.png"));
+  // Apple touch icon — 180×180 with cream bg, charcoal ink
+  await sharp(baseTrimmed)
+    .resize(180, 180, {
+      fit: "contain",
+      background: { r: 0xF4, g: 0xEC, b: 0xD8, alpha: 1 },
+    })
+    .png()
+    .toFile(path.join(OUT_DIR, "apple-touch-icon.png"));
+  console.log("✓ favicon.png + favicon-256.png + icon-192.png + icon-512.png + apple-touch-icon.png");
 }
 
 (async () => {

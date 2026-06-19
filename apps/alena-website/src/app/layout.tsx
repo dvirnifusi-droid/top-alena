@@ -15,19 +15,39 @@ import { Analytics as VercelAnalytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { env } from "@/lib/env";
 
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://alena.topalena.com";
+
 export const metadata: Metadata = {
-  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "https://alena.topalena.com"),
+  metadataBase: new URL(SITE_URL),
+  applicationName: "עלינא",
   title: {
     default: "עלינא — חמארה ים-תיכונית כשרה בראשון לציון",
     template: "%s | עלינא",
   },
   description:
-    "עלינא — בר מסעדה כשר ים-תיכוני ברוטשילד 104, ראשון לציון. המבורגרים, בשרים, חמארה, ארוחות בוקר ואירועים פרטיים. הזמן שולחן עכשיו.",
+    "עלינא · חמארה ים-תיכונית כשרה ברוטשילד 104, ראשון לציון. בשרים על ג'וספר 600°, ערבי יין ו-Burger Night, אירועים פרטיים. ★ 4.9 · הזמן שולחן.",
   icons: {
     icon: [
       { url: "/favicon.png", type: "image/png", sizes: "64x64" },
+      { url: "/icon-192.png", type: "image/png", sizes: "192x192" },
+      { url: "/icon-512.png", type: "image/png", sizes: "512x512" },
     ],
-    apple: "/favicon.png",
+    apple: { url: "/apple-touch-icon.png", sizes: "180x180" },
+    shortcut: "/favicon.png",
+  },
+  openGraph: {
+    type: "website",
+    locale: "he_IL",
+    url: SITE_URL,
+    siteName: "עלינא",
+    title: "עלינא — חמארה ים-תיכונית כשרה בראשון לציון",
+    description:
+      "בר-מסעדה כשר ברוטשילד 104. בשרים על ג'וספר 600°, ערבי יין, Burger Night ואירועים פרטיים.",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "עלינא — חמארה ים-תיכונית כשרה",
+    description: "ברוטשילד 104, ראשון לציון. ג'וספר 600° · בר מלא · אירועים פרטיים.",
   },
   verification: {
     google: env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION,
@@ -37,10 +57,56 @@ export const metadata: Metadata = {
   },
 };
 
+// JSON-LD: WebSite + Organization at the root level
+// — declares site name "עלינא" + logo to Google's Knowledge Panel
+// — enables Sitelinks Search Box (search bar inside the search result)
+const rootJsonLd = {
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "WebSite",
+      "@id": `${SITE_URL}#website`,
+      url: SITE_URL,
+      name: "עלינא",
+      alternateName: ["Alena", "עלינא ראשון לציון"],
+      inLanguage: "he-IL",
+      publisher: { "@id": `${SITE_URL}#organization` },
+      potentialAction: {
+        "@type": "SearchAction",
+        target: `${SITE_URL}/?q={search_term_string}`,
+        "query-input": "required name=search_term_string",
+      },
+    },
+    {
+      "@type": "Organization",
+      "@id": `${SITE_URL}#organization`,
+      name: "עלינא",
+      alternateName: "Alena",
+      url: SITE_URL,
+      logo: {
+        "@type": "ImageObject",
+        url: `${SITE_URL}/icon-512.png`,
+        width: 512,
+        height: 512,
+      },
+      sameAs: [
+        "https://alenabepita.co.il",
+        "https://topalena.com",
+        "https://www.instagram.com/alena.hamara",
+      ],
+    },
+  ],
+};
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="he" dir="rtl" className={`${heebo.variable} ${frankRuhl.variable} ${inter.variable}`}>
       <body className="font-body bg-cream text-charcoal antialiased pb-20 md:pb-0">
+        <Script
+          id="root-jsonld"
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(rootJsonLd) }}
+        />
         <SkipLink />
         <TopBanner />
         <Header />
