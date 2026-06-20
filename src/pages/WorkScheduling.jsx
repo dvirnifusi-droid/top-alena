@@ -464,7 +464,14 @@ export default function WorkScheduling() {
             setCurrentEmployee(myEmployee);
 
             const [shifts, allPositions, allTipReports, allAvailabilities, allTracks] = await Promise.all([
-                base44.entities.WorkShift.list('-date', 100),
+                // The '-date' orderBy on this endpoint sorts ascending (proven via
+                // a direct API probe in browser console: limit=100 returned the
+                // OLDEST 100 shifts, latest date 2026-04-06; with no limit there
+                // were 252 total reaching 2026-06-27). With a 100-cap the upcoming
+                // week's shifts never made it into `week` and the grid showed
+                // empty cells even when assignments existed in the DB. Pull a
+                // wider window and let the client-side date filter pick the week.
+                base44.entities.WorkShift.list('-date', 2000),
                 base44.entities.WorkPosition.filter({ is_active: true }),
                 base44.entities.TipReport.list('-date', 200),
                 base44.entities.EmployeeAvailability.list(),
