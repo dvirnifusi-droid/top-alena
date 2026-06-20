@@ -77,8 +77,20 @@ function AvailabilityRequestsInner() {
                 base44.entities.AvailabilityFormSettings.list(),
             ]);
             setCurrentUser(me);
-            // Normalize ISO date strings to YYYY-MM-DD for downstream comparisons.
-            setAvailabilities(allAvail.map(a => ({ ...a, date: typeof a.date === 'string' ? a.date.slice(0, 10) : a.date })));
+            // Normalize ISO/Date values to the YYYY-MM-DD that humans in Israel
+            // call that day. Plain .slice(0,10) on an ISO UTC string silently
+            // returns the WRONG day for any avail row stored as midnight-Israel
+            // (e.g. '2026-06-21T21:00:00Z' = Mon 22/6 00:00 in IL → slice gives
+            // '2026-06-21', Sunday). That mis-dated avail then flowed into
+            // handleSingleAssign and the new WorkShift landed under Sunday.
+            const toIsraelYMD = (x) => {
+                if (!x) return x;
+                if (typeof x === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(x)) return x;
+                const d = x instanceof Date ? x : new Date(x);
+                if (isNaN(d.getTime())) return typeof x === 'string' ? x.slice(0, 10) : x;
+                return d.toLocaleDateString('en-CA', { timeZone: 'Asia/Jerusalem' });
+            };
+            setAvailabilities(allAvail.map(a => ({ ...a, date: toIsraelYMD(a.date) })));
             setEmployees(allEmps);
             setInactiveEmployees(inactiveEmps || []);
             setSettings(sett[0] || null);
@@ -190,6 +202,8 @@ function AvailabilityRequestsInner() {
      const handleSingleAssign = async (avail, shiftType) => {
          setSingleAssignLoading(true);
          try {
+             // avail.date was normalized on load to the Israel-local YMD,
+             // so it already reflects the day the row should be filed under.
              const dateStr = avail.date;
              const existingShifts = await base44.entities.WorkShift.filter({ date: dateStr, shift_type: shiftType });
              let shift = existingShifts[0];
