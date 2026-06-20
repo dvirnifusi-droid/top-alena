@@ -21,7 +21,6 @@ import SendScheduleWhatsAppDialog from '../components/scheduling/SendScheduleWha
 import { RestaurantProfile } from '@/entities/RestaurantProfile';
 import ApparelCustomizer from '../components/gamification/ApparelCustomizer';
 import ScheduleInsights from '../components/scheduling/ScheduleInsights';
-import { normalizePositionForSchedule } from '@/lib/positionNormalize';
 
 const shiftTypesConfig = {
     lunch: { label: 'צהריים', color: 'bg-[#F4ECD8] border-[#D9BD83]' },
@@ -197,11 +196,7 @@ const MobileScheduleView = ({ week, positions, employees, onCellClick, onAssignm
         const shift = week.find(s => s.date === dateString && s.shift_type === shiftType);
         if (!shift) return [];
 
-        // Normalized match — legacy assignments stored as 'מלצרית' / 'טבחית' /
-        // 'מארח' / 'קופה ואריזות' now land in the canonical row (e.g. 'מלצר').
-        // Without this, those assignments were invisible because they were saved
-        // verbatim and no schedule row was filtering on the feminine form.
-        let filteredAssignments = shift.assigned_staff?.filter(a => normalizePositionForSchedule(a.position) === positionName) || [];
+        let filteredAssignments = shift.assigned_staff?.filter(a => a.position === positionName) || [];
 
         if (filters.employee !== 'all') {
             filteredAssignments = filteredAssignments.filter(a => a.employee_id === filters.employee);

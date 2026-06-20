@@ -12,12 +12,6 @@ import { he } from 'date-fns/locale';
 import { Loader2, Users, ChevronLeft, ChevronRight, CheckCircle2, Zap, Edit2, ChevronDown, ChevronUp } from 'lucide-react';
 import { toast } from 'sonner';
 import PageGuard from '../components/shared/PageGuard';
-import {
-  SCHEDULE_LUNCH_POSITIONS,
-  SCHEDULE_DINNER_POSITIONS,
-  normalizePositionForSchedule,
-  pickSchedulablePosition,
-} from '@/lib/positionNormalize';
 
 const AVAILABILITY_TYPES = {
     available: { label: '✅ פנוי/ה', color: 'bg-green-100 text-green-800' },
@@ -30,6 +24,43 @@ const SHIFT_PREF = {
     lunch: 'צהריים',
     dinner: 'ערב',
     both: 'שתיהן',
+};
+
+// Positions that the schedule grid (WorkScheduling.jsx) actually renders rows for.
+// Must stay in sync with LUNCH_POSITIONS_ORDER / DINNER_POSITIONS_ORDER there.
+const SCHEDULE_LUNCH_POSITIONS = ['קופה + אריזות', 'מלצר', 'חומוס', 'טבח', 'מתלמד פלור', 'בלתם'];
+const SCHEDULE_DINNER_POSITIONS = [
+  'מנהל משמרת', 'ברמן', 'מלצר', 'ראנר', 'מארח/ת', 'מתלמד פלור',
+  'טבח', 'צאקר', 'גריל', 'פס בטטה', 'מקשר', 'מתלמד מטבח', 'שוטף כלים', 'בלתם',
+];
+// Feminine → masculine fallback so a worker who registered as 'מלצרית' still
+// lands in the 'מלצר' row of the schedule (the grid only filters on the
+// masculine canonical form).
+const POSITION_NORMALIZE = {
+  'מלצרית': 'מלצר', 'ברמנית': 'ברמן', 'ראנרית': 'ראנר',
+  'מארחת': 'מארח/ת', 'מארח': 'מארח/ת',
+  'מנהלת משמרת': 'מנהל משמרת',
+  'טבחית': 'טבח',
+  'קונדיטורית': 'קונדיטור',
+  'שוטפת כלים': 'שוטף כלים',
+  'מתלמדת פלור': 'מתלמד פלור',
+  'מתלמדת מטבח': 'מתלמד מטבח',
+  'מנהלת פלור': 'מנהל פלור',
+  'מנהלת מטבח': 'מנהל מטבח',
+  'קופה ואריזות': 'קופה + אריזות',
+  'קופה +אריזות': 'קופה + אריזות',
+};
+const normalizePositionForSchedule = (raw) => POSITION_NORMALIZE[String(raw || '').trim()] || String(raw || '').trim();
+// Pick the BEST position from a list that the schedule grid actually shows.
+// Returns the first one (after normalization) that's in the shift-appropriate
+// schedule order. Falls back to 'מלצר' if nothing matches.
+const pickSchedulablePosition = (positions, shiftType) => {
+  const order = shiftType === 'lunch' ? SCHEDULE_LUNCH_POSITIONS : SCHEDULE_DINNER_POSITIONS;
+  for (const p of (positions || [])) {
+    const norm = normalizePositionForSchedule(p);
+    if (order.includes(norm)) return norm;
+  }
+  return shiftType === 'lunch' ? 'מלצר' : 'מלצר';
 };
 
 function AvailabilityRequestsInner() {
