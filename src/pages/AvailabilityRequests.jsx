@@ -26,6 +26,43 @@ const SHIFT_PREF = {
     both: 'שתיהן',
 };
 
+// Positions that the schedule grid (WorkScheduling.jsx) actually renders rows for.
+// Must stay in sync with LUNCH_POSITIONS_ORDER / DINNER_POSITIONS_ORDER there.
+const SCHEDULE_LUNCH_POSITIONS = ['קופה + אריזות', 'מלצר', 'חומוס', 'טבח', 'מתלמד פלור', 'בלתם'];
+const SCHEDULE_DINNER_POSITIONS = [
+  'מנהל משמרת', 'ברמן', 'מלצר', 'ראנר', 'מארח/ת', 'מתלמד פלור',
+  'טבח', 'צאקר', 'גריל', 'פס בטטה', 'מקשר', 'מתלמד מטבח', 'שוטף כלים', 'בלתם',
+];
+// Feminine → masculine fallback so a worker who registered as 'מלצרית' still
+// lands in the 'מלצר' row of the schedule (the grid only filters on the
+// masculine canonical form).
+const POSITION_NORMALIZE = {
+  'מלצרית': 'מלצר', 'ברמנית': 'ברמן', 'ראנרית': 'ראנר',
+  'מארחת': 'מארח/ת', 'מארח': 'מארח/ת',
+  'מנהלת משמרת': 'מנהל משמרת',
+  'טבחית': 'טבח',
+  'קונדיטורית': 'קונדיטור',
+  'שוטפת כלים': 'שוטף כלים',
+  'מתלמדת פלור': 'מתלמד פלור',
+  'מתלמדת מטבח': 'מתלמד מטבח',
+  'מנהלת פלור': 'מנהל פלור',
+  'מנהלת מטבח': 'מנהל מטבח',
+  'קופה ואריזות': 'קופה + אריזות',
+  'קופה +אריזות': 'קופה + אריזות',
+};
+const normalizePositionForSchedule = (raw) => POSITION_NORMALIZE[String(raw || '').trim()] || String(raw || '').trim();
+// Pick the BEST position from a list that the schedule grid actually shows.
+// Returns the first one (after normalization) that's in the shift-appropriate
+// schedule order. Falls back to 'מלצר' if nothing matches.
+const pickSchedulablePosition = (positions, shiftType) => {
+  const order = shiftType === 'lunch' ? SCHEDULE_LUNCH_POSITIONS : SCHEDULE_DINNER_POSITIONS;
+  for (const p of (positions || [])) {
+    const norm = normalizePositionForSchedule(p);
+    if (order.includes(norm)) return norm;
+  }
+  return shiftType === 'lunch' ? 'מלצר' : 'מלצר';
+};
+
 function AvailabilityRequestsInner() {
      const [currentUser, setCurrentUser] = useState(null);
      const [availabilities, setAvailabilities] = useState([]);
@@ -45,6 +82,17 @@ function AvailabilityRequestsInner() {
      }, [managedDept]); // eslint-disable-line react-hooks/exhaustive-deps
      const [singleAssignModal, setSingleAssignModal] = useState(null);
      const [singleAssignLoading, setSingleAssignLoading] = useState(false);
+     const [singleAssignPosition, setSingleAssignPosition] = useState('');
+     // When the שבץ dialog opens, default the position to the first scheduleable one
+     // from the worker's preferred positions. Manager can override via dropdown.
+     useEffect(() => {
+       if (!singleAssignModal) { setSingleAssignPosition(''); return; }
+       const { avail, shiftType } = singleAssignModal;
+       const emp = employees.find(e => e.id === avail.employee_id);
+       const empPositions = (emp?.positions || []).map(p => p?.position_name || p).filter(Boolean);
+       const candidatePositions = [...(avail.positions || []), ...empPositions];
+       setSingleAssignPosition(pickSchedulablePosition(candidatePositions, shiftType));
+     }, [singleAssignModal, employees]);
 
      // ---- filters ----
      const [filterSearch, setFilterSearch] = useState('');
@@ -187,12 +235,19 @@ function AvailabilityRequestsInner() {
          setAutoAssigning(false);
      };
 
-     const handleSingleAssign = async (avail, shiftType) => {
+     const handleSingleAssign = async (avail, shiftType, overridePosition) => {
          setSingleAssignLoading(true);
          try {
              const dateStr = avail.date;
-             const existingShifts = await base44.entities.WorkShift.filter({ date: dateStr, shift_type: shiftType });
-             let shift = existingShifts[0];
+             // Robust shift lookup: load the whole week-or-so and find by sliced YYYY-MM-DD
+             // string match. Prevents duplicates when the existing shift's `date` column
+             // has a non-midnight-UTC timestamp that the server-side date filter wouldn't
+             // match against a YYYY-MM-DD argument.
+             const recentShifts = await base44.entities.WorkShift.list('-date', 200).catch(() => []);
+             let shift = recentShifts.find(s => {
+                 const d = typeof s.date === 'string' ? s.date.slice(0, 10) : s.date;
+                 return d === dateStr && s.shift_type === shiftType;
+             });
 
              if (!shift) {
                  shift = await base44.entities.WorkShift.create({
@@ -221,7 +276,16 @@ function AvailabilityRequestsInner() {
                  return;
              }
 
-             const position = avail.positions?.length > 0 ? avail.positions[0] : (emp.positions?.[0]?.position_name || 'מלצר');
+             // Position resolution: user's manual override > schedule-aware pick from the
+             // worker's preferred positions. The schedule grid only renders rows for the
+             // masculine/canonical position labels (LUNCH/DINNER order lists in
+             // WorkScheduling.jsx). Without this normalization, 'מלצרית' was being saved
+             // verbatim and disappeared from the schedule because no row matched it.
+             const empPositions = (emp.positions || []).map(p => p?.position_name || p).filter(Boolean);
+             const candidatePositions = [...(avail.positions || []), ...empPositions];
+             const position = overridePosition
+               ? normalizePositionForSchedule(overridePosition)
+               : pickSchedulablePosition(candidatePositions, shiftType);
 
              const newStaff = [...currentStaff, {
                  employee_id: avail.employee_id,
@@ -240,7 +304,7 @@ function AvailabilityRequestsInner() {
                  setSingleAssignLoading(false);
                  return;
              }
-             toast.success(`${avail.employee_name} שובץ ל-${shiftType === 'lunch' ? 'צהריים' : 'ערב'} בהצלחה!`);
+             toast.success(`${avail.employee_name} שובץ כ-${position} ל-${shiftType === 'lunch' ? 'צהריים' : 'ערב'} בהצלחה!`);
              setSingleAssignModal(null);
              await loadData(); // Refresh so the UI reflects the new assignment immediately
          } catch (e) {
@@ -744,18 +808,31 @@ function AvailabilityRequestsInner() {
              </Dialog>
 
              <Dialog open={!!singleAssignModal} onOpenChange={(open) => !open && setSingleAssignModal(null)}>
-                 <DialogContent dir="rtl" className="sm:max-w-[300px]">
+                 <DialogContent dir="rtl" className="sm:max-w-[340px]">
                      <DialogHeader>
                          <DialogTitle>שבוץ עובד - {singleAssignModal?.avail?.employee_name}</DialogTitle>
                      </DialogHeader>
-                     <p className="text-sm text-gray-600 mb-4">
-                         בטוח שברצונך לשבץ את {singleAssignModal?.avail?.employee_name} למשמרת {singleAssignModal?.shiftType === 'lunch' ? 'צהריים' : 'ערב'}?
+                     <p className="text-sm text-gray-600 mb-3">
+                         שבץ את <strong>{singleAssignModal?.avail?.employee_name}</strong> למשמרת <strong>{singleAssignModal?.shiftType === 'lunch' ? 'צהריים' : 'ערב'}</strong>:
                      </p>
+                     <div className="space-y-2 mb-4">
+                         <label className="text-xs font-medium text-gray-700">בתפקיד:</label>
+                         <select
+                             value={singleAssignPosition}
+                             onChange={(e) => setSingleAssignPosition(e.target.value)}
+                             className="w-full border rounded-lg px-3 py-2 text-sm bg-white"
+                         >
+                             {(singleAssignModal?.shiftType === 'lunch' ? SCHEDULE_LUNCH_POSITIONS : SCHEDULE_DINNER_POSITIONS).map(p => (
+                                 <option key={p} value={p}>{p}</option>
+                             ))}
+                         </select>
+                         <p className="text-[10px] text-gray-500">רק תפקידים שמופיעים בלוח הסידור.</p>
+                     </div>
                      <DialogFooter className="gap-2">
                          <Button variant="outline" onClick={() => setSingleAssignModal(null)}>ביטול</Button>
-                         <Button 
-                             onClick={() => handleSingleAssign(singleAssignModal.avail, singleAssignModal.shiftType)}
-                             disabled={singleAssignLoading}
+                         <Button
+                             onClick={() => handleSingleAssign(singleAssignModal.avail, singleAssignModal.shiftType, singleAssignPosition)}
+                             disabled={singleAssignLoading || !singleAssignPosition}
                              className="bg-green-600 hover:bg-green-700"
                          >
                              {singleAssignLoading ? <Loader2 className="w-3 h-3 animate-spin ml-2" /> : null}
