@@ -212,10 +212,27 @@ const MobileScheduleView = ({ week, positions, employees, onCellClick, onAssignm
 
     const getAssignmentsFor = (day, shiftType, positionName) => {
         const dateString = format(day, 'yyyy-MM-dd');
-        const shift = week.find(s => s.date === dateString && s.shift_type === shiftType);
-        if (!shift) return [];
+        // AGGREGATE across ALL shifts matching date+type — older code paths can
+        // produce duplicate WorkShift rows for the same day+shift, and find()
+        // only returned the first one. Verified in browser console: a Mon dinner
+        // shift m6xzyx had Aya, but apdfch (also Mon dinner, no Aya) was being
+        // picked first → Aya invisible. Concat the staff arrays to surface
+        // everyone who's actually been assigned to this slot.
+        const matchingShifts = week.filter(s => s.date === dateString && s.shift_type === shiftType);
+        if (!matchingShifts.length) return [];
+        const allStaff = matchingShifts.flatMap(s => s.assigned_staff || []);
+        // De-dupe by employee_id+position in case the same person was written
+        // to both duplicate shifts.
+        const seen = new Set();
+        const uniqueStaff = [];
+        for (const a of allStaff) {
+            const key = `${a.employee_id}|${a.position}`;
+            if (seen.has(key)) continue;
+            seen.add(key);
+            uniqueStaff.push(a);
+        }
 
-        let filteredAssignments = shift.assigned_staff?.filter(a => canon(a.position) === positionName) || [];
+        let filteredAssignments = uniqueStaff.filter(a => canon(a.position) === positionName);
 
         if (filters.employee !== 'all') {
             filteredAssignments = filteredAssignments.filter(a => a.employee_id === filters.employee);
