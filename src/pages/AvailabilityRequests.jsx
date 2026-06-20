@@ -202,10 +202,16 @@ function AvailabilityRequestsInner() {
      const handleSingleAssign = async (avail, shiftType) => {
          setSingleAssignLoading(true);
          try {
-             // avail.date was normalized on load to the Israel-local YMD,
-             // so it already reflects the day the row should be filed under.
              const dateStr = avail.date;
-             const existingShifts = await base44.entities.WorkShift.filter({ date: dateStr, shift_type: shiftType });
+             // Match how WorkScheduling looks shifts up: pull a wide window and
+             // filter CLIENT-SIDE on the date-slice + type. The server-side
+             // filter({date}) was creating duplicate shifts because Prisma's
+             // DateTime equality misses rows whose `date` column has a non-
+             // midnight-UTC timestamp — so a duplicate row was created on every
+             // assign, the schedule grid picked one of them via find(), and any
+             // staff written to the OTHER duplicate was invisible.
+             const allShifts = await base44.entities.WorkShift.list('-date', 2000).catch(() => []);
+             const existingShifts = allShifts.filter(s => String(s.date).slice(0, 10) === dateStr && s.shift_type === shiftType);
              let shift = existingShifts[0];
 
              if (!shift) {
