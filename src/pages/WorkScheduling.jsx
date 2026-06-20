@@ -464,29 +464,20 @@ export default function WorkScheduling() {
                 cMap.set(`${t.employee_id}|${dateKey}`, t);
             }
             setClockIns(cMap);
-            // Normalize date fields once — API returns ISO DateTime strings post-migration
-            // ("YYYY-MM-DDTHH:mm:ss.sssZ"). Slicing the first 10 chars works when the
-            // timestamp is midnight UTC, but breaks when the shift was created with a
-            // midnight-Asia/Jerusalem timestamp (=21:00 UTC the previous day) —
-            // the slice then returns the WRONG day and the grid can't find the shift
-            // for the user-facing date. Convert to the Israel-local Y-M-D instead.
-            const ISRAEL_TZ = 'Asia/Jerusalem';
-            const toIsraelYMD = (x) => {
-                if (!x) return x;
-                if (typeof x === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(x)) return x; // already YMD
-                const d = x instanceof Date ? x : new Date(x);
-                if (isNaN(d.getTime())) return typeof x === 'string' ? x.slice(0, 10) : x;
-                // en-CA formats as YYYY-MM-DD; timeZone option re-projects into Israel.
-                return d.toLocaleDateString('en-CA', { timeZone: ISRAEL_TZ });
-            };
-            setTipReports(allTipReports.map(r => ({ ...r, date: toIsraelYMD(r.date) })));
-            setAvailabilities(allAvailabilities.map(a => ({ ...a, date: toIsraelYMD(a.date) })));
+            // Normalize date fields once — API returns ISO strings post-migration
+            // but every comparison site below uses YYYY-MM-DD form.
+            const sliceDate = (x) => (typeof x === 'string' ? x.slice(0, 10) : x);
+            setTipReports(allTipReports.map(r => ({ ...r, date: sliceDate(r.date) })));
+            setAvailabilities(allAvailabilities.map(a => ({ ...a, date: sliceDate(a.date) })));
 
             // סנכרן שמות עובדים בשיבוצים עם הנתונים הנוכחיים
             const employeeMap = Object.fromEntries(allEmployees.map(e => [e.id, e.full_name]));
             const syncedShifts = shifts.map(shift => ({
                 ...shift,
-                date: toIsraelYMD(shift.date),
+                // After the DateTime migration the API returns ISO strings here
+                // ("YYYY-MM-DDTHH:mm:ss.sssZ"); every grid comparison below uses
+                // YYYY-MM-DD form, so normalize once at load.
+                date: typeof shift.date === 'string' ? shift.date.slice(0, 10) : shift.date,
                 assigned_staff: (shift.assigned_staff || []).map(assignment => ({
                     ...assignment,
                     employee_name: employeeMap[assignment.employee_id] || assignment.employee_name
