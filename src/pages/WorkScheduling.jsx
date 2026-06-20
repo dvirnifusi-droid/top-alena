@@ -191,12 +191,31 @@ const MobileScheduleView = ({ week, positions, employees, onCellClick, onAssignm
         setSelectedDay(addDays(selectedDay, 7));
     };
 
+    // Feminine → canonical mapping so legacy assignments stored as 'מלצרית' /
+    // 'טבחית' / 'מארחת' / etc. show in the masculine schedule row (the grid
+    // only renders rows for the canonical names). READ-ONLY normalization —
+    // doesn't move anything between days or change what's stored in DB.
+    const POSITION_ALIASES = {
+        'מלצרית': 'מלצר', 'ברמנית': 'ברמן', 'ראנרית': 'ראנר',
+        'מארחת': 'מארח/ת', 'מארח': 'מארח/ת',
+        'מנהלת משמרת': 'מנהל משמרת',
+        'טבחית': 'טבח',
+        'שוטפת כלים': 'שוטף כלים',
+        'מתלמדת פלור': 'מתלמד פלור',
+        'מתלמדת מטבח': 'מתלמד מטבח',
+        'מנהלת פלור': 'מנהל פלור',
+        'מנהלת מטבח': 'מנהל מטבח',
+        'קופה ואריזות': 'קופה + אריזות',
+        'קופה +אריזות': 'קופה + אריזות',
+    };
+    const canon = (p) => POSITION_ALIASES[String(p || '').trim()] || String(p || '').trim();
+
     const getAssignmentsFor = (day, shiftType, positionName) => {
         const dateString = format(day, 'yyyy-MM-dd');
         const shift = week.find(s => s.date === dateString && s.shift_type === shiftType);
         if (!shift) return [];
 
-        let filteredAssignments = shift.assigned_staff?.filter(a => a.position === positionName) || [];
+        let filteredAssignments = shift.assigned_staff?.filter(a => canon(a.position) === positionName) || [];
 
         if (filters.employee !== 'all') {
             filteredAssignments = filteredAssignments.filter(a => a.employee_id === filters.employee);
