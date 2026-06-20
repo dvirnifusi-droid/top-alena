@@ -19,6 +19,18 @@ import {
   pickSchedulablePosition,
 } from '@/lib/positionNormalize';
 
+// Convert any date value (ISO string, Date, YYYY-MM-DD) to the YYYY-MM-DD that
+// matches what a human in Israel calls that day. Slicing UTC ISO strings
+// silently breaks on midnight-Israel-stored timestamps (=21:00 UTC the day
+// before), so the shift for Wednesday could be found only on Tuesday's date.
+const toIsraelYMD = (x) => {
+  if (!x) return x;
+  if (typeof x === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(x)) return x;
+  const d = x instanceof Date ? x : new Date(x);
+  if (isNaN(d.getTime())) return typeof x === 'string' ? x.slice(0, 10) : x;
+  return d.toLocaleDateString('en-CA', { timeZone: 'Asia/Jerusalem' });
+};
+
 const AVAILABILITY_TYPES = {
     available: { label: '✅ פנוי/ה', color: 'bg-green-100 text-green-800' },
     unavailable: { label: '❌ לא פנוי/ה', color: 'bg-red-100 text-red-800' },
@@ -94,8 +106,9 @@ function AvailabilityRequestsInner() {
                 base44.entities.AvailabilityFormSettings.list(),
             ]);
             setCurrentUser(me);
-            // Normalize ISO date strings to YYYY-MM-DD for downstream comparisons.
-            setAvailabilities(allAvail.map(a => ({ ...a, date: typeof a.date === 'string' ? a.date.slice(0, 10) : a.date })));
+            // Normalize ISO date strings to the Israel-local YYYY-MM-DD for downstream
+            // comparisons — see toIsraelYMD comment for the timezone bug it fixes.
+            setAvailabilities(allAvail.map(a => ({ ...a, date: toIsraelYMD(a.date) })));
             setEmployees(allEmps);
             setInactiveEmployees(inactiveEmps || []);
             setSettings(sett[0] || null);
@@ -213,10 +226,7 @@ function AvailabilityRequestsInner() {
              // has a non-midnight-UTC timestamp that the server-side date filter wouldn't
              // match against a YYYY-MM-DD argument.
              const recentShifts = await base44.entities.WorkShift.list('-date', 200).catch(() => []);
-             let shift = recentShifts.find(s => {
-                 const d = typeof s.date === 'string' ? s.date.slice(0, 10) : s.date;
-                 return d === dateStr && s.shift_type === shiftType;
-             });
+             let shift = recentShifts.find(s => toIsraelYMD(s.date) === dateStr && s.shift_type === shiftType);
 
              if (!shift) {
                  shift = await base44.entities.WorkShift.create({
