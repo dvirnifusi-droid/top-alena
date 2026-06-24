@@ -35,16 +35,22 @@ export default function InvoiceDetailsPage() {
                 const invoiceData = await Invoice.get(invoiceId);
                 if (!invoiceData) throw new Error("החשבונית לא נמצאה.");
                 
+                // Schema field is file_url (not file_uri). The signed-url helper
+                // also expects { file_url }. Old code passed file_uri on both sides
+                // so the preview iframe never got a URL and was stuck loading.
                 const [itemsData, supplierData, urlResponse] = await Promise.all([
                     InvoiceItem.filter({ invoice_id: invoiceId }),
                     Supplier.get(invoiceData.supplier_id),
-                    CreateFileSignedUrl({ file_uri: invoiceData.file_uri })
+                    invoiceData.file_url
+                        ? CreateFileSignedUrl({ file_url: invoiceData.file_url })
+                        : Promise.resolve(null),
                 ]);
 
                 setInvoice(invoiceData);
                 setItems(itemsData);
                 setSupplier(supplierData);
-                setSignedUrl(urlResponse.signed_url);
+                // Fall back to the raw file_url if the signing helper returned nothing.
+                setSignedUrl(urlResponse?.signed_url || urlResponse?.url || invoiceData.file_url || null);
 
             } catch (err) {
                 console.error("Failed to load invoice details:", err);
