@@ -246,8 +246,16 @@ export async function handleAdminInvoiceMedia(mediaUrl: string, fromPhone?: stri
     // 2. Upload to our own storage (so we keep a permanent copy + get a key Gemini can fetch)
     const ext = mimeType.startsWith('image/') ? '.' + (mimeType.split('/')[1] || 'jpg') : mimeType === 'application/pdf' ? '.pdf' : '.bin';
     const stream = Readable.from(buf);
-    const { key, url } = await uploadStreamToS3(`whatsapp-invoice${ext}`, mimeType, stream);
-    storedUrl = url;
+    const { key } = await uploadStreamToS3(`whatsapp-invoice${ext}`, mimeType, stream);
+    // ALWAYS use the relative /api/files/<key> URL, never the public S3 URL.
+    // Reasons:
+    //   • In-process: fetchFileAsBase64 has a fast-path for /api/files/*
+    //     that streams bytes from MinIO via the s3 client (Gemini OCR uses this).
+    //   • In browser: the /api/files route streams the file with the correct
+    //     Content-Type so an <iframe> / <img> renders it. The S3_PUBLIC_URL
+    //     (/storage on this stack) currently isn't wired up in Caddy and
+    //     served the SPA HTML instead — invoices looked stuck loading.
+    storedUrl = `/api/files/${key}`;
     // 3. OCR + extract.
     // Pass the INTERNAL /api/files/<key> URL — not the public S3_PUBLIC_URL.
     // fetchFileAsBase64 inside invokeLLM has a fast-path for /api/files/* that
