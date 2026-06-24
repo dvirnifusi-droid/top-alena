@@ -127,12 +127,20 @@ export async function handleAdminInvoiceMedia(mediaUrl: string): Promise<string>
   try {
     // 1. Download from Twilio
     const { mimeType, buf } = await downloadTwilioMedia(mediaUrl);
-    // 2. Upload to our own storage (so we keep a permanent copy + get a relative URL Gemini can fetch)
+    // 2. Upload to our own storage (so we keep a permanent copy + get a key Gemini can fetch)
     const ext = mimeType.startsWith('image/') ? '.' + (mimeType.split('/')[1] || 'jpg') : mimeType === 'application/pdf' ? '.pdf' : '.bin';
     const stream = Readable.from(buf);
-    const { url } = await uploadStreamToS3(`whatsapp-invoice${ext}`, mimeType, stream);
+    const { key, url } = await uploadStreamToS3(`whatsapp-invoice${ext}`, mimeType, stream);
     storedUrl = url;
-    // 3. OCR + extract
+    // 3. OCR + extract.
+    // Pass the INTERNAL /api/files/<key> URL — not the public S3_PUBLIC_URL.
+    // fetchFileAsBase64 inside invokeLLM has a fast-path for /api/files/* that
+    // reads bytes directly from MinIO via the s3 client. The public URL would
+    // make it do a real HTTP fetch back through Caddy, which on this stack
+    // serves the SPA HTML for unmatched paths → Gemini gets HTML, says
+    // "this is a website, not an invoice". The byte content is fine either
+    // way; the issue was purely the URL routing.
+    const internalUrl = `/api/files/${key}`;
     extracted = (await invokeLLM({
       prompt: [
         'אתה מנתח חשבוניות לעסק מסעדה ישראלי. הקובץ המצורף הוא חשבונית מספק.',
@@ -140,7 +148,7 @@ export async function handleAdminInvoiceMedia(mediaUrl: string): Promise<string>
         'אם שדה אינו קיים בחשבונית — השמט אותו במקום להמציא ערך.',
         'קטגוריה משוערת: ירקות, פירות, בשר, דגים, חלב וביצים, יבש (קמח/אורז/וכו), משקאות, אלכוהול, ניקיון, ציוד מטבח, שירותים (חשבונאות, ביטוח, שכירות), אחר.',
       ].join('\n'),
-      fileUrls: [url],
+      fileUrls: [internalUrl],
       responseSchema: INVOICE_SCHEMA,
       maxOutputTokens: 2000,
     })) as ExtractedInvoice;
