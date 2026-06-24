@@ -229,18 +229,21 @@ async function cmdMissingAvailability(): Promise<string> {
 
 // ── Router ──────────────────────────────────────────────────────────────────
 
-// Recognized phrases → handler. Keys are normalized (lowercased, trimmed).
-// Hebrew phrases checked first via regex for partial matching.
+// Recognized phrases → handler.
+// IMPORTANT: don't use \b in JS regex with Hebrew — Hebrew letters aren't
+// "word chars" by default, so /^עזרה\b/ matches nothing. Use (?:\s|$|[.,!?])
+// as an explicit end-of-token guard, or rely on the leading anchor + length.
+const END = '(?:\\s|$|[.,!?])';
 const COMMAND_MATCHERS: Array<{ test: (s: string) => boolean; run: () => Promise<string> }> = [
-  { test: (s) => /^(עזרה|help|פקודות)\b/i.test(s), run: cmdHelp },
+  { test: (s) => new RegExp(`^(עזרה|help|פקודות)${END}`, 'i').test(s), run: cmdHelp },
   { test: (s) => /^סידור\s+(היום|today)/i.test(s), run: cmdScheduleToday },
   { test: (s) => /^סידור\s+(מחר|tomorrow)/i.test(s), run: cmdScheduleTomorrow },
   { test: (s) => /^סידור\s+(שבוע|השבוע|week)/i.test(s), run: cmdScheduleWeek },
-  { test: (s) => /^סידור\b/i.test(s), run: cmdScheduleToday }, // bare "סידור" → today
-  { test: (s) => /^טיפים\b/i.test(s), run: cmdTips },
-  { test: (s) => /^הכנסות\b/i.test(s), run: cmdIncomeToday },
-  { test: (s) => /^לידים\b/i.test(s), run: cmdLeadsWaiting },
-  { test: (s) => /^זמינות(\s+חסרים)?\b/i.test(s), run: cmdMissingAvailability },
+  { test: (s) => new RegExp(`^סידור${END}`, 'i').test(s), run: cmdScheduleToday }, // bare "סידור" → today
+  { test: (s) => new RegExp(`^טיפים${END}`, 'i').test(s), run: cmdTips },
+  { test: (s) => new RegExp(`^הכנסות${END}`, 'i').test(s), run: cmdIncomeToday },
+  { test: (s) => new RegExp(`^לידים${END}`, 'i').test(s), run: cmdLeadsWaiting },
+  { test: (s) => new RegExp(`^זמינות(\\s+חסרים)?${END}`, 'i').test(s), run: cmdMissingAvailability },
 ];
 
 // Returns reply text if the message matched an admin command, or null otherwise.
