@@ -82,7 +82,10 @@ export const twilioWebhookRoutes: FastifyPluginAsync = async (app) => {
           },
         });
         req.log.info({ sid, messageStatus }, '[twilio-webhook] status update');
-      } else if (from && body) {
+      } else if (from && (body || numMedia > 0)) {
+        // Media-only messages have an empty body — without the numMedia guard
+        // they'd silently fall out of the entire handler. That's why sending
+        // an invoice photo with no caption produced no reply.
         // ── Admin agent: route owner/manager messages to read-only commands.
         // Runs BEFORE the unsubscribe + inbox-archival flow so admin commands
         // bypass the noisy admin-push and don't tip the unsubscribe regex.
