@@ -628,6 +628,7 @@ function TipsInner() {
                                                             <SelectItem value="מלצר">מלצר</SelectItem>
                                                             <SelectItem value="ראנר">ראנר</SelectItem>
                                                             <SelectItem value="ברמן">ברמן</SelectItem>
+                                                            <SelectItem value="מנהל משמרת">מנהל משמרת</SelectItem>
                                                         </SelectContent>
                                                     </Select>
                                                 </TableCell>
