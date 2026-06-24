@@ -1,5 +1,6 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { sendRestroomReminder, sendAbandonedReminder, sendT24SurveyReminders, runAutoTrackerAnalysis, runSalesAutoClose, runWeeklyPersonalGoals, captureBeecommSnapshot, backfillBeecommHistory, reopenAutoClosedShifts } from '../functions/load.js';
+import { sendMorningBrief, buildMorningBrief } from '../lib/morningBrief.js';
 
 // Internal cron endpoints, guarded by a shared secret (x-cron-secret header or
 // ?secret=). Called by the server crontab — never by end users.
@@ -58,5 +59,18 @@ export const cronRoutes: FastifyPluginAsync = async (app) => {
   app.post('/reopen-auto-closed-shifts', async (req) => {
     const maxAgeHours = Number((req.query as any)?.hours) || 36;
     return reopenAutoClosedShifts(maxAgeHours);
+  });
+
+  // Daily ~08:00 IL — send admin numbers a WhatsApp summary (sidur today,
+  // tips yesterday, open leads, unpaid invoices, missing availability).
+  app.post('/morning-brief', async () => {
+    return sendMorningBrief();
+  });
+
+  // Preview/debug — return the brief text WITHOUT sending. Useful for
+  // hand-testing what the brief will look like.
+  app.post('/morning-brief-preview', async () => {
+    const text = await buildMorningBrief();
+    return { text };
   });
 };
