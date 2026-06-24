@@ -22,11 +22,33 @@ async function downloadTwilioMedia(mediaUrl: string): Promise<{ mimeType: string
   const token = process.env.TWILIO_AUTH_TOKEN;
   if (!sid || !token) throw new Error('twilio_creds_missing');
   const creds = Buffer.from(`${sid}:${token}`).toString('base64');
-  const res = await fetch(mediaUrl, { headers: { Authorization: `Basic ${creds}` } });
-  if (!res.ok) throw new Error(`media_fetch_${res.status}`);
-  const mimeType = res.headers.get('content-type') || 'application/octet-stream';
-  const buf = Buffer.from(await res.arrayBuffer());
-  return { mimeType, buf };
+
+  // Twilio media URL serves a 302 redirect to a signed S3 URL. node fetch's
+  // default redirect:'follow' strips the Authorization header across hosts
+  // (security feature), so we end up at the S3 URL with no auth and S3 returns
+  // an XML/HTML access-denied page that Gemini Vision then interprets as
+  // "this is a website, not an invoice". Follow the redirect manually:
+  //   1) hit Twilio with auth, expect 302
+  //   2) hit the Location URL (already signed, no auth needed)
+  let currentUrl = mediaUrl;
+  let currentHeaders: Record<string, string> = { Authorization: `Basic ${creds}` };
+  for (let hops = 0; hops < 5; hops++) {
+    const res = await fetch(currentUrl, { headers: currentHeaders, redirect: 'manual' });
+    if (res.status >= 300 && res.status < 400) {
+      const next = res.headers.get('location');
+      if (!next) throw new Error(`media_redirect_${res.status}_no_location`);
+      currentUrl = new URL(next, currentUrl).toString();
+      // S3 signed URLs work without auth; drop the Twilio creds so we don't
+      // accidentally trip cross-host header policies.
+      currentHeaders = {};
+      continue;
+    }
+    if (!res.ok) throw new Error(`media_fetch_${res.status}`);
+    const mimeType = res.headers.get('content-type') || 'application/octet-stream';
+    const buf = Buffer.from(await res.arrayBuffer());
+    return { mimeType, buf };
+  }
+  throw new Error('media_redirect_too_many_hops');
 }
 
 const INVOICE_SCHEMA = {
