@@ -22,6 +22,10 @@ const MINIMUM_WAGE = 32; // שכר מינימום לשעה
 // --- New Constants for Deductions ---
 const RESTAURANT_HOURLY_DEDUCTION = 3;
 const RUNNER_HOURLY_PAY = 40;
+// Shift manager gets a flat % of the total collected tips, paid before the
+// per-hour distribution to waiters/bartenders. Owner asked for 5%.
+const MANAGER_TIP_PERCENT = 0.05;
+const MANAGER_POSITIONS = ['מנהל משמרת', 'מנהלת משמרת'];
 
 const TIP_ELIGIBLE_POSITIONS = ['מלצר', 'ברמן'];
 
@@ -242,7 +246,14 @@ function TipsInner() {
 
         let totalRestaurantDeduction = 0;
         let totalRunnerDeduction = 0;
-        
+        // Shift-manager cut: 5% of the gross total, split evenly between any
+        // staff with a manager position. Subtracted from distributableTips
+        // BEFORE the per-hour pool is computed.
+        const totalManagerDeduction = numericTotalTips * MANAGER_TIP_PERCENT;
+        const managerCount = staffDetails.filter(s => MANAGER_POSITIONS.includes(s.position)).length;
+        const perManagerCut = managerCount > 0 ? totalManagerDeduction / managerCount : 0;
+        distributableTips -= totalManagerDeduction;
+
         let totalTipEligibleHours = 0;
 
         // Calculate hours and deductions
@@ -291,7 +302,11 @@ function TipsInner() {
             // Runners get fixed pay, no tip from pool
             if (staff.position === 'ראנר') {
                 grossTip = staff.effectiveHours * RUNNER_HOURLY_PAY;
-            } 
+            }
+            // Shift manager gets the flat percentage cut, evenly split if more than one
+            else if (MANAGER_POSITIONS.includes(staff.position)) {
+                grossTip = perManagerCut;
+            }
             // Tip-eligible positions get from the pool
             else if (TIP_ELIGIBLE_POSITIONS.includes(staff.position)) {
                 grossTip = staff.effectiveHours * tipPerHour;
@@ -346,6 +361,8 @@ function TipsInner() {
             tipPerHour,
             totalRestaurantDeduction: totalRestaurantDeduction,
             totalRunnerDeduction: totalRunnerDeduction,
+            totalManagerDeduction,
+            managerCount,
             netTipsForDistribution: Math.max(0, distributableTips),
             waiterHours,
             runnerHours,
@@ -363,6 +380,8 @@ function TipsInner() {
                   total_tips_collected: parseFloat(totalTips) || 0,
                   runner_deduction: calculatedResults.totalRunnerDeduction,
                   restaurant_deduction: calculatedResults.totalRestaurantDeduction,
+                  // manager_deduction not stored — derivable from total_tips_collected × 5%
+                  // (no schema field; the manager's actual cut is inside staff_details).
                   net_tips_for_distribution: calculatedResults.netTipsForDistribution,
                   tip_per_hour: calculatedResults.tipPerHour,
                   opening_employee_ids: openingEmployeeIds,
@@ -472,7 +491,7 @@ function TipsInner() {
                     ) : (
                         <>
                             {/* Summary Cards */}
-                            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                            <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
                                 <Card>
                                     <CardHeader className="pb-2"><CardTitle className="text-sm font-medium">הפרשה למסעדה</CardTitle></CardHeader>
                                     <CardContent><p className="text-2xl font-bold">₪{calculatedResults.totalRestaurantDeduction.toFixed(2)}</p></CardContent>
@@ -480,6 +499,15 @@ function TipsInner() {
                                 <Card>
                                     <CardHeader className="pb-2"><CardTitle className="text-sm font-medium">הפרשה לראנרים</CardTitle></CardHeader>
                                     <CardContent><p className="text-2xl font-bold">₪{calculatedResults.totalRunnerDeduction.toFixed(2)}</p></CardContent>
+                                </Card>
+                                <Card>
+                                    <CardHeader className="pb-2"><CardTitle className="text-sm font-medium">הפרשה למנהל משמרת (5%)</CardTitle></CardHeader>
+                                    <CardContent>
+                                        <p className="text-2xl font-bold text-blue-700">₪{calculatedResults.totalManagerDeduction.toFixed(2)}</p>
+                                        {calculatedResults.managerCount === 0 && calculatedResults.totalManagerDeduction > 0 && (
+                                            <p className="text-[10px] text-amber-700 mt-1">אין מנהל משמרת בסידור — הסכום לא חולק לאף אחד.</p>
+                                        )}
+                                    </CardContent>
                                 </Card>
                                 <Card>
                                     <CardHeader className="pb-2"><CardTitle className="text-sm font-medium">קופה לחלוקה</CardTitle></CardHeader>
@@ -750,6 +778,7 @@ function TipsInner() {
                                        total_tips_collected: parseFloat(totalTips) || 0,
                                        runner_deduction: calculatedResults.totalRunnerDeduction,
                                        restaurant_deduction: calculatedResults.totalRestaurantDeduction,
+                                       // manager_deduction not stored — derivable from total_tips × 5%
                                        net_tips_for_distribution: calculatedResults.netTipsForDistribution,
                                        tip_per_hour: calculatedResults.tipPerHour,
                                        opening_employee_ids: openingEmployeeIds,
