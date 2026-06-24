@@ -11,6 +11,7 @@ import type { FastifyPluginAsync } from 'fastify';
 import { prisma } from '../db.js';
 import crypto from 'node:crypto';
 import { pushoverToAdmins } from '../lib/pushover.js';
+import { tryHandleAdminCommand, isWhatsAppAdmin } from '../lib/whatsappAgent.js';
 
 const STRICT_SIG = false;
 
@@ -81,6 +82,31 @@ export const twilioWebhookRoutes: FastifyPluginAsync = async (app) => {
         });
         req.log.info({ sid, messageStatus }, '[twilio-webhook] status update');
       } else if (from && body) {
+        // ── Admin agent: route owner/manager messages to read-only commands.
+        // Runs BEFORE the unsubscribe + inbox-archival flow so admin commands
+        // bypass the noisy admin-push and don't tip the unsubscribe regex.
+        if (isWhatsAppAdmin(from)) {
+          const agentReply = await tryHandleAdminCommand(from, body);
+          if (agentReply) {
+            // Mirror to WhatsAppMessage so the inbox UI still has a record.
+            await (prisma as any).whatsAppMessage.create({
+              data: {
+                twilio_sid: sid || null, direction: 'inbound', from_phone: from, to_phone: to,
+                contact_phone: from, body, num_media: numMedia, status: 'received',
+                raw: { ...params, admin_command: true } as any, is_read: true,
+              },
+            }).catch(() => {});
+            req.log.info({ from, body: body.slice(0, 80) }, '[whatsapp-agent] admin command served');
+            // TwiML body is XML — escape characters that would break the wrapper.
+            const escaped = agentReply
+              .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+              .replace(/"/g, '&quot;').replace(/'/g, '&apos;');
+            reply.type('text/xml').send(
+              `<?xml version="1.0" encoding="UTF-8"?><Response><Message>${escaped}</Message></Response>`,
+            );
+            return;
+          }
+        }
         // ── Self-service unsubscribe ──────────────────────────────────────
         // Customer replied "הסר" (or similar) → opt them out of marketing
         // immediately and confirm with an auto-reply. Required by spam law:
