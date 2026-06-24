@@ -13,6 +13,7 @@ import crypto from 'node:crypto';
 import { pushoverToAdmins } from '../lib/pushover.js';
 import { tryHandleAdminCommand, isWhatsAppAdmin } from '../lib/whatsappAgent.js';
 import { handleAdminInvoiceMedia } from '../lib/whatsappInvoice.js';
+import { sendWhatsApp } from '../lib/twilio.js';
 
 const STRICT_SIG = false;
 
@@ -93,28 +94,38 @@ export const twilioWebhookRoutes: FastifyPluginAsync = async (app) => {
           // (A) Media — invoice OCR flow. Twilio populates MediaUrl0..N for each
           // attachment. We only process the first one for now; multi-page PDFs are
           // a single media item already, and most invoice photos are one image.
+          //
+          // ⏱  OCR takes 10-20 seconds (download + upload + Gemini Vision), which
+          // exceeds Twilio's 15-second webhook timeout. So we ACK immediately and
+          // process + reply asynchronously via sendWhatsApp (free, inside the 24h
+          // service window the inbound message itself just opened).
           if (numMedia >= 1 && params.MediaUrl0) {
-            try {
-              const invoiceReply = await handleAdminInvoiceMedia(params.MediaUrl0);
-              await (prisma as any).whatsAppMessage.create({
-                data: {
-                  twilio_sid: sid || null, direction: 'inbound', from_phone: from, to_phone: to,
-                  contact_phone: from, body: body || '(media)', num_media: numMedia, status: 'received',
-                  raw: { ...params, admin_invoice: true } as any, is_read: true,
-                },
-              }).catch(() => {});
-              req.log.info({ from, media_url: params.MediaUrl0 }, '[whatsapp-agent] admin invoice processed');
-              const escapedMedia = invoiceReply
-                .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-                .replace(/"/g, '&quot;').replace(/'/g, '&apos;');
-              reply.type('text/xml').send(
-                `<?xml version="1.0" encoding="UTF-8"?><Response><Message>${escapedMedia}</Message></Response>`,
-              );
-              return;
-            } catch (e: any) {
-              req.log.error({ err: e?.message }, '[whatsapp-agent] invoice flow crashed');
-              // Fall through to text-command handling below in case the media also had a body command.
-            }
+            const mediaUrl = params.MediaUrl0;
+            await (prisma as any).whatsAppMessage.create({
+              data: {
+                twilio_sid: sid || null, direction: 'inbound', from_phone: from, to_phone: to,
+                contact_phone: from, body: body || '(media)', num_media: numMedia, status: 'received',
+                raw: { ...params, admin_invoice: true } as any, is_read: true,
+              },
+            }).catch(() => {});
+            // Quick ack so Twilio doesn't time us out.
+            reply.type('text/xml').send(
+              '<?xml version="1.0" encoding="UTF-8"?><Response><Message>📥 קיבלתי את החשבונית, מעבד... תוך כ-20 שניות תקבל סיכום.</Message></Response>',
+            );
+            // Process + reply in the background. Errors are logged but never crash the request.
+            void (async () => {
+              try {
+                const invoiceReply = await handleAdminInvoiceMedia(mediaUrl);
+                req.log.info({ from, media_url: mediaUrl }, '[whatsapp-agent] admin invoice processed');
+                await sendWhatsApp(from, invoiceReply);
+              } catch (e: any) {
+                req.log.error({ err: e?.message }, '[whatsapp-agent] invoice flow crashed');
+                try {
+                  await sendWhatsApp(from, `❌ נכשלתי בעיבוד החשבונית: ${e?.message || 'unknown'}\nנסה לשלוח שוב או הזן ידנית.`);
+                } catch { /* best effort */ }
+              }
+            })();
+            return;
           }
           // (B) Text command
           const agentReply = await tryHandleAdminCommand(from, body);
