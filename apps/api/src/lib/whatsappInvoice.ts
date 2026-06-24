@@ -120,8 +120,122 @@ async function fuzzyFindSupplier(name: string, taxId?: string): Promise<{ match?
   return { match: best.sup, confidence: best.sim };
 }
 
+// Internal: store the parsed draft on a WhatsAppMessage outbound row so the
+// next admin reply (אישור/ביטול) can find it. Keeps us off schema migrations.
+// We treat is_read=false as "not yet acted upon".
+async function storePendingInvoice(fromPhone: string, payload: any, previewText: string): Promise<void> {
+  await (prisma as any).whatsAppMessage.create({
+    data: {
+      twilio_sid: null,
+      direction: 'outbound',
+      from_phone: process.env.TWILIO_WHATSAPP_FROM || 'whatsapp:+system',
+      to_phone: fromPhone,
+      contact_phone: fromPhone,
+      body: previewText,
+      num_media: 0,
+      status: 'pending_confirmation',
+      raw: { pending_invoice: payload } as any,
+      is_read: false,
+    },
+  }).catch(() => {});
+}
+
+// Confirmation-side handler. Returns reply text if the admin message looks like
+// an approval/cancellation of the most recent pending invoice (within 15 min).
+// Returns null otherwise so the regular command router runs.
+export async function tryConfirmPendingInvoice(
+  fromPhone: string,
+  body: string,
+): Promise<string | null> {
+  const trimmed = (body || '').trim();
+  if (!trimmed) return null;
+  const isApprove = /^(אישור|אשר|כן|מאשר|מאשרת|ok|yes)\s*[.!]?$/i.test(trimmed);
+  const isCancel = /^(ביטול|ביטל|בטל|בטלי|לא|no|cancel)\s*[.!]?$/i.test(trimmed);
+  if (!isApprove && !isCancel) return null;
+
+  // Find most recent unread outbound with pending_invoice from <15 min ago.
+  const since = new Date(Date.now() - 15 * 60 * 1000);
+  const pending: any = await (prisma as any).whatsAppMessage.findFirst({
+    where: {
+      direction: 'outbound',
+      contact_phone: fromPhone,
+      status: 'pending_confirmation',
+      is_read: false,
+      createdAt: { gte: since },
+    },
+    orderBy: { id: 'desc' },
+  }).catch(() => null);
+  if (!pending) return null; // no pending draft, let the command router try
+  const draft = (pending.raw as any)?.pending_invoice;
+  if (!draft) return null;
+
+  // Mark as consumed regardless of branch so re-sending אישור doesn't double-create.
+  await (prisma as any).whatsAppMessage.update({ where: { id: pending.id }, data: { is_read: true } }).catch(() => {});
+
+  if (isCancel) {
+    return '✋ ביטלתי. החשבונית לא נשמרה במערכת.\n(הקובץ נשאר ב-MinIO ל-30 יום אם תרצה לשחזר.)';
+  }
+
+  // === APPROVE — create Invoice row (and Supplier if needed) ===
+  try {
+    const ex = draft.extracted || {};
+    let supplierId: string | null = draft.matched_supplier_id || null;
+    let supplierName: string | null = draft.matched_supplier_name || null;
+    let supplierCreated = false;
+    if (!supplierId) {
+      // Create a new Supplier with minimal fields. Owner can flesh it out later
+      // in /Suppliers UI. tax_id goes into the supplier_id column (legacy name).
+      const newSup: any = await (prisma as any).supplier.create({
+        data: {
+          company_name: String(ex.supplier_name || '').slice(0, 200) || 'ספק לא זוהה',
+          supplier_id: String(ex.supplier_tax_id || '').slice(0, 30),
+          contact_person: '',
+          email: '',
+          phone: '',
+          category: String(ex.category_guess || 'אחר').slice(0, 60),
+          status: 'pending_approval',
+        },
+      });
+      supplierId = newSup.id;
+      supplierName = newSup.company_name;
+      supplierCreated = true;
+    }
+
+    // Parse invoice_date (YYYY-MM-DD) safely; fall back to today.
+    const isoOk = typeof ex.invoice_date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(ex.invoice_date);
+    const invoiceDate = isoOk ? new Date(`${ex.invoice_date}T00:00:00.000Z`) : new Date();
+
+    const created = await (prisma as any).invoice.create({
+      data: {
+        supplier_id: supplierId!,
+        invoice_number: String(ex.invoice_number || '').slice(0, 60) || null,
+        invoice_date: invoiceDate,
+        total_amount: Number(ex.total_amount) || 0,
+        file_url: draft.stored_url || null,
+        status: 'pending_review',
+        payment_status: 'unpaid',
+      },
+    });
+
+    const lines = ['✅ *החשבונית נשמרה במערכת*', ''];
+    lines.push(`🆔 מזהה: ${created.id.slice(-8)}`);
+    if (supplierCreated) {
+      lines.push(`🆕 נוצר ספק חדש: *${supplierName}* (סטטוס: ממתין לאישור — תוכל להשלים פרטים ב-/Suppliers)`);
+    } else {
+      lines.push(`🏢 ספק: ${supplierName}`);
+    }
+    lines.push(`💰 ${(created.total_amount as number).toLocaleString('he-IL')} ₪`);
+    lines.push(`📅 ${created.invoice_date.toISOString().slice(0, 10)}`);
+    lines.push('');
+    lines.push('🔗 לראיה ועריכה — דף /Invoices באפליקציה.');
+    return lines.join('\n');
+  } catch (e: any) {
+    return `❌ שמירה נכשלה: ${e?.message || 'unknown'}\nהמידע המקורי לא אבד — שלח את התמונה שוב כדי לנסות מחדש.`;
+  }
+}
+
 // Top-level handler. Returns reply text for the WhatsApp message.
-export async function handleAdminInvoiceMedia(mediaUrl: string): Promise<string> {
+export async function handleAdminInvoiceMedia(mediaUrl: string, fromPhone?: string): Promise<string> {
   let extracted: ExtractedInvoice | null = null;
   let storedUrl: string | null = null;
   try {
@@ -188,6 +302,21 @@ export async function handleAdminInvoiceMedia(mediaUrl: string): Promise<string>
   if (extracted.category_guess) lines.push(`🏷️ קטגוריה משוערת: ${extracted.category_guess}`);
   if (extracted.confidence_notes) lines.push(`\n⚠️ ${extracted.confidence_notes}`);
   lines.push('');
-  lines.push('💾 הקובץ נשמר. *אישור מלא + יצירת רשומה ב-Invoices יבוא בקומיט הבא* (בינתיים זו תצוגה מקדימה).');
-  return lines.join('\n');
+  lines.push('✅ ענה *אישור* כדי לשמור ב-Invoices');
+  lines.push('❌ ענה *ביטול* כדי לא לשמור');
+  lines.push('_(תקף ל-15 דקות)_');
+  const previewText = lines.join('\n');
+
+  // 6. Store draft so the next admin "אישור"/"ביטול" can act on it
+  if (fromPhone) {
+    const matchedHighConfidence = supplier && confidence >= 0.9;
+    await storePendingInvoice(fromPhone, {
+      extracted,
+      stored_url: storedUrl,
+      matched_supplier_id: matchedHighConfidence ? supplier.id : null,
+      matched_supplier_name: matchedHighConfidence ? supplier.company_name : null,
+      match_confidence: confidence,
+    }, previewText);
+  }
+  return previewText;
 }

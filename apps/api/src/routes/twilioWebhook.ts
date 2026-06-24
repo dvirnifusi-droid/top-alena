@@ -12,7 +12,7 @@ import { prisma } from '../db.js';
 import crypto from 'node:crypto';
 import { pushoverToAdmins } from '../lib/pushover.js';
 import { tryHandleAdminCommand, isWhatsAppAdmin } from '../lib/whatsappAgent.js';
-import { handleAdminInvoiceMedia } from '../lib/whatsappInvoice.js';
+import { handleAdminInvoiceMedia, tryConfirmPendingInvoice } from '../lib/whatsappInvoice.js';
 import { sendWhatsApp } from '../lib/twilio.js';
 
 const STRICT_SIG = false;
@@ -115,7 +115,7 @@ export const twilioWebhookRoutes: FastifyPluginAsync = async (app) => {
             // Process + reply in the background. Errors are logged but never crash the request.
             void (async () => {
               try {
-                const invoiceReply = await handleAdminInvoiceMedia(mediaUrl);
+                const invoiceReply = await handleAdminInvoiceMedia(mediaUrl, from);
                 req.log.info({ from, media_url: mediaUrl }, '[whatsapp-agent] admin invoice processed');
                 await sendWhatsApp(from, invoiceReply);
               } catch (e: any) {
@@ -127,7 +127,27 @@ export const twilioWebhookRoutes: FastifyPluginAsync = async (app) => {
             })();
             return;
           }
-          // (B) Text command
+          // (B) Confirmation of a pending invoice draft (אישור/ביטול). Checked
+          // first so the words don't fall into the generic command router.
+          const confirmReply = await tryConfirmPendingInvoice(from, body);
+          if (confirmReply) {
+            await (prisma as any).whatsAppMessage.create({
+              data: {
+                twilio_sid: sid || null, direction: 'inbound', from_phone: from, to_phone: to,
+                contact_phone: from, body, num_media: numMedia, status: 'received',
+                raw: { ...params, admin_invoice_confirm: true } as any, is_read: true,
+              },
+            }).catch(() => {});
+            req.log.info({ from, body: body.slice(0, 40) }, '[whatsapp-agent] invoice confirm handled');
+            const escapedConfirm = confirmReply
+              .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+              .replace(/"/g, '&quot;').replace(/'/g, '&apos;');
+            reply.type('text/xml').send(
+              `<?xml version="1.0" encoding="UTF-8"?><Response><Message>${escapedConfirm}</Message></Response>`,
+            );
+            return;
+          }
+          // (C) Text command
           const agentReply = await tryHandleAdminCommand(from, body);
           if (agentReply) {
             // Mirror to WhatsAppMessage so the inbox UI still has a record.
