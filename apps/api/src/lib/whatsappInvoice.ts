@@ -154,6 +154,8 @@ export async function tryConfirmPendingInvoice(
   if (!isApprove && !isCancel) return null;
 
   // Find most recent unread outbound with pending_invoice from <15 min ago.
+  // Column is created_at (snake_case in the WhatsAppMessage schema), not the
+  // default camelCase createdAt — that mismatch silently returned no rows.
   const since = new Date(Date.now() - 15 * 60 * 1000);
   const pending: any = await (prisma as any).whatsAppMessage.findFirst({
     where: {
@@ -161,7 +163,7 @@ export async function tryConfirmPendingInvoice(
       contact_phone: fromPhone,
       status: 'pending_confirmation',
       is_read: false,
-      createdAt: { gte: since },
+      created_at: { gte: since },
     },
     orderBy: { id: 'desc' },
   }).catch(() => null);
