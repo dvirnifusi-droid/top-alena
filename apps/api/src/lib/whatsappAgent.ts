@@ -10,6 +10,7 @@
 //  • Returns null when the message isn't a recognized command, so the regular
 //    inbox-archival flow continues to handle it.
 import { prisma } from '../db.js';
+import { buildTodayOverview, listOpenTasks } from './whatsappCalendar.js';
 
 // Strip 'whatsapp:+972...' / '+972...' / '0532...' down to a digit-only
 // canonical form so we can match against the env allowlist regardless of
@@ -56,6 +57,8 @@ async function cmdHelp(): Promise<string> {
   return [
     '👋 אני העוזר של עלינא ב-WhatsApp. הפקודות שלי:',
     '',
+    '📋 *מה היום* — האירועים, המשימות והסידור שלך להיום',
+    '✅ *משימות* — רשימת המשימות הפתוחות שלך',
     '📅 *סידור היום* — מי משובץ היום',
     '📅 *סידור מחר* — מי משובץ מחר',
     '📅 *סידור שבוע* — סיכום השבוע',
@@ -246,6 +249,26 @@ const COMMAND_MATCHERS: Array<{ test: (s: string) => boolean; run: () => Promise
   { test: (s) => new RegExp(`^זמינות(\\s+חסרים)?${END}`, 'i').test(s), run: cmdMissingAvailability },
 ];
 
+// Personal-context matchers (need fromPhone to scope by user).
+const PERSONAL_MATCHERS: Array<{ test: (s: string) => boolean; run: (phone: string) => Promise<string> }> = [
+  {
+    test: (s) => new RegExp(`^(מה\\s+היום|מה\\s+התכנון|התכנון\\s+היום|לוז)${END}`, 'i').test(s),
+    run: (p) => buildTodayOverview(p),
+  },
+  {
+    test: (s) => new RegExp(`^(משימות|טאסקים|tasks)${END}`, 'i').test(s),
+    run: async (p) => {
+      const tasks = await listOpenTasks(p);
+      if (!tasks.length) return '✅ אין משימות פתוחות.';
+      const lines = [`✅ *משימות פתוחות* (${tasks.length}):`];
+      for (const t of tasks.slice(0, 20)) lines.push(`  • ${t.title}  _(id: ${t.id.slice(-6)})_`);
+      if (tasks.length > 20) lines.push(`  ...ועוד ${tasks.length - 20}`);
+      lines.push('', '_לסימון כבוצע: "סיים <שם או id>"_');
+      return lines.join('\n');
+    },
+  },
+];
+
 // Returns reply text if the message matched an admin command, or null otherwise.
 export async function tryHandleAdminCommand(
   fromPhone: string,
@@ -256,11 +279,14 @@ export async function tryHandleAdminCommand(
   if (!trimmed) return null;
   for (const { test, run } of COMMAND_MATCHERS) {
     if (test(trimmed)) {
-      try {
-        return await run();
-      } catch (e: any) {
-        return `⚠️ שגיאה בעיבוד הפקודה: ${e?.message || 'unknown'}`;
-      }
+      try { return await run(); }
+      catch (e: any) { return `⚠️ שגיאה בעיבוד הפקודה: ${e?.message || 'unknown'}`; }
+    }
+  }
+  for (const { test, run } of PERSONAL_MATCHERS) {
+    if (test(trimmed)) {
+      try { return await run(fromPhone); }
+      catch (e: any) { return `⚠️ שגיאה: ${e?.message || 'unknown'}`; }
     }
   }
   // Admin sent text we don't recognize — be helpful, suggest "עזרה".

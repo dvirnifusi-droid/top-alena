@@ -12,6 +12,7 @@
 import { prisma } from '../db.js';
 import { invokeLLM } from './llm.js';
 import { sendWhatsApp } from './twilio.js';
+import { addScheduledEvent, addTask, completeTaskByMatch, setWakeAlarm, cancelWakeAlarm } from './whatsappCalendar.js';
 
 // ─── Intent catalog ────────────────────────────────────────────────────────
 // To add a new write action: register it here AND add a handler in
@@ -25,6 +26,11 @@ type Intent =
   | 'shift_assign'
   | 'remind_me'
   | 'send_contract'       // find an EventContract and send its sign link via WA
+  | 'event_add'           // personal calendar event
+  | 'task_add'            // personal task
+  | 'task_done'           // close a personal task
+  | 'wake_alarm_set'      // daily wake-up time
+  | 'wake_alarm_cancel'
   | 'noop';
 
 const INTENT_SCHEMA = {
@@ -32,7 +38,7 @@ const INTENT_SCHEMA = {
   properties: {
     intent: {
       type: 'string',
-      enum: ['invoice_mark_paid', 'invoice_mark_unpaid', 'lead_set_stage', 'shift_assign', 'remind_me', 'send_contract', 'noop'],
+      enum: ['invoice_mark_paid', 'invoice_mark_unpaid', 'lead_set_stage', 'shift_assign', 'remind_me', 'send_contract', 'event_add', 'task_add', 'task_done', 'wake_alarm_set', 'wake_alarm_cancel', 'noop'],
       description: 'הפעולה הנדרשת. noop = לא פעולת כתיבה (השאר לראוטר אחר).',
     },
     invoice_number: { type: 'string', description: 'מספר חשבונית (לפעולות חשבונית)' },
@@ -45,6 +51,12 @@ const INTENT_SCHEMA = {
     remind_at: { type: 'string', description: 'תאריך + שעה לתזכורת (ISO או יחסי)' },
     remind_text: { type: 'string', description: 'תוכן התזכורת' },
     contract_search: { type: 'string', description: 'מי לקוח / מספר חוזה למציאה (לפעולות send_contract)' },
+    event_title: { type: 'string', description: 'כותרת אירוע אישי (event_add)' },
+    event_at: { type: 'string', description: 'מתי האירוע (event_add) — ISO או יחסי כמו "מחר 14:00"' },
+    event_lead_min: { type: 'integer', description: 'כמה דק לפני להזכיר (event_add). ברירת מחדל 15' },
+    task_title: { type: 'string', description: 'תיאור משימה (task_add)' },
+    task_search: { type: 'string', description: 'שם משימה או id אחרון (task_done)' },
+    wake_hhmm: { type: 'string', description: 'שעה בפורמט HH:MM לשעון מעורר יומי' },
     confidence: { type: 'number', description: '0-1 — בטחון בפירוש' },
     rationale: { type: 'string', description: 'הסבר קצר על הזיהוי, לדיבוג' },
   },
@@ -63,6 +75,12 @@ type ParsedIntent = {
   remind_at?: string;
   remind_text?: string;
   contract_search?: string;
+  event_title?: string;
+  event_at?: string;
+  event_lead_min?: number;
+  task_title?: string;
+  task_search?: string;
+  wake_hhmm?: string;
   confidence: number;
   rationale?: string;
 };
@@ -80,6 +98,12 @@ async function classifyIntent(body: string): Promise<ParsedIntent | null> {
         '*shift_assign* — שיבוץ עובד למשמרת. דוגמאות: "שבץ עדן למחר ערב כמלצר", "תוסיף את משה לסידור צהריים היום", "שבץ את עדן למשמרת ערב מחר כמנהלת משמרת". חלץ employee_search (שם), shift_date (תאריך/יחסי), shift_type (lunch או dinner; "צהריים"→lunch, "ערב"→dinner), position (תפקיד).',
         '*remind_me* — תזכורת אישית. "תזכיר לי ב-14:00 לבדוק את האירוע", "תזכורת מחר בבוקר — לחזור לדביר".',
         '*send_contract* — שליחת חוזה אירוע ללקוח בוואטסאפ. דוגמאות: "שלח חוזה לדביר", "תשלח את החוזה של רוזנפלד", "שלח את חוזה 0042 ללקוח". חלץ contract_search (שם הלקוח או מספר החוזה).',
+        '*event_add* — אירוע אישי בלוח הזמנים. "פגישה עם דביר מחר ב-14:00", "שיחת זום עם הספק חמישי 11:00", "תוסיף לי ליום ראשון 09:30 - פגישה עם רואה חשבון". חלץ event_title (תיאור), event_at (תאריך+שעה כמו "מחר 14:00" או ISO), event_lead_min (אופציונלי, ברירת מחדל 15).',
+        '*task_add* — משימה לרשימה. "תוסיף משימה: להזמין יין", "צריך לחתום על חוזה רוזנפלד", "רשום לי: לבדוק את המקפיא". חלץ task_title.',
+        '*task_done* — סימון משימה כבוצעה. "סיים יין", "בוצע: חוזה רוזנפלד", "תסמן את המקפיא כעשוי". חלץ task_search (כותרת חלקית או id).',
+        '*wake_alarm_set* — שעון מעורר יומי. "תעיר אותי כל יום ב-07:30", "תזכיר לי כל בוקר 08:00 עם הסיכום". חלץ wake_hhmm.',
+        '*wake_alarm_cancel* — ביטול שעון מעורר. "תבטל את השעון מעורר", "ביטול ההתעוררות".',
+        '*list_today* — שאלת קריאה (לא write) → noop. הקוראים יטפלו ב-"מה היום" / "מה התכנון".',
         '*noop* — כל דבר אחר (שאלת קריאה, ברכה, "עזרה", הודעת רעש).',
         '',
         'אם זה פעולת קריאה כמו "סידור היום" / "לידים" / "טיפים" — חזור noop.',
@@ -389,6 +413,77 @@ async function proposeSendContract(p: ParsedIntent): Promise<{ summary: string; 
   };
 }
 
+async function proposeEventAdd(p: ParsedIntent): Promise<{ summary: string; exec: any } | string> {
+  if (!p.event_title) return '❓ מה תיאור האירוע? (לדוגמה: "פגישה עם דביר מחר ב-14:00")';
+  if (!p.event_at) return '❓ מתי האירוע? (לדוגמה: "מחר 14:00", "ראשון 09:30", "בעוד שעה")';
+  const when = parseRemindAt(p.event_at);
+  if (!when) return `❓ לא הצלחתי לפענח את הזמן "${p.event_at}".`;
+  if (when.getTime() <= Date.now()) return '❓ הזמן שנתת כבר עבר.';
+  const lead = p.event_lead_min || 15;
+  const whenHe = when.toLocaleString('he-IL', { timeZone: 'Asia/Jerusalem', dateStyle: 'short', timeStyle: 'short' });
+  return {
+    summary: [
+      '🗓 *להוסיף אירוע ללוח הזמנים?*',
+      `📝 ${p.event_title}`,
+      `🕒 ${whenHe}`,
+      `⏰ תזכורת ${lead} דקות לפני + ברגע ההתחלה`,
+      '',
+      'ענה *כן* לשמירה או *לא* לביטול.',
+    ].join('\n'),
+    exec: { type: 'event_add', title: p.event_title, when: when.toISOString(), lead_min: lead },
+  };
+}
+
+async function proposeTaskAdd(p: ParsedIntent): Promise<{ summary: string; exec: any } | string> {
+  if (!p.task_title) return '❓ מה המשימה? (לדוגמה: "להזמין יין")';
+  return {
+    summary: [
+      '✅ *להוסיף משימה לרשימה?*',
+      `📌 ${p.task_title}`,
+      '',
+      'ענה *כן* להוספה או *לא* לביטול.',
+    ].join('\n'),
+    exec: { type: 'task_add', title: p.task_title },
+  };
+}
+
+async function proposeTaskDone(p: ParsedIntent): Promise<{ summary: string; exec: any } | string> {
+  if (!p.task_search) return '❓ איזו משימה? (שם או id מהרשימה — שלח "מה היום" לראות אותן)';
+  return {
+    summary: [
+      '✔️ *לסמן משימה כבוצעה?*',
+      `📌 "${p.task_search}"`,
+      '',
+      'ענה *כן* לאישור או *לא* לביטול.',
+    ].join('\n'),
+    exec: { type: 'task_done', search: p.task_search },
+  };
+}
+
+async function proposeWakeSet(p: ParsedIntent): Promise<{ summary: string; exec: any } | string> {
+  const hhmm = (p.wake_hhmm || '').trim();
+  if (!/^\d{1,2}:\d{2}$/.test(hhmm)) return '❓ באיזו שעה? (פורמט HH:MM, לדוגמה "07:30")';
+  const [h, m] = hhmm.split(':').map(Number);
+  if (h < 0 || h > 23 || m < 0 || m > 59) return '❓ שעה לא תקינה.';
+  const normalized = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+  return {
+    summary: [
+      '☀️ *לקבוע שעון מעורר יומי?*',
+      `🕒 ${normalized} (כל בוקר, כולל סיכום אירועים + משימות)`,
+      '',
+      'ענה *כן* לאישור או *לא* לביטול.',
+    ].join('\n'),
+    exec: { type: 'wake_alarm_set', hhmm: normalized },
+  };
+}
+
+async function proposeWakeCancel(_p: ParsedIntent): Promise<{ summary: string; exec: any } | string> {
+  return {
+    summary: '☀️ *לבטל את השעון מעורר היומי?*\n\nענה *כן* לאישור או *לא* לביטול.',
+    exec: { type: 'wake_alarm_cancel' },
+  };
+}
+
 // ─── Executors (run after admin confirms) ───────────────────────────────────
 
 async function executeAction(exec: any): Promise<string> {
@@ -465,6 +560,40 @@ async function executeAction(exec: any): Promise<string> {
         data: { status: 'sent', sent_at: new Date(), sent_via: 'whatsapp_agent' },
       }).catch(() => {});
       return `✅ החוזה ${exec.contract_number} נשלח ל-${exec.customer_name} (${exec.customer_phone}).`;
+    }
+    case 'event_add': {
+      const when = new Date(exec.when);
+      const target = exec.target_phone || exec.from_phone || '';
+      if (!target) throw new Error('missing target phone');
+      await addScheduledEvent({ fromPhone: target, title: exec.title, when, lead_min: exec.lead_min });
+      const whenHe = when.toLocaleString('he-IL', { timeZone: 'Asia/Jerusalem', dateStyle: 'short', timeStyle: 'short' });
+      return `✅ נוסף ללוח: "${exec.title}" — ${whenHe}.`;
+    }
+    case 'task_add': {
+      const target = exec.target_phone || exec.from_phone || '';
+      if (!target) throw new Error('missing target phone');
+      await addTask(target, exec.title);
+      return `✅ נרשם: "${exec.title}".`;
+    }
+    case 'task_done': {
+      const target = exec.target_phone || exec.from_phone || '';
+      if (!target) throw new Error('missing target phone');
+      const r = await completeTaskByMatch(target, exec.search);
+      if (r.matched === 0) return `❓ לא מצאתי משימה פתוחה שמתאימה ל-"${exec.search}". שלח "מה היום" לראות.`;
+      if (r.matched > 1) return `❓ נמצאו ${r.matched} משימות שמתאימות. הוסף את ה-id (6 תווים אחרונים).`;
+      return `✔️ סומן כבוצע: "${r.title}".`;
+    }
+    case 'wake_alarm_set': {
+      const target = exec.target_phone || exec.from_phone || '';
+      if (!target) throw new Error('missing target phone');
+      await setWakeAlarm(target, exec.hhmm);
+      return `☀️ שעון מעורר נקבע ל-${exec.hhmm} כל יום.`;
+    }
+    case 'wake_alarm_cancel': {
+      const target = exec.target_phone || exec.from_phone || '';
+      if (!target) throw new Error('missing target phone');
+      const n = await cancelWakeAlarm(target);
+      return n > 0 ? '☀️ השעון מעורר בוטל.' : 'ℹ️ לא היה שעון מעורר פעיל.';
     }
     case 'remind_me': {
       // Reminder lives as a WhatsAppMessage row (no schema migration).
@@ -613,6 +742,11 @@ export async function tryProposeAction(fromPhone: string, body: string): Promise
     case 'shift_assign':        proposal = await proposeShiftAssign(intent); break;
     case 'remind_me':           proposal = await proposeRemindMe(intent); break;
     case 'send_contract':       proposal = await proposeSendContract(intent); break;
+    case 'event_add':           proposal = await proposeEventAdd(intent); break;
+    case 'task_add':            proposal = await proposeTaskAdd(intent); break;
+    case 'task_done':           proposal = await proposeTaskDone(intent); break;
+    case 'wake_alarm_set':      proposal = await proposeWakeSet(intent); break;
+    case 'wake_alarm_cancel':   proposal = await proposeWakeCancel(intent); break;
     default: return null;
   }
   if (typeof proposal === 'string') {
@@ -623,9 +757,10 @@ export async function tryProposeAction(fromPhone: string, body: string): Promise
     }
     return proposal;
   }
-  // For remind_me, pin the target phone to the requesting admin so the
-  // reminder gets delivered back to them rather than dropping into 'self'.
-  if (proposal.exec?.type === 'remind_me' && !proposal.exec.target_phone) {
+  // Pin the requesting admin's phone on any exec that delivers a message back
+  // to them (reminders, events, tasks, wake alarms) so it doesn't drop into 'self'.
+  const NEEDS_TARGET = new Set(['remind_me', 'event_add', 'task_add', 'task_done', 'wake_alarm_set', 'wake_alarm_cancel']);
+  if (proposal.exec?.type && NEEDS_TARGET.has(proposal.exec.type) && !proposal.exec.target_phone) {
     proposal.exec.target_phone = fromPhone;
   }
   // Stash the exec payload so confirmation handler can run it.
