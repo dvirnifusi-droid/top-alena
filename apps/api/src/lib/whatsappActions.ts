@@ -286,25 +286,34 @@ function parseRemindAt(raw: string): Date | null {
   const now = new Date();
   const tzNow = new Date(now.toLocaleString('en-US', { timeZone: TZ }));
   const tomorrow = new Date(tzNow); tomorrow.setDate(tomorrow.getDate() + 1);
-  const s = raw.trim();
+  const s = raw.trim().toLowerCase();
   // ISO datetime
-  const iso = s.match(/^\d{4}-\d{2}-\d{2}[T\s]\d{1,2}:\d{2}/);
+  const iso = s.match(/^\d{4}-\d{2}-\d{2}[t\s]\d{1,2}:\d{2}/i);
   if (iso) { const d = new Date(iso[0].replace(' ', 'T') + ':00'); if (!isNaN(d.getTime())) return d; }
-  // "בעוד N דקות/שעות"
-  const inX = s.match(/בעוד\s*(\d+)\s*(דקות|דק'?|שעות|שעה)/);
-  if (inX) {
-    const n = parseInt(inX[1]);
-    const ms = /שעה|שעות/.test(inX[2]) ? n * 3600_000 : n * 60_000;
-    return new Date(Date.now() + ms);
+  // Relative "in N (minutes|hours|seconds|days)" — Hebrew + English
+  // Examples: "בעוד שעה", "בעוד 30 דקות", "in 1 minute", "in 2 hours"
+  const relHe = s.match(/בעוד\s*(\d+)?\s*(שניות|שניה|דקות|דק'?|דקה|שעות|שעה|ימים|יום)/);
+  const relEn = s.match(/in\s+(\d+|a|an|one|two|three|four|five|six|seven|eight|nine|ten)\s*(seconds?|secs?|minutes?|mins?|hours?|hrs?|days?)/);
+  if (relHe || relEn) {
+    const wordToNum: Record<string, number> = { a: 1, an: 1, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10 };
+    const m = (relHe || relEn)!;
+    const nRaw = m[1] || '1';
+    const n = /^\d+$/.test(nRaw) ? parseInt(nRaw) : (wordToNum[nRaw] || 1);
+    const unit = m[2];
+    let ms = 60_000;
+    if (/שעה|שעות|hour/i.test(unit)) ms = 3600_000;
+    else if (/יום|ימים|day/i.test(unit)) ms = 86_400_000;
+    else if (/שני|sec/i.test(unit)) ms = 1000;
+    else ms = 60_000; // minutes default
+    return new Date(Date.now() + n * ms);
   }
-  // "מחר 14:00" / "היום 22:00" / day-name 09:30
+  // "מחר 14:00" / "היום 22:00" / "tomorrow 14:00" / bare 14:00
   const hhmm = s.match(/(\d{1,2}):(\d{2})/);
   if (hhmm) {
     const h = parseInt(hhmm[1]); const m = parseInt(hhmm[2]);
     let base = new Date(tzNow);
     if (/מחר|tomorrow/.test(s)) base = tomorrow;
-    else if (/מחרתיים/.test(s)) { base = new Date(tomorrow); base.setDate(base.getDate() + 1); }
-    // If just HH:MM and the time is in the past today, push to tomorrow.
+    else if (/מחרתיים|day\s+after\s+tomorrow/.test(s)) { base = new Date(tomorrow); base.setDate(base.getDate() + 1); }
     base.setHours(h, m, 0, 0);
     if (base.getTime() < Date.now() + 60_000 && !/מחר|tomorrow|מחרתיים/.test(s)) base.setDate(base.getDate() + 1);
     return base;
