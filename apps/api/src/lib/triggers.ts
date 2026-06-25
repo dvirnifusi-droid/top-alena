@@ -9,6 +9,13 @@
 import { prisma } from '../db.js';
 import { pushoverToAdmins, pushoverEventsOwners } from './pushover.js';
 import { notifyEmployee } from './notifications.js';
+import {
+  alertNewEventLead,
+  alertBadCustomerFeedback,
+  alertCriticalIncident,
+  alertLargeReservation,
+  alertCashDiscrepancy,
+} from './whatsappAlerts.js';
 
 const db = prisma as any;
 
@@ -473,5 +480,21 @@ on('ShiftSwapRequest', 'updated', async (row, prev) => {
     '/EmployeeHome',
   );
 });
+
+// ─────────────────── WhatsApp alerts (admin numbers, real-time) ─────
+// All handlers are fire-and-forget so a Twilio outage never affects the
+// originating create/update. Builders live in lib/whatsappAlerts.ts.
+
+on('EventLead', 'created', async (row) => {
+  // Only fire when Dana already pulled at least a phone — avoids noisy
+  // alerts on the very first message ("היי" before name/phone collected).
+  if (!row?.contact_phone) return;
+  await alertNewEventLead(row);
+});
+
+on('CustomerFeedback', 'created', async (row) => { await alertBadCustomerFeedback(row); });
+on('Incident',         'created', async (row) => { await alertCriticalIncident(row); });
+on('Reservation',      'created', async (row) => { await alertLargeReservation(row); });
+on('ShiftEndReport',   'created', async (row) => { await alertCashDiscrepancy(row); });
 
 console.log('[triggers] registered for:', Object.keys(handlers).join(', '));

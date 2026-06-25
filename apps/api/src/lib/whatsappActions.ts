@@ -172,24 +172,144 @@ async function proposeLeadSetStage(p: ParsedIntent): Promise<{ summary: string; 
   };
 }
 
-async function proposeShiftAssign(_p: ParsedIntent): Promise<string> {
-  return '🚧 שיבוץ עובד מ-WhatsApp בקרוב (גרסה הבאה). בינתיים — דרך AvailabilityRequests באפליקציה.';
+async function proposeShiftAssign(p: ParsedIntent): Promise<{ summary: string; exec: any } | string> {
+  const search = (p.employee_search || '').trim();
+  if (!search) return '❓ ציין שם עובד.';
+  if (!p.shift_type) return '❓ צהריים או ערב?';
+  if (!p.shift_date) return '❓ באיזה תאריך? (לדוגמה: "מחר", "ראשון", "22.6")';
+  // Resolve date: pass-through ISO/YMD, or interpret היום/מחר/מחרתיים
+  const TZ = 'Asia/Jerusalem';
+  const today = new Date();
+  const todayY = today.toLocaleDateString('en-CA', { timeZone: TZ });
+  const tomorrow = new Date(today); tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
+  const tomorrowY = tomorrow.toLocaleDateString('en-CA', { timeZone: TZ });
+  const dayAfter = new Date(today); dayAfter.setUTCDate(dayAfter.getUTCDate() + 2);
+  const dayAfterY = dayAfter.toLocaleDateString('en-CA', { timeZone: TZ });
+  let dateStr = p.shift_date;
+  if (/^היום$/.test(dateStr)) dateStr = todayY;
+  else if (/^מחר$/.test(dateStr)) dateStr = tomorrowY;
+  else if (/^מחרתיים$/.test(dateStr)) dateStr = dayAfterY;
+  else if (/^(\d{1,2})[\/.\-](\d{1,2})$/.test(dateStr)) {
+    const [, d, m] = dateStr.match(/^(\d{1,2})[\/.\-](\d{1,2})$/)!;
+    dateStr = `${today.getFullYear()}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+  }
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return `❓ לא הצלחתי לפענח את התאריך "${p.shift_date}". נסה YYYY-MM-DD או "מחר".`;
+
+  // Find employee — fuzzy by full_name
+  const emps: any[] = await (prisma as any).employee.findMany({ where: { status: 'active' }, take: 500 });
+  const lower = search.toLowerCase();
+  const matches = emps.filter((e: any) => String(e.full_name || '').toLowerCase().includes(lower));
+  if (!matches.length) return `❓ לא מצאתי עובד פעיל בשם "${search}".`;
+  if (matches.length > 1) return `❓ נמצאו ${matches.length} עובדים: ${matches.slice(0, 5).map((e: any) => e.full_name).join(', ')}. תוסיף שם משפחה.`;
+  const emp = matches[0];
+
+  // Resolve position: explicit if given, else first scheduleable from emp.positions
+  // (same logic as AvailabilityRequests handleSingleAssign — keeps the schedule
+  // grid able to render the new assignment).
+  const SCHEDULE_POSITIONS_LUNCH = ['קופה + אריזות', 'מלצר', 'חומוס', 'טבח', 'מתלמד פלור', 'בלתם'];
+  const SCHEDULE_POSITIONS_DINNER = ['מנהל משמרת', 'ברמן', 'מלצר', 'ראנר', 'מארח/ת', 'מתלמד פלור', 'טבח', 'צאקר', 'גריל', 'פס בטטה', 'מקשר', 'מתלמד מטבח', 'שוטף כלים', 'בלתם'];
+  const NORMALIZE: Record<string, string> = {
+    'מלצרית': 'מלצר', 'ברמנית': 'ברמן', 'ראנרית': 'ראנר', 'מארחת': 'מארח/ת', 'מארח': 'מארח/ת',
+    'מנהלת משמרת': 'מנהל משמרת', 'טבחית': 'טבח', 'שוטפת כלים': 'שוטף כלים',
+    'מתלמדת פלור': 'מתלמד פלור', 'מתלמדת מטבח': 'מתלמד מטבח',
+    'קופה ואריזות': 'קופה + אריזות', 'קופה +אריזות': 'קופה + אריזות',
+  };
+  const canon = (s: string) => NORMALIZE[String(s || '').trim()] || String(s || '').trim();
+  const order = p.shift_type === 'lunch' ? SCHEDULE_POSITIONS_LUNCH : SCHEDULE_POSITIONS_DINNER;
+  let position = '';
+  if (p.position) {
+    const c = canon(p.position);
+    if (order.includes(c)) position = c;
+  }
+  if (!position) {
+    const empPositions = (emp.positions || []).map((x: any) => x?.position_name || x).filter(Boolean);
+    for (const pp of empPositions) {
+      const c = canon(pp);
+      if (order.includes(c)) { position = c; break; }
+    }
+  }
+  if (!position) position = 'מלצר';
+
+  // Default times by shift type — same as the UI default
+  const times = p.shift_type === 'lunch' ? { start: '12:00', end: '17:00' } : { start: '17:00', end: '23:00' };
+
+  const dayNames = ['ראשון','שני','שלישי','רביעי','חמישי','שישי','שבת'];
+  const dayName = dayNames[new Date(`${dateStr}T12:00:00Z`).getDay()];
+  return {
+    summary: [
+      '📅 *לשבץ עובד למשמרת?*',
+      `👤 ${emp.full_name}`,
+      `🗓 ${dayName} ${dateStr}`,
+      `🍽 ${p.shift_type === 'lunch' ? '☀️ צהריים' : '🌙 ערב'} (${times.start}-${times.end})`,
+      `🏷 ${position}`,
+      '',
+      'ענה *כן* לאישור או *לא* לביטול.',
+    ].join('\n'),
+    exec: {
+      type: 'shift_assign',
+      employee_id: emp.id,
+      employee_name: emp.full_name,
+      date: dateStr,
+      shift_type: p.shift_type,
+      position,
+      start_time: times.start,
+      end_time: times.end,
+    },
+  };
+}
+
+// Parse Hebrew/English relative time expression to an absolute ISO date.
+// Accepts: ISO ('2026-06-25T14:00'), HH:MM (today/tomorrow if past),
+// "מחר 14:00", "בעוד שעה", "בעוד 30 דקות", "ראשון 09:00".
+function parseRemindAt(raw: string): Date | null {
+  if (!raw) return null;
+  const TZ = 'Asia/Jerusalem';
+  const now = new Date();
+  const tzNow = new Date(now.toLocaleString('en-US', { timeZone: TZ }));
+  const tomorrow = new Date(tzNow); tomorrow.setDate(tomorrow.getDate() + 1);
+  const s = raw.trim();
+  // ISO datetime
+  const iso = s.match(/^\d{4}-\d{2}-\d{2}[T\s]\d{1,2}:\d{2}/);
+  if (iso) { const d = new Date(iso[0].replace(' ', 'T') + ':00'); if (!isNaN(d.getTime())) return d; }
+  // "בעוד N דקות/שעות"
+  const inX = s.match(/בעוד\s*(\d+)\s*(דקות|דק'?|שעות|שעה)/);
+  if (inX) {
+    const n = parseInt(inX[1]);
+    const ms = /שעה|שעות/.test(inX[2]) ? n * 3600_000 : n * 60_000;
+    return new Date(Date.now() + ms);
+  }
+  // "מחר 14:00" / "היום 22:00" / day-name 09:30
+  const hhmm = s.match(/(\d{1,2}):(\d{2})/);
+  if (hhmm) {
+    const h = parseInt(hhmm[1]); const m = parseInt(hhmm[2]);
+    let base = new Date(tzNow);
+    if (/מחר|tomorrow/.test(s)) base = tomorrow;
+    else if (/מחרתיים/.test(s)) { base = new Date(tomorrow); base.setDate(base.getDate() + 1); }
+    // If just HH:MM and the time is in the past today, push to tomorrow.
+    base.setHours(h, m, 0, 0);
+    if (base.getTime() < Date.now() + 60_000 && !/מחר|tomorrow|מחרתיים/.test(s)) base.setDate(base.getDate() + 1);
+    return base;
+  }
+  return null;
 }
 
 async function proposeRemindMe(p: ParsedIntent): Promise<{ summary: string; exec: any } | string> {
   if (!p.remind_at) return '❓ מתי? לדוגמה: "תזכיר לי מחר ב-14:00 לבדוק את האירוע".';
   if (!p.remind_text) return '❓ על מה? לדוגמה: "תזכיר לי ב-14:00 לבדוק את האירוע".';
+  const when = parseRemindAt(p.remind_at);
+  if (!when) return `❓ לא הצלחתי לפענח את הזמן "${p.remind_at}". נסה "מחר 14:00" או "בעוד שעה".`;
+  if (when.getTime() <= Date.now()) return '❓ הזמן שנתת כבר עבר.';
+  const whenIso = when.toISOString();
+  const whenHe = when.toLocaleString('he-IL', { timeZone: 'Asia/Jerusalem', dateStyle: 'short', timeStyle: 'short' });
   return {
     summary: [
       `⏰ *לקבוע תזכורת?*`,
-      `🕒 ${p.remind_at}`,
+      `🕒 ${whenHe}`,
       `📝 ${p.remind_text}`,
-      '',
-      '_⚠️ הגרסה הראשונית שומרת רק את הכוונה. שליחה אוטומטית בקומיט הבא._',
       '',
       'ענה *כן* לאישור או *לא* לביטול.',
     ].join('\n'),
-    exec: { type: 'remind_me', remind_at: p.remind_at, remind_text: p.remind_text },
+    exec: { type: 'remind_me', deliver_at: whenIso, remind_text: p.remind_text },
   };
 }
 
@@ -215,8 +335,64 @@ async function executeAction(exec: any): Promise<string> {
         data: { status: exec.stage, updated_date: new Date().toISOString() },
       });
       return `✅ הליד של *${exec.lead_name}* עודכן ל-${exec.stage}.`;
-    case 'remind_me':
-      return `✅ תזכורת נשמרה (שליחה בפועל תופעל בעדכון הבא).`;
+    case 'shift_assign': {
+      // Mirror the AvailabilityRequests.handleSingleAssign flow: list recent
+      // shifts client-side and filter by sliced YMD; create if missing.
+      const all: any[] = await (prisma as any).workShift.findMany({ orderBy: { date: 'desc' }, take: 2000 });
+      let shift = all.find((s: any) => {
+        const d = s.date instanceof Date ? s.date.toISOString().slice(0, 10) : String(s.date).slice(0, 10);
+        return d === exec.date && s.shift_type === exec.shift_type;
+      });
+      if (!shift) {
+        shift = await (prisma as any).workShift.create({
+          data: {
+            date: new Date(`${exec.date}T00:00:00.000Z`),
+            shift_type: exec.shift_type,
+            start_time: exec.start_time,
+            end_time: exec.end_time,
+            assigned_staff: [],
+          },
+        });
+      }
+      const currentStaff = shift.assigned_staff || [];
+      if (currentStaff.some((s: any) => s.employee_id === exec.employee_id)) {
+        return `ℹ️ ${exec.employee_name} כבר משובץ למשמרת הזו.`;
+      }
+      const newStaff = [...currentStaff, {
+        employee_id: exec.employee_id,
+        employee_name: exec.employee_name,
+        position: exec.position,
+        start_time: exec.start_time,
+        end_time: exec.end_time,
+      }];
+      await (prisma as any).workShift.update({ where: { id: shift.id }, data: { assigned_staff: newStaff } });
+      return `✅ ${exec.employee_name} שובץ כ-${exec.position} ל-${exec.shift_type === 'lunch' ? 'צהריים' : 'ערב'} ${exec.date}.`;
+    }
+    case 'remind_me': {
+      // Reminder lives as a WhatsAppMessage row (no schema migration).
+      // status='scheduled_reminder', raw.deliver_at + raw.remind_text + raw.target_phone.
+      // The /api/cron/dispatch-reminders endpoint scans and sends these.
+      await (prisma as any).whatsAppMessage.create({
+        data: {
+          twilio_sid: null,
+          direction: 'outbound',
+          from_phone: process.env.TWILIO_WHATSAPP_FROM || 'whatsapp:+system',
+          to_phone: exec.target_phone || 'self',
+          contact_phone: exec.target_phone || 'self',
+          body: `⏰ תזכורת: ${exec.remind_text}`,
+          num_media: 0,
+          status: 'scheduled_reminder',
+          raw: {
+            deliver_at: exec.deliver_at,
+            remind_text: exec.remind_text,
+            target_phone: exec.target_phone,
+          } as any,
+          is_read: false,
+        },
+      });
+      const dt = new Date(exec.deliver_at).toLocaleString('he-IL', { timeZone: 'Asia/Jerusalem', dateStyle: 'short', timeStyle: 'short' });
+      return `✅ תזכורת נקבעה ל-${dt}: "${exec.remind_text}".`;
+    }
     default:
       throw new Error(`unknown_exec_type: ${exec.type}`);
   }
@@ -244,6 +420,11 @@ export async function tryProposeAction(fromPhone: string, body: string): Promise
     default: return null;
   }
   if (typeof proposal === 'string') return proposal;
+  // For remind_me, pin the target phone to the requesting admin so the
+  // reminder gets delivered back to them rather than dropping into 'self'.
+  if (proposal.exec?.type === 'remind_me' && !proposal.exec.target_phone) {
+    proposal.exec.target_phone = fromPhone;
+  }
   // Stash the exec payload so confirmation handler can run it.
   await (prisma as any).whatsAppMessage.create({
     data: {
