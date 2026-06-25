@@ -86,8 +86,11 @@ async function classifyIntent(body: string): Promise<ParsedIntent | null> {
         '--- סוף ---',
       ].join('\n'),
       responseSchema: INTENT_SCHEMA,
-      maxOutputTokens: 400,
-      timeoutMs: 8000,
+      // 400 was getting truncated to '{\\n  ' — Gemini 2.5 thinking model
+      // burns the budget on internal reasoning. 2000 gives clear headroom
+      // for both the thinking and the actual JSON payload (~150 tokens).
+      maxOutputTokens: 2000,
+      timeoutMs: 15000,
     });
     console.log('[whatsapp-actions] classify raw:', JSON.stringify({
       body: body.slice(0, 80),
