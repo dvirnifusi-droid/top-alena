@@ -89,15 +89,11 @@ async function classifyIntent(body: string): Promise<ParsedIntent | null> {
       maxOutputTokens: 400,
       timeoutMs: 8000,
     });
-    console.log('[whatsapp-actions] classify result:', JSON.stringify({
+    console.log('[whatsapp-actions] classify raw:', JSON.stringify({
       body: body.slice(0, 80),
-      intent: out?.intent,
-      confidence: out?.confidence,
-      rationale: out?.rationale,
-      employee_search: out?.employee_search,
-      shift_date: out?.shift_date,
-      shift_type: out?.shift_type,
-      position: out?.position,
+      out_type: typeof out,
+      out_keys: out && typeof out === 'object' ? Object.keys(out) : null,
+      out_value: out,
     }));
     if (!out || out.intent === 'noop') return null;
     if (typeof out.confidence !== 'number' || out.confidence < 0.6) return null;
