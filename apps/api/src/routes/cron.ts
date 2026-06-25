@@ -3,6 +3,7 @@ import { sendRestroomReminder, sendAbandonedReminder, sendT24SurveyReminders, ru
 import { sendMorningBrief, buildMorningBrief, sendEndOfDayBrief, buildEndOfDayBrief } from '../lib/morningBrief.js';
 import { dispatchDueReminders } from '../lib/reminders.js';
 import { sendWeeklyInsights, buildWeeklyInsights } from '../lib/weeklyInsights.js';
+import { pullAllConnectedCalendars } from '../lib/googleSync.js';
 
 // Internal cron endpoints, guarded by a shared secret (x-cron-secret header or
 // ?secret=). Called by the server crontab — never by end users.
@@ -101,5 +102,12 @@ export const cronRoutes: FastifyPluginAsync = async (app) => {
   app.post('/weekly-insights-preview', async () => {
     const text = await buildWeeklyInsights();
     return { text };
+  });
+
+  // Every 15 min — pull externally-added events from each connected admin's
+  // Google Calendar into our scheduled_event store. Best-effort per phone.
+  app.post('/google-calendar-pull', async () => {
+    const results = await pullAllConnectedCalendars();
+    return { synced: results.length, results };
   });
 };

@@ -11,6 +11,7 @@
 //    inbox-archival flow continues to handle it.
 import { prisma } from '../db.js';
 import { buildTodayOverview, listOpenTasks } from './whatsappCalendar.js';
+import { buildConsentUrl, isGoogleConnected } from './googleSync.js';
 
 // Strip 'whatsapp:+972...' / '+972...' / '0532...' down to a digit-only
 // canonical form so we can match against the env allowlist regardless of
@@ -59,6 +60,7 @@ async function cmdHelp(): Promise<string> {
     '',
     '📋 *מה היום* — האירועים, המשימות והסידור שלך להיום',
     '✅ *משימות* — רשימת המשימות הפתוחות שלך',
+    '🔗 *חבר גוגל* — חיבור Google Calendar + Tasks (פעם אחת)',
     '📅 *סידור היום* — מי משובץ היום',
     '📅 *סידור מחר* — מי משובץ מחר',
     '📅 *סידור שבוע* — סיכום השבוע',
@@ -251,6 +253,29 @@ const COMMAND_MATCHERS: Array<{ test: (s: string) => boolean; run: () => Promise
 
 // Personal-context matchers (need fromPhone to scope by user).
 const PERSONAL_MATCHERS: Array<{ test: (s: string) => boolean; run: (phone: string) => Promise<string> }> = [
+  {
+    test: (s) => new RegExp(`^(חבר\\s+גוגל|connect\\s+google|google\\s+connect|חבר\\s+יומן)${END}`, 'i').test(s),
+    run: async (p) => {
+      const connected = await isGoogleConnected(p);
+      const url = buildConsentUrl(p);
+      if (connected) {
+        return [
+          '✅ Google כבר מחובר.',
+          '',
+          'אם תרצה להתחבר מחדש (משתמש אחר / חידוש הרשאות):',
+          url,
+        ].join('\n');
+      }
+      return [
+        '🔗 *חיבור Google Calendar + Tasks*',
+        '',
+        'לחץ על הקישור הבא, אשר את ההרשאות, וחזור הנה:',
+        url,
+        '',
+        '_אחרי החיבור, כל אירוע/משימה שתוסיף בוואטסאפ יסתנכרן אוטומטית. אירועים שתוסיף ביומן יגיעו כתזכורות בוואטסאפ._',
+      ].join('\n');
+    },
+  },
   {
     test: (s) => new RegExp(`^(מה\\s+היום|מה\\s+התכנון|התכנון\\s+היום|לוז)${END}`, 'i').test(s),
     run: (p) => buildTodayOverview(p),

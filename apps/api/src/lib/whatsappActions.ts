@@ -13,6 +13,7 @@ import { prisma } from '../db.js';
 import { invokeLLM } from './llm.js';
 import { sendWhatsApp } from './twilio.js';
 import { addScheduledEvent, addTask, completeTaskByMatch, setWakeAlarm, cancelWakeAlarm } from './whatsappCalendar.js';
+import { createCalendarEvent, createTasksItem, isGoogleConnected, buildConsentUrl } from './googleSync.js';
 
 // ─── Intent catalog ────────────────────────────────────────────────────────
 // To add a new write action: register it here AND add a handler in
@@ -567,13 +568,25 @@ async function executeAction(exec: any): Promise<string> {
       if (!target) throw new Error('missing target phone');
       await addScheduledEvent({ fromPhone: target, title: exec.title, when, lead_min: exec.lead_min });
       const whenHe = when.toLocaleString('he-IL', { timeZone: 'Asia/Jerusalem', dateStyle: 'short', timeStyle: 'short' });
-      return `✅ נוסף ללוח: "${exec.title}" — ${whenHe}.`;
+      // Mirror to Google Calendar if connected. Best-effort — never fails the local save.
+      let gSuffix = '';
+      if (await isGoogleConnected(target)) {
+        const g = await createCalendarEvent(target, { title: exec.title, whenIso: exec.when });
+        gSuffix = g.ok ? '  ✓ סונכרן ל-Google Calendar' : `  ⚠️ Google: ${g.error}`;
+      }
+      return `✅ נוסף ללוח: "${exec.title}" — ${whenHe}.${gSuffix}`;
     }
     case 'task_add': {
       const target = exec.target_phone || exec.from_phone || '';
       if (!target) throw new Error('missing target phone');
       await addTask(target, exec.title);
-      return `✅ נרשם: "${exec.title}".`;
+      // Mirror to Google Tasks
+      let gSuffix = '';
+      if (await isGoogleConnected(target)) {
+        const g = await createTasksItem(target, { title: exec.title });
+        gSuffix = g.ok ? '  ✓ סונכרן ל-Google Tasks' : `  ⚠️ Google: ${g.error}`;
+      }
+      return `✅ נרשם: "${exec.title}".${gSuffix}`;
     }
     case 'task_done': {
       const target = exec.target_phone || exec.from_phone || '';
