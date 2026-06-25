@@ -11,6 +11,7 @@
 // hard checks before showing the confirmation, so a misparse can't sneak through.
 import { prisma } from '../db.js';
 import { invokeLLM } from './llm.js';
+import { sendWhatsApp } from './twilio.js';
 
 // ─── Intent catalog ────────────────────────────────────────────────────────
 // To add a new write action: register it here AND add a handler in
@@ -21,8 +22,9 @@ type Intent =
   | 'invoice_mark_paid'
   | 'invoice_mark_unpaid'
   | 'lead_set_stage'
-  | 'shift_assign'        // stub for next commit
-  | 'remind_me'           // stub for next commit
+  | 'shift_assign'
+  | 'remind_me'
+  | 'send_contract'       // find an EventContract and send its sign link via WA
   | 'noop';
 
 const INTENT_SCHEMA = {
@@ -30,7 +32,7 @@ const INTENT_SCHEMA = {
   properties: {
     intent: {
       type: 'string',
-      enum: ['invoice_mark_paid', 'invoice_mark_unpaid', 'lead_set_stage', 'shift_assign', 'remind_me', 'noop'],
+      enum: ['invoice_mark_paid', 'invoice_mark_unpaid', 'lead_set_stage', 'shift_assign', 'remind_me', 'send_contract', 'noop'],
       description: 'הפעולה הנדרשת. noop = לא פעולת כתיבה (השאר לראוטר אחר).',
     },
     invoice_number: { type: 'string', description: 'מספר חשבונית (לפעולות חשבונית)' },
@@ -42,6 +44,7 @@ const INTENT_SCHEMA = {
     position: { type: 'string', description: 'תפקיד (מלצר/ברמן/וכו)' },
     remind_at: { type: 'string', description: 'תאריך + שעה לתזכורת (ISO או יחסי)' },
     remind_text: { type: 'string', description: 'תוכן התזכורת' },
+    contract_search: { type: 'string', description: 'מי לקוח / מספר חוזה למציאה (לפעולות send_contract)' },
     confidence: { type: 'number', description: '0-1 — בטחון בפירוש' },
     rationale: { type: 'string', description: 'הסבר קצר על הזיהוי, לדיבוג' },
   },
@@ -59,6 +62,7 @@ type ParsedIntent = {
   position?: string;
   remind_at?: string;
   remind_text?: string;
+  contract_search?: string;
   confidence: number;
   rationale?: string;
 };
@@ -75,6 +79,7 @@ async function classifyIntent(body: string): Promise<ParsedIntent | null> {
         '*lead_set_stage* — שינוי שלב של ליד אירוע. שלבים: pending (לטלפון), contacted (דיברנו), quoted (הצעת מחיר), won (נסגר), lost (לא רלוונטי). דוגמאות: "ליד דביר התקשרתי", "אישור הליד של משה", "דביר נסגר", "הליד של רוזנפלד לא רלוונטי".',
         '*shift_assign* — שיבוץ עובד למשמרת. דוגמאות: "שבץ עדן למחר ערב כמלצר", "תוסיף את משה לסידור צהריים היום", "שבץ את עדן למשמרת ערב מחר כמנהלת משמרת". חלץ employee_search (שם), shift_date (תאריך/יחסי), shift_type (lunch או dinner; "צהריים"→lunch, "ערב"→dinner), position (תפקיד).',
         '*remind_me* — תזכורת אישית. "תזכיר לי ב-14:00 לבדוק את האירוע", "תזכורת מחר בבוקר — לחזור לדביר".',
+        '*send_contract* — שליחת חוזה אירוע ללקוח בוואטסאפ. דוגמאות: "שלח חוזה לדביר", "תשלח את החוזה של רוזנפלד", "שלח את חוזה 0042 ללקוח". חלץ contract_search (שם הלקוח או מספר החוזה).',
         '*noop* — כל דבר אחר (שאלת קריאה, ברכה, "עזרה", הודעת רעש).',
         '',
         'אם זה פעולת קריאה כמו "סידור היום" / "לידים" / "טיפים" — חזור noop.',
@@ -327,6 +332,54 @@ async function proposeRemindMe(p: ParsedIntent): Promise<{ summary: string; exec
   };
 }
 
+async function proposeSendContract(p: ParsedIntent): Promise<{ summary: string; exec: any } | string> {
+  const search = (p.contract_search || '').trim();
+  if (!search) return '❓ ציין שם לקוח או מספר חוזה.';
+  // First try contract_number exact match.
+  let match: any = await (prisma as any).eventContract.findFirst({
+    where: { contract_number: { contains: search, mode: 'insensitive' as any } },
+    orderBy: { id: 'desc' },
+  }).catch(() => null);
+  if (!match) {
+    // Fuzzy by customer_name
+    const all: any[] = await (prisma as any).eventContract.findMany({
+      where: { status: { in: ['draft', 'sent'] } },
+      orderBy: { id: 'desc' }, take: 100,
+    });
+    const lower = search.toLowerCase();
+    const matches = all.filter((c: any) =>
+      String(c.customer_name || '').toLowerCase().includes(lower) ||
+      String(c.customer_phone || '').includes(search.replace(/\D/g, '')),
+    );
+    if (matches.length === 0) return `❓ לא מצאתי חוזה (draft/sent) שמתאים ל-"${search}".`;
+    if (matches.length > 1) {
+      return `❓ נמצאו ${matches.length} חוזים — תוסיף מספר חוזה (${matches.slice(0, 5).map((c: any) => `${c.contract_number} · ${c.customer_name}`).join(' | ')}).`;
+    }
+    match = matches[0];
+  }
+  if (!match.customer_phone) return `⚠️ לחוזה ${match.contract_number} אין מספר טלפון של לקוח — לא יכול לשלוח.`;
+  return {
+    summary: [
+      `📑 *לשלוח חוזה ללקוח?*`,
+      `📄 ${match.contract_number || match.id.slice(-6)}`,
+      `👤 ${match.customer_name || '—'}`,
+      `📞 ${match.customer_phone}`,
+      match.event_date ? `📅 ${match.event_date}` : null,
+      match.subtotal_ils ? `💰 ₪${Number(match.subtotal_ils).toLocaleString('he-IL')}` : null,
+      '',
+      'ענה *כן* לשליחה או *לא* לביטול.',
+    ].filter(Boolean).join('\n'),
+    exec: {
+      type: 'send_contract',
+      contract_id: match.id,
+      contract_number: match.contract_number,
+      customer_name: match.customer_name,
+      customer_phone: match.customer_phone,
+      public_token: match.public_token,
+    },
+  };
+}
+
 // ─── Executors (run after admin confirms) ───────────────────────────────────
 
 async function executeAction(exec: any): Promise<string> {
@@ -381,6 +434,28 @@ async function executeAction(exec: any): Promise<string> {
       }];
       await (prisma as any).workShift.update({ where: { id: shift.id }, data: { assigned_staff: newStaff } });
       return `✅ ${exec.employee_name} שובץ כ-${exec.position} ל-${exec.shift_type === 'lunch' ? 'צהריים' : 'ערב'} ${exec.date}.`;
+    }
+    case 'send_contract': {
+      const publicUrl = `${process.env.PUBLIC_BASE_URL || 'https://topalena.com'}/EventContractSign?token=${exec.public_token}`;
+      const msg = [
+        `שלום ${exec.customer_name || ''} 🌿`,
+        '',
+        `מצורף החוזה הדיגיטלי לאירוע שלך אצלנו בעלינא — חוזה מס' ${exec.contract_number || ''}.`,
+        `אפשר לעיין ולחתום ישירות מהטלפון:`,
+        publicUrl,
+        '',
+        '_נא לחתום עד 48 שעות לפני האירוע._',
+        '',
+        'תודה,',
+        'עלינא אירועים 🔥',
+      ].join('\n');
+      await sendWhatsApp(exec.customer_phone, msg);
+      // Mark the contract status as 'sent' so the EventContracts UI shows it.
+      await (prisma as any).eventContract.update({
+        where: { id: exec.contract_id },
+        data: { status: 'sent', sent_at: new Date(), sent_via: 'whatsapp_agent' },
+      }).catch(() => {});
+      return `✅ החוזה ${exec.contract_number} נשלח ל-${exec.customer_name} (${exec.customer_phone}).`;
     }
     case 'remind_me': {
       // Reminder lives as a WhatsAppMessage row (no schema migration).
@@ -528,6 +603,7 @@ export async function tryProposeAction(fromPhone: string, body: string): Promise
     case 'lead_set_stage':      proposal = await proposeLeadSetStage(intent); break;
     case 'shift_assign':        proposal = await proposeShiftAssign(intent); break;
     case 'remind_me':           proposal = await proposeRemindMe(intent); break;
+    case 'send_contract':       proposal = await proposeSendContract(intent); break;
     default: return null;
   }
   if (typeof proposal === 'string') {

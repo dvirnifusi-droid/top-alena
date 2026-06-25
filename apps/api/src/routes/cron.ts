@@ -2,6 +2,7 @@ import type { FastifyPluginAsync } from 'fastify';
 import { sendRestroomReminder, sendAbandonedReminder, sendT24SurveyReminders, runAutoTrackerAnalysis, runSalesAutoClose, runWeeklyPersonalGoals, captureBeecommSnapshot, backfillBeecommHistory, reopenAutoClosedShifts } from '../functions/load.js';
 import { sendMorningBrief, buildMorningBrief, sendEndOfDayBrief, buildEndOfDayBrief } from '../lib/morningBrief.js';
 import { dispatchDueReminders } from '../lib/reminders.js';
+import { sendWeeklyInsights, buildWeeklyInsights } from '../lib/weeklyInsights.js';
 
 // Internal cron endpoints, guarded by a shared secret (x-cron-secret header or
 // ?secret=). Called by the server crontab — never by end users.
@@ -89,6 +90,16 @@ export const cronRoutes: FastifyPluginAsync = async (app) => {
   // Preview without sending.
   app.post('/end-of-day-brief-preview', async () => {
     const text = await buildEndOfDayBrief();
+    return { text };
+  });
+
+  // Sunday 09:00 IL — weekly insights summary (sales WoW, leads conversion,
+  // tips trend, no-shows, unpaid invoices).
+  app.post('/weekly-insights', async () => {
+    return sendWeeklyInsights();
+  });
+  app.post('/weekly-insights-preview', async () => {
+    const text = await buildWeeklyInsights();
     return { text };
   });
 };
