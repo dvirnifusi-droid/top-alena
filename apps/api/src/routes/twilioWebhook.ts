@@ -13,6 +13,7 @@ import crypto from 'node:crypto';
 import { pushoverToAdmins } from '../lib/pushover.js';
 import { tryHandleAdminCommand, isWhatsAppAdmin } from '../lib/whatsappAgent.js';
 import { handleAdminInvoiceMedia, tryConfirmPendingInvoice } from '../lib/whatsappInvoice.js';
+import { tryProposeAction, tryConfirmPendingAction } from '../lib/whatsappActions.js';
 import { sendWhatsApp } from '../lib/twilio.js';
 
 const STRICT_SIG = false;
@@ -127,6 +128,27 @@ export const twilioWebhookRoutes: FastifyPluginAsync = async (app) => {
             })();
             return;
           }
+          // (B0) Generic action confirmation (כן/לא following a 2-step proposal).
+          // Checked before the invoice-specific confirm so any pending action
+          // gets first dibs on the כן/לא reply within its 10-min window.
+          const actionConfirmReply = await tryConfirmPendingAction(from, body);
+          if (actionConfirmReply) {
+            await (prisma as any).whatsAppMessage.create({
+              data: {
+                twilio_sid: sid || null, direction: 'inbound', from_phone: from, to_phone: to,
+                contact_phone: from, body, num_media: numMedia, status: 'received',
+                raw: { ...params, admin_action_confirm: true } as any, is_read: true,
+              },
+            }).catch(() => {});
+            req.log.info({ from, body: body.slice(0, 40) }, '[whatsapp-agent] action confirm handled');
+            const escapedAct = actionConfirmReply
+              .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+              .replace(/"/g, '&quot;').replace(/'/g, '&apos;');
+            reply.type('text/xml').send(
+              `<?xml version="1.0" encoding="UTF-8"?><Response><Message>${escapedAct}</Message></Response>`,
+            );
+            return;
+          }
           // (B) Confirmation of a pending invoice draft (אישור/ביטול). Checked
           // first so the words don't fall into the generic command router.
           const confirmReply = await tryConfirmPendingInvoice(from, body);
@@ -147,9 +169,9 @@ export const twilioWebhookRoutes: FastifyPluginAsync = async (app) => {
             );
             return;
           }
-          // (C) Text command
+          // (C) Text command — fast deterministic read-only commands.
           const agentReply = await tryHandleAdminCommand(from, body);
-          if (agentReply) {
+          if (agentReply && agentReply !== '🤔 לא הבנתי את הפקודה. שלח/י *עזרה* לרשימת פקודות.') {
             // Mirror to WhatsAppMessage so the inbox UI still has a record.
             await (prisma as any).whatsAppMessage.create({
               data: {
@@ -159,7 +181,6 @@ export const twilioWebhookRoutes: FastifyPluginAsync = async (app) => {
               },
             }).catch(() => {});
             req.log.info({ from, body: body.slice(0, 80) }, '[whatsapp-agent] admin command served');
-            // TwiML body is XML — escape characters that would break the wrapper.
             const escaped = agentReply
               .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
               .replace(/"/g, '&quot;').replace(/'/g, '&apos;');
@@ -168,6 +189,34 @@ export const twilioWebhookRoutes: FastifyPluginAsync = async (app) => {
             );
             return;
           }
+          // (D) Write-action intent (LLM-based parser). Slow (~3-5s for the
+          // Gemini classify call) → ACK first, propose in background.
+          await (prisma as any).whatsAppMessage.create({
+            data: {
+              twilio_sid: sid || null, direction: 'inbound', from_phone: from, to_phone: to,
+              contact_phone: from, body, num_media: numMedia, status: 'received',
+              raw: { ...params, admin_action_attempt: true } as any, is_read: true,
+            },
+          }).catch(() => {});
+          reply.type('text/xml').send(
+            '<?xml version="1.0" encoding="UTF-8"?><Response></Response>',
+          );
+          void (async () => {
+            try {
+              const proposal = await tryProposeAction(from, body);
+              if (proposal) {
+                await sendWhatsApp(from, proposal);
+                req.log.info({ from }, '[whatsapp-agent] action proposal sent');
+              } else {
+                // Truly unmatched — send the help fallback.
+                await sendWhatsApp(from, '🤔 לא הבנתי. שלח/י *עזרה* לרשימת פקודות, או תאר/י את הפעולה ("סמן 503081 שולמה", "ליד דביר התקשרתי", וכו).');
+              }
+            } catch (e: any) {
+              req.log.error({ err: e?.message }, '[whatsapp-agent] action flow crashed');
+              try { await sendWhatsApp(from, `⚠️ שגיאה: ${e?.message || 'unknown'}`); } catch { /* noop */ }
+            }
+          })();
+          return;
         }
         // ── Self-service unsubscribe ──────────────────────────────────────
         // Customer replied "הסר" (or similar) → opt them out of marketing
