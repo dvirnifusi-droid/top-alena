@@ -73,7 +73,7 @@ async function classifyIntent(body: string): Promise<ParsedIntent | null> {
         '*invoice_mark_paid* — סימון חשבונית כשולמה. דוגמאות: "סמן 503081 שולמה", "חשבונית 12345 שילמתי", "תסמן שש-503081 שולם".',
         '*invoice_mark_unpaid* — להחזיר חשבונית ללא-שולמה. "החשבונית 503081 לא שולמה", "תבטל ש-12345 שולם".',
         '*lead_set_stage* — שינוי שלב של ליד אירוע. שלבים: pending (לטלפון), contacted (דיברנו), quoted (הצעת מחיר), won (נסגר), lost (לא רלוונטי). דוגמאות: "ליד דביר התקשרתי", "אישור הליד של משה", "דביר נסגר", "הליד של רוזנפלד לא רלוונטי".',
-        '*shift_assign* — שיבוץ עובד למשמרת. "שבץ עדן למחר ערב כמלצר", "תוסיף את משה לסידור צהריים היום". (גרסה ראשונית — פרטים יושלמו)',
+        '*shift_assign* — שיבוץ עובד למשמרת. דוגמאות: "שבץ עדן למחר ערב כמלצר", "תוסיף את משה לסידור צהריים היום", "שבץ את עדן למשמרת ערב מחר כמנהלת משמרת". חלץ employee_search (שם), shift_date (תאריך/יחסי), shift_type (lunch או dinner; "צהריים"→lunch, "ערב"→dinner), position (תפקיד).',
         '*remind_me* — תזכורת אישית. "תזכיר לי ב-14:00 לבדוק את האירוע", "תזכורת מחר בבוקר — לחזור לדביר".',
         '*noop* — כל דבר אחר (שאלת קריאה, ברכה, "עזרה", הודעת רעש).',
         '',
@@ -89,6 +89,16 @@ async function classifyIntent(body: string): Promise<ParsedIntent | null> {
       maxOutputTokens: 400,
       timeoutMs: 8000,
     });
+    console.log('[whatsapp-actions] classify result:', JSON.stringify({
+      body: body.slice(0, 80),
+      intent: out?.intent,
+      confidence: out?.confidence,
+      rationale: out?.rationale,
+      employee_search: out?.employee_search,
+      shift_date: out?.shift_date,
+      shift_type: out?.shift_type,
+      position: out?.position,
+    }));
     if (!out || out.intent === 'noop') return null;
     if (typeof out.confidence !== 'number' || out.confidence < 0.6) return null;
     return out as ParsedIntent;
