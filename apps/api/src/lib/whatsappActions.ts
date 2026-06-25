@@ -194,13 +194,18 @@ async function proposeShiftAssign(p: ParsedIntent): Promise<{ summary: string; e
   const tomorrowY = tomorrow.toLocaleDateString('en-CA', { timeZone: TZ });
   const dayAfter = new Date(today); dayAfter.setUTCDate(dayAfter.getUTCDate() + 2);
   const dayAfterY = dayAfter.toLocaleDateString('en-CA', { timeZone: TZ });
-  let dateStr = p.shift_date;
-  if (/^היום$/.test(dateStr)) dateStr = todayY;
-  else if (/^מחר$/.test(dateStr)) dateStr = tomorrowY;
-  else if (/^מחרתיים$/.test(dateStr)) dateStr = dayAfterY;
-  else if (/^(\d{1,2})[\/.\-](\d{1,2})$/.test(dateStr)) {
-    const [, d, m] = dateStr.match(/^(\d{1,2})[\/.\-](\d{1,2})$/)!;
-    dateStr = `${today.getFullYear()}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+  // Accept Hebrew + English relative words (Gemini sometimes returns
+  // 'tomorrow' even when prompt was in Hebrew). Trim + lowercase first.
+  let dateStr = String(p.shift_date || '').trim().toLowerCase();
+  if (/^(היום|today)$/i.test(dateStr)) dateStr = todayY;
+  else if (/^(מחר|tomorrow)$/i.test(dateStr)) dateStr = tomorrowY;
+  else if (/^(מחרתיים|day[\s-]?after[\s-]?tomorrow)$/i.test(dateStr)) dateStr = dayAfterY;
+  else if (/^(\d{1,2})[\/.\-](\d{1,2})(?:[\/.\-](\d{2,4}))?$/.test(dateStr)) {
+    const m = dateStr.match(/^(\d{1,2})[\/.\-](\d{1,2})(?:[\/.\-](\d{2,4}))?$/)!;
+    const dd = m[1]; const mm = m[2];
+    let yy = m[3] ? parseInt(m[3]) : today.getFullYear();
+    if (yy < 100) yy += 2000;
+    dateStr = `${yy}-${String(mm).padStart(2, '0')}-${String(dd).padStart(2, '0')}`;
   }
   if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return `❓ לא הצלחתי לפענח את התאריך "${p.shift_date}". נסה YYYY-MM-DD או "מחר".`;
 
