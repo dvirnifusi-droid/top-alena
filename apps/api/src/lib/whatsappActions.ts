@@ -414,6 +414,49 @@ async function executeAction(exec: any): Promise<string> {
 
 // ─── Public surface — used by webhook ──────────────────────────────────────
 
+// Merge any pending half-finished intent (stored as status='pending_clarification')
+// with the current message. Lets multi-turn flows like:
+//   user: "שבץ עדן ערב"     → bot: "באיזה תאריך?"
+//   user: "מחר"             → bot: now has employee+shift+date
+// We stash the partial intent on a WhatsAppMessage outbound row (same trick
+// we use for invoice drafts), and on the next message the prior intent is
+// merged with whatever new fields the LLM extracts.
+async function loadPendingClarification(fromPhone: string): Promise<{ id: string; partial: ParsedIntent } | null> {
+  const since = new Date(Date.now() - 3 * 60 * 1000); // 3-minute window — short, intent
+  const row: any = await (prisma as any).whatsAppMessage.findFirst({
+    where: {
+      direction: 'outbound', contact_phone: fromPhone,
+      status: 'pending_clarification', is_read: false,
+      created_at: { gte: since },
+    },
+    orderBy: { id: 'desc' },
+  }).catch(() => null);
+  if (!row) return null;
+  const partial = (row.raw as any)?.partial_intent;
+  if (!partial) return null;
+  return { id: row.id, partial };
+}
+
+async function stashPendingClarification(fromPhone: string, partial: ParsedIntent, askText: string): Promise<void> {
+  await (prisma as any).whatsAppMessage.create({
+    data: {
+      twilio_sid: null, direction: 'outbound',
+      from_phone: process.env.TWILIO_WHATSAPP_FROM || 'whatsapp:+system',
+      to_phone: fromPhone, contact_phone: fromPhone,
+      body: askText, num_media: 0,
+      status: 'pending_clarification',
+      raw: { partial_intent: partial } as any,
+      is_read: false,
+    },
+  }).catch(() => {});
+}
+
+async function consumePendingClarification(id: string): Promise<void> {
+  await (prisma as any).whatsAppMessage.update({
+    where: { id }, data: { is_read: true, status: 'clarification_resolved' },
+  }).catch(() => {});
+}
+
 // Try to classify the inbound text as a write-action intent. Returns:
 //   • string — reply text to send back (proposal awaiting confirmation, OR
 //     a question, OR an info/error message)
@@ -422,8 +465,62 @@ async function executeAction(exec: any): Promise<string> {
 // On success path we ALSO store the exec payload on the same outbound row
 // so tryConfirmPendingAction can find it on the next admin message.
 export async function tryProposeAction(fromPhone: string, body: string): Promise<string | null> {
-  const intent = await classifyIntent(body);
-  if (!intent) return null;
+  // Check for a pending clarification first — if the user is answering a
+  // follow-up question, merge the new field(s) into the saved partial intent.
+  const pending = await loadPendingClarification(fromPhone);
+  let intent: ParsedIntent | null;
+  if (pending) {
+    // Treat the answer as either a single field value (e.g. "מחר" answering
+    // "באיזה תאריך?") or a fully-formed restatement. Try LLM first; if it
+    // returns noop or low-confidence, use the message as a raw field value
+    // based on what the previous turn was missing.
+    const reclassified = await classifyIntent(body);
+    if (reclassified && reclassified.intent === pending.partial.intent) {
+      // Merge: new non-empty fields win over the partial.
+      intent = { ...pending.partial };
+      for (const k of Object.keys(reclassified) as Array<keyof ParsedIntent>) {
+        const v = (reclassified as any)[k];
+        if (v !== undefined && v !== null && v !== '') (intent as any)[k] = v;
+      }
+    } else {
+      // The LLM didn't recognize it as the same intent — assume it's a single
+      // field fill-in. Heuristically slot into the first missing required field.
+      intent = { ...pending.partial };
+      const trimmed = body.trim();
+      if (intent.intent === 'shift_assign') {
+        if (!intent.shift_date) (intent as any).shift_date = trimmed;
+        else if (!intent.shift_type) {
+          if (/צהר/i.test(trimmed)) (intent as any).shift_type = 'lunch';
+          else if (/ערב|לילה/i.test(trimmed)) (intent as any).shift_type = 'dinner';
+        }
+        else if (!intent.employee_search) (intent as any).employee_search = trimmed;
+        else if (!intent.position) (intent as any).position = trimmed;
+      } else if (intent.intent === 'lead_set_stage') {
+        if (!intent.lead_stage) {
+          const STAGE_MAP: Record<string, ParsedIntent['lead_stage']> = {
+            'pending': 'pending', 'מחכה': 'pending', 'לטלפון': 'pending',
+            'contacted': 'contacted', 'דיברתי': 'contacted', 'התקשרתי': 'contacted',
+            'quoted': 'quoted', 'הצעה': 'quoted', 'הצעת מחיר': 'quoted',
+            'won': 'won', 'נסגר': 'won', 'אישור': 'won',
+            'lost': 'lost', 'בוטל': 'lost', 'לא רלוונטי': 'lost',
+          };
+          for (const [k, v] of Object.entries(STAGE_MAP)) {
+            if (trimmed.includes(k)) { (intent as any).lead_stage = v; break; }
+          }
+        }
+        else if (!intent.lead_search) (intent as any).lead_search = trimmed;
+      } else if (intent.intent === 'invoice_mark_paid' || intent.intent === 'invoice_mark_unpaid') {
+        if (!intent.invoice_number && /\d/.test(trimmed)) (intent as any).invoice_number = trimmed.match(/\d+/)?.[0];
+      } else if (intent.intent === 'remind_me') {
+        if (!intent.remind_at) (intent as any).remind_at = trimmed;
+        else if (!intent.remind_text) (intent as any).remind_text = trimmed;
+      }
+    }
+    await consumePendingClarification(pending.id);
+  } else {
+    intent = await classifyIntent(body);
+    if (!intent) return null;
+  }
   let proposal: { summary: string; exec: any } | string;
   switch (intent.intent) {
     case 'invoice_mark_paid':   proposal = await proposeInvoiceMarkPaid(intent); break;
@@ -433,7 +530,14 @@ export async function tryProposeAction(fromPhone: string, body: string): Promise
     case 'remind_me':           proposal = await proposeRemindMe(intent); break;
     default: return null;
   }
-  if (typeof proposal === 'string') return proposal;
+  if (typeof proposal === 'string') {
+    // If the proposal is a clarifying question (starts with ❓), stash the
+    // partial intent so the next message can complete it.
+    if (proposal.startsWith('❓') && intent) {
+      await stashPendingClarification(fromPhone, intent, proposal);
+    }
+    return proposal;
+  }
   // For remind_me, pin the target phone to the requesting admin so the
   // reminder gets delivered back to them rather than dropping into 'self'.
   if (proposal.exec?.type === 'remind_me' && !proposal.exec.target_phone) {

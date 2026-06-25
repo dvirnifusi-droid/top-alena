@@ -145,6 +145,144 @@ export async function buildMorningBrief(): Promise<string> {
   return lines.join('\n');
 }
 
+// ─── End-of-day brief (sent at 23:30) ──────────────────────────────────────
+
+async function eodSales(today: string): Promise<string | null> {
+  try {
+    const orders: any[] = await (prisma as any).beecommOrder.findMany({
+      where: { OR: [{ date: today as any }, { created_date: today as any }] },
+      take: 1000,
+    }).catch(() => []);
+    if (!orders.length) return null;
+    const total = orders.reduce((s, o: any) => s + Number(o.total_ils ?? o.total ?? o.amount ?? 0), 0);
+    // Average over last 4 same-DOW
+    const allOrders: any[] = await (prisma as any).beecommOrder.findMany({
+      orderBy: { date: 'desc' }, take: 5000,
+    }).catch(() => []);
+    const todayDow = new Date(`${today}T12:00:00Z`).getDay();
+    const byDate: Record<string, number> = {};
+    for (const o of allOrders) {
+      const d = o.date instanceof Date ? o.date.toISOString().slice(0, 10) : String(o.date).slice(0, 10);
+      if (d && d !== today && new Date(`${d}T12:00:00Z`).getDay() === todayDow) {
+        byDate[d] = (byDate[d] || 0) + Number(o.total_ils ?? o.total ?? o.amount ?? 0);
+      }
+    }
+    const samples = Object.values(byDate).slice(0, 4);
+    const avg = samples.length ? samples.reduce((s, n) => s + n, 0) / samples.length : 0;
+    const lines = [`הזמנות: *${orders.length}* · סה"כ: *₪${total.toLocaleString('he-IL')}*`];
+    if (avg > 0) {
+      const diffPct = Math.round(((total - avg) / avg) * 100);
+      const arrow = diffPct >= 0 ? '⬆️' : '⬇️';
+      lines.push(`${arrow} ${diffPct >= 0 ? '+' : ''}${diffPct}% מול ממוצע ${samples.length} ${samples.length === 1 ? 'שבוע' : 'שבועות'} אחורה (אותו יום)`);
+    }
+    return lines.join('\n');
+  } catch { return null; }
+}
+
+async function eodTips(today: string): Promise<string | null> {
+  const reports: any[] = await (prisma as any).tipReport.findMany({ orderBy: { date: 'desc' }, take: 30 });
+  const matched = reports.filter((r) => {
+    const d = r.date instanceof Date ? r.date.toISOString().slice(0, 10) : String(r.date).slice(0, 10);
+    return d === today;
+  });
+  if (!matched.length) return null;
+  const totalTips = matched.reduce((n: number, r: any) => n + Number(r.total_tips_collected || 0), 0);
+  const netDistr = matched.reduce((n: number, r: any) => n + Number(r.net_tips_for_distribution || 0), 0);
+  const mgrCut = totalTips * 0.05;
+  const lines = [
+    `נאסף: *₪${totalTips.toFixed(0)}*`,
+    `לחלוקה למלצרים: ₪${netDistr.toFixed(0)} · למנהל משמרת (5%): ₪${mgrCut.toFixed(0)}`,
+  ];
+  const locked = matched.filter((r: any) => r.status === 'locked').length;
+  if (locked < matched.length) lines.push(`⚠️ ${matched.length - locked} דוחות עוד בטיוטה`);
+  return lines.join('\n');
+}
+
+async function eodIncidentsToday(today: string): Promise<string | null> {
+  try {
+    const all: any[] = await (prisma as any).incident.findMany({ orderBy: { id: 'desc' }, take: 100 });
+    const matched = all.filter((i: any) => {
+      const d = i.created_date ? String(i.created_date).slice(0, 10) : (i.createdAt ? new Date(i.createdAt).toISOString().slice(0, 10) : '');
+      return d === today;
+    });
+    if (!matched.length) return null;
+    const sevCount = matched.reduce((m: any, i: any) => { const s = String(i.severity || 'low'); m[s] = (m[s] || 0) + 1; return m; }, {});
+    const parts = Object.entries(sevCount).map(([s, n]) => `${s}: ${n}`);
+    return `${matched.length} אירועים דווחו (${parts.join(' · ')})`;
+  } catch { return null; }
+}
+
+async function eodLeadsClosed(today: string): Promise<string | null> {
+  try {
+    const all: any[] = await (prisma as any).eventLead.findMany({ orderBy: { id: 'desc' }, take: 200 });
+    const closedToday = all.filter((l: any) => {
+      const d = l.updated_date ? String(l.updated_date).slice(0, 10) : '';
+      return d === today && (l.status === 'won' || l.status === 'lost');
+    });
+    const newToday = all.filter((l: any) => {
+      const d = l.created_date ? String(l.created_date).slice(0, 10) : '';
+      return d === today;
+    });
+    if (!closedToday.length && !newToday.length) return null;
+    const won = closedToday.filter((l: any) => l.status === 'won').length;
+    const lost = closedToday.filter((l: any) => l.status === 'lost').length;
+    const parts: string[] = [];
+    if (newToday.length) parts.push(`חדשים: *${newToday.length}*`);
+    if (won) parts.push(`✅ נסגרו: ${won}`);
+    if (lost) parts.push(`❌ לא רלוונטיים: ${lost}`);
+    return parts.join(' · ');
+  } catch { return null; }
+}
+
+async function eodTomorrowPreview(tomorrow: string): Promise<string> {
+  const all: any[] = await (prisma as any).workShift.findMany({ orderBy: { date: 'desc' }, take: 1500 });
+  const tShifts = all.filter((s: any) => {
+    const d = s.date instanceof Date ? s.date.toISOString().slice(0, 10) : String(s.date).slice(0, 10);
+    return d === tomorrow;
+  });
+  const lunchN = tShifts.filter((s: any) => s.shift_type === 'lunch').reduce((n: number, s: any) => n + (s.assigned_staff?.length || 0), 0);
+  const dinnerN = tShifts.filter((s: any) => s.shift_type === 'dinner').reduce((n: number, s: any) => n + (s.assigned_staff?.length || 0), 0);
+  if (!lunchN && !dinnerN) return '⚠️ אין סידור למחר!';
+  return `☀️ צהריים: ${lunchN} · 🌙 ערב: ${dinnerN}`;
+}
+
+export async function buildEndOfDayBrief(): Promise<string> {
+  const today = israelYMD();
+  const tomorrow = israelYMD(addDays(new Date(), 1));
+  const todayName = israelDayName(today);
+  const tomorrowName = israelDayName(tomorrow);
+  const [sales, tips, incidents, leads, tomorrowPrev] = await Promise.all([
+    eodSales(today),
+    eodTips(today),
+    eodIncidentsToday(today),
+    eodLeadsClosed(today),
+    eodTomorrowPreview(tomorrow),
+  ]);
+  const lines: string[] = [
+    `🌙 *סיכום יום — ${todayName} ${today}*`,
+    '',
+  ];
+  if (sales) { lines.push(`💰 *מכירות*`, sales, ''); }
+  if (tips) { lines.push(`💸 *טיפים*`, tips, ''); }
+  if (leads) { lines.push(`🎯 *לידים*`, leads, ''); }
+  if (incidents) { lines.push(`🚨 *אירועים*`, incidents, ''); }
+  lines.push(`📅 *מחר (${tomorrowName})*`, tomorrowPrev, '');
+  lines.push('_לילה טוב 🌿_');
+  return lines.join('\n');
+}
+
+export async function sendEndOfDayBrief(): Promise<{ sent: number; failed: number; details: Array<{ phone: string; ok: boolean; error?: string }> }> {
+  const phones = adminPhones();
+  if (!phones.length) { console.warn('[eod-brief] no admin phones'); return { sent: 0, failed: 0, details: [] }; }
+  const text = await buildEndOfDayBrief();
+  const results: Array<{ phone: string; ok: boolean; error?: string }> = [];
+  for (const phone of phones) {
+    try { await sendWhatsApp(phone, text); results.push({ phone, ok: true }); }
+    catch (e: any) { results.push({ phone, ok: false, error: e?.message || 'unknown' }); console.warn('[eod-brief] send failed', { phone, err: e?.message }); }
+  }
+  return { sent: results.filter(r => r.ok).length, failed: results.filter(r => !r.ok).length, details: results };
+}
+
 // Send the brief to all admins. Returns per-recipient delivery status.
 export async function sendMorningBrief(): Promise<{ sent: number; failed: number; details: Array<{ phone: string; ok: boolean; error?: string }> }> {
   const phones = adminPhones();

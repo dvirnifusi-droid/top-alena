@@ -14,6 +14,7 @@ import { pushoverToAdmins } from '../lib/pushover.js';
 import { tryHandleAdminCommand, isWhatsAppAdmin } from '../lib/whatsappAgent.js';
 import { handleAdminInvoiceMedia, tryConfirmPendingInvoice } from '../lib/whatsappInvoice.js';
 import { tryProposeAction, tryConfirmPendingAction } from '../lib/whatsappActions.js';
+import { transcribeWhatsAppVoice } from '../lib/whatsappVoice.js';
 import { sendWhatsApp } from '../lib/twilio.js';
 
 const STRICT_SIG = false;
@@ -92,37 +93,63 @@ export const twilioWebhookRoutes: FastifyPluginAsync = async (app) => {
         // Runs BEFORE the unsubscribe + inbox-archival flow so admin commands
         // bypass the noisy admin-push and don't tip the unsubscribe regex.
         if (isWhatsAppAdmin(from)) {
-          // (A) Media — invoice OCR flow. Twilio populates MediaUrl0..N for each
-          // attachment. We only process the first one for now; multi-page PDFs are
-          // a single media item already, and most invoice photos are one image.
-          //
-          // ⏱  OCR takes 10-20 seconds (download + upload + Gemini Vision), which
-          // exceeds Twilio's 15-second webhook timeout. So we ACK immediately and
-          // process + reply asynchronously via sendWhatsApp (free, inside the 24h
-          // service window the inbound message itself just opened).
+          // (A) Media — branched by MIME type. Twilio populates MediaUrl0..N
+          // and MediaContentType0..N for each attachment. We only process the
+          // first one for now. Both branches ACK immediately (Twilio has a 15s
+          // timeout, OCR and transcription both take 10-20s) and reply async.
           if (numMedia >= 1 && params.MediaUrl0) {
             const mediaUrl = params.MediaUrl0;
+            const mediaType = String(params.MediaContentType0 || '').toLowerCase();
+            const isAudio = mediaType.startsWith('audio/');
             await (prisma as any).whatsAppMessage.create({
               data: {
                 twilio_sid: sid || null, direction: 'inbound', from_phone: from, to_phone: to,
-                contact_phone: from, body: body || '(media)', num_media: numMedia, status: 'received',
-                raw: { ...params, admin_invoice: true } as any, is_read: true,
+                contact_phone: from, body: body || (isAudio ? '(voice)' : '(media)'),
+                num_media: numMedia, status: 'received',
+                raw: { ...params, admin_invoice: !isAudio, admin_voice: isAudio } as any,
+                is_read: true,
               },
             }).catch(() => {});
-            // Quick ack so Twilio doesn't time us out.
             reply.type('text/xml').send(
-              '<?xml version="1.0" encoding="UTF-8"?><Response><Message>📥 קיבלתי את החשבונית, מעבד... תוך כ-20 שניות תקבל סיכום.</Message></Response>',
+              isAudio
+                ? '<?xml version="1.0" encoding="UTF-8"?><Response><Message>🎙️ קיבלתי את ההקלטה, מתמלל... תוך כ-15 שניות תקבל תשובה.</Message></Response>'
+                : '<?xml version="1.0" encoding="UTF-8"?><Response><Message>📥 קיבלתי את החשבונית, מעבד... תוך כ-20 שניות תקבל סיכום.</Message></Response>',
             );
-            // Process + reply in the background. Errors are logged but never crash the request.
+            // Process + reply in the background. Errors logged but never crash.
             void (async () => {
               try {
-                const invoiceReply = await handleAdminInvoiceMedia(mediaUrl, from);
-                req.log.info({ from, media_url: mediaUrl }, '[whatsapp-agent] admin invoice processed');
-                await sendWhatsApp(from, invoiceReply);
+                if (isAudio) {
+                  // Transcribe → treat as a text command (recurse through the
+                  // same proposal / confirm / read routers we use for typed text).
+                  const transcript = await transcribeWhatsAppVoice(mediaUrl);
+                  req.log.info({ from, transcript: transcript.slice(0, 100) }, '[whatsapp-agent] voice transcribed');
+                  if (!transcript) {
+                    await sendWhatsApp(from, '🤔 לא הצלחתי לתמלל את ההקלטה. נסה שוב או כתוב.');
+                    return;
+                  }
+                  // Echo the transcript first so the user sees what we heard.
+                  await sendWhatsApp(from, `🎙️ *שמעתי*: "${transcript}"`);
+                  // Then route through the same handlers as a text message.
+                  const actionConfirm = await tryConfirmPendingAction(from, transcript);
+                  if (actionConfirm) { await sendWhatsApp(from, actionConfirm); return; }
+                  const invConfirm = await tryConfirmPendingInvoice(from, transcript);
+                  if (invConfirm) { await sendWhatsApp(from, invConfirm); return; }
+                  const cmdReply = await tryHandleAdminCommand(from, transcript);
+                  if (cmdReply && cmdReply !== '🤔 לא הבנתי את הפקודה. שלח/י *עזרה* לרשימת פקודות.') {
+                    await sendWhatsApp(from, cmdReply); return;
+                  }
+                  const proposal = await tryProposeAction(from, transcript);
+                  if (proposal) { await sendWhatsApp(from, proposal); return; }
+                  await sendWhatsApp(from, '🤔 לא הבנתי. נסה שוב או שלח *עזרה*.');
+                } else {
+                  const invoiceReply = await handleAdminInvoiceMedia(mediaUrl, from);
+                  req.log.info({ from, media_url: mediaUrl }, '[whatsapp-agent] admin invoice processed');
+                  await sendWhatsApp(from, invoiceReply);
+                }
               } catch (e: any) {
-                req.log.error({ err: e?.message }, '[whatsapp-agent] invoice flow crashed');
+                req.log.error({ err: e?.message }, '[whatsapp-agent] media flow crashed');
                 try {
-                  await sendWhatsApp(from, `❌ נכשלתי בעיבוד החשבונית: ${e?.message || 'unknown'}\nנסה לשלוח שוב או הזן ידנית.`);
+                  await sendWhatsApp(from, `❌ נכשלתי בעיבוד: ${e?.message || 'unknown'}`);
                 } catch { /* best effort */ }
               }
             })();

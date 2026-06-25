@@ -1,6 +1,6 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { sendRestroomReminder, sendAbandonedReminder, sendT24SurveyReminders, runAutoTrackerAnalysis, runSalesAutoClose, runWeeklyPersonalGoals, captureBeecommSnapshot, backfillBeecommHistory, reopenAutoClosedShifts } from '../functions/load.js';
-import { sendMorningBrief, buildMorningBrief } from '../lib/morningBrief.js';
+import { sendMorningBrief, buildMorningBrief, sendEndOfDayBrief, buildEndOfDayBrief } from '../lib/morningBrief.js';
 import { dispatchDueReminders } from '../lib/reminders.js';
 
 // Internal cron endpoints, guarded by a shared secret (x-cron-secret header or
@@ -78,5 +78,17 @@ export const cronRoutes: FastifyPluginAsync = async (app) => {
   // Every-minute tick — sends any reminder whose deliver_at is now-or-past.
   app.post('/dispatch-reminders', async () => {
     return dispatchDueReminders();
+  });
+
+  // Daily 23:30 IL — end-of-day summary (sales vs avg, tips, leads, incidents,
+  // tomorrow's schedule preview).
+  app.post('/end-of-day-brief', async () => {
+    return sendEndOfDayBrief();
+  });
+
+  // Preview without sending.
+  app.post('/end-of-day-brief-preview', async () => {
+    const text = await buildEndOfDayBrief();
+    return { text };
   });
 };
