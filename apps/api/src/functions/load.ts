@@ -7782,6 +7782,56 @@ registerFn('deleteEventLead', async ({ body }) => {
 // 'quoted' (price/contract sent), 'won' (signed), 'lost' (declined / not relevant).
 // Encoded directly in lead.status; callback_at + callback_notes go inside the
 // JSON meta block in lead.notes (see chatEventsInquiry comment for the format).
+// AUTH — one-shot cleanup: merge duplicate WorkShift rows for the same
+// (date, shift_type). The schedule grid uses week.find() in many places, so
+// a duplicate row caused different refreshes to pick different shifts and
+// the schedule appeared to "change" between page loads. This consolidates
+// all assigned_staff into the OLDEST row and deletes the rest.
+registerFn('dedupeWorkShifts', async () => {
+  const all = await db.workShift.findMany({ orderBy: { id: 'asc' } });
+  // Group by ISO-day-string + shift_type
+  const groups: Record<string, any[]> = {};
+  for (const s of all) {
+    const day = s.date instanceof Date
+      ? s.date.toISOString().slice(0, 10)
+      : String(s.date).slice(0, 10);
+    const key = `${day}|${s.shift_type || ''}`;
+    (groups[key] = groups[key] || []).push(s);
+  }
+  let groupsWithDups = 0;
+  let merged = 0;
+  let deleted = 0;
+  for (const [key, list] of Object.entries(groups)) {
+    if (list.length < 2) continue;
+    groupsWithDups++;
+    const survivor = list[0];
+    const losers = list.slice(1);
+    // Union assigned_staff by (employee_id|position).
+    const seen = new Set<string>();
+    const allStaff: any[] = [];
+    for (const s of list) {
+      for (const a of (s.assigned_staff as any[] | null) || []) {
+        const k = `${a.employee_id}|${a.position}`;
+        if (seen.has(k)) continue;
+        seen.add(k);
+        allStaff.push(a);
+      }
+    }
+    // Use the union as the survivor's assigned_staff.
+    await db.workShift.update({
+      where: { id: survivor.id },
+      data: { assigned_staff: allStaff as any },
+    });
+    merged += allStaff.length;
+    for (const l of losers) {
+      await db.workShift.delete({ where: { id: l.id } });
+      deleted++;
+    }
+    console.log(`[dedupe] ${key}: kept ${survivor.id.slice(-6)}, deleted ${losers.length} dup(s), merged staff: ${allStaff.length}`);
+  }
+  return { ok: true, total_shifts: all.length, groups_with_dups: groupsWithDups, merged_staff: merged, deleted };
+});
+
 registerFn('setLeadCallbackStage', async ({ body }) => {
   const { lead_id, stage, notes: cbNotes } = body as any;
   if (!lead_id) throw new Error('lead_id required');
