@@ -22,7 +22,7 @@ const filterPositionsByShiftType = (positions, shiftType) => {
 };
 
 
-export default function AssignmentEditDialog({ isOpen, onOpenChange, assignment, onSave, onDelete, positions, employees, onMoveShift, weekDays, availabilityNote }) {
+export default function AssignmentEditDialog({ isOpen, onOpenChange, assignment, onSave, onDelete, positions, employees, onMoveShift, onSwitchShiftType, weekDays, availabilityNote }) {
   const [editData, setEditData] = useState(null);
   const [showMoveDate, setShowMoveDate] = useState(false);
   const [moveDate, setMoveDate] = useState('');
@@ -256,6 +256,23 @@ export default function AssignmentEditDialog({ isOpen, onOpenChange, assignment,
                     <MoveRight className="w-3.5 h-3.5 ml-1"/>העבר תאריך
                   </Button>
                 )}
+                {onSwitchShiftType && editData?.shift_type && (() => {
+                  const targetType = editData.shift_type === 'lunch' ? 'dinner' : 'lunch';
+                  const targetLabel = targetType === 'lunch' ? 'צהריים ☀️' : 'ערב 🌙';
+                  return (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="border-purple-300 text-purple-700 hover:bg-purple-50 px-2"
+                      onClick={() => {
+                        onSwitchShiftType(editData, targetType);
+                        onOpenChange(false);
+                      }}
+                    >
+                      🔁 העבר ל-{targetLabel}
+                    </Button>
+                  );
+                })()}
                 <Button size="sm" variant="outline" onClick={() => onOpenChange(false)}><X className="w-3.5 h-3.5 ml-1"/>ביטול</Button>
                 <Button size="sm" onClick={handleSave}><Save className="w-3.5 h-3.5 ml-1"/>שמור</Button>
             </div>

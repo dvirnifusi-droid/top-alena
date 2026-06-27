@@ -1320,6 +1320,52 @@ export default function WorkScheduling() {
                         const dateStr = format(new Date(selectedAssignment.date), 'yyyy-MM-dd');
                         return availabilities.find(av => av.employee_id === selectedAssignment.employee_id && av.date === dateStr)?.reason || null;
                     })()}
+                    onSwitchShiftType={async (assignment, newShiftType) => {
+                        const dateString = format(new Date(assignment.date), 'yyyy-MM-dd');
+                        const sourceShift = week.find(s => s.date === dateString && s.shift_type === assignment.shift_type);
+                        if (!sourceShift) return;
+                        const targetTimes = newShiftType === 'lunch' ? { start: '12:00', end: '17:00' } : { start: '17:00', end: '23:00' };
+                        // Remove from source
+                        const newSourceStaff = sourceShift.assigned_staff.filter(
+                            a => !(a.employee_id === assignment.employee_id && a.position === assignment.position)
+                        );
+                        // Find or will-create target shift on SAME date but other shift_type
+                        const targetShift = week.find(s => s.date === dateString && s.shift_type === newShiftType);
+                        // The moved assignment gets the new shift's default times. Keep
+                        // position + employee identity.
+                        const moved = {
+                            ...assignment,
+                            start_time: targetTimes.start,
+                            end_time: targetTimes.end,
+                        };
+                        delete moved.shift_type;
+                        try {
+                            await base44.entities.WorkShift.update(sourceShift.id, { assigned_staff: newSourceStaff });
+                            if (targetShift) {
+                                const alreadyIn = (targetShift.assigned_staff || []).some(
+                                    a => a.employee_id === assignment.employee_id && a.position === assignment.position
+                                );
+                                if (!alreadyIn) {
+                                    const newTargetStaff = [...(targetShift.assigned_staff || []), moved];
+                                    await base44.entities.WorkShift.update(targetShift.id, { assigned_staff: newTargetStaff });
+                                }
+                            } else {
+                                await base44.entities.WorkShift.create({
+                                    date: dateString,
+                                    shift_type: newShiftType,
+                                    start_time: targetTimes.start,
+                                    end_time: targetTimes.end,
+                                    assigned_staff: [moved],
+                                    positions_needed: {},
+                                });
+                            }
+                            setIsAssignmentEditorOpen(false);
+                            setSelectedAssignment(null);
+                            await loadScheduleData();
+                        } catch (e) {
+                            alert('שגיאה בהעברת השיבוץ למשמרת אחרת');
+                        }
+                    }}
                     onMoveShift={async (assignment, newDate) => {
                         const dateString = format(new Date(assignment.date), 'yyyy-MM-dd');
                         const sourceShift = week.find(s => s.date === dateString && s.shift_type === assignment.shift_type);
