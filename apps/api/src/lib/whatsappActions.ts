@@ -27,7 +27,8 @@ type Intent =
   | 'shift_assign'
   | 'remind_me'
   | 'send_contract'       // find an EventContract and send its sign link via WA
-  | 'event_add'           // personal calendar event
+  | 'event_add'           // personal calendar event (single)
+  | 'event_add_batch'     // multiple events in one message
   | 'task_add'            // personal task
   | 'task_done'           // close a personal task
   | 'wake_alarm_set'      // daily wake-up time
@@ -39,7 +40,7 @@ const INTENT_SCHEMA = {
   properties: {
     intent: {
       type: 'string',
-      enum: ['invoice_mark_paid', 'invoice_mark_unpaid', 'lead_set_stage', 'shift_assign', 'remind_me', 'send_contract', 'event_add', 'task_add', 'task_done', 'wake_alarm_set', 'wake_alarm_cancel', 'noop'],
+      enum: ['invoice_mark_paid', 'invoice_mark_unpaid', 'lead_set_stage', 'shift_assign', 'remind_me', 'send_contract', 'event_add', 'event_add_batch', 'task_add', 'task_done', 'wake_alarm_set', 'wake_alarm_cancel', 'noop'],
       description: 'הפעולה הנדרשת. noop = לא פעולת כתיבה (השאר לראוטר אחר).',
     },
     invoice_number: { type: 'string', description: 'מספר חשבונית (לפעולות חשבונית)' },
@@ -55,6 +56,20 @@ const INTENT_SCHEMA = {
     event_title: { type: 'string', description: 'כותרת אירוע אישי (event_add)' },
     event_at: { type: 'string', description: 'מתי האירוע (event_add) — ISO או יחסי כמו "מחר 14:00"' },
     event_lead_min: { type: 'integer', description: 'כמה דק לפני להזכיר (event_add). ברירת מחדל 15' },
+    events: {
+      type: 'array',
+      description: 'רשימת אירועים מרובים (event_add_batch). כל פריט: title + when (ISO או יחסי) + lead_min אופציונלי.',
+      items: {
+        type: 'object',
+        properties: {
+          title: { type: 'string' },
+          when: { type: 'string' },
+          lead_min: { type: 'integer' },
+        },
+        required: ['title', 'when'],
+      },
+    },
+    lead_min_default: { type: 'integer', description: 'תזכורת ברירת-מחדל לכל הפגישות בbatch (אם לקוח אומר "ושעתיים לפני").' },
     task_title: { type: 'string', description: 'תיאור משימה (task_add)' },
     task_search: { type: 'string', description: 'שם משימה או id אחרון (task_done)' },
     wake_hhmm: { type: 'string', description: 'שעה בפורמט HH:MM לשעון מעורר יומי' },
@@ -79,6 +94,8 @@ type ParsedIntent = {
   event_title?: string;
   event_at?: string;
   event_lead_min?: number;
+  events?: Array<{ title: string; when: string; lead_min?: number }>;
+  lead_min_default?: number;
   task_title?: string;
   task_search?: string;
   wake_hhmm?: string;
@@ -99,7 +116,8 @@ async function classifyIntent(body: string): Promise<ParsedIntent | null> {
         '*shift_assign* — שיבוץ עובד למשמרת. דוגמאות: "שבץ עדן למחר ערב כמלצר", "תוסיף את משה לסידור צהריים היום", "שבץ את עדן למשמרת ערב מחר כמנהלת משמרת". חלץ employee_search (שם), shift_date (תאריך/יחסי), shift_type (lunch או dinner; "צהריים"→lunch, "ערב"→dinner), position (תפקיד).',
         '*remind_me* — תזכורת אישית. "תזכיר לי ב-14:00 לבדוק את האירוע", "תזכורת מחר בבוקר — לחזור לדביר".',
         '*send_contract* — שליחת חוזה אירוע ללקוח בוואטסאפ. דוגמאות: "שלח חוזה לדביר", "תשלח את החוזה של רוזנפלד", "שלח את חוזה 0042 ללקוח". חלץ contract_search (שם הלקוח או מספר החוזה).',
-        '*event_add* — אירוע אישי בלוח הזמנים. "פגישה עם דביר מחר ב-14:00", "שיחת זום עם הספק חמישי 11:00", "תוסיף לי ליום ראשון 09:30 - פגישה עם רואה חשבון". חלץ event_title (תיאור), event_at (תאריך+שעה כמו "מחר 14:00" או ISO), event_lead_min (אופציונלי, ברירת מחדל 15).',
+        '*event_add* — *אירוע יחיד* בלוח. "פגישה עם דביר מחר ב-14:00". חלץ event_title (תיאור), event_at (תאריך+שעה ערכים מדויקים, כתוב מה שנאמר ולא תמציא — "16:00" צריך לחזור 16:00 ולא 19:00!), event_lead_min (אופציונלי, ברירת מחדל 15).',
+        '*event_add_batch* — *רשימת מספר פגישות* בהודעה אחת. דוגמה: "תכניס לי השבוע: ראשון 16:00 פגישה עם אסף · שלישי 13:00 פגישה עם מאור · רביעי 10:00-13:30 אסף". כל אירוע נפרד = פריט ב-events. שמור על שעות מדויקות בדיוק כפי שנכתבו. אם משהו לא מוגדר כשעה ("שני יום הולדת") — דלג עליו או הכנס אותו עם ערך when מעורפל ו-lead_min=0.\n  • אם הלקוח אומר "תזכיר X שעות לפני כל הפגישות" — חלץ lead_min_default (לדוגמה "שעתיים לפני" → 120, "יום לפני" → 1440).\n  • להוסיף כל אירוע גם אם השעה היא טווח (10:00-13:30 → קח את 10:00 כ-when).\n  • אם יש 2+ פגישות בהודעה — תמיד event_add_batch, גם אם המבנה לא מסודר.',
         '*task_add* — משימה לרשימה. "תוסיף משימה: להזמין יין", "צריך לחתום על חוזה רוזנפלד", "רשום לי: לבדוק את המקפיא". חלץ task_title.',
         '*task_done* — סימון משימה כבוצעה. "סיים יין", "בוצע: חוזה רוזנפלד", "תסמן את המקפיא כעשוי". חלץ task_search (כותרת חלקית או id).',
         '*wake_alarm_set* — שעון מעורר יומי. "תעיר אותי כל יום ב-07:30", "תזכיר לי כל בוקר 08:00 עם הסיכום". חלץ wake_hhmm.',
@@ -435,6 +453,37 @@ async function proposeEventAdd(p: ParsedIntent): Promise<{ summary: string; exec
   };
 }
 
+async function proposeEventAddBatch(p: ParsedIntent): Promise<{ summary: string; exec: any } | string> {
+  const items = (p.events || []).filter(e => e && e.title && e.when);
+  if (!items.length) return '❓ לא הצלחתי לחלץ פגישות. שלח שורה לכל פגישה: "ראשון 16:00 פגישה עם אסף".';
+  // Parse each "when" → ISO; drop ones that can't be parsed and warn.
+  const leadDefault = typeof p.lead_min_default === 'number' ? p.lead_min_default : 15;
+  const parsed: Array<{ title: string; whenIso: string; whenHe: string; lead_min: number }> = [];
+  const skipped: string[] = [];
+  for (const it of items) {
+    const when = parseRemindAt(it.when);
+    if (!when || isNaN(when.getTime()) || when.getTime() <= Date.now()) {
+      skipped.push(`${it.title} (${it.when})`);
+      continue;
+    }
+    parsed.push({
+      title: it.title,
+      whenIso: when.toISOString(),
+      whenHe: when.toLocaleString('he-IL', { timeZone: 'Asia/Jerusalem', dateStyle: 'short', timeStyle: 'short' }),
+      lead_min: typeof it.lead_min === 'number' ? it.lead_min : leadDefault,
+    });
+  }
+  if (!parsed.length) return `❓ לא הצלחתי לפענח אף אחת מהפגישות:\n${skipped.join('\n')}`;
+  const lines = [
+    `🗓 *להוסיף ${parsed.length} פגישות ללוח?*`,
+    '',
+    ...parsed.map((e, i) => `${i + 1}. ${e.whenHe} · ${e.title}  _(תזכורת ${e.lead_min} דק' לפני)_`),
+  ];
+  if (skipped.length) lines.push('', `⚠️ דילגתי: ${skipped.join(', ')} (לא הצלחתי לפענח זמן)`);
+  lines.push('', 'ענה *כן* כדי להוסיף את כולן או *לא* לביטול.');
+  return { summary: lines.join('\n'), exec: { type: 'event_add_batch', items: parsed } };
+}
+
 async function proposeTaskAdd(p: ParsedIntent): Promise<{ summary: string; exec: any } | string> {
   if (!p.task_title) return '❓ מה המשימה? (לדוגמה: "להזמין יין")';
   return {
@@ -575,6 +624,27 @@ async function executeAction(exec: any): Promise<string> {
         gSuffix = g.ok ? '  ✓ סונכרן ל-Google Calendar' : `  ⚠️ Google: ${g.error}`;
       }
       return `✅ נוסף ללוח: "${exec.title}" — ${whenHe}.${gSuffix}`;
+    }
+    case 'event_add_batch': {
+      const target = exec.target_phone || exec.from_phone || '';
+      if (!target) throw new Error('missing target phone');
+      const items: any[] = exec.items || [];
+      const googleConnected = await isGoogleConnected(target);
+      const lines = [`✅ *${items.length} פגישות נוספו ללוח*`, ''];
+      let gOk = 0, gFail = 0;
+      for (const it of items) {
+        const when = new Date(it.whenIso);
+        await addScheduledEvent({ fromPhone: target, title: it.title, when, lead_min: it.lead_min });
+        if (googleConnected) {
+          const g = await createCalendarEvent(target, { title: it.title, whenIso: it.whenIso });
+          if (g.ok) gOk++; else gFail++;
+        }
+        lines.push(`• ${it.whenHe} · ${it.title}`);
+      }
+      if (googleConnected) {
+        lines.push('', gFail === 0 ? `✓ ${gOk} סונכרנו ל-Google Calendar` : `✓ ${gOk} סונכרנו · ⚠️ ${gFail} נכשלו ב-Google`);
+      }
+      return lines.join('\n');
     }
     case 'task_add': {
       const target = exec.target_phone || exec.from_phone || '';
@@ -756,6 +826,7 @@ export async function tryProposeAction(fromPhone: string, body: string): Promise
     case 'remind_me':           proposal = await proposeRemindMe(intent); break;
     case 'send_contract':       proposal = await proposeSendContract(intent); break;
     case 'event_add':           proposal = await proposeEventAdd(intent); break;
+    case 'event_add_batch':     proposal = await proposeEventAddBatch(intent); break;
     case 'task_add':            proposal = await proposeTaskAdd(intent); break;
     case 'task_done':           proposal = await proposeTaskDone(intent); break;
     case 'wake_alarm_set':      proposal = await proposeWakeSet(intent); break;
