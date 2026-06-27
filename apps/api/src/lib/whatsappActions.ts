@@ -110,6 +110,16 @@ async function classifyIntent(body: string): Promise<ParsedIntent | null> {
         'אתה מסווג בקשות אדמין במסעדה בעברית.',
         'הבקשה תהיה הודעת WhatsApp קצרה. סווג אותה לאחת הפעולות הבאות וחלץ את הפרמטרים.',
         '',
+        '⚠️ *חוקי זהב לחילוץ ספרות* — חובה לעקוב אחריהם בקפדנות:',
+        '• הטקסט עברי אבל מספרים נכתבים בספרות לועזיות (16, 14:00, 09:30).',
+        '• השעות נראות הפוך בעיניים בגלל RTL — אבל הן נכתבות ונקראות בסדר הספרות הרגיל.',
+        '• אם הלקוח כתב "ב16:00" — השעה היא *16:00*, לא 19:00, לא 61:00, ולא שום ערך אחר.',
+        '• אם הלקוח כתב "ב13:30" — השעה היא *13:30*, לא 19:30, לא 31:30.',
+        '• "10:00-13:30" = מ-10:00 עד 13:30. אם צריך זמן יחיד — קח את הראשון (10:00).',
+        '• לעולם אל "תפרש" או "תעגל" מספרים. תעתיק אותם בדיוק כפי שנכתבו.',
+        '• "ב-9", "ב-9:00", "תשע בבוקר" → 09:00. "ב-9 בערב", "תשע בלילה" → 21:00.',
+        '',
+        '',
         '*invoice_mark_paid* — סימון חשבונית כשולמה. דוגמאות: "סמן 503081 שולמה", "חשבונית 12345 שילמתי", "תסמן שש-503081 שולם".',
         '*invoice_mark_unpaid* — להחזיר חשבונית ללא-שולמה. "החשבונית 503081 לא שולמה", "תבטל ש-12345 שולם".',
         '*lead_set_stage* — שינוי שלב של ליד אירוע. שלבים: pending (לטלפון), contacted (דיברנו), quoted (הצעת מחיר), won (נסגר), lost (לא רלוונטי). דוגמאות: "ליד דביר התקשרתי", "אישור הליד של משה", "דביר נסגר", "הליד של רוזנפלד לא רלוונטי".',
@@ -810,6 +820,9 @@ export async function tryProposeAction(fromPhone: string, body: string): Promise
       } else if (intent.intent === 'remind_me') {
         if (!intent.remind_at) (intent as any).remind_at = trimmed;
         else if (!intent.remind_text) (intent as any).remind_text = trimmed;
+      } else if (intent.intent === 'event_add') {
+        if (!intent.event_at) (intent as any).event_at = trimmed;
+        else if (!intent.event_title) (intent as any).event_title = trimmed;
       }
     }
     await consumePendingClarification(pending.id);
