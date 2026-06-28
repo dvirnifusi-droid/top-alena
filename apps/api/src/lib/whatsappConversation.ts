@@ -231,6 +231,43 @@ const TOOL_DECLARATIONS = [
     description: 'List the user\'s active pending proposals (awaiting yes/no), so the agent knows what context the user is referring to.',
     parameters: { type: 'OBJECT', properties: {} },
   },
+  {
+    name: 'propose_event_add_batch',
+    description: 'Propose adding MULTIPLE personal calendar events at once. Use this when the user sends a list of meetings/events in one message. Parse each line into an event with title + when. Vague times → use defaults: בבוקר=09:00, בצהריים=13:00, בערב=19:00, בלילה=22:00. Items without ANY time can be skipped or set to lead_min=0.',
+    parameters: {
+      type: 'OBJECT',
+      properties: {
+        events: {
+          type: 'ARRAY',
+          items: {
+            type: 'OBJECT',
+            properties: {
+              title: { type: 'STRING' },
+              when: { type: 'STRING', description: '"ראשון 16:00" / "מחר 14:00" / "שני 13:00" / ISO' },
+              lead_min: { type: 'INTEGER' },
+            },
+            required: ['title', 'when'],
+          },
+        },
+        lead_min_default: { type: 'INTEGER', description: 'Default reminder minutes for all events (e.g. 120 if user said "שעתיים לפני")' },
+      },
+      required: ['events'],
+    },
+  },
+  {
+    name: 'propose_task_add_batch',
+    description: 'Propose adding MULTIPLE tasks (todo items) at once. Use this when the user lists tasks like "המשימות שלי: להזמין יין, לקרוא לרואה חשבון, לקנות סכינים".',
+    parameters: {
+      type: 'OBJECT',
+      properties: {
+        tasks: {
+          type: 'ARRAY',
+          items: { type: 'OBJECT', properties: { title: { type: 'STRING' } }, required: ['title'] },
+        },
+      },
+      required: ['tasks'],
+    },
+  },
 ];
 
 // ─── Tool implementations ──────────────────────────────────────────────────
@@ -432,6 +469,42 @@ async function tool_propose_remind_me(args: any, phone: string): Promise<any> {
   return { proposal: `⏰ ${whenHe} · ${args.text}`, awaiting_confirmation: true };
 }
 
+async function tool_propose_event_add_batch(args: any, phone: string): Promise<any> {
+  const items: any[] = Array.isArray(args.events) ? args.events : [];
+  if (!items.length) return { error: 'no events provided' };
+  const leadDefault = typeof args.lead_min_default === 'number' ? args.lead_min_default : 15;
+  const parsed: Array<{ title: string; whenIso: string; whenHe: string; lead_min: number }> = [];
+  const skipped: string[] = [];
+  for (const it of items) {
+    if (!it?.title || !it?.when) { skipped.push(`${it?.title || '?'} (חסר זמן)`); continue; }
+    const iso = tryParseTimestamp(it.when);
+    if (!iso) { skipped.push(`${it.title} (${it.when} לא ניתן לפענוח)`); continue; }
+    parsed.push({
+      title: it.title, whenIso: iso,
+      whenHe: new Date(iso).toLocaleString('he-IL', { timeZone: TZ, dateStyle: 'short', timeStyle: 'short' }),
+      lead_min: typeof it.lead_min === 'number' ? it.lead_min : leadDefault,
+    });
+  }
+  if (!parsed.length) return { error: 'could not parse any event times', skipped };
+  await stashPendingAction(phone, { type: 'event_add_batch', items: parsed, target_phone: phone });
+  const summary = [
+    `🗓 ${parsed.length} פגישות מוצעות:`,
+    ...parsed.map((e, i) => `${i+1}. ${e.whenHe} · ${e.title}  (תזכ׳ ${e.lead_min} דק׳)`),
+  ];
+  if (skipped.length) summary.push(``, `⚠️ דילגתי: ${skipped.join(' · ')}`);
+  return { proposal: summary.join('\n'), awaiting_confirmation: true };
+}
+
+async function tool_propose_task_add_batch(args: any, phone: string): Promise<any> {
+  const items: any[] = Array.isArray(args.tasks) ? args.tasks : [];
+  if (!items.length) return { error: 'no tasks provided' };
+  const titles = items.map(t => String(t?.title || '').trim()).filter(Boolean);
+  if (!titles.length) return { error: 'no valid task titles' };
+  await stashPendingAction(phone, { type: 'task_add_batch', titles, target_phone: phone });
+  const summary = [`📌 ${titles.length} משימות מוצעות:`, ...titles.map((t, i) => `${i+1}. ${t}`)];
+  return { proposal: summary.join('\n'), awaiting_confirmation: true };
+}
+
 async function tool_list_pending_proposals(_args: any, phone: string): Promise<any> {
   const since = new Date(Date.now() - 15 * 60 * 1000);
   const rows: any[] = await (prisma as any).whatsAppMessage.findMany({
@@ -613,6 +686,17 @@ function dateAtIsraelLocal(targetYmd: string, h: number, m: number): Date {
   return new Date(`${targetYmd}T${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:00${offset}`);
 }
 
+// Vague time-of-day → default HH:MM. Used when user says "ראשון בצהריים"
+// or "בערב" without specifying an exact hour.
+function vagueTimeToHHMM(s: string): { h: number; m: number } | null {
+  if (/בבוקר|morning/i.test(s)) return { h: 9, m: 0 };
+  if (/בצהריים|בצהרים|noon|afternoon/i.test(s)) return { h: 13, m: 0 };
+  if (/אחה"?צ|אחר[\s-]?הצהריים/i.test(s)) return { h: 16, m: 0 };
+  if (/בערב|evening/i.test(s)) return { h: 19, m: 0 };
+  if (/בלילה|night/i.test(s)) return { h: 22, m: 0 };
+  return null;
+}
+
 function tryParseTimestamp(raw: string): string | null {
   if (!raw) return null;
   const s = String(raw).trim().toLowerCase();
@@ -663,6 +747,29 @@ function tryParseTimestamp(raw: string): string | null {
       candidate = dateAtIsraelLocal(ymd(t), h, m);
     }
     return candidate.toISOString();
+  }
+  // No HH:MM — try vague time-of-day combined with a date hint.
+  const vague = vagueTimeToHHMM(s);
+  if (vague) {
+    let targetYmd = ymd();
+    if (/מחר|tomorrow/.test(s)) {
+      const t = new Date(`${targetYmd}T12:00:00Z`); t.setUTCDate(t.getUTCDate() + 1);
+      targetYmd = ymd(t);
+    } else if (/מחרתיים/.test(s)) {
+      const t = new Date(`${targetYmd}T12:00:00Z`); t.setUTCDate(t.getUTCDate() + 2);
+      targetYmd = ymd(t);
+    } else {
+      const HE: Record<string, number> = { 'ראשון': 0, 'שני': 1, 'שלישי': 2, 'רביעי': 3, 'חמישי': 4, 'שישי': 5, 'שבת': 6 };
+      for (const [name, dow] of Object.entries(HE)) {
+        if (s.includes(name)) {
+          const delta = ((dow - israelDow() + 7) % 7) || 7;
+          const t = new Date(`${targetYmd}T12:00:00Z`); t.setUTCDate(t.getUTCDate() + delta);
+          targetYmd = ymd(t);
+          break;
+        }
+      }
+    }
+    return dateAtIsraelLocal(targetYmd, vague.h, vague.m).toISOString();
   }
   return null;
 }
@@ -727,6 +834,8 @@ const TOOL_HANDLERS: Record<string, (args: any, phone: string) => Promise<any>> 
   update_scheduled_event: tool_update_scheduled_event,
   cancel_scheduled_event: tool_cancel_scheduled_event,
   list_pending_proposals: tool_list_pending_proposals,
+  propose_event_add_batch: tool_propose_event_add_batch,
+  propose_task_add_batch: tool_propose_task_add_batch,
 };
 
 // ─── Agent loop ────────────────────────────────────────────────────────────

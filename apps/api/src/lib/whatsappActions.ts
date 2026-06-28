@@ -572,9 +572,12 @@ async function proposeEventAdd(p: ParsedIntent): Promise<{ summary: string; exec
   };
 }
 
-async function proposeEventAddBatch(p: ParsedIntent): Promise<{ summary: string; exec: any } | string> {
+async function proposeEventAddBatch(p: ParsedIntent): Promise<{ summary: string; exec: any } | string | null> {
   const items = (p.events || []).filter(e => e && e.title && e.when);
-  if (!items.length) return '❓ לא הצלחתי לחלץ פגישות. שלח שורה לכל פגישה: "ראשון 16:00 פגישה עם אסף".';
+  // If extraction failed entirely (LLM returned event_add_batch intent but
+  // didn't fill the events array), return null so the webhook router falls
+  // through to the conversation agent — it has tools to do this better.
+  if (!items.length) return null;
   // Parse each "when" → ISO; drop ones that can't be parsed and warn.
   const leadDefault = typeof p.lead_min_default === 'number' ? p.lead_min_default : 15;
   const parsed: Array<{ title: string; whenIso: string; whenHe: string; lead_min: number }> = [];
@@ -875,6 +878,23 @@ async function executeAction(exec: any): Promise<string> {
       }
       return `✅ נרשם: "${exec.title}".${gSuffix}`;
     }
+    case 'task_add_batch': {
+      const target = exec.target_phone || exec.from_phone || '';
+      if (!target) throw new Error('missing target phone');
+      const titles: string[] = exec.titles || [];
+      const googleConnected = await isGoogleConnected(target);
+      let gOk = 0, gFail = 0;
+      for (const t of titles) {
+        await addTask(target, t);
+        if (googleConnected) {
+          const g = await createTasksItem(target, { title: t });
+          if (g.ok) gOk++; else gFail++;
+        }
+      }
+      const lines = [`✅ *${titles.length} משימות נוספו לרשימה*`, '', ...titles.map(t => `• ${t}`)];
+      if (googleConnected) lines.push('', gFail === 0 ? `✓ ${gOk} סונכרנו ל-Google Tasks` : `✓ ${gOk} · ⚠️ ${gFail} נכשלו`);
+      return lines.join('\n');
+    }
     case 'task_done': {
       const target = exec.target_phone || exec.from_phone || '';
       if (!target) throw new Error('missing target phone');
@@ -1091,7 +1111,12 @@ export async function tryProposeAction(fromPhone: string, body: string): Promise
     case 'remind_me':           proposal = await proposeRemindMe(intent); break;
     case 'send_contract':       proposal = await proposeSendContract(intent); break;
     case 'event_add':           proposal = await proposeEventAdd(intent); break;
-    case 'event_add_batch':     proposal = await proposeEventAddBatch(intent); break;
+    case 'event_add_batch':     {
+      const r = await proposeEventAddBatch(intent);
+      if (r === null) return null; // fall through to conversation agent for richer parsing
+      proposal = r;
+      break;
+    }
     case 'task_add':            proposal = await proposeTaskAdd(intent); break;
     case 'task_done':           proposal = await proposeTaskDone(intent); break;
     case 'wake_alarm_set':      proposal = await proposeWakeSet(intent); break;
