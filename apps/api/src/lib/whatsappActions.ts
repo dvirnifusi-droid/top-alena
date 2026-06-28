@@ -33,6 +33,9 @@ type Intent =
   | 'task_done'           // close a personal task
   | 'wake_alarm_set'      // daily wake-up time
   | 'wake_alarm_cancel'
+  | 'leave_request_decide'  // approve/reject pending leave request
+  | 'shift_swap_decide'     // approve/reject pending shift swap
+  | 'broadcast_message'     // send a free-form WA message to all club members / employees / etc.
   | 'noop';
 
 const INTENT_SCHEMA = {
@@ -40,7 +43,7 @@ const INTENT_SCHEMA = {
   properties: {
     intent: {
       type: 'string',
-      enum: ['invoice_mark_paid', 'invoice_mark_unpaid', 'lead_set_stage', 'shift_assign', 'remind_me', 'send_contract', 'event_add', 'event_add_batch', 'task_add', 'task_done', 'wake_alarm_set', 'wake_alarm_cancel', 'noop'],
+      enum: ['invoice_mark_paid', 'invoice_mark_unpaid', 'lead_set_stage', 'shift_assign', 'remind_me', 'send_contract', 'event_add', 'event_add_batch', 'task_add', 'task_done', 'wake_alarm_set', 'wake_alarm_cancel', 'leave_request_decide', 'shift_swap_decide', 'broadcast_message', 'noop'],
       description: 'הפעולה הנדרשת. noop = לא פעולת כתיבה (השאר לראוטר אחר).',
     },
     invoice_number: { type: 'string', description: 'מספר חשבונית (לפעולות חשבונית)' },
@@ -70,6 +73,12 @@ const INTENT_SCHEMA = {
       },
     },
     lead_min_default: { type: 'integer', description: 'תזכורת ברירת-מחדל לכל הפגישות בbatch (אם לקוח אומר "ושעתיים לפני").' },
+    leave_employee: { type: 'string', description: 'שם עובד או חלק ממנו (לbקשת חופשה ממתינה)' },
+    leave_decision: { type: 'string', enum: ['approved', 'rejected'], description: 'אישור/דחייה' },
+    swap_search: { type: 'string', description: 'שם עובד או תאריך לבקשת החלפה' },
+    swap_decision: { type: 'string', enum: ['approved', 'rejected'], description: 'אישור/דחייה' },
+    broadcast_audience: { type: 'string', enum: ['club', 'employees', 'admins'], description: 'יעד שידור: מועדון/עובדים פעילים/אדמינים' },
+    broadcast_message_text: { type: 'string', description: 'תוכן הודעת השידור' },
     task_title: { type: 'string', description: 'תיאור משימה (task_add)' },
     task_search: { type: 'string', description: 'שם משימה או id אחרון (task_done)' },
     wake_hhmm: { type: 'string', description: 'שעה בפורמט HH:MM לשעון מעורר יומי' },
@@ -96,6 +105,12 @@ type ParsedIntent = {
   event_lead_min?: number;
   events?: Array<{ title: string; when: string; lead_min?: number }>;
   lead_min_default?: number;
+  leave_employee?: string;
+  leave_decision?: 'approved' | 'rejected';
+  swap_search?: string;
+  swap_decision?: 'approved' | 'rejected';
+  broadcast_audience?: 'club' | 'employees' | 'admins';
+  broadcast_message_text?: string;
   task_title?: string;
   task_search?: string;
   wake_hhmm?: string;
@@ -139,6 +154,9 @@ async function classifyIntent(body: string): Promise<ParsedIntent | null> {
         '*task_done* — סימון משימה כבוצעה. "סיים יין", "בוצע: חוזה רוזנפלד", "תסמן את המקפיא כעשוי". חלץ task_search (כותרת חלקית או id).',
         '*wake_alarm_set* — שעון מעורר יומי. "תעיר אותי כל יום ב-07:30", "תזכיר לי כל בוקר 08:00 עם הסיכום". חלץ wake_hhmm.',
         '*wake_alarm_cancel* — ביטול שעון מעורר. "תבטל את השעון מעורר", "ביטול ההתעוררות".',
+        '*leave_request_decide* — אישור/דחיית בקשת חופשה של עובד. "אשר חופשה לעדן", "אישור חופשה רוזנפלד", "דחה את הבקשה של משה". חלץ leave_employee + leave_decision (approved/rejected).',
+        '*shift_swap_decide* — אישור/דחיית בקשת החלפת משמרת. "אשר את ההחלפה של עדן", "דחה החלפה ביום שני". חלץ swap_search + swap_decision.',
+        '*broadcast_message* — שליחת הודעה ב-WhatsApp לאודיינס. "שלח לכל המועדון: מבצע סוף שבוע, הנחה 15%", "תודיע לעובדים: מחר אסיפת צוות ב-10:00". חלץ broadcast_audience (club / employees / admins) + broadcast_message_text. ⚠️ זוהי פעולה רחבת-טווח — תמיד תופיע באישור.',
         '*list_today* — שאלת קריאה (לא write) → noop. הקוראים יטפלו ב-"מה היום" / "מה התכנון".',
         '*noop* — כל דבר אחר (שאלת קריאה, ברכה, "עזרה", הודעת רעש).',
         '',
@@ -565,6 +583,104 @@ async function proposeTaskDone(p: ParsedIntent): Promise<{ summary: string; exec
   };
 }
 
+async function proposeLeaveRequestDecide(p: ParsedIntent): Promise<{ summary: string; exec: any } | string> {
+  const search = (p.leave_employee || '').trim();
+  const decision = p.leave_decision;
+  if (!search) return '❓ ציין שם עובד.';
+  if (!decision) return '❓ אישור או דחייה?';
+  const all: any[] = await (prisma as any).leaveRequest.findMany({
+    where: { status: 'pending' },
+    orderBy: { id: 'desc' }, take: 100,
+  }).catch(() => []);
+  const lower = search.toLowerCase();
+  const matches = all.filter((r: any) => String(r.employee_name || '').toLowerCase().includes(lower));
+  if (!matches.length) return `❓ לא מצאתי בקשת חופשה ממתינה ל-"${search}".`;
+  if (matches.length > 1) return `❓ נמצאו ${matches.length} בקשות — תוסיף עוד פרטים: ${matches.slice(0,5).map((r:any) => `${r.employee_name} (${String(r.start_date).slice(0,10)})`).join(' · ')}`;
+  const lr = matches[0];
+  const decisionHe = decision === 'approved' ? 'אישור ✅' : 'דחייה ❌';
+  return {
+    summary: [
+      `🏖️ *${decisionHe} בקשת חופשה?*`,
+      `👤 ${lr.employee_name}`,
+      `📅 ${String(lr.start_date).slice(0,10)} → ${String(lr.end_date).slice(0,10)}`,
+      lr.leave_type ? `🏷 ${lr.leave_type}` : null,
+      lr.reason ? `💬 "${lr.reason}"` : null,
+      '',
+      'ענה *כן* לאישור או *לא* לביטול.',
+    ].filter(Boolean).join('\n'),
+    exec: { type: 'leave_request_decide', id: lr.id, decision, employee_name: lr.employee_name },
+  };
+}
+
+async function proposeShiftSwapDecide(p: ParsedIntent): Promise<{ summary: string; exec: any } | string> {
+  const search = (p.swap_search || '').trim();
+  const decision = p.swap_decision;
+  if (!search) return '❓ ציין שם עובד או תאריך.';
+  if (!decision) return '❓ אישור או דחייה?';
+  const all: any[] = await (prisma as any).shiftSwapRequest.findMany({
+    where: { status: 'pending' },
+    orderBy: { id: 'desc' }, take: 100,
+  }).catch(() => []);
+  const lower = search.toLowerCase();
+  const matches = all.filter((r: any) =>
+    String(r.requester_name || '').toLowerCase().includes(lower) ||
+    String(r.target_name || '').toLowerCase().includes(lower) ||
+    String(r.shift_date).slice(0,10).includes(search),
+  );
+  if (!matches.length) return `❓ לא מצאתי בקשת החלפה ממתינה ל-"${search}".`;
+  if (matches.length > 1) return `❓ נמצאו ${matches.length} בקשות — תוסיף עוד פרטים.`;
+  const sw = matches[0];
+  const decisionHe = decision === 'approved' ? 'אישור ✅' : 'דחייה ❌';
+  return {
+    summary: [
+      `🔄 *${decisionHe} החלפת משמרת?*`,
+      `👤 מבקש: ${sw.requester_name}`,
+      sw.target_name ? `↔️ מחליף עם: ${sw.target_name}` : null,
+      `📅 ${String(sw.shift_date).slice(0,10)} · ${sw.shift_type === 'lunch' ? 'צהריים' : 'ערב'}`,
+      sw.position ? `🏷 ${sw.position}` : null,
+      sw.message ? `💬 "${sw.message}"` : null,
+      '',
+      'ענה *כן* לאישור או *לא* לביטול.',
+    ].filter(Boolean).join('\n'),
+    exec: { type: 'shift_swap_decide', id: sw.id, decision, requester_name: sw.requester_name },
+  };
+}
+
+async function proposeBroadcastMessage(p: ParsedIntent): Promise<{ summary: string; exec: any } | string> {
+  const aud = p.broadcast_audience;
+  const text = (p.broadcast_message_text || '').trim();
+  if (!aud) return '❓ למי לשלוח? (מועדון / עובדים / אדמינים)';
+  if (!text) return '❓ מה התוכן?';
+  // Audience count preview
+  let count = 0;
+  let label = '';
+  try {
+    if (aud === 'club') {
+      const c = await (prisma as any).customer.count({ where: { marketing_consent: true } as any }).catch(() => 0);
+      count = c; label = 'לקוחות מועדון (עם הסכמת שיווק)';
+    } else if (aud === 'employees') {
+      const c = await (prisma as any).employee.count({ where: { status: 'active' } }).catch(() => 0);
+      count = c; label = 'עובדים פעילים';
+    } else if (aud === 'admins') {
+      count = (process.env.WHATSAPP_ADMIN_NUMBERS || '').split(',').filter(Boolean).length;
+      label = 'מנהלים (WHATSAPP_ADMIN_NUMBERS)';
+    }
+  } catch { /* best effort */ }
+  return {
+    summary: [
+      `📢 *לשלוח שידור ל-${label}?*`,
+      `👥 כמות נמענים: *${count}*`,
+      '',
+      `💬 ההודעה:`,
+      `"${text}"`,
+      '',
+      `⚠️ זוהי שליחה רחבה — אחרי "כן" אי-אפשר לבטל.`,
+      'ענה *כן* לשליחה או *לא* לביטול.',
+    ].join('\n'),
+    exec: { type: 'broadcast_message', audience: aud, text },
+  };
+}
+
 async function proposeWakeSet(p: ParsedIntent): Promise<{ summary: string; exec: any } | string> {
   const hhmm = (p.wake_hhmm || '').trim();
   if (!/^\d{1,2}:\d{2}$/.test(hhmm)) return '❓ באיזו שעה? (פורמט HH:MM, לדוגמה "07:30")';
@@ -733,6 +849,51 @@ async function executeAction(exec: any): Promise<string> {
       const n = await cancelWakeAlarm(target);
       return n > 0 ? '☀️ השעון מעורר בוטל.' : 'ℹ️ לא היה שעון מעורר פעיל.';
     }
+    case 'leave_request_decide': {
+      await (prisma as any).leaveRequest.update({
+        where: { id: exec.id },
+        data: { status: exec.decision, updated_date: new Date().toISOString() },
+      });
+      const word = exec.decision === 'approved' ? 'אושרה' : 'נדחתה';
+      return `✅ בקשת החופשה של *${exec.employee_name}* ${word}.`;
+    }
+    case 'shift_swap_decide': {
+      await (prisma as any).shiftSwapRequest.update({
+        where: { id: exec.id },
+        data: { status: exec.decision, updated_date: new Date().toISOString() },
+      });
+      const word = exec.decision === 'approved' ? 'אושרה' : 'נדחתה';
+      return `✅ בקשת ההחלפה של *${exec.requester_name}* ${word}.`;
+    }
+    case 'broadcast_message': {
+      let recipients: Array<{ phone: string; name?: string }> = [];
+      if (exec.audience === 'admins') {
+        const list = (process.env.WHATSAPP_ADMIN_NUMBERS || '').split(',').map((s: string) => s.trim()).filter(Boolean);
+        recipients = list.map((p: string) => ({ phone: p }));
+      } else if (exec.audience === 'employees') {
+        const emps = await (prisma as any).employee.findMany({ where: { status: 'active' }, take: 500 });
+        recipients = emps.filter((e: any) => e.phone).map((e: any) => ({ phone: e.phone, name: e.full_name }));
+      } else if (exec.audience === 'club') {
+        const customers = await (prisma as any).customer.findMany({
+          where: { marketing_consent: true } as any,
+          take: 5000,
+        });
+        recipients = customers.filter((c: any) => c.phone).map((c: any) => ({ phone: c.phone, name: c.name }));
+      }
+      if (!recipients.length) return '⚠️ לא נמצאו נמענים.';
+      // Fire-and-forget bulk send. Don't await all serially; do in a batch of 10.
+      let sent = 0, failed = 0;
+      const batch = 10;
+      for (let i = 0; i < recipients.length; i += batch) {
+        const chunk = recipients.slice(i, i + batch);
+        const results = await Promise.allSettled(chunk.map(async (r) => {
+          const personal = r.name ? exec.text.replace(/\{name\}/g, r.name) : exec.text;
+          await sendWhatsApp(r.phone, personal);
+        }));
+        for (const res of results) res.status === 'fulfilled' ? sent++ : failed++;
+      }
+      return `📢 שידור הסתיים — נשלח ל-*${sent}* נמענים${failed ? ` (${failed} כשלון)` : ''}.`;
+    }
     case 'remind_me': {
       // Reminder lives as a WhatsAppMessage row (no schema migration).
       // status='scheduled_reminder', raw.deliver_at + raw.remind_text + raw.target_phone.
@@ -889,6 +1050,9 @@ export async function tryProposeAction(fromPhone: string, body: string): Promise
     case 'task_done':           proposal = await proposeTaskDone(intent); break;
     case 'wake_alarm_set':      proposal = await proposeWakeSet(intent); break;
     case 'wake_alarm_cancel':   proposal = await proposeWakeCancel(intent); break;
+    case 'leave_request_decide': proposal = await proposeLeaveRequestDecide(intent); break;
+    case 'shift_swap_decide':    proposal = await proposeShiftSwapDecide(intent); break;
+    case 'broadcast_message':    proposal = await proposeBroadcastMessage(intent); break;
     default: return null;
   }
   if (typeof proposal === 'string') {
