@@ -92,6 +92,7 @@ import MarketingDashboard from './pages/MarketingDashboard';
 import MarketingAgentsHub from './pages/MarketingAgentsHub';
 import MessageTemplates from './pages/MessageTemplates';
 import MyPerformance from './pages/MyPerformance';
+import MySchedule from './pages/MySchedule';
 import PositionsManagement from './pages/PositionsManagement';
 import PublicReservation from './pages/PublicReservation';
 import PublicReservationSettings from './pages/PublicReservationSettings';
@@ -199,6 +200,7 @@ export const PAGES = {
     "MarketingAgentsHub": MarketingAgentsHub,
     "MessageTemplates": MessageTemplates,
     "MyPerformance": MyPerformance,
+    "MySchedule": MySchedule,
     "PositionsManagement": PositionsManagement,
     "PublicReservation": PublicReservation,
     "PublicReservationSettings": PublicReservationSettings,

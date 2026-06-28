@@ -7503,6 +7503,67 @@ registerFn('chatEventsInquiry', async ({ body }) => {
 // AUTH — admin pulls all event leads for the dashboard.
 // Order by id desc since cuid is time-sortable and many legacy rows have created_date=null
 // (which would sort first/last unpredictably and hide the newest leads).
+// AUTH — list scheduled_event + open_task rows for the user's WhatsApp phone.
+// Used by /MySchedule page in the app.
+registerFn('listMyEvents', async ({ body }) => {
+  const phone = String((body as any)?.phone || '').trim() ||
+    (process.env.WHATSAPP_ADMIN_NUMBERS || '').split(',').map(s => s.trim()).filter(Boolean)[0] ||
+    '';
+  if (!phone) return { error: 'no phone configured', events: [], tasks: [] };
+  // Normalize: try multiple variants to match how the bot stores them.
+  const digits = phone.replace(/\D/g, '');
+  const variants = [phone, digits, '+' + digits, '+972' + digits.replace(/^0/, ''), '0' + digits.replace(/^972/, '')];
+  const events = await db.whatsAppMessage.findMany({
+    where: { status: 'scheduled_event', is_read: false, contact_phone: { in: variants } },
+    take: 500,
+  });
+  const tasks = await db.whatsAppMessage.findMany({
+    where: { status: 'open_task', is_read: false, contact_phone: { in: variants } },
+    take: 500,
+  });
+  return {
+    phone,
+    events: events.map((r: any) => {
+      const raw = r.raw || {};
+      return {
+        id: r.id,
+        title: raw.title || r.body || '',
+        event_at: raw.event_at || null,
+        lead_min: raw.lead_min || 15,
+        source: raw.source || 'whatsapp',
+        google_event_id: raw.google_event_id || null,
+      };
+    }).filter((e: any) => e.event_at).sort((a: any, b: any) => new Date(a.event_at).getTime() - new Date(b.event_at).getTime()),
+    tasks: tasks.map((r: any) => ({
+      id: r.id,
+      title: (r.raw as any)?.title || r.body || '',
+      created_at: r.created_at,
+    })).sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()),
+  };
+});
+
+// AUTH — mark a personal task done (called from the /MySchedule UI).
+registerFn('completeMyTask', async ({ body }) => {
+  const id = String((body as any)?.id || '');
+  if (!id) throw new Error('id required');
+  await db.whatsAppMessage.update({
+    where: { id },
+    data: { status: 'task_done', is_read: true },
+  });
+  return { ok: true };
+});
+
+// AUTH — cancel/delete a personal scheduled event.
+registerFn('cancelMyEvent', async ({ body }) => {
+  const id = String((body as any)?.id || '');
+  if (!id) throw new Error('id required');
+  await db.whatsAppMessage.update({
+    where: { id },
+    data: { status: 'event_cancelled', is_read: true },
+  });
+  return { ok: true };
+});
+
 registerFn('listEventLeads', async () => {
   const rows = await db.eventLead.findMany({
     orderBy: { id: 'desc' },
