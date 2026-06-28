@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { base44 } from '@/api/base44Client';
 import PageGuard from '../components/shared/PageGuard';
+import TimePicker from '../components/shared/TimePicker';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -1259,11 +1260,11 @@ function EmployeeReportsInner() {
                         <div className="grid grid-cols-2 gap-3">
                             <div>
                                 <Label>שעת כניסה</Label>
-                                <Input type="time" value={addShiftForm.start_time} onChange={e => setAddShiftForm(p => ({ ...p, start_time: e.target.value }))} />
+                                <TimePicker value={addShiftForm.start_time} onChange={(v) => setAddShiftForm(p => ({ ...p, start_time: v }))} />
                             </div>
                             <div>
                                 <Label>שעת יציאה</Label>
-                                <Input type="time" value={addShiftForm.end_time} onChange={e => setAddShiftForm(p => ({ ...p, end_time: e.target.value }))} />
+                                <TimePicker value={addShiftForm.end_time} onChange={(v) => setAddShiftForm(p => ({ ...p, end_time: v }))} />
                             </div>
                         </div>
                         <div>
