@@ -5,6 +5,8 @@
 // expected to text the bot at least daily; if not, we log a warning).
 import { prisma } from '../db.js';
 import { sendWhatsApp } from './twilio.js';
+import { invokeLLM } from './llm.js';
+import { listTodayEvents, listOpenTasks } from './whatsappCalendar.js';
 
 const ISRAEL_TZ = 'Asia/Jerusalem';
 function israelYMD(d: Date = new Date()): string {
@@ -95,6 +97,72 @@ async function sectionUnpaidInvoices(): Promise<string | null> {
   } catch { return null; }
 }
 
+// Curated rotation of motivational quotes. We pick by day-of-year so the
+// sequence is deterministic and you don't see the same one two days in a row.
+// 30 items → ~monthly rotation.
+const MORNING_QUOTES: string[] = [
+  '"היום הוא יום מצוין להתחיל משהו חדש." — תתחיל בקטן, תתמיד.',
+  '"הצלחה היא הסכום של מאמצים קטנים שחוזרים על עצמם יום אחר יום." — רוברט קולייר',
+  '"אנשים לא קונים מה שאתה עושה, הם קונים למה אתה עושה את זה." — סיימון סינק',
+  '"אל תחכה. הזמן הנכון לעולם לא יגיע." — נפוליאון היל',
+  '"המסעדן הטוב ביותר הוא זה שזוכר את שמות הלקוחות." — חוק זהב',
+  '"איכות אינה מקרית. היא תמיד תוצאה של מאמץ מכוון." — ויליאם פוסטר',
+  '"הצוות שלך הוא המוצר שלך." — ניהול שירות',
+  '"מי שלא חולם בגדול, לא ידע איפה הוא היה יכול להיות." — דייוויד שוורץ',
+  '"הלקוח לא תמיד צודק, אבל הוא תמיד הלקוח." — סם וולטון',
+  '"המחיר נשכח, האיכות נשארת." — אלדריקו גוצ׳י',
+  '"דברים גדולים בעסקים אף פעם לא נעשים על ידי אדם אחד. הם נעשים על ידי צוות." — סטיב ג׳ובס',
+  '"ההצלחה זה לא סוף הדרך, הכישלון לא סופי, האומץ להמשיך הוא מה שנחשב." — צ׳רצ׳יל',
+  '"אסטרטגיה בלי ביצוע היא חלום בהקיץ. ביצוע בלי אסטרטגיה זה סיוט." — סון דזה',
+  '"דע מי הלקוח שלך — וקנה רחוק יותר ממנו." — ג׳ון פירפונט מורגן',
+  '"הלקוח שאתה משאיר מאוכזב היום, הוא הביקורת השלילית של מחר." — חוק מסעדנות',
+  '"אם אתה לא יכול למדוד את זה, אתה לא יכול לנהל את זה." — פיטר דרוקר',
+  '"כל אחד יכול לבשל. רק מעטים יכולים לנהל מסעדה." — אנתוני בורדיין',
+  '"הצלחה ארוכת טווח באה מהצוות הנכון, לא מהמתכון הנכון." — אינדוסטריית המסעדנות',
+  '"שירות מעולה הוא לזכור את הלקוח לפני שהוא נכנס בדלת." — חוק המארחים',
+  '"דאג למרכיבים שלך, והם ידאגו לך." — ז׳וזה אנדרס',
+  '"השעה הראשונה של היום מגדירה את כל היום." — תורת ההרגלים',
+  '"כסף מגיע אחרי הערך, לא לפני." — בעלי עסקים',
+  '"לעובדים מאושרים יש לקוחות מאושרים." — ריצ׳רד ברנסון',
+  '"הניצחון הגדול ביותר הוא לקום פעם אחת יותר ממה שנפלת." — אמרה יפנית',
+  '"תהיה כל יום קצת יותר טוב ממה שהיית אתמול." — שיפור מתמיד',
+  '"כל לקוח מאושר מביא אחריו עוד שלושה. כל לקוח מתוסכל לוקח איתו שבעה." — חוק 1:3:7',
+  '"אם אתה לא נמצא בקרבת השולחנות, אתה לא מנהל את המסעדה." — ניהול שדה',
+  '"כל בעיה היא הזדמנות במסווה." — ג׳ון רוקפלר',
+  '"הסבלנות והעקביות מנצחות את הכישרון, אם הכישרון לא עקבי." — טים נוטקה',
+  '"היום הוא היום היחיד שיש לך. תכבד אותו." — מנטליות הזן',
+];
+
+function motivationalQuoteOfTheDay(): string {
+  // Day-of-year as a stable index across the rotation
+  const now = new Date();
+  const start = new Date(now.getFullYear(), 0, 0);
+  const diff = (now.getTime() - start.getTime()) + ((start.getTimezoneOffset() - now.getTimezoneOffset()) * 60 * 1000);
+  const dayOfYear = Math.floor(diff / 86_400_000);
+  return MORNING_QUOTES[dayOfYear % MORNING_QUOTES.length];
+}
+
+async function sectionPersonalTodayEvents(phone: string): Promise<string | null> {
+  try {
+    const events = await listTodayEvents(phone);
+    if (!events.length) return null;
+    return events.map(e => {
+      const tm = e.when.toLocaleTimeString('he-IL', { timeZone: ISRAEL_TZ, hour: '2-digit', minute: '2-digit' });
+      return `  ${tm} · ${e.title}`;
+    }).join('\n');
+  } catch { return null; }
+}
+
+async function sectionPersonalOpenTasks(phone: string): Promise<string | null> {
+  try {
+    const tasks = await listOpenTasks(phone);
+    if (!tasks.length) return null;
+    const top = tasks.slice(0, 5);
+    const more = tasks.length - top.length;
+    return top.map(t => `  • ${t.title}`).join('\n') + (more > 0 ? `\n  …ועוד ${more}` : '');
+  } catch { return null; }
+}
+
 async function sectionMissingAvailability(): Promise<string | null> {
   try {
     const today = new Date();
@@ -119,24 +187,31 @@ async function sectionMissingAvailability(): Promise<string | null> {
 
 // ── Top-level brief ────────────────────────────────────────────────────────
 
-export async function buildMorningBrief(): Promise<string> {
+export async function buildMorningBrief(forPhone?: string): Promise<string> {
   const today = israelYMD();
   const yesterday = israelYMD(addDays(new Date(), -1));
   const todayName = israelDayName(today);
-  const [todayShift, tips, leads, invoices, availMissing] = await Promise.all([
+  const [todayShift, tips, leads, invoices, availMissing, myEvents, myTasks] = await Promise.all([
     sectionTodayShift(today),
     sectionYesterdayTips(yesterday),
     sectionWaitingLeads(),
     sectionUnpaidInvoices(),
     sectionMissingAvailability(),
+    forPhone ? sectionPersonalTodayEvents(forPhone) : Promise.resolve(null),
+    forPhone ? sectionPersonalOpenTasks(forPhone) : Promise.resolve(null),
   ]);
 
+  const quote = motivationalQuoteOfTheDay();
+
   const lines: string[] = [
-    `🌅 *סיכום בוקר — ${todayName} ${today}*`,
+    `🌅 *בוקר טוב — ${todayName} ${today}*`,
     '',
-    `📅 *סידור היום*`,
-    todayShift,
+    `💭 ${quote}`,
+    '',
   ];
+  if (myEvents) { lines.push('🗓 *הפגישות שלך היום*', myEvents, ''); }
+  if (myTasks) { lines.push('✅ *משימות פתוחות*', myTasks, ''); }
+  lines.push('📅 *סידור היום*', todayShift);
   if (tips) { lines.push('', '💰 *טיפים אתמול*', tips); }
   if (leads) { lines.push('', '🎯 *לידים*', leads); }
   if (invoices) { lines.push('', '🧾 *חשבוניות*', invoices); }
@@ -284,16 +359,18 @@ export async function sendEndOfDayBrief(): Promise<{ sent: number; failed: numbe
 }
 
 // Send the brief to all admins. Returns per-recipient delivery status.
+// Each admin gets a brief PERSONALIZED with their own events + tasks
+// (so several admins don't all see the same person's calendar).
 export async function sendMorningBrief(): Promise<{ sent: number; failed: number; details: Array<{ phone: string; ok: boolean; error?: string }> }> {
   const phones = adminPhones();
   if (!phones.length) {
     console.warn('[morning-brief] no admin phones configured; skipping');
     return { sent: 0, failed: 0, details: [] };
   }
-  const text = await buildMorningBrief();
   const results: Array<{ phone: string; ok: boolean; error?: string }> = [];
   for (const phone of phones) {
     try {
+      const text = await buildMorningBrief(phone);
       await sendWhatsApp(phone, text);
       results.push({ phone, ok: true });
     } catch (e: any) {
