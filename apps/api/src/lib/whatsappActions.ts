@@ -974,6 +974,7 @@ async function executeAction(exec: any): Promise<string> {
             },
           });
         }
+        const wasAssigned = (shift.assigned_staff || []).some((a: any) => a.employee_id === empId);
         const existingStaff = (shift.assigned_staff || []).filter((a: any) => a.employee_id !== empId);
         const newStaff = [...existingStaff, {
           employee_id: empId,
@@ -981,14 +982,22 @@ async function executeAction(exec: any): Promise<string> {
           position: fallbackPos,
           start_time: e.start,
           end_time: e.end,
+          status: 'scheduled',
+          // manual_entry=true keeps past shifts visible in the report even
+          // without a matching time-clock entry (no-show filter bypass).
+          manual_entry: true,
         }];
         await (prisma as any).workShift.update({ where: { id: shift.id }, data: { assigned_staff: newStaff } });
-        if ((shift.assigned_staff || []).some((a: any) => a.employee_id === empId)) replaced++;
+        if (wasAssigned) replaced++;
         else added++;
       }
+      const TIP_POSITIONS = ['מלצר', 'ברמן', 'ראנר'];
+      const isTipRole = TIP_POSITIONS.includes(fallbackPos);
+      const tab = isTipRole ? 'טאב *טיפים*' : 'טאב *שעות עבודה (סידור)*';
       const lines = [`✅ *${empName}*: ${added} משמרות נוספו`];
       if (replaced) lines.push(`🔁 ${replaced} משמרות הוחלפו`);
       if (skipped) lines.push(`⏭ ${skipped} משמרות נדלגו (קיימות לא שונו)`);
+      lines.push('', `📊 לראיה: דוח עובדים → ${empName} → ${tab} (תפקיד: ${fallbackPos}).`);
       return lines.join('\n');
     }
     case 'broadcast_message': {
