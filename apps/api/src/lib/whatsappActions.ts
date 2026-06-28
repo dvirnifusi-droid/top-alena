@@ -1137,6 +1137,9 @@ export async function tryProposeAction(fromPhone: string, body: string): Promise
 // reply text if it handled the message, null otherwise.
 export async function tryConfirmPendingAction(fromPhone: string, body: string): Promise<string | null> {
   const trimmed = (body || '').trim();
+  // STRICT match — anything else (incl. "לא 15:00") falls through to the
+  // conversation agent, which has the pending exec in its context and can
+  // decide if it's a correction or unrelated.
   const isApprove = /^(כן|אישור|אשר|מאשר|מאשרת|ok|yes)\s*[.!]?$/i.test(trimmed);
   const isCancel = /^(לא|ביטול|בטל|בטלי|no|cancel)\s*[.!]?$/i.test(trimmed);
   if (!isApprove && !isCancel) return null;

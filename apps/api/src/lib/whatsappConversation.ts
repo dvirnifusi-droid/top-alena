@@ -182,6 +182,55 @@ const TOOL_DECLARATIONS = [
       required: ['when', 'text'],
     },
   },
+  {
+    name: 'modify_pending_proposal',
+    description: 'Use ONLY when the user is *correcting* the most recent pending proposal that has NOT been confirmed yet. Pass only the field(s) the user changed; others stay as-is. After calling this, restate the updated proposal to the user.',
+    parameters: {
+      type: 'OBJECT',
+      properties: {
+        when: { type: 'STRING', description: 'New time/date if user corrected it ("15:00", "רביעי 14:00", etc.)' },
+        title: { type: 'STRING', description: 'New title if user corrected it' },
+        lead_min: { type: 'INTEGER', description: 'New lead-time reminder in minutes' },
+        stage: { type: 'STRING', enum: ['pending','contacted','quoted','won','lost'] },
+        invoice_number: { type: 'STRING' },
+      },
+    },
+  },
+  {
+    name: 'cancel_pending_proposal',
+    description: 'Cancel the most recent pending proposal without saving.',
+    parameters: { type: 'OBJECT', properties: {} },
+  },
+  {
+    name: 'update_scheduled_event',
+    description: 'Update an ALREADY-SAVED personal calendar event (not a pending proposal). Find by title substring and change time/title/lead-time.',
+    parameters: {
+      type: 'OBJECT',
+      properties: {
+        title_match: { type: 'STRING', description: 'Substring of the event title to find (e.g. "דביר", "קובי")' },
+        new_when: { type: 'STRING', description: 'New time — "מחר 14:00" / "ראשון 09:30" / ISO' },
+        new_title: { type: 'STRING', description: 'New title (optional)' },
+        new_lead_min: { type: 'INTEGER', description: 'New lead-time reminder in minutes' },
+      },
+      required: ['title_match'],
+    },
+  },
+  {
+    name: 'cancel_scheduled_event',
+    description: 'Delete an already-saved scheduled event by fuzzy title match.',
+    parameters: {
+      type: 'OBJECT',
+      properties: {
+        title_match: { type: 'STRING' },
+      },
+      required: ['title_match'],
+    },
+  },
+  {
+    name: 'list_pending_proposals',
+    description: 'List the user\'s active pending proposals (awaiting yes/no), so the agent knows what context the user is referring to.',
+    parameters: { type: 'OBJECT', properties: {} },
+  },
 ];
 
 // ─── Tool implementations ──────────────────────────────────────────────────
@@ -383,6 +432,132 @@ async function tool_propose_remind_me(args: any, phone: string): Promise<any> {
   return { proposal: `⏰ ${whenHe} · ${args.text}`, awaiting_confirmation: true };
 }
 
+async function tool_list_pending_proposals(_args: any, phone: string): Promise<any> {
+  const since = new Date(Date.now() - 15 * 60 * 1000);
+  const rows: any[] = await (prisma as any).whatsAppMessage.findMany({
+    where: { contact_phone: phone, status: { in: ['pending_action_confirmation', 'pending_confirmation', 'pending_clarification'] }, is_read: false, created_at: { gte: since } },
+    orderBy: { id: 'desc' }, take: 5,
+  }).catch(() => []);
+  return { count: rows.length, proposals: rows.map((r: any) => ({
+    id: r.id.slice(-6), status: r.status, summary: String(r.body || '').slice(0, 200),
+    exec: (r.raw as any)?.pending_action || (r.raw as any)?.pending_invoice || null,
+  })) };
+}
+
+async function tool_modify_pending_proposal(args: any, phone: string): Promise<any> {
+  const since = new Date(Date.now() - 15 * 60 * 1000);
+  const pending: any = await (prisma as any).whatsAppMessage.findFirst({
+    where: { contact_phone: phone, status: 'pending_action_confirmation', is_read: false, created_at: { gte: since } },
+    orderBy: { id: 'desc' },
+  }).catch(() => null);
+  if (!pending) return { error: 'no_pending_proposal' };
+  const exec = { ...(pending.raw as any).pending_action };
+  // Apply provided patches per exec type
+  if (args.when !== undefined) {
+    const iso = tryParseTimestamp(args.when);
+    if (!iso) return { error: `couldn't parse new time '${args.when}'` };
+    if (exec.type === 'event_add') exec.when = iso;
+    else if (exec.type === 'remind_me') exec.deliver_at = iso;
+  }
+  if (args.title !== undefined) {
+    if (exec.type === 'event_add' || exec.type === 'task_add') exec.title = args.title;
+    if (exec.type === 'remind_me') exec.remind_text = args.title;
+  }
+  if (args.lead_min !== undefined && exec.type === 'event_add') exec.lead_min = args.lead_min;
+  if (args.stage !== undefined && exec.type === 'lead_set_stage') exec.stage = args.stage;
+  if (args.invoice_number !== undefined && (exec.type === 'invoice_mark_paid' || exec.type === 'invoice_mark_unpaid')) {
+    // resolve invoice by new number
+    const inv: any = await (prisma as any).invoice.findFirst({ where: { invoice_number: args.invoice_number } });
+    if (!inv) return { error: `no invoice with number ${args.invoice_number}` };
+    exec.invoice_id = inv.id; exec.invoice_number = args.invoice_number;
+  }
+  await (prisma as any).whatsAppMessage.update({
+    where: { id: pending.id },
+    data: { raw: { pending_action: exec } as any, created_at: new Date() }, // reset clock — fresh 10 min window
+  });
+  // Re-render proposal summary for the user
+  let summary = '✏️ עודכן: ';
+  if (exec.type === 'event_add') {
+    const whenHe = new Date(exec.when).toLocaleString('he-IL', { timeZone: TZ, dateStyle: 'short', timeStyle: 'short' });
+    summary += `🗓 ${exec.title} · ${whenHe} · תזכורת ${exec.lead_min || 15} דק' לפני`;
+  } else if (exec.type === 'remind_me') {
+    const whenHe = new Date(exec.deliver_at).toLocaleString('he-IL', { timeZone: TZ, dateStyle: 'short', timeStyle: 'short' });
+    summary += `⏰ ${whenHe} · ${exec.remind_text}`;
+  } else if (exec.type === 'task_add') {
+    summary += `📌 ${exec.title}`;
+  } else if (exec.type === 'lead_set_stage') {
+    summary += `🎯 ${exec.lead_name} → ${exec.stage}`;
+  } else if (exec.type === 'invoice_mark_paid') {
+    summary += `💳 חשבונית ${exec.invoice_number} → שולמה`;
+  } else if (exec.type === 'shift_assign') {
+    summary += `📅 ${exec.employee_name} · ${exec.date} · ${exec.shift_type === 'lunch' ? 'צהריים' : 'ערב'}`;
+  } else {
+    summary += JSON.stringify(exec).slice(0, 200);
+  }
+  return { proposal: summary, awaiting_confirmation: true };
+}
+
+async function tool_cancel_pending_proposal(_args: any, phone: string): Promise<any> {
+  const r = await (prisma as any).whatsAppMessage.updateMany({
+    where: { contact_phone: phone, status: { in: ['pending_action_confirmation', 'pending_confirmation'] }, is_read: false },
+    data: { is_read: true, status: 'cancelled_by_user' },
+  });
+  return { cancelled: r.count };
+}
+
+async function tool_update_scheduled_event(args: any, phone: string): Promise<any> {
+  const match = String(args.title_match || '').toLowerCase();
+  if (!match) return { error: 'title_match required' };
+  const rows: any[] = await (prisma as any).whatsAppMessage.findMany({
+    where: { status: 'scheduled_event', contact_phone: phone, is_read: false },
+    orderBy: { id: 'desc' }, take: 50,
+  });
+  const matches = rows.filter((r: any) => String((r.raw as any)?.title || '').toLowerCase().includes(match));
+  if (!matches.length) return { error: `no scheduled event matching "${args.title_match}"` };
+  if (matches.length > 1) return {
+    ambiguous: true,
+    candidates: matches.slice(0, 5).map((r: any) => ({
+      title: (r.raw as any)?.title,
+      when: new Date((r.raw as any)?.event_at).toLocaleString('he-IL', { timeZone: TZ, dateStyle: 'short', timeStyle: 'short' }),
+    })),
+  };
+  const ev = matches[0];
+  const raw = { ...(ev.raw as any) };
+  if (args.new_when) {
+    const iso = tryParseTimestamp(args.new_when);
+    if (!iso) return { error: `couldn't parse new time '${args.new_when}'` };
+    raw.event_at = iso;
+    raw.notified_lead = false;
+    raw.notified_start = false;
+  }
+  if (args.new_title) raw.title = args.new_title;
+  if (args.new_lead_min != null) raw.lead_min = args.new_lead_min;
+  await (prisma as any).whatsAppMessage.update({ where: { id: ev.id }, data: { raw } });
+  const whenHe = new Date(raw.event_at).toLocaleString('he-IL', { timeZone: TZ, dateStyle: 'short', timeStyle: 'short' });
+  return { updated: true, title: raw.title, new_when: whenHe, lead_min: raw.lead_min };
+}
+
+async function tool_cancel_scheduled_event(args: any, phone: string): Promise<any> {
+  const match = String(args.title_match || '').toLowerCase();
+  if (!match) return { error: 'title_match required' };
+  const rows: any[] = await (prisma as any).whatsAppMessage.findMany({
+    where: { status: 'scheduled_event', contact_phone: phone, is_read: false },
+    orderBy: { id: 'desc' }, take: 50,
+  });
+  const matches = rows.filter((r: any) => String((r.raw as any)?.title || '').toLowerCase().includes(match));
+  if (!matches.length) return { error: `no scheduled event matching "${args.title_match}"` };
+  if (matches.length > 1) return {
+    ambiguous: true,
+    candidates: matches.slice(0, 5).map((r: any) => ({ title: (r.raw as any)?.title })),
+  };
+  const ev = matches[0];
+  await (prisma as any).whatsAppMessage.update({
+    where: { id: ev.id },
+    data: { is_read: true, status: 'event_cancelled' },
+  });
+  return { cancelled: true, title: (ev.raw as any)?.title };
+}
+
 // ─── Helpers ─────────────────────────────────────────────────────────────
 
 // Same fix as parseRemindAt in whatsappActions.ts — build ISO with the proper
@@ -520,11 +695,16 @@ const TOOL_HANDLERS: Record<string, (args: any, phone: string) => Promise<any>> 
   propose_invoice_mark_paid: tool_propose_invoice_mark_paid,
   propose_shift_assign: tool_propose_shift_assign,
   propose_remind_me: tool_propose_remind_me,
+  modify_pending_proposal: tool_modify_pending_proposal,
+  cancel_pending_proposal: tool_cancel_pending_proposal,
+  update_scheduled_event: tool_update_scheduled_event,
+  cancel_scheduled_event: tool_cancel_scheduled_event,
+  list_pending_proposals: tool_list_pending_proposals,
 };
 
 // ─── Agent loop ────────────────────────────────────────────────────────────
 
-const SYSTEM_PROMPT = `אתה העוזר האישי של בעל מסעדת "עלינא" (דביר) ב-WhatsApp.
+const SYSTEM_PROMPT_BASE = `אתה העוזר האישי של בעל מסעדת "עלינא" (דביר) ב-WhatsApp.
 ענה בעברית טבעית, קצרה, ידידותית. אתה מנהל את המסעדה והלוז האישי שלו.
 
 עקרונות:
@@ -538,7 +718,34 @@ const SYSTEM_PROMPT = `אתה העוזר האישי של בעל מסעדת "על
 8. תאריכים יחסיים בעברית: "מחר", "ראשון", "רביעי הבא" — תעביר אותם ככל ש-tools יודעים לפענח.
 9. אם הבקשה חורגת מהכלים — תאמר את זה בכנות במקום להמציא תשובה.
 
+*טיפול בתיקונים — חוקים קריטיים*:
+- אם יש *הצעה ממתינה לאישור* (יצוין למטה בהקשר), והמשתמש כותב משהו שאינו "כן"/"לא" — זה כנראה *תיקון להצעה*.
+  דוגמאות: "לא, 15:00" / "לא, ב-3 בעצם" / "תשנה ל-15:00" / "טעות, רביעי" → קרא ל-modify_pending_proposal עם השדה שתוקן בלבד.
+- אם המשתמש מבקש לבטל ("בטל את ההצעה" / "אל תשמור") — קרא ל-cancel_pending_proposal.
+- אם המשתמש מתייחס לאירוע *שכבר נשמר* (לא הצעה ממתינה) ורוצה לשנות — קרא ל-update_scheduled_event עם title_match.
+  דוגמה: "תשנה את הפגישה עם דביר ל-16:00" / "בעצם הפגישה היא ביום שלישי ולא רביעי".
+- אם המשתמש מבקש לבטל אירוע שמור — cancel_scheduled_event.
+
 היום: ${ymd()} (${israelDayName(ymd())}).`;
+
+async function buildSystemPrompt(phone: string): Promise<string> {
+  // Inject context about any active pending proposal so the agent can decide
+  // if an incoming message is a correction vs unrelated.
+  const since = new Date(Date.now() - 15 * 60 * 1000);
+  const pending: any = await (prisma as any).whatsAppMessage.findFirst({
+    where: { contact_phone: phone, status: 'pending_action_confirmation', is_read: false, created_at: { gte: since } },
+    orderBy: { id: 'desc' },
+  }).catch(() => null);
+  if (!pending) return SYSTEM_PROMPT_BASE;
+  const exec = (pending.raw as any)?.pending_action || {};
+  const summary = String(pending.body || '').slice(0, 300);
+  return `${SYSTEM_PROMPT_BASE}
+
+*הקשר פעיל — יש הצעה ממתינה לאישור:*
+${summary}
+type=${exec.type || '?'} · נשלח לפני ${Math.round((Date.now() - new Date(pending.created_at).getTime()) / 60_000)} דקות.
+אם ההודעה הבאה היא תיקון לפרטים שלמעלה — השתמש ב-modify_pending_proposal.`;
+}
 
 export async function runConversationAgent(phone: string, userMessage: string): Promise<string> {
   const apiKey = process.env.GEMINI_API_KEY;
@@ -552,8 +759,9 @@ export async function runConversationAgent(phone: string, userMessage: string): 
   }
   contents.push({ role: 'user', parts: [{ text: userMessage }] });
 
+  const systemPrompt = await buildSystemPrompt(phone);
   const body = {
-    systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
+    systemInstruction: { parts: [{ text: systemPrompt }] },
     contents,
     tools: [{ functionDeclarations: TOOL_DECLARATIONS }],
     generationConfig: { maxOutputTokens: 4000, temperature: 0.3 },
