@@ -942,6 +942,55 @@ async function executeAction(exec: any): Promise<string> {
       const word = exec.decision === 'approved' ? 'אושרה' : 'נדחתה';
       return `✅ בקשת ההחלפה של *${exec.requester_name}* ${word}.`;
     }
+    case 'employee_shifts_batch': {
+      const target = exec.target_phone || exec.from_phone || '';
+      if (!target) throw new Error('missing target phone');
+      const fresh: any[] = exec.fresh || [];
+      const conflicts: any[] = exec.conflicts || [];
+      const empId = exec.employee_id;
+      const empName = exec.employee_name;
+      const itemsToWrite: any[] = [...fresh, ...(exec.replace_conflicts ? conflicts : [])];
+      const skipped: number = exec.skip_conflicts ? conflicts.length : 0;
+      // Fetch shifts wide so we can find/update existing WorkShift rows.
+      const allShifts: any[] = await (prisma as any).workShift.findMany({ orderBy: { date: 'desc' }, take: 2000 });
+      let added = 0, replaced = 0;
+      // Position fallback: use the employee's first position or 'מלצר'.
+      const empRow: any = await (prisma as any).employee.findUnique({ where: { id: empId } }).catch(() => null);
+      const positions = (empRow?.positions || []).map((p: any) => p?.position_name || p).filter(Boolean);
+      const fallbackPos = positions[0] || 'מלצר';
+      for (const e of itemsToWrite) {
+        let shift = allShifts.find((s: any) => {
+          const sd = s.date instanceof Date ? s.date.toISOString().slice(0, 10) : String(s.date).slice(0, 10);
+          return sd === e.date && s.shift_type === e.shift_type;
+        });
+        if (!shift) {
+          shift = await (prisma as any).workShift.create({
+            data: {
+              date: new Date(`${e.date}T00:00:00.000Z`),
+              shift_type: e.shift_type,
+              start_time: e.start,
+              end_time: e.end,
+              assigned_staff: [],
+            },
+          });
+        }
+        const existingStaff = (shift.assigned_staff || []).filter((a: any) => a.employee_id !== empId);
+        const newStaff = [...existingStaff, {
+          employee_id: empId,
+          employee_name: empName,
+          position: fallbackPos,
+          start_time: e.start,
+          end_time: e.end,
+        }];
+        await (prisma as any).workShift.update({ where: { id: shift.id }, data: { assigned_staff: newStaff } });
+        if ((shift.assigned_staff || []).some((a: any) => a.employee_id === empId)) replaced++;
+        else added++;
+      }
+      const lines = [`✅ *${empName}*: ${added} משמרות נוספו`];
+      if (replaced) lines.push(`🔁 ${replaced} משמרות הוחלפו`);
+      if (skipped) lines.push(`⏭ ${skipped} משמרות נדלגו (קיימות לא שונו)`);
+      return lines.join('\n');
+    }
     case 'broadcast_message': {
       let recipients: Array<{ phone: string; name?: string }> = [];
       if (exec.audience === 'admins') {
@@ -1178,7 +1227,10 @@ export async function tryConfirmPendingAction(fromPhone: string, body: string): 
   // decide if it's a correction or unrelated.
   const isApprove = /^(כן|אישור|אשר|מאשר|מאשרת|ok|yes)\s*[.!]?$/i.test(trimmed);
   const isCancel = /^(לא|ביטול|בטל|בטלי|no|cancel)\s*[.!]?$/i.test(trimmed);
-  if (!isApprove && !isCancel) return null;
+  // Two special verbs only meaningful for employee_shifts_batch.
+  const isReplace = /^(החלף|להחליף|replace)\s*[.!]?$/i.test(trimmed);
+  const isSkip = /^(דלג|לדלג|skip)\s*[.!]?$/i.test(trimmed);
+  if (!isApprove && !isCancel && !isReplace && !isSkip) return null;
 
   const since = new Date(Date.now() - 10 * 60 * 1000);
   const pending: any = await (prisma as any).whatsAppMessage.findFirst({
@@ -1196,6 +1248,19 @@ export async function tryConfirmPendingAction(fromPhone: string, body: string): 
   if (!exec) return null;
   await (prisma as any).whatsAppMessage.update({ where: { id: pending.id }, data: { is_read: true } }).catch(() => {});
   if (isCancel) return '✋ ביטלתי. לא ביצעתי שום פעולה.';
+  // For shift batches the verb determines conflict handling.
+  if (exec.type === 'employee_shifts_batch') {
+    if (isApprove && (exec.conflicts || []).length > 0) {
+      return '⚠️ יש קונפליקטים — ענה *"החלף"* (לדרוס את הקיימות) או *"דלג"* (להוסיף רק חדשות).';
+    }
+    exec.replace_conflicts = isReplace;
+    exec.skip_conflicts = isSkip || (isApprove && (exec.conflicts || []).length === 0);
+  } else {
+    // Replace/skip make sense ONLY for shift batches — for other actions, treat as cancel-then-resend.
+    if (isReplace || isSkip) {
+      return '🤔 "החלף" / "דלג" שמורות רק לשעות עובד. ענה *כן* או *לא*.';
+    }
+  }
   try {
     return await executeAction(exec);
   } catch (e: any) {

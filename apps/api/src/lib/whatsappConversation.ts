@@ -255,6 +255,29 @@ const TOOL_DECLARATIONS = [
     },
   },
   {
+    name: 'propose_employee_shifts_batch',
+    description: 'Add multiple WORK SHIFTS (not personal events) to an employee\'s monthly report. Use when the user pastes a list of shift entries like "28.5 19:30-01:25 / 30.5 20:30-00:45 / 4.6 20:00-01:20" optionally prefixed with an employee name. Each entry: date (DD.MM or DD/MM, current year), start_time and end_time. Detects collisions with existing shifts and lets the manager decide replace vs skip.',
+    parameters: {
+      type: 'OBJECT',
+      properties: {
+        employee_search: { type: 'STRING', description: 'Employee name (or part of it) the shifts belong to.' },
+        entries: {
+          type: 'ARRAY',
+          items: {
+            type: 'OBJECT',
+            properties: {
+              date: { type: 'STRING', description: 'DD.MM or DD/MM. Current year auto-fills.' },
+              start_time: { type: 'STRING', description: 'HH:MM' },
+              end_time: { type: 'STRING', description: 'HH:MM (can be next-day, e.g. 01:25)' },
+            },
+            required: ['date', 'start_time', 'end_time'],
+          },
+        },
+      },
+      required: ['employee_search', 'entries'],
+    },
+  },
+  {
     name: 'propose_task_add_batch',
     description: 'Propose adding MULTIPLE tasks (todo items) at once. Use this when the user lists tasks like "המשימות שלי: להזמין יין, לקרוא לרואה חשבון, לקנות סכינים".',
     parameters: {
@@ -493,6 +516,98 @@ async function tool_propose_event_add_batch(args: any, phone: string): Promise<a
   ];
   if (skipped.length) summary.push(``, `⚠️ דילגתי: ${skipped.join(' · ')}`);
   return { proposal: summary.join('\n'), awaiting_confirmation: true };
+}
+
+async function tool_propose_employee_shifts_batch(args: any, phone: string): Promise<any> {
+  const search = String(args.employee_search || '').trim();
+  if (!search) return { error: 'employee_search required' };
+  const rawEntries: any[] = Array.isArray(args.entries) ? args.entries : [];
+  if (!rawEntries.length) return { error: 'no entries provided' };
+
+  // Resolve employee fuzzy
+  const emps: any[] = await (prisma as any).employee.findMany({ where: { status: 'active' }, take: 500 });
+  const lower = search.toLowerCase();
+  const matches = emps.filter((e: any) => String(e.full_name || '').toLowerCase().includes(lower));
+  if (!matches.length) return { error: `no active employee matching "${search}"` };
+  if (matches.length > 1) return {
+    ambiguous: true,
+    candidates: matches.slice(0, 6).map((e: any) => e.full_name),
+  };
+  const emp = matches[0];
+
+  // Parse + classify each entry
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const parsed: Array<{ date: string; start: string; end: string; shift_type: 'lunch' | 'dinner' }> = [];
+  const errors: string[] = [];
+  for (const e of rawEntries) {
+    const dm = String(e.date).match(/^(\d{1,2})[\/.\-](\d{1,2})(?:[\/.\-](\d{2,4}))?$/);
+    if (!dm) { errors.push(`bad date ${e.date}`); continue; }
+    const d = parseInt(dm[1]); const m = parseInt(dm[2]);
+    let y = dm[3] ? parseInt(dm[3]) : currentYear;
+    if (y < 100) y += 2000;
+    const ymd = `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    const start = String(e.start_time).trim();
+    const end = String(e.end_time).trim();
+    if (!/^\d{1,2}:\d{2}$/.test(start) || !/^\d{1,2}:\d{2}$/.test(end)) {
+      errors.push(`bad time ${start}-${end}`); continue;
+    }
+    const startH = parseInt(start.split(':')[0]);
+    const shift_type: 'lunch' | 'dinner' = startH < 16 ? 'lunch' : 'dinner';
+    parsed.push({
+      date: ymd,
+      start: start.padStart(5, '0'),
+      end: end.padStart(5, '0'),
+      shift_type,
+    });
+  }
+  if (!parsed.length) return { error: 'no parseable entries', errors };
+
+  // Check conflicts: existing assignment for this employee on the same date+shift_type
+  const allShifts: any[] = await (prisma as any).workShift.findMany({ orderBy: { date: 'desc' }, take: 2000 });
+  const conflicts: any[] = [];
+  const fresh: any[] = [];
+  for (const e of parsed) {
+    const dayShifts = allShifts.filter((s: any) => {
+      const sd = s.date instanceof Date ? s.date.toISOString().slice(0, 10) : String(s.date).slice(0, 10);
+      return sd === e.date && s.shift_type === e.shift_type;
+    });
+    const existing = dayShifts.find((s: any) =>
+      (s.assigned_staff || []).some((a: any) => a.employee_id === emp.id),
+    );
+    if (existing) {
+      const cur = (existing.assigned_staff || []).find((a: any) => a.employee_id === emp.id);
+      conflicts.push({ ...e, existing_start: cur?.start_time, existing_end: cur?.end_time, shift_id: existing.id });
+    } else {
+      fresh.push(e);
+    }
+  }
+
+  await stashPendingAction(phone, {
+    type: 'employee_shifts_batch',
+    employee_id: emp.id,
+    employee_name: emp.full_name,
+    fresh, conflicts,
+    target_phone: phone,
+  });
+
+  const lines = [`📋 *${emp.full_name} — ${parsed.length} משמרות מבוקשות*`, ''];
+  if (fresh.length) {
+    lines.push(`✨ *${fresh.length} חדשות שייווצרו:*`);
+    for (const f of fresh) lines.push(`  • ${f.date.slice(8) + '.' + f.date.slice(5, 7)} · ${f.start}-${f.end} (${f.shift_type === 'lunch' ? 'צהריים' : 'ערב'})`);
+  }
+  if (conflicts.length) {
+    lines.push('', `⚠️ *${conflicts.length} כבר קיימות (קונפליקט):*`);
+    for (const c of conflicts) {
+      lines.push(`  • ${c.date.slice(8) + '.' + c.date.slice(5, 7)} · קיים ${c.existing_start}-${c.existing_end} → חדש ${c.start}-${c.end}`);
+    }
+  }
+  if (errors.length) lines.push('', `❌ שגיאות parsing: ${errors.join(' · ')}`);
+  lines.push('', conflicts.length
+    ? 'ענה *"החלף"* להחליף את הקיימות, *"דלג"* לדלג עליהן ולהוסיף רק את החדשות, או *"לא"* לביטול.'
+    : 'ענה *כן* להוספה או *לא* לביטול.');
+
+  return { proposal: lines.join('\n'), awaiting_confirmation: true };
 }
 
 async function tool_propose_task_add_batch(args: any, phone: string): Promise<any> {
@@ -850,6 +965,7 @@ const TOOL_HANDLERS: Record<string, (args: any, phone: string) => Promise<any>> 
   list_pending_proposals: tool_list_pending_proposals,
   propose_event_add_batch: tool_propose_event_add_batch,
   propose_task_add_batch: tool_propose_task_add_batch,
+  propose_employee_shifts_batch: tool_propose_employee_shifts_batch,
 };
 
 // ─── Agent loop ────────────────────────────────────────────────────────────
@@ -876,6 +992,7 @@ const SYSTEM_PROMPT_BASE = `אתה העוזר האישי של בעל מסעדת 
 *חוקי batch — קריטי*:
 - אם המשתמש שולח 2+ פגישות בהודעה (גם אם בלי "בבקשה" / "תכניס") → קרא ל-*propose_event_add_batch* (לא propose_event_add פעם אחת!).
 - אם המשתמש שולח 2+ משימות / פריטי todo (לדוגמה "תוסיף משימות: X, Y, Z" או "צריך לעשות: A, B, C") → קרא ל-*propose_task_add_batch*.
+- אם המשתמש שולח רשימת *משמרות עבור עובד* — שורות בפורמט "DD.MM HH:MM-HH:MM" (לדוגמה "מישל: 28.5 19:30-01:25 / 30.5 20:30-00:45") או רק רשימת תאריכים-וזמנים אחרי שאתה יודע על איזה עובד מדובר → קרא ל-*propose_employee_shifts_batch* עם employee_search ו-entries[].
 - בכל מקרה של הודעה עם רשימה — חשוב אם זה אירועים-עם-זמן (פגישה, פגישת זום, ארוחה) או משימות (לעשות, לקנות, לבדוק, להתקשר). בעת ספק — שאל.
 - שעות מעורפלות בעת batch אירועים: "בצהריים"=13:00, "בערב"=19:00, "בבוקר"=09:00, "אחה\"צ"=16:00. עבור אותם ל-when עם השעה הברורה.
 
