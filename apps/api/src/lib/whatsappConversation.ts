@@ -586,7 +586,14 @@ async function tool_propose_employee_shifts_batch(args: any, phone: string): Pro
     );
     if (existing) {
       const cur = (existing.assigned_staff || []).find((a: any) => a.employee_id === emp.id);
-      conflicts.push({ ...e, existing_start: cur?.start_time, existing_end: cur?.end_time, shift_id: existing.id });
+      conflicts.push({
+        ...e,
+        existing_start: cur?.start_time,
+        existing_end: cur?.end_time,
+        existing_position: cur?.position,
+        existing_manual: !!cur?.manual_entry,
+        shift_id: existing.id,
+      });
     } else {
       fresh.push(e);
     }
@@ -607,9 +614,23 @@ async function tool_propose_employee_shifts_batch(args: any, phone: string): Pro
     for (const f of fresh) lines.push(`  • ${f.date.slice(8) + '.' + f.date.slice(5, 7)} · ${f.start}-${f.end} (${f.shift_type === 'lunch' ? 'צהריים' : 'ערב'})`);
   }
   if (conflicts.length) {
-    lines.push('', `⚠️ *${conflicts.length} כבר קיימות (קונפליקט):*`);
-    for (const c of conflicts) {
-      lines.push(`  • ${c.date.slice(8) + '.' + c.date.slice(5, 7)} · קיים ${c.existing_start}-${c.existing_end} → חדש ${c.start}-${c.end}`);
+    const targetPos = explicitPosition || '';
+    const identicalConflicts = conflicts.filter((c: any) =>
+      c.existing_start === c.start && c.existing_end === c.end && (!targetPos || c.existing_position === targetPos)
+    );
+    const realChanges = conflicts.filter((c: any) => !identicalConflicts.includes(c));
+    if (realChanges.length) {
+      lines.push('', `⚠️ *${realChanges.length} כבר קיימות עם נתונים שונים (יתעדכנו ב"החלף"):*`);
+      for (const c of realChanges) {
+        const posChange = (targetPos && c.existing_position && c.existing_position !== targetPos)
+          ? ` · תפקיד: ${c.existing_position} → ${targetPos}` : '';
+        const timeChange = (c.existing_start !== c.start || c.existing_end !== c.end)
+          ? ` · שעות: ${c.existing_start}-${c.existing_end} → ${c.start}-${c.end}` : '';
+        lines.push(`  • ${c.date.slice(8) + '.' + c.date.slice(5, 7)}${timeChange}${posChange}`);
+      }
+    }
+    if (identicalConflicts.length) {
+      lines.push('', `✓ *${identicalConflicts.length} כבר זהות (אין מה לעדכן):* ${identicalConflicts.map((c: any) => c.date.slice(8) + '.' + c.date.slice(5, 7)).join(', ')}`);
     }
   }
   if (errors.length) lines.push('', `❌ שגיאות parsing: ${errors.join(' · ')}`);
