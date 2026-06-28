@@ -84,6 +84,7 @@ function EmployeeReportsInner() {
     // Filters
     const [selectedEmployeeId, setSelectedEmployeeId] = useState(''); // Employee entity id
     const [selectedDepartment, setSelectedDepartment] = useState('all'); // all | floor | kitchen | managers | other
+    const [selectedLockState, setSelectedLockState] = useState('all'); // all | locked | unlocked
     const [filterPeriod, setFilterPeriod] = useState('month');
     // Approved-hours lock state, shared between single-employee header and
     // the bulk summary card. Persisted per month in localStorage.
@@ -602,7 +603,7 @@ function EmployeeReportsInner() {
                         </CardTitle>
                     </CardHeader>
                     <CardContent>
-                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
                             {isAdmin && (
                                 <div>
                                     <label className="text-sm font-medium mb-2 block">מחלקה</label>
@@ -629,11 +630,31 @@ function EmployeeReportsInner() {
                                             <SelectItem value="all">👥 כל העובדים (דוח מרוכז)</SelectItem>
                                             {employees
                                                 .filter(emp => selectedDepartment === 'all' || getDepartment(emp) === selectedDepartment)
+                                                .filter(emp => {
+                                                    if (selectedLockState === 'all') return true;
+                                                    const isLocked = approvedEmployees.includes(emp.id);
+                                                    return selectedLockState === 'locked' ? isLocked : !isLocked;
+                                                })
                                                 .map(emp => (
                                                     <SelectItem key={emp.id} value={emp.id}>
-                                                        {emp.full_name}
+                                                        {approvedEmployees.includes(emp.id) ? '🔒 ' : ''}{emp.full_name}
                                                     </SelectItem>
                                                 ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                            )}
+                            {isAdmin && (
+                                <div>
+                                    <label className="text-sm font-medium mb-2 block">סטטוס נעילת שעות</label>
+                                    <Select value={selectedLockState} onValueChange={setSelectedLockState}>
+                                        <SelectTrigger>
+                                            <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="all">הכל</SelectItem>
+                                            <SelectItem value="locked">🔒 נעולים (מאושרי שעות)</SelectItem>
+                                            <SelectItem value="unlocked">🔓 לא נעולים (ממתינים)</SelectItem>
                                         </SelectContent>
                                     </Select>
                                 </div>
@@ -680,17 +701,26 @@ function EmployeeReportsInner() {
                 </Card>
 
                 {/* תצוגת כל העובדים - דוח מרוכז */}
-                {selectedEmployeeId === 'all' && (
+                {selectedEmployeeId === 'all' && (() => {
+                    const filteredForBulk = employees
+                        .filter(e => selectedDepartment === 'all' || getDepartment(e) === selectedDepartment)
+                        .filter(e => {
+                            if (selectedLockState === 'all') return true;
+                            const isLocked = approvedEmployees.includes(e.id);
+                            return selectedLockState === 'locked' ? isLocked : !isLocked;
+                        });
+                    return (
                     <AllEmployeesSummary
                         workShifts={workShifts}
-                        employees={employees.filter(e => selectedDepartment === 'all' || getDepartment(e) === selectedDepartment)}
+                        employees={filteredForBulk}
                         selectedMonth={selectedMonth}
                         tipReports={tipReports}
                         approvedEmployees={approvedEmployees}
                         toggleApproved={toggleApproved}
-                        onExport={() => { setExportSelectedEmps(employees.filter(e => selectedDepartment === 'all' || getDepartment(e) === selectedDepartment).map(e => e.id)); setShowExport(true); }}
+                        onExport={() => { setExportSelectedEmps(filteredForBulk.map(e => e.id)); setShowExport(true); }}
                     />
-                )}
+                    );
+                })()}
 
                 {selectedEmployeeId !== 'all' && selectedEmployeeId && isAdmin && (
                     <div className="mb-4 flex items-center justify-between flex-wrap gap-2 p-3 rounded-lg border-2 bg-white shadow-sm">
