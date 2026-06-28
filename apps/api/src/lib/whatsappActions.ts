@@ -420,9 +420,20 @@ function parseRemindAt(raw: string): Date | null {
   if (!raw) return null;
   const s = String(raw).trim().toLowerCase();
 
-  // ISO datetime — pass through unchanged.
-  const iso = s.match(/^\d{4}-\d{2}-\d{2}[t\s]\d{1,2}:\d{2}/i);
-  if (iso) { const d = new Date(iso[0].replace(' ', 'T') + ':00'); if (!isNaN(d.getTime())) return d; }
+  // ISO datetime — if no timezone, treat as Israel-local (not UTC).
+  const iso = s.match(/^\d{4}-\d{2}-\d{2}[t\s]\d{1,2}:\d{2}(?::\d{2})?/i);
+  if (iso) {
+    const matched = iso[0].replace(' ', 'T');
+    const hasTz = /(Z|[+\-]\d{2}:?\d{2})$/i.test(s);
+    if (hasTz) {
+      const d = new Date(s);
+      if (!isNaN(d.getTime())) return d;
+    }
+    const [datePart, timePart] = matched.split('T');
+    const [hh, mm] = timePart.split(':');
+    const d = dateAtIsraelLocal(datePart, parseInt(hh), parseInt(mm));
+    if (!isNaN(d.getTime())) return d;
+  }
 
   // Relative "in N units" — Hebrew + English.
   const relHe = s.match(/בעוד\s*(\d+)?\s*(שניות|שניה|דקות|דק'?|דקה|שעות|שעה|ימים|יום)/);

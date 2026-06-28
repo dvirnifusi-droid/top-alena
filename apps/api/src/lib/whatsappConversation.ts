@@ -700,9 +700,23 @@ function vagueTimeToHHMM(s: string): { h: number; m: number } | null {
 function tryParseTimestamp(raw: string): string | null {
   if (!raw) return null;
   const s = String(raw).trim().toLowerCase();
-  // ISO
-  const iso = s.match(/^\d{4}-\d{2}-\d{2}[t\s]\d{1,2}:\d{2}/i);
-  if (iso) { const d = new Date(iso[0].replace(' ', 'T') + ':00'); if (!isNaN(d.getTime())) return d.toISOString(); }
+  // ISO — but if no timezone, treat as ISRAEL-LOCAL (not UTC).
+  // The LLM agent often converts "ראשון 11:30" into a naive ISO without Z,
+  // and Node parses naked ISO as UTC on a UTC server, baking in +3h drift.
+  const iso = s.match(/^\d{4}-\d{2}-\d{2}[t\s]\d{1,2}:\d{2}(?::\d{2})?/i);
+  if (iso) {
+    const matched = iso[0].replace(' ', 'T');
+    const hasTz = /(Z|[+\-]\d{2}:?\d{2})$/i.test(s);
+    if (hasTz) {
+      const d = new Date(s);
+      if (!isNaN(d.getTime())) return d.toISOString();
+    }
+    // No TZ → treat the wall-clock as Israel local time.
+    const [datePart, timePart] = matched.split('T');
+    const [hh, mm] = timePart.split(':');
+    const d = dateAtIsraelLocal(datePart, parseInt(hh), parseInt(mm));
+    if (!isNaN(d.getTime())) return d.toISOString();
+  }
   // "בעוד N דקות/שעות" or "in N min/hr"
   const relHe = s.match(/בעוד\s*(\d+)?\s*(שניות|דקות|דק|דקה|שעות|שעה|ימים|יום)/);
   const relEn = s.match(/in\s+(\d+|a|an|one|two|three|four|five|six|seven|eight|nine|ten)\s*(seconds?|secs?|minutes?|mins?|hours?|hrs?|days?)/);
@@ -853,6 +867,11 @@ const SYSTEM_PROMPT_BASE = `אתה העוזר האישי של בעל מסעדת 
 7. שעות מדויקות: "16:00" זה 16:00. לא 19:00. לא 61:00.
 8. תאריכים יחסיים בעברית: "מחר", "ראשון", "רביעי הבא" — תעביר אותם ככל ש-tools יודעים לפענח.
 9. אם הבקשה חורגת מהכלים — תאמר את זה בכנות במקום להמציא תשובה.
+
+*חוקי זמן — קריטי*:
+- שעות שמשתמש כותב הן *תמיד* שעון ישראל (Asia/Jerusalem).
+- בעת קריאה לכלי כמו propose_event_add / propose_event_add_batch — העבר את ה-when *כפי שהמשתמש כתב* ("ראשון 11:30", "מחר 14:00", "בערב").
+- *אל תמיר ל-ISO* (כמו "2026-06-28T11:30") בעצמך — הכלי יודע לפענח עברית. אם בכל זאת תיתן ISO — חובה לכלול ".\n00+03:00" או "Z" עם UTC מחושב נכון.
 
 *חוקי batch — קריטי*:
 - אם המשתמש שולח 2+ פגישות בהודעה (גם אם בלי "בבקשה" / "תכניס") → קרא ל-*propose_event_add_batch* (לא propose_event_add פעם אחת!).
