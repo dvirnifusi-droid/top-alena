@@ -975,14 +975,16 @@ async function executeAction(exec: any): Promise<string> {
           });
         }
         const wasAssigned = (shift.assigned_staff || []).some((a: any) => a.employee_id === empId);
+        const prevEntry = (shift.assigned_staff || []).find((a: any) => a.employee_id === empId) || {};
         const existingStaff = (shift.assigned_staff || []).filter((a: any) => a.employee_id !== empId);
         const newStaff = [...existingStaff, {
+          ...prevEntry,
           employee_id: empId,
           employee_name: empName,
           position: fallbackPos,
           start_time: e.start,
           end_time: e.end,
-          status: 'scheduled',
+          status: prevEntry.status || 'scheduled',
           // manual_entry=true keeps past shifts visible in the report even
           // without a matching time-clock entry (no-show filter bypass).
           manual_entry: true,
