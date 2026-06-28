@@ -551,15 +551,22 @@ async function tool_propose_employee_shifts_batch(args: any, phone: string): Pro
     const ymd = `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
     const start = String(e.start_time).trim();
     const end = String(e.end_time).trim();
-    if (!/^\d{1,2}:\d{2}$/.test(start) || !/^\d{1,2}:\d{2}$/.test(end)) {
-      errors.push(`bad time ${start}-${end}`); continue;
-    }
-    const startH = parseInt(start.split(':')[0]);
+    // Accept "11", "11:00", "11:5", "9:00" — normalize to HH:MM.
+    const normTime = (t: string): string | null => {
+      const m = String(t).trim().match(/^(\d{1,2})(?::(\d{1,2}))?$/);
+      if (!m) return null;
+      const h = parseInt(m[1]); const mm = m[2] ? parseInt(m[2]) : 0;
+      if (h > 23 || mm > 59) return null;
+      return `${String(h).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
+    };
+    const ns = normTime(start); const ne = normTime(end);
+    if (!ns || !ne) { errors.push(`bad time ${start}-${end}`); continue; }
+    const startH = parseInt(ns.split(':')[0]);
     const shift_type: 'lunch' | 'dinner' = startH < 16 ? 'lunch' : 'dinner';
     parsed.push({
       date: ymd,
-      start: start.padStart(5, '0'),
-      end: end.padStart(5, '0'),
+      start: ns,
+      end: ne,
       shift_type,
     });
   }
@@ -998,15 +1005,22 @@ const SYSTEM_PROMPT_BASE = `אתה העוזר האישי של בעל מסעדת 
 - אם המשתמש שולח רשימת *משמרות עבור עובד* — שורות בפורמט "DD.MM HH:MM-HH:MM" (לדוגמה "מישל: 28.5 19:30-01:25 / 30.5 20:30-00:45") או רק רשימת תאריכים-וזמנים אחרי שאתה יודע על איזה עובד מדובר → קרא ל-*propose_employee_shifts_batch* עם employee_search ו-entries[].
 - אם המשתמש כתב תפקיד ליד השם ("לידר רוחם מארחת:", "מישל ברמן 28.5 ..."): העבר את התפקיד ב-*position*. תפקידים נפוצים: מארחת / מלצר / ברמן / ראנר / טבח / שטיפה / מנהל.
 - *⚠️ חשוב מאוד — איך להבדיל בין משמרות לפגישות:*
-  - שורות בפורמט "DD.M HH:MM-HH:MM" (תאריך + טווח שעות עם מקף, *בלי כותרת*) = *משמרות עבודה* → תמיד propose_employee_shifts_batch.
+  - שורות בפורמט "DD.M טווח-שעות" או "DD/M טווח-שעות" (תאריך + טווח שעות עם מקף, *בלי כותרת*) = *משמרות עבודה* → תמיד propose_employee_shifts_batch.
+  - טווח שעות יכול להיות בכל אחד מהפורמטים: "11-17" / "11:00-17:00" / "20:30-00:45" / "15:30-17" — כולם תקפים, ה-tool מנרמל לבד.
+  - position יכול להיות רב-מילתי ("קופה ואריזות", "אחראי משמרת", "מארחת").
   - פגישות יש להן כותרת ("פגישה עם X", "זום", "ארוחה"). אם רואים רק זמן ללא תיאור — זו משמרת, לא פגישה.
-  - דוגמה מובהקת של משמרות:
+  - דוגמאות מובהקות של משמרות:
     \`\`\`
     לידר רוחם מארחת:
     28.5 19:30-01:25
     30.5 20:30-00:45
     \`\`\`
-    → propose_employee_shifts_batch({ employee_search: "לידר רוחם", position: "מארחת", entries: [{date: "28.5", start_time: "19:30", end_time: "01:25"}, ...] })
+    \`\`\`
+    הילה מאסיל קופה ואריזות 2/6 11-17
+    8/6- 11-17
+    16/6- 15:30-17
+    \`\`\`
+    → בשני המקרים: propose_employee_shifts_batch עם employee_search, position, ו-entries[]. גם השורה הראשונה ("הילה מאסיל קופה ואריזות 2/6 11-17") היא משמרת — לא פגישה.
   - אל תקרא ל-propose_event_add_batch בשורות שכאלה — אין כותרת לפגישה.
 - בכל מקרה של הודעה עם רשימה — חשוב אם זה אירועים-עם-זמן (פגישה, פגישת זום, ארוחה) או משימות (לעשות, לקנות, לבדוק, להתקשר). בעת ספק — שאל.
 - שעות מעורפלות בעת batch אירועים: "בצהריים"=13:00, "בערב"=19:00, "בבוקר"=09:00, "אחה\"צ"=16:00. עבור אותם ל-when עם השעה הברורה.
