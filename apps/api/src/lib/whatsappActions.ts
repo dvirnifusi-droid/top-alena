@@ -259,20 +259,39 @@ async function proposeShiftAssign(p: ParsedIntent): Promise<{ summary: string; e
   const tomorrowY = tomorrow.toLocaleDateString('en-CA', { timeZone: TZ });
   const dayAfter = new Date(today); dayAfter.setUTCDate(dayAfter.getUTCDate() + 2);
   const dayAfterY = dayAfter.toLocaleDateString('en-CA', { timeZone: TZ });
-  // Accept Hebrew + English relative words (Gemini sometimes returns
-  // 'tomorrow' even when prompt was in Hebrew). Trim + lowercase first.
+  // Accept Hebrew + English relative words + Hebrew day-of-week names.
   let dateStr = String(p.shift_date || '').trim().toLowerCase();
-  if (/^(היום|today)$/i.test(dateStr)) dateStr = todayY;
-  else if (/^(מחר|tomorrow)$/i.test(dateStr)) dateStr = tomorrowY;
-  else if (/^(מחרתיים|day[\s-]?after[\s-]?tomorrow)$/i.test(dateStr)) dateStr = dayAfterY;
-  else if (/^(\d{1,2})[\/.\-](\d{1,2})(?:[\/.\-](\d{2,4}))?$/.test(dateStr)) {
+  // Strip leading "יום" / "ב-" / "ב" prefixes so 'יום רביעי' / 'ברביעי' / 'ב-רביעי' all work.
+  dateStr = dateStr.replace(/^(יום\s+|ב[-־]?)/, '');
+  // Day-of-week → next occurrence (1-7 days ahead, never today).
+  const HE_DAYS: Record<string, number> = {
+    'ראשון': 0, 'שני': 1, 'שלישי': 2, 'רביעי': 3, 'חמישי': 4, 'שישי': 5, 'שבת': 6,
+    'sunday': 0, 'monday': 1, 'tuesday': 2, 'wednesday': 3, 'thursday': 4, 'friday': 5, 'saturday': 6,
+  };
+  // Handle "ראשון הבא" / "שני הבא" → skip to next week's instance even if today is that day.
+  const nextOccurrence = (targetDow: number, skipCurrent: boolean): string => {
+    const t = new Date();
+    const todayDow = t.getDay();
+    let delta = (targetDow - todayDow + 7) % 7;
+    if (delta === 0) delta = skipCurrent ? 7 : 7; // never today
+    if (delta < 1 && skipCurrent) delta = 7;
+    const target = new Date(t); target.setUTCDate(target.getUTCDate() + delta);
+    return target.toLocaleDateString('en-CA', { timeZone: TZ });
+  };
+  const dayMatch = dateStr.match(/^(ראשון|שני|שלישי|רביעי|חמישי|שישי|שבת|sunday|monday|tuesday|wednesday|thursday|friday|saturday)(\s+הבא)?$/);
+  if (/^(היום|today)$/.test(dateStr)) dateStr = todayY;
+  else if (/^(מחר|tomorrow)$/.test(dateStr)) dateStr = tomorrowY;
+  else if (/^(מחרתיים|day[\s-]?after[\s-]?tomorrow)$/.test(dateStr)) dateStr = dayAfterY;
+  else if (dayMatch) {
+    dateStr = nextOccurrence(HE_DAYS[dayMatch[1]], true);
+  } else if (/^(\d{1,2})[\/.\-](\d{1,2})(?:[\/.\-](\d{2,4}))?$/.test(dateStr)) {
     const m = dateStr.match(/^(\d{1,2})[\/.\-](\d{1,2})(?:[\/.\-](\d{2,4}))?$/)!;
     const dd = m[1]; const mm = m[2];
     let yy = m[3] ? parseInt(m[3]) : today.getFullYear();
     if (yy < 100) yy += 2000;
     dateStr = `${yy}-${String(mm).padStart(2, '0')}-${String(dd).padStart(2, '0')}`;
   }
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return `❓ לא הצלחתי לפענח את התאריך "${p.shift_date}". נסה YYYY-MM-DD או "מחר".`;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return `❓ לא הצלחתי לפענח את התאריך "${p.shift_date}". נסה "מחר", "ראשון", "רביעי הבא", או YYYY-MM-DD.`;
 
   // Find employee — fuzzy by full_name
   const emps: any[] = await (prisma as any).employee.findMany({ where: { status: 'active' }, take: 500 });
@@ -367,15 +386,34 @@ function parseRemindAt(raw: string): Date | null {
     else ms = 60_000; // minutes default
     return new Date(Date.now() + n * ms);
   }
-  // "מחר 14:00" / "היום 22:00" / "tomorrow 14:00" / bare 14:00
+  // "מחר 14:00" / "היום 22:00" / "tomorrow 14:00" / bare 14:00 / "רביעי 15:30"
   const hhmm = s.match(/(\d{1,2}):(\d{2})/);
   if (hhmm) {
     const h = parseInt(hhmm[1]); const m = parseInt(hhmm[2]);
     let base = new Date(tzNow);
     if (/מחר|tomorrow/.test(s)) base = tomorrow;
     else if (/מחרתיים|day\s+after\s+tomorrow/.test(s)) { base = new Date(tomorrow); base.setDate(base.getDate() + 1); }
+    else {
+      // Hebrew/English day-of-week → next occurrence of that day.
+      const HE_DAYS: Record<string, number> = {
+        'ראשון': 0, 'שני': 1, 'שלישי': 2, 'רביעי': 3, 'חמישי': 4, 'שישי': 5, 'שבת': 6,
+        'sunday': 0, 'monday': 1, 'tuesday': 2, 'wednesday': 3, 'thursday': 4, 'friday': 5, 'saturday': 6,
+      };
+      for (const [name, dow] of Object.entries(HE_DAYS)) {
+        if (new RegExp(`(^|\\s|ב[-־]?|יום\\s+)${name}(\\s+הבא|\\s|$)`, 'i').test(s)) {
+          const todayDow = tzNow.getDay();
+          let delta = (dow - todayDow + 7) % 7;
+          if (delta === 0) delta = 7; // never today
+          base = new Date(tzNow); base.setDate(base.getDate() + delta);
+          break;
+        }
+      }
+    }
     base.setHours(h, m, 0, 0);
-    if (base.getTime() < Date.now() + 60_000 && !/מחר|tomorrow|מחרתיים/.test(s)) base.setDate(base.getDate() + 1);
+    // Bare HH:MM with no date keyword and time already passed today → tomorrow.
+    if (base.getTime() < Date.now() + 60_000 && !/מחר|tomorrow|מחרתיים|ראשון|שני|שלישי|רביעי|חמישי|שישי|שבת|sunday|monday|tuesday|wednesday|thursday|friday|saturday/i.test(s)) {
+      base.setDate(base.getDate() + 1);
+    }
     return base;
   }
   return null;
