@@ -385,12 +385,35 @@ async function tool_propose_remind_me(args: any, phone: string): Promise<any> {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────
 
+// Same fix as parseRemindAt in whatsappActions.ts — build ISO with the proper
+// Israel offset suffix so server-TZ never corrupts wall-clock interpretation.
+function israelOffsetSuffix(forDate: Date = new Date()): string {
+  try {
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'Asia/Jerusalem', timeZoneName: 'shortOffset',
+    }).formatToParts(forDate);
+    const tz = parts.find(p => p.type === 'timeZoneName')?.value || 'GMT+3';
+    const m = tz.match(/GMT([+\-]?\d{1,2})(?::?(\d{2}))?/);
+    if (!m) return '+03:00';
+    const raw = m[1];
+    const sign = raw.startsWith('-') ? '-' : '+';
+    const hh = String(Math.abs(parseInt(raw, 10))).padStart(2, '0');
+    const mm = (m[2] || '00').padStart(2, '0');
+    return `${sign}${hh}:${mm}`;
+  } catch { return '+03:00'; }
+}
+function israelDow(d: Date = new Date()): number {
+  return new Date(`${ymd(d)}T12:00:00Z`).getUTCDay();
+}
+function dateAtIsraelLocal(targetYmd: string, h: number, m: number): Date {
+  const probe = new Date(`${targetYmd}T12:00:00Z`);
+  const offset = israelOffsetSuffix(probe);
+  return new Date(`${targetYmd}T${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:00${offset}`);
+}
+
 function tryParseTimestamp(raw: string): string | null {
   if (!raw) return null;
   const s = String(raw).trim().toLowerCase();
-  const now = new Date();
-  const tzNow = new Date(now.toLocaleString('en-US', { timeZone: TZ }));
-  const tomorrow = new Date(tzNow); tomorrow.setDate(tomorrow.getDate() + 1);
   // ISO
   const iso = s.match(/^\d{4}-\d{2}-\d{2}[t\s]\d{1,2}:\d{2}/i);
   if (iso) { const d = new Date(iso[0].replace(' ', 'T') + ':00'); if (!isNaN(d.getTime())) return d.toISOString(); }
@@ -409,26 +432,35 @@ function tryParseTimestamp(raw: string): string | null {
     else if (/שני|sec/i.test(u)) ms = 1000;
     return new Date(Date.now() + n * ms).toISOString();
   }
-  // HH:MM with optional date keyword
+  // HH:MM with optional date keyword — build via Israel offset to avoid the
+  // double-timezone bug that turned 15:30 into 18:30.
   const hhmm = s.match(/(\d{1,2}):(\d{2})/);
   if (hhmm) {
     const h = parseInt(hhmm[1]); const m = parseInt(hhmm[2]);
-    let base = new Date(tzNow);
-    if (/מחר|tomorrow/.test(s)) base = tomorrow;
-    else if (/מחרתיים/.test(s)) { base = new Date(tomorrow); base.setDate(base.getDate() + 1); }
-    else {
+    let targetYmd = ymd();
+    if (/מחר|tomorrow/.test(s)) {
+      const t = new Date(`${targetYmd}T12:00:00Z`); t.setUTCDate(t.getUTCDate() + 1);
+      targetYmd = ymd(t);
+    } else if (/מחרתיים/.test(s)) {
+      const t = new Date(`${targetYmd}T12:00:00Z`); t.setUTCDate(t.getUTCDate() + 2);
+      targetYmd = ymd(t);
+    } else {
       const HE: Record<string, number> = { 'ראשון': 0, 'שני': 1, 'שלישי': 2, 'רביעי': 3, 'חמישי': 4, 'שישי': 5, 'שבת': 6 };
       for (const [name, dow] of Object.entries(HE)) {
         if (s.includes(name)) {
-          const delta = ((dow - tzNow.getDay() + 7) % 7) || 7;
-          base = new Date(tzNow); base.setDate(base.getDate() + delta);
+          const delta = ((dow - israelDow() + 7) % 7) || 7;
+          const t = new Date(`${targetYmd}T12:00:00Z`); t.setUTCDate(t.getUTCDate() + delta);
+          targetYmd = ymd(t);
           break;
         }
       }
     }
-    base.setHours(h, m, 0, 0);
-    if (base.getTime() < Date.now() + 60_000 && !/מחר|tomorrow|מחרתיים|ראשון|שני|שלישי|רביעי|חמישי|שישי|שבת/.test(s)) base.setDate(base.getDate() + 1);
-    return base.toISOString();
+    let candidate = dateAtIsraelLocal(targetYmd, h, m);
+    if (candidate.getTime() < Date.now() + 60_000 && !/מחר|tomorrow|מחרתיים|ראשון|שני|שלישי|רביעי|חמישי|שישי|שבת/.test(s)) {
+      const t = new Date(`${targetYmd}T12:00:00Z`); t.setUTCDate(t.getUTCDate() + 1);
+      candidate = dateAtIsraelLocal(ymd(t), h, m);
+    }
+    return candidate.toISOString();
   }
   return null;
 }

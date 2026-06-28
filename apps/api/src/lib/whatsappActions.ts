@@ -377,18 +377,54 @@ async function proposeShiftAssign(p: ParsedIntent): Promise<{ summary: string; e
 // Parse Hebrew/English relative time expression to an absolute ISO date.
 // Accepts: ISO ('2026-06-25T14:00'), HH:MM (today/tomorrow if past),
 // "מחר 14:00", "בעוד שעה", "בעוד 30 דקות", "ראשון 09:00".
+// Compute Israel's current UTC offset as "+HH:MM" so we can build ISO strings
+// that represent a wall-clock Israel time correctly, regardless of server TZ.
+// Handles DST automatically via Intl.
+function israelOffsetSuffix(forDate: Date = new Date()): string {
+  try {
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'Asia/Jerusalem', timeZoneName: 'shortOffset',
+    }).formatToParts(forDate);
+    const tz = parts.find(p => p.type === 'timeZoneName')?.value || 'GMT+3';
+    const m = tz.match(/GMT([+\-]?\d{1,2})(?::?(\d{2}))?/);
+    if (!m) return '+03:00';
+    const raw = m[1];
+    const sign = raw.startsWith('-') ? '-' : '+';
+    const hh = String(Math.abs(parseInt(raw, 10))).padStart(2, '0');
+    const mm = (m[2] || '00').padStart(2, '0');
+    return `${sign}${hh}:${mm}`;
+  } catch { return '+03:00'; }
+}
+
+function israelYmd(d: Date = new Date()): string {
+  return d.toLocaleDateString('en-CA', { timeZone: 'Asia/Jerusalem' });
+}
+
+function israelDow(d: Date = new Date()): number {
+  // 0=Sun..6=Sat, reading the LOCAL Israeli day, not the server's UTC day.
+  const ymd = israelYmd(d);
+  // Construct a UTC noon Date so getUTCDay matches the Israeli weekday.
+  return new Date(`${ymd}T12:00:00Z`).getUTCDay();
+}
+
+// Build a Date representing `${ymd}T${hh}:${mm}:00` AS WALL-CLOCK ISRAEL TIME.
+// Uses the actual Israel offset (incl. DST) so the resulting Date.getTime()
+// is correct in milliseconds-since-epoch regardless of server timezone.
+function dateAtIsraelLocal(ymd: string, h: number, m: number): Date {
+  const probe = new Date(`${ymd}T12:00:00Z`);
+  const offset = israelOffsetSuffix(probe);
+  return new Date(`${ymd}T${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:00${offset}`);
+}
+
 function parseRemindAt(raw: string): Date | null {
   if (!raw) return null;
-  const TZ = 'Asia/Jerusalem';
-  const now = new Date();
-  const tzNow = new Date(now.toLocaleString('en-US', { timeZone: TZ }));
-  const tomorrow = new Date(tzNow); tomorrow.setDate(tomorrow.getDate() + 1);
-  const s = raw.trim().toLowerCase();
-  // ISO datetime
+  const s = String(raw).trim().toLowerCase();
+
+  // ISO datetime — pass through unchanged.
   const iso = s.match(/^\d{4}-\d{2}-\d{2}[t\s]\d{1,2}:\d{2}/i);
   if (iso) { const d = new Date(iso[0].replace(' ', 'T') + ':00'); if (!isNaN(d.getTime())) return d; }
-  // Relative "in N (minutes|hours|seconds|days)" — Hebrew + English
-  // Examples: "בעוד שעה", "בעוד 30 דקות", "in 1 minute", "in 2 hours"
+
+  // Relative "in N units" — Hebrew + English.
   const relHe = s.match(/בעוד\s*(\d+)?\s*(שניות|שניה|דקות|דק'?|דקה|שעות|שעה|ימים|יום)/);
   const relEn = s.match(/in\s+(\d+|a|an|one|two|three|four|five|six|seven|eight|nine|ten)\s*(seconds?|secs?|minutes?|mins?|hours?|hrs?|days?)/);
   if (relHe || relEn) {
@@ -401,38 +437,48 @@ function parseRemindAt(raw: string): Date | null {
     if (/שעה|שעות|hour/i.test(unit)) ms = 3600_000;
     else if (/יום|ימים|day/i.test(unit)) ms = 86_400_000;
     else if (/שני|sec/i.test(unit)) ms = 1000;
-    else ms = 60_000; // minutes default
     return new Date(Date.now() + n * ms);
   }
-  // "מחר 14:00" / "היום 22:00" / "tomorrow 14:00" / bare 14:00 / "רביעי 15:30"
+
+  // HH:MM with optional date keyword (היום / מחר / מחרתיים / day-of-week).
+  // CRITICAL: previously we did `new Date(toLocaleString(...))` + `setHours()`,
+  // which on a UTC server produced a Date that was off by Israel's UTC offset
+  // (15:30 IL came out as 18:30 IL when displayed). Now we build the ISO
+  // string directly with the proper offset suffix so the wall clock is honest.
   const hhmm = s.match(/(\d{1,2}):(\d{2})/);
   if (hhmm) {
     const h = parseInt(hhmm[1]); const m = parseInt(hhmm[2]);
-    let base = new Date(tzNow);
-    if (/מחר|tomorrow/.test(s)) base = tomorrow;
-    else if (/מחרתיים|day\s+after\s+tomorrow/.test(s)) { base = new Date(tomorrow); base.setDate(base.getDate() + 1); }
-    else {
-      // Hebrew/English day-of-week → next occurrence of that day.
+    let targetYmd = israelYmd();
+    if (/מחר|tomorrow/.test(s)) {
+      const t = new Date(`${targetYmd}T12:00:00Z`); t.setUTCDate(t.getUTCDate() + 1);
+      targetYmd = israelYmd(t);
+    } else if (/מחרתיים|day\s+after\s+tomorrow/.test(s)) {
+      const t = new Date(`${targetYmd}T12:00:00Z`); t.setUTCDate(t.getUTCDate() + 2);
+      targetYmd = israelYmd(t);
+    } else {
       const HE_DAYS: Record<string, number> = {
         'ראשון': 0, 'שני': 1, 'שלישי': 2, 'רביעי': 3, 'חמישי': 4, 'שישי': 5, 'שבת': 6,
         'sunday': 0, 'monday': 1, 'tuesday': 2, 'wednesday': 3, 'thursday': 4, 'friday': 5, 'saturday': 6,
       };
       for (const [name, dow] of Object.entries(HE_DAYS)) {
         if (new RegExp(`(^|\\s|ב[-־]?|יום\\s+)${name}(\\s+הבא|\\s|$)`, 'i').test(s)) {
-          const todayDow = tzNow.getDay();
+          const todayDow = israelDow();
           let delta = (dow - todayDow + 7) % 7;
           if (delta === 0) delta = 7; // never today
-          base = new Date(tzNow); base.setDate(base.getDate() + delta);
+          const t = new Date(`${targetYmd}T12:00:00Z`); t.setUTCDate(t.getUTCDate() + delta);
+          targetYmd = israelYmd(t);
           break;
         }
       }
     }
-    base.setHours(h, m, 0, 0);
-    // Bare HH:MM with no date keyword and time already passed today → tomorrow.
-    if (base.getTime() < Date.now() + 60_000 && !/מחר|tomorrow|מחרתיים|ראשון|שני|שלישי|רביעי|חמישי|שישי|שבת|sunday|monday|tuesday|wednesday|thursday|friday|saturday/i.test(s)) {
-      base.setDate(base.getDate() + 1);
+    let candidate = dateAtIsraelLocal(targetYmd, h, m);
+    // Bare HH:MM with no date keyword and the time already passed today → tomorrow.
+    if (candidate.getTime() < Date.now() + 60_000 &&
+        !/מחר|tomorrow|מחרתיים|ראשון|שני|שלישי|רביעי|חמישי|שישי|שבת|sunday|monday|tuesday|wednesday|thursday|friday|saturday/i.test(s)) {
+      const t = new Date(`${targetYmd}T12:00:00Z`); t.setUTCDate(t.getUTCDate() + 1);
+      candidate = dateAtIsraelLocal(israelYmd(t), h, m);
     }
-    return base;
+    return candidate;
   }
   return null;
 }
