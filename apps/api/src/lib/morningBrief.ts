@@ -309,6 +309,31 @@ async function eodLeadsClosed(today: string): Promise<string | null> {
   } catch { return null; }
 }
 
+// Personal events for a specific date (used by EoD brief to show tomorrow).
+async function sectionPersonalEventsForDate(phone: string, targetYmd: string): Promise<string | null> {
+  try {
+    const rows: any[] = await (prisma as any).whatsAppMessage.findMany({
+      where: { status: 'scheduled_event', contact_phone: phone, is_read: false },
+      take: 200,
+    });
+    const events: Array<{ at: Date; title: string }> = [];
+    for (const r of rows) {
+      const raw = (r.raw as any) || {};
+      if (!raw.event_at) continue;
+      const at = new Date(raw.event_at);
+      if (isNaN(at.getTime())) continue;
+      const eventYMD = at.toLocaleDateString('en-CA', { timeZone: ISRAEL_TZ });
+      if (eventYMD === targetYmd) events.push({ at, title: raw.title || r.body });
+    }
+    if (!events.length) return null;
+    events.sort((a, b) => a.at.getTime() - b.at.getTime());
+    return events.map(e => {
+      const tm = e.at.toLocaleTimeString('he-IL', { timeZone: ISRAEL_TZ, hour: '2-digit', minute: '2-digit' });
+      return `  ${tm} · ${e.title}`;
+    }).join('\n');
+  } catch { return null; }
+}
+
 async function eodTomorrowPreview(tomorrow: string): Promise<string> {
   const all: any[] = await (prisma as any).workShift.findMany({ orderBy: { date: 'desc' }, take: 1500 });
   const tShifts = all.filter((s: any) => {
@@ -321,17 +346,19 @@ async function eodTomorrowPreview(tomorrow: string): Promise<string> {
   return `☀️ צהריים: ${lunchN} · 🌙 ערב: ${dinnerN}`;
 }
 
-export async function buildEndOfDayBrief(): Promise<string> {
+export async function buildEndOfDayBrief(forPhone?: string): Promise<string> {
   const today = israelYMD();
   const tomorrow = israelYMD(addDays(new Date(), 1));
   const todayName = israelDayName(today);
   const tomorrowName = israelDayName(tomorrow);
-  const [sales, tips, incidents, leads, tomorrowPrev] = await Promise.all([
+  const [sales, tips, incidents, leads, tomorrowPrev, myEventsTomorrow, myOpenTasks] = await Promise.all([
     eodSales(today),
     eodTips(today),
     eodIncidentsToday(today),
     eodLeadsClosed(today),
     eodTomorrowPreview(tomorrow),
+    forPhone ? sectionPersonalEventsForDate(forPhone, tomorrow) : Promise.resolve(null),
+    forPhone ? sectionPersonalOpenTasks(forPhone) : Promise.resolve(null),
   ]);
   const lines: string[] = [
     `🌙 *סיכום יום — ${todayName} ${today}*`,
@@ -341,7 +368,9 @@ export async function buildEndOfDayBrief(): Promise<string> {
   if (tips) { lines.push(`💸 *טיפים*`, tips, ''); }
   if (leads) { lines.push(`🎯 *לידים*`, leads, ''); }
   if (incidents) { lines.push(`🚨 *אירועים*`, incidents, ''); }
-  lines.push(`📅 *מחר (${tomorrowName})*`, tomorrowPrev, '');
+  lines.push(`📅 *סידור מחר (${tomorrowName})*`, tomorrowPrev, '');
+  if (myEventsTomorrow) { lines.push(`🗓 *הפגישות שלך מחר*`, myEventsTomorrow, ''); }
+  if (myOpenTasks) { lines.push(`✅ *משימות פתוחות שנותרו*`, myOpenTasks, ''); }
   lines.push('_לילה טוב 🌿_');
   return lines.join('\n');
 }
@@ -349,10 +378,13 @@ export async function buildEndOfDayBrief(): Promise<string> {
 export async function sendEndOfDayBrief(): Promise<{ sent: number; failed: number; details: Array<{ phone: string; ok: boolean; error?: string }> }> {
   const phones = adminPhones();
   if (!phones.length) { console.warn('[eod-brief] no admin phones'); return { sent: 0, failed: 0, details: [] }; }
-  const text = await buildEndOfDayBrief();
   const results: Array<{ phone: string; ok: boolean; error?: string }> = [];
   for (const phone of phones) {
-    try { await sendWhatsApp(phone, text); results.push({ phone, ok: true }); }
+    try {
+      const text = await buildEndOfDayBrief(phone);
+      await sendWhatsApp(phone, text);
+      results.push({ phone, ok: true });
+    }
     catch (e: any) { results.push({ phone, ok: false, error: e?.message || 'unknown' }); console.warn('[eod-brief] send failed', { phone, err: e?.message }); }
   }
   return { sent: results.filter(r => r.ok).length, failed: results.filter(r => !r.ok).length, details: results };

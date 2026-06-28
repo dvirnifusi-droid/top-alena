@@ -286,7 +286,7 @@ const PERSONAL_MATCHERS: Array<{ test: (s: string) => boolean; run: (phone: stri
   },
   {
     test: (s) => new RegExp(`^(סיכום\\s+יום|סיכום\\s+סוף\\s+יום|eod)${END}`, 'i').test(s),
-    run: () => buildEndOfDayBrief(),
+    run: (p) => buildEndOfDayBrief(p),
   },
   {
     test: (s) => new RegExp(`^(מה\\s+היום|מה\\s+התכנון|התכנון\\s+היום|לוז)${END}`, 'i').test(s),
