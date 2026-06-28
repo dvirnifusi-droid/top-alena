@@ -22,6 +22,28 @@ import EmployeeRankingReport from '../components/reports/EmployeeRankingReport';
 // TIP-based positions (excluded from hourly salary report)
 const TIP_POSITIONS = ['מלצר', 'ברמן', 'ראנר'];
 
+// Derive a department for filtering when the explicit Employee.department
+// column is empty. Looks at positions[] for keyword matches.
+const DEPT_KEYWORDS = {
+    floor: ['מלצר', 'ברמן', 'ראנר', 'מארחת', 'הוסטס', 'קופה', 'אריזות', 'דייל'],
+    kitchen: ['טבח', 'שטיפה', 'שף', 'מטבח', 'פיצריה', 'גריל', 'סלטים'],
+    managers: ['מנהל', 'אחראי', 'משמרת'],
+};
+function getDepartment(emp) {
+    const explicit = (emp?.department || '').toLowerCase().trim();
+    if (explicit) {
+        if (['floor', 'פלור', 'אולם'].includes(explicit)) return 'floor';
+        if (['kitchen', 'מטבח'].includes(explicit)) return 'kitchen';
+        if (['managers', 'מנהלים', 'manager'].includes(explicit)) return 'managers';
+    }
+    const positions = (emp?.positions || []).map((p) => String(p?.position_name || p || '').toLowerCase());
+    for (const dept of ['managers', 'kitchen', 'floor']) {
+        if (positions.some((p) => DEPT_KEYWORDS[dept].some((k) => p.includes(k.toLowerCase())))) return dept;
+    }
+    return 'other';
+}
+const DEPT_LABELS = { all: 'כל המחלקות', floor: '🍷 פלור', kitchen: '👨‍🍳 מטבח', managers: '🧭 מנהלים', other: '— ללא מחלקה' };
+
 // Calculate hours between two time strings (handles overnight)
 function calcHours(startTime, endTime) {
     if (!startTime || !endTime) return 0;
@@ -61,7 +83,23 @@ function EmployeeReportsInner() {
     
     // Filters
     const [selectedEmployeeId, setSelectedEmployeeId] = useState(''); // Employee entity id
+    const [selectedDepartment, setSelectedDepartment] = useState('all'); // all | floor | kitchen | managers | other
     const [filterPeriod, setFilterPeriod] = useState('month');
+    // Approved-hours lock state, shared between single-employee header and
+    // the bulk summary card. Persisted per month in localStorage.
+    const approvedStorageKey = `approved_hours_${format(selectedMonth, 'yyyy-MM')}`;
+    const [approvedEmployees, setApprovedEmployees] = useState([]);
+    useEffect(() => {
+        try { setApprovedEmployees(JSON.parse(localStorage.getItem(approvedStorageKey) || '[]')); }
+        catch { setApprovedEmployees([]); }
+    }, [approvedStorageKey]);
+    const toggleApproved = (empId) => {
+        setApprovedEmployees((prev) => {
+            const next = prev.includes(empId) ? prev.filter((id) => id !== empId) : [...prev, empId];
+            localStorage.setItem(approvedStorageKey, JSON.stringify(next));
+            return next;
+        });
+    };
     const [selectedMonth, setSelectedMonth] = useState(new Date());
     const [loading2, setLoading2] = useState(false);
     const [workShifts, setWorkShifts] = useState([]);
@@ -564,7 +602,22 @@ function EmployeeReportsInner() {
                         </CardTitle>
                     </CardHeader>
                     <CardContent>
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                            {isAdmin && (
+                                <div>
+                                    <label className="text-sm font-medium mb-2 block">מחלקה</label>
+                                    <Select value={selectedDepartment} onValueChange={setSelectedDepartment}>
+                                        <SelectTrigger>
+                                            <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {Object.entries(DEPT_LABELS).map(([key, label]) => (
+                                                <SelectItem key={key} value={key}>{label}</SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                            )}
                             {isAdmin && (
                                 <div>
                                     <label className="text-sm font-medium mb-2 block">בחר עובד</label>
@@ -574,11 +627,13 @@ function EmployeeReportsInner() {
                                         </SelectTrigger>
                                         <SelectContent>
                                             <SelectItem value="all">👥 כל העובדים (דוח מרוכז)</SelectItem>
-                                            {employees.map(emp => (
-                                                <SelectItem key={emp.id} value={emp.id}>
-                                                    {emp.full_name}
-                                                </SelectItem>
-                                            ))}
+                                            {employees
+                                                .filter(emp => selectedDepartment === 'all' || getDepartment(emp) === selectedDepartment)
+                                                .map(emp => (
+                                                    <SelectItem key={emp.id} value={emp.id}>
+                                                        {emp.full_name}
+                                                    </SelectItem>
+                                                ))}
                                         </SelectContent>
                                     </Select>
                                 </div>
@@ -628,13 +683,40 @@ function EmployeeReportsInner() {
                 {selectedEmployeeId === 'all' && (
                     <AllEmployeesSummary
                         workShifts={workShifts}
-                        employees={employees}
+                        employees={employees.filter(e => selectedDepartment === 'all' || getDepartment(e) === selectedDepartment)}
                         selectedMonth={selectedMonth}
                         tipReports={tipReports}
-                        onExport={() => { setExportSelectedEmps(employees.map(e => e.id)); setShowExport(true); }}
+                        approvedEmployees={approvedEmployees}
+                        toggleApproved={toggleApproved}
+                        onExport={() => { setExportSelectedEmps(employees.filter(e => selectedDepartment === 'all' || getDepartment(e) === selectedDepartment).map(e => e.id)); setShowExport(true); }}
                     />
                 )}
 
+                {selectedEmployeeId !== 'all' && selectedEmployeeId && isAdmin && (
+                    <div className="mb-4 flex items-center justify-between flex-wrap gap-2 p-3 rounded-lg border-2 bg-white shadow-sm">
+                        <div className="flex items-center gap-3">
+                            <span className="font-bold text-gray-800">{selectedEmployee?.full_name}</span>
+                            {(() => {
+                                const dept = selectedEmployee ? getDepartment(selectedEmployee) : 'other';
+                                return <span className="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 border">{DEPT_LABELS[dept] || DEPT_LABELS.other}</span>;
+                            })()}
+                            {approvedEmployees.includes(selectedEmployeeId) && (
+                                <span className="text-xs bg-green-100 text-green-700 border border-green-300 px-2 py-0.5 rounded-full font-bold">🔒 שעות נעולות לחודש זה</span>
+                            )}
+                        </div>
+                        <button
+                            onClick={() => toggleApproved(selectedEmployeeId)}
+                            className={`px-3 py-1.5 rounded-full text-xs font-bold border-2 transition-all ${
+                                approvedEmployees.includes(selectedEmployeeId)
+                                    ? 'bg-green-500 text-white border-green-500 hover:bg-red-100 hover:text-red-600 hover:border-red-300'
+                                    : 'bg-white text-gray-500 border-gray-300 hover:border-green-400 hover:text-green-600'
+                            }`}
+                            title={approvedEmployees.includes(selectedEmployeeId) ? 'בטל נעילה' : 'נעל שעות (אישור סופי לחודש זה)'}
+                        >
+                            {approvedEmployees.includes(selectedEmployeeId) ? '🔒 נעול' : '🔓 נעל שעות'}
+                        </button>
+                    </div>
+                )}
                 {selectedEmployeeId !== 'all' && (
                 <Tabs defaultValue="monthly" className="w-full">
                     <TabsList className="mb-6">
@@ -1298,27 +1380,9 @@ function EmployeeReportsInner() {
     );
 }
 
-function AllEmployeesSummary({ workShifts, employees, selectedMonth, tipReports, onExport }) {
+function AllEmployeesSummary({ workShifts, employees, selectedMonth, tipReports, onExport, approvedEmployees, toggleApproved }) {
     const monthStart = format(startOfMonth(selectedMonth), 'yyyy-MM-dd');
     const monthEnd = format(endOfMonth(selectedMonth), 'yyyy-MM-dd');
-    const monthKey = format(selectedMonth, 'yyyy-MM');
-    const storageKey = `approved_hours_${monthKey}`;
-    const [approvedEmployees, setApprovedEmployees] = React.useState(() => {
-        try { return JSON.parse(localStorage.getItem(storageKey) || '[]'); } catch { return []; }
-    });
-
-    // סנכרן עם localStorage כשהחודש משתנה
-    React.useEffect(() => {
-        try { setApprovedEmployees(JSON.parse(localStorage.getItem(storageKey) || '[]')); } catch { setApprovedEmployees([]); }
-    }, [storageKey]);
-
-    const toggleApproved = (empId) => {
-        setApprovedEmployees(prev => {
-            const next = prev.includes(empId) ? prev.filter(id => id !== empId) : [...prev, empId];
-            localStorage.setItem(storageKey, JSON.stringify(next));
-            return next;
-        });
-    };
 
     const data = employees.map(emp => {
         // hourly shifts grouped by position, calculate overtime per shift entry directly
@@ -1509,7 +1573,7 @@ function AllEmployeesSummary({ workShifts, employees, selectedMonth, tipReports,
                                 <CardTitle className="text-lg flex items-center gap-2">
                                     {emp.full_name}
                                     {approvedEmployees.includes(emp.id) && (
-                                        <span className="text-xs bg-green-100 text-green-700 border border-green-300 px-2 py-0.5 rounded-full font-bold">✅ מאושר</span>
+                                        <span className="text-xs bg-green-100 text-green-700 border border-green-300 px-2 py-0.5 rounded-full font-bold flex items-center gap-1">🔒 שעות נעולות</span>
                                     )}
                                 </CardTitle>
                                 <p className="text-sm text-gray-500 mt-0.5">סה"כ <span className="font-bold text-gray-700">{totalDays}</span> ימי עבודה</p>
@@ -1524,9 +1588,9 @@ function AllEmployeesSummary({ workShifts, employees, selectedMonth, tipReports,
                                             ? 'bg-green-500 text-white border-green-500 hover:bg-red-100 hover:text-red-600 hover:border-red-300'
                                             : 'bg-white text-gray-500 border-gray-300 hover:border-green-400 hover:text-green-600'
                                     }`}
-                                    title={approvedEmployees.includes(emp.id) ? 'בטל אישור' : 'סמן כמאושר'}
+                                    title={approvedEmployees.includes(emp.id) ? 'בטל נעילה' : 'נעל שעות (אישור סופי)'}
                                 >
-                                    {approvedEmployees.includes(emp.id) ? '✅ מאושר' : '○ אשר שעות'}
+                                    {approvedEmployees.includes(emp.id) ? '🔒 נעול' : '🔓 נעל שעות'}
                                 </button>
                             </div>
                         </div>
