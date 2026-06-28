@@ -261,6 +261,7 @@ const TOOL_DECLARATIONS = [
       type: 'OBJECT',
       properties: {
         employee_search: { type: 'STRING', description: 'Employee name (or part of it) the shifts belong to.' },
+        position: { type: 'STRING', description: 'Optional position for these shifts (e.g. "מארחת", "מלצר", "ברמן", "טבח"). If the user wrote it next to the name (e.g. "לידר רוחם מארחת:") pass it here. Otherwise omit — the employee\'s registered first position will be used.' },
         entries: {
           type: 'ARRAY',
           items: {
@@ -521,6 +522,7 @@ async function tool_propose_event_add_batch(args: any, phone: string): Promise<a
 async function tool_propose_employee_shifts_batch(args: any, phone: string): Promise<any> {
   const search = String(args.employee_search || '').trim();
   if (!search) return { error: 'employee_search required' };
+  const explicitPosition = String(args.position || '').trim();
   const rawEntries: any[] = Array.isArray(args.entries) ? args.entries : [];
   if (!rawEntries.length) return { error: 'no entries provided' };
 
@@ -588,6 +590,7 @@ async function tool_propose_employee_shifts_batch(args: any, phone: string): Pro
     employee_id: emp.id,
     employee_name: emp.full_name,
     fresh, conflicts,
+    explicit_position: explicitPosition || undefined,
     target_phone: phone,
   });
 
@@ -993,6 +996,7 @@ const SYSTEM_PROMPT_BASE = `אתה העוזר האישי של בעל מסעדת 
 - אם המשתמש שולח 2+ פגישות בהודעה (גם אם בלי "בבקשה" / "תכניס") → קרא ל-*propose_event_add_batch* (לא propose_event_add פעם אחת!).
 - אם המשתמש שולח 2+ משימות / פריטי todo (לדוגמה "תוסיף משימות: X, Y, Z" או "צריך לעשות: A, B, C") → קרא ל-*propose_task_add_batch*.
 - אם המשתמש שולח רשימת *משמרות עבור עובד* — שורות בפורמט "DD.MM HH:MM-HH:MM" (לדוגמה "מישל: 28.5 19:30-01:25 / 30.5 20:30-00:45") או רק רשימת תאריכים-וזמנים אחרי שאתה יודע על איזה עובד מדובר → קרא ל-*propose_employee_shifts_batch* עם employee_search ו-entries[].
+- אם המשתמש כתב תפקיד ליד השם ("לידר רוחם מארחת:", "מישל ברמן 28.5 ..."): העבר את התפקיד ב-*position*. תפקידים נפוצים: מארחת / מלצר / ברמן / ראנר / טבח / שטיפה / מנהל.
 - בכל מקרה של הודעה עם רשימה — חשוב אם זה אירועים-עם-זמן (פגישה, פגישת זום, ארוחה) או משימות (לעשות, לקנות, לבדוק, להתקשר). בעת ספק — שאל.
 - שעות מעורפלות בעת batch אירועים: "בצהריים"=13:00, "בערב"=19:00, "בבוקר"=09:00, "אחה\"צ"=16:00. עבור אותם ל-when עם השעה הברורה.
 

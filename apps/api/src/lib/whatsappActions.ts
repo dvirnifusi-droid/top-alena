@@ -957,7 +957,7 @@ async function executeAction(exec: any): Promise<string> {
       // Position fallback: use the employee's first position or 'מלצר'.
       const empRow: any = await (prisma as any).employee.findUnique({ where: { id: empId } }).catch(() => null);
       const positions = (empRow?.positions || []).map((p: any) => p?.position_name || p).filter(Boolean);
-      const fallbackPos = positions[0] || 'מלצר';
+      const fallbackPos = (exec.explicit_position && String(exec.explicit_position).trim()) || positions[0] || 'מלצר';
       for (const e of itemsToWrite) {
         let shift = allShifts.find((s: any) => {
           const sd = s.date instanceof Date ? s.date.toISOString().slice(0, 10) : String(s.date).slice(0, 10);
