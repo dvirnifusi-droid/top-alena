@@ -1,0 +1,577 @@
+// Conversational WhatsApp agent — agent-loop with tools instead of single-shot
+// classify. Maintains rolling conversation history per phone so follow-ups
+// work naturally ("עוד פעם?" / "שנה ל-15:00" / "מי משובץ אז?").
+//
+// Architecture:
+//   1. Inbound message + previous N turns + system prompt → Gemini
+//   2. Gemini returns either:
+//        a) plain text reply (no tool needed)
+//        b) tool_calls[] — we execute, append results, loop back to Gemini
+//   3. Final text reply goes back to user
+//   4. The whole exchange is appended to ConversationContext for next time
+//
+// Tools available:
+//   READ:  list_today_schedule, list_today_events, list_open_tasks,
+//          list_open_leads, get_recent_tips, get_unpaid_invoices,
+//          search_employee, search_lead, search_invoice
+//   WRITE (always pending-confirmation — never auto-execute):
+//          propose_event_add, propose_task_add, propose_task_done,
+//          propose_lead_set_stage, propose_invoice_mark_paid,
+//          propose_shift_assign, propose_send_contract, propose_remind_me
+//
+// Confirmation flow stays the same — propose_* tools just create a
+// pending-action row and return its summary; the user replies 'כן' and
+// the existing tryConfirmPendingAction picks it up.
+
+import { prisma } from '../db.js';
+import {
+  addScheduledEvent,
+  addTask,
+  completeTaskByMatch,
+  listTodayEvents,
+  listOpenTasks,
+} from './whatsappCalendar.js';
+
+const GEMINI_BASE = 'https://generativelanguage.googleapis.com/v1beta';
+const MODEL = process.env.GEMINI_AGENT_MODEL || 'gemini-2.5-flash';
+
+const TZ = 'Asia/Jerusalem';
+function ymd(d: Date = new Date()): string { return d.toLocaleDateString('en-CA', { timeZone: TZ }); }
+function israelDayName(ymdStr: string): string {
+  const NAMES = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'];
+  try { return NAMES[new Date(`${ymdStr}T12:00:00.000Z`).getDay()]; } catch { return ''; }
+}
+
+// ─── Conversation memory ───────────────────────────────────────────────────
+
+const HISTORY_WINDOW = 10; // keep last N user+assistant turns
+const HISTORY_MAX_AGE_MIN = 30; // forget older
+
+type Turn = { role: 'user' | 'model'; text: string; ts: number };
+
+async function loadHistory(phone: string): Promise<Turn[]> {
+  const cutoff = new Date(Date.now() - HISTORY_MAX_AGE_MIN * 60 * 1000);
+  const rows: any[] = await (prisma as any).whatsAppMessage.findMany({
+    where: { contact_phone: phone, created_at: { gte: cutoff } },
+    orderBy: { id: 'desc' },
+    take: HISTORY_WINDOW * 2,
+  }).catch(() => []);
+  const turns: Turn[] = [];
+  for (const r of rows) {
+    if (!r.body || String(r.body).startsWith('🎙️')) continue; // skip transcription echoes
+    turns.push({
+      role: r.direction === 'inbound' ? 'user' : 'model',
+      text: String(r.body).slice(0, 800),
+      ts: r.created_at ? new Date(r.created_at).getTime() : Date.now(),
+    });
+  }
+  return turns.reverse().slice(-HISTORY_WINDOW);
+}
+
+// ─── Tool definitions for Gemini function-calling ──────────────────────────
+
+const TOOL_DECLARATIONS = [
+  {
+    name: 'list_today_schedule',
+    description: 'Returns who is assigned to today\'s shifts at the restaurant (lunch + dinner, grouped by position).',
+    parameters: { type: 'OBJECT', properties: { date: { type: 'STRING', description: 'Optional YYYY-MM-DD; defaults to today' } } },
+  },
+  {
+    name: 'list_today_events',
+    description: 'Returns the user\'s personal calendar events for today (or a given date).',
+    parameters: { type: 'OBJECT', properties: { date: { type: 'STRING', description: 'Optional YYYY-MM-DD; defaults to today' } } },
+  },
+  {
+    name: 'list_open_tasks',
+    description: 'Returns the user\'s open personal tasks (todo list).',
+    parameters: { type: 'OBJECT', properties: {} },
+  },
+  {
+    name: 'list_open_leads',
+    description: 'Returns event leads awaiting manager action (pending / contacted / quoted).',
+    parameters: { type: 'OBJECT', properties: {} },
+  },
+  {
+    name: 'get_recent_tips',
+    description: 'Returns the most recent tip report summary (last 7 days).',
+    parameters: { type: 'OBJECT', properties: { days: { type: 'INTEGER' } } },
+  },
+  {
+    name: 'get_unpaid_invoices',
+    description: 'Returns unpaid invoices (count + total + 5 most recent).',
+    parameters: { type: 'OBJECT', properties: {} },
+  },
+  {
+    name: 'search_employee',
+    description: 'Fuzzy search for an active employee by name. Returns matches with positions.',
+    parameters: { type: 'OBJECT', properties: { name: { type: 'STRING' } }, required: ['name'] },
+  },
+  {
+    name: 'search_lead',
+    description: 'Fuzzy search for an event lead by customer name or phone.',
+    parameters: { type: 'OBJECT', properties: { query: { type: 'STRING' } }, required: ['query'] },
+  },
+  {
+    name: 'search_invoice',
+    description: 'Look up an invoice by number or supplier name fragment.',
+    parameters: { type: 'OBJECT', properties: { query: { type: 'STRING' } }, required: ['query'] },
+  },
+  {
+    name: 'propose_event_add',
+    description: 'Propose adding a personal calendar event. The user must reply "כן" to confirm. Time format: "מחר 14:00" / "ראשון 09:30" / ISO.',
+    parameters: {
+      type: 'OBJECT',
+      properties: {
+        title: { type: 'STRING' },
+        when: { type: 'STRING' },
+        lead_min: { type: 'INTEGER', description: 'Minutes before to remind. Default 15.' },
+      },
+      required: ['title', 'when'],
+    },
+  },
+  {
+    name: 'propose_task_add',
+    description: 'Propose adding a task to the user\'s todo list. Confirms before saving.',
+    parameters: { type: 'OBJECT', properties: { title: { type: 'STRING' } }, required: ['title'] },
+  },
+  {
+    name: 'propose_task_done',
+    description: 'Propose marking a task as complete. Match by title substring.',
+    parameters: { type: 'OBJECT', properties: { match: { type: 'STRING' } }, required: ['match'] },
+  },
+  {
+    name: 'propose_lead_set_stage',
+    description: 'Propose changing the stage of an event lead. Stages: pending/contacted/quoted/won/lost.',
+    parameters: {
+      type: 'OBJECT',
+      properties: {
+        lead_query: { type: 'STRING', description: 'Customer name or phone' },
+        stage: { type: 'STRING', enum: ['pending', 'contacted', 'quoted', 'won', 'lost'] },
+      },
+      required: ['lead_query', 'stage'],
+    },
+  },
+  {
+    name: 'propose_invoice_mark_paid',
+    description: 'Propose marking a specific invoice as paid (by invoice_number).',
+    parameters: { type: 'OBJECT', properties: { invoice_number: { type: 'STRING' } }, required: ['invoice_number'] },
+  },
+  {
+    name: 'propose_shift_assign',
+    description: 'Propose assigning a worker to a shift. Times default to 12-17 (lunch) or 17-23 (dinner).',
+    parameters: {
+      type: 'OBJECT',
+      properties: {
+        employee_name: { type: 'STRING' },
+        date: { type: 'STRING', description: 'YYYY-MM-DD or "מחר" or day name like "רביעי"' },
+        shift_type: { type: 'STRING', enum: ['lunch', 'dinner'] },
+        position: { type: 'STRING', description: 'Optional, will pick a default from the worker\'s positions' },
+      },
+      required: ['employee_name', 'date', 'shift_type'],
+    },
+  },
+  {
+    name: 'propose_remind_me',
+    description: 'Schedule a reminder to be sent back to the user.',
+    parameters: {
+      type: 'OBJECT',
+      properties: {
+        when: { type: 'STRING', description: '"בעוד שעה" / "מחר 14:00" / ISO' },
+        text: { type: 'STRING' },
+      },
+      required: ['when', 'text'],
+    },
+  },
+];
+
+// ─── Tool implementations ──────────────────────────────────────────────────
+
+async function tool_list_today_schedule(args: any, _phone: string): Promise<any> {
+  const targetYMD = args?.date || ymd();
+  const all: any[] = await (prisma as any).workShift.findMany({ orderBy: { date: 'desc' }, take: 2000 });
+  const shifts = all.filter((s) => {
+    const d = s.date instanceof Date ? s.date.toISOString().slice(0, 10) : String(s.date).slice(0, 10);
+    return d === targetYMD;
+  });
+  const out: any = { date: targetYMD, day_name: israelDayName(targetYMD), lunch: [], dinner: [] };
+  for (const t of ['lunch', 'dinner']) {
+    const matching = shifts.filter((s: any) => s.shift_type === t);
+    const staff = matching.flatMap((s: any) => s.assigned_staff || []);
+    out[t] = staff.map((a: any) => ({ name: a.employee_name, position: a.position, time: `${a.start_time}-${a.end_time}` }));
+  }
+  return out;
+}
+
+async function tool_list_today_events(args: any, phone: string): Promise<any> {
+  const targetYMD = args?.date || ymd();
+  // Re-using listTodayEvents which is today-only; reach DB directly for other dates.
+  if (targetYMD === ymd()) {
+    const events = await listTodayEvents(phone);
+    return { date: targetYMD, events: events.map(e => ({ time: e.when.toLocaleString('he-IL', { timeZone: TZ, hour: '2-digit', minute: '2-digit' }), title: e.title })) };
+  }
+  const rows: any[] = await (prisma as any).whatsAppMessage.findMany({
+    where: { status: 'scheduled_event', contact_phone: phone, is_read: false },
+    take: 200,
+  }).catch(() => []);
+  const events = rows
+    .map((r: any) => ({ at: new Date((r.raw as any)?.event_at || 0), title: (r.raw as any)?.title || r.body }))
+    .filter((e: any) => e.at.toLocaleDateString('en-CA', { timeZone: TZ }) === targetYMD)
+    .sort((a: any, b: any) => a.at.getTime() - b.at.getTime());
+  return { date: targetYMD, events: events.map((e: any) => ({ time: e.at.toLocaleString('he-IL', { timeZone: TZ, hour: '2-digit', minute: '2-digit' }), title: e.title })) };
+}
+
+async function tool_list_open_tasks(_args: any, phone: string): Promise<any> {
+  const tasks = await listOpenTasks(phone);
+  return { count: tasks.length, tasks: tasks.slice(0, 20).map(t => ({ id: t.id.slice(-6), title: t.title })) };
+}
+
+async function tool_list_open_leads(_args: any, _phone: string): Promise<any> {
+  const leads: any[] = await (prisma as any).eventLead.findMany({
+    where: { status: { in: ['pending', 'contacted', 'quoted'] } },
+    orderBy: { id: 'desc' }, take: 20,
+  });
+  return { count: leads.length, leads: leads.map(l => ({
+    name: l.contact_name, phone: l.contact_phone, status: l.status,
+    event_date: l.event_date, guest_count: l.guest_count, event_type: l.event_type,
+  })) };
+}
+
+async function tool_get_recent_tips(args: any, _phone: string): Promise<any> {
+  const days = Math.max(1, Math.min(30, Number(args?.days) || 7));
+  const since = new Date(Date.now() - days * 86_400_000);
+  const reports: any[] = await (prisma as any).tipReport.findMany({ orderBy: { date: 'desc' }, take: 50 });
+  const inRange = reports.filter((r: any) => new Date(r.date).getTime() >= since.getTime());
+  const total = inRange.reduce((s: number, r: any) => s + Number(r.total_tips_collected || 0), 0);
+  const avg = inRange.length ? total / inRange.length : 0;
+  const latest = inRange[0] || null;
+  return { days, shift_count: inRange.length, total: Math.round(total), avg_per_shift: Math.round(avg),
+    latest: latest ? { date: String(latest.date).slice(0, 10), shift: latest.shift_type, total: latest.total_tips_collected, per_hour: latest.tip_per_hour, status: latest.status } : null };
+}
+
+async function tool_get_unpaid_invoices(_args: any, _phone: string): Promise<any> {
+  const inv: any[] = await (prisma as any).invoice.findMany({ where: { payment_status: 'unpaid' }, orderBy: { invoice_date: 'desc' }, take: 200 });
+  const total = inv.reduce((s, i) => s + Number(i.total_amount || 0), 0);
+  const recent = inv.slice(0, 5);
+  // Hydrate supplier names for the 5 most recent
+  const sups: Record<string, string> = {};
+  if (recent.length) {
+    const supIds = [...new Set(recent.map((i: any) => i.supplier_id).filter(Boolean))];
+    const ss: any[] = await (prisma as any).supplier.findMany({ where: { id: { in: supIds } } }).catch(() => []);
+    for (const s of ss) sups[s.id] = s.company_name;
+  }
+  return { count: inv.length, total: Math.round(total), recent: recent.map((i: any) => ({
+    invoice_number: i.invoice_number, supplier: sups[i.supplier_id] || '?', amount: i.total_amount, date: String(i.invoice_date).slice(0, 10),
+  })) };
+}
+
+async function tool_search_employee(args: any, _phone: string): Promise<any> {
+  const name = String(args?.name || '').toLowerCase().trim();
+  if (!name) return { matches: [] };
+  const emps: any[] = await (prisma as any).employee.findMany({ where: { status: 'active' }, take: 500 });
+  const matches = emps.filter((e: any) => String(e.full_name || '').toLowerCase().includes(name));
+  return { matches: matches.slice(0, 8).map((e: any) => ({
+    id: e.id, name: e.full_name, phone: e.phone,
+    positions: (e.positions || []).map((p: any) => p?.position_name || p).filter(Boolean),
+  })) };
+}
+
+async function tool_search_lead(args: any, _phone: string): Promise<any> {
+  const q = String(args?.query || '').toLowerCase().trim();
+  if (!q) return { matches: [] };
+  const leads: any[] = await (prisma as any).eventLead.findMany({ orderBy: { id: 'desc' }, take: 200 });
+  const matches = leads.filter((l: any) =>
+    String(l.contact_name || '').toLowerCase().includes(q) ||
+    String(l.contact_phone || '').includes(q.replace(/\D/g, '')),
+  );
+  return { matches: matches.slice(0, 8).map((l: any) => ({
+    id: l.id, name: l.contact_name, phone: l.contact_phone, status: l.status,
+    event_date: l.event_date, guests: l.guest_count, type: l.event_type,
+  })) };
+}
+
+async function tool_search_invoice(args: any, _phone: string): Promise<any> {
+  const q = String(args?.query || '').toLowerCase().trim();
+  if (!q) return { matches: [] };
+  const inv: any[] = await (prisma as any).invoice.findMany({ orderBy: { invoice_date: 'desc' }, take: 500 });
+  // Match by invoice_number prefix OR by supplier company_name fragment
+  const sups: any[] = await (prisma as any).supplier.findMany({ take: 500 });
+  const matchingSupIds = new Set(sups.filter((s: any) => String(s.company_name || '').toLowerCase().includes(q)).map((s: any) => s.id));
+  const matches = inv.filter((i: any) =>
+    String(i.invoice_number || '').toLowerCase().includes(q) ||
+    matchingSupIds.has(i.supplier_id),
+  );
+  return { matches: matches.slice(0, 10).map((i: any) => ({
+    invoice_number: i.invoice_number, supplier: sups.find((s: any) => s.id === i.supplier_id)?.company_name || '?',
+    amount: i.total_amount, date: String(i.invoice_date).slice(0, 10), payment_status: i.payment_status,
+  })) };
+}
+
+// Write-tools all delegate to the EXISTING proposal infrastructure (stash a
+// pending_action row, the user confirms with 'כן'/'לא'). We import lazily
+// to avoid a circular dep with whatsappActions.ts.
+async function tool_propose_event_add(args: any, phone: string): Promise<any> {
+  const when = new Date();
+  const { addScheduledEvent: _add } = await import('./whatsappCalendar.js');
+  // Just stash via the same row pattern as whatsappActions
+  const exec = { type: 'event_add', title: args.title, when: tryParseTimestamp(args.when), lead_min: args.lead_min || 15, target_phone: phone };
+  if (!exec.when) return { error: `couldn't parse time '${args.when}'` };
+  await stashPendingAction(phone, exec);
+  const whenHe = new Date(exec.when).toLocaleString('he-IL', { timeZone: TZ, dateStyle: 'short', timeStyle: 'short' });
+  return { proposal: `🗓 ${args.title} · ${whenHe} · תזכורת ${exec.lead_min} דק' לפני`, awaiting_confirmation: true };
+}
+
+async function tool_propose_task_add(args: any, phone: string): Promise<any> {
+  await stashPendingAction(phone, { type: 'task_add', title: args.title, target_phone: phone });
+  return { proposal: `📌 ${args.title}`, awaiting_confirmation: true };
+}
+
+async function tool_propose_task_done(args: any, phone: string): Promise<any> {
+  await stashPendingAction(phone, { type: 'task_done', search: args.match, target_phone: phone });
+  return { proposal: `✔️ סימון משימה "${args.match}" כבוצעה`, awaiting_confirmation: true };
+}
+
+async function tool_propose_lead_set_stage(args: any, phone: string): Promise<any> {
+  const leads: any[] = await (prisma as any).eventLead.findMany({ where: { status: { in: ['pending', 'contacted', 'quoted'] } }, take: 100 });
+  const q = String(args.lead_query).toLowerCase();
+  const matches = leads.filter((l: any) =>
+    String(l.contact_name || '').toLowerCase().includes(q) ||
+    String(l.contact_phone || '').includes(q.replace(/\D/g, '')),
+  );
+  if (!matches.length) return { error: `no matching lead for "${args.lead_query}"` };
+  if (matches.length > 1) return { ambiguous: true, candidates: matches.map((l: any) => ({ name: l.contact_name, phone: l.contact_phone })) };
+  const lead = matches[0];
+  await stashPendingAction(phone, { type: 'lead_set_stage', lead_id: lead.id, stage: args.stage, lead_name: lead.contact_name, target_phone: phone });
+  return { proposal: `🎯 ${lead.contact_name} → ${args.stage}`, awaiting_confirmation: true };
+}
+
+async function tool_propose_invoice_mark_paid(args: any, phone: string): Promise<any> {
+  const inv: any = await (prisma as any).invoice.findFirst({ where: { invoice_number: args.invoice_number } });
+  if (!inv) return { error: `no invoice with number ${args.invoice_number}` };
+  if (inv.payment_status === 'paid') return { error: `invoice ${args.invoice_number} already paid` };
+  await stashPendingAction(phone, { type: 'invoice_mark_paid', invoice_id: inv.id, invoice_number: args.invoice_number, target_phone: phone });
+  return { proposal: `💳 חשבונית ${args.invoice_number} (${inv.total_amount}₪) → שולמה`, awaiting_confirmation: true };
+}
+
+async function tool_propose_shift_assign(args: any, phone: string): Promise<any> {
+  // Resolve employee fuzzy
+  const emps: any[] = await (prisma as any).employee.findMany({ where: { status: 'active' }, take: 500 });
+  const q = String(args.employee_name).toLowerCase();
+  const matches = emps.filter((e: any) => String(e.full_name || '').toLowerCase().includes(q));
+  if (!matches.length) return { error: `no employee matching "${args.employee_name}"` };
+  if (matches.length > 1) return { ambiguous: true, candidates: matches.map((e: any) => e.full_name) };
+  const emp = matches[0];
+  // Resolve date
+  const dateStr = resolveDate(args.date);
+  if (!dateStr) return { error: `couldn't parse date "${args.date}"` };
+  const times = args.shift_type === 'lunch' ? { start: '12:00', end: '17:00' } : { start: '17:00', end: '23:00' };
+  await stashPendingAction(phone, {
+    type: 'shift_assign',
+    employee_id: emp.id, employee_name: emp.full_name,
+    date: dateStr, shift_type: args.shift_type,
+    position: args.position || ((emp.positions || [])[0]?.position_name) || 'מלצר',
+    start_time: times.start, end_time: times.end,
+    target_phone: phone,
+  });
+  return { proposal: `📅 ${emp.full_name} · ${dateStr} · ${args.shift_type === 'lunch' ? 'צהריים' : 'ערב'}`, awaiting_confirmation: true };
+}
+
+async function tool_propose_remind_me(args: any, phone: string): Promise<any> {
+  const at = tryParseTimestamp(args.when);
+  if (!at) return { error: `couldn't parse time "${args.when}"` };
+  await stashPendingAction(phone, { type: 'remind_me', deliver_at: at, remind_text: args.text, target_phone: phone });
+  const whenHe = new Date(at).toLocaleString('he-IL', { timeZone: TZ, dateStyle: 'short', timeStyle: 'short' });
+  return { proposal: `⏰ ${whenHe} · ${args.text}`, awaiting_confirmation: true };
+}
+
+// ─── Helpers ─────────────────────────────────────────────────────────────
+
+function tryParseTimestamp(raw: string): string | null {
+  if (!raw) return null;
+  const s = String(raw).trim().toLowerCase();
+  const now = new Date();
+  const tzNow = new Date(now.toLocaleString('en-US', { timeZone: TZ }));
+  const tomorrow = new Date(tzNow); tomorrow.setDate(tomorrow.getDate() + 1);
+  // ISO
+  const iso = s.match(/^\d{4}-\d{2}-\d{2}[t\s]\d{1,2}:\d{2}/i);
+  if (iso) { const d = new Date(iso[0].replace(' ', 'T') + ':00'); if (!isNaN(d.getTime())) return d.toISOString(); }
+  // "בעוד N דקות/שעות" or "in N min/hr"
+  const relHe = s.match(/בעוד\s*(\d+)?\s*(שניות|דקות|דק|דקה|שעות|שעה|ימים|יום)/);
+  const relEn = s.match(/in\s+(\d+|a|an|one|two|three|four|five|six|seven|eight|nine|ten)\s*(seconds?|secs?|minutes?|mins?|hours?|hrs?|days?)/);
+  if (relHe || relEn) {
+    const wordToNum: Record<string, number> = { a: 1, an: 1, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10 };
+    const m = (relHe || relEn)!;
+    const nRaw = m[1] || '1';
+    const n = /^\d+$/.test(nRaw) ? parseInt(nRaw) : (wordToNum[nRaw] || 1);
+    const u = m[2];
+    let ms = 60_000;
+    if (/שעה|שעות|hour/i.test(u)) ms = 3600_000;
+    else if (/יום|ימים|day/i.test(u)) ms = 86_400_000;
+    else if (/שני|sec/i.test(u)) ms = 1000;
+    return new Date(Date.now() + n * ms).toISOString();
+  }
+  // HH:MM with optional date keyword
+  const hhmm = s.match(/(\d{1,2}):(\d{2})/);
+  if (hhmm) {
+    const h = parseInt(hhmm[1]); const m = parseInt(hhmm[2]);
+    let base = new Date(tzNow);
+    if (/מחר|tomorrow/.test(s)) base = tomorrow;
+    else if (/מחרתיים/.test(s)) { base = new Date(tomorrow); base.setDate(base.getDate() + 1); }
+    else {
+      const HE: Record<string, number> = { 'ראשון': 0, 'שני': 1, 'שלישי': 2, 'רביעי': 3, 'חמישי': 4, 'שישי': 5, 'שבת': 6 };
+      for (const [name, dow] of Object.entries(HE)) {
+        if (s.includes(name)) {
+          const delta = ((dow - tzNow.getDay() + 7) % 7) || 7;
+          base = new Date(tzNow); base.setDate(base.getDate() + delta);
+          break;
+        }
+      }
+    }
+    base.setHours(h, m, 0, 0);
+    if (base.getTime() < Date.now() + 60_000 && !/מחר|tomorrow|מחרתיים|ראשון|שני|שלישי|רביעי|חמישי|שישי|שבת/.test(s)) base.setDate(base.getDate() + 1);
+    return base.toISOString();
+  }
+  return null;
+}
+
+function resolveDate(raw: string): string | null {
+  const s = String(raw || '').trim().toLowerCase().replace(/^(יום\s+|ב[-־]?)/, '');
+  const tzNow = new Date(new Date().toLocaleString('en-US', { timeZone: TZ }));
+  if (/^(היום|today)$/.test(s)) return tzNow.toLocaleDateString('en-CA', { timeZone: TZ });
+  if (/^(מחר|tomorrow)$/.test(s)) { const t = new Date(tzNow); t.setDate(t.getDate() + 1); return t.toLocaleDateString('en-CA', { timeZone: TZ }); }
+  if (/^(מחרתיים)$/.test(s)) { const t = new Date(tzNow); t.setDate(t.getDate() + 2); return t.toLocaleDateString('en-CA', { timeZone: TZ }); }
+  const HE: Record<string, number> = { 'ראשון': 0, 'שני': 1, 'שלישי': 2, 'רביעי': 3, 'חמישי': 4, 'שישי': 5, 'שבת': 6 };
+  if (HE[s] !== undefined) {
+    const delta = ((HE[s] - tzNow.getDay() + 7) % 7) || 7;
+    const t = new Date(tzNow); t.setDate(t.getDate() + delta);
+    return t.toLocaleDateString('en-CA', { timeZone: TZ });
+  }
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  const dm = s.match(/^(\d{1,2})[\/.\-](\d{1,2})(?:[\/.\-](\d{2,4}))?$/);
+  if (dm) {
+    const d = parseInt(dm[1]), m = parseInt(dm[2]);
+    let y = dm[3] ? parseInt(dm[3]) : tzNow.getFullYear();
+    if (y < 100) y += 2000;
+    return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+  }
+  return null;
+}
+
+async function stashPendingAction(phone: string, exec: any): Promise<void> {
+  await (prisma as any).whatsAppMessage.create({
+    data: {
+      twilio_sid: null, direction: 'outbound',
+      from_phone: process.env.TWILIO_WHATSAPP_FROM || 'whatsapp:+system',
+      to_phone: phone, contact_phone: phone,
+      body: `[pending] ${exec.type}`,
+      num_media: 0,
+      status: 'pending_action_confirmation',
+      raw: { pending_action: exec } as any,
+      is_read: false,
+    },
+  }).catch(() => {});
+}
+
+const TOOL_HANDLERS: Record<string, (args: any, phone: string) => Promise<any>> = {
+  list_today_schedule: tool_list_today_schedule,
+  list_today_events: tool_list_today_events,
+  list_open_tasks: tool_list_open_tasks,
+  list_open_leads: tool_list_open_leads,
+  get_recent_tips: tool_get_recent_tips,
+  get_unpaid_invoices: tool_get_unpaid_invoices,
+  search_employee: tool_search_employee,
+  search_lead: tool_search_lead,
+  search_invoice: tool_search_invoice,
+  propose_event_add: tool_propose_event_add,
+  propose_task_add: tool_propose_task_add,
+  propose_task_done: tool_propose_task_done,
+  propose_lead_set_stage: tool_propose_lead_set_stage,
+  propose_invoice_mark_paid: tool_propose_invoice_mark_paid,
+  propose_shift_assign: tool_propose_shift_assign,
+  propose_remind_me: tool_propose_remind_me,
+};
+
+// ─── Agent loop ────────────────────────────────────────────────────────────
+
+const SYSTEM_PROMPT = `אתה העוזר האישי של בעל מסעדת "עלינא" (דביר) ב-WhatsApp.
+ענה בעברית טבעית, קצרה, ידידותית. אתה מנהל את המסעדה והלוז האישי שלו.
+
+עקרונות:
+1. *אל תאמר "לא הבנתי"*. אם הבקשה לא ברורה — שאל שאלת המשך ספציפית או הצע אופציות מבוססות-נתונים שכבר משכת מה-DB.
+2. השתמש בכלים שלך אקטיבית: לפני שאתה שואל "מי?" — חפש קודם (search_employee/lead/invoice).
+3. כאשר מבקשים פעולת כתיבה (להוסיף, לסמן, לשבץ, לאשר) — קרא ל-propose_* המתאים. המערכת תבקש אישור מהמשתמש; אתה לא צריך לבקש בעצמך.
+4. אם המשתמש שאל שאלת קריאה ("מי משובץ הערב?", "כמה טיפים אתמול?") — השתמש בכלי הקריאה ותענה ישירות.
+5. שמור על המשכיות שיחה: אם בהודעה הקודמת שאלת "מתי?" וכעת המשתמש כותב "מחר 14:00" — זה תשובה לשאלה שלך.
+6. אל תמציא מספרים. אם אינך יודע ערך — חפש אותו או שאל.
+7. שעות מדויקות: "16:00" זה 16:00. לא 19:00. לא 61:00.
+8. תאריכים יחסיים בעברית: "מחר", "ראשון", "רביעי הבא" — תעביר אותם ככל ש-tools יודעים לפענח.
+9. אם הבקשה חורגת מהכלים — תאמר את זה בכנות במקום להמציא תשובה.
+
+היום: ${ymd()} (${israelDayName(ymd())}).`;
+
+export async function runConversationAgent(phone: string, userMessage: string): Promise<string> {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) return '⚠️ עוזר ה-AI לא מוגדר (GEMINI_API_KEY חסר).';
+  const history = await loadHistory(phone);
+
+  // Build contents array
+  const contents: any[] = [];
+  for (const t of history) {
+    contents.push({ role: t.role, parts: [{ text: t.text }] });
+  }
+  contents.push({ role: 'user', parts: [{ text: userMessage }] });
+
+  const body = {
+    systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
+    contents,
+    tools: [{ functionDeclarations: TOOL_DECLARATIONS }],
+    generationConfig: { maxOutputTokens: 4000, temperature: 0.3 },
+  };
+
+  // Up to 5 tool-loop iterations
+  for (let iter = 0; iter < 5; iter++) {
+    const res = await fetch(`${GEMINI_BASE}/models/${MODEL}:generateContent?key=${apiKey}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) {
+      const errText = await res.text().catch(() => '');
+      console.warn('[conversation] gemini error', res.status, errText.slice(0, 200));
+      return `⚠️ שגיאה ב-LLM (${res.status}). נסה שוב.`;
+    }
+    const data: any = await res.json();
+    const cand = data?.candidates?.[0];
+    const parts: any[] = cand?.content?.parts || [];
+
+    // Look for function calls
+    const fnCalls = parts.filter(p => p.functionCall);
+    if (fnCalls.length) {
+      // Execute all in parallel, then append responses
+      const fnResponses = await Promise.all(fnCalls.map(async (p: any) => {
+        const name = p.functionCall.name;
+        const args = p.functionCall.args || {};
+        const handler = TOOL_HANDLERS[name];
+        let response: any;
+        try {
+          response = handler ? await handler(args, phone) : { error: `unknown tool ${name}` };
+        } catch (e: any) {
+          response = { error: e?.message || String(e) };
+        }
+        console.log('[conversation] tool', name, '→', JSON.stringify(response).slice(0, 200));
+        return { functionResponse: { name, response: { result: response } } };
+      }));
+      // Append model's call turn + our tool responses, then loop
+      contents.push({ role: 'model', parts: fnCalls });
+      contents.push({ role: 'user', parts: fnResponses });
+      // re-call with updated contents
+      body.contents = contents;
+      continue;
+    }
+
+    // Plain text reply
+    const text = parts.map(p => p.text || '').join('').trim();
+    if (text) return text;
+    return '🤔 לא בטוח איך לעזור עם זה. תוכל להרחיב?';
+  }
+  return '🤔 התקבלו יותר מדי קריאות לכלים. נסה שוב עם בקשה פשוטה יותר.';
+}

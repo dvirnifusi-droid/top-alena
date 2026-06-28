@@ -13,6 +13,7 @@ import { prisma } from '../db.js';
 import { buildTodayOverview, listOpenTasks } from './whatsappCalendar.js';
 import { buildConsentUrl, isGoogleConnected } from './googleSync.js';
 import { buildMorningBrief, buildEndOfDayBrief } from './morningBrief.js';
+import { buildPersonalReport } from './personalReport.js';
 
 // Strip 'whatsapp:+972...' / '+972...' / '0532...' down to a digit-only
 // canonical form so we can match against the env allowlist regardless of

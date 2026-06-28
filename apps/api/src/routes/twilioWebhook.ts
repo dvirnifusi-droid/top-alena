@@ -15,6 +15,7 @@ import { tryHandleAdminCommand, isWhatsAppAdmin } from '../lib/whatsappAgent.js'
 import { handleAdminInvoiceMedia, tryConfirmPendingInvoice } from '../lib/whatsappInvoice.js';
 import { tryProposeAction, tryConfirmPendingAction } from '../lib/whatsappActions.js';
 import { transcribeWhatsAppVoice } from '../lib/whatsappVoice.js';
+import { runConversationAgent } from '../lib/whatsappConversation.js';
 import { sendWhatsApp } from '../lib/twilio.js';
 
 const STRICT_SIG = false;
@@ -235,8 +236,12 @@ export const twilioWebhookRoutes: FastifyPluginAsync = async (app) => {
                 await sendWhatsApp(from, proposal);
                 req.log.info({ from }, '[whatsapp-agent] action proposal sent');
               } else {
-                // Truly unmatched — send the help fallback.
-                await sendWhatsApp(from, '🤔 לא הבנתי. שלח/י *עזרה* לרשימת פקודות, או תאר/י את הפעולה ("סמן 503081 שולמה", "ליד דביר התקשרתי", וכו).');
+                // No deterministic intent matched → conversational agent with tools.
+                // Maintains chat history, calls read/write tools as needed, never
+                // returns 'didn't understand'.
+                req.log.info({ from }, '[whatsapp-agent] falling through to conversation agent');
+                const reply = await runConversationAgent(from, body);
+                await sendWhatsApp(from, reply || '🤔 לא בטוח איך לעזור — תוכל להרחיב?');
               }
             } catch (e: any) {
               req.log.error({ err: e?.message }, '[whatsapp-agent] action flow crashed');
