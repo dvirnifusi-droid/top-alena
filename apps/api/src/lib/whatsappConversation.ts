@@ -454,7 +454,20 @@ async function tool_modify_pending_proposal(args: any, phone: string): Promise<a
   const exec = { ...(pending.raw as any).pending_action };
   // Apply provided patches per exec type
   if (args.when !== undefined) {
-    const iso = tryParseTimestamp(args.when);
+    // Time-only correction (e.g. 'לא, 15:00') should preserve the
+    // original date — don't reset to today.
+    const newWhenStr = String(args.when).trim().toLowerCase();
+    const hasDateHint = /\b(\d{4}-\d{2}-\d{2}|\d{1,2}[\/.\-]\d{1,2}|מחר|היום|מחרתיים|tomorrow|today|ראשון|שני|שלישי|רביעי|חמישי|שישי|שבת|sunday|monday|tuesday|wednesday|thursday|friday|saturday|בעוד|in\s+\d)/i.test(newWhenStr);
+    const timeOnly = newWhenStr.match(/^(\d{1,2}):(\d{2})\b/);
+    let iso: string | null = null;
+    if (!hasDateHint && timeOnly && (exec.type === 'event_add' ? exec.when : exec.type === 'remind_me' ? exec.deliver_at : null)) {
+      const orig = new Date(exec.type === 'event_add' ? exec.when : exec.deliver_at);
+      const origYmd = orig.toLocaleDateString('en-CA', { timeZone: TZ });
+      const h = parseInt(timeOnly[1]); const m = parseInt(timeOnly[2]);
+      iso = dateAtIsraelLocal(origYmd, h, m).toISOString();
+    } else {
+      iso = tryParseTimestamp(args.when);
+    }
     if (!iso) return { error: `couldn't parse new time '${args.when}'` };
     if (exec.type === 'event_add') exec.when = iso;
     else if (exec.type === 'remind_me') exec.deliver_at = iso;
@@ -524,9 +537,23 @@ async function tool_update_scheduled_event(args: any, phone: string): Promise<an
   const ev = matches[0];
   const raw = { ...(ev.raw as any) };
   if (args.new_when) {
-    const iso = tryParseTimestamp(args.new_when);
-    if (!iso) return { error: `couldn't parse new time '${args.new_when}'` };
-    raw.event_at = iso;
+    // If the user gave only time (no date keyword), preserve the original
+    // event's date and only change the time. Avoids 'תשנה ל-18:00' jumping
+    // the date back to today instead of keeping the original date.
+    const newWhenStr = String(args.new_when).trim().toLowerCase();
+    const hasDateHint = /\b(\d{4}-\d{2}-\d{2}|\d{1,2}[\/.\-]\d{1,2}|מחר|היום|מחרתיים|tomorrow|today|ראשון|שני|שלישי|רביעי|חמישי|שישי|שבת|sunday|monday|tuesday|wednesday|thursday|friday|saturday|בעוד|in\s+\d)/i.test(newWhenStr);
+    const timeOnly = newWhenStr.match(/^(\d{1,2}):(\d{2})\b/);
+    if (!hasDateHint && timeOnly) {
+      // Time-only update — keep original YMD, swap HH:MM
+      const h = parseInt(timeOnly[1]); const m = parseInt(timeOnly[2]);
+      const orig = new Date(raw.event_at);
+      const origYmd = orig.toLocaleDateString('en-CA', { timeZone: TZ });
+      raw.event_at = dateAtIsraelLocal(origYmd, h, m).toISOString();
+    } else {
+      const iso = tryParseTimestamp(args.new_when);
+      if (!iso) return { error: `couldn't parse new time '${args.new_when}'` };
+      raw.event_at = iso;
+    }
     raw.notified_lead = false;
     raw.notified_start = false;
   }
