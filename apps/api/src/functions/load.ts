@@ -7781,11 +7781,20 @@ export async function runNoShowWatcher() {
   const clockedIn = new Set(trackingRows.map((r) => r.employee_id));
 
   // Find which alerts already fired today (de-dupe key = empId|date|shiftType)
+  // We encode the key as a prefix `[no_show:KEY]` at the start of body since
+  // WhatsAppMessage doesn't have a notes column.
   const sentAlerts: any[] = await (prisma as any).whatsAppMessage.findMany({
-    where: { status: 'no_show_alert_sent', notes: { contains: `|${ilDate}|` } },
-    take: 200,
+    where: { status: 'no_show_alert_sent', body: { contains: `[no_show:` } },
+    take: 500,
   });
-  const sentKeys = new Set(sentAlerts.map((r) => r.notes?.split('---')[0] || ''));
+  const sentKeys = new Set(
+    sentAlerts
+      .map((r) => {
+        const m = String(r.body || '').match(/^\[no_show:([^\]]+)\]/);
+        return m ? m[1] : '';
+      })
+      .filter(Boolean)
+  );
 
   const adminNumbers = (process.env.WHATSAPP_ADMIN_NUMBERS || '').split(',').map((s) => s.trim()).filter(Boolean);
   if (!adminNumbers.length) return { ok: true, no_admins: true };
@@ -7811,9 +7820,10 @@ export async function runNoShowWatcher() {
     }
     await (prisma as any).whatsAppMessage.create({
       data: {
-        body: msg.slice(0, 1000), direction: 'outgoing', status: 'no_show_alert_sent',
+        body: `[no_show:${key}] ${msg.slice(0, 900)}`,
+        direction: 'outgoing', status: 'no_show_alert_sent',
+        from_phone: 'system', to_phone: adminNumbers[0],
         contact_phone: adminNumbers[0], is_read: true,
-        notes: `${key}---${new Date().toISOString()}`,
       },
     }).catch(() => {});
     noShows.push({ name: c.staff.employee_name || 'עובד', position: c.staff.position || '', lateBy, phone });
