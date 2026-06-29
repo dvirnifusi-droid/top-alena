@@ -7503,6 +7503,236 @@ registerFn('chatEventsInquiry', async ({ body }) => {
 // AUTH — admin pulls all event leads for the dashboard.
 // Order by id desc since cuid is time-sortable and many legacy rows have created_date=null
 // (which would sort first/last unpredictably and hide the newest leads).
+// =================== AGENT #1 — Weekly schedule builder ===================
+// Multi-step flow over Sun→Mon→Tue: open submissions, remind stragglers,
+// then on Tue 16:00 build a draft schedule with the LLM + insights, and
+// send the owner a WhatsApp with a link to approve/edit.
+
+// "Next week" = the Sun-Sat that starts on the NEXT Sunday from today (IL).
+function getNextWeekDates(): string[] {
+  const dayMap: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+  const ilDayName = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Jerusalem', weekday: 'short' }).format(new Date());
+  const ilDay = dayMap[ilDayName] ?? 0;
+  const daysUntilNextSunday = ilDay === 0 ? 7 : 7 - ilDay;
+  const out: string[] = [];
+  for (let i = 0; i < 7; i++) {
+    const d = new Date();
+    d.setUTCDate(d.getUTCDate() + daysUntilNextSunday + i);
+    out.push(d.toISOString().slice(0, 10));
+  }
+  return out;
+}
+
+async function getActiveEmployeesForScheduling(): Promise<any[]> {
+  const rows: any[] = await (prisma as any).$queryRaw`
+    SELECT id, full_name, phone, role, department, positions, status
+    FROM "Employee"
+    WHERE status = 'active' AND phone IS NOT NULL AND phone <> ''
+  `;
+  return rows;
+}
+
+async function getSubmittedEmployeeIdsForWeek(weekDates: string[]): Promise<Set<string>> {
+  if (weekDates.length === 0) return new Set();
+  const start = new Date(weekDates[0] + 'T00:00:00.000Z');
+  const end = new Date(weekDates[weekDates.length - 1] + 'T23:59:59.999Z');
+  const rows: any[] = await (prisma as any).$queryRaw`
+    SELECT DISTINCT employee_id FROM "EmployeeAvailability"
+    WHERE date >= ${start} AND date <= ${end}
+  `;
+  return new Set(rows.map((r) => r.employee_id).filter(Boolean));
+}
+
+const APP_BASE_URL = process.env.APP_BASE_URL || 'https://topalena.com';
+
+// Cron: Sun 10:00 IL. Sends every active employee a WhatsApp to fill the form.
+export async function runWeeklyScheduleOpen() {
+  const il = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Jerusalem', weekday: 'short', hour: '2-digit', minute: '2-digit', hour12: false })
+    .formatToParts(new Date()).reduce<Record<string, string>>((acc, p) => { if (p.type !== 'literal') acc[p.type] = p.value; return acc; }, {});
+  if (il.weekday !== 'Sun' || parseInt(il.hour, 10) !== 10) return { skipped: true, reason: 'wrong window', il };
+  const employees = await getActiveEmployeesForScheduling();
+  const weekDates = getNextWeekDates();
+  const formatHe = (ymd: string) => `${ymd.slice(8, 10)}.${ymd.slice(5, 7)}`;
+  const { sendWhatsApp } = await import('../lib/twilio.js');
+  const link = `${APP_BASE_URL}/AvailabilityForm`;
+  let sent = 0;
+  for (const emp of employees) {
+    const msg = `*היי ${emp.full_name}* 👋\n\nהסידור לשבוע הבא (${formatHe(weekDates[0])}-${formatHe(weekDates[6])}) נפתח להגשת זמינות.\n\nהיכנס/י לאפליקציה ומלא/י:\n${link}\n\nסגירה: יום שלישי 16:00.`;
+    try { await sendWhatsApp(emp.phone, msg); sent++; } catch (e: any) { console.warn('[weekly-open] failed', emp.phone, e?.message); }
+  }
+  return { ok: true, sent, total: employees.length };
+}
+
+// Cron: Mon 10:00 IL. Reminder to those who haven't submitted yet.
+export async function runWeeklyScheduleReminder() {
+  const il = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Jerusalem', weekday: 'short', hour: '2-digit', minute: '2-digit', hour12: false })
+    .formatToParts(new Date()).reduce<Record<string, string>>((acc, p) => { if (p.type !== 'literal') acc[p.type] = p.value; return acc; }, {});
+  if (il.weekday !== 'Mon' || parseInt(il.hour, 10) !== 10) return { skipped: true, reason: 'wrong window', il };
+  const weekDates = getNextWeekDates();
+  const submitted = await getSubmittedEmployeeIdsForWeek(weekDates);
+  const employees = await getActiveEmployeesForScheduling();
+  const missing = employees.filter((e) => !submitted.has(e.id));
+  const { sendWhatsApp } = await import('../lib/twilio.js');
+  const link = `${APP_BASE_URL}/AvailabilityForm`;
+  let sent = 0;
+  for (const emp of missing) {
+    const msg = `⏰ *תזכורת — ${emp.full_name}*\n\nעוד לא הגשת זמינות לשבוע הבא. סגירה מחר (שלישי) ב-16:00.\n\n${link}`;
+    try { await sendWhatsApp(emp.phone, msg); sent++; } catch (e: any) { console.warn('[weekly-rem1] failed', emp.phone, e?.message); }
+  }
+  return { ok: true, sent, missing_count: missing.length };
+}
+
+// Cron: Tue 14:00 IL. Last reminder, 2h before deadline.
+export async function runWeeklyScheduleFinalReminder() {
+  const il = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Jerusalem', weekday: 'short', hour: '2-digit', minute: '2-digit', hour12: false })
+    .formatToParts(new Date()).reduce<Record<string, string>>((acc, p) => { if (p.type !== 'literal') acc[p.type] = p.value; return acc; }, {});
+  if (il.weekday !== 'Tue' || parseInt(il.hour, 10) !== 14) return { skipped: true, reason: 'wrong window', il };
+  const weekDates = getNextWeekDates();
+  const submitted = await getSubmittedEmployeeIdsForWeek(weekDates);
+  const employees = await getActiveEmployeesForScheduling();
+  const missing = employees.filter((e) => !submitted.has(e.id));
+  const { sendWhatsApp } = await import('../lib/twilio.js');
+  const link = `${APP_BASE_URL}/AvailabilityForm`;
+  let sent = 0;
+  for (const emp of missing) {
+    const msg = `🚨 *תזכורת אחרונה — ${emp.full_name}*\n\nנשארו ~2 שעות לסגירה (16:00 היום). אם לא תגיש — לא נוכל לשבץ אותך השבוע.\n\n${link}`;
+    try { await sendWhatsApp(emp.phone, msg); sent++; } catch (e: any) { console.warn('[weekly-rem2] failed', emp.phone, e?.message); }
+  }
+  return { ok: true, sent, missing_count: missing.length };
+}
+
+// Cron: Tue 16:00 IL. Notify owner of missing; build draft schedule; send insights.
+export async function runWeeklyScheduleBuild() {
+  const il = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Jerusalem', weekday: 'short', hour: '2-digit', minute: '2-digit', hour12: false })
+    .formatToParts(new Date()).reduce<Record<string, string>>((acc, p) => { if (p.type !== 'literal') acc[p.type] = p.value; return acc; }, {});
+  if (il.weekday !== 'Tue' || parseInt(il.hour, 10) !== 16) return { skipped: true, reason: 'wrong window', il };
+
+  const weekDates = getNextWeekDates();
+  const start = new Date(weekDates[0] + 'T00:00:00.000Z');
+  const end = new Date(weekDates[weekDates.length - 1] + 'T23:59:59.999Z');
+
+  // Pull submissions
+  const submissions: any[] = await (prisma as any).$queryRaw`
+    SELECT employee_id, employee_name, date::text AS date_str, availability_type, shift_preference, positions
+    FROM "EmployeeAvailability"
+    WHERE date >= ${start} AND date <= ${end}
+  `;
+  const employees = await getActiveEmployeesForScheduling();
+  const submitted = new Set(submissions.map((r) => r.employee_id).filter(Boolean));
+  const missing = employees.filter((e) => !submitted.has(e.id));
+
+  // Recent-shifts count (last 4 weeks per employee) — informs target hours.
+  const fourWeeksAgo = new Date(Date.now() - 28 * 86400 * 1000);
+  const recent: any[] = await (prisma as any).$queryRaw`
+    SELECT date::text AS date_str, assigned_staff FROM "WorkShift" WHERE date >= ${fourWeeksAgo}
+  `;
+  const shiftCounts: Record<string, number> = {};
+  for (const ws of recent) {
+    const staff = Array.isArray(ws.assigned_staff) ? ws.assigned_staff : [];
+    for (const a of staff) {
+      if (a?.employee_id) shiftCounts[a.employee_id] = (shiftCounts[a.employee_id] || 0) + 1;
+    }
+  }
+
+  // Build LLM input
+  const empSummary = employees.map((e) => ({
+    id: e.id,
+    name: e.full_name,
+    submitted: submitted.has(e.id),
+    positions: (e.positions || []).map((p: any) => p?.position_name || p).filter(Boolean),
+    department: e.department || null,
+    avg_shifts_per_week: Math.round((shiftCounts[e.id] || 0) / 4),
+    availability: submissions
+      .filter((s) => s.employee_id === e.id)
+      .map((s) => ({ date: s.date_str.slice(0, 10), type: s.availability_type, shift: s.shift_preference })),
+  }));
+
+  const prompt = `אתה אחראי משמרות במסעדה. בנה טיוטת סידור עבודה לשבוע ${weekDates[0]} עד ${weekDates[6]}.
+
+חוקים:
+1. כל יום יש 2 משמרות: lunch (~10:00-17:00) ו-dinner (~17:00-01:00). שישי + שבת = רק dinner.
+2. כל משמרת צריכה לפחות: 2 מלצרים, 1 ברמן, 1 מארחת, 2 טבחים, 1 שטיפה.
+3. אל תשבץ עובד פעמיים באותו יום (lunch+dinner = OK רק אם הוא מילא both).
+4. עובד שמסומן 'unavailable' באותו יום — אל תשבץ. עובד שמסומן 'partial' — שבץ רק לפי shift_preference.
+5. נסה לפזר משמרות לפי avg_shifts_per_week של כל אחד (לא לתת יותר ממה שהוא רגיל).
+
+קלט (עובדים + זמינויות):
+${JSON.stringify(empSummary, null, 2)}
+
+החזר *רק JSON*:
+{
+  "assignments": [
+    { "date": "YYYY-MM-DD", "shift_type": "lunch|dinner", "employee_id": "...", "employee_name": "...", "position": "מלצר|ברמן|מארחת|טבח|שטיפה" }
+  ],
+  "insights": [
+    "טקסט תובנה (לדוגמה: 'חסר מלצר ברביעי בערב — רק 1 זמין, צריך 2', 'יותם עומס יתר — 8 משמרות במקום 5 הרגילות')"
+  ]
+}`;
+
+  const raw: any = await invokeLLM({
+    prompt,
+    responseSchema: {
+      type: 'object',
+      properties: {
+        assignments: { type: 'array', items: { type: 'object', properties: {
+          date: { type: 'string' }, shift_type: { type: 'string' },
+          employee_id: { type: 'string' }, employee_name: { type: 'string' },
+          position: { type: 'string' },
+        }, required: ['date', 'shift_type', 'employee_id', 'position'] } },
+        insights: { type: 'array', items: { type: 'string' } },
+      },
+      required: ['assignments', 'insights'],
+    },
+  });
+  const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
+  const assignments: any[] = parsed?.assignments || [];
+  const insights: string[] = parsed?.insights || [];
+
+  // Write the draft as WorkShift rows (won't conflict — these are NEW dates).
+  const byDayShift: Record<string, any[]> = {};
+  for (const a of assignments) {
+    const key = `${a.date}__${a.shift_type}`;
+    (byDayShift[key] = byDayShift[key] || []).push({
+      employee_id: a.employee_id, employee_name: a.employee_name, position: a.position,
+      start_time: a.shift_type === 'lunch' ? '10:00' : '17:00',
+      end_time: a.shift_type === 'lunch' ? '17:00' : '01:00',
+      status: 'scheduled', manual_entry: false,
+    });
+  }
+  let createdShifts = 0;
+  for (const key of Object.keys(byDayShift)) {
+    const [date, shift_type] = key.split('__');
+    await (prisma as any).workShift.create({
+      data: {
+        date: new Date(date + 'T00:00:00.000Z'),
+        shift_type,
+        start_time: shift_type === 'lunch' ? '10:00' : '17:00',
+        end_time: shift_type === 'lunch' ? '17:00' : '01:00',
+        assigned_staff: byDayShift[key],
+      },
+    });
+    createdShifts++;
+  }
+
+  // Notify owner via WhatsApp
+  const adminNumbers = (process.env.WHATSAPP_ADMIN_NUMBERS || '').split(',').map((s) => s.trim()).filter(Boolean);
+  if (adminNumbers.length) {
+    const { sendWhatsApp } = await import('../lib/twilio.js');
+    const missingNames = missing.map((m) => m.full_name).join(', ') || 'אף אחד';
+    const insightLines = insights.length ? insights.map((i) => `• ${i}`).join('\n') : '• הסידור מאוזן, לא נמצאו חוסרים';
+    const msg = `📋 *סידור שבוע ${weekDates[0].slice(8)}.${weekDates[0].slice(5, 7)}-${weekDates[6].slice(8)}.${weekDates[6].slice(5, 7)} מוכן*\n\n` +
+      `✅ ${createdShifts} משמרות נבנו (${assignments.length} שיבוצים)\n\n` +
+      `⚠️ *לא הגישו זמינות:* ${missingNames}\n\n` +
+      `💡 *תובנות:*\n${insightLines}\n\n` +
+      `🔗 לאישור / עריכה:\n${APP_BASE_URL}/WorkScheduling`;
+    for (const p of adminNumbers) {
+      try { await sendWhatsApp(p, msg); } catch (e: any) { console.warn('[weekly-build] notify failed', e?.message); }
+    }
+  }
+
+  return { ok: true, createdShifts, assignmentCount: assignments.length, insights, missing: missing.map((m) => m.full_name) };
+}
+
 // Scheduled-close agent. Runs every 5 min from cron. If the current Israel
 // time matches one of the owner-configured nightly close windows (Sun-Wed
 // nights → 00:45, Thu night → 03:00, Motzash → 02:00), it closes every
