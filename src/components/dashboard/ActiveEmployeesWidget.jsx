@@ -63,16 +63,10 @@ export default function ActiveEmployeesWidget() {
   }, []);
   const isAdmin = !!user && ['admin', 'owner', 'manager', 'shift_manager', 'tip_manager'].includes(user.role);
 
-  const closeShiftAt = async (shiftId, endIso, shiftStartIso) => {
+  const closeShiftAt = async (shiftId, endIso) => {
     setBusyShiftId(shiftId);
     try {
-      const endMs = new Date(endIso).getTime();
-      const startMs = new Date(shiftStartIso).getTime();
-      const totalHours = Math.max(0, (endMs - startMs) / 3600000);
-      await base44.functions.patchShiftRaw({
-        shift_id: shiftId,
-        fields: { status: 'completed', shift_end: endIso, total_hours: totalHours, effective_hours: totalHours },
-      });
+      await base44.functions.adminCloseEmployeeShift({ shift_id: shiftId, end_iso: endIso });
       setRows(prev => prev.filter(r => r.id !== shiftId));
     } catch (err) {
       alert('שגיאה בסגירת משמרת: ' + (err?.message || ''));
@@ -83,7 +77,7 @@ export default function ActiveEmployeesWidget() {
 
   const handleCloseNow = (row) => {
     if (!window.confirm(`לסגור משמרת של ${row.name} עכשיו?`)) return;
-    closeShiftAt(row.id, new Date().toISOString(), row.shiftStart);
+    closeShiftAt(row.id, new Date().toISOString());
   };
 
   const handleFixEndTime = (row) => {
@@ -101,8 +95,8 @@ export default function ActiveEmployeesWidget() {
     const end = new Date(start);
     end.setHours(h, mm, 0, 0);
     if (end < start) end.setDate(end.getDate() + 1);
-    if (!window.confirm(`לסגור משמרת של ${row.name} ב-${input}? (משך: ${formatDuration(end - start)})`)) return;
-    closeShiftAt(row.id, end.toISOString(), row.shiftStart);
+    if (!window.confirm(`לסגור משמרת של ${row.name} ב-${input}? (משך: ${formatDuration(end - start)})\n\nגם הסידור יתעדכן לשעת הסיום הזו.`)) return;
+    closeShiftAt(row.id, end.toISOString());
   };
 
   // Tick every minute so durations update live.

@@ -10252,6 +10252,58 @@ registerFn('patchShiftRaw', async ({ user, body }) => {
   return { shift: rows?.[0] || null };
 });
 
+// Admin-only — close a running shift AND sync the employee's row in
+// WorkShift.assigned_staff for that date so the סידור עבודה shows the
+// real end time, not the stale planned one. Avoids the manager having
+// to fix two places.
+registerFn('adminCloseEmployeeShift', async ({ user, body }) => {
+  if (!user?.id) throw new Error('unauthorized');
+  if (!isAdminRole((user as any)?.role)) throw new Error('admin only');
+  const { shift_id, end_iso } = (body || {}) as { shift_id?: string; end_iso?: string };
+  if (!shift_id || !end_iso) throw new Error('shift_id and end_iso required');
+  const endDate = new Date(end_iso);
+  if (Number.isNaN(endDate.getTime())) throw new Error('invalid end_iso');
+
+  const rows: any[] = await (prisma as any).$queryRaw`
+    SELECT id, employee_id, employee_name, shift_start, date::text AS date_str
+    FROM "ShiftTracking" WHERE id = ${shift_id} LIMIT 1
+  `;
+  const tracking = rows?.[0];
+  if (!tracking) throw new Error('shift_not_found');
+
+  const startMs = new Date(tracking.shift_start).getTime();
+  const endMs = endDate.getTime();
+  const totalHours = Math.max(0, (endMs - startMs) / 3600000);
+
+  await (prisma as any).$executeRaw`
+    UPDATE "ShiftTracking"
+    SET status = 'completed', shift_end = ${endDate},
+        total_hours = ${totalHours}, effective_hours = ${totalHours},
+        "updatedAt" = NOW()
+    WHERE id = ${shift_id}
+  `;
+
+  // Sync to WorkShift.assigned_staff for the same date+employee.
+  const dateStr = String(tracking.date_str || '').slice(0, 10);
+  const workShifts: any[] = await (prisma as any).workShift.findMany({
+    where: { date: { gte: new Date(dateStr + 'T00:00:00.000Z'), lt: new Date(dateStr + 'T23:59:59.999Z') } },
+    take: 50,
+  });
+  const endHHMM = `${String(endDate.getHours()).padStart(2, '0')}:${String(endDate.getMinutes()).padStart(2, '0')}`;
+  let synced = 0;
+  for (const ws of workShifts) {
+    const staff = Array.isArray(ws.assigned_staff) ? ws.assigned_staff : [];
+    const idx = staff.findIndex((a: any) => a?.employee_id === tracking.employee_id);
+    if (idx < 0) continue;
+    const next = [...staff];
+    next[idx] = { ...next[idx], end_time: endHHMM };
+    await (prisma as any).workShift.update({ where: { id: ws.id }, data: { assigned_staff: next } });
+    synced++;
+  }
+
+  return { ok: true, end_time: endHHMM, total_hours: totalHours, work_shifts_synced: synced };
+});
+
 // Authed — heartbeat from the active shift widget. Debounce: requires
 // (a) past warm-up window AND (b) previous reading was also over threshold
 // before auto-closing. Kills GPS jitter false positives.
