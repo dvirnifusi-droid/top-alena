@@ -1,5 +1,5 @@
 import type { FastifyPluginAsync } from 'fastify';
-import { sendRestroomReminder, sendAbandonedReminder, sendT24SurveyReminders, runAutoTrackerAnalysis, runSalesAutoClose, runWeeklyPersonalGoals, captureBeecommSnapshot, backfillBeecommHistory, reopenAutoClosedShifts, runScheduledShiftClose, runWeeklyScheduleOpen, runWeeklyScheduleReminder, runWeeklyScheduleFinalReminder, runWeeklyScheduleBuild } from '../functions/load.js';
+import { sendRestroomReminder, sendAbandonedReminder, sendT24SurveyReminders, runAutoTrackerAnalysis, runSalesAutoClose, runWeeklyPersonalGoals, captureBeecommSnapshot, backfillBeecommHistory, reopenAutoClosedShifts, runScheduledShiftClose, runWeeklyScheduleOpen, runWeeklyScheduleReminder, runWeeklyScheduleFinalReminder, runWeeklyScheduleBuild, runNoShowWatcher } from '../functions/load.js';
 import { sendMorningBrief, buildMorningBrief, sendEndOfDayBrief, buildEndOfDayBrief } from '../lib/morningBrief.js';
 import { dispatchDueReminders } from '../lib/reminders.js';
 import { sendWeeklyInsights, buildWeeklyInsights } from '../lib/weeklyInsights.js';
@@ -103,6 +103,10 @@ export const cronRoutes: FastifyPluginAsync = async (app) => {
     const text = await buildWeeklyInsights();
     return { text };
   });
+
+  // Every minute — check who's scheduled for now but hasn't clocked in.
+  // WhatsApps admin a one-tap link to ping the employee.
+  app.post('/no-show-watcher', async () => runNoShowWatcher());
 
   // Weekly schedule agent — 4 endpoints, all gate on Israel time inside.
   // Cron pings them hourly; the gate decides whether to act.

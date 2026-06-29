@@ -7733,6 +7733,94 @@ ${JSON.stringify(empSummary, null, 2)}
   return { ok: true, createdShifts, assignmentCount: assignments.length, insights, missing: missing.map((m) => m.full_name) };
 }
 
+// =================== AGENT #2 — No-Show Watcher ===================
+// Every minute, scan today's WorkShift.assigned_staff entries. For each
+// employee whose start_time was >= 15 min ago and who has NO active or
+// completed ShiftTracking row for today, WhatsApp the ADMIN (not the
+// employee — manager decides whether to ping them) with a one-tap
+// "send WhatsApp" link to the employee's number. De-dupes per
+// (employee_id, date, shift_type) using a marker entry in
+// WhatsAppMessage status='no_show_alert_sent'.
+export async function runNoShowWatcher() {
+  const now = new Date();
+  const ilDate = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jerusalem' }).format(now); // YYYY-MM-DD
+  const ilHourStr = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Jerusalem', hour: '2-digit', minute: '2-digit', hour12: false }).format(now);
+  const [ilHour, ilMin] = ilHourStr.split(':').map(Number);
+  const nowMins = ilHour * 60 + ilMin;
+
+  // Pull today's shifts
+  const start = new Date(ilDate + 'T00:00:00.000Z');
+  const end = new Date(ilDate + 'T23:59:59.999Z');
+  const todayShifts: any[] = await (prisma as any).workShift.findMany({
+    where: { date: { gte: start, lte: end } }, take: 50,
+  });
+  if (todayShifts.length === 0) return { ok: true, checked: 0 };
+
+  // For each assigned staff, check if their start_time was >=15 min ago
+  const candidates: Array<{ ws: any; staff: any }> = [];
+  for (const ws of todayShifts) {
+    const staffArr = Array.isArray(ws.assigned_staff) ? ws.assigned_staff : [];
+    for (const a of staffArr) {
+      if (!a?.employee_id || !a?.start_time) continue;
+      const [sh, sm] = String(a.start_time).split(':').map(Number);
+      const startMins = (sh || 0) * 60 + (sm || 0);
+      // Late by 15-180 min (don't alert about dinner shift at noon).
+      const lateBy = nowMins - startMins;
+      if (lateBy < 15 || lateBy > 180) continue;
+      candidates.push({ ws, staff: a });
+    }
+  }
+  if (candidates.length === 0) return { ok: true, checked: 0 };
+
+  // Bulk check active ShiftTracking for these employees today
+  const empIds = [...new Set(candidates.map((c) => c.staff.employee_id))];
+  const trackingRows: any[] = await (prisma as any).$queryRaw`
+    SELECT employee_id, status FROM "ShiftTracking"
+    WHERE date::text = ${ilDate} AND employee_id = ANY(${empIds}::text[])
+  `;
+  const clockedIn = new Set(trackingRows.map((r) => r.employee_id));
+
+  // Find which alerts already fired today (de-dupe key = empId|date|shiftType)
+  const sentAlerts: any[] = await (prisma as any).whatsAppMessage.findMany({
+    where: { status: 'no_show_alert_sent', notes: { contains: `|${ilDate}|` } },
+    take: 200,
+  });
+  const sentKeys = new Set(sentAlerts.map((r) => r.notes?.split('---')[0] || ''));
+
+  const adminNumbers = (process.env.WHATSAPP_ADMIN_NUMBERS || '').split(',').map((s) => s.trim()).filter(Boolean);
+  if (!adminNumbers.length) return { ok: true, no_admins: true };
+
+  const noShows: Array<{ name: string; position: string; lateBy: number; phone: string | null }> = [];
+  const { sendWhatsApp } = await import('../lib/twilio.js');
+
+  for (const c of candidates) {
+    if (clockedIn.has(c.staff.employee_id)) continue;
+    const key = `${c.staff.employee_id}|${ilDate}|${c.ws.shift_type}`;
+    if (sentKeys.has(key)) continue;
+    const emp: any = await (prisma as any).employee.findUnique({ where: { id: c.staff.employee_id } }).catch(() => null);
+    const phone = emp?.phone || null;
+    const phoneClean = phone ? String(phone).replace(/\D/g, '').replace(/^0/, '972') : null;
+    const waLink = phoneClean ? `https://wa.me/${phoneClean}?text=${encodeURIComponent(`היי ${c.staff.employee_name || ''} 👋 אנחנו מחכים לך במשמרת — הכל בסדר?`)}` : null;
+    const [sh, sm] = String(c.staff.start_time).split(':').map(Number);
+    const lateBy = nowMins - ((sh || 0) * 60 + (sm || 0));
+    const msg = `⏰ *${c.staff.employee_name || 'עובד'}* מאחר ${lateBy} דק' למשמרת ${c.ws.shift_type === 'lunch' ? 'צהריים' : 'ערב'} (${c.staff.start_time}).\n` +
+      `תפקיד: ${c.staff.position || 'לא ידוע'}\n` +
+      (waLink ? `📲 שלח לו וואטסאפ בלחיצה: ${waLink}` : `⚠️ אין טלפון רשום לעובד.`);
+    for (const a of adminNumbers) {
+      try { await sendWhatsApp(a, msg); } catch (e: any) { console.warn('[no-show] admin notify failed', e?.message); }
+    }
+    await (prisma as any).whatsAppMessage.create({
+      data: {
+        body: msg.slice(0, 1000), direction: 'outgoing', status: 'no_show_alert_sent',
+        contact_phone: adminNumbers[0], is_read: true,
+        notes: `${key}---${new Date().toISOString()}`,
+      },
+    }).catch(() => {});
+    noShows.push({ name: c.staff.employee_name || 'עובד', position: c.staff.position || '', lateBy, phone });
+  }
+  return { ok: true, alerted: noShows.length, noShows };
+}
+
 // Scheduled-close agent. Runs every 5 min from cron. If the current Israel
 // time matches one of the owner-configured nightly close windows (Sun-Wed
 // nights → 00:45, Thu night → 03:00, Motzash → 02:00), it closes every
