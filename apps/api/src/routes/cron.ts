@@ -1,5 +1,5 @@
 import type { FastifyPluginAsync } from 'fastify';
-import { sendRestroomReminder, sendAbandonedReminder, sendT24SurveyReminders, runAutoTrackerAnalysis, runSalesAutoClose, runWeeklyPersonalGoals, captureBeecommSnapshot, backfillBeecommHistory, reopenAutoClosedShifts, runScheduledShiftClose, runWeeklyScheduleOpen, runWeeklyScheduleReminder, runWeeklyScheduleFinalReminder, runWeeklyScheduleBuild, runNoShowWatcher } from '../functions/load.js';
+import { sendRestroomReminder, sendAbandonedReminder, sendT24SurveyReminders, runAutoTrackerAnalysis, runSalesAutoClose, runWeeklyPersonalGoals, captureBeecommSnapshot, backfillBeecommHistory, reopenAutoClosedShifts, runScheduledShiftClose, runWeeklyScheduleOpen, runWeeklyScheduleReminder, runWeeklyScheduleFinalReminder, runWeeklyScheduleBuild, runNoShowWatcher, runInvoiceClassifier, runCrisisAgent, runContentGenerator } from '../functions/load.js';
 import { sendMorningBrief, buildMorningBrief, sendEndOfDayBrief, buildEndOfDayBrief } from '../lib/morningBrief.js';
 import { dispatchDueReminders } from '../lib/reminders.js';
 import { sendWeeklyInsights, buildWeeklyInsights } from '../lib/weeklyInsights.js';
@@ -103,6 +103,12 @@ export const cronRoutes: FastifyPluginAsync = async (app) => {
     const text = await buildWeeklyInsights();
     return { text };
   });
+
+  // Hourly tick — internal gate decides whether to act.
+  app.post('/invoice-classifier', async () => runInvoiceClassifier());
+  app.post('/content-generator', async () => runContentGenerator());
+  // Every 10 min — checks for crisis incidents.
+  app.post('/crisis-agent', async () => runCrisisAgent());
 
   // Every minute — check who's scheduled for now but hasn't clocked in.
   // WhatsApps admin a one-tap link to ping the employee.

@@ -7733,6 +7733,132 @@ ${JSON.stringify(empSummary, null, 2)}
   return { ok: true, createdShifts, assignmentCount: assignments.length, insights, missing: missing.map((m) => m.full_name) };
 }
 
+// =================== AGENT #11 — Invoice Classifier ===================
+// Daily 10:00 IL. Scans yesterday's invoices, compares each supplier's total
+// to its 90-day average. WhatsApps the admin a summary listing anomalies
+// (>150% of avg = SPIKE, <50% = DROP). Silent if nothing unusual.
+export async function runInvoiceClassifier() {
+  const il = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Jerusalem', hour: '2-digit', hour12: false }).format(new Date());
+  if (parseInt(il, 10) !== 10) return { skipped: true, hour: il };
+  const since = new Date(Date.now() - 24 * 3600 * 1000);
+  const newInvoices: any[] = await (prisma as any).invoice.findMany({
+    where: { createdAt: { gte: since } }, take: 200,
+  });
+  if (!newInvoices.length) return { ok: true, no_new: true };
+  const ninetyAgo = new Date(Date.now() - 90 * 86400 * 1000);
+  const supplierIds = [...new Set(newInvoices.map((i) => i.supplier_id).filter(Boolean))];
+  const history: any[] = await (prisma as any).invoice.findMany({
+    where: { supplier_id: { in: supplierIds }, createdAt: { gte: ninetyAgo, lt: since } },
+    take: 1000,
+  });
+  const avgBySupplier: Record<string, number> = {};
+  const countBySupplier: Record<string, number> = {};
+  for (const h of history) {
+    avgBySupplier[h.supplier_id] = (avgBySupplier[h.supplier_id] || 0) + (h.total_amount || 0);
+    countBySupplier[h.supplier_id] = (countBySupplier[h.supplier_id] || 0) + 1;
+  }
+  for (const sid of Object.keys(avgBySupplier)) avgBySupplier[sid] /= (countBySupplier[sid] || 1);
+
+  const anomalies: string[] = [];
+  for (const inv of newInvoices) {
+    const avg = avgBySupplier[inv.supplier_id] || 0;
+    if (!avg) continue;
+    const ratio = (inv.total_amount || 0) / avg;
+    const supplier = await (prisma as any).supplier.findUnique({ where: { id: inv.supplier_id } }).catch(() => null);
+    const name = supplier?.name || inv.supplier_id;
+    if (ratio > 1.5) anomalies.push(`🔺 *${name}*: ₪${Math.round(inv.total_amount || 0).toLocaleString()} (×${ratio.toFixed(1)} מהממוצע ₪${Math.round(avg).toLocaleString()})`);
+    else if (ratio < 0.5) anomalies.push(`🔻 *${name}*: ₪${Math.round(inv.total_amount || 0).toLocaleString()} (חצי מהממוצע ₪${Math.round(avg).toLocaleString()})`);
+  }
+  if (!anomalies.length) return { ok: true, no_anomalies: true, checked: newInvoices.length };
+
+  const adminNumbers = (process.env.WHATSAPP_ADMIN_NUMBERS || '').split(',').map((s) => s.trim()).filter(Boolean);
+  const { sendWhatsApp } = await import('../lib/twilio.js');
+  const msg = `🧾 *חשבוניות חריגות מאתמול*\n\n${anomalies.join('\n')}\n\nכל הפרטים: ${APP_BASE_URL}/Invoices`;
+  for (const p of adminNumbers) {
+    try { await sendWhatsApp(p, msg); } catch (e: any) { console.warn('[invoice-class] failed', e?.message); }
+  }
+  return { ok: true, anomalies_count: anomalies.length };
+}
+
+// =================== AGENT #12 — Crisis Agent ===================
+// Every 10 min. Scans new Incidents (last 15 min). For severity=='high' or
+// 2+ open incidents in the last 4 hours → immediate admin WhatsApp.
+export async function runCrisisAgent() {
+  const last15min = new Date(Date.now() - 15 * 60 * 1000);
+  const recent: any[] = await (prisma as any).incident.findMany({
+    where: { createdAt: { gte: last15min } }, take: 50,
+  });
+  if (!recent.length) return { ok: true, no_new: true };
+
+  const alerts: string[] = [];
+  for (const inc of recent) {
+    const sev = String((inc as any).severity || (inc as any).priority || '').toLowerCase();
+    if (sev === 'high' || sev === 'critical') {
+      alerts.push(`🚨 *${(inc as any).title || (inc as any).description?.slice(0, 60) || 'אירוע'}* (חמורה) — ${inc.id.slice(-6)}`);
+    }
+  }
+
+  const fourHoursAgo = new Date(Date.now() - 4 * 3600 * 1000);
+  const fourHourCount: number = await (prisma as any).incident.count({
+    where: { createdAt: { gte: fourHoursAgo }, status: { in: ['open', 'pending', null] } as any },
+  }).catch(() => 0);
+  if (fourHourCount >= 3) alerts.push(`⚠️ *${fourHourCount} אירועים פתוחים ב-4 שעות האחרונות* — מקבץ חריג`);
+
+  if (!alerts.length) return { ok: true, checked: recent.length, alerts: 0 };
+
+  const adminNumbers = (process.env.WHATSAPP_ADMIN_NUMBERS || '').split(',').map((s) => s.trim()).filter(Boolean);
+  const { sendWhatsApp } = await import('../lib/twilio.js');
+  const msg = `${alerts.join('\n')}\n\nכל האירועים: ${APP_BASE_URL}/Incidents`;
+  for (const p of adminNumbers) {
+    try { await sendWhatsApp(p, msg); } catch (e: any) { console.warn('[crisis] failed', e?.message); }
+  }
+  return { ok: true, alerts: alerts.length };
+}
+
+// =================== AGENT #9 — Content Generator ===================
+// Daily 14:00 IL. Finds yesterday's 5-star customer surveys (if any) and
+// asks the LLM to draft an Instagram caption + Story text. Sends draft to
+// admin for approval (one-click copy paste).
+export async function runContentGenerator() {
+  const il = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Jerusalem', hour: '2-digit', hour12: false }).format(new Date());
+  if (parseInt(il, 10) !== 14) return { skipped: true, hour: il };
+  const yesterday = new Date(Date.now() - 24 * 3600 * 1000);
+  const surveys: any[] = await (prisma as any).customerSurvey.findMany({
+    where: { createdAt: { gte: yesterday }, rating: { gte: 5 } as any }, take: 10,
+  }).catch(() => []);
+  if (!surveys.length) return { ok: true, no_content: true };
+
+  const quotes = surveys.map((s) => `"${(s.feedback || s.comment || '').slice(0, 200)}" — ${(s.customer_name || 'לקוח/ה').slice(0, 30)}`).filter((q) => q.length > 30).slice(0, 5);
+  if (!quotes.length) return { ok: true, no_quotable: true };
+
+  const prompt = `אתה מנהל מדיה למסעדת עלינא בראשון לציון. קיבלת אתמול ${surveys.length} ביקורות 5⭐.
+ציטוטים:
+${quotes.join('\n')}
+
+נסח 2 פוסטים קצרים לאינסטגרם (תוכן בעברית, אישי וחם — לא רובוטי):
+1. *סטורי* (קצר, עד 80 תווים, עם 1-2 אימוג'י)
+2. *פוסט מלא* (3-5 שורות, ציטוט אחד, קריאה לפעולה רכה לסוף)
+
+החזר *רק JSON*:
+{ "story": "...", "post": "..." }`;
+
+  const raw: any = await invokeLLM({
+    prompt,
+    responseSchema: { type: 'object', properties: { story: { type: 'string' }, post: { type: 'string' } }, required: ['story', 'post'] },
+  });
+  const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
+  const story = parsed?.story || '';
+  const post = parsed?.post || '';
+
+  const adminNumbers = (process.env.WHATSAPP_ADMIN_NUMBERS || '').split(',').map((s) => s.trim()).filter(Boolean);
+  const { sendWhatsApp } = await import('../lib/twilio.js');
+  const msg = `🎨 *תוכן לאישור — מבוסס ${surveys.length} ביקורות 5⭐ מאתמול*\n\n📱 *סטורי:*\n${story}\n\n📝 *פוסט:*\n${post}\n\nהעתק/י ופרסם/י כשמתאים. 🚀`;
+  for (const p of adminNumbers) {
+    try { await sendWhatsApp(p, msg); } catch (e: any) { console.warn('[content] failed', e?.message); }
+  }
+  return { ok: true, story, post, source_count: surveys.length };
+}
+
 // =================== AGENT #2 — No-Show Watcher ===================
 // Every minute, scan today's WorkShift.assigned_staff entries. For each
 // employee whose start_time was >= 15 min ago and who has NO active or
