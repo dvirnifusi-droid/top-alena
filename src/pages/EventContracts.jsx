@@ -57,6 +57,7 @@ export default function EventContracts() {
   const [showCreate, setShowCreate] = useState(false);
   const [editing, setEditing] = useState(null);
   const [copiedToken, setCopiedToken] = useState(null);
+  const [deletingId, setDeletingId] = useState(null);
   const [repSigning, setRepSigning] = useState(null);
 
   useEffect(() => { loadAll(); }, []);
@@ -237,14 +238,26 @@ export default function EventContracts() {
                         <Button
                           size="sm"
                           variant="outline"
-                          className="text-red-600 border-red-300 hover:bg-red-50"
+                          disabled={deletingId === c.id}
+                          className="text-red-600 border-red-300 hover:bg-red-50 disabled:opacity-50"
                           onClick={async () => {
+                            if (deletingId) return;
                             if (!window.confirm(`למחוק לצמיתות את החוזה של "${c.customer_name || 'ללא שם'}"?\nפעולה זו בלתי הפיכה.`)) return;
+                            setDeletingId(c.id);
+                            // Optimistic removal — user sees it gone immediately
+                            // and can't double-click the same row.
+                            setContracts(prev => prev.filter(x => x.id !== c.id));
                             try {
                               await base44.functions.deleteEventContract({ id: c.id });
-                              load();
                             } catch (err) {
-                              alert('שגיאה: ' + (err?.message || ''));
+                              const msg = err?.message || '';
+                              // 'Not found' = already deleted (likely a double-fire); silent.
+                              if (!/not found/i.test(msg)) {
+                                alert('שגיאה: ' + msg);
+                                load(); // restore on real failure
+                              }
+                            } finally {
+                              setDeletingId(null);
                             }
                           }}
                           title="מחק חוזה"
