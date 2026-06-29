@@ -7503,6 +7503,98 @@ registerFn('chatEventsInquiry', async ({ body }) => {
 // AUTH — admin pulls all event leads for the dashboard.
 // Order by id desc since cuid is time-sortable and many legacy rows have created_date=null
 // (which would sort first/last unpredictably and hide the newest leads).
+// Scheduled-close agent. Runs every 5 min from cron. If the current Israel
+// time matches one of the owner-configured nightly close windows (Sun-Wed
+// nights → 00:45, Thu night → 03:00, Motzash → 02:00), it closes every
+// still-running ShiftTracking row, syncs end_time into the matching
+// WorkShift.assigned_staff entry, and WhatsApps the admins a one-line
+// summary of who was closed. Skips if no admins/shifts.
+export async function runScheduledShiftClose() {
+  // Compute Israel time directly via Intl — avoids server-TZ assumptions.
+  const il = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Jerusalem', weekday: 'short', hour: '2-digit', minute: '2-digit', hour12: false,
+  }).formatToParts(new Date()).reduce<Record<string, string>>((acc, p) => {
+    if (p.type !== 'literal') acc[p.type] = p.value; return acc;
+  }, {});
+  const dayMap: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+  const day = dayMap[il.weekday] ?? -1;
+  const hour = parseInt(il.hour || '0', 10);
+  const minute = parseInt(il.minute || '0', 10);
+
+  // Windows by Israel calendar weekday (since the close occurs AFTER midnight).
+  // 10-minute tolerance band so a 5-min cron always hits.
+  const inBand = (h: number, mStart: number, mEnd: number) => hour === h && minute >= mStart && minute <= mEnd;
+  const matches =
+    (day === 0 && inBand(2, 0, 10)) ||           // Sun 02:00 = Motzash close
+    (day === 1 && inBand(0, 45, 55)) ||          // Mon 00:45 = Sun night close
+    (day === 2 && inBand(0, 45, 55)) ||          // Tue 00:45 = Mon night close
+    (day === 3 && inBand(0, 45, 55)) ||          // Wed 00:45 = Tue night close
+    (day === 4 && inBand(0, 45, 55)) ||          // Thu 00:45 = Wed night close
+    (day === 5 && inBand(3, 0, 10));             // Fri 03:00 = Thu night close
+  if (!matches) return { ok: true, skipped: true, day, hour, minute };
+
+  // Find all still-running shifts older than 2h (safety: don't close
+  // someone who just clocked in 30 min ago because of a false hit).
+  const minStart = new Date(Date.now() - 2 * 3600 * 1000);
+  const open: any[] = await (prisma as any).$queryRaw`
+    SELECT id, employee_id, employee_name, shift_start, status, date::text AS date_str
+    FROM "ShiftTracking"
+    WHERE status IN ('active', 'on_break') AND shift_start < ${minStart}
+    ORDER BY shift_start ASC
+  `;
+  if (open.length === 0) return { ok: true, closed: 0 };
+
+  const closedAt = new Date();
+  const endHHMM = `${String(closedAt.getUTCHours() + 3).padStart(2, '0').slice(-2)}:${String(closedAt.getUTCMinutes()).padStart(2, '0')}`;
+  // ^ approximate IL time (+3) for the assigned_staff label; if you ever
+  // care about DST exactness here we can switch to Intl formatting. Good
+  // enough for the schedule view where the planned end is already approximate.
+
+  const closedNames: string[] = [];
+  for (const t of open) {
+    const startMs = new Date(t.shift_start).getTime();
+    const totalHours = Math.max(0, (closedAt.getTime() - startMs) / 3600000);
+    await (prisma as any).$executeRaw`
+      UPDATE "ShiftTracking"
+      SET status = 'completed', shift_end = ${closedAt},
+          total_hours = ${totalHours}, effective_hours = ${totalHours},
+          auto_close_reason = 'scheduled_nightly_close',
+          "updatedAt" = NOW()
+      WHERE id = ${t.id}
+    `;
+    // Sync to WorkShift.assigned_staff for the same day + employee.
+    const dateStr = String(t.date_str || '').slice(0, 10);
+    if (dateStr) {
+      const dayShifts: any[] = await (prisma as any).workShift.findMany({
+        where: { date: { gte: new Date(dateStr + 'T00:00:00.000Z'), lt: new Date(dateStr + 'T23:59:59.999Z') } },
+        take: 50,
+      });
+      for (const ws of dayShifts) {
+        const staff = Array.isArray(ws.assigned_staff) ? ws.assigned_staff : [];
+        const idx = staff.findIndex((a: any) => a?.employee_id === t.employee_id);
+        if (idx < 0) continue;
+        const next = [...staff];
+        next[idx] = { ...next[idx], end_time: endHHMM };
+        await (prisma as any).workShift.update({ where: { id: ws.id }, data: { assigned_staff: next } });
+      }
+    }
+    closedNames.push(t.employee_name || 'עובד ללא שם');
+  }
+
+  // Notify admins.
+  const adminNumbers = (process.env.WHATSAPP_ADMIN_NUMBERS || '').split(',').map((s) => s.trim()).filter(Boolean);
+  if (adminNumbers.length && closedNames.length) {
+    const { sendWhatsApp } = await import('../lib/twilio.js');
+    const list = closedNames.slice(0, 12).join(', ') + (closedNames.length > 12 ? ` ועוד ${closedNames.length - 12}` : '');
+    const msg = `🌙 *סגירת משמרת לילה אוטומטית*\nנסגרו ${closedNames.length} עובדים בשעון ב-${endHHMM}: ${list}`;
+    for (const p of adminNumbers) {
+      try { await sendWhatsApp(p, msg); } catch (e: any) { console.warn('[scheduled-close] notify failed', e?.message); }
+    }
+  }
+
+  return { ok: true, closed: closedNames.length, names: closedNames };
+}
+
 // Analyze an employee's monthly shift data with the LLM and return a list
 // of detected anomalies (long shifts, gaps, no-shows, frequent late punches,
 // unusual position changes, overtime spikes). Used by EmployeeReports page.

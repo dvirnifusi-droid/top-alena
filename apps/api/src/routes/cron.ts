@@ -1,5 +1,5 @@
 import type { FastifyPluginAsync } from 'fastify';
-import { sendRestroomReminder, sendAbandonedReminder, sendT24SurveyReminders, runAutoTrackerAnalysis, runSalesAutoClose, runWeeklyPersonalGoals, captureBeecommSnapshot, backfillBeecommHistory, reopenAutoClosedShifts } from '../functions/load.js';
+import { sendRestroomReminder, sendAbandonedReminder, sendT24SurveyReminders, runAutoTrackerAnalysis, runSalesAutoClose, runWeeklyPersonalGoals, captureBeecommSnapshot, backfillBeecommHistory, reopenAutoClosedShifts, runScheduledShiftClose } from '../functions/load.js';
 import { sendMorningBrief, buildMorningBrief, sendEndOfDayBrief, buildEndOfDayBrief } from '../lib/morningBrief.js';
 import { dispatchDueReminders } from '../lib/reminders.js';
 import { sendWeeklyInsights, buildWeeklyInsights } from '../lib/weeklyInsights.js';
@@ -102,6 +102,14 @@ export const cronRoutes: FastifyPluginAsync = async (app) => {
   app.post('/weekly-insights-preview', async () => {
     const text = await buildWeeklyInsights();
     return { text };
+  });
+
+  // Every 5 min — checks if Israel time matches one of the nightly close
+  // windows (Sun-Wed nights 00:45, Thu night 03:00, Motzash 02:00) and
+  // force-closes any still-open ShiftTracking. WhatsApps the admins a
+  // summary of who was closed.
+  app.post('/scheduled-shift-close', async () => {
+    return runScheduledShiftClose();
   });
 
   // Every 15 min — pull externally-added events from each connected admin's
