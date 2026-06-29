@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { base44 } from '@/api/base44Client';
-import { Clock, User, MessageCircle, AlertTriangle, Coffee } from 'lucide-react';
+import { Clock, User, MessageCircle, AlertTriangle, Coffee, LogOut, Edit3 } from 'lucide-react';
 
 // Detect dept from positions array / role / explicit department field.
 const KITCHEN_HINTS = ['מטבח', 'טבח', 'גריל', 'גרילמן', 'סלטים', 'שטיפה', 'עמדת מטבח'];
@@ -55,6 +55,55 @@ export default function ActiveEmployeesWidget() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all');
   const [now, setNow] = useState(() => new Date());
+  const [user, setUser] = useState(null);
+  const [busyShiftId, setBusyShiftId] = useState(null);
+
+  useEffect(() => {
+    base44.auth.me().then(setUser).catch(() => setUser(null));
+  }, []);
+  const isAdmin = !!user && ['admin', 'owner', 'manager', 'shift_manager', 'tip_manager'].includes(user.role);
+
+  const closeShiftAt = async (shiftId, endIso, shiftStartIso) => {
+    setBusyShiftId(shiftId);
+    try {
+      const endMs = new Date(endIso).getTime();
+      const startMs = new Date(shiftStartIso).getTime();
+      const totalHours = Math.max(0, (endMs - startMs) / 3600000);
+      await base44.functions.patchShiftRaw({
+        shift_id: shiftId,
+        fields: { status: 'completed', shift_end: endIso, total_hours: totalHours, effective_hours: totalHours },
+      });
+      setRows(prev => prev.filter(r => r.id !== shiftId));
+    } catch (err) {
+      alert('שגיאה בסגירת משמרת: ' + (err?.message || ''));
+    } finally {
+      setBusyShiftId(null);
+    }
+  };
+
+  const handleCloseNow = (row) => {
+    if (!window.confirm(`לסגור משמרת של ${row.name} עכשיו?`)) return;
+    closeShiftAt(row.id, new Date().toISOString(), row.shiftStart);
+  };
+
+  const handleFixEndTime = (row) => {
+    const input = window.prompt(
+      `שעת סיום אמיתית עבור ${row.name} (פורמט HH:MM, למשל "23:30").\nהמערכת תשתמש בשעה זו עם תאריך תחילת המשמרת.`,
+      new Date().toLocaleTimeString('he-IL', { timeZone: 'Asia/Jerusalem', hour: '2-digit', minute: '2-digit' })
+    );
+    if (!input) return;
+    const m = input.match(/^(\d{1,2}):(\d{2})$/);
+    if (!m) { alert('פורמט לא תקין. השתמש ב-HH:MM'); return; }
+    const h = parseInt(m[1]); const mm = parseInt(m[2]);
+    if (h > 23 || mm > 59) { alert('שעה לא תקינה'); return; }
+    // Build the end Date relative to shift start in Israel TZ; if end < start, assume next day.
+    const start = new Date(row.shiftStart);
+    const end = new Date(start);
+    end.setHours(h, mm, 0, 0);
+    if (end < start) end.setDate(end.getDate() + 1);
+    if (!window.confirm(`לסגור משמרת של ${row.name} ב-${input}? (משך: ${formatDuration(end - start)})`)) return;
+    closeShiftAt(row.id, end.toISOString(), row.shiftStart);
+  };
 
   // Tick every minute so durations update live.
   useEffect(() => {
@@ -269,17 +318,39 @@ export default function ActiveEmployeesWidget() {
                       </div>
                     </div>
                   </div>
-                  {phone && (
-                    <a
-                      href={`https://wa.me/${phone}`}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="ml-2 bg-green-500 hover:bg-green-600 text-white p-2 rounded-full shadow-sm flex-shrink-0"
-                      title="שלח וואטסאפ"
-                    >
-                      <MessageCircle className="w-4 h-4" />
-                    </a>
-                  )}
+                  <div className="ml-2 flex items-center gap-1 flex-shrink-0">
+                    {isAdmin && (
+                      <>
+                        <button
+                          onClick={() => handleFixEndTime(emp)}
+                          disabled={busyShiftId === emp.id}
+                          className="bg-amber-500 hover:bg-amber-600 text-white p-2 rounded-full shadow-sm disabled:opacity-50"
+                          title="תקן שעת יציאה"
+                        >
+                          <Edit3 className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => handleCloseNow(emp)}
+                          disabled={busyShiftId === emp.id}
+                          className="bg-red-500 hover:bg-red-600 text-white p-2 rounded-full shadow-sm disabled:opacity-50"
+                          title="סגור משמרת עכשיו"
+                        >
+                          <LogOut className="w-4 h-4" />
+                        </button>
+                      </>
+                    )}
+                    {phone && (
+                      <a
+                        href={`https://wa.me/${phone}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="bg-green-500 hover:bg-green-600 text-white p-2 rounded-full shadow-sm"
+                        title="שלח וואטסאפ"
+                      >
+                        <MessageCircle className="w-4 h-4" />
+                      </a>
+                    )}
+                  </div>
                 </div>
               );
             })}

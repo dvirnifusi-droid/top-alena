@@ -123,6 +123,21 @@ function EmployeeReportsInner() {
     const [newPositionName, setNewPositionName] = useState('');
     const [customPositionInput, setCustomPositionInput] = useState('');
     const [savingRates, setSavingRates] = useState(false);
+    const [anomalies, setAnomalies] = useState(null); // { items: [], stats: {}, loading: false }
+    const loadAnomalies = async () => {
+        if (!selectedEmployeeId || selectedEmployeeId === 'all') return;
+        setAnomalies({ items: [], stats: null, loading: true });
+        try {
+            const res = await base44.functions.analyzeEmployeeAnomalies({
+                employee_id: selectedEmployeeId,
+                month: format(selectedMonth, 'yyyy-MM'),
+            });
+            const data = res?.data || res;
+            setAnomalies({ items: data?.anomalies || [], stats: data?.stats || null, loading: false });
+        } catch (err) {
+            setAnomalies({ items: [{ severity: 'high', title: 'שגיאה בניתוח', detail: err?.message || '' }], stats: null, loading: false });
+        }
+    };
 
     const handleAddManualShift = async () => {
         if (!selectedEmployeeId) { toast({ title: 'שגיאה', description: 'לא נבחר עובד', variant: 'destructive' }); return; }
@@ -726,14 +741,41 @@ function EmployeeReportsInner() {
                     <div className="mb-4 flex items-center justify-between flex-wrap gap-2 p-3 rounded-lg border-2 bg-white shadow-sm">
                         <div className="flex items-center gap-3">
                             <span className="font-bold text-gray-800">{selectedEmployee?.full_name}</span>
-                            {(() => {
-                                const dept = selectedEmployee ? getDepartment(selectedEmployee) : 'other';
-                                return <span className="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 border">{DEPT_LABELS[dept] || DEPT_LABELS.other}</span>;
-                            })()}
+                            <Select
+                                value={selectedEmployee ? getDepartment(selectedEmployee) : 'other'}
+                                onValueChange={async (newDept) => {
+                                    const dbValue = newDept === 'floor' ? 'פלור' : newDept === 'kitchen' ? 'מטבח' : newDept === 'managers' ? 'מנהלים' : '';
+                                    try {
+                                        await base44.entities.Employee.update(selectedEmployeeId, { department: dbValue });
+                                        setEmployees(prev => prev.map(e => e.id === selectedEmployeeId ? { ...e, department: dbValue } : e));
+                                        toast({ title: 'מחלקה עודכנה', description: `${selectedEmployee?.full_name} → ${DEPT_LABELS[newDept]}` });
+                                    } catch (err) {
+                                        toast({ title: 'שגיאה', description: err?.message || '', variant: 'destructive' });
+                                    }
+                                }}
+                            >
+                                <SelectTrigger className="h-7 px-2 text-xs w-auto min-w-[120px] bg-slate-100">
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="floor">🍷 פלור</SelectItem>
+                                    <SelectItem value="kitchen">👨‍🍳 מטבח</SelectItem>
+                                    <SelectItem value="managers">🧭 מנהלים</SelectItem>
+                                    <SelectItem value="other">— ללא מחלקה</SelectItem>
+                                </SelectContent>
+                            </Select>
                             {approvedEmployees.includes(selectedEmployeeId) && (
                                 <span className="text-xs bg-green-100 text-green-700 border border-green-300 px-2 py-0.5 rounded-full font-bold">🔒 שעות נעולות לחודש זה</span>
                             )}
                         </div>
+                        <button
+                            onClick={loadAnomalies}
+                            disabled={anomalies?.loading}
+                            className="px-3 py-1.5 rounded-full text-xs font-bold border-2 bg-purple-500 text-white border-purple-500 hover:bg-purple-600 disabled:opacity-60"
+                            title="ניתוח AI לחריגות בחודש הנבחר"
+                        >
+                            {anomalies?.loading ? '🤖 מנתח...' : '🤖 חריגות AI'}
+                        </button>
                         <button
                             onClick={() => toggleApproved(selectedEmployeeId)}
                             className={`px-3 py-1.5 rounded-full text-xs font-bold border-2 transition-all ${
@@ -746,6 +788,45 @@ function EmployeeReportsInner() {
                             {approvedEmployees.includes(selectedEmployeeId) ? '🔒 נעול' : '🔓 נעל שעות'}
                         </button>
                     </div>
+                )}
+                {selectedEmployeeId !== 'all' && selectedEmployeeId && isAdmin && anomalies && !anomalies.loading && (
+                    <Card className="mb-4 border-purple-200 bg-purple-50">
+                        <CardHeader className="pb-2 flex flex-row items-center justify-between">
+                            <CardTitle className="text-base text-purple-900 flex items-center gap-2">
+                                🤖 ניתוח AI — חריגות
+                                {anomalies.stats && (
+                                    <span className="text-xs font-normal text-purple-700">
+                                        ({anomalies.stats.shiftCount} משמרות · {anomalies.stats.totalHours?.toFixed(1)} שעות)
+                                    </span>
+                                )}
+                            </CardTitle>
+                            <button onClick={() => setAnomalies(null)} className="text-purple-400 hover:text-purple-700" title="סגור">
+                                <X className="w-4 h-4" />
+                            </button>
+                        </CardHeader>
+                        <CardContent className="space-y-2">
+                            {anomalies.items.length === 0 ? (
+                                <p className="text-sm text-gray-500">אין תוצאות.</p>
+                            ) : anomalies.items.map((a, i) => {
+                                const sev = a.severity || 'info';
+                                const sevStyle = sev === 'high' ? 'bg-red-100 text-red-800 border-red-300' :
+                                    sev === 'medium' ? 'bg-orange-100 text-orange-800 border-orange-300' :
+                                    sev === 'low' ? 'bg-yellow-100 text-yellow-800 border-yellow-300' :
+                                    'bg-slate-100 text-slate-700 border-slate-300';
+                                const sevLabel = sev === 'high' ? '🔴 חמור' : sev === 'medium' ? '🟠 בינוני' : sev === 'low' ? '🟡 קל' : 'ℹ️ מידע';
+                                return (
+                                    <div key={i} className={`border rounded-lg p-3 ${sevStyle}`}>
+                                        <div className="font-bold text-sm flex items-center gap-2">
+                                            <span className="text-xs px-2 py-0.5 rounded-full bg-white/60 border">{sevLabel}</span>
+                                            {a.title}
+                                        </div>
+                                        <div className="text-sm mt-1 opacity-90">{a.detail}</div>
+                                        {a.recommendation && <div className="text-xs mt-1 italic">💡 {a.recommendation}</div>}
+                                    </div>
+                                );
+                            })}
+                        </CardContent>
+                    </Card>
                 )}
                 {selectedEmployeeId !== 'all' && (
                 <Tabs defaultValue="monthly" className="w-full">

@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { FileText, Plus, Send, Copy, Check, ExternalLink, Eye, Pencil, Calendar, Users, X, RotateCcw } from 'lucide-react';
+import { FileText, Plus, Send, Copy, Check, ExternalLink, Eye, Pencil, Calendar, Users, X, RotateCcw, Trash2 } from 'lucide-react';
 import { OFFICIAL_EVENT_TERMS } from '@/data/eventContractTerms';
 
 // Default catalogue mirrored from the owner's Word sign-off form.
@@ -184,7 +184,27 @@ export default function EventContracts() {
                           {c.subtotal_ils && <span>💰 {c.subtotal_ils.toLocaleString()}₪</span>}
                         </div>
                       </div>
-                      <div className="flex gap-1 flex-wrap">
+                      <div className="flex gap-1 flex-wrap items-center">
+                        <select
+                          value={c.status || 'draft'}
+                          onChange={async (e) => {
+                            const next = e.target.value;
+                            if (next === c.status) return;
+                            if (!window.confirm(`לשנות סטטוס ל-"${STATUS_BADGE[next]?.label || next}"?`)) return;
+                            try {
+                              await base44.functions.updateEventContract({ id: c.id, status: next });
+                              load();
+                            } catch (err) {
+                              alert('שגיאה: ' + (err?.message || ''));
+                            }
+                          }}
+                          className="h-8 px-2 text-xs border rounded-md bg-white"
+                          title="שנה סטטוס"
+                        >
+                          {Object.entries(STATUS_BADGE).map(([key, v]) => (
+                            <option key={key} value={key}>{v.label}</option>
+                          ))}
+                        </select>
                         {c.status !== 'signed' && (
                           <Button size="sm" variant="outline" onClick={() => setEditing(c)}>
                             <Pencil className="w-3.5 h-3.5 ml-1" /> ערוך
@@ -214,6 +234,23 @@ export default function EventContracts() {
                             ✅ חתום ע״י {c.rep_name || 'נציג'}
                           </Badge>
                         )}
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="text-red-600 border-red-300 hover:bg-red-50"
+                          onClick={async () => {
+                            if (!window.confirm(`למחוק לצמיתות את החוזה של "${c.customer_name || 'ללא שם'}"?\nפעולה זו בלתי הפיכה.`)) return;
+                            try {
+                              await base44.functions.deleteEventContract({ id: c.id });
+                              load();
+                            } catch (err) {
+                              alert('שגיאה: ' + (err?.message || ''));
+                            }
+                          }}
+                          title="מחק חוזה"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </Button>
                       </div>
                     </div>
                   );
@@ -527,39 +564,100 @@ function Field({ label, children }) {
 // {category, name} so the public sign view renders cleanly.
 function MenuPicker({ value, onChange }) {
   // Normalize incoming value (string|object|legacy) into [{category, name}]
-  const items = Array.isArray(value)
-    ? value.map(v => {
-        if (typeof v === 'string') return { category: 'custom', name: v };
-        return { category: v.category || 'custom', name: v.name || v.label || String(v) };
-      })
-    : [];
+  // Filter out the special __meta entry — it carries per-category overrides
+  // (label, min_select, max_select) but isn't a dish.
+  const rawArr = Array.isArray(value) ? value : [];
+  const metaEntry = rawArr.find((v) => v && typeof v === 'object' && v.category === '__meta');
+  const items = rawArr
+    .filter((v) => !(v && typeof v === 'object' && v.category === '__meta'))
+    .map((v) => {
+      if (typeof v === 'string') return { category: 'custom', name: v };
+      return { category: v.category || 'custom', name: v.name || v.label || String(v) };
+    });
+  // Per-category overrides keyed by cat.key
+  const overrides = (metaEntry?.meta?.categories || []).reduce((acc, c) => { acc[c.key] = c; return acc; }, {});
+  const getLabel = (cat) => overrides[cat.key]?.label || cat.label;
+  const getMin = (cat) => overrides[cat.key]?.min_select ?? null;
+  const getMax = (cat) => overrides[cat.key]?.max_select ?? null;
+
+  const writeBack = (newItems, newOverrides) => {
+    const overrideList = Object.values(newOverrides).filter((o) => o.label || o.min_select != null || o.max_select != null);
+    const meta = overrideList.length ? [{ category: '__meta', meta: { categories: overrideList } }] : [];
+    onChange([...meta, ...newItems]);
+  };
+  const updateOverride = (catKey, patch) => {
+    const next = { ...overrides, [catKey]: { key: catKey, ...overrides[catKey], ...patch } };
+    // Strip empty
+    if (!next[catKey].label && next[catKey].min_select == null && next[catKey].max_select == null) {
+      delete next[catKey];
+    }
+    writeBack(items, next);
+  };
+
   const isChecked = (cat, name) => items.some(it => it.category === cat && it.name === name);
   const toggle = (cat, name) => {
-    if (isChecked(cat, name)) onChange(items.filter(it => !(it.category === cat && it.name === name)));
-    else onChange([...items, { category: cat, name }]);
+    const next = isChecked(cat, name)
+      ? items.filter(it => !(it.category === cat && it.name === name))
+      : [...items, { category: cat, name }];
+    writeBack(next, overrides);
   };
   const [customInput, setCustomInput] = useState({}); // {category: text}
   const addCustom = (cat) => {
     const txt = (customInput[cat] || '').trim();
     if (!txt) return;
-    onChange([...items, { category: cat, name: txt }]);
+    writeBack([...items, { category: cat, name: txt }], overrides);
     setCustomInput(prev => ({ ...prev, [cat]: '' }));
   };
   const removeCustom = (cat, name) => {
-    onChange(items.filter(it => !(it.category === cat && it.name === name)));
+    writeBack(items.filter(it => !(it.category === cat && it.name === name)), overrides);
   };
 
   return (
     <div className="space-y-3">
       <Label className="text-base font-bold flex items-center gap-2">🍴 תפריט האירוע</Label>
-      <p className="text-xs text-gray-500">סמן/י מה ייכלל בחבילה. אפשר להוסיף מנות חופשיות לכל קטגוריה.</p>
+      <p className="text-xs text-gray-500">סמן/י מה ייכלל בחבילה. ניתן לערוך את שם הקטגוריה ולקבוע "בחר X מתוך הקטגוריה".</p>
 
       {DEFAULT_MENU_CATEGORIES.map(cat => {
         const catalogue = cat.items;
         const customs = items.filter(it => it.category === cat.key && !catalogue.includes(it.name));
+        const minSel = getMin(cat);
+        const maxSel = getMax(cat);
         return (
           <div key={cat.key} className="bg-amber-50 border border-amber-200 rounded-lg p-3">
-            <div className="font-bold text-amber-900 mb-2">{cat.label}</div>
+            <div className="flex items-center gap-2 mb-2 flex-wrap">
+              <Input
+                value={getLabel(cat)}
+                onChange={(e) => updateOverride(cat.key, { label: e.target.value === cat.label ? '' : e.target.value })}
+                className="font-bold text-amber-900 bg-transparent border-amber-200 h-8 text-sm flex-1 min-w-[160px]"
+                title="ערוך את שם הקטגוריה"
+              />
+              <span className="text-xs text-gray-500 whitespace-nowrap">בחר</span>
+              <Input
+                type="number"
+                min="0"
+                value={minSel ?? ''}
+                onChange={(e) => updateOverride(cat.key, { min_select: e.target.value === '' ? null : Math.max(0, parseInt(e.target.value) || 0) })}
+                className="h-8 w-14 text-xs"
+                placeholder="—"
+                title="מינימום מנות לבחירה"
+              />
+              <span className="text-xs text-gray-500">עד</span>
+              <Input
+                type="number"
+                min="0"
+                value={maxSel ?? ''}
+                onChange={(e) => updateOverride(cat.key, { max_select: e.target.value === '' ? null : Math.max(0, parseInt(e.target.value) || 0) })}
+                className="h-8 w-14 text-xs"
+                placeholder="—"
+                title="מקסימום מנות לבחירה"
+              />
+              <span className="text-xs text-gray-500">מנות</span>
+            </div>
+            {(minSel != null || maxSel != null) && (
+              <p className="text-[11px] text-amber-700 mb-1">
+                ⚠️ הלקוח יראה: {minSel != null && maxSel != null ? `יש לבחור ${minSel === maxSel ? minSel : `${minSel}–${maxSel}`}` : minSel != null ? `יש לבחור לפחות ${minSel}` : `אפשר עד ${maxSel}`} מנות מהקטגוריה.
+              </p>
+            )}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-1">
               {catalogue.map(name => (
                 <label key={name} className="flex items-center gap-2 text-sm cursor-pointer hover:bg-white/60 rounded px-2 py-1">

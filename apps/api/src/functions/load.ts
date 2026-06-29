@@ -7503,6 +7503,113 @@ registerFn('chatEventsInquiry', async ({ body }) => {
 // AUTH — admin pulls all event leads for the dashboard.
 // Order by id desc since cuid is time-sortable and many legacy rows have created_date=null
 // (which would sort first/last unpredictably and hide the newest leads).
+// Analyze an employee's monthly shift data with the LLM and return a list
+// of detected anomalies (long shifts, gaps, no-shows, frequent late punches,
+// unusual position changes, overtime spikes). Used by EmployeeReports page.
+registerFn('analyzeEmployeeAnomalies', async ({ body }) => {
+  const b = (body || {}) as any;
+  const empId = String(b.employee_id || '').trim();
+  const monthYmd = String(b.month || '').trim(); // YYYY-MM
+  if (!empId || !monthYmd) throw new Error('employee_id and month required');
+
+  const emp = await (prisma as any).employee.findUnique({ where: { id: empId } });
+  if (!emp) throw new Error('employee not found');
+
+  const monthStart = `${monthYmd}-01`;
+  const [y, m] = monthYmd.split('-').map(Number);
+  const nextMonth = new Date(y, m, 1);
+  const monthEnd = `${nextMonth.getFullYear()}-${String(nextMonth.getMonth() + 1).padStart(2, '0')}-01`;
+
+  const workShifts: any[] = await (prisma as any).workShift.findMany({
+    where: { date: { gte: new Date(monthStart), lt: new Date(monthEnd) } },
+    take: 1000,
+  });
+  const myShifts: any[] = [];
+  for (const ws of workShifts) {
+    const staff = Array.isArray(ws.assigned_staff) ? ws.assigned_staff : [];
+    for (const a of staff) {
+      if (a?.employee_id === empId) {
+        const startH = a.start_time ? parseInt(a.start_time.split(':')[0]) : 0;
+        const endH = a.end_time ? parseInt(a.end_time.split(':')[0]) : 0;
+        let hours = (endH - startH);
+        if (hours < 0) hours += 24;
+        myShifts.push({
+          date: ws.date instanceof Date ? ws.date.toISOString().slice(0, 10) : String(ws.date).slice(0, 10),
+          shift_type: ws.shift_type,
+          position: a.position,
+          start: a.start_time,
+          end: a.end_time,
+          hours,
+          manual_entry: !!a.manual_entry,
+        });
+      }
+    }
+  }
+  myShifts.sort((x, y) => x.date.localeCompare(y.date));
+
+  if (myShifts.length === 0) {
+    return { anomalies: [{ severity: 'info', title: 'אין משמרות החודש', detail: 'לא נמצאו משמרות עבור עובד זה בחודש הנבחר.' }] };
+  }
+
+  const totalHours = myShifts.reduce((s, sh) => s + sh.hours, 0);
+  const positions = [...new Set(myShifts.map((s) => s.position).filter(Boolean))];
+
+  const summaryLines = myShifts.map((s) =>
+    `${s.date} ${s.shift_type === 'lunch' ? 'צהריים' : 'ערב'} · ${s.position} · ${s.start}-${s.end} (${s.hours.toFixed(1)}h${s.manual_entry ? ', ידני' : ''})`,
+  );
+
+  const prompt = `אתה אנליסט HR למסעדה. נתח את החודש של *${emp.full_name}* וחפש חריגות:
+
+נתונים:
+- סה"כ ${myShifts.length} משמרות, ${totalHours.toFixed(1)} שעות
+- תפקידים: ${positions.join(', ') || 'לא ידוע'}
+- פירוט (תאריך, סוג משמרת, תפקיד, שעות):
+${summaryLines.join('\n')}
+
+חפש דברים כמו:
+1. משמרות ארוכות חריגות (>10 שעות, במיוחד אם רצופות)
+2. רצף של ימים ללא יום מנוחה (6+ ימי עבודה רצופים)
+3. קפיצות חדות בתפקיד (מלצר → טבח באותו שבוע)
+4. שעת התחלה מוזרה (לפני 8 בבוקר או אחרי חצות)
+5. פערים גדולים בין משמרות (לדוגמה — שבועיים בלי משמרת באמצע החודש)
+6. סה"כ שעות חודשי גבוה חריג (>200) או נמוך מאוד (<20)
+7. תפקיד שונה ממה שמופיע ברוב המשמרות שלו (החלפת תפקיד מקרית)
+
+החזר *רק JSON* בפורמט:
+{
+  "anomalies": [
+    { "severity": "high|medium|low|info", "title": "כותרת קצרה", "detail": "הסבר 1-2 משפטים מה ראית בדיוק (עם תאריכים/שעות אם רלוונטי)", "recommendation": "המלצה קצרה למנהל" }
+  ]
+}
+
+אם אין שום חריגה — החזר { "anomalies": [{ "severity": "info", "title": "החודש נראה תקין", "detail": "לא נמצאו חריגות משמעותיות.", "recommendation": "" }] }.`;
+
+  const raw: any = await invokeLLM({
+    prompt,
+    responseSchema: {
+      type: 'object',
+      properties: {
+        anomalies: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              severity: { type: 'string', enum: ['high', 'medium', 'low', 'info'] },
+              title: { type: 'string' },
+              detail: { type: 'string' },
+              recommendation: { type: 'string' },
+            },
+            required: ['severity', 'title', 'detail'],
+          },
+        },
+      },
+      required: ['anomalies'],
+    },
+  });
+  const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
+  return { anomalies: parsed?.anomalies || [], stats: { totalHours, shiftCount: myShifts.length, positions } };
+});
+
 // AUTH — list scheduled_event + open_task rows for the user's WhatsApp phone.
 // Used by /MySchedule page in the app.
 registerFn('listMyEvents', async ({ body }) => {
@@ -11109,7 +11216,13 @@ registerFn('updateEventContract', async ({ body }) => {
   if (!b.id) throw new Error('id required');
   const existing = await (prisma as any).eventContract.findUnique({ where: { id: String(b.id) } });
   if (!existing) throw new Error('Not found');
-  if (existing.status === 'signed') throw new Error('חוזה חתום — אי אפשר לערוך');
+  // Status-only updates are allowed even on signed contracts (the manager
+  // may need to mark a signed contract as cancelled, etc.). Block edits
+  // of any *other* field on signed contracts.
+  if (existing.status === 'signed') {
+    const onlyStatus = Object.keys(b).every((k) => k === 'id' || k === 'status');
+    if (!onlyStatus) throw new Error('חוזה חתום — אי אפשר לערוך (רק לשנות סטטוס)');
+  }
   const allowed = [
     'customer_name', 'customer_phone', 'customer_email', 'customer_address',
     'customer_id_or_taxno', 'company_or_event_label', 'event_type', 'event_location',
@@ -11139,6 +11252,16 @@ registerFn('updateEventContract', async ({ body }) => {
   }
   const updated = await (prisma as any).eventContract.update({ where: { id: String(b.id) }, data });
   return { ok: true, contract: updated };
+});
+
+registerFn('deleteEventContract', async ({ body }) => {
+  await ensureEventContractTable();
+  const b = (body || {}) as any;
+  if (!b.id) throw new Error('id required');
+  const existing = await (prisma as any).eventContract.findUnique({ where: { id: String(b.id) } });
+  if (!existing) throw new Error('Not found');
+  await (prisma as any).eventContract.delete({ where: { id: String(b.id) } });
+  return { ok: true };
 });
 
 // List contracts (admin)

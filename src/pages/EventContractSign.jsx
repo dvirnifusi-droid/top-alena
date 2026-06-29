@@ -122,7 +122,12 @@ export default function EventContractSign() {
   if (!contract) return null;
 
   // Group dishes by category (the editor stores {category, name})
-  const rawDishes = Array.isArray(contract.menu_snapshot) ? contract.menu_snapshot : [];
+  // A special {category: '__meta', meta: { categories: [...] }} entry may
+  // carry per-category overrides — strip it before grouping dishes.
+  const rawArr = Array.isArray(contract.menu_snapshot) ? contract.menu_snapshot : [];
+  const metaEntry = rawArr.find((v) => v && typeof v === 'object' && v.category === '__meta');
+  const rawDishes = rawArr.filter((v) => !(v && typeof v === 'object' && v.category === '__meta'));
+  const overrides = (metaEntry?.meta?.categories || []).reduce((acc, c) => { acc[c.key] = c; return acc; }, {});
   const dishesByCat = {};
   for (const d of rawDishes) {
     const cat = (typeof d === 'object' && d?.category) ? d.category : 'custom';
@@ -133,6 +138,19 @@ export default function EventContractSign() {
   const CAT_LABELS = {
     openers: 'פתיחות 🥖', sharing: 'חלוקה 🍢', mains: 'עיקריות בשר 🥩',
     closers: 'סיומות ☕', drinks: 'שתייה 🍺', custom: 'נוספים ✨',
+  };
+  const labelFor = (k) => overrides[k]?.label || CAT_LABELS[k] || k;
+  const selectionRuleFor = (k) => {
+    const o = overrides[k];
+    if (!o) return null;
+    if (o.min_select != null && o.max_select != null) {
+      return o.min_select === o.max_select
+        ? `יש לבחור ${o.min_select} מנות`
+        : `יש לבחור ${o.min_select}–${o.max_select} מנות`;
+    }
+    if (o.min_select != null) return `יש לבחור לפחות ${o.min_select} מנות`;
+    if (o.max_select != null) return `אפשר עד ${o.max_select} מנות`;
+    return null;
   };
   const orderedCats = ['openers', 'sharing', 'mains', 'closers', 'drinks', 'custom'].filter(k => dishesByCat[k]);
 
@@ -211,14 +229,18 @@ export default function EventContractSign() {
             {orderedCats.length > 0 && (
               <div className="bg-amber-50 rounded-xl p-4 space-y-3 text-sm">
                 <div className="font-bold text-amber-900">🍴 תפריט האירוע</div>
-                {orderedCats.map(cat => (
-                  <div key={cat}>
-                    <div className="font-bold text-amber-800 text-xs uppercase mb-1">{CAT_LABELS[cat] || cat}</div>
-                    {dishesByCat[cat].map((n, i) => (
-                      <div key={i} className="text-gray-800 mr-2">• {n}</div>
-                    ))}
-                  </div>
-                ))}
+                {orderedCats.map(cat => {
+                  const rule = selectionRuleFor(cat);
+                  return (
+                    <div key={cat}>
+                      <div className="font-bold text-amber-800 text-xs uppercase mb-1">{labelFor(cat)}</div>
+                      {rule && <div className="text-[11px] text-amber-700 mb-1">📋 {rule}</div>}
+                      {dishesByCat[cat].map((n, i) => (
+                        <div key={i} className="text-gray-800 mr-2">• {n}</div>
+                      ))}
+                    </div>
+                  );
+                })}
               </div>
             )}
 
