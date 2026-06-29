@@ -86,6 +86,7 @@ function EmployeeReportsInner() {
     const [selectedDepartment, setSelectedDepartment] = useState('all'); // all | floor | kitchen | managers | other
     const [selectedLockState, setSelectedLockState] = useState('all'); // all | locked | unlocked
     const [filterPeriod, setFilterPeriod] = useState('month');
+    const [selectedMonth, setSelectedMonth] = useState(new Date());
     // Approved-hours lock state, shared between single-employee header and
     // the bulk summary card. Persisted per month in localStorage.
     const approvedStorageKey = `approved_hours_${format(selectedMonth, 'yyyy-MM')}`;
@@ -101,7 +102,6 @@ function EmployeeReportsInner() {
             return next;
         });
     };
-    const [selectedMonth, setSelectedMonth] = useState(new Date());
     const [loading2, setLoading2] = useState(false);
     const [workShifts, setWorkShifts] = useState([]);
     // Export dialog
