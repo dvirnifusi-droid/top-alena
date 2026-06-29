@@ -1,5 +1,5 @@
 import type { FastifyPluginAsync } from 'fastify';
-import { sendRestroomReminder, sendAbandonedReminder, sendT24SurveyReminders, runAutoTrackerAnalysis, runSalesAutoClose, runWeeklyPersonalGoals, captureBeecommSnapshot, backfillBeecommHistory, reopenAutoClosedShifts, runScheduledShiftClose, runWeeklyScheduleOpen, runWeeklyScheduleReminder, runWeeklyScheduleFinalReminder, runWeeklyScheduleBuild, runNoShowWatcher, runInvoiceClassifier, runCrisisAgent, runContentGenerator } from '../functions/load.js';
+import { sendRestroomReminder, sendAbandonedReminder, sendT24SurveyReminders, runAutoTrackerAnalysis, runSalesAutoClose, runWeeklyPersonalGoals, captureBeecommSnapshot, backfillBeecommHistory, reopenAutoClosedShifts, runWeeklyScheduleOpen, runWeeklyScheduleReminder, runWeeklyScheduleFinalReminder, runWeeklyScheduleBuild, runNoShowWatcher, runInvoiceClassifier, runCrisisAgent, runContentGenerator } from '../functions/load.js';
 import { sendMorningBrief, buildMorningBrief, sendEndOfDayBrief, buildEndOfDayBrief } from '../lib/morningBrief.js';
 import { dispatchDueReminders } from '../lib/reminders.js';
 import { sendWeeklyInsights, buildWeeklyInsights } from '../lib/weeklyInsights.js';
@@ -120,14 +120,6 @@ export const cronRoutes: FastifyPluginAsync = async (app) => {
   app.post('/weekly-schedule-reminder', async () => runWeeklyScheduleReminder());
   app.post('/weekly-schedule-final-reminder', async () => runWeeklyScheduleFinalReminder());
   app.post('/weekly-schedule-build', async () => runWeeklyScheduleBuild());
-
-  // Every 5 min — checks if Israel time matches one of the nightly close
-  // windows (Sun-Wed nights 00:45, Thu night 03:00, Motzash 02:00) and
-  // force-closes any still-open ShiftTracking. WhatsApps the admins a
-  // summary of who was closed.
-  app.post('/scheduled-shift-close', async () => {
-    return runScheduledShiftClose();
-  });
 
   // Every 15 min — pull externally-added events from each connected admin's
   // Google Calendar into our scheduled_event store. Best-effort per phone.
