@@ -8158,6 +8158,46 @@ registerFn('getRecipe', async ({ body }) => {
   return { recipe: recipe[0], ingredients };
 });
 
+// Bulk set sale prices on multiple recipes. Accepts a list of
+// { name_match: string, price: number } and fuzzy-matches each name_match
+// against Recipe.name. Used after a menu-PDF parse, so we don't need to
+// hand-edit 33 dishes one by one.
+registerFn('bulkSetRecipeSalePrices', async ({ body, user }) => {
+  if (!isAdminRole((user as any)?.role)) throw new Error('admin only');
+  await ensureInventoryTables();
+  const b = (body || {}) as any;
+  const list: any[] = Array.isArray(b.prices) ? b.prices : [];
+  if (!list.length) throw new Error('prices[] required');
+
+  const recipes: any[] = await (prisma as any).$queryRawUnsafe(
+    `SELECT id, name FROM "Recipe" WHERE kind = 'DISH'`,
+  );
+  const norm = (s: string) => String(s || '').toLowerCase().trim().replace(/[״"׳'.,\-+()/\\]/g, '').replace(/\s+/g, ' ');
+  const recByNorm: Record<string, any> = {};
+  for (const r of recipes) recByNorm[norm(r.name)] = r;
+
+  const matched: any[] = [];
+  const unmatched: string[] = [];
+  for (const p of list) {
+    const target = norm(p.name_match || '');
+    if (!target || !Number.isFinite(Number(p.price))) continue;
+    let rec = recByNorm[target];
+    if (!rec) {
+      for (const [k, v] of Object.entries(recByNorm)) {
+        if (k.includes(target) || target.includes(k)) { rec = v; break; }
+      }
+    }
+    if (!rec) { unmatched.push(p.name_match); continue; }
+    await (prisma as any).$executeRawUnsafe(
+      `UPDATE "Recipe" SET sale_price = $1, "updatedAt" = NOW() WHERE id = $2`,
+      Number(p.price), rec.id,
+    );
+    matched.push({ name_match: p.name_match, recipe_name: rec.name, price: Number(p.price) });
+  }
+  await recomputeAllRecipeCosts();
+  return { ok: true, matched_count: matched.length, matched, unmatched };
+});
+
 registerFn('updateRecipeSalePrice', async ({ body, user }) => {
   if (!isAdminRole((user as any)?.role)) throw new Error('admin only');
   await ensureInventoryTables();

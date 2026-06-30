@@ -18,6 +18,58 @@ function RecipesInner() {
   const [importing, setImporting] = useState(false);
   const [syncing, setSyncing] = useState(false);
 
+  // Prices Dvir confirmed from the PDF menu (22.6 edition). Applied via the
+  // 'הזן מחירי תפריט מה-PDF' button below.
+  const MENU_PRICES = [
+    { name_match: 'פרנה', price: 28 },
+    { name_match: 'בטטה ברולה', price: 45 },
+    { name_match: 'ציפס', price: 37 },
+    { name_match: 'כרוב שרוף', price: 45 },
+    { name_match: 'חצילים', price: 45 },
+    { name_match: 'חצילוגי', price: 45 },
+    { name_match: 'תפו', price: 37 },
+    { name_match: 'תפוא קריספי', price: 37 },
+    { name_match: 'לקט פטריות', price: 45 },
+    { name_match: 'ברוסקטה', price: 50 },
+    { name_match: 'ברוסקטה אסאדו', price: 50 },
+    { name_match: 'סניה קבב', price: 58 },
+    { name_match: 'עראיס', price: 61 },
+    { name_match: 'עראיס אסאדו', price: 61 },
+    { name_match: 'לחוח קבב', price: 54 },
+    { name_match: 'סינטה', price: 71 },
+    { name_match: 'קרפצ', price: 57 },
+    { name_match: 'קרפצ׳יו', price: 57 },
+    { name_match: 'לחוח מסאחן', price: 58 },
+    { name_match: 'סיגר בשר', price: 51 },
+    { name_match: 'סלט שוק', price: 51 },
+    { name_match: 'סלט עלים', price: 58 },
+    { name_match: 'סלט דודו', price: 56 },
+    { name_match: 'המבורגר', price: 64 },
+    { name_match: 'עלינאבורגר', price: 76 },
+    { name_match: 'אנטריקוט', price: 134 },
+    { name_match: 'נתח קצבים', price: 122 },
+    { name_match: 'קבב', price: 64 },
+    { name_match: 'פרגית', price: 69 },
+    { name_match: 'פרגיות', price: 69 },
+    { name_match: 'שוקולד', price: 43 },
+    { name_match: 'רוטונדו', price: 43 },
+    { name_match: 'פאי לימון', price: 43 },
+  ];
+
+  const handleApplyMenuPrices = async () => {
+    if (!window.confirm(`להזין ${MENU_PRICES.length} מחירי מכירה מהתפריט (PDF 22.6) למנות?`)) return;
+    setSyncing(true);
+    try {
+      const res = await base44.functions.bulkSetRecipeSalePrices({ prices: MENU_PRICES });
+      const data = res?.data || res;
+      const unmatchedSample = data.unmatched?.slice(0, 8).join('\n  • ') || '—';
+      alert(`✅ עודכנו ${data.matched_count} מנות\n${data.unmatched?.length || 0} לא נמצאו:\n  • ${unmatchedSample}`);
+      await load();
+    } catch (e) {
+      alert('שגיאה: ' + (e?.message || ''));
+    } finally { setSyncing(false); }
+  };
+
   const handleSyncPrices = async () => {
     if (!window.confirm('סנכרן מחירי מכירה מטבלת התפריט (MenuItem) למתכונים? רק מנות שאין להן עדיין מחיר יעודכנו.')) return;
     setSyncing(true);
@@ -114,9 +166,13 @@ function RecipesInner() {
           </p>
         </div>
         <div className="flex gap-2">
+          <Button size="sm" variant="outline" onClick={handleApplyMenuPrices} disabled={syncing} className="border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-900">
+            {syncing ? <Loader2 className="w-4 h-4 animate-spin" /> : <TrendingUp className="w-4 h-4 ml-1" />}
+            הזן מחירי תפריט מה-PDF
+          </Button>
           <Button size="sm" variant="outline" onClick={handleSyncPrices} disabled={syncing} className="border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-900">
             {syncing ? <Loader2 className="w-4 h-4 animate-spin" /> : <TrendingUp className="w-4 h-4 ml-1" />}
-            סנכרן מחירי תפריט
+            סנכרן מ-MenuItem
           </Button>
           <label className="inline-flex items-center gap-1 cursor-pointer border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-900 text-sm px-3 py-2 rounded-md">
             {importing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
