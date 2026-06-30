@@ -153,6 +153,10 @@ import QueueHub from './pages/QueueHub';
 import ColorPreview from './pages/ColorPreview';
 import Recipes from './pages/Recipes';
 import CashFlow from './pages/CashFlow';
+import PlatformAdmin from './pages/PlatformAdmin';
+import PlatformAdminPending from './pages/PlatformAdminPending';
+import PlatformAdminTenants from './pages/PlatformAdminTenants';
+import Signup from './pages/Signup';
 import __Layout from './Layout.jsx';
 
 
@@ -263,6 +267,10 @@ export const PAGES = {
     "ColorPreview": ColorPreview,
     "Recipes": Recipes,
     "CashFlow": CashFlow,
+    "PlatformAdmin": PlatformAdmin,
+    "PlatformAdminPending": PlatformAdminPending,
+    "PlatformAdminTenants": PlatformAdminTenants,
+    "Signup": Signup,
 }
 
 export const pagesConfig = {

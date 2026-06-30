@@ -12077,6 +12077,233 @@ let eventContractTableReady = false;
 // =================== INVENTORY / RECIPES / CASH FLOW ===================
 // Idempotent bootstrap. Created here (not via prisma db push) for the same
 // reason as EventContract — silent push failures on this project. See memory.
+// =================== MULTI-TENANT PLATFORM ===================
+// Container-per-tenant architecture. Each new restaurant gets its own
+// DB + api container, isolated. The Tenant + ProvisioningJob tables
+// live in the MAIN (Alena's) DB and act as the platform registry.
+// Owner approves a Signup request via PlatformAdmin → ProvisioningJob
+// row goes to 'pending_provisioning' → VPS cron picks it up → runs
+// provision-tenant.sh → flips status to 'live' or 'failed'.
+let platformTablesReady = false;
+async function ensurePlatformTables() {
+  if (platformTablesReady) return;
+  const sql = (prisma as any).$executeRawUnsafe.bind(prisma);
+  await sql(`CREATE TABLE IF NOT EXISTS "Tenant" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "slug" TEXT NOT NULL UNIQUE,
+    "restaurant_name" TEXT NOT NULL,
+    "owner_name" TEXT NOT NULL,
+    "owner_phone" TEXT NOT NULL,
+    "owner_email" TEXT NOT NULL,
+    "status" TEXT NOT NULL DEFAULT 'pending_approval',
+    "subdomain_url" TEXT,
+    "db_name" TEXT,
+    "container_name" TEXT,
+    "approved_by" TEXT,
+    "approved_at" TIMESTAMP(3),
+    "provisioned_at" TIMESTAMP(3),
+    "live_at" TIMESTAMP(3),
+    "rejected_reason" TEXT,
+    "notes" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+  )`);
+  await sql(`CREATE INDEX IF NOT EXISTS "Tenant_status_idx" ON "Tenant"("status")`);
+  await sql(`CREATE TABLE IF NOT EXISTS "ProvisioningJob" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "tenant_id" TEXT NOT NULL REFERENCES "Tenant"("id") ON DELETE CASCADE,
+    "status" TEXT NOT NULL DEFAULT 'pending',
+    "started_at" TIMESTAMP(3),
+    "finished_at" TIMESTAMP(3),
+    "log" TEXT,
+    "error" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+  )`);
+  await sql(`CREATE INDEX IF NOT EXISTS "ProvisioningJob_status_idx" ON "ProvisioningJob"("status")`);
+  platformTablesReady = true;
+}
+
+// Super-admin gate. For now: only Dvir's number / admin role.
+function isSuperAdmin(user: any): boolean {
+  if (!user) return false;
+  if (String(user.email || '').toLowerCase() === 'dvirnifusi@gmail.com') return true;
+  if (user.role === 'owner' || user.role === 'admin') return true;
+  return false;
+}
+
+// PUBLIC — anyone can post a signup. Creates Tenant in pending_approval +
+// WhatsApp notifies super-admin with one-tap approve link.
+registerFn('requestTenantSignup', async ({ body }) => {
+  await ensurePlatformTables();
+  const b = (body || {}) as any;
+  const slug = String(b.slug || '').toLowerCase().trim().replace(/[^a-z0-9-]/g, '').slice(0, 30);
+  const restaurantName = String(b.restaurant_name || '').trim();
+  const ownerName = String(b.owner_name || '').trim();
+  const ownerPhone = String(b.owner_phone || '').trim();
+  const ownerEmail = String(b.owner_email || '').trim().toLowerCase();
+  if (!slug || !/^[a-z][a-z0-9-]{2,}$/.test(slug)) throw new Error('סלוג לא תקין — אותיות אנגליות, מספרים ומקפים בלבד, להתחיל באות');
+  if (!restaurantName || !ownerName || !ownerPhone || !ownerEmail) throw new Error('כל השדות חובה');
+
+  // Reserved slugs
+  const reserved = ['www', 'admin', 'signup', 'api', 'app', 'mail', 'ftp', 'topalena', 'alena', 'platform', 'meta', 'static'];
+  if (reserved.includes(slug)) throw new Error(`סלוג "${slug}" שמור — בחר אחר`);
+
+  const exists: any[] = await (prisma as any).$queryRawUnsafe(`SELECT id FROM "Tenant" WHERE slug = $1`, slug);
+  if (exists.length) throw new Error(`הסלוג "${slug}" כבר תפוס`);
+
+  const tenantId = randomUUID();
+  const subdomainUrl = `https://${slug}.topalena.com`;
+  await (prisma as any).$executeRawUnsafe(
+    `INSERT INTO "Tenant"("id","slug","restaurant_name","owner_name","owner_phone","owner_email","status","subdomain_url","db_name","container_name")
+     VALUES ($1, $2, $3, $4, $5, $6, 'pending_approval', $7, $8, $9)`,
+    tenantId, slug, restaurantName, ownerName, ownerPhone, ownerEmail,
+    subdomainUrl, `topalena_${slug}`, `tenant-${slug}-api`,
+  );
+
+  // Notify super-admin
+  const adminNumbers = (process.env.WHATSAPP_ADMIN_NUMBERS || '').split(',').map((s) => s.trim()).filter(Boolean);
+  if (adminNumbers.length) {
+    const { sendWhatsApp } = await import('../lib/twilio.js');
+    const msg = `🌟 *בקשת רישום חדשה למערכת*\n\n` +
+      `🍽 מסעדה: ${restaurantName}\n` +
+      `👤 בעלים: ${ownerName}\n` +
+      `📱 טלפון: ${ownerPhone}\n` +
+      `✉️ אימייל: ${ownerEmail}\n` +
+      `🔗 כתובת: ${subdomainUrl}\n\n` +
+      `אישור/דחייה: ${APP_BASE_URL || 'https://topalena.com'}/PlatformAdmin/PendingApproval`;
+    for (const p of adminNumbers) {
+      try { await sendWhatsApp(p, msg); } catch (e: any) { console.warn('[signup] notify failed', e?.message); }
+    }
+  }
+  return { ok: true, tenant_id: tenantId, status: 'pending_approval' };
+}, { public: true });
+
+// SUPER-ADMIN — approve a pending tenant. Creates a ProvisioningJob and
+// flips Tenant.status to 'pending_provisioning'. VPS cron picks it up.
+registerFn('approveTenant', async ({ user, body }) => {
+  if (!isSuperAdmin(user)) throw new Error('super-admin only');
+  await ensurePlatformTables();
+  const b = (body || {}) as any;
+  if (!b.tenant_id) throw new Error('tenant_id required');
+  const rows: any[] = await (prisma as any).$queryRawUnsafe(
+    `SELECT id, status, slug, owner_phone FROM "Tenant" WHERE id = $1`, b.tenant_id,
+  );
+  if (!rows.length) throw new Error('Tenant not found');
+  if (rows[0].status !== 'pending_approval') throw new Error(`Tenant is in status ${rows[0].status} — cannot approve`);
+  await (prisma as any).$executeRawUnsafe(
+    `UPDATE "Tenant" SET status = 'pending_provisioning', approved_by = $1, approved_at = NOW(), "updatedAt" = NOW() WHERE id = $2`,
+    (user as any).email || (user as any).id, b.tenant_id,
+  );
+  await (prisma as any).$executeRawUnsafe(
+    `INSERT INTO "ProvisioningJob"("id","tenant_id","status") VALUES ($1, $2, 'pending')`,
+    randomUUID(), b.tenant_id,
+  );
+  return { ok: true };
+});
+
+registerFn('rejectTenant', async ({ user, body }) => {
+  if (!isSuperAdmin(user)) throw new Error('super-admin only');
+  await ensurePlatformTables();
+  const b = (body || {}) as any;
+  if (!b.tenant_id) throw new Error('tenant_id required');
+  await (prisma as any).$executeRawUnsafe(
+    `UPDATE "Tenant" SET status = 'rejected', rejected_reason = $1, "updatedAt" = NOW() WHERE id = $2`,
+    String(b.reason || ''), b.tenant_id,
+  );
+  return { ok: true };
+});
+
+registerFn('listTenants', async ({ user, body }) => {
+  if (!isSuperAdmin(user)) throw new Error('super-admin only');
+  await ensurePlatformTables();
+  const b = (body || {}) as any;
+  const status = b.status ? String(b.status) : null;
+  const where = status ? `WHERE status = '${status.replace(/'/g, "''")}'` : '';
+  const rows: any[] = await (prisma as any).$queryRawUnsafe(
+    `SELECT id, slug, restaurant_name, owner_name, owner_phone, owner_email,
+            status, subdomain_url, approved_at, live_at, "createdAt" AS created_at
+     FROM "Tenant" ${where} ORDER BY "createdAt" DESC LIMIT 200`,
+  );
+  return { tenants: rows };
+});
+
+registerFn('getTenantStats', async ({ user }) => {
+  if (!isSuperAdmin(user)) throw new Error('super-admin only');
+  await ensurePlatformTables();
+  const rows: any[] = await (prisma as any).$queryRawUnsafe(
+    `SELECT
+       COUNT(*) FILTER (WHERE status = 'live')::int AS live,
+       COUNT(*) FILTER (WHERE status = 'pending_approval')::int AS pending_approval,
+       COUNT(*) FILTER (WHERE status IN ('pending_provisioning', 'provisioning'))::int AS provisioning,
+       COUNT(*) FILTER (WHERE status = 'failed')::int AS failed,
+       COUNT(*) FILTER (WHERE status = 'rejected')::int AS rejected
+     FROM "Tenant"`,
+  );
+  return rows[0] || { live: 0, pending_approval: 0, provisioning: 0, failed: 0, rejected: 0 };
+});
+
+// Called by the VPS cron — pulls one pending job, marks it running,
+// returns the data needed to provision. The cron script then runs the
+// shell provisioning + posts back via reportProvisioningResult.
+registerFn('pickNextProvisioningJob', async ({ body }) => {
+  await ensurePlatformTables();
+  const b = (body || {}) as any;
+  const secret = String(b.cron_secret || '');
+  if (secret !== process.env.CRON_SECRET) throw new Error('forbidden');
+  // Atomic claim: pick one pending row, mark as running.
+  const claimed: any[] = await (prisma as any).$queryRawUnsafe(
+    `UPDATE "ProvisioningJob" SET status = 'running', started_at = NOW(), "updatedAt" = NOW()
+     WHERE id = (SELECT id FROM "ProvisioningJob" WHERE status = 'pending' ORDER BY "createdAt" ASC LIMIT 1)
+     RETURNING id, tenant_id`,
+  );
+  if (!claimed.length) return { job: null };
+  const job = claimed[0];
+  const tenant: any[] = await (prisma as any).$queryRawUnsafe(
+    `SELECT id, slug, restaurant_name, owner_name, owner_phone, owner_email, db_name, container_name, subdomain_url
+     FROM "Tenant" WHERE id = $1`,
+    job.tenant_id,
+  );
+  if (!tenant.length) return { job: null };
+  await (prisma as any).$executeRawUnsafe(
+    `UPDATE "Tenant" SET status = 'provisioning', "updatedAt" = NOW() WHERE id = $1`,
+    job.tenant_id,
+  );
+  return { job: { id: job.id, ...tenant[0] } };
+});
+
+registerFn('reportProvisioningResult', async ({ body }) => {
+  await ensurePlatformTables();
+  const b = (body || {}) as any;
+  const secret = String(b.cron_secret || '');
+  if (secret !== process.env.CRON_SECRET) throw new Error('forbidden');
+  if (!b.job_id || !b.tenant_id) throw new Error('job_id and tenant_id required');
+  const success = b.status === 'success';
+  await (prisma as any).$executeRawUnsafe(
+    `UPDATE "ProvisioningJob" SET status = $1, finished_at = NOW(), log = $2, error = $3, "updatedAt" = NOW() WHERE id = $4`,
+    success ? 'done' : 'failed', String(b.log || '').slice(0, 8000), String(b.error || '').slice(0, 2000), b.job_id,
+  );
+  await (prisma as any).$executeRawUnsafe(
+    `UPDATE "Tenant" SET status = $1, provisioned_at = NOW(), live_at = ${success ? 'NOW()' : 'NULL'}, "updatedAt" = NOW() WHERE id = $2`,
+    success ? 'live' : 'failed', b.tenant_id,
+  );
+  // Notify owner on success
+  if (success) {
+    const tenant: any[] = await (prisma as any).$queryRawUnsafe(
+      `SELECT owner_phone, restaurant_name, subdomain_url FROM "Tenant" WHERE id = $1`, b.tenant_id,
+    );
+    if (tenant.length) {
+      const { sendWhatsApp } = await import('../lib/twilio.js');
+      const t = tenant[0];
+      const msg = `🎉 *${t.restaurant_name}* — המערכת שלך מוכנה!\n\n` +
+        `🔗 כתובת: ${t.subdomain_url}\n\n` +
+        `היכנס/י, צור/צרי משתמש אדמין, ותתחיל/י לעבוד. כל שאלה — שלחו לנו הודעה לכאן.`;
+      try { await sendWhatsApp(t.owner_phone, msg); } catch { /* noop */ }
+    }
+  }
+  return { ok: true };
+});
+
 let inventoryTablesReady = false;
 async function ensureInventoryTables() {
   if (inventoryTablesReady) return;

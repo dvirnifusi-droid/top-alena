@@ -38,6 +38,7 @@ import UserGuide from './pages/UserGuide';
 import InstagramStudio from './pages/InstagramStudio';
 import Login from './pages/Login';
 import PublicReservation from './pages/PublicReservation';
+import Signup from './pages/Signup';
 import ClubJoin from './pages/ClubJoin';
 import ClubUpdate from './pages/ClubUpdate';
 import ClubQR from './pages/ClubQR';
@@ -149,6 +150,8 @@ function App() {
           <Route path="/QueueGame" element={<QueueGame />} />
           <Route path="/QueueFeedback" element={<QueueFeedback />} />
           <Route path="/PublicReservation" element={<PublicReservation />} />
+          <Route path="/Signup" element={<Signup />} />
+          <Route path="/signup" element={<Signup />} />
           <Route path="/ClubJoin" element={<ClubJoin />} />
           <Route path="/club" element={<ClubJoin />} />
           <Route path="/ClubUpdate" element={<ClubUpdate />} />

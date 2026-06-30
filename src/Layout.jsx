@@ -5,7 +5,7 @@ import { base44 } from "@/api/base44Client";
 import VoiceControl from "@/components/voice/VoiceControl";
 import {
   Users, GraduationCap, AlertTriangle, CheckSquare, Building, BarChart3,
-  LayoutGrid, Trophy, Menu, FileText, Utensils, Sparkles, Crown, Rocket, Map, Brain, Calendar, CalendarDays, CalendarHeart, Banknote, MessageSquare, Briefcase, QrCode, ClipboardCheck, Settings, TrendingUp, Zap, Megaphone, Bell, Package, Navigation, LogOut, Tablet, Download, ChefHat, Wallet
+  LayoutGrid, Trophy, Menu, FileText, Utensils, Sparkles, Crown, Rocket, Map, Brain, Calendar, CalendarDays, CalendarHeart, Banknote, MessageSquare, Briefcase, QrCode, ClipboardCheck, Settings, TrendingUp, Zap, Megaphone, Bell, Package, Navigation, LogOut, Tablet, Download, ChefHat, Wallet, Shield
 } from "lucide-react";
 import {
   Sidebar, SidebarContent,
@@ -82,6 +82,8 @@ const adminLinks = [
   { title: "📦 משלוחים", url: createPageUrl("DeliveriesHub"), icon: Package, color: "gold" },
   { title: "📢 שיווק ולקוחות", url: createPageUrl("MarketingHub"), icon: Megaphone, color: "olive" },
   { title: "🏆 גמיפיקציה וסטוריז", url: createPageUrl("StoriesHub"), icon: Trophy, color: "cinnamon" },
+
+  { title: "👑 Platform Admin", url: createPageUrl("PlatformAdmin"), icon: Shield, color: "espresso" },
 
   { title: "הגדרות ואינטגרציות ⚙️", url: "#", icon: Settings, isCategory: true, color: "espresso" },
   { title: "מרכז הגדרות וחיבורים", url: createPageUrl("AdminSettings"), icon: Settings, isSubItem: true, color: "espresso" },
