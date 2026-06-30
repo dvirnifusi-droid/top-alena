@@ -3017,3 +3017,119 @@ model PopupView {
   snoozed_until String?
   popup         Popup    @relation(fields: [popup_id], references: [id])
 }
+
+// =================== INVENTORY / RECIPE / CASH FLOW ===================
+// Imported from owner's Excel files on 2026-06-30.
+// Sources:
+//   - מחירי ספקים → Ingredient + Supplier
+//   - עץ הכנות מפוצל חדש → Recipe (kind=PREP) + RecipeIngredient
+//   - עץ מנות סופי → Recipe (kind=DISH) + RecipeIngredient
+//   - מילון התאמות → IngredientAlias
+//   - תזרים עלינא חדש → CashFlowEntry
+
+model Ingredient {
+  id                  String   @id @default(cuid())
+  // Canonical name as it appears in מחירי ספקים (e.g. "פרגיות", "מלח בישול 1 ק\"ג ברמן")
+  name                String
+  // Default supplier — may be null for shared/generic items.
+  supplier_name       String?
+  // Unit: 'kg' | 'unit' | 'liter' — guessed from name, owner can override.
+  unit                String   @default("kg")
+  // Last known purchase price per unit (before waste).
+  price_per_unit      Float?
+  // Waste percent applied to recipe cost (0.07 = 7%).
+  waste_percent       Float?   @default(0)
+  // Category for grouping in UI.
+  category            String?
+  notes               String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  recipeIngredients   RecipeIngredient[]
+  aliases             IngredientAlias[]
+}
+
+// Maps recipe-side names to canonical Ingredient.name. From מילון התאמות.
+// e.g. recipe says "מלח" → maps to ingredient "מלח בישול 1 ק\"ג ברמן".
+model IngredientAlias {
+  id              String     @id @default(cuid())
+  alias           String     @unique
+  ingredient_id   String
+  ingredient      Ingredient @relation(fields: [ingredient_id], references: [id], onDelete: Cascade)
+  createdAt       DateTime   @default(now())
+}
+
+// A Recipe is either a DISH (sells to customer) or a PREP (used as ingredient
+// in other recipes — e.g. "טחינה גולמית", "סלסה ירוקה"). PREP recipes can be
+// nested inside DISH recipes via RecipeIngredient.prep_recipe_id.
+model Recipe {
+  id                  String   @id @default(cuid())
+  // Either 'DISH' or 'PREP'.
+  kind                String   @default("DISH")
+  name                String
+  // Total cost per unit (per dish, or per kg of prep) — recomputed on import.
+  total_cost          Float?
+  // Owner-set selling price (DISH only). NULL until owner fills in via UI.
+  sale_price          Float?
+  // food_cost = total_cost / sale_price. Computed.
+  food_cost_percent   Float?
+  // The yield/quantity this recipe produces (kg or units).
+  yield_qty           Float?   @default(1)
+  yield_unit          String?  @default("unit")
+  category            String?  // 'פתיחות', 'עיקריות', etc.
+  notes               String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  ingredients         RecipeIngredient[]
+  // Recipes that USE this recipe as a sub-prep (reverse of prep_recipe_id).
+  usedInRecipes       RecipeIngredient[] @relation("PrepUsedIn")
+}
+
+model RecipeIngredient {
+  id              String   @id @default(cuid())
+  recipe_id       String
+  recipe          Recipe   @relation(fields: [recipe_id], references: [id], onDelete: Cascade)
+  // Either an Ingredient (raw material) or a Recipe (PREP). Exactly one set.
+  ingredient_id   String?
+  ingredient      Ingredient? @relation(fields: [ingredient_id], references: [id])
+  prep_recipe_id  String?
+  prep_recipe     Recipe?  @relation("PrepUsedIn", fields: [prep_recipe_id], references: [id])
+  qty             Float
+  unit            String   @default("kg")
+  // Snapshot cost at import time — recomputed on price changes.
+  cost_at_import  Float?
+  notes           String?
+  createdAt       DateTime @default(now())
+}
+
+// Cash flow forecast + actuals. From owner's manually-maintained Excel.
+model CashFlowEntry {
+  id              String   @id @default(cuid())
+  date            DateTime
+  type            String   // 'income' | 'expense'
+  category        String   // 'עלות מכר' | 'משתנות' | 'קבועות' | 'שכר' | 'מימון' | ...
+  source          String?  // supplier or income channel name
+  description     String?
+  amount          Float
+  payment_method  String?  // 'אשראי' | 'מזומן' | 'ה"וק' | 'שיק' | 'העברה'
+  status          String   @default("planned") // 'planned' | 'paid' | 'received'
+  paid_at         DateTime?
+  // Link back to source for traceability.
+  invoice_id      String?
+  // Free-form notes.
+  notes           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+// Monthly P&L targets, from פיננסי רווח והפסד master DB.
+model MonthlyTarget {
+  id          String   @id @default(cuid())
+  month       String   // YYYY-MM
+  category    String   // 'הכנסות:אשראי' | 'הוצאות:עלות מכר' | etc.
+  target      Float
+  actual      Float?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([month, category])
+}

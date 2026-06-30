@@ -7961,6 +7961,231 @@ export async function runNoShowWatcher() {
 // Analyze an employee's monthly shift data with the LLM and return a list
 // of detected anomalies (long shifts, gaps, no-shows, frequent late punches,
 // unusual position changes, overtime spikes). Used by EmployeeReports page.
+// =================== INVENTORY / RECIPE FUNCTIONS ===================
+
+// Admin-only bulk import of recipes + ingredients from the owner's Excel.
+// Accepts the JSON shape produced by the import agent. Idempotent: clears
+// existing rows first (full replacement). Recomputes recipe.total_cost from
+// ingredient prices and waste_percent.
+registerFn('importRecipesFromJson', async ({ body, user }) => {
+  if (!user?.id) throw new Error('unauthorized');
+  if (!isAdminRole((user as any)?.role)) throw new Error('admin only');
+  await ensureInventoryTables();
+  const b = (body || {}) as any;
+  const ingredients: any[] = Array.isArray(b.ingredients) ? b.ingredients : [];
+  const aliases: any[] = Array.isArray(b.aliases) ? b.aliases : [];
+  const recipes: any[] = Array.isArray(b.recipes) ? b.recipes : [];
+  if (!ingredients.length || !recipes.length) throw new Error('ingredients[] and recipes[] required');
+
+  // 1. Wipe existing rows in dependency order (children → parents).
+  await (prisma as any).$executeRawUnsafe(`DELETE FROM "RecipeIngredient"`);
+  await (prisma as any).$executeRawUnsafe(`DELETE FROM "IngredientAlias"`);
+  await (prisma as any).$executeRawUnsafe(`DELETE FROM "Recipe"`);
+  await (prisma as any).$executeRawUnsafe(`DELETE FROM "Ingredient"`);
+
+  // 2. Insert ingredients, build name → id map.
+  const ingByName: Record<string, string> = {};
+  for (const ing of ingredients) {
+    const r: any = await (prisma as any).$queryRawUnsafe(
+      `INSERT INTO "Ingredient"("id","name","supplier_name","unit","price_per_unit","waste_percent","category")
+       VALUES (gen_random_uuid()::text, $1, $2, $3, $4, $5, $6) RETURNING id`,
+      ing.name, ing.supplier_name || null, ing.unit || 'kg',
+      ing.price_per_unit ?? null, ing.waste_percent ?? 0, ing.category || null,
+    );
+    ingByName[ing.name] = r[0].id;
+  }
+
+  // 3. Insert aliases (alias → canonical ingredient id).
+  for (const al of aliases) {
+    const canonicalId = ingByName[al.canonical_name];
+    if (!canonicalId) continue;
+    await (prisma as any).$executeRawUnsafe(
+      `INSERT INTO "IngredientAlias"("id","alias","ingredient_id") VALUES (gen_random_uuid()::text, $1, $2) ON CONFLICT (alias) DO NOTHING`,
+      al.alias, canonicalId,
+    );
+  }
+  // Combined lookup: by ingredient name or by alias name.
+  const aliasByName: Record<string, string> = {};
+  for (const al of aliases) {
+    const id = ingByName[al.canonical_name];
+    if (id) aliasByName[al.alias] = id;
+  }
+  const lookupIngredient = (name: string): string | null =>
+    ingByName[name] || aliasByName[name] || null;
+
+  // 4. Insert recipes in 2 passes: PREP first (so DISH can reference them).
+  const recipeByName: Record<string, string> = {};
+  for (const pass of ['PREP', 'DISH']) {
+    for (const rec of recipes) {
+      if (rec.kind !== pass) continue;
+      const r: any = await (prisma as any).$queryRawUnsafe(
+        `INSERT INTO "Recipe"("id","kind","name","total_cost","sale_price","yield_qty","yield_unit","category")
+         VALUES (gen_random_uuid()::text, $1, $2, $3, $4, $5, $6, $7) RETURNING id`,
+        rec.kind, rec.name, rec.total_cost ?? null, rec.sale_price ?? null,
+        rec.yield_qty ?? 1, rec.yield_unit || 'unit', rec.category || null,
+      );
+      recipeByName[rec.name] = r[0].id;
+    }
+  }
+
+  // 5. Insert recipe ingredients.
+  let linked = 0;
+  let unmatched: string[] = [];
+  for (const rec of recipes) {
+    const recId = recipeByName[rec.name];
+    if (!recId) continue;
+    const ings: any[] = Array.isArray(rec.ingredients) ? rec.ingredients : [];
+    for (const ri of ings) {
+      const isPrep = !!ri.is_prep;
+      const prepId = isPrep ? recipeByName[ri.raw_name] : null;
+      const ingId = !isPrep ? lookupIngredient(ri.raw_name) : null;
+      if (!prepId && !ingId) {
+        unmatched.push(`${rec.name} → ${ri.raw_name}`);
+        continue;
+      }
+      await (prisma as any).$executeRawUnsafe(
+        `INSERT INTO "RecipeIngredient"("id","recipe_id","ingredient_id","prep_recipe_id","qty","unit","cost_at_import")
+         VALUES (gen_random_uuid()::text, $1, $2, $3, $4, $5, $6)`,
+        recId, ingId, prepId, ri.qty || 0, ri.unit || 'kg', ri.cost_at_import ?? null,
+      );
+      linked++;
+    }
+  }
+
+  // 6. Recompute total_cost per recipe (PREP first, then DISH using PREP costs).
+  await recomputeAllRecipeCosts();
+
+  return {
+    ok: true,
+    ingredients: Object.keys(ingByName).length,
+    aliases: aliases.length,
+    preps: recipes.filter((r) => r.kind === 'PREP').length,
+    dishes: recipes.filter((r) => r.kind === 'DISH').length,
+    linked_ingredients: linked,
+    unmatched_count: unmatched.length,
+    unmatched_sample: unmatched.slice(0, 20),
+  };
+});
+
+// Recompute recipe.total_cost across the whole graph. PREP recipes use raw
+// ingredient prices (with waste). DISH recipes use raw + nested PREP costs.
+async function recomputeAllRecipeCosts() {
+  // 1. PREP recipes
+  const preps: any[] = await (prisma as any).$queryRawUnsafe(`SELECT id, yield_qty FROM "Recipe" WHERE kind = 'PREP'`);
+  for (const p of preps) {
+    const total = await computeRecipeCost(p.id);
+    await (prisma as any).$executeRawUnsafe(
+      `UPDATE "Recipe" SET total_cost = $1, "updatedAt" = NOW() WHERE id = $2`,
+      total, p.id,
+    );
+  }
+  // 2. DISH recipes
+  const dishes: any[] = await (prisma as any).$queryRawUnsafe(`SELECT id, sale_price FROM "Recipe" WHERE kind = 'DISH'`);
+  for (const d of dishes) {
+    const total = await computeRecipeCost(d.id);
+    const fcPct = d.sale_price > 0 ? (total / d.sale_price) * 100 : null;
+    await (prisma as any).$executeRawUnsafe(
+      `UPDATE "Recipe" SET total_cost = $1, food_cost_percent = $2, "updatedAt" = NOW() WHERE id = $3`,
+      total, fcPct, d.id,
+    );
+  }
+}
+
+async function computeRecipeCost(recipeId: string): Promise<number> {
+  const rows: any[] = await (prisma as any).$queryRawUnsafe(
+    `SELECT ri.qty, ri.unit, ri.ingredient_id, ri.prep_recipe_id,
+            i.price_per_unit, i.waste_percent, i.unit AS ing_unit,
+            r.total_cost AS prep_cost, r.yield_qty AS prep_yield
+     FROM "RecipeIngredient" ri
+     LEFT JOIN "Ingredient" i ON ri.ingredient_id = i.id
+     LEFT JOIN "Recipe" r ON ri.prep_recipe_id = r.id
+     WHERE ri.recipe_id = $1`,
+    recipeId,
+  );
+  let total = 0;
+  for (const r of rows) {
+    if (r.ingredient_id && r.price_per_unit != null) {
+      const wasteAdj = r.price_per_unit / (1 - (r.waste_percent || 0));
+      total += (r.qty || 0) * wasteAdj;
+    } else if (r.prep_recipe_id && r.prep_cost != null) {
+      const perUnit = (r.prep_cost || 0) / (r.prep_yield || 1);
+      total += (r.qty || 0) * perUnit;
+    }
+  }
+  return Math.round(total * 100) / 100;
+}
+
+registerFn('listRecipes', async ({ body }) => {
+  await ensureInventoryTables();
+  const b = (body || {}) as any;
+  const kind = b.kind ? String(b.kind).toUpperCase() : null;
+  const where = kind ? `WHERE kind = '${kind}'` : '';
+  const rows: any[] = await (prisma as any).$queryRawUnsafe(
+    `SELECT id, kind, name, total_cost, sale_price, food_cost_percent, yield_qty, yield_unit, category
+     FROM "Recipe" ${where} ORDER BY kind, category NULLS LAST, name`,
+  );
+  return { recipes: rows };
+});
+
+registerFn('getRecipe', async ({ body }) => {
+  await ensureInventoryTables();
+  const b = (body || {}) as any;
+  if (!b.id) throw new Error('id required');
+  const recipe: any[] = await (prisma as any).$queryRawUnsafe(
+    `SELECT * FROM "Recipe" WHERE id = $1`, b.id,
+  );
+  if (!recipe.length) throw new Error('Recipe not found');
+  const ingredients: any[] = await (prisma as any).$queryRawUnsafe(
+    `SELECT ri.id, ri.qty, ri.unit, ri.cost_at_import,
+            COALESCE(i.name, r.name) AS name,
+            CASE WHEN ri.prep_recipe_id IS NOT NULL THEN 'prep' ELSE 'raw' END AS source,
+            i.price_per_unit, i.waste_percent, i.supplier_name
+     FROM "RecipeIngredient" ri
+     LEFT JOIN "Ingredient" i ON ri.ingredient_id = i.id
+     LEFT JOIN "Recipe" r ON ri.prep_recipe_id = r.id
+     WHERE ri.recipe_id = $1
+     ORDER BY ri.id`,
+    b.id,
+  );
+  return { recipe: recipe[0], ingredients };
+});
+
+registerFn('updateRecipeSalePrice', async ({ body, user }) => {
+  if (!isAdminRole((user as any)?.role)) throw new Error('admin only');
+  await ensureInventoryTables();
+  const b = (body || {}) as any;
+  if (!b.id || typeof b.sale_price !== 'number') throw new Error('id and sale_price required');
+  await (prisma as any).$executeRawUnsafe(
+    `UPDATE "Recipe" SET sale_price = $1, "updatedAt" = NOW() WHERE id = $2`,
+    b.sale_price, b.id,
+  );
+  await recomputeAllRecipeCosts();
+  return { ok: true };
+});
+
+registerFn('listIngredients', async () => {
+  await ensureInventoryTables();
+  const rows: any[] = await (prisma as any).$queryRawUnsafe(
+    `SELECT id, name, supplier_name, unit, price_per_unit, waste_percent, category
+     FROM "Ingredient" ORDER BY category NULLS LAST, name`,
+  );
+  return { ingredients: rows };
+});
+
+registerFn('updateIngredientPrice', async ({ body, user }) => {
+  if (!isAdminRole((user as any)?.role)) throw new Error('admin only');
+  await ensureInventoryTables();
+  const b = (body || {}) as any;
+  if (!b.id || typeof b.price_per_unit !== 'number') throw new Error('id and price_per_unit required');
+  await (prisma as any).$executeRawUnsafe(
+    `UPDATE "Ingredient" SET price_per_unit = $1, "updatedAt" = NOW() WHERE id = $2`,
+    b.price_per_unit, b.id,
+  );
+  // Ripple cost changes to all recipes that use this ingredient.
+  await recomputeAllRecipeCosts();
+  return { ok: true };
+});
+
 registerFn('analyzeEmployeeAnomalies', async ({ body }) => {
   const b = (body || {}) as any;
   const empId = String(b.employee_id || '').trim();
@@ -11514,6 +11739,89 @@ registerFn('beecommGetStatus', async () => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 let eventContractTableReady = false;
+
+// =================== INVENTORY / RECIPES / CASH FLOW ===================
+// Idempotent bootstrap. Created here (not via prisma db push) for the same
+// reason as EventContract — silent push failures on this project. See memory.
+let inventoryTablesReady = false;
+async function ensureInventoryTables() {
+  if (inventoryTablesReady) return;
+  const sql = (prisma as any).$executeRawUnsafe.bind(prisma);
+  await sql(`CREATE TABLE IF NOT EXISTS "Ingredient" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "name" TEXT NOT NULL,
+    "supplier_name" TEXT,
+    "unit" TEXT NOT NULL DEFAULT 'kg',
+    "price_per_unit" DOUBLE PRECISION,
+    "waste_percent" DOUBLE PRECISION DEFAULT 0,
+    "category" TEXT,
+    "notes" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+  )`);
+  await sql(`CREATE UNIQUE INDEX IF NOT EXISTS "Ingredient_name_key" ON "Ingredient"("name")`);
+  await sql(`CREATE TABLE IF NOT EXISTS "IngredientAlias" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "alias" TEXT NOT NULL UNIQUE,
+    "ingredient_id" TEXT NOT NULL REFERENCES "Ingredient"("id") ON DELETE CASCADE,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+  )`);
+  await sql(`CREATE TABLE IF NOT EXISTS "Recipe" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "kind" TEXT NOT NULL DEFAULT 'DISH',
+    "name" TEXT NOT NULL,
+    "total_cost" DOUBLE PRECISION,
+    "sale_price" DOUBLE PRECISION,
+    "food_cost_percent" DOUBLE PRECISION,
+    "yield_qty" DOUBLE PRECISION DEFAULT 1,
+    "yield_unit" TEXT DEFAULT 'unit',
+    "category" TEXT,
+    "notes" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+  )`);
+  await sql(`CREATE INDEX IF NOT EXISTS "Recipe_kind_idx" ON "Recipe"("kind")`);
+  await sql(`CREATE TABLE IF NOT EXISTS "RecipeIngredient" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "recipe_id" TEXT NOT NULL REFERENCES "Recipe"("id") ON DELETE CASCADE,
+    "ingredient_id" TEXT REFERENCES "Ingredient"("id"),
+    "prep_recipe_id" TEXT REFERENCES "Recipe"("id"),
+    "qty" DOUBLE PRECISION NOT NULL,
+    "unit" TEXT NOT NULL DEFAULT 'kg',
+    "cost_at_import" DOUBLE PRECISION,
+    "notes" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+  )`);
+  await sql(`CREATE INDEX IF NOT EXISTS "RecipeIngredient_recipe_idx" ON "RecipeIngredient"("recipe_id")`);
+  await sql(`CREATE TABLE IF NOT EXISTS "CashFlowEntry" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "date" TIMESTAMP(3) NOT NULL,
+    "type" TEXT NOT NULL,
+    "category" TEXT NOT NULL,
+    "source" TEXT,
+    "description" TEXT,
+    "amount" DOUBLE PRECISION NOT NULL,
+    "payment_method" TEXT,
+    "status" TEXT NOT NULL DEFAULT 'planned',
+    "paid_at" TIMESTAMP(3),
+    "invoice_id" TEXT,
+    "notes" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+  )`);
+  await sql(`CREATE INDEX IF NOT EXISTS "CashFlowEntry_date_idx" ON "CashFlowEntry"("date")`);
+  await sql(`CREATE TABLE IF NOT EXISTS "MonthlyTarget" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "month" TEXT NOT NULL,
+    "category" TEXT NOT NULL,
+    "target" DOUBLE PRECISION NOT NULL,
+    "actual" DOUBLE PRECISION,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+  )`);
+  await sql(`CREATE UNIQUE INDEX IF NOT EXISTS "MonthlyTarget_month_category_key" ON "MonthlyTarget"("month", "category")`);
+  inventoryTablesReady = true;
+}
 async function ensureEventContractTable() {
   if (eventContractTableReady) return;
   await (prisma as any).$executeRawUnsafe(`
