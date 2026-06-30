@@ -8163,6 +8163,191 @@ registerFn('updateRecipeSalePrice', async ({ body, user }) => {
   return { ok: true };
 });
 
+// Auto-sync sale prices from MenuItem.price → Recipe.sale_price by fuzzy
+// name match. Idempotent — only updates recipes whose sale_price is null
+// (or with force=true to overwrite). Reports matched + unmatched per side.
+registerFn('syncMenuPricesToRecipes', async ({ body, user }) => {
+  if (!isAdminRole((user as any)?.role)) throw new Error('admin only');
+  await ensureInventoryTables();
+  const b = (body || {}) as any;
+  const force = !!b.force;
+
+  const menuItems = await db.menuItem.findMany({
+    select: { name: true, price: true, category: true } as any,
+  });
+  const recipes: any[] = await (prisma as any).$queryRawUnsafe(
+    `SELECT id, name, sale_price FROM "Recipe" WHERE kind = 'DISH'`,
+  );
+
+  const norm = (s: string) => String(s || '').toLowerCase().trim()
+    .replace(/[״"׳'.,\-+()/\\]/g, '').replace(/\s+/g, ' ');
+
+  const menuByNorm: Record<string, any> = {};
+  for (const m of menuItems) menuByNorm[norm(m.name)] = m;
+
+  const matched: any[] = [];
+  const unmatchedRecipes: string[] = [];
+  for (const r of recipes) {
+    if (r.sale_price && !force) continue;
+    const nr = norm(r.name);
+    let m = menuByNorm[nr];
+    // Fallback — substring contained both ways
+    if (!m) {
+      for (const [key, val] of Object.entries(menuByNorm)) {
+        if (key.includes(nr) || nr.includes(key)) { m = val; break; }
+      }
+    }
+    if (!m) { unmatchedRecipes.push(r.name); continue; }
+    await (prisma as any).$executeRawUnsafe(
+      `UPDATE "Recipe" SET sale_price = $1, "updatedAt" = NOW() WHERE id = $2`,
+      m.price, r.id,
+    );
+    matched.push({ recipe: r.name, menu: m.name, price: m.price });
+  }
+  await recomputeAllRecipeCosts();
+
+  // Reverse: menu items that didn't match any recipe.
+  const usedMenuNames = new Set(matched.map((x) => norm(x.menu)));
+  const unmatchedMenu = menuItems
+    .filter((m: any) => !usedMenuNames.has(norm(m.name)))
+    .map((m: any) => ({ name: m.name, price: m.price, category: m.category }));
+
+  return {
+    ok: true,
+    matched_count: matched.length,
+    matched: matched.slice(0, 50),
+    unmatched_recipes: unmatchedRecipes,
+    unmatched_menu_items: unmatchedMenu,
+    total_recipes: recipes.length,
+    total_menu_items: menuItems.length,
+  };
+});
+
+// =================== CASH FLOW FUNCTIONS ===================
+
+registerFn('importCashFlowFromJson', async ({ body, user }) => {
+  if (!user?.id) throw new Error('unauthorized');
+  if (!isAdminRole((user as any)?.role)) throw new Error('admin only');
+  await ensureInventoryTables();
+  const b = (body || {}) as any;
+  const entries: any[] = Array.isArray(b.entries) ? b.entries : [];
+  if (!entries.length) throw new Error('entries[] required');
+
+  await (prisma as any).$executeRawUnsafe(`DELETE FROM "CashFlowEntry"`);
+  let inserted = 0;
+  for (const e of entries) {
+    const dt = e.date ? new Date(e.date) : null;
+    if (!dt || isNaN(dt.getTime())) continue;
+    const amt = Number(e.amount);
+    if (!Number.isFinite(amt) || amt === 0) continue;
+    await (prisma as any).$executeRawUnsafe(
+      `INSERT INTO "CashFlowEntry"("id","date","type","category","source","description","amount","payment_method","status","notes")
+       VALUES (gen_random_uuid()::text, $1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+      dt, e.type || 'expense', e.category || 'אחר', e.source || null,
+      e.description || null, Math.abs(amt), e.payment_method || null,
+      e.status || 'planned', e.notes || null,
+    );
+    inserted++;
+  }
+  if (b.opening_balance != null) {
+    // Store opening balance as a special CashFlowEntry-like row (status = 'opening').
+    await (prisma as any).$executeRawUnsafe(
+      `INSERT INTO "CashFlowEntry"("id","date","type","category","source","description","amount","status","notes")
+       VALUES (gen_random_uuid()::text, $1, 'income', 'יתרת פתיחה', null, 'Opening balance', $2, 'received', 'auto')`,
+      new Date('2026-01-01'), Number(b.opening_balance),
+    );
+  }
+  return { ok: true, inserted, opening_balance: b.opening_balance ?? null };
+});
+
+registerFn('getCashFlowForecast', async ({ body }) => {
+  await ensureInventoryTables();
+  const b = (body || {}) as any;
+  const days = Math.min(120, Math.max(7, parseInt(String(b.days || 30))));
+  const now = new Date();
+  const end = new Date(now.getTime() + days * 86400 * 1000);
+  const rows: any[] = await (prisma as any).$queryRawUnsafe(
+    `SELECT id, date::date AS date, type, category, source, description, amount, status, payment_method
+     FROM "CashFlowEntry"
+     WHERE date <= $1
+     ORDER BY date ASC`,
+    end,
+  );
+  // Compute running balance from opening + paid + planned
+  let runBalance = 0;
+  let openingBalance = 0;
+  const upcoming: any[] = [];
+  for (const r of rows) {
+    const amt = Number(r.amount) || 0;
+    const signed = r.type === 'income' ? amt : -amt;
+    if (r.category === 'יתרת פתיחה') {
+      openingBalance += signed;
+      runBalance += signed;
+      continue;
+    }
+    runBalance += signed;
+    if (new Date(r.date) >= new Date(now.toISOString().slice(0, 10))) {
+      upcoming.push({
+        ...r, date: r.date instanceof Date ? r.date.toISOString().slice(0, 10) : r.date,
+        signed, balance_after: Math.round(runBalance),
+      });
+    }
+  }
+  // Detect dates where balance projected to go negative
+  const negativeDays = upcoming.filter((e: any) => e.balance_after < 0).slice(0, 10);
+  return {
+    opening_balance: Math.round(openingBalance),
+    current_projected_balance: Math.round(runBalance),
+    days,
+    upcoming_count: upcoming.length,
+    upcoming: upcoming.slice(0, 100),
+    negative_days_warning: negativeDays.length > 0 ? negativeDays : null,
+  };
+});
+
+registerFn('markCashFlowEntryPaid', async ({ body, user }) => {
+  if (!isAdminRole((user as any)?.role)) throw new Error('admin only');
+  const b = (body || {}) as any;
+  if (!b.id) throw new Error('id required');
+  await (prisma as any).$executeRawUnsafe(
+    `UPDATE "CashFlowEntry" SET status = 'paid', paid_at = NOW(), "updatedAt" = NOW() WHERE id = $1`,
+    b.id,
+  );
+  return { ok: true };
+});
+
+// Cron — daily 09:00 IL. If projected balance over next 14 days dips
+// negative, WhatsApp the admins.
+export async function runCashFlowAgent() {
+  await ensureInventoryTables();
+  const il = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Jerusalem', hour: '2-digit', hour12: false }).format(new Date());
+  if (parseInt(il, 10) !== 9) return { skipped: true, hour: il };
+
+  const horizon = new Date(Date.now() + 14 * 86400 * 1000);
+  const rows: any[] = await (prisma as any).$queryRawUnsafe(
+    `SELECT date::date AS date, type, amount, category
+     FROM "CashFlowEntry" WHERE date <= $1 ORDER BY date ASC`,
+    horizon,
+  );
+  let bal = 0;
+  let minBal = 0;
+  let minDay: string | null = null;
+  for (const r of rows) {
+    const amt = Number(r.amount) || 0;
+    bal += r.type === 'income' ? amt : -amt;
+    if (bal < minBal) { minBal = bal; minDay = r.date.toISOString().slice(0, 10); }
+  }
+  if (minBal >= 0) return { ok: true, safe: true, min_balance: Math.round(bal) };
+
+  const adminNumbers = (process.env.WHATSAPP_ADMIN_NUMBERS || '').split(',').map((s) => s.trim()).filter(Boolean);
+  const { sendWhatsApp } = await import('../lib/twilio.js');
+  const msg = `💸 *התראת תזרים*\n\nהיתרה הצפויה צוללת ל-₪${Math.round(minBal).toLocaleString()} ב-${minDay}.\n\n🔗 פירוט: ${APP_BASE_URL || 'https://topalena.com'}/CashFlow`;
+  for (const p of adminNumbers) {
+    try { await sendWhatsApp(p, msg); } catch (e: any) { console.warn('[cashflow] notify failed', e?.message); }
+  }
+  return { ok: true, alerted: true, min_balance: Math.round(minBal), min_day: minDay };
+}
+
 registerFn('listIngredients', async () => {
   await ensureInventoryTables();
   const rows: any[] = await (prisma as any).$queryRawUnsafe(

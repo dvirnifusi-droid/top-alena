@@ -152,6 +152,7 @@ import AIHub from './pages/AIHub';
 import QueueHub from './pages/QueueHub';
 import ColorPreview from './pages/ColorPreview';
 import Recipes from './pages/Recipes';
+import CashFlow from './pages/CashFlow';
 import __Layout from './Layout.jsx';
 
 
@@ -261,6 +262,7 @@ export const PAGES = {
     "QueueHub": QueueHub,
     "ColorPreview": ColorPreview,
     "Recipes": Recipes,
+    "CashFlow": CashFlow,
 }
 
 export const pagesConfig = {

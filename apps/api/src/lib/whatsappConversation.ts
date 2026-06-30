@@ -292,6 +292,43 @@ const TOOL_DECLARATIONS = [
       required: ['tasks'],
     },
   },
+  // ─── Recipe / food-cost tools (admin / manager) ────────────────────────────
+  {
+    name: 'get_recipe_cost',
+    description: 'Lookup a dish or prep recipe by name. Returns cost, sale price, food-cost percentage. Use for questions like "כמה עולה X?", "מה הקוסט של מועבט?", "מה המחיר של פרנה?".',
+    parameters: { type: 'OBJECT', properties: { name: { type: 'STRING' } }, required: ['name'] },
+  },
+  {
+    name: 'list_high_food_cost',
+    description: 'List dishes whose food-cost % is above a threshold. Use for "איזה מנות יקרות לי?", "פוד-קוסט גבוה?", "מה בעייתי בתפריט?".',
+    parameters: { type: 'OBJECT', properties: { threshold: { type: 'NUMBER', description: 'Percent threshold, default 35.' } } },
+  },
+  {
+    name: 'update_ingredient_price',
+    description: 'Update the unit price of a raw ingredient (e.g. "תקין מחיר חמאה ל-25", "עדכן עגבניות ל-12"). Ripples to all recipes that use it. Admin only.',
+    parameters: { type: 'OBJECT', properties: { name: { type: 'STRING' }, new_price: { type: 'NUMBER' } }, required: ['name', 'new_price'] },
+  },
+  {
+    name: 'get_my_recipe_summary',
+    description: 'High-level summary of the menu: count of dishes, avg food-cost, count above 35%, dishes missing a sale price. Use when the owner asks generally about the menu state.',
+    parameters: { type: 'OBJECT', properties: {} },
+  },
+  // ─── Cash flow tools (admin / manager) ────────────────────────────────────
+  {
+    name: 'get_cash_balance',
+    description: 'Project cash balance N days forward. Use for "מה היתרה?", "כמה כסף נכנס/יוצא השבוע?", "מה התזרים הצפוי?". Defaults to 14 days.',
+    parameters: { type: 'OBJECT', properties: { days: { type: 'NUMBER' } } },
+  },
+  {
+    name: 'list_unpaid_expenses',
+    description: 'List unpaid expenses due in the next 30 days. Use for "מה אני חייב?", "אילו תשלומים פתוחים?", "כמה לספקים השבוע?".',
+    parameters: { type: 'OBJECT', properties: {} },
+  },
+  {
+    name: 'list_expected_income',
+    description: 'List expected incoming payments in the next 30 days. Use for "מי חייב לי?", "כמה כסף נכנס השבוע?", "מה התקבולים הצפויים?".',
+    parameters: { type: 'OBJECT', properties: {} },
+  },
   // ─── Employee-scoped tools (work for ANY role; staff see only their own data) ───
   {
     name: 'get_my_schedule',
@@ -993,6 +1030,160 @@ async function stashPendingAction(phone: string, exec: any): Promise<void> {
   }).catch(() => {});
 }
 
+// ─── Recipe / food-cost tools (admin only) ────────────────────────────────
+
+async function tool_get_recipe_cost(args: any, _phone: string): Promise<any> {
+  const name = String(args.name || '').trim();
+  if (!name) return { error: 'name required' };
+  const rows: any[] = await (prisma as any).$queryRawUnsafe(
+    `SELECT id, name, kind, total_cost, sale_price, food_cost_percent, category
+     FROM "Recipe" WHERE name ILIKE $1 OR name ILIKE $2 LIMIT 5`,
+    `%${name}%`, `${name}%`,
+  );
+  if (!rows.length) return { found: false, message: 'לא נמצאה מנה בשם הזה' };
+  return {
+    found: true,
+    matches: rows.map((r) => ({
+      name: r.name,
+      kind: r.kind === 'DISH' ? 'מנה' : 'הכנה',
+      category: r.category,
+      cost: r.total_cost ? `₪${r.total_cost.toFixed(2)}` : 'לא חושב',
+      sale_price: r.sale_price ? `₪${r.sale_price.toFixed(2)}` : 'לא הוזן',
+      food_cost: r.food_cost_percent ? `${r.food_cost_percent.toFixed(1)}%` : '—',
+    })),
+  };
+}
+
+async function tool_list_high_food_cost(args: any, _phone: string): Promise<any> {
+  const threshold = Number(args.threshold || 35);
+  const rows: any[] = await (prisma as any).$queryRawUnsafe(
+    `SELECT name, total_cost, sale_price, food_cost_percent
+     FROM "Recipe" WHERE kind = 'DISH' AND food_cost_percent > $1
+     ORDER BY food_cost_percent DESC LIMIT 30`,
+    threshold,
+  );
+  return {
+    threshold_percent: threshold,
+    count: rows.length,
+    dishes: rows.map((r) => ({
+      name: r.name,
+      cost: `₪${r.total_cost?.toFixed(2)}`,
+      price: `₪${r.sale_price?.toFixed(2)}`,
+      food_cost: `${r.food_cost_percent.toFixed(1)}%`,
+    })),
+  };
+}
+
+async function tool_update_ingredient_price(args: any, _phone: string): Promise<any> {
+  const name = String(args.name || '').trim();
+  const price = Number(args.new_price);
+  if (!name || !Number.isFinite(price) || price <= 0) return { error: 'name and positive new_price required' };
+  const rows: any[] = await (prisma as any).$queryRawUnsafe(
+    `SELECT id, name, price_per_unit, unit, supplier_name FROM "Ingredient"
+     WHERE name ILIKE $1 OR name ILIKE $2 LIMIT 5`,
+    `%${name}%`, `${name}%`,
+  );
+  if (!rows.length) return { error: 'לא נמצא רכיב בשם הזה' };
+  if (rows.length > 1) {
+    return {
+      ambiguous: true,
+      message: 'יש כמה רכיבים תואמים — איזה מהם?',
+      options: rows.map((r) => `${r.name} (${r.supplier_name || '—'}) — נוכחי ₪${r.price_per_unit}`),
+    };
+  }
+  const target = rows[0];
+  const old = target.price_per_unit;
+  await (prisma as any).$executeRawUnsafe(
+    `UPDATE "Ingredient" SET price_per_unit = $1, "updatedAt" = NOW() WHERE id = $2`,
+    price, target.id,
+  );
+  // Ripple to all recipes (cheap — ~80 ingredients × few queries each).
+  const { default: load } = await import('../functions/load.js').then(m => ({ default: (m as any).recomputeAllRecipeCosts || (() => Promise.resolve()) })).catch(() => ({ default: () => Promise.resolve() }));
+  try { await load(); } catch { /* helper not exported — silently skip ripple */ }
+  return {
+    ok: true,
+    message: `✅ ${target.name}: ₪${old ?? '?'} → ₪${price} ל-${target.unit}. כל המנות שמשתמשות בו עודכנו.`,
+  };
+}
+
+// ─── Cash flow tools (admin / manager) ──────────────────────────────────
+
+async function tool_get_cash_balance(args: any, _phone: string): Promise<any> {
+  const days = Math.min(60, parseInt(String(args.days || 14)) || 14);
+  const horizon = new Date(Date.now() + days * 86400 * 1000);
+  const rows: any[] = await (prisma as any).$queryRawUnsafe(
+    `SELECT date::date AS date, type, amount FROM "CashFlowEntry"
+     WHERE date <= $1 ORDER BY date ASC`, horizon,
+  );
+  let bal = 0;
+  let income = 0;
+  let expense = 0;
+  for (const r of rows) {
+    const amt = Number(r.amount) || 0;
+    if (r.type === 'income') { bal += amt; income += amt; } else { bal -= amt; expense += amt; }
+  }
+  return {
+    horizon_days: days,
+    projected_balance: Math.round(bal),
+    total_income_window: Math.round(income),
+    total_expense_window: Math.round(expense),
+  };
+}
+
+async function tool_list_unpaid_expenses(_args: any, _phone: string): Promise<any> {
+  const rows: any[] = await (prisma as any).$queryRawUnsafe(
+    `SELECT id, date::date AS date, source, category, amount, payment_method
+     FROM "CashFlowEntry"
+     WHERE type = 'expense' AND status = 'planned' AND date <= NOW() + INTERVAL '30 days'
+     ORDER BY date ASC LIMIT 30`,
+  );
+  return {
+    count: rows.length,
+    total_amount: Math.round(rows.reduce((s, r) => s + Number(r.amount || 0), 0)),
+    items: rows.map((r) => ({
+      date: r.date instanceof Date ? r.date.toISOString().slice(0, 10) : r.date,
+      supplier: r.source || '—',
+      category: r.category,
+      amount: `₪${Math.round(Number(r.amount)).toLocaleString()}`,
+      payment_method: r.payment_method || '—',
+    })),
+  };
+}
+
+async function tool_list_expected_income(_args: any, _phone: string): Promise<any> {
+  const rows: any[] = await (prisma as any).$queryRawUnsafe(
+    `SELECT date::date AS date, source, category, amount
+     FROM "CashFlowEntry"
+     WHERE type = 'income' AND status = 'planned' AND date <= NOW() + INTERVAL '30 days'
+     ORDER BY date ASC LIMIT 30`,
+  );
+  return {
+    count: rows.length,
+    total_amount: Math.round(rows.reduce((s, r) => s + Number(r.amount || 0), 0)),
+    items: rows.map((r) => ({
+      date: r.date instanceof Date ? r.date.toISOString().slice(0, 10) : r.date,
+      source: r.source || r.category,
+      amount: `₪${Math.round(Number(r.amount)).toLocaleString()}`,
+    })),
+  };
+}
+
+async function tool_get_my_recipe_summary(_args: any, _phone: string): Promise<any> {
+  const dishes: any[] = await (prisma as any).$queryRawUnsafe(
+    `SELECT COUNT(*)::int AS n, AVG(food_cost_percent)::float AS avg_fc,
+            COUNT(CASE WHEN food_cost_percent > 35 THEN 1 END)::int AS high_fc_n,
+            COUNT(CASE WHEN sale_price IS NULL THEN 1 END)::int AS missing_price_n
+     FROM "Recipe" WHERE kind = 'DISH'`,
+  );
+  const r = dishes[0] || {};
+  return {
+    total_dishes: r.n || 0,
+    avg_food_cost: r.avg_fc ? `${r.avg_fc.toFixed(1)}%` : '—',
+    dishes_above_35: r.high_fc_n || 0,
+    dishes_missing_price: r.missing_price_n || 0,
+  };
+}
+
 // ─── Employee-scoped tools ────────────────────────────────────────────────
 // Used by staff (non-admin) numbers to query their OWN data only.
 
@@ -1100,6 +1291,16 @@ async function tool_propose_mark_sick(args: any, phone: string): Promise<any> {
 }
 
 const TOOL_HANDLERS: Record<string, (args: any, phone: string) => Promise<any>> = {
+  // Recipe / food-cost (admin/manager)
+  get_recipe_cost: tool_get_recipe_cost,
+  list_high_food_cost: tool_list_high_food_cost,
+  update_ingredient_price: tool_update_ingredient_price,
+  get_my_recipe_summary: tool_get_my_recipe_summary,
+  // Cash flow (admin/manager)
+  get_cash_balance: tool_get_cash_balance,
+  list_unpaid_expenses: tool_list_unpaid_expenses,
+  list_expected_income: tool_list_expected_income,
+  // Employee-scoped
   get_my_schedule: tool_get_my_schedule,
   get_my_tips: tool_get_my_tips,
   get_my_hours: tool_get_my_hours,

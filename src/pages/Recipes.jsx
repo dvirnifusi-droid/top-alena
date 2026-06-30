@@ -16,6 +16,23 @@ function RecipesInner() {
   const [selected, setSelected] = useState(null);
   const [detail, setDetail] = useState(null);
   const [importing, setImporting] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+
+  const handleSyncPrices = async () => {
+    if (!window.confirm('סנכרן מחירי מכירה מטבלת התפריט (MenuItem) למתכונים? רק מנות שאין להן עדיין מחיר יעודכנו.')) return;
+    setSyncing(true);
+    try {
+      const res = await base44.functions.syncMenuPricesToRecipes({});
+      const data = res?.data || res;
+      const missingSample = data.unmatched_recipes?.slice(0, 8).join('\n  • ') || '—';
+      alert(`✅ סנכרון הסתיים\n${data.matched_count}/${data.total_recipes} מנות עודכנו\n${data.unmatched_recipes?.length || 0} ללא התאמה:\n  • ${missingSample}`);
+      await load();
+    } catch (e) {
+      alert('שגיאה: ' + (e?.message || ''));
+    } finally {
+      setSyncing(false);
+    }
+  };
 
   const handleImport = async (event) => {
     const file = event.target.files?.[0];
@@ -97,6 +114,10 @@ function RecipesInner() {
           </p>
         </div>
         <div className="flex gap-2">
+          <Button size="sm" variant="outline" onClick={handleSyncPrices} disabled={syncing} className="border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-900">
+            {syncing ? <Loader2 className="w-4 h-4 animate-spin" /> : <TrendingUp className="w-4 h-4 ml-1" />}
+            סנכרן מחירי תפריט
+          </Button>
           <label className="inline-flex items-center gap-1 cursor-pointer border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-900 text-sm px-3 py-2 rounded-md">
             {importing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
             ייבא מ-JSON
