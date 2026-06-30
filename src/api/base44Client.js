@@ -43,8 +43,13 @@ async function http(path, { method = 'GET', body, headers = {}, formData } = {})
   const ct = res.headers.get('content-type') || '';
   const data = ct.includes('application/json') ? await res.json() : await res.text();
   if (!res.ok) {
-    const err = new Error(data?.error || data?.message || `HTTP ${res.status}`);
+    // Prefer the human-readable message; fall back to the error code, then HTTP status.
+    // For function_error responses the api returns { error: 'function_error', message: '<real reason>' };
+    // showing just 'function_error' to the user is useless.
+    const msg = data?.message || data?.error || `HTTP ${res.status}`;
+    const err = new Error(data?.error && data?.message ? `${data.error}: ${data.message}` : msg);
     err.status = res.status;
+    err.code = data?.error;
     err.data = data;
     throw err;
   }
