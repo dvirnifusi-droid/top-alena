@@ -8144,7 +8144,8 @@ registerFn('getRecipe', async ({ body }) => {
   );
   if (!recipe.length) throw new Error('Recipe not found');
   const ingredients: any[] = await (prisma as any).$queryRawUnsafe(
-    `SELECT ri.id, ri.qty, ri.unit, ri.cost_at_import,
+    `SELECT ri.id AS ri_id, ri.qty, ri.unit, ri.cost_at_import,
+            i.id AS ingredient_id, r.id AS prep_recipe_id,
             COALESCE(i.name, r.name) AS name,
             CASE WHEN ri.prep_recipe_id IS NOT NULL THEN 'prep' ELSE 'raw' END AS source,
             i.price_per_unit, i.waste_percent, i.supplier_name
@@ -8403,6 +8404,106 @@ registerFn('listIngredients', async () => {
      FROM "Ingredient" ORDER BY category NULLS LAST, name`,
   );
   return { ingredients: rows };
+});
+
+// Update any RecipeIngredient row (qty/unit for this specific recipe usage).
+registerFn('updateRecipeIngredient', async ({ body, user }) => {
+  if (!isAdminRole((user as any)?.role)) throw new Error('admin only');
+  await ensureInventoryTables();
+  const b = (body || {}) as any;
+  if (!b.id) throw new Error('id required');
+  const sets: string[] = [];
+  const vals: any[] = [];
+  if (typeof b.qty === 'number') { sets.push(`qty = $${sets.length + 1}`); vals.push(b.qty); }
+  if (typeof b.unit === 'string' && b.unit) { sets.push(`unit = $${sets.length + 1}`); vals.push(b.unit); }
+  if (sets.length === 0) return { ok: true, no_change: true };
+  vals.push(b.id);
+  await (prisma as any).$executeRawUnsafe(
+    `UPDATE "RecipeIngredient" SET ${sets.join(', ')} WHERE id = $${vals.length}`,
+    ...vals,
+  );
+  await recomputeAllRecipeCosts();
+  return { ok: true };
+});
+
+// Update any Ingredient row (any field). Ripples to all recipes that use it.
+registerFn('updateIngredient', async ({ body, user }) => {
+  if (!isAdminRole((user as any)?.role)) throw new Error('admin only');
+  await ensureInventoryTables();
+  const b = (body || {}) as any;
+  if (!b.id) throw new Error('id required');
+  const allowed = ['name', 'supplier_name', 'unit', 'price_per_unit', 'waste_percent', 'category', 'notes'];
+  const sets: string[] = [];
+  const vals: any[] = [];
+  for (const key of allowed) {
+    if (b[key] === undefined) continue;
+    sets.push(`"${key}" = $${sets.length + 1}`);
+    vals.push(b[key]);
+  }
+  if (!sets.length) return { ok: true, no_change: true };
+  vals.push(b.id);
+  await (prisma as any).$executeRawUnsafe(
+    `UPDATE "Ingredient" SET ${sets.join(', ')}, "updatedAt" = NOW() WHERE id = $${vals.length}`,
+    ...vals,
+  );
+  await recomputeAllRecipeCosts();
+  return { ok: true };
+});
+
+// Add a NEW row to a recipe. Resolves ingredient by name (creates a stub
+// Ingredient if missing, so the manager can start typing without leaving
+// the recipe editor). Use prep_recipe_name to add a sub-recipe instead.
+registerFn('addRecipeIngredient', async ({ body, user }) => {
+  if (!isAdminRole((user as any)?.role)) throw new Error('admin only');
+  await ensureInventoryTables();
+  const b = (body || {}) as any;
+  if (!b.recipe_id) throw new Error('recipe_id required');
+  if (typeof b.qty !== 'number') throw new Error('qty required');
+  let ingredientId: string | null = null;
+  let prepId: string | null = null;
+
+  if (b.prep_recipe_name) {
+    const found: any[] = await (prisma as any).$queryRawUnsafe(
+      `SELECT id FROM "Recipe" WHERE kind = 'PREP' AND name = $1 LIMIT 1`, b.prep_recipe_name,
+    );
+    if (!found.length) throw new Error('prep recipe not found');
+    prepId = found[0].id;
+  } else if (b.ingredient_name) {
+    const found: any[] = await (prisma as any).$queryRawUnsafe(
+      `SELECT id FROM "Ingredient" WHERE name = $1 LIMIT 1`, b.ingredient_name,
+    );
+    if (found.length) {
+      ingredientId = found[0].id;
+    } else {
+      // Create a stub ingredient so the row can be saved; manager fills in
+      // price + supplier later.
+      ingredientId = randomUUID();
+      await (prisma as any).$executeRawUnsafe(
+        `INSERT INTO "Ingredient"("id","name","unit") VALUES ($1, $2, $3)`,
+        ingredientId, b.ingredient_name, b.unit || 'kg',
+      );
+    }
+  } else {
+    throw new Error('either prep_recipe_name or ingredient_name required');
+  }
+
+  await (prisma as any).$executeRawUnsafe(
+    `INSERT INTO "RecipeIngredient"("id","recipe_id","ingredient_id","prep_recipe_id","qty","unit")
+     VALUES ($1, $2, $3, $4, $5, $6)`,
+    randomUUID(), b.recipe_id, ingredientId, prepId, b.qty, b.unit || 'kg',
+  );
+  await recomputeAllRecipeCosts();
+  return { ok: true };
+});
+
+registerFn('deleteRecipeIngredient', async ({ body, user }) => {
+  if (!isAdminRole((user as any)?.role)) throw new Error('admin only');
+  await ensureInventoryTables();
+  const b = (body || {}) as any;
+  if (!b.id) throw new Error('id required');
+  await (prisma as any).$executeRawUnsafe(`DELETE FROM "RecipeIngredient" WHERE id = $1`, b.id);
+  await recomputeAllRecipeCosts();
+  return { ok: true };
 });
 
 registerFn('updateIngredientPrice', async ({ body, user }) => {

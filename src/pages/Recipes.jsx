@@ -270,25 +270,7 @@ function RecipesInner() {
                       )}
                     </button>
                     {selected === r.id && detail && (
-                      <div className="p-3 bg-slate-50 border-t">
-                        <div className="text-xs font-semibold text-slate-700 mb-2">פירוט רכיבים:</div>
-                        <table className="w-full text-xs">
-                          <thead className="text-slate-500">
-                            <tr><th className="text-right pb-1">רכיב</th><th>כמות</th><th>יחידה</th><th>מחיר/יח׳</th><th>ספק</th></tr>
-                          </thead>
-                          <tbody>
-                            {detail.ingredients.map((i, idx) => (
-                              <tr key={idx} className="border-t">
-                                <td className="py-1">{i.source === 'prep' ? '🥣 ' : ''}{i.name}</td>
-                                <td className="text-center">{i.qty}</td>
-                                <td className="text-center">{i.unit}</td>
-                                <td className="text-center">{i.price_per_unit ? `₪${i.price_per_unit.toFixed(2)}` : '—'}</td>
-                                <td className="text-center text-slate-500">{i.supplier_name || '—'}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
+                      <RecipeIngredientEditor detail={detail} onChanged={() => { openDetail(r.id); load(); }} />
                     )}
                   </div>
                 );
@@ -298,6 +280,189 @@ function RecipesInner() {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+// Inline-editable ingredient table. Click any cell → input. Save on blur or Enter.
+// Qty + unit live on RecipeIngredient (this specific recipe row). Name, supplier,
+// price/unit, waste% live on Ingredient (ripples to every recipe using it).
+function RecipeIngredientEditor({ detail, onChanged }) {
+  const [adding, setAdding] = useState(false);
+  const [newIng, setNewIng] = useState({ name: '', qty: '', unit: 'kg' });
+  const [saving, setSaving] = useState(null); // ri_id we're saving
+
+  const saveIngredientField = async (ingredient_id, field, value) => {
+    if (!ingredient_id) return;
+    setSaving(ingredient_id);
+    try {
+      await base44.functions.updateIngredient({ id: ingredient_id, [field]: value });
+      onChanged();
+    } catch (e) { alert('שגיאה: ' + (e?.message || '')); }
+    finally { setSaving(null); }
+  };
+  const saveRiField = async (ri_id, field, value) => {
+    if (!ri_id) return;
+    setSaving(ri_id);
+    try {
+      await base44.functions.updateRecipeIngredient({ id: ri_id, [field]: value });
+      onChanged();
+    } catch (e) { alert('שגיאה: ' + (e?.message || '')); }
+    finally { setSaving(null); }
+  };
+  const removeRow = async (ri_id, name) => {
+    if (!window.confirm(`למחוק את "${name}" מהמתכון?`)) return;
+    setSaving(ri_id);
+    try {
+      await base44.functions.deleteRecipeIngredient({ id: ri_id });
+      onChanged();
+    } catch (e) { alert('שגיאה: ' + (e?.message || '')); }
+    finally { setSaving(null); }
+  };
+  const addRow = async () => {
+    if (!newIng.name.trim() || !Number(newIng.qty)) { alert('שם וכמות נדרשים'); return; }
+    setSaving('new');
+    try {
+      await base44.functions.addRecipeIngredient({
+        recipe_id: detail.recipe.id,
+        ingredient_name: newIng.name.trim(),
+        qty: Number(newIng.qty),
+        unit: newIng.unit,
+      });
+      setNewIng({ name: '', qty: '', unit: 'kg' });
+      setAdding(false);
+      onChanged();
+    } catch (e) { alert('שגיאה: ' + (e?.message || '')); }
+    finally { setSaving(null); }
+  };
+
+  return (
+    <div className="p-3 bg-slate-50 border-t">
+      <div className="flex items-center justify-between mb-2">
+        <div className="text-xs font-semibold text-slate-700">פירוט רכיבים — לחץ על כל שדה לעריכה:</div>
+        <Button size="sm" variant="outline" onClick={() => setAdding(true)} disabled={adding} className="h-7 px-2 text-xs">
+          + הוסף רכיב
+        </Button>
+      </div>
+      <table className="w-full text-xs">
+        <thead className="text-slate-500">
+          <tr>
+            <th className="text-right pb-1">רכיב</th>
+            <th>כמות</th>
+            <th>יחידה</th>
+            <th>מחיר/יח׳</th>
+            <th>ספק</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {detail.ingredients.map((i) => (
+            <tr key={i.ri_id} className="border-t">
+              <td className="py-1">
+                {i.source === 'prep' ? <span className="text-slate-500">🥣 {i.name}</span> : (
+                  <EditableCell value={i.name} onSave={(v) => saveIngredientField(i.ingredient_id, 'name', v)} />
+                )}
+              </td>
+              <td className="text-center">
+                <EditableCell value={i.qty} type="number" step="0.001" onSave={(v) => saveRiField(i.ri_id, 'qty', Number(v))} />
+              </td>
+              <td className="text-center">
+                <SelectCell value={i.unit} options={['kg', 'unit', 'liter']} onSave={(v) => saveRiField(i.ri_id, 'unit', v)} />
+              </td>
+              <td className="text-center">
+                {i.source === 'prep' ? '—' : (
+                  <EditableCell
+                    value={i.price_per_unit != null ? i.price_per_unit : ''}
+                    type="number" step="0.01" prefix="₪"
+                    onSave={(v) => saveIngredientField(i.ingredient_id, 'price_per_unit', Number(v))}
+                  />
+                )}
+              </td>
+              <td className="text-center text-slate-500">
+                {i.source === 'prep' ? '—' : (
+                  <EditableCell
+                    value={i.supplier_name || ''} placeholder="—"
+                    onSave={(v) => saveIngredientField(i.ingredient_id, 'supplier_name', v || null)}
+                  />
+                )}
+              </td>
+              <td>
+                <button
+                  onClick={() => removeRow(i.ri_id, i.name)}
+                  disabled={saving === i.ri_id}
+                  className="text-slate-400 hover:text-red-600 p-1"
+                  title="מחק רכיב"
+                >
+                  {saving === i.ri_id ? <Loader2 className="w-3 h-3 animate-spin" /> : '🗑'}
+                </button>
+              </td>
+            </tr>
+          ))}
+          {adding && (
+            <tr className="border-t bg-amber-50">
+              <td className="py-1">
+                <Input autoFocus value={newIng.name} onChange={(e) => setNewIng(s => ({ ...s, name: e.target.value }))} placeholder="שם הרכיב" className="h-6 text-xs" />
+              </td>
+              <td className="text-center">
+                <Input value={newIng.qty} type="number" step="0.001" onChange={(e) => setNewIng(s => ({ ...s, qty: e.target.value }))} className="h-6 text-xs w-16" />
+              </td>
+              <td className="text-center">
+                <select value={newIng.unit} onChange={(e) => setNewIng(s => ({ ...s, unit: e.target.value }))} className="text-xs border rounded">
+                  <option value="kg">kg</option><option value="unit">unit</option><option value="liter">liter</option>
+                </select>
+              </td>
+              <td colSpan={2} className="text-center">
+                <Button size="sm" onClick={addRow} disabled={saving === 'new'} className="h-6 px-2 text-xs">
+                  {saving === 'new' ? <Loader2 className="w-3 h-3 animate-spin" /> : 'הוסף'}
+                </Button>
+                <button onClick={() => { setAdding(false); setNewIng({ name: '', qty: '', unit: 'kg' }); }} className="mr-2 text-slate-500 text-xs">בטל</button>
+              </td>
+              <td></td>
+            </tr>
+          )}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+// Click → input → save on blur or Enter. Esc cancels.
+function EditableCell({ value, onSave, type = 'text', step, prefix = '', placeholder }) {
+  const [editing, setEditing] = useState(false);
+  const [val, setVal] = useState(value);
+  React.useEffect(() => setVal(value), [value]);
+  if (editing) {
+    return (
+      <Input
+        autoFocus
+        type={type} step={step}
+        defaultValue={val}
+        onBlur={(e) => { onSave(e.target.value); setEditing(false); }}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') { onSave(e.target.value); setEditing(false); }
+          if (e.key === 'Escape') setEditing(false);
+        }}
+        className="h-6 text-xs w-20"
+        placeholder={placeholder}
+      />
+    );
+  }
+  const display = value === '' || value == null ? (placeholder || '—') : `${prefix}${value}`;
+  return (
+    <button onClick={() => setEditing(true)} className="hover:bg-amber-100 px-1 rounded">
+      {display}
+    </button>
+  );
+}
+
+function SelectCell({ value, options, onSave }) {
+  return (
+    <select
+      value={value || 'kg'}
+      onChange={(e) => onSave(e.target.value)}
+      className="text-xs border rounded px-1 bg-white"
+    >
+      {options.map(o => <option key={o} value={o}>{o}</option>)}
+    </select>
   );
 }
 
