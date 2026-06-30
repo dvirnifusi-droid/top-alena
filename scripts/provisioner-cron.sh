@@ -12,7 +12,7 @@ CRON_SECRET="$(grep ^CRON_SECRET /opt/top-alena/apps/api/.env | cut -d= -f2-)"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Claim next job. Server marks it 'running' and returns details.
-RESP=$(curl -fsS -X POST "${API}/api/fn/pickNextProvisioningJob" \
+RESP=$(curl -fsS -X POST "${API}/api/public/fn/pickNextProvisioningJob" \
   -H "Content-Type: application/json" \
   -d "{\"cron_secret\":\"${CRON_SECRET}\"}" 2>/dev/null || echo '{"data":{"job":null}}')
 
@@ -57,7 +57,7 @@ print(json.dumps({
 }))
 " "$CRON_SECRET" "$JOB_ID" "$TENANT_ID" "$STATUS" "$LOG" "$ERR")
 
-curl -fsS -X POST "${API}/api/fn/reportProvisioningResult" \
+curl -fsS -X POST "${API}/api/public/fn/reportProvisioningResult" \
   -H "Content-Type: application/json" -d "$PAYLOAD" >/dev/null 2>&1 || true
 
 echo "==> Job $JOB_ID ($SLUG): $STATUS"

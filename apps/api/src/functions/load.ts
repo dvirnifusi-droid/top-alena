@@ -12246,7 +12246,7 @@ registerFn('getTenantStats', async ({ user }) => {
 // Called by the VPS cron — pulls one pending job, marks it running,
 // returns the data needed to provision. The cron script then runs the
 // shell provisioning + posts back via reportProvisioningResult.
-registerFn('pickNextProvisioningJob', async ({ body }) => {
+registerFn('pickNextProvisioningJob', async ({ body }) => { /*PUBLIC—cron_secret is the auth*/
   await ensurePlatformTables();
   const b = (body || {}) as any;
   const secret = String(b.cron_secret || '');
@@ -12270,7 +12270,7 @@ registerFn('pickNextProvisioningJob', async ({ body }) => {
     job.tenant_id,
   );
   return { job: { id: job.id, ...tenant[0] } };
-});
+}, { public: true });
 
 registerFn('reportProvisioningResult', async ({ body }) => {
   await ensurePlatformTables();
@@ -12302,7 +12302,7 @@ registerFn('reportProvisioningResult', async ({ body }) => {
     }
   }
   return { ok: true };
-});
+}, { public: true });
 
 let inventoryTablesReady = false;
 async function ensureInventoryTables() {
