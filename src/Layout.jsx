@@ -5,7 +5,7 @@ import { base44 } from "@/api/base44Client";
 import VoiceControl from "@/components/voice/VoiceControl";
 import {
   Users, GraduationCap, AlertTriangle, CheckSquare, Building, BarChart3,
-  LayoutGrid, Trophy, Menu, FileText, Utensils, Sparkles, Crown, Rocket, Map, Brain, Calendar, CalendarDays, CalendarHeart, Banknote, MessageSquare, Briefcase, QrCode, ClipboardCheck, Settings, TrendingUp, Zap, Megaphone, Bell, Package, Navigation, LogOut, Tablet, Download
+  LayoutGrid, Trophy, Menu, FileText, Utensils, Sparkles, Crown, Rocket, Map, Brain, Calendar, CalendarDays, CalendarHeart, Banknote, MessageSquare, Briefcase, QrCode, ClipboardCheck, Settings, TrendingUp, Zap, Megaphone, Bell, Package, Navigation, LogOut, Tablet, Download, ChefHat, Wallet
 } from "lucide-react";
 import {
   Sidebar, SidebarContent,
@@ -69,6 +69,8 @@ const adminLinks = [
   { title: "📨 WhatsApp Templates", url: createPageUrl("AdminWhatsAppTemplates"), icon: Zap, isSubItem: true, color: "olive" },
   { title: "📊 קופה Live", url: createPageUrl("BeecommLive"), icon: Zap, isSubItem: true, color: "olive" },
   { title: "דוחות", url: createPageUrl("Reports"), icon: BarChart3, isSubItem: true, color: "olive" },
+  { title: "💰 תזרים מזומנים", url: createPageUrl("CashFlow"), icon: Wallet, isSubItem: true, color: "olive" },
+  { title: "🍽 מתכונים ופוד-קוסט", url: createPageUrl("Recipes"), icon: ChefHat, isSubItem: true, color: "olive" },
   { title: "ניהול טיפים", url: createPageUrl("Tips"), icon: Banknote, isSubItem: true, color: "olive" },
   { title: "חשבוניות", url: createPageUrl("Invoices"), icon: FileText, isSubItem: true, color: "olive" },
   { title: "ספקים", url: createPageUrl("Suppliers"), icon: Building, isSubItem: true, color: "olive" },
