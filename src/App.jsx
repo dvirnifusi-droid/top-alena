@@ -133,6 +133,9 @@ const AuthenticatedApp = () => {
       <Route path="/e" element={<Navigate to="/EventsInquiry" replace />} />
       <Route path="/q" element={<Navigate to="/QueueJoin" replace />} />
       <Route path="/c/:token" element={<EventContractSignRedirect />} />
+      {/* Pretty URLs from the WhatsApp notification, redirect to the actual routes */}
+      <Route path="/PlatformAdmin/PendingApproval" element={<Navigate to="/PlatformAdminPending" replace />} />
+      <Route path="/PlatformAdmin/Tenants" element={<Navigate to="/PlatformAdminTenants" replace />} />
       <Route path="*" element={<PageNotFound />} />
     </Routes>
   );

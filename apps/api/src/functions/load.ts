@@ -12171,7 +12171,7 @@ registerFn('requestTenantSignup', async ({ body }) => {
       `📱 טלפון: ${ownerPhone}\n` +
       `✉️ אימייל: ${ownerEmail}\n` +
       `🔗 כתובת: ${subdomainUrl}\n\n` +
-      `אישור/דחייה: ${APP_BASE_URL || 'https://topalena.com'}/PlatformAdmin/PendingApproval`;
+      `אישור/דחייה: ${APP_BASE_URL || 'https://topalena.com'}/PlatformAdminPending`;
     for (const p of adminNumbers) {
       try { await sendWhatsApp(p, msg); } catch (e: any) { console.warn('[signup] notify failed', e?.message); }
     }
