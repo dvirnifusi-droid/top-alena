@@ -30,7 +30,7 @@ export const googleSyncRoutes: FastifyPluginAsync = async (app) => {
     const phone = String((req.query as any)?.state || '');
     const error = (req.query as any)?.error;
     if (error) {
-      return reply.type('text/html').send(`<h2 style="font-family:sans-serif" dir="rtl">⚠️ דחית את הגישה (${error}). חזור לוואטסאפ ושלח "חבר גוגל" שוב כדי לנסות.</h2>`);
+      return reply.type('text/html; charset=utf-8').send(`<h2 style="font-family:sans-serif" dir="rtl">⚠️ דחית את הגישה (${error}). חזור לוואטסאפ ושלח "חבר גוגל" שוב כדי לנסות.</h2>`);
     }
     if (!code || !phone) {
       return reply.code(400).type('text/html').send('<h2>missing code or state</h2>');
@@ -44,7 +44,7 @@ export const googleSyncRoutes: FastifyPluginAsync = async (app) => {
         expires_in: tokens.expires_in,
         email,
       });
-      return reply.type('text/html').send(`
+      return reply.type('text/html; charset=utf-8').send(`
         <div style="font-family:sans-serif;max-width:480px;margin:40px auto;padding:24px;border-radius:12px;background:#f6fdf6;border:1px solid #c8e9c8;text-align:center" dir="rtl">
           <div style="font-size:48px">✅</div>
           <h2 style="margin:8px 0">חיבור Google הצליח!</h2>
