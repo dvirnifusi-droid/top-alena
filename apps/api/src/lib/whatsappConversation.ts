@@ -292,6 +292,27 @@ const TOOL_DECLARATIONS = [
       required: ['tasks'],
     },
   },
+  // ─── Employee-scoped tools (work for ANY role; staff see only their own data) ───
+  {
+    name: 'get_my_schedule',
+    description: 'Get the CALLER\'S OWN upcoming work shifts. Use when a staff member asks "מתי המשמרת שלי?" / "מה הלוז שלי?" / "כשמסומן לעבוד?". Returns N days forward (default 7).',
+    parameters: { type: 'OBJECT', properties: { days: { type: 'NUMBER', description: 'How many days forward to look (1-14). Defaults to 7.' } } },
+  },
+  {
+    name: 'get_my_tips',
+    description: 'Get the CALLER\'S OWN recent tip earnings. Use when asked "כמה טיפים?" / "מה הטיפ שלי?" / "כמה הרווחתי השבוע?". Returns last N days (default 7).',
+    parameters: { type: 'OBJECT', properties: { days: { type: 'NUMBER', description: 'Window in days (1-60). Defaults to 7.' } } },
+  },
+  {
+    name: 'get_my_hours',
+    description: 'Get the CALLER\'S month-to-date completed shift hours. Use when asked "כמה שעות עבדתי?" / "כמה שעות החודש?".',
+    parameters: { type: 'OBJECT', properties: {} },
+  },
+  {
+    name: 'propose_mark_sick',
+    description: 'CALLER reports themselves sick — creates a sick-day request and notifies the manager. Use when employee says "אני חולה", "לא מרגיש טוב, לא אגיע", "חולה היום/מחר". Do NOT use for someone else.',
+    parameters: { type: 'OBJECT', properties: { date: { type: 'STRING', description: 'Date in YYYY-MM-DD, or the literals "today" / "tomorrow" / "היום" / "מחר".' } } },
+  },
 ];
 
 // ─── Tool implementations ──────────────────────────────────────────────────
@@ -972,7 +993,117 @@ async function stashPendingAction(phone: string, exec: any): Promise<void> {
   }).catch(() => {});
 }
 
+// ─── Employee-scoped tools ────────────────────────────────────────────────
+// Used by staff (non-admin) numbers to query their OWN data only.
+
+async function tool_get_my_schedule(args: any, phone: string): Promise<any> {
+  const { resolveAccessScope } = await import('./whatsappPermissions.js');
+  const scope = await resolveAccessScope(phone);
+  if (!scope.employee_id) return { error: 'unauthenticated' };
+  const days = Math.min(14, parseInt(String(args.days || 7)) || 7);
+  const today = new Date(new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Jerusalem' }) + 'T00:00:00.000Z');
+  const end = new Date(today.getTime() + days * 86400 * 1000);
+  const shifts: any[] = await (prisma as any).workShift.findMany({
+    where: { date: { gte: today, lt: end } }, take: 50,
+  });
+  const mine = [];
+  for (const ws of shifts) {
+    const staff = Array.isArray(ws.assigned_staff) ? ws.assigned_staff : [];
+    const me = staff.find((a: any) => a?.employee_id === scope.employee_id);
+    if (me) mine.push({
+      date: ws.date instanceof Date ? ws.date.toISOString().slice(0, 10) : String(ws.date).slice(0, 10),
+      shift_type: ws.shift_type === 'lunch' ? 'צהריים' : 'ערב',
+      position: me.position, start: me.start_time, end: me.end_time,
+    });
+  }
+  mine.sort((a, b) => a.date.localeCompare(b.date));
+  return { name: scope.employee_name, shifts: mine, total: mine.length };
+}
+
+async function tool_get_my_tips(args: any, phone: string): Promise<any> {
+  const { resolveAccessScope } = await import('./whatsappPermissions.js');
+  const scope = await resolveAccessScope(phone);
+  if (!scope.employee_id) return { error: 'unauthenticated' };
+  const days = Math.min(60, parseInt(String(args.days || 7)) || 7);
+  const since = new Date(Date.now() - days * 86400 * 1000);
+  const reports: any[] = await (prisma as any).tipReport.findMany({
+    where: { date: { gte: since } }, take: 60,
+  });
+  const mine: any[] = [];
+  let total = 0;
+  for (const r of reports) {
+    const sd = Array.isArray(r.staff_details) ? r.staff_details : [];
+    const me = sd.find((s: any) => s?.employee_id === scope.employee_id ||
+      (s?.employee_name && scope.employee_name && s.employee_name.trim().toLowerCase() === scope.employee_name.trim().toLowerCase()));
+    if (me) {
+      const earn = me.total_earnings || me.final_tip || 0;
+      total += earn;
+      mine.push({
+        date: r.date instanceof Date ? r.date.toISOString().slice(0, 10) : String(r.date).slice(0, 10),
+        earnings: Math.round(earn),
+        hours: me.effective_hours || 0,
+      });
+    }
+  }
+  return { name: scope.employee_name, days, total: Math.round(total), shifts: mine.length, breakdown: mine.slice(0, 10) };
+}
+
+async function tool_get_my_hours(args: any, phone: string): Promise<any> {
+  const { resolveAccessScope } = await import('./whatsappPermissions.js');
+  const scope = await resolveAccessScope(phone);
+  if (!scope.employee_id) return { error: 'unauthenticated' };
+  const now = new Date();
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const tracking: any[] = await (prisma as any).$queryRaw`
+    SELECT date::text AS date_str, total_hours, effective_hours, status
+    FROM "ShiftTracking"
+    WHERE employee_id = ${scope.employee_id} AND date >= ${monthStart}
+    ORDER BY date DESC
+  `;
+  const completed = tracking.filter((t) => t.status === 'completed');
+  const totalH = completed.reduce((s, t) => s + (t.effective_hours || t.total_hours || 0), 0);
+  return {
+    name: scope.employee_name,
+    month: monthStart.toISOString().slice(0, 7),
+    shifts_completed: completed.length,
+    total_hours: Math.round(totalH * 10) / 10,
+    open_shifts: tracking.filter((t) => t.status === 'active' || t.status === 'on_break').length,
+  };
+}
+
+async function tool_propose_mark_sick(args: any, phone: string): Promise<any> {
+  const { resolveAccessScope } = await import('./whatsappPermissions.js');
+  const scope = await resolveAccessScope(phone);
+  if (!scope.employee_id) return { error: 'unauthenticated' };
+  const dateRaw = String(args.date || 'today').toLowerCase();
+  const today = new Date(new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Jerusalem' }) + 'T00:00:00.000Z');
+  let when = today;
+  if (dateRaw === 'tomorrow' || dateRaw === 'מחר') when = new Date(today.getTime() + 86400 * 1000);
+  // Stash a proposal (managers will see + approve in app)
+  await (prisma as any).whatsAppMessage.create({
+    data: {
+      body: `[sick_request:${scope.employee_id}:${when.toISOString().slice(0, 10)}] ${scope.employee_name} מבקש חופש מחלה ל-${when.toISOString().slice(0, 10)}`,
+      direction: 'incoming', status: 'sick_request_pending',
+      from_phone: phone, to_phone: 'system', contact_phone: phone, is_read: false,
+    },
+  }).catch(() => {});
+  // Notify admins
+  const adminNumbers = (process.env.WHATSAPP_ADMIN_NUMBERS || '').split(',').map((s) => s.trim()).filter(Boolean);
+  if (adminNumbers.length) {
+    const { sendWhatsApp } = await import('./twilio.js');
+    const msg = `🤒 *${scope.employee_name}* מדווח/ת חולה ל-${when.toISOString().slice(0, 10)}. בדוק/י סידור והחלף/י אם צריך.`;
+    for (const a of adminNumbers) {
+      try { await sendWhatsApp(a, msg); } catch { /* noop */ }
+    }
+  }
+  return { ok: true, message: `דווחת חולה ל-${when.toISOString().slice(0, 10)}. שלחתי הודעה למנהל, הוא יסדר מחליף. רפואה שלמה 💚` };
+}
+
 const TOOL_HANDLERS: Record<string, (args: any, phone: string) => Promise<any>> = {
+  get_my_schedule: tool_get_my_schedule,
+  get_my_tips: tool_get_my_tips,
+  get_my_hours: tool_get_my_hours,
+  propose_mark_sick: tool_propose_mark_sick,
   list_today_schedule: tool_list_today_schedule,
   list_today_events: tool_list_today_events,
   list_open_tasks: tool_list_open_tasks,
@@ -1060,18 +1191,61 @@ const SYSTEM_PROMPT_BASE = `אתה העוזר האישי של בעל מסעדת 
 
 היום: ${ymd()} (${israelDayName(ymd())}).`;
 
+// Role-scoped prompt: staff get a TIGHT prompt that limits them to personal
+// tools (no leads/invoices/employees of others). Owner/manager get the full
+// SYSTEM_PROMPT_BASE.
+const STAFF_PROMPT = `אתה העוזר האישי של {name} ב-WhatsApp במסעדת "עלינא".
+
+תפקיד {name}: {role}.
+
+עיקרון: ענה רק על דברים שקשורים אליו/ה. *אל* תיתן מידע על עובדים אחרים, לידים, חשבוניות, או נתוני העסק.
+
+כלים זמינים:
+- get_my_schedule — המשמרות הקרובות שלי
+- get_my_tips — הטיפים שלי
+- get_my_hours — שעות שעבדתי החודש
+- propose_mark_sick — אני חולה היום/מחר
+
+שאלות נפוצות וכיצד לענות:
+- "מתי המשמרת הבאה שלי?" → get_my_schedule({days:3})
+- "כמה טיפים יש לי השבוע?" → get_my_tips({days:7})
+- "כמה שעות החודש?" → get_my_hours()
+- "אני חולה" → propose_mark_sick({date:"today"})
+- "אני חולה מחר" → propose_mark_sick({date:"tomorrow"})
+
+חוקים:
+1. ענה בעברית קצרה וידידותית
+2. אם שואלים על עובד אחר / נתוני כסף / לידים → "אין לי גישה לנתון הזה. תפנה למנהל אם צריך"
+3. בקשות מורכבות (סידור עתידי, החלפת משמרת) → "כרגע לא יכול לטפל בזה בצ'אט, פנה במשמרת או באפליקציה"`;
+
 async function buildSystemPrompt(phone: string): Promise<string> {
-  // Inject context about any active pending proposal so the agent can decide
-  // if an incoming message is a correction vs unrelated.
+  const { resolveAccessScope } = await import('./whatsappPermissions.js');
+  const scope = await resolveAccessScope(phone);
+
+  // Staff / guest → restricted prompt
+  if (scope.role === 'staff' || scope.role === 'guest') {
+    let base = STAFF_PROMPT
+      .replace(/\{name\}/g, scope.employee_name)
+      .replace(/\{role\}/g, scope.role_label_he);
+    if (scope.role === 'guest') {
+      base += `\n\n⚠️ המספר שלך לא רשום במערכת. הסוכן יוכל לעזור רק במידע ציבורי כללי. אם אתה עובד — פנה למנהל לרישום.`;
+    }
+    return base;
+  }
+
+  // Managers + owner → full SYSTEM_PROMPT_BASE with role banner.
+  const roleBanner = scope.is_owner
+    ? ''
+    : `\n\n*אתה מדבר עם ${scope.employee_name} (${scope.role_label_he})*. הוא מורשה לראות הכל בתחום אחריותו.`;
   const since = new Date(Date.now() - 15 * 60 * 1000);
   const pending: any = await (prisma as any).whatsAppMessage.findFirst({
     where: { contact_phone: phone, status: 'pending_action_confirmation', is_read: false, created_at: { gte: since } },
     orderBy: { id: 'desc' },
   }).catch(() => null);
-  if (!pending) return SYSTEM_PROMPT_BASE;
+  if (!pending) return SYSTEM_PROMPT_BASE + roleBanner;
   const exec = (pending.raw as any)?.pending_action || {};
   const summary = String(pending.body || '').slice(0, 300);
-  return `${SYSTEM_PROMPT_BASE}
+  return `${SYSTEM_PROMPT_BASE}${roleBanner}
 
 *הקשר פעיל — יש הצעה ממתינה לאישור:*
 ${summary}

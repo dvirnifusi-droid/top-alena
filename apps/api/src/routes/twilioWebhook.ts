@@ -250,6 +250,45 @@ export const twilioWebhookRoutes: FastifyPluginAsync = async (app) => {
           })();
           return;
         }
+        // ── Employee agent: route any sender whose phone matches an Employee
+        // record to the conversation agent. The agent's buildSystemPrompt
+        // resolves their role + permission scope and serves the right prompt.
+        // We do this BEFORE the unsubscribe + customer logging so staff
+        // messages don't accidentally trigger marketing-style auto-replies.
+        try {
+          const phoneDigits = String(from || '').replace(/\D/g, '').replace(/^0/, '972');
+          const phoneVariants = [from, phoneDigits, '0' + phoneDigits.replace(/^972/, ''), '+' + phoneDigits];
+          const empMatch = await (prisma as any).employee.findFirst({
+            where: { OR: phoneVariants.map((v: string) => ({ phone: v })) },
+            select: { id: true, full_name: true },
+          });
+          if (empMatch) {
+            req.log.info({ from, employee: empMatch.full_name }, '[whatsapp-agent] employee message — routing to conversation agent');
+            // Log inbound + ACK with empty TwiML (handled by the fall-through
+            // at the end of the handler) — actual reply goes out via sendWhatsApp.
+            await (prisma as any).whatsAppMessage.create({
+              data: {
+                twilio_sid: sid || null, direction: 'inbound', from_phone: from, to_phone: to,
+                contact_phone: from, body, num_media: numMedia, status: 'received',
+                raw: { ...params, employee_id: empMatch.id } as any, is_read: true,
+              },
+            }).catch(() => {});
+            reply.type('text/xml').send('<?xml version="1.0" encoding="UTF-8"?><Response></Response>');
+            void (async () => {
+              try {
+                const replyText = await runConversationAgent(from, body);
+                if (replyText) await sendWhatsApp(from, replyText);
+              } catch (e: any) {
+                req.log.error({ err: e?.message }, '[whatsapp-agent] employee flow crashed');
+                try { await sendWhatsApp(from, '⚠️ סליחה, היה לי באג. נסה שוב בעוד דקה.'); } catch { /* noop */ }
+              }
+            })();
+            return;
+          }
+        } catch (e: any) {
+          req.log.warn({ err: e?.message }, '[whatsapp-agent] employee lookup failed — continuing as customer');
+        }
+
         // ── Self-service unsubscribe ──────────────────────────────────────
         // Customer replied "הסר" (or similar) → opt them out of marketing
         // immediately and confirm with an auto-reply. Required by spam law:
