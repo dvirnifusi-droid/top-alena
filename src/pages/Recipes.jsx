@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, ChefHat, RefreshCw, TrendingUp, AlertTriangle, Edit3 } from 'lucide-react';
+import { Loader2, ChefHat, RefreshCw, TrendingUp, AlertTriangle, Edit3, Upload } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import PageGuard from '../components/shared/PageGuard';
 
@@ -15,6 +15,30 @@ function RecipesInner() {
   const [savingId, setSavingId] = useState(null);
   const [selected, setSelected] = useState(null);
   const [detail, setDetail] = useState(null);
+  const [importing, setImporting] = useState(false);
+
+  const handleImport = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    if (!window.confirm(`ייבא את "${file.name}"? פעולה זו תמחק את כל המתכונים והרכיבים הקיימים ותחליף בנתונים מהקובץ.`)) {
+      event.target.value = '';
+      return;
+    }
+    setImporting(true);
+    try {
+      const text = await file.text();
+      const payload = JSON.parse(text);
+      const res = await base44.functions.importRecipesFromJson(payload);
+      const data = res?.data || res;
+      alert(`✅ ייבוא הסתיים\n${data.ingredients} רכיבים · ${data.preps} הכנות · ${data.dishes} מנות · ${data.linked_ingredients} קישורים\n${data.unmatched_count > 0 ? `\nלא נמצאו: ${data.unmatched_count} רכיבים (דוגמאות: ${data.unmatched_sample?.slice(0, 5).join(', ') || ''})` : ''}`);
+      await load();
+    } catch (e) {
+      alert('שגיאה בייבוא: ' + (e?.message || ''));
+    } finally {
+      setImporting(false);
+      event.target.value = '';
+    }
+  };
 
   const load = async () => {
     setLoading(true);
@@ -72,9 +96,16 @@ function RecipesInner() {
             {filter === 'DISH' ? `${dishesWithFc.length} מנות עם מחיר · פוד-קוסט ממוצע ${avgFc.toFixed(1)}%` : `${recipes.length} הכנות בסיס`}
           </p>
         </div>
-        <Button variant="outline" onClick={load} disabled={loading}>
-          <RefreshCw className={`w-4 h-4 ml-1 ${loading ? 'animate-spin' : ''}`} /> רענן
-        </Button>
+        <div className="flex gap-2">
+          <label className="inline-flex items-center gap-1 cursor-pointer border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-900 text-sm px-3 py-2 rounded-md">
+            {importing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+            ייבא מ-JSON
+            <input type="file" accept="application/json,.json" onChange={handleImport} disabled={importing} className="hidden" />
+          </label>
+          <Button variant="outline" onClick={load} disabled={loading}>
+            <RefreshCw className={`w-4 h-4 ml-1 ${loading ? 'animate-spin' : ''}`} /> רענן
+          </Button>
+        </div>
       </div>
 
       <div className="flex gap-2">
