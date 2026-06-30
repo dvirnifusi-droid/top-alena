@@ -7984,13 +7984,17 @@ registerFn('importRecipesFromJson', async ({ body, user }) => {
   await (prisma as any).$executeRawUnsafe(`DELETE FROM "Recipe"`);
   await (prisma as any).$executeRawUnsafe(`DELETE FROM "Ingredient"`);
 
-  // 2. Insert ingredients, build name → id map.
+  // 2. Insert ingredients, build name → id map. The source Excel has the
+  // same item across two sheets (`מחירי ספקים` master + `חומרי גלם דינמי חדש`
+  // formulas), so the agent's JSON contains duplicates. First occurrence wins.
   const ingByName: Record<string, string> = {};
+  let skippedDupes = 0;
   for (const ing of ingredients) {
+    if (ingByName[ing.name]) { skippedDupes++; continue; }
     const newId = randomUUID();
     await (prisma as any).$executeRawUnsafe(
       `INSERT INTO "Ingredient"("id","name","supplier_name","unit","price_per_unit","waste_percent","category")
-       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+       VALUES ($1, $2, $3, $4, $5, $6, $7) ON CONFLICT (name) DO NOTHING`,
       newId, ing.name, ing.supplier_name || null, ing.unit || 'kg',
       ing.price_per_unit ?? null, ing.waste_percent ?? 0, ing.category || null,
     );
@@ -8061,6 +8065,7 @@ registerFn('importRecipesFromJson', async ({ body, user }) => {
   return {
     ok: true,
     ingredients: Object.keys(ingByName).length,
+    ingredients_duplicates_skipped: skippedDupes,
     aliases: aliases.length,
     preps: recipes.filter((r) => r.kind === 'PREP').length,
     dishes: recipes.filter((r) => r.kind === 'DISH').length,
