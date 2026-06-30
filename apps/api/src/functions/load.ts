@@ -4,6 +4,7 @@
  *
  * Functions marked TODO are stubs that need their original logic ported.
  */
+import { randomUUID } from 'node:crypto';
 import { prisma } from '../db.js';
 import { registerFn, functionHandlers } from './index.js';
 import { sendSms, sendWhatsApp, sendWhatsAppTemplate } from '../lib/twilio.js';
@@ -7986,13 +7987,14 @@ registerFn('importRecipesFromJson', async ({ body, user }) => {
   // 2. Insert ingredients, build name → id map.
   const ingByName: Record<string, string> = {};
   for (const ing of ingredients) {
-    const r: any = await (prisma as any).$queryRawUnsafe(
+    const newId = randomUUID();
+    await (prisma as any).$executeRawUnsafe(
       `INSERT INTO "Ingredient"("id","name","supplier_name","unit","price_per_unit","waste_percent","category")
-       VALUES (gen_random_uuid()::text, $1, $2, $3, $4, $5, $6) RETURNING id`,
-      ing.name, ing.supplier_name || null, ing.unit || 'kg',
+       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      newId, ing.name, ing.supplier_name || null, ing.unit || 'kg',
       ing.price_per_unit ?? null, ing.waste_percent ?? 0, ing.category || null,
     );
-    ingByName[ing.name] = r[0].id;
+    ingByName[ing.name] = newId;
   }
 
   // 3. Insert aliases (alias → canonical ingredient id).
@@ -8000,8 +8002,8 @@ registerFn('importRecipesFromJson', async ({ body, user }) => {
     const canonicalId = ingByName[al.canonical_name];
     if (!canonicalId) continue;
     await (prisma as any).$executeRawUnsafe(
-      `INSERT INTO "IngredientAlias"("id","alias","ingredient_id") VALUES (gen_random_uuid()::text, $1, $2) ON CONFLICT (alias) DO NOTHING`,
-      al.alias, canonicalId,
+      `INSERT INTO "IngredientAlias"("id","alias","ingredient_id") VALUES ($1, $2, $3) ON CONFLICT (alias) DO NOTHING`,
+      randomUUID(), al.alias, canonicalId,
     );
   }
   // Combined lookup: by ingredient name or by alias name.
@@ -8018,13 +8020,14 @@ registerFn('importRecipesFromJson', async ({ body, user }) => {
   for (const pass of ['PREP', 'DISH']) {
     for (const rec of recipes) {
       if (rec.kind !== pass) continue;
-      const r: any = await (prisma as any).$queryRawUnsafe(
+      const newId = randomUUID();
+      await (prisma as any).$executeRawUnsafe(
         `INSERT INTO "Recipe"("id","kind","name","total_cost","sale_price","yield_qty","yield_unit","category")
-         VALUES (gen_random_uuid()::text, $1, $2, $3, $4, $5, $6, $7) RETURNING id`,
-        rec.kind, rec.name, rec.total_cost ?? null, rec.sale_price ?? null,
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+        newId, rec.kind, rec.name, rec.total_cost ?? null, rec.sale_price ?? null,
         rec.yield_qty ?? 1, rec.yield_unit || 'unit', rec.category || null,
       );
-      recipeByName[rec.name] = r[0].id;
+      recipeByName[rec.name] = newId;
     }
   }
 
@@ -8045,8 +8048,8 @@ registerFn('importRecipesFromJson', async ({ body, user }) => {
       }
       await (prisma as any).$executeRawUnsafe(
         `INSERT INTO "RecipeIngredient"("id","recipe_id","ingredient_id","prep_recipe_id","qty","unit","cost_at_import")
-         VALUES (gen_random_uuid()::text, $1, $2, $3, $4, $5, $6)`,
-        recId, ingId, prepId, ri.qty || 0, ri.unit || 'kg', ri.cost_at_import ?? null,
+         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        randomUUID(), recId, ingId, prepId, ri.qty || 0, ri.unit || 'kg', ri.cost_at_import ?? null,
       );
       linked++;
     }
@@ -8242,8 +8245,8 @@ registerFn('importCashFlowFromJson', async ({ body, user }) => {
     if (!Number.isFinite(amt) || amt === 0) continue;
     await (prisma as any).$executeRawUnsafe(
       `INSERT INTO "CashFlowEntry"("id","date","type","category","source","description","amount","payment_method","status","notes")
-       VALUES (gen_random_uuid()::text, $1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-      dt, e.type || 'expense', e.category || 'אחר', e.source || null,
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+      randomUUID(), dt, e.type || 'expense', e.category || 'אחר', e.source || null,
       e.description || null, Math.abs(amt), e.payment_method || null,
       e.status || 'planned', e.notes || null,
     );
@@ -8253,8 +8256,8 @@ registerFn('importCashFlowFromJson', async ({ body, user }) => {
     // Store opening balance as a special CashFlowEntry-like row (status = 'opening').
     await (prisma as any).$executeRawUnsafe(
       `INSERT INTO "CashFlowEntry"("id","date","type","category","source","description","amount","status","notes")
-       VALUES (gen_random_uuid()::text, $1, 'income', 'יתרת פתיחה', null, 'Opening balance', $2, 'received', 'auto')`,
-      new Date('2026-01-01'), Number(b.opening_balance),
+       VALUES ($1, $2, 'income', 'יתרת פתיחה', null, 'Opening balance', $3, 'received', 'auto')`,
+      randomUUID(), new Date('2026-01-01'), Number(b.opening_balance),
     );
   }
   return { ok: true, inserted, opening_balance: b.opening_balance ?? null };
