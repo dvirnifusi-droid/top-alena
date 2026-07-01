@@ -247,24 +247,60 @@ async function cmdSendAvailabilityReminderNow(): Promise<string> {
   return `📤 נשלחו ${res?.sent ?? 0} תזכורות למי שלא הגיש זמינות (סה"כ חסרים: ${res?.missing_count ?? 0}).`;
 }
 
-// Global pending-replace state — set when "בנה סידור" hits an existing week
-// and the admin needs to confirm overwrite. Cleared after 5min or after
-// confirm/cancel. One-admin model — good enough for now.
-let pendingReplace: { weekStart: string; expiresAt: number } | null = null;
+// Global pending-replace state — set when "בנה סידור" hits an existing week.
+// Holds the LLM-built plan itself so "החלף" applies it without re-invoking
+// the LLM (deterministic + cheap). Cleared after 5min or after confirm/cancel.
+// One-admin model — good enough for now.
+let pendingReplace: {
+  weekStart: string;
+  plan: { assignments: any[]; insights: string[] };
+  expiresAt: number;
+} | null = null;
 
-async function cmdBuildScheduleNow(replaceExisting = false): Promise<string> {
+async function cmdBuildScheduleNow(applyPending = false): Promise<string> {
   // Dynamic import — the fn lives in load.ts to avoid a circular dep.
   const { runWeeklyScheduleBuild } = await import('../functions/load.js');
-  const res: any = await runWeeklyScheduleBuild({ force: true, replaceExisting });
+
+  // "החלף" path — apply the plan we already built earlier, skip the LLM.
+  if (applyPending && pendingReplace && pendingReplace.expiresAt > Date.now()) {
+    const applied: any = await runWeeklyScheduleBuild({ force: true, applyPlan: pendingReplace.plan });
+    pendingReplace = null;
+    const lines = [
+      `✅ *הסידור הישן נמחק — הוחלף בחדש.*`,
+      `📋 ${applied.createdShifts || 0} משמרות · ${applied.assignmentCount || 0} שיבוצים`,
+    ];
+    const base = process.env.APP_BASE_URL || 'https://topalena.com';
+    lines.push('', `🔗 לעריכה: ${base}/WorkScheduling`);
+    return lines.join('\n');
+  }
+
+  const res: any = await runWeeklyScheduleBuild({ force: true });
   if (res?.skipped) return `⚠️ הבנייה דילגה: ${res.reason || 'לא ידוע'}`;
   if (res?.needs_confirmation) {
-    pendingReplace = { weekStart: res.week_start, expiresAt: Date.now() + 5 * 60 * 1000 };
-    return [
-      `⚠️ *כבר יש סידור לשבוע ${res.target_week}* (${res.existing_count} משמרות).`,
+    pendingReplace = {
+      weekStart: res.week_start,
+      plan: res.plan,
+      expiresAt: Date.now() + 5 * 60 * 1000,
+    };
+    const diff = res.diff || { lines: [], changes_count: 0, total_old: 0, total_new: 0, truncated: false };
+    const out: string[] = [
+      `⚠️ *כבר יש סידור לשבוע ${res.target_week}* (${res.existing_count} משמרות, סה"כ ${diff.total_old} שיבוצים).`,
       ``,
-      `להחליף את הקיים בסידור חדש?`,
-      `השב *"החלף"* כדי למחוק ולבנות מחדש, או *"בטל"* כדי להשאיר את הקיים.`,
-    ].join('\n');
+      `📋 *הסידור החדש שבניתי:* ${diff.total_new} שיבוצים.`,
+      ``,
+      `🔀 *הבדלים (${diff.changes_count} משמרות ישתנו):*`,
+    ];
+    if (diff.lines.length) {
+      out.push(...diff.lines);
+      if (diff.truncated) out.push(`  ...(עוד ${diff.changes_count - diff.lines.length} שינויים)`);
+    } else {
+      out.push('  • אין הבדלים — הסידור החדש זהה לקיים.');
+    }
+    out.push(
+      ``,
+      `להחליף? השב *"החלף"* כדי למחוק את הישן ולהחיל את החדש, או *"בטל"* להשאיר את הקיים.`,
+    );
+    return out.join('\n');
   }
   pendingReplace = null;
   const lines: string[] = [`📋 *סידור נבנה*`];

@@ -7604,7 +7604,90 @@ export async function runWeeklyScheduleFinalReminder() {
 }
 
 // Cron: Tue 16:00 IL. Notify owner of missing; build draft schedule; send insights.
-export async function runWeeklyScheduleBuild(opts: { force?: boolean; replaceExisting?: boolean } = {}) {
+// Turn an LLM assignment list into WorkShift rows, one per (date, shift_type)
+// bucket. Caller is responsible for having deleted any old rows for the week.
+async function persistScheduleAssignments(assignments: any[], _weekDates: string[]) {
+  const byDayShift: Record<string, any[]> = {};
+  for (const a of assignments) {
+    const key = `${a.date}__${a.shift_type}`;
+    (byDayShift[key] = byDayShift[key] || []).push({
+      employee_id: a.employee_id, employee_name: a.employee_name, position: a.position,
+      start_time: a.shift_type === 'lunch' ? '10:00' : '17:00',
+      end_time: a.shift_type === 'lunch' ? '17:00' : '01:00',
+      status: 'scheduled', manual_entry: false,
+    });
+  }
+  let createdShifts = 0;
+  for (const key of Object.keys(byDayShift)) {
+    const [date, shift_type] = key.split('__');
+    await (prisma as any).workShift.create({
+      data: {
+        date: new Date(date + 'T00:00:00.000Z'),
+        shift_type,
+        start_time: shift_type === 'lunch' ? '10:00' : '17:00',
+        end_time: shift_type === 'lunch' ? '17:00' : '01:00',
+        assigned_staff: byDayShift[key],
+      },
+    });
+    createdShifts++;
+  }
+  return { createdShifts, assignmentCount: assignments.length };
+}
+
+// Human-readable summary of what changes if the admin approves the new plan.
+// Groups by (date, shift_type) → lists removed / added employees per slot.
+function buildScheduleDiff(existing: any[], newAssignments: any[]) {
+  const HE_DAYS = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'];
+  const SHIFT_LABEL: Record<string, string> = { lunch: 'צהריים', dinner: 'ערב' };
+  const oldBySlot: Record<string, Set<string>> = {};
+  for (const w of existing) {
+    const d = String(w.date_str || '').slice(0, 10);
+    const key = `${d}__${w.shift_type}`;
+    const set = oldBySlot[key] = oldBySlot[key] || new Set<string>();
+    const staff = Array.isArray(w.assigned_staff) ? w.assigned_staff : [];
+    for (const s of staff) {
+      const name = s?.employee_name || s?.name;
+      if (name) set.add(String(name));
+    }
+  }
+  const newBySlot: Record<string, Set<string>> = {};
+  for (const a of newAssignments) {
+    const key = `${a.date}__${a.shift_type}`;
+    const set = newBySlot[key] = newBySlot[key] || new Set<string>();
+    if (a.employee_name) set.add(String(a.employee_name));
+  }
+  const allKeys = [...new Set([...Object.keys(oldBySlot), ...Object.keys(newBySlot)])].sort();
+  const totalsOld = Object.values(oldBySlot).reduce((n, s) => n + s.size, 0);
+  const totalsNew = Object.values(newBySlot).reduce((n, s) => n + s.size, 0);
+  const perSlot: string[] = [];
+  for (const key of allKeys) {
+    const [date, shift] = key.split('__');
+    const oldSet = oldBySlot[key] || new Set<string>();
+    const newSet = newBySlot[key] || new Set<string>();
+    const removed = [...oldSet].filter((n) => !newSet.has(n));
+    const added = [...newSet].filter((n) => !oldSet.has(n));
+    if (!removed.length && !added.length) continue;
+    const dayIdx = new Date(date + 'T12:00:00Z').getUTCDay();
+    const label = `${HE_DAYS[dayIdx]} ${date.slice(8)}.${date.slice(5, 7)} ${SHIFT_LABEL[shift] || shift}`;
+    const parts: string[] = [];
+    if (removed.length) parts.push(`יוצאים: ${removed.join(', ')}`);
+    if (added.length) parts.push(`נכנסים: ${added.join(', ')}`);
+    perSlot.push(`• ${label}: ${parts.join(' | ')}`);
+  }
+  return {
+    total_old: totalsOld,
+    total_new: totalsNew,
+    changes_count: perSlot.length,
+    lines: perSlot.slice(0, 15), // cap so WhatsApp message stays readable
+    truncated: perSlot.length > 15,
+  };
+}
+
+export async function runWeeklyScheduleBuild(opts: {
+  force?: boolean;
+  replaceExisting?: boolean;
+  applyPlan?: { assignments: any[]; insights: string[] };
+} = {}) {
   const il = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Jerusalem', weekday: 'short', hour: '2-digit', minute: '2-digit', hour12: false })
     .formatToParts(new Date()).reduce<Record<string, string>>((acc, p) => { if (p.type !== 'literal') acc[p.type] = p.value; return acc; }, {});
   if (!opts.force && (il.weekday !== 'Tue' || parseInt(il.hour, 10) !== 16)) return { skipped: true, reason: 'wrong window', il };
@@ -7613,25 +7696,23 @@ export async function runWeeklyScheduleBuild(opts: { force?: boolean; replaceExi
   const start = new Date(weekDates[0] + 'T00:00:00.000Z');
   const end = new Date(weekDates[weekDates.length - 1] + 'T23:59:59.999Z');
 
-  // Overwrite guard — if there are already WorkShift rows for this week,
-  // don't silently duplicate. Ask the caller (WhatsApp cmd) to confirm.
-  const existing: any[] = await (prisma as any).$queryRaw`
-    SELECT id, date::text AS date_str FROM "WorkShift"
-    WHERE date >= ${start} AND date <= ${end}
-  `;
-  if (existing.length && !opts.replaceExisting) {
-    return {
-      needs_confirmation: true,
-      existing_count: existing.length,
-      target_week: `${weekDates[0]} — ${weekDates[6]}`,
-      week_start: weekDates[0],
-    };
-  }
-  if (existing.length && opts.replaceExisting) {
-    // Wipe old draft first, then rebuild from scratch below.
+  // Fast path — caller already has an LLM-built plan they confirmed to apply.
+  // Skip the whole build path; wipe existing week's WorkShift + persist.
+  if (opts.applyPlan) {
     await (prisma as any).$executeRaw`
       DELETE FROM "WorkShift" WHERE date >= ${start} AND date <= ${end}
     `;
+    const { createdShifts, assignmentCount } = await persistScheduleAssignments(
+      opts.applyPlan.assignments, weekDates,
+    );
+    return {
+      ok: true,
+      createdShifts,
+      assignmentCount,
+      insights: opts.applyPlan.insights,
+      missing: [],
+      replaced: true,
+    };
   }
 
   // Pull ALL availability records with a wide window, then filter by
@@ -7795,31 +7876,33 @@ ${JSON.stringify(empSummary, null, 2)}
   const assignments: any[] = parsed?.assignments || [];
   const insights: string[] = parsed?.insights || [];
 
-  // Write the draft as WorkShift rows (won't conflict — these are NEW dates).
-  const byDayShift: Record<string, any[]> = {};
-  for (const a of assignments) {
-    const key = `${a.date}__${a.shift_type}`;
-    (byDayShift[key] = byDayShift[key] || []).push({
-      employee_id: a.employee_id, employee_name: a.employee_name, position: a.position,
-      start_time: a.shift_type === 'lunch' ? '10:00' : '17:00',
-      end_time: a.shift_type === 'lunch' ? '17:00' : '01:00',
-      status: 'scheduled', manual_entry: false,
-    });
+  // Overwrite guard — check for existing WorkShift rows for this week AFTER
+  // the LLM has produced a plan. If we found any and the caller didn't
+  // explicitly opt into replacing, return a diff summary so the admin can
+  // decide "החלף" vs "בטל" with full information (not just a count).
+  const existing: any[] = await (prisma as any).$queryRaw`
+    SELECT date::text AS date_str, shift_type, assigned_staff FROM "WorkShift"
+    WHERE date >= ${start} AND date <= ${end}
+  `;
+  if (existing.length && !opts.replaceExisting) {
+    const diff = buildScheduleDiff(existing, assignments);
+    return {
+      needs_confirmation: true,
+      existing_count: existing.length,
+      target_week: `${weekDates[0]} — ${weekDates[6]}`,
+      week_start: weekDates[0],
+      diff,
+      plan: { assignments, insights },
+    };
   }
-  let createdShifts = 0;
-  for (const key of Object.keys(byDayShift)) {
-    const [date, shift_type] = key.split('__');
-    await (prisma as any).workShift.create({
-      data: {
-        date: new Date(date + 'T00:00:00.000Z'),
-        shift_type,
-        start_time: shift_type === 'lunch' ? '10:00' : '17:00',
-        end_time: shift_type === 'lunch' ? '17:00' : '01:00',
-        assigned_staff: byDayShift[key],
-      },
-    });
-    createdShifts++;
+  if (existing.length && opts.replaceExisting) {
+    // Wipe old draft first so the persist step doesn't duplicate.
+    await (prisma as any).$executeRaw`
+      DELETE FROM "WorkShift" WHERE date >= ${start} AND date <= ${end}
+    `;
   }
+
+  const { createdShifts } = await persistScheduleAssignments(assignments, weekDates);
 
   // Notify owner via WhatsApp
   const adminNumbers = (process.env.WHATSAPP_ADMIN_NUMBERS || '').split(',').map((s) => s.trim()).filter(Boolean);
