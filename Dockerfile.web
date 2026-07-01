@@ -11,6 +11,8 @@
 #
 # IMPORTANT: a frontend change without a fresh committed dist/ will deploy
 # stale UI. Always run vite build before pushing frontend changes.
+# Force-rebuild trigger: touched 2026-07-01 to recover from an autodeploy
+# race where the api rebuild failed and left web stale.
 FROM nginx:1.27-alpine
 COPY dist /usr/share/nginx/html
 COPY nginx.conf /etc/nginx/conf.d/default.conf
