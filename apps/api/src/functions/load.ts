@@ -7612,12 +7612,20 @@ export async function runWeeklyScheduleBuild(opts: { force?: boolean } = {}) {
   const start = new Date(weekDates[0] + 'T00:00:00.000Z');
   const end = new Date(weekDates[weekDates.length - 1] + 'T23:59:59.999Z');
 
-  // Pull submissions
-  const submissions: any[] = await (prisma as any).$queryRaw`
+  // Pull ALL availability records with a wide window, then filter by
+  // matching the DATE part (yyyy-mm-dd) against weekDates[] — mirrors what
+  // the /AvailabilityRequests page does client-side. This avoids TZ off-by-
+  // one bugs where date >= UTC-midnight silently misses records stored as
+  // Israel-local-midnight (2026-07-04T21:00Z on the wire).
+  const targetDateSet = new Set(weekDates);
+  const raw: any[] = await (prisma as any).$queryRaw`
     SELECT employee_id, employee_name, date::text AS date_str, availability_type, shift_preference, positions
     FROM "EmployeeAvailability"
-    WHERE date >= ${start} AND date <= ${end}
+    WHERE date >= NOW() - INTERVAL '30 days' AND date <= NOW() + INTERVAL '30 days'
   `;
+  const submissions: any[] = raw.filter((r: any) =>
+    targetDateSet.has(String(r.date_str || '').slice(0, 10)),
+  );
   const employees = await getActiveEmployeesForScheduling();
   const submitted = new Set(submissions.map((r) => r.employee_id).filter(Boolean));
   const missing = employees.filter((e) => !submitted.has(e.id));
