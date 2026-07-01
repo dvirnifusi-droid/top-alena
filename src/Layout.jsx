@@ -504,7 +504,7 @@ const DesktopSidebar = ({ userName, isCurrentViewAdmin, isOriginalAdmin, navigat
         </div>
         <div className="flex-1">
           <p className="text-base font-bold text-foreground">{userName}</p>
-          <p className="text-sm text-muted-foreground font-medium">{isCurrentViewAdmin ? 'מנהל' : 'עובד'}</p>
+          <p className="text-sm text-muted-foreground font-medium">{isCurrentViewAdmin ? (user?.role === 'owner' ? 'בעלים' : 'מנהל') : 'עובד'}</p>
         </div>
       </div>
 
@@ -591,7 +591,7 @@ const MobileSidebar = ({ userName, isCurrentViewAdmin, isOriginalAdmin, navigati
         </div>
         <div className="flex-1 min-w-0">
           <p className="text-sm font-bold text-foreground truncate">{userName}</p>
-          <p className="text-xs text-muted-foreground truncate">{isCurrentViewAdmin ? 'מנהל' : 'עובד'}</p>
+          <p className="text-xs text-muted-foreground truncate">{isCurrentViewAdmin ? (user?.role === 'owner' ? 'בעלים' : 'מנהל') : 'עובד'}</p>
         </div>
       </div>
 
