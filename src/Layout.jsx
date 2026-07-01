@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 
+import { useTenantBranding } from "./hooks/useTenantBranding";
 import AiChatWidget from "./components/ai-assistant/AiChatWidget";
 import DevicePreviewToggle from "./components/DevicePreviewToggle";
 import EnableStaffPush from "./components/EnableStaffPush";
@@ -168,6 +169,8 @@ export default function Layout({ children, currentPageName }) {
   const [originalUserRole, setOriginalUserRole] = React.useState(null);
   const [hasUnreadChat, setHasUnreadChat] = React.useState(false);
   const [appTheme, setAppTheme] = React.useState(() => localStorage.getItem('gc_theme') || 'light');
+  const branding = useTenantBranding();
+  const brandName = branding?.name || 'TOP ALENA';
 
   // Auto-Tracker: log every page nav so the daily analyzer can spot patterns
   // (e.g. "Dvir opened SeatingSetup 20× tonight → propose a dashboard widget").
@@ -445,7 +448,7 @@ const DesktopSidebar = ({ userName, isCurrentViewAdmin, isOriginalAdmin, navigat
           <Crown className="w-7 h-7 text-white" />
         </div>
         <div>
-          <h2 className="font-black text-xl text-foreground">TOP ALENA</h2>
+          <h2 className="font-black text-xl text-foreground">{brandName}</h2>
           <p className="text-sm text-muted-foreground font-semibold">{isCurrentViewAdmin ? 'מערכת ניהול' : 'אזור אישי'}</p>
         </div>
       </div>
@@ -532,7 +535,7 @@ const MobileSidebar = ({ userName, isCurrentViewAdmin, isOriginalAdmin, navigati
           <Crown className="w-4 h-4 text-white" />
         </div>
         <div className="min-w-0">
-          <h2 className="font-bold text-base text-foreground truncate">TOP ALENA</h2>
+          <h2 className="font-bold text-base text-foreground truncate">{brandName}</h2>
           <p className="text-xs text-muted-foreground truncate">{isCurrentViewAdmin ? 'מערכת ניהול' : 'אזור אישי'}</p>
         </div>
       </div>
@@ -626,7 +629,7 @@ const MobileHeader = ({ isCurrentViewAdmin }) => (
     </SidebarTrigger>
     <div className="flex items-center gap-3 min-w-0">
       <div className="min-w-0 text-right">
-        <h1 className="text-base font-bold text-foreground truncate">TOP ALENA</h1>
+        <h1 className="text-base font-bold text-foreground truncate">{brandName}</h1>
         <p className="text-xs text-muted-foreground truncate">{isCurrentViewAdmin ? 'ניהול' : 'אזור אישי'}</p>
       </div>
       <div className="w-9 h-9 bg-gradient-to-br from-[#A04A2E] to-[#B89556] rounded-lg flex items-center justify-center shadow-md flex-shrink-0">

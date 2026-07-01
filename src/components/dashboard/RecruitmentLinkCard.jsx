@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Card, CardContent } from "@/components/ui/card";
 import { Copy, Check, ExternalLink, Sparkles, QrCode } from 'lucide-react';
+import { useTenantBranding } from '@/hooks/useTenantBranding';
 
 // Pre-defined UTM sources. Choosing one appends ?utm_source=<value> to the
 // candidate link so the backend can save it onto JobCandidate.source —
@@ -22,6 +23,8 @@ function withUtm(utm) {
 }
 
 export default function RecruitmentLinkCard() {
+  const branding = useTenantBranding();
+  const brandName = branding?.name || 'המסעדה';
   const [sourceKey, setSourceKey] = useState('general');
   const [copiedLink, setCopiedLink] = useState(false);
   const [copiedMsg, setCopiedMsg] = useState(false);
@@ -49,7 +52,7 @@ export default function RecruitmentLinkCard() {
       <CardContent className="p-6">
         <div className="flex items-start justify-between mb-4">
           <div>
-            <h3 className="text-xl font-bold mb-1">🌿 סוכן גיוס של עלינא</h3>
+            <h3 className="text-xl font-bold mb-1">🌿 סוכן גיוס של {brandName}</h3>
             <p className="text-emerald-100 text-sm">
               שלח את הקישור למועמדים — הסוכן בדפדפן מנהל ראיון התאמה ושומר את הפרטים
             </p>
