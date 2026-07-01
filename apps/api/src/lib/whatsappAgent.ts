@@ -248,33 +248,59 @@ async function cmdSendAvailabilityReminderNow(): Promise<string> {
 }
 
 // Global pending-replace state — set when "בנה סידור" hits an existing week.
-// Holds the LLM-built plan itself so "החלף" applies it without re-invoking
-// the LLM (deterministic + cheap). Cleared after 5min or after confirm/cancel.
-// One-admin model — good enough for now.
+// Also tracks the division the admin picked so "החלף" applies the same scope.
+// Cleared after 5min or after confirm/cancel. One-admin model.
 let pendingReplace: {
   weekStart: string;
   plan: { assignments: any[]; insights: string[] };
+  division: 'floor' | 'kitchen';
   expiresAt: number;
 } | null = null;
 
-async function cmdBuildScheduleNow(applyPending = false): Promise<string> {
+// The admin typed "בנה סידור" — we ask them which division to build. Until
+// they answer "פלור" / "מטבח", we don't touch the schedule.
+let pendingDivisionChoice: { expiresAt: number } | null = null;
+
+async function cmdBuildScheduleNow(
+  applyPending = false,
+  division?: 'floor' | 'kitchen',
+): Promise<string> {
   // Dynamic import — the fn lives in load.ts to avoid a circular dep.
   const { runWeeklyScheduleBuild } = await import('../functions/load.js');
 
   // "החלף" path — apply the plan we already built earlier, skip the LLM.
   if (applyPending && pendingReplace && pendingReplace.expiresAt > Date.now()) {
-    const applied: any = await runWeeklyScheduleBuild({ force: true, applyPlan: pendingReplace.plan });
+    const applied: any = await runWeeklyScheduleBuild({
+      force: true,
+      applyPlan: pendingReplace.plan,
+      division: pendingReplace.division,
+    });
+    const wasDiv = pendingReplace.division === 'floor' ? 'פלור' : 'מטבח';
     pendingReplace = null;
     const lines = [
-      `✅ *הסידור הישן נמחק — הוחלף בחדש.*`,
+      `✅ *סידור חטיבת ${wasDiv} הוחלף.*`,
       `📋 ${applied.createdShifts || 0} משמרות · ${applied.assignmentCount || 0} שיבוצים`,
+      `(החטיבה השנייה לא נגעה.)`,
     ];
     const base = process.env.APP_BASE_URL || 'https://topalena.com';
     lines.push('', `🔗 לעריכה: ${base}/WorkScheduling`);
     return lines.join('\n');
   }
 
-  const res: any = await runWeeklyScheduleBuild({ force: true });
+  // First entry — no division chosen yet. Ask the admin which one to build.
+  if (!division) {
+    pendingDivisionChoice = { expiresAt: Date.now() + 5 * 60 * 1000 };
+    return [
+      `🏢 *איזה חטיבה לבנות?*`,
+      ``,
+      `השב *"פלור"* (מלצרים, ברמנים, מארחות, ראנרים...)`,
+      `או *"מטבח"* (טבחים, חומוס, שטיפה...)`,
+      ``,
+      `כל חטיבה נבנית לחוד — לא משפיע על השנייה.`,
+    ].join('\n');
+  }
+
+  const res: any = await runWeeklyScheduleBuild({ force: true, division });
   if (res?.skipped) return `⚠️ הבנייה דילגה: ${res.reason || 'לא ידוע'}`;
   if (res?.empty_plan) {
     const out = [
@@ -304,13 +330,15 @@ async function cmdBuildScheduleNow(applyPending = false): Promise<string> {
     pendingReplace = {
       weekStart: res.week_start,
       plan: res.plan,
+      division: division!,
       expiresAt: Date.now() + 5 * 60 * 1000,
     };
+    const divLabel = division === 'floor' ? 'פלור' : 'מטבח';
     const diff = res.diff || { lines: [], changes_count: 0, total_old: 0, total_new: 0, truncated: false };
     const out: string[] = [
-      `⚠️ *כבר יש סידור לשבוע ${res.target_week}* (${res.existing_count} משמרות, סה"כ ${diff.total_old} שיבוצים).`,
+      `⚠️ *כבר יש סידור ${divLabel} לשבוע ${res.target_week}* (${diff.total_old} שיבוצים בחטיבה).`,
       ``,
-      `📋 *הסידור החדש שבניתי:* ${diff.total_new} שיבוצים.`,
+      `📋 *הסידור החדש שבניתי (${divLabel}):* ${diff.total_new} שיבוצים.`,
       ``,
       `🔀 *הבדלים (${diff.changes_count} משמרות ישתנו):*`,
     ];
@@ -322,12 +350,13 @@ async function cmdBuildScheduleNow(applyPending = false): Promise<string> {
     }
     out.push(
       ``,
-      `להחליף? השב *"החלף"* כדי למחוק את הישן ולהחיל את החדש, או *"בטל"* להשאיר את הקיים.`,
+      `להחליף רק את חטיבת ${divLabel}? השב *"החלף"* או *"בטל"*. (החטיבה השנייה לא תיגע.)`,
     );
     return out.join('\n');
   }
   pendingReplace = null;
-  const lines: string[] = [`📋 *סידור נבנה*`];
+  const divLabelDone = division === 'floor' ? 'פלור' : 'מטבח';
+  const lines: string[] = [`📋 *סידור ${divLabelDone} נבנה*`];
   lines.push(`✅ ${res.createdShifts || 0} משמרות · ${res.assignmentCount || 0} שיבוצים`);
   if (Array.isArray(res.missing) && res.missing.length) {
     lines.push(`⚠️ לא הגישו זמינות: ${res.missing.join(', ')}`);
@@ -360,6 +389,24 @@ const COMMAND_MATCHERS: Array<{ test: (s: string) => boolean; run: () => Promise
   // cron gate. Kicks off the same LLM flow, returns the summary.
   { test: (s) => /^(בנה|תבנה|תיבנה|צור|תצור|יצור|בונה|תיבנ|במה)\s+(סידור|לוז|לו\s*ז)/i.test(s), run: () => cmdBuildScheduleNow(false) },
   { test: (s) => /^(שלח|תשלח|שלחו)\s+(תזכור(ת|ות))\s+זמינות/i.test(s), run: cmdSendAvailabilityReminderNow },
+  // Division reply after "בנה סידור" asked which to build. Only fires while
+  // pendingDivisionChoice is live (<5min old).
+  {
+    test: (s) => /^(פלור|floor|אולם|מלצרים)$/i.test(s.trim())
+      && !!pendingDivisionChoice && pendingDivisionChoice.expiresAt > Date.now(),
+    run: () => {
+      pendingDivisionChoice = null;
+      return cmdBuildScheduleNow(false, 'floor');
+    },
+  },
+  {
+    test: (s) => /^(מטבח|kitchen|טבחים)$/i.test(s.trim())
+      && !!pendingDivisionChoice && pendingDivisionChoice.expiresAt > Date.now(),
+    run: () => {
+      pendingDivisionChoice = null;
+      return cmdBuildScheduleNow(false, 'kitchen');
+    },
+  },
   // Overwrite-confirmation replies for "בנה סידור" when a week already
   // has a draft. Only fire if there's a live pending state (<5min old).
   {

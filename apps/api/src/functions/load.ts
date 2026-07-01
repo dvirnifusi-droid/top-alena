@@ -7619,9 +7619,16 @@ export async function runWeeklyScheduleFinalReminder() {
 }
 
 // Cron: Tue 16:00 IL. Notify owner of missing; build draft schedule; send insights.
-// Turn an LLM assignment list into WorkShift rows, one per (date, shift_type)
-// bucket. Caller is responsible for having deleted any old rows for the week.
-async function persistScheduleAssignments(assignments: any[], _weekDates: string[]) {
+// Turn a placement list into WorkShift rows. If `division` is set, we PRESERVE
+// staff from the OTHER division on that shift (so building פלור never wipes
+// existing מטבח assignments). Existing same-division staff on the shift are
+// replaced; the row is upserted per (date, shift_type).
+async function persistScheduleAssignments(
+  assignments: any[],
+  _weekDates: string[],
+  division?: 'floor' | 'kitchen' | null,
+) {
+  // Collect new placements bucketed by (date, shift_type).
   const byDayShift: Record<string, any[]> = {};
   for (const a of assignments) {
     const key = `${a.date}__${a.shift_type}`;
@@ -7632,18 +7639,43 @@ async function persistScheduleAssignments(assignments: any[], _weekDates: string
       status: 'scheduled', manual_entry: false,
     });
   }
+
   let createdShifts = 0;
   for (const key of Object.keys(byDayShift)) {
     const [date, shift_type] = key.split('__');
-    await (prisma as any).workShift.create({
-      data: {
-        date: new Date(date + 'T00:00:00.000Z'),
-        shift_type,
-        start_time: shift_type === 'lunch' ? '10:00' : '17:00',
-        end_time: shift_type === 'lunch' ? '17:00' : '01:00',
-        assigned_staff: byDayShift[key],
-      },
+    const dateObj = new Date(date + 'T00:00:00.000Z');
+
+    // Find any existing WorkShift row for this slot so we can keep the OTHER
+    // division's staff around when we rewrite this one.
+    const existingRow: any = await (prisma as any).workShift.findFirst({
+      where: { date: dateObj, shift_type },
     });
+    let keptStaff: any[] = [];
+    if (existingRow && Array.isArray(existingRow.assigned_staff) && division) {
+      const otherDiv = division === 'floor' ? 'kitchen' : 'floor';
+      keptStaff = existingRow.assigned_staff.filter((s: any) => {
+        const d = positionDivision(s?.position || '');
+        return d === otherDiv; // keep only the other division's rows
+      });
+    }
+    const merged = [...keptStaff, ...byDayShift[key]];
+
+    if (existingRow) {
+      await (prisma as any).workShift.update({
+        where: { id: existingRow.id },
+        data: { assigned_staff: merged },
+      });
+    } else {
+      await (prisma as any).workShift.create({
+        data: {
+          date: dateObj,
+          shift_type,
+          start_time: shift_type === 'lunch' ? '10:00' : '17:00',
+          end_time: shift_type === 'lunch' ? '17:00' : '01:00',
+          assigned_staff: merged,
+        },
+      });
+    }
     createdShifts++;
   }
   return { createdShifts, assignmentCount: assignments.length };
@@ -7698,10 +7730,25 @@ function buildScheduleDiff(existing: any[], newAssignments: any[]) {
   };
 }
 
+// Which positions belong to each division. The scheduler filters submissions
+// so building "פלור" never touches or displaces kitchen assignments and vice
+// versa. Match by substring so misspellings/aliases still land in the right
+// bucket ("מלצר", "מלצרית", "מלצר בכיר" all → פלור).
+const FLOOR_POSITIONS = ['מלצר','ברמן','מארחת','פלור','קופה','ראנר','בלתם','משמרת'];
+const KITCHEN_POSITIONS = ['טבח','חומוס','שטיפה','מטבח','קונדיטור','סושי'];
+function positionDivision(name: string): 'floor' | 'kitchen' | null {
+  const n = String(name || '').trim();
+  if (!n) return null;
+  if (FLOOR_POSITIONS.some((p) => n.includes(p))) return 'floor';
+  if (KITCHEN_POSITIONS.some((p) => n.includes(p))) return 'kitchen';
+  return null;
+}
+
 export async function runWeeklyScheduleBuild(opts: {
   force?: boolean;
   replaceExisting?: boolean;
   applyPlan?: { assignments: any[]; insights: string[] };
+  division?: 'floor' | 'kitchen';
 } = {}) {
   const il = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Jerusalem', weekday: 'short', hour: '2-digit', minute: '2-digit', hour12: false })
     .formatToParts(new Date()).reduce<Record<string, string>>((acc, p) => { if (p.type !== 'literal') acc[p.type] = p.value; return acc; }, {});
@@ -7711,14 +7758,17 @@ export async function runWeeklyScheduleBuild(opts: {
   const start = new Date(weekDates[0] + 'T00:00:00.000Z');
   const end = new Date(weekDates[weekDates.length - 1] + 'T23:59:59.999Z');
 
-  // Fast path — caller already has an LLM-built plan they confirmed to apply.
-  // Skip the whole build path; wipe existing week's WorkShift + persist.
+  // Fast path — caller already has a placement plan they confirmed to apply.
+  // When a division is scoped, we do NOT wipe the whole week — persist merges
+  // the new placements with the other division's existing staff.
   if (opts.applyPlan) {
-    await (prisma as any).$executeRaw`
-      DELETE FROM "WorkShift" WHERE date >= ${start} AND date <= ${end}
-    `;
+    if (!opts.division) {
+      await (prisma as any).$executeRaw`
+        DELETE FROM "WorkShift" WHERE date >= ${start} AND date <= ${end}
+      `;
+    }
     const { createdShifts, assignmentCount } = await persistScheduleAssignments(
-      opts.applyPlan.assignments, weekDates,
+      opts.applyPlan.assignments, weekDates, opts.division || null,
     );
     return {
       ok: true,
@@ -7819,7 +7869,8 @@ export async function runWeeklyScheduleBuild(opts: {
 
   const directAssignments: any[] = [];
   const seenSlot = new Set<string>(); // dedupe: emp × date × shift
-  const FRI_SAT_INDEX = [5, 6]; // Fri=5, Sat=6 relative to Sunday=0
+  const SAT_INDEX = 6; // Saturday only — dinner-only. Friday allows both.
+  const div = opts.division || null; // null = both divisions, else 'floor'/'kitchen'
 
   for (const sub of submissions) {
     const type = String(sub.availability_type || '').toLowerCase();
@@ -7840,6 +7891,15 @@ export async function runWeeklyScheduleBuild(opts: {
       || (empPositions.map(pickName).find(Boolean))
       || 'מלצר';
 
+    // Division filter — if the caller asked for one division only, skip
+    // submissions whose position lives on the other side of the house.
+    // Unmapped positions (unknown role) fall through when div is null; when
+    // a division is set we default them to floor to avoid silent drops.
+    if (div) {
+      const empDiv = positionDivision(position) || 'floor';
+      if (empDiv !== div) continue;
+    }
+
     // Which shifts today: partial = only the preferred one, available = both.
     const pref = String(sub.shift_preference || '').toLowerCase();
     let shiftsToday: string[];
@@ -7849,9 +7909,9 @@ export async function runWeeklyScheduleBuild(opts: {
     else if (pref === 'dinner') shiftsToday = ['dinner'];
     else shiftsToday = ['lunch', 'dinner']; // 'both' or blank
 
-    // Fri/Sat = dinner only regardless of preference (restaurant policy).
-    if (FRI_SAT_INDEX.includes(dayIdx)) shiftsToday = shiftsToday.filter((s) => s === 'dinner');
-    if (shiftsToday.length === 0) shiftsToday = ['dinner']; // fallback for Fri/Sat if pref=lunch
+    // Saturday = dinner only. Friday keeps both lunch + dinner.
+    if (dayIdx === SAT_INDEX) shiftsToday = shiftsToday.filter((s) => s === 'dinner');
+    if (shiftsToday.length === 0) shiftsToday = ['dinner']; // fallback for Sat if pref=lunch
 
     for (const shift of shiftsToday) {
       const key = `${emp.id}__${dateStr}__${shift}`;
@@ -7967,10 +8027,19 @@ ${JSON.stringify(empSummary, null, 2)}
   // the LLM has produced a plan. If we found any and the caller didn't
   // explicitly opt into replacing, return a diff summary so the admin can
   // decide "החלף" vs "בטל" with full information (not just a count).
-  const existing: any[] = await (prisma as any).$queryRaw`
+  const existingRaw: any[] = await (prisma as any).$queryRaw`
     SELECT date::text AS date_str, shift_type, assigned_staff FROM "WorkShift"
     WHERE date >= ${start} AND date <= ${end}
   `;
+  // When a division is scoped, only count same-division existing rows for
+  // the overwrite prompt — the other division isn't being touched.
+  const existing: any[] = opts.division
+    ? existingRaw.map((w: any) => ({
+        ...w,
+        assigned_staff: (Array.isArray(w.assigned_staff) ? w.assigned_staff : [])
+          .filter((s: any) => (positionDivision(s?.position || '') || 'floor') === opts.division),
+      })).filter((w: any) => w.assigned_staff.length > 0)
+    : existingRaw;
   if (existing.length && !opts.replaceExisting) {
     // Sanity — if the LLM returned 0 or shrank by >50% vs the existing draft,
     // it's almost certainly a build failure, not the manager's real intent.
@@ -8010,14 +8079,15 @@ ${JSON.stringify(empSummary, null, 2)}
       plan: { assignments, insights },
     };
   }
-  if (existing.length && opts.replaceExisting) {
-    // Wipe old draft first so the persist step doesn't duplicate.
+  if (existing.length && opts.replaceExisting && !opts.division) {
+    // Full-week replace only when no division scope — otherwise persist
+    // merges same-division rows and preserves the other division.
     await (prisma as any).$executeRaw`
       DELETE FROM "WorkShift" WHERE date >= ${start} AND date <= ${end}
     `;
   }
 
-  const { createdShifts } = await persistScheduleAssignments(assignments, weekDates);
+  const { createdShifts } = await persistScheduleAssignments(assignments, weekDates, opts.division || null);
 
   // Notify owner via WhatsApp
   const adminNumbers = (process.env.WHATSAPP_ADMIN_NUMBERS || '').split(',').map((s) => s.trim()).filter(Boolean);
