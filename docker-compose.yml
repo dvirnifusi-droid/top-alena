@@ -60,6 +60,9 @@ services:
       - "443:443"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # Per-tenant subdomain configs written by provision-tenant.sh —
+      # each tenant gets its own .caddy file. Main Caddyfile imports them.
+      - /etc/caddy/tenants:/etc/caddy/tenants
       - caddydata:/data
       - caddyconfig:/config
 
