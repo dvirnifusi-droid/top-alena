@@ -316,6 +316,7 @@ export default function Layout({ children, currentPageName }) {
     hasUnreadChat,
     navFilter,
     setNavFilter,
+    brandName,
   };
 
   const themeVars = THEME_VARS[appTheme] || '';
@@ -440,7 +441,7 @@ const RoleImpersonationDropdown = ({ user, setUser, compact = false }) => {
   );
 };
 
-const DesktopSidebar = ({ userName, isCurrentViewAdmin, isOriginalAdmin, navigationItems, location, user, setUser, hasUnreadChat, navFilter, setNavFilter }) => (
+const DesktopSidebar = ({ userName, isCurrentViewAdmin, isOriginalAdmin, navigationItems, location, user, setUser, hasUnreadChat, navFilter, setNavFilter, brandName = "TOP ALENA" }) => (
   <div className="fixed top-0 bottom-0 right-0 w-80 bg-card border-l border-border z-40">
     <div className="border-b border-border p-6">
       <div className="flex items-center gap-4 mb-4">
@@ -527,7 +528,7 @@ const DesktopSidebar = ({ userName, isCurrentViewAdmin, isOriginalAdmin, navigat
   </div>
 );
 
-const MobileSidebar = ({ userName, isCurrentViewAdmin, isOriginalAdmin, navigationItems, location, user, setUser, hasUnreadChat, navFilter, setNavFilter }) => (
+const MobileSidebar = ({ userName, isCurrentViewAdmin, isOriginalAdmin, navigationItems, location, user, setUser, hasUnreadChat, navFilter, setNavFilter, brandName = "TOP ALENA" }) => (
   <Sidebar className="bg-card z-50">
     <SidebarHeader className="border-b border-border p-3">
       <div className="flex items-center gap-2 mb-2">
