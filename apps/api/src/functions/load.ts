@@ -7622,20 +7622,39 @@ export async function runWeeklyScheduleBuild(opts: { force?: boolean } = {}) {
   const submitted = new Set(submissions.map((r) => r.employee_id).filter(Boolean));
   const missing = employees.filter((e) => !submitted.has(e.id));
 
-  // Early exit: nobody submitted → don't waste an LLM call. Return a clear
-  // 'no availability' state so the WhatsApp reply reflects reality instead
-  // of the LLM invent-nothing case.
+  // Diagnostic: how many EmployeeAvailability records exist in DB at all?
+  // Users sometimes submit for a different week than what the builder is
+  // targeting; the previous 'success/0' response hid that gap.
   if (submissions.length === 0) {
+    const allRecent: any[] = await (prisma as any).$queryRaw`
+      SELECT date::text AS date_str, employee_name FROM "EmployeeAvailability"
+      WHERE date >= NOW() - INTERVAL '60 days' AND date <= NOW() + INTERVAL '60 days'
+      ORDER BY date DESC LIMIT 30
+    `;
+    const insights: string[] = [];
+    if (allRecent.length === 0) {
+      insights.push(
+        `אין אף רשומת זמינות ב-DB (חיפוש ב-60 יום סביב היום).`,
+        `שלח לצוות תזכורת דרך העוזר: "שלח תזכורת זמינות".`,
+      );
+    } else {
+      const uniqueDates = [...new Set(allRecent.map((r: any) => r.date_str.slice(0, 10)))].sort();
+      const minDate = uniqueDates[0];
+      const maxDate = uniqueDates[uniqueDates.length - 1];
+      insights.push(
+        `⚠️ יש ${allRecent.length} זמינויות במערכת — אבל כולן לתאריכים אחרים.`,
+        `הבנייה מכוונת ל-${weekDates[0]} עד ${weekDates[6]} (השבוע הבא).`,
+        `הזמינויות שהוגשו הן ל-${minDate} עד ${maxDate}.`,
+        `אם רוצים לבנות סידור לשבוע אחר — תגיד לי מתי (לדוגמה: "בנה סידור לשבוע 22.07").`,
+      );
+    }
     return {
       createdShifts: 0,
       assignmentCount: 0,
-      insights: [
-        `לא הוגשו זמינויות לשבוע ${weekDates[0]} — ${weekDates[6]}.`,
-        `${employees.length} עובדים פעילים במערכת, אף אחד לא מילא את טופס הזמינות עדיין.`,
-        `שלח לצוות תזכורת דרך העוזר: "שלח תזכורת זמינות" — או פנה לכולם לרוח את הטופס בעצמם.`,
-      ],
+      insights,
       missing: missing.map((m) => m.full_name),
       no_availability: true,
+      target_week: `${weekDates[0]} — ${weekDates[6]}`,
     };
   }
 
