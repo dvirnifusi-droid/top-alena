@@ -25,6 +25,12 @@ if [ "\$LOCAL" != "\$REMOTE" ]; then
   echo "\$(date -u +%FT%TZ) deploying \$LOCAL -> \$REMOTE" >> /var/log/topalena-deploy.log
   git reset --hard origin/migration
   docker compose up -d --build >> /var/log/topalena-deploy.log 2>&1
+  # After the main image rebuilds, every tenant container still points at
+  # the OLD image ID by internal identity. Recreate them so they pick up
+  # the freshly-built top-alena-api:latest.
+  if [ -x "$APP/scripts/redeploy-all-tenants.sh" ]; then
+    bash "$APP/scripts/redeploy-all-tenants.sh" >> /var/log/topalena-deploy.log 2>&1 || echo "\$(date -u +%FT%TZ) tenant redeploy failed" >> /var/log/topalena-deploy.log
+  fi
   echo "\$(date -u +%FT%TZ) done" >> /var/log/topalena-deploy.log
 fi
 EOF
