@@ -7525,11 +7525,26 @@ function getNextWeekDates(): string[] {
   return out;
 }
 
+// For WhatsApp reminders — we need a phone to actually message them.
 async function getActiveEmployeesForScheduling(): Promise<any[]> {
   const rows: any[] = await (prisma as any).$queryRaw`
     SELECT id, full_name, phone, role, department, positions, status
     FROM "Employee"
     WHERE status = 'active' AND phone IS NOT NULL AND phone <> ''
+  `;
+  return rows;
+}
+
+// For the schedule BUILDER — phone is irrelevant. Anyone who's active can be
+// slotted into a shift; missing phone just means we can't send them a WA
+// reminder about it. Historically this used the phone-required helper above,
+// which silently dropped 7/9 waiters who had submitted availability but had
+// no phone on file, leaving the LLM to schedule only 2 people.
+async function getSchedulableEmployees(): Promise<any[]> {
+  const rows: any[] = await (prisma as any).$queryRaw`
+    SELECT id, full_name, phone, role, department, positions, status
+    FROM "Employee"
+    WHERE status = 'active'
   `;
   return rows;
 }
@@ -7729,7 +7744,10 @@ export async function runWeeklyScheduleBuild(opts: {
   const submissions: any[] = rawAvailability.filter((r: any) =>
     targetDateSet.has(String(r.date_str || '').slice(0, 10)),
   );
-  const employees = await getActiveEmployeesForScheduling();
+  // Use the phone-less variant here — anyone active can be slotted, even if
+  // we can't WhatsApp them about it. The reminder cron still filters on phone
+  // because a reminder without a phone is pointless.
+  const employees = await getSchedulableEmployees();
   const submitted = new Set(submissions.map((r) => r.employee_id).filter(Boolean));
   const missing = employees.filter((e) => !submitted.has(e.id));
 
