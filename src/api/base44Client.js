@@ -16,6 +16,25 @@ const API_BASE =
   import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, '') || '/api';
 const TOKEN_KEY = 'auth_token';
 
+// Impersonation token intake — if the URL has ?impersonate=<jwt>, the
+// platform admin is logging in as this tenant's owner. Save it as the
+// primary auth token and strip the query param so a refresh doesn't
+// re-apply it.
+if (typeof window !== 'undefined') {
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const impersonateToken = params.get('impersonate');
+    if (impersonateToken) {
+      window.localStorage.setItem(TOKEN_KEY, impersonateToken);
+      window.localStorage.setItem('impersonation_active', '1');
+      params.delete('impersonate');
+      const clean = params.toString();
+      const url = window.location.pathname + (clean ? `?${clean}` : '') + window.location.hash;
+      window.history.replaceState({}, '', url);
+    }
+  } catch { /* noop */ }
+}
+
 const getToken = () =>
   (typeof window !== 'undefined' && window.localStorage.getItem(TOKEN_KEY)) || null;
 

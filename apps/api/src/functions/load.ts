@@ -12228,6 +12228,132 @@ registerFn('listTenants', async ({ user, body }) => {
   return { tenants: rows };
 });
 
+// SUPER-ADMIN — Cross-tenant aggregated metrics. Iterates over every live
+// tenant schema and queries the same handful of tables (User, Employee,
+// ShiftTracking, EventContract, Invoice) — returns platform totals plus a
+// per-tenant breakdown. Safe on missing tables per tenant (catch each).
+registerFn('getSuperAdminMetrics', async ({ user }) => {
+  if (!isSuperAdmin(user)) throw new Error('super-admin only');
+  await ensurePlatformTables();
+  const tenants: any[] = await (prisma as any).$queryRawUnsafe(
+    `SELECT id, slug, restaurant_name, status FROM "Tenant" WHERE status = 'live' ORDER BY "createdAt" ASC`,
+  );
+
+  const perTenant: any[] = [];
+  let totalUsers = 0;
+  let totalEmployees = 0;
+  let totalActiveShifts = 0;
+  let totalContractRevenue = 0;
+  let totalUnpaidInvoices = 0;
+
+  for (const t of tenants) {
+    const schema = `tenant_${t.slug}`;
+    const row: any = { id: t.id, slug: t.slug, name: t.restaurant_name };
+    try {
+      const r: any[] = await (prisma as any).$queryRawUnsafe(
+        `SELECT
+           (SELECT COUNT(*)::int FROM "${schema}"."User") AS users,
+           (SELECT COUNT(*)::int FROM "${schema}"."Employee" WHERE status = 'active') AS employees,
+           (SELECT COUNT(*)::int FROM "${schema}"."ShiftTracking" WHERE status IN ('active', 'on_break')) AS active_shifts,
+           (SELECT COALESCE(SUM(subtotal_ils), 0)::int FROM "${schema}"."EventContract" WHERE status = 'signed') AS contract_revenue,
+           (SELECT COUNT(*)::int FROM "${schema}"."Invoice" WHERE payment_status = 'unpaid') AS unpaid_invoices`,
+      );
+      row.users = r[0]?.users || 0;
+      row.employees = r[0]?.employees || 0;
+      row.active_shifts = r[0]?.active_shifts || 0;
+      row.contract_revenue = r[0]?.contract_revenue || 0;
+      row.unpaid_invoices = r[0]?.unpaid_invoices || 0;
+    } catch (e: any) {
+      // Tenant schema may be missing tables during provisioning — mark unavailable.
+      row.error = String(e?.message || 'schema query failed').slice(0, 120);
+      row.users = row.employees = row.active_shifts = 0;
+      row.contract_revenue = row.unpaid_invoices = 0;
+    }
+    totalUsers += row.users;
+    totalEmployees += row.employees;
+    totalActiveShifts += row.active_shifts;
+    totalContractRevenue += row.contract_revenue;
+    totalUnpaidInvoices += row.unpaid_invoices;
+    perTenant.push(row);
+  }
+
+  // Also include the main Alena DB (public schema) — that's YOUR restaurant.
+  try {
+    const r: any[] = await (prisma as any).$queryRawUnsafe(
+      `SELECT
+         (SELECT COUNT(*)::int FROM "public"."User") AS users,
+         (SELECT COUNT(*)::int FROM "public"."Employee" WHERE status = 'active') AS employees,
+         (SELECT COUNT(*)::int FROM "public"."ShiftTracking" WHERE status IN ('active', 'on_break')) AS active_shifts,
+         (SELECT COALESCE(SUM(subtotal_ils), 0)::int FROM "public"."EventContract" WHERE status = 'signed') AS contract_revenue,
+         (SELECT COUNT(*)::int FROM "public"."Invoice" WHERE payment_status = 'unpaid') AS unpaid_invoices`,
+    );
+    const alena = {
+      id: 'alena-main',
+      slug: 'alena',
+      name: 'עלינא (הבסיסית)',
+      users: r[0]?.users || 0,
+      employees: r[0]?.employees || 0,
+      active_shifts: r[0]?.active_shifts || 0,
+      contract_revenue: r[0]?.contract_revenue || 0,
+      unpaid_invoices: r[0]?.unpaid_invoices || 0,
+      is_main: true,
+    };
+    perTenant.unshift(alena);
+    totalUsers += alena.users;
+    totalEmployees += alena.employees;
+    totalActiveShifts += alena.active_shifts;
+    totalContractRevenue += alena.contract_revenue;
+    totalUnpaidInvoices += alena.unpaid_invoices;
+  } catch (e: any) {
+    console.warn('[super-admin] alena main query failed', e?.message);
+  }
+
+  return {
+    tenant_count: tenants.length + 1, // +1 for Alena
+    totals: {
+      users: totalUsers,
+      employees: totalEmployees,
+      active_shifts: totalActiveShifts,
+      contract_revenue: totalContractRevenue,
+      unpaid_invoices: totalUnpaidInvoices,
+    },
+    per_tenant: perTenant,
+  };
+});
+
+// SUPER-ADMIN — generate an impersonation token that logs the caller in
+// as the OWNER of a target tenant. Redirects to the tenant subdomain with
+// the token in a URL param that the frontend picks up on load.
+registerFn('impersonateTenant', async ({ user, body }) => {
+  if (!isSuperAdmin(user)) throw new Error('super-admin only');
+  await ensurePlatformTables();
+  const b = (body || {}) as any;
+  if (!b.tenant_id) throw new Error('tenant_id required');
+  const rows: any[] = await (prisma as any).$queryRawUnsafe(
+    `SELECT slug, subdomain_url, owner_email FROM "Tenant" WHERE id = $1 AND status = 'live'`,
+    b.tenant_id,
+  );
+  if (!rows.length) throw new Error('Tenant not found or not live');
+  const t = rows[0];
+  // Look up the owner user in the tenant schema.
+  const owner: any[] = await (prisma as any).$queryRawUnsafe(
+    `SELECT id, email, role, "fullName" FROM "tenant_${t.slug}"."User" WHERE email = $1 LIMIT 1`,
+    t.owner_email.toLowerCase(),
+  );
+  if (!owner.length) throw new Error('Owner user not yet registered in tenant DB');
+  const o = owner[0];
+  // Sign a JWT using the shared JWT_SECRET (all tenant containers use the same one).
+  const { default: jwt } = await import('jsonwebtoken');
+  const secret = process.env.JWT_SECRET;
+  if (!secret) throw new Error('JWT_SECRET not configured');
+  const token = jwt.sign(
+    { id: o.id, email: o.email, role: o.role, impersonator: (user as any).email, tenant: t.slug },
+    secret,
+    { expiresIn: '1h' },
+  );
+  return { redirect_url: `${t.subdomain_url}/?impersonate=${encodeURIComponent(token)}`, tenant_slug: t.slug };
+});
+
 registerFn('getTenantStats', async ({ user }) => {
   if (!isSuperAdmin(user)) throw new Error('super-admin only');
   await ensurePlatformTables();

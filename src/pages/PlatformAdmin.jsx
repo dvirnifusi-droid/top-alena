@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Card, CardContent } from '@/components/ui/card';
-import { Loader2, Crown, CheckCircle2, Clock, AlertTriangle, Building, RefreshCw } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Loader2, Crown, CheckCircle2, Clock, AlertTriangle, Building, RefreshCw, Users, DollarSign, Zap, LogIn, ExternalLink } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import PageGuard from '../components/shared/PageGuard';
 import { Link } from 'react-router-dom';
@@ -8,33 +9,57 @@ import { createPageUrl } from '@/utils';
 
 function PlatformAdminInner() {
   const [stats, setStats] = useState(null);
+  const [metrics, setMetrics] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [impersonatingId, setImpersonatingId] = useState(null);
 
   const load = async () => {
     setLoading(true);
     try {
-      const res = await base44.functions.getTenantStats({});
-      setStats(res?.data || res);
+      const [statsRes, metricsRes] = await Promise.all([
+        base44.functions.getTenantStats({}),
+        base44.functions.getSuperAdminMetrics({}),
+      ]);
+      setStats(statsRes?.data || statsRes);
+      setMetrics(metricsRes?.data || metricsRes);
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
   };
   useEffect(() => { load(); }, []);
 
-  const cards = stats ? [
+  const impersonate = async (t) => {
+    if (!window.confirm(`להיכנס כ-owner של "${t.name}"? תיפתח בטאב חדש עם ההרשאות שלה.`)) return;
+    setImpersonatingId(t.id);
+    try {
+      const res = await base44.functions.impersonateTenant({ tenant_id: t.id });
+      const data = res?.data || res;
+      window.open(data.redirect_url, '_blank');
+    } catch (e) { alert('שגיאה: ' + (e?.message || '')); }
+    finally { setImpersonatingId(null); }
+  };
+
+  const statCards = stats ? [
     { label: 'מסעדות פעילות', value: stats.live, icon: Building, color: 'text-emerald-600', bg: 'bg-emerald-50' },
     { label: 'ממתינות לאישור', value: stats.pending_approval, icon: Clock, color: 'text-amber-600', bg: 'bg-amber-50' },
     { label: 'בתהליך התקנה', value: stats.provisioning, icon: Loader2, color: 'text-blue-600', bg: 'bg-blue-50' },
     { label: 'נכשלו', value: stats.failed, icon: AlertTriangle, color: 'text-red-600', bg: 'bg-red-50' },
   ] : [];
 
+  const totals = metrics?.totals || {};
+  const perTenant = metrics?.per_tenant || [];
+
+  const formatIls = (n) => `₪${(Number(n) || 0).toLocaleString('en-IL')}`;
+
   return (
-    <div className="p-4 md:p-6 space-y-6 max-w-6xl mx-auto" dir="rtl">
+    <div className="p-4 md:p-6 space-y-6 max-w-7xl mx-auto" dir="rtl">
       <div className="bg-gradient-to-l from-amber-500 to-orange-600 text-white rounded-xl p-6">
         <div className="flex items-center gap-3">
           <Crown className="w-8 h-8" />
           <div>
-            <h1 className="text-2xl font-bold">Platform Admin</h1>
-            <p className="text-sm text-white/80 mt-1">קונסולת ניהול-על — כל המסעדות, המשתמשים והפיצ'רים</p>
+            <h1 className="text-2xl font-bold">Platform Admin — God Mode</h1>
+            <p className="text-sm text-white/80 mt-1">
+              קונסולת ניהול-על. אתה רואה כאן את *כל* המסעדות שרצות על TopAlena, לא רק שלך.
+            </p>
           </div>
           <button onClick={load} className="ml-auto bg-white/20 hover:bg-white/30 rounded-lg p-2">
             <RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
@@ -45,19 +70,119 @@ function PlatformAdminInner() {
       {loading || !stats ? (
         <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-slate-400" /></div>
       ) : (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          {cards.map(c => (
-            <Card key={c.label} className={c.bg}>
-              <CardContent className="p-4 flex items-center gap-3">
-                <c.icon className={`w-8 h-8 ${c.color}`} />
-                <div>
-                  <div className="text-xs text-slate-600">{c.label}</div>
-                  <div className="text-2xl font-bold mt-0.5">{c.value}</div>
+        <>
+          {/* Status stats */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {statCards.map(c => (
+              <Card key={c.label} className={c.bg}>
+                <CardContent className="p-4 flex items-center gap-3">
+                  <c.icon className={`w-8 h-8 ${c.color}`} />
+                  <div>
+                    <div className="text-xs text-slate-600">{c.label}</div>
+                    <div className="text-2xl font-bold mt-0.5">{c.value}</div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+
+          {/* Aggregated metrics across all tenants */}
+          {metrics && (
+            <div>
+              <h2 className="text-lg font-bold mb-3 flex items-center gap-2">
+                📊 סה"כ על פני {metrics.tenant_count} מסעדות
+              </h2>
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                <Card className="bg-white border-2 border-purple-100">
+                  <CardContent className="p-4">
+                    <div className="text-xs text-slate-500 flex items-center gap-1"><Users className="w-3 h-3" /> משתמשים</div>
+                    <div className="text-2xl font-bold mt-1">{totals.users || 0}</div>
+                  </CardContent>
+                </Card>
+                <Card className="bg-white border-2 border-emerald-100">
+                  <CardContent className="p-4">
+                    <div className="text-xs text-slate-500 flex items-center gap-1"><Users className="w-3 h-3" /> עובדים פעילים</div>
+                    <div className="text-2xl font-bold mt-1">{totals.employees || 0}</div>
+                  </CardContent>
+                </Card>
+                <Card className="bg-white border-2 border-blue-100">
+                  <CardContent className="p-4">
+                    <div className="text-xs text-slate-500 flex items-center gap-1"><Zap className="w-3 h-3" /> משמרות עכשיו</div>
+                    <div className="text-2xl font-bold mt-1">{totals.active_shifts || 0}</div>
+                  </CardContent>
+                </Card>
+                <Card className="bg-white border-2 border-amber-100">
+                  <CardContent className="p-4">
+                    <div className="text-xs text-slate-500 flex items-center gap-1"><DollarSign className="w-3 h-3" /> חוזי אירועים</div>
+                    <div className="text-lg font-bold mt-1">{formatIls(totals.contract_revenue)}</div>
+                  </CardContent>
+                </Card>
+                <Card className="bg-white border-2 border-red-100">
+                  <CardContent className="p-4">
+                    <div className="text-xs text-slate-500 flex items-center gap-1"><AlertTriangle className="w-3 h-3" /> חשבוניות לא שולמו</div>
+                    <div className="text-2xl font-bold mt-1">{totals.unpaid_invoices || 0}</div>
+                  </CardContent>
+                </Card>
+              </div>
+            </div>
+          )}
+
+          {/* Per-tenant breakdown */}
+          {perTenant.length > 0 && (
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base">📈 השוואה לפי מסעדה</CardTitle>
+              </CardHeader>
+              <CardContent className="p-0">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="bg-slate-50 text-xs">
+                      <tr className="text-slate-600">
+                        <th className="p-3 text-right">מסעדה</th>
+                        <th className="p-3 text-center">משתמשים</th>
+                        <th className="p-3 text-center">עובדים</th>
+                        <th className="p-3 text-center">משמרות עכשיו</th>
+                        <th className="p-3 text-center">חוזי אירועים</th>
+                        <th className="p-3 text-center">לא שולמו</th>
+                        <th className="p-3"></th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y">
+                      {perTenant.map(t => (
+                        <tr key={t.id} className={`hover:bg-slate-50 ${t.is_main ? 'bg-amber-50/40' : ''}`}>
+                          <td className="p-3 font-semibold">
+                            {t.is_main && <span className="text-amber-600 text-xs ml-1">👑</span>}
+                            {t.name}
+                            <div className="text-xs text-slate-400 mt-0.5"><code>{t.slug}</code></div>
+                            {t.error && <div className="text-xs text-red-600 mt-0.5">⚠ {t.error}</div>}
+                          </td>
+                          <td className="p-3 text-center">{t.users}</td>
+                          <td className="p-3 text-center">{t.employees}</td>
+                          <td className="p-3 text-center">{t.active_shifts > 0 ? <span className="font-bold text-emerald-700">{t.active_shifts}</span> : '0'}</td>
+                          <td className="p-3 text-center whitespace-nowrap">{formatIls(t.contract_revenue)}</td>
+                          <td className="p-3 text-center">{t.unpaid_invoices > 0 ? <span className="font-bold text-red-600">{t.unpaid_invoices}</span> : '0'}</td>
+                          <td className="p-3">
+                            {!t.is_main && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                disabled={impersonatingId === t.id}
+                                onClick={() => impersonate(t)}
+                                className="text-xs whitespace-nowrap"
+                              >
+                                {impersonatingId === t.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <><LogIn className="w-3.5 h-3.5 ml-1" /> היכנס כ-owner</>}
+                              </Button>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               </CardContent>
             </Card>
-          ))}
-        </div>
+          )}
+        </>
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -83,33 +208,23 @@ function PlatformAdminInner() {
                 <Building className="w-5 h-5" />
               </div>
               <h3 className="font-bold mt-3">כל המסעדות</h3>
-              <p className="text-sm text-slate-600 mt-1">צפה ונהל את כל המסעדות הרשומות במערכת</p>
-              {stats?.live > 0 && (
-                <div className="mt-2 text-xs font-bold text-blue-600">{stats.live} פעילות</div>
-              )}
+              <p className="text-sm text-slate-600 mt-1">רשימה עם פילטרים לפי סטטוס</p>
             </CardContent>
           </Card>
         </Link>
 
-        <Card className="opacity-50">
-          <CardContent className="p-5">
-            <div className="bg-slate-400 text-white rounded-lg p-2 inline-block">
-              <Crown className="w-5 h-5" />
-            </div>
-            <h3 className="font-bold mt-3">ניהול מנויים</h3>
-            <p className="text-sm text-slate-600 mt-1">מתכננים — חיובים, חבילות, ימי ניסיון</p>
-            <div className="mt-2 text-xs font-bold text-slate-500">בקרוב</div>
-          </CardContent>
-        </Card>
+        <a href="/Signup" target="_blank" rel="noreferrer" className="block">
+          <Card className="hover:border-emerald-400 transition cursor-pointer h-full">
+            <CardContent className="p-5">
+              <div className="bg-emerald-500 text-white rounded-lg p-2 inline-block">
+                <ExternalLink className="w-5 h-5" />
+              </div>
+              <h3 className="font-bold mt-3">קישור רישום ציבורי</h3>
+              <p className="text-sm text-slate-600 mt-1">שתף עם מסעדות חדשות: topalena.com/Signup</p>
+            </CardContent>
+          </Card>
+        </a>
       </div>
-
-      <Card className="bg-slate-50">
-        <CardContent className="p-4 text-xs text-slate-600">
-          <strong>קישור רישום ציבורי:</strong> <code className="bg-white px-2 py-0.5 rounded">topalena.com/Signup</code>
-          <br />
-          שתף עם מסעדות חדשות. הן רושמות שם, אתה מאשר כאן, המערכת מקצה להן תת-דומיין אוטומטית.
-        </CardContent>
-      </Card>
     </div>
   );
 }
