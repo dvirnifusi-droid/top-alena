@@ -283,8 +283,8 @@ const COMMAND_MATCHERS: Array<{ test: (s: string) => boolean; run: () => Promise
   { test: (s) => new RegExp(`^זמינות(\\s+חסרים)?${END}`, 'i').test(s), run: cmdMissingAvailability },
   // Manual trigger for the weekly schedule builder — bypasses the Tue 16:00
   // cron gate. Kicks off the same LLM flow, returns the summary.
-  { test: (s) => /^(בנה|תבנה)\s+(סידור|לוז)/i.test(s), run: cmdBuildScheduleNow },
-  { test: (s) => /^(שלח|תשלח)\s+תזכור(ת|ות)\s+זמינות/i.test(s), run: cmdSendAvailabilityReminderNow },
+  { test: (s) => /^(בנה|תבנה|תיבנה|צור|תצור|יצור|בונה|תיבנ|במה)\s+(סידור|לוז|לו\s*ז)/i.test(s), run: cmdBuildScheduleNow },
+  { test: (s) => /^(שלח|תשלח|שלחו)\s+(תזכור(ת|ות))\s+זמינות/i.test(s), run: cmdSendAvailabilityReminderNow },
 ];
 
 // Personal-context matchers (need fromPhone to scope by user).

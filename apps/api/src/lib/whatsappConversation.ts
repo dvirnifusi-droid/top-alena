@@ -350,7 +350,12 @@ const TOOL_DECLARATIONS = [
     description: 'CALLER reports themselves sick — creates a sick-day request and notifies the manager. Use when employee says "אני חולה", "לא מרגיש טוב, לא אגיע", "חולה היום/מחר". Do NOT use for someone else.',
     parameters: { type: 'OBJECT', properties: { date: { type: 'STRING', description: 'Date in YYYY-MM-DD, or the literals "today" / "tomorrow" / "היום" / "מחר".' } } },
   },
-  // ─── Scheduling rules (admin) ─────────────────────────────────────
+  // ─── Scheduling (admin) ────────────────────────────────────────────
+  {
+    name: 'build_schedule_now',
+    description: 'Build the next-week work schedule right now (bypasses the Tue 16:00 cron gate). Use whenever the manager says anything like "בנה סידור", "תבנה לי סידור", "צור סידור לשבוע הבא", "אני רוצה לראות את הסידור לשבוע הבא", "תרוץ על הסידור עכשיו". Pulls submitted EmployeeAvailability + active SchedulingRules, calls the LLM builder, writes WorkShift rows, returns a summary.',
+    parameters: { type: 'OBJECT', properties: {} },
+  },
   {
     name: 'add_scheduling_rule',
     description: 'Add a constraint that the weekly schedule builder must respect. Use when the manager says things like "אבי לא עובד ראשון" (Avi does not work Sundays), "שרה ולירן לא באותה משמרת" (Sarah + Liran cannot share a shift), "יוסי מקסימום 4 משמרות בשבוע" (Yossi max 4 shifts/week), "מיכל רק ערב" (Michal evenings only). Extract the fields (employee_name, day_of_week 0-6, shift_type, other_employee_name, max_per_week) when obvious; ALWAYS pass a natural-Hebrew description of the rule.',
@@ -1315,6 +1320,21 @@ async function tool_propose_mark_sick(args: any, phone: string): Promise<any> {
 
 // ─── Scheduling rules (admin) ─────────────────────────────────────────────
 
+async function tool_build_schedule_now(_args: any, _phone: string): Promise<any> {
+  const { runWeeklyScheduleBuild } = await import('../functions/load.js');
+  const res: any = await runWeeklyScheduleBuild({ force: true });
+  if (res?.skipped) return { skipped: true, reason: res.reason };
+  return {
+    ok: true,
+    created_shifts: res.createdShifts || 0,
+    assignment_count: res.assignmentCount || 0,
+    missing: res.missing || [],
+    insights: res.insights || [],
+    no_availability: !!res.no_availability,
+    target_week: res.target_week,
+  };
+}
+
 async function tool_add_scheduling_rule(args: any, _phone: string): Promise<any> {
   const description = String(args.description || '').trim();
   if (!description) return { error: 'description required' };
@@ -1344,6 +1364,7 @@ async function tool_list_scheduling_rules(_args: any, _phone: string): Promise<a
 }
 
 const TOOL_HANDLERS: Record<string, (args: any, phone: string) => Promise<any>> = {
+  build_schedule_now: tool_build_schedule_now,
   add_scheduling_rule: tool_add_scheduling_rule,
   list_scheduling_rules: tool_list_scheduling_rules,
   // Recipe / food-cost (admin/manager)
