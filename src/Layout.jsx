@@ -205,6 +205,26 @@ export default function Layout({ children, currentPageName }) {
   const brandName = branding?.name || 'TOP ALENA';
   const { pageEnabled } = useTenantModules();
 
+  // D2 — inject tenant brand into CSS vars + document.title + PWA manifest.
+  // Runs whenever branding changes. Skips when branding is default so we don't
+  // wipe the Tailwind palette with `undefined`s.
+  React.useEffect(() => {
+    const root = document.documentElement;
+    const colors = branding?.brand_colors || {};
+    if (colors.primary)   root.style.setProperty('--brand-primary',   colors.primary);
+    if (colors.secondary) root.style.setProperty('--brand-secondary', colors.secondary);
+    if (colors.accent)    root.style.setProperty('--brand-accent',    colors.accent);
+    if (branding?.brand_font) {
+      root.style.setProperty('--brand-font-family', `"${branding.brand_font}", system-ui, sans-serif`);
+    }
+    if (brandName) {
+      document.title = brandName;
+    }
+    // Point manifest link at the per-tenant dynamic manifest (server-side).
+    const link = document.querySelector('link[rel="manifest"]');
+    if (link) link.setAttribute('href', '/api/public/fn/getManifest');
+  }, [branding, brandName]);
+
   // Auto-Tracker: log every page nav so the daily analyzer can spot patterns
   // (e.g. "Dvir opened SeatingSetup 20× tonight → propose a dashboard widget").
   React.useEffect(() => {
@@ -351,6 +371,7 @@ export default function Layout({ children, currentPageName }) {
     navFilter,
     setNavFilter,
     brandName,
+    logoUrl: branding?.logo_url || null,
   };
 
   const themeVars = THEME_VARS[appTheme] || '';
@@ -381,7 +402,7 @@ export default function Layout({ children, currentPageName }) {
 
         {/* תוכן ראשי - עם padding מהצד הימני במחשב */}
         <div className="h-screen overflow-y-auto lg:pr-80">
-          <MobileHeader isCurrentViewAdmin={isCurrentViewAdmin} brandName={brandName} />
+          <MobileHeader isCurrentViewAdmin={isCurrentViewAdmin} brandName={brandName} logoUrl={branding?.logo_url || null} />
           <main className="p-2 sm:p-4 lg:p-8">
             {/* "Enable free notifications" prompt for the logged-in user */}
             {user && <EnableStaffPush />}
@@ -475,12 +496,16 @@ const RoleImpersonationDropdown = ({ user, setUser, compact = false }) => {
   );
 };
 
-const DesktopSidebar = ({ userName, isCurrentViewAdmin, isOriginalAdmin, navigationItems, location, user, setUser, hasUnreadChat, navFilter, setNavFilter, brandName = "TOP ALENA" }) => (
+const DesktopSidebar = ({ userName, isCurrentViewAdmin, isOriginalAdmin, navigationItems, location, user, setUser, hasUnreadChat, navFilter, setNavFilter, brandName = "TOP ALENA", logoUrl = null }) => (
   <div className="fixed top-0 bottom-0 right-0 w-80 bg-card border-l border-border z-40">
     <div className="border-b border-border p-6">
       <div className="flex items-center gap-4 mb-4">
-        <div className="w-14 h-14 bg-gradient-to-br from-[#A04A2E] to-[#B89556] rounded-xl flex items-center justify-center shadow-xl">
-          <Crown className="w-7 h-7 text-white" />
+        <div className="w-14 h-14 bg-gradient-to-br from-[#A04A2E] to-[#B89556] rounded-xl flex items-center justify-center shadow-xl overflow-hidden">
+          {logoUrl ? (
+            <img src={logoUrl} alt={brandName} className="w-full h-full object-cover" />
+          ) : (
+            <Crown className="w-7 h-7 text-white" />
+          )}
         </div>
         <div>
           <h2 className="font-black text-xl text-foreground">{brandName}</h2>
@@ -562,12 +587,16 @@ const DesktopSidebar = ({ userName, isCurrentViewAdmin, isOriginalAdmin, navigat
   </div>
 );
 
-const MobileSidebar = ({ userName, isCurrentViewAdmin, isOriginalAdmin, navigationItems, location, user, setUser, hasUnreadChat, navFilter, setNavFilter, brandName = "TOP ALENA" }) => (
+const MobileSidebar = ({ userName, isCurrentViewAdmin, isOriginalAdmin, navigationItems, location, user, setUser, hasUnreadChat, navFilter, setNavFilter, brandName = "TOP ALENA", logoUrl = null }) => (
   <Sidebar className="bg-card z-50">
     <SidebarHeader className="border-b border-border p-3">
       <div className="flex items-center gap-2 mb-2">
-        <div className="w-8 h-8 bg-gradient-to-br from-[#A04A2E] to-[#B89556] rounded-lg flex items-center justify-center shadow-lg">
-          <Crown className="w-4 h-4 text-white" />
+        <div className="w-8 h-8 bg-gradient-to-br from-[#A04A2E] to-[#B89556] rounded-lg flex items-center justify-center shadow-lg overflow-hidden">
+          {logoUrl ? (
+            <img src={logoUrl} alt={brandName} className="w-full h-full object-cover" />
+          ) : (
+            <Crown className="w-4 h-4 text-white" />
+          )}
         </div>
         <div className="min-w-0">
           <h2 className="font-bold text-base text-foreground truncate">{brandName}</h2>
@@ -649,7 +678,7 @@ const MobileSidebar = ({ userName, isCurrentViewAdmin, isOriginalAdmin, navigati
   </Sidebar>
 );
 
-const MobileHeader = ({ isCurrentViewAdmin, brandName = "TOP ALENA" }) => (
+const MobileHeader = ({ isCurrentViewAdmin, brandName = "TOP ALENA", logoUrl = null }) => (
   <header
     className="sticky top-0 z-40 flex items-center justify-between border-b border-border bg-card px-3 lg:hidden min-w-0"
     style={{
@@ -667,8 +696,12 @@ const MobileHeader = ({ isCurrentViewAdmin, brandName = "TOP ALENA" }) => (
         <h1 className="text-base font-bold text-foreground truncate">{brandName}</h1>
         <p className="text-xs text-muted-foreground truncate">{isCurrentViewAdmin ? 'ניהול' : 'אזור אישי'}</p>
       </div>
-      <div className="w-9 h-9 bg-gradient-to-br from-[#A04A2E] to-[#B89556] rounded-lg flex items-center justify-center shadow-md flex-shrink-0">
-        <Crown className="w-5 h-5 text-white" />
+      <div className="w-9 h-9 bg-gradient-to-br from-[#A04A2E] to-[#B89556] rounded-lg flex items-center justify-center shadow-md flex-shrink-0 overflow-hidden">
+        {logoUrl ? (
+          <img src={logoUrl} alt={brandName} className="w-full h-full object-cover" />
+        ) : (
+          <Crown className="w-5 h-5 text-white" />
+        )}
       </div>
     </div>
   </header>
