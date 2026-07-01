@@ -91,6 +91,21 @@ export const twilioWebhookRoutes: FastifyPluginAsync = async (app) => {
         // Media-only messages have an empty body — without the numMedia guard
         // they'd silently fall out of the entire handler. That's why sending
         // an invoice photo with no caption produced no reply.
+        // ── Onboarding agent (HIGHEST priority): if the sender is a tenant
+        // owner mid-onboarding, that flow trumps the admin agent. Otherwise
+        // an admin who owns multiple tenants would get generic admin replies
+        // instead of the onboarding wizard.
+        if (body) {
+          try {
+            const handled = await tryHandleOnboardingMessage(from, body);
+            if (handled) {
+              reply.type('text/xml').send('<?xml version="1.0" encoding="UTF-8"?><Response></Response>');
+              return;
+            }
+          } catch (e: any) {
+            req.log.warn({ err: e?.message }, '[whatsapp-agent] onboarding handler failed');
+          }
+        }
         // ── Admin agent: route owner/manager messages to read-only commands.
         // Runs BEFORE the unsubscribe + inbox-archival flow so admin commands
         // bypass the noisy admin-push and don't tip the unsubscribe regex.
@@ -251,18 +266,6 @@ export const twilioWebhookRoutes: FastifyPluginAsync = async (app) => {
           })();
           return;
         }
-        // ── Onboarding agent: tenants that just registered are in a guided
-        // WhatsApp conversation. Highest priority — before employee routing.
-        try {
-          const handled = await tryHandleOnboardingMessage(from, body);
-          if (handled) {
-            reply.type('text/xml').send('<?xml version="1.0" encoding="UTF-8"?><Response></Response>');
-            return;
-          }
-        } catch (e: any) {
-          req.log.warn({ err: e?.message }, '[whatsapp-agent] onboarding handler failed');
-        }
-
         // ── Employee agent: route any sender whose phone matches an Employee
         // record to the conversation agent. The agent's buildSystemPrompt
         // resolves their role + permission scope and serves the right prompt.
