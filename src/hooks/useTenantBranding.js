@@ -1,11 +1,26 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
 
 // Cached branding — one lookup per app load. Falls back to "TOP ALENA".
 // The tenant subdomain container fetches its own RestaurantProfile from
 // its own schema, so no cross-tenant leakage.
+//
+// D2 extension: also carries logo_url, brand_colors {primary/secondary/accent},
+// brand_font. These drive the whole app's visual identity via CSS vars set in
+// Layout.jsx.
 let _cache = null;
 let _fetchPromise = null;
+
+const DEFAULT_BRANDING = {
+  name: 'TOP ALENA',
+  logo_url: null,
+  brand_colors: null,
+  brand_font: null,
+  address: null,
+  cuisine: null,
+  opening_hours: null,
+  is_default: true,
+};
 
 async function fetchBranding() {
   if (_cache) return _cache;
@@ -16,39 +31,56 @@ async function fetchBranding() {
     // that unhandled rejection crashes downstream code that assumed a resolve.
     const hasToken = typeof window !== 'undefined' && !!window.localStorage.getItem('auth_token');
     if (!hasToken || !base44?.entities?.RestaurantProfile) {
-      _cache = { name: 'TOP ALENA', is_default: true };
+      _cache = { ...DEFAULT_BRANDING };
       return _cache;
     }
     try {
       const rows = await base44.entities.RestaurantProfile.list();
       const profile = Array.isArray(rows) && rows.length > 0 ? rows[0] : null;
       _cache = {
-        name: profile?.name || 'TOP ALENA',
+        // restaurant_name is the canonical column; the old code read `name`
+        // which was always undefined → always fell back to 'TOP ALENA'.
+        name: profile?.restaurant_name || profile?.name || 'TOP ALENA',
+        logo_url: profile?.logo_url || null,
+        brand_colors: profile?.brand_colors || null, // {primary, secondary, accent} or null
+        brand_font: profile?.brand_font || null,
         address: profile?.address || null,
-        cuisine: profile?.cuisine || null,
+        cuisine: profile?.cuisine_style || profile?.cuisine || null,
         opening_hours: profile?.opening_hours || null,
         is_default: !profile,
       };
       return _cache;
     } catch {
-      _cache = { name: 'TOP ALENA', is_default: true };
+      _cache = { ...DEFAULT_BRANDING };
       return _cache;
     }
   })();
-  return _fetchPromise.catch(() => {
-    // Ultimate fallback — if anything above throws synchronously, don't crash React.
-    return { name: 'TOP ALENA', is_default: true };
-  });
+  return _fetchPromise.catch(() => ({ ...DEFAULT_BRANDING }));
+}
+
+// Force a re-fetch (e.g. after saving on /Branding page).
+export function invalidateBrandingCache() {
+  _cache = null;
+  _fetchPromise = null;
 }
 
 export function useTenantBranding() {
-  const [branding, setBranding] = useState(_cache || { name: 'TOP ALENA', is_default: true });
+  const [branding, setBranding] = useState(_cache || { ...DEFAULT_BRANDING });
 
-  useEffect(() => {
+  const load = useCallback(() => {
     let alive = true;
     fetchBranding().then((b) => { if (alive) setBranding(b); });
     return () => { alive = false; };
   }, []);
 
-  return branding;
+  useEffect(() => {
+    return load();
+  }, [load]);
+
+  const refresh = useCallback(() => {
+    invalidateBrandingCache();
+    fetchBranding().then(setBranding);
+  }, []);
+
+  return { ...branding, refresh };
 }
