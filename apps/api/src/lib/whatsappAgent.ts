@@ -238,6 +238,15 @@ async function cmdMissingAvailability(): Promise<string> {
 
 // ── Router ──────────────────────────────────────────────────────────────────
 
+async function cmdSendAvailabilityReminderNow(): Promise<string> {
+  // Fires the same WhatsApp broadcast the Monday-10:00 cron sends — reminders
+  // to every active employee who hasn't submitted for next week yet.
+  const { runWeeklyScheduleReminder } = await import('../functions/load.js');
+  const res: any = await runWeeklyScheduleReminder({ force: true }).catch((e: any) => ({ error: e?.message }));
+  if (res?.error) return `⚠️ שגיאה: ${res.error}`;
+  return `📤 נשלחו ${res?.sent ?? 0} תזכורות למי שלא הגיש זמינות (סה"כ חסרים: ${res?.missing_count ?? 0}).`;
+}
+
 async function cmdBuildScheduleNow(): Promise<string> {
   // Dynamic import — the fn lives in load.ts to avoid a circular dep.
   const { runWeeklyScheduleBuild } = await import('../functions/load.js');
@@ -275,6 +284,7 @@ const COMMAND_MATCHERS: Array<{ test: (s: string) => boolean; run: () => Promise
   // Manual trigger for the weekly schedule builder — bypasses the Tue 16:00
   // cron gate. Kicks off the same LLM flow, returns the summary.
   { test: (s) => /^(בנה|תבנה)\s+(סידור|לוז)/i.test(s), run: cmdBuildScheduleNow },
+  { test: (s) => /^(שלח|תשלח)\s+תזכור(ת|ות)\s+זמינות/i.test(s), run: cmdSendAvailabilityReminderNow },
 ];
 
 // Personal-context matchers (need fromPhone to scope by user).

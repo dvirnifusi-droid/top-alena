@@ -7565,10 +7565,10 @@ export async function runWeeklyScheduleOpen() {
 }
 
 // Cron: Mon 10:00 IL. Reminder to those who haven't submitted yet.
-export async function runWeeklyScheduleReminder() {
+export async function runWeeklyScheduleReminder(opts: { force?: boolean } = {}) {
   const il = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Jerusalem', weekday: 'short', hour: '2-digit', minute: '2-digit', hour12: false })
     .formatToParts(new Date()).reduce<Record<string, string>>((acc, p) => { if (p.type !== 'literal') acc[p.type] = p.value; return acc; }, {});
-  if (il.weekday !== 'Mon' || parseInt(il.hour, 10) !== 10) return { skipped: true, reason: 'wrong window', il };
+  if (!opts.force && (il.weekday !== 'Mon' || parseInt(il.hour, 10) !== 10)) return { skipped: true, reason: 'wrong window', il };
   const weekDates = getNextWeekDates();
   const submitted = await getSubmittedEmployeeIdsForWeek(weekDates);
   const employees = await getActiveEmployeesForScheduling();
@@ -7621,6 +7621,23 @@ export async function runWeeklyScheduleBuild(opts: { force?: boolean } = {}) {
   const employees = await getActiveEmployeesForScheduling();
   const submitted = new Set(submissions.map((r) => r.employee_id).filter(Boolean));
   const missing = employees.filter((e) => !submitted.has(e.id));
+
+  // Early exit: nobody submitted → don't waste an LLM call. Return a clear
+  // 'no availability' state so the WhatsApp reply reflects reality instead
+  // of the LLM invent-nothing case.
+  if (submissions.length === 0) {
+    return {
+      createdShifts: 0,
+      assignmentCount: 0,
+      insights: [
+        `לא הוגשו זמינויות לשבוע ${weekDates[0]} — ${weekDates[6]}.`,
+        `${employees.length} עובדים פעילים במערכת, אף אחד לא מילא את טופס הזמינות עדיין.`,
+        `שלח לצוות תזכורת דרך העוזר: "שלח תזכורת זמינות" — או פנה לכולם לרוח את הטופס בעצמם.`,
+      ],
+      missing: missing.map((m) => m.full_name),
+      no_availability: true,
+    };
+  }
 
   // Recent-shifts count (last 4 weeks per employee) — informs target hours.
   const fourWeeksAgo = new Date(Date.now() - 28 * 86400 * 1000);
