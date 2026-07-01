@@ -238,6 +238,25 @@ async function cmdMissingAvailability(): Promise<string> {
 
 // ── Router ──────────────────────────────────────────────────────────────────
 
+async function cmdBuildScheduleNow(): Promise<string> {
+  // Dynamic import — the fn lives in load.ts to avoid a circular dep.
+  const { runWeeklyScheduleBuild } = await import('../functions/load.js');
+  const res: any = await runWeeklyScheduleBuild({ force: true });
+  if (res?.skipped) return `⚠️ הבנייה דילגה: ${res.reason || 'לא ידוע'}`;
+  const lines: string[] = [`📋 *סידור נבנה*`];
+  lines.push(`✅ ${res.createdShifts || 0} משמרות · ${res.assignmentCount || 0} שיבוצים`);
+  if (Array.isArray(res.missing) && res.missing.length) {
+    lines.push(`⚠️ לא הגישו זמינות: ${res.missing.join(', ')}`);
+  }
+  if (Array.isArray(res.insights) && res.insights.length) {
+    lines.push('', '💡 *תובנות:*');
+    for (const i of res.insights) lines.push(`  • ${i}`);
+  }
+  const base = process.env.APP_BASE_URL || 'https://topalena.com';
+  lines.push('', `🔗 לאישור/עריכה: ${base}/WorkScheduling`);
+  return lines.join('\n');
+}
+
 // Recognized phrases → handler.
 // IMPORTANT: don't use \b in JS regex with Hebrew — Hebrew letters aren't
 // "word chars" by default, so /^עזרה\b/ matches nothing. Use (?:\s|$|[.,!?])
@@ -253,6 +272,9 @@ const COMMAND_MATCHERS: Array<{ test: (s: string) => boolean; run: () => Promise
   { test: (s) => new RegExp(`^הכנסות${END}`, 'i').test(s), run: cmdIncomeToday },
   { test: (s) => new RegExp(`^לידים${END}`, 'i').test(s), run: cmdLeadsWaiting },
   { test: (s) => new RegExp(`^זמינות(\\s+חסרים)?${END}`, 'i').test(s), run: cmdMissingAvailability },
+  // Manual trigger for the weekly schedule builder — bypasses the Tue 16:00
+  // cron gate. Kicks off the same LLM flow, returns the summary.
+  { test: (s) => /^(בנה|תבנה)\s+(סידור|לוז)/i.test(s), run: cmdBuildScheduleNow },
 ];
 
 // Personal-context matchers (need fromPhone to scope by user).

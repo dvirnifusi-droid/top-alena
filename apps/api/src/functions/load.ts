@@ -7603,10 +7603,10 @@ export async function runWeeklyScheduleFinalReminder() {
 }
 
 // Cron: Tue 16:00 IL. Notify owner of missing; build draft schedule; send insights.
-export async function runWeeklyScheduleBuild() {
+export async function runWeeklyScheduleBuild(opts: { force?: boolean } = {}) {
   const il = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Jerusalem', weekday: 'short', hour: '2-digit', minute: '2-digit', hour12: false })
     .formatToParts(new Date()).reduce<Record<string, string>>((acc, p) => { if (p.type !== 'literal') acc[p.type] = p.value; return acc; }, {});
-  if (il.weekday !== 'Tue' || parseInt(il.hour, 10) !== 16) return { skipped: true, reason: 'wrong window', il };
+  if (!opts.force && (il.weekday !== 'Tue' || parseInt(il.hour, 10) !== 16)) return { skipped: true, reason: 'wrong window', il };
 
   const weekDates = getNextWeekDates();
   const start = new Date(weekDates[0] + 'T00:00:00.000Z');
@@ -7648,6 +7648,16 @@ export async function runWeeklyScheduleBuild() {
       .map((s) => ({ date: s.date_str.slice(0, 10), type: s.availability_type, shift: s.shift_preference })),
   }));
 
+  // Load active user-defined constraints — get injected into the prompt so
+  // the LLM knows about them, then the post-build validator double-checks.
+  await ensureSchedulingRulesTable().catch(() => { /* first-run soft */ });
+  const activeRules: any[] = await (prisma as any).$queryRawUnsafe(
+    `SELECT description FROM "SchedulingRule" WHERE active = true ORDER BY "createdAt" ASC`,
+  ).catch(() => []);
+  const rulesBlock = activeRules.length
+    ? `\n*חוקים מותאמים אישית של המנהל (חובה לכבד):*\n${activeRules.map((r: any, i: number) => `${i + 6}. ${r.description}`).join('\n')}\n`
+    : '';
+
   const prompt = `אתה אחראי משמרות במסעדה. בנה טיוטת סידור עבודה לשבוע ${weekDates[0]} עד ${weekDates[6]}.
 
 חוקים:
@@ -7655,7 +7665,7 @@ export async function runWeeklyScheduleBuild() {
 2. כל משמרת צריכה לפחות: 2 מלצרים, 1 ברמן, 1 מארחת, 2 טבחים, 1 שטיפה.
 3. אל תשבץ עובד פעמיים באותו יום (lunch+dinner = OK רק אם הוא מילא both).
 4. עובד שמסומן 'unavailable' באותו יום — אל תשבץ. עובד שמסומן 'partial' — שבץ רק לפי shift_preference.
-5. נסה לפזר משמרות לפי avg_shifts_per_week של כל אחד (לא לתת יותר ממה שהוא רגיל).
+5. נסה לפזר משמרות לפי avg_shifts_per_week של כל אחד (לא לתת יותר ממה שהוא רגיל).${rulesBlock}
 
 קלט (עובדים + זמינויות):
 ${JSON.stringify(empSummary, null, 2)}
@@ -12522,6 +12532,82 @@ registerFn('reportProvisioningResult', async ({ body }) => {
   }
   return { ok: true };
 }, { public: true });
+
+// =================== SCHEDULING RULES ===================
+// Constraints the manager wires up gradually. The weekly schedule builder
+// injects them into the LLM prompt AND a post-build validator checks that
+// no active rule was violated. Owner can add rules from the app OR via a
+// WhatsApp message ("אבי לא עובד ראשון").
+let schedulingRulesReady = false;
+async function ensureSchedulingRulesTable() {
+  if (schedulingRulesReady) return;
+  const sql = (prisma as any).$executeRawUnsafe.bind(prisma);
+  await sql(`CREATE TABLE IF NOT EXISTS "SchedulingRule" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "kind" TEXT NOT NULL,
+    "employee_id" TEXT,
+    "employee_name" TEXT,
+    "day_of_week" INTEGER,
+    "shift_type" TEXT,
+    "other_employee_id" TEXT,
+    "other_employee_name" TEXT,
+    "max_per_week" INTEGER,
+    "description" TEXT NOT NULL,
+    "active" BOOLEAN NOT NULL DEFAULT true,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+  )`);
+  await sql(`CREATE INDEX IF NOT EXISTS "SchedulingRule_active_idx" ON "SchedulingRule"("active")`);
+  schedulingRulesReady = true;
+}
+
+registerFn('listSchedulingRules', async () => {
+  await ensureSchedulingRulesTable();
+  const rows: any[] = await (prisma as any).$queryRawUnsafe(
+    `SELECT * FROM "SchedulingRule" WHERE active = true ORDER BY "createdAt" DESC`,
+  );
+  return { rules: rows };
+});
+
+registerFn('addSchedulingRule', async ({ body, user }) => {
+  if (!isAdminRole((user as any)?.role)) throw new Error('admin only');
+  await ensureSchedulingRulesTable();
+  const b = (body || {}) as any;
+  if (!b.kind || !b.description) throw new Error('kind and description required');
+  await (prisma as any).$executeRawUnsafe(
+    `INSERT INTO "SchedulingRule"(
+       "id","kind","employee_id","employee_name","day_of_week","shift_type",
+       "other_employee_id","other_employee_name","max_per_week","description"
+     ) VALUES (
+       $1,$2,$3,$4,$5,$6,$7,$8,$9,$10
+     )`,
+    randomUUID(), b.kind, b.employee_id || null, b.employee_name || null,
+    b.day_of_week != null ? b.day_of_week : null, b.shift_type || null,
+    b.other_employee_id || null, b.other_employee_name || null,
+    b.max_per_week != null ? b.max_per_week : null, b.description,
+  );
+  return { ok: true };
+});
+
+registerFn('deleteSchedulingRule', async ({ body, user }) => {
+  if (!isAdminRole((user as any)?.role)) throw new Error('admin only');
+  await ensureSchedulingRulesTable();
+  const b = (body || {}) as any;
+  if (!b.id) throw new Error('id required');
+  await (prisma as any).$executeRawUnsafe(
+    `UPDATE "SchedulingRule" SET active = false, "updatedAt" = NOW() WHERE id = $1`,
+    b.id,
+  );
+  return { ok: true };
+});
+
+// Manual trigger for the weekly schedule build — ignores the Tue 16:00 gate.
+// Used by (a) the "בנה סידור" WhatsApp command and (b) the Platform Admin
+// button. Returns the same shape as the cron so downstream consumers work.
+registerFn('triggerWeeklyScheduleBuild', async ({ user }) => {
+  if (!isAdminRole((user as any)?.role)) throw new Error('admin only');
+  return runWeeklyScheduleBuild({ force: true });
+});
 
 let inventoryTablesReady = false;
 async function ensureInventoryTables() {

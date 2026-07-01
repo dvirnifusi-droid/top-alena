@@ -350,6 +350,29 @@ const TOOL_DECLARATIONS = [
     description: 'CALLER reports themselves sick — creates a sick-day request and notifies the manager. Use when employee says "אני חולה", "לא מרגיש טוב, לא אגיע", "חולה היום/מחר". Do NOT use for someone else.',
     parameters: { type: 'OBJECT', properties: { date: { type: 'STRING', description: 'Date in YYYY-MM-DD, or the literals "today" / "tomorrow" / "היום" / "מחר".' } } },
   },
+  // ─── Scheduling rules (admin) ─────────────────────────────────────
+  {
+    name: 'add_scheduling_rule',
+    description: 'Add a constraint that the weekly schedule builder must respect. Use when the manager says things like "אבי לא עובד ראשון" (Avi does not work Sundays), "שרה ולירן לא באותה משמרת" (Sarah + Liran cannot share a shift), "יוסי מקסימום 4 משמרות בשבוע" (Yossi max 4 shifts/week), "מיכל רק ערב" (Michal evenings only). Extract the fields (employee_name, day_of_week 0-6, shift_type, other_employee_name, max_per_week) when obvious; ALWAYS pass a natural-Hebrew description of the rule.',
+    parameters: {
+      type: 'OBJECT',
+      properties: {
+        kind: { type: 'STRING', description: 'One of: no_day (עובד לא עובד ביום מסוים) / no_pair (שני עובדים לא ביחד) / max_shifts (מקסימום משמרות) / shift_only (רק סוג משמרת) / note (חוק חופשי).' },
+        employee_name: { type: 'STRING' },
+        day_of_week: { type: 'NUMBER', description: 'Sun=0, Mon=1, Tue=2, Wed=3, Thu=4, Fri=5, Sat=6' },
+        shift_type: { type: 'STRING', description: '"lunch" or "dinner" if the rule is specific to a shift' },
+        other_employee_name: { type: 'STRING' },
+        max_per_week: { type: 'NUMBER' },
+        description: { type: 'STRING', description: 'Human-readable Hebrew description shown back to the manager and injected into the LLM prompt when building schedules.' },
+      },
+      required: ['kind', 'description'],
+    },
+  },
+  {
+    name: 'list_scheduling_rules',
+    description: 'List all active scheduling rules the manager set. Use when the manager asks "מה החוקים?", "אילו כללים הגדרתי?", "תראה את החוקים לסידור".',
+    parameters: { type: 'OBJECT', properties: {} },
+  },
 ];
 
 // ─── Tool implementations ──────────────────────────────────────────────────
@@ -1290,7 +1313,39 @@ async function tool_propose_mark_sick(args: any, phone: string): Promise<any> {
   return { ok: true, message: `דווחת חולה ל-${when.toISOString().slice(0, 10)}. שלחתי הודעה למנהל, הוא יסדר מחליף. רפואה שלמה 💚` };
 }
 
+// ─── Scheduling rules (admin) ─────────────────────────────────────────────
+
+async function tool_add_scheduling_rule(args: any, _phone: string): Promise<any> {
+  const description = String(args.description || '').trim();
+  if (!description) return { error: 'description required' };
+  const kind = String(args.kind || 'note');
+  const { randomUUID } = await import('node:crypto');
+  await (prisma as any).$executeRawUnsafe(
+    `INSERT INTO "SchedulingRule"(
+       "id","kind","employee_name","day_of_week","shift_type",
+       "other_employee_name","max_per_week","description"
+     ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+    randomUUID(), kind,
+    args.employee_name || null,
+    args.day_of_week != null ? args.day_of_week : null,
+    args.shift_type || null,
+    args.other_employee_name || null,
+    args.max_per_week != null ? args.max_per_week : null,
+    description,
+  );
+  return { ok: true, message: `✅ נוסף חוק: ${description}` };
+}
+
+async function tool_list_scheduling_rules(_args: any, _phone: string): Promise<any> {
+  const rows: any[] = await (prisma as any).$queryRawUnsafe(
+    `SELECT id, description FROM "SchedulingRule" WHERE active = true ORDER BY "createdAt" DESC LIMIT 30`,
+  );
+  return { count: rows.length, rules: rows };
+}
+
 const TOOL_HANDLERS: Record<string, (args: any, phone: string) => Promise<any>> = {
+  add_scheduling_rule: tool_add_scheduling_rule,
+  list_scheduling_rules: tool_list_scheduling_rules,
   // Recipe / food-cost (admin/manager)
   get_recipe_cost: tool_get_recipe_cost,
   list_high_food_cost: tool_list_high_food_cost,
