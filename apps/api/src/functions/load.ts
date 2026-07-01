@@ -18950,6 +18950,48 @@ registerFn('getMyTenantModules', async ({ user }) => {
   return { modules };
 });
 
+// D2 — dynamic PWA manifest. The browser fetches this without auth on page
+// load. Reads the tenant's RestaurantProfile for name/logo/colors and returns
+// a valid Web App Manifest. Falls back to the platform default when empty.
+registerFn('getManifest', async () => {
+  let profile: any = null;
+  try {
+    profile = await (prisma as any).restaurantProfile.findFirst({});
+  } catch { /* schema not ready or no rows — falls through */ }
+
+  const name = profile?.restaurant_name || 'TOP ALENA';
+  const shortName = String(name).slice(0, 12);
+  const colors = profile?.brand_colors || {};
+  const themeColor = colors.primary || '#3a4a1f';
+  const logo = profile?.logo_url;
+
+  const icons = logo
+    ? [
+        { src: logo, sizes: '192x192', type: 'image/png', purpose: 'any' as const },
+        { src: logo, sizes: '512x512', type: 'image/png', purpose: 'any' as const },
+      ]
+    : [
+        { src: '/icons/icon-192.png?v=1', sizes: '192x192', type: 'image/png', purpose: 'any' as const },
+        { src: '/icons/icon-512.png',     sizes: '512x512', type: 'image/png', purpose: 'any' as const },
+        { src: '/icons/icon-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' as const },
+      ];
+
+  return {
+    name,
+    short_name: shortName,
+    description: `מערכת ניהול — ${name}`,
+    lang: 'he',
+    dir: 'rtl',
+    start_url: '/',
+    scope: '/',
+    display: 'standalone',
+    orientation: 'portrait',
+    background_color: '#0f172a',
+    theme_color: themeColor,
+    icons,
+  };
+}, { public: true });
+
 // Admin only. Toggles a single module for this tenant.
 // Core modules cannot be toggled — the function throws for them.
 registerFn('updateMyTenantModule', async ({ user, body }) => {
