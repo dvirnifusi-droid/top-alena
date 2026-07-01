@@ -19,11 +19,11 @@ set -euo pipefail
 
 echo "==> Scanning for tenant containers to redeploy..."
 
-# Every tenant container was started with image top-alena-api:latest.
-# Exclude the compose-managed main container ("top-alena-api-1" — compose
-# will already have rebuilt it).
-CONTAINERS=$(docker ps -a --format '{{.Names}}\t{{.Image}}' \
-  | awk -F'\t' '$2 == "top-alena-api:latest" && $1 != "top-alena-api-1" { print $1 }')
+# Tenant containers are named `tenant-<slug>-api` by provision-tenant.sh.
+# Filter by name — image column is unreliable because it shows the underlying
+# ID once the tag has moved to a rebuilt image (which is exactly what we're
+# trying to fix here).
+CONTAINERS=$(docker ps -a --format '{{.Names}}' | grep -E '^tenant-.*-api$' || true)
 
 if [ -z "$CONTAINERS" ]; then
   echo "==> No tenant containers found. Nothing to do."
