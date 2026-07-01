@@ -247,11 +247,26 @@ async function cmdSendAvailabilityReminderNow(): Promise<string> {
   return `📤 נשלחו ${res?.sent ?? 0} תזכורות למי שלא הגיש זמינות (סה"כ חסרים: ${res?.missing_count ?? 0}).`;
 }
 
-async function cmdBuildScheduleNow(): Promise<string> {
+// Global pending-replace state — set when "בנה סידור" hits an existing week
+// and the admin needs to confirm overwrite. Cleared after 5min or after
+// confirm/cancel. One-admin model — good enough for now.
+let pendingReplace: { weekStart: string; expiresAt: number } | null = null;
+
+async function cmdBuildScheduleNow(replaceExisting = false): Promise<string> {
   // Dynamic import — the fn lives in load.ts to avoid a circular dep.
   const { runWeeklyScheduleBuild } = await import('../functions/load.js');
-  const res: any = await runWeeklyScheduleBuild({ force: true });
+  const res: any = await runWeeklyScheduleBuild({ force: true, replaceExisting });
   if (res?.skipped) return `⚠️ הבנייה דילגה: ${res.reason || 'לא ידוע'}`;
+  if (res?.needs_confirmation) {
+    pendingReplace = { weekStart: res.week_start, expiresAt: Date.now() + 5 * 60 * 1000 };
+    return [
+      `⚠️ *כבר יש סידור לשבוע ${res.target_week}* (${res.existing_count} משמרות).`,
+      ``,
+      `להחליף את הקיים בסידור חדש?`,
+      `השב *"החלף"* כדי למחוק ולבנות מחדש, או *"בטל"* כדי להשאיר את הקיים.`,
+    ].join('\n');
+  }
+  pendingReplace = null;
   const lines: string[] = [`📋 *סידור נבנה*`];
   lines.push(`✅ ${res.createdShifts || 0} משמרות · ${res.assignmentCount || 0} שיבוצים`);
   if (Array.isArray(res.missing) && res.missing.length) {
@@ -283,8 +298,20 @@ const COMMAND_MATCHERS: Array<{ test: (s: string) => boolean; run: () => Promise
   { test: (s) => new RegExp(`^זמינות(\\s+חסרים)?${END}`, 'i').test(s), run: cmdMissingAvailability },
   // Manual trigger for the weekly schedule builder — bypasses the Tue 16:00
   // cron gate. Kicks off the same LLM flow, returns the summary.
-  { test: (s) => /^(בנה|תבנה|תיבנה|צור|תצור|יצור|בונה|תיבנ|במה)\s+(סידור|לוז|לו\s*ז)/i.test(s), run: cmdBuildScheduleNow },
+  { test: (s) => /^(בנה|תבנה|תיבנה|צור|תצור|יצור|בונה|תיבנ|במה)\s+(סידור|לוז|לו\s*ז)/i.test(s), run: () => cmdBuildScheduleNow(false) },
   { test: (s) => /^(שלח|תשלח|שלחו)\s+(תזכור(ת|ות))\s+זמינות/i.test(s), run: cmdSendAvailabilityReminderNow },
+  // Overwrite-confirmation replies for "בנה סידור" when a week already
+  // has a draft. Only fire if there's a live pending state (<5min old).
+  {
+    test: (s) => /^(החלף|תחליף|כן\s*החלף|החלף\s+סידור|OK\s+החלף)$/i.test(s.trim())
+      && !!pendingReplace && pendingReplace.expiresAt > Date.now(),
+    run: () => cmdBuildScheduleNow(true),
+  },
+  {
+    test: (s) => /^(בטל|אל\s+תחליף|לא|cancel)$/i.test(s.trim())
+      && !!pendingReplace && pendingReplace.expiresAt > Date.now(),
+    run: async () => { pendingReplace = null; return '✅ ביטלתי — הסידור הקיים נשאר.'; },
+  },
 ];
 
 // Personal-context matchers (need fromPhone to scope by user).

@@ -7604,7 +7604,7 @@ export async function runWeeklyScheduleFinalReminder() {
 }
 
 // Cron: Tue 16:00 IL. Notify owner of missing; build draft schedule; send insights.
-export async function runWeeklyScheduleBuild(opts: { force?: boolean } = {}) {
+export async function runWeeklyScheduleBuild(opts: { force?: boolean; replaceExisting?: boolean } = {}) {
   const il = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Jerusalem', weekday: 'short', hour: '2-digit', minute: '2-digit', hour12: false })
     .formatToParts(new Date()).reduce<Record<string, string>>((acc, p) => { if (p.type !== 'literal') acc[p.type] = p.value; return acc; }, {});
   if (!opts.force && (il.weekday !== 'Tue' || parseInt(il.hour, 10) !== 16)) return { skipped: true, reason: 'wrong window', il };
@@ -7612,6 +7612,27 @@ export async function runWeeklyScheduleBuild(opts: { force?: boolean } = {}) {
   const weekDates = getNextWeekDates();
   const start = new Date(weekDates[0] + 'T00:00:00.000Z');
   const end = new Date(weekDates[weekDates.length - 1] + 'T23:59:59.999Z');
+
+  // Overwrite guard — if there are already WorkShift rows for this week,
+  // don't silently duplicate. Ask the caller (WhatsApp cmd) to confirm.
+  const existing: any[] = await (prisma as any).$queryRaw`
+    SELECT id, date::text AS date_str FROM "WorkShift"
+    WHERE date >= ${start} AND date <= ${end}
+  `;
+  if (existing.length && !opts.replaceExisting) {
+    return {
+      needs_confirmation: true,
+      existing_count: existing.length,
+      target_week: `${weekDates[0]} — ${weekDates[6]}`,
+      week_start: weekDates[0],
+    };
+  }
+  if (existing.length && opts.replaceExisting) {
+    // Wipe old draft first, then rebuild from scratch below.
+    await (prisma as any).$executeRaw`
+      DELETE FROM "WorkShift" WHERE date >= ${start} AND date <= ${end}
+    `;
+  }
 
   // Pull ALL availability records with a wide window, then filter by
   // matching the DATE part (yyyy-mm-dd) against weekDates[] — mirrors what
