@@ -7618,12 +7618,12 @@ export async function runWeeklyScheduleBuild(opts: { force?: boolean } = {}) {
   // one bugs where date >= UTC-midnight silently misses records stored as
   // Israel-local-midnight (2026-07-04T21:00Z on the wire).
   const targetDateSet = new Set(weekDates);
-  const raw: any[] = await (prisma as any).$queryRaw`
+  const rawAvailability: any[] = await (prisma as any).$queryRaw`
     SELECT employee_id, employee_name, date::text AS date_str, availability_type, shift_preference, positions
     FROM "EmployeeAvailability"
     WHERE date >= NOW() - INTERVAL '30 days' AND date <= NOW() + INTERVAL '30 days'
   `;
-  const submissions: any[] = raw.filter((r: any) =>
+  const submissions: any[] = rawAvailability.filter((r: any) =>
     targetDateSet.has(String(r.date_str || '').slice(0, 10)),
   );
   const employees = await getActiveEmployeesForScheduling();
