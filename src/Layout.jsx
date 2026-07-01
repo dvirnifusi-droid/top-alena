@@ -15,6 +15,7 @@ import {
 import { Button } from "@/components/ui/button";
 
 import { useTenantBranding } from "./hooks/useTenantBranding";
+import { useTenantModules } from "./hooks/useTenantModules";
 import AiChatWidget from "./components/ai-assistant/AiChatWidget";
 import DevicePreviewToggle from "./components/DevicePreviewToggle";
 import EnableStaffPush from "./components/EnableStaffPush";
@@ -127,6 +128,36 @@ const employeeLinks = [
   { title: "🪙 המטבעות שלי", url: createPageUrl("GamificationCenter"), icon: Trophy, isSubItem: true, color: "gold" },
 ];
 
+// D1 — Module filter. Runs BEFORE filterNav. Drops sidebar entries whose
+// owning module is disabled for this tenant. Category headers with no
+// surviving children are hidden. `pageEnabled` comes from useTenantModules.
+// URLs come from createPageUrl(pageName), so url.slice(1) is the page name.
+function filterByModules(items, pageEnabled) {
+  const out = [];
+  let i = 0;
+  while (i < items.length) {
+    const item = items[i];
+    if (item.isCategory) {
+      const kept = [];
+      let j = i + 1;
+      while (j < items.length && items[j].isSubItem) {
+        const pn = (items[j].url || '').replace(/^\//, '');
+        if (!pn || pageEnabled(pn)) kept.push(items[j]);
+        j++;
+      }
+      if (kept.length) { out.push(item); out.push(...kept); }
+      i = j;
+    } else if (!item.isSubItem) {
+      const pn = (item.url || '').replace(/^\//, '');
+      if (!pn || pageEnabled(pn)) out.push(item);
+      i++;
+    } else {
+      i++;
+    }
+  }
+  return out;
+}
+
 // Real-time search filter. If empty, returns the list as-is. Otherwise hides
 // categories whose children don't match the query, and keeps only matching
 // children inside the ones that do.
@@ -171,6 +202,7 @@ export default function Layout({ children, currentPageName }) {
   const [appTheme, setAppTheme] = React.useState(() => localStorage.getItem('gc_theme') || 'light');
   const branding = useTenantBranding();
   const brandName = branding?.name || 'TOP ALENA';
+  const { pageEnabled } = useTenantModules();
 
   // Auto-Tracker: log every page nav so the daily analyzer can spot patterns
   // (e.g. "Dvir opened SeatingSetup 20× tonight → propose a dashboard widget").
@@ -302,7 +334,8 @@ export default function Layout({ children, currentPageName }) {
     : positionSidebar
       ? positionSidebar
       : [...employeeLinks, ...departmentManagerExtras];
-  const navigationItems = filterNav(baseLinks, navFilter);
+  const moduleFilteredLinks = filterByModules(baseLinks, pageEnabled);
+  const navigationItems = filterNav(moduleFilteredLinks, navFilter);
   const userName = user?.full_name || user?.email?.split('@')[0] || 'משתמש';
 
   const commonSidebarProps = {
