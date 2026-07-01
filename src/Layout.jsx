@@ -347,7 +347,7 @@ export default function Layout({ children, currentPageName }) {
 
         {/* תוכן ראשי - עם padding מהצד הימני במחשב */}
         <div className="h-screen overflow-y-auto lg:pr-80">
-          <MobileHeader isCurrentViewAdmin={isCurrentViewAdmin} />
+          <MobileHeader isCurrentViewAdmin={isCurrentViewAdmin} brandName={brandName} />
           <main className="p-2 sm:p-4 lg:p-8">
             {/* "Enable free notifications" prompt for the logged-in user */}
             {user && <EnableStaffPush />}
@@ -615,7 +615,7 @@ const MobileSidebar = ({ userName, isCurrentViewAdmin, isOriginalAdmin, navigati
   </Sidebar>
 );
 
-const MobileHeader = ({ isCurrentViewAdmin }) => (
+const MobileHeader = ({ isCurrentViewAdmin, brandName = "TOP ALENA" }) => (
   <header
     className="sticky top-0 z-40 flex items-center justify-between border-b border-border bg-card px-3 lg:hidden min-w-0"
     style={{
