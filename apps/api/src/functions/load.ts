@@ -12287,17 +12287,37 @@ registerFn('reportProvisioningResult', async ({ body }) => {
     `UPDATE "Tenant" SET status = $1, provisioned_at = NOW(), live_at = ${success ? 'NOW()' : 'NULL'}, "updatedAt" = NOW() WHERE id = $2`,
     success ? 'live' : 'failed', b.tenant_id,
   );
-  // Notify owner on success
+  // Seed the initial owner user in the tenant's schema + notify via WhatsApp.
   if (success) {
     const tenant: any[] = await (prisma as any).$queryRawUnsafe(
-      `SELECT owner_phone, restaurant_name, subdomain_url FROM "Tenant" WHERE id = $1`, b.tenant_id,
+      `SELECT owner_phone, owner_email, owner_name, restaurant_name, subdomain_url, slug FROM "Tenant" WHERE id = $1`,
+      b.tenant_id,
     );
     if (tenant.length) {
-      const { sendWhatsApp } = await import('../lib/twilio.js');
       const t = tenant[0];
+      // Generate a memorable temp password: TopAlena-XXXX (4 digits)
+      const tempPassword = `TopAlena-${Math.floor(1000 + Math.random() * 9000)}`;
+      let credsLine = 'צור/צרי משתמש בעצמך בטופס הרשמה.';
+      try {
+        const bcrypt = (await import('bcryptjs')).default;
+        const hash = await bcrypt.hash(tempPassword, 10);
+        // Insert into the tenant's schema. We use the shared Supabase DB with
+        // schema-qualified table name. Suppress conflicts if already seeded.
+        const schema = `tenant_${t.slug}`;
+        await (prisma as any).$executeRawUnsafe(
+          `INSERT INTO "${schema}"."User" ("id", "email", "passwordHash", "role", "fullName", "createdAt", "updatedAt")
+           VALUES ($1, $2, $3, 'owner', $4, NOW(), NOW())
+           ON CONFLICT (email) DO NOTHING`,
+          randomUUID(), t.owner_email.toLowerCase(), hash, t.owner_name,
+        );
+        credsLine = `📧 מייל: ${t.owner_email}\n🔑 סיסמה זמנית: *${tempPassword}*\n(שנה/י אותה אחרי הכניסה הראשונה)`;
+      } catch (e: any) {
+        console.warn('[provisioning] user seed failed', e?.message);
+      }
+      const { sendWhatsApp } = await import('../lib/twilio.js');
       const msg = `🎉 *${t.restaurant_name}* — המערכת שלך מוכנה!\n\n` +
-        `🔗 כתובת: ${t.subdomain_url}\n\n` +
-        `היכנס/י, צור/צרי משתמש אדמין, ותתחיל/י לעבוד. כל שאלה — שלחו לנו הודעה לכאן.`;
+        `🔗 כתובת: ${t.subdomain_url}\n\n${credsLine}\n\n` +
+        `היכנס/י, שנה/י סיסמה, ותתחיל/י לעבוד. כל שאלה — שלחו לנו הודעה לכאן.`;
       try { await sendWhatsApp(t.owner_phone, msg); } catch { /* noop */ }
     }
   }

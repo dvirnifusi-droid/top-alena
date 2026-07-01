@@ -80,6 +80,6 @@ ${SUBDOMAIN} {
 }
 EOF
 
-docker exec top-alena-caddy-1 caddy reload --config /etc/caddy/Caddyfile
+bash "$(dirname "$0")/sync-tenant-caddy.sh"
 
 echo "✅ Done. $SUBDOMAIN is live."
