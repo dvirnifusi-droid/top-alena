@@ -236,7 +236,7 @@ export default function Layout({ children, currentPageName }) {
     return () => { delete window.__setUnreadChat; delete window.__setStoriesOpen; };
   }, []);
 
-  const isCurrentViewAdmin = user?.role === 'admin';
+  const isCurrentViewAdmin = user?.role === 'admin' || user?.role === 'owner';
   const isOriginalAdmin = originalUserRole === 'admin';
 
   // Department managers (e.g. kitchen manager) see the employee sidebar plus
