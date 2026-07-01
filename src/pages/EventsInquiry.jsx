@@ -3,6 +3,7 @@ import { invokePublic } from '@/lib/publicFetch';
 import { Send, CheckCircle2, CreditCard } from 'lucide-react';
 import LanguagePicker from '@/components/shared/LanguagePicker';
 import { useI18n, LANG_NAMES_FOR_LLM } from '@/lib/i18n';
+import { initMetaPixel, trackLead } from '@/lib/metaPixel';
 
 // Dana's portrait — realistic photo generated via Imagen 4 and committed
 // under public/images. WebP loads first (23 KB), PNG is the fallback
@@ -29,6 +30,7 @@ export default function EventsInquiry() {
   const [paymentUrl, setPaymentUrl] = useState(null);
   const [error, setError] = useState(null);
   const scrollRef = useRef(null);
+  const leadTrackedRef = useRef(false);
 
   const sendTurn = async (text) => {
     setSending(true);
@@ -51,7 +53,13 @@ export default function EventsInquiry() {
     } finally { setSending(false); }
   };
 
-  useEffect(() => { sendTurn(''); /* eslint-disable-next-line */ }, []);
+  useEffect(() => { initMetaPixel(); sendTurn(''); /* eslint-disable-next-line */ }, []);
+  useEffect(() => {
+    if (leadId && !leadTrackedRef.current) {
+      leadTrackedRef.current = true;
+      trackLead();
+    }
+  }, [leadId]);
   useEffect(() => {
     const el = scrollRef.current;
     if (el) el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
