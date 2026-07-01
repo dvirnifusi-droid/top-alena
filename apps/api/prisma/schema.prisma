@@ -3133,3 +3133,15 @@ model MonthlyTarget {
 
   @@unique([month, category])
 }
+
+// D1 (Phase D1 — Feature Modules). One row per module the tenant has an
+// explicit preference for. Absence = default enabled. Lives in each tenant's
+// own schema so no tenant_id column is needed.
+model ModuleSetting {
+  id          String   @id @default(cuid())
+  module_key  String   @unique
+  enabled     Boolean  @default(true)
+  enabled_at  DateTime @default(now())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
