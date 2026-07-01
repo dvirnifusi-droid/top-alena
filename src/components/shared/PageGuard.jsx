@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
 import { Shield, Lock, Settings, X, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -9,6 +10,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { useTenantModules } from "@/hooks/useTenantModules";
 
 const ROLES = [
   { value: "employee", label: "עובד", color: "bg-blue-100 text-blue-800" },
@@ -36,6 +38,19 @@ export default function PageGuard({ pageName, pageTitle, children }) {
   useEffect(() => {
     loadData();
   }, [pageName]);
+
+  // D1 — module gate. If the current page's module is disabled for this tenant,
+  // bounce to Dashboard. Dashboard/PlatformSettings are exempt (always reachable).
+  const { pageEnabled, loading: modulesLoading } = useTenantModules();
+  const navigate = useNavigate();
+  useEffect(() => {
+    if (modulesLoading) return;
+    if (!pageName) return;
+    if (pageName === 'Dashboard' || pageName === 'PlatformSettings') return;
+    if (!pageEnabled(pageName)) {
+      navigate('/Dashboard', { replace: true, state: { moduleDisabled: pageName } });
+    }
+  }, [pageName, modulesLoading, pageEnabled, navigate]);
 
   const loadData = async () => {
     setLoading(true);
