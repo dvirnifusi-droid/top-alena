@@ -15,6 +15,7 @@ import { sendEmail } from '../lib/email.js';
 import { invokeLLM, generateImage } from '../lib/llm.js';
 import { driveAccessToken, listDriveFiles, downloadDriveFile } from '../lib/gdrive.js';
 import { uploadStreamToS3 } from '../lib/storage.js';
+import { MODULE_CATALOG } from '../lib/modules.js';
 import { Readable } from 'node:stream';
 import webpush from 'web-push';
 import {
@@ -7704,12 +7705,16 @@ export async function runWeeklyScheduleBuild(opts: { force?: boolean } = {}) {
 
   const prompt = `אתה אחראי משמרות במסעדה. בנה טיוטת סידור עבודה לשבוע ${weekDates[0]} עד ${weekDates[6]}.
 
+⚠️ *עקרון חשוב:* עדיף סידור *חלקי* (למשל רק פלור בלי מטבח) עם תובנות ברורות מה חסר, מאשר לא לשבץ אף אחד. תמיד שבץ את מה שאתה יכול.
+
 חוקים:
 1. כל יום יש 2 משמרות: lunch (~10:00-17:00) ו-dinner (~17:00-01:00). שישי + שבת = רק dinner.
-2. כל משמרת צריכה לפחות: 2 מלצרים, 1 ברמן, 1 מארחת, 2 טבחים, 1 שטיפה.
+2. כמות אידיאלית פר משמרת: 2 מלצרים, 1 ברמן, 1 מארחת, 2 טבחים, 1 שטיפה. **אם חסרים תפקידים — שבץ מה שאתה יכול ותכתוב ב-insights איפה חסר.**
 3. אל תשבץ עובד פעמיים באותו יום (lunch+dinner = OK רק אם הוא מילא both).
 4. עובד שמסומן 'unavailable' באותו יום — אל תשבץ. עובד שמסומן 'partial' — שבץ רק לפי shift_preference.
-5. נסה לפזר משמרות לפי avg_shifts_per_week של כל אחד (לא לתת יותר ממה שהוא רגיל).${rulesBlock}
+5. נסה לפזר משמרות לפי avg_shifts_per_week של כל אחד (לא לתת יותר ממה שהוא רגיל).
+6. **חובה:** אם לא שיבצת עובד ל-shift מסוים, כתוב ב-insights *בדיוק* איזה תפקיד חסר באיזה יום ומשמרת. דוגמה: "חסר טבח כל השבוע — אף טבח לא הגיש זמינות". דוגמה נוספת: "חסר ברמן בשבת ערב — יוסי היחיד ברמן מסומן unavailable שבת".
+7. **חובה:** אם החזרת assignments ריק, insights חייב להסביר למה במפורש.${rulesBlock}
 
 קלט (עובדים + זמינויות):
 ${JSON.stringify(empSummary, null, 2)}
@@ -18722,4 +18727,50 @@ if (!(globalThis as any).__beecommAutoCreditTimer) {
     })();
   }, 4 * 60 * 1000);
 }
+
+// ── D1: Feature Modules ────────────────────────────────────────────────
+//
+// Returns the full MODULE_CATALOG merged with the tenant's ModuleSetting rows.
+// Every module has an `enabled` boolean. Core modules are always enabled.
+// Missing ModuleSetting row → enabled=true (safe default).
+registerFn('getMyTenantModules', async ({ user }) => {
+  if (!user?.id) throw new Error('unauthorized');
+  const rows = await (prisma as any).moduleSetting.findMany({
+    select: { module_key: true, enabled: true },
+  });
+  const settingByKey = new Map<string, boolean>(
+    (rows as { module_key: string; enabled: boolean }[]).map(r => [r.module_key, r.enabled]),
+  );
+  const modules = MODULE_CATALOG.map(m => ({
+    key: m.key,
+    name_he: m.name_he,
+    description_he: m.description_he,
+    category: m.category,
+    icon: m.icon,
+    core: m.core,
+    pages: m.pages,
+    enabled: m.core ? true : (settingByKey.get(m.key) ?? true),
+  }));
+  return { modules };
+});
+
+// Admin only. Toggles a single module for this tenant.
+// Core modules cannot be toggled — the function throws for them.
+registerFn('updateMyTenantModule', async ({ user, body }) => {
+  if (!user?.id) throw new Error('unauthorized');
+  if (!isAdminRole((user as any)?.role)) throw new Error('admin only');
+  const b = (body || {}) as any;
+  const module_key = String(b.module_key || '');
+  const enabled = !!b.enabled;
+  if (!module_key) throw new Error('module_key required');
+  const def = MODULE_CATALOG.find(m => m.key === module_key);
+  if (!def) throw new Error('unknown module');
+  if (def.core) throw new Error('core module cannot be toggled');
+  await (prisma as any).moduleSetting.upsert({
+    where: { module_key },
+    update: { enabled, enabled_at: new Date() },
+    create: { module_key, enabled, enabled_at: new Date() },
+  });
+  return { ok: true, module_key, enabled };
+});
 
