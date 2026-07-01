@@ -23,8 +23,13 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
     if (existing) return reply.code(409).send({ error: 'email_taken' });
 
     const passwordHash = await bcrypt.hash(password, 10);
+    // First user in a fresh tenant DB (or Alena's main DB) auto-becomes
+    // 'owner' — otherwise 'user'. Lets a freshly-provisioned tenant login
+    // with the register form and see the full admin UI on turn 1.
+    const existingUsersCount = await prisma.user.count();
+    const role = existingUsersCount === 0 ? 'owner' : 'user';
     const user = await prisma.user.create({
-      data: { email, passwordHash, role: 'user' },
+      data: { email, passwordHash, role },
     });
     const token = await reply.jwtSign({ id: user.id, email: user.email, role: user.role });
     return { token, user: { id: user.id, email: user.email, role: user.role, full_name: user.fullName } };
