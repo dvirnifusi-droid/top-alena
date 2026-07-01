@@ -7800,13 +7800,93 @@ export async function runWeeklyScheduleBuild(opts: {
     }
   }
 
-  // Build LLM input. IMPORTANT: positions can live in two places —
-  //   (a) Employee.positions[] (default position set on the employee record)
-  //   (b) EmployeeAvailability.positions[] (position they chose for this
-  //       specific week when they submitted availability)
-  // We prefer (b) when present because that's the manager-visible choice
-  // shown on /AvailabilityRequests. Fall back to (a) so employees who
-  // didn't repeat their position still get slotted.
+  // ────────────────────────────────────────────────────────────────────
+  //  Deterministic direct placement — NO LLM.
+  //  Rule the owner asked for (2026-07-01):
+  //    "כל מי שהגיש זמינות ליום מסוים — שיבצו אותו לאותה משמרת. תפקיד =
+  //     מה שהגיש, ברירת מחדל 'מלצר'. זהו. בלי סינונים."
+  //  Semantics:
+  //    - availability_type === 'available' → placed on both lunch AND dinner
+  //      (unless shift_preference narrows to one).
+  //    - availability_type === 'partial' → placed only on the preferred shift.
+  //    - availability_type === 'unavailable' → skipped.
+  //    - position = first EmployeeAvailability.positions entry, else first
+  //      Employee.positions entry, else 'מלצר'.
+  //    - Friday/Saturday get dinner only (matches restaurant hours).
+  // ────────────────────────────────────────────────────────────────────
+  const empByIdForBuild: Record<string, any> = {};
+  for (const e of employees) empByIdForBuild[e.id] = e;
+
+  const directAssignments: any[] = [];
+  const seenSlot = new Set<string>(); // dedupe: emp × date × shift
+  const FRI_SAT_INDEX = [5, 6]; // Fri=5, Sat=6 relative to Sunday=0
+
+  for (const sub of submissions) {
+    const type = String(sub.availability_type || '').toLowerCase();
+    if (type === 'unavailable') continue;
+
+    const emp = empByIdForBuild[sub.employee_id];
+    if (!emp) continue; // employee filtered out (inactive/terminated)
+
+    const dateStr = String(sub.date_str || '').slice(0, 10);
+    if (!dateStr) continue;
+    const dayIdx = new Date(dateStr + 'T12:00:00Z').getUTCDay();
+
+    // Position: submission's first position → employee's first → default מלצר
+    const subPositions = Array.isArray(sub.positions) ? sub.positions : [];
+    const empPositions = Array.isArray(emp.positions) ? emp.positions : [];
+    const pickName = (p: any) => (typeof p === 'string' ? p : (p?.position_name || p?.name || ''));
+    const position = (subPositions.map(pickName).find(Boolean))
+      || (empPositions.map(pickName).find(Boolean))
+      || 'מלצר';
+
+    // Which shifts today: partial = only the preferred one, available = both.
+    const pref = String(sub.shift_preference || '').toLowerCase();
+    let shiftsToday: string[];
+    if (type === 'partial') {
+      shiftsToday = pref === 'lunch' || pref === 'dinner' ? [pref] : ['dinner'];
+    } else if (pref === 'lunch') shiftsToday = ['lunch'];
+    else if (pref === 'dinner') shiftsToday = ['dinner'];
+    else shiftsToday = ['lunch', 'dinner']; // 'both' or blank
+
+    // Fri/Sat = dinner only regardless of preference (restaurant policy).
+    if (FRI_SAT_INDEX.includes(dayIdx)) shiftsToday = shiftsToday.filter((s) => s === 'dinner');
+    if (shiftsToday.length === 0) shiftsToday = ['dinner']; // fallback for Fri/Sat if pref=lunch
+
+    for (const shift of shiftsToday) {
+      const key = `${emp.id}__${dateStr}__${shift}`;
+      if (seenSlot.has(key)) continue;
+      seenSlot.add(key);
+      directAssignments.push({
+        date: dateStr,
+        shift_type: shift,
+        employee_id: emp.id,
+        employee_name: emp.full_name,
+        position,
+      });
+    }
+  }
+
+  // Simple insights — count missing role coverage across the week.
+  const insightsForOwner: string[] = [];
+  const posByShift: Record<string, Record<string, number>> = {};
+  for (const a of directAssignments) {
+    const key = `${a.date}__${a.shift_type}`;
+    posByShift[key] = posByShift[key] || {};
+    posByShift[key][a.position] = (posByShift[key][a.position] || 0) + 1;
+  }
+  const submitterNames = new Set<string>();
+  for (const s of submissions) if (s.employee_name) submitterNames.add(String(s.employee_name));
+  insightsForOwner.push(`שיבוץ ישיר: ${submitterNames.size} עובדים שהגישו זמינות שובצו במשמרות שלהם.`);
+  if (missing.length) {
+    insightsForOwner.push(`לא הגישו זמינות: ${missing.map((m) => m.full_name).join(', ')}.`);
+  }
+
+  // Legacy path built the same shape (assignments + insights) via an LLM
+  // and threaded them through the overwrite guard. Skip the LLM entirely
+  // and reuse the guard machinery below with our deterministic result.
+  const _skipLLMSummary = { assignments: directAssignments, insights: insightsForOwner };
+
   const empSummary = employees.map((e) => {
     const myAvail = submissions.filter((s) => s.employee_id === e.id);
     const defaultPositions = (e.positions || []).map((p: any) => p?.position_name || p).filter(Boolean);
@@ -7875,24 +7955,13 @@ ${JSON.stringify(empSummary, null, 2)}
   ]
 }`;
 
-  const raw: any = await invokeLLM({
-    prompt,
-    responseSchema: {
-      type: 'object',
-      properties: {
-        assignments: { type: 'array', items: { type: 'object', properties: {
-          date: { type: 'string' }, shift_type: { type: 'string' },
-          employee_id: { type: 'string' }, employee_name: { type: 'string' },
-          position: { type: 'string' },
-        }, required: ['date', 'shift_type', 'employee_id', 'position'] } },
-        insights: { type: 'array', items: { type: 'string' } },
-      },
-      required: ['assignments', 'insights'],
-    },
-  });
-  const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
-  const assignments: any[] = parsed?.assignments || [];
-  const insights: string[] = parsed?.insights || [];
+  // Owner ask (2026-07-01): skip the LLM — use the deterministic direct
+  // placement we built above. The `prompt` / empSummary / activeRules lines
+  // still run so the JSON payload is available for debugging & for the LLM-
+  // based path we may re-enable via a config flag later.
+  void prompt; // referenced so tooling doesn't flag as unused
+  const assignments: any[] = _skipLLMSummary.assignments;
+  const insights: string[] = _skipLLMSummary.insights;
 
   // Overwrite guard — check for existing WorkShift rows for this week AFTER
   // the LLM has produced a plan. If we found any and the caller didn't
