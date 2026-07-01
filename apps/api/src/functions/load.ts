@@ -18860,11 +18860,31 @@ if (!(globalThis as any).__beecommAutoCreditTimer) {
 
 // ── D1: Feature Modules ────────────────────────────────────────────────
 //
+// Self-heal: prisma db push doesn't auto-create per-tenant tables (schema-
+// per-tenant means the container's push targets the default schema, not
+// every tenant's). CREATE TABLE IF NOT EXISTS is idempotent + cheap.
+let moduleSettingTableReady = false;
+async function ensureModuleSettingTable() {
+  if (moduleSettingTableReady) return;
+  await (prisma as any).$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "ModuleSetting" (
+      "id" TEXT NOT NULL PRIMARY KEY,
+      "module_key" TEXT NOT NULL UNIQUE,
+      "enabled" BOOLEAN NOT NULL DEFAULT true,
+      "enabled_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
+  moduleSettingTableReady = true;
+}
+
 // Returns the full MODULE_CATALOG merged with the tenant's ModuleSetting rows.
 // Every module has an `enabled` boolean. Core modules are always enabled.
 // Missing ModuleSetting row → enabled=true (safe default).
 registerFn('getMyTenantModules', async ({ user }) => {
   if (!user?.id) throw new Error('unauthorized');
+  await ensureModuleSettingTable();
   const rows = await (prisma as any).moduleSetting.findMany({
     select: { module_key: true, enabled: true },
   });
@@ -18896,6 +18916,7 @@ registerFn('updateMyTenantModule', async ({ user, body }) => {
   const def = MODULE_CATALOG.find(m => m.key === module_key);
   if (!def) throw new Error('unknown module');
   if (def.core) throw new Error('core module cannot be toggled');
+  await ensureModuleSettingTable();
   await (prisma as any).moduleSetting.upsert({
     where: { module_key },
     update: { enabled, enabled_at: new Date() },
