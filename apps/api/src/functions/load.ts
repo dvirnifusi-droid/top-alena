@@ -7680,18 +7680,43 @@ export async function runWeeklyScheduleBuild(opts: { force?: boolean } = {}) {
     }
   }
 
-  // Build LLM input
-  const empSummary = employees.map((e) => ({
-    id: e.id,
-    name: e.full_name,
-    submitted: submitted.has(e.id),
-    positions: (e.positions || []).map((p: any) => p?.position_name || p).filter(Boolean),
-    department: e.department || null,
-    avg_shifts_per_week: Math.round((shiftCounts[e.id] || 0) / 4),
-    availability: submissions
-      .filter((s) => s.employee_id === e.id)
-      .map((s) => ({ date: s.date_str.slice(0, 10), type: s.availability_type, shift: s.shift_preference })),
-  }));
+  // Build LLM input. IMPORTANT: positions can live in two places —
+  //   (a) Employee.positions[] (default position set on the employee record)
+  //   (b) EmployeeAvailability.positions[] (position they chose for this
+  //       specific week when they submitted availability)
+  // We prefer (b) when present because that's the manager-visible choice
+  // shown on /AvailabilityRequests. Fall back to (a) so employees who
+  // didn't repeat their position still get slotted.
+  const empSummary = employees.map((e) => {
+    const myAvail = submissions.filter((s) => s.employee_id === e.id);
+    const defaultPositions = (e.positions || []).map((p: any) => p?.position_name || p).filter(Boolean);
+    // Aggregate all distinct positions across their availability rows this week.
+    const availPositions = new Set<string>();
+    for (const s of myAvail) {
+      const arr = Array.isArray(s.positions) ? s.positions : [];
+      for (const p of arr) {
+        const name = typeof p === 'string' ? p : (p?.position_name || p?.name || '');
+        if (name) availPositions.add(String(name));
+      }
+    }
+    const effectivePositions = availPositions.size > 0 ? [...availPositions] : defaultPositions;
+    return {
+      id: e.id,
+      name: e.full_name,
+      submitted: submitted.has(e.id),
+      positions: effectivePositions,
+      department: e.department || null,
+      avg_shifts_per_week: Math.round((shiftCounts[e.id] || 0) / 4),
+      availability: myAvail.map((s) => ({
+        date: s.date_str.slice(0, 10),
+        type: s.availability_type,
+        shift: s.shift_preference,
+        positions: Array.isArray(s.positions)
+          ? s.positions.map((p: any) => typeof p === 'string' ? p : (p?.position_name || p?.name || '')).filter(Boolean)
+          : [],
+      })),
+    };
+  });
 
   // Load active user-defined constraints — get injected into the prompt so
   // the LLM knows about them, then the post-build validator double-checks.
