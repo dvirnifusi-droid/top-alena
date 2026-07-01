@@ -213,6 +213,35 @@ export const twilioWebhookRoutes: FastifyPluginAsync = async (app) => {
             );
             return;
           }
+          // (C-pre) Schedule-build commands run the LLM (~20-30s) which blows
+          // past Twilio's ~15s webhook timeout. ACK immediately, do the LLM
+          // work in background, deliver the reply via outbound sendWhatsApp.
+          const isBuildCmd = /^(בנה|תבנה|תיבנה|צור|תצור|יצור|בונה|תיבנ|במה)\s+(סידור|לוז|לו\s*ז)/i.test(body);
+          const isReplaceCmd = /^(החלף|תחליף|כן\s*החלף|החלף\s+סידור|OK\s+החלף)$/i.test(body.trim());
+          if (isBuildCmd || isReplaceCmd) {
+            await (prisma as any).whatsAppMessage.create({
+              data: {
+                twilio_sid: sid || null, direction: 'inbound', from_phone: from, to_phone: to,
+                contact_phone: from, body, num_media: numMedia, status: 'received',
+                raw: { ...params, admin_schedule_cmd: true } as any, is_read: true,
+              },
+            }).catch(() => {});
+            reply.type('text/xml').send(
+              `<?xml version="1.0" encoding="UTF-8"?><Response><Message>${
+                isReplaceCmd ? '🔄 מחליף... כ-5 שניות' : '⏳ בונה סידור... כ-30 שניות'
+              }</Message></Response>`,
+            );
+            void (async () => {
+              try {
+                const r = await tryHandleAdminCommand(from, body);
+                if (r) await sendWhatsApp(from, r);
+              } catch (e: any) {
+                req.log.error({ err: e?.message }, '[whatsapp-agent] schedule cmd crashed');
+                try { await sendWhatsApp(from, `⚠️ שגיאה בבניית סידור: ${e?.message || 'unknown'}`); } catch { /* noop */ }
+              }
+            })();
+            return;
+          }
           // (C) Text command — fast deterministic read-only commands.
           const agentReply = await tryHandleAdminCommand(from, body);
           if (agentReply && agentReply !== '🤔 לא הבנתי את הפקודה. שלח/י *עזרה* לרשימת פקודות.') {
