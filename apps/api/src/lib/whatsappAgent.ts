@@ -276,6 +276,30 @@ async function cmdBuildScheduleNow(applyPending = false): Promise<string> {
 
   const res: any = await runWeeklyScheduleBuild({ force: true });
   if (res?.skipped) return `⚠️ הבנייה דילגה: ${res.reason || 'לא ידוע'}`;
+  if (res?.empty_plan) {
+    const out = [
+      `⚠️ *התוכנית שנבנתה הייתה ריקה — הסידור הקיים לא נגע.*`,
+      `שבוע: ${res.target_week}`,
+      `קיים: ${res.existing_assignments} שיבוצים ב-${res.existing_count} משמרות.`,
+      ``,
+      `💡 סיבות אפשריות:`,
+      `• ה-LLM לא הצליח לפרש את הזמינויות (נסה שוב בעוד דקה)`,
+      `• עובדים בלי תפקיד מוגדר`,
+    ];
+    if (Array.isArray(res.insights) && res.insights.length) {
+      out.push('', 'תובנות שהתקבלו:', ...res.insights.map((i: string) => `  • ${i}`));
+    }
+    return out.join('\n');
+  }
+  if (res?.plan_too_small) {
+    return [
+      `⚠️ *לא החלפתי את הסידור הקיים.*`,
+      res.reason,
+      `שבוע: ${res.target_week}`,
+      ``,
+      `אם אתה בטוח שזה מה שרצית — מחק ידנית מ-WorkScheduling ונסה שוב.`,
+    ].join('\n');
+  }
   if (res?.needs_confirmation) {
     pendingReplace = {
       weekStart: res.week_start,

@@ -7885,10 +7885,38 @@ ${JSON.stringify(empSummary, null, 2)}
     WHERE date >= ${start} AND date <= ${end}
   `;
   if (existing.length && !opts.replaceExisting) {
+    // Sanity — if the LLM returned 0 or shrank by >50% vs the existing draft,
+    // it's almost certainly a build failure, not the manager's real intent.
+    // NEVER offer to overwrite in that case — return an explanatory reply.
+    const existingCount = existing.reduce((n, w) =>
+      n + (Array.isArray(w.assigned_staff) ? w.assigned_staff.length : 0), 0);
+    if (assignments.length === 0) {
+      return {
+        ok: false,
+        empty_plan: true,
+        target_week: `${weekDates[0]} — ${weekDates[6]}`,
+        existing_count: existing.length,
+        existing_assignments: existingCount,
+        insights,
+        reason: 'LLM החזיר תוכנית ריקה — הסידור הקיים לא נגע.',
+      };
+    }
+    if (assignments.length < existingCount / 2) {
+      return {
+        ok: false,
+        plan_too_small: true,
+        target_week: `${weekDates[0]} — ${weekDates[6]}`,
+        existing_assignments: existingCount,
+        new_assignments: assignments.length,
+        insights,
+        reason: `הסידור החדש (${assignments.length} שיבוצים) קטן משמעותית מהקיים (${existingCount}). לא מציע החלפה כדי לא לאבד את הישן.`,
+      };
+    }
     const diff = buildScheduleDiff(existing, assignments);
     return {
       needs_confirmation: true,
       existing_count: existing.length,
+      existing_assignments: existingCount,
       target_week: `${weekDates[0]} — ${weekDates[6]}`,
       week_start: weekDates[0],
       diff,
