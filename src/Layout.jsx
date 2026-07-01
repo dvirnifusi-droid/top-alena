@@ -89,6 +89,7 @@ const adminLinks = [
 
   { title: "הגדרות ואינטגרציות ⚙️", url: "#", icon: Settings, isCategory: true, color: "espresso" },
   { title: "מרכז הגדרות וחיבורים", url: createPageUrl("AdminSettings"), icon: Settings, isSubItem: true, color: "espresso" },
+  { title: "הגדרות פלטפורמה 🧩", url: createPageUrl("PlatformSettings"), icon: LayoutGrid, isSubItem: true, color: "espresso" },
   { title: "ייצוא דאטה", url: createPageUrl("DataExport"), icon: Download, isSubItem: true, color: "espresso" },
   { title: "שליחת Push ידני", url: createPageUrl("PushNotifications"), icon: Bell, isSubItem: true, color: "espresso" },
   { title: "פופ-אפים מתוזמנים 🔔", url: createPageUrl("Popups"), icon: Megaphone, isSubItem: true, color: "espresso" },
