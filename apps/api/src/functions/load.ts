@@ -12251,6 +12251,23 @@ registerFn('listTenants', async ({ user, body }) => {
 // Get onboarding progress for the current caller's tenant. Public because
 // the calling context is the tenant's own app, which uses schema='tenant_X'.
 // We look up the tenant by slug (via TENANT_SLUG env var set at provision).
+// SUPER-ADMIN — manually (re)start the onboarding conversation for a
+// tenant. Wipes existing state + sends the welcome WhatsApp. Useful for
+// tenants provisioned before the onboarding agent existed (like Miha).
+registerFn('restartTenantOnboarding', async ({ user, body }) => {
+  if (!isSuperAdmin(user)) throw new Error('super-admin only');
+  await ensurePlatformTables();
+  const b = (body || {}) as any;
+  if (!b.tenant_id) throw new Error('tenant_id required');
+  // Wipe any existing state
+  await (prisma as any).$executeRawUnsafe(
+    `DELETE FROM "OnboardingState" WHERE tenant_id = $1`, b.tenant_id,
+  );
+  const { startOnboarding } = await import('../lib/whatsappOnboarding.js');
+  await startOnboarding(b.tenant_id);
+  return { ok: true, message: 'Onboarding conversation restarted' };
+});
+
 registerFn('getMyOnboardingStatus', async ({ user }) => {
   if (!user?.id) throw new Error('unauthorized');
   await ensurePlatformTables();

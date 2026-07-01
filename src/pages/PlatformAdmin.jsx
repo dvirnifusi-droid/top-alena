@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Loader2, Crown, CheckCircle2, Clock, AlertTriangle, Building, RefreshCw, Users, DollarSign, Zap, LogIn, ExternalLink } from 'lucide-react';
+import { Loader2, Crown, CheckCircle2, Clock, AlertTriangle, Building, RefreshCw, Users, DollarSign, Zap, LogIn, ExternalLink, MessageCircle } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import PageGuard from '../components/shared/PageGuard';
 import { Link } from 'react-router-dom';
@@ -12,6 +12,7 @@ function PlatformAdminInner() {
   const [metrics, setMetrics] = useState(null);
   const [loading, setLoading] = useState(true);
   const [impersonatingId, setImpersonatingId] = useState(null);
+  const [restartingId, setRestartingId] = useState(null);
 
   const load = async () => {
     setLoading(true);
@@ -26,6 +27,16 @@ function PlatformAdminInner() {
     finally { setLoading(false); }
   };
   useEffect(() => { load(); }, []);
+
+  const restartOnboarding = async (t) => {
+    if (!window.confirm(`להפעיל שיחת Onboarding בוואטסאפ עם הבעלים של "${t.name}"? הבעלים יקבל הודעה מיידית.`)) return;
+    setRestartingId(t.id);
+    try {
+      await base44.functions.restartTenantOnboarding({ tenant_id: t.id });
+      alert('✅ הודעת Onboarding נשלחה בוואטסאפ');
+    } catch (e) { alert('שגיאה: ' + (e?.message || '')); }
+    finally { setRestartingId(null); }
+  };
 
   const impersonate = async (t) => {
     if (!window.confirm(`להיכנס כ-owner של "${t.name}"? תיפתח בטאב חדש עם ההרשאות שלה.`)) return;
@@ -163,15 +174,28 @@ function PlatformAdminInner() {
                           <td className="p-3 text-center">{t.unpaid_invoices > 0 ? <span className="font-bold text-red-600">{t.unpaid_invoices}</span> : '0'}</td>
                           <td className="p-3">
                             {!t.is_main && (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                disabled={impersonatingId === t.id}
-                                onClick={() => impersonate(t)}
-                                className="text-xs whitespace-nowrap"
-                              >
-                                {impersonatingId === t.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <><LogIn className="w-3.5 h-3.5 ml-1" /> היכנס כ-owner</>}
-                              </Button>
+                              <div className="flex gap-1">
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  disabled={impersonatingId === t.id}
+                                  onClick={() => impersonate(t)}
+                                  className="text-xs whitespace-nowrap"
+                                  title="היכנס כ-owner של המסעדה"
+                                >
+                                  {impersonatingId === t.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <><LogIn className="w-3.5 h-3.5 ml-1" /> היכנס</>}
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  disabled={restartingId === t.id}
+                                  onClick={() => restartOnboarding(t)}
+                                  className="text-xs whitespace-nowrap border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-800"
+                                  title="שלח שיחת Onboarding בוואטסאפ"
+                                >
+                                  {restartingId === t.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <><MessageCircle className="w-3.5 h-3.5 ml-1" /> Onboarding</>}
+                                </Button>
+                              </div>
                             )}
                           </td>
                         </tr>
