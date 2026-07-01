@@ -11,6 +11,14 @@ async function fetchBranding() {
   if (_cache) return _cache;
   if (_fetchPromise) return _fetchPromise;
   _fetchPromise = (async () => {
+    // Only try to fetch when we actually have an auth token — otherwise the
+    // /entities/RestaurantProfile call 401s during app-boot before login and
+    // that unhandled rejection crashes downstream code that assumed a resolve.
+    const hasToken = typeof window !== 'undefined' && !!window.localStorage.getItem('auth_token');
+    if (!hasToken || !base44?.entities?.RestaurantProfile) {
+      _cache = { name: 'TOP ALENA', is_default: true };
+      return _cache;
+    }
     try {
       const rows = await base44.entities.RestaurantProfile.list();
       const profile = Array.isArray(rows) && rows.length > 0 ? rows[0] : null;
@@ -27,7 +35,10 @@ async function fetchBranding() {
       return _cache;
     }
   })();
-  return _fetchPromise;
+  return _fetchPromise.catch(() => {
+    // Ultimate fallback — if anything above throws synchronously, don't crash React.
+    return { name: 'TOP ALENA', is_default: true };
+  });
 }
 
 export function useTenantBranding() {
