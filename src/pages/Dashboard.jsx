@@ -15,6 +15,7 @@ import RecentIncidents from '../components/dashboard/RecentIncidents';
 import ChecklistStatus from '../components/dashboard/ChecklistStatus';
 import TreatsReport from '../components/dashboard/TreatsReport';
 import AiQuickAdd from '../components/dashboard/AiQuickAdd';
+import OnboardingProgressCard from '../components/dashboard/OnboardingProgressCard';
 import SeatingAiHelper from '../components/dashboard/SeatingAiHelper';
 import InvoiceScanner from '../components/dashboard/InvoiceScanner';
 import ManualSurveyTool from '../components/dashboard/ManualSurveyTool';
@@ -346,6 +347,7 @@ function DashboardInner() {
                     </button>
                 </div>
 
+                <OnboardingProgressCard />
                 {widgetOrder.map(id => adminWidgets[id] || null)}
             </div>
             <DashboardCustomizer open={showCustomizer} onClose={() => setShowCustomizer(false)} layout={layout} onSave={saveLayout} />

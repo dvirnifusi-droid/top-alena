@@ -16,6 +16,7 @@ import { handleAdminInvoiceMedia, tryConfirmPendingInvoice } from '../lib/whatsa
 import { tryProposeAction, tryConfirmPendingAction } from '../lib/whatsappActions.js';
 import { transcribeWhatsAppVoice } from '../lib/whatsappVoice.js';
 import { runConversationAgent } from '../lib/whatsappConversation.js';
+import { tryHandleOnboardingMessage } from '../lib/whatsappOnboarding.js';
 import { sendWhatsApp } from '../lib/twilio.js';
 
 const STRICT_SIG = false;
@@ -250,6 +251,18 @@ export const twilioWebhookRoutes: FastifyPluginAsync = async (app) => {
           })();
           return;
         }
+        // ── Onboarding agent: tenants that just registered are in a guided
+        // WhatsApp conversation. Highest priority — before employee routing.
+        try {
+          const handled = await tryHandleOnboardingMessage(from, body);
+          if (handled) {
+            reply.type('text/xml').send('<?xml version="1.0" encoding="UTF-8"?><Response></Response>');
+            return;
+          }
+        } catch (e: any) {
+          req.log.warn({ err: e?.message }, '[whatsapp-agent] onboarding handler failed');
+        }
+
         // ── Employee agent: route any sender whose phone matches an Employee
         // record to the conversation agent. The agent's buildSystemPrompt
         // resolves their role + permission scope and serves the right prompt.

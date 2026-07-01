@@ -12121,6 +12121,22 @@ async function ensurePlatformTables() {
     "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
   )`);
   await sql(`CREATE INDEX IF NOT EXISTS "ProvisioningJob_status_idx" ON "ProvisioningJob"("status")`);
+  // Onboarding state machine — one row per tenant tracks where they are in
+  // the WhatsApp-driven setup conversation. current_step is a slug the
+  // handler uses to know which question to send next.
+  await sql(`CREATE TABLE IF NOT EXISTS "OnboardingState" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "tenant_id" TEXT NOT NULL UNIQUE REFERENCES "Tenant"("id") ON DELETE CASCADE,
+    "current_step" TEXT NOT NULL DEFAULT 'welcome',
+    "completed_steps" JSONB NOT NULL DEFAULT '[]'::jsonb,
+    "collected_data" JSONB NOT NULL DEFAULT '{}'::jsonb,
+    "started_at" TIMESTAMP(3),
+    "completed_at" TIMESTAMP(3),
+    "last_message_at" TIMESTAMP(3),
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+  )`);
+  await sql(`CREATE INDEX IF NOT EXISTS "OnboardingState_current_step_idx" ON "OnboardingState"("current_step")`);
   platformTablesReady = true;
 }
 
@@ -12232,6 +12248,39 @@ registerFn('listTenants', async ({ user, body }) => {
 // tenant schema and queries the same handful of tables (User, Employee,
 // ShiftTracking, EventContract, Invoice) — returns platform totals plus a
 // per-tenant breakdown. Safe on missing tables per tenant (catch each).
+// Get onboarding progress for the current caller's tenant. Public because
+// the calling context is the tenant's own app, which uses schema='tenant_X'.
+// We look up the tenant by slug (via TENANT_SLUG env var set at provision).
+registerFn('getMyOnboardingStatus', async ({ user }) => {
+  if (!user?.id) throw new Error('unauthorized');
+  await ensurePlatformTables();
+  const slug = process.env.TENANT_SLUG || 'alena';
+  const tenantRows: any[] = await (prisma as any).$queryRawUnsafe(
+    `SELECT id, restaurant_name FROM "Tenant" WHERE slug = $1`, slug,
+  );
+  if (!tenantRows.length) return { onboarding: null, is_main: slug === 'alena' };
+  const stateRows: any[] = await (prisma as any).$queryRawUnsafe(
+    `SELECT current_step, completed_steps, collected_data, started_at, completed_at
+     FROM "OnboardingState" WHERE tenant_id = $1`,
+    tenantRows[0].id,
+  );
+  if (!stateRows.length) return { onboarding: null };
+  const s = stateRows[0];
+  const totalSteps = 7; // welcome + name + address + hours + cuisine + employees + menu
+  const done = Array.isArray(s.completed_steps) ? s.completed_steps.length : 0;
+  return {
+    onboarding: {
+      current_step: s.current_step,
+      completed_steps: s.completed_steps,
+      collected_data: s.collected_data,
+      progress_percent: Math.round((done / totalSteps) * 100),
+      started_at: s.started_at,
+      completed_at: s.completed_at,
+      is_done: s.current_step === 'done',
+    },
+  };
+});
+
 registerFn('getSuperAdminMetrics', async ({ user }) => {
   if (!isSuperAdmin(user)) throw new Error('super-admin only');
   await ensurePlatformTables();
@@ -12443,8 +12492,15 @@ registerFn('reportProvisioningResult', async ({ body }) => {
       const { sendWhatsApp } = await import('../lib/twilio.js');
       const msg = `🎉 *${t.restaurant_name}* — המערכת שלך מוכנה!\n\n` +
         `🔗 כתובת: ${t.subdomain_url}\n\n${credsLine}\n\n` +
-        `היכנס/י, שנה/י סיסמה, ותתחיל/י לעבוד. כל שאלה — שלחו לנו הודעה לכאן.`;
+        `תוך רגע אני אכתוב לך שוב כדי לעזור לך להקים את המסעדה שלב-שלב. אפשר לענות לי בהודעות פשוטות ואני אעשה את הכל 🚀`;
       try { await sendWhatsApp(t.owner_phone, msg); } catch { /* noop */ }
+      // Kick off the AI-guided onboarding conversation.
+      try {
+        const { startOnboarding } = await import('../lib/whatsappOnboarding.js');
+        await startOnboarding(b.tenant_id);
+      } catch (e: any) {
+        console.warn('[provisioning] startOnboarding failed', e?.message);
+      }
     }
   }
   return { ok: true };
