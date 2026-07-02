@@ -40,7 +40,7 @@ const db = prisma as any; // generic delegate access
 
 // Public deploy marker — lets us confirm which build is live (and that
 // auto-deploy is working) without server access. Bump on each deploy test.
-registerFn('deployInfo', async () => ({ version: 'd4-integrations-2026-07-02', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
+registerFn('deployInfo', async () => ({ version: 'b-signup-slug-2026-07-02', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
 
 
 
@@ -12628,6 +12628,22 @@ function isSuperAdmin(user: any): boolean {
 
 // PUBLIC — anyone can post a signup. Creates Tenant in pending_approval +
 // WhatsApp notifies super-admin with one-tap approve link.
+// B — public real-time slug availability check for the signup form.
+// Returns { available: bool, reason: string | null }. Reasons: 'format',
+// 'reserved', 'taken'. Never leaks other tenant data.
+registerFn('slugAvailable', async ({ body }) => {
+  await ensurePlatformTables();
+  const b = (body || {}) as any;
+  const slug = String(b.slug || '').toLowerCase().trim();
+  if (!slug) return { available: false, reason: 'empty' };
+  if (!/^[a-z][a-z0-9-]{2,29}$/.test(slug)) return { available: false, reason: 'format' };
+  const reserved = ['www', 'admin', 'signup', 'api', 'app', 'mail', 'ftp', 'topalena', 'alena', 'platform', 'meta', 'static'];
+  if (reserved.includes(slug)) return { available: false, reason: 'reserved' };
+  const rows: any[] = await (prisma as any).$queryRawUnsafe(`SELECT 1 FROM "Tenant" WHERE slug = $1 LIMIT 1`, slug);
+  if (rows.length) return { available: false, reason: 'taken' };
+  return { available: true, reason: null };
+}, { public: true });
+
 registerFn('requestTenantSignup', async ({ body }) => {
   await ensurePlatformTables();
   const b = (body || {}) as any;
