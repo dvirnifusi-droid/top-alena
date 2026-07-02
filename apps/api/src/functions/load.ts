@@ -12961,6 +12961,84 @@ registerFn('getSuperAdminMetrics', async ({ user }) => {
   };
 });
 
+// SUPER-ADMIN — resend the welcome WhatsApp with fresh credentials.
+// Also idempotently: (1) marks tenant live if still stuck in provisioning,
+// (2) seeds the owner user if not seeded yet (with a NEW temp password).
+// Used when the auto-send from reportProvisioningResult failed silently
+// (Python JSON glitch in provisioner-cron.sh, network hiccup, etc).
+registerFn('resendTenantWelcome', async ({ user, body }) => {
+  if (!isSuperAdmin(user)) throw new Error('super-admin only');
+  await ensurePlatformTables();
+  const b = (body || {}) as any;
+  if (!b.tenant_id) throw new Error('tenant_id required');
+  const rows: any[] = await (prisma as any).$queryRawUnsafe(
+    `SELECT id, slug, restaurant_name, owner_name, owner_phone, owner_email, subdomain_url, status
+     FROM "Tenant" WHERE id = $1`,
+    b.tenant_id,
+  );
+  if (!rows.length) throw new Error('Tenant not found');
+  const t = rows[0];
+  if (!t.owner_phone) throw new Error('Tenant has no owner_phone');
+
+  // If the provisioning callback never landed, the container is up but the
+  // Tenant row still says pending_provisioning. Flip it now — the caller
+  // clicked this precisely because they've verified the tenant is running.
+  if (t.status === 'pending_provisioning' || t.status === 'provisioning') {
+    await (prisma as any).$executeRawUnsafe(
+      `UPDATE "Tenant" SET status = 'live', provisioned_at = COALESCE(provisioned_at, NOW()),
+         live_at = COALESCE(live_at, NOW()), "updatedAt" = NOW() WHERE id = $1`,
+      b.tenant_id,
+    );
+  }
+
+  // Fresh temp password every time — the owner may have lost the previous
+  // message and there's no way to recover the old hash.
+  const tempPassword = `TopAlena-${Math.floor(1000 + Math.random() * 9000)}`;
+  let credsLine = 'צור/צרי משתמש בעצמך בטופס הרשמה.';
+  if (t.owner_email) {
+    try {
+      const bcrypt = (await import('bcryptjs')).default;
+      const hash = await bcrypt.hash(tempPassword, 10);
+      const schema = `tenant_${t.slug}`;
+      await (prisma as any).$executeRawUnsafe(
+        `INSERT INTO "${schema}"."User" ("id", "email", "passwordHash", "role", "fullName", "createdAt", "updatedAt")
+         VALUES ($1, $2, $3, 'owner', $4, NOW(), NOW())
+         ON CONFLICT (email) DO UPDATE SET "passwordHash" = EXCLUDED."passwordHash", "updatedAt" = NOW()`,
+        randomUUID(), String(t.owner_email).toLowerCase(), hash, t.owner_name || '',
+      );
+      credsLine = `📧 מייל: ${t.owner_email}\n🔑 סיסמה זמנית: *${tempPassword}*\n(שנה/י אותה אחרי הכניסה הראשונה)`;
+    } catch (e: any) {
+      console.warn('[resendWelcome] user seed failed', e?.message);
+      credsLine = `❌ יצירת המשתמש נכשלה. פנה לתמיכה.`;
+    }
+  }
+  const brandDisplay = t.restaurant_name || t.slug;
+  const link = t.subdomain_url || `https://${t.slug}.topalena.com`;
+  const msg = `🎉 *${brandDisplay}* — המערכת שלך מוכנה!\n\n` +
+    `🔗 כתובת: ${link}\n\n${credsLine}\n\n` +
+    `תוך רגע אני אכתוב לך שוב כדי לעזור לך להקים את המסעדה שלב-שלב. אפשר לענות לי בהודעות פשוטות ואני אעשה את הכל 🚀`;
+  const { sendWhatsApp } = await import('../lib/twilio.js');
+  let waResult: any = null;
+  try {
+    waResult = await sendWhatsApp(t.owner_phone, msg);
+  } catch (e: any) {
+    throw new Error(`WhatsApp send failed: ${e?.message || 'unknown'}`);
+  }
+  // Also start the onboarding conversation if not already going.
+  try {
+    const existing: any[] = await (prisma as any).$queryRawUnsafe(
+      `SELECT tenant_id FROM "OnboardingState" WHERE tenant_id = $1`, b.tenant_id,
+    );
+    if (!existing.length) {
+      const { startOnboarding } = await import('../lib/whatsappOnboarding.js');
+      await startOnboarding(b.tenant_id);
+    }
+  } catch (e: any) {
+    console.warn('[resendWelcome] startOnboarding skipped:', e?.message);
+  }
+  return { ok: true, sent_to: t.owner_phone, twilio: waResult };
+});
+
 // SUPER-ADMIN — generate an impersonation token that logs the caller in
 // as the OWNER of a target tenant. Redirects to the tenant subdomain with
 // the token in a URL param that the frontend picks up on load.

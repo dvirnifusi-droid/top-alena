@@ -69,6 +69,18 @@ function PlatformAdminInner() {
     finally { setRestartingId(null); }
   };
 
+  const resendWelcome = async (t) => {
+    const label = t.restaurant_name || t.name || t.slug;
+    if (!window.confirm(`לשלוח מחדש את פרטי הכניסה לבעלים של "${label}" בוואטסאפ? הסיסמה הישנה תוחלף בסיסמה זמנית חדשה.`)) return;
+    setActioningId(t.id);
+    try {
+      await base44.functions.resendTenantWelcome({ tenant_id: t.id });
+      alert('✅ פרטי כניסה נשלחו בוואטסאפ');
+      await load();
+    } catch (e) { alert('שגיאה: ' + (e?.message || '')); }
+    finally { setActioningId(null); }
+  };
+
   const impersonate = async (t) => {
     if (!window.confirm(`להיכנס כ-owner של "${t.name}"? תיפתח בטאב חדש עם ההרשאות שלה.`)) return;
     setImpersonatingId(t.id);
@@ -166,6 +178,12 @@ function PlatformAdminInner() {
                             דחה
                           </Button>
                         </div>
+                      )}
+                      {t.status === 'pending_provisioning' && (
+                        <Button size="sm" onClick={() => resendWelcome(t)} disabled={actioningId === t.id}
+                          className="bg-blue-600 hover:bg-blue-700 text-white" title="סגור ידנית + שלח פרטי כניסה בוואטסאפ">
+                          {actioningId === t.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <><MessageCircle className="w-4 h-4 ml-1" /> סגור ושלח פרטים</>}
+                        </Button>
                       )}
                     </div>
                   ))}
