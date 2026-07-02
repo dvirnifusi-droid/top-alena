@@ -69,6 +69,11 @@ git fetch origin migration
 git reset --hard origin/migration
 echo "==> now at: $(git rev-parse --short HEAD) - $(git log -1 --pretty=%s)"
 docker compose up -d --build
+# Also redeploy every tenant container with the fresh image.
+if [ -x "$APP/scripts/redeploy-all-tenants.sh" ]; then
+  echo "==> redeploying tenant containers..."
+  bash "$APP/scripts/redeploy-all-tenants.sh" || echo "(tenant redeploy skipped or partial — check /var/log/topalena-deploy.log)"
+fi
 
 echo "==> waiting for API..."
 sleep 8
