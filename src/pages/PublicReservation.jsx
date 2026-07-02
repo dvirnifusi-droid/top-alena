@@ -94,7 +94,7 @@ const THEME_NIGHTS = [
     when: 'שלישי · כל הערב', match: (d) => d===2 },
   { id: 'thu',   emoji: '🔥', title: 'חמישי גבוה',    blurb: 'פתוחים עד 02:00, הצוות בכושר, מקום על הבר אם תהיו זריזים.',
     when: 'חמישי · עד 02:00', match: (d) => d===4 },
-  { id: 'sat',   emoji: '✨', title: 'מוצ״ש בעלינא',   blurb: 'פותחים מ-20:15 — הערב הכי גבוה של השבוע.',
+  { id: 'sat',   emoji: '✨', title: 'מוצ״ש',   blurb: 'פותחים מ-20:15 — הערב הכי גבוה של השבוע.',
     when: 'שבת · מ-20:15', match: (d) => d===6 },
 ];
 
@@ -498,7 +498,7 @@ export default function PublicReservationPage() {
             <ul className="text-sm mt-2 space-y-1 list-disc pr-5 leading-relaxed" style={{ color: '#44512C' }}>
               <li><b>חניון בן גוריון</b> — חינם אחר הצהריים, 2 דק׳ הליכה</li>
               <li>רחובות סמוכים: רוטשילד, הרצל, וייצמן — חניה בכחול-לבן</li>
-              <li>ניווט ב-Waze ישר ל"עלינא ראשון לציון"</li>
+              <li>{`ניווט ב-Waze ישר ל"${restaurantName}"`}</li>
             </ul>
           </div>
 
@@ -1199,11 +1199,11 @@ export default function PublicReservationPage() {
         </section>
       )}
 
-      {/* ============ THEME NIGHTS — what's on at עלינא, every day ============ */}
+      {/* ============ THEME NIGHTS — what's on, every day ============ */}
       <section className="px-3 md:px-5 py-12" style={{ background: '#1F1B17', borderTop: '1px solid rgba(184,149,86,0.25)' }}>
         <div className="max-w-6xl mx-auto">
           <div className="text-center mb-7">
-            <div className="text-[11px] font-bold uppercase tracking-[0.3em]" style={{ color: '#B89556' }}>הערבים של עלינא</div>
+            <div className="text-[11px] font-bold uppercase tracking-[0.3em]" style={{ color: '#B89556' }}>{`הערבים של ${restaurantName}`}</div>
             <h3 className="brand-display text-2xl md:text-3xl mt-1" style={{ color: '#F4ECD8' }}>כל יום — סיפור אחר</h3>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
@@ -1230,7 +1230,7 @@ export default function PublicReservationPage() {
                 {[1,2,3,4,5].map(i => <Star key={i} className="w-5 h-5" style={{ fill: '#B89556', color: '#B89556' }} />)}
               </div>
               <h3 className="brand-display text-2xl md:text-3xl" style={{ color: '#1F1B17' }}>מה הסועדים אומרים</h3>
-              <p className="text-sm mt-1" style={{ color: '#6B7A4F' }}>ביקורות אמיתיות מלקוחות עלינא</p>
+              <p className="text-sm mt-1" style={{ color: '#6B7A4F' }}>{`ביקורות אמיתיות מלקוחות ${restaurantName}`}</p>
             </div>
             <div className="flex gap-3 overflow-x-auto pb-2 px-2 snap-x snap-mandatory">
               {reviews.map((r, i) => (
@@ -1262,7 +1262,7 @@ export default function PublicReservationPage() {
             <span style={{ width: 28, height: 1, background: '#B89556' }} />
           </div>
           <p className="leading-relaxed" style={{ color: '#44512C' }}>
-            עלינא היא לא רק מסעדה — היא מקום שבו אתם מרגישים בבית.
+            {`${restaurantName} — מקום שבו אתם מרגישים בבית.`}
             המנגל פתוח 13 שעות ביום, היין נשפך, הצחוקים גבוהים.
             מ-12:00 עד אחרונה.
           </p>
@@ -1346,7 +1346,7 @@ export default function PublicReservationPage() {
           {social.whatsapp  && <SocialIconLight href={social.whatsapp}  label="WhatsApp"><MessageCircle className="w-4 h-4" /></SocialIconLight>}
         </div>
 
-        <p className="text-center text-xs mt-6" style={{ color: '#8B7F65' }}>© עלינא · אוכל · אלכוהול · אווירה · אנשים</p>
+        <p className="text-center text-xs mt-6" style={{ color: '#8B7F65' }}>{`© ${restaurantName}`}</p>
       </section>
 
       {/* ============ STICKY MOBILE CTA ============ */}

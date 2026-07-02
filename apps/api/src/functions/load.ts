@@ -42,7 +42,7 @@ const db = prisma as any; // generic delegate access
 
 // Public deploy marker — lets us confirm which build is live (and that
 // auto-deploy is working) without server access. Bump on each deploy test.
-registerFn('deployInfo', async () => ({ version: 'ai-full-onboarding-2026-07-02', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
+registerFn('deployInfo', async () => ({ version: 'iso-contracts-agents-2026-07-02', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
 
 
 
@@ -5942,6 +5942,16 @@ registerFn('getActivePopups', async ({ user }) => {
     result.push({ ...rest, _viewed: !!view });
   }
 
+  // Runtime brand substitution — popups seeded from Alena's schema still
+  // reference 'עלינא' in title/message. Replace at read time.
+  if (result.length) {
+    const pbrand = await getBrandName();
+    for (const p of result) {
+      if (p.title) p.title = String(p.title).replaceAll('עלינא', pbrand);
+      if (p.message) p.message = String(p.message).replaceAll('עלינא', pbrand);
+    }
+  }
+
   return result;
 });
 
@@ -6121,13 +6131,22 @@ registerFn('runAgent', async ({ body, user }) => {
     if (agent.system_prompt && agent.system_prompt.trim()) {
       const apiKey = process.env.GEMINI_API_KEY;
       if (!apiKey) throw new Error('GEMINI_API_KEY not set');
+      // Runtime brand substitution — 23 CEO agents seeded from Alena's schema
+      // still have 'עלינא' baked into their system_prompt. Replace at call
+      // time with the current tenant's brand, and prepend business_context so
+      // every agent output speaks the tenant's business identity.
+      const agentBrand = await getBrandName();
+      const agentBpBlock = await businessContextBlock();
+      const finalPrompt = agentBpBlock + String(agent.system_prompt)
+        .replaceAll('{brand}', agentBrand)
+        .replaceAll('עלינא', agentBrand);
       const res = await fetch(
         `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            system_instruction: { parts: [{ text: agent.system_prompt }] },
+            system_instruction: { parts: [{ text: finalPrompt }] },
             contents: [{ role: 'user', parts: [{ text: JSON.stringify(input || {}) }] }],
             generationConfig: { temperature: 0.2, maxOutputTokens: 4096, thinkingConfig: { thinkingBudget: 0 } },
           }),
@@ -13305,7 +13324,7 @@ const OFFICIAL_EVENT_TERMS_TEMPLATE: string[] = [
   '## שינויים בהזמנה',
   'ניתן לעדכן את התפריט ואת מספר הסועדים עד 72 שעות לפני מועד האירוע.',
   'לאחר מועד זה לא ניתן לבצע שינויים בתפריט או להפחית את מספר הסועדים המחויב.',
-  'הגדלת מספר הסועדים לאחר מועד זה כפופה לאישור עלינא בלבד ובהתאם לתפוסת המסעדה וזמינות המקום.',
+  'הגדלת מספר הסועדים לאחר מועד זה כפופה לאישור {brand} בלבד ובהתאם לתפוסת המסעדה וזמינות המקום.',
   'במקרה שבו יגיעו פחות סועדים מהכמות שאושרה, החיוב יתבצע לפי הכמות שסוכמה 72 שעות לפני האירוע.',
   'במקרה שבו יגיעו סועדים נוספים ויתאפשר לארחם, יחויב כל סועד נוסף במחיר המלא שנקבע בהסכם.',
   '## מקדמה ותשלום',
@@ -13318,7 +13337,7 @@ const OFFICIAL_EVENT_TERMS_TEMPLATE: string[] = [
   'במידה ונצרכו שירותים, משקאות, מנות או תוספות מעבר למוסכם בהזמנה, יחויבו אלו בהתאם למחירי המסעדה במועד האירוע.',
   '## הרכב שולחנות וישיבה',
   'הרכב השולחנות וסידור הישיבה ייקבעו על ידי המסעדה בהתאם לכמות הסועדים בהזמנה, לתפוסת המסעדה ולתשתית הפיזית של המקום.',
-  'עלינא תעשה כל מאמץ לארח את כלל אורחי האירוע במתחם אחד או בסמיכות מרבית, אולם ייתכן והישיבה תתפרס על פני מספר שולחנות או אזורים בהתאם לשיקול דעתה הבלעדי של המסעדה.',
+  '{brand} תעשה כל מאמץ לארח את כלל אורחי האירוע במתחם אחד או בסמיכות מרבית, אולם ייתכן והישיבה תתפרס על פני מספר שולחנות או אזורים בהתאם לשיקול דעתה הבלעדי של המסעדה.',
   'אין באמור כדי לפגוע באיכות השירות או באווירת האירוע — המסעדה תעמיד את כלל המשאבים הנדרשים כדי להעניק חוויה אחידה לכלל הסועדים.',
   '## מדיניות ביטול',
   'ביטול עד 72 שעות לפני מועד האירוע – ללא דמי ביטול והמקדמה תוחזר במלואה.',
@@ -13328,9 +13347,9 @@ const OFFICIAL_EVENT_TERMS_TEMPLATE: string[] = [
   '## איחורים',
   'השולחן יישמר למשך 15 דקות ממועד ההגעה שנקבע.',
   'במקרה של איחור העולה על 15 דקות, זמן האירוע ייחשב החל משעת ההגעה המקורית שנקבעה בהזמנה ולא משעת ההגעה בפועל.',
-  'עלינא שומרת לעצמה את הזכות לבצע התאמות במיקום הישיבה, בסדר ההגשה ובקצב השירות בהתאם לתפוסת המסעדה ולצרכיה התפעוליים.',
+  '{brand} שומרת לעצמה את הזכות לבצע התאמות במיקום הישיבה, בסדר ההגשה ובקצב השירות בהתאם לתפוסת המסעדה ולצרכיה התפעוליים.',
   '## התנהלות במהלך האירוע',
-  'עלינא הינה מסעדה פעילה והאירוע אינו מהווה אירוע פרטי או סגירת המסעדה, אלא אם סוכם אחרת בכתב.',
+  '{brand} הינה מסעדה פעילה והאירוע אינו מהווה אירוע פרטי או סגירת המסעדה, אלא אם סוכם אחרת בכתב.',
   'המוזיקה המושמעת במסעדה נבחרת על ידי המסעדה והווליום נקבע על ידה בלבד.',
   'נאומים, מצגות, הקרנות, מערכות הגברה, הופעות או כל פעילות העלולה להפריע לאורחי המסעדה מחייבות אישור מראש ובכתב.',
   'משך האירוח במסגרת ההזמנה הינו עד שעתיים ממועד ההגעה שנקבע.',
@@ -13390,7 +13409,7 @@ registerFn('createEventContract', async ({ body, user }) => {
       customer_id_or_taxno: b.customer_id_or_taxno ?? null,
       company_or_event_label: b.company_or_event_label ?? null,
       event_type: b.event_type ?? booking?.event_type ?? null,
-      event_location: b.event_location ?? 'עלינא — רוטשילד 104, ראשון לציון',
+      event_location: b.event_location ?? (await getBrandName()),
       event_date: b.event_date ?? booking?.event_date ?? null,
       event_start_time: b.event_start_time ?? booking?.event_time ?? null,
       event_end_time: b.event_end_time ?? null,
@@ -13404,7 +13423,11 @@ registerFn('createEventContract', async ({ body, user }) => {
       balance_ils: balanceIls || null,
       menu_snapshot: b.menu_snapshot ?? booking?.selected_dishes ?? selMenu?.dishes ?? null,
       upsells_snapshot: b.upsells_snapshot ?? booking?.selected_upsells ?? null,
-      terms_snapshot: b.terms_snapshot ?? (Array.isArray(kit?.terms) && kit.terms.length > 0 ? kit.terms : OFFICIAL_EVENT_TERMS_TEMPLATE),
+      terms_snapshot: b.terms_snapshot ?? await (async () => {
+        const brand = await getBrandName();
+        const raw = Array.isArray(kit?.terms) && kit.terms.length > 0 ? kit.terms : OFFICIAL_EVENT_TERMS_TEMPLATE;
+        return raw.map((t: string) => String(t).replaceAll('{brand}', brand).replaceAll('עלינא', brand));
+      })(),
       notes: b.notes ?? null,
       status: 'draft',
       createdBy: user?.email || null,
@@ -14039,7 +14062,7 @@ registerFn('seedSpecialPopupsIfEmpty', async ({ user }) => {
   const seeds = [
     { variant: 'events', priority: 0, eyebrow: 'אירועים פרטיים', emoji: '🎉',
       title: 'מארגנים אירוע אצלכם בעסק או בחיים?',
-      body: 'יום הולדת 30, מסיבת רווקות, אירוע חברה, מפגש לקוחות — אצלנו סוגרים תפריט אישי, חדר פרטי, ובר פתוח. עלינא מנוסה באירוח גבוה.',
+      body: 'יום הולדת 30, מסיבת רווקות, אירוע חברה, מפגש לקוחות — אצלנו סוגרים תפריט אישי, חדר פרטי, ובר פתוח. מנוסים באירוח גבוה.',
       cta: 'בקשת הצעת מחיר לאירוע', cta_href: '/EventsInquiry' },
     { variant: 'lunch', priority: 10, eyebrow: 'בצהריים אצלנו', emoji: '🍽',
       title: 'ארוחות צהריים עסקיות',
@@ -14125,7 +14148,7 @@ registerFn('aiSeatingAssistant', async ({ body }) => {
   const nowStr = new Date().toLocaleString('he-IL', { hour: '2-digit', minute: '2-digit' });
   const combinable = tables.filter((t: any) => Array.isArray(t.combinable) && t.combinable.length);
 
-  const sys = `אתה עוזר ניהול הושבה למסעדה "עלינא" בראשון לציון. מקבל מצב מסעדה עכשיו ועונה למארחת בעברית.
+  const sys = `${await businessContextBlock()}אתה עוזר ניהול הושבה למסעדה "${await getBrandName()}". מקבל מצב מסעדה עכשיו ועונה למארחת בעברית.
 תפקידך: המלצה קצרה, מעשית, ספציפית. שמות, שעות ושולחנות אמיתיים מהנתונים בלבד.
 תמיד החזר JSON: {"answer": "...", "actions": [{"label":"...","table":"...","customer":"..."}]}.
 תשובה 1-3 משפטים. פעולות = רעיונות קונקרטיים (חבר 201+202, הושב X על שולחן Y, האריך, העבר וכו').`;
