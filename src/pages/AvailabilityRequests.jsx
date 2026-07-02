@@ -9,7 +9,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { format, addDays, startOfWeek, endOfWeek, eachDayOfInterval } from 'date-fns';
 import { he } from 'date-fns/locale';
-import { Loader2, Users, ChevronLeft, ChevronRight, CheckCircle2, Zap, Edit2, ChevronDown, ChevronUp } from 'lucide-react';
+import { Loader2, Users, ChevronLeft, ChevronRight, CheckCircle2, Zap, Edit2, ChevronDown, ChevronUp, Plus, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 import PageGuard from '../components/shared/PageGuard';
 
@@ -362,6 +362,63 @@ function AvailabilityRequestsInner() {
     );
 
     if (!selectedDepartment) {
+        const hasDepartments = Array.isArray(settings?.departments) && settings.departments.length > 0;
+
+        const addDivision = async () => {
+            const label = window.prompt('שם החטיבה (למשל: מטבח, בר, מלצרים)');
+            if (!label || !label.trim()) return;
+            const key = label.trim()
+                .toLowerCase()
+                .replace(/\s+/g, '_')
+                .replace(/[^a-z0-9_א-ת]/g, '');
+            try {
+                const current = settings || {};
+                const nextDepts = [...(current.departments || []), { key, label: label.trim(), positions: [] }];
+                if (current.id) {
+                    await base44.entities.AvailabilityFormSettings.update(current.id, { departments: nextDepts });
+                } else {
+                    await base44.entities.AvailabilityFormSettings.create({ departments: nextDepts });
+                }
+                window.location.reload();
+            } catch (e) {
+                alert('שגיאה ביצירת חטיבה: ' + (e?.message || ''));
+            }
+        };
+
+        const aiSuggestDivisions = async () => {
+            try {
+                // Reuse suggestRoles output to derive division labels from
+                // the tenant's business profile (kitchen/bar/floor/managers).
+                const res = await base44.functions.suggestRoles({});
+                const data = res?.data || res;
+                const roles = (data?.roles || []);
+                // Derive unique department labels from role names — best-effort.
+                const uniq = new Set();
+                for (const r of roles) {
+                    if (/טבח|מטבח|קונדיטור/i.test(r.name || '')) uniq.add('מטבח');
+                    else if (/ברמן|סומליה|בר\b/i.test(r.name || '')) uniq.add('בר');
+                    else if (/מלצר|מארח|רץ/i.test(r.name || '')) uniq.add('מלצרים');
+                    else if (/מנהל|Manager/i.test(r.name || '')) uniq.add('מנהלים');
+                }
+                if (!uniq.size) uniq.add('כללי');
+                const nextDepts = Array.from(uniq).map((label) => ({
+                    key: String(label).toLowerCase().replace(/\s+/g, '_'),
+                    label,
+                    positions: [],
+                }));
+                const current = settings || {};
+                const merged = [...(current.departments || []), ...nextDepts.filter(d => !(current.departments || []).some(x => x.key === d.key))];
+                if (current.id) {
+                    await base44.entities.AvailabilityFormSettings.update(current.id, { departments: merged });
+                } else {
+                    await base44.entities.AvailabilityFormSettings.create({ departments: merged });
+                }
+                window.location.reload();
+            } catch (e) {
+                alert('שגיאה: ' + (e?.message || ''));
+            }
+        };
+
         return (
             <div className="flex items-center justify-center min-h-screen p-4">
                 <Card className="max-w-md w-full">
@@ -370,7 +427,7 @@ function AvailabilityRequestsInner() {
                     </CardHeader>
                     <CardContent className="space-y-3">
                         <p className="text-center text-gray-600 text-sm">
-                            בחר איזו חטיבה אתה רוצה לעבוד איתה:
+                            {hasDepartments ? 'בחר איזו חטיבה אתה רוצה לעבוד איתה:' : 'עוד לא הוגדרו חטיבות במסעדה שלך.'}
                         </p>
                         {settings?.departments?.map(dept => (
                             <Button
@@ -382,9 +439,14 @@ function AvailabilityRequestsInner() {
                                 {dept.label}
                             </Button>
                         ))}
-                        {!settings?.departments || settings.departments.length === 0 && (
-                            <p className="text-center text-red-600 text-sm">לא נמצאו חטיבות בהגדרות</p>
-                        )}
+                        <div className="pt-3 border-t space-y-2">
+                            <Button onClick={addDivision} className="w-full gap-1" variant="default">
+                                <Plus className="w-4 h-4" /> צור חטיבה חדשה
+                            </Button>
+                            <Button onClick={aiSuggestDivisions} className="w-full gap-1" variant="outline">
+                                <Sparkles className="w-4 h-4" /> AI — בנה חטיבות לפי הפרופיל
+                            </Button>
+                        </div>
                     </CardContent>
                 </Card>
             </div>

@@ -42,7 +42,7 @@ const db = prisma as any; // generic delegate access
 
 // Public deploy marker — lets us confirm which build is live (and that
 // auto-deploy is working) without server access. Bump on each deploy test.
-registerFn('deployInfo', async () => ({ version: 'ai-onboarding-2026-07-02', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
+registerFn('deployInfo', async () => ({ version: 'fix-prompts-wa-mirror-2026-07-02', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
 
 
 
@@ -6596,7 +6596,14 @@ registerFn('chatEventsInquiry', async ({ body }) => {
   const brandNameEv = await getBrandName();
   const bpBlockEv = await businessContextBlock();
   const rawPrompt = (kit.system_prompt && kit.system_prompt.trim()) || DEFAULT_EVENTS_PROMPT;
-  const systemPrompt = bpBlockEv + rawPrompt.replaceAll('{brand}', brandNameEv);
+  // Runtime brand swap — legacy stored prompts had hardcoded 'עלינא' /
+  // 'עלנא' baked in; replace them with the tenant's actual brand so the
+  // events agent doesn't greet Miha customers as Alena.
+  const systemPrompt = bpBlockEv
+    + rawPrompt
+        .replaceAll('{brand}', brandNameEv)
+        .replaceAll('עלינא', brandNameEv)
+        .replaceAll('עלנא', brandNameEv);
 
   const turns: Array<{ role: string; content: string }> = Array.isArray(history) ? history : [];
   const transcript = turns.map((t) => `${t.role === 'assistant' ? 'עוזר' : 'לקוח'}: ${t.content}`).join('\n');
@@ -9758,7 +9765,11 @@ registerFn('chatWaiter', async ({ body }) => {
   }
   const rawPromptW = (kit.system_prompt && kit.system_prompt.trim()) || WAITER_DEFAULT_PROMPT;
   const bpBlockW = await businessContextBlock();
-  const systemPrompt = bpBlockW + renderBrand(rawPromptW, await getBrandName());
+  const brandNameW = await getBrandName();
+  const systemPrompt = bpBlockW
+    + renderBrand(rawPromptW, brandNameW)
+        .replaceAll('עלינא', brandNameW)
+        .replaceAll('עלנא', brandNameW);
 
   const turns: Array<{ role: string; content: string }> = Array.isArray(history) ? history : [];
   const transcript = turns.map((t) => `${t.role === 'assistant' ? 'מלצר' : 'לקוח'}: ${t.content}`).join('\n');
@@ -19321,6 +19332,25 @@ registerFn('getMyAiUsage', async ({ user }) => {
   if (!user?.id) throw new Error('unauthorized');
   const usage = await getMyMonthlyUsage();
   return usage;
+});
+
+// BP — Reset events/waiter Sales Kit system_prompt to the platform's
+// default template. Used by the /EventsPrivate "אפס לפי הפרופיל שלי" button
+// so tenants can wipe an inherited Alena-era prompt in one click.
+registerFn('resetKitPrompt', async ({ user, body }) => {
+  if (!user?.id) throw new Error('unauthorized');
+  if (!isAdminRole((user as any)?.role)) throw new Error('admin only');
+  const b = (body || {}) as any;
+  const kind = String(b.kind || 'events').toLowerCase();
+  const table = kind === 'waiter' ? 'waiterKit' : 'eventSalesKit';
+  const defaultPrompt = kind === 'waiter' ? WAITER_DEFAULT_PROMPT : DEFAULT_EVENTS_PROMPT;
+  const existing: any = await (db as any)[table].findFirst({ where: { singleton: true } }).catch(() => null);
+  if (existing?.id) {
+    await (db as any)[table].update({ where: { id: existing.id }, data: { system_prompt: defaultPrompt } });
+  } else {
+    await (db as any)[table].create({ data: { singleton: true, system_prompt: defaultPrompt } });
+  }
+  return { ok: true, template: defaultPrompt };
 });
 
 // BP — Suggest job roles tailored to this tenant's business profile.

@@ -182,9 +182,27 @@ export default function EventsSalesKit() {
 
         <TabsContent value="prompt">
           <Card><CardContent className="p-4 space-y-2">
-            <Label>System Prompt</Label>
+            <div className="flex items-center justify-between">
+              <Label>System Prompt</Label>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={async () => {
+                  if (!window.confirm('לאפס את הפרומפט לתבנית ברירת המחדל של המערכת (עם שם המסעדה שלך)? השינויים הידניים שלך יימחקו.')) return;
+                  try {
+                    const res = await base44.functions.resetKitPrompt({ kind: 'events' });
+                    const data = res?.data || res;
+                    if (data?.template) setKit({ ...kit, system_prompt: data.template });
+                  } catch (e) { alert('שגיאה: ' + (e?.message || '')); }
+                }}
+              >
+                🔄 אפס לפי הפרופיל שלי
+              </Button>
+            </div>
             <Textarea rows={24} value={kit.system_prompt || ''} onChange={(e) => setKit({ ...kit, system_prompt: e.target.value })} className="font-mono text-xs" />
-            <p className="text-xs text-muted-foreground">השינוי נכנס לתוקף ב-turn הבא של כל שיחה.</p>
+            <p className="text-xs text-muted-foreground">
+              השינוי נכנס לתוקף ב-turn הבא של כל שיחה. **הערה:** בזמן ריצה, כל &quot;עלינא&quot; שנשאר בטקסט יוחלף אוטומטית בשם המסעדה שלך + פרופיל העסק יזרם בראש הפרומפט.
+            </p>
           </CardContent></Card>
         </TabsContent>
       </Tabs>
