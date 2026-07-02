@@ -23,10 +23,12 @@
 
 import { prisma } from '../db.js';
 
-// Slug prefix pattern — appears at the very start of the message body.
-// Examples: "+miha היי", "+yoavi order", "+alena rezerve".
-// Case-insensitive; strip trailing punctuation.
-const SLUG_PREFIX_RE = /^\s*\+([a-z][a-z0-9-]{2,32})[\s,.:;!?]?/i;
+// Slug marker — a `+<slug>` token anywhere in the message, bounded by
+// whitespace/start/end/punctuation. Handles RTL bidi cases where WhatsApp
+// visually renders "+miha היי" but the actual byte order is "היי +miha".
+// Examples caught: "+miha היי", "היי +miha", "רוצה +yoavi לקבוע".
+// Case-insensitive.
+const SLUG_PREFIX_RE = /(^|\s)\+([a-z][a-z0-9-]{2,32})(?=\s|$|[,.:;!?])/i;
 
 // Fallback tenant when nothing resolves. Alena because she predates D3 and
 // legacy phones point to her by default. Override in a tenant container by
@@ -72,11 +74,16 @@ export async function resolveTenantFromMessage(
 ): Promise<TenantResolution> {
   const phone = normalizePhone(fromPhone);
 
-  // 1. Explicit prefix always wins.
-  const m = SLUG_PREFIX_RE.exec(String(body || ''));
+  // 1. Explicit prefix always wins. Regex captures [leading, slug].
+  const bodyStr = String(body || '');
+  const m = SLUG_PREFIX_RE.exec(bodyStr);
   if (m) {
-    const slug = m[1].toLowerCase();
-    const bodyAfterPrefix = String(body).slice(m[0].length).trim();
+    const slug = m[2].toLowerCase();
+    // Strip the whole match (including its leading whitespace) from wherever
+    // it appeared, then collapse whitespace.
+    const bodyAfterPrefix = (bodyStr.slice(0, m.index) + bodyStr.slice(m.index + m[0].length))
+      .replace(/\s+/g, ' ')
+      .trim();
     return { slug, source: 'prefix', bodyAfterPrefix };
   }
 
