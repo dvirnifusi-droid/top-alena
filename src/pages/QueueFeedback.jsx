@@ -1,9 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { invokePublic } from '@/lib/publicFetch';
+import { useTenantBranding } from '@/hooks/useTenantBranding';
 
 const GOOGLE_MAPS_URL = 'https://g.page/r/YOUR_GOOGLE_PLACE_ID/review'; // ← עדכן כאן
 
 export default function QueueFeedback() {
+  const branding = useTenantBranding();
+  const brandName = branding?.name || 'המסעדה';
   const urlParams = new URLSearchParams(window.location.search);
   const entryId = urlParams.get('id');
 
@@ -45,7 +48,7 @@ export default function QueueFeedback() {
         {!submitted ? (
           <>
             <div className="text-5xl mb-4">🍽️</div>
-            <h2 className="text-2xl font-black text-gray-800 mb-2">נהניתם בעלינא?</h2>
+            <h2 className="text-2xl font-black text-gray-800 mb-2">{`נהניתם ב${brandName}?`}</h2>
             {entry && <p className="text-gray-400 text-sm mb-6">שלום {entry.customer_name}! איך הייתה החוויה?</p>}
 
             <p className="font-bold text-gray-600 mb-4">דרגו אותנו:</p>
@@ -91,7 +94,7 @@ export default function QueueFeedback() {
           </>
         )}
       </div>
-      <p className="text-emerald-400 text-xs mt-6">© מסעדת עלינא</p>
+      <p className="text-emerald-400 text-xs mt-6">{`© מסעדת ${brandName}`}</p>
     </div>
   );
 }

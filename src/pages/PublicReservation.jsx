@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import LanguagePicker from '@/components/shared/LanguagePicker';
 import { useI18n } from '@/lib/i18n';
 import { invokePublic } from '@/lib/publicFetch';
+import { useTenantBranding } from '@/hooks/useTenantBranding';
 import { format, addDays, addMinutes, parse, isSameDay } from 'date-fns';
 import { he } from 'date-fns/locale';
 import {
@@ -422,7 +423,8 @@ export default function PublicReservationPage() {
   const isEventSize = Number(partySize) > 12;
 
   // --- Derived data
-  const restaurantName = settings?.restaurant_name || 'עלינא';
+  const branding = useTenantBranding();
+  const restaurantName = settings?.restaurant_name || branding?.name || 'המסעדה';
   const welcomeMessage = settings?.welcome_message || 'בשר על האש, אווירה אחרת, אנשים נכונים';
   const phone = settings?.phone || '03-1234567';
   const address = settings?.address || 'רוטשילד 104, ראשון לציון';
@@ -577,7 +579,7 @@ export default function PublicReservationPage() {
             </p>
             <img
               src="/logo-alena-light.png"
-              alt="עלינא"
+              alt={restaurantName}
               className="mx-auto drop-shadow-2xl"
               style={{ width: 'clamp(220px, 48vw, 480px)', height: 'auto', filter: 'drop-shadow(0 10px 28px rgba(0,0,0,0.55))' }}
             />
@@ -1097,7 +1099,7 @@ export default function PublicReservationPage() {
               className="mt-0.5 w-4 h-4 accent-emerald-600 shrink-0"
             />
             <span className="text-[12px] leading-snug" style={{ color: '#3d3327' }}>
-              אני מאשר/ת לעלינא לשלוח לי הודעות שיווקיות (מבצעים, אירועים מיוחדים, תפריטים חדשים) ב-SMS / WhatsApp / מייל.
+              {`אני מאשר/ת ל${restaurantName} לשלוח לי הודעות שיווקיות (מבצעים, אירועים מיוחדים, תפריטים חדשים) ב-SMS / WhatsApp / מייל.`}
               <span className="block text-[10px] opacity-70 mt-1">אישור או ביטול הזמנה — תמיד תקבלו, גם בלי לסמן.</span>
             </span>
           </label>
@@ -1289,7 +1291,7 @@ export default function PublicReservationPage() {
               >
                 <img
                   src={`https://alena.topalena.com/gallery/${file}`}
-                  alt="עלינא"
+                  alt={restaurantName}
                   loading="lazy"
                   className="w-full h-full object-cover"
                 />

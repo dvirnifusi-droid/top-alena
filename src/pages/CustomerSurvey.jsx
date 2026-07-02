@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import LanguagePicker from '@/components/shared/LanguagePicker';
+import { useTenantBranding } from '@/hooks/useTenantBranding';
 import { TableSession } from '@/entities/TableSession';
 import { ManualSurvey } from '@/entities/ManualSurvey';
 import { CustomerFeedback } from '@/entities/CustomerFeedback';
@@ -24,6 +25,8 @@ import { format } from 'date-fns';
 const GOOGLE_REVIEW_LINK = 'https://g.page/r/CReDn7f8zub7EBM/review';
 
 export default function CustomerSurveyPage() {
+    const branding = useTenantBranding();
+    const brandName = branding?.name || 'המסעדה';
     const [searchParams] = useSearchParams();
     const sessionId = searchParams.get('sessionId');
     const shortCode = searchParams.get('s'); // Changed from manualId to shortCode 's'
@@ -405,7 +408,7 @@ export default function CustomerSurveyPage() {
                                 {isQrSource ? (
                                     "תודה שסרקת את הברקוד! המשוב שלך חשוב לנו 💚"
                                 ) : (
-                                    "נהניתם במסעדת עלינא? נשמח לשמוע מכם"
+                                    `נהניתם במסעדת ${brandName}? נשמח לשמוע מכם`
                                 )}
                             </CardDescription>
                         </CardHeader>

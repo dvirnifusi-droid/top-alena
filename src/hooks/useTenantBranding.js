@@ -26,16 +26,19 @@ async function fetchBranding() {
   if (_cache) return _cache;
   if (_fetchPromise) return _fetchPromise;
   _fetchPromise = (async () => {
-    // Only try to fetch when we actually have an auth token — otherwise the
-    // /entities/RestaurantProfile call 401s during app-boot before login and
-    // that unhandled rejection crashes downstream code that assumed a resolve.
+    // Public pages don't have an auth token; RestaurantProfile is whitelisted
+    // as a public-read entity so we fall through to asServiceRole for them.
+    // Authenticated pages use the regular entities client.
     const hasToken = typeof window !== 'undefined' && !!window.localStorage.getItem('auth_token');
-    if (!hasToken || !base44?.entities?.RestaurantProfile) {
+    const client = hasToken
+      ? base44?.entities?.RestaurantProfile
+      : base44?.asServiceRole?.entities?.RestaurantProfile;
+    if (!client) {
       _cache = { ...DEFAULT_BRANDING };
       return _cache;
     }
     try {
-      const rows = await base44.entities.RestaurantProfile.list();
+      const rows = await client.list();
       const profile = Array.isArray(rows) && rows.length > 0 ? rows[0] : null;
       _cache = {
         // restaurant_name is the canonical column; the old code read `name`

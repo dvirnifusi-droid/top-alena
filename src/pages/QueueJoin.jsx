@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
 import { invokePublic } from '@/lib/publicFetch';
 import LanguagePicker from '@/components/shared/LanguagePicker';
+import { useTenantBranding } from '@/hooks/useTenantBranding';
 
 const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY || '';
 
@@ -51,6 +52,8 @@ const ABANDON_REASONS = [
 ];
 
 function QueueJoinInner() {
+  const branding = useTenantBranding();
+  const brandName = branding?.name || 'המסעדה';
   const urlParams = new URLSearchParams(window.location.search);
   const entryId = urlParams.get('id');
   const [accessibilityMode, setAccessibilityMode] = React.useState(() => localStorage.getItem('accessibilityMode') === 'true');
@@ -621,7 +624,7 @@ function QueueJoinInner() {
         {/* לוגו */}
         <div className="text-center mb-10">
           <div className={`${accessibilityMode ? 'text-8xl' : 'text-7xl'} mb-4 drop-shadow-lg`}>🍽️</div>
-          <h1 className={`${accessibilityMode ? 'text-5xl' : 'text-4xl'} font-black ${accessibilityMode ? 'text-white' : 'text-white'} tracking-wider`}>עלינא</h1>
+          <h1 className={`${accessibilityMode ? 'text-5xl' : 'text-4xl'} font-black ${accessibilityMode ? 'text-white' : 'text-white'} tracking-wider`}>{brandName}</h1>
           <p className={`${accessibilityMode ? 'text-base text-[#D9BD83]' : 'text-slate-300 text-sm'} mt-2 font-${accessibilityMode ? 'bold' : 'light'}`}>ברוכים הבאים לחוויה קולינרית עדינה</p>
         </div>
 
@@ -859,7 +862,7 @@ function QueueJoinInner() {
           <span className="text-slate-600 text-xs">|</span>
           <a href="/PrivacyAndAccessibility" target="_blank" rel="noopener noreferrer" className="text-slate-400 text-xs hover:text-slate-200 transition-colors underline">הצהרת נגישות</a>
         </div>
-        <p className="text-slate-500 text-xs mb-4 font-light">מסעדת עלינא © 2026</p>
+        <p className="text-slate-500 text-xs mb-4 font-light">{`מסעדת ${brandName} © 2026`}</p>
       </div>
     );
   }
@@ -877,7 +880,7 @@ function QueueJoinInner() {
           </h2>
           <p className="text-gray-500 leading-relaxed">
             {isSeated
-              ? 'שולחן מוכן בשבילכם! תהנו מארוחה נפלאה במסעדת עלינא 🍽️'
+              ? `שולחן מוכן בשבילכם! תהנו מארוחה נפלאה במסעדת ${brandName} 🍽️`
               : 'תודה שביקרתם. נשמח לראותכם שוב בקרוב! 💚'}
           </p>
           {isSeated && (
@@ -938,7 +941,7 @@ function QueueJoinInner() {
     {/* לוגו */}
     <div className="text-center mb-8">
       <div className="text-5xl mb-2 drop-shadow-lg">🍽️</div>
-      <h1 className="text-3xl font-black text-white">עלינא</h1>
+      <h1 className="text-3xl font-black text-white">{brandName}</h1>
       <p className="text-slate-300 text-xs mt-1 font-light">קו אישי לתור</p>
     </div>
 
@@ -1208,7 +1211,7 @@ function QueueJoinInner() {
                   <p className="text-gray-400 text-xs">ממתינים {waitMinutes} דקות</p>
                   <div className="bg-gradient-to-r from-[#FAF5E8] to-amber-50 border border-yellow-200 rounded-2xl p-3">
                     <p className="text-3xl font-black text-yellow-600 mb-1">💰 {timeCreditsEarned}</p>
-                    <p className="text-xs text-yellow-700">מטבעות עלינא שצברת</p>
+                    <p className="text-xs text-yellow-700">{`מטבעות ${brandName} שצברת`}</p>
                     {treats.length > 0 && (
                       <button
                         onClick={() => setShowTreatModal(true)}
@@ -1426,7 +1429,7 @@ function QueueJoinInner() {
         <span className="text-slate-600 text-xs">|</span>
         <a href="/PrivacyAndAccessibility" target="_blank" rel="noopener noreferrer" className="text-slate-400 text-xs hover:text-slate-200 transition-colors underline">הצהרת נגישות</a>
       </div>
-      <p className="text-slate-500 text-xs mb-4 font-light">מסעדת עלינא © 2026</p>
+      <p className="text-slate-500 text-xs mb-4 font-light">{`מסעדת ${brandName} © 2026`}</p>
     </div>
   );
 }

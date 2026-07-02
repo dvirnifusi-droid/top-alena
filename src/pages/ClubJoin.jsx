@@ -4,6 +4,7 @@
 // Branded with the warm Alena palette, mobile-first.
 import React, { useState } from 'react';
 import { invokePublic } from '@/lib/publicFetch';
+import { useTenantBranding } from '@/hooks/useTenantBranding';
 
 const CITIES = [
     'ראשון לציון', 'רחובות', 'נס ציונה', 'תל אביב', 'חולון', 'בת ים',
@@ -11,6 +12,8 @@ const CITIES = [
 ];
 
 export default function ClubJoin() {
+    const branding = useTenantBranding();
+    const brandName = branding?.name || 'המסעדה';
     const [form, setForm] = useState({
         name: '', phone: '', city: '', cityOther: '',
         birthday: '', anniversary: '', email: '', consent: true,
@@ -56,7 +59,7 @@ export default function ClubJoin() {
                     <div className="text-6xl mb-4">🎉</div>
                     <h1 className="text-2xl font-black mb-2" style={{ color: '#A04A2E' }}>ברוכים הבאים למועדון!</h1>
                     <p className="text-gray-700 mb-4">
-                        {form.name.split(' ')[0]}, נרשמת בהצלחה למועדון הלקוחות של עלינא 🌿
+                        {`${form.name.split(' ')[0]}, נרשמת בהצלחה למועדון הלקוחות של ${brandName} 🌿`}
                     </p>
                     <p className="text-sm text-gray-500">
                         מהיום — הטבות, הפתעות ביום ההולדת, ועדכונים על מנות חדשות.
@@ -71,7 +74,7 @@ export default function ClubJoin() {
         <div dir="rtl" className="min-h-screen p-4 md:p-8" style={{ background: '#FAF5E8' }}>
             <div className="max-w-md mx-auto">
                 <div className="text-center mb-6">
-                    <h1 className="text-3xl font-black" style={{ color: '#A04A2E' }}>🌿 מועדון הלקוחות של עלינא</h1>
+                    <h1 className="text-3xl font-black" style={{ color: '#A04A2E' }}>{`🌿 מועדון הלקוחות של ${brandName}`}</h1>
                     <p className="text-gray-600 mt-2 text-sm">
                         הצטרפו חינם — הטבות, מתנה ביום ההולדת, ועדכונים לפני כולם
                     </p>
@@ -130,7 +133,7 @@ export default function ClubJoin() {
                     <label className="flex items-start gap-2 p-3 rounded-xl cursor-pointer" style={{ background: '#F4ECD8' }}>
                         <input type="checkbox" checked={form.consent} onChange={e => set('consent', e.target.checked)} className="mt-0.5" />
                         <span className="text-xs leading-relaxed" style={{ color: '#2E3819' }}>
-                            אני מאשר/ת קבלת הודעות והטבות מעלינא ב-WhatsApp/SMS/מייל.
+                            {`אני מאשר/ת קבלת הודעות והטבות מ${brandName} ב-WhatsApp/SMS/מייל.`}
                             ניתן להסיר בכל רגע — משיבים "הסר" לכל הודעה.
                         </span>
                     </label>
@@ -143,7 +146,7 @@ export default function ClubJoin() {
                         {submitting ? 'נרשם...' : '🌿 הצטרפו למועדון'}
                     </button>
                     <p className="text-[10px] text-gray-400 text-center">
-                        עלינא · רוטשילד 104, ראשון לציון · 03-6228055
+                        {brandName}
                     </p>
                 </form>
             </div>

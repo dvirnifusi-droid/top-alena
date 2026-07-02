@@ -1,10 +1,13 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
+import { useTenantBranding } from '@/hooks/useTenantBranding';
 
 // Public page: customer signs the digital event contract.
 // URL: /EventContractSign?token=xxx  (also reachable via /r/contract/xxx redirect)
 export default function EventContractSign() {
+  const branding = useTenantBranding();
+  const brandName = branding?.name || 'המסעדה';
   const [search] = useSearchParams();
   const token = search.get('token') || '';
   const [contract, setContract] = useState(null);
@@ -176,7 +179,7 @@ export default function EventContractSign() {
 
         {/* HEADER */}
         <div className="text-center border-b pb-4">
-          <div className="text-3xl">🔥 עלינא אירועים 🔥</div>
+          <div className="text-3xl">{`🔥 ${brandName} אירועים 🔥`}</div>
           <div className="text-sm text-gray-500 mt-1">חוזה אירוע · {contract.contract_number || ''}</div>
           <div className="text-xs text-gray-400 mt-1">אוכל · אלכוהול · אווירה · אנשים</div>
         </div>
@@ -368,7 +371,7 @@ export default function EventContractSign() {
                   )}
                 </div>
                 <div className="border rounded-xl p-3 bg-white">
-                  <div className="text-xs font-bold text-gray-600 mb-1">חתימת נציג עלינא</div>
+                  <div className="text-xs font-bold text-gray-600 mb-1">{`חתימת נציג ${brandName}`}</div>
                   {contract.rep_signed_at ? (
                     <>
                       <div className="text-sm text-gray-800 mb-2">{contract.rep_name || ''}</div>
@@ -380,7 +383,7 @@ export default function EventContractSign() {
                       </div>
                     </>
                   ) : (
-                    <div className="text-xs text-amber-600 text-center py-6">⏳ ממתין לחתימת נציג עלינא</div>
+                    <div className="text-xs text-amber-600 text-center py-6">{`⏳ ממתין לחתימת נציג ${brandName}`}</div>
                   )}
                 </div>
               </div>
@@ -390,7 +393,7 @@ export default function EventContractSign() {
         })()}
 
         <div className="text-center text-xs text-gray-400 pt-2 border-t">
-          ❤️ עלינא אירועים — היתר שלנו לעשות לכם אירוע שמח 🍻🔥
+          {`❤️ ${brandName} אירועים — היתר שלנו לעשות לכם אירוע שמח 🍻🔥`}
         </div>
       </div>
     </div>
