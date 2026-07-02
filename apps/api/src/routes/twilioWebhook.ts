@@ -88,6 +88,7 @@ export const twilioWebhookRoutes: FastifyPluginAsync = async (app) => {
     if (!isInternalForward && !isStatusCB && from && me === 'alena') {
       try {
         const resolution = await resolveTenantFromMessage(from, body);
+        req.log.info({ from, slug: resolution.slug, source: resolution.source, body_head: body.slice(0, 30) }, '[d3-router] resolved');
         if (resolution.slug !== me) {
           // Forward the ENTIRE Twilio payload to the target tenant's container.
           // We strip the "+slug" prefix from Body so the downstream logic sees
@@ -97,8 +98,11 @@ export const twilioWebhookRoutes: FastifyPluginAsync = async (app) => {
             forwardParams.Body = resolution.bodyAfterPrefix;
           }
           const targetUrl = containerUrlForSlug(resolution.slug) + '/api/twilio/whatsapp-inbox';
-          req.log.info({ from, slug: resolution.slug, source: resolution.source }, '[d3-router] forwarding');
           try {
+            // Update phone→tenant memory BEFORE forwarding to eliminate any
+            // race where a fast-fired second message arrives before the write.
+            await setLastTenant(from, resolution.slug);
+            req.log.info({ from, slug: resolution.slug }, '[d3-router] setLastTenant complete, forwarding');
             const fwdRes = await fetch(targetUrl, {
               method: 'POST',
               headers: {
@@ -108,8 +112,6 @@ export const twilioWebhookRoutes: FastifyPluginAsync = async (app) => {
               body: new URLSearchParams(forwardParams).toString(),
             });
             const fwdBody = await fwdRes.text();
-            // Remember this phone belongs to that tenant now.
-            void setLastTenant(from, resolution.slug);
             reply.code(fwdRes.status).type(fwdRes.headers.get('content-type') || 'text/xml').send(fwdBody);
             return;
           } catch (e: any) {
@@ -122,8 +124,10 @@ export const twilioWebhookRoutes: FastifyPluginAsync = async (app) => {
           if (resolution.source === 'prefix' && resolution.bodyAfterPrefix !== undefined) {
             body = resolution.bodyAfterPrefix;
           }
-          // Remember this phone belongs to us going forward.
-          void setLastTenant(from, me);
+          // Remember this phone belongs to us going forward. AWAITED so a fast
+          // next message from the same phone doesn't race and read stale state.
+          await setLastTenant(from, me);
+          req.log.info({ from, slug: me }, '[d3-router] setLastTenant to self');
         }
       } catch (e: any) {
         req.log.error({ err: e?.message }, '[d3-router] resolution failed — falling through');
@@ -133,7 +137,8 @@ export const twilioWebhookRoutes: FastifyPluginAsync = async (app) => {
       // We're a tenant container that got forwarded a message. Remember
       // this phone talked to us so their next direct message would also
       // route here if the platform default ever changes.
-      void setLastTenant(from, me);
+      await setLastTenant(from, me);
+      req.log.info({ from, slug: me }, '[d3-router] forwarded-in, setLastTenant');
     }
 
     // If this is a status callback (no Body, has MessageStatus), update
