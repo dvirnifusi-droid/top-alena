@@ -18,6 +18,12 @@ import { transcribeWhatsAppVoice } from '../lib/whatsappVoice.js';
 import { runConversationAgent } from '../lib/whatsappConversation.js';
 import { tryHandleOnboardingMessage } from '../lib/whatsappOnboarding.js';
 import { sendWhatsApp } from '../lib/twilio.js';
+import {
+  resolveTenantFromMessage,
+  setLastTenant,
+  currentTenantSlug,
+  containerUrlForSlug,
+} from '../lib/whatsappRouter.js';
 
 const STRICT_SIG = false;
 
@@ -69,10 +75,66 @@ export const twilioWebhookRoutes: FastifyPluginAsync = async (app) => {
     const from = stripWhatsAppPrefix(params.From || '');
     const to = stripWhatsAppPrefix(params.To || '');
     const sid = params.MessageSid || params.SmsMessageSid || '';
-    const body = params.Body || '';
+    let body = params.Body || '';
     const numMedia = Number(params.NumMedia || 0);
     const messageStatus = params.MessageStatus || ''; // delivery callbacks
     const errorCode = params.ErrorCode || '';
+
+    // ── D3 router (only runs on the platform-entrypoint container = 'alena').
+    // Status callbacks and internal-forwarded requests skip the router.
+    const isInternalForward = req.headers['x-tenant-routed'] === '1';
+    const isStatusCB = !body && messageStatus;
+    const me = currentTenantSlug();
+    if (!isInternalForward && !isStatusCB && from && me === 'alena') {
+      try {
+        const resolution = await resolveTenantFromMessage(from, body);
+        if (resolution.slug !== me) {
+          // Forward the ENTIRE Twilio payload to the target tenant's container.
+          // We strip the "+slug" prefix from Body so the downstream logic sees
+          // a clean message; everything else (media, sid, from/to) is preserved.
+          const forwardParams: Record<string, string> = { ...params };
+          if (resolution.source === 'prefix' && resolution.bodyAfterPrefix !== undefined) {
+            forwardParams.Body = resolution.bodyAfterPrefix;
+          }
+          const targetUrl = containerUrlForSlug(resolution.slug) + '/api/twilio/whatsapp-inbox';
+          req.log.info({ from, slug: resolution.slug, source: resolution.source }, '[d3-router] forwarding');
+          try {
+            const fwdRes = await fetch(targetUrl, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'X-Tenant-Routed': '1',
+              },
+              body: new URLSearchParams(forwardParams).toString(),
+            });
+            const fwdBody = await fwdRes.text();
+            // Remember this phone belongs to that tenant now.
+            void setLastTenant(from, resolution.slug);
+            reply.code(fwdRes.status).type(fwdRes.headers.get('content-type') || 'text/xml').send(fwdBody);
+            return;
+          } catch (e: any) {
+            req.log.error({ err: e?.message, slug: resolution.slug }, '[d3-router] forward failed — falling through to local handler');
+            // Fall through — better to process on alena than to drop the message.
+          }
+        } else {
+          // Slug resolved to us. If it was via prefix, strip the prefix from the
+          // body so downstream logic doesn't see the routing token.
+          if (resolution.source === 'prefix' && resolution.bodyAfterPrefix !== undefined) {
+            body = resolution.bodyAfterPrefix;
+          }
+          // Remember this phone belongs to us going forward.
+          void setLastTenant(from, me);
+        }
+      } catch (e: any) {
+        req.log.error({ err: e?.message }, '[d3-router] resolution failed — falling through');
+        // Never let router errors block message handling.
+      }
+    } else if (!isStatusCB && from && me !== 'alena' && isInternalForward) {
+      // We're a tenant container that got forwarded a message. Remember
+      // this phone talked to us so their next direct message would also
+      // route here if the platform default ever changes.
+      void setLastTenant(from, me);
+    }
 
     // If this is a status callback (no Body, has MessageStatus), update
     // an existing outbound message row.
