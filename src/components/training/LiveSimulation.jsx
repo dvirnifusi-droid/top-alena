@@ -14,8 +14,11 @@ import { UserAchievement } from '@/entities/UserAchievement';
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { MenuItem, RestaurantInfo } from '@/entities/all'; // Import MenuItem and RestaurantInfo
+import { useTenantBranding } from '@/hooks/useTenantBranding';
 
 export default function LiveSimulation({ onComplete }) {
+    const _branding = useTenantBranding();
+    const brandName = _branding?.name || 'המסעדה';
     const [conversation, setConversation] = useState([]);
     const [userInput, setUserInput] = useState('');
     const [loading, setLoading] = useState(false);
@@ -129,7 +132,7 @@ export default function LiveSimulation({ onComplete }) {
                 ? `- **אלכוהול (Happy Hour!):** האם הוזכר ה-Happy Hour (40% הנחה)? = 10 נק'.`
                 : `- **אלכוהול:** האם הייתה מכירת אלכוהול יעילה? = 10 נק'.`;
             
-            const analysisPrompt = `נתח את השיחה הבאה בין מלצר ללקוח במסעדת עלינא, ותן ציון מדויק מ-1 עד 100.
+            const analysisPrompt = `נתח את השיחה הבאה בין מלצר ללקוח במסעדת ${brandName}, ותן ציון מדויק מ-1 עד 100.
 
 **מידע חשוב למנתח:**
 ${menuContext}
@@ -301,7 +304,7 @@ ${conversationText}
             }
             
             const response = await InvokeLLM({
-                prompt: `אתה לקוח במסעדת עלינא - מסעדה מזרח תיכונית עם תנור טאבון, חמארה בשרית כשרה.
+                prompt: `אתה לקוח במסעדת ${brandName}.
 
 **הדמות שלך:** ${customerPersonality}. אתם ${partySize} אנשים.
 

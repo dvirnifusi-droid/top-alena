@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
+import { useTenantBranding } from '@/hooks/useTenantBranding';
 import { sendQueueSms } from '@/functions/sendQueueSms';
 import { sendQueuePush } from '@/functions/sendQueuePush';
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
@@ -61,6 +62,8 @@ function PartySizeIcon({ size }) {
 }
 
 export default function QueueDashboard() {
+  const _branding = useTenantBranding();
+  const brandName = _branding?.name || 'המסעדה';
   const [entries, setEntries] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showQR, setShowQR] = useState(false);
@@ -140,7 +143,7 @@ export default function QueueDashboard() {
         // שמור notification
         const msg = `📍 הרשמה חדשה! ${event.data.customer_name} - ${event.data.party_size} סועדים`;
         if ('Notification' in window && Notification.permission === 'granted') {
-          new Notification('עלינא - בקשה להשלמה', { body: msg });
+          new Notification(`${brandName} - בקשה להשלמה`, { body: msg });
         }
       }
     });
@@ -154,7 +157,7 @@ export default function QueueDashboard() {
       await base44.entities.RestaurantProfile.update(restaurantProfileId, { geofencing_enabled: newVal });
     } else {
       // צור פרופיל חדש אם לא קיים
-      const profile = await base44.entities.RestaurantProfile.create({ restaurant_name: 'עלינא', geofencing_enabled: newVal });
+      const profile = await base44.entities.RestaurantProfile.create({ restaurant_name: brandName, geofencing_enabled: newVal });
       setRestaurantProfileId(profile.id);
     }
   };
@@ -269,7 +272,7 @@ export default function QueueDashboard() {
     sendNotification(
       entry.id,
       entry.phone,
-      `🔔 עלינא קוראת לכם! השולחן שלכם מוכן — יש לכם 3 דקות להגיע למארחת!`,
+      `🔔 ${brandName} קוראת לכם! השולחן שלכם מוכן — יש לכם 3 דקות להגיע למארחת!`,
       '🔔 הגיע תורכם!'
     );
     // התחל מונה 3 דקות
@@ -325,7 +328,7 @@ export default function QueueDashboard() {
     sendNotification(
       entry.id,
       entry.phone,
-      `🍽️ עלינא מחכה לכם! השולחן שלכם מוכן — יש לכם 3 דקות להגיע למארחת!`,
+      `🍽️ ${brandName} מחכה לכם! השולחן שלכם מוכן — יש לכם 3 דקות להגיע למארחת!`,
       '✅ השולחן מוכן!'
     );
     startCountdown(entry.id);
@@ -487,7 +490,7 @@ export default function QueueDashboard() {
       {/* כותרת */}
       <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-black text-gray-800">🎯 ניהול תור - מסעדת עלינא</h1>
+          <h1 className="text-2xl font-black text-gray-800">{`🎯 ניהול תור - מסעדת ${brandName}`}</h1>
           <p className="text-gray-500 text-sm">דאשבורד מארחת בזמן אמת</p>
         </div>
         <div className="flex gap-2 items-center flex-wrap">

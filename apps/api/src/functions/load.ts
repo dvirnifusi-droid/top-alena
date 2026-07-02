@@ -42,7 +42,7 @@ const db = prisma as any; // generic delegate access
 
 // Public deploy marker — lets us confirm which build is live (and that
 // auto-deploy is working) without server access. Bump on each deploy test.
-registerFn('deployInfo', async () => ({ version: 'iso-contracts-agents-2026-07-02', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
+registerFn('deployInfo', async () => ({ version: 'brand-cleanup-2026-07-02', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
 
 
 
@@ -2061,6 +2061,7 @@ registerFn('sendABTestCampaign', async ({ body, user }) => {
   const chunkSize = Math.ceil(shuffled.length / variants.length);
   const useWa = channel === 'whatsapp' || !channel;
   const channelStr = useWa ? 'whatsapp' : 'sms';
+  const brandAB = await getBrandName();
   const sends: any[] = [];
 
   for (let i = 0; i < variants.length; i++) {
@@ -2093,7 +2094,7 @@ registerFn('sendABTestCampaign', async ({ body, user }) => {
         },
       }).catch(() => null);
       try {
-        const rendered = renderTemplate(variants[i], c as any);
+        const rendered = renderTemplate(variants[i], c as any, brandAB);
         const out = useWa
           ? await sendWhatsApp(c.phone, rendered, { mediaUrl: media_url, statusCallback, recipientId: recipient?.id })
           : await sendSms(c.phone, rendered);
@@ -2802,7 +2803,7 @@ function buildSegmentWhere(segment: string, customFilter?: any): any {
 }
 
 // Render a template with {name}, {coins}, {days_since_visit}, {visit_count}, {tier}
-function renderTemplate(template: string, c: CustomerLike): string {
+function renderTemplate(template: string, c: CustomerLike, brand?: string): string {
   const now = Date.now();
   const lastVisitMs = c.last_visit ? new Date(c.last_visit).getTime() : null;
   const daysSinceVisit = lastVisitMs ? Math.floor((now - lastVisitMs) / 86400000) : 0;
@@ -2813,10 +2814,15 @@ function renderTemplate(template: string, c: CustomerLike): string {
     visit_count: String(c.visit_count || 0),
     tier: c.loyalty_tier === 'vip' ? 'VIP' : 'רגיל',
     city: (c as any).city || '',
+    brand: brand || 'המסעדה',
     // Personal profile-completion link — cid doubles as an unguessable token.
     update_link: `${process.env.PUBLIC_BASE_URL || 'https://topalena.com'}/ClubUpdate?cid=${c.id}`,
   };
-  return template.replace(/\{(\w+)\}/g, (m, k) => replacements[k] ?? m);
+  const rendered = template.replace(/\{(\w+)\}/g, (m, k) => replacements[k] ?? m);
+  // Belt-and-suspenders: strip any lingering hardcoded עלינא from stored templates
+  // written before multi-tenant. Legit tenants named עלינא still get their brand
+  // rewritten to itself — no-op.
+  return brand ? rendered.replaceAll('עלינא', brand) : rendered;
 }
 
 // ============================================================================
@@ -3728,7 +3734,7 @@ registerFn('sendCustomerCampaign', async ({ body, user }) => {
       } catch (e) { /* ignore — still try to send */ }
     }
     try {
-      const rendered = renderTemplate(message_template, c as any);
+      const rendered = renderTemplate(message_template, c as any, brand);
       let out: any;
       if (useEmail) {
         // Email channel requires an email address (not all customers have one).
@@ -4530,14 +4536,20 @@ registerFn('aiDailySummary', async ({ body }) => {
 
 registerFn('aiGenerateBriefing', async ({ body }) => {
   const ctx = await businessContextBlock();
-  return invokeLLM({
-    prompt: `${ctx}הכן תדריך יומי לצוות המסעדה בהתאם לפרופיל העסק למעלה. אל תמציא פרטים שלא בפרופיל.\nנתוני היום: ${JSON.stringify(body)}`,
+  const brand = await getBrandName();
+  const raw: any = await invokeLLM({
+    prompt: `${ctx}הכן תדריך יומי לצוות המסעדה בהתאם לפרופיל העסק למעלה. אל תמציא פרטים שלא בפרופיל.\n\n⚠️ חשוב מאוד: אסור להשתמש במילה "עלינא" או בשם מסעדה אחר בפלט. השם היחיד למסעדה הוא: "${brand}". השתמש רק בשם זה או במילה "המסעדה".\n\nנתוני היום: ${JSON.stringify(body)}`,
     responseSchema: {
       type: 'object',
       properties: { headline: { type: 'string' }, items: { type: 'array', items: { type: 'string' } } },
     },
     _ctx: { fn_name: 'aiGenerateBriefing' },
   });
+  const clean = (s: string) => (typeof s === 'string' ? s.replaceAll('עלינא', brand) : s);
+  return {
+    headline: clean(raw?.headline),
+    items: Array.isArray(raw?.items) ? raw.items.map(clean) : raw?.items,
+  };
 });
 
 registerFn('aiScoreCandidate', async ({ body }) => {

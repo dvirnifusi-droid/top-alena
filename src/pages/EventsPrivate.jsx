@@ -7,6 +7,7 @@ import { Loader2, RefreshCw, Sparkles, CalendarHeart, Copy, Check, ExternalLink,
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { base44 } from '@/api/base44Client';
+import { useTenantBranding } from '@/hooks/useTenantBranding';
 
 const UTM_SOURCES = [
   { key: 'general',   label: 'כללי (בלי תיוג)', utm: '' },
@@ -28,7 +29,7 @@ function EventsLinkCard() {
   const src = UTM_SOURCES.find((s) => s.key === sourceKey) || UTM_SOURCES[0];
   const link = withUtm(src.utm);
   const message =
-    `היי 🌿 מסעדת עלינא — אירועים פרטיים\n` +
+    `היי 🌿 מסעדת ${brandName} — אירועים פרטיים\n` +
     `שמחים לארח אצלנו את האירוע שלכם. דברו עם העוזרת הדיגיטלית (5 שאלות קצרות) ונחזור אליכם עם הצעה מותאמת:\n\n${link}`;
   const copy = (text, setter) => {
     try { navigator.clipboard.writeText(text); } catch {}
@@ -41,7 +42,7 @@ function EventsLinkCard() {
       <CardContent className="p-6">
         <div className="flex items-start justify-between mb-4">
           <div>
-            <h3 className="text-xl font-bold mb-1">🌿 סוכן אירועים של עלינא</h3>
+            <h3 className="text-xl font-bold mb-1">{`🌿 סוכן אירועים של ${brandName}`}</h3>
             <p className="text-emerald-100 text-sm">שתפו את הקישור — הסוכן בדפדפן מנהל את שיחת הסיווג ושומר את הפרטים.</p>
           </div>
           <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center flex-shrink-0"><Sparkles className="w-6 h-6" /></div>
@@ -199,7 +200,7 @@ function PendingCallbackCard() {
                 catch { return false; }
               })();
               const locationTxt = (() => {
-                if (l.location === 'restaurant') return 'במסעדה (עלינא)';
+                if (l.location === 'restaurant') return `במסעדה (${brandName})`;
                 if (l.location_details) return `אירוע חוץ — ${l.location_details}`;
                 if (l.location === 'external') return 'אירוע חוץ';
                 return null;
@@ -489,7 +490,7 @@ function CustomerConfirmModal({ booking, onClose }) {
     `🍽 ${booking.selected_menu?.name || ''}\n` +
     `💰 סה"כ: ₪${booking.total_ils || 0}` +
     (booking.deposit_amount_ils ? `\n💳 פיקדון לגבייה: ₪${booking.deposit_amount_ils}` : '') +
-    `\n\nנשמח לראותכם!\n— צוות עלינא`;
+    `\n\nנשמח לראותכם!\n— צוות ${brandName}`;
   const [msg, setMsg] = React.useState(defaultMsg);
   const [copied, setCopied] = React.useState(false);
   const copy = () => {
@@ -630,6 +631,8 @@ function UpcomingEventsTimeline() {
 }
 
 export default function EventsPrivatePage() {
+  const _branding = useTenantBranding();
+  const brandName = _branding?.name || 'המסעדה';
   const [leads, setLeads] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
@@ -696,7 +699,7 @@ export default function EventsPrivatePage() {
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">
-            <CalendarHeart className="w-6 h-6 text-emerald-600" /> אירועים פרטיים — עלינא
+            <CalendarHeart className="w-6 h-6 text-emerald-600" /> {`אירועים פרטיים — ${brandName}`}
           </h1>
           <p className="text-sm text-muted-foreground mt-1">סוכן סיווג לאירועים פרטיים. לידים שמגיעים דרך הקישור מופיעים כאן.</p>
         </div>

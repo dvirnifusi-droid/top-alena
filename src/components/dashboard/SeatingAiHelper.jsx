@@ -12,8 +12,11 @@ import { BrainCircuit, Loader2, Sparkles, AlertCircle } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { format } from 'date-fns';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useTenantBranding } from '@/hooks/useTenantBranding';
 
 export default function SeatingAiHelper() {
+    const _branding = useTenantBranding();
+    const brandName = _branding?.name || 'המסעדה';
     const [partyInfo, setPartyInfo] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [aiResponse, setAiResponse] = useState('');
@@ -139,7 +142,7 @@ export default function SeatingAiHelper() {
             ).join('\n') || 'אין';
 
             const prompt = `
-                אתה מומחה הושבה במסעדת עלינא. המטרה שלך למצוא את הפתרון הטוב ביותר לבקשת הלקוח.
+                אתה מומחה הושבה במסעדת ${brandName}. המטרה שלך למצוא את הפתרון הטוב ביותר לבקשת הלקוח.
 
                 **בקשת הלקוח:**
                 "${partyInfo}"

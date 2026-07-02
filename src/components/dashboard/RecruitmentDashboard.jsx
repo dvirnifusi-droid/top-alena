@@ -50,11 +50,11 @@ function StarRating({ value, onChange }) {
 }
 
 const DEFAULT_FOLLOWUP_MESSAGE = `שלום {שם}! 😊
-תודה שהשתתפת בראיון הדיגיטלי שלנו למסעדת עלינא.
+תודה שהשתתפת בראיון הדיגיטלי שלנו למסעדה שלנו.
 אנחנו בוחנים את המועמדות שלך ונחזור אליך בהקדם.
 אם יש לך שאלות, אל תהסס/י לכתוב כאן.
 
-– צוות עלינא ❤️`;
+– הצוות ❤️`;
 
 const INTERVIEW_MESSAGE_TEMPLATE = `שלום {שם}! 🌿
 
@@ -66,7 +66,7 @@ const INTERVIEW_MESSAGE_TEMPLATE = `שלום {שם}! 🌿
 
 אנא עדכן/י אותנו מה מתאים לך — נאשר ונשלח כתובת 🙏
 
-– צוות עלינא ❤️`;
+– הצוות ❤️`;
 
 function InterviewScheduleModal({ candidate, onClose }) {
     const [schedule, setSchedule] = useState('');

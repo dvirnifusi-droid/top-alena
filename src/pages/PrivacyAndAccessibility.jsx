@@ -1,6 +1,9 @@
 import React, { useState } from 'react';
+import { useTenantBranding } from '@/hooks/useTenantBranding';
 
 export default function PrivacyAndAccessibility() {
+  const _branding = useTenantBranding();
+  const brandName = _branding?.name || 'המסעדה';
   const [tab, setTab] = useState('privacy');
 
   return (
@@ -9,7 +12,7 @@ export default function PrivacyAndAccessibility() {
         {/* Header */}
         <div className="text-center mb-8 pt-6">
           <div className="text-4xl mb-3">⚖️</div>
-          <h1 className="text-2xl font-black text-gray-800">מסעדת עלינא</h1>
+          <h1 className="text-2xl font-black text-gray-800">{`מסעדת ${brandName}`}</h1>
           <p className="text-gray-500 text-sm mt-1">מידע משפטי ונגישות</p>
         </div>
 
@@ -113,7 +116,7 @@ export default function PrivacyAndAccessibility() {
             <section>
               <h3 className="font-bold text-gray-800 mb-2">מחויבות לנגישות</h3>
               <p className="text-gray-600 text-sm leading-relaxed">
-                מסעדת עלינא מחויבת לנגישות דיגיטלית לכלל לקוחותיה, לרבות אנשים עם מוגבלויות. 
+                {`מסעדת ${brandName} מחויבת לנגישות דיגיטלית לכלל לקוחותיה, לרבות אנשים עם מוגבלויות.`} 
                 אנחנו שואפים לעמוד בתקן WCAG 2.1 ברמה AA.
               </p>
             </section>
