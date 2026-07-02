@@ -71,14 +71,32 @@ function PlatformAdminInner() {
 
   const resendWelcome = async (t) => {
     const label = t.restaurant_name || t.name || t.slug;
-    if (!window.confirm(`לשלוח מחדש את פרטי הכניסה לבעלים של "${label}" בוואטסאפ? הסיסמה הישנה תוחלף בסיסמה זמנית חדשה.`)) return;
+    if (!window.confirm(`לשלוח מחדש את פרטי הכניסה לבעלים של "${label}" ב-SMS + מייל + WhatsApp? הסיסמה הישנה תוחלף בסיסמה זמנית חדשה.`)) return;
     setActioningId(t.id);
     try {
-      await base44.functions.resendTenantWelcome({ tenant_id: t.id });
-      alert('✅ פרטי כניסה נשלחו בוואטסאפ');
+      const res = await base44.functions.resendTenantWelcome({ tenant_id: t.id });
+      const r = res?.data || res;
+      const dots = [
+        r.channels?.sms === 'sent' ? '📱✅' : (r.channels?.sms === 'failed' ? '📱❌' : '📱⚪'),
+        r.channels?.email === 'sent' ? '📧✅' : (r.channels?.email === 'failed' ? '📧❌' : '📧⚪'),
+        r.channels?.whatsapp === 'sent' ? '💬✅' : (r.channels?.whatsapp === 'failed' ? '💬❌' : '💬⚪'),
+      ].join(' ');
+      const errors = [r.sms_error, r.email_error, r.whatsapp_error].filter(Boolean).join('\n');
+      alert(`תוצאה: ${dots}${errors ? '\n\nשגיאות:\n' + errors : ''}`);
       await load();
     } catch (e) { alert('שגיאה: ' + (e?.message || '')); }
     finally { setActioningId(null); }
+  };
+
+  const [diagBusy, setDiagBusy] = useState(false);
+  const [diagResult, setDiagResult] = useState(null);
+  const runDiagnose = async () => {
+    setDiagBusy(true); setDiagResult(null);
+    try {
+      const res = await base44.functions.diagnoseChannels({});
+      setDiagResult(res?.data || res);
+    } catch (e) { setDiagResult({ error: e?.message || String(e) }); }
+    finally { setDiagBusy(false); }
   };
 
   const impersonate = async (t) => {
@@ -125,6 +143,55 @@ function PlatformAdminInner() {
         <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-slate-400" /></div>
       ) : (
         <>
+          {/* Channel diagnostics — one-click self-test for SMS/Email/WhatsApp */}
+          <Card className="border-slate-200">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-3 flex-wrap">
+                <div className="flex-1 min-w-[200px]">
+                  <div className="font-bold text-sm">🩺 בדיקת ערוצים</div>
+                  <div className="text-xs text-slate-500 mt-0.5">בודק את כל ערוצי המשלוח (SMS, מייל, WhatsApp) ושולח אליך הודעות בדיקה</div>
+                </div>
+                <Button onClick={runDiagnose} disabled={diagBusy} size="sm" className="bg-slate-700 hover:bg-slate-800 text-white">
+                  {diagBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : 'הרץ בדיקה'}
+                </Button>
+              </div>
+              {diagResult && (
+                <div className="mt-4 space-y-2 text-xs">
+                  {diagResult.error ? (
+                    <div className="p-3 rounded bg-red-50 text-red-800">שגיאה: {diagResult.error}</div>
+                  ) : (
+                    <>
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                        {Object.entries(diagResult.env || {}).map(([k, v]) => (
+                          <div key={k} className={`p-2 rounded ${String(v).includes('MISSING') ? 'bg-red-50 text-red-800' : 'bg-emerald-50 text-emerald-800'}`}>
+                            <div className="font-mono text-[10px] opacity-70">{k}</div>
+                            <div className="font-semibold">{String(v)}</div>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mt-3">
+                        {['resend', 'twilio', 'email_send', 'sms_send', 'whatsapp_send'].map(k => {
+                          const r = diagResult.tests?.[k];
+                          if (!r) return null;
+                          const ok = r.ok || r.success || r.status === 200;
+                          const skipped = r.skipped;
+                          const bg = skipped ? 'bg-slate-100 text-slate-600' : (ok ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800');
+                          return (
+                            <div key={k} className={`p-3 rounded ${bg}`}>
+                              <div className="font-mono text-[10px] opacity-70">{k}</div>
+                              <div className="font-semibold">{skipped ? `⚪ ${r.skipped}` : (ok ? '✅ OK' : '❌ ' + (r.error || `HTTP ${r.status}`))}</div>
+                              {r.body && <div className="text-[10px] opacity-70 mt-1 break-all">{String(r.body).slice(0, 150)}</div>}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
           {/* Status stats */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             {statCards.map(c => (
@@ -292,6 +359,25 @@ function PlatformAdminInner() {
                             {t.name}
                             <div className="text-xs text-slate-400 mt-0.5"><code>{t.slug}</code></div>
                             {t.error && <div className="text-xs text-red-600 mt-0.5">⚠ {t.error}</div>}
+                            {!t.is_main && t.welcome && (t.welcome.sms?.status || t.welcome.email?.status || t.welcome.whatsapp?.status) && (
+                              <div className="text-xs mt-1 flex gap-2 items-center flex-wrap" title={t.last_welcome_at ? `נשלח לאחרונה: ${new Date(t.last_welcome_at).toLocaleString('he-IL')}` : ''}>
+                                <span className={t.welcome.sms?.status === 'sent' ? 'text-emerald-600' : t.welcome.sms?.status === 'failed' ? 'text-red-600' : 'text-slate-400'}
+                                  title={`SMS: ${t.welcome.sms?.status || 'no attempt'}${t.welcome.sms?.error ? ' — ' + t.welcome.sms.error : ''}`}>
+                                  📱{t.welcome.sms?.status === 'sent' ? '✓' : t.welcome.sms?.status === 'failed' ? '✗' : '—'}
+                                </span>
+                                <span className={t.welcome.email?.status === 'sent' ? 'text-emerald-600' : t.welcome.email?.status === 'failed' ? 'text-red-600' : 'text-slate-400'}
+                                  title={`Email: ${t.welcome.email?.status || 'no attempt'}${t.welcome.email?.error ? ' — ' + t.welcome.email.error : ''}`}>
+                                  📧{t.welcome.email?.status === 'sent' ? '✓' : t.welcome.email?.status === 'failed' ? '✗' : '—'}
+                                </span>
+                                <span className={t.welcome.whatsapp?.status === 'sent' ? 'text-emerald-600' : t.welcome.whatsapp?.status === 'failed' ? 'text-red-600' : 'text-slate-400'}
+                                  title={`WhatsApp: ${t.welcome.whatsapp?.status || 'no attempt'}${t.welcome.whatsapp?.error ? ' — ' + t.welcome.whatsapp.error : ''}`}>
+                                  💬{t.welcome.whatsapp?.status === 'sent' ? '✓' : t.welcome.whatsapp?.status === 'failed' ? '✗' : '—'}
+                                </span>
+                                {t.welcome.wa_link && (
+                                  <a href={t.welcome.wa_link} target="_blank" rel="noreferrer" className="text-blue-600 underline text-[10px]">קישור וואטסאפ</a>
+                                )}
+                              </div>
+                            )}
                           </td>
                           <td className="p-3 text-center">{t.users}</td>
                           <td className="p-3 text-center">{t.employees}</td>

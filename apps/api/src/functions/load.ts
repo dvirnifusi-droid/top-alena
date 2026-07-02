@@ -42,7 +42,7 @@ const db = prisma as any; // generic delegate access
 
 // Public deploy marker — lets us confirm which build is live (and that
 // auto-deploy is working) without server access. Bump on each deploy test.
-registerFn('deployInfo', async () => ({ version: 'brand-cleanup-2026-07-02', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
+registerFn('deployInfo', async () => ({ version: 'welcome-observability-2026-07-02', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
 
 
 
@@ -12667,6 +12667,19 @@ async function ensurePlatformTables() {
     "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
   )`);
   await sql(`CREATE INDEX IF NOT EXISTS "Tenant_status_idx" ON "Tenant"("status")`);
+  // Welcome-delivery tracking columns — added later for observability. Without
+  // these, a silent SMS/email/WhatsApp failure leaves ops flying blind. Every
+  // welcome attempt writes an outcome per channel so the PlatformAdmin can
+  // render green/red dots and the operator KNOWS whether the owner got their
+  // credentials or not.
+  await sql(`ALTER TABLE "Tenant" ADD COLUMN IF NOT EXISTS "last_welcome_at" TIMESTAMP(3)`);
+  await sql(`ALTER TABLE "Tenant" ADD COLUMN IF NOT EXISTS "last_welcome_sms_status" TEXT`);
+  await sql(`ALTER TABLE "Tenant" ADD COLUMN IF NOT EXISTS "last_welcome_sms_error" TEXT`);
+  await sql(`ALTER TABLE "Tenant" ADD COLUMN IF NOT EXISTS "last_welcome_email_status" TEXT`);
+  await sql(`ALTER TABLE "Tenant" ADD COLUMN IF NOT EXISTS "last_welcome_email_error" TEXT`);
+  await sql(`ALTER TABLE "Tenant" ADD COLUMN IF NOT EXISTS "last_welcome_wa_status" TEXT`);
+  await sql(`ALTER TABLE "Tenant" ADD COLUMN IF NOT EXISTS "last_welcome_wa_error" TEXT`);
+  await sql(`ALTER TABLE "Tenant" ADD COLUMN IF NOT EXISTS "last_welcome_wa_link" TEXT`);
   await sql(`CREATE TABLE IF NOT EXISTS "ProvisioningJob" (
     "id" TEXT NOT NULL PRIMARY KEY,
     "tenant_id" TEXT NOT NULL REFERENCES "Tenant"("id") ON DELETE CASCADE,
@@ -12876,7 +12889,11 @@ registerFn('getSuperAdminMetrics', async ({ user }) => {
   if (!isSuperAdmin(user)) throw new Error('super-admin only');
   await ensurePlatformTables();
   const tenants: any[] = await (prisma as any).$queryRawUnsafe(
-    `SELECT id, slug, restaurant_name, status FROM "Tenant" WHERE status = 'live' ORDER BY "createdAt" ASC`,
+    `SELECT id, slug, restaurant_name, owner_phone, owner_email, status,
+            last_welcome_at, last_welcome_sms_status, last_welcome_sms_error,
+            last_welcome_email_status, last_welcome_email_error,
+            last_welcome_wa_status, last_welcome_wa_error, last_welcome_wa_link
+     FROM "Tenant" WHERE status = 'live' ORDER BY "createdAt" ASC`,
   );
 
   const perTenant: any[] = [];
@@ -12888,7 +12905,17 @@ registerFn('getSuperAdminMetrics', async ({ user }) => {
 
   for (const t of tenants) {
     const schema = `tenant_${t.slug}`;
-    const row: any = { id: t.id, slug: t.slug, name: t.restaurant_name };
+    const row: any = {
+      id: t.id, slug: t.slug, name: t.restaurant_name,
+      owner_phone: t.owner_phone, owner_email: t.owner_email,
+      last_welcome_at: t.last_welcome_at,
+      welcome: {
+        sms: { status: t.last_welcome_sms_status, error: t.last_welcome_sms_error },
+        email: { status: t.last_welcome_email_status, error: t.last_welcome_email_error },
+        whatsapp: { status: t.last_welcome_wa_status, error: t.last_welcome_wa_error },
+        wa_link: t.last_welcome_wa_link,
+      },
+    };
     try {
       const r: any[] = await (prisma as any).$queryRawUnsafe(
         `SELECT
@@ -12959,6 +12986,87 @@ registerFn('getSuperAdminMetrics', async ({ user }) => {
     },
     per_tenant: perTenant,
   };
+});
+
+// SUPER-ADMIN — probe every outbound channel and report which are actually
+// configured + reachable. No SSH needed. Sends a test message to the
+// caller's own phone/email so they see it land (or don't).
+registerFn('diagnoseChannels', async ({ user }) => {
+  if (!isSuperAdmin(user)) throw new Error('super-admin only');
+  const out: any = { env: {}, tests: {} };
+  // 1. What's actually set in the container env?
+  out.env.TWILIO_ACCOUNT_SID = process.env.TWILIO_ACCOUNT_SID ? `SET (${process.env.TWILIO_ACCOUNT_SID.length} chars)` : 'MISSING';
+  out.env.TWILIO_AUTH_TOKEN  = process.env.TWILIO_AUTH_TOKEN  ? 'SET' : 'MISSING';
+  out.env.TWILIO_PHONE_NUMBER= process.env.TWILIO_PHONE_NUMBER|| 'MISSING (no SMS)';
+  out.env.TWILIO_WHATSAPP_FROM = process.env.TWILIO_WHATSAPP_FROM || 'MISSING (no WhatsApp)';
+  out.env.RESEND_API_KEY     = process.env.RESEND_API_KEY     ? `SET (${process.env.RESEND_API_KEY.length} chars)` : 'MISSING (no email)';
+  out.env.EMAIL_FROM         = process.env.EMAIL_FROM || 'default: noreply@alenabepita.co.il';
+  out.env.PUSHOVER_TOKEN     = process.env.PUSHOVER_TOKEN ? 'SET' : 'MISSING';
+  // 2. Live probe: Resend /domains — the cheapest 200-OK endpoint
+  if (process.env.RESEND_API_KEY) {
+    try {
+      const r = await fetch('https://api.resend.com/domains', {
+        headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}` },
+      });
+      out.tests.resend = { status: r.status, ok: r.ok };
+      if (!r.ok) out.tests.resend.body = (await r.text()).slice(0, 200);
+    } catch (e: any) {
+      out.tests.resend = { error: e?.message || 'network_error' };
+    }
+  } else {
+    out.tests.resend = { skipped: 'no_api_key' };
+  }
+  // 3. Live probe: Twilio account status
+  if (process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN) {
+    try {
+      const creds = Buffer.from(`${process.env.TWILIO_ACCOUNT_SID}:${process.env.TWILIO_AUTH_TOKEN}`).toString('base64');
+      const r = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${process.env.TWILIO_ACCOUNT_SID}.json`, {
+        headers: { Authorization: `Basic ${creds}` },
+      });
+      const data: any = await r.json();
+      out.tests.twilio = { status: r.status, ok: r.ok, account_status: data?.status };
+    } catch (e: any) {
+      out.tests.twilio = { error: e?.message || 'network_error' };
+    }
+  } else {
+    out.tests.twilio = { skipped: 'no_credentials' };
+  }
+  // 4. Actually send test messages to Dvir's own number/email so he sees them land.
+  const testPhone = (user as any)?.phone || process.env.SUPER_ADMIN_PHONE || '';
+  const testEmail = (user as any)?.email || '';
+  if (testPhone) {
+    const { sendSms, sendWhatsApp } = await import('../lib/twilio.js');
+    const stamp = new Date().toISOString().slice(11, 19);
+    try {
+      out.tests.sms_send = await sendSms(testPhone, `TopAlena test SMS ${stamp}`);
+    } catch (e: any) {
+      out.tests.sms_send = { error: e?.message || 'sms_failed' };
+    }
+    try {
+      out.tests.whatsapp_send = await sendWhatsApp(testPhone, `TopAlena test WhatsApp ${stamp}`);
+    } catch (e: any) {
+      out.tests.whatsapp_send = { error: e?.message || 'wa_failed' };
+    }
+  } else {
+    out.tests.sms_send = { skipped: 'no_test_phone' };
+    out.tests.whatsapp_send = { skipped: 'no_test_phone' };
+  }
+  if (testEmail) {
+    const { sendEmail } = await import('../lib/email.js');
+    const stamp = new Date().toISOString().slice(11, 19);
+    try {
+      out.tests.email_send = await sendEmail({
+        to: testEmail,
+        subject: `TopAlena channel test ${stamp}`,
+        html: `<p>אם קיבלת את זה במייל — הערוץ עובד.</p><p>שלחתי אליך ב-${stamp} UTC.</p>`,
+      });
+    } catch (e: any) {
+      out.tests.email_send = { error: e?.message || 'email_failed' };
+    }
+  } else {
+    out.tests.email_send = { skipped: 'no_test_email' };
+  }
+  return out;
 });
 
 // SUPER-ADMIN — resend the welcome WhatsApp with fresh credentials.
@@ -13085,6 +13193,35 @@ registerFn('resendTenantWelcome', async ({ user, body }) => {
     results.whatsapp_error = e?.message || 'whatsapp_blocked_no_session';
     console.warn('[resendWelcome] WhatsApp failed (expected if no prior message):', results.whatsapp_error);
   }
+  // Classify each channel's outcome so we can render dots in the UI.
+  const smsStatus = results.sms_error ? 'failed' : (results.sms?.skipped ? 'skipped' : 'sent');
+  const emailStatus = results.email_error ? 'failed' : (results.email?.skipped ? 'skipped' : 'sent');
+  const waStatus = results.whatsapp_error ? 'failed' : (results.whatsapp?.skipped ? 'skipped' : 'sent');
+  // Persist the outcome — the operator needs to see this per tenant WITHOUT
+  // digging through container logs. Column-level UPSERT so old rows without
+  // the columns still work.
+  try {
+    await (prisma as any).$executeRawUnsafe(
+      `UPDATE "Tenant" SET
+         last_welcome_at = NOW(),
+         last_welcome_sms_status = $2,
+         last_welcome_sms_error = $3,
+         last_welcome_email_status = $4,
+         last_welcome_email_error = $5,
+         last_welcome_wa_status = $6,
+         last_welcome_wa_error = $7,
+         last_welcome_wa_link = $8,
+         "updatedAt" = NOW()
+       WHERE id = $1`,
+      b.tenant_id,
+      smsStatus, results.sms_error || null,
+      emailStatus, results.email_error || null,
+      waStatus, results.whatsapp_error || null,
+      waLink || null,
+    );
+  } catch (e: any) {
+    console.warn('[resendWelcome] status persist failed:', e?.message);
+  }
   if (results.sms_error && results.email_error && results.whatsapp_error) {
     throw new Error(`All channels failed. SMS: ${results.sms_error}. Email: ${results.email_error}. WA: ${results.whatsapp_error}`);
   }
@@ -13097,7 +13234,13 @@ registerFn('resendTenantWelcome', async ({ user, body }) => {
   } catch (e: any) {
     console.warn('[resendWelcome] ensureOnboardingRow skipped:', e?.message);
   }
-  return { ok: true, sent_to: t.owner_phone, wa_link: waLink, ...results };
+  return {
+    ok: true,
+    sent_to: t.owner_phone,
+    wa_link: waLink,
+    channels: { sms: smsStatus, email: emailStatus, whatsapp: waStatus },
+    ...results,
+  };
 });
 
 // SUPER-ADMIN — generate an impersonation token that logs the caller in
