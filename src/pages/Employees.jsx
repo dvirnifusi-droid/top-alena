@@ -5,7 +5,7 @@ import { User } from '@/entities/User';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Plus, Users, Check, Copy, Shield, Bell } from 'lucide-react';
+import { Plus, Users, Check, Copy, Shield, Bell, Upload, Sparkles, Loader2 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -560,6 +560,51 @@ function EmployeesInner() {
    const [pushoverEmployee, setPushoverEmployee] = useState(null);
    const [isPushoverOpen, setIsPushoverOpen] = useState(false);
    const [currentUser, setCurrentUser] = useState(null);
+   const [aiImporting, setAiImporting] = useState(false);
+   const [aiCandidates, setAiCandidates] = useState(null);
+   const [importingEmp, setImportingEmp] = useState(false);
+
+   const handleAiFileImport = async (e) => {
+     const file = e.target.files?.[0];
+     if (!file) return;
+     setAiImporting(true);
+     try {
+       const { file_url } = await base44.integrations.Core.UploadFile({ file });
+       const res = await base44.functions.importEmployeesFromFile({ file_url });
+       const data = res?.data || res;
+       const emps = (data?.employees || []).map((emp) => ({ ...emp, selected: true }));
+       setAiCandidates(emps);
+     } catch (err) {
+       alert('שגיאה בסריקה: ' + (err?.message || ''));
+     } finally {
+       setAiImporting(false);
+       e.target.value = '';
+     }
+   };
+
+   const importEmployees = async () => {
+     if (!aiCandidates) return;
+     setImportingEmp(true);
+     const chosen = aiCandidates.filter((e) => e.selected);
+     try {
+       for (const e of chosen) {
+         if (!e.full_name) continue;
+         await Employee.create({
+           employee_name: e.full_name,
+           email: e.email || null,
+           phone: e.phone || null,
+           role: e.role || null,
+           status: e.status || 'active',
+         });
+       }
+       setAiCandidates(null);
+       loadEmployees();
+     } catch (err) {
+       alert('שגיאה בייבוא: ' + (err?.message || ''));
+     } finally {
+       setImportingEmp(false);
+     }
+   };
 
    // === Filter state ============================================================
    // - searchText: matches name OR email (case-insensitive, partial)
@@ -792,7 +837,12 @@ function EmployeesInner() {
              </h1>
              <p className="text-gray-600 mt-2">הוספה, עריכה וניהול של צוות המסעדה</p>
            </div>
-           <div className="flex gap-2">
+           <div className="flex gap-2 flex-wrap">
+             <label className="inline-flex items-center gap-1 px-3 py-2 rounded-md border border-amber-300 bg-amber-50 text-amber-800 cursor-pointer hover:bg-amber-100 text-sm">
+               {aiImporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+               {aiImporting ? 'סורק...' : 'ייבא מ-PDF/Excel'}
+               <input type="file" accept=".pdf,.xlsx,.xls,.csv,image/*" onChange={handleAiFileImport} className="hidden" />
+             </label>
              <Button onClick={syncAllEmails} variant="outline" className="border-[#D9BD83] text-[#7A3722] hover:bg-[#F4ECD8]">
                🔄 סנכרן מיילים
              </Button>
@@ -802,6 +852,46 @@ function EmployeesInner() {
              </Button>
            </div>
          </div>
+
+         {aiCandidates && (
+           <Card className="border-amber-200 bg-amber-50">
+             <CardContent className="p-4">
+               <div className="flex items-center justify-between mb-3">
+                 <h3 className="font-bold flex items-center gap-1">
+                   <Sparkles className="w-4 h-4 text-amber-600" /> AI מצא {aiCandidates.length} עובדים
+                 </h3>
+                 <div className="flex gap-2">
+                   <Button variant="ghost" size="sm" onClick={() => setAiCandidates(null)}>ביטול</Button>
+                   <Button size="sm" onClick={importEmployees} disabled={importingEmp}>
+                     {importingEmp ? <Loader2 className="w-3 h-3 animate-spin ml-1" /> : null}
+                     ייבא נבחרים ({aiCandidates.filter(e => e.selected).length})
+                   </Button>
+                 </div>
+               </div>
+               <div className="space-y-1 max-h-96 overflow-y-auto">
+                 {aiCandidates.map((emp, i) => (
+                   <label key={i} className="flex items-center gap-2 p-2 bg-white rounded border cursor-pointer text-sm">
+                     <input
+                       type="checkbox"
+                       checked={emp.selected}
+                       onChange={(ev) => {
+                         const next = [...aiCandidates];
+                         next[i] = { ...emp, selected: ev.target.checked };
+                         setAiCandidates(next);
+                       }}
+                     />
+                     <div className="flex-1 grid grid-cols-4 gap-2">
+                       <span className="font-bold">{emp.full_name || '—'}</span>
+                       <span className="text-slate-500 text-xs">{emp.phone || ''}</span>
+                       <span className="text-slate-500 text-xs">{emp.email || ''}</span>
+                       <span className="text-slate-500 text-xs">{emp.role || ''}</span>
+                     </div>
+                   </label>
+                 ))}
+               </div>
+             </CardContent>
+           </Card>
+         )}
 
         {loading ? (
           <p>טוען עובדים...</p>

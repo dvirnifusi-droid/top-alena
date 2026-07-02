@@ -42,7 +42,7 @@ const db = prisma as any; // generic delegate access
 
 // Public deploy marker — lets us confirm which build is live (and that
 // auto-deploy is working) without server access. Bump on each deploy test.
-registerFn('deployInfo', async () => ({ version: 'bp-business-profile-2026-07-02', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
+registerFn('deployInfo', async () => ({ version: 'ai-onboarding-2026-07-02', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
 
 
 
@@ -19321,6 +19321,113 @@ registerFn('getMyAiUsage', async ({ user }) => {
   if (!user?.id) throw new Error('unauthorized');
   const usage = await getMyMonthlyUsage();
   return usage;
+});
+
+// BP — Suggest job roles tailored to this tenant's business profile.
+// Reads business_context and asks Gemini for 6-10 roles with sensible
+// defaults (color, hourly rate, which shift types they typically work).
+// The owner picks which to import → creates WorkPosition rows.
+registerFn('suggestRoles', async ({ user }) => {
+  if (!user?.id) throw new Error('unauthorized');
+  if (!isAdminRole((user as any)?.role)) throw new Error('admin only');
+  const ctx = await businessContextBlock();
+  const brand = await getBrandName();
+  const prompt = `${ctx}הצע 6-10 תפקידים אופייניים לצוות של "${brand}" — לפי סוג העסק והמטבח. **חובה** להתייחס לפרופיל למעלה: בר יין → סומליה/ברמנים; בורגר בר → מלצרים/טבחים על הגריל; קפה → ברסיטות. אל תמציא תפקיד אקזוטי אם אין לו קונטקסט בפרופיל.\n\nלכל תפקיד: שם קצר בעברית, אימוג׳י, צבע (hex), שכר לשעה משוער בשקלים, ובאילו סוגי משמרות הוא נדרש (morning/noon/evening/night — כמערך).\n\nהחזר JSON: { roles: [{ name, emoji, color, hourly_rate_ils, shifts: string[] }] }`;
+  const result: any = await invokeLLM({
+    prompt,
+    responseSchema: {
+      type: 'object',
+      properties: {
+        roles: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              name: { type: 'string' },
+              emoji: { type: 'string' },
+              color: { type: 'string' },
+              hourly_rate_ils: { type: 'number' },
+              shifts: { type: 'array', items: { type: 'string' } },
+            },
+          },
+        },
+      },
+      required: ['roles'],
+    },
+    _ctx: { fn_name: 'suggestRoles' },
+  });
+  return result;
+});
+
+// BP — Suggest daily checklists per shift type based on business profile.
+// Owner can import any subset → creates Checklist rows.
+registerFn('suggestChecklists', async ({ user }) => {
+  if (!user?.id) throw new Error('unauthorized');
+  if (!isAdminRole((user as any)?.role)) throw new Error('admin only');
+  const ctx = await businessContextBlock();
+  const brand = await getBrandName();
+  const prompt = `${ctx}הצע צ'ק-ליסטים יומיים לצוות של "${brand}". **חובה** להתייחס לפרופיל למעלה: בר יין = ניקוי כוסות, בדיקת טמפרטורת מקררים, סידור בקבוקים. בורגר בר = ניקוי גריל, בדיקת שמנים. קפה = כיול מכונת אספרסו.\n\nחזור 3-5 צ׳ק-ליסטים סה"כ. לכל אחד: שם, מחלקה (מטבח/בר/מלצרים/מנהלים), משמרת (בוקר/ערב/סגירה/כל היום), ורשימת פריטים 4-8.\n\nהחזר JSON: { checklists: [{ name, department, shift, items: string[] }] }`;
+  const result: any = await invokeLLM({
+    prompt,
+    responseSchema: {
+      type: 'object',
+      properties: {
+        checklists: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              name: { type: 'string' },
+              department: { type: 'string' },
+              shift: { type: 'string' },
+              items: { type: 'array', items: { type: 'string' } },
+            },
+          },
+        },
+      },
+      required: ['checklists'],
+    },
+    _ctx: { fn_name: 'suggestChecklists' },
+  });
+  return result;
+});
+
+// BP — Import employees from an uploaded PDF/image/spreadsheet. Uses Gemini
+// vision to extract structured rows. Returns candidates for owner review
+// before writing to Employee table.
+registerFn('importEmployeesFromFile', async ({ user, body }) => {
+  if (!user?.id) throw new Error('unauthorized');
+  if (!isAdminRole((user as any)?.role)) throw new Error('admin only');
+  const b = (body || {}) as any;
+  const url = String(b.file_url || '').trim();
+  if (!url) throw new Error('file_url required');
+  const brand = await getBrandName();
+  const prompt = `הקובץ המצורף הוא רשימת עובדים של מסעדת "${brand}". חלץ כל שורה כרשומת עובד.\n\nלכל עובד: שם מלא, טלפון (אם נמצא — normalize ל-05X-XXXXXXX), אימייל (אם נמצא), תפקיד (אם נמצא — מלצר/טבח/ברמן/מנהל וכו׳), סטטוס (active אם ברור, אחרת null).\n\nהחזר JSON בלבד: { employees: [{ full_name, phone, email, role, status }] }. אם שדה חסר — null.`;
+  const result: any = await invokeLLM({
+    prompt,
+    fileUrls: [url],
+    responseSchema: {
+      type: 'object',
+      properties: {
+        employees: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              full_name: { type: 'string' },
+              phone: { type: 'string' },
+              email: { type: 'string' },
+              role: { type: 'string' },
+              status: { type: 'string' },
+            },
+          },
+        },
+      },
+      required: ['employees'],
+    },
+    _ctx: { fn_name: 'importEmployeesFromFile' },
+  });
+  return result;
 });
 
 // BP — AI-assisted business profile composer. Takes whatever fields the

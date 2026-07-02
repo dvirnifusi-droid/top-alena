@@ -4,7 +4,8 @@ import PageGuard from "../components/shared/PageGuard";
 import { User } from "@/entities/User";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { CheckSquare, Clock, CheckCircle, AlertTriangle, FileText, Pencil, Plus } from "lucide-react";
+import { CheckSquare, Clock, CheckCircle, AlertTriangle, FileText, Pencil, Plus, Sparkles, Loader2 } from "lucide-react";
+import { base44 } from "@/api/base44Client";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Link } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -29,6 +30,47 @@ function ChecklistsInner() {
     const [shiftFilter, setShiftFilter] = useState('all');
     // Department filter — 'all' | 'floor' | 'bar' | 'kitchen' | 'managers'
     const [deptFilter, setDeptFilter] = useState('all');
+    const [aiSuggesting, setAiSuggesting] = useState(false);
+    const [aiChecklists, setAiChecklists] = useState(null);
+    const [importingCl, setImportingCl] = useState(false);
+
+    const runAiSuggestChecklists = async () => {
+        setAiSuggesting(true);
+        try {
+            const res = await base44.functions.suggestChecklists({});
+            const data = res?.data || res;
+            const lists = (data?.checklists || []).map((c) => ({ ...c, selected: true }));
+            setAiChecklists(lists);
+        } catch (e) {
+            alert('שגיאה: ' + (e?.message || ''));
+        } finally {
+            setAiSuggesting(false);
+        }
+    };
+
+    const importChecklists = async () => {
+        if (!aiChecklists) return;
+        setImportingCl(true);
+        const chosen = aiChecklists.filter((c) => c.selected);
+        try {
+            for (const c of chosen) {
+                await Checklist.create({
+                    title: c.name,
+                    description: `${c.department || ''} · ${c.shift || ''}`.trim(),
+                    department: c.department || null,
+                    shift: c.shift || null,
+                    items: (c.items || []).map((text) => ({ id: `it_${Math.random().toString(36).slice(2, 8)}`, text, is_required: false })),
+                    status: 'active',
+                });
+            }
+            setAiChecklists(null);
+            loadData();
+        } catch (e) {
+            alert('שגיאה בייבוא: ' + (e?.message || ''));
+        } finally {
+            setImportingCl(false);
+        }
+    };
 
     useEffect(() => {
         loadData();
@@ -196,13 +238,56 @@ function ChecklistsInner() {
                                     </Button>
                                 ))}
                             </div>
-                            <Button
-                                onClick={() => setEditingChecklist({})}
-                                className="bg-emerald-600 hover:bg-emerald-700 text-white"
-                            >
-                                <Plus className="w-4 h-4 ml-1" /> צ'קליסט חדש
-                            </Button>
+                            <div className="flex items-center gap-2">
+                                <Button variant="outline" onClick={runAiSuggestChecklists} disabled={aiSuggesting} className="gap-1">
+                                    {aiSuggesting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                                    {aiSuggesting ? 'AI...' : 'הצע לפי הפרופיל'}
+                                </Button>
+                                <Button
+                                    onClick={() => setEditingChecklist({})}
+                                    className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                                >
+                                    <Plus className="w-4 h-4 ml-1" /> צ'קליסט חדש
+                                </Button>
+                            </div>
                         </div>
+                        {aiChecklists && (
+                            <div className="border border-amber-200 bg-amber-50 rounded-lg p-4 space-y-2">
+                                <div className="flex items-center justify-between">
+                                    <h3 className="font-bold flex items-center gap-1">
+                                        <Sparkles className="w-4 h-4 text-amber-600" /> הצעות AI ({aiChecklists.length})
+                                    </h3>
+                                    <div className="flex gap-2">
+                                        <Button variant="ghost" size="sm" onClick={() => setAiChecklists(null)}>ביטול</Button>
+                                        <Button size="sm" onClick={importChecklists} disabled={importingCl || !aiChecklists.some(c => c.selected)}>
+                                            {importingCl ? <Loader2 className="w-3 h-3 animate-spin ml-1" /> : null}
+                                            ייבא נבחרים
+                                        </Button>
+                                    </div>
+                                </div>
+                                {aiChecklists.map((c, i) => (
+                                    <label key={i} className="flex items-start gap-3 p-3 bg-white rounded-lg border cursor-pointer">
+                                        <input
+                                            type="checkbox"
+                                            checked={c.selected}
+                                            onChange={(e) => {
+                                                const next = [...aiChecklists];
+                                                next[i] = { ...c, selected: e.target.checked };
+                                                setAiChecklists(next);
+                                            }}
+                                            className="mt-1"
+                                        />
+                                        <div className="flex-1">
+                                            <div className="font-bold text-sm">{c.name}</div>
+                                            <div className="text-xs text-slate-500 mb-1">{c.department} · {c.shift}</div>
+                                            <ul className="text-xs text-slate-600 list-disc mr-4">
+                                                {(c.items || []).map((it, j) => <li key={j}>{it}</li>)}
+                                            </ul>
+                                        </div>
+                                    </label>
+                                ))}
+                            </div>
+                        )}
                         {/* Department chip row — second-level filter */}
                         <div className="flex flex-wrap gap-2">
                             {[

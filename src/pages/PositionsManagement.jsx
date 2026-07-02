@@ -8,7 +8,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Plus, Edit, Trash2, Briefcase } from 'lucide-react';
+import { Plus, Edit, Trash2, Briefcase, Sparkles, Loader2 } from 'lucide-react';
+import { base44 } from '@/api/base44Client';
 
 function PositionForm({ position, onSave, onCancel }) {
     const [formData, setFormData] = useState({
@@ -347,6 +348,47 @@ export default function PositionsManagementPage() {
     const [isFormOpen, setIsFormOpen] = useState(false);
     const [editingPosition, setEditingPosition] = useState(null);
     const [viewingPosition, setViewingPosition] = useState(null);
+    const [aiSuggesting, setAiSuggesting] = useState(false);
+    const [aiSuggestions, setAiSuggestions] = useState(null);
+    const [importing, setImporting] = useState(false);
+
+    const runAiSuggest = async () => {
+        setAiSuggesting(true);
+        try {
+            const res = await base44.functions.suggestRoles({});
+            const data = res?.data || res;
+            const roles = (data?.roles || []).map((r) => ({ ...r, selected: true }));
+            setAiSuggestions(roles);
+        } catch (e) {
+            alert('שגיאה: ' + (e?.message || ''));
+        } finally {
+            setAiSuggesting(false);
+        }
+    };
+
+    const importSelected = async () => {
+        if (!aiSuggestions) return;
+        setImporting(true);
+        const chosen = aiSuggestions.filter((r) => r.selected);
+        try {
+            for (const r of chosen) {
+                await WorkPosition.create({
+                    position_name: r.emoji ? `${r.emoji} ${r.name}` : r.name,
+                    emoji: r.emoji || '👔',
+                    color: r.color || '#3b82f6',
+                    hourly_rate: r.hourly_rate_ils || 0,
+                    is_active: true,
+                    description: (r.shifts && r.shifts.length ? `משמרות: ${r.shifts.join(', ')}` : ''),
+                });
+            }
+            setAiSuggestions(null);
+            loadPositions();
+        } catch (e) {
+            alert('שגיאה בייבוא: ' + (e?.message || ''));
+        } finally {
+            setImporting(false);
+        }
+    };
 
     useEffect(() => {
         loadPositions();
@@ -415,10 +457,59 @@ export default function PositionsManagementPage() {
                         </h1>
                         <p className="text-gray-600 mt-2">הגדרת תפקידים, תיאורים ונהלי גיוס</p>
                     </div>
-                    <Button onClick={() => openForm()}>
-                        <Plus className="w-4 h-4 ml-2" />הוסף תפקיד חדש
-                    </Button>
+                    <div className="flex items-center gap-2">
+                        <Button variant="outline" onClick={runAiSuggest} disabled={aiSuggesting} className="gap-1">
+                            {aiSuggesting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                            {aiSuggesting ? 'AI חושב...' : 'הצע תפקידים לפי הפרופיל'}
+                        </Button>
+                        <Button onClick={() => openForm()}>
+                            <Plus className="w-4 h-4 ml-2" />הוסף תפקיד חדש
+                        </Button>
+                    </div>
                 </div>
+
+                {aiSuggestions && (
+                    <Card className="mb-4 border-amber-200 bg-amber-50">
+                        <CardContent className="p-4">
+                            <div className="flex items-center justify-between mb-3">
+                                <h3 className="font-bold flex items-center gap-1">
+                                    <Sparkles className="w-4 h-4 text-amber-600" /> הצעות AI ({aiSuggestions.length})
+                                </h3>
+                                <div className="flex gap-2">
+                                    <Button variant="ghost" size="sm" onClick={() => setAiSuggestions(null)}>ביטול</Button>
+                                    <Button size="sm" onClick={importSelected} disabled={importing || !aiSuggestions.some(r => r.selected)}>
+                                        {importing ? <Loader2 className="w-3 h-3 animate-spin ml-1" /> : null}
+                                        ייבא נבחרים ({aiSuggestions.filter(r => r.selected).length})
+                                    </Button>
+                                </div>
+                            </div>
+                            <div className="space-y-2">
+                                {aiSuggestions.map((r, i) => (
+                                    <label key={i} className="flex items-center gap-3 p-3 bg-white rounded-lg border cursor-pointer">
+                                        <input
+                                            type="checkbox"
+                                            checked={r.selected}
+                                            onChange={(e) => {
+                                                const next = [...aiSuggestions];
+                                                next[i] = { ...r, selected: e.target.checked };
+                                                setAiSuggestions(next);
+                                            }}
+                                        />
+                                        <span className="text-2xl">{r.emoji}</span>
+                                        <div className="flex-1">
+                                            <div className="font-bold">{r.name}</div>
+                                            <div className="text-xs text-slate-500">
+                                                ₪{r.hourly_rate_ils}/שעה
+                                                {r.shifts?.length ? ` · ${r.shifts.join(' / ')}` : ''}
+                                            </div>
+                                        </div>
+                                        <div className="w-6 h-6 rounded" style={{ background: r.color }} />
+                                    </label>
+                                ))}
+                            </div>
+                        </CardContent>
+                    </Card>
+                )}
 
                 <Card>
                     <CardContent>
