@@ -2294,6 +2294,42 @@ export default function SeatingSetup() {
                                 )}
                                 <Button variant={viewMode === 'list' ? 'secondary' : 'outline'} size="icon" className="h-9 w-9" onClick={() => { setViewMode('list'); setBigMapMode(false); }}><Edit className="w-4 h-4"/></Button>
                                 <Button variant={viewMode === 'map' ? 'secondary' : 'outline'} size="icon" className="h-9 w-9" onClick={() => setViewMode('map')}><Eye className="w-4 h-4"/></Button>
+                                <label className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md border border-amber-300 bg-amber-50 text-amber-900 hover:bg-amber-100 text-xs cursor-pointer h-9">
+                                    <Sparkles className="w-3.5 h-3.5" />
+                                    <span className="hidden sm:inline">סרוק מפה (AI)</span>
+                                    <input
+                                        type="file"
+                                        accept="image/*,.pdf"
+                                        onChange={async (e) => {
+                                            const file = e.target.files?.[0];
+                                            if (!file) return;
+                                            try {
+                                                const { base44 } = await import('@/api/base44Client');
+                                                const { file_url } = await base44.integrations.Core.UploadFile({ file });
+                                                const res = await base44.functions.extractSeatingFromImage({ file_url });
+                                                const data = res?.data || res;
+                                                const newTables = (data?.tables || []).map((t, i) => ({
+                                                    table_number: t.label || `S${i + 1}`,
+                                                    min_capacity: Math.max(1, Math.floor((t.capacity || 2) * 0.5)),
+                                                    max_capacity: Math.max(2, t.capacity || 4),
+                                                    location: (t.shape === 'outdoor') ? 'outdoor' : 'indoor',
+                                                    area: t.shape === 'bar' ? 'בר' : t.shape === 'booth' ? 'פינה' : 'חדש',
+                                                    combinable_with: [],
+                                                    features: [],
+                                                    x: Math.round(((t.x ?? 50) * 6) / 20) * 20,
+                                                    y: Math.round(((t.y ?? 50) * 5) / 20) * 20,
+                                                    width: 80,
+                                                    height: 80,
+                                                }));
+                                                if (!newTables.length) { alert('לא זוהו שולחנות בתמונה'); return; }
+                                                setTables([...tables, ...newTables]);
+                                                alert(`✅ נוספו ${newTables.length} שולחנות. גרור לתקן ושמור.`);
+                                            } catch (err) { alert('שגיאה: ' + (err?.message || '')); }
+                                            finally { e.target.value = ''; }
+                                        }}
+                                        className="hidden"
+                                    />
+                                </label>
                                 <Button onClick={handleSaveLayout} disabled={isSaving} size="sm">
                                     {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
                                     <span className="hidden sm:inline mr-1">שמור</span>
