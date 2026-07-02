@@ -23,12 +23,14 @@
 
 import { prisma } from '../db.js';
 
-// Slug marker — a `+<slug>` token anywhere in the message, bounded by
-// whitespace/start/end/punctuation. Handles RTL bidi cases where WhatsApp
-// visually renders "+miha היי" but the actual byte order is "היי +miha".
-// Examples caught: "+miha היי", "היי +miha", "רוצה +yoavi לקבוע".
-// Case-insensitive.
-const SLUG_PREFIX_RE = /(^|\s)\+([a-z][a-z0-9-]{2,32})(?=\s|$|[,.:;!?])/i;
+// Slug marker — accepts both `+slug` and `slug+` anywhere in the body.
+// The second form handles WhatsApp on RTL keyboards, which sometimes
+// visually renders "+miha היי" but sends "היי miha+" (the plus flips to
+// the other side of the token during bidi rendering).
+// Both must be bounded by whitespace/start/end/punctuation to avoid
+// matching mid-word (e.g. "email+extras" won't match).
+const SLUG_PREFIX_PLUS = /(^|\s)\+([a-z][a-z0-9-]{2,32})(?=\s|$|[,.:;!?])/i;
+const SLUG_SUFFIX_PLUS = /(^|\s)([a-z][a-z0-9-]{2,32})\+(?=\s|$|[,.:;!?])/i;
 
 // Fallback tenant when nothing resolves. Alena because she predates D3 and
 // legacy phones point to her by default. Override in a tenant container by
@@ -74,10 +76,11 @@ export async function resolveTenantFromMessage(
 ): Promise<TenantResolution> {
   const phone = normalizePhone(fromPhone);
 
-  // 1. Explicit prefix always wins. Regex captures [leading, slug].
+  // 1. Explicit slug token — try `+slug` first, then `slug+` (RTL fallback).
   const bodyStr = String(body || '');
-  const m = SLUG_PREFIX_RE.exec(bodyStr);
+  const m = SLUG_PREFIX_PLUS.exec(bodyStr) || SLUG_SUFFIX_PLUS.exec(bodyStr);
   if (m) {
+    // Both regexes capture the slug in group 2.
     const slug = m[2].toLowerCase();
     // Strip the whole match (including its leading whitespace) from wherever
     // it appeared, then collapse whitespace.
