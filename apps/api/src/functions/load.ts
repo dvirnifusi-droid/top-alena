@@ -17,6 +17,7 @@ import { driveAccessToken, listDriveFiles, downloadDriveFile } from '../lib/gdri
 import { uploadStreamToS3 } from '../lib/storage.js';
 import { MODULE_CATALOG } from '../lib/modules.js';
 import { getMyMonthlyUsage } from '../lib/aiUsage.js';
+import { getBrandName, renderBrand } from '../lib/brandName.js';
 import { Readable } from 'node:stream';
 import webpush from 'web-push';
 import {
@@ -40,7 +41,7 @@ const db = prisma as any; // generic delegate access
 
 // Public deploy marker — lets us confirm which build is live (and that
 // auto-deploy is working) without server access. Bump on each deploy test.
-registerFn('deployInfo', async () => ({ version: 'iso-chat-agents-2026-07-02', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
+registerFn('deployInfo', async () => ({ version: 'iso-batch2-white-label-2026-07-02', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
 
 
 
@@ -1761,7 +1762,8 @@ async function runDailyCelebrationCampaigns(force = false) {
   };
 
   // 1) Birthday today
-  const bdayTemplate = 'יום הולדת שמח, {name}! 🎉🎂\nאיזה יום מיוחד — אם תבוא היום, הקינוח עלינא 🍰\nרוטשילד 104, ראשון לציון. נשמח לחגוג איתך 🌿';
+  const brand = await getBrandName();
+  const bdayTemplate = `יום הולדת שמח, {name}! 🎉🎂\nאיזה יום מיוחד — אם תבוא היום, הקינוח על ${brand} 🍰\nנשמח לחגוג איתך 🌿`;
   try {
     const bdayList = await db.customer.findMany({
       where: { ...baseGate, birthday_mmdd: mmdd },
@@ -1840,7 +1842,7 @@ async function runDailyCelebrationCampaigns(force = false) {
 // ============================================================================
 
 const DRIP_TEMPLATES = {
-  welcome: 'תודה ששמת אותנו במפה שלך, {name} 🌿\nתקווה שנהניתם — לקראת הביקור הבא יש לך 10% הנחה.\nרק תגיד "ראיתי בוואטסאפ" למלצר.\nעלינא, רוטשילד 104',
+  welcome: 'תודה ששמת אותנו במפה שלך, {name} 🌿\nתקווה שנהניתם — לקראת הביקור הבא יש לך 10% הנחה.\nרק תגיד "ראיתי בוואטסאפ" למלצר.\n{brand}',
   nps_high: 'היי {name}, איך היה אצלנו?\nאם נהנית — נשמח לביקורת קטנה ב-Google:\nhttps://g.page/r/topalena-review\nתודה רבה 🌿',
   nps_low: 'היי {name},\nאיך היה אצלנו? תן לנו 1-5 בקצרה.\nכל משוב נכנס ישירות למנהל ועוזר לנו להשתפר 🌿',
   pre_birthday: 'היי {name}! 🎂\nבעוד שבוע יש לך יום הולדת — נשמח לחגוג איתך!\nתזמין שולחן וקבל קינוח חינם.\nרוטשילד 104, ראשון לציון 🌿',
@@ -1877,7 +1879,7 @@ async function runDripCampaigns(force = false) {
       let ok = 0, fail = 0;
       for (const c of candidates) {
         try {
-          const msg = DRIP_TEMPLATES.welcome.replace(/\{name\}/g, c.name || 'אורח/ת יקר/ה');
+          const msg = DRIP_TEMPLATES.welcome.replace(/\{name\}/g, c.name || 'אורח/ת יקר/ה').replace(/\{brand\}/g, await getBrandName());
           const out = await sendWhatsApp(c.phone, msg);
           if (!(out as any)?.skipped) {
             ok++;
@@ -2011,7 +2013,7 @@ registerFn('personalizeWithAI', async ({ body }) => {
     // Synthetic "average" customer profile for preview without specific match
     customer = { name: 'אורח לדוגמה', visit_count: 3, loyalty_tier: 'regular', last_visit: new Date(Date.now() - 30 * 86400000) };
   }
-  const prompt = `אתה כותב הודעה אישית בעברית למסעדת "עלינא" בראשון לציון.
+  const prompt = `אתה כותב הודעה אישית בעברית למסעדת "${await getBrandName()}".
 פרטי הלקוח:
 - שם: ${customer.name || 'אורח'}
 - מספר ביקורים: ${customer.visit_count || 0}
@@ -3392,6 +3394,7 @@ registerFn('previewVendorSegment', async ({ body }) => {
 
 registerFn('sendVendorCampaign', async ({ body, user }) => {
   if ((user as any)?.role !== 'admin') throw new Error('admin only');
+  const brand = await getBrandName();
   const { category, channel, subject, message_template, exclude_ids, campaign_label } = body as any;
   if (!message_template) throw new Error('message_template required');
   const where: any = {
@@ -3415,8 +3418,8 @@ registerFn('sendVendorCampaign', async ({ body, user }) => {
       let out: any;
       if (useEmail) {
         if (!v.email) { fail++; failures.push({ id: v.id, reason: 'no_email' }); continue; }
-        const html = `<div dir="rtl" style="font-family:Arial,sans-serif;line-height:1.6;padding:20px;max-width:600px;margin:auto;background:#FAF5E8;border-radius:12px"><h2 style="color:#A04A2E">עלינא 🌿 · שותפים</h2><pre style="white-space:pre-wrap;font-family:inherit">${rendered.replace(/[<>]/g, '')}</pre></div>`;
-        out = await sendEmail({ to: v.email, subject: subject || 'עדכון מעלינא', html });
+        const html = `<div dir="rtl" style="font-family:Arial,sans-serif;line-height:1.6;padding:20px;max-width:600px;margin:auto;background:#FAF5E8;border-radius:12px"><h2 style="color:#A04A2E">${brand} 🌿 · שותפים</h2><pre style="white-space:pre-wrap;font-family:inherit">${rendered.replace(/[<>]/g, '')}</pre></div>`;
+        out = await sendEmail({ to: v.email, subject: subject || `עדכון מ${brand}`, html });
         await db.vendorContact.create({ data: { vendor_id: v.id, kind: 'email_out', subject: subject || null, body: rendered, resend_id: out?.id || null, created_by: 'campaign' } }).catch(() => {});
       } else {
         const phone = v.whatsapp || v.phone;
@@ -3648,6 +3651,7 @@ function estimateCampaignCostIls(recipientCount: number, channel: string): numbe
 //  - includes Twilio status callback URL so we get delivery/read receipts
 registerFn('sendCustomerCampaign', async ({ body, user }) => {
   if ((user as any)?.role !== 'admin') throw new Error('admin only');
+  const brand = await getBrandName();
   const { segment, message_template, channel, campaign_key, campaign_label, custom_filter, media_url, exclude_ids } = body as any;
   if (!message_template) throw new Error('message_template required');
   if (!segment) throw new Error('segment required');
@@ -3735,8 +3739,8 @@ registerFn('sendCustomerCampaign', async ({ body, user }) => {
         if (!(c as any).email) {
           out = { skipped: true, reason: 'no_email' };
         } else {
-          const html = `<div dir="rtl" style="font-family:Arial,sans-serif;line-height:1.6;padding:20px;max-width:600px;margin:auto;background:#FAF5E8;border-radius:12px"><h2 style="color:#A04A2E">עלינא 🌿</h2><pre style="white-space:pre-wrap;font-family:inherit">${rendered.replace(/[<>]/g, '')}</pre>${media_url ? `<img src="${media_url}" style="max-width:100%;margin-top:16px;border-radius:8px"/>` : ''}<p style="color:#888;font-size:12px;margin-top:24px">רוטשילד 104, ראשון לציון</p></div>`;
-          out = await sendEmail({ to: (c as any).email, subject: campaign_label || 'הודעה ממסעדת עלינא', html });
+          const html = `<div dir="rtl" style="font-family:Arial,sans-serif;line-height:1.6;padding:20px;max-width:600px;margin:auto;background:#FAF5E8;border-radius:12px"><h2 style="color:#A04A2E">${brand} 🌿</h2><pre style="white-space:pre-wrap;font-family:inherit">${rendered.replace(/[<>]/g, '')}</pre>${media_url ? `<img src="${media_url}" style="max-width:100%;margin-top:16px;border-radius:8px"/>` : ''}</div>`;
+          out = await sendEmail({ to: (c as any).email, subject: campaign_label || `הודעה ממסעדת ${brand}`, html });
         }
       } else if (useWa) {
         out = await sendWhatsApp(c.phone, rendered, {
@@ -3924,37 +3928,38 @@ registerFn('getReferralCodeForCustomer', async ({ body }) => {
 // HOLIDAY TEMPLATE LIBRARY — pre-made Hebrew greetings for major dates
 // ============================================================================
 registerFn('listHolidayTemplates', async () => {
-  // Hardcoded list — owner picks one, gets ready-to-edit template
-  return {
-    templates: [
-      { key: 'rosh_hashana', emoji: '🍎🍯', label: 'ראש השנה',
-        template: 'שנה טובה ומתוקה, {name}! 🍎🍯\nשתהיה לך שנה של בריאות, אושר ושפע — ועוד הרבה ארוחות טובות אצלנו 🌿\nעלינא, רוטשילד 104' },
-      { key: 'yom_kippur', emoji: '🕊️', label: 'יום כיפור',
-        template: 'גמר חתימה טובה, {name} 🕊️\nשתחתם בספר החיים, הבריאות והאושר 🌿\n— צוות עלינא' },
-      { key: 'sukkot', emoji: '🌿', label: 'סוכות',
-        template: 'חג סוכות שמח, {name}! 🌿\nרוצה להזמין שולחן בסוכה אצלנו? נשמח לארח 🍂\nרוטשילד 104, ראשון לציון' },
-      { key: 'hanukkah', emoji: '🕎', label: 'חנוכה',
-        template: 'חג אורים שמח, {name}! 🕎\nבחנוכה, הסופגנייה החמה אצלנו על חשבון הבית — בוא להאיר את החג איתנו 🌿' },
-      { key: 'tu_bishvat', emoji: '🌳', label: 'ט"ו בשבט',
-        template: 'חג ט"ו בשבט שמח, {name}! 🌳\nתפריט מיוחד של פירות יבשים ותבלינים מחכה לך 🌿' },
-      { key: 'purim', emoji: '🎭', label: 'פורים',
-        template: 'פורים שמח, {name}! 🎭\nבוא להתחפש לאוכל טוב — מנה מיוחדת אצלנו לכבוד החג 🌿' },
-      { key: 'pesach', emoji: '🍷', label: 'פסח',
-        template: 'חג פסח שמח, {name}! 🍷\nאחרי הסדר — בוא לחזור לטעמים שאוהבים. מתפריט מיוחד לפסח 🌿' },
-      { key: 'yom_atzmaut', emoji: '🇮🇱', label: 'יום העצמאות',
-        template: 'יום עצמאות שמח, {name}! 🇮🇱\nחוגגים יחד את ישראל — ערב עצמאות אצלנו עם מוזיקה ומנגל מיוחד 🌿' },
-      { key: 'lag_baomer', emoji: '🔥', label: 'ל"ג בעומר',
-        template: 'ל"ג בעומר שמח, {name}! 🔥\nבא לעבור לארוחה אמיתית אחרי המדורה? פתוחים עד מאוחר 🌿' },
-      { key: 'shavuot', emoji: '🥛', label: 'שבועות',
-        template: 'חג שבועות שמח, {name}! 🥛\nמנות חלביות מיוחדות לחג — בוא לטעום 🌿' },
-      { key: 'valentine', emoji: '❤️', label: 'ולנטיין',
-        template: 'יום ולנטיין שמח, {name}! ❤️\nערב רומנטי לזוגות — קבל בקבוק יין במתנה כשמגיעים זוגות.\nהזמן שולחן 🌿' },
-      { key: 'mother_day', emoji: '💐', label: 'יום האם',
-        template: 'יום אם שמח, {name}! 💐\nתפנק את האמא הכי טובה — הזמן שולחן ויש מתנה לאמא במקום.\nרוטשילד 104 🌿' },
-      { key: 'father_day', emoji: '👔', label: 'יום האב',
-        template: 'יום האב שמח, {name}! 👔\nתפנק את אבא — סטייק מיוחד לחג, על חשבון הבית עם כל מנה ראשונה.\nעלינא 🌿' },
-    ],
-  };
+  // Templates use {brand}/{name} placeholders — rendered when the owner
+  // sends the campaign so each tenant substitutes their own restaurant name.
+  const brand = await getBrandName();
+  const templates = [
+    { key: 'rosh_hashana', emoji: '🍎🍯', label: 'ראש השנה',
+      template: `שנה טובה ומתוקה, {name}! 🍎🍯\nשתהיה לך שנה של בריאות, אושר ושפע — ועוד הרבה ארוחות טובות אצלנו 🌿\n${brand}` },
+    { key: 'yom_kippur', emoji: '🕊️', label: 'יום כיפור',
+      template: `גמר חתימה טובה, {name} 🕊️\nשתחתם בספר החיים, הבריאות והאושר 🌿\n— צוות ${brand}` },
+    { key: 'sukkot', emoji: '🌿', label: 'סוכות',
+      template: 'חג סוכות שמח, {name}! 🌿\nרוצה להזמין שולחן בסוכה אצלנו? נשמח לארח 🍂' },
+    { key: 'hanukkah', emoji: '🕎', label: 'חנוכה',
+      template: 'חג אורים שמח, {name}! 🕎\nבחנוכה, הסופגנייה החמה אצלנו על חשבון הבית — בוא להאיר את החג איתנו 🌿' },
+    { key: 'tu_bishvat', emoji: '🌳', label: 'ט"ו בשבט',
+      template: 'חג ט"ו בשבט שמח, {name}! 🌳\nתפריט מיוחד של פירות יבשים ותבלינים מחכה לך 🌿' },
+    { key: 'purim', emoji: '🎭', label: 'פורים',
+      template: 'פורים שמח, {name}! 🎭\nבוא להתחפש לאוכל טוב — מנה מיוחדת אצלנו לכבוד החג 🌿' },
+    { key: 'pesach', emoji: '🍷', label: 'פסח',
+      template: 'חג פסח שמח, {name}! 🍷\nאחרי הסדר — בוא לחזור לטעמים שאוהבים. מתפריט מיוחד לפסח 🌿' },
+    { key: 'yom_atzmaut', emoji: '🇮🇱', label: 'יום העצמאות',
+      template: 'יום עצמאות שמח, {name}! 🇮🇱\nחוגגים יחד את ישראל — ערב עצמאות אצלנו עם מוזיקה ומנגל מיוחד 🌿' },
+    { key: 'lag_baomer', emoji: '🔥', label: 'ל"ג בעומר',
+      template: 'ל"ג בעומר שמח, {name}! 🔥\nבא לעבור לארוחה אמיתית אחרי המדורה? פתוחים עד מאוחר 🌿' },
+    { key: 'shavuot', emoji: '🥛', label: 'שבועות',
+      template: 'חג שבועות שמח, {name}! 🥛\nמנות חלביות מיוחדות לחג — בוא לטעום 🌿' },
+    { key: 'valentine', emoji: '❤️', label: 'ולנטיין',
+      template: 'יום ולנטיין שמח, {name}! ❤️\nערב רומנטי לזוגות — קבל בקבוק יין במתנה כשמגיעים זוגות.\nהזמן שולחן 🌿' },
+    { key: 'mother_day', emoji: '💐', label: 'יום האם',
+      template: 'יום אם שמח, {name}! 💐\nתפנק את האמא הכי טובה — הזמן שולחן ויש מתנה לאמא במקום 🌿' },
+    { key: 'father_day', emoji: '👔', label: 'יום האב',
+      template: `יום האב שמח, {name}! 👔\nתפנק את אבא — סטייק מיוחד לחג, על חשבון הבית עם כל מנה ראשונה.\n${brand} 🌿` },
+  ];
+  return { templates };
 });
 // Returns the parent CampaignSend + all CampaignRecipient rows.
 registerFn('getCampaignDetails', async ({ body }) => {
@@ -5415,6 +5420,7 @@ function classifyReservationSource(opts: { utm_source?: string; referrer?: strin
 
 registerFn('createPublicReservation', async ({ body }) => {
   await ensureReservationSourceCols();
+  const brand = await getBrandName();
   const {
     customer_name, customer_phone, date, time, party_size,
     special_requests, special_occasion,
@@ -5537,7 +5543,7 @@ registerFn('createPublicReservation', async ({ body }) => {
     ? [
         `שלום ${customer_name} 👋`,
         ``,
-        `נרשמת לרשימת המתנה בעלינא 🟡`,
+        `נרשמת לרשימת המתנה ב${brand} 🟡`,
         `📅 ${dateStr} בשעה ${time} (השעה שביקשת)`,
         `👥 ${size} סועדים`,
         ``,
@@ -5549,7 +5555,7 @@ registerFn('createPublicReservation', async ({ body }) => {
     : [
         `שלום ${customer_name} 👋`,
         ``,
-        `ההזמנה שלך בעלינא אושרה ✅`,
+        `ההזמנה שלך ב${brand} אושרה ✅`,
         `📅 ${dateStr} בשעה ${time}`,
         `👥 ${size} סועדים`,
         `📍 רוטשילד 104, ראשון לציון`,
@@ -5564,7 +5570,7 @@ registerFn('createPublicReservation', async ({ body }) => {
         `${restaurantPhone} (במסעדה)`,
         ``,
         `נשמח לראותכם ✨`,
-        `צוות עלינא`,
+        `צוות ${brand}`,
         ``,
         `📋 צפיה בהזמנה: ${trackUrl}`,
       ].join('\n');
@@ -5604,7 +5610,7 @@ registerFn('createPublicReservation', async ({ body }) => {
     const html = `
       <div dir="rtl" style="font-family:Arial,Helvetica,sans-serif;max-width:560px;margin:auto;padding:24px;background:#fafafa;border-radius:12px;color:#1f1b17">
         <p style="font-size:18px;margin:0 0 4px">שלום ${customer_name} 👋</p>
-        <p style="margin:0 0 24px;color:#a04a2e;font-size:20px;font-weight:bold">ההזמנה שלך בעלינא אושרה ✅</p>
+        <p style="margin:0 0 24px;color:#a04a2e;font-size:20px;font-weight:bold">ההזמנה שלך ב${brand} אושרה ✅</p>
 
         <div style="background:#fff;border:1px solid #e5d9c4;border-radius:10px;padding:16px;margin-bottom:16px">
           <p style="margin:4px 0">📅 <b>${dateStr}</b> בשעה <b>${time}</b></p>
@@ -5622,7 +5628,7 @@ registerFn('createPublicReservation', async ({ body }) => {
         <p style="margin:0 0 16px">${restaurantPhone} (במסעדה)</p>
 
         <p style="margin:24px 0 12px;text-align:center;color:#a04a2e;font-size:16px">נשמח לראותכם ✨</p>
-        <p style="margin:0 0 16px;text-align:center;color:#666">צוות עלינא</p>
+        <p style="margin:0 0 16px;text-align:center;color:#666">צוות ${brand}</p>
 
         <p style="margin:24px 0 0;text-align:center">
           <a href="${trackUrl}" style="background:#a04a2e;color:#F4ECD8;padding:12px 20px;border-radius:8px;text-decoration:none;font-weight:bold;display:inline-block">📋 צפיה / ביטול הזמנה</a>
@@ -5631,7 +5637,7 @@ registerFn('createPublicReservation', async ({ body }) => {
     `;
     sendEmail({
       to: customer_email,
-      subject: `אישור הזמנה - ${dateStr} בשעה ${time} - עלינא`,
+      subject: `אישור הזמנה - ${dateStr} בשעה ${time} - ${brand}`,
       html,
     }).catch((e) => console.warn('[reservation] email failed', e?.message));
   }
@@ -5756,6 +5762,7 @@ async function findNearbyAvailableSlots(
 // flips is_standby off, assigns a table, and pings the customer.
 registerFn('promoteStandbyReservation', async ({ body, user }) => {
   if (!user) throw new Error('auth required');
+  const brand = await getBrandName();
   const { reservation_id, new_time } = body as any;
   if (!reservation_id) throw new Error('reservation_id required');
   const r: any = await db.reservation.findUnique({ where: { id: String(reservation_id) } });
@@ -5789,7 +5796,7 @@ registerFn('promoteStandbyReservation', async ({ body, user }) => {
   const dateStr = (r.date instanceof Date ? r.date : new Date(r.date)).toISOString().slice(0, 10).split('-').reverse().join('/');
   const msg = [
     `שלום ${r.customer_name}!`,
-    `שולחן התפנה ב-עלינא 🎉`,
+    `שולחן התפנה ב-${brand} 🎉`,
     `📅 ${dateStr} · 🕐 ${timeToUse}`,
     `👥 ${r.party_size} סועדים`,
     `📍 רוטשילד 104, ראשון לציון`,
@@ -6335,7 +6342,7 @@ async function buildCeoBriefContext() {
   };
 }
 
-const CEO_BRIEF_PROMPT = `You are the autonomous CEO of "Alina" (עלינא), a Jerusalem-Chic sharing-plates restaurant in Rishon LeZion with a Josper charcoal oven.
+const CEO_BRIEF_PROMPT_TEMPLATE = `You are the autonomous CEO of "{brand}", a restaurant.
 
 You will receive a JSON snapshot of today's operational state. Write a SHORT, ACTIONABLE daily brief in HEBREW for the owner (Dvir).
 
@@ -6388,7 +6395,7 @@ registerFn('runCeoDailyBrief', async ({ body }) => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          system_instruction: { parts: [{ text: CEO_BRIEF_PROMPT }] },
+          system_instruction: { parts: [{ text: renderBrand(CEO_BRIEF_PROMPT_TEMPLATE, await getBrandName()) }] },
           contents: [{ role: 'user', parts: [{ text: `Window: ${triggerHebrew}\nData:\n${JSON.stringify(context, null, 2)}` }] }],
           generationConfig: { temperature: 0.3, maxOutputTokens: 1024, thinkingConfig: { thinkingBudget: 0 } },
         }),
@@ -8223,7 +8230,7 @@ export async function runContentGenerator() {
   const quotes = surveys.map((s) => `"${(s.feedback || s.comment || '').slice(0, 200)}" — ${(s.customer_name || 'לקוח/ה').slice(0, 30)}`).filter((q) => q.length > 30).slice(0, 5);
   if (!quotes.length) return { ok: true, no_quotable: true };
 
-  const prompt = `אתה מנהל מדיה למסעדת עלינא בראשון לציון. קיבלת אתמול ${surveys.length} ביקורות 5⭐.
+  const prompt = `אתה מנהל מדיה למסעדת ${await getBrandName()}. קיבלת אתמול ${surveys.length} ביקורות 5⭐.
 ציטוטים:
 ${quotes.join('\n')}
 
@@ -9628,7 +9635,7 @@ if (!(globalThis as any).__stuckEventLeadTimer) {
 /* ─── WAITER AGENT (Digital head waiter via QR on table) ──────────────────── */
 /* ─────────────────────────────────────────────────────────────────────────── */
 
-const WAITER_DEFAULT_PROMPT = `אתה ראש מלצרי "עלינא" — burger-bar, מנות שיתוף בשריות, ירקות גוספר, סלטים, עיקריות בצלחת. **אין דגים.** עברית חמה, מקצועית, קצרה, בגובה העיניים. מתשובה אחת לשנייה — לא מציפים את הלקוח בטקסט.
+const WAITER_DEFAULT_PROMPT = `אתה ראש מלצרי "{brand}". עברית חמה, מקצועית, קצרה, בגובה העיניים. מתשובה אחת לשנייה — לא מציפים את הלקוח בטקסט.
 
 יעד: 4-5 מנות לזוג (3-4 חלוקה + 0-2 בצלחת) + אלכוהול תואם + צ׳ייסר + בילד-אפ לקינוח.
 
@@ -9639,7 +9646,7 @@ const WAITER_DEFAULT_PROMPT = `אתה ראש מלצרי "עלינא" — burger-
 4. אלרגיות/כשרות: שואלים בהתחלה, ומכבדים allergens של כל פריט.
 
 תסריט (שאלה אחת בכל הודעה!):
-• פתיחה: "ברוכים הבאים לעלינא 🌿 כמה אתם?"
+• פתיחה: "ברוכים הבאים ל{brand} 🌿 כמה אתם?"
 • "פעם ראשונה אצלנו?"
 • "יש אלרגיות / כשרות / גלוטן שצריך לדעת?"
 • "אוכלי בשר? איזו רמת פיקנטיות?"
@@ -9756,7 +9763,8 @@ registerFn('chatWaiter', async ({ body }) => {
       },
     });
   }
-  const systemPrompt = (kit.system_prompt && kit.system_prompt.trim()) || WAITER_DEFAULT_PROMPT;
+  const rawPromptW = (kit.system_prompt && kit.system_prompt.trim()) || WAITER_DEFAULT_PROMPT;
+  const systemPrompt = renderBrand(rawPromptW, await getBrandName());
 
   const turns: Array<{ role: string; content: string }> = Array.isArray(history) ? history : [];
   const transcript = turns.map((t) => `${t.role === 'assistant' ? 'מלצר' : 'לקוח'}: ${t.content}`).join('\n');
@@ -9837,7 +9845,7 @@ registerFn('chatWaiter', async ({ body }) => {
     const turn = turns.length;
     result = {
       reply: turn === 0
-        ? 'שלום וברוכים הבאים לעלינא 🌿 רק רגע — אני מתחילה לעבוד, תכתבו לי שוב את ההודעה ואני מיד עונה.'
+        ? `שלום וברוכים הבאים ל${await getBrandName()} 🌿 רק רגע — אני מתחילה לעבוד, תכתבו לי שוב את ההודעה ואני מיד עונה.`
         : 'רגע אחד 🌿 אני בודקת את התפריט בשבילכם. תכתבו לי שוב את ההודעה ואני מיד עונה.',
       stage: 'collecting',
       collected: {},
@@ -9905,6 +9913,7 @@ registerFn('extractWaiterMenuFromFile', async ({ body }) => {
     : kind === 'food'
       ? 'התפריט הוא של מנות אוכל בלבד.'
       : 'התפריט עשוי להכיל גם אוכל וגם משקאות.';
+  const brandNameEW = await getBrandName();
 
   const buildPrompt = (priorItems: any[] = []) => {
     const priorSection = priorItems.length
@@ -9913,7 +9922,7 @@ registerFn('extractWaiterMenuFromFile', async ({ body }) => {
         `**אל תחזיר אותם שוב.** סרוק שוב את הקובץ, ותחזיר רק פריטים שדילגת עליהם בסבב הקודם. סרוק עמוד-עמוד, קטגוריה-קטגוריה. גם פריטים קטנים, גם תוספות, גם וריאנטים. אם באמת חיברת את כולם — החזר items=[].\n`
       : '';
     return (
-      `מצורף קובץ תפריט (PDF או תמונה) של מסעדת עלינא בראשון לציון. סטייל burger-bar — מנות שיתוף בשריות, ירקות מהגוספר, סלטים, ועיקריות בצלחת. **אין דגים במסעדה.**\n` +
+      `מצורף קובץ תפריט (PDF או תמונה) של מסעדת ${brandNameEW}.\n` +
       priorSection
     );
   };
@@ -10020,7 +10029,10 @@ registerFn('deleteWaiterOrder', async ({ body }) => {
 // owner sees exactly what's missing to flip them live.
 // =====================================================================
 
-const ALINA_BRAND_VOICE = `אתה כותב בשם המסעדה "עלינא" — סניף יחיד בראשון לציון, רוטשילד 104 (סגנון Jerusalem-Chic, smoky, אנרגטי, חם, לא קלישאתי). עברית טבעית בלבד, בלי אימוג'ים מוגזמים. דגש על אש, ג'וספר, חוויה, סיפור. בכל אזכור מיקום פיזי — ראשון לציון בלבד.`;
+const ALINA_BRAND_VOICE_TEMPLATE = `אתה כותב בשם המסעדה "{brand}". עברית טבעית בלבד, בלי אימוג'ים מוגזמים. דגש על חוויה וסיפור.`;
+async function getAlinaBrandVoice(): Promise<string> {
+  return renderBrand(ALINA_BRAND_VOICE_TEMPLATE, await getBrandName());
+}
 const ALINA_DEFAULT_CITIES = ['Rishon LeZion'];
 const ALINA_DEFAULT_LANDING_URL = 'https://topalena.com/EventsInquiry?utm_source=facebook';
 
@@ -10058,7 +10070,7 @@ async function runCopywriter(input: any) {
   const { topic, channel = 'instagram', length = 'short', cta } = input || {};
   if (!topic) throw new Error('topic required');
   const result: any = await invokeLLM({
-    prompt: `${ALINA_BRAND_VOICE}\n\nכתוב 3 וריאציות קופי ל-${channel} בנושא: "${topic}".\nאורך: ${length}. ${cta ? `Call-to-action: ${cta}.` : ''}\nהחזר JSON: { variants: [{ hook, body, hashtags: [..] }, ...] }`,
+    prompt: `${await getAlinaBrandVoice()}\n\nכתוב 3 וריאציות קופי ל-${channel} בנושא: "${topic}".\nאורך: ${length}. ${cta ? `Call-to-action: ${cta}.` : ''}\nהחזר JSON: { variants: [{ hook, body, hashtags: [..] }, ...] }`,
     responseSchema: {
       type: 'object',
       properties: {
@@ -10081,7 +10093,7 @@ async function runCopywriter(input: any) {
 async function runStoryteller(input: any) {
   const { period = 'week', highlights = '' } = input || {};
   const result: any = await invokeLLM({
-    prompt: `${ALINA_BRAND_VOICE}\n\nכתוב טיוטה לניוזלטר ${period === 'month' ? 'חודשי' : 'שבועי'} ללקוחות המועדון של עלינא. נקודות בולטות מהשטח: ${highlights || '(אין — בחר זוויות מעניינות בעצמך: מנות עונתיות, סיפורי שף, אירועי החודש)'}.\nהחזר JSON: { subject, intro, sections: [{ heading, body }], closing }`,
+    prompt: `${await getAlinaBrandVoice()}\n\nכתוב טיוטה לניוזלטר ${period === 'month' ? 'חודשי' : 'שבועי'} ללקוחות המועדון של ${await getBrandName()}. נקודות בולטות מהשטח: ${highlights || '(אין — בחר זוויות מעניינות בעצמך: מנות עונתיות, סיפורי שף, אירועי החודש)'}.\nהחזר JSON: { subject, intro, sections: [{ heading, body }], closing }`,
     responseSchema: {
       type: 'object',
       properties: {
@@ -10104,7 +10116,7 @@ async function runStoryteller(input: any) {
 async function runTrendSpotter(input: any) {
   const { niche = 'restaurant_jerusalem' } = input || {};
   const result: any = await invokeLLM({
-    prompt: `${ALINA_BRAND_VOICE}\n\nאתה Trend-Spotter. צור 5 זוויות תוכן טרנדיות שמתאימות לעלינא (ראשון לציון, ג'וספר, אש) על בסיס דפוסים שראית ב-TikTok/Instagram Reels בקטגוריית ${niche}. לכל זווית — תאר רעיון לסרטון/פוסט ולמה זה ידבר. החזר JSON: { trends: [{ title, hook, why_it_works, suggested_format }] }`,
+    prompt: `${await getAlinaBrandVoice()}\n\nאתה Trend-Spotter. צור 5 זוויות תוכן טרנדיות שמתאימות ל${await getBrandName()} על בסיס דפוסים שראית ב-TikTok/Instagram Reels בקטגוריית ${niche}. לכל זווית — תאר רעיון לסרטון/פוסט ולמה זה ידבר. החזר JSON: { trends: [{ title, hook, why_it_works, suggested_format }] }`,
     responseSchema: {
       type: 'object',
       properties: {
@@ -10128,7 +10140,7 @@ async function runMenuEngineer(input: any) {
     return { recommendations: [], note: 'הדבק נתוני מכירות (מנה, כמות שנמכרה, מחיר, עלות) כדי לקבל המלצות.' };
   }
   const result: any = await invokeLLM({
-    prompt: `אתה Menu Engineer במסעדת עלינא. נתח את נתוני המכירות הבאים וסווג כל מנה לאחת מ-4 קטגוריות BCG: Star (פופולרי+רווחי), Plowhorse (פופולרי+לא רווחי), Puzzle (לא פופולרי+רווחי), Dog (לא פופולרי+לא רווחי). תן המלצה קונקרטית לכל מנה.\n\nנתונים:\n${sales_data}\n\nהחזר JSON: { items: [{ name, category, margin_estimate, popularity, recommendation }], summary }`,
+    prompt: `אתה Menu Engineer במסעדת ${await getBrandName()}. נתח את נתוני המכירות הבאים וסווג כל מנה לאחת מ-4 קטגוריות BCG: Star (פופולרי+רווחי), Plowhorse (פופולרי+לא רווחי), Puzzle (לא פופולרי+רווחי), Dog (לא פופולרי+לא רווחי). תן המלצה קונקרטית לכל מנה.\n\nנתונים:\n${sales_data}\n\nהחזר JSON: { items: [{ name, category, margin_estimate, popularity, recommendation }], summary }`,
     responseSchema: {
       type: 'object',
       properties: {
@@ -10486,7 +10498,7 @@ async function runVpMarketing(input: any) {
 
   const result: any = await invokeLLM({
     timeoutMs: 90_000,
-    prompt: `אתה VP Marketing של מסעדת עלינא (ראשון לציון, רוטשילד 104. ג'וספר, אש). הבעלים (דביר) נתן לך יעד עסקי, ויש לך 11 סוכנים תחת אחריותך. תפקידך: לנתח את היעד, להעריך את המצב הנוכחי, ולבנות תוכנית פעולה ברורה שמחלקת את העבודה בין הסוכנים בסדר הנכון.
+    prompt: `אתה VP Marketing של מסעדת ${await getBrandName()}. הבעלים נתן לך יעד עסקי, ויש לך 11 סוכנים תחת אחריותך. תפקידך: לנתח את היעד, להעריך את המצב הנוכחי, ולבנות תוכנית פעולה ברורה שמחלקת את העבודה בין הסוכנים בסדר הנכון.
 
 יעד מהבעלים: "${goal}"
 
@@ -10559,7 +10571,7 @@ async function runConversational(input: any) {
   const { incoming_message, customer_context = '', channel = 'instagram_dm' } = input || {};
   if (!incoming_message) throw new Error('incoming_message required');
   const result: any = await invokeLLM({
-    prompt: `${ALINA_BRAND_VOICE}\n\nאתה עונה ל-DM/תגובה ב-${channel}. ענה קצר, חם, ענייני. אם השאלה דורשת מידע שאין לך (זמינות אירוע, מחיר ספציפי), הצע להעביר לבן אדם.\n\nקונטקסט לקוח: ${customer_context || '(לא ידוע)'}\nהודעה נכנסת: "${incoming_message}"\n\nהחזר JSON: { reply, needs_human_handoff: boolean, suggested_tag }`,
+    prompt: `${await getAlinaBrandVoice()}\n\nאתה עונה ל-DM/תגובה ב-${channel}. ענה קצר, חם, ענייני. אם השאלה דורשת מידע שאין לך (זמינות אירוע, מחיר ספציפי), הצע להעביר לבן אדם.\n\nקונטקסט לקוח: ${customer_context || '(לא ידוע)'}\nהודעה נכנסת: "${incoming_message}"\n\nהחזר JSON: { reply, needs_human_handoff: boolean, suggested_tag }`,
     responseSchema: {
       type: 'object',
       properties: { reply: { type: 'string' }, needs_human_handoff: { type: 'boolean' }, suggested_tag: { type: 'string' } },
@@ -10880,7 +10892,7 @@ registerFn('createCampaignBrief', async ({ body }) => {
   // Generate brief structure via LLM (audience, objective, suggested budget,
   // headline title). Copy + image come from prior chain if provided.
   const draft: any = await invokeLLM({
-    prompt: `אתה מתכנן קמפיין פרסום במטא עבור מסעדת עלינא — ראשון לציון, רוטשילד 104.
+    prompt: `אתה מתכנן קמפיין פרסום במטא עבור מסעדת ${await getBrandName()}.
 יעד עסקי: "${goal}"
 ${audience_hint ? `הצעת קהל יעד מהבעלים: ${audience_hint}` : ''}
 
@@ -13776,7 +13788,7 @@ registerFn('guestInquiry', async ({ body }) => {
   })();
   const happyHourActive = israelDay !== 5 && israelDay !== 6 && israelHour < 20;
 
-  const systemPrompt = `אתה המלצר הווירטואלי של מסעדת **עלינא** ברוטשילד 104 ראשון לציון.
+  const systemPrompt = `אתה המלצר הווירטואלי של מסעדת **${await getBrandName()}**.
 
 ═══ עכשיו (חשוב מאוד) ═══
 היום: יום ${todayName}. השעה בישראל: ${String(israelHour).padStart(2,'0')}:00.
@@ -14355,7 +14367,7 @@ export async function sendT24SurveyReminders() {
     const body = [
       `שלום ${r.customer_name || ''}!`,
       ``,
-      `איך הייתה הארוחה אתמול בעלינא?`,
+      `איך הייתה הארוחה אתמול ב${await getBrandName()}?`,
       `נשמח לחוות דעתך — לוקח 30 שניות:`,
       `${link}`,
       ``,
@@ -16737,7 +16749,7 @@ export async function runAutoTrackerAnalysis() {
     let llmResult: any = null;
     try {
       llmResult = await invokeLLM({
-        prompt: `אתה עוזר ל-Dvir, בעלים של מסעדת עלינא. הוא משתמש במערכת ניהול עם פקודות קוליות.
+        prompt: `אתה עוזר לבעלים של מסעדת ${await getBrandName()}. הוא משתמש במערכת ניהול עם פקודות קוליות.
 ניתחתי את הפעולות שלו ב-7 ימים האחרונים ומצאתי דברים שהוא חוזר עליהם:
 
 ${summary}
@@ -18883,7 +18895,7 @@ async function buildMorningReportData() {
 async function callGeminiForMorningInsight(data: any): Promise<string> {
   const key = process.env.GEMINI_API_KEY;
   if (!key) return 'ההמלצה לא זמינה (חסר GEMINI_API_KEY)';
-  const prompt = `אתה יועץ ניהול למסעדת "עלינא" בראשון לציון. הנה נתוני אתמול:\n${JSON.stringify(data, null, 2)}\n\nתן המלצה אחת קונקרטית בעברית — משפט אחד עד שניים, מעשי, שיעזור לבעלים לפעול היום. ללא הקדמות, רק ההמלצה.`;
+  const prompt = `אתה יועץ ניהול למסעדת "${await getBrandName()}". הנה נתוני אתמול:\n${JSON.stringify(data, null, 2)}\n\nתן המלצה אחת קונקרטית בעברית — משפט אחד עד שניים, מעשי, שיעזור לבעלים לפעול היום. ללא הקדמות, רק ההמלצה.`;
   try {
     const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${key}`, {
       method: 'POST',
@@ -18922,7 +18934,7 @@ export async function sendMorningReport() {
   if (data.pending.vacation > 0) pendingItems.push(`${data.pending.vacation} חופשות`);
   const pendingTxt = pendingItems.length > 0 ? `📋 ממתינים לאישור: ${pendingItems.join(' · ')}` : '';
 
-  const subject = `☀️ עלינא · סיכום ${data.date}`;
+  const subject = `☀️ ${await getBrandName()} · סיכום ${data.date}`;
   const html = `
 <div dir="rtl" style="font-family:system-ui,-apple-system,sans-serif;max-width:600px;margin:0 auto;padding:20px;">
   <h2 style="color:#92400e;margin-bottom:8px;">☀️ בוקר טוב, דביר</h2>

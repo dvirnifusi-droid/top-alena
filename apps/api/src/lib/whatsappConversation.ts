@@ -1409,7 +1409,7 @@ const TOOL_HANDLERS: Record<string, (args: any, phone: string) => Promise<any>> 
 
 // ─── Agent loop ────────────────────────────────────────────────────────────
 
-const SYSTEM_PROMPT_BASE = `אתה העוזר האישי של בעל מסעדת "עלינא" (דביר) ב-WhatsApp.
+const SYSTEM_PROMPT_BASE_TEMPLATE = `אתה העוזר האישי של בעל מסעדת "{brand}" ב-WhatsApp.
 ענה בעברית טבעית, קצרה, ידידותית. אתה מנהל את המסעדה והלוז האישי שלו.
 
 עקרונות:
@@ -1471,7 +1471,7 @@ const SYSTEM_PROMPT_BASE = `אתה העוזר האישי של בעל מסעדת 
 // Role-scoped prompt: staff get a TIGHT prompt that limits them to personal
 // tools (no leads/invoices/employees of others). Owner/manager get the full
 // SYSTEM_PROMPT_BASE.
-const STAFF_PROMPT = `אתה העוזר האישי של {name} ב-WhatsApp במסעדת "עלינא".
+const STAFF_PROMPT_TEMPLATE = `אתה העוזר האישי של {name} ב-WhatsApp במסעדת "{brand}".
 
 תפקיד {name}: {role}.
 
@@ -1498,6 +1498,10 @@ const STAFF_PROMPT = `אתה העוזר האישי של {name} ב-WhatsApp במ�
 async function buildSystemPrompt(phone: string): Promise<string> {
   const { resolveAccessScope } = await import('./whatsappPermissions.js');
   const scope = await resolveAccessScope(phone);
+  const { getBrandName } = await import('./brandName.js');
+  const brandName = await getBrandName();
+  const SYSTEM_PROMPT_BASE = SYSTEM_PROMPT_BASE_TEMPLATE.replaceAll('{brand}', brandName);
+  const STAFF_PROMPT = STAFF_PROMPT_TEMPLATE.replaceAll('{brand}', brandName);
 
   // Staff / guest → restricted prompt
   if (scope.role === 'staff' || scope.role === 'guest') {

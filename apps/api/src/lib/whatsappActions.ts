@@ -825,14 +825,14 @@ async function executeAction(exec: any): Promise<string> {
       const msg = [
         `שלום ${exec.customer_name || ''} 🌿`,
         '',
-        `מצורף החוזה הדיגיטלי לאירוע שלך אצלנו בעלינא — חוזה מס' ${exec.contract_number || ''}.`,
+        `מצורף החוזה הדיגיטלי לאירוע שלך — חוזה מס' ${exec.contract_number || ''}.`,
         `אפשר לעיין ולחתום ישירות מהטלפון:`,
         publicUrl,
         '',
         '_נא לחתום עד 48 שעות לפני האירוע._',
         '',
         'תודה,',
-        'עלינא אירועים 🔥',
+        `${(await (await import('./brandName.js')).getBrandName())} אירועים 🔥`,
       ].join('\n');
       await sendWhatsApp(exec.customer_phone, msg);
       // Mark the contract status as 'sent' so the EventContracts UI shows it.

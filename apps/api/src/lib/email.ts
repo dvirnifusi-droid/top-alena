@@ -30,7 +30,7 @@ export async function sendEmail({ to, subject, text, html, from, replyTo }: Send
   // Caller can override with `from`; otherwise use EMAIL_FROM env, otherwise the
   // verified-at-Resend brand domain (alenabepita.co.il is the long-standing
   // production sender — verified + Cloudflare DNS + DKIM/SPF/DMARC in place).
-  const defaultFrom = process.env.EMAIL_FROM ?? 'עלינא <noreply@alenabepita.co.il>';
+  const defaultFrom = process.env.EMAIL_FROM ?? 'TopAlena <noreply@alenabepita.co.il>';
   const sender = from ?? defaultFrom;
   if (!apiKey) {
     console.warn('[email] RESEND_API_KEY not set — skipping send', { to, subject });

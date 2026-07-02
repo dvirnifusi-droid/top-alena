@@ -57,8 +57,9 @@ function israelDayName(ymd: string): string {
 // ── Commands ────────────────────────────────────────────────────────────────
 
 async function cmdHelp(): Promise<string> {
+  const { getBrandName } = await import('./brandName.js');
   return [
-    '👋 אני העוזר של עלינא ב-WhatsApp. הפקודות שלי:',
+    `👋 אני העוזר של ${await getBrandName()} ב-WhatsApp. הפקודות שלי:`,
     '',
     '📋 *מה היום* — האירועים, המשימות והסידור שלך להיום',
     '✅ *משימות* — רשימת המשימות הפתוחות שלך',
