@@ -158,6 +158,7 @@ import PlatformAdminPending from './pages/PlatformAdminPending';
 import PlatformAdminTenants from './pages/PlatformAdminTenants';
 import PlatformSettings from './pages/PlatformSettings';
 import Branding from './pages/Branding';
+import Integrations from './pages/Integrations';
 import Signup from './pages/Signup';
 import __Layout from './Layout.jsx';
 
@@ -274,6 +275,7 @@ export const PAGES = {
     "PlatformAdminTenants": PlatformAdminTenants,
     "PlatformSettings": PlatformSettings,
     "Branding": Branding,
+    "Integrations": Integrations,
     "Signup": Signup,
 }
 

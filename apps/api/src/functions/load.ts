@@ -40,7 +40,7 @@ const db = prisma as any; // generic delegate access
 
 // Public deploy marker — lets us confirm which build is live (and that
 // auto-deploy is working) without server access. Bump on each deploy test.
-registerFn('deployInfo', async () => ({ version: 'd5.1-meter-all-2026-07-02', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
+registerFn('deployInfo', async () => ({ version: 'd4-integrations-2026-07-02', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
 
 
 
@@ -10705,6 +10705,109 @@ registerFn('getMarketingAgentsCatalog', async () => {
       needs_integration: v.needs || null,
     })),
   };
+});
+
+// D4 — consolidated per-tenant integrations catalog. Each entry lists the
+// secret keys it needs; the UI shows a green "connected" pill when ALL
+// required keys are present. Secret values are never returned — only presence
+// and updated_at.
+const INTEGRATIONS_CATALOG = [
+  {
+    key: 'instagram',
+    name_he: 'Instagram / Meta',
+    description_he: 'חיבור חשבון Instagram Business + Meta Ads לפרסום ולסטטיסטיקות.',
+    icon: 'Instagram',
+    secret_keys: ['META_ADS_ACCESS_TOKEN'],
+    optional_keys: ['META_AD_ACCOUNT_ID', 'IG_BUSINESS_ACCOUNT_ID'],
+    help_url: 'https://developers.facebook.com/docs/marketing-api/access',
+  },
+  {
+    key: 'google_business',
+    name_he: 'Google Business',
+    description_he: 'סנכרון ביקורות של Google לדשבורד. תדביק Place ID.',
+    icon: 'MapPin',
+    secret_keys: ['GOOGLE_BUSINESS_PLACE_ID'],
+    optional_keys: [],
+    help_url: 'https://developers.google.com/maps/documentation/places/web-service/place-id',
+  },
+  {
+    key: 'google_drive',
+    name_he: 'Google Drive (תמונות פרסום)',
+    description_he: 'תיקיית Drive של המסעדה לפילטרים של סוכן השיווק.',
+    icon: 'HardDrive',
+    secret_keys: ['DRIVE_AD_PHOTOS_FOLDER_ID'],
+    optional_keys: [],
+    help_url: 'https://support.google.com/drive/answer/2494822',
+  },
+  {
+    key: 'telegram',
+    name_he: 'Telegram (אופציונלי)',
+    description_he: 'התראות נוספות ב-Telegram — לצד WhatsApp. bot token + chat id.',
+    icon: 'Send',
+    secret_keys: ['TELEGRAM_BOT_TOKEN', 'TELEGRAM_CHAT_ID'],
+    optional_keys: [],
+    help_url: 'https://core.telegram.org/bots#how-do-i-create-a-bot',
+  },
+  {
+    key: 'pos_beecomm',
+    name_he: 'POS — Beecom',
+    description_he: 'סנכרון הזמנות + הכנסות ממערכת POS. יש דף נפרד לחיבור.',
+    icon: 'CreditCard',
+    secret_keys: [], // Beecom uses its own BeecommConfig entity, not IntegrationSecret
+    optional_keys: [],
+    external_page: 'BeecommIntegration',
+    help_url: null,
+  },
+];
+
+registerFn('listMyIntegrations', async ({ user }) => {
+  if (!user?.id) throw new Error('unauthorized');
+  await ensureSecretsTable();
+  const allKeys = INTEGRATIONS_CATALOG.flatMap(i => [...i.secret_keys, ...i.optional_keys]);
+  const rows = allKeys.length
+    ? await db.integrationSecret.findMany({
+        where: { key: { in: allKeys } },
+        select: { key: true, updated_at: true },
+      })
+    : [];
+  const presence = new Map(rows.map((r: any) => [r.key, r.updated_at || null]));
+  // Beecom uses its own entity — check for a row.
+  let beecommConnected = false;
+  try {
+    const beeRow = await (prisma as any).beecommConfig?.findFirst?.({ select: { id: true } });
+    beecommConnected = !!beeRow;
+  } catch { /* table might not exist yet — treat as disconnected */ }
+
+  const integrations = INTEGRATIONS_CATALOG.map(def => {
+    if (def.key === 'pos_beecomm') {
+      return {
+        ...def,
+        connected: beecommConnected,
+        secret_status: [],
+      };
+    }
+    const secret_status = def.secret_keys.map(k => ({
+      key: k, present: presence.has(k), updated_at: presence.get(k) || null,
+    }));
+    const optional_status = def.optional_keys.map(k => ({
+      key: k, present: presence.has(k), updated_at: presence.get(k) || null,
+    }));
+    const connected = secret_status.length > 0 && secret_status.every(s => s.present);
+    return { ...def, connected, secret_status, optional_status };
+  });
+  return { integrations };
+});
+
+// D4 — deletes a set of secrets (used by the "disconnect" button).
+registerFn('deleteIntegrationSecrets', async ({ user, body }) => {
+  if (!user?.id) throw new Error('unauthorized');
+  if (!isAdminRole((user as any)?.role)) throw new Error('admin only');
+  await ensureSecretsTable();
+  const b = (body || {}) as any;
+  const keys: string[] = Array.isArray(b.keys) ? b.keys.map(String) : [];
+  if (!keys.length) return { ok: true, deleted: 0 };
+  const res = await db.integrationSecret.deleteMany({ where: { key: { in: keys } } });
+  return { ok: true, deleted: res.count };
 });
 
 // =====================================================================
