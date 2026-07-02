@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Loader2, Crown, CheckCircle2, Clock, AlertTriangle, Building, RefreshCw, Users, DollarSign, Zap, LogIn, ExternalLink, MessageCircle } from 'lucide-react';
+import { Loader2, Crown, CheckCircle2, Clock, AlertTriangle, Building, RefreshCw, Users, DollarSign, Zap, LogIn, ExternalLink, MessageCircle, Send } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import PageGuard from '../components/shared/PageGuard';
 import { Link } from 'react-router-dom';
@@ -300,7 +300,7 @@ function PlatformAdminInner() {
                           <td className="p-3 text-center">{t.unpaid_invoices > 0 ? <span className="font-bold text-red-600">{t.unpaid_invoices}</span> : '0'}</td>
                           <td className="p-3">
                             {!t.is_main && (
-                              <div className="flex gap-1">
+                              <div className="flex gap-1 flex-wrap">
                                 <Button
                                   size="sm"
                                   variant="outline"
@@ -310,6 +310,16 @@ function PlatformAdminInner() {
                                   title="היכנס כ-owner של המסעדה"
                                 >
                                   {impersonatingId === t.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <><LogIn className="w-3.5 h-3.5 ml-1" /> היכנס</>}
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  disabled={actioningId === t.id}
+                                  onClick={() => resendWelcome(t)}
+                                  className="text-xs whitespace-nowrap border-blue-300 bg-blue-50 hover:bg-blue-100 text-blue-800"
+                                  title="שלח פרטי כניסה מחדש ב-SMS + מייל + WhatsApp"
+                                >
+                                  {actioningId === t.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <><Send className="w-3.5 h-3.5 ml-1" /> שלח פרטי כניסה</>}
                                 </Button>
                                 <Button
                                   size="sm"
