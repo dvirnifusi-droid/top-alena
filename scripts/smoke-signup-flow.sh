@@ -21,6 +21,16 @@ KEEP=0
 
 if ! command -v jq >/dev/null; then echo "❌ jq missing"; exit 1; fi
 
+# psql isn't installed in the api node container — use an ephemeral
+# postgres:16-alpine container on the same docker network (same pattern
+# provision-tenant.sh already uses). Reads DATABASE_URL from the api env.
+DB_URL=$(docker exec top-alena-api-1 sh -c 'echo $DATABASE_URL')
+if [ -z "$DB_URL" ]; then echo "❌ Could not read DATABASE_URL from top-alena-api-1"; exit 1; fi
+psql_run() {
+  docker run --rm --network top-alena_default -e PGPASSWORD_DUMMY=1 \
+    postgres:16-alpine psql "$DB_URL" -v ON_ERROR_STOP=1 -t -A "$@"
+}
+
 pass() { echo "  ✅ $*"; }
 fail() { echo "  ❌ $*"; SMOKE_FAILED=1; }
 step() { echo ""; echo "━━━ $* ━━━"; }
@@ -34,11 +44,13 @@ cleanup() {
   fi
   echo ""
   echo "━━━ Cleanup ━━━"
-  # Best-effort: stop container, drop schema, delete tenant row
   docker rm -f "tenant-${SLUG}-api" 2>/dev/null && pass "Container removed" || pass "No container to remove"
-  # Delete tenant row + provisioning jobs
-  docker exec top-alena-api-1 sh -c "psql \"\$DATABASE_URL\" -c \"DELETE FROM \\\"ProvisioningJob\\\" WHERE tenant_id IN (SELECT id FROM \\\"Tenant\\\" WHERE slug='${SLUG}'); DELETE FROM \\\"OnboardingState\\\" WHERE tenant_id IN (SELECT id FROM \\\"Tenant\\\" WHERE slug='${SLUG}'); DELETE FROM \\\"Tenant\\\" WHERE slug='${SLUG}'; DROP SCHEMA IF EXISTS tenant_${SLUG} CASCADE;\" >/dev/null" && pass "DB cleaned" || fail "DB cleanup issue"
-  # Remove Caddy tenant block
+  # Delete tenant row + provisioning jobs via ephemeral psql container
+  psql_run -c "DELETE FROM \"ProvisioningJob\" WHERE tenant_id IN (SELECT id FROM \"Tenant\" WHERE slug='${SLUG}');
+               DELETE FROM \"OnboardingState\" WHERE tenant_id IN (SELECT id FROM \"Tenant\" WHERE slug='${SLUG}');
+               DELETE FROM \"Tenant\" WHERE slug='${SLUG}';
+               DROP SCHEMA IF EXISTS tenant_${SLUG} CASCADE;" >/dev/null 2>&1 \
+    && pass "DB cleaned" || fail "DB cleanup issue"
   rm -f "/etc/caddy/tenants/${SLUG}.caddy"
   sed -i "/^${SLUG}\.topalena\.com {/,/^}/d" /opt/top-alena/Caddyfile 2>/dev/null || true
   pass "Caddy block removed"
@@ -60,9 +72,10 @@ TID=$(echo "$SIGNUP" | jq -r '.data.tenant_id // .tenant_id // ""')
 if [ -z "$TID" ]; then fail "signup returned no tenant_id"; exit 1; fi
 pass "tenant_id = $TID"
 
-step "2/6 approveTenant (bypass — we mock the super-admin JWT via internal endpoint)"
-# We don't have a super-admin JWT in a shell script. Approve directly via psql.
-docker exec top-alena-api-1 sh -c "psql \"\$DATABASE_URL\" -c \"UPDATE \\\"Tenant\\\" SET status='pending_provisioning', approved_at=NOW() WHERE id='${TID}'; INSERT INTO \\\"ProvisioningJob\\\"(id,tenant_id,status) VALUES ('smoke-job-${STAMP}', '${TID}', 'pending');\" >/dev/null" && pass "Tenant approved + job queued" || { fail "approve failed"; exit 1; }
+step "2/6 approveTenant (direct DB — no super-admin JWT available in shell)"
+psql_run -c "UPDATE \"Tenant\" SET status='pending_provisioning', approved_at=NOW() WHERE id='${TID}';
+             INSERT INTO \"ProvisioningJob\"(id,tenant_id,status) VALUES ('smoke-job-${STAMP}', '${TID}', 'pending');" \
+  >/dev/null 2>&1 && pass "Tenant approved + job queued" || { fail "approve failed"; exit 1; }
 
 step "3/6 provisioner-cron runs"
 bash /opt/top-alena/scripts/provisioner-cron.sh
@@ -74,12 +87,12 @@ CODE=$(curl -sk --resolve "${SLUG}.topalena.com:443:127.0.0.1" -o /dev/null -w "
 [ "$CODE" = "200" ] && pass "HTTPS 200 from Caddy" || fail "HTTPS returned $CODE"
 
 step "5/6 tenant marked live in DB"
-STATUS=$(docker exec top-alena-api-1 sh -c "psql \"\$DATABASE_URL\" -t -c \"SELECT status FROM \\\"Tenant\\\" WHERE id='${TID}';\" 2>/dev/null | xargs")
-[ "$STATUS" = "live" ] && pass "status = live" || fail "status = $STATUS (expected live)"
+STATUS=$(psql_run -c "SELECT status FROM \"Tenant\" WHERE id='${TID}';" 2>/dev/null | tr -d '[:space:]')
+[ "$STATUS" = "live" ] && pass "status = live" || fail "status = '$STATUS' (expected live)"
 
 step "6/6 welcome delivery recorded"
-DELIVERY=$(docker exec top-alena-api-1 sh -c "psql \"\$DATABASE_URL\" -t -c \"SELECT last_welcome_sms_status || '/' || last_welcome_email_status || '/' || last_welcome_wa_status FROM \\\"Tenant\\\" WHERE id='${TID}';\" 2>/dev/null | xargs")
-echo "  Delivery = $DELIVERY (sms/email/wa)"
+DELIVERY=$(psql_run -c "SELECT COALESCE(last_welcome_sms_status,'-') || '/' || COALESCE(last_welcome_email_status,'-') || '/' || COALESCE(last_welcome_wa_status,'-') FROM \"Tenant\" WHERE id='${TID}';" 2>/dev/null | tr -d '[:space:]')
+echo "  Delivery (sms/email/wa) = $DELIVERY"
 if echo "$DELIVERY" | grep -q sent; then pass "at least one channel delivered"; else fail "no channel delivered"; fi
 
 echo ""
