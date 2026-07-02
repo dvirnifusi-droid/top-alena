@@ -4,6 +4,7 @@ import { Loader2, Settings2 } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import PageGuard from '../components/shared/PageGuard';
 import ModuleToggleGrid from '../components/platform/ModuleToggleGrid';
+import AiUsageCard from '../components/platform/AiUsageCard';
 import { useTenantModules } from '@/hooks/useTenantModules';
 
 function PlatformSettingsInner() {
@@ -43,6 +44,8 @@ function PlatformSettingsInner() {
           <CardContent className="p-4 text-red-700 text-sm">{error}</CardContent>
         </Card>
       )}
+
+      <AiUsageCard />
 
       {loading || !modules ? (
         <div className="flex justify-center py-12">

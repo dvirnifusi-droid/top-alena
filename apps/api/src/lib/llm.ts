@@ -4,6 +4,7 @@
 // ---------------------------------------------------------------------------
 
 import { minio } from './storage.js';
+import { writeAiUsage } from './aiUsage.js';
 
 const PROVIDER = (process.env.LLM_PROVIDER || 'gemini').toLowerCase();
 const S3_BUCKET = process.env.S3_BUCKET ?? 'top-alena';
@@ -84,6 +85,9 @@ type InvokeArgs = {
   provider?: 'gemini' | 'anthropic';
   maxOutputTokens?: number;
   timeoutMs?: number;
+  // D5 — usage metering context. Optional so old callers keep working;
+  // passed through to writeAiUsage after each successful LLM response.
+  _ctx?: { tenant_slug?: string; fn_name?: string };
 };
 
 // ---------------------------------------------------------------------------
@@ -134,6 +138,18 @@ async function geminiInvoke(args: InvokeArgs) {
   clearTimeout(timer);
   if (!res.ok) throw new Error(`Gemini error ${res.status}: ${await res.text()}`);
   const data: any = await res.json();
+  // D5 — meter usage. Gemini returns usageMetadata with token counts.
+  // Fire-and-forget; never blocks response.
+  const um = data?.usageMetadata;
+  if (um && args._ctx) {
+    void writeAiUsage({
+      tenant_slug: args._ctx.tenant_slug,
+      fn_name: args._ctx.fn_name,
+      model: modelName,
+      tokens_in: Number(um.promptTokenCount || 0),
+      tokens_out: Number(um.candidatesTokenCount || 0),
+    });
+  }
   const text = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
   if (responseSchema) {
     try {
@@ -207,6 +223,17 @@ async function anthropicInvoke(args: InvokeArgs) {
   clearTimeout(timer);
   if (!res.ok) throw new Error(`Anthropic error ${res.status}: ${await res.text()}`);
   const data: any = await res.json();
+
+  // D5 — meter usage. Anthropic returns { usage: { input_tokens, output_tokens } }.
+  if (data?.usage && args._ctx) {
+    void writeAiUsage({
+      tenant_slug: args._ctx.tenant_slug,
+      fn_name: args._ctx.fn_name,
+      model: modelName,
+      tokens_in: Number(data.usage.input_tokens || 0),
+      tokens_out: Number(data.usage.output_tokens || 0),
+    });
+  }
 
   if (responseSchema) {
     const toolUse = data?.content?.find((b: any) => b.type === 'tool_use');

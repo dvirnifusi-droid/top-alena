@@ -16,6 +16,7 @@ import { invokeLLM, generateImage } from '../lib/llm.js';
 import { driveAccessToken, listDriveFiles, downloadDriveFile } from '../lib/gdrive.js';
 import { uploadStreamToS3 } from '../lib/storage.js';
 import { MODULE_CATALOG } from '../lib/modules.js';
+import { getMyMonthlyUsage } from '../lib/aiUsage.js';
 import { Readable } from 'node:stream';
 import webpush from 'web-push';
 import {
@@ -39,7 +40,7 @@ const db = prisma as any; // generic delegate access
 
 // Public deploy marker — lets us confirm which build is live (and that
 // auto-deploy is working) without server access. Bump on each deploy test.
-registerFn('deployInfo', async () => ({ version: 'd3.4-router-hebrew-2026-07-02', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
+registerFn('deployInfo', async () => ({ version: 'd5-ai-metering-2026-07-02', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
 
 
 
@@ -19130,6 +19131,14 @@ registerFn('getManifest', async () => {
     icons,
   };
 }, { public: true });
+
+// D5 — returns this tenant's current-month AI usage: total tokens, total
+// cost in ILS, breakdown by day (for a chart) and by fn (for a top-N list).
+registerFn('getMyAiUsage', async ({ user }) => {
+  if (!user?.id) throw new Error('unauthorized');
+  const usage = await getMyMonthlyUsage();
+  return usage;
+});
 
 // Admin only. Toggles a single module for this tenant.
 // Core modules cannot be toggled — the function throws for them.
