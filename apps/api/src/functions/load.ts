@@ -13015,53 +13015,89 @@ registerFn('resendTenantWelcome', async ({ user, body }) => {
   const brandDisplay = t.restaurant_name || t.slug;
   const link = t.subdomain_url || `https://${t.slug}.topalena.com`;
 
+  // Build a wa.me deep-link that opens WhatsApp with the pre-filled
+  // opener — one tap and the session window opens, our onboarding agent
+  // fires immediately. Way better UX than telling them to type "היי".
+  const waFromNumber = String(process.env.TWILIO_WHATSAPP_FROM || '').replace(/^whatsapp:\+?/, '').replace(/[^\d]/g, '');
+  const ownerFirstName = String(t.owner_name || '').split(/\s+/)[0] || '';
+  const opener = `היי, אני ${ownerFirstName || 'הבעלים של'} ${brandDisplay}. אני רוצה להתחיל להקים את המסעדה שלי במערכת 🚀`;
+  const waLink = waFromNumber
+    ? `https://wa.me/${waFromNumber}?text=${encodeURIComponent(opener)}`
+    : '';
+
   // Twilio WhatsApp only lets you send if the recipient sent you a message
   // in the last 24h (or you use an approved template). New owners haven't
-  // sent anything yet, so their first-touch has to be SMS. Once they reply
-  // to our WhatsApp number, the onboarding agent takes over.
-  const waFromNumber = String(process.env.TWILIO_WHATSAPP_FROM || '').replace(/^whatsapp:/, '');
-  const waHint = waFromNumber ? `\n\n💬 כדי להתחיל שיחה עם הסוכן החכם: שלח "היי" בוואטסאפ ל-${waFromNumber}` : '';
-  const smsMsg = `🎉 ${brandDisplay} - המערכת שלך מוכנה!\n` +
-    `${link}\n${credsLine.replace(/\*/g, '')}${waHint}`;
+  // sent anything yet, so their first-touch has to be SMS + email. Once
+  // they tap the wa.me link, the router hands them to the onboarding agent.
+  const startLine = waLink ? `\n\n👉 להתחלת הקמה עם הסוכן החכם: ${waLink}` : '';
+  const credsLinePlain = credsLine.replace(/\*/g, '');
+  const smsMsg = `🎉 ${brandDisplay} - המערכת שלך מוכנה!\n${link}\n${credsLinePlain}${startLine}`;
   const waMsg = `🎉 *${brandDisplay}* — המערכת שלך מוכנה!\n\n` +
     `🔗 כתובת: ${link}\n\n${credsLine}\n\n` +
     `תוך רגע אני אכתוב לך שוב כדי לעזור לך להקים את המסעדה שלב-שלב. אפשר לענות לי בהודעות פשוטות ואני אעשה את הכל 🚀`;
 
+  const emailHtml = `<div dir="rtl" style="font-family:Arial,sans-serif;line-height:1.6;padding:24px;max-width:600px;margin:auto;background:#FAF5E8;border-radius:12px;color:#333">
+      <h1 style="color:#A04A2E;margin:0 0 8px">🎉 ${brandDisplay} — המערכת שלך מוכנה!</h1>
+      <p style="margin:16px 0 8px">שלום ${t.owner_name || ''},</p>
+      <p style="margin:8px 0">המערכת של <strong>${brandDisplay}</strong> הותקנה בהצלחה. הכתובת הפרטית שלך:</p>
+      <p style="margin:12px 0"><a href="${link}" style="color:#A04A2E;font-weight:bold;font-size:18px">${link}</a></p>
+      <div style="background:white;border-radius:8px;padding:16px;margin:20px 0;border:1px solid #ddd">
+        <div style="font-weight:bold;margin-bottom:8px">🔐 פרטי הכניסה שלך:</div>
+        <pre style="white-space:pre-wrap;font-family:inherit;margin:0">${credsLinePlain}</pre>
+      </div>
+      ${waLink ? `
+      <div style="background:#25D366;border-radius:12px;padding:20px;text-align:center;margin:24px 0">
+        <div style="color:white;font-weight:bold;font-size:16px;margin-bottom:12px">💬 להתחיל להקים את המסעדה — לחיצה אחת</div>
+        <a href="${waLink}" style="display:inline-block;background:white;color:#075E54;padding:14px 32px;border-radius:32px;text-decoration:none;font-weight:bold;font-size:16px">📱 פתח וואטסאפ עם הסוכן</a>
+        <div style="color:white;font-size:12px;opacity:0.9;margin-top:12px">הסוכן ידבר איתך בעברית ויעזור לך להקים תפריט, עובדים, שעות פתיחה ועוד — הכל בהודעות פשוטות</div>
+      </div>
+      ` : ''}
+      <p style="margin:24px 0 8px;color:#666;font-size:13px">בהצלחה! 🌿<br>צוות TopAlena</p>
+    </div>`;
+  const emailSubject = `${brandDisplay} — המערכת מוכנה! פרטי כניסה בפנים`;
+
   const { sendWhatsApp, sendSms } = await import('../lib/twilio.js');
+  const { sendEmail } = await import('../lib/email.js');
   const results: any = {};
 
-  // Fire SMS first — this is the guaranteed delivery channel.
+  // Fire SMS first — guaranteed delivery channel.
   try {
     results.sms = await sendSms(t.owner_phone, smsMsg);
   } catch (e: any) {
     results.sms_error = e?.message || 'sms_failed';
     console.warn('[resendWelcome] SMS failed:', results.sms_error);
   }
-  // Try WhatsApp too — will succeed if they've messaged us before (rare
-  // for a brand-new owner, but harmless to attempt). Best-effort.
+  // Email — the tap-to-open-WhatsApp button lives here as the primary CTA.
+  if (t.owner_email) {
+    try {
+      results.email = await sendEmail({ to: t.owner_email, subject: emailSubject, html: emailHtml });
+    } catch (e: any) {
+      results.email_error = e?.message || 'email_failed';
+      console.warn('[resendWelcome] Email failed:', results.email_error);
+    }
+  } else {
+    results.email_error = 'no_email_on_file';
+  }
+  // WhatsApp — best-effort. Usually fails for brand-new owners (no session).
   try {
     results.whatsapp = await sendWhatsApp(t.owner_phone, waMsg);
   } catch (e: any) {
     results.whatsapp_error = e?.message || 'whatsapp_blocked_no_session';
     console.warn('[resendWelcome] WhatsApp failed (expected if no prior message):', results.whatsapp_error);
   }
-  if (results.sms_error && results.whatsapp_error) {
-    throw new Error(`Both SMS and WhatsApp failed. SMS: ${results.sms_error}. WA: ${results.whatsapp_error}`);
+  if (results.sms_error && results.email_error && results.whatsapp_error) {
+    throw new Error(`All channels failed. SMS: ${results.sms_error}. Email: ${results.email_error}. WA: ${results.whatsapp_error}`);
   }
-  // Prime the onboarding state so the FIRST inbound WhatsApp from the
-  // owner gets routed into the onboarding flow. We do NOT call
-  // startOnboarding here because that sends a WhatsApp (which will fail
-  // for the same session-window reason). Instead ensureOnboardingRow +
-  // let the router pick it up when they reply.
+  // Prime the OnboardingState row so the FIRST inbound WhatsApp from the
+  // owner gets routed into the onboarding flow (skipped the send — that
+  // failed for session-window reasons anyway).
   try {
     const { ensureOnboardingRow } = await import('../lib/whatsappOnboarding.js');
-    if (typeof ensureOnboardingRow === 'function') {
-      await ensureOnboardingRow(b.tenant_id);
-    }
+    await ensureOnboardingRow(b.tenant_id);
   } catch (e: any) {
     console.warn('[resendWelcome] ensureOnboardingRow skipped:', e?.message);
   }
-  return { ok: true, sent_to: t.owner_phone, ...results };
+  return { ok: true, sent_to: t.owner_phone, wa_link: waLink, ...results };
 });
 
 // SUPER-ADMIN — generate an impersonation token that logs the caller in
