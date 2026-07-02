@@ -42,7 +42,7 @@ const db = prisma as any; // generic delegate access
 
 // Public deploy marker — lets us confirm which build is live (and that
 // auto-deploy is working) without server access. Bump on each deploy test.
-registerFn('deployInfo', async () => ({ version: 'fix-prompts-wa-mirror-2026-07-02', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
+registerFn('deployInfo', async () => ({ version: 'ai-full-onboarding-2026-07-02', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
 
 
 
@@ -19333,6 +19333,164 @@ registerFn('getMyAiUsage', async ({ user }) => {
   const usage = await getMyMonthlyUsage();
   return usage;
 });
+
+// BP — Suggest kitchen preps (base mises-en-place) tailored to the tenant's
+// menu style. Reads business_context + optional recent menu items and asks
+// Gemini for 5-8 prep recipes commonly needed for that cuisine.
+registerFn('suggestKitchenPreps', async ({ user }) => {
+  if (!user?.id) throw new Error('unauthorized');
+  if (!isAdminRole((user as any)?.role)) throw new Error('admin only');
+  const ctx = await businessContextBlock();
+  const brand = await getBrandName();
+  // Best-effort — sample a few existing dishes for grounding.
+  let dishSample = '';
+  try {
+    const dishes: any[] = await (db as any).recipe.findMany({ where: { kind: 'DISH' }, take: 12, select: { name: true } });
+    if (dishes.length) dishSample = `\n\nמנות קיימות בתפריט: ${dishes.map(d => d.name).join(', ')}`;
+  } catch { /* no dishes yet */ }
+  const prompt = `${ctx}הצע 6-10 הכנות מטבח (base preps / mise en place) שאופייניות למסעדה כמו "${brand}". לכל הכנה: שם קצר, יחידת מדידה (ק"ג/ליטר/יח׳), ורשימה קצרה של רכיבים.${dishSample}\n\nהחזר JSON: { preps: [{ name, unit, ingredients: string[], notes }] }`;
+  const result: any = await invokeLLM({
+    prompt,
+    responseSchema: {
+      type: 'object',
+      properties: {
+        preps: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              name: { type: 'string' },
+              unit: { type: 'string' },
+              ingredients: { type: 'array', items: { type: 'string' } },
+              notes: { type: 'string' },
+            },
+          },
+        },
+      },
+      required: ['preps'],
+    },
+    _ctx: { fn_name: 'suggestKitchenPreps' },
+  });
+  return result;
+});
+
+// BP — Extract a seating map from an uploaded image (sketch / photo of
+// floorplan / tablet screenshot). Gemini vision returns a list of tables
+// with rough (x, y) coordinates + capacity. Owner then drags to adjust.
+registerFn('extractSeatingFromImage', async ({ user, body }) => {
+  if (!user?.id) throw new Error('unauthorized');
+  if (!isAdminRole((user as any)?.role)) throw new Error('admin only');
+  const b = (body || {}) as any;
+  const url = String(b.file_url || '').trim();
+  if (!url) throw new Error('file_url required');
+  const prompt = `הקובץ המצורף הוא סקיצה או צילום של מפת המסעדה — שולחנות, פינות ישיבה, בר. חלץ את השולחנות והפינות שאתה מזהה.\n\nלכל שולחן/פינה: שם (למשל "S1", "בר", "אזור חוץ"), קיבולת מוערכת (מספר סועדים), וקורדינטות יחסיות (x, y) בטווח 0-100 (איפה על המפה — 0,0 = פינה שמאל למעלה, 100,100 = ימין למטה). גם צורה: table / bar / booth / outdoor.\n\nהחזר JSON: { tables: [{ label, capacity, x, y, shape }] }`;
+  const result: any = await invokeLLM({
+    prompt,
+    fileUrls: [url],
+    responseSchema: {
+      type: 'object',
+      properties: {
+        tables: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              label: { type: 'string' },
+              capacity: { type: 'number' },
+              x: { type: 'number' },
+              y: { type: 'number' },
+              shape: { type: 'string' },
+            },
+          },
+        },
+      },
+      required: ['tables'],
+    },
+    _ctx: { fn_name: 'extractSeatingFromImage' },
+  });
+  return result;
+});
+
+// BP — Invite a new employee via WhatsApp. Owner enters name+phone, we
+// create a PendingInvitation row + shoot the employee a WhatsApp with a
+// link to a public completion form.
+registerFn('inviteEmployeeViaWhatsApp', async ({ user, body }) => {
+  if (!user?.id) throw new Error('unauthorized');
+  if (!isAdminRole((user as any)?.role)) throw new Error('admin only');
+  const b = (body || {}) as any;
+  const fullName = String(b.full_name || '').trim();
+  const phone = String(b.phone || '').trim();
+  if (!fullName || !phone) throw new Error('full_name and phone required');
+  const brand = await getBrandName();
+  const token = randomUUID().replace(/-/g, '').slice(0, 24);
+  try {
+    await (db as any).pendingInvitation.create({
+      data: {
+        token,
+        full_name: fullName,
+        phone,
+        status: 'sent',
+      },
+    });
+  } catch (e: any) {
+    // Table might be missing — create it lazily
+    await (prisma as any).$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "PendingInvitation" (
+        "id" TEXT NOT NULL PRIMARY KEY DEFAULT gen_random_uuid()::text,
+        "token" TEXT NOT NULL UNIQUE,
+        "full_name" TEXT NOT NULL,
+        "phone" TEXT NOT NULL,
+        "email" TEXT,
+        "role" TEXT,
+        "status" TEXT NOT NULL DEFAULT 'sent',
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "completed_at" TIMESTAMP(3)
+      );
+    `);
+    await (db as any).pendingInvitation.create({
+      data: { token, full_name: fullName, phone, status: 'sent' },
+    });
+  }
+  const origin = process.env.PUBLIC_BASE_URL || `https://${process.env.TENANT_SLUG || 'topalena'}.topalena.com`;
+  const link = `${origin}/EmployeeComplete?t=${token}`;
+  const msg = `שלום ${fullName} 🌿\nהוזמנת להצטרף לצוות ${brand}.\nכדי להשלים את הפרטים (תפקיד, מייל) — לחץ כאן:\n${link}\n\nזה ייקח דקה 🚀`;
+  try {
+    const { sendWhatsApp } = await import('../lib/twilio.js');
+    await sendWhatsApp(phone, msg);
+  } catch (e: any) {
+    console.warn('[inviteEmployeeViaWhatsApp] WhatsApp send failed:', e?.message);
+  }
+  return { ok: true, token, link };
+});
+
+// Public completion for an employee invitation. No auth — just the token.
+registerFn('completeEmployeeInvitation', async ({ body }) => {
+  const b = (body || {}) as any;
+  const token = String(b.token || '');
+  if (!token) throw new Error('token required');
+  const invite: any = await (db as any).pendingInvitation.findFirst({ where: { token } }).catch(() => null);
+  if (!invite) throw new Error('invitation not found');
+  if (invite.status === 'completed') throw new Error('already completed');
+  const email = String(b.email || '').trim();
+  const role = String(b.role || '').trim();
+  if (!email || !role) throw new Error('email and role required');
+  await (db as any).pendingInvitation.update({
+    where: { id: invite.id },
+    data: { email, role, status: 'completed', completed_at: new Date() },
+  });
+  // Create the Employee row
+  await (db as any).employee.create({
+    data: {
+      employee_name: invite.full_name,
+      phone: invite.phone,
+      email,
+      role,
+      status: 'active',
+    },
+  });
+  return { ok: true };
+}, { public: true });
 
 // BP — Reset events/waiter Sales Kit system_prompt to the platform's
 // default template. Used by the /EventsPrivate "אפס לפי הפרופיל שלי" button

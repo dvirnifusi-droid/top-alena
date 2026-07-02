@@ -838,6 +838,23 @@ function EmployeesInner() {
              <p className="text-gray-600 mt-2">הוספה, עריכה וניהול של צוות המסעדה</p>
            </div>
            <div className="flex gap-2 flex-wrap">
+             <Button
+               variant="outline"
+               onClick={async () => {
+                 const name = window.prompt('שם מלא של העובד:');
+                 if (!name?.trim()) return;
+                 const phone = window.prompt('טלפון (וואטסאפ):');
+                 if (!phone?.trim()) return;
+                 try {
+                   const res = await base44.functions.inviteEmployeeViaWhatsApp({ full_name: name.trim(), phone: phone.trim() });
+                   const data = res?.data || res;
+                   alert(`✅ נשלחה הזמנה ל-${name} בוואטסאפ.\nלינק גיבוי: ${data?.link || ''}`);
+                 } catch (e) { alert('שגיאה: ' + (e?.message || '')); }
+               }}
+               className="gap-1"
+             >
+               💬 הזמן ב-WhatsApp
+             </Button>
              <label className="inline-flex items-center gap-1 px-3 py-2 rounded-md border border-amber-300 bg-amber-50 text-amber-800 cursor-pointer hover:bg-amber-100 text-sm">
                {aiImporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
                {aiImporting ? 'סורק...' : 'ייבא מ-PDF/Excel'}

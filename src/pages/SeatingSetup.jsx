@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Trash2, Plus, Save, Loader2, Wand2, Eye, Edit, Wrench, ArrowRight, Settings } from "lucide-react";
+import { Trash2, Plus, Save, Loader2, Wand2, Eye, Edit, Wrench, ArrowRight, Settings, Sparkles, Upload } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
@@ -2355,6 +2355,44 @@ export default function SeatingSetup() {
                                     </div>
                                 ))}
                                 <Button variant="outline" onClick={handleAddTable}><Plus className="w-4 h-4 ml-2" />הוסף שולחן</Button>
+                                <label className="inline-flex items-center gap-1 px-3 py-2 rounded-md border border-amber-300 bg-amber-50 text-amber-900 hover:bg-amber-100 text-sm cursor-pointer">
+                                  <Sparkles className="w-4 h-4" />
+                                  סרוק מפה מתמונה (AI)
+                                  <input
+                                    type="file"
+                                    accept="image/*,.pdf"
+                                    onChange={async (e) => {
+                                      const file = e.target.files?.[0];
+                                      if (!file) return;
+                                      try {
+                                        const { file_url } = await base44.integrations.Core.UploadFile({ file });
+                                        const res = await base44.functions.extractSeatingFromImage({ file_url });
+                                        const data = res?.data || res;
+                                        const newTables = (data?.tables || []).map((t, i) => ({
+                                          table_number: t.label || `S${i + 1}`,
+                                          min_capacity: Math.max(1, Math.floor((t.capacity || 2) * 0.5)),
+                                          max_capacity: Math.max(2, t.capacity || 4),
+                                          location: (t.shape === 'outdoor') ? 'outdoor' : 'indoor',
+                                          area: t.shape === 'bar' ? 'בר' : t.shape === 'booth' ? 'פינה' : 'חדש',
+                                          combinable_with: [],
+                                          features: [],
+                                          x: Math.round(((t.x ?? 50) * 6) / 20) * 20,
+                                          y: Math.round(((t.y ?? 50) * 5) / 20) * 20,
+                                          width: 80,
+                                          height: 80,
+                                        }));
+                                        if (!newTables.length) { alert('לא זוהו שולחנות בתמונה'); return; }
+                                        setTables([...tables, ...newTables]);
+                                        alert(`✅ נוספו ${newTables.length} שולחנות. גרור כדי להזיז ושמור.`);
+                                      } catch (err) {
+                                        alert('שגיאה: ' + (err?.message || ''));
+                                      } finally {
+                                        e.target.value = '';
+                                      }
+                                    }}
+                                    className="hidden"
+                                  />
+                                </label>
 
                                 {/* Party-size breakdown: derive from min/max/combinable_with */}
                                 <TableCombosBreakdown

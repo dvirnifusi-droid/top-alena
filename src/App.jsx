@@ -17,6 +17,7 @@ import { base44 } from '@/api/base44Client';
 import React from 'react';
 import TrainingVideos from './pages/TrainingVideos';
 import JobApplication from './pages/JobApplication';
+import EmployeeComplete from './pages/EmployeeComplete';
 import EventsInquiry from './pages/EventsInquiry';
 import EventsPayment from './pages/EventsPayment';
 import EventContractSign from './pages/EventContractSign';
@@ -162,6 +163,7 @@ function App() {
           <Route path="/PrivacyAndAccessibility" element={<PrivacyAndAccessibility />} />
           <Route path="/JobApplication" element={<JobApplication />} />
           <Route path="/apply" element={<JobApplication />} />
+          <Route path="/EmployeeComplete" element={<EmployeeComplete />} />
           <Route path="/EventsInquiry" element={<EventsInquiry />} />
           <Route path="/events" element={<EventsInquiry />} />
           <Route path="/EventsPayment" element={<EventsPayment />} />

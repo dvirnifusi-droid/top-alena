@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, ChefHat, RefreshCw, TrendingUp, AlertTriangle, Edit3, Upload } from 'lucide-react';
+import { Loader2, ChefHat, RefreshCw, TrendingUp, AlertTriangle, Edit3, Upload, Sparkles } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import PageGuard from '../components/shared/PageGuard';
 
@@ -11,6 +11,40 @@ function RecipesInner() {
   const [recipes, setRecipes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('DISH');
+  const [aiPrepsBusy, setAiPrepsBusy] = useState(false);
+  const [aiPreps, setAiPreps] = useState(null);
+  const [importingPreps, setImportingPreps] = useState(false);
+
+  const suggestPreps = async () => {
+    setAiPrepsBusy(true);
+    try {
+      const res = await base44.functions.suggestKitchenPreps({});
+      const data = res?.data || res;
+      const preps = (data?.preps || []).map(p => ({ ...p, selected: true }));
+      setAiPreps(preps);
+      setFilter('PREP');
+    } catch (e) { alert('שגיאה: ' + (e?.message || '')); }
+    finally { setAiPrepsBusy(false); }
+  };
+
+  const importAiPreps = async () => {
+    if (!aiPreps) return;
+    setImportingPreps(true);
+    try {
+      const { Recipe } = await import('@/entities/all');
+      for (const p of aiPreps.filter(x => x.selected)) {
+        await Recipe.create({
+          name: p.name,
+          kind: 'PREP',
+          unit: p.unit || 'יח׳',
+          notes: [p.notes, (p.ingredients || []).join(', ')].filter(Boolean).join('\n'),
+        });
+      }
+      setAiPreps(null);
+      load();
+    } catch (e) { alert('שגיאה: ' + (e?.message || '')); }
+    finally { setImportingPreps(false); }
+  };
   const [editPrice, setEditPrice] = useState(null);
   const [savingId, setSavingId] = useState(null);
   const [selected, setSelected] = useState(null);
@@ -179,13 +213,53 @@ function RecipesInner() {
             ייבא מ-JSON
             <input type="file" accept="application/json,.json" onChange={handleImport} disabled={importing} className="hidden" />
           </label>
+          <Button size="sm" variant="outline" onClick={suggestPreps} disabled={aiPrepsBusy} className="border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-900">
+            {aiPrepsBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4 ml-1" />}
+            הצע הכנות לפי הפרופיל
+          </Button>
           <Button variant="outline" onClick={load} disabled={loading}>
             <RefreshCw className={`w-4 h-4 ml-1 ${loading ? 'animate-spin' : ''}`} /> רענן
           </Button>
         </div>
       </div>
 
-      <div className="flex gap-2">
+      {aiPreps && filter === 'PREP' && (
+        <Card className="border-amber-200 bg-amber-50">
+          <CardContent className="p-4 space-y-2">
+            <div className="flex items-center justify-between">
+              <h3 className="font-bold flex items-center gap-1"><Sparkles className="w-4 h-4 text-amber-600" /> הצעות הכנה AI</h3>
+              <div className="flex gap-2">
+                <Button variant="ghost" size="sm" onClick={() => setAiPreps(null)}>ביטול</Button>
+                <Button size="sm" onClick={importAiPreps} disabled={importingPreps}>
+                  {importingPreps ? <Loader2 className="w-3 h-3 animate-spin ml-1" /> : null}
+                  ייבא נבחרים ({aiPreps.filter(p => p.selected).length})
+                </Button>
+              </div>
+            </div>
+            {aiPreps.map((p, i) => (
+              <label key={i} className="flex items-start gap-2 p-2 bg-white rounded border cursor-pointer text-sm">
+                <input
+                  type="checkbox"
+                  checked={p.selected}
+                  onChange={(e) => {
+                    const next = [...aiPreps];
+                    next[i] = { ...p, selected: e.target.checked };
+                    setAiPreps(next);
+                  }}
+                  className="mt-1"
+                />
+                <div className="flex-1">
+                  <div className="font-bold">{p.name} <span className="text-slate-500 font-normal text-xs">· {p.unit}</span></div>
+                  <div className="text-xs text-slate-600">{(p.ingredients || []).join(', ')}</div>
+                  {p.notes && <div className="text-xs text-slate-400 mt-0.5">{p.notes}</div>}
+                </div>
+              </label>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+
+      <div className="flex gap-2 items-center">
         <Button size="sm" variant={filter === 'DISH' ? 'default' : 'outline'} onClick={() => setFilter('DISH')}>
           🍽 מנות
         </Button>
