@@ -10,23 +10,54 @@ import { createPageUrl } from '@/utils';
 function PlatformAdminInner() {
   const [stats, setStats] = useState(null);
   const [metrics, setMetrics] = useState(null);
+  const [pending, setPending] = useState([]);
+  const [failed, setFailed] = useState([]);
   const [loading, setLoading] = useState(true);
   const [impersonatingId, setImpersonatingId] = useState(null);
   const [restartingId, setRestartingId] = useState(null);
+  const [actioningId, setActioningId] = useState(null);
 
   const load = async () => {
     setLoading(true);
     try {
-      const [statsRes, metricsRes] = await Promise.all([
+      const [statsRes, metricsRes, pendingRes, failedRes, provisioningRes] = await Promise.all([
         base44.functions.getTenantStats({}),
         base44.functions.getSuperAdminMetrics({}),
+        base44.functions.listTenants({ status: 'pending_approval' }),
+        base44.functions.listTenants({ status: 'failed' }),
+        base44.functions.listTenants({ status: 'pending_provisioning' }),
       ]);
       setStats(statsRes?.data || statsRes);
       setMetrics(metricsRes?.data || metricsRes);
+      const pendingList = (pendingRes?.data || pendingRes)?.tenants || [];
+      const provisioningList = (provisioningRes?.data || provisioningRes)?.tenants || [];
+      setPending([...pendingList, ...provisioningList]);
+      setFailed((failedRes?.data || failedRes)?.tenants || []);
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
   };
   useEffect(() => { load(); }, []);
+
+  const approveTenant = async (t) => {
+    if (!window.confirm(`לאשר ולהקים את "${t.restaurant_name}" (${t.slug}.topalena.com)?`)) return;
+    setActioningId(t.id);
+    try {
+      await base44.functions.approveTenant({ tenant_id: t.id });
+      alert(`✅ ${t.restaurant_name} אושר. ההקמה תתחיל תוך 2 דקות.`);
+      await load();
+    } catch (e) { alert('שגיאה: ' + (e?.message || '')); }
+    finally { setActioningId(null); }
+  };
+
+  const rejectTenant = async (t) => {
+    if (!window.confirm(`לדחות את "${t.restaurant_name}"? הפעולה בלתי הפיכה.`)) return;
+    setActioningId(t.id);
+    try {
+      await base44.functions.rejectTenant({ tenant_id: t.id });
+      await load();
+    } catch (e) { alert('שגיאה: ' + (e?.message || '')); }
+    finally { setActioningId(null); }
+  };
 
   const restartOnboarding = async (t) => {
     if (!window.confirm(`להפעיל שיחת Onboarding בוואטסאפ עם הבעלים של "${t.name}"? הבעלים יקבל הודעה מיידית.`)) return;
@@ -96,6 +127,83 @@ function PlatformAdminInner() {
               </Card>
             ))}
           </div>
+
+          {/* Pending tenants — signups awaiting owner approval */}
+          {pending.length > 0 && (
+            <Card className="border-amber-300 bg-amber-50/40">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Clock className="w-5 h-5 text-amber-600" /> ממתין לאישורך ({pending.length})
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-0">
+                <div className="divide-y">
+                  {pending.map(t => (
+                    <div key={t.id} className="p-3 flex flex-wrap items-center gap-3">
+                      <div className="flex-1 min-w-[200px]">
+                        <div className="font-bold">{t.restaurant_name || t.slug}</div>
+                        <div className="text-xs text-slate-500 mt-0.5">
+                          <code>{t.slug}.topalena.com</code>
+                          {t.owner_name && <span className="mx-2">·</span>}
+                          {t.owner_name && <span>{t.owner_name}</span>}
+                          {t.owner_phone && <span className="mx-2">·</span>}
+                          {t.owner_phone && <span dir="ltr">{t.owner_phone}</span>}
+                        </div>
+                        <div className="text-xs mt-1">
+                          <span className={`inline-block px-2 py-0.5 rounded ${t.status === 'pending_approval' ? 'bg-amber-200 text-amber-900' : 'bg-blue-200 text-blue-900'}`}>
+                            {t.status === 'pending_approval' ? 'ממתין לאישור' : 'בהתקנה'}
+                          </span>
+                        </div>
+                      </div>
+                      {t.status === 'pending_approval' && (
+                        <div className="flex gap-2">
+                          <Button size="sm" onClick={() => approveTenant(t)} disabled={actioningId === t.id}
+                            className="bg-emerald-600 hover:bg-emerald-700 text-white">
+                            {actioningId === t.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <><CheckCircle2 className="w-4 h-4 ml-1" /> אשר והקם</>}
+                          </Button>
+                          <Button size="sm" variant="outline" onClick={() => rejectTenant(t)} disabled={actioningId === t.id}
+                            className="border-red-300 text-red-700 hover:bg-red-50">
+                            דחה
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Failed tenants — provisioning errors that need attention */}
+          {failed.length > 0 && (
+            <Card className="border-red-300 bg-red-50/40">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base flex items-center gap-2 text-red-800">
+                  <AlertTriangle className="w-5 h-5 text-red-600" /> נכשלו בהקמה ({failed.length})
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-0">
+                <div className="divide-y">
+                  {failed.map(t => (
+                    <div key={t.id} className="p-3 flex flex-wrap items-center gap-3">
+                      <div className="flex-1 min-w-[200px]">
+                        <div className="font-bold">{t.restaurant_name || t.slug}</div>
+                        <div className="text-xs text-slate-500 mt-0.5">
+                          <code>{t.slug}.topalena.com</code>
+                          {t.owner_phone && <span className="mx-2">·</span>}
+                          {t.owner_phone && <span dir="ltr">{t.owner_phone}</span>}
+                        </div>
+                      </div>
+                      <Button size="sm" onClick={() => approveTenant(t)} disabled={actioningId === t.id}
+                        className="bg-blue-600 hover:bg-blue-700 text-white">
+                        {actioningId === t.id ? <Loader2 className="w-4 h-4 animate-spin" /> : 'נסה שוב'}
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Aggregated metrics across all tenants */}
           {metrics && (
