@@ -19,6 +19,16 @@ cd "$REPO" || exit 1
 exec >>"$LOG" 2>&1
 echo "==================== $(date -u '+%Y-%m-%d %H:%M:%S UTC') ===================="
 
+# One-time bootstrap: install jq if missing. Our provisioner + watchdog
+# scripts depend on it, and skipping this dependency silently is what
+# caused a full afternoon of "why isn't bigizik online" — the smoke test
+# refuses to run without jq, and the provisioner would still crash on
+# JSON parsing. Install once and forget.
+if ! command -v jq >/dev/null 2>&1; then
+  echo "==> Installing jq (missing)"
+  DEBIAN_FRONTEND=noninteractive apt-get install -y jq >/dev/null 2>&1 || echo "!!! jq install failed"
+fi
+
 # Skip if no lock — but do quick fetch to see if there's anything new.
 git fetch origin "$BRANCH" --quiet 2>/dev/null || { echo "fetch failed, skipping"; exit 0; }
 
