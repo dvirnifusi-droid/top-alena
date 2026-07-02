@@ -3,7 +3,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Loader2, Palette, Upload, Save, RefreshCw } from 'lucide-react';
+import { Loader2, Palette, Upload, Save, RefreshCw, Sparkles, Building2, MapPin, Phone, Clock, Users, ChefHat } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import PageGuard from '../components/shared/PageGuard';
 import { useTenantBranding, invalidateBrandingCache } from '@/hooks/useTenantBranding';
@@ -31,6 +31,18 @@ function BrandingInner() {
   const [saving, setSaving] = useState(false);
   const [savedAt, setSavedAt] = useState(null);
   const [error, setError] = useState(null);
+  // Business profile fields — deep context for every AI prompt
+  const [businessType, setBusinessType] = useState('');
+  const [cuisineStyle, setCuisineStyle] = useState('');
+  const [address, setAddress] = useState('');
+  const [city, setCity] = useState('');
+  const [phone, setPhone] = useState('');
+  const [targetAudience, setTargetAudience] = useState('');
+  const [description, setDescription] = useState('');
+  const [menuDescription, setMenuDescription] = useState('');
+  const [uniqueSellingPoints, setUniqueSellingPoints] = useState('');
+  const [openingHours, setOpeningHours] = useState({});
+  const [aiComposing, setAiComposing] = useState(false);
 
   // Load current profile once. base44.entities.RestaurantProfile is per-tenant.
   useEffect(() => {
@@ -44,10 +56,54 @@ function BrandingInner() {
           setLogoUrl(profile.logo_url || '');
           setColors({ ...DEFAULT_COLORS, ...(profile.brand_colors || {}) });
           setFont(profile.brand_font || '');
+          setBusinessType(profile.business_type || '');
+          setCuisineStyle(profile.cuisine_style || '');
+          setAddress(profile.address || '');
+          setCity(profile.city || '');
+          setPhone(profile.phone || '');
+          setTargetAudience(profile.target_audience || '');
+          setDescription(profile.description || '');
+          setMenuDescription(profile.menu_description || '');
+          const usp = profile.unique_selling_points;
+          setUniqueSellingPoints(Array.isArray(usp) ? usp.join('\n') : (typeof usp === 'string' ? usp : ''));
+          setOpeningHours(profile.opening_hours || {});
         }
       } catch (e) { console.error(e); }
     })();
   }, []);
+
+  const runAiInterview = async () => {
+    setAiComposing(true);
+    setError(null);
+    try {
+      const res = await base44.functions.composeBusinessProfileWithAi({
+        current: {
+          restaurant_name: restaurantName,
+          business_type: businessType,
+          cuisine_style: cuisineStyle,
+          address,
+          city,
+          phone,
+          target_audience: targetAudience,
+          description,
+          menu_description: menuDescription,
+          unique_selling_points: uniqueSellingPoints,
+        },
+      });
+      const data = res?.data || res;
+      const suggested = data?.suggested || {};
+      if (suggested.business_type) setBusinessType(suggested.business_type);
+      if (suggested.cuisine_style) setCuisineStyle(suggested.cuisine_style);
+      if (suggested.target_audience) setTargetAudience(suggested.target_audience);
+      if (suggested.description) setDescription(suggested.description);
+      if (suggested.menu_description) setMenuDescription(suggested.menu_description);
+      if (suggested.unique_selling_points) setUniqueSellingPoints(suggested.unique_selling_points);
+    } catch (e) {
+      setError('שגיאה בפילוח AI: ' + (e?.message || ''));
+    } finally {
+      setAiComposing(false);
+    }
+  };
 
   const handleUpload = async (e) => {
     const file = e.target.files?.[0];
@@ -68,11 +124,23 @@ function BrandingInner() {
     setSaving(true);
     setError(null);
     try {
+      const uspArr = (uniqueSellingPoints || '').split(/\n+/).map((s) => s.trim()).filter(Boolean);
       const payload = {
         restaurant_name: restaurantName || 'המסעדה',
         logo_url: logoUrl || null,
         brand_colors: colors,
         brand_font: font || null,
+        business_type: businessType || null,
+        cuisine_style: cuisineStyle || null,
+        address: address || null,
+        city: city || null,
+        phone: phone || null,
+        target_audience: targetAudience || null,
+        description: description || null,
+        menu_description: menuDescription || null,
+        unique_selling_points: uspArr.length ? uspArr : null,
+        opening_hours: Object.keys(openingHours || {}).length ? openingHours : null,
+        business_context: null, // invalidate — backend will recompose on next AI call
       };
       if (profileId) {
         await base44.entities.RestaurantProfile.update(profileId, payload);
@@ -223,6 +291,157 @@ function BrandingInner() {
                 נשמר. רענן את הדף כדי לראות את השינוי בכל האפליקציה.
               </span>
             )}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* ── Business Profile — deep context for every AI in the system ── */}
+      <Card className="border-amber-200 bg-gradient-to-l from-amber-50 to-white">
+        <CardContent className="p-6 space-y-4">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex items-start gap-3">
+              <Building2 className="w-6 h-6 text-amber-600 mt-1" />
+              <div>
+                <h3 className="text-lg font-bold">פרופיל העסק שלך</h3>
+                <p className="text-xs text-slate-600 mt-1">
+                  כל AI במערכת יקרא מכאן — סוכן הגיוס, סוכנת האירועים, המלצר הווירטואלי, תדריכים, שיווק.
+                  ככל שתמלא יותר — כך התוצאות יהיו מדויקות ומכוונות לעסק שלך.
+                </p>
+              </div>
+            </div>
+            <Button size="sm" variant="outline" onClick={runAiInterview} disabled={aiComposing} className="gap-1 whitespace-nowrap">
+              {aiComposing ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
+              {aiComposing ? 'AI חושב...' : 'עזור לי למלא'}
+            </Button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <Label className="text-sm font-semibold flex items-center gap-1">
+                <ChefHat className="w-3 h-3" /> סוג העסק
+              </Label>
+              <Input
+                value={businessType}
+                onChange={(e) => setBusinessType(e.target.value)}
+                placeholder="למשל: בר יין, בורגר בר, סושי, קפה שכונתי, מסעדה איטלקית"
+                className="mt-1"
+              />
+            </div>
+            <div>
+              <Label className="text-sm font-semibold">סגנון מטבח</Label>
+              <Input
+                value={cuisineStyle}
+                onChange={(e) => setCuisineStyle(e.target.value)}
+                placeholder="ים תיכוני / איטלקי / אסייתי / בשרים על אש"
+                className="mt-1"
+              />
+            </div>
+            <div>
+              <Label className="text-sm font-semibold flex items-center gap-1">
+                <MapPin className="w-3 h-3" /> כתובת
+              </Label>
+              <Input
+                value={address}
+                onChange={(e) => setAddress(e.target.value)}
+                placeholder="רחוב + מספר"
+                className="mt-1"
+              />
+            </div>
+            <div>
+              <Label className="text-sm font-semibold">עיר</Label>
+              <Input
+                value={city}
+                onChange={(e) => setCity(e.target.value)}
+                placeholder="תל אביב / ראשון לציון / ירושלים"
+                className="mt-1"
+              />
+            </div>
+            <div>
+              <Label className="text-sm font-semibold flex items-center gap-1">
+                <Phone className="w-3 h-3" /> טלפון
+              </Label>
+              <Input
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                placeholder="03-1234567"
+                className="mt-1"
+              />
+            </div>
+            <div>
+              <Label className="text-sm font-semibold flex items-center gap-1">
+                <Users className="w-3 h-3" /> קהל יעד
+              </Label>
+              <Input
+                value={targetAudience}
+                onChange={(e) => setTargetAudience(e.target.value)}
+                placeholder="זוגות/משפחות/עסקים/היי-טק/צעירים"
+                className="mt-1"
+              />
+            </div>
+          </div>
+
+          <div>
+            <Label className="text-sm font-semibold">תיאור המסעדה (בקצרה)</Label>
+            <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="בשני משפטים — מה הסיפור? למה לבוא? מה הוויב?"
+              className="mt-1 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm min-h-[70px]"
+            />
+          </div>
+
+          <div>
+            <Label className="text-sm font-semibold">התפריט — עיקרי</Label>
+            <textarea
+              value={menuDescription}
+              onChange={(e) => setMenuDescription(e.target.value)}
+              placeholder="דגלים ראשיים: מנות שיתוף? כשרות? יינות טבעיים? קוקטיילים? אין דגים?"
+              className="mt-1 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm min-h-[70px]"
+            />
+          </div>
+
+          <div>
+            <Label className="text-sm font-semibold">יתרונות ייחודיים (שורה לכל אחד)</Label>
+            <textarea
+              value={uniqueSellingPoints}
+              onChange={(e) => setUniqueSellingPoints(e.target.value)}
+              placeholder={"למשל:\nתנור ג'וספר על אש\nמרפסת עם נוף\nיינות טבעיים בלבד"}
+              className="mt-1 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm min-h-[90px]"
+            />
+          </div>
+
+          <div>
+            <Label className="text-sm font-semibold flex items-center gap-1">
+              <Clock className="w-3 h-3" /> שעות פעילות
+            </Label>
+            <div className="mt-2 grid grid-cols-2 md:grid-cols-4 gap-2">
+              {['sun','mon','tue','wed','thu','fri','sat'].map((k) => {
+                const label = { sun: 'א', mon: 'ב', tue: 'ג', wed: 'ד', thu: 'ה', fri: 'ו', sat: 'ש' }[k];
+                const v = openingHours?.[k] || {};
+                return (
+                  <div key={k} className="flex items-center gap-1 border rounded-lg p-2 text-xs">
+                    <span className="font-bold w-4">{label}</span>
+                    <input
+                      type="time"
+                      value={v.open || ''}
+                      onChange={(e) => setOpeningHours((h) => ({ ...h, [k]: { ...(h?.[k] || {}), open: e.target.value } }))}
+                      className="w-full text-xs border-0 focus:outline-none"
+                    />
+                    <span>-</span>
+                    <input
+                      type="time"
+                      value={v.close || ''}
+                      onChange={(e) => setOpeningHours((h) => ({ ...h, [k]: { ...(h?.[k] || {}), close: e.target.value } }))}
+                      className="w-full text-xs border-0 focus:outline-none"
+                    />
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="text-xs text-slate-500 pt-2 border-t">
+            אחרי שמירה — הבריף היומי, סוכנת האירועים, המלצר הווירטואלי, וכל AI במערכת ידברו בשם העסק שלך עם הפרטים האלה.
           </div>
         </CardContent>
       </Card>

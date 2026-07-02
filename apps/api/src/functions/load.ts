@@ -18,6 +18,7 @@ import { uploadStreamToS3 } from '../lib/storage.js';
 import { MODULE_CATALOG } from '../lib/modules.js';
 import { getMyMonthlyUsage } from '../lib/aiUsage.js';
 import { getBrandName, renderBrand } from '../lib/brandName.js';
+import { businessContextBlock, invalidateBusinessContextCache } from '../lib/businessContext.js';
 import { Readable } from 'node:stream';
 import webpush from 'web-push';
 import {
@@ -41,7 +42,7 @@ const db = prisma as any; // generic delegate access
 
 // Public deploy marker — lets us confirm which build is live (and that
 // auto-deploy is working) without server access. Bump on each deploy test.
-registerFn('deployInfo', async () => ({ version: 'iso-batch2-white-label-2026-07-02', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
+registerFn('deployInfo', async () => ({ version: 'bp-business-profile-2026-07-02', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
 
 
 
@@ -597,15 +598,10 @@ registerFn('chatJobApplication', async ({ body }) => {
     ? ''
     : `\n\n--- LANGUAGE DIRECTIVE ---\nThe candidate is communicating in ${language}. Your "reply" field MUST be written in ${language}, even if the rest of the schema/prompt is in Hebrew. Be warm, natural, and use idiomatic ${language}.\nField extraction (collected, ai_summary, notes) should still be in Hebrew so the manager can read it.`;
 
-  // D-iso: substitute brand name at query time so tenant apply pages don't
-  // greet candidates with the platform-default restaurant name.
-  let brandName = 'המסעדה';
-  try {
-    const profile: any = await (db as any).restaurantProfile.findFirst({ select: { restaurant_name: true } });
-    if (profile?.restaurant_name) brandName = String(profile.restaurant_name);
-  } catch { /* no profile row on fresh tenants — fall back */ }
+  const brandName = await getBrandName();
+  const bpBlock = await businessContextBlock();
   const RECRUITMENT_SYSTEM_PROMPT = RECRUITMENT_SYSTEM_PROMPT_TEMPLATE.replaceAll('{brand}', brandName);
-  const prompt = `${RECRUITMENT_SYSTEM_PROMPT}${kashrutClause}${langDirective}\n\n--- שיחה עד כה ---\n${transcript || '(אין עדיין הודעות — זו תחילת השיחה)'}${newPart}\n\nהחזר את התגובה הבאה כ-JSON בלבד.`;
+  const prompt = `${bpBlock}${RECRUITMENT_SYSTEM_PROMPT}${kashrutClause}${langDirective}\n\n--- שיחה עד כה ---\n${transcript || '(אין עדיין הודעות — זו תחילת השיחה)'}${newPart}\n\nהחזר את התגובה הבאה כ-JSON בלבד.`;
 
   const result: any = await invokeLLM({
     prompt: prompt + `\n\nחובה: ברגע ש-complete=true (גם אם rejected=true), חובה להחזיר score כ-מספר 0-100. אסור להחזיר null או להשאיר את השדה ריק.`,
@@ -4533,12 +4529,14 @@ registerFn('aiDailySummary', async ({ body }) => {
 });
 
 registerFn('aiGenerateBriefing', async ({ body }) => {
+  const ctx = await businessContextBlock();
   return invokeLLM({
-    prompt: `הכן תדריך יומי לצוות המסעדה.\nנתונים: ${JSON.stringify(body)}`,
+    prompt: `${ctx}הכן תדריך יומי לצוות המסעדה בהתאם לפרופיל העסק למעלה. אל תמציא פרטים שלא בפרופיל.\nנתוני היום: ${JSON.stringify(body)}`,
     responseSchema: {
       type: 'object',
       properties: { headline: { type: 'string' }, items: { type: 'array', items: { type: 'string' } } },
     },
+    _ctx: { fn_name: 'aiGenerateBriefing' },
   });
 });
 
@@ -6395,7 +6393,7 @@ registerFn('runCeoDailyBrief', async ({ body }) => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          system_instruction: { parts: [{ text: renderBrand(CEO_BRIEF_PROMPT_TEMPLATE, await getBrandName()) }] },
+          system_instruction: { parts: [{ text: (await businessContextBlock()) + renderBrand(CEO_BRIEF_PROMPT_TEMPLATE, await getBrandName()) }] },
           contents: [{ role: 'user', parts: [{ text: `Window: ${triggerHebrew}\nData:\n${JSON.stringify(context, null, 2)}` }] }],
           generationConfig: { temperature: 0.3, maxOutputTokens: 1024, thinkingConfig: { thinkingBudget: 0 } },
         }),
@@ -6595,15 +6593,10 @@ registerFn('chatEventsInquiry', async ({ body }) => {
       data: { singleton: true, menus: [], upsells: [], terms: {}, system_prompt: DEFAULT_EVENTS_PROMPT, payment_mode: 'stub', deposit_pct: 20, max_discount_pct: 5, short_notice_allowed: true, max_advance_months: 6 },
     });
   }
-  // D-iso: substitute brand name so events chat greets with the tenant's
-  // actual restaurant name, not the platform default.
-  let brandNameEv = 'המסעדה';
-  try {
-    const p: any = await (db as any).restaurantProfile.findFirst({ select: { restaurant_name: true } });
-    if (p?.restaurant_name) brandNameEv = String(p.restaurant_name);
-  } catch { /* fall back */ }
+  const brandNameEv = await getBrandName();
+  const bpBlockEv = await businessContextBlock();
   const rawPrompt = (kit.system_prompt && kit.system_prompt.trim()) || DEFAULT_EVENTS_PROMPT;
-  const systemPrompt = rawPrompt.replaceAll('{brand}', brandNameEv);
+  const systemPrompt = bpBlockEv + rawPrompt.replaceAll('{brand}', brandNameEv);
 
   const turns: Array<{ role: string; content: string }> = Array.isArray(history) ? history : [];
   const transcript = turns.map((t) => `${t.role === 'assistant' ? 'עוזר' : 'לקוח'}: ${t.content}`).join('\n');
@@ -9764,7 +9757,8 @@ registerFn('chatWaiter', async ({ body }) => {
     });
   }
   const rawPromptW = (kit.system_prompt && kit.system_prompt.trim()) || WAITER_DEFAULT_PROMPT;
-  const systemPrompt = renderBrand(rawPromptW, await getBrandName());
+  const bpBlockW = await businessContextBlock();
+  const systemPrompt = bpBlockW + renderBrand(rawPromptW, await getBrandName());
 
   const turns: Array<{ role: string; content: string }> = Array.isArray(history) ? history : [];
   const transcript = turns.map((t) => `${t.role === 'assistant' ? 'מלצר' : 'לקוח'}: ${t.content}`).join('\n');
@@ -19327,6 +19321,93 @@ registerFn('getMyAiUsage', async ({ user }) => {
   if (!user?.id) throw new Error('unauthorized');
   const usage = await getMyMonthlyUsage();
   return usage;
+});
+
+// BP — AI-assisted business profile composer. Takes whatever fields the
+// owner has already filled in, plus the restaurant name, and asks Gemini
+// to guess/complete the missing pieces so the owner sees a first draft they
+// can edit. Returns { suggested: { business_type, cuisine_style, ... } }.
+registerFn('composeBusinessProfileWithAi', async ({ user, body }) => {
+  if (!user?.id) throw new Error('unauthorized');
+  if (!isAdminRole((user as any)?.role)) throw new Error('admin only');
+  const b = (body || {}) as any;
+  const cur = b.current || {};
+  const brand = await getBrandName();
+  const knownJson = JSON.stringify({
+    restaurant_name: cur.restaurant_name || brand,
+    business_type: cur.business_type || null,
+    cuisine_style: cur.cuisine_style || null,
+    address: cur.address || null,
+    city: cur.city || null,
+    target_audience: cur.target_audience || null,
+    description: cur.description || null,
+    menu_description: cur.menu_description || null,
+    unique_selling_points: cur.unique_selling_points || null,
+  }, null, 2);
+  const prompt = `אתה יועץ מיתוג. הבעלים של המסעדה "${cur.restaurant_name || brand}" ממלא פרופיל עסק במערכת ניהול.
+הנה מה שהוא כבר מילא (שדות null = ריקים):
+${knownJson}
+
+תפקידך: להשלים את השדות הריקים בהצעה סבירה על סמך שם המסעדה + מה שכבר יש. **אל תמציא שקרים** — אם אין מספיק מידע להעריך שדה, השאר null. הצעות טובות = משפט אחד, ספציפי, אמין. אל תכתוב "בקושי אפשר לדעת" — פשוט השאר null.
+
+החזר JSON:
+{
+  "suggested": {
+    "business_type": string או null,
+    "cuisine_style": string או null,
+    "target_audience": string או null,
+    "description": string או null,
+    "menu_description": string או null,
+    "unique_selling_points": string או null   (שורה לכל אחד)
+  }
+}`;
+  const result: any = await invokeLLM({
+    prompt,
+    responseSchema: {
+      type: 'object',
+      properties: {
+        suggested: {
+          type: 'object',
+          properties: {
+            business_type: { type: 'string' },
+            cuisine_style: { type: 'string' },
+            target_audience: { type: 'string' },
+            description: { type: 'string' },
+            menu_description: { type: 'string' },
+            unique_selling_points: { type: 'string' },
+          },
+        },
+      },
+      required: ['suggested'],
+    },
+    _ctx: { fn_name: 'composeBusinessProfileWithAi' },
+  });
+  // Save the AI-composed context to the profile so getBusinessContext caches it
+  // for subsequent AI calls (bright + coherent).
+  try {
+    const merged = { ...cur, ...(result?.suggested || {}) };
+    const contextLines: string[] = [];
+    contextLines.push(`שם המסעדה: ${cur.restaurant_name || brand}`);
+    if (merged.business_type) contextLines.push(`סוג עסק: ${merged.business_type}`);
+    if (merged.cuisine_style) contextLines.push(`סגנון מטבח: ${merged.cuisine_style}`);
+    if (merged.target_audience) contextLines.push(`קהל יעד: ${merged.target_audience}`);
+    if (merged.description) contextLines.push(`תיאור: ${merged.description}`);
+    if (merged.menu_description) contextLines.push(`תפריט: ${merged.menu_description}`);
+    if (merged.unique_selling_points) contextLines.push(`יתרונות ייחודיים: ${merged.unique_selling_points}`);
+    const businessContext = contextLines.join('\n');
+    // Only write if a profile row exists; otherwise wait for the owner to Save.
+    const existing: any = await (db as any).restaurantProfile.findFirst({});
+    if (existing?.id) {
+      await (db as any).restaurantProfile.update({
+        where: { id: existing.id },
+        data: { business_context: businessContext },
+      });
+    }
+    invalidateBusinessContextCache();
+  } catch (e: any) {
+    console.warn('[composeBusinessProfileWithAi] cache write failed', e?.message);
+  }
+  return result;
 });
 
 // Admin only. Toggles a single module for this tenant.
