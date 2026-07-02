@@ -40,7 +40,7 @@ const db = prisma as any; // generic delegate access
 
 // Public deploy marker — lets us confirm which build is live (and that
 // auto-deploy is working) without server access. Bump on each deploy test.
-registerFn('deployInfo', async () => ({ version: 'b-signup-slug-2026-07-02', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
+registerFn('deployInfo', async () => ({ version: 'iso-beecomm-fix-2026-07-02', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
 
 
 
@@ -16971,16 +16971,34 @@ if (!(globalThis as any).__weeklyPersonalGoalTimer) {
 // and store a snapshot row. The frontend widget reads the latest snapshot.
 
 const BEECOMM_BASE = 'https://beeport.bcmws.com';
-const BEECOMM_UID = process.env.BEECOMM_UID || 'Wnj23Gz6loXTPYCuZkl1eoLHM4x2';
+// Tenant-isolation fix (2026-07-02): the previous hardcoded fallback UID
+// was Alena's — any container without an explicit BEECOMM_UID env var
+// pulled Alena's live POS data. That caused Miha's /BeecommLive to display
+// Alena's sales. Now every container requires either:
+//   (a) an explicit BEECOMM_UID env var (Alena sets this), OR
+//   (b) a per-tenant BeecommConfig row with beecomm_uid.
+// Without one, fetchBeecommPos returns null and no snapshot is written.
+async function resolveBeecommUid(): Promise<string | null> {
+  if (process.env.BEECOMM_UID) return process.env.BEECOMM_UID;
+  try {
+    const cfg: any = await (db as any).beecommConfig?.findFirst?.({});
+    if (cfg && (cfg.beecomm_uid || cfg.uid)) return String(cfg.beecomm_uid || cfg.uid);
+  } catch { /* table missing on this tenant — treat as no config */ }
+  return null;
+}
 
 async function fetchBeecommPos(): Promise<{ pos: any | null; debug: any }> {
-  const debug: any = { url: `${BEECOMM_BASE}/api/auth/${BEECOMM_UID}` };
+  const uid = await resolveBeecommUid();
+  if (!uid) {
+    return { pos: null, debug: { skipped: 'no BEECOMM_UID for this tenant' } };
+  }
+  const debug: any = { url: `${BEECOMM_BASE}/api/auth/${uid}` };
   try {
     const r = await fetch(debug.url, {
       method: 'GET',
       headers: {
         'Accept': 'application/json',
-        'userid': BEECOMM_UID,
+        'userid': uid,
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36',
       },
     });
@@ -17264,20 +17282,24 @@ function serializeBigInts(obj: any): any {
 // requested day call /api/z/summary and /api/dishes with that day's zNums and
 // persist a BeecommHistoricalDay row.
 
-const BEECOMM_HEADERS = {
-  'Accept': 'application/json',
-  'userid': BEECOMM_UID,
-  'Content-Type': 'application/json',
-  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36',
-};
+function beecommHeaders(uid: string) {
+  return {
+    'Accept': 'application/json',
+    'userid': uid,
+    'Content-Type': 'application/json',
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36',
+  };
+}
 
 function ilDateFromMs(ms: number): string {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jerusalem' }).format(new Date(ms));
 }
 
 async function fetchBeecommZMap(): Promise<{ posId: string; zByDate: Map<string, number[]> } | null> {
+  const uid = await resolveBeecommUid();
+  if (!uid) return null;
   try {
-    const r = await fetch(`${BEECOMM_BASE}/api/auth/${BEECOMM_UID}`, { headers: BEECOMM_HEADERS });
+    const r = await fetch(`${BEECOMM_BASE}/api/auth/${uid}`, { headers: beecommHeaders(uid) });
     if (!r.ok) return null;
     const json: any = await r.json();
     const pos = json?.data?.user?.groups?.[0]?.restaurants?.[0]?.poses?.[0];
@@ -17298,10 +17320,12 @@ async function fetchBeecommZMap(): Promise<{ posId: string; zByDate: Map<string,
 }
 
 async function fetchBeecommZSummary(posId: string, zNums: number[], fromTS: string, toTS: string): Promise<any | null> {
+  const uid = await resolveBeecommUid();
+  if (!uid) return null;
   try {
     const r = await fetch(`${BEECOMM_BASE}/api/z/summary`, {
       method: 'POST',
-      headers: BEECOMM_HEADERS,
+      headers: beecommHeaders(uid),
       body: JSON.stringify({ poses: [{ posId, zNums }], fromTS, toTS }),
     });
     if (!r.ok) {
@@ -17316,10 +17340,12 @@ async function fetchBeecommZSummary(posId: string, zNums: number[], fromTS: stri
 }
 
 async function fetchBeecommDishes(posId: string, zNums: number[], fromTS: string, toTS: string): Promise<any | null> {
+  const uid = await resolveBeecommUid();
+  if (!uid) return null;
   try {
     const r = await fetch(`${BEECOMM_BASE}/api/dishes`, {
       method: 'POST',
-      headers: BEECOMM_HEADERS,
+      headers: beecommHeaders(uid),
       body: JSON.stringify({
         poses: [posId],
         posesZNums: [{ posId, zNums }],

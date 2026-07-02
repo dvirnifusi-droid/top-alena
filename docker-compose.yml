@@ -30,6 +30,12 @@ services:
       - ./apps/api/.env
     environment:
       S3_ENDPOINT: http://minio:9000
+      # Alena-only env vars — do NOT put in .env (which is inherited by every
+      # tenant container via provision-tenant.sh --env-file). BEECOMM_UID is
+      # Alena's POS credential; if it were shared, tenant containers would
+      # pull Alena's live sales data.
+      BEECOMM_UID: Wnj23Gz6loXTPYCuZkl1eoLHM4x2
+      TENANT_SLUG: alena
     ports:
       - "3001:3001"
 
