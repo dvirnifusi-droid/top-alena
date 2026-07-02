@@ -42,7 +42,7 @@ const db = prisma as any; // generic delegate access
 
 // Public deploy marker — lets us confirm which build is live (and that
 // auto-deploy is working) without server access. Bump on each deploy test.
-registerFn('deployInfo', async () => ({ version: 'welcome-observability-2026-07-02', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
+registerFn('deployInfo', async () => ({ version: 'hardened-onboarding-2026-07-02', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
 
 
 
@@ -12988,6 +12988,116 @@ registerFn('getSuperAdminMetrics', async ({ user }) => {
   };
 });
 
+// Shared helper — sends the welcome (SMS + email + WhatsApp best-effort),
+// seeds the owner user, records outcome per channel to the Tenant row.
+// Used by BOTH resendTenantWelcome (admin button) AND reportProvisioningResult
+// (auto-fired at the end of provisioning) so the dots in PlatformAdmin
+// always reflect the last attempt regardless of source.
+async function sendWelcomeForTenant(tenantId: string): Promise<any> {
+  const rows: any[] = await (prisma as any).$queryRawUnsafe(
+    `SELECT id, slug, restaurant_name, owner_name, owner_phone, owner_email, subdomain_url, status
+     FROM "Tenant" WHERE id = $1`,
+    tenantId,
+  );
+  if (!rows.length) throw new Error('Tenant not found');
+  const t = rows[0];
+  if (!t.owner_phone) throw new Error('Tenant has no owner_phone');
+  const brandDisplay = t.restaurant_name || t.slug;
+  const link = t.subdomain_url || `https://${t.slug}.topalena.com`;
+  const waFromNumber = String(process.env.TWILIO_WHATSAPP_FROM || '').replace(/^whatsapp:\+?/, '').replace(/[^\d]/g, '');
+  const ownerFirstName = String(t.owner_name || '').split(/\s+/)[0] || '';
+  const opener = `היי, אני ${ownerFirstName || 'הבעלים של'} ${brandDisplay}. אני רוצה להתחיל להקים את המסעדה שלי במערכת 🚀`;
+  const waLink = waFromNumber ? `https://wa.me/${waFromNumber}?text=${encodeURIComponent(opener)}` : '';
+
+  // Fresh temp password + seed user (idempotent — upsert).
+  const tempPassword = `TopAlena-${Math.floor(1000 + Math.random() * 9000)}`;
+  let credsLine = 'צור/צרי משתמש בעצמך בטופס הרשמה.';
+  if (t.owner_email) {
+    try {
+      const bcrypt = (await import('bcryptjs')).default;
+      const hash = await bcrypt.hash(tempPassword, 10);
+      const schema = `tenant_${t.slug}`;
+      await (prisma as any).$executeRawUnsafe(
+        `INSERT INTO "${schema}"."User" ("id", "email", "passwordHash", "role", "fullName", "createdAt", "updatedAt")
+         VALUES ($1, $2, $3, 'owner', $4, NOW(), NOW())
+         ON CONFLICT (email) DO UPDATE SET "passwordHash" = EXCLUDED."passwordHash", "updatedAt" = NOW()`,
+        randomUUID(), String(t.owner_email).toLowerCase(), hash, t.owner_name || '',
+      );
+      credsLine = `📧 מייל: ${t.owner_email}\n🔑 סיסמה זמנית: *${tempPassword}*\n(שנה/י אותה אחרי הכניסה הראשונה)`;
+    } catch (e: any) {
+      console.warn('[welcome] user seed failed', e?.message);
+      credsLine = `❌ יצירת המשתמש נכשלה. פנה לתמיכה.`;
+    }
+  }
+  const credsLinePlain = credsLine.replace(/\*/g, '');
+  const startLine = waLink ? `\n\n👉 להתחלת הקמה עם הסוכן החכם: ${waLink}` : '';
+  const smsMsg = `🎉 ${brandDisplay} - המערכת שלך מוכנה!\n${link}\n${credsLinePlain}${startLine}`;
+  const waMsg = `🎉 *${brandDisplay}* — המערכת שלך מוכנה!\n\n🔗 כתובת: ${link}\n\n${credsLine}\n\nתוך רגע אני אכתוב לך שוב כדי לעזור לך להקים את המסעדה שלב-שלב 🚀`;
+  const emailHtml = `<div dir="rtl" style="font-family:Arial,sans-serif;line-height:1.6;padding:24px;max-width:600px;margin:auto;background:#FAF5E8;border-radius:12px;color:#333">
+      <h1 style="color:#A04A2E;margin:0 0 8px">🎉 ${brandDisplay} — המערכת שלך מוכנה!</h1>
+      <p style="margin:16px 0 8px">שלום ${t.owner_name || ''},</p>
+      <p>המערכת של <strong>${brandDisplay}</strong> הותקנה בהצלחה. הכתובת הפרטית שלך:</p>
+      <p style="margin:12px 0"><a href="${link}" style="color:#A04A2E;font-weight:bold;font-size:18px">${link}</a></p>
+      <div style="background:white;border-radius:8px;padding:16px;margin:20px 0;border:1px solid #ddd">
+        <div style="font-weight:bold;margin-bottom:8px">🔐 פרטי הכניסה שלך:</div>
+        <pre style="white-space:pre-wrap;font-family:inherit;margin:0">${credsLinePlain}</pre>
+      </div>
+      ${waLink ? `<div style="background:#25D366;border-radius:12px;padding:20px;text-align:center;margin:24px 0">
+        <div style="color:white;font-weight:bold;font-size:16px;margin-bottom:12px">💬 להתחיל להקים את המסעדה — לחיצה אחת</div>
+        <a href="${waLink}" style="display:inline-block;background:white;color:#075E54;padding:14px 32px;border-radius:32px;text-decoration:none;font-weight:bold;font-size:16px">📱 פתח וואטסאפ עם הסוכן</a>
+      </div>` : ''}
+      <p style="margin:24px 0 8px;color:#666;font-size:13px">בהצלחה! 🌿<br>צוות TopAlena</p>
+    </div>`;
+
+  const { sendWhatsApp, sendSms } = await import('../lib/twilio.js');
+  const { sendEmail } = await import('../lib/email.js');
+  const results: any = {};
+  try { results.sms = await sendSms(t.owner_phone, smsMsg); }
+  catch (e: any) { results.sms_error = e?.message || 'sms_failed'; }
+  if (t.owner_email) {
+    try { results.email = await sendEmail({ to: t.owner_email, subject: `${brandDisplay} — המערכת מוכנה! פרטי כניסה בפנים`, html: emailHtml }); }
+    catch (e: any) { results.email_error = e?.message || 'email_failed'; }
+  } else {
+    results.email_error = 'no_email_on_file';
+  }
+  try { results.whatsapp = await sendWhatsApp(t.owner_phone, waMsg); }
+  catch (e: any) { results.whatsapp_error = e?.message || 'whatsapp_blocked_no_session'; }
+
+  const smsStatus = results.sms_error ? 'failed' : (results.sms?.skipped ? 'skipped' : 'sent');
+  const emailStatus = results.email_error ? 'failed' : (results.email?.skipped ? 'skipped' : 'sent');
+  const waStatus = results.whatsapp_error ? 'failed' : (results.whatsapp?.skipped ? 'skipped' : 'sent');
+
+  try {
+    await (prisma as any).$executeRawUnsafe(
+      `UPDATE "Tenant" SET
+         last_welcome_at = NOW(),
+         last_welcome_sms_status = $2, last_welcome_sms_error = $3,
+         last_welcome_email_status = $4, last_welcome_email_error = $5,
+         last_welcome_wa_status = $6, last_welcome_wa_error = $7,
+         last_welcome_wa_link = $8, "updatedAt" = NOW()
+       WHERE id = $1`,
+      tenantId,
+      smsStatus, results.sms_error || null,
+      emailStatus, results.email_error || null,
+      waStatus, results.whatsapp_error || null,
+      waLink || null,
+    );
+  } catch (e: any) {
+    console.warn('[welcome] status persist failed:', e?.message);
+  }
+  try {
+    const { ensureOnboardingRow } = await import('../lib/whatsappOnboarding.js');
+    await ensureOnboardingRow(tenantId);
+  } catch (e: any) {
+    console.warn('[welcome] ensureOnboardingRow skipped:', e?.message);
+  }
+  return {
+    ok: true, sent_to: t.owner_phone, wa_link: waLink,
+    channels: { sms: smsStatus, email: emailStatus, whatsapp: waStatus },
+    ...results,
+  };
+}
+
 // SUPER-ADMIN — probe every outbound channel and report which are actually
 // configured + reachable. No SSH needed. Sends a test message to the
 // caller's own phone/email so they see it land (or don't).
@@ -13080,13 +13190,10 @@ registerFn('resendTenantWelcome', async ({ user, body }) => {
   const b = (body || {}) as any;
   if (!b.tenant_id) throw new Error('tenant_id required');
   const rows: any[] = await (prisma as any).$queryRawUnsafe(
-    `SELECT id, slug, restaurant_name, owner_name, owner_phone, owner_email, subdomain_url, status
-     FROM "Tenant" WHERE id = $1`,
-    b.tenant_id,
+    `SELECT id, status FROM "Tenant" WHERE id = $1`, b.tenant_id,
   );
   if (!rows.length) throw new Error('Tenant not found');
   const t = rows[0];
-  if (!t.owner_phone) throw new Error('Tenant has no owner_phone');
 
   // If the provisioning callback never landed, the container is up but the
   // Tenant row still says pending_provisioning. Flip it now — the caller
@@ -13099,148 +13206,13 @@ registerFn('resendTenantWelcome', async ({ user, body }) => {
     );
   }
 
-  // Fresh temp password every time — the owner may have lost the previous
-  // message and there's no way to recover the old hash.
-  const tempPassword = `TopAlena-${Math.floor(1000 + Math.random() * 9000)}`;
-  let credsLine = 'צור/צרי משתמש בעצמך בטופס הרשמה.';
-  if (t.owner_email) {
-    try {
-      const bcrypt = (await import('bcryptjs')).default;
-      const hash = await bcrypt.hash(tempPassword, 10);
-      const schema = `tenant_${t.slug}`;
-      await (prisma as any).$executeRawUnsafe(
-        `INSERT INTO "${schema}"."User" ("id", "email", "passwordHash", "role", "fullName", "createdAt", "updatedAt")
-         VALUES ($1, $2, $3, 'owner', $4, NOW(), NOW())
-         ON CONFLICT (email) DO UPDATE SET "passwordHash" = EXCLUDED."passwordHash", "updatedAt" = NOW()`,
-        randomUUID(), String(t.owner_email).toLowerCase(), hash, t.owner_name || '',
-      );
-      credsLine = `📧 מייל: ${t.owner_email}\n🔑 סיסמה זמנית: *${tempPassword}*\n(שנה/י אותה אחרי הכניסה הראשונה)`;
-    } catch (e: any) {
-      console.warn('[resendWelcome] user seed failed', e?.message);
-      credsLine = `❌ יצירת המשתמש נכשלה. פנה לתמיכה.`;
-    }
+  // All the actual sending + persistence lives in sendWelcomeForTenant so
+  // reportProvisioningResult can share the same code path.
+  const result = await sendWelcomeForTenant(b.tenant_id);
+  if (result.sms_error && result.email_error && result.whatsapp_error) {
+    throw new Error(`All channels failed. SMS: ${result.sms_error}. Email: ${result.email_error}. WA: ${result.whatsapp_error}`);
   }
-  const brandDisplay = t.restaurant_name || t.slug;
-  const link = t.subdomain_url || `https://${t.slug}.topalena.com`;
-
-  // Build a wa.me deep-link that opens WhatsApp with the pre-filled
-  // opener — one tap and the session window opens, our onboarding agent
-  // fires immediately. Way better UX than telling them to type "היי".
-  const waFromNumber = String(process.env.TWILIO_WHATSAPP_FROM || '').replace(/^whatsapp:\+?/, '').replace(/[^\d]/g, '');
-  const ownerFirstName = String(t.owner_name || '').split(/\s+/)[0] || '';
-  const opener = `היי, אני ${ownerFirstName || 'הבעלים של'} ${brandDisplay}. אני רוצה להתחיל להקים את המסעדה שלי במערכת 🚀`;
-  const waLink = waFromNumber
-    ? `https://wa.me/${waFromNumber}?text=${encodeURIComponent(opener)}`
-    : '';
-
-  // Twilio WhatsApp only lets you send if the recipient sent you a message
-  // in the last 24h (or you use an approved template). New owners haven't
-  // sent anything yet, so their first-touch has to be SMS + email. Once
-  // they tap the wa.me link, the router hands them to the onboarding agent.
-  const startLine = waLink ? `\n\n👉 להתחלת הקמה עם הסוכן החכם: ${waLink}` : '';
-  const credsLinePlain = credsLine.replace(/\*/g, '');
-  const smsMsg = `🎉 ${brandDisplay} - המערכת שלך מוכנה!\n${link}\n${credsLinePlain}${startLine}`;
-  const waMsg = `🎉 *${brandDisplay}* — המערכת שלך מוכנה!\n\n` +
-    `🔗 כתובת: ${link}\n\n${credsLine}\n\n` +
-    `תוך רגע אני אכתוב לך שוב כדי לעזור לך להקים את המסעדה שלב-שלב. אפשר לענות לי בהודעות פשוטות ואני אעשה את הכל 🚀`;
-
-  const emailHtml = `<div dir="rtl" style="font-family:Arial,sans-serif;line-height:1.6;padding:24px;max-width:600px;margin:auto;background:#FAF5E8;border-radius:12px;color:#333">
-      <h1 style="color:#A04A2E;margin:0 0 8px">🎉 ${brandDisplay} — המערכת שלך מוכנה!</h1>
-      <p style="margin:16px 0 8px">שלום ${t.owner_name || ''},</p>
-      <p style="margin:8px 0">המערכת של <strong>${brandDisplay}</strong> הותקנה בהצלחה. הכתובת הפרטית שלך:</p>
-      <p style="margin:12px 0"><a href="${link}" style="color:#A04A2E;font-weight:bold;font-size:18px">${link}</a></p>
-      <div style="background:white;border-radius:8px;padding:16px;margin:20px 0;border:1px solid #ddd">
-        <div style="font-weight:bold;margin-bottom:8px">🔐 פרטי הכניסה שלך:</div>
-        <pre style="white-space:pre-wrap;font-family:inherit;margin:0">${credsLinePlain}</pre>
-      </div>
-      ${waLink ? `
-      <div style="background:#25D366;border-radius:12px;padding:20px;text-align:center;margin:24px 0">
-        <div style="color:white;font-weight:bold;font-size:16px;margin-bottom:12px">💬 להתחיל להקים את המסעדה — לחיצה אחת</div>
-        <a href="${waLink}" style="display:inline-block;background:white;color:#075E54;padding:14px 32px;border-radius:32px;text-decoration:none;font-weight:bold;font-size:16px">📱 פתח וואטסאפ עם הסוכן</a>
-        <div style="color:white;font-size:12px;opacity:0.9;margin-top:12px">הסוכן ידבר איתך בעברית ויעזור לך להקים תפריט, עובדים, שעות פתיחה ועוד — הכל בהודעות פשוטות</div>
-      </div>
-      ` : ''}
-      <p style="margin:24px 0 8px;color:#666;font-size:13px">בהצלחה! 🌿<br>צוות TopAlena</p>
-    </div>`;
-  const emailSubject = `${brandDisplay} — המערכת מוכנה! פרטי כניסה בפנים`;
-
-  const { sendWhatsApp, sendSms } = await import('../lib/twilio.js');
-  const { sendEmail } = await import('../lib/email.js');
-  const results: any = {};
-
-  // Fire SMS first — guaranteed delivery channel.
-  try {
-    results.sms = await sendSms(t.owner_phone, smsMsg);
-  } catch (e: any) {
-    results.sms_error = e?.message || 'sms_failed';
-    console.warn('[resendWelcome] SMS failed:', results.sms_error);
-  }
-  // Email — the tap-to-open-WhatsApp button lives here as the primary CTA.
-  if (t.owner_email) {
-    try {
-      results.email = await sendEmail({ to: t.owner_email, subject: emailSubject, html: emailHtml });
-    } catch (e: any) {
-      results.email_error = e?.message || 'email_failed';
-      console.warn('[resendWelcome] Email failed:', results.email_error);
-    }
-  } else {
-    results.email_error = 'no_email_on_file';
-  }
-  // WhatsApp — best-effort. Usually fails for brand-new owners (no session).
-  try {
-    results.whatsapp = await sendWhatsApp(t.owner_phone, waMsg);
-  } catch (e: any) {
-    results.whatsapp_error = e?.message || 'whatsapp_blocked_no_session';
-    console.warn('[resendWelcome] WhatsApp failed (expected if no prior message):', results.whatsapp_error);
-  }
-  // Classify each channel's outcome so we can render dots in the UI.
-  const smsStatus = results.sms_error ? 'failed' : (results.sms?.skipped ? 'skipped' : 'sent');
-  const emailStatus = results.email_error ? 'failed' : (results.email?.skipped ? 'skipped' : 'sent');
-  const waStatus = results.whatsapp_error ? 'failed' : (results.whatsapp?.skipped ? 'skipped' : 'sent');
-  // Persist the outcome — the operator needs to see this per tenant WITHOUT
-  // digging through container logs. Column-level UPSERT so old rows without
-  // the columns still work.
-  try {
-    await (prisma as any).$executeRawUnsafe(
-      `UPDATE "Tenant" SET
-         last_welcome_at = NOW(),
-         last_welcome_sms_status = $2,
-         last_welcome_sms_error = $3,
-         last_welcome_email_status = $4,
-         last_welcome_email_error = $5,
-         last_welcome_wa_status = $6,
-         last_welcome_wa_error = $7,
-         last_welcome_wa_link = $8,
-         "updatedAt" = NOW()
-       WHERE id = $1`,
-      b.tenant_id,
-      smsStatus, results.sms_error || null,
-      emailStatus, results.email_error || null,
-      waStatus, results.whatsapp_error || null,
-      waLink || null,
-    );
-  } catch (e: any) {
-    console.warn('[resendWelcome] status persist failed:', e?.message);
-  }
-  if (results.sms_error && results.email_error && results.whatsapp_error) {
-    throw new Error(`All channels failed. SMS: ${results.sms_error}. Email: ${results.email_error}. WA: ${results.whatsapp_error}`);
-  }
-  // Prime the OnboardingState row so the FIRST inbound WhatsApp from the
-  // owner gets routed into the onboarding flow (skipped the send — that
-  // failed for session-window reasons anyway).
-  try {
-    const { ensureOnboardingRow } = await import('../lib/whatsappOnboarding.js');
-    await ensureOnboardingRow(b.tenant_id);
-  } catch (e: any) {
-    console.warn('[resendWelcome] ensureOnboardingRow skipped:', e?.message);
-  }
-  return {
-    ok: true,
-    sent_to: t.owner_phone,
-    wa_link: waLink,
-    channels: { sms: smsStatus, email: emailStatus, whatsapp: waStatus },
-    ...results,
-  };
+  return result;
 });
 
 // SUPER-ADMIN — generate an impersonation token that logs the caller in
@@ -13320,6 +13292,73 @@ registerFn('pickNextProvisioningJob', async ({ body }) => { /*PUBLIC—cron_secr
   return { job: { id: job.id, ...tenant[0] } };
 }, { public: true });
 
+// PUBLIC — cron on the VPS calls this every 5 min. Returns any tenants
+// that are stuck longer than expected. See scripts/watch-stuck-tenants.sh.
+registerFn('checkStuckTenants', async ({ body }) => {
+  const b = (body || {}) as any;
+  if (String(b.cron_secret || '') !== process.env.CRON_SECRET) throw new Error('forbidden');
+  await ensurePlatformTables();
+  const stuck: any[] = [];
+  // pending_provisioning > 10 min → provisioner cron probably not running
+  const provStuck: any[] = await (prisma as any).$queryRawUnsafe(
+    `SELECT id, slug, restaurant_name, "createdAt", approved_at FROM "Tenant"
+     WHERE status IN ('pending_provisioning', 'provisioning')
+       AND approved_at < NOW() - INTERVAL '10 minutes'`,
+  );
+  for (const t of provStuck) {
+    stuck.push({
+      tenant_id: t.id, slug: t.slug, kind: 'pending_provisioning_stuck',
+      msg: `${t.restaurant_name} (${t.slug}) תקוע ב-pending_provisioning יותר מ-10 דקות. בדוק את provisioner-cron על ה-VPS.`,
+    });
+  }
+  // pending_approval > 24h → Dvir forgot to approve
+  const approvalStuck: any[] = await (prisma as any).$queryRawUnsafe(
+    `SELECT id, slug, restaurant_name, "createdAt", owner_name, owner_phone FROM "Tenant"
+     WHERE status = 'pending_approval'
+       AND "createdAt" < NOW() - INTERVAL '24 hours'`,
+  );
+  for (const t of approvalStuck) {
+    stuck.push({
+      tenant_id: t.id, slug: t.slug, kind: 'pending_approval_stuck',
+      msg: `${t.restaurant_name} (${t.owner_name}, ${t.owner_phone}) מחכה לאישורך יותר מ-24 שעות.`,
+    });
+  }
+  // live but no welcome ever sent successfully
+  const noWelcome: any[] = await (prisma as any).$queryRawUnsafe(
+    `SELECT id, slug, restaurant_name, live_at FROM "Tenant"
+     WHERE status = 'live'
+       AND live_at < NOW() - INTERVAL '15 minutes'
+       AND (last_welcome_at IS NULL
+            OR (last_welcome_sms_status <> 'sent'
+                AND last_welcome_email_status <> 'sent'
+                AND last_welcome_wa_status <> 'sent'))`,
+  );
+  for (const t of noWelcome) {
+    stuck.push({
+      tenant_id: t.id, slug: t.slug, kind: 'no_welcome_delivered',
+      msg: `${t.restaurant_name} עלה לאוויר לפני יותר מ-15 דקות אבל הבעלים לא קיבל שום פרטי כניסה. לחץ "שלח פרטי כניסה" ב-PlatformAdmin.`,
+    });
+  }
+  return { stuck };
+}, { public: true });
+
+// PUBLIC — cron-invoked pushover alert. Reuses the existing pushover
+// infra but exposed under a public route with cron_secret auth so shell
+// scripts can call it without a JWT.
+registerFn('pushoverAlert', async ({ body }) => {
+  const b = (body || {}) as any;
+  if (String(b.cron_secret || '') !== process.env.CRON_SECRET) throw new Error('forbidden');
+  const title = String(b.title || 'TopAlena alert').slice(0, 100);
+  const message = String(b.message || '').slice(0, 1024);
+  const { pushoverToAdmins } = await import('../lib/pushover.js');
+  try {
+    await pushoverToAdmins(title, message);
+  } catch (e: any) {
+    return { ok: false, error: e?.message };
+  }
+  return { ok: true };
+}, { public: true });
+
 registerFn('reportProvisioningResult', async ({ body }) => {
   await ensurePlatformTables();
   const b = (body || {}) as any;
@@ -13335,45 +13374,18 @@ registerFn('reportProvisioningResult', async ({ body }) => {
     `UPDATE "Tenant" SET status = $1, provisioned_at = NOW(), live_at = ${success ? 'NOW()' : 'NULL'}, "updatedAt" = NOW() WHERE id = $2`,
     success ? 'live' : 'failed', b.tenant_id,
   );
-  // Seed the initial owner user in the tenant's schema + notify via WhatsApp.
+  // On successful provisioning, fire the multi-channel welcome. The helper
+  // seeds the owner user, sends SMS + email + WA, and persists per-channel
+  // outcome to the Tenant row (so the PlatformAdmin dots update immediately).
+  // Wrapped in try/catch — a welcome-send failure MUST NOT roll back the
+  // 'live' status flip above. The operator can retry from the UI.
   if (success) {
-    const tenant: any[] = await (prisma as any).$queryRawUnsafe(
-      `SELECT owner_phone, owner_email, owner_name, restaurant_name, subdomain_url, slug FROM "Tenant" WHERE id = $1`,
-      b.tenant_id,
-    );
-    if (tenant.length) {
-      const t = tenant[0];
-      // Generate a memorable temp password: TopAlena-XXXX (4 digits)
-      const tempPassword = `TopAlena-${Math.floor(1000 + Math.random() * 9000)}`;
-      let credsLine = 'צור/צרי משתמש בעצמך בטופס הרשמה.';
-      try {
-        const bcrypt = (await import('bcryptjs')).default;
-        const hash = await bcrypt.hash(tempPassword, 10);
-        // Insert into the tenant's schema. We use the shared Supabase DB with
-        // schema-qualified table name. Suppress conflicts if already seeded.
-        const schema = `tenant_${t.slug}`;
-        await (prisma as any).$executeRawUnsafe(
-          `INSERT INTO "${schema}"."User" ("id", "email", "passwordHash", "role", "fullName", "createdAt", "updatedAt")
-           VALUES ($1, $2, $3, 'owner', $4, NOW(), NOW())
-           ON CONFLICT (email) DO NOTHING`,
-          randomUUID(), t.owner_email.toLowerCase(), hash, t.owner_name,
-        );
-        credsLine = `📧 מייל: ${t.owner_email}\n🔑 סיסמה זמנית: *${tempPassword}*\n(שנה/י אותה אחרי הכניסה הראשונה)`;
-      } catch (e: any) {
-        console.warn('[provisioning] user seed failed', e?.message);
-      }
-      const { sendWhatsApp } = await import('../lib/twilio.js');
-      const msg = `🎉 *${t.restaurant_name}* — המערכת שלך מוכנה!\n\n` +
-        `🔗 כתובת: ${t.subdomain_url}\n\n${credsLine}\n\n` +
-        `תוך רגע אני אכתוב לך שוב כדי לעזור לך להקים את המסעדה שלב-שלב. אפשר לענות לי בהודעות פשוטות ואני אעשה את הכל 🚀`;
-      try { await sendWhatsApp(t.owner_phone, msg); } catch { /* noop */ }
-      // Kick off the AI-guided onboarding conversation.
-      try {
-        const { startOnboarding } = await import('../lib/whatsappOnboarding.js');
-        await startOnboarding(b.tenant_id);
-      } catch (e: any) {
-        console.warn('[provisioning] startOnboarding failed', e?.message);
-      }
+    try {
+      const welcome = await sendWelcomeForTenant(b.tenant_id);
+      return { ok: true, welcome };
+    } catch (e: any) {
+      console.warn('[reportProvisioningResult] sendWelcomeForTenant failed', e?.message);
+      return { ok: true, welcome_error: e?.message };
     }
   }
   return { ok: true };
