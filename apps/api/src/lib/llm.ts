@@ -138,13 +138,14 @@ async function geminiInvoke(args: InvokeArgs) {
   clearTimeout(timer);
   if (!res.ok) throw new Error(`Gemini error ${res.status}: ${await res.text()}`);
   const data: any = await res.json();
-  // D5 — meter usage. Gemini returns usageMetadata with token counts.
-  // Fire-and-forget; never blocks response.
+  // D5 — meter usage on every call, defaulting fn_name to 'invokeLLM' if the
+  // caller didn't pass _ctx. Callers can override later to get a per-function
+  // breakdown. Fire-and-forget; never blocks response.
   const um = data?.usageMetadata;
-  if (um && args._ctx) {
+  if (um) {
     void writeAiUsage({
-      tenant_slug: args._ctx.tenant_slug,
-      fn_name: args._ctx.fn_name,
+      tenant_slug: args._ctx?.tenant_slug,
+      fn_name: args._ctx?.fn_name || 'invokeLLM',
       model: modelName,
       tokens_in: Number(um.promptTokenCount || 0),
       tokens_out: Number(um.candidatesTokenCount || 0),
@@ -225,10 +226,10 @@ async function anthropicInvoke(args: InvokeArgs) {
   const data: any = await res.json();
 
   // D5 — meter usage. Anthropic returns { usage: { input_tokens, output_tokens } }.
-  if (data?.usage && args._ctx) {
+  if (data?.usage) {
     void writeAiUsage({
-      tenant_slug: args._ctx.tenant_slug,
-      fn_name: args._ctx.fn_name,
+      tenant_slug: args._ctx?.tenant_slug,
+      fn_name: args._ctx?.fn_name || 'invokeLLM',
       model: modelName,
       tokens_in: Number(data.usage.input_tokens || 0),
       tokens_out: Number(data.usage.output_tokens || 0),
