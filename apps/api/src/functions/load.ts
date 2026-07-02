@@ -11488,9 +11488,25 @@ registerFn('setRestaurantLocation', async ({ user, body }) => {
     return { restaurant_lat: lat, restaurant_lng: lng };
   }
   const newId = `c${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`;
+  // D-iso: pull the tenant's actual restaurant name from the Tenant table
+  // instead of hardcoding 'עלינא'. Falls back to 'המסעדה' on the platform
+  // origin container where slug='alena' isn't in Tenant.
+  const slug = String(process.env.TENANT_SLUG || 'alena').toLowerCase();
+  let seedName = 'המסעדה';
+  if (slug === 'alena') {
+    seedName = 'עלינא';
+  } else {
+    try {
+      const trows: any[] = await (prisma as any).$queryRawUnsafe(
+        `SELECT restaurant_name FROM "Tenant" WHERE slug = $1 LIMIT 1`,
+        slug,
+      );
+      if (trows.length && trows[0].restaurant_name) seedName = String(trows[0].restaurant_name);
+    } catch { /* Tenant table missing — keep fallback */ }
+  }
   await (prisma as any).$executeRaw`
     INSERT INTO "RestaurantProfile" (id, restaurant_name, restaurant_lat, restaurant_lng, "createdAt", "updatedAt")
-    VALUES (${newId}, ${'עלינא'}, ${lat}, ${lng}, NOW(), NOW())
+    VALUES (${newId}, ${seedName}, ${lat}, ${lng}, NOW(), NOW())
   `;
   return { restaurant_lat: lat, restaurant_lng: lng };
 });
