@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useTenantBranding } from '@/hooks/useTenantBranding';
 
 // Lightweight i18n for public-facing pages. No external deps; just nested
 // objects + a t() helper + localStorage persistence.
@@ -30,10 +31,10 @@ const DICT = {
     ru: 'Бронирование столика',
   },
   reservation_subtitle: {
-    he: 'הזמנה למסעדת עלינא — ראשון לציון',
-    ar: 'حجز في مطعم علينا — ريشون ليتسيون',
-    en: 'Reservation at Alina Restaurant — Rishon LeZion',
-    ru: 'Бронирование в ресторане Алина — Ришон-ле-Цион',
+    he: 'הזמנה למסעדת {brand}',
+    ar: 'حجز في مطعم {brand}',
+    en: 'Reservation at {brand} Restaurant',
+    ru: 'Бронирование в ресторане {brand}',
   },
   customer_name: { he: 'שם מלא', ar: 'الاسم الكامل', en: 'Full Name', ru: 'Полное имя' },
   customer_phone: { he: 'טלפון', ar: 'الهاتف', en: 'Phone', ru: 'Телефон' },
@@ -52,10 +53,10 @@ const DICT = {
 
   // ─── Job Application ─────────────────────────────────────────────
   apply_title: {
-    he: 'הצטרפו לצוות עלינא',
-    ar: 'انضم إلى فريق علينا',
-    en: 'Join the Alina Team',
-    ru: 'Присоединяйтесь к команде Алина',
+    he: 'הצטרפו לצוות {brand}',
+    ar: 'انضم إلى فريق {brand}',
+    en: 'Join the {brand} Team',
+    ru: 'Присоединяйтесь к команде {brand}',
   },
   apply_subtitle: {
     he: 'שיחה קצרה כדי לבדוק התאמה — 3-5 דקות',
@@ -85,10 +86,10 @@ const DICT = {
 
   // ─── Events ──────────────────────────────────────────────────────
   events_title: {
-    he: 'אירועים פרטיים בעלינא',
-    ar: 'فعاليات خاصة في علينا',
-    en: 'Private Events at Alina',
-    ru: 'Частные мероприятия в Алина',
+    he: 'אירועים פרטיים ב{brand}',
+    ar: 'فعاليات خاصة في {brand}',
+    en: 'Private Events at {brand}',
+    ru: 'Частные мероприятия в {brand}',
   },
   events_subtitle: {
     he: 'דנה, מנהלת האירועים, אוספת ממך פרטים — המנהל יחזור אליך אישית',
@@ -198,6 +199,8 @@ export function makeT(lang) {
 // custom event so all components re-render together.
 export function useI18n() {
   const [lang, setLangState] = useState(detectLanguage);
+  const branding = useTenantBranding();
+  const brand = branding?.name || 'המסעדה';
   useEffect(() => {
     setLanguage(lang);
     const handler = () => setLangState(detectLanguage());
@@ -209,5 +212,9 @@ export function useI18n() {
     setLangState(code);
     window.dispatchEvent(new Event('topalena_lang_change'));
   };
-  return [makeT(lang), lang, change];
+  // Wrap makeT so every t() call auto-injects {brand} — callers still can
+  // override with an explicit vars object.
+  const baseT = makeT(lang);
+  const t = (key, vars = {}) => baseT(key, { brand, ...vars });
+  return [t, lang, change];
 }

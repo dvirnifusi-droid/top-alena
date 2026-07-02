@@ -40,7 +40,7 @@ const db = prisma as any; // generic delegate access
 
 // Public deploy marker — lets us confirm which build is live (and that
 // auto-deploy is working) without server access. Bump on each deploy test.
-registerFn('deployInfo', async () => ({ version: 'iso-public-pages-2026-07-02', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
+registerFn('deployInfo', async () => ({ version: 'iso-chat-agents-2026-07-02', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
 
 
 
@@ -56,10 +56,10 @@ registerFn('debugRewrite', async ({ body }) => {
 
 /* ----- Recruitment AI agent (public, anonymous candidates) ----- */
 
-const RECRUITMENT_SYSTEM_PROMPT = `אתה מנהל הגיוס הדיגיטלי של מסעדת 'עלינא' בראשון לציון. המטרה שלך היא לערוך ראיון ראשוני וסינון למועמדים, כדי לחסוך לבעלים זמן ולוודא שרק אנשים רלוונטיים יגיעו לראיון פרונטלי.
+const RECRUITMENT_SYSTEM_PROMPT_TEMPLATE = `אתה מנהל הגיוס הדיגיטלי של מסעדת '{brand}'. המטרה שלך היא לערוך ראיון ראשוני וסינון למועמדים, כדי לחסוך לבעלים זמן ולוודא שרק אנשים רלוונטיים יגיעו לראיון פרונטלי.
 
 פתח את השיחה (רק כשאין עדיין שום הודעה מהמועמד) בברכה חמה:
-"היי! כאן העוזר הדיגיטלי של מסעדת עלינא 🌿 תודה על הפנייה. כדי שנוכל לבדוק התאמה, אני צריך לשאול אותך כמה שאלות קצרות. מוכן/ה?"
+"היי! כאן העוזר הדיגיטלי של מסעדת {brand} 🌿 תודה על הפנייה. כדי שנוכל לבדוק התאמה, אני צריך לשאול אותך כמה שאלות קצרות. מוכן/ה?"
 
 שאל שאלה אחת בכל פעם, בסדר הבא. אל תעבור לשאלה הבאה לפני שקיבלת תשובה ברורה לקודמת:
 1. מה השם המלא שלך ומה הגיל?
@@ -596,6 +596,14 @@ registerFn('chatJobApplication', async ({ body }) => {
     ? ''
     : `\n\n--- LANGUAGE DIRECTIVE ---\nThe candidate is communicating in ${language}. Your "reply" field MUST be written in ${language}, even if the rest of the schema/prompt is in Hebrew. Be warm, natural, and use idiomatic ${language}.\nField extraction (collected, ai_summary, notes) should still be in Hebrew so the manager can read it.`;
 
+  // D-iso: substitute brand name at query time so tenant apply pages don't
+  // greet candidates with the platform-default restaurant name.
+  let brandName = 'המסעדה';
+  try {
+    const profile: any = await (db as any).restaurantProfile.findFirst({ select: { restaurant_name: true } });
+    if (profile?.restaurant_name) brandName = String(profile.restaurant_name);
+  } catch { /* no profile row on fresh tenants — fall back */ }
+  const RECRUITMENT_SYSTEM_PROMPT = RECRUITMENT_SYSTEM_PROMPT_TEMPLATE.replaceAll('{brand}', brandName);
   const prompt = `${RECRUITMENT_SYSTEM_PROMPT}${kashrutClause}${langDirective}\n\n--- שיחה עד כה ---\n${transcript || '(אין עדיין הודעות — זו תחילת השיחה)'}${newPart}\n\nהחזר את התגובה הבאה כ-JSON בלבד.`;
 
   const result: any = await invokeLLM({
@@ -6524,10 +6532,10 @@ registerFn('testEventsPushover', async () => {
   };
 });
 
-const EVENTS_SYSTEM_PROMPT = `את דנה — מנהלת האירועים הפרטיים של מסעדת 'עלינא' ברוטשילד 104, ראשון לציון. את מדברת בעברית טבעית, חמה וקצרה. תפקידך: לאסוף מידע ראשוני בלבד ולהעביר לדביר (הבעלים). את לא סוגרת עסקה, לא מצטטת מחירים, לא מאשרת תאריך.
+const EVENTS_SYSTEM_PROMPT_TEMPLATE = `את דנה — מנהלת האירועים הפרטיים של מסעדת '{brand}'. את מדברת בעברית טבעית, חמה וקצרה. תפקידך: לאסוף מידע ראשוני בלבד ולהעביר לבעלים. את לא סוגרת עסקה, לא מצטטת מחירים, לא מאשרת תאריך.
 
 פתח רק אם זו ההודעה הראשונה (אין שיחה קודמת):
-"היי 🌿 אני דנה, מנהלת האירועים של עלינא. שמחה שחשבתם עלינו! יש לי כמה שאלות קצרות לאסוף ממך פרטים, ואז המנהל של המסעדה יחזור אליך אישית עם הצעה מותאמת. מתחילים?"
+"היי 🌿 אני דנה, מנהלת האירועים של {brand}. שמחה שחשבתם עלינו! יש לי כמה שאלות קצרות לאסוף ממך פרטים, ואז המנהל של המסעדה יחזור אליך אישית עם הצעה מותאמת. מתחילים?"
 
 שאלי אחת בכל פעם — 4 שדות בלבד:
 1. שם מלא + טלפון.
@@ -6580,7 +6588,15 @@ registerFn('chatEventsInquiry', async ({ body }) => {
       data: { singleton: true, menus: [], upsells: [], terms: {}, system_prompt: DEFAULT_EVENTS_PROMPT, payment_mode: 'stub', deposit_pct: 20, max_discount_pct: 5, short_notice_allowed: true, max_advance_months: 6 },
     });
   }
-  const systemPrompt = (kit.system_prompt && kit.system_prompt.trim()) || DEFAULT_EVENTS_PROMPT;
+  // D-iso: substitute brand name so events chat greets with the tenant's
+  // actual restaurant name, not the platform default.
+  let brandNameEv = 'המסעדה';
+  try {
+    const p: any = await (db as any).restaurantProfile.findFirst({ select: { restaurant_name: true } });
+    if (p?.restaurant_name) brandNameEv = String(p.restaurant_name);
+  } catch { /* fall back */ }
+  const rawPrompt = (kit.system_prompt && kit.system_prompt.trim()) || DEFAULT_EVENTS_PROMPT;
+  const systemPrompt = rawPrompt.replaceAll('{brand}', brandNameEv);
 
   const turns: Array<{ role: string; content: string }> = Array.isArray(history) ? history : [];
   const transcript = turns.map((t) => `${t.role === 'assistant' ? 'עוזר' : 'לקוח'}: ${t.content}`).join('\n');
@@ -9104,10 +9120,10 @@ registerFn('listEventBookingsPublicDebug', async () => {
 
 /* ----- Events Sales Kit (singleton) ----- */
 
-const DEFAULT_EVENTS_PROMPT = `את דנה — מנהלת האירועים הפרטיים של מסעדת 'עלינא' ברוטשילד 104, ראשון לציון. את מדברת בעברית טבעית, חמה, קצרה ואישית — כמו נציגה בשר ודם, לא בוט. **תפקידך כרגע: רק לאסוף מידע ראשוני** ולהעביר למנהל המסעדה שיחזור אישית. את לא סוגרת עסקה, לא מצטטת מחירים, לא מאשרת תאריך.
+const DEFAULT_EVENTS_PROMPT = `את דנה — מנהלת האירועים הפרטיים של מסעדת '{brand}'. את מדברת בעברית טבעית, חמה, קצרה ואישית — כמו נציגה בשר ודם, לא בוט. **תפקידך כרגע: רק לאסוף מידע ראשוני** ולהעביר למנהל המסעדה שיחזור אישית. את לא סוגרת עסקה, לא מצטטת מחירים, לא מאשרת תאריך.
 
 פתח רק אם זו ההודעה הראשונה (אין שיחה קודמת):
-"היי 🌿 אני דנה, מנהלת האירועים של עלינא. שמחה שחשבתם עלינו! יש לי כמה שאלות קצרות לאסוף ממך פרטים, ואז המנהל של המסעדה יחזור אליך אישית עם הצעה מותאמת. מתחילים?"
+"היי 🌿 אני דנה, מנהלת האירועים של {brand}. שמחה שחשבתם עלינו! יש לי כמה שאלות קצרות לאסוף ממך פרטים, ואז המנהל של המסעדה יחזור אליך אישית עם הצעה מותאמת. מתחילים?"
 
 איסוף מידע (שאלה אחת בכל פעם, לא ביחד) — ארבעה שדות בלבד:
 1. שם מלא וטלפון ליצירת קשר.

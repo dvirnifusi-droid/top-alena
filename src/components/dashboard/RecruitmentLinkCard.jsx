@@ -16,10 +16,20 @@ const SOURCES = [
   { key: 'qr',        label: 'QR במסעדה',         utm: 'qr_print' },
 ];
 
-const BASE_URL = 'https://topalena.com/apply';
+// Build BASE_URL from the current tenant's own subdomain so shared links
+// route to that tenant, not the platform default. window.location.origin
+// picks up "https://miha.topalena.com" on Miha's app, "https://topalena.com"
+// on the platform origin, etc.
+function currentOrigin() {
+  return typeof window !== 'undefined' && window.location?.origin
+    ? window.location.origin
+    : 'https://topalena.com';
+}
+const BASE_URL = () => `${currentOrigin()}/apply`;
 
 function withUtm(utm) {
-  return utm ? `${BASE_URL}?utm_source=${encodeURIComponent(utm)}` : BASE_URL;
+  const base = BASE_URL();
+  return utm ? `${base}?utm_source=${encodeURIComponent(utm)}` : base;
 }
 
 export default function RecruitmentLinkCard() {
