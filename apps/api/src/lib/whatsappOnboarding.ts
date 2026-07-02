@@ -210,7 +210,7 @@ export async function tryHandleOnboardingMessage(fromPhone: string, body: string
 
 // === Helpers ==============================================================
 
-async function ensureOnboardingRow(tenantId: string): Promise<void> {
+export async function ensureOnboardingRow(tenantId: string): Promise<void> {
   // ON CONFLICT DO NOTHING — safe to call multiple times.
   const { randomUUID } = await import('node:crypto');
   await (prisma as any).$executeRawUnsafe(

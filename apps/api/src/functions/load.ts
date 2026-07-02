@@ -13014,29 +13014,54 @@ registerFn('resendTenantWelcome', async ({ user, body }) => {
   }
   const brandDisplay = t.restaurant_name || t.slug;
   const link = t.subdomain_url || `https://${t.slug}.topalena.com`;
-  const msg = `🎉 *${brandDisplay}* — המערכת שלך מוכנה!\n\n` +
+
+  // Twilio WhatsApp only lets you send if the recipient sent you a message
+  // in the last 24h (or you use an approved template). New owners haven't
+  // sent anything yet, so their first-touch has to be SMS. Once they reply
+  // to our WhatsApp number, the onboarding agent takes over.
+  const waFromNumber = String(process.env.TWILIO_WHATSAPP_FROM || '').replace(/^whatsapp:/, '');
+  const waHint = waFromNumber ? `\n\n💬 כדי להתחיל שיחה עם הסוכן החכם: שלח "היי" בוואטסאפ ל-${waFromNumber}` : '';
+  const smsMsg = `🎉 ${brandDisplay} - המערכת שלך מוכנה!\n` +
+    `${link}\n${credsLine.replace(/\*/g, '')}${waHint}`;
+  const waMsg = `🎉 *${brandDisplay}* — המערכת שלך מוכנה!\n\n` +
     `🔗 כתובת: ${link}\n\n${credsLine}\n\n` +
     `תוך רגע אני אכתוב לך שוב כדי לעזור לך להקים את המסעדה שלב-שלב. אפשר לענות לי בהודעות פשוטות ואני אעשה את הכל 🚀`;
-  const { sendWhatsApp } = await import('../lib/twilio.js');
-  let waResult: any = null;
+
+  const { sendWhatsApp, sendSms } = await import('../lib/twilio.js');
+  const results: any = {};
+
+  // Fire SMS first — this is the guaranteed delivery channel.
   try {
-    waResult = await sendWhatsApp(t.owner_phone, msg);
+    results.sms = await sendSms(t.owner_phone, smsMsg);
   } catch (e: any) {
-    throw new Error(`WhatsApp send failed: ${e?.message || 'unknown'}`);
+    results.sms_error = e?.message || 'sms_failed';
+    console.warn('[resendWelcome] SMS failed:', results.sms_error);
   }
-  // Also start the onboarding conversation if not already going.
+  // Try WhatsApp too — will succeed if they've messaged us before (rare
+  // for a brand-new owner, but harmless to attempt). Best-effort.
   try {
-    const existing: any[] = await (prisma as any).$queryRawUnsafe(
-      `SELECT tenant_id FROM "OnboardingState" WHERE tenant_id = $1`, b.tenant_id,
-    );
-    if (!existing.length) {
-      const { startOnboarding } = await import('../lib/whatsappOnboarding.js');
-      await startOnboarding(b.tenant_id);
+    results.whatsapp = await sendWhatsApp(t.owner_phone, waMsg);
+  } catch (e: any) {
+    results.whatsapp_error = e?.message || 'whatsapp_blocked_no_session';
+    console.warn('[resendWelcome] WhatsApp failed (expected if no prior message):', results.whatsapp_error);
+  }
+  if (results.sms_error && results.whatsapp_error) {
+    throw new Error(`Both SMS and WhatsApp failed. SMS: ${results.sms_error}. WA: ${results.whatsapp_error}`);
+  }
+  // Prime the onboarding state so the FIRST inbound WhatsApp from the
+  // owner gets routed into the onboarding flow. We do NOT call
+  // startOnboarding here because that sends a WhatsApp (which will fail
+  // for the same session-window reason). Instead ensureOnboardingRow +
+  // let the router pick it up when they reply.
+  try {
+    const { ensureOnboardingRow } = await import('../lib/whatsappOnboarding.js');
+    if (typeof ensureOnboardingRow === 'function') {
+      await ensureOnboardingRow(b.tenant_id);
     }
   } catch (e: any) {
-    console.warn('[resendWelcome] startOnboarding skipped:', e?.message);
+    console.warn('[resendWelcome] ensureOnboardingRow skipped:', e?.message);
   }
-  return { ok: true, sent_to: t.owner_phone, twilio: waResult };
+  return { ok: true, sent_to: t.owner_phone, ...results };
 });
 
 // SUPER-ADMIN — generate an impersonation token that logs the caller in
