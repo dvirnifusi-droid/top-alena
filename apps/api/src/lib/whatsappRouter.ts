@@ -23,14 +23,22 @@
 
 import { prisma } from '../db.js';
 
-// Slug marker — accepts both `+slug` and `slug+` anywhere in the body.
-// The second form handles WhatsApp on RTL keyboards, which sometimes
-// visually renders "+miha היי" but sends "היי miha+" (the plus flips to
-// the other side of the token during bidi rendering).
-// Both must be bounded by whitespace/start/end/punctuation to avoid
-// matching mid-word (e.g. "email+extras" won't match).
-const SLUG_PREFIX_PLUS = /(^|\s)\+([a-z][a-z0-9-]{2,32})(?=\s|$|[,.:;!?])/i;
-const SLUG_SUFFIX_PLUS = /(^|\s)([a-z][a-z0-9-]{2,32})\+(?=\s|$|[,.:;!?])/i;
+// Slug marker — accepts +slug or slug+ (RTL bidi may flip the +), and the
+// token can be Latin OR Hebrew (or any Unicode letter). Hebrew tokens are
+// resolved to canonical slugs via HE_SLUG_ALIASES + Tenant.restaurant_name.
+// Bounded by whitespace/start/end/punctuation so it doesn't match mid-word.
+const SLUG_PREFIX_PLUS = /(^|\s)\+([\p{L}][\p{L}\p{N}-]{1,32})(?=\s|$|[,.:;!?])/u;
+const SLUG_SUFFIX_PLUS = /(^|\s)([\p{L}][\p{L}\p{N}-]{1,32})\+(?=\s|$|[,.:;!?])/u;
+
+// Built-in Hebrew display names for platform-installations that aren't in the
+// Tenant table. Alena is not stored there — she's the platform origin.
+// Includes common misspellings.
+const HE_SLUG_ALIASES: Record<string, string> = {
+  'עלינא': 'alena',
+  'אלנא': 'alena',
+  'עלנא': 'alena',
+  'מיהא': 'miha',
+};
 
 // Fallback tenant when nothing resolves. Alena because she predates D3 and
 // legacy phones point to her by default. Override in a tenant container by
@@ -60,6 +68,40 @@ export function normalizePhone(raw: string | null | undefined): string {
   return String(raw).replace(/^whatsapp:/i, '').replace(/\s+/g, '').trim();
 }
 
+/**
+ * Map a matched token (from the +slug regex) to a canonical tenant slug.
+ * - Pure Latin → lowercase as-is (matches the slug column directly).
+ * - Hardcoded Hebrew alias → its target slug.
+ * - Otherwise → query Tenant.restaurant_name for an exact case-insensitive
+ *   match and return that row's slug.
+ * Returns null when no tenant matches.
+ */
+async function resolveSlugFromToken(token: string): Promise<string | null> {
+  const trimmed = token.trim();
+  if (!trimmed) return null;
+  // Latin-only shortcut — matches Tenant.slug directly (never queries DB).
+  if (/^[a-z][a-z0-9-]{1,32}$/i.test(trimmed)) {
+    return trimmed.toLowerCase();
+  }
+  // Hardcoded Hebrew alias.
+  const alias = HE_SLUG_ALIASES[trimmed];
+  if (alias) return alias;
+  // Look up in Tenant table by restaurant_name.
+  try {
+    const rows: any[] = await (prisma as any).$queryRawUnsafe(
+      `SELECT slug FROM "Tenant"
+       WHERE LOWER(TRIM(restaurant_name)) = LOWER($1)
+       LIMIT 1`,
+      trimmed,
+    );
+    return rows.length ? String(rows[0].slug).toLowerCase() : null;
+  } catch (e: any) {
+    // eslint-disable-next-line no-console
+    console.warn('[whatsappRouter] slug lookup failed:', e?.message);
+    return null;
+  }
+}
+
 export type TenantResolution = {
   slug: string;
   source: 'prefix' | 'memory' | 'fallback';
@@ -80,14 +122,16 @@ export async function resolveTenantFromMessage(
   const bodyStr = String(body || '');
   const m = SLUG_PREFIX_PLUS.exec(bodyStr) || SLUG_SUFFIX_PLUS.exec(bodyStr);
   if (m) {
-    // Both regexes capture the slug in group 2.
-    const slug = m[2].toLowerCase();
-    // Strip the whole match (including its leading whitespace) from wherever
-    // it appeared, then collapse whitespace.
-    const bodyAfterPrefix = (bodyStr.slice(0, m.index) + bodyStr.slice(m.index + m[0].length))
-      .replace(/\s+/g, ' ')
-      .trim();
-    return { slug, source: 'prefix', bodyAfterPrefix };
+    // Both regexes capture the token in group 2. Might be Latin or Hebrew.
+    const token = m[2];
+    const slug = await resolveSlugFromToken(token);
+    if (slug) {
+      const bodyAfterPrefix = (bodyStr.slice(0, m.index) + bodyStr.slice(m.index + m[0].length))
+        .replace(/\s+/g, ' ')
+        .trim();
+      return { slug, source: 'prefix', bodyAfterPrefix };
+    }
+    // Token didn't resolve to a known tenant — fall through to memory/fallback.
   }
 
   // 2. Memory lookup.
