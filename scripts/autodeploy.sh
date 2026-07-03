@@ -29,13 +29,29 @@ if ! command -v jq >/dev/null 2>&1; then
   DEBIAN_FRONTEND=noninteractive apt-get install -y jq >/dev/null 2>&1 || echo "!!! jq install failed"
 fi
 
+# DRAIN THE PROVISIONING QUEUE FIRST — before any git checks or fast-exit.
+# This is the critical fix: if we exit early because git has no changes,
+# ProvisioningJobs sit in 'pending' forever. Running this here means every
+# 'approve tenant' / 'reprovision' click gets picked up within one
+# autodeploy tick (~2min) with zero manual SSH work from the operator.
+# provisioner-cron.sh exits <1s when the queue is empty, so overhead is nil.
+bash /opt/top-alena/scripts/provisioner-cron.sh 2>&1 | tail -4 || true
+
+# Self-installing crontab entry — runs provisioner-cron.sh every minute
+# independently of autodeploy, so newly-approved tenants come up in ≤1min
+# instead of waiting on the autodeploy tick.
+if ! crontab -l 2>/dev/null | grep -q 'provisioner-cron.sh'; then
+  echo "==> Installing provisioner-cron.sh crontab entry (runs every 1min)"
+  (crontab -l 2>/dev/null; echo '* * * * * bash /opt/top-alena/scripts/provisioner-cron.sh >> /var/log/topalena-provisioner.log 2>&1') | crontab -
+fi
+
 # Skip if no lock — but do quick fetch to see if there's anything new.
 git fetch origin "$BRANCH" --quiet 2>/dev/null || { echo "fetch failed, skipping"; exit 0; }
 
 LOCAL_SHA=$(git rev-parse HEAD)
 REMOTE_SHA=$(git rev-parse "origin/$BRANCH")
 if [ "$LOCAL_SHA" = "$REMOTE_SHA" ]; then
-  # No changes. Quick exit.
+  # No git changes. Provisioner already ran above; safe to exit.
   exit 0
 fi
 
@@ -104,11 +120,5 @@ elif $RELOAD_CADDY; then
   echo "==> Reloading Caddy config"
   docker exec top-alena-caddy-1 caddy reload --config /etc/caddy/Caddyfile 2>&1 | tail -4 || true
 fi
-
-# Always drain the ProvisioningJob queue at the end of a deploy tick.
-# Autodeploy runs every 2 min already; piggybacking here means the
-# operator doesn't need to also configure a separate provisioner-cron
-# entry on the VPS. If there are no pending jobs, this exits in <1s.
-bash /opt/top-alena/scripts/provisioner-cron.sh 2>&1 | tail -4 || true
 
 echo "==> Done. Now at $(git rev-parse --short HEAD)"
