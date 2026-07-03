@@ -105,4 +105,10 @@ elif $RELOAD_CADDY; then
   docker exec top-alena-caddy-1 caddy reload --config /etc/caddy/Caddyfile 2>&1 | tail -4 || true
 fi
 
+# Always drain the ProvisioningJob queue at the end of a deploy tick.
+# Autodeploy runs every 2 min already; piggybacking here means the
+# operator doesn't need to also configure a separate provisioner-cron
+# entry on the VPS. If there are no pending jobs, this exits in <1s.
+bash /opt/top-alena/scripts/provisioner-cron.sh 2>&1 | tail -4 || true
+
 echo "==> Done. Now at $(git rev-parse --short HEAD)"
