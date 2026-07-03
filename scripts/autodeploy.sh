@@ -58,11 +58,18 @@ bash /opt/top-alena/scripts/ensure-wildcard-cert.sh 2>&1 | tail -8 || true
 REBUILD_API=false
 REBUILD_WEB=false
 RECREATE_CADDY=false
+RELOAD_CADDY=false
 
 # docker-compose.yml changes require the caddy container to be recreated
 # so it picks up new volume bind mounts.
 if echo "$CHANGED" | grep -qE '^docker-compose\.yml$'; then
   RECREATE_CADDY=true
+fi
+# Caddyfile changes only need a config reload — no container restart.
+# Otherwise a route/redirect edit lands in git but Caddy keeps serving
+# the old config forever until the next docker-compose.yml change.
+if echo "$CHANGED" | grep -qE '^Caddyfile$'; then
+  RELOAD_CADDY=true
 fi
 
 if echo "$CHANGED" | grep -qE '^apps/api/|^docker-compose\.yml|^Dockerfile$'; then
@@ -93,6 +100,9 @@ fi
 if $RECREATE_CADDY; then
   echo "==> Recreating caddy (docker-compose.yml volumes changed)"
   docker compose up -d caddy 2>&1 | tail -4
+elif $RELOAD_CADDY; then
+  echo "==> Reloading Caddy config"
+  docker exec top-alena-caddy-1 caddy reload --config /etc/caddy/Caddyfile 2>&1 | tail -4 || true
 fi
 
 echo "==> Done. Now at $(git rev-parse --short HEAD)"
