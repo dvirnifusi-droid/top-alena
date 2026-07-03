@@ -201,6 +201,7 @@ export default function Layout({ children, currentPageName }) {
   const location = useLocation();
   const [user, setUser] = React.useState(null);
   const [originalUserRole, setOriginalUserRole] = React.useState(null);
+  const [isPlatformOwner, setIsPlatformOwner] = React.useState(false);
   const [hasUnreadChat, setHasUnreadChat] = React.useState(false);
   const [appTheme, setAppTheme] = React.useState(() => localStorage.getItem('gc_theme') || 'light');
   const branding = useTenantBranding();
@@ -257,6 +258,20 @@ export default function Layout({ children, currentPageName }) {
         const currentUser = await base44.auth.me();
         setUser(currentUser);
         setOriginalUserRole(currentUser?.role);
+
+        // Ask the server whether this user is a platform_owner. This is
+        // a DIFFERENT concept from tenant-owner: only the app owner
+        // (Dvir) is a platform_owner, and it's the ONLY thing that
+        // unlocks the Platform Admin dashboard. Regular restaurant
+        // owners get role='owner' inside their own tenant but never
+        // see cross-tenant tools.
+        try {
+          const platformInfo = await base44.functions.getMyPlatformInfo({});
+          const data = platformInfo?.data || platformInfo;
+          setIsPlatformOwner(!!data?.is_platform_owner);
+        } catch (e) {
+          setIsPlatformOwner(false);
+        }
 
         // Pull Employee record by email so we can read both full_name AND
         // the job title (used to filter the sidebar to role-relevant pages).
@@ -352,8 +367,16 @@ export default function Layout({ children, currentPageName }) {
   //   3. Has managed_department (legacy fallback) → employeeLinks + extras
   //   4. Default → employeeLinks
   const [navFilter, setNavFilter] = React.useState('');
+  // Platform Admin nav item is app-owner-only. Strip it for anyone else
+  // so a restaurant owner logging in doesn't see a link they'd hit a 403
+  // on (and — more importantly — doesn't discover the god-mode dashboard
+  // exists at all).
+  const adminLinksFiltered = React.useMemo(
+    () => isPlatformOwner ? adminLinks : adminLinks.filter(l => !String(l.url || '').includes('PlatformAdmin')),
+    [isPlatformOwner],
+  );
   const baseLinks = isCurrentViewAdmin
-    ? adminLinks
+    ? adminLinksFiltered
     : positionSidebar
       ? positionSidebar
       : [...employeeLinks, ...departmentManagerExtras];

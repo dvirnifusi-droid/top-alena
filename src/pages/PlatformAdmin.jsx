@@ -475,10 +475,44 @@ function PlatformAdminInner() {
   );
 }
 
+function PlatformOwnerOnly({ children }) {
+  const [check, setCheck] = useState({ loading: true, allowed: false });
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await base44.functions.getMyPlatformInfo({});
+        const data = res?.data || res;
+        setCheck({ loading: false, allowed: !!data?.is_platform_owner });
+      } catch {
+        setCheck({ loading: false, allowed: false });
+      }
+    })();
+  }, []);
+  if (check.loading) return <div className="p-8 text-center text-slate-400"><Loader2 className="w-6 h-6 animate-spin inline" /></div>;
+  if (!check.allowed) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50" dir="rtl">
+        <div className="text-center p-8 max-w-md">
+          <div className="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-6">
+            <Crown className="w-10 h-10 text-red-500" />
+          </div>
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">אין גישה לדף זה</h1>
+          <p className="text-gray-500 mb-6">
+            הדף הזה שמור לבעלים של האפליקציה (Platform Owner) בלבד. אם אתה בעל מסעדה, החשבון שלך מנהל את המסעדה שלך אבל לא את כל הפלטפורמה.
+          </p>
+        </div>
+      </div>
+    );
+  }
+  return children;
+}
+
 export default function PlatformAdmin() {
   return (
     <PageGuard pageName="PlatformAdmin" pageTitle="Platform Admin">
-      <PlatformAdminInner />
+      <PlatformOwnerOnly>
+        <PlatformAdminInner />
+      </PlatformOwnerOnly>
     </PageGuard>
   );
 }

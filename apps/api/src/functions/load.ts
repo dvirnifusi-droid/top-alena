@@ -42,7 +42,7 @@ const db = prisma as any; // generic delegate access
 
 // Public deploy marker — lets us confirm which build is live (and that
 // auto-deploy is working) without server access. Bump on each deploy test.
-registerFn('deployInfo', async () => ({ version: 'seating-scan-improved-2026-07-03', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
+registerFn('deployInfo', async () => ({ version: 'platform-owner-role-2026-07-03', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
 
 
 
@@ -12711,13 +12711,33 @@ async function ensurePlatformTables() {
   platformTablesReady = true;
 }
 
-// Super-admin gate. For now: only Dvir's number / admin role.
+// Platform-owner gate. This is DIFFERENT from tenant-owner: only the
+// person who owns the entire TopAlena app (Dvir) is a platform_owner.
+// Regular restaurant owners get role='owner' inside their own tenant
+// schema — they are NOT platform_owners. This distinction is what
+// keeps miha's owner from viewing bigizik's tenant list.
+//
+// Extendable via PLATFORM_OWNER_EMAILS env var (comma-separated) so a
+// future co-founder can be added without a code change.
+const PLATFORM_OWNER_EMAILS = new Set(
+  ['dvirnifusi@gmail.com', ...(process.env.PLATFORM_OWNER_EMAILS || '').split(',')]
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean),
+);
 function isSuperAdmin(user: any): boolean {
   if (!user) return false;
-  if (String(user.email || '').toLowerCase() === 'dvirnifusi@gmail.com') return true;
-  if (user.role === 'owner' || user.role === 'admin') return true;
-  return false;
+  const email = String(user.email || '').toLowerCase();
+  return PLATFORM_OWNER_EMAILS.has(email);
 }
+
+// PUBLIC-authenticated fn — frontend calls to know whether to show the
+// Platform Admin nav item. Zero body, uses the JWT user directly.
+registerFn('getMyPlatformInfo', async ({ user }) => {
+  return {
+    is_platform_owner: isSuperAdmin(user),
+    email: (user as any)?.email || null,
+  };
+});
 
 // PUBLIC — anyone can post a signup. Creates Tenant in pending_approval +
 // WhatsApp notifies super-admin with one-tap approve link.
