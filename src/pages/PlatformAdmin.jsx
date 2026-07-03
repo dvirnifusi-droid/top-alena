@@ -260,10 +260,16 @@ function PlatformAdminInner() {
                         </div>
                       )}
                       {t.status === 'pending_provisioning' && (
-                        <Button size="sm" onClick={() => resendWelcome(t)} disabled={actioningId === t.id}
-                          className="bg-blue-600 hover:bg-blue-700 text-white" title="סגור ידנית + שלח פרטי כניסה בוואטסאפ">
-                          {actioningId === t.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <><MessageCircle className="w-4 h-4 ml-1" /> סגור ושלח פרטים</>}
-                        </Button>
+                        <div className="flex gap-2 flex-wrap">
+                          <Button size="sm" onClick={() => reprovision(t)} disabled={actioningId === t.id}
+                            className="bg-orange-600 hover:bg-orange-700 text-white" title="הפעל התקנה מחדש (יוצר schema + container). השתמש בזה אם התקוע כי הprovisioner נכשל.">
+                            {actioningId === t.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <><RefreshCw className="w-4 h-4 ml-1" /> התקן מחדש</>}
+                          </Button>
+                          <Button size="sm" variant="outline" onClick={() => resendWelcome(t)} disabled={actioningId === t.id}
+                            className="border-blue-300 text-blue-800" title="שלח מייל+SMS עם פרטי כניסה. עובד רק אם התקנה הושלמה.">
+                            {actioningId === t.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <><MessageCircle className="w-4 h-4 ml-1" /> שלח פרטים</>}
+                          </Button>
+                        </div>
                       )}
                     </div>
                   ))}
