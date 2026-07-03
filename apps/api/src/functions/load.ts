@@ -42,7 +42,7 @@ const db = prisma as any; // generic delegate access
 
 // Public deploy marker — lets us confirm which build is live (and that
 // auto-deploy is working) without server access. Bump on each deploy test.
-registerFn('deployInfo', async () => ({ version: 'platform-owner-role-2026-07-03', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
+registerFn('deployInfo', async () => ({ version: 'signup-emails-2026-07-03', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
 
 
 
@@ -12784,21 +12784,97 @@ registerFn('requestTenantSignup', async ({ body }) => {
     subdomainUrl, `topalena_${slug}`, `tenant-${slug}-api`,
   );
 
-  // Notify super-admin
+  const approvePageUrl = `${APP_BASE_URL || 'https://topalena.com'}/PlatformAdmin`;
+
+  // Fire the three notifications in parallel — none should block the
+  // signup response.
+
+  // 1) Confirmation email to the signup submitter. They just gave us
+  // their email; they need SOMETHING in their inbox proving the form
+  // went through, or they'll think it silently failed and refresh-spam.
+  try {
+    const { sendEmail } = await import('../lib/email.js');
+    await sendEmail({
+      to: ownerEmail,
+      subject: `בקשת ההרשמה של ${restaurantName} התקבלה 🌿`,
+      html: `<div dir="rtl" style="font-family:Arial,sans-serif;line-height:1.6;padding:24px;max-width:600px;margin:auto;background:#FAF5E8;border-radius:12px;color:#333">
+        <h1 style="color:#A04A2E;margin:0 0 12px">✅ בקשתך התקבלה!</h1>
+        <p>שלום ${ownerName},</p>
+        <p>קיבלנו את בקשת ההרשמה של <strong>${restaurantName}</strong> ל-TopAlena. הצוות שלנו יבדוק את הפרטים ויאשר תוך 24 שעות.</p>
+        <div style="background:white;border-radius:8px;padding:16px;margin:20px 0;border:1px solid #ddd">
+          <div style="font-weight:bold;margin-bottom:8px">🔗 הכתובת שלך תהיה:</div>
+          <div style="font-size:18px;color:#A04A2E;font-weight:bold">${subdomainUrl}</div>
+          <div style="color:#888;font-size:12px;margin-top:8px">(תפעל אחרי שנאשר את הבקשה)</div>
+        </div>
+        <p>אחרי האישור תקבל בסמס ובוואטסאפ:</p>
+        <ul>
+          <li>שם משתמש וסיסמה זמנית</li>
+          <li>קישור לפתיחת שיחה עם הסוכן החכם שיעזור לך להקים את המסעדה שלב-שלב</li>
+        </ul>
+        <p style="margin-top:24px;color:#666;font-size:13px">בהצלחה 🌿<br>צוות TopAlena</p>
+      </div>`,
+    });
+  } catch (e: any) {
+    console.warn('[signup] customer email failed', e?.message);
+  }
+
+  // 2) Admin email notification — email is the most reliable channel
+  // for admin alerts because it doesn't require an open WhatsApp
+  // session and doesn't get swallowed by phone silence-mode. Sent to
+  // every platform_owner email so any co-founder gets pinged too.
+  try {
+    const { sendEmail } = await import('../lib/email.js');
+    const adminEmails = Array.from(PLATFORM_OWNER_EMAILS);
+    if (adminEmails.length) {
+      await sendEmail({
+        to: adminEmails,
+        subject: `🌟 רישום חדש: ${restaurantName} (${slug})`,
+        html: `<div dir="rtl" style="font-family:Arial,sans-serif;line-height:1.6;padding:24px;max-width:600px;margin:auto;background:#FAF5E8;border-radius:12px;color:#333">
+          <h1 style="color:#A04A2E;margin:0 0 12px">🌟 בקשת רישום חדשה</h1>
+          <div style="background:white;border-radius:8px;padding:16px;margin:20px 0;border:1px solid #ddd">
+            <div style="margin-bottom:6px"><strong>🍽 מסעדה:</strong> ${restaurantName}</div>
+            <div style="margin-bottom:6px"><strong>🏷 סלוג:</strong> <code>${slug}</code></div>
+            <div style="margin-bottom:6px"><strong>👤 בעלים:</strong> ${ownerName}</div>
+            <div style="margin-bottom:6px"><strong>📱 טלפון:</strong> <a href="tel:${ownerPhone}" style="color:#A04A2E">${ownerPhone}</a></div>
+            <div style="margin-bottom:6px"><strong>✉️ מייל:</strong> <a href="mailto:${ownerEmail}" style="color:#A04A2E">${ownerEmail}</a></div>
+            <div><strong>🔗 כתובת עתידית:</strong> ${subdomainUrl}</div>
+          </div>
+          <div style="text-align:center;margin:24px 0">
+            <a href="${approvePageUrl}" style="display:inline-block;background:#A04A2E;color:white;padding:14px 32px;border-radius:32px;text-decoration:none;font-weight:bold">
+              👉 אשר או דחה ב-PlatformAdmin
+            </a>
+          </div>
+        </div>`,
+      });
+    }
+  } catch (e: any) {
+    console.warn('[signup] admin email failed', e?.message);
+  }
+
+  // 3) Admin WhatsApp — keeps existing behavior as a redundant channel.
   const adminNumbers = (process.env.WHATSAPP_ADMIN_NUMBERS || '').split(',').map((s) => s.trim()).filter(Boolean);
   if (adminNumbers.length) {
     const { sendWhatsApp } = await import('../lib/twilio.js');
-    const msg = `🌟 *בקשת רישום חדשה למערכת*\n\n` +
+    const waMsg = `🌟 *בקשת רישום חדשה למערכת*\n\n` +
       `🍽 מסעדה: ${restaurantName}\n` +
       `👤 בעלים: ${ownerName}\n` +
       `📱 טלפון: ${ownerPhone}\n` +
       `✉️ אימייל: ${ownerEmail}\n` +
       `🔗 כתובת: ${subdomainUrl}\n\n` +
-      `אישור/דחייה: ${APP_BASE_URL || 'https://topalena.com'}/PlatformAdminPending`;
+      `אישור/דחייה: ${approvePageUrl}`;
     for (const p of adminNumbers) {
-      try { await sendWhatsApp(p, msg); } catch (e: any) { console.warn('[signup] notify failed', e?.message); }
+      try { await sendWhatsApp(p, waMsg); } catch (e: any) { console.warn('[signup] wa notify failed', e?.message); }
     }
   }
+
+  // 4) Admin Pushover — the most reliable "wake you up now" channel.
+  try {
+    const { pushoverToAdmins } = await import('../lib/pushover.js');
+    await pushoverToAdmins(`🌟 רישום חדש: ${restaurantName}`, `${ownerName} (${ownerPhone}) — סלוג: ${slug}. אשר ב-PlatformAdmin`);
+  } catch (e: any) {
+    console.warn('[signup] pushover notify failed', e?.message);
+  }
+
   return { ok: true, tenant_id: tenantId, status: 'pending_approval' };
 }, { public: true });
 
