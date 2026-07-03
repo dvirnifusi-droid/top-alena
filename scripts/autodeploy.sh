@@ -29,12 +29,6 @@ if ! command -v jq >/dev/null 2>&1; then
   DEBIAN_FRONTEND=noninteractive apt-get install -y jq >/dev/null 2>&1 || echo "!!! jq install failed"
 fi
 
-# Ensure the wildcard TLS cert exists BEFORE we touch any tenant Caddy
-# blocks — everything downstream uses /etc/caddy/certs/wildcard.{crt,key}
-# now instead of `tls internal`. Idempotent: exits silently if the cert
-# is present and not near expiry.
-bash /opt/top-alena/scripts/ensure-wildcard-cert.sh 2>&1 | tail -5 || true
-
 # Skip if no lock — but do quick fetch to see if there's anything new.
 git fetch origin "$BRANCH" --quiet 2>/dev/null || { echo "fetch failed, skipping"; exit 0; }
 
@@ -55,8 +49,21 @@ echo "$CHANGED" | head -20
 git reset --hard "origin/$BRANCH" || { echo "reset failed"; exit 1; }
 chmod +x scripts/*.sh 2>/dev/null || true
 
+# NOW that the latest scripts are on disk, run ensure-wildcard-cert.sh.
+# Idempotent — first run generates the cert + migrates every `tls internal`
+# in Caddyfile/tenants to point at it. Subsequent runs are no-ops until
+# the cert nears expiry.
+bash /opt/top-alena/scripts/ensure-wildcard-cert.sh 2>&1 | tail -8 || true
+
 REBUILD_API=false
 REBUILD_WEB=false
+RECREATE_CADDY=false
+
+# docker-compose.yml changes require the caddy container to be recreated
+# so it picks up new volume bind mounts.
+if echo "$CHANGED" | grep -qE '^docker-compose\.yml$'; then
+  RECREATE_CADDY=true
+fi
 
 if echo "$CHANGED" | grep -qE '^apps/api/|^docker-compose\.yml|^Dockerfile$'; then
   REBUILD_API=true
@@ -81,6 +88,11 @@ elif $REBUILD_WEB; then
   docker compose up -d --build web 2>&1 | tail -4
 else
   echo "==> No container rebuild needed (only scripts / config changed)"
+fi
+
+if $RECREATE_CADDY; then
+  echo "==> Recreating caddy (docker-compose.yml volumes changed)"
+  docker compose up -d caddy 2>&1 | tail -4
 fi
 
 echo "==> Done. Now at $(git rev-parse --short HEAD)"
