@@ -69,6 +69,19 @@ function PlatformAdminInner() {
     finally { setRestartingId(null); }
   };
 
+  const reprovision = async (t) => {
+    const label = t.restaurant_name || t.name || t.slug;
+    if (!window.confirm(`להתקין מחדש את "${label}"? זה מוחק ומחזיר לתור התקנה (Job חדש). השדות הקיימים ב-DB נשארים.`)) return;
+    setActioningId(t.id);
+    try {
+      const res = await base44.functions.reprovisionTenant({ tenant_id: t.id });
+      const r = res?.data || res;
+      alert(`✅ נכנס לתור התקנה מחדש.\n\n${r?.message || ''}\n\nחכה 30-60 שניות ותרענן.`);
+      await load();
+    } catch (e) { alert('שגיאה: ' + (e?.message || '')); }
+    finally { setActioningId(null); }
+  };
+
   const resendWelcome = async (t) => {
     const label = t.restaurant_name || t.name || t.slug;
     if (!window.confirm(`לשלוח מחדש את פרטי הכניסה לבעלים של "${label}" ב-SMS + מייל + WhatsApp? הסיסמה הישנה תוחלף בסיסמה זמנית חדשה.`)) return;
@@ -406,6 +419,16 @@ function PlatformAdminInner() {
                                   title="שלח פרטי כניסה מחדש ב-SMS + מייל + WhatsApp"
                                 >
                                   {actioningId === t.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <><Send className="w-3.5 h-3.5 ml-1" /> שלח פרטי כניסה</>}
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  disabled={actioningId === t.id}
+                                  onClick={() => reprovision(t)}
+                                  className="text-xs whitespace-nowrap border-orange-300 bg-orange-50 hover:bg-orange-100 text-orange-800"
+                                  title="החזר את המסעדה לתור ההתקנה — משתמש אם schema חסר / ההתקנה נכשלה"
+                                >
+                                  {actioningId === t.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <><RefreshCw className="w-3.5 h-3.5 ml-1" /> התקן מחדש</>}
                                 </Button>
                                 <Button
                                   size="sm"

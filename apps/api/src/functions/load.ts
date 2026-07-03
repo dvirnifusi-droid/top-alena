@@ -42,7 +42,7 @@ const db = prisma as any; // generic delegate access
 
 // Public deploy marker — lets us confirm which build is live (and that
 // auto-deploy is working) without server access. Bump on each deploy test.
-registerFn('deployInfo', async () => ({ version: 'signup-emails-2026-07-03', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
+registerFn('deployInfo', async () => ({ version: 'reprovision-guard-2026-07-03', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
 
 
 
@@ -13275,25 +13275,74 @@ registerFn('diagnoseChannels', async ({ user }) => {
   return out;
 });
 
+// SUPER-ADMIN — reset a tenant back to pending_provisioning and enqueue
+// a fresh ProvisioningJob. Used when a tenant is stuck (like zohara —
+// marked 'live' but the schema was never created). Provisioner will pick
+// up the job on the next tick and run provision-tenant.sh which creates
+// the schema, dumps table structure, and spins up the container.
+// Idempotent: safe to call on a stuck 'live' tenant or a stuck
+// 'pending_provisioning' one.
+registerFn('reprovisionTenant', async ({ user, body }) => {
+  if (!isSuperAdmin(user)) throw new Error('super-admin only');
+  await ensurePlatformTables();
+  const b = (body || {}) as any;
+  if (!b.tenant_id) throw new Error('tenant_id required');
+  const rows: any[] = await (prisma as any).$queryRawUnsafe(
+    `SELECT id, slug, status FROM "Tenant" WHERE id = $1`, b.tenant_id,
+  );
+  if (!rows.length) throw new Error('Tenant not found');
+  await (prisma as any).$executeRawUnsafe(
+    `UPDATE "Tenant" SET status = 'pending_provisioning',
+       provisioned_at = NULL, live_at = NULL, "updatedAt" = NOW()
+     WHERE id = $1`,
+    b.tenant_id,
+  );
+  await (prisma as any).$executeRawUnsafe(
+    `INSERT INTO "ProvisioningJob"("id","tenant_id","status") VALUES ($1, $2, 'pending')`,
+    randomUUID(), b.tenant_id,
+  );
+  return { ok: true, message: 'Reprovisioning job queued. Cron will pick it up within 30-60s.' };
+});
+
 // SUPER-ADMIN — resend the welcome WhatsApp with fresh credentials.
-// Also idempotently: (1) marks tenant live if still stuck in provisioning,
-// (2) seeds the owner user if not seeded yet (with a NEW temp password).
-// Used when the auto-send from reportProvisioningResult failed silently
-// (Python JSON glitch in provisioner-cron.sh, network hiccup, etc).
+// Refuses to run if the tenant's schema doesn't exist yet — otherwise
+// we'd flip status to 'live' with no backing schema (like happened to
+// zohara). In that case, the caller should hit reprovisionTenant first.
 registerFn('resendTenantWelcome', async ({ user, body }) => {
   if (!isSuperAdmin(user)) throw new Error('super-admin only');
   await ensurePlatformTables();
   const b = (body || {}) as any;
   if (!b.tenant_id) throw new Error('tenant_id required');
   const rows: any[] = await (prisma as any).$queryRawUnsafe(
-    `SELECT id, status FROM "Tenant" WHERE id = $1`, b.tenant_id,
+    `SELECT id, slug, status FROM "Tenant" WHERE id = $1`, b.tenant_id,
   );
   if (!rows.length) throw new Error('Tenant not found');
   const t = rows[0];
 
-  // If the provisioning callback never landed, the container is up but the
-  // Tenant row still says pending_provisioning. Flip it now — the caller
-  // clicked this precisely because they've verified the tenant is running.
+  // Guard: verify the tenant schema actually exists. If we flip to 'live'
+  // without a real schema, every downstream fn crashes with 42P01 (undefined
+  // table) — including the User seed inside sendWelcomeForTenant. Been
+  // burned by this once (zohara); never again.
+  const schemaExists: any[] = await (prisma as any).$queryRawUnsafe(
+    `SELECT 1 FROM information_schema.schemata WHERE schema_name = $1 LIMIT 1`,
+    `tenant_${t.slug}`,
+  );
+  if (!schemaExists.length) {
+    throw new Error(`Tenant "${t.slug}" has no DB schema — provisioning never completed. Use "התקנה מחדש" (reprovision) first.`);
+  }
+
+  // Ensure User table exists too — schema without tables is a partial
+  // provisioning (dump copy failed halfway). Same result: safest to
+  // reprovision fully.
+  const userTableExists: any[] = await (prisma as any).$queryRawUnsafe(
+    `SELECT 1 FROM information_schema.tables WHERE table_schema = $1 AND table_name = 'User' LIMIT 1`,
+    `tenant_${t.slug}`,
+  );
+  if (!userTableExists.length) {
+    throw new Error(`Tenant "${t.slug}" schema exists but User table is missing — partial provisioning. Use "התקנה מחדש" first.`);
+  }
+
+  // OK to flip to live now.
   if (t.status === 'pending_provisioning' || t.status === 'provisioning') {
     await (prisma as any).$executeRawUnsafe(
       `UPDATE "Tenant" SET status = 'live', provisioned_at = COALESCE(provisioned_at, NOW()),
