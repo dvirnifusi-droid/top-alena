@@ -20,3 +20,16 @@
     }
     encode gzip
 }
+
+# Fallback for unknown *.topalena.com subdomains — someone typed a slug
+# that doesn't have a Caddyfile block yet (either the tenant's block
+# hasn't been appended yet, or they made up a name). Better UX than
+# a blank page: redirect them to the main site's signup page so if they
+# were trying to find their own restaurant, they can create it.
+# NOTE: real tenants' blocks are appended AFTER this fallback by
+# sync-tenant-caddy.sh, but Caddy matches HOSTNAME-specific blocks
+# BEFORE wildcards, so real tenants aren't affected.
+*.topalena.com {
+    tls /etc/caddy/certs/wildcard.crt /etc/caddy/certs/wildcard.key
+    redir https://topalena.com/Signup 302
+}
