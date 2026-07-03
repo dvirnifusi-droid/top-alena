@@ -42,7 +42,7 @@ const db = prisma as any; // generic delegate access
 
 // Public deploy marker — lets us confirm which build is live (and that
 // auto-deploy is working) without server access. Bump on each deploy test.
-registerFn('deployInfo', async () => ({ version: 'static-wildcard-tls-2026-07-03', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
+registerFn('deployInfo', async () => ({ version: 'seating-scan-improved-2026-07-03', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
 
 
 
@@ -19712,32 +19712,71 @@ registerFn('extractSeatingFromImage', async ({ user, body }) => {
   const b = (body || {}) as any;
   const url = String(b.file_url || '').trim();
   if (!url) throw new Error('file_url required');
-  const prompt = `הקובץ המצורף הוא סקיצה או צילום של מפת המסעדה — שולחנות, פינות ישיבה, בר. חלץ את השולחנות והפינות שאתה מזהה.\n\nלכל שולחן/פינה: שם (למשל "S1", "בר", "אזור חוץ"), קיבולת מוערכת (מספר סועדים), וקורדינטות יחסיות (x, y) בטווח 0-100 (איפה על המפה — 0,0 = פינה שמאל למעלה, 100,100 = ימין למטה). גם צורה: table / bar / booth / outdoor.\n\nהחזר JSON: { tables: [{ label, capacity, x, y, shape }] }`;
-  const result: any = await invokeLLM({
-    prompt,
-    fileUrls: [url],
-    responseSchema: {
-      type: 'object',
-      properties: {
-        tables: {
-          type: 'array',
-          items: {
-            type: 'object',
-            properties: {
-              label: { type: 'string' },
-              capacity: { type: 'number' },
-              x: { type: 'number' },
-              y: { type: 'number' },
-              shape: { type: 'string' },
+  const prompt = `אתה מקבל תמונה של מפת מסעדה — יכולה להיות סקיצה יד חופשית, צילום, או צילום מסך של תכנת ניהול (כמו BeeComm, Panel, Yaad וכו').
+
+**המשימה שלך:** חלץ את **כל** השולחנות שאתה מזהה בתמונה, כולל שולחנות בברים, פינות ישיבה, אזורי חוץ ואזורי VIP. אל תדלג על שולחנות רק כי הם קטנים או בפינה.
+
+**איך לזהות שולחן:**
+- מלבן/עיגול/צורה עם מספר או שם
+- מספר קטן ליד השם = קיבולת (למשל "2" ליד "10" = שולחן 10 ל-2 סועדים)
+- אזורים גדולים עם שם ("בר זוהרה", "כניסה", "מטבח") — הבנת אזורים, אבל **לא שולחנות בפני עצמם**
+
+**פורמט הפלט הנדרש:**
+- label: המספר או השם של השולחן ("10", "בר 1", "S3")
+- capacity: מספר הסועדים המקסימלי (אם רואים מספר קטן ליד השולחן, זה הקיבולת. אם לא רואים — הערך שגרתי: 2 לשולחן קטן, 4 לבינוני, 6-12 לגדול)
+- x: מיקום אופקי בטווח 0-100 (0 = שמאל, 100 = ימין)
+- y: מיקום אנכי בטווח 0-100 (0 = למעלה, 100 = למטה)
+- shape: אחד מ- "table" (רגיל), "bar" (בר), "booth" (פינה), "outdoor" (חוץ)
+
+**חשוב:**
+- החזר **כל שולחן** שאתה רואה. אל תסכם. אל תדלג.
+- אם התמונה מכילה עשרות שולחנות — החזר את כולם.
+- אל תמציא שולחנות שלא רואים. רק מה שקיים בתמונה.`;
+
+  let result: any;
+  try {
+    result = await invokeLLM({
+      prompt,
+      fileUrls: [url],
+      responseSchema: {
+        type: 'object',
+        properties: {
+          tables: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                label: { type: 'string' },
+                capacity: { type: 'number' },
+                x: { type: 'number' },
+                y: { type: 'number' },
+                shape: { type: 'string' },
+              },
+              required: ['label'],
             },
           },
         },
+        required: ['tables'],
       },
-      required: ['tables'],
-    },
-    _ctx: { fn_name: 'extractSeatingFromImage' },
-  });
-  return result;
+      maxOutputTokens: 32768, // Complex maps can have 40+ tables — was capped at 8k before
+      timeoutMs: 90_000,
+      _ctx: { fn_name: 'extractSeatingFromImage' },
+    });
+  } catch (e: any) {
+    throw new Error(`extractSeatingFromImage: ${e?.message || 'unknown_llm_error'}`);
+  }
+  // Diagnostic: if we got a raw text response (schema parse failed), surface it
+  // so the frontend can show the operator what Gemini actually said.
+  if (result?.raw && !result?.tables) {
+    console.warn('[extractSeatingFromImage] Gemini returned unstructured text:', String(result.raw).slice(0, 500));
+    return { tables: [], _raw_llm_response: String(result.raw).slice(0, 800), _debug: 'schema_parse_failed' };
+  }
+  const tables = Array.isArray(result?.tables) ? result.tables : [];
+  if (tables.length === 0) {
+    console.warn('[extractSeatingFromImage] Gemini returned zero tables. File URL:', url.slice(0, 120));
+    return { tables: [], _debug: 'gemini_returned_zero_tables', _file_url_prefix: url.slice(0, 60) };
+  }
+  return { tables };
 });
 
 // BP — Invite a new employee via WhatsApp. Owner enters name+phone, we

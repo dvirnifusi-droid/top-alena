@@ -2321,7 +2321,12 @@ export default function SeatingSetup() {
                                                     width: 80,
                                                     height: 80,
                                                 }));
-                                                if (!newTables.length) { alert('לא זוהו שולחנות בתמונה'); return; }
+                                                if (!newTables.length) {
+                                                    const debug = data?._debug ? `\n\n(debug: ${data._debug})` : '';
+                                                    const raw = data?._raw_llm_response ? `\n\nGemini response:\n${data._raw_llm_response.slice(0, 300)}` : '';
+                                                    alert(`לא זוהו שולחנות בתמונה.${debug}${raw}\n\nנסה תמונה ברורה יותר, או ציור ידני של המפה.`);
+                                                    return;
+                                                }
                                                 setTables([...tables, ...newTables]);
                                                 alert(`✅ נוספו ${newTables.length} שולחנות. גרור לתקן ושמור.`);
                                             } catch (err) { alert('שגיאה: ' + (err?.message || '')); }
