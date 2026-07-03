@@ -68,7 +68,7 @@ CADDY_DIR="/etc/caddy/tenants"
 mkdir -p "$CADDY_DIR"
 cat > "$CADDY_DIR/${SLUG}.caddy" <<EOF
 ${SUBDOMAIN} {
-  tls internal
+  tls /etc/caddy/certs/wildcard.crt /etc/caddy/certs/wildcard.key
   @api path /api/*
   handle @api {
     reverse_proxy ${CONTAINER}:3001

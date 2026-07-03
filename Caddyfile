@@ -2,11 +2,15 @@
 # For local dev, use `:80` instead.
 
 {$DOMAIN:localhost} {
-    # Cloudflare (proxied) terminates the public TLS with a trusted cert and
-    # connects to this origin over HTTPS in "Full" mode, which accepts Caddy's
-    # internal self-signed cert. This avoids relying on Let's Encrypt issuance
-    # on the origin (which was failing for this host).
-    tls internal
+    # Cloudflare (proxied) terminates public TLS with a trusted cert and
+    # connects here over HTTPS in "Full" mode, which accepts a self-signed
+    # origin cert. We use a STATIC wildcard cert on disk (generated once
+    # by scripts/ensure-wildcard-cert.sh) instead of `tls internal` because
+    # tls internal was silently failing to provision certs for newly-added
+    # tenant hostnames after `caddy reload`, causing every new signup to
+    # bounce with Cloudflare 525 SSL handshake failed. Static cert = zero
+    # on-demand race; every tenant's *.topalena.com resolves instantly.
+    tls /etc/caddy/certs/wildcard.crt /etc/caddy/certs/wildcard.key
     @api path /api/*
     handle @api {
         reverse_proxy api:3001

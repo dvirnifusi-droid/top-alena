@@ -29,6 +29,12 @@ if ! command -v jq >/dev/null 2>&1; then
   DEBIAN_FRONTEND=noninteractive apt-get install -y jq >/dev/null 2>&1 || echo "!!! jq install failed"
 fi
 
+# Ensure the wildcard TLS cert exists BEFORE we touch any tenant Caddy
+# blocks — everything downstream uses /etc/caddy/certs/wildcard.{crt,key}
+# now instead of `tls internal`. Idempotent: exits silently if the cert
+# is present and not near expiry.
+bash /opt/top-alena/scripts/ensure-wildcard-cert.sh 2>&1 | tail -5 || true
+
 # Skip if no lock — but do quick fetch to see if there's anything new.
 git fetch origin "$BRANCH" --quiet 2>/dev/null || { echo "fetch failed, skipping"; exit 0; }
 
