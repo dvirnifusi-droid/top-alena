@@ -42,7 +42,7 @@ const db = prisma as any; // generic delegate access
 
 // Public deploy marker — lets us confirm which build is live (and that
 // auto-deploy is working) without server access. Bump on each deploy test.
-registerFn('deployInfo', async () => ({ version: 'reprovision-guard-2026-07-03', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
+registerFn('deployInfo', async () => ({ version: 'schema-selfheal-2026-07-04', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
 
 
 
@@ -13084,6 +13084,42 @@ registerFn('getSuperAdminMetrics', async ({ user }) => {
   };
 });
 
+// Self-healing schema sync — creates in tenant_<slug> every table that
+// exists in public but is missing there. pg_dump during provisioning is
+// best-effort and has silently skipped tables more than once (zohara,
+// hamara); this runs INSIDE the API via plain SQL so no shell, no SSH,
+// no dump pipeline. `LIKE ... INCLUDING ALL` copies columns, defaults,
+// indexes and constraints; cross-schema FKs are intentionally not copied.
+// Idempotent and cheap when nothing is missing.
+async function syncTenantSchemaFromPublic(slug: string): Promise<string[]> {
+  const schema = `tenant_${slug}`;
+  await (prisma as any).$executeRawUnsafe(`CREATE SCHEMA IF NOT EXISTS "${schema}"`);
+  const missing: any[] = await (prisma as any).$queryRawUnsafe(
+    `SELECT t.table_name FROM information_schema.tables t
+     WHERE t.table_schema = 'public' AND t.table_type = 'BASE TABLE'
+       AND NOT EXISTS (
+         SELECT 1 FROM information_schema.tables x
+         WHERE x.table_schema = $1 AND x.table_name = t.table_name
+       )`,
+    schema,
+  );
+  const created: string[] = [];
+  for (const row of missing) {
+    const name = String(row.table_name || '');
+    if (!/^[A-Za-z0-9_]+$/.test(name)) continue;
+    try {
+      await (prisma as any).$executeRawUnsafe(
+        `CREATE TABLE IF NOT EXISTS "${schema}"."${name}" (LIKE "public"."${name}" INCLUDING ALL)`,
+      );
+      created.push(name);
+    } catch (e: any) {
+      console.warn(`[schemaSync] ${schema}.${name} failed:`, e?.message);
+    }
+  }
+  if (created.length) console.log(`[schemaSync] ${schema}: created ${created.length} tables`, created.slice(0, 10));
+  return created;
+}
+
 // Shared helper — sends the welcome (SMS + email + WhatsApp best-effort),
 // seeds the owner user, records outcome per channel to the Tenant row.
 // Used by BOTH resendTenantWelcome (admin button) AND reportProvisioningResult
@@ -13098,6 +13134,11 @@ async function sendWelcomeForTenant(tenantId: string): Promise<any> {
   if (!rows.length) throw new Error('Tenant not found');
   const t = rows[0];
   if (!t.owner_phone) throw new Error('Tenant has no owner_phone');
+  // Self-heal BEFORE anything touches tenant tables — the User upsert
+  // below and every page the owner opens right after need the full set.
+  await syncTenantSchemaFromPublic(t.slug).catch((e) =>
+    console.warn('[welcome] schema sync failed:', e?.message),
+  );
   const brandDisplay = t.restaurant_name || t.slug;
   const link = t.subdomain_url || `https://${t.slug}.topalena.com`;
   const waFromNumber = String(process.env.TWILIO_WHATSAPP_FROM || '').replace(/^whatsapp:\+?/, '').replace(/[^\d]/g, '');
@@ -13319,28 +13360,12 @@ registerFn('resendTenantWelcome', async ({ user, body }) => {
   if (!rows.length) throw new Error('Tenant not found');
   const t = rows[0];
 
-  // Guard: verify the tenant schema actually exists. If we flip to 'live'
-  // without a real schema, every downstream fn crashes with 42P01 (undefined
-  // table) — including the User seed inside sendWelcomeForTenant. Been
-  // burned by this once (zohara); never again.
-  const schemaExists: any[] = await (prisma as any).$queryRawUnsafe(
-    `SELECT 1 FROM information_schema.schemata WHERE schema_name = $1 LIMIT 1`,
-    `tenant_${t.slug}`,
-  );
-  if (!schemaExists.length) {
-    throw new Error(`Tenant "${t.slug}" has no DB schema — provisioning never completed. Use "התקנה מחדש" (reprovision) first.`);
-  }
-
-  // Ensure User table exists too — schema without tables is a partial
-  // provisioning (dump copy failed halfway). Same result: safest to
-  // reprovision fully.
-  const userTableExists: any[] = await (prisma as any).$queryRawUnsafe(
-    `SELECT 1 FROM information_schema.tables WHERE table_schema = $1 AND table_name = 'User' LIMIT 1`,
-    `tenant_${t.slug}`,
-  );
-  if (!userTableExists.length) {
-    throw new Error(`Tenant "${t.slug}" schema exists but User table is missing — partial provisioning. Use "התקנה מחדש" first.`);
-  }
+  // Self-heal instead of refusing: create the schema if missing and copy
+  // any missing tables from public. This turns the button into "fix
+  // whatever is broken in the DB and send credentials" — one click, no
+  // SSH, no reprovision dance for DB-level gaps. (Reprovision is still
+  // there for container/Caddy-level problems.)
+  await syncTenantSchemaFromPublic(t.slug);
 
   // OK to flip to live now.
   if (t.status === 'pending_provisioning' || t.status === 'provisioning') {
