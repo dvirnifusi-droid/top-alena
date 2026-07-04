@@ -9,7 +9,7 @@
 //      protected; only callers with the SID/Token can read it).
 //   3. Upload the file to our own MinIO so we own a permanent copy and the
 //      Gemini-vision call can fetch it via the relative /api/files/<key> URL.
-//   4. Call invokeLLM with an invoice-extraction prompt + schema.
+//   4. Call extractInvoiceFromFile (see invoiceExtraction.ts).
 //   5. Fuzzy-match supplier name to existing Supplier rows.
 //   6. Return a human-readable draft string for the WhatsApp reply.
 import { Readable } from 'node:stream';
@@ -192,15 +192,14 @@ export async function handleAdminInvoiceMedia(mediaUrl: string, fromPhone?: stri
     //     served the SPA HTML instead — invoices looked stuck loading.
     storedUrl = `/api/files/${key}`;
     // 3. OCR + extract.
-    // Pass the INTERNAL /api/files/<key> URL — not the public S3_PUBLIC_URL.
-    // fetchFileAsBase64 inside invokeLLM has a fast-path for /api/files/* that
-    // reads bytes directly from MinIO via the s3 client. The public URL would
-    // make it do a real HTTP fetch back through Caddy, which on this stack
-    // serves the SPA HTML for unmatched paths → Gemini gets HTML, says
-    // "this is a website, not an invoice". The byte content is fine either
-    // way; the issue was purely the URL routing.
-    const internalUrl = `/api/files/${key}`;
-    extracted = (await extractInvoiceFromFile(internalUrl)) as ExtractedInvoice;
+    // Pass the INTERNAL /api/files/<key> URL (storedUrl) — not the public
+    // S3_PUBLIC_URL. fetchFileAsBase64 inside invokeLLM has a fast-path for
+    // /api/files/* that reads bytes directly from MinIO via the s3 client.
+    // The public URL would make it do a real HTTP fetch back through Caddy,
+    // which on this stack serves the SPA HTML for unmatched paths → Gemini
+    // gets HTML, says "this is a website, not an invoice". The byte content
+    // is fine either way; the issue was purely the URL routing.
+    extracted = await extractInvoiceFromFile(storedUrl);
   } catch (e: any) {
     return `❌ לא הצלחתי לעבד את הקובץ: ${e?.message || 'unknown'}\n\nנסה שוב או שלח מספר בפנים בידנית.`;
   }

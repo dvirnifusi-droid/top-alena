@@ -40,4 +40,16 @@ describe('matchInventoryItem', () => {
   it('no match suggests create_new', () => {
     expect(matchInventoryItem('שמן קוקוס אורגני', [], inventory)).toEqual({ action: 'create_new' });
   });
+
+  it('generic single-token inventory item does not swallow specific products', () => {
+    const generic = [{ id: 'invK', item_name: 'קמח' }];
+    expect(matchInventoryItem('קמח כוסמין אורגני טחון', [], generic)).toEqual({ action: 'create_new' });
+  });
+
+  it('token-reorder still matches via jaccard', () => {
+    const inv = [{ id: 'inv3', item_name: 'שמן זית כתית' }];
+    const r = matchInventoryItem('כתית זית שמן', [], inv);
+    expect(r.action).toBe('add_existing');
+    expect(r.inventory_item_id).toBe('inv3');
+  });
 });

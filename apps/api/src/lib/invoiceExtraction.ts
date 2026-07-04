@@ -14,7 +14,7 @@ export const INVOICE_EXTRACTION_SCHEMA = {
     total_amount: { type: 'number', description: 'הסכום הסופי לתשלום (כולל מע"מ)' },
     vat_amount: { type: 'number', description: 'סכום מע"מ בנפרד, אם מופיע' },
     currency: { type: 'string', description: 'מטבע (ILS/USD/EUR). ברירת מחדל ILS' },
-    category_guess: { type: 'string', description: 'קטגוריה משוערת: ירקות, בשר, אלכוהול, ניקיון, ציוד, שירותים, אחר' },
+    category_guess: { type: 'string', description: 'קטגוריה משוערת: ירקות, פירות, בשר, דגים, חלב וביצים, יבש (קמח/אורז/וכו), משקאות, אלכוהול, ניקיון, ציוד מטבח, שירותים (חשבונאות, ביטוח, שכירות), אחר' },
     confidence_notes: { type: 'string', description: 'הערות אם משהו לא ברור (חסר שדה / קושי קריאה)' },
     line_items: {
       type: 'array',
@@ -55,7 +55,7 @@ export type ExtractedInvoice = {
   line_items?: ExtractedLineItem[];
 };
 
-// Levenshtein-light normalized similarity for fuzzy supplier match.
+// Levenshtein-light normalized similarity — used for supplier and inventory fuzzy matching.
 export function normalizeForMatch(s: string): string {
   return String(s || '')
     .replace(/[^\p{L}\p{N}\s]/gu, ' ')
@@ -119,6 +119,26 @@ export type InventoryMatch = {
   via?: 'alias' | 'fuzzy';
 };
 
+// Inventory-specific similarity: like similarity(), but the substring
+// shortcut only applies when the two names have comparable token counts.
+// Prevents a generic inventory item ("קמח") from swallowing every
+// "קמח <something>" invoice line at 0.92.
+function inventorySimilarity(a: string, b: string): number {
+  const A = normalizeForMatch(a);
+  const B = normalizeForMatch(b);
+  if (!A || !B) return 0;
+  if (A === B) return 1;
+  const At = A.split(' ').filter(w => w.length >= 2);
+  const Bt = B.split(' ').filter(w => w.length >= 2);
+  const substr = A.includes(B) || B.includes(A);
+  if (substr && Math.abs(At.length - Bt.length) <= 1) return 0.92;
+  const setA = new Set(At), setB = new Set(Bt);
+  if (!setA.size || !setB.size) return 0;
+  const inter = [...setA].filter(t => setB.has(t)).length;
+  const union = new Set([...setA, ...setB]).size;
+  return inter / union;
+}
+
 // Pure — testable without DB. Alias hit wins; else best fuzzy >= 0.75; else create_new.
 export function matchInventoryItem(
   productName: string,
@@ -130,7 +150,7 @@ export function matchInventoryItem(
   if (alias) return { action: 'add_existing', inventory_item_id: alias.inventory_item_id, via: 'alias' };
   let best: { id: string; sim: number } | null = null;
   for (const it of inventoryItems) {
-    const sim = similarity(productName, it.item_name);
+    const sim = inventorySimilarity(productName, it.item_name);
     if (!best || sim > best.sim) best = { id: it.id, sim };
   }
   if (best && best.sim >= 0.75) return { action: 'add_existing', inventory_item_id: best.id, via: 'fuzzy' };
