@@ -13434,7 +13434,19 @@ registerFn('pickNextProvisioningJob', async ({ body }) => { /*PUBLIC—cron_secr
     `UPDATE "Tenant" SET status = 'provisioning', "updatedAt" = NOW() WHERE id = $1`,
     job.tenant_id,
   );
-  return { job: { id: job.id, ...tenant[0] } };
+  // Object spread ordering fix: `{ id: job.id, ...tenant[0] }` puts the
+  // spread LAST which overwrites `id` with tenant's id — so the provisioner
+  // received the tenant_id as "job_id" and reportProvisioningResult's
+  // `UPDATE ... WHERE id = tenant_id` never matched, leaving every
+  // successful zohara/hamara/etc. job stuck at status='pending' forever
+  // and re-provisioned on every cron tick. Now returns BOTH ids explicitly.
+  return {
+    job: {
+      ...tenant[0],
+      job_id: job.id,          // ProvisioningJob.id — for reportProvisioningResult
+      tenant_id: tenant[0].id, // Tenant.id — for the welcome flow
+    },
+  };
 }, { public: true });
 
 // PUBLIC — cron on the VPS calls this every 5 min. Returns any tenants

@@ -40,7 +40,7 @@ if [ "$JOB" = "null" ] || [ -z "$JOB" ]; then
   exit 0  # No work
 fi
 
-JOB_ID=$(echo "$JOB" | jq -r '.id // ""')
+JOB_ID=$(echo "$JOB" | jq -r '.job_id // .id // ""')
 TENANT_ID=$(echo "$JOB" | jq -r '.tenant_id // .id // ""')
 SLUG=$(echo "$JOB" | jq -r '.slug // ""')
 DB_NAME=$(echo "$JOB" | jq -r '.db_name // ""')
