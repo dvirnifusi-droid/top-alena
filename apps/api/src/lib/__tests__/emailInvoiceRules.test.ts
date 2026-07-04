@@ -16,6 +16,9 @@ describe('decideMessageAction', () => {
     expect(decideMessageAction(null, true)).toBe('classify');
     expect(decideMessageAction({ rule: 'auto' }, true)).toBe('classify');
   });
+  it('unknown rule string behaves like auto (classify)', () => {
+    expect(decideMessageAction({ rule: 'weird' }, true)).toBe('classify');
+  });
 });
 
 describe('nextRuleAfterRejection', () => {
@@ -30,5 +33,12 @@ describe('nextRuleAfterRejection', () => {
   it('rejecting an allowed sender demotes to auto first', () => {
     expect(nextRuleAfterRejection({ rule: 'allow', reject_count: 0 }))
       .toEqual({ rule: 'auto', reject_count: 1 });
+  });
+  it('rejecting an already-blocked sender keeps it blocked', () => {
+    expect(nextRuleAfterRejection({ rule: 'block', reject_count: 2 }))
+      .toEqual({ rule: 'block', reject_count: 3 });
+    // reject_count below BLOCK_AFTER_REJECTS — must still stay blocked
+    expect(nextRuleAfterRejection({ rule: 'block', reject_count: 0 }))
+      .toEqual({ rule: 'block', reject_count: 1 });
   });
 });
