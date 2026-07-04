@@ -41,6 +41,10 @@ export type FetchedEmail = {
   snippet: string; // first 500 chars of text body — used by the AI classifier
   attachments: FetchedAttachment[];
 };
+// capped=true means the 100-message safety cap cut the batch short — there are
+// more unprocessed messages in the window. The caller MUST NOT advance its
+// scan cursor in that case, or the skipped middle of the window is lost.
+export type FetchResult = { messages: FetchedEmail[]; capped: boolean };
 
 function client(email: string, passPlain: string): ImapFlow {
   return new ImapFlow({
@@ -109,12 +113,13 @@ export async function fetchNewMessages(
   account: { email: string; app_password: string },
   since: Date,
   known: Set<string>,
-): Promise<FetchedEmail[]> {
+): Promise<FetchResult> {
   const c = client(account.email, decryptToken(account.app_password));
   // imapflow emits 'error' on socket timeouts; without a listener Node would
   // crash the process with an uncaught exception.
   c.on('error', () => {});
   const out: FetchedEmail[] = [];
+  let capped = false;
   try {
     await c.connect();
     const lock = await c.getMailboxLock('INBOX', { readOnly: true });
@@ -123,13 +128,13 @@ export async function fetchNewMessages(
       // no matches / the search fails — treat both as "nothing to do".
       const found = await c.search({ since }, { uid: true });
       const uids: number[] = Array.isArray(found) ? found : [];
-      if (uids.length === 0) return out;
+      if (uids.length === 0) return { messages: out, capped };
 
       const fresh: { uid: number; mid: string }[] = [];
       for await (const msg of c.fetch(uids, { envelope: true, uid: true }, { uid: true })) {
         const mid = normalizeMessageId(msg.envelope?.messageId, msg.uid, account.email);
         if (!known.has(mid)) fresh.push({ uid: msg.uid, mid });
-        if (fresh.length >= 100) break; // safety cap per run; the next run picks up the rest
+        if (fresh.length >= 100) { capped = true; break; } // safety cap per run; the next run picks up the rest
       }
       for (const { uid, mid } of fresh) {
         const fetched = await c.fetchOne(uid, { source: true, uid: true }, { uid: true });
@@ -150,5 +155,5 @@ export async function fetchNewMessages(
     await c.logout().catch(() => {});
     c.close(); // idempotent; guarantees the socket is torn down even if logout failed
   }
-  return out;
+  return { messages: out, capped };
 }

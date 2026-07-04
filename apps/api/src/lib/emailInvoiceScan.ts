@@ -194,7 +194,7 @@ export async function scanEmailInvoices(): Promise<ScanResults> {
         }).catch(() => []);
         const known = new Set<string>(knownRows.map(r => r.message_id));
 
-        const messages = await fetchNewMessages(acct, since, known);
+        const { messages, capped } = await fetchNewMessages(acct, since, known);
         for (const msg of messages) {
           try { await processMessage(acct, msg, results); }
           catch (e: any) {
@@ -216,9 +216,13 @@ export async function scanEmailInvoices(): Promise<ScanResults> {
             });
           }
         }
+        // Only advance the scan cursor when the whole window was consumed.
+        // A capped batch means unprocessed messages remain in the middle of
+        // the window — advancing would skip them forever; the log-based dedupe
+        // makes re-covering the window cheap on the next run.
         await (prisma as any).emailAccount.update({
           where: { id: acct.id },
-          data: { last_checked_at: scanStart, last_error: null },
+          data: { ...(capped ? {} : { last_checked_at: scanStart }), last_error: null },
         });
       } catch (e: any) {
         results.errors++;
