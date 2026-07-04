@@ -16,7 +16,7 @@ import { handleAdminInvoiceMedia, tryConfirmPendingInvoice } from '../lib/whatsa
 import { tryProposeAction, tryConfirmPendingAction } from '../lib/whatsappActions.js';
 import { transcribeWhatsAppVoice } from '../lib/whatsappVoice.js';
 import { runConversationAgent } from '../lib/whatsappConversation.js';
-import { tryHandleOnboardingMessage } from '../lib/whatsappOnboarding.js';
+import { tryHandleOnboardingMessage, tryHandleOnboardingMedia } from '../lib/whatsappOnboarding.js';
 import { sendWhatsApp } from '../lib/twilio.js';
 import {
   resolveTenantFromMessage,
@@ -171,6 +171,26 @@ export const twilioWebhookRoutes: FastifyPluginAsync = async (app) => {
             }
           } catch (e: any) {
             req.log.warn({ err: e?.message }, '[whatsapp-agent] onboarding handler failed');
+          }
+        }
+        // ── Onboarding media (menu PDF/photo at the menu step). Must run
+        // BEFORE the admin branch: an owner who is also a WhatsApp admin
+        // (like Dvir testing) would otherwise get the invoice-scanner reply
+        // for their menu upload. Extraction takes 20-60s so the handler
+        // claims the message, we ACK, and it finishes in the background.
+        if (numMedia >= 1 && params.MediaUrl0) {
+          try {
+            const claimed = await tryHandleOnboardingMedia(
+              from, params.MediaUrl0, String(params.MediaContentType0 || ''),
+            );
+            if (claimed) {
+              reply.type('text/xml').send(
+                '<?xml version="1.0" encoding="UTF-8"?><Response><Message>📖 קיבלתי את התפריט! קורא מנות ומחירים... תוך כדקה אשלח לך סיכום של כל מה שהוקם 🚀</Message></Response>',
+              );
+              return;
+            }
+          } catch (e: any) {
+            req.log.warn({ err: e?.message }, '[whatsapp-agent] onboarding media handler failed');
           }
         }
         // ── Admin agent: route owner/manager messages to read-only commands.
