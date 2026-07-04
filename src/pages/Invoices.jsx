@@ -6,12 +6,13 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { FileText, Package, AlertCircle, CheckCircle, Eye, CreditCard } from 'lucide-react';
+import { FileText, Package, AlertCircle, CheckCircle, Eye, CreditCard, Mail, ClipboardCheck } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { format } from 'date-fns';
 import InvoiceFilters from '../components/invoices/InvoiceFilters';
 import ExportDialog from '../components/invoices/ExportDialog'; // Import the new dialog component
+import InvoiceReviewModal from '../components/invoices/InvoiceReviewModal';
 
 export default function InvoicesPage() {
     const [invoices, setInvoices] = useState([]);
@@ -26,6 +27,7 @@ export default function InvoicesPage() {
         maxAmount: ''
     });
     const [showExportDialog, setShowExportDialog] = useState(false);
+    const [reviewInvoice, setReviewInvoice] = useState(null);
 
     useEffect(() => {
         loadData();
@@ -90,6 +92,7 @@ export default function InvoicesPage() {
         processed: { icon: CheckCircle, color: 'text-green-600', label: 'עובדה' },
         pending_review: { icon: Package, color: 'text-yellow-600', label: 'בהמתנה' },
         error: { icon: AlertCircle, color: 'text-red-600', label: 'שגיאה' },
+        rejected: { icon: AlertCircle, color: 'text-gray-400', label: 'נדחתה' },
     };
 
     const paymentStatusInfo = {
@@ -149,7 +152,17 @@ export default function InvoicesPage() {
 
                                     return (
                                         <TableRow key={invoice.id}>
-                                            <TableCell className="font-medium">{supplier?.company_name || 'לא ידוע'}</TableCell>
+                                            <TableCell className="font-medium">
+                                                <div className="flex items-center gap-2">
+                                                    {supplier?.company_name || 'לא ידוע'}
+                                                    {invoice.source === 'email' && (
+                                                        <Badge variant="outline" className="flex items-center gap-1 text-blue-600 border-blue-200">
+                                                            <Mail className="w-3 h-3" />
+                                                            מייל
+                                                        </Badge>
+                                                    )}
+                                                </div>
+                                            </TableCell>
                                             <TableCell>{invoice.invoice_number || '---'}</TableCell>
                                             <TableCell>{invoice.invoice_date && !isNaN(new Date(invoice.invoice_date)) ? format(new Date(invoice.invoice_date), 'dd/MM/yyyy') : '—'}</TableCell>
                                             <TableCell>₪{(invoice.total_amount ?? 0).toLocaleString()}</TableCell>
@@ -174,12 +187,24 @@ export default function InvoicesPage() {
                                                 </Button>
                                             </TableCell>
                                             <TableCell>
-                                                <Button asChild variant="outline" size="sm">
-                                                    <Link to={createPageUrl(`InvoiceDetails?id=${invoice.id}`)}>
-                                                        <Eye className="w-4 h-4 ml-2" />
-                                                        צפה
-                                                    </Link>
-                                                </Button>
+                                                <div className="flex items-center gap-2">
+                                                    {invoice.source === 'email' && invoice.status === 'pending_review' && (
+                                                        <Button
+                                                            size="sm"
+                                                            className="bg-amber-500 hover:bg-amber-600 text-white"
+                                                            onClick={() => setReviewInvoice(invoice)}
+                                                        >
+                                                            <ClipboardCheck className="w-4 h-4 ml-2" />
+                                                            בדוק ואשר
+                                                        </Button>
+                                                    )}
+                                                    <Button asChild variant="outline" size="sm">
+                                                        <Link to={createPageUrl(`InvoiceDetails?id=${invoice.id}`)}>
+                                                            <Eye className="w-4 h-4 ml-2" />
+                                                            צפה
+                                                        </Link>
+                                                    </Button>
+                                                </div>
                                             </TableCell>
                                         </TableRow>
                                     );
@@ -196,6 +221,14 @@ export default function InvoicesPage() {
                     </CardContent>
                 </Card>
             </div>
+            {reviewInvoice && (
+                <InvoiceReviewModal
+                    invoice={reviewInvoice}
+                    supplierName={suppliers[reviewInvoice.supplier_id]?.company_name}
+                    onClose={() => setReviewInvoice(null)}
+                    onDone={() => { setReviewInvoice(null); loadData(); }}
+                />
+            )}
             <ExportDialog
                 isOpen={showExportDialog}
                 onClose={() => setShowExportDialog(false)}
