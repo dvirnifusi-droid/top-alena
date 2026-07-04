@@ -31,22 +31,32 @@ export const emailAccountsRoutes: FastifyPluginAsync = async (app) => {
     } catch {
       return reply.code(400).send({ error: 'imap_login_failed', message: 'ההתחברות לתיבה נכשלה — ודא שסיסמת האפליקציה נכונה ושאימות דו-שלבי פעיל' });
     }
-    const row = await (prisma as any).emailAccount.upsert({
-      where: { email: addr },
-      update: { app_password: encryptToken(pass), status: 'active', last_error: null },
-      create: { email: addr, app_password: encryptToken(pass) },
-    });
-    return { id: row.id, email: row.email, status: row.status };
+    try {
+      const row = await (prisma as any).emailAccount.upsert({
+        where: { email: addr },
+        update: { app_password: encryptToken(pass), status: 'active', last_error: null },
+        create: { email: addr, app_password: encryptToken(pass) },
+      });
+      return { id: row.id, email: row.email, status: row.status };
+    } catch (e: any) {
+      req.log?.error?.({ err: e?.message }, 'email-account save failed');
+      return reply.code(500).send({ error: 'internal', message: 'שמירת התיבה נכשלה — נסה שוב' });
+    }
   });
 
   app.delete('/:id', async (req, reply) => {
     const { id } = req.params as { id: string };
-    await (prisma as any).emailAccount.delete({ where: { id } }).catch(() => {});
+    await (prisma as any).emailAccount.delete({ where: { id } }).catch((e: any) => {
+      if (e?.code !== 'P2025') throw e; // P2025 = not found — idempotent delete
+    });
     return reply.code(204).send();
   });
 
   // Manual "scan now" from the settings screen.
   app.post('/scan-now', async () => {
-    return scanEmailInvoices();
+    // Don't await — a first-run backfill can outlast the 100s Cloudflare hard
+    // limit. The mutex inside scanEmailInvoices() prevents parallel runs.
+    void scanEmailInvoices().catch((e: any) => console.error('[scan-now] background scan failed', e?.message));
+    return { started: true };
   });
 };
