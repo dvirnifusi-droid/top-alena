@@ -42,7 +42,7 @@ const db = prisma as any; // generic delegate access
 
 // Public deploy marker — lets us confirm which build is live (and that
 // auto-deploy is working) without server access. Bump on each deploy test.
-registerFn('deployInfo', async () => ({ version: 'onboarding-v3-modules-2026-07-04', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
+registerFn('deployInfo', async () => ({ version: 'jointeam-link-2026-07-04', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
 
 
 
@@ -19978,6 +19978,97 @@ registerFn('extractSeatingFromImage', async ({ user, body }) => {
     return { tables: [], _debug: 'gemini_returned_zero_tables', _file_url_prefix: url.slice(0, 60) };
   }
   return { tables };
+});
+
+// ── Generic team-join link ──────────────────────────────────────────────
+// One shareable URL per restaurant (https://<slug>.topalena.com/JoinTeam):
+// the owner drops it in the staff WhatsApp group, each employee fills
+// name/phone/email/role, lands as status='pending_approval', and the owner
+// one-click-approves in ניהול עובדים. Replaces typing employees one by one.
+
+// PUBLIC — the JoinTeam form needs the role list before login exists.
+registerFn('getJoinTeamInfo', async () => {
+  let roles: string[] = [];
+  try {
+    const rows: any[] = await (db as any).role.findMany({ where: { is_active: true } });
+    roles = rows.map((r: any) => r.name).filter(Boolean);
+  } catch { /* Role table may not exist yet */ }
+  if (!roles.length) roles = ['מלצר/ית', 'טבח/ית', 'ברמן/ית', 'אחמ"ש', 'שוטף כלים', 'מארח/ת'];
+  return { roles, brand: await getBrandName() };
+}, { public: true });
+
+// PUBLIC — employee self-signup from the JoinTeam page.
+registerFn('joinTeamRequest', async ({ body }) => {
+  const b = (body || {}) as any;
+  const fullName = String(b.full_name || '').trim();
+  const phone = String(b.phone || '').replace(/[^\d+]/g, '');
+  const email = String(b.email || '').trim().toLowerCase();
+  const role = String(b.role || '').trim();
+  if (fullName.length < 2) throw new Error('שם מלא חובה');
+  if (phone.length < 9) throw new Error('מספר טלפון לא תקין');
+  if (!/\S+@\S+\.\S+/.test(email)) throw new Error('מייל לא תקין');
+  if (!role) throw new Error('בחר תפקיד');
+  // Dedupe — an employee who already exists (any status) shouldn't pile up.
+  const existing = await (db as any).employee.findFirst({
+    where: { OR: [{ email }, { phone }] },
+  }).catch(() => null);
+  if (existing) {
+    if (existing.status === 'pending_approval') return { ok: true, already: 'pending' };
+    throw new Error('כבר קיים עובד עם המייל או הטלפון הזה');
+  }
+  await (db as any).employee.create({
+    data: { full_name: fullName, email, phone, role, status: 'pending_approval' },
+  });
+  // Ping the owner so approval doesn't wait for him to stumble on it.
+  try {
+    const { pushoverToAdmins } = await import('../lib/pushover.js');
+    await pushoverToAdmins('👥 עובד חדש ממתין לאישור', `${fullName} (${role}) נרשם דרך קישור ההצטרפות. אשר בניהול עובדים.`);
+  } catch { /* non-fatal */ }
+  return { ok: true };
+}, { public: true });
+
+// ADMIN — approve/reject a pending self-signup. Approval activates the
+// Employee row, creates a User login with a temp password, and WhatsApps
+// the employee their credentials.
+registerFn('approveEmployee', async ({ user, body }) => {
+  if (!user?.id) throw new Error('unauthorized');
+  if (!isAdminRole((user as any)?.role)) throw new Error('admin only');
+  const b = (body || {}) as any;
+  const emp = await (db as any).employee.findUnique({ where: { id: String(b.employee_id || '') } });
+  if (!emp) throw new Error('employee_not_found');
+  if (b.approve === false) {
+    await (db as any).employee.update({ where: { id: emp.id }, data: { status: 'rejected' } });
+    return { ok: true, status: 'rejected' };
+  }
+  await (db as any).employee.update({ where: { id: emp.id }, data: { status: 'active' } });
+  // Login account — update-then-insert on email (see resendTenantWelcome for
+  // why not ON CONFLICT).
+  const tempPassword = `Team-${Math.floor(1000 + Math.random() * 9000)}`;
+  let credsSent = false;
+  try {
+    const bcrypt = (await import('bcryptjs')).default;
+    const hash = await bcrypt.hash(tempPassword, 10);
+    const existingUser = await (db as any).user.findFirst({ where: { email: emp.email } });
+    if (existingUser) {
+      await (db as any).user.update({ where: { id: existingUser.id }, data: { passwordHash: hash } });
+    } else {
+      await (db as any).user.create({
+        data: { email: emp.email, passwordHash: hash, role: 'user', fullName: emp.full_name },
+      });
+    }
+    if (emp.phone) {
+      const brand = await getBrandName();
+      const origin = process.env.PUBLIC_BASE_URL || `https://${process.env.TENANT_SLUG || 'topalena'}.topalena.com`;
+      const { sendWhatsApp } = await import('../lib/twilio.js');
+      await sendWhatsApp(emp.phone,
+        `🎉 ${emp.full_name}, אושרת לצוות ${brand}!\n\n🔗 כניסה: ${origin}\n📧 מייל: ${emp.email}\n🔑 סיסמה זמנית: *${tempPassword}*\n(שנה/י אותה אחרי הכניסה הראשונה)`,
+      );
+      credsSent = true;
+    }
+  } catch (e: any) {
+    console.warn('[approveEmployee] user/creds failed:', e?.message);
+  }
+  return { ok: true, status: 'active', creds_sent: credsSent };
 });
 
 // BP — Invite a new employee via WhatsApp. Owner enters name+phone, we

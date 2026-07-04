@@ -840,16 +840,16 @@ function EmployeesInner() {
            <div className="flex gap-2 flex-wrap">
              <Button
                variant="outline"
-               onClick={async () => {
-                 const name = window.prompt('שם מלא של העובד:');
-                 if (!name?.trim()) return;
-                 const phone = window.prompt('טלפון (וואטסאפ):');
-                 if (!phone?.trim()) return;
-                 try {
-                   const res = await base44.functions.inviteEmployeeViaWhatsApp({ full_name: name.trim(), phone: phone.trim() });
-                   const data = res?.data || res;
-                   alert(`✅ נשלחה הזמנה ל-${name} בוואטסאפ.\nלינק גיבוי: ${data?.link || ''}`);
-                 } catch (e) { alert('שגיאה: ' + (e?.message || '')); }
+               onClick={() => {
+                 const link = `${window.location.origin}/JoinTeam`;
+                 try { navigator.clipboard?.writeText(link); } catch { /* no clipboard */ }
+                 if (window.confirm(
+                   `🔗 קישור ההצטרפות הועתק:\n${link}\n\n` +
+                   `שתף בקבוצת הצוות — כל עובד נרשם לבד (שם, טלפון, מייל, תפקיד) ` +
+                   `ומופיע כאן לאישור שלך.\n\nלפתוח וואטסאפ לשיתוף?`
+                 )) {
+                   window.open(`https://wa.me/?text=${encodeURIComponent(`היי! נרשמים לצוות שלנו כאן (לוקח דקה):\n${link}`)}`, '_blank');
+                 }
                }}
                className="gap-1"
              >
@@ -869,6 +869,45 @@ function EmployeesInner() {
              </Button>
            </div>
          </div>
+
+         {allEmployees.filter(e => e.status === 'pending_approval').length > 0 && (
+           <Card className="border-blue-300 bg-blue-50/60 mb-6">
+             <CardContent className="p-4">
+               <h3 className="font-bold mb-3">👥 ממתינים לאישורך ({allEmployees.filter(e => e.status === 'pending_approval').length})</h3>
+               <div className="space-y-2">
+                 {allEmployees.filter(e => e.status === 'pending_approval').map(emp => (
+                   <div key={emp.id} className="flex flex-wrap items-center gap-3 bg-white rounded-lg p-3 border border-blue-100">
+                     <div className="flex-1 min-w-[180px]">
+                       <div className="font-bold">{emp.full_name}</div>
+                       <div className="text-xs text-slate-500">{emp.role} · <span dir="ltr">{emp.phone}</span> · {emp.email}</div>
+                     </div>
+                     <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                       onClick={async () => {
+                         try {
+                           const res = await base44.functions.approveEmployee({ employee_id: emp.id, approve: true });
+                           const d = res?.data || res;
+                           alert(d?.creds_sent ? `✅ ${emp.full_name} אושר! פרטי כניסה נשלחו אליו בוואטסאפ.` : `✅ ${emp.full_name} אושר.`);
+                           loadEmployees();
+                         } catch (e) { alert('שגיאה: ' + (e?.message || '')); }
+                       }}>
+                       ✓ אשר
+                     </Button>
+                     <Button size="sm" variant="outline" className="border-red-300 text-red-700 hover:bg-red-50"
+                       onClick={async () => {
+                         if (!window.confirm(`לדחות את ${emp.full_name}?`)) return;
+                         try {
+                           await base44.functions.approveEmployee({ employee_id: emp.id, approve: false });
+                           loadEmployees();
+                         } catch (e) { alert('שגיאה: ' + (e?.message || '')); }
+                       }}>
+                       דחה
+                     </Button>
+                   </div>
+                 ))}
+               </div>
+             </CardContent>
+           </Card>
+         )}
 
          {aiCandidates && (
            <Card className="border-amber-200 bg-amber-50">

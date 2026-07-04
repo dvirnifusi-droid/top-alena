@@ -93,9 +93,9 @@ const MODULE_PROMPTS: Partial<Record<StepId, string>> = {
     `או שלח קובץ של סידור עבודה קיים — אזהה את התפקידים מתוכו.\n(או "חזרה")`,
   m_employees:
     `👥 *עובדים*\n\nשלוש דרכים:\n` +
-    `א. שלח קובץ/תמונה של רשימת העובדים — אקרא ואקים\n` +
-    `ב. רשום ידנית — שורה לכל עובד: שם, תפקיד, טלפון\n` +
-    `ג. כתוב "הזמנות" ואז רשום שם + טלפון לכל עובד — כל אחד יקבל וואטסאפ עם קישור להירשם לבד (שם מלא, מייל, תפקיד)\n\n(או "חזרה")`,
+    `א. כתוב "קישור" — תקבל קישור הצטרפות אחד לשיתוף בקבוצת הצוות. כל עובד נרשם לבד (שם, טלפון, מייל, תפקיד) ואתה רק מאשר 👑\n` +
+    `ב. שלח קובץ/תמונה של רשימת העובדים — אקרא ואקים\n` +
+    `ג. רשום ידנית — שורה לכל עובד: שם, תפקיד, טלפון\n\n(או "חזרה")`,
   m_interviews:
     `🗓 *סלוטים לראיונות*\n\nמתי נוח לך לקיים ראיונות עבודה? רשום שורות של יום + שעה:\n` +
     `שני 14:00\nרביעי 10:30\nחמישי 16:00\n\nמועמדים יוכלו לקבוע ראיון בסלוטים האלה אוטומטית.\n(או "חזרה")`,
@@ -441,22 +441,20 @@ async function handleModuleText(
         return true;
       }
       case 'm_employees': {
-        if (/^הזמנות/.test(text)) {
-          data._invite_mode = true;
-          await saveData(tenant.id, data);
-          await sendWhatsApp(fromPhone, `📲 מצב הזמנות: רשום שם + טלפון לכל עובד (שורה לכל אחד):\nדנה, 052-1234567\nיוסי, 054-7654321`);
-          return true;
-        }
-        if (data._invite_mode) {
-          const n = await inviteEmployeesByWhatsApp(tenant, text);
-          data._invite_mode = false;
-          data._counts.invited = (data._counts.invited || 0) + n;
-          await backToMenu(tenant, state, data, fromPhone, `✅ נשלחו ${n} הזמנות וואטסאפ! כל עובד ימלא שם, מייל ותפקיד בעצמו.`);
+        if (/^(קישור|לינק|link)/i.test(text)) {
+          data._counts.invited = 1; // marks the module as handled in the menu
+          await backToMenu(
+            tenant, state, data, fromPhone,
+            `🔗 *קישור ההצטרפות לצוות ${tenant.restaurant_name}:*\n` +
+            `https://${tenant.slug}.topalena.com/JoinTeam\n\n` +
+            `שתף אותו בקבוצת הוואטסאפ של הצוות. כל עובד ממלא שם, טלפון, מייל ותפקיד — ` +
+            `ואתה מאשר אותו בלחיצה במסך "ניהול עובדים". אחרי האישור הוא מקבל וואטסאפ עם פרטי כניסה.`,
+          );
           return true;
         }
         const n = await insertEmployeesFromText(tenant, text);
         data._counts.employees = (data._counts.employees || 0) + n;
-        await backToMenu(tenant, state, data, fromPhone, n ? `✅ ${n} עובדים הוקמו!` : `לא זיהיתי — פורמט: שם, תפקיד, טלפון (שורה לכל עובד). או שלח קובץ.`);
+        await backToMenu(tenant, state, data, fromPhone, n ? `✅ ${n} עובדים הוקמו!` : `לא זיהיתי — כתוב "קישור", שלח קובץ, או רשום: שם, תפקיד, טלפון (שורה לכל עובד).`);
         return true;
       }
       case 'm_interviews': {
