@@ -22,7 +22,9 @@
 - dvirnifusi@gmail.com
 - nivnin@gmail.com
 
-ניתנות לניהול (הוספה/ניתוק) במסך הגדרות. חיבור OAuth חד-פעמי לכל תיבה, scope `gmail.readonly` בלבד (קריאה — בלי שליחה/מחיקה).
+ניתנות לניהול (הוספה/ניתוק) במסך הגדרות.
+
+**שיטת חיבור — עדכון 2026-07-04 (החלטת תכנון):** IMAP עם סיסמת אפליקציה של Google במקום OAuth. סיבה: `gmail.readonly` הוא scope מוגבל (restricted) — במצב Testing טוקן הרענון פג כל 7 ימים (שובר את האוטומציה), ובמצב Production נדרש אימות אפליקציה מלא של Google (שבועות). סיסמת אפליקציה: הקמה חד-פעמית לכל תיבה, לא פגה, בלי Google Cloud. דורש אימות דו-שלבי פעיל בחשבון. הסיסמה נשמרת מוצפנת (AES-256-GCM); המערכת קוראת בלבד — לא משנה דגלים, לא מוחקת.
 
 ## ארכיטקטורה
 
@@ -32,12 +34,16 @@
 model EmailAccount {
   id             String   @id @default(cuid())
   email          String   @unique
-  refresh_token  String   // מוצפן (AES, מפתח ב-ENV)
+  app_password   String   // מוצפן (AES-256-GCM, מפתח EMAIL_TOKEN_ENC_KEY ב-ENV)
   status         String   @default("active") // active | disconnected | error
   last_checked_at DateTime?
-  last_history_id String?  // Gmail historyId לסריקה אינקרמנטלית
+  last_error     String?
   created_at     DateTime @default(now())
 }
+
+// בנוסף: EmailMessageLog — לוג לכל מייל שנבדק (message_id ייחודי, outcome:
+// imported | not_invoice | blocked | duplicate | no_attachment | error) —
+// משמש למניעת עיבוד כפול ולשקיפות/דיבוג.
 
 model EmailSenderRule {
   id              String   @id @default(cuid())
@@ -63,20 +69,21 @@ model ProductAlias {
 
 `InvoiceItem`: להוסיף `inventory_action String?` (add_existing | create_new | skip), `inventory_item_id String?` — נקבעים במסך האישור.
 
-### 3. חיבור Gmail (OAuth)
+### 3. חיבור Gmail (IMAP + סיסמת אפליקציה)
 
 - Routes חדשים ב-`apps/api/src/routes/emailAccounts.ts`:
-  - `GET /api/email-accounts` — רשימת תיבות + סטטוס.
-  - `GET /api/email-accounts/connect` — מפנה ל-Google consent (scope: gmail.readonly, access_type=offline, prompt=consent).
-  - `GET /api/email-accounts/callback` — שומר refresh_token מוצפן.
-  - `DELETE /api/email-accounts/:id` — ניתוק (revoke + מחיקה).
-- דרישות חד-פעמיות ב-Google Cloud Console: הפעלת Gmail API, הוספת scope למסך ה-consent, redirect URI. משתמש ב-`GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` הקיימים.
+  - `GET /api/email-accounts` — רשימת תיבות + סטטוס (בלי הסיסמה).
+  - `POST /api/email-accounts` — חיבור תיבה: מאמת את הסיסמה מול Gmail IMAP בזמן אמת, שומר מוצפן.
+  - `DELETE /api/email-accounts/:id` — ניתוק (מחיקה).
+  - `POST /api/email-accounts/scan-now` — סריקה ידנית מיידית ממסך ההגדרות.
+- ספריות: `imapflow` + `mailparser`. חיבור ל-imap.gmail.com:993, קריאה בלבד מ-INBOX.
+- הקמה חד-פעמית לכל תיבה: אימות דו-שלבי פעיל → יצירת סיסמת אפליקציה ב-myaccount.google.com/apppasswords → הדבקה במסך ההגדרות.
 
 ### 4. קרון סריקה — `POST /api/cron/email-invoice-scan`
 
 רץ כל 10 דקות (שורה חדשה ב-crontab בשרת). לכל תיבה פעילה:
 
-1. **שליפה אינקרמנטלית:** Gmail `history.list` מ-`last_history_id` (או `messages.list` עם `q="has:attachment newer_than:1d"` כ-fallback). בחיבור ראשון: backfill של 30 יום אחורה (`newer_than:30d has:attachment`).
+1. **שליפה אינקרמנטלית:** חיפוש IMAP `SINCE` מ-`last_checked_at` פחות יום חפיפה (SINCE ברזולוציית יום), עם מניעת כפילויות לפי Message-ID מול `EmailMessageLog`. בחיבור ראשון: backfill של 30 יום אחורה. עד 100 הודעות חדשות לריצה (הריצה הבאה ממשיכה מאיפה שעצרנו).
 2. **סינון:**
    - שולח עם rule=block → דילוג.
    - שולח עם rule=allow (ספק מוכר) + קובץ מצורף PDF/JPG/PNG → נכנס לעיבוד ישירות.
@@ -121,7 +128,7 @@ model ProductAlias {
 
 ## טיפול בשגיאות
 
-- **Refresh token נשלל** (המשתמש הסיר הרשאה): `EmailAccount.status = disconnected` + הודעת WhatsApp למנהל "תיבת X נותקה — יש לחבר מחדש".
+- **סיסמת אפליקציה בוטלה/שגויה:** `EmailAccount.status = disconnected` + הודעת WhatsApp למנהל "תיבת X נותקה — יש לחבר מחדש".
 - **כשל חילוץ LLM:** retry אחד; בכשל שני — דילוג + לוג. המייל ייבדק שוב בריצה הבאה רק אם לא סומן כמעובד (מסמנים מעובד רק אחרי הצלחה או שני כשלונות).
 - **קובץ לא נתמך / גדול מ-15MB:** דילוג בשקט.
 - הקרון עוטף כל תיבה ב-try/catch — כשל בתיבה אחת לא מפיל את השנייה.
@@ -141,7 +148,7 @@ model ProductAlias {
 
 ## תלות חיצונית (הקמה חד-פעמית)
 
-1. הפעלת Gmail API בפרויקט Google Cloud הקיים + הוספת scope `gmail.readonly` ו-redirect URI.
-2. דביר וניב מאשרים את חלון ה-consent של גוגל — פעם אחת לכל תיבה.
-3. שורת crontab חדשה בשרת (VPS: root@91.98.45.253) — כל 10 דקות.
-4. ENV חדשים: `GOOGLE_CLIENT_SECRET` (אם חסר), `EMAIL_TOKEN_ENC_KEY` (הצפנת refresh tokens).
+1. אימות דו-שלבי פעיל בשני חשבונות Google (דביר + ניב).
+2. יצירת סיסמת אפליקציה לכל חשבון (myaccount.google.com/apppasswords) והדבקה במסך ההגדרות.
+3. שורת crontab חדשה בשרת (VPS: 91.98.45.253, `/opt/top-alena`) — כל 10 דקות.
+4. ENV חדש: `EMAIL_TOKEN_ENC_KEY` (הצפנת סיסמאות האפליקציה, `openssl rand -hex 32`).
