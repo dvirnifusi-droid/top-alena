@@ -8,7 +8,9 @@ beforeAll(() => {
 describe('emailCrypto', () => {
   it('round-trips a secret', () => {
     const enc = encryptToken('abcd wxyz 1234');
-    expect(enc).not.toContain('abcd');
+    // The random IV hex could coincidentally contain 'abcd'; check the
+    // ciphertext segment doesn't contain the plaintext's hex encoding.
+    expect(enc.split(':')[2]).not.toContain(Buffer.from('abcd wxyz 1234').toString('hex'));
     expect(decryptToken(enc)).toBe('abcd wxyz 1234');
   });
 
