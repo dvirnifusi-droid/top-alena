@@ -28,8 +28,10 @@ registerFn('emailInvoiceApprove', async ({ body }) => {
   const finalSupplierId = p.supplier_id ? String(p.supplier_id) : inv.supplier_id;
 
   await (prisma as any).$transaction(async (tx: any) => {
-    await tx.invoice.update({
-      where: { id: inv.id },
+    // Atomic guard: only one concurrent approve can win this updateMany
+    // (status/inventory_applied re-checked inside the transaction).
+    const { count } = await tx.invoice.updateMany({
+      where: { id: inv.id, status: 'pending_review', inventory_applied: false },
       data: {
         invoice_number: p.invoice_number != null ? String(p.invoice_number).slice(0, 60) : inv.invoice_number,
         invoice_date: p.invoice_date && /^\d{4}-\d{2}-\d{2}$/.test(p.invoice_date)
@@ -41,12 +43,14 @@ registerFn('emailInvoiceApprove', async ({ body }) => {
         inventory_applied: true,
       },
     });
+    if (count === 0) throw new Error('invoice_already_processed');
 
     for (const it of items) {
       const qty = Number(it.quantity) || 0;
       const price = Number(it.unit_price) || 0;
-      await tx.invoiceItem.update({
-        where: { id: it.id },
+      // Ownership check: only touch items that belong to this invoice.
+      const itemRes = await tx.invoiceItem.updateMany({
+        where: { id: it.id, invoice_id: inv.id },
         data: {
           product_name: String(it.product_name).slice(0, 200),
           quantity: qty,
@@ -56,8 +60,22 @@ registerFn('emailInvoiceApprove', async ({ body }) => {
           inventory_item_id: it.inventory_item_id || null,
         },
       });
+      if (itemRes.count === 0) throw new Error(`item_not_found: ${it.id}`);
+
+      const upsertAlias = (inventoryItemId: string) =>
+        tx.productAlias.upsert({
+          where: { alias_name: normalizeForMatch(it.product_name) },
+          update: { inventory_item_id: inventoryItemId },
+          create: {
+            alias_name: normalizeForMatch(it.product_name),
+            inventory_item_id: inventoryItemId,
+            supplier_id: finalSupplierId,
+          },
+        });
 
       if (it.inventory_action === 'add_existing' && it.inventory_item_id) {
+        const invItem = await tx.inventory.findUnique({ where: { id: it.inventory_item_id } });
+        if (!invItem) throw new Error(`inventory_item_deleted: ${it.inventory_item_id}`);
         await tx.inventory.update({
           where: { id: it.inventory_item_id },
           data: {
@@ -67,19 +85,12 @@ registerFn('emailInvoiceApprove', async ({ body }) => {
           },
         });
         // Learning: remember this invoice-name → inventory-item mapping.
-        await tx.productAlias.upsert({
-          where: { alias_name: normalizeForMatch(it.product_name) },
-          update: { inventory_item_id: it.inventory_item_id },
-          create: {
-            alias_name: normalizeForMatch(it.product_name),
-            inventory_item_id: it.inventory_item_id,
-            supplier_id: finalSupplierId,
-          },
-        });
+        await upsertAlias(it.inventory_item_id);
       } else if (it.inventory_action === 'create_new') {
         const created = await tx.inventory.create({
           data: {
             item_name: String(it.product_name).slice(0, 200),
+            // Single invoice-level category applies to all new items from this approve (UX: one pick per review).
             category: String(p.category || 'אחר').slice(0, 60),
             current_stock: qty,
             unit: it.unit ? String(it.unit).slice(0, 30) : 'יח\'',
@@ -88,15 +99,7 @@ registerFn('emailInvoiceApprove', async ({ body }) => {
             last_updated: new Date(),
           },
         });
-        await tx.productAlias.upsert({
-          where: { alias_name: normalizeForMatch(it.product_name) },
-          update: { inventory_item_id: created.id },
-          create: {
-            alias_name: normalizeForMatch(it.product_name),
-            inventory_item_id: created.id,
-            supplier_id: finalSupplierId,
-          },
-        });
+        await upsertAlias(created.id);
       }
       // 'skip' → nothing.
     }
@@ -113,7 +116,7 @@ registerFn('emailInvoiceApprove', async ({ body }) => {
       where: { id: finalSupplierId, status: 'pending_approval' },
       data: { status: 'active' },
     });
-  });
+  }, { timeout: 15_000, maxWait: 5_000 });
 
   return { ok: true };
 });
@@ -124,7 +127,12 @@ registerFn('emailInvoiceReject', async ({ body }) => {
   if (!inv) throw new Error('invoice_not_found');
   if (inv.status !== 'pending_review') throw new Error('invoice_not_pending');
 
-  await (prisma as any).invoice.update({ where: { id: inv.id }, data: { status: 'rejected' } });
+  // Atomic guard: only reject if still pending (loses cleanly to a concurrent approve/reject).
+  const { count } = await (prisma as any).invoice.updateMany({
+    where: { id: inv.id, status: 'pending_review' },
+    data: { status: 'rejected' },
+  });
+  if (count === 0) throw new Error('invoice_already_processed');
 
   // Learning: strike the sender; two strikes → block.
   let senderBlocked = false;
