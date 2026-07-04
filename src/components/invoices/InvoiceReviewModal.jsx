@@ -9,6 +9,18 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { CheckCircle, XCircle, Loader2 } from 'lucide-react';
 
+const ERROR_HE = {
+  invoice_already_processed: 'החשבונית כבר טופלה (אושרה או נדחתה) — רענן את הדף.',
+  invoice_not_pending: 'החשבונית כבר לא בסטטוס בהמתנה.',
+  inventory_item_deleted: 'אחד מפריטי המלאי שנבחרו נמחק בינתיים — בחר פריט אחר.',
+  item_not_found: 'אחת השורות לא נמצאה — רענן ונסה שוב.',
+};
+function friendlyError(e) {
+  const m = String(e?.message || e);
+  const key = Object.keys(ERROR_HE).find(k => m.includes(k));
+  return key ? ERROR_HE[key] : m;
+}
+
 // Review screen for an email-imported invoice: editable fields, per-line
 // inventory action, one Approve that commits invoice + inventory together.
 export default function InvoiceReviewModal({ invoice, supplierName, onClose, onDone }) {
@@ -20,6 +32,7 @@ export default function InvoiceReviewModal({ invoice, supplierName, onClose, onD
   });
   const [items, setItems] = useState([]);
   const [inventory, setInventory] = useState([]);
+  const [category, setCategory] = useState('אחר');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
 
@@ -51,6 +64,7 @@ export default function InvoiceReviewModal({ invoice, supplierName, onClose, onD
         invoice_date: fields.invoice_date,
         total_amount: Number(fields.total_amount) || 0,
         payment_status: fields.payment_status,
+        category,
         items: items.map(it => ({
           id: it.id,
           product_name: it.product_name,
@@ -64,7 +78,7 @@ export default function InvoiceReviewModal({ invoice, supplierName, onClose, onD
       setBusy(false);
       onDone();
     } catch (e) {
-      setError(e.message); setBusy(false);
+      setError(friendlyError(e)); setBusy(false);
     }
   };
 
@@ -80,7 +94,7 @@ export default function InvoiceReviewModal({ invoice, supplierName, onClose, onD
       setBusy(false);
       onDone();
     } catch (e) {
-      setError(e.message); setBusy(false);
+      setError(friendlyError(e)); setBusy(false);
     }
   };
 
@@ -126,6 +140,19 @@ export default function InvoiceReviewModal({ invoice, supplierName, onClose, onD
                 </SelectContent>
               </Select>
             </label>
+            {items.some(it => it.inventory_action === 'create_new') && (
+              <label className="block text-sm">
+                קטגוריה לפריטי מלאי חדשים
+                <Select value={category} onValueChange={setCategory}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {['ירקות', 'פירות', 'בשר', 'דגים', 'חלב וביצים', 'יבש', 'משקאות', 'אלכוהול', 'ניקיון', 'ציוד מטבח', 'אחר'].map(c => (
+                      <SelectItem key={c} value={c}>{c}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </label>
+            )}
           </div>
         </div>
 

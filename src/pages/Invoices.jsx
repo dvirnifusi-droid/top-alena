@@ -68,6 +68,10 @@ export default function InvoicesPage() {
 
     const filteredInvoices = useMemo(() => {
         return invoices.filter(invoice => {
+            // Rejected email-imports are noise in day-to-day work; hidden unless the user
+            // explicitly filters for them.
+            if (invoice.status === 'rejected' && filters.status !== 'rejected') return false;
+
             // Date filter
             if (filters.date?.from && new Date(invoice.invoice_date) < filters.date.from) return false;
             if (filters.date?.to && new Date(invoice.invoice_date) > filters.date.to) return false;
