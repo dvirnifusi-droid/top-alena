@@ -4,6 +4,7 @@ import { sendMorningBrief, buildMorningBrief, sendEndOfDayBrief, buildEndOfDayBr
 import { dispatchDueReminders } from '../lib/reminders.js';
 import { sendWeeklyInsights, buildWeeklyInsights } from '../lib/weeklyInsights.js';
 import { pullAllConnectedCalendars } from '../lib/googleSync.js';
+import { scanEmailInvoices } from '../lib/emailInvoiceScan.js';
 
 // Internal cron endpoints, guarded by a shared secret (x-cron-secret header or
 // ?secret=). Called by the server crontab — never by end users.
@@ -110,6 +111,9 @@ export const cronRoutes: FastifyPluginAsync = async (app) => {
   app.post('/cash-flow-agent', async () => runCashFlowAgent());
   // Every 10 min — checks for crisis incidents.
   app.post('/crisis-agent', async () => runCrisisAgent());
+
+  // Every 10 min — pull supplier invoices from connected Gmail inboxes.
+  app.post('/email-invoice-scan', async () => scanEmailInvoices());
 
   // Every minute — check who's scheduled for now but hasn't clocked in.
   // WhatsApps admin a one-tap link to ping the employee.
