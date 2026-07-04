@@ -113,6 +113,16 @@ else
   echo "==> No container rebuild needed (only scripts / config changed)"
 fi
 
+# Tenant containers run the same top-alena-api image but are NOT managed by
+# docker compose — a compose rebuild leaves them on the old image forever.
+# (This is exactly why hamara kept returning unknown_function for fns that
+# were already deployed on the main container.) Recreate them on every api
+# rebuild so all tenants always run the same code as the main app.
+if $REBUILD_API; then
+  echo "==> Redeploying tenant containers on the fresh image"
+  bash /opt/top-alena/scripts/redeploy-all-tenants.sh 2>&1 | tail -8 || true
+fi
+
 if $RECREATE_CADDY; then
   echo "==> Recreating caddy (docker-compose.yml volumes changed)"
   docker compose up -d caddy 2>&1 | tail -4
