@@ -41,8 +41,6 @@ export default function InvoiceReviewModal({ invoice, supplierName, onClose, onD
   const setItem = (idx, patch) =>
     setItems(list => list.map((it, i) => (i === idx ? { ...it, ...patch } : it)));
 
-  const invNameById = Object.fromEntries(inventory.map(i => [i.id, i.item_name]));
-
   const approve = async () => {
     if (busy) return;
     setBusy(true); setError(null);
@@ -63,6 +61,7 @@ export default function InvoiceReviewModal({ invoice, supplierName, onClose, onD
           inventory_item_id: it.inventory_action === 'add_existing' ? it.inventory_item_id : null,
         })),
       });
+      setBusy(false);
       onDone();
     } catch (e) {
       setError(e.message); setBusy(false);
@@ -78,6 +77,7 @@ export default function InvoiceReviewModal({ invoice, supplierName, onClose, onD
       if (res?.data?.sender_blocked) {
         window.alert('השולח נחסם אחרי שתי דחיות — מיילים ממנו לא ייסרקו יותר (ניתן לבטל בהגדרות תיבות מייל).');
       }
+      setBusy(false);
       onDone();
     } catch (e) {
       setError(e.message); setBusy(false);
@@ -157,7 +157,7 @@ export default function InvoiceReviewModal({ invoice, supplierName, onClose, onD
                   {it.inventory_action === 'add_existing' && (
                     <Select value={it.inventory_item_id || ''} onValueChange={v => setItem(idx, { inventory_item_id: v })}>
                       <SelectTrigger>
-                        <SelectValue placeholder="בחר פריט מלאי">{invNameById[it.inventory_item_id] || 'בחר פריט מלאי'}</SelectValue>
+                        <SelectValue placeholder="בחר פריט מלאי" />
                       </SelectTrigger>
                       <SelectContent>
                         {inventory.map(i => <SelectItem key={i.id} value={i.id}>{i.item_name}</SelectItem>)}
