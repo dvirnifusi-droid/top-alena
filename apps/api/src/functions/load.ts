@@ -4,6 +4,7 @@
  *
  * Functions marked TODO are stubs that need their original logic ported.
  */
+import './emailInvoices.js';
 import { randomUUID } from 'node:crypto';
 import { prisma } from '../db.js';
 import { registerFn, functionHandlers } from './index.js';
