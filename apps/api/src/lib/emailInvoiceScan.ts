@@ -6,7 +6,7 @@ import { invokeLLM } from './llm.js';
 import { uploadStreamToS3 } from './storage.js';
 import { fetchNewMessages, isAuthError, type FetchedEmail } from './emailFetch.js';
 import { decideMessageAction, looksLikeInvoice } from './emailInvoiceRules.js';
-import { extractInvoiceFromFile, fuzzyFindSupplier, matchInventoryItem } from './invoiceExtraction.js';
+import { extractInvoicesFromFile, fuzzyFindSupplier, matchInventoryItem } from './invoiceExtraction.js';
 import { alertEmailInvoicesImported, alertEmailAccountDisconnected } from './whatsappAlerts.js';
 
 const FIRST_RUN_LOOKBACK_MS = 30 * 24 * 3600 * 1000; // backfill 30 days on first connect
@@ -83,101 +83,145 @@ async function processMessage(acct: { email: string }, msg: FetchedEmail, result
     }
   }
 
-  // Largest allowed attachment is almost always the invoice itself.
-  const att = [...msg.attachments].sort((a, b) => b.content.length - a.content.length)[0];
-  const ext = att.contentType === 'application/pdf' ? '.pdf' : '.' + (att.contentType.split('/')[1] || 'jpg');
-  const { key } = await uploadStreamToS3(`email-invoice${ext}`, att.contentType, Readable.from(att.content));
-  const storedUrl = `/api/files/${key}`;
-
-  let extracted;
-  try {
-    extracted = await extractInvoiceFromFile(storedUrl);
-  } catch {
-    try { extracted = await extractInvoiceFromFile(storedUrl); } // one retry
-    catch (e2: any) { await log('error', { error: String(e2?.message || e2).slice(0, 300) }); results.errors++; return; }
-  }
-  if (!extracted?.supplier_name || !extracted?.total_amount) {
-    await log('error', { error: 'extract_incomplete' }); results.errors++; return;
-  }
-
-  // Supplier: reuse existing high-confidence match, else create pending_approval.
-  const { match, confidence } = await fuzzyFindSupplier(extracted.supplier_name, extracted.supplier_tax_id);
-  let supplierId: string;
-  let supplierWasCreated = false;
-  if (match && confidence >= SUPPLIER_MATCH_CONFIDENCE_THRESHOLD) {
-    supplierId = match.id;
-  } else {
-    const sup = await (prisma as any).supplier.create({
-      data: {
-        company_name: String(extracted.supplier_name).slice(0, 200),
-        supplier_id: String(extracted.supplier_tax_id || '').slice(0, 30),
-        contact_person: '',
-        email: msg.sender || '',
-        phone: '',
-        category: String(extracted.category_guess || 'אחר').slice(0, 60),
-        status: 'pending_approval',
-      },
-    });
-    supplierId = sup.id;
-    supplierWasCreated = true;
-  }
-
-  // Duplicate guard: same supplier + invoice number (catches the WhatsApp-scanned copy too).
-  if (extracted.invoice_number) {
-    const dupe = await (prisma as any).invoice.findFirst({
-      where: { supplier_id: supplierId, invoice_number: String(extracted.invoice_number) },
-    }).catch(() => null);
-    if (dupe) {
-      if (supplierWasCreated) {
-        await (prisma as any).supplier.delete({ where: { id: supplierId } }).catch(() => {});
-      }
-      await log('duplicate', { invoice_id: dupe.id });
-      results.skipped++;
-      return;
-    }
-  }
-
-  const isoOk = typeof extracted.invoice_date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(extracted.invoice_date);
-  const invoice = await (prisma as any).invoice.create({
-    data: {
-      supplier_id: supplierId,
-      invoice_number: String(extracted.invoice_number || '').slice(0, 60) || null,
-      invoice_date: isoOk ? new Date(`${extracted.invoice_date}T00:00:00.000Z`) : new Date(),
-      total_amount: Number(extracted.total_amount) || 0,
-      file_url: storedUrl,
-      status: 'pending_review',
-      payment_status: 'unpaid',
-      source: 'email',
-      email_message_id: msg.messageId,
-      email_account: acct.email,
-      email_sender: msg.sender || null,
-    },
-  });
-
-  // Fetch alias + inventory tables once per invoice instead of once per line item.
+  // Fetch alias + inventory tables once per message instead of per line item.
   const [aliases, inventoryItems] = await Promise.all([
     (prisma as any).productAlias.findMany({ take: 2000 }).catch(() => []),
     (prisma as any).inventory.findMany({ take: 2000, select: { id: true, item_name: true } }).catch(() => []),
   ]);
 
-  for (const li of extracted.line_items || []) {
-    if (!li.product_name) continue;
-    const suggestion = matchInventoryItem(li.product_name, aliases, inventoryItems);
-    await (prisma as any).invoiceItem.create({
-      data: {
-        invoice_id: invoice.id,
-        product_name: String(li.product_name).slice(0, 200),
-        quantity: Number(li.quantity) || 1,
-        unit_price: Number(li.unit_price) || 0,
-        unit: li.unit ? String(li.unit).slice(0, 30) : null,
-        inventory_action: suggestion.action,
-        inventory_item_id: suggestion.inventory_item_id || null,
-      },
-    }).catch(() => {});
+  // Process EVERY allowed attachment, and every attachment can yield SEVERAL
+  // invoices (a מרכזת bundle). Each imported invoice gets its own row; the
+  // first one keeps the plain Message-ID as its unique key, the rest get a
+  // per-attachment/per-invoice suffix.
+  let importedIds: string[] = [];
+  let sawDuplicate = false;
+  let lastError: string | null = null;
+
+  for (let attachIdx = 0; attachIdx < msg.attachments.length; attachIdx++) {
+    const att = msg.attachments[attachIdx];
+    const ext = att.contentType === 'application/pdf' ? '.pdf' : '.' + (att.contentType.split('/')[1] || 'jpg');
+    let storedUrl: string;
+    try {
+      const { key } = await uploadStreamToS3(`email-invoice${ext}`, att.contentType, Readable.from(att.content));
+      storedUrl = `/api/files/${key}`;
+    } catch (e: any) {
+      lastError = `upload_failed: ${String(e?.message || e).slice(0, 200)}`;
+      continue;
+    }
+
+    let invoicesInFile;
+    try {
+      invoicesInFile = await extractInvoicesFromFile(storedUrl);
+    } catch {
+      try { invoicesInFile = await extractInvoicesFromFile(storedUrl); } // one retry
+      catch (e2: any) { lastError = String(e2?.message || e2).slice(0, 200); continue; }
+    }
+
+    for (let invIdx = 0; invIdx < invoicesInFile.length; invIdx++) {
+      const extracted = invoicesInFile[invIdx];
+
+      // Supplier: reuse existing high-confidence match, else create pending_approval.
+      const { match, confidence } = await fuzzyFindSupplier(extracted.supplier_name, extracted.supplier_tax_id);
+      let supplierId: string;
+      let supplierWasCreated = false;
+      if (match && confidence >= SUPPLIER_MATCH_CONFIDENCE_THRESHOLD) {
+        supplierId = match.id;
+      } else {
+        const sup = await (prisma as any).supplier.create({
+          data: {
+            company_name: String(extracted.supplier_name).slice(0, 200),
+            supplier_id: String(extracted.supplier_tax_id || '').slice(0, 30),
+            contact_person: '',
+            email: msg.sender || '',
+            phone: '',
+            category: String(extracted.category_guess || 'אחר').slice(0, 60),
+            status: 'pending_approval',
+          },
+        });
+        supplierId = sup.id;
+        supplierWasCreated = true;
+      }
+
+      // Duplicate guard: same supplier + invoice number (catches the
+      // WhatsApp-scanned copy and re-processed messages too).
+      if (extracted.invoice_number) {
+        const dupe = await (prisma as any).invoice.findFirst({
+          where: { supplier_id: supplierId, invoice_number: String(extracted.invoice_number) },
+        }).catch(() => null);
+        if (dupe) {
+          if (supplierWasCreated) {
+            await (prisma as any).supplier.delete({ where: { id: supplierId } }).catch(() => {});
+          }
+          sawDuplicate = true;
+          results.skipped++;
+          continue;
+        }
+      }
+
+      const emailKey = attachIdx === 0 && invIdx === 0
+        ? msg.messageId
+        : `${msg.messageId}#a${attachIdx}i${invIdx}`;
+      const isoOk = typeof extracted.invoice_date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(extracted.invoice_date);
+      let invoice: any;
+      try {
+        invoice = await (prisma as any).invoice.create({
+          data: {
+            supplier_id: supplierId,
+            invoice_number: String(extracted.invoice_number || '').slice(0, 60) || null,
+            invoice_date: isoOk ? new Date(`${extracted.invoice_date}T00:00:00.000Z`) : new Date(),
+            total_amount: Number(extracted.total_amount) || 0,
+            file_url: storedUrl,
+            status: 'pending_review',
+            payment_status: 'unpaid',
+            source: 'email',
+            email_message_id: emailKey,
+            email_account: acct.email,
+            email_sender: msg.sender || null,
+          },
+        });
+      } catch (e: any) {
+        // P2002 on email_message_id — this exact invoice was already imported
+        // in a previous run of the same message; skip it, keep going with the
+        // rest of the bundle.
+        if (e?.code === 'P2002') {
+          if (supplierWasCreated) {
+            await (prisma as any).supplier.delete({ where: { id: supplierId } }).catch(() => {});
+          }
+          sawDuplicate = true;
+          continue;
+        }
+        throw e;
+      }
+
+      for (const li of extracted.line_items || []) {
+        if (!li.product_name) continue;
+        const suggestion = matchInventoryItem(li.product_name, aliases, inventoryItems);
+        await (prisma as any).invoiceItem.create({
+          data: {
+            invoice_id: invoice.id,
+            product_name: String(li.product_name).slice(0, 200),
+            quantity: Number(li.quantity) || 1,
+            unit_price: Number(li.unit_price) || 0,
+            unit: li.unit ? String(li.unit).slice(0, 30) : null,
+            inventory_action: suggestion.action,
+            inventory_item_id: suggestion.inventory_item_id || null,
+          },
+        }).catch(() => {});
+      }
+
+      importedIds.push(invoice.id);
+      results.imported++;
+    }
   }
 
-  await log('imported', { invoice_id: invoice.id });
-  results.imported++;
+  if (importedIds.length > 0) {
+    await log('imported', { invoice_id: importedIds[0] });
+  } else if (sawDuplicate) {
+    await log('duplicate');
+  } else {
+    await log('error', { error: lastError || 'no_invoice_extracted' });
+    results.errors++;
+  }
 }
 
 export async function scanEmailInvoices(): Promise<ScanResults> {

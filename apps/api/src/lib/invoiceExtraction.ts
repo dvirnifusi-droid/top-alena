@@ -111,6 +111,40 @@ export async function extractInvoiceFromFile(fileUrl: string): Promise<Extracted
   })) as ExtractedInvoice;
 }
 
+// Bundle-aware extraction for the email scanner: one file can contain SEVERAL
+// invoices (a "מרכזת" — consolidated statement with multiple invoices, or a
+// multi-page PDF where each page is a separate invoice). Returns every invoice
+// found; entries missing the required fields are dropped.
+const INVOICE_BUNDLE_SCHEMA = {
+  type: 'object',
+  properties: {
+    invoices: {
+      type: 'array',
+      description: 'כל החשבוניות שנמצאו בקובץ, כל אחת בנפרד',
+      items: INVOICE_EXTRACTION_SCHEMA,
+    },
+  },
+  required: ['invoices'],
+};
+
+export async function extractInvoicesFromFile(fileUrl: string): Promise<ExtractedInvoice[]> {
+  const res: any = await invokeLLM({
+    prompt: [
+      'אתה מנתח חשבוניות לעסק מסעדה ישראלי. הקובץ המצורף מכיל חשבונית אחת או יותר.',
+      'שים לב: קובץ אחד יכול להכיל כמה חשבוניות (מרכזת / קובץ מאוחד / כמה עמודים) — החזר כל חשבונית כרשומה נפרדת במערך invoices.',
+      'חלץ את השדות לפי הסכמה. תאריכים בפורמט YYYY-MM-DD. סכומים כמספרים (בלי ₪ או פסיקים).',
+      'אם שדה אינו קיים בחשבונית — השמט אותו במקום להמציא ערך.',
+      'חלץ גם את שורות הפריטים (line_items) של כל חשבונית אם קיימות.',
+      'קטגוריה משוערת: ירקות, פירות, בשר, דגים, חלב וביצים, יבש (קמח/אורז/וכו), משקאות, אלכוהול, ניקיון, ציוד מטבח, שירותים (חשבונאות, ביטוח, שכירות), אחר.',
+    ].join('\n'),
+    fileUrls: [fileUrl],
+    responseSchema: INVOICE_BUNDLE_SCHEMA,
+    maxOutputTokens: 8000,
+  });
+  const list: any[] = Array.isArray(res?.invoices) ? res.invoices : [];
+  return list.filter(x => x && x.supplier_name && x.total_amount) as ExtractedInvoice[];
+}
+
 // ── Inventory matching ──────────────────────────────────────────────────────
 
 export type InventoryMatch = {
