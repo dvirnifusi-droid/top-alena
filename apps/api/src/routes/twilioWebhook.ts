@@ -185,7 +185,7 @@ export const twilioWebhookRoutes: FastifyPluginAsync = async (app) => {
             );
             if (claimed) {
               reply.type('text/xml').send(
-                '<?xml version="1.0" encoding="UTF-8"?><Response><Message>📖 קיבלתי את התפריט! קורא מנות ומחירים... תוך כדקה אשלח לך סיכום של כל מה שהוקם 🚀</Message></Response>',
+                '<?xml version="1.0" encoding="UTF-8"?><Response><Message>📥 קיבלתי את הקובץ! קורא ומטמיע במערכת... תוך כדקה אשלח סיכום 🚀</Message></Response>',
               );
               return;
             }
