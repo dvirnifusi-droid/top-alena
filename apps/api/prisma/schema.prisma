@@ -1346,6 +1346,11 @@ model Invoice {
   file_url                     String?
   status                       String?  @default("pending_review")
   payment_status               String?  @default("unpaid")
+  source                       String?  @default("manual") // manual | whatsapp | email
+  email_message_id             String?  @unique
+  email_account                String?
+  email_sender                 String?
+  inventory_applied            Boolean  @default(false)
   // Legacy base44 columns — exist in DB; declared so frontend code that
   // reads record.created_date / record.updated_date still gets a value.
   created_date String?
@@ -1362,6 +1367,9 @@ model InvoiceItem {
   product_name                 String
   quantity                     Float
   unit_price                   Float
+  unit                         String?
+  inventory_action             String?  // add_existing | create_new | skip
+  inventory_item_id            String?
   // Legacy base44 columns — exist in DB; declared so frontend code that
   // reads record.created_date / record.updated_date still gets a value.
   created_date String?
@@ -3154,4 +3162,45 @@ model ModuleSetting {
   enabled_at  DateTime @default(now())
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+}
+
+model EmailAccount {
+  id              String    @id @default(cuid())
+  email           String    @unique
+  app_password    String    // AES-256-GCM encrypted (iv:tag:cipher hex) — see lib/emailCrypto.ts
+  status          String    @default("active") // active | disconnected | error
+  last_checked_at DateTime?
+  last_error      String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+model EmailSenderRule {
+  id           String   @id @default(cuid())
+  sender_email String   @unique
+  rule         String   @default("auto") // auto | allow | block
+  reject_count Int      @default(0)
+  supplier_id  String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model EmailMessageLog {
+  id            String   @id @default(cuid())
+  message_id    String   @unique // RFC822 Message-ID header
+  account_email String
+  sender_email  String?
+  subject       String?
+  outcome       String   // imported | not_invoice | blocked | duplicate | no_attachment | error
+  invoice_id    String?
+  error         String?
+  createdAt     DateTime @default(now())
+}
+
+model ProductAlias {
+  id                String   @id @default(cuid())
+  alias_name        String   @unique // normalized product name as it appears on invoices
+  inventory_item_id String
+  supplier_id       String?
+  createdAt         DateTime @default(now())
 }
