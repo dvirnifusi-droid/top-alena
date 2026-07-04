@@ -3195,6 +3195,8 @@ model EmailMessageLog {
   invoice_id    String?
   error         String?
   createdAt     DateTime @default(now())
+
+  @@index([account_email])
 }
 
 model ProductAlias {
