@@ -6,11 +6,20 @@ import { invokeLLM } from './llm.js';
 import { uploadStreamToS3 } from './storage.js';
 import { fetchNewMessages, isAuthError, type FetchedEmail } from './emailFetch.js';
 import { decideMessageAction } from './emailInvoiceRules.js';
-import { extractInvoiceFromFile, fuzzyFindSupplier, suggestInventoryAction } from './invoiceExtraction.js';
+import { extractInvoiceFromFile, fuzzyFindSupplier, matchInventoryItem } from './invoiceExtraction.js';
 import { alertEmailInvoicesImported, alertEmailAccountDisconnected } from './whatsappAlerts.js';
 
 const FIRST_RUN_LOOKBACK_MS = 30 * 24 * 3600 * 1000; // backfill 30 days on first connect
 const OVERLAP_MS = 24 * 3600 * 1000; // IMAP SINCE is day-granular; overlap + dedupe-by-Message-ID
+
+// Most operationally sensitive numbers in this file: raising CLASSIFY_* discards
+// real invoices; lowering SUPPLIER_* attaches invoices to the wrong supplier.
+const CLASSIFY_CONFIDENCE_THRESHOLD = 0.7;
+const SUPPLIER_MATCH_CONFIDENCE_THRESHOLD = 0.9;
+
+// Cron can fire while a slow run (LLM-heavy backfill) is still going; overlapping
+// scans double-create suppliers since Supplier has no unique constraint.
+let scanning = false;
 
 const CLASSIFY_SCHEMA = {
   type: 'object',
@@ -63,7 +72,7 @@ async function processMessage(acct: { email: string }, msg: FetchedEmail, result
 
   if (action === 'classify') {
     const cls = await classifyEmail(msg).catch(() => ({ is_supplier_invoice: false, confidence: 0 }));
-    if (!cls.is_supplier_invoice || cls.confidence < 0.7) { await log('not_invoice'); return; }
+    if (!cls.is_supplier_invoice || cls.confidence < CLASSIFY_CONFIDENCE_THRESHOLD) { await log('not_invoice'); return; }
   }
 
   // Largest allowed attachment is almost always the invoice itself.
@@ -86,7 +95,8 @@ async function processMessage(acct: { email: string }, msg: FetchedEmail, result
   // Supplier: reuse existing high-confidence match, else create pending_approval.
   const { match, confidence } = await fuzzyFindSupplier(extracted.supplier_name, extracted.supplier_tax_id);
   let supplierId: string;
-  if (match && confidence >= 0.9) {
+  let supplierWasCreated = false;
+  if (match && confidence >= SUPPLIER_MATCH_CONFIDENCE_THRESHOLD) {
     supplierId = match.id;
   } else {
     const sup = await (prisma as any).supplier.create({
@@ -101,6 +111,7 @@ async function processMessage(acct: { email: string }, msg: FetchedEmail, result
       },
     });
     supplierId = sup.id;
+    supplierWasCreated = true;
   }
 
   // Duplicate guard: same supplier + invoice number (catches the WhatsApp-scanned copy too).
@@ -108,7 +119,14 @@ async function processMessage(acct: { email: string }, msg: FetchedEmail, result
     const dupe = await (prisma as any).invoice.findFirst({
       where: { supplier_id: supplierId, invoice_number: String(extracted.invoice_number) },
     }).catch(() => null);
-    if (dupe) { await log('duplicate', { invoice_id: dupe.id }); results.skipped++; return; }
+    if (dupe) {
+      if (supplierWasCreated) {
+        await (prisma as any).supplier.delete({ where: { id: supplierId } }).catch(() => {});
+      }
+      await log('duplicate', { invoice_id: dupe.id });
+      results.skipped++;
+      return;
+    }
   }
 
   const isoOk = typeof extracted.invoice_date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(extracted.invoice_date);
@@ -128,9 +146,15 @@ async function processMessage(acct: { email: string }, msg: FetchedEmail, result
     },
   });
 
+  // Fetch alias + inventory tables once per invoice instead of once per line item.
+  const [aliases, inventoryItems] = await Promise.all([
+    (prisma as any).productAlias.findMany({ take: 2000 }).catch(() => []),
+    (prisma as any).inventory.findMany({ take: 2000, select: { id: true, item_name: true } }).catch(() => []),
+  ]);
+
   for (const li of extracted.line_items || []) {
     if (!li.product_name) continue;
-    const suggestion = await suggestInventoryAction(li.product_name);
+    const suggestion = matchInventoryItem(li.product_name, aliases, inventoryItems);
     await (prisma as any).invoiceItem.create({
       data: {
         invoice_id: invoice.id,
@@ -149,51 +173,74 @@ async function processMessage(acct: { email: string }, msg: FetchedEmail, result
 }
 
 export async function scanEmailInvoices(): Promise<ScanResults> {
-  const accounts: any[] = await (prisma as any).emailAccount.findMany({ where: { status: 'active' } }).catch(() => []);
-  const results: ScanResults = { imported: 0, skipped: 0, errors: 0, accounts: accounts.length };
-  const scanStart = new Date();
+  if (scanning) {
+    console.warn('[email-invoice-scan] previous scan still running, skipping');
+    return { imported: 0, skipped: 0, errors: 0, accounts: 0 };
+  }
+  scanning = true;
+  try {
+    const accounts: any[] = await (prisma as any).emailAccount.findMany({ where: { status: 'active' } }).catch(() => []);
+    const results: ScanResults = { imported: 0, skipped: 0, errors: 0, accounts: accounts.length };
+    const scanStart = new Date();
 
-  for (const acct of accounts) {
-    try {
-      const since = acct.last_checked_at
-        ? new Date(new Date(acct.last_checked_at).getTime() - OVERLAP_MS)
-        : new Date(Date.now() - FIRST_RUN_LOOKBACK_MS);
-      const knownRows: any[] = await (prisma as any).emailMessageLog.findMany({
-        where: { account_email: acct.email },
-        select: { message_id: true },
-      }).catch(() => []);
-      const known = new Set<string>(knownRows.map(r => r.message_id));
+    for (const acct of accounts) {
+      try {
+        const since = acct.last_checked_at
+          ? new Date(new Date(acct.last_checked_at).getTime() - OVERLAP_MS)
+          : new Date(Date.now() - FIRST_RUN_LOOKBACK_MS);
+        const knownRows: any[] = await (prisma as any).emailMessageLog.findMany({
+          where: { account_email: acct.email },
+          select: { message_id: true },
+        }).catch(() => []);
+        const known = new Set<string>(knownRows.map(r => r.message_id));
 
-      const messages = await fetchNewMessages(acct, since, known);
-      for (const msg of messages) {
-        try { await processMessage(acct, msg, results); }
-        catch (e: any) {
-          results.errors++;
-          console.warn('[email-invoice-scan] message failed', { mid: msg.messageId, err: e?.message });
+        const messages = await fetchNewMessages(acct, since, known);
+        for (const msg of messages) {
+          try { await processMessage(acct, msg, results); }
+          catch (e: any) {
+            results.errors++;
+            console.warn('[email-invoice-scan] message failed', { mid: msg.messageId, err: e?.message });
+            // Write to EmailMessageLog so this message enters `known` and is never retried forever.
+            const isDupe = e?.code === 'P2002' && String(e?.meta?.target || '').includes('email_message_id');
+            await (prisma as any).emailMessageLog.create({
+              data: {
+                message_id: msg.messageId,
+                account_email: acct.email,
+                sender_email: msg.sender || null,
+                subject: msg.subject?.slice(0, 200) || null,
+                outcome: isDupe ? 'duplicate' : 'error',
+                error: isDupe ? null : String(e?.message || e).slice(0, 300),
+              },
+            }).catch((logErr: any) => {
+              console.error('[email-invoice-scan] FAILED to write message log', { mid: msg.messageId, logErr: logErr?.message });
+            });
+          }
+        }
+        await (prisma as any).emailAccount.update({
+          where: { id: acct.id },
+          data: { last_checked_at: scanStart, last_error: null },
+        });
+      } catch (e: any) {
+        results.errors++;
+        if (isAuthError(e)) {
+          await (prisma as any).emailAccount.update({
+            where: { id: acct.id },
+            data: { status: 'disconnected', last_error: String(e?.message || e).slice(0, 300) },
+          }).catch(() => {});
+          await alertEmailAccountDisconnected(acct.email).catch(() => {});
+        } else {
+          await (prisma as any).emailAccount.update({
+            where: { id: acct.id },
+            data: { last_error: String(e?.message || e).slice(0, 300) },
+          }).catch(() => {});
+          console.warn('[email-invoice-scan] account failed', { email: acct.email, err: e?.message });
         }
       }
-      await (prisma as any).emailAccount.update({
-        where: { id: acct.id },
-        data: { last_checked_at: scanStart, last_error: null },
-      });
-    } catch (e: any) {
-      results.errors++;
-      if (isAuthError(e)) {
-        await (prisma as any).emailAccount.update({
-          where: { id: acct.id },
-          data: { status: 'disconnected', last_error: String(e?.message || e).slice(0, 300) },
-        }).catch(() => {});
-        await alertEmailAccountDisconnected(acct.email).catch(() => {});
-      } else {
-        await (prisma as any).emailAccount.update({
-          where: { id: acct.id },
-          data: { last_error: String(e?.message || e).slice(0, 300) },
-        }).catch(() => {});
-        console.warn('[email-invoice-scan] account failed', { email: acct.email, err: e?.message });
-      }
     }
-  }
 
-  if (results.imported > 0) await alertEmailInvoicesImported(results.imported).catch(() => {});
-  return results;
+    if (results.imported > 0) await alertEmailInvoicesImported(results.imported).catch(() => {});
+    return results;
+  } finally {
+    scanning = false;
+  }
 }
