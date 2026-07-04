@@ -5,7 +5,7 @@ import { prisma } from '../db.js';
 import { invokeLLM } from './llm.js';
 import { uploadStreamToS3 } from './storage.js';
 import { fetchNewMessages, isAuthError, type FetchedEmail } from './emailFetch.js';
-import { decideMessageAction } from './emailInvoiceRules.js';
+import { decideMessageAction, looksLikeInvoice } from './emailInvoiceRules.js';
 import { extractInvoiceFromFile, fuzzyFindSupplier, matchInventoryItem } from './invoiceExtraction.js';
 import { alertEmailInvoicesImported, alertEmailAccountDisconnected } from './whatsappAlerts.js';
 
@@ -24,18 +24,21 @@ let scanning = false;
 const CLASSIFY_SCHEMA = {
   type: 'object',
   properties: {
-    is_supplier_invoice: { type: 'boolean', description: 'האם זו חשבונית/חשבונית-מס מספק לעסק' },
+    is_invoice: { type: 'boolean', description: 'האם המייל מכיל חשבונית או קבלה עבור העסק' },
     confidence: { type: 'number', description: '0-1' },
   },
-  required: ['is_supplier_invoice', 'confidence'],
+  required: ['is_invoice', 'confidence'],
 };
 
-async function classifyEmail(msg: FetchedEmail): Promise<{ is_supplier_invoice: boolean; confidence: number }> {
+// Broad by owner instruction: ANY business invoice/receipt counts — goods,
+// marketing, software, hosting, utilities — not only food suppliers.
+async function classifyEmail(msg: FetchedEmail): Promise<{ is_invoice: boolean; confidence: number }> {
   const res: any = await invokeLLM({
     prompt: [
-      'לפניך פרטי מייל שהתקבל בתיבת הדואר של מסעדה. קבע האם סביר שזהו מייל של חשבונית ספק',
-      '(חשבונית מס, חשבונית עסקה, קבלה מספק סחורה/שירות לעסק).',
-      'קבלות על רכישות פרטיות, ניוזלטרים, חוזים, הצעות מחיר ופרסומות אינם חשבונית ספק.',
+      'לפניך פרטי מייל שהתקבל בתיבת הדואר של עסק (מסעדה). קבע האם המייל מכיל חשבונית או קבלה',
+      'עבור העסק — חשבונית מס, חשבונית עסקה או קבלה — מכל סוג ספק או שירות:',
+      'סחורה, שיווק ופרסום, תוכנה, אחסון, חשמל, תקשורת, שליחויות וכו\'.',
+      'ניוזלטרים, פרסומות, הצעות מחיר, אישורי הזמנה ותזכורות תשלום ללא חשבונית — אינם חשבונית.',
       `שולח: ${msg.sender}`,
       `נושא: ${msg.subject}`,
       `קבצים מצורפים: ${msg.attachments.map(a => a.filename).join(', ')}`,
@@ -44,7 +47,7 @@ async function classifyEmail(msg: FetchedEmail): Promise<{ is_supplier_invoice: 
     responseSchema: CLASSIFY_SCHEMA,
     maxOutputTokens: 200,
   });
-  return { is_supplier_invoice: !!res?.is_supplier_invoice, confidence: Number(res?.confidence) || 0 };
+  return { is_invoice: !!res?.is_invoice, confidence: Number(res?.confidence) || 0 };
 }
 
 type ScanResults = { imported: number; skipped: number; errors: number; accounts: number };
@@ -71,8 +74,13 @@ async function processMessage(acct: { email: string }, msg: FetchedEmail, result
   if (action === 'skip_no_attachment') { await log('no_attachment'); return; }
 
   if (action === 'classify') {
-    const cls = await classifyEmail(msg).catch(() => ({ is_supplier_invoice: false, confidence: 0 }));
-    if (!cls.is_supplier_invoice || cls.confidence < CLASSIFY_CONFIDENCE_THRESHOLD) { await log('not_invoice'); return; }
+    // Fast path (owner's rule): anything explicitly labeled invoice/receipt in
+    // the subject or attachment filename imports without asking the LLM.
+    const labeled = looksLikeInvoice(msg.subject, msg.attachments.map(a => a.filename));
+    if (!labeled) {
+      const cls = await classifyEmail(msg).catch(() => ({ is_invoice: false, confidence: 0 }));
+      if (!cls.is_invoice || cls.confidence < CLASSIFY_CONFIDENCE_THRESHOLD) { await log('not_invoice'); return; }
+    }
   }
 
   // Largest allowed attachment is almost always the invoice itself.

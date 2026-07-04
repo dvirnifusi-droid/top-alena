@@ -14,6 +14,21 @@ export function decideMessageAction(rule: SenderRuleLike, hasAllowedAttachment: 
   return 'classify';
 }
 
+// Fast-path detection: if the subject or an attachment filename explicitly
+// says invoice/receipt, import without asking the LLM at all (owner's rule:
+// "collect everything labeled invoice"). Token-based so that 'קבלה' matches
+// but 'התקבלה' does not; Hebrew prefix match covers 'חשבוניות', 'חשבונית-מס'.
+// 'חשבוני' (not 'חשבונית') so the plural 'חשבוניות' matches too — the plural
+// inserts a vav before the tav, so it does not share the singular's prefix.
+const INVOICE_TOKEN_PREFIXES = ['חשבוני', 'invoice', 'receipt'];
+export function looksLikeInvoice(subject: string, attachmentFilenames: string[]): boolean {
+  const hay = [subject || '', ...(attachmentFilenames || [])].join(' ').toLowerCase();
+  const tokens = hay.split(/[^\p{L}\p{N}]+/u).filter(Boolean);
+  return tokens.some(t =>
+    t === 'קבלה' || INVOICE_TOKEN_PREFIXES.some(p => t.startsWith(p)),
+  );
+}
+
 // Owner rejected an invoice from this sender. Two strikes → block.
 // An 'allow' sender drops back to 'auto' on first strike (was probably
 // auto-promoted by an approval that the owner now regrets).

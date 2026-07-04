@@ -1,5 +1,23 @@
 import { describe, it, expect } from 'vitest';
-import { decideMessageAction, nextRuleAfterRejection, BLOCK_AFTER_REJECTS } from '../emailInvoiceRules.js';
+import { decideMessageAction, nextRuleAfterRejection, looksLikeInvoice, BLOCK_AFTER_REJECTS } from '../emailInvoiceRules.js';
+
+describe('looksLikeInvoice', () => {
+  it('matches חשבונית in subject (incl. plural/compound)', () => {
+    expect(looksLikeInvoice('חשבונית מס מספר 15516 מנ.צ שיווק ופרסום בע"מ', [])).toBe(true);
+    expect(looksLikeInvoice('חשבוניות לחודש יוני', [])).toBe(true);
+  });
+  it('matches invoice/receipt in subject or filename', () => {
+    expect(looksLikeInvoice('Hetzner Online GmbH - Invoice 080001023028', [])).toBe(true);
+    expect(looksLikeInvoice('מסמכים מצורפים', ['receipt-617895.pdf'])).toBe(true);
+  });
+  it('matches standalone קבלה but NOT התקבלה', () => {
+    expect(looksLikeInvoice('קבלה על תשלום', [])).toBe(true);
+    expect(looksLikeInvoice('הזמנתך התקבלה בהצלחה', [])).toBe(false);
+  });
+  it('ignores unrelated mail', () => {
+    expect(looksLikeInvoice('ניוזלטר שבועי — מבצעי סוף השבוע', ['banner.png'])).toBe(false);
+  });
+});
 
 describe('decideMessageAction', () => {
   it('blocked sender → skip', () => {

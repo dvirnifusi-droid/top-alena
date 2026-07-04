@@ -122,7 +122,16 @@ export async function fetchNewMessages(
   let capped = false;
   try {
     await c.connect();
-    const lock = await c.getMailboxLock('INBOX', { readOnly: true });
+    // Scan "All Mail" (special-use \All), not just INBOX — invoices that were
+    // archived or auto-filed by Gmail filters must be picked up too. Falls
+    // back to INBOX for servers without a \All mailbox.
+    let mailboxPath = 'INBOX';
+    try {
+      const boxes: any[] = await c.list();
+      const all = boxes.find(b => b.specialUse === '\\All');
+      if (all?.path) mailboxPath = all.path;
+    } catch { /* keep INBOX */ }
+    const lock = await c.getMailboxLock(mailboxPath, { readOnly: true });
     try {
       // search() returns number[] of UIDs, or false when the server reports
       // no matches / the search fails — treat both as "nothing to do".
