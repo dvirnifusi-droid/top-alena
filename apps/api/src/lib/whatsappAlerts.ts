@@ -14,7 +14,7 @@ function adminPhones(): string[] {
   return raw.split(',').map(s => s.trim()).filter(Boolean);
 }
 
-async function broadcastToAdmins(text: string): Promise<void> {
+export async function broadcastToAdmins(text: string): Promise<void> {
   const phones = adminPhones();
   if (!phones.length) return;
   await Promise.all(phones.map(async (p) => {
@@ -108,4 +108,18 @@ export async function alertCashDiscrepancy(row: any): Promise<void> {
     diff > 0 ? '_עודף — בדוק קופה._' : '_חוסר — שווה בירור עם הצוות._',
   ].filter(Boolean).join('\n');
   await broadcastToAdmins(lines);
+}
+
+export async function alertEmailInvoicesImported(count: number): Promise<void> {
+  await broadcastToAdmins([
+    `📬 *נקלטו ${count} חשבוניות חדשות מהמייל*`,
+    'ממתינות לבדיקה ואישור בדף /Invoices.',
+  ].join('\n'));
+}
+
+export async function alertEmailAccountDisconnected(email: string): Promise<void> {
+  await broadcastToAdmins([
+    `⚠️ *תיבת המייל ${email} נותקה*`,
+    'סיסמת האפליקציה בוטלה או השתנתה. חבר מחדש בדף /EmailInvoiceSettings.',
+  ].join('\n'));
 }
