@@ -94,7 +94,10 @@ function PlatformAdminInner() {
         r.channels?.email === 'sent' ? '📧✅' : (r.channels?.email === 'failed' ? '📧❌' : '📧⚪'),
         r.channels?.whatsapp === 'sent' ? '💬✅' : (r.channels?.whatsapp === 'failed' ? '💬❌' : '💬⚪'),
       ].join(' ');
-      const errors = [r.sms_error, r.email_error, r.whatsapp_error].filter(Boolean).join('\n');
+      const errors = [
+        r.user_seed_error ? `יצירת משתמש: ${r.user_seed_error}` : null,
+        r.sms_error, r.email_error, r.whatsapp_error,
+      ].filter(Boolean).join('\n');
       alert(`תוצאה: ${dots}${errors ? '\n\nשגיאות:\n' + errors : ''}`);
       await load();
     } catch (e) { alert('שגיאה: ' + (e?.message || '')); }

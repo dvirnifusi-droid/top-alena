@@ -42,7 +42,7 @@ const db = prisma as any; // generic delegate access
 
 // Public deploy marker — lets us confirm which build is live (and that
 // auto-deploy is working) without server access. Bump on each deploy test.
-registerFn('deployInfo', async () => ({ version: 'schema-selfheal-2026-07-04', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
+registerFn('deployInfo', async () => ({ version: 'user-seed-fix-2026-07-04', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
 
 
 
@@ -13146,23 +13146,41 @@ async function sendWelcomeForTenant(tenantId: string): Promise<any> {
   const opener = `היי, אני ${ownerFirstName || 'הבעלים של'} ${brandDisplay}. אני רוצה להתחיל להקים את המסעדה שלי במערכת 🚀`;
   const waLink = waFromNumber ? `https://wa.me/${waFromNumber}?text=${encodeURIComponent(opener)}` : '';
 
-  // Fresh temp password + seed user (idempotent — upsert).
+  // Fresh temp password + seed user (idempotent — update-then-insert).
+  // NOT "ON CONFLICT (email)": partially-provisioned schemas have been seen
+  // missing the unique email index, which makes ON CONFLICT throw
+  // "no unique or exclusion constraint matching the ON CONFLICT
+  // specification" and the whole seed silently fail (hamara got a welcome
+  // message with "❌ יצירת המשתמש נכשלה" because of exactly this).
   const tempPassword = `TopAlena-${Math.floor(1000 + Math.random() * 9000)}`;
   let credsLine = 'צור/צרי משתמש בעצמך בטופס הרשמה.';
+  let seedError: string | null = null;
   if (t.owner_email) {
     try {
       const bcrypt = (await import('bcryptjs')).default;
       const hash = await bcrypt.hash(tempPassword, 10);
       const schema = `tenant_${t.slug}`;
-      await (prisma as any).$executeRawUnsafe(
-        `INSERT INTO "${schema}"."User" ("id", "email", "passwordHash", "role", "fullName", "createdAt", "updatedAt")
-         VALUES ($1, $2, $3, 'owner', $4, NOW(), NOW())
-         ON CONFLICT (email) DO UPDATE SET "passwordHash" = EXCLUDED."passwordHash", "updatedAt" = NOW()`,
-        randomUUID(), String(t.owner_email).toLowerCase(), hash, t.owner_name || '',
+      const emailLc = String(t.owner_email).toLowerCase();
+      const updated: number = await (prisma as any).$executeRawUnsafe(
+        `UPDATE "${schema}"."User" SET "passwordHash" = $1, "role" = 'owner', "updatedAt" = NOW()
+         WHERE lower("email") = $2`,
+        hash, emailLc,
       );
+      if (!updated) {
+        await (prisma as any).$executeRawUnsafe(
+          `INSERT INTO "${schema}"."User" ("id", "email", "passwordHash", "role", "fullName", "createdAt", "updatedAt")
+           VALUES ($1, $2, $3, 'owner', $4, NOW(), NOW())`,
+          randomUUID(), emailLc, hash, t.owner_name || '',
+        );
+      }
+      // Best-effort: restore the unique index for future upsert-style code.
+      await (prisma as any).$executeRawUnsafe(
+        `CREATE UNIQUE INDEX IF NOT EXISTS "User_email_key" ON "${schema}"."User"("email")`,
+      ).catch(() => {});
       credsLine = `📧 מייל: ${t.owner_email}\n🔑 סיסמה זמנית: *${tempPassword}*\n(שנה/י אותה אחרי הכניסה הראשונה)`;
     } catch (e: any) {
-      console.warn('[welcome] user seed failed', e?.message);
+      seedError = String(e?.message || 'seed_failed').slice(0, 300);
+      console.warn('[welcome] user seed failed', seedError);
       credsLine = `❌ יצירת המשתמש נכשלה. פנה לתמיכה.`;
     }
   }
@@ -13231,6 +13249,7 @@ async function sendWelcomeForTenant(tenantId: string): Promise<any> {
   return {
     ok: true, sent_to: t.owner_phone, wa_link: waLink,
     channels: { sms: smsStatus, email: emailStatus, whatsapp: waStatus },
+    user_seed_error: seedError,
     ...results,
   };
 }
