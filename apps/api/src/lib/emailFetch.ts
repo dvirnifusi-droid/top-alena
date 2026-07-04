@@ -12,6 +12,27 @@ export const ALLOWED_ATTACHMENT_MIME = new Set([
 ]);
 export const MAX_ATTACHMENT_BYTES = 15 * 1024 * 1024;
 
+const EXT_TO_MIME: Record<string, string> = {
+  '.pdf': 'application/pdf',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.png': 'image/png',
+  '.webp': 'image/webp',
+};
+
+// Many Israeli billing systems ship PDFs as application/octet-stream (or no
+// content-type at all) — an exact MIME check silently drops them, which made
+// real invoices log as "no_attachment". Accept by declared MIME first, then
+// fall back to the filename extension for generic/unknown MIME types.
+// Returns the normalized MIME, or null when the attachment is not usable.
+export function resolveAttachmentMime(contentType: string | undefined, filename: string | undefined): string | null {
+  const ct = String(contentType || '').toLowerCase();
+  if (ALLOWED_ATTACHMENT_MIME.has(ct)) return ct;
+  const ext = String(filename || '').toLowerCase().match(/\.[a-z0-9]+$/)?.[0];
+  if (ext && EXT_TO_MIME[ext]) return EXT_TO_MIME[ext];
+  return null;
+}
+
 export type FetchedAttachment = { filename: string; contentType: string; content: Buffer };
 export type FetchedEmail = {
   messageId: string;
@@ -56,15 +77,18 @@ export function isAuthError(e: any): boolean {
 }
 
 function pickAttachments(parsed: ParsedMail): FetchedAttachment[] {
-  return (parsed.attachments || [])
-    .filter(a =>
-      ALLOWED_ATTACHMENT_MIME.has(String(a.contentType || '').toLowerCase()) &&
-      a.content && a.content.length > 0 && a.content.length <= MAX_ATTACHMENT_BYTES)
-    .map(a => ({
+  const out: FetchedAttachment[] = [];
+  for (const a of parsed.attachments || []) {
+    const mime = resolveAttachmentMime(a.contentType, a.filename);
+    if (!mime) continue;
+    if (!a.content || a.content.length === 0 || a.content.length > MAX_ATTACHMENT_BYTES) continue;
+    out.push({
       filename: a.filename || 'attachment',
-      contentType: String(a.contentType).toLowerCase(),
+      contentType: mime, // normalized — downstream ext/upload logic relies on it
       content: a.content as Buffer,
-    }));
+    });
+  }
+  return out;
 }
 
 // Normalize a raw Message-ID to bracketed form; fall back to a UID-derived
