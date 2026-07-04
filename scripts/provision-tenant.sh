@@ -47,7 +47,7 @@ docker run --rm --network top-alena_default postgres:16-alpine \
     psql "$MAIN_DB_URL" -v ON_ERROR_STOP=0 -X >/dev/null 2>&1 || true
 
 # === 3. Spin up the tenant api container ======================================
-echo "==> [3/4] Spawning api container $CONTAINER"
+echo "==> [3/5] Spawning api container $CONTAINER"
 TENANT_DB_URL="${MAIN_DB_URL}?schema=${SCHEMA}"
 docker rm -f "$CONTAINER" 2>/dev/null || true
 docker run -d \
@@ -62,8 +62,22 @@ docker run -d \
 
 sleep 5
 
-# === 4. Caddy site config + reload ============================================
-echo "==> [4/4] Writing Caddy config + reload"
+# === 4. Backfill any missing tables via `prisma db push` ======================
+# pg_dump above is best-effort — case-sensitive quoted identifiers and
+# certain FK / enum orderings can silently skip tables (hamara ran into
+# this: `tenant_hamara.ShiftTracking` was missing after dump). Running
+# prisma db push inside the fresh container reads schema.prisma and
+# creates any missing tables against the tenant's schema — idempotent
+# and authoritative. This is what makes provisioning actually reliable.
+echo "==> [4/5] Running prisma db push in $CONTAINER (fills any tables pg_dump missed)"
+if docker exec "$CONTAINER" sh -c 'cd /app/apps/api 2>/dev/null || cd /app; npx prisma db push --skip-generate --accept-data-loss 2>&1' | tail -8; then
+  echo "==> prisma db push completed"
+else
+  echo "!! prisma db push failed — tenant may have partial tables"
+fi
+
+# === 5. Caddy site config + reload ============================================
+echo "==> [5/5] Writing Caddy config + reload"
 CADDY_DIR="/etc/caddy/tenants"
 mkdir -p "$CADDY_DIR"
 cat > "$CADDY_DIR/${SLUG}.caddy" <<EOF
