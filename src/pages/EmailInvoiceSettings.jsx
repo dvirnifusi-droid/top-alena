@@ -31,9 +31,13 @@ export default function EmailInvoiceSettingsPage() {
   const [busy, setBusy] = useState(false);
   const [scanBusy, setScanBusy] = useState(false);
   const [msg, setMsg] = useState(null);
+  const [deletingId, setDeletingId] = useState(null);
   const refreshTimer = useRef(null);
+  const isMounted = useRef(true);
 
-  const load = useCallback(async () => {
+  useEffect(() => { return () => { isMounted.current = false; }; }, []);
+
+  const load = useCallback(async (opts = {}) => {
     try {
       const [accs, rules] = await Promise.all([
         api('/email-accounts'),
@@ -42,7 +46,7 @@ export default function EmailInvoiceSettingsPage() {
       setAccounts(accs || []);
       setBlocked(rules || []);
     } catch (e) {
-      setMsg({ kind: 'err', text: e.message });
+      if (!opts.background) setMsg({ kind: 'err', text: e.message });
     }
   }, []);
 
@@ -65,20 +69,29 @@ export default function EmailInvoiceSettingsPage() {
 
   const disconnect = async (id, email) => {
     if (!window.confirm(`לנתק את ${email}?`)) return;
+    setDeletingId(id);
     try {
       await api(`/email-accounts/${id}`, { method: 'DELETE' });
       load();
     } catch (e) {
       setMsg({ kind: 'err', text: e.message });
+    } finally {
+      setDeletingId(null);
     }
   };
 
   const scanNow = async () => {
+    if (scanBusy) return;
     setScanBusy(true); setMsg(null);
+    if (refreshTimer.current) clearTimeout(refreshTimer.current);
     try {
       await api('/email-accounts/scan-now', { method: 'POST' });
       setMsg({ kind: 'ok', text: 'הסריקה התחילה ברקע — תקבל הודעת WhatsApp אם נקלטו חשבוניות חדשות.' });
-      refreshTimer.current = setTimeout(() => { load(); setScanBusy(false); }, 20000);
+      refreshTimer.current = setTimeout(() => {
+        if (!isMounted.current) return;
+        load({ background: true });
+        setScanBusy(false);
+      }, 20000);
     } catch (e) {
       setMsg({ kind: 'err', text: e.message });
       setScanBusy(false);
@@ -139,7 +152,7 @@ export default function EmailInvoiceSettingsPage() {
                 </div>
                 <div className="flex items-center gap-2">
                   {statusBadge(a)}
-                  <Button variant="ghost" size="sm" onClick={() => disconnect(a.id, a.email)}>
+                  <Button variant="ghost" size="sm" onClick={() => disconnect(a.id, a.email)} disabled={deletingId === a.id}>
                     <Trash2 className="w-4 h-4 text-red-500" />
                   </Button>
                 </div>

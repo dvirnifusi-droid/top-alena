@@ -5,7 +5,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { Card, CardContent } from '@/components/ui/card';
-import { Settings, Zap, MessageCircle, Tablet, MapPin, RefreshCw, CreditCard, FormInput, Tv, Bell, Database, Mic } from 'lucide-react';
+import { Settings, Zap, MessageCircle, Tablet, MapPin, RefreshCw, CreditCard, FormInput, Tv, Bell, Database, Mic, Mail } from 'lucide-react';
 import { createPageUrl } from '@/utils';
 
 function Tile({ to, title, sub, icon: Icon, accent }) {
@@ -83,6 +83,13 @@ export default function AdminSettings() {
                     sub="הגדרות סליקה לפיקדון הזמנות (PayPlus)"
                     icon={CreditCard}
                     accent="purple"
+                />
+                <Tile
+                    to={createPageUrl('EmailInvoiceSettings')}
+                    title="תיבות מייל לחשבוניות"
+                    sub="קליטת חשבוניות ספקים אוטומטית מהמייל"
+                    icon={Mail}
+                    accent="indigo"
                 />
             </Section>
 
