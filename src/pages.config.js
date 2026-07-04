@@ -67,6 +67,7 @@ import CustomerSurveys from './pages/CustomerSurveys';
 import Dashboard from './pages/Dashboard';
 import Deliveries from './pages/Deliveries';
 import DeliveryCustomerClub from './pages/DeliveryCustomerClub';
+import EmailInvoiceSettings from './pages/EmailInvoiceSettings';
 import EmployeeDetails from './pages/EmployeeDetails';
 import EmployeeFeedback from './pages/EmployeeFeedback';
 import EmployeeHome from './pages/EmployeeHome';
@@ -185,6 +186,7 @@ export const PAGES = {
     "Dashboard": Dashboard,
     "Deliveries": Deliveries,
     "DeliveryCustomerClub": DeliveryCustomerClub,
+    "EmailInvoiceSettings": EmailInvoiceSettings,
     "EmployeeDetails": EmployeeDetails,
     "EmployeeFeedback": EmployeeFeedback,
     "EmployeeHome": EmployeeHome,
