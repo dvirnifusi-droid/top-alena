@@ -14,6 +14,12 @@ describe('looksLikeInvoice', () => {
     expect(looksLikeInvoice('קבלה על תשלום', [])).toBe(true);
     expect(looksLikeInvoice('הזמנתך התקבלה בהצלחה', [])).toBe(false);
   });
+  it('matches Hebrew definite-article forms החשבונית / הקבלה', () => {
+    expect(looksLikeInvoice('החשבונית החודשית שלך בבזק כאן', [])).toBe(true);
+    expect(looksLikeInvoice('הקבלה שלך מוכנה', [])).toBe(true);
+    // guard: definite-article stripping must not turn התקבלה into a match
+    expect(looksLikeInvoice('מועמדות התקבלה למשרה', [])).toBe(false);
+  });
   it('ignores unrelated mail', () => {
     expect(looksLikeInvoice('ניוזלטר שבועי — מבצעי סוף השבוע', ['banner.png'])).toBe(false);
   });

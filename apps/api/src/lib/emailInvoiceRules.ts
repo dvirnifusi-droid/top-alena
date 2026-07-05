@@ -21,12 +21,17 @@ export function decideMessageAction(rule: SenderRuleLike, hasAllowedAttachment: 
 // 'חשבוני' (not 'חשבונית') so the plural 'חשבוניות' matches too — the plural
 // inserts a vav before the tav, so it does not share the singular's prefix.
 const INVOICE_TOKEN_PREFIXES = ['חשבוני', 'invoice', 'receipt'];
+function tokenIsInvoice(t: string): boolean {
+  // Also test the token with a leading Hebrew definite article stripped, so
+  // 'החשבונית' / 'הקבלה' match. Note 'התקבלה' → 'תקבלה' still does NOT match,
+  // so recruitment/order-confirmation subjects stay excluded.
+  const variants = t.startsWith('ה') ? [t, t.slice(1)] : [t];
+  return variants.some(v => v === 'קבלה' || INVOICE_TOKEN_PREFIXES.some(p => v.startsWith(p)));
+}
 export function looksLikeInvoice(subject: string, attachmentFilenames: string[]): boolean {
   const hay = [subject || '', ...(attachmentFilenames || [])].join(' ').toLowerCase();
   const tokens = hay.split(/[^\p{L}\p{N}]+/u).filter(Boolean);
-  return tokens.some(t =>
-    t === 'קבלה' || INVOICE_TOKEN_PREFIXES.some(p => t.startsWith(p)),
-  );
+  return tokens.some(tokenIsInvoice);
 }
 
 // Owner rejected an invoice from this sender. Two strikes → block.
