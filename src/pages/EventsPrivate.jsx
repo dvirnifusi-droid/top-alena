@@ -22,6 +22,8 @@ const PUBLIC_BASE_URL = 'https://topalena.com/EventsInquiry';
 const withUtm = (utm) => utm ? `${PUBLIC_BASE_URL}?utm_source=${encodeURIComponent(utm)}` : PUBLIC_BASE_URL;
 
 function EventsLinkCard() {
+  const _branding = useTenantBranding();
+  const brandName = _branding?.name || 'המסעדה';
   const [sourceKey, setSourceKey] = useState('general');
   const [copiedLink, setCopiedLink] = useState(false);
   const [copiedMsg, setCopiedMsg] = useState(false);
@@ -115,6 +117,8 @@ const CALLBACK_STAGES = {
 };
 
 function PendingCallbackCard() {
+  const _branding = useTenantBranding();
+  const brandName = _branding?.name || 'המסעדה';
   const [leads, setLeads] = React.useState([]);
   const [loading, setLoading] = React.useState(true);
   const [busy, setBusy] = React.useState(null);
@@ -472,6 +476,8 @@ function BookingsCard() {
 // message with the event details and offers one-click sending via WhatsApp or SMS, or
 // copy-to-clipboard. wa.me / sms: are native deep links — no backend integration needed.
 function CustomerConfirmModal({ booking, onClose }) {
+  const _branding = useTenantBranding();
+  const brandName = _branding?.name || 'המסעדה';
   const phoneClean = (booking.customer_phone || '').replace(/\D/g, '');
   const waNumber = phoneClean.startsWith('0') ? '972' + phoneClean.slice(1) : phoneClean;
   const weekday = (() => {
