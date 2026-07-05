@@ -1057,6 +1057,7 @@ model Employee {
   status                       String?  @default("active")
   access_code                  String?
   department                   String?
+  pay_access_scope             String?  // null=self only | 'all' | '<department name>' — salary view/edit scope for managers
   positions                    Json?
   pushover_user_key            String?
   manager_quality_rating       Float?
@@ -3205,4 +3206,19 @@ model ProductAlias {
   inventory_item_id String
   supplier_id       String?
   createdAt         DateTime @default(now())
+}
+
+model EmployeePay {
+  id                  String   @id @default(cuid())
+  employee_id         String   @unique
+  pay_type            String   @default("hourly") // hourly | monthly | tips
+  hourly_rate         Float?
+  monthly_salary      Float?
+  employer_pct        Float?   // optional employer-cost % on gross ("mode א")
+  employer_components Json?    // optional detailed components ("mode ב")
+  currency            String   @default("ILS")
+  notes               String?
+  updated_by          String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
 }
