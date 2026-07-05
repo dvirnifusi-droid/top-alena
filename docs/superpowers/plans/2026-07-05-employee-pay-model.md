@@ -359,7 +359,7 @@ git commit -m "feat(pay): enforce entity guards in the generic entities route"
 // department + pay_access_scope) and enforces payAccess rules.
 import { registerFn } from './index.js';
 import { prisma } from '../db.js';
-import { canViewPay, canEditPay, type Viewer } from '../lib/payAccess.js';
+import { canViewPay, canEditPay, ALL_SCOPE, type Viewer } from '../lib/payAccess.js';
 
 async function buildViewer(user: { id: string; email: string; role?: string | null } | null): Promise<Viewer> {
   const isOwner = user?.role === 'owner';
@@ -451,14 +451,16 @@ registerFn('setEmployeePay', async ({ body, user }) => {
   return { ok: true };
 });
 
-// Owner-only: set a manager's salary-access scope (self=null | 'all' | department).
+// Owner-only: set a manager's salary-access scope (self=null | ALL_SCOPE | department).
+// ALL_SCOPE is the collision-proof '__ALL__' sentinel from payAccess.ts (a real
+// department can never be named that), so import and reuse it here.
 registerFn('setPayAccessScope', async ({ body, user }) => {
   if (user?.role !== 'owner') throw new Error('forbidden');
   const p = (body as any) || {};
   const employeeId = String(p.employee_id || '');
   if (!employeeId) throw new Error('employee_required');
   const raw = p.scope;
-  const scope = raw === 'all' ? 'all' : raw && raw !== 'self' ? String(raw).slice(0, 60) : null;
+  const scope = raw === ALL_SCOPE ? ALL_SCOPE : raw && raw !== 'self' ? String(raw).slice(0, 60) : null;
   await (prisma as any).employee.update({ where: { id: employeeId }, data: { pay_access_scope: scope } }).catch(() => {
     throw new Error('employee_not_found');
   });
@@ -644,7 +646,8 @@ export default function EmployeePaySection({ employee }) {
                 <SelectTrigger className="w-64"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="self">עצמו בלבד</SelectItem>
-                  <SelectItem value="all">כל המחלקות</SelectItem>
+                  {/* value MUST equal ALL_SCOPE ('__ALL__') in apps/api/src/lib/payAccess.ts */}
+                  <SelectItem value="__ALL__">כל המחלקות</SelectItem>
                   {departments.map(d => <SelectItem key={d} value={d}>{d}</SelectItem>)}
                 </SelectContent>
               </Select>
