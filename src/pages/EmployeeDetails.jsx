@@ -23,6 +23,7 @@ import {
     Briefcase // Added Briefcase icon for roles
 } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import EmployeePaySection from '../components/employees/EmployeePaySection';
 
 
 function ShiftForm({ shift, employeeId, employeeName, onSave, onCancel }) {
@@ -377,6 +378,9 @@ export default function EmployeeDetailsPage() {
                         )}
                     </CardContent>
                 </Card>
+
+                {/* Pay & employer-cost (privacy-aware) */}
+                <EmployeePaySection employee={employee} />
 
                 {/* Monthly Stats */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
