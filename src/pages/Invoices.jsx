@@ -157,12 +157,19 @@ export default function InvoicesPage() {
                                     return (
                                         <TableRow key={invoice.id}>
                                             <TableCell className="font-medium">
-                                                <div className="flex items-center gap-2">
+                                                <div className="flex items-center gap-2 flex-wrap">
                                                     {supplier?.company_name || 'לא ידוע'}
                                                     {invoice.source === 'email' && (
                                                         <Badge variant="outline" className="flex items-center gap-1 text-blue-600 border-blue-200">
                                                             <Mail className="w-3 h-3" />
                                                             מייל
+                                                        </Badge>
+                                                    )}
+                                                    {invoice.source === 'email' && invoice.email_account && (
+                                                        <Badge variant="outline" className="text-purple-700 border-purple-200">
+                                                            📥 {invoice.email_account.includes('nivnin') ? 'ניב'
+                                                                : invoice.email_account.includes('dvirnifusi') ? 'דביר'
+                                                                : invoice.email_account.split('@')[0]}
                                                         </Badge>
                                                     )}
                                                 </div>
