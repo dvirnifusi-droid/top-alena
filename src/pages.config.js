@@ -83,6 +83,7 @@ import GamificationCenter from './pages/GamificationCenter';
 import Incidents from './pages/Incidents';
 import InterviewSettings from './pages/InterviewSettings';
 import InvoiceDetails from './pages/InvoiceDetails';
+import LaborCost from './pages/LaborCost';
 import Invoices from './pages/Invoices';
 import Leaderboard from './pages/Leaderboard';
 import LeaveRequests from './pages/LeaveRequests';
@@ -202,6 +203,7 @@ export const PAGES = {
     "Incidents": Incidents,
     "InterviewSettings": InterviewSettings,
     "InvoiceDetails": InvoiceDetails,
+    "LaborCost": LaborCost,
     "Invoices": Invoices,
     "Leaderboard": Leaderboard,
     "LeaveRequests": LeaveRequests,
