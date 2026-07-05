@@ -166,6 +166,11 @@ export default function InvoicesPage() {
                                                         </Badge>
                                                     )}
                                                 </div>
+                                                {invoice.source === 'email' && invoice.email_sender && (
+                                                    <div className="text-xs text-gray-500 font-normal mt-1" dir="ltr">
+                                                        {invoice.email_sender}
+                                                    </div>
+                                                )}
                                             </TableCell>
                                             <TableCell>{invoice.invoice_number || '---'}</TableCell>
                                             <TableCell>{invoice.invoice_date && !isNaN(new Date(invoice.invoice_date)) ? format(new Date(invoice.invoice_date), 'dd/MM/yyyy') : '—'}</TableCell>
