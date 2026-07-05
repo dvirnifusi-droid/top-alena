@@ -22,7 +22,12 @@ registerFn('getLiveCashFlow', async ({ body }) => {
     select: { shift_date: true, total_revenue: true },
   }).catch(() => []);
   const daily = dailyRevenue(reports);
-  const avg = weekdayAverages(daily, new Date(today.getTime() - 28 * DAY_MS));
+  // Prefer the last 90 days for the weekday average, but if there are no recent
+  // shift reports fall back to all data since opening — so a projection is always
+  // produced from whatever real history exists.
+  const recentCut = new Date(today.getTime() - 90 * DAY_MS);
+  const hasRecent = [...daily.keys()].some(k => new Date(`${k}T00:00:00.000Z`) >= recentCut);
+  const avg = weekdayAverages(daily, hasRecent ? recentCut : openingDate);
   const projected = projectIncome(avg, today, rangeEnd);
 
   // Expenses — supplier invoices.
