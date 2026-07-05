@@ -39,6 +39,8 @@ export type FetchedEmail = {
   sender: string; // lowercased address
   subject: string;
   snippet: string; // first 500 chars of text body — used by the AI classifier
+  html: string;    // full HTML body — used to find link-based (no-attachment) invoices
+  text: string;    // full plain-text body — fallback for bare invoice URLs
   attachments: FetchedAttachment[];
 };
 // capped=true means the 100-message safety cap cut the batch short — there are
@@ -154,6 +156,8 @@ export async function fetchNewMessages(
           sender: (parsed.from?.value?.[0]?.address || '').toLowerCase(),
           subject: parsed.subject || '',
           snippet: (parsed.text || '').slice(0, 500),
+          html: typeof parsed.html === 'string' ? parsed.html : '',
+          text: parsed.text || '',
           attachments: pickAttachments(parsed),
         });
       }
