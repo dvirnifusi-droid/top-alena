@@ -294,7 +294,10 @@ async function processMessage(acct: { email: string }, msg: FetchedEmail, result
   }
 }
 
-export async function scanEmailInvoices(): Promise<ScanResults> {
+// opts.backfillDays forces a one-time historical sweep: every account is
+// searched from (now − backfillDays) regardless of its saved cursor. Used to
+// pull invoices from further back than the default 30-day first-run window.
+export async function scanEmailInvoices(opts: { backfillDays?: number } = {}): Promise<ScanResults> {
   if (scanning) {
     console.warn('[email-invoice-scan] previous scan still running, skipping');
     return { imported: 0, skipped: 0, errors: 0, accounts: 0 };
@@ -307,9 +310,11 @@ export async function scanEmailInvoices(): Promise<ScanResults> {
 
     for (const acct of accounts) {
       try {
-        const since = acct.last_checked_at
-          ? new Date(new Date(acct.last_checked_at).getTime() - OVERLAP_MS)
-          : new Date(Date.now() - FIRST_RUN_LOOKBACK_MS);
+        const since = opts.backfillDays
+          ? new Date(scanStart.getTime() - opts.backfillDays * 24 * 3600 * 1000)
+          : acct.last_checked_at
+            ? new Date(new Date(acct.last_checked_at).getTime() - OVERLAP_MS)
+            : new Date(Date.now() - FIRST_RUN_LOOKBACK_MS);
         const knownRows: any[] = await (prisma as any).emailMessageLog.findMany({
           where: { account_email: acct.email },
           select: { message_id: true },

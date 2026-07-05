@@ -116,6 +116,13 @@ export const cronRoutes: FastifyPluginAsync = async (app) => {
   // Every 10 min — pull supplier invoices from connected Gmail inboxes.
   app.post('/email-invoice-scan', async () => scanEmailInvoices());
 
+  // On-demand historical backfill — pull invoices from further back than the
+  // default 30-day window. e.g. POST /email-invoice-backfill?days=60
+  app.post('/email-invoice-backfill', async (req) => {
+    const days = Math.min(365, Math.max(1, Number((req.query as any)?.days) || 30));
+    return scanEmailInvoices({ backfillDays: days });
+  });
+
   // Weekly (Sun ~09:00 IL) — WhatsApp a gaps digest: pending-review invoices,
   // suppliers overdue vs their normal rhythm, and this week's un-fetchable
   // (portal-login) invoices.
