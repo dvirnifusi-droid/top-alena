@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client';
 import { prisma } from '../db.js';
 import { requireAuth } from '../middleware/auth.js';
 import { fireTriggers } from '../lib/triggers.js';
+import { READ_BLOCKED_ENTITIES, stripProtectedFields } from './entityGuards.js';
 
 // Generic CRUD over any Prisma model. The entity name in the URL is the
 // PascalCase model name as it appears in schema.prisma (e.g. Customer,
@@ -159,6 +160,16 @@ function coerceData(modelName: string, data: Record<string, unknown>): Record<st
 export const entitiesRoutes: FastifyPluginAsync = async (app) => {
   app.addHook('preHandler', requireAuth);
 
+  // Block sensitive entities on every verb of the generic route. Registered at
+  // the plugin level so it runs for list, by-id, create, update and delete —
+  // salary data (EmployeePay) must only flow through the dedicated API.
+  app.addHook('preHandler', async (req, reply) => {
+    const name = (req.params as any)?.name;
+    if (name && READ_BLOCKED_ENTITIES.has(name)) {
+      return reply.code(403).send({ error: 'forbidden_entity', message: 'use the dedicated API' });
+    }
+  });
+
   // List: GET /api/entities/:name?limit=&sort=&...filters
   app.get('/:name', async (req, reply) => {
     const { name } = req.params as { name: string };
@@ -206,7 +217,8 @@ export const entitiesRoutes: FastifyPluginAsync = async (app) => {
     const { name } = req.params as { name: string };
     const delegate = modelDelegate(name);
     if (!delegate) return reply.code(404).send({ error: 'unknown_entity' });
-    const created = await delegate.create({ data: coerceData(name, req.body as Record<string, unknown>) });
+    const safeData = stripProtectedFields(name, coerceData(name, req.body as Record<string, unknown>));
+    const created = await delegate.create({ data: safeData });
     // Fire automation triggers fire-and-forget so we never block the response.
     fireTriggers(name, 'created', created).catch((e) => req.log.warn({ err: e }, 'trigger failed'));
     return reply.code(201).send(toFrontend(name, created));
@@ -220,7 +232,8 @@ export const entitiesRoutes: FastifyPluginAsync = async (app) => {
     // Snapshot the previous state so update triggers can compare and only fire
     // on real status transitions (e.g. status -> completed).
     const prev = await delegate.findUnique({ where: { id } }).catch(() => null);
-    const updated = await delegate.update({ where: { id }, data: coerceData(name, req.body as Record<string, unknown>) });
+    const safeData = stripProtectedFields(name, coerceData(name, req.body as Record<string, unknown>));
+    const updated = await delegate.update({ where: { id }, data: safeData });
     fireTriggers(name, 'updated', updated, prev).catch((e) => req.log.warn({ err: e }, 'trigger failed'));
     return toFrontend(name, updated);
   });
