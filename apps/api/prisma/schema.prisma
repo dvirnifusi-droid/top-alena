@@ -3222,3 +3222,25 @@ model EmployeePay {
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
 }
+
+model CashFlowSetting {
+  id              String   @id @default(cuid())
+  opening_balance Float    @default(0)
+  opening_date    DateTime
+  updatedAt       DateTime @updatedAt
+}
+
+model RecurringCost {
+  id           String   @id @default(cuid())
+  name         String
+  amount       Float
+  day_of_month Int      @default(1) // 1-28, day the outflow recurs each month
+  category     String   @default("קבועות") // קבועות | שכר | מימון | אחר
+  active       Boolean  @default(true)
+  // Legacy base44-style columns for frontend compatibility.
+  created_date String?
+  updated_date String?
+  createdBy    String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}

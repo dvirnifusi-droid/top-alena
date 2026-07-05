@@ -6,6 +6,7 @@
  */
 import './emailInvoices.js';
 import './employeePay.js';
+import './cashflowLive.js';
 import { randomUUID } from 'node:crypto';
 import { prisma } from '../db.js';
 import { registerFn, functionHandlers } from './index.js';
