@@ -97,8 +97,11 @@ export async function runInvoiceGapsDigest(opts: { send?: boolean } = {}): Promi
     (prisma as any).invoice.findMany({ where: { status: { not: 'rejected' } }, select: { supplier_id: true, invoice_date: true } }).catch(() => []),
     (prisma as any).supplier.findMany({ select: { id: true, company_name: true } }).catch(() => []),
     (prisma as any).invoice.count({ where: { source: 'email', status: 'pending_review' } }).catch(() => 0),
+    // Emails that looked like invoices but couldn't be captured are logged with
+    // outcome 'error' (the specific reason — link_no_pdf / no_invoice_extracted
+    // / upload_failed — lives in the `error` column).
     (prisma as any).emailMessageLog.findMany({
-      where: { outcome: { in: ['link_no_pdf', 'no_invoice_extracted'] }, createdAt: { gte: new Date(now.getTime() - 7 * DAY_MS) } },
+      where: { outcome: 'error', createdAt: { gte: new Date(now.getTime() - 7 * DAY_MS) } },
       select: { sender_email: true, subject: true },
     }).catch(() => []),
   ]);
