@@ -37,6 +37,7 @@ export const GamificationRule = base44.entities.GamificationRule;
 export const GeminiFileCache = base44.entities.GeminiFileCache;
 export const Incident = base44.entities.Incident;
 export const Inventory = base44.entities.Inventory;
+export const RecurringCost = base44.entities.RecurringCost;
 export const InventoryAlert = base44.entities.InventoryAlert;
 export const Invoice = base44.entities.Invoice;
 export const InvoiceItem = base44.entities.InvoiceItem;
