@@ -648,16 +648,30 @@ export default function EventsPrivatePage() {
   const [filterSearch, setFilterSearch] = useState('');
   const [busyDelete, setBusyDelete] = useState(null);
   const [purging, setPurging] = useState(false);
+  const [openTranscript, setOpenTranscript] = useState(null);
 
-  const emptyCount = leads.filter((l) => !l.contact_phone && !l.contact_name && !l.event_date && l.guest_count == null).length;
+  // Real user turns in a lead's conversation (excludes Dana's messages and
+  // the empty opening turn). Distinguishes bot/page-load NOISE (0 turns)
+  // from an ABANDONED conversation (someone typed but never gave details).
+  const userTurnCount = (l) => {
+    let log = l?.conversation_log;
+    if (typeof log === 'string') { try { log = JSON.parse(log); } catch { return 0; } }
+    if (!Array.isArray(log)) return 0;
+    return log.filter((t) => t && t.role !== 'assistant' && String(t.content || '').trim().length > 0).length;
+  };
+  const hasContact = (l) => !!(l.contact_phone || l.contact_name || l.event_date || l.guest_count != null);
+  const isNoise = (l) => !hasContact(l) && userTurnCount(l) === 0;
+  const isAbandoned = (l) => !hasContact(l) && userTurnCount(l) > 0;
+  const noiseCount = leads.filter(isNoise).length;
+  const abandonedCount = leads.filter(isAbandoned).length;
 
   const purgeEmpties = async () => {
-    if (!window.confirm(`למחוק ${emptyCount} לידים ריקים? (בלי שם, טלפון, תאריך או מספר אורחים — נוצרו מכניסות לעמוד שלא הושלמו). לידים אמיתיים לא ייגעו.`)) return;
+    if (!window.confirm(`למחוק ${noiseCount} שיחות רעש? (כניסות לעמוד / בוטים — אף אחד לא הקליד כלום). שיחות נטושות שבהן מישהו כן כתב, ולידים אמיתיים — לא ייגעו.`)) return;
     setPurging(true);
     try {
       const res = await base44.functions.purgeEmptyEventLeads({});
       const d = res?.data || res;
-      window.alert(`✅ נמחקו ${d?.deleted ?? 0} לידים ריקים.`);
+      window.alert(`✅ נמחקו ${d?.deleted ?? 0} שיחות רעש.${d?.kept_abandoned ? `\nנשמרו ${d.kept_abandoned} שיחות נטושות לניתוח.` : ''}`);
       loadAll();
     } catch (e) {
       window.alert('שגיאה: ' + (e?.message || ''));
@@ -746,6 +760,8 @@ export default function EventsPrivatePage() {
               <option value="new">חדש</option>
               <option value="cold">קר</option>
               <option value="booked">נסגר</option>
+              <option value="abandoned">🚪 נטושות ({abandonedCount})</option>
+              <option value="noise">רעש / כניסות ריקות ({noiseCount})</option>
             </select>
             <select value={filterSource} onChange={(e) => setFilterSource(e.target.value)} className="border rounded px-2 py-1 text-xs">
               <option value="all">כל המקורות</option>
@@ -771,7 +787,9 @@ export default function EventsPrivatePage() {
           ) : (() => {
             const q = filterSearch.trim().toLowerCase();
             const filtered = leads.filter((l) => {
-              if (filterStatus !== 'all' && (l.status || 'new') !== filterStatus) return false;
+              if (filterStatus === 'abandoned') { if (!isAbandoned(l)) return false; }
+              else if (filterStatus === 'noise') { if (!isNoise(l)) return false; }
+              else if (filterStatus !== 'all' && (l.status || 'new') !== filterStatus) return false;
               if (filterSource !== 'all' && (l.source || 'web_chat') !== filterSource) return false;
               if (q && !`${l.contact_name || ''} ${l.contact_phone || ''} ${l.event_type || ''} ${l.ai_summary || ''}`.toLowerCase().includes(q)) return false;
               return true;
@@ -788,22 +806,32 @@ export default function EventsPrivatePage() {
             return (
               <div className="space-y-2">
                 <div className="flex items-center justify-between gap-2 flex-wrap">
-                  <div className="text-xs text-slate-500">מוצגים {filtered.length} מתוך {leads.length} לידים</div>
-                  {emptyCount > 0 && (
+                  <div className="text-xs text-slate-500">
+                    מוצגים {filtered.length} מתוך {leads.length} לידים
+                    {abandonedCount > 0 && <span className="text-amber-700"> · 🚪 {abandonedCount} נטושות</span>}
+                    {noiseCount > 0 && <span className="text-slate-400"> · {noiseCount} רעש</span>}
+                  </div>
+                  {noiseCount > 0 && (
                     <Button size="sm" variant="outline" onClick={purgeEmpties} disabled={purging}
                       className="border-red-300 text-red-700 hover:bg-red-50 text-xs">
-                      {purging ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <><Trash2 className="w-3.5 h-3.5 ml-1" /> נקה {emptyCount} לידים ריקים</>}
+                      {purging ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <><Trash2 className="w-3.5 h-3.5 ml-1" /> נקה {noiseCount} שיחות רעש</>}
                     </Button>
                   )}
                 </div>
                 {filtered.map((l) => {
                   const status = STATUS[l.status] || { label: l.status || '—', cls: '' };
+                  const turns = userTurnCount(l);
+                  const abandoned = isAbandoned(l);
+                  let log = l.conversation_log;
+                  if (typeof log === 'string') { try { log = JSON.parse(log); } catch { log = []; } }
+                  if (!Array.isArray(log)) log = [];
+                  const realLog = log.filter((t) => t && String(t.content || '').trim().length > 0);
                   return (
-                    <div key={l.id} className="border rounded-lg p-3 bg-white hover:bg-slate-50/50 transition">
+                    <div key={l.id} className={`border rounded-lg p-3 transition ${abandoned ? 'bg-amber-50/50 border-amber-200' : 'bg-white hover:bg-slate-50/50'}`}>
                       <div className="flex items-start justify-between gap-3 flex-wrap">
                         <div className="text-sm flex-1 min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
-                            <strong>{l.contact_name || 'ללא שם'}</strong>
+                            <strong>{l.contact_name || (abandoned ? '🚪 שיחה נטושה' : 'ללא שם')}</strong>
                             {l.contact_phone && <a href={`tel:${l.contact_phone}`} className="text-[#44512C] hover:underline">📞 {l.contact_phone}</a>}
                             {scoreBadge(l.score)}
                             <Badge className={status.cls}>{status.label}</Badge>
@@ -814,10 +842,31 @@ export default function EventsPrivatePage() {
                             {l.guest_count != null && <>👥 {l.guest_count} · </>}
                             {l.budget_per_person && <>💰 ₪{l.budget_per_person}/סועד · </>}
                             📥 {l.source || '—'} · {fmt(l.created_date)}
+                            {turns > 0 && <> · 💬 {turns} הודעות</>}
                           </div>
                           {l.ai_summary && (
                             <div className="mt-2 p-2 bg-emerald-50 border border-emerald-100 rounded text-xs text-emerald-900">
                               <span className="font-bold">🧠 סיכום שיחה: </span>{l.ai_summary}
+                            </div>
+                          )}
+                          {realLog.length > 0 && (
+                            <button
+                              onClick={() => setOpenTranscript(openTranscript === l.id ? null : l.id)}
+                              className="mt-2 text-xs text-blue-600 hover:underline flex items-center gap-1"
+                            >
+                              <MessageCircle className="w-3 h-3" /> {openTranscript === l.id ? 'הסתר שיחה' : `צפה בשיחה (${realLog.length} הודעות)`}
+                            </button>
+                          )}
+                          {openTranscript === l.id && (
+                            <div className="mt-2 space-y-1.5 bg-slate-50 border rounded-lg p-2 max-h-72 overflow-y-auto">
+                              {realLog.map((t, i) => (
+                                <div key={i} className={`text-xs flex ${t.role === 'assistant' ? 'justify-start' : 'justify-end'}`}>
+                                  <div className={`px-2.5 py-1.5 rounded-lg max-w-[80%] ${t.role === 'assistant' ? 'bg-white border text-slate-700' : 'bg-emerald-600 text-white'}`}>
+                                    <div className="opacity-60 text-[10px] mb-0.5">{t.role === 'assistant' ? '🤖 דנה' : '🧑 לקוח'}</div>
+                                    {t.content}
+                                  </div>
+                                </div>
+                              ))}
                             </div>
                           )}
                         </div>
