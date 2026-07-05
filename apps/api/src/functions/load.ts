@@ -43,7 +43,7 @@ const db = prisma as any; // generic delegate access
 
 // Public deploy marker — lets us confirm which build is live (and that
 // auto-deploy is working) without server access. Bump on each deploy test.
-registerFn('deployInfo', async () => ({ version: 'jointeam-link-2026-07-04b', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
+registerFn('deployInfo', async () => ({ version: 'empty-lead-gate-2026-07-05', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
 
 
 
@@ -7136,7 +7136,14 @@ registerFn('chatEventsInquiry', async ({ body }) => {
   try {
     if (currentLeadId) {
       currentLead = await db.eventLead.update({ where: { id: currentLeadId }, data: { ...leadData, updated_date: nowIso } });
-    } else {
+    } else if (hasAnyInfo) {
+      // Only create a row once the visitor actually gave SOMETHING (phone,
+      // name, date, or guest count). The page fires an empty opening turn
+      // on every mount to get Dana's greeting — without this gate, every
+      // page view (bots, crawlers, tyre-kickers who never type) minted an
+      // empty 'ללא שם / חדש' lead, flooding the inbox (119 junk rows found
+      // 2026-07-05). No info yet → return no lead_id; the next turn that
+      // carries info creates the row with the full conversation log.
       currentLead = await db.eventLead.create({ data: { ...leadData, created_date: nowIso, updated_date: nowIso } });
       currentLeadId = currentLead.id;
     }
@@ -9387,6 +9394,32 @@ registerFn('deleteEventLead', async ({ body }) => {
   await db.eventBooking.deleteMany({ where: { lead_id } }).catch(() => {});
   await db.eventLead.delete({ where: { id: lead_id } });
   return { ok: true };
+});
+
+// AUTH — bulk-delete empty/abandoned leads: no phone, no name, no date,
+// no guest count. These are the opening-greeting rows the page used to
+// mint on every visit (fixed at source in chatEventsInquiry). Returns the
+// count removed so the UI can report it. Never touches a lead that carries
+// any real contact info or event detail.
+registerFn('purgeEmptyEventLeads', async ({ user }) => {
+  if (!user?.id) throw new Error('unauthorized');
+  if (!isAdminRole((user as any)?.role)) throw new Error('admin only');
+  const empties: any[] = await db.eventLead.findMany({
+    where: {
+      AND: [
+        { OR: [{ contact_phone: null }, { contact_phone: '' }] },
+        { OR: [{ contact_name: null }, { contact_name: '' }] },
+        { OR: [{ event_date: null }, { event_date: '' }] },
+        { guest_count: null },
+      ],
+    },
+    select: { id: true },
+  });
+  const ids = empties.map((e) => e.id);
+  if (!ids.length) return { ok: true, deleted: 0 };
+  await db.eventBooking.deleteMany({ where: { lead_id: { in: ids } } }).catch(() => {});
+  const res = await db.eventLead.deleteMany({ where: { id: { in: ids } } });
+  return { ok: true, deleted: res?.count ?? ids.length };
 });
 
 // AUTH — set the manager's callback stage on a lead.

@@ -647,6 +647,22 @@ export default function EventsPrivatePage() {
   const [filterSource, setFilterSource] = useState('all');
   const [filterSearch, setFilterSearch] = useState('');
   const [busyDelete, setBusyDelete] = useState(null);
+  const [purging, setPurging] = useState(false);
+
+  const emptyCount = leads.filter((l) => !l.contact_phone && !l.contact_name && !l.event_date && l.guest_count == null).length;
+
+  const purgeEmpties = async () => {
+    if (!window.confirm(`למחוק ${emptyCount} לידים ריקים? (בלי שם, טלפון, תאריך או מספר אורחים — נוצרו מכניסות לעמוד שלא הושלמו). לידים אמיתיים לא ייגעו.`)) return;
+    setPurging(true);
+    try {
+      const res = await base44.functions.purgeEmptyEventLeads({});
+      const d = res?.data || res;
+      window.alert(`✅ נמחקו ${d?.deleted ?? 0} לידים ריקים.`);
+      loadAll();
+    } catch (e) {
+      window.alert('שגיאה: ' + (e?.message || ''));
+    } finally { setPurging(false); }
+  };
 
   const deleteLead = async (lead) => {
     if (!window.confirm(`למחוק ליד של ${lead.contact_name || lead.contact_phone || lead.id}?`)) return;
@@ -771,7 +787,15 @@ export default function EventsPrivatePage() {
             }
             return (
               <div className="space-y-2">
-                <div className="text-xs text-slate-500">מוצגים {filtered.length} מתוך {leads.length} לידים</div>
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <div className="text-xs text-slate-500">מוצגים {filtered.length} מתוך {leads.length} לידים</div>
+                  {emptyCount > 0 && (
+                    <Button size="sm" variant="outline" onClick={purgeEmpties} disabled={purging}
+                      className="border-red-300 text-red-700 hover:bg-red-50 text-xs">
+                      {purging ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <><Trash2 className="w-3.5 h-3.5 ml-1" /> נקה {emptyCount} לידים ריקים</>}
+                    </Button>
+                  )}
+                </div>
                 {filtered.map((l) => {
                   const status = STATUS[l.status] || { label: l.status || '—', cls: '' };
                   return (
