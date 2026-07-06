@@ -111,9 +111,11 @@ function EmployeeReportsInner() {
     const [editShift, setEditShift] = useState(null); // { entry, workShiftId }
     // Add manual shift
     const [showAddShift, setShowAddShift] = useState(false);
-    // When on: past shifts with no clock-in record are included in the
-    // hourly table + totals (default: hidden, per the no-show rule).
-    const [includeNoShow, setIncludeNoShow] = useState(false);
+    // Scheduled shifts with no clock-in are ALWAYS counted (they reconcile the
+    // detailed table with the per-role card + monthly total) and flagged "ללא
+    // שעון" in the table. Turning this on reverts to clocked-only (docks them
+    // from the table + totals) — an escape hatch for a genuine no-show.
+    const [hideNoShow, setHideNoShow] = useState(false);
     const [addShiftForm, setAddShiftForm] = useState({ date: format(new Date(), 'yyyy-MM-dd'), shift_type: 'dinner', position: '', start_time: '', end_time: '', break_minutes: 0 });
     const [savingAddShift, setSavingAddShift] = useState(false);
     // Rates per position for gross calculation
@@ -288,10 +290,11 @@ function EmployeeReportsInner() {
         );
 
         // משמרות מסידור העבודה לעובדים שאינם על טיפים.
-        // *** חדש: מסננים שיבוצים שהעובד לא נכנס לשעון בפועל. ***
-        // עובד שיש לו משמרת בסידור אבל אין רשומת ShiftTracking לאותו יום
-        // נחשב "הבריז" — שעותיו לא נספרות בדוח. הלוגיקה חלה רק על ימים בעבר;
-        // ימים עתידיים נספרים מראש כדי שתוכל לצפות בשעות הצפויות.
+        // כל משמרת מהסידור נספרת — כך הטבלה המפורטת מתלכדת עם הכרטיס לפי תפקיד
+        // ועם הסיכום החודשי (שסופרים תמיד לפי הסידור). משמרת בעבר בלי החתמת
+        // שעון מסומנת noShow=true (דגל "ללא שעון" בטבלה) אך עדיין נספרת, כי
+        // תפקידים רבים (מתלמד, פס הכנה, מנהל משמרת) לא מחתימים שעון כלל.
+        // המתג hideNoShow חוזר להתנהגות "לפי שעון בלבד" ומוריד אותן מהחישוב.
         const todayStr = format(new Date(), 'yyyy-MM-dd');
         const clockedDays = new Set(
             (shifts || [])
@@ -306,11 +309,11 @@ function EmployeeReportsInner() {
                 if (TIP_POSITIONS.includes(a.position)) return; // טיפ-based - לא כאן
                 const hours = calcHours(a.start_time, a.end_time);
                 if (hours <= 0) return;
-                // No-show filter: אם היום עבר ואין שעון נוכחות → לא סופרים.
-                // חריגים: (1) משמרת שהוזנה ידנית בדוח (manual_entry) — הבעלים
-                // אישר אותה בעצמו; (2) המתג "כלול משמרות ללא שעון" דולק.
+                // משמרת בעבר בלי החתמת שעון (ולא הוזנה ידנית) = "ללא שעון".
+                // נספרת כברירת מחדל ומסומנת בדגל; מוסתרת רק אם hideNoShow דולק.
                 const isPast = ws.date < todayStr;
-                if (isPast && !clockedDays.has(ws.date) && !a.manual_entry && !includeNoShow) return;
+                const noShow = isPast && !clockedDays.has(ws.date) && !a.manual_entry;
+                if (noShow && hideNoShow) return;
                 hourlyShiftEntries.push({
                     date: ws.date,
                     shift_type: ws.shift_type,
@@ -321,12 +324,13 @@ function EmployeeReportsInner() {
                     break_minutes: a.total_break_minutes || 0,
                     net_hours: hours - (a.total_break_minutes || 0) / 60,
                     workShiftId: ws.id,
+                    noShow,
                 });
             });
         });
 
         return { tipEntries, shifts: empShifts, hourlyShiftEntries };
-    }, [shifts, tipReports, workShifts, selectedEmployeeId, filterPeriod, selectedMonth, employees, includeNoShow]);
+    }, [shifts, tipReports, workShifts, selectedEmployeeId, filterPeriod, selectedMonth, employees, hideNoShow]);
 
     // חישוב פילוח שבועי לחודש הנוכחי (לטאב החדש)
     const monthlyBreakdown = useMemo(() => {
@@ -1120,10 +1124,10 @@ function EmployeeReportsInner() {
                                         <label className="flex items-center gap-2 mt-2 text-xs text-gray-600 cursor-pointer select-none">
                                             <input
                                                 type="checkbox"
-                                                checked={includeNoShow}
-                                                onChange={(e) => setIncludeNoShow(e.target.checked)}
+                                                checked={hideNoShow}
+                                                onChange={(e) => setHideNoShow(e.target.checked)}
                                             />
-                                            ⚠️ כלול גם משמרות מהסידור שלא נסגרו בשעון (הבריזים)
+                                            🕐 חשב לפי שעון בלבד — הסתר משמרות מהסידור ללא החתמת שעון
                                         </label>
                                     </div>
                                     {isAdmin && (
@@ -1184,7 +1188,14 @@ function EmployeeReportsInner() {
                                                                          {entry.shift_type === 'lunch' ? 'צהריים' : 'ערב'}
                                                                          </Badge>
                                                                          </td>
-                                                                         <td className="py-3 px-4 text-gray-700 font-medium">{entry.position}</td>
+                                                                         <td className="py-3 px-4 text-gray-700 font-medium">
+                                                                         <span className="inline-flex items-center gap-1.5 flex-wrap">
+                                                                         {entry.position}
+                                                                         {entry.noShow && (
+                                                                         <span title="שובץ בסידור אך אין החתמת שעון ליום זה — נספר לפי הסידור" className="text-[10px] font-semibold text-amber-700 bg-amber-100 border border-amber-300 rounded px-1.5 py-0.5">⚠️ ללא שעון</span>
+                                                                         )}
+                                                                         </span>
+                                                                         </td>
                                                                          <td className="py-3 px-4">{entry.start_time}</td>
                                                                          <td className="py-3 px-4">{entry.end_time}</td>
                                                                          <td className="py-3 px-4 text-gray-500">{entry.break_minutes > 0 ? entry.break_minutes : '-'}</td>
