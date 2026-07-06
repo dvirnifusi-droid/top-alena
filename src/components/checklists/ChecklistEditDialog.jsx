@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Trash2, Plus, ChevronRight, ChevronLeft, Settings, ListChecks, ArrowUp, ArrowDown } from "lucide-react";
+import { UploadFile } from "@/integrations/Core";
 
 export default function ChecklistEditDialog({ isOpen, checklist, employees, onClose, onSave }) {
     const [step, setStep] = useState('details'); // 'details' | 'items'
@@ -413,6 +414,42 @@ export default function ChecklistEditDialog({ isOpen, checklist, employees, onCl
                                                     min="1" max="20"
                                                 />
                                             </div>
+                                        </div>
+
+                                        {/* AI coach config */}
+                                        <div className="mt-2 border-t pt-2 space-y-2">
+                                            <label className="flex items-center gap-2 text-sm">
+                                                <input type="checkbox" checked={!!currentItem.ai_review}
+                                                    onChange={e => updateItem(selectedItemIndex, 'ai_review', e.target.checked)} />
+                                                בדיקת AI למשימה זו (מאמן — לא חוסם)
+                                            </label>
+                                            {currentItem.ai_review && (
+                                                <>
+                                                    <Textarea placeholder="קריטריונים לביצוע תקין (למשל: משטח נוקה, גז כבוי, רצפה שטופה)"
+                                                        value={currentItem.expected_criteria || ''}
+                                                        onChange={e => updateItem(selectedItemIndex, 'expected_criteria', e.target.value)} />
+                                                    <div>
+                                                        <div className="text-xs text-slate-500 mb-1">תמונות ייחוס ("ככה זה נראה תקין"):</div>
+                                                        <div className="flex gap-2 flex-wrap">
+                                                            {(currentItem.reference_photo_urls || []).map((u, i) => (
+                                                                <div key={i} className="relative">
+                                                                    <img src={u} alt="ref" className="w-16 h-16 object-cover rounded border" />
+                                                                    <button type="button" className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full w-4 h-4 text-xs"
+                                                                        onClick={() => updateItem(selectedItemIndex, 'reference_photo_urls', (currentItem.reference_photo_urls || []).filter((_, j) => j !== i))}>×</button>
+                                                                </div>
+                                                            ))}
+                                                            <label className="w-16 h-16 border-2 border-dashed rounded flex items-center justify-center cursor-pointer text-slate-400">
+                                                                +
+                                                                <input type="file" accept="image/*" className="hidden" onChange={async e => {
+                                                                    const f = e.target.files?.[0]; if (!f) return;
+                                                                    const { file_url } = await UploadFile({ file: f });
+                                                                    updateItem(selectedItemIndex, 'reference_photo_urls', [...(currentItem.reference_photo_urls || []), file_url]);
+                                                                }} />
+                                                            </label>
+                                                        </div>
+                                                    </div>
+                                                </>
+                                            )}
                                         </div>
                                     </div>
                                 )}

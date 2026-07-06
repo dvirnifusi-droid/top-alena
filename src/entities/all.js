@@ -13,6 +13,7 @@ export const CampaignLog = base44.entities.CampaignLog;
 export const Checklist = base44.entities.Checklist;
 export const ChecklistExecution = base44.entities.ChecklistExecution;
 export const ChecklistExecutionArchive = base44.entities.ChecklistExecutionArchive;
+export const ChecklistItemExample = base44.entities.ChecklistItemExample;
 export const CoinTransaction = base44.entities.CoinTransaction;
 export const ConversationScript = base44.entities.ConversationScript;
 export const Courier = base44.entities.Courier;
