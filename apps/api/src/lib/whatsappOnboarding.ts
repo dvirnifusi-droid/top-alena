@@ -1,235 +1,192 @@
-// WhatsApp-driven onboarding conversation for freshly-provisioned tenants.
-// State machine keyed by OnboardingState.current_step; persists between
-// messages so a tenant can reply hours later and pick up where they left.
+// WhatsApp-driven onboarding for freshly-provisioned tenants.
 //
-// v3 (2026-07-04): after the core profile steps, a MODULE MENU lets the
-// owner set up everything else — checklists (file or AI-suggested),
-// suppliers, roles (typed or extracted from an existing work schedule),
-// employees (file / typed / WhatsApp self-signup invitations), interview
-// slots, training (file or AI-suggested), customer-club import, AI
-// knowledge-base files, and invoice-collection emails. Every module is
-// skippable; everything collected is IMPLEMENTED in the tenant schema
-// before the final message hands over the app link.
+// v4 (2026-07-06): "העוזר החכם". A single AI brain runs the whole setup as a
+// natural Hebrew conversation — ONE atomic question at a time (name, then
+// address, then hours, ...), never a numbered menu. It's dual-mode: it guides
+// step-by-step AND answers the owner's questions like real customer service,
+// then gently continues. Any input works at any time — free text, voice
+// (transcribed upstream in the webhook), or a file (menu photo, work schedule,
+// employee list, checklist PDF). Files are auto-CLASSIFIED and embedded into
+// the right place. The extractor + persist helpers are reused from v3.
 
 import { PrismaClient } from '@prisma/client';
 import { sendWhatsApp } from './twilio.js';
 
 const prisma: any = new PrismaClient();
 
-type StepId =
-  | 'welcome'
-  | 'restaurant_name'
-  | 'address'
-  | 'phone'
-  | 'opening_hours'
-  | 'cuisine'
-  | 'description'
-  | 'employee_count'
-  | 'tables_count'
-  | 'menu_intro'
-  | 'modules_menu'
-  | 'm_checklists'
-  | 'm_suppliers'
-  | 'm_roles'
-  | 'm_employees'
-  | 'm_interviews'
-  | 'm_training'
-  | 'm_customers'
-  | 'm_knowledge'
-  | 'm_invoice_email'
-  | 'done';
-
-const SKIP_RE = /^(דלג|דלגי|skip|אין|לא עכשיו|אין לי)/i;
-const CONFIRM_RE = /^(אישור|כן|נכון|בסדר|אוקי+|ok|יס)$/i;
-const BACK_RE = /^(חזרה|תפריט|back|0)$/i;
-const SUGGEST_RE = /^(הצע|תציע|הצעה|suggest)/i;
-
-const TOTAL_STEPS = 8;
-
-// Media-accepting steps → which extractor runs. Everything else ignores media.
-const MEDIA_STEPS = new Set<StepId>([
-  'menu_intro', 'm_checklists', 'm_roles', 'm_employees', 'm_customers', 'm_knowledge', 'm_training',
-]);
-
 const HEB_DAYS: Record<string, number> = {
   'ראשון': 0, 'שני': 1, 'שלישי': 2, 'רביעי': 3, 'חמישי': 4, 'שישי': 5, 'שבת': 6,
   'א': 0, 'ב': 1, 'ג': 2, 'ד': 3, 'ה': 4, 'ו': 5,
 };
 
-function modulesMenuText(counts: Record<string, number>): string {
-  const mark = (k: string) => (counts[k] ? ` (✅ ${counts[k]})` : '');
-  return (
-    `🧩 *הקמה מתקדמת — מה עוד להטמיע?*\n` +
-    `שלח מספר, או 0 לסיום וקבלת הקישור:\n\n` +
-    `1️⃣ צ'קליסטים${mark('checklists')} — שלח קובץ או שאציע לפי העסק\n` +
-    `2️⃣ ספקים${mark('suppliers')}\n` +
-    `3️⃣ תפקידים${mark('roles')} — רשימה או קובץ סידור עבודה\n` +
-    `4️⃣ עובדים${mark('employees')} — קובץ / רשימה / הזמנות וואטסאפ\n` +
-    `5️⃣ סלוטים לראיונות עבודה${mark('slots')}\n` +
-    `6️⃣ תוכנית הכשרה${mark('training')} — קובץ או הצעת AI\n` +
-    `7️⃣ מועדון לקוחות${mark('customers')} — ייבוא קובץ\n` +
-    `8️⃣ מרכז ידע ל-AI${mark('knowledge')} — שלח קבצים\n` +
-    `9️⃣ מייל לאיסוף חשבוניות${mark('invoice_email') ? ' (✅)' : ''}\n` +
-    `0️⃣ *סיום — קבל את האפליקציה המוכנה*`
-  );
+const sql = (q: string, ...args: any[]) => (prisma as any).$executeRawUnsafe(q, ...args);
+const query = (q: string, ...args: any[]) => (prisma as any).$queryRawUnsafe(q, ...args);
+const uuid = async () => (await import('node:crypto')).randomUUID();
+
+// ===========================================================================
+// v4 ORCHESTRATION — the AI brain
+// ===========================================================================
+
+// One-line human summary of what's already set up, injected into the brain
+// each turn so it never re-asks something or loses track.
+function summarizeState(data: Record<string, any>, tenant: any): string {
+  const c = data._counts || {};
+  const parts = [
+    `שם: ${data.name || tenant.restaurant_name || '—'}`,
+    `כתובת: ${data.address || '—'}`,
+    `שעות: ${data.opening_hours || '—'}`,
+    `מטבח: ${data.cuisine || '—'}`,
+    `מנות בתפריט: ${c.menu || 0}`,
+    `עובדים: ${c.employees || 0}${c.invited ? ` (+${c.invited} הזמנות)` : ''}`,
+    `שולחנות: ${data.tables_count || c.tables || 0}`,
+  ];
+  if (c.checklists) parts.push(`צ׳קליסטים: ${c.checklists}`);
+  if (c.suppliers) parts.push(`ספקים: ${c.suppliers}`);
+  if (c.customers) parts.push(`לקוחות במועדון: ${c.customers}`);
+  if (c.knowledge) parts.push(`מסמכי ידע: ${c.knowledge}`);
+  if (c.invoice_email) parts.push(`מייל חשבוניות: הוגדר`);
+  return parts.join('\n');
 }
 
-const MODULE_BY_DIGIT: Record<string, StepId> = {
-  '1': 'm_checklists', '2': 'm_suppliers', '3': 'm_roles', '4': 'm_employees',
-  '5': 'm_interviews', '6': 'm_training', '7': 'm_customers', '8': 'm_knowledge',
-  '9': 'm_invoice_email',
-};
-
-const MODULE_PROMPTS: Partial<Record<StepId, string>> = {
-  m_checklists:
-    `📋 *צ'קליסטים*\n\nשלח לי קובץ (תמונה/PDF) של צ'קליסט קיים ואני אקים אותו במערכת.\n` +
-    `אין לך? שלח "הצע" ואבנה לך צ'קליסטים לפי סוג העסק שלך.\n(או "חזרה" לתפריט)`,
-  m_suppliers:
-    `🚚 *ספקים*\n\nרשום את הספקים שאתה עובד איתם — שורה לכל ספק:\n` +
-    `שם, קטגוריה, טלפון\n\nדוגמה:\nירקות השדה, ירקות, 052-1234567\nמאפיית לחמים, מאפים, 03-5551234\n\n(או "חזרה")`,
-  m_roles:
-    `👔 *תפקידים*\n\nרשום את התפקידים במסעדה מופרדים בפסיק:\n` +
-    `מלצר/ית, טבח, ברמן, אחמ"ש, שוטף כלים\n\n` +
-    `או שלח קובץ של סידור עבודה קיים — אזהה את התפקידים מתוכו.\n(או "חזרה")`,
-  m_employees:
-    `👥 *עובדים*\n\nשלוש דרכים:\n` +
-    `א. כתוב "קישור" — תקבל קישור הצטרפות אחד לשיתוף בקבוצת הצוות. כל עובד נרשם לבד (שם, טלפון, מייל, תפקיד) ואתה רק מאשר 👑\n` +
-    `ב. שלח קובץ/תמונה של רשימת העובדים — אקרא ואקים\n` +
-    `ג. רשום ידנית — שורה לכל עובד: שם, תפקיד, טלפון\n\n(או "חזרה")`,
-  m_interviews:
-    `🗓 *סלוטים לראיונות*\n\nמתי נוח לך לקיים ראיונות עבודה? רשום שורות של יום + שעה:\n` +
-    `שני 14:00\nרביעי 10:30\nחמישי 16:00\n\nמועמדים יוכלו לקבוע ראיון בסלוטים האלה אוטומטית.\n(או "חזרה")`,
-  m_training:
-    `🎓 *תוכנית הכשרה*\n\nשלח קובץ של תוכנית ההכשרה שלך (תמונה/PDF) ואכניס אותה למערכת.\n` +
-    `אין לך? שלח "הצע" ואבנה תוכנית הכשרה לפי התפקידים וסוג העסק.\n(או "חזרה")`,
-  m_customers:
-    `💳 *מועדון לקוחות*\n\nשלח קובץ של רשימת הלקוחות (CSV / תמונה / PDF) — שם, טלפון, מייל, יום הולדת אם יש.\n` +
-    `אני אייבא את כולם למועדון.\n(או "חזרה")`,
-  m_knowledge:
-    `🧠 *מרכז ידע ל-AI*\n\nשלח לי קבצים — נהלים, מתכונים, תפריטי אירועים, שאלות נפוצות — אחד אחרי השני.\n` +
-    `כל קובץ ייקרא וייכנס למרכז הידע, וה-AI שלך ישתמש בו כשהוא עונה לך ולצוות.\n\nכתוב "חזרה" כשסיימת.`,
-  m_invoice_email:
-    `📧 *מייל לאיסוף חשבוניות*\n\nלאיזה כתובת/כתובות מייל מגיעות חשבוניות מהספקים שלך?\n` +
-    `(אפשר כמה, מופרדות בפסיק. או "חזרה")`,
-};
-
-interface StepDef {
-  id: StepId;
-  prompt: (data: Record<string, any>, ctx: { restaurant_name: string; owner_name: string }) => string;
-  parse?: (reply: string) => any;
-  next: StepId;
-  saveTo?: string;
-  optional?: boolean;
+// Returns the SINGLE next thing still missing, so the brain asks one atomic
+// question. Core first (name→address→hours→cuisine→menu→employees→tables),
+// then optional extras, then "ready to finish".
+function nextMissing(data: Record<string, any>): string {
+  const c = data._counts || {};
+  if (!data.name) return 'שם המסעדה';
+  if (!data.address) return 'כתובת מדויקת (רחוב, מספר, עיר)';
+  if (!data.opening_hours) return 'שעות פתיחה';
+  if (!data.cuisine) return 'סוג המטבח (בשורה אחת)';
+  if (!c.menu) return 'תפריט — בקש ממנו לשלוח צילום או PDF ואתה תקרא את המנות (אפשר "אחר כך")';
+  if (!c.employees && !c.invited) return 'עובדים — הוא יכול לשלוח רשימה/קובץ, או שתשלח קישור הצטרפות שכל עובד נרשם לבד (אפשר "אחר כך")';
+  if (data.tables_count == null && !c.tables) return 'כמה שולחנות יש בערך (אפשר "אחר כך")';
+  if (!c.checklists) return 'צ׳קליסטים — קובץ קיים, או שתבנה לו לפי סוג העסק (אפשר "אחר כך")';
+  if (!c.suppliers) return 'ספקים שהוא עובד איתם (אפשר "אחר כך")';
+  if (!c.customers) return 'מועדון לקוחות — קובץ לייבוא (אפשר "אחר כך")';
+  if (!c.knowledge) return 'מסמכי ידע ל-AI — נהלים/מתכונים/שאלות נפוצות (אפשר "אחר כך")';
+  if (!c.invoice_email) return 'מייל שאליו מגיעות חשבוניות מספקים (אפשר "אחר כך")';
+  return 'הכל מוכן — סמן finished=true והציע לו את הקישור לאפליקציה';
 }
 
-const STEPS: Record<string, StepDef> = {
-  welcome: {
-    id: 'welcome',
-    prompt: (_, ctx) =>
-      `🎉 שלום ${ctx.owner_name}! ברוך/ה הבא/ה ל-TopAlena.\n\n` +
-      `המערכת שלך מוכנה ואני *AI* שיקים לך את המסעדה — פרופיל, עובדים, שולחנות, תפריט, צ'קליסטים וכל השאר — מתוך שיחה פשוטה כאן ✨\n\n` +
-      `בסוף תקבל קישור לאפליקציה כשהכל כבר מוטמע ומוכן.\n\n` +
-      `*מוכן/ה להתחיל?* שלח "כן", או "אחר כך" אם עסוק/ה.`,
-    parse: (r) => {
-      const t = r.trim().toLowerCase();
-      if (/^(כן|yes|ok|בסדר|נתחיל|בואו?)/.test(t)) return 'yes';
-      if (/^(אחר|לא עכשיו|later)/.test(t)) return 'later';
-      return null;
+// The brain. Given history + state + the owner's message, returns the natural
+// reply + any structured data the owner just gave.
+async function onboardingBrain(
+  tenant: any, history: any[], message: string, data: Record<string, any>,
+): Promise<any> {
+  const { invokeLLM } = await import('./llm.js');
+  const convo = (history || []).slice(-12).map((t) => `${t.role === 'assistant' ? 'עוזר' : 'בעלים'}: ${t.content}`).join('\n');
+  const prompt =
+    `אתה "העוזר החכם" של TopAlena — מקים מסעדה בשם "${data.name || tenant.restaurant_name}" עבור ${tenant.owner_name || 'הבעלים'}.\n` +
+    `דבר עברית טבעית, חמה ואנושית — כמו נציג אמיתי, לא בוט.\n\n` +
+    `## חוקים\n` +
+    `1. שאל שאלה אחת אטומית בכל פעם. שם = שאלה, כתובת = שאלה נפרדת, שעות = נפרדת. לעולם אל תקבץ כמה דברים בשאלה אחת.\n` +
+    `2. אם הבעלים שואל אותך שאלה (איך.../מה זה.../כמה עולה/אפשר...) — ענה לו כמו שירות לקוחות אמיתי, קצר ומדויק, ואז חזור בעדינות לשאלה הבאה.\n` +
+    `3. קבל כל תשובה בשפה חופשית וחלץ את הערך. אל תמציא — אם לא ברור, שאל שוב יפה.\n` +
+    `4. אם הבעלים אומר "דלג"/"אחר כך"/"אין לי" — עבור לשאלה הבאה בלי לחץ.\n` +
+    `5. תגובות קצרות (משפט-שניים) + אימוג'י אחד מתאים. חם אבל לא מוגזם.\n\n` +
+    `## מה כבר הוקם\n${summarizeState(data, tenant)}\n\n` +
+    `## מה עוד חסר — שאל את זה עכשיו (בטון טבעי):\n${nextMissing(data)}\n\n` +
+    `## השיחה עד כה\n${convo || '(ההתחלה)'}\n\n` +
+    `## ההודעה של הבעלים עכשיו\n"${message}"\n\n` +
+    `החזר JSON: reply (מה לשלוח), profile (שדות שהבעלים נתן עכשיו — רק אלה שבאמת הופיעו), list_kind + list_text (אם נתן רשימה בטקסט של עובדים/ספקים/תפקידים/מיילים), finished (true רק אם הבעלים סיים והליבה מוכנה).`;
+
+  const result: any = await invokeLLM({
+    prompt,
+    responseSchema: {
+      type: 'object',
+      properties: {
+        reply: { type: 'string' },
+        profile: {
+          type: 'object',
+          properties: {
+            name: { type: 'string' }, address: { type: 'string' }, phone: { type: 'string' },
+            opening_hours: { type: 'string' }, cuisine: { type: 'string' }, description: { type: 'string' },
+            employee_count: { type: 'string' }, tables_count: { type: 'string' },
+          },
+        },
+        list_kind: { type: 'string' }, // '' | employees | suppliers | roles | invoice_emails
+        list_text: { type: 'string' },
+        finished: { type: 'boolean' },
+      },
+      required: ['reply'],
     },
-    next: 'restaurant_name',
-  },
-  restaurant_name: {
-    id: 'restaurant_name',
-    prompt: (_, ctx) =>
-      `🍽 *שלב 1 / ${TOTAL_STEPS} — שם המסעדה*\n\nרשמנו אותך בתור "${ctx.restaurant_name}".\n` +
-      `מה השם המדויק כפי שיופיע ללקוחות?\n\n(אם נכון — ענה "אישור")`,
-    parse: (r) => (CONFIRM_RE.test(r.trim()) ? '__KEEP__' : r.trim()),
-    saveTo: 'name',
-    next: 'address',
-  },
-  address: {
-    id: 'address',
-    prompt: () => `📍 *שלב 2 / ${TOTAL_STEPS} — כתובת*\n\nמה הכתובת המדויקת? (רחוב, מספר, עיר)`,
-    parse: (r) => r.trim(),
-    saveTo: 'address',
-    next: 'phone',
-  },
-  phone: {
-    id: 'phone',
-    prompt: () =>
-      `☎️ *שלב 3 / ${TOTAL_STEPS} — טלפון המסעדה*\n\nמה המספר שאליו לקוחות מתקשרים?\n(אפשר "דלג" אם זה המספר הזה)`,
-    parse: (r) => (SKIP_RE.test(r.trim()) ? '__SKIP__' : r.trim()),
-    saveTo: 'phone',
-    optional: true,
-    next: 'opening_hours',
-  },
-  opening_hours: {
-    id: 'opening_hours',
-    prompt: () =>
-      `🕒 *שלב 4 / ${TOTAL_STEPS} — שעות פתיחה*\n\n(דוגמה: "א-ה 12:00-23:00, ו' 12:00-16:00, מוצש 20:00-01:00")`,
-    parse: (r) => r.trim(),
-    saveTo: 'opening_hours',
-    next: 'cuisine',
-  },
-  cuisine: {
-    id: 'cuisine',
-    prompt: () => `🥘 *שלב 5 / ${TOTAL_STEPS} — סוג המטבח*\n\nאיזה מטבח? תיאור קצר בשורה אחת.`,
-    parse: (r) => r.trim(),
-    saveTo: 'cuisine',
-    next: 'description',
-  },
-  description: {
-    id: 'description',
-    prompt: () =>
-      `📝 *שלב 6 / ${TOTAL_STEPS} — קצת על המסעדה*\n\n2-3 משפטים: אווירה, קהל, מה מיוחד אצלכם?\n` +
-      `(עוזר ל-AI לכתוב שיווק ותדריכים בטון הנכון. אפשר "דלג")`,
-    parse: (r) => (SKIP_RE.test(r.trim()) ? '__SKIP__' : r.trim()),
-    saveTo: 'description',
-    optional: true,
-    next: 'employee_count',
-  },
-  employee_count: {
-    id: 'employee_count',
-    prompt: () => `👥 *שלב 7 / ${TOTAL_STEPS} — צוות*\n\nכמה עובדים יש בערך? ("8", "12-15"...)`,
-    parse: (r) => r.trim(),
-    saveTo: 'employee_count',
-    next: 'tables_count',
-  },
-  tables_count: {
-    id: 'tables_count',
-    prompt: () =>
-      `🪑 *שלב 8 / ${TOTAL_STEPS} — שולחנות*\n\nכמה שולחנות יש בערך? אצור מפת הושבה בסיסית שתסדר בגרירה.\n(אפשר "דלג")`,
-    parse: (r) => {
-      const t = r.trim();
-      if (SKIP_RE.test(t)) return '__SKIP__';
-      const m = t.match(/\d+/);
-      return m ? m[0] : null;
-    },
-    saveTo: 'tables_count',
-    optional: true,
-    next: 'menu_intro',
-  },
-  menu_intro: {
-    id: 'menu_intro',
-    prompt: () =>
-      `📸 *התפריט*\n\nשלח תמונה או PDF של התפריט — אזהה מנות ומחירים ואכניס אוטומטית.\n` +
-      `אין עדיין? שלח "דלג".`,
-    parse: (r) => (SKIP_RE.test(r.trim()) ? 'skip' : null),
-    optional: true,
-    next: 'modules_menu',
-  },
-  modules_menu: {
-    id: 'modules_menu',
-    prompt: (data) => modulesMenuText((data && data._counts) || {}),
-    parse: (r) => r.trim(),
-    next: 'modules_menu',
-  },
-  done: {
-    id: 'done',
-    prompt: (data, ctx) =>
-      `🎊 *סיימנו!* הכל הוטמע במערכת של ${data.name && data.name !== '__KEEP__' ? data.name : ctx.restaurant_name}. 💪`,
-    next: 'done',
-  },
+    maxOutputTokens: 2048,
+    timeoutMs: 40_000,
+    _ctx: { fn_name: 'onboardingBrain', tenant_slug: tenant.slug },
+  });
+  return result && result.reply ? result : { reply: 'סליחה, רגע — אפשר לכתוב לי את זה שוב? 🙏' };
+}
+
+// Applies the brain's extraction to the tenant schema (profile scalars +
+// text lists). Reuses v3 persist helpers. Mutates + returns `data`.
+async function applyExtraction(tenant: any, result: any, data: Record<string, any>): Promise<Record<string, any>> {
+  const p = result?.profile || {};
+  for (const k of ['name', 'address', 'phone', 'opening_hours', 'cuisine', 'description', 'employee_count', 'tables_count']) {
+    if (p[k] != null && String(p[k]).trim()) data[k] = String(p[k]).trim();
+  }
+  // Persist core profile as soon as we have a name — a drop-off still yields a
+  // set-up app. Cheap + idempotent (COALESCE update).
+  if (data.name || data.address) {
+    await persistCoreData(tenant, data).catch((e: any) => console.warn('[onboarding] core persist:', e?.message));
+    data._counts = data._counts || {};
+    if (Number(data.tables_count) > 0) data._counts.tables = Number(data.tables_count);
+  }
+  data._counts = data._counts || {};
+  const kind = String(result?.list_kind || '').trim();
+  const text = String(result?.list_text || '').trim();
+  if (kind && text) {
+    try {
+      if (kind === 'employees') data._counts.employees = (data._counts.employees || 0) + await insertEmployeesFromText(tenant, text);
+      else if (kind === 'suppliers') data._counts.suppliers = (data._counts.suppliers || 0) + await insertSuppliersFromText(tenant, text);
+      else if (kind === 'roles') data._counts.roles = (data._counts.roles || 0) + await insertRolesFromText(tenant, text);
+      else if (kind === 'invoice_emails') {
+        const emails = text.split(/[,\s]+/).filter((e) => /\S+@\S+\.\S+/.test(e));
+        if (emails.length) { await saveInvoiceEmails(tenant, emails); data._counts.invoice_email = emails.length; }
+      }
+    } catch (e: any) {
+      console.warn(`[onboarding] apply list ${kind}:`, e?.message);
+    }
+  }
+  return data;
+}
+
+// Classifies an inbound file and routes it to the right extractor. Returns
+// the kind + how many rows were embedded.
+async function classifyAndImport(
+  tenant: any, mediaUrl: string, _contentType: string, data: Record<string, any>,
+): Promise<{ kind: string; count: number }> {
+  const { invokeLLM } = await import('./llm.js');
+  const c: any = await invokeLLM({
+    prompt:
+      `הקובץ המצורף שייך למסעדה שמתחילה לעבוד עם המערכת. סווג אותו לאחת מהקטגוריות:\n` +
+      `menu (תפריט אוכל/שתייה), work_schedule (סידור עבודה), employee_list (רשימת עובדים), ` +
+      `checklist (צ׳קליסט תפעולי), customer_list (רשימת לקוחות/מועדון), knowledge (נוהל/מתכון/מסמך ידע/שאלות נפוצות), other.\n` +
+      `החזר kind בלבד.`,
+    fileUrls: [mediaUrl],
+    responseSchema: { type: 'object', properties: { kind: { type: 'string' } }, required: ['kind'] },
+    timeoutMs: 40_000,
+    _ctx: { fn_name: 'onboardingClassify', tenant_slug: tenant.slug },
+  }).catch(() => ({ kind: 'other' }));
+
+  const kind = String(c?.kind || 'other').trim();
+  data._counts = data._counts || {};
+  let count = 0;
+  try {
+    if (kind === 'menu') { count = await extractAndInsertMenu(tenant, mediaUrl); data._counts.menu = (data._counts.menu || 0) + count; }
+    else if (kind === 'work_schedule') { count = await extractAndInsertRolesFromFile(tenant, mediaUrl); data._counts.roles = (data._counts.roles || 0) + count; }
+    else if (kind === 'employee_list') { count = await extractAndInsertEmployeesFromFile(tenant, mediaUrl); data._counts.employees = (data._counts.employees || 0) + count; }
+    else if (kind === 'checklist') { count = await extractAndInsertChecklists(tenant, mediaUrl, data); data._counts.checklists = (data._counts.checklists || 0) + count; }
+    else if (kind === 'customer_list') { count = await extractAndInsertCustomers(tenant, mediaUrl); data._counts.customers = (data._counts.customers || 0) + count; }
+    else { count = await extractAndInsertKnowledge(tenant, mediaUrl, 'כללי'); data._counts.knowledge = (data._counts.knowledge || 0) + count; }
+  } catch (e: any) {
+    console.warn(`[onboarding] import ${kind}:`, e?.message);
+  }
+  return { kind, count };
+}
+
+const KIND_LABEL: Record<string, string> = {
+  menu: 'תפריט', work_schedule: 'סידור עבודה', employee_list: 'רשימת עובדים',
+  checklist: 'צ׳קליסט', customer_list: 'מועדון לקוחות', knowledge: 'מסמך ידע', other: 'מסמך',
 };
 
 // === Public API ============================================================
@@ -238,16 +195,16 @@ export async function startOnboarding(tenantId: string): Promise<void> {
   await ensureOnboardingRow(tenantId);
   const tenant = await getTenant(tenantId);
   if (!tenant) return;
-  await sendWhatsApp(
-    tenant.owner_phone,
-    STEPS.welcome.prompt({}, { restaurant_name: tenant.restaurant_name, owner_name: tenant.owner_name }),
-  );
-  await (prisma as any).$executeRawUnsafe(
-    `UPDATE "OnboardingState" SET started_at = NOW(), last_message_at = NOW(), "updatedAt" = NOW() WHERE tenant_id = $1`,
-    tenantId,
-  );
+  const first =
+    `שלום ${tenant.owner_name || ''}! 🌿 אני העוזר החכם של TopAlena, ואני אקים לך את המסעדה תוך כמה דקות — ` +
+    `שאלה אחת בכל פעם. אפשר לענות בכתב, בהקלטה קולית, או פשוט לשלוח לי קבצים (תפריט, סידור עבודה, רשימת עובדים...) ואני אקרא ואטמיע לבד.\n\n` +
+    `בוא נתחיל — *איך קוראים למסעדה?*`;
+  const data: Record<string, any> = { _history: [{ role: 'assistant', content: first }] };
+  await setPhase(tenantId, 'active', data);
+  await sendWhatsApp(tenant.owner_phone, first);
 }
 
+// Text turn (also used by the webhook for transcribed voice notes).
 export async function tryHandleOnboardingMessage(fromPhone: string, body: string): Promise<boolean> {
   const state = await findActiveOnboarding(fromPhone);
   if (!state) return false;
@@ -255,291 +212,78 @@ export async function tryHandleOnboardingMessage(fromPhone: string, body: string
   if (!tenant) return false;
 
   const data: Record<string, any> = state.collected_data || {};
-  const stepId = state.current_step as StepId;
+  const history: any[] = Array.isArray(data._history) ? data._history : [];
+  history.push({ role: 'user', content: body });
 
-  // ── Module steps have bespoke text handling ──
-  if (stepId === 'modules_menu' || stepId.startsWith('m_')) {
-    return handleModuleText(tenant, state, data, stepId, body.trim(), fromPhone);
-  }
+  const result = await onboardingBrain(tenant, history, body, data)
+    .catch((e: any) => { console.warn('[onboarding] brain:', e?.message); return { reply: 'סליחה, רגע קטן... אפשר לכתוב שוב? 🙏' }; });
+  await applyExtraction(tenant, result, data).catch((e: any) => console.warn('[onboarding] apply:', e?.message));
 
-  const currentStep = STEPS[stepId] || STEPS.welcome;
-  const parsed = currentStep.parse ? currentStep.parse(body) : body.trim();
+  history.push({ role: 'assistant', content: result.reply });
+  data._history = history.slice(-24);
 
-  if (currentStep.id === 'welcome') {
-    if (parsed === 'later') {
-      await sendWhatsApp(fromPhone, `בסדר, אין לחץ 🙌 מתי שתרצה — שלח "התחל" ונתחיל.`);
-      return true;
-    }
-    if (parsed !== 'yes') {
-      await sendWhatsApp(fromPhone, `לא הבנתי — שלח "כן" כדי להתחיל, או "אחר כך" אם עסוק/ה.`);
-      return true;
-    }
-  }
-
-  if (parsed == null && !currentStep.optional) {
-    await sendWhatsApp(fromPhone, `לא הצלחתי להבין 🤔 ננסה שוב:\n\n${currentStep.prompt(data, ctxOf(tenant))}`);
-    return true;
-  }
-
-  if (currentStep.saveTo && parsed != null && parsed !== '__SKIP__') {
-    data[currentStep.saveTo] = parsed;
-  }
-
-  const next = STEPS[currentStep.next];
-  await advanceState(state.tenant_id, state, currentStep.id, next.id, data);
-
-  // Entering the module menu = core profile is complete → implement it now
-  // so even an owner who bails at the menu still gets a set-up app.
-  if (next.id === 'modules_menu' && !data._core_persisted) {
-    const summary = await persistCoreData(tenant, data).catch((e: any) => {
-      console.warn('[onboarding] core persist failed', e?.message);
-      return null;
-    });
-    data._core_persisted = true;
+  const finished = !!result.finished && !!data.name;
+  if (finished) {
+    const summary = await persistCoreData(tenant, data).catch(() => null);
     data._counts = data._counts || {};
-    if (summary) {
-      if (summary.employees) data._counts.employees = summary.employees;
-      if (summary.tables) data._counts.tables = summary.tables;
-    }
-    await saveData(state.tenant_id, data);
-    await sendWhatsApp(fromPhone, `✅ הפרופיל הבסיסי הוטמע!\n\n${modulesMenuText(data._counts)}`);
-    return true;
+    if (summary?.tables) data._counts.tables = summary.tables;
+    await setPhase(state.tenant_id, 'done', data);
+    await sendWhatsApp(fromPhone, buildDoneMessage(tenant, data));
+  } else {
+    await setPhase(state.tenant_id, 'active', data);
+    await sendWhatsApp(fromPhone, result.reply);
   }
-
-  await sendWhatsApp(fromPhone, next.prompt(data, ctxOf(tenant)));
   return true;
 }
 
-// Media (menu PDF, checklist photo, employees excel, knowledge docs...).
-// Claims the message when the current step accepts files; caller ACKs and
-// we process + reply in the background (Twilio has a 15s webhook timeout).
+// File turn — classify + embed, then let the brain acknowledge naturally and
+// ask the next thing. ACK immediately in the caller; this runs in background.
 export async function tryHandleOnboardingMedia(
-  fromPhone: string,
-  mediaUrl: string,
-  _contentType: string,
+  fromPhone: string, mediaUrl: string, contentType: string,
 ): Promise<boolean> {
   const state = await findActiveOnboarding(fromPhone);
-  if (!state || !MEDIA_STEPS.has(state.current_step as StepId)) return false;
+  if (!state) return false;
   const tenant = await getTenant(state.tenant_id);
   if (!tenant) return false;
 
-  const stepId = state.current_step as StepId;
-  const data: Record<string, any> = state.collected_data || {};
-  data._counts = data._counts || {};
-
   void (async () => {
+    const data: Record<string, any> = state.collected_data || {};
+    const history: any[] = Array.isArray(data._history) ? data._history : [];
+    let synthetic: string;
     try {
-      let doneMsg = '';
-      if (stepId === 'menu_intro') {
-        const n = await extractAndInsertMenu(tenant, mediaUrl);
-        data._counts.menu = (data._counts.menu || 0) + n;
-        doneMsg = `✅ ${n} מנות נקלטו מהתפריט!`;
-        if (!data._core_persisted) {
-          const summary = await persistCoreData(tenant, data).catch(() => null);
-          data._core_persisted = true;
-          if (summary?.employees) data._counts.employees = summary.employees;
-          if (summary?.tables) data._counts.tables = summary.tables;
-        }
-        await advanceState(tenant.id, state, 'menu_intro', 'modules_menu', data);
-      } else if (stepId === 'm_checklists') {
-        const n = await extractAndInsertChecklists(tenant, mediaUrl, data);
-        data._counts.checklists = (data._counts.checklists || 0) + n;
-        doneMsg = `✅ ${n} צ'קליסטים הוקמו!`;
-        await advanceState(tenant.id, state, stepId, 'modules_menu', data);
-      } else if (stepId === 'm_roles') {
-        const n = await extractAndInsertRolesFromFile(tenant, mediaUrl);
-        data._counts.roles = (data._counts.roles || 0) + n;
-        doneMsg = `✅ ${n} תפקידים זוהו מהסידור והוקמו!`;
-        await advanceState(tenant.id, state, stepId, 'modules_menu', data);
-      } else if (stepId === 'm_employees') {
-        const n = await extractAndInsertEmployeesFromFile(tenant, mediaUrl);
-        data._counts.employees = (data._counts.employees || 0) + n;
-        doneMsg = `✅ ${n} עובדים נקלטו מהקובץ!`;
-        await advanceState(tenant.id, state, stepId, 'modules_menu', data);
-      } else if (stepId === 'm_customers') {
-        const n = await extractAndInsertCustomers(tenant, mediaUrl);
-        data._counts.customers = (data._counts.customers || 0) + n;
-        doneMsg = `✅ ${n} לקוחות יובאו למועדון!`;
-        await advanceState(tenant.id, state, stepId, 'modules_menu', data);
-      } else if (stepId === 'm_training') {
-        const n = await extractAndInsertKnowledge(tenant, mediaUrl, 'הכשרה');
-        data._counts.training = (data._counts.training || 0) + n;
-        doneMsg = `✅ תוכנית ההכשרה נקלטה (${n} פרקים)!`;
-        await advanceState(tenant.id, state, stepId, 'modules_menu', data);
-      } else if (stepId === 'm_knowledge') {
-        const n = await extractAndInsertKnowledge(tenant, mediaUrl, 'כללי');
-        data._counts.knowledge = (data._counts.knowledge || 0) + n;
-        // Knowledge stays in-module for multi-file upload; "חזרה" exits.
-        await saveData(tenant.id, data);
-        await sendWhatsApp(fromPhone, `✅ הקובץ נכנס למרכז הידע (${data._counts.knowledge} סה"כ). שלח עוד קובץ או "חזרה" לתפריט.`);
-        return;
-      }
-      await sendWhatsApp(fromPhone, `${doneMsg}\n\n${modulesMenuText(data._counts)}`);
+      const { kind, count } = await classifyAndImport(tenant, mediaUrl, contentType, data);
+      synthetic = `[המערכת קלטה קובץ מסוג "${KIND_LABEL[kind] || kind}" והטמיעה ${count} פריטים. תודה לבעלים על הקובץ בקצרה, ואז המשך לשאלה הבאה שחסרה.]`;
     } catch (e: any) {
-      console.warn('[onboarding] media processing failed:', e?.message);
-      await sendWhatsApp(fromPhone, `😕 לא הצלחתי לעבד את הקובץ (${String(e?.message || '').slice(0, 80)}). נסה קובץ ברור יותר או "חזרה" לתפריט.`).catch(() => {});
+      synthetic = `[הקובץ לא נקרא (${String(e?.message || '').slice(0, 60)}). בקש מהבעלים לשלוח שוב בצילום ברור יותר, או להמשיך.]`;
     }
+    history.push({ role: 'user', content: '(שלח קובץ)' });
+    const result = await onboardingBrain(tenant, history, synthetic, data)
+      .catch(() => ({ reply: 'קלטתי את הקובץ ✅ נמשיך!' }));
+    await applyExtraction(tenant, result, data).catch(() => {});
+    history.push({ role: 'assistant', content: result.reply });
+    data._history = history.slice(-24);
+    await setPhase(tenant.id, 'active', data).catch(() => {});
+    await sendWhatsApp(fromPhone, result.reply).catch(() => {});
   })();
 
   return true;
 }
 
-// === Module text handling ==================================================
-
-async function handleModuleText(
-  tenant: any, state: any, data: Record<string, any>, stepId: StepId, text: string, fromPhone: string,
-): Promise<boolean> {
-  data._counts = data._counts || {};
-
-  // Menu navigation
-  if (stepId === 'modules_menu') {
-    const digit = text.replace(/[^\d]/g, '');
-    if (digit === '0' || /סיום|סיימתי/.test(text)) {
-      await advanceState(tenant.id, state, stepId, 'done', data);
-      await sendWhatsApp(fromPhone, buildDoneMessage(tenant, data));
-      return true;
-    }
-    const target = MODULE_BY_DIGIT[digit];
-    if (!target) {
-      await sendWhatsApp(fromPhone, `שלח מספר בין 1 ל-9, או 0 לסיום.\n\n${modulesMenuText(data._counts)}`);
-      return true;
-    }
-    await advanceState(tenant.id, state, stepId, target, data);
-    await sendWhatsApp(fromPhone, MODULE_PROMPTS[target] || '');
-    return true;
-  }
-
-  // Inside a module: "חזרה" always returns to the menu.
-  if (BACK_RE.test(text) || SKIP_RE.test(text)) {
-    await advanceState(tenant.id, state, stepId, 'modules_menu', data);
-    await sendWhatsApp(fromPhone, modulesMenuText(data._counts));
-    return true;
-  }
-
-  try {
-    switch (stepId) {
-      case 'm_checklists': {
-        if (SUGGEST_RE.test(text)) {
-          const n = await aiSuggestChecklists(tenant, data);
-          data._counts.checklists = (data._counts.checklists || 0) + n;
-          await backToMenu(tenant, state, data, fromPhone, `✅ בניתי לך ${n} צ'קליסטים לפי העסק (טיוטות — אפשר לערוך באפליקציה)!`);
-        } else {
-          await sendWhatsApp(fromPhone, `שלח קובץ, "הצע", או "חזרה" 🙂`);
-        }
-        return true;
-      }
-      case 'm_suppliers': {
-        const n = await insertSuppliersFromText(tenant, text);
-        data._counts.suppliers = (data._counts.suppliers || 0) + n;
-        await backToMenu(tenant, state, data, fromPhone, n ? `✅ ${n} ספקים הוקמו!` : `לא זיהיתי ספקים — פורמט: שם, קטגוריה, טלפון (שורה לכל ספק).`);
-        return true;
-      }
-      case 'm_roles': {
-        const n = await insertRolesFromText(tenant, text);
-        data._counts.roles = (data._counts.roles || 0) + n;
-        await backToMenu(tenant, state, data, fromPhone, n ? `✅ ${n} תפקידים הוקמו!` : `לא זיהיתי תפקידים — רשום אותם מופרדים בפסיק.`);
-        return true;
-      }
-      case 'm_employees': {
-        if (/^(קישור|לינק|link)/i.test(text)) {
-          data._counts.invited = 1; // marks the module as handled in the menu
-          await backToMenu(
-            tenant, state, data, fromPhone,
-            `🔗 *קישור ההצטרפות לצוות ${tenant.restaurant_name}:*\n` +
-            `https://${tenant.slug}.topalena.com/JoinTeam\n\n` +
-            `שתף אותו בקבוצת הוואטסאפ של הצוות. כל עובד ממלא שם, טלפון, מייל ותפקיד — ` +
-            `ואתה מאשר אותו בלחיצה במסך "ניהול עובדים". אחרי האישור הוא מקבל וואטסאפ עם פרטי כניסה.`,
-          );
-          return true;
-        }
-        const n = await insertEmployeesFromText(tenant, text);
-        data._counts.employees = (data._counts.employees || 0) + n;
-        await backToMenu(tenant, state, data, fromPhone, n ? `✅ ${n} עובדים הוקמו!` : `לא זיהיתי — כתוב "קישור", שלח קובץ, או רשום: שם, תפקיד, טלפון (שורה לכל עובד).`);
-        return true;
-      }
-      case 'm_interviews': {
-        const n = await insertInterviewSlots(tenant, text);
-        data._counts.slots = (data._counts.slots || 0) + n;
-        await backToMenu(tenant, state, data, fromPhone, n ? `✅ ${n} סלוטים לראיונות נקבעו!` : `לא זיהיתי — פורמט: יום שעה (למשל "שני 14:00"), שורה לכל סלוט.`);
-        return true;
-      }
-      case 'm_training': {
-        if (SUGGEST_RE.test(text)) {
-          const n = await aiSuggestTraining(tenant, data);
-          data._counts.training = (data._counts.training || 0) + n;
-          await backToMenu(tenant, state, data, fromPhone, `✅ בניתי תוכנית הכשרה לפי העסק (${n} פרקים במרכז הידע)!`);
-        } else {
-          await sendWhatsApp(fromPhone, `שלח קובץ, "הצע", או "חזרה" 🙂`);
-        }
-        return true;
-      }
-      case 'm_customers': {
-        await sendWhatsApp(fromPhone, `שלח קובץ של רשימת הלקוחות (CSV/תמונה/PDF), או "חזרה" 🙂`);
-        return true;
-      }
-      case 'm_knowledge': {
-        await sendWhatsApp(fromPhone, `שלח קובץ ואכניס אותו למרכז הידע, או "חזרה" כשסיימת 🙂`);
-        return true;
-      }
-      case 'm_invoice_email': {
-        const emails = text.split(/[,\s]+/).filter((e) => /\S+@\S+\.\S+/.test(e));
-        if (!emails.length) {
-          await sendWhatsApp(fromPhone, `זה לא נראה כמו מייל 🤔 נסה שוב, או "חזרה".`);
-          return true;
-        }
-        await saveInvoiceEmails(tenant, emails);
-        data._counts.invoice_email = emails.length;
-        await backToMenu(tenant, state, data, fromPhone, `✅ נשמר! חשבוניות מ-${emails.join(', ')} ייאספו למערכת.`);
-        return true;
-      }
-    }
-  } catch (e: any) {
-    console.warn(`[onboarding] module ${stepId} failed:`, e?.message);
-    await sendWhatsApp(fromPhone, `😕 משהו השתבש (${String(e?.message || '').slice(0, 80)}). נסה שוב או "חזרה".`);
-    return true;
-  }
-  return true;
-}
-
-async function backToMenu(tenant: any, state: any, data: Record<string, any>, fromPhone: string, msg: string) {
-  await advanceState(tenant.id, state, state.current_step, 'modules_menu', data);
-  await sendWhatsApp(fromPhone, `${msg}\n\n${modulesMenuText(data._counts || {})}`);
-}
-
-// === Persistence helpers ===================================================
-
-const sql = (q: string, ...args: any[]) => (prisma as any).$executeRawUnsafe(q, ...args);
-const query = (q: string, ...args: any[]) => (prisma as any).$queryRawUnsafe(q, ...args);
-const uuid = async () => (await import('node:crypto')).randomUUID();
-
-function ctxOf(tenant: any) {
-  return { restaurant_name: tenant.restaurant_name, owner_name: tenant.owner_name };
-}
-
-async function saveData(tenantId: string, data: Record<string, any>) {
-  await sql(
-    `UPDATE "OnboardingState" SET collected_data = $1::jsonb, last_message_at = NOW(), "updatedAt" = NOW() WHERE tenant_id = $2`,
-    JSON.stringify(data), tenantId,
-  );
-}
-
-async function advanceState(tenantId: string, state: any, fromStep: string, toStep: string, data: Record<string, any>) {
-  const completedSteps: string[] = Array.isArray(state.completed_steps) ? state.completed_steps : [];
-  if (!completedSteps.includes(fromStep)) completedSteps.push(fromStep);
-  state.current_step = toStep;
-  state.completed_steps = completedSteps;
+async function setPhase(tenantId: string, phase: string, data: Record<string, any>): Promise<void> {
   await sql(
     `UPDATE "OnboardingState"
-     SET current_step = $1, completed_steps = $2::jsonb, collected_data = $3::jsonb,
-         last_message_at = NOW(),
-         completed_at = ${toStep === 'done' ? 'NOW()' : 'completed_at'},
-         "updatedAt" = NOW()
-     WHERE tenant_id = $4`,
-    toStep, JSON.stringify(completedSteps), JSON.stringify(data), tenantId,
+     SET current_step = $1, collected_data = $2::jsonb, last_message_at = NOW(),
+         completed_at = ${phase === 'done' ? 'NOW()' : 'completed_at'}, "updatedAt" = NOW()
+     WHERE tenant_id = $3`,
+    phase, JSON.stringify(data), tenantId,
   );
 }
 
-// Core profile + employees-by-count + seating. Runs once, entering modules_menu.
+// ===========================================================================
+// PERSISTENCE + EXTRACTION HELPERS (reused from v3, unchanged)
+// ===========================================================================
+
+// Core profile + seating. Idempotent; safe to call repeatedly.
 async function persistCoreData(
   tenant: any, data: Record<string, any>,
 ): Promise<{ profile: boolean; employees: number; tables: number }> {
@@ -680,38 +424,6 @@ async function insertChecklists(tenant: any, lists: any[]): Promise<number> {
   return n;
 }
 
-async function aiSuggestChecklists(tenant: any, data: Record<string, any>): Promise<number> {
-  const { invokeLLM } = await import('./llm.js');
-  const result: any = await invokeLLM({
-    prompt:
-      `בנה 3 צ'קליסטים תפעוליים למסעדה מסוג "${data.cuisine || 'כללי'}"` +
-      `${data.description ? ` (${data.description})` : ''}: פתיחת בוקר, סגירת ערב, ומטבח.\n` +
-      `לכל אחד: title, category, tasks (6-12 משימות קצרות בעברית).`,
-    responseSchema: {
-      type: 'object',
-      properties: {
-        checklists: {
-          type: 'array',
-          items: {
-            type: 'object',
-            properties: {
-              title: { type: 'string' }, category: { type: 'string' },
-              // `tasks`, NOT `items` (Gemini keyword collision → empty).
-              tasks: { type: 'array', items: { type: 'string' } },
-            },
-          },
-        },
-      },
-      required: ['checklists'],
-    },
-    _ctx: { fn_name: 'onboardingSuggestChecklists', tenant_slug: tenant.slug },
-  });
-  const lists = (Array.isArray(result?.checklists) ? result.checklists : []).map((cl: any) => ({
-    ...cl, items: Array.isArray(cl?.tasks) ? cl.tasks : (cl?.items || []),
-  }));
-  return insertChecklists(tenant, lists);
-}
-
 async function insertSuppliersFromText(tenant: any, text: string): Promise<number> {
   const schema = `tenant_${tenant.slug}`;
   let n = 0;
@@ -797,53 +509,6 @@ async function insertEmployees(tenant: any, rows: any[]): Promise<number> {
   return n;
 }
 
-// WhatsApp self-signup: creates a PendingInvitation in the tenant schema and
-// sends each employee a personal link to the tenant's public completion form.
-async function inviteEmployeesByWhatsApp(tenant: any, text: string): Promise<number> {
-  const schema = `tenant_${tenant.slug}`;
-  // Ensure the (lazy) invitation table exists in this tenant's schema with
-  // the shape completeEmployeeInvitation expects.
-  await sql(`CREATE TABLE IF NOT EXISTS "${schema}"."PendingInvitation" (
-      "id" TEXT NOT NULL PRIMARY KEY DEFAULT gen_random_uuid()::text,
-      "token" TEXT UNIQUE,
-      "full_name" TEXT NOT NULL,
-      "phone" TEXT,
-      "email" TEXT,
-      "role" TEXT,
-      "status" TEXT NOT NULL DEFAULT 'sent',
-      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      "completed_at" TIMESTAMP(3)
-    )`).catch(() => {});
-  await sql(`ALTER TABLE "${schema}"."PendingInvitation" ADD COLUMN IF NOT EXISTS "token" TEXT`).catch(() => {});
-  await sql(`ALTER TABLE "${schema}"."PendingInvitation" ADD COLUMN IF NOT EXISTS "phone" TEXT`).catch(() => {});
-
-  const { randomUUID } = await import('node:crypto');
-  let n = 0;
-  for (const line of text.split(/\n+/).map((l) => l.trim()).filter(Boolean)) {
-    const parts = line.split(/[,،]+/).map((p) => p.trim()).filter(Boolean);
-    const fullName = parts[0];
-    const phone = (parts[1] || '').replace(/[^\d+]/g, '');
-    if (!fullName || phone.length < 9) continue;
-    const token = randomUUID().replace(/-/g, '').slice(0, 24);
-    try {
-      await sql(
-        `INSERT INTO "${schema}"."PendingInvitation" ("id", "token", "full_name", "phone", "status", "createdAt", "updatedAt")
-         VALUES ($1, $2, $3, $4, 'sent', NOW(), NOW())`,
-        randomUUID(), token, fullName, phone,
-      );
-      const link = `https://${tenant.slug}.topalena.com/EmployeeComplete?t=${token}`;
-      await sendWhatsApp(phone,
-        `שלום ${fullName} 🌿\nהוזמנת להצטרף לצוות ${tenant.restaurant_name}.\nלהשלמת הפרטים (שם מלא, מייל, תפקיד) לחץ כאן:\n${link}\n\nזה ייקח דקה 🚀`,
-      ).catch((e: any) => console.warn('[onboarding] invite send failed:', e?.message));
-      n++;
-    } catch (e: any) {
-      console.warn('[onboarding] invitation insert failed:', e?.message);
-    }
-  }
-  return n;
-}
-
 async function insertInterviewSlots(tenant: any, text: string): Promise<number> {
   const schema = `tenant_${tenant.slug}`;
   let n = 0;
@@ -887,29 +552,6 @@ async function extractAndInsertCustomers(tenant: any, mediaUrl: string): Promise
     ).then(() => n++).catch((e: any) => console.warn('[onboarding] customer insert:', e?.message));
   }
   return n;
-}
-
-async function aiSuggestTraining(tenant: any, data: Record<string, any>): Promise<number> {
-  const { invokeLLM } = await import('./llm.js');
-  const result: any = await invokeLLM({
-    prompt:
-      `בנה תוכנית הכשרה לצוות מסעדה מסוג "${data.cuisine || 'כללי'}"` +
-      `${data.description ? ` (${data.description})` : ''}. חלק לפי תפקידים (מלצרים, מטבח, ברמנים).\n` +
-      `לכל פרק: title (שם הפרק כולל התפקיד), content (תוכן ההכשרה — 5-10 נקודות מפורטות בעברית).`,
-    responseSchema: {
-      type: 'object',
-      properties: {
-        chapters: {
-          type: 'array',
-          items: { type: 'object', properties: { title: { type: 'string' }, content: { type: 'string' } } },
-        },
-      },
-      required: ['chapters'],
-    },
-    _ctx: { fn_name: 'onboardingSuggestTraining', tenant_slug: tenant.slug },
-  });
-  const chapters: any[] = Array.isArray(result?.chapters) ? result.chapters : [];
-  return insertKnowledgeEntries(tenant, chapters, 'הכשרה');
 }
 
 async function extractAndInsertKnowledge(tenant: any, mediaUrl: string, category: string): Promise<number> {
@@ -956,6 +598,13 @@ async function saveInvoiceEmails(tenant: any, emails: string[]): Promise<void> {
 }
 
 // === Shared helpers ========================================================
+
+// Lightweight check used by the webhook to decide whether to transcribe an
+// inbound voice note into the onboarding brain (vs. the admin voice agent).
+export async function isOnboardingActive(fromPhone: string): Promise<boolean> {
+  const s = await findActiveOnboarding(fromPhone).catch(() => null);
+  return !!s;
+}
 
 export async function ensureOnboardingRow(tenantId: string): Promise<void> {
   const { randomUUID } = await import('node:crypto');
@@ -1009,7 +658,6 @@ function buildDoneMessage(tenant: any, data: Record<string, any>): string {
     c.checklists ? `✅ ${c.checklists} צ'קליסטים` : '',
     c.suppliers ? `✅ ${c.suppliers} ספקים` : '',
     c.slots ? `✅ ${c.slots} סלוטים לראיונות` : '',
-    c.training ? `✅ תוכנית הכשרה (${c.training} פרקים)` : '',
     c.customers ? `✅ ${c.customers} לקוחות במועדון` : '',
     c.knowledge ? `✅ ${c.knowledge} מסמכים במרכז הידע` : '',
     c.invoice_email ? `✅ מייל איסוף חשבוניות` : '',

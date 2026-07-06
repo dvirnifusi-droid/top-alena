@@ -16,7 +16,7 @@ import { handleAdminInvoiceMedia, tryConfirmPendingInvoice } from '../lib/whatsa
 import { tryProposeAction, tryConfirmPendingAction } from '../lib/whatsappActions.js';
 import { transcribeWhatsAppVoice } from '../lib/whatsappVoice.js';
 import { runConversationAgent } from '../lib/whatsappConversation.js';
-import { tryHandleOnboardingMessage, tryHandleOnboardingMedia } from '../lib/whatsappOnboarding.js';
+import { tryHandleOnboardingMessage, tryHandleOnboardingMedia, isOnboardingActive } from '../lib/whatsappOnboarding.js';
 import { sendWhatsApp } from '../lib/twilio.js';
 import {
   resolveTenantFromMessage,
@@ -173,11 +173,36 @@ export const twilioWebhookRoutes: FastifyPluginAsync = async (app) => {
             req.log.warn({ err: e?.message }, '[whatsapp-agent] onboarding handler failed');
           }
         }
-        // ── Onboarding media (menu PDF/photo at the menu step). Must run
-        // BEFORE the admin branch: an owner who is also a WhatsApp admin
-        // (like Dvir testing) would otherwise get the invoice-scanner reply
-        // for their menu upload. Extraction takes 20-60s so the handler
-        // claims the message, we ACK, and it finishes in the background.
+        // ── Onboarding VOICE note: an owner mid-onboarding sent an audio
+        // message. Transcribe → feed the transcript to the text brain. Must
+        // run BEFORE the file-classifier branch (which can't read audio) and
+        // before the admin voice agent. ACK fast, transcribe in background.
+        if (numMedia >= 1 && params.MediaUrl0 && String(params.MediaContentType0 || '').toLowerCase().startsWith('audio/')) {
+          try {
+            if (await isOnboardingActive(from)) {
+              reply.type('text/xml').send(
+                '<?xml version="1.0" encoding="UTF-8"?><Response><Message>🎙️ קיבלתי את ההקלטה, רגע מתמלל...</Message></Response>',
+              );
+              void (async () => {
+                try {
+                  const transcript = await transcribeWhatsAppVoice(params.MediaUrl0);
+                  if (transcript) await tryHandleOnboardingMessage(from, transcript);
+                  else await sendWhatsApp(from, 'לא הצלחתי לתמלל את ההקלטה 🤔 אפשר לכתוב לי במקום?');
+                } catch (e: any) {
+                  req.log.warn({ err: e?.message }, '[onboarding] voice transcribe failed');
+                }
+              })();
+              return;
+            }
+          } catch (e: any) {
+            req.log.warn({ err: e?.message }, '[onboarding] voice branch failed');
+          }
+        }
+        // ── Onboarding FILE (menu / schedule / employee list / checklist...).
+        // Must run BEFORE the admin branch: an owner who is also a WhatsApp
+        // admin (like Dvir testing) would otherwise get the invoice-scanner
+        // reply. Classification + extraction take 20-60s so we ACK and finish
+        // in the background.
         if (numMedia >= 1 && params.MediaUrl0) {
           try {
             const claimed = await tryHandleOnboardingMedia(
