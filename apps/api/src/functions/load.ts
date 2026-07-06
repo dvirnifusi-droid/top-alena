@@ -5,6 +5,7 @@
  * Functions marked TODO are stubs that need their original logic ported.
  */
 import './emailInvoices.js';
+import './checklistAi.js';
 import './employeePay.js';
 import './cashflowLive.js';
 import './laborCost.js';
@@ -508,7 +509,8 @@ registerFn('extractMenuFromPhotos', async ({ body }) => {
       type: 'object',
       properties: {
         summary: { type: 'string' },
-        items: {
+        // `dishes`, NOT `items` (Gemini keyword collision empties it).
+        dishes: {
           type: 'array',
           items: {
             type: 'object',
@@ -524,6 +526,7 @@ registerFn('extractMenuFromPhotos', async ({ body }) => {
     },
   });
 
+  if (result && !result.items && Array.isArray(result.dishes)) result.items = result.dishes;
   return { menu: result };
 });
 
@@ -4573,14 +4576,17 @@ registerFn('aiGenerateBriefing', async ({ body }) => {
     prompt: `${ctx}הכן תדריך יומי לצוות המסעדה בהתאם לפרופיל העסק למעלה. אל תמציא פרטים שלא בפרופיל.\n\n⚠️ חשוב מאוד: אסור להשתמש במילה "עלינא" או בשם מסעדה אחר בפלט. השם היחיד למסעדה הוא: "${brand}". השתמש רק בשם זה או במילה "המסעדה".\n\nנתוני היום: ${JSON.stringify(body)}`,
     responseSchema: {
       type: 'object',
-      properties: { headline: { type: 'string' }, items: { type: 'array', items: { type: 'string' } } },
+      // `lines`, NOT `items`: a Gemini schema property named `items` collides
+      // with the JSON-Schema keyword and returns empty (A/B-proven 2026-07-05).
+      properties: { headline: { type: 'string' }, lines: { type: 'array', items: { type: 'string' } } },
     },
     _ctx: { fn_name: 'aiGenerateBriefing' },
   });
   const clean = (s: string) => (typeof s === 'string' ? s.replaceAll('עלינא', brand) : s);
+  const rawItems = Array.isArray(raw?.lines) ? raw.lines : (Array.isArray(raw?.items) ? raw.items : []);
   return {
     headline: clean(raw?.headline),
-    items: Array.isArray(raw?.items) ? raw.items.map(clean) : raw?.items,
+    items: rawItems.map(clean),
   };
 });
 
@@ -20296,7 +20302,7 @@ registerFn('suggestChecklists', async ({ user }) => {
   if (!isAdminRole((user as any)?.role)) throw new Error('admin only');
   const ctx = await businessContextBlock();
   const brand = await getBrandName();
-  const prompt = `${ctx}הצע צ'ק-ליסטים יומיים לצוות של "${brand}". **חובה** להתייחס לפרופיל למעלה: בר יין = ניקוי כוסות, בדיקת טמפרטורת מקררים, סידור בקבוקים. בורגר בר = ניקוי גריל, בדיקת שמנים. קפה = כיול מכונת אספרסו.\n\nחזור 3-5 צ׳ק-ליסטים סה"כ. לכל אחד: שם, מחלקה (מטבח/בר/מלצרים/מנהלים), משמרת (בוקר/ערב/סגירה/כל היום), ורשימת פריטים 4-8.\n\nהחזר JSON: { checklists: [{ name, department, shift, items: string[] }] }`;
+  const prompt = `${ctx}הצע צ'ק-ליסטים יומיים לצוות של "${brand}". **חובה** להתייחס לפרופיל למעלה: בר יין = ניקוי כוסות, בדיקת טמפרטורת מקררים, סידור בקבוקים. בורגר בר = ניקוי גריל, בדיקת שמנים. קפה = כיול מכונת אספרסו.\n\nחזור 3-5 צ׳ק-ליסטים סה"כ. לכל אחד: שם, מחלקה (מטבח/בר/מלצרים/מנהלים), משמרת (בוקר/ערב/סגירה/כל היום), ורשימת משימות (tasks) 4-8.\n\nהחזר JSON: { checklists: [{ name, department, shift, tasks: string[] }] }`;
   const result: any = await invokeLLM({
     prompt,
     responseSchema: {
@@ -20310,7 +20316,8 @@ registerFn('suggestChecklists', async ({ user }) => {
               name: { type: 'string' },
               department: { type: 'string' },
               shift: { type: 'string' },
-              items: { type: 'array', items: { type: 'string' } },
+              // `tasks`, NOT `items` (Gemini keyword collision empties it).
+              tasks: { type: 'array', items: { type: 'string' } },
             },
           },
         },
@@ -20319,7 +20326,11 @@ registerFn('suggestChecklists', async ({ user }) => {
     },
     _ctx: { fn_name: 'suggestChecklists' },
   });
-  return result;
+  const checklists = (result?.checklists || []).map((c: any) => ({
+    name: c?.name, department: c?.department, shift: c?.shift,
+    items: Array.isArray(c?.tasks) ? c.tasks : (Array.isArray(c?.items) ? c.items : []),
+  }));
+  return { checklists };
 });
 
 // BP — Import employees from an uploaded PDF/image/spreadsheet. Uses Gemini
