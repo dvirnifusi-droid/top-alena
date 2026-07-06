@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+# One-shot: apply checklist-AI-coach additive SQL to Alena main + every tenant.
+# Delivered via git so the Hetzner console never has to type special chars.
+# Idempotent (IF NOT EXISTS). Run from anywhere: `bash deployck` in /opt/top-alena.
+set -uo pipefail
+cd /opt/top-alena || { echo "no /opt/top-alena"; exit 1; }
+
+cat > /tmp/ckai.sql <<'SQL'
+CREATE TABLE IF NOT EXISTS "ChecklistItemExample" (
+  "id" TEXT PRIMARY KEY,
+  "checklist_id" TEXT NOT NULL,
+  "item_order" INTEGER NOT NULL,
+  "photo_url" TEXT NOT NULL,
+  "label" TEXT NOT NULL,
+  "note" TEXT,
+  "source" TEXT NOT NULL DEFAULT 'override',
+  "created_by" TEXT,
+  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS "ChecklistItemExample_checklist_id_item_order_idx" ON "ChecklistItemExample"("checklist_id","item_order");
+ALTER TABLE "ChecklistExecution" ADD COLUMN IF NOT EXISTS "ai_summary" TEXT;
+SQL
+
+echo "--- Alena main ---"
+docker compose exec -T api npx prisma db execute --stdin --schema prisma/schema.prisma < /tmp/ckai.sql \
+  && echo "ALENA OK" || echo "ALENA FAILED"
+
+echo "--- tenants ---"
+for c in $(docker ps --format '{{.Names}}' | grep -E '^tenant-.*-api$'); do
+  url=$(docker inspect "$c" --format '{{range .Config.Env}}{{println .}}{{end}}' | grep '^DATABASE_URL=' | tail -1 | cut -d= -f2-)
+  if [ -z "$url" ]; then echo "$c: no DATABASE_URL, skip"; continue; fi
+  docker compose exec -T api npx prisma db execute --stdin --url "$url" < /tmp/ckai.sql \
+    && echo "$c OK" || echo "$c FAILED"
+done
+
+echo "--- verify main ---"
+echo 'SELECT COUNT(*) FROM "ChecklistItemExample";' \
+  | docker compose exec -T api npx prisma db execute --stdin --schema prisma/schema.prisma \
+  && echo "VERIFY OK" || echo "VERIFY FAILED"
+echo "DONE"
