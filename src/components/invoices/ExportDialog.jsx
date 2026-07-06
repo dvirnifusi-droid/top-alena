@@ -60,7 +60,7 @@ export default function ExportDialog({ isOpen, onClose }) {
             try {
                 const emailResult = await SendEmail({
                     to: email,
-                    subject: 'ייצוא חשבוניות מחברת TOP ALENA',
+                    subject: 'ייצוא חשבוניות מחברת TOP APOLLO',
                     body: `
                         <div dir="rtl" style="font-family: Arial, sans-serif;">
                             <h2>שלום רב,</h2>
@@ -74,7 +74,7 @@ export default function ExportDialog({ isOpen, onClose }) {
                             <p><strong>חשוב:</strong> הקישור יהיה זמין למשך 7 ימים בלבד.</p>
                             <p>במידה ויש בעיות או שאלות, אנא צור קשר איתנו.</p>
                             <br>
-                            <p>בברכה,<br>צוות TOP ALENA</p>
+                            <p>בברכה,<br>צוות TOP APOLLO</p>
                         </div>
                     `
                 });

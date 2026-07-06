@@ -547,7 +547,7 @@ export default function WorkScheduling() {
         if (restaurantProfileId) {
             await base44.entities.RestaurantProfile.update(restaurantProfileId, { manager_whatsapp_phone: managerPhoneInput });
         } else {
-            const created = await base44.entities.RestaurantProfile.create({ restaurant_name: 'TOP ALENA', manager_whatsapp_phone: managerPhoneInput });
+            const created = await base44.entities.RestaurantProfile.create({ restaurant_name: 'TOP APOLLO', manager_whatsapp_phone: managerPhoneInput });
             setRestaurantProfileId(created.id);
         }
         setManagerPhone(managerPhoneInput);

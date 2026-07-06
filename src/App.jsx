@@ -88,7 +88,7 @@ const AuthenticatedApp = () => {
               <span className="text-3xl">🔐</span>
             </div>
             <div>
-              <h2 className="text-2xl font-bold text-slate-800 mb-2">TOP ALENA</h2>
+              <h2 className="text-2xl font-bold text-slate-800 mb-2">TOP APOLLO</h2>
               <p className="text-slate-500">יש להתחבר כדי להמשיך</p>
             </div>
             <button

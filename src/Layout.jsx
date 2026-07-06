@@ -206,7 +206,7 @@ export default function Layout({ children, currentPageName }) {
   const [hasUnreadChat, setHasUnreadChat] = React.useState(false);
   const [appTheme, setAppTheme] = React.useState(() => localStorage.getItem('gc_theme') || 'light');
   const branding = useTenantBranding();
-  const brandName = branding?.name || 'TOP ALENA';
+  const brandName = branding?.name || 'TOP APOLLO';
   const { pageEnabled } = useTenantModules();
 
   // D2 — inject tenant brand into CSS vars + document.title + PWA manifest.
@@ -522,7 +522,7 @@ const RoleImpersonationDropdown = ({ user, setUser, compact = false }) => {
   );
 };
 
-const DesktopSidebar = ({ userName, isCurrentViewAdmin, isOriginalAdmin, navigationItems, location, user, setUser, hasUnreadChat, navFilter, setNavFilter, brandName = "TOP ALENA", logoUrl = null }) => (
+const DesktopSidebar = ({ userName, isCurrentViewAdmin, isOriginalAdmin, navigationItems, location, user, setUser, hasUnreadChat, navFilter, setNavFilter, brandName = "TOP APOLLO", logoUrl = null }) => (
   <div className="fixed top-0 bottom-0 right-0 w-80 bg-card border-l border-border z-40">
     <div className="border-b border-border p-6">
       <div className="flex items-center gap-4 mb-4">
@@ -613,7 +613,7 @@ const DesktopSidebar = ({ userName, isCurrentViewAdmin, isOriginalAdmin, navigat
   </div>
 );
 
-const MobileSidebar = ({ userName, isCurrentViewAdmin, isOriginalAdmin, navigationItems, location, user, setUser, hasUnreadChat, navFilter, setNavFilter, brandName = "TOP ALENA", logoUrl = null }) => (
+const MobileSidebar = ({ userName, isCurrentViewAdmin, isOriginalAdmin, navigationItems, location, user, setUser, hasUnreadChat, navFilter, setNavFilter, brandName = "TOP APOLLO", logoUrl = null }) => (
   <Sidebar className="bg-card z-50">
     <SidebarHeader className="border-b border-border p-3">
       <div className="flex items-center gap-2 mb-2">
@@ -704,7 +704,7 @@ const MobileSidebar = ({ userName, isCurrentViewAdmin, isOriginalAdmin, navigati
   </Sidebar>
 );
 
-const MobileHeader = ({ isCurrentViewAdmin, brandName = "TOP ALENA", logoUrl = null }) => (
+const MobileHeader = ({ isCurrentViewAdmin, brandName = "TOP APOLLO", logoUrl = null }) => (
   <header
     className="sticky top-0 z-40 flex items-center justify-between border-b border-border bg-card px-3 lg:hidden min-w-0"
     style={{

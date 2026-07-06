@@ -65,7 +65,7 @@ export default function PushNotifications() {
         const keys = targets.map(e => e.pushover_user_key);
         const res = await sendPushoverNotification({
             user_keys: keys,
-            title: title.trim() || 'TOP ALENA',
+            title: title.trim() || 'TOP APOLLO',
             message: message.trim(),
         });
         setSending(false);
@@ -181,7 +181,7 @@ export default function PushNotifications() {
                         <Input
                             value={title}
                             onChange={e => setTitle(e.target.value)}
-                            placeholder="TOP ALENA"
+                            placeholder="TOP APOLLO"
                             className="text-right"
                         />
                     </div>

@@ -170,7 +170,7 @@ export default function EmailInvoiceSettingsPage() {
               <a className="text-blue-600 underline mx-1" href="https://myaccount.google.com/apppasswords" target="_blank" rel="noreferrer">
                 myaccount.google.com/apppasswords
               </a>
-              (דורש אימות דו-שלבי פעיל), צור סיסמה חדשה בשם "TopAlena" והדבק אותה כאן.
+              (דורש אימות דו-שלבי פעיל), צור סיסמה חדשה בשם "TOP APOLLO" והדבק אותה כאן.
             </p>
             <Input placeholder="כתובת Gmail" dir="ltr" autoComplete="off" value={form.email}
               onChange={e => setForm(f => ({ ...f, email: e.target.value }))} />

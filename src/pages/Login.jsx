@@ -87,7 +87,7 @@ export default function Login() {
           <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3">
             <span className="text-3xl">🔐</span>
           </div>
-          <h1 className="text-2xl font-bold text-slate-800">TOP ALENA</h1>
+          <h1 className="text-2xl font-bold text-slate-800">TOP APOLLO</h1>
           <p className="text-slate-500 text-sm mt-1">
             {mode === 'login' ? 'התחבר כדי להמשיך' : 'יצירת חשבון חדש'}
           </p>

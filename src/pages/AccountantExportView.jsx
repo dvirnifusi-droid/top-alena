@@ -118,7 +118,7 @@ export default function AccountantExportView() {
                     <CardHeader>
                         <div className="flex justify-between items-center">
                             <div>
-                                <CardTitle className="text-2xl flex items-center gap-2"><FileText />ייצוא חשבוניות עבור TOP ALENA</CardTitle>
+                                <CardTitle className="text-2xl flex items-center gap-2"><FileText />ייצוא חשבוניות עבור TOP APOLLO</CardTitle>
                                 <CardDescription>
                                     תקופה: {format(new Date(exportData.start_date), 'dd/MM/yyyy')} - {format(new Date(exportData.end_date), 'dd/MM/yyyy')}
                                 </CardDescription>

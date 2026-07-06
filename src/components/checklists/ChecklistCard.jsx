@@ -76,7 +76,7 @@ export default function ChecklistCard({ checklist, onStart, executions, onEdit, 
                     <span>חתימת מבצע: __________________</span>
                     <span>חתימת מנהל: __________________</span>
                 </div>
-                <div class="footer">הופק מ-TOP ALENA · ${date}</div>
+                <div class="footer">הופק מ-TOP APOLLO · ${date}</div>
             </body>
             </html>
         `;

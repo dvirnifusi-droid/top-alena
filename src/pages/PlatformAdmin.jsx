@@ -166,7 +166,7 @@ function PlatformAdminInner() {
           <div>
             <h1 className="text-2xl font-bold">Platform Admin — God Mode</h1>
             <p className="text-sm text-white/80 mt-1">
-              קונסולת ניהול-על. אתה רואה כאן את *כל* המסעדות שרצות על TopAlena, לא רק שלך.
+              קונסולת ניהול-על. אתה רואה כאן את *כל* המסעדות שרצות על TOP APOLLO, לא רק שלך.
             </p>
           </div>
           <button onClick={load} className="ml-auto bg-white/20 hover:bg-white/30 rounded-lg p-2">

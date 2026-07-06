@@ -98,7 +98,7 @@ async function onboardingBrain(
   const nm = nextMissing(data);
   const joinLink = `https://${tenant.slug}.topalena.com/JoinTeam`;
   const prompt =
-    `אתה "העוזר החכם" של TopAlena — מקים מסעדה בשם "${data.name || tenant.restaurant_name}" עבור ${tenant.owner_name || 'הבעלים'}.\n` +
+    `אתה "העוזר החכם" של TOP APOLLO — מקים מסעדה בשם "${data.name || tenant.restaurant_name}" עבור ${tenant.owner_name || 'הבעלים'}.\n` +
     `דבר עברית טבעית, חמה ואנושית — כמו נציג אמיתי, לא בוט.\n\n` +
     `## חוקים\n` +
     `1. שאל שאלה אחת אטומית בכל פעם. לעולם אל תקבץ כמה דברים בשאלה אחת.\n` +
@@ -293,7 +293,7 @@ export async function startOnboarding(tenantId: string): Promise<void> {
   const tenant = await getTenant(tenantId);
   if (!tenant) return;
   const first =
-    `שלום ${tenant.owner_name || ''}! 🌿 אני העוזר החכם של TopAlena, ואני אקים לך את המסעדה תוך כמה דקות — ` +
+    `שלום ${tenant.owner_name || ''}! 🌿 אני העוזר החכם של TOP APOLLO, ואני אקים לך את המסעדה תוך כמה דקות — ` +
     `שאלה אחת בכל פעם. אפשר לענות בכתב, בהקלטה קולית, או פשוט לשלוח לי קבצים (תפריט, סידור עבודה, רשימת עובדים...) ואני אקרא ואטמיע לבד.\n\n` +
     `בוא נתחיל — *איך קוראים למסעדה?*`;
   const data: Record<string, any> = { _history: [{ role: 'assistant', content: first }] };

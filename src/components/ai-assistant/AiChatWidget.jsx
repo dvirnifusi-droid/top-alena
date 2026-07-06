@@ -310,7 +310,7 @@ export default function AiChatWidget() {
                     .slice(-30)
                     .map(m => ({ role: (m.type === 'ai' || m.type === 'training_summary') ? 'assistant' : 'user', content: m.content }));
 
-                const systemPrompt = `אתה דביר - עוזר AI פנימי ומאמן מלצרים בכיר של מסעדת TOP ALENA.
+                const systemPrompt = `אתה דביר - עוזר AI פנימי ומאמן מלצרים בכיר של מסעדת TOP APOLLO.
 אתה עונה בעברית בלבד, בצורה חמה, מעודדת ומלהיבה.
 יש לך גישה לכל קבצי התפריט של המסעדה (תפריט אוכל, תפריט שתייה ואלכוהול, ספר מתכונים).
 

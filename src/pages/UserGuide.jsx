@@ -12,11 +12,11 @@ const sections = [
   {
     id: "intro",
     icon: Crown,
-    title: "מבוא למערכת TOP ALENA",
+    title: "מבוא למערכת TOP APOLLO",
     color: "bg-green-100 text-green-700",
     audience: ["מנהל", "עובד"],
     content: [
-      { title: "מה זה TOP ALENA?", text: "מערכת ניהול מסעדה כוללת — מעובדים, משמרות, טיפים, הכשרות, לקוחות ועוד. הכל במקום אחד." },
+      { title: "מה זה TOP APOLLO?", text: "מערכת ניהול מסעדה כוללת — מעובדים, משמרות, טיפים, הכשרות, לקוחות ועוד. הכל במקום אחד." },
       { title: "איך נכנסים?", text: "נכנסים דרך הקישור של המסעדה. מנהלים יועברו ללוח הבקרה, עובדים לאזור האישי שלהם." },
       { title: "ניווט", text: "התפריט נמצא בצד ימין (מחשב) או בלחיצה על כפתור התפריט (נייד). כל סעיף מוביל לכלי אחר." },
     ]
@@ -479,7 +479,7 @@ export default function UserGuide() {
             <BookOpen className="w-8 h-8 text-primary-foreground" />
           </div>
           <h1 className="text-3xl font-black text-foreground">מדריך שימוש</h1>
-          <p className="text-muted-foreground">TOP ALENA — כל מה שצריך לדעת</p>
+          <p className="text-muted-foreground">TOP APOLLO — כל מה שצריך לדעת</p>
         </div>
 
         <div className="flex gap-2 justify-center">
@@ -526,7 +526,7 @@ export default function UserGuide() {
         </div>
 
         <p className="text-center text-xs text-muted-foreground pb-4">
-          TOP ALENA v1.0 — לשאלות פנה למנהל המערכת
+          TOP APOLLO v1.0 — לשאלות פנה למנהל המערכת
         </p>
       </div>
     </div>

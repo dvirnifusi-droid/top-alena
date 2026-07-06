@@ -156,7 +156,7 @@ export default function ExportToAccountantDialog({ open, onClose, employees, sel
         await base44.integrations.Core.SendEmail({
             to: accountantEmail,
             subject: `דוח שעות עובדים - ${monthLabel}`,
-            body: `שלום,\n\nמצורף דוח שעות עבודה לחודש ${monthLabel}.\n\nעובדים: ${empNames}\n\n${rows}\n\n---\nנשלח ממערכת TOP ALENA`
+            body: `שלום,\n\nמצורף דוח שעות עבודה לחודש ${monthLabel}.\n\nעובדים: ${empNames}\n\n${rows}\n\n---\nנשלח ממערכת TOP APOLLO`
         });
 
         setSending(false);

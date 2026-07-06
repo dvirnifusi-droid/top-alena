@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
 
-// Cached branding — one lookup per app load. Falls back to "TOP ALENA".
+// Cached branding — one lookup per app load. Falls back to "TOP APOLLO".
 // The tenant subdomain container fetches its own RestaurantProfile from
 // its own schema, so no cross-tenant leakage.
 //
@@ -12,7 +12,7 @@ let _cache = null;
 let _fetchPromise = null;
 
 const DEFAULT_BRANDING = {
-  name: 'TOP ALENA',
+  name: 'TOP APOLLO',
   logo_url: null,
   brand_colors: null,
   brand_font: null,
@@ -42,8 +42,8 @@ async function fetchBranding() {
       const profile = Array.isArray(rows) && rows.length > 0 ? rows[0] : null;
       _cache = {
         // restaurant_name is the canonical column; the old code read `name`
-        // which was always undefined → always fell back to 'TOP ALENA'.
-        name: profile?.restaurant_name || profile?.name || 'TOP ALENA',
+        // which was always undefined → always fell back to 'TOP APOLLO'.
+        name: profile?.restaurant_name || profile?.name || 'TOP APOLLO',
         logo_url: profile?.logo_url || null,
         brand_colors: profile?.brand_colors || null, // {primary, secondary, accent} or null
         brand_font: profile?.brand_font || null,

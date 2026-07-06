@@ -47,7 +47,7 @@ const db = prisma as any; // generic delegate access
 
 // Public deploy marker — lets us confirm which build is live (and that
 // auto-deploy is working) without server access. Bump on each deploy test.
-registerFn('deployInfo', async () => ({ version: 'onboarding-v4-full-walk-2026-07-07', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
+registerFn('deployInfo', async () => ({ version: 'rebrand-top-apollo-2026-07-07', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
 
 
 
@@ -4939,7 +4939,7 @@ registerFn('selectTreat', async ({ body }) => {
 
 registerFn('sendWeeklyNewsletter', async ({ body }) => {
   const { to, subject, html } = body as any;
-  return sendEmail({ to, subject: subject ?? 'TOP ALENA - עדכון שבועי', html });
+  return sendEmail({ to, subject: subject ?? 'TOP APOLLO - עדכון שבועי', html });
 });
 
 registerFn('updateProximityResponse', async ({ body }) => {
@@ -12862,7 +12862,7 @@ registerFn('requestTenantSignup', async ({ body }) => {
       html: `<div dir="rtl" style="font-family:Arial,sans-serif;line-height:1.6;padding:24px;max-width:600px;margin:auto;background:#FAF5E8;border-radius:12px;color:#333">
         <h1 style="color:#A04A2E;margin:0 0 12px">✅ בקשתך התקבלה!</h1>
         <p>שלום ${ownerName},</p>
-        <p>קיבלנו את בקשת ההרשמה של <strong>${restaurantName}</strong> ל-TopAlena. הצוות שלנו יבדוק את הפרטים ויאשר תוך 24 שעות.</p>
+        <p>קיבלנו את בקשת ההרשמה של <strong>${restaurantName}</strong> ל-TOP APOLLO. הצוות שלנו יבדוק את הפרטים ויאשר תוך 24 שעות.</p>
         <div style="background:white;border-radius:8px;padding:16px;margin:20px 0;border:1px solid #ddd">
           <div style="font-weight:bold;margin-bottom:8px">🔗 הכתובת שלך תהיה:</div>
           <div style="font-size:18px;color:#A04A2E;font-weight:bold">${subdomainUrl}</div>
@@ -12873,7 +12873,7 @@ registerFn('requestTenantSignup', async ({ body }) => {
           <li>שם משתמש וסיסמה זמנית</li>
           <li>קישור לפתיחת שיחה עם הסוכן החכם שיעזור לך להקים את המסעדה שלב-שלב</li>
         </ul>
-        <p style="margin-top:24px;color:#666;font-size:13px">בהצלחה 🌿<br>צוות TopAlena</p>
+        <p style="margin-top:24px;color:#666;font-size:13px">בהצלחה 🌿<br>צוות TOP APOLLO</p>
       </div>`,
     });
   } catch (e: any) {
@@ -13241,7 +13241,7 @@ async function sendWelcomeForTenant(tenantId: string): Promise<any> {
   // "no unique or exclusion constraint matching the ON CONFLICT
   // specification" and the whole seed silently fail (hamara got a welcome
   // message with "❌ יצירת המשתמש נכשלה" because of exactly this).
-  const tempPassword = `TopAlena-${Math.floor(1000 + Math.random() * 9000)}`;
+  const tempPassword = `TopApollo-${Math.floor(1000 + Math.random() * 9000)}`;
   let credsLine = 'צור/צרי משתמש בעצמך בטופס הרשמה.';
   let seedError: string | null = null;
   if (t.owner_email) {
@@ -13290,7 +13290,7 @@ async function sendWelcomeForTenant(tenantId: string): Promise<any> {
         <div style="color:white;font-weight:bold;font-size:16px;margin-bottom:12px">💬 להתחיל להקים את המסעדה — לחיצה אחת</div>
         <a href="${waLink}" style="display:inline-block;background:white;color:#075E54;padding:14px 32px;border-radius:32px;text-decoration:none;font-weight:bold;font-size:16px">📱 פתח וואטסאפ עם הסוכן</a>
       </div>` : ''}
-      <p style="margin:24px 0 8px;color:#666;font-size:13px">בהצלחה! 🌿<br>צוות TopAlena</p>
+      <p style="margin:24px 0 8px;color:#666;font-size:13px">בהצלחה! 🌿<br>צוות TOP APOLLO</p>
     </div>`;
 
   const { sendWhatsApp, sendSms } = await import('../lib/twilio.js');
@@ -13393,12 +13393,12 @@ registerFn('diagnoseChannels', async ({ user }) => {
     const { sendSms, sendWhatsApp } = await import('../lib/twilio.js');
     const stamp = new Date().toISOString().slice(11, 19);
     try {
-      out.tests.sms_send = await sendSms(testPhone, `TopAlena test SMS ${stamp}`);
+      out.tests.sms_send = await sendSms(testPhone, `TOP APOLLO test SMS ${stamp}`);
     } catch (e: any) {
       out.tests.sms_send = { error: e?.message || 'sms_failed' };
     }
     try {
-      out.tests.whatsapp_send = await sendWhatsApp(testPhone, `TopAlena test WhatsApp ${stamp}`);
+      out.tests.whatsapp_send = await sendWhatsApp(testPhone, `TOP APOLLO test WhatsApp ${stamp}`);
     } catch (e: any) {
       out.tests.whatsapp_send = { error: e?.message || 'wa_failed' };
     }
@@ -13412,7 +13412,7 @@ registerFn('diagnoseChannels', async ({ user }) => {
     try {
       out.tests.email_send = await sendEmail({
         to: testEmail,
-        subject: `TopAlena channel test ${stamp}`,
+        subject: `TOP APOLLO channel test ${stamp}`,
         html: `<p>אם קיבלת את זה במייל — הערוץ עובד.</p><p>שלחתי אליך ב-${stamp} UTC.</p>`,
       });
     } catch (e: any) {
@@ -13638,7 +13638,7 @@ registerFn('checkStuckTenants', async ({ body }) => {
 registerFn('pushoverAlert', async ({ body }) => {
   const b = (body || {}) as any;
   if (String(b.cron_secret || '') !== process.env.CRON_SECRET) throw new Error('forbidden');
-  const title = String(b.title || 'TopAlena alert').slice(0, 100);
+  const title = String(b.title || 'TOP APOLLO alert').slice(0, 100);
   const message = String(b.message || '').slice(0, 1024);
   const { pushoverToAdmins } = await import('../lib/pushover.js');
   try {
@@ -19912,7 +19912,7 @@ registerFn('getManifest', async () => {
     profile = await (prisma as any).restaurantProfile.findFirst({});
   } catch { /* schema not ready or no rows — falls through */ }
 
-  const name = profile?.restaurant_name || 'TOP ALENA';
+  const name = profile?.restaurant_name || 'TOP APOLLO';
   const shortName = String(name).slice(0, 12);
   const colors = profile?.brand_colors || {};
   const themeColor = colors.primary || '#3a4a1f';
