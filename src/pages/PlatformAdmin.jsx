@@ -82,6 +82,26 @@ function PlatformAdminInner() {
     finally { setActioningId(null); }
   };
 
+  const editOwner = async (t) => {
+    const label = t.restaurant_name || t.name || t.slug;
+    const phone = window.prompt(`טלפון הבעלים של "${label}" (וואטסאפ):\nהשאר ריק לא לשנות.`, t.owner_phone || '');
+    if (phone === null) return; // cancelled
+    const email = window.prompt(`מייל הבעלים של "${label}":\nהשאר ריק לא לשנות.`, t.owner_email || '');
+    if (email === null) return;
+    const payload = { tenant_id: t.id };
+    if (phone.trim() && phone.trim() !== (t.owner_phone || '')) payload.owner_phone = phone.trim();
+    if (email.trim() && email.trim() !== (t.owner_email || '')) payload.owner_email = email.trim();
+    if (!payload.owner_phone && !payload.owner_email) { alert('לא שונה כלום.'); return; }
+    setActioningId(t.id);
+    try {
+      const res = await base44.functions.updateTenantOwner(payload);
+      const r = res?.data || res;
+      alert(`✅ עודכן.\nטלפון: ${r?.owner?.owner_phone || '—'}\nמייל: ${r?.owner?.owner_email || '—'}\n\nכדי לשלוח לבעלים החדש פרטי כניסה — לחץ "שלח פרטי כניסה". כדי להתחיל אצלו onboarding — לחץ "Onboarding".`);
+      await load();
+    } catch (e) { alert('שגיאה: ' + (e?.message || '')); }
+    finally { setActioningId(null); }
+  };
+
   const resendWelcome = async (t) => {
     const label = t.restaurant_name || t.name || t.slug;
     if (!window.confirm(`לשלוח מחדש את פרטי הכניסה לבעלים של "${label}" ב-SMS + מייל + WhatsApp? הסיסמה הישנה תוחלף בסיסמה זמנית חדשה.`)) return;
@@ -448,6 +468,16 @@ function PlatformAdminInner() {
                                   title="שלח שיחת Onboarding בוואטסאפ"
                                 >
                                   {restartingId === t.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <><MessageCircle className="w-3.5 h-3.5 ml-1" /> Onboarding</>}
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  disabled={actioningId === t.id}
+                                  onClick={() => editOwner(t)}
+                                  className="text-xs whitespace-nowrap border-slate-300 hover:bg-slate-50 text-slate-700"
+                                  title="שנה טלפון / מייל של הבעלים"
+                                >
+                                  ✏️ ערוך בעלים
                                 </Button>
                               </div>
                             )}

@@ -47,7 +47,7 @@ const db = prisma as any; // generic delegate access
 
 // Public deploy marker — lets us confirm which build is live (and that
 // auto-deploy is working) without server access. Bump on each deploy test.
-registerFn('deployInfo', async () => ({ version: 'onboarding-v4-confirm-files-2026-07-06', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
+registerFn('deployInfo', async () => ({ version: 'edit-tenant-owner-2026-07-07', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
 
 
 
@@ -12973,6 +12973,33 @@ registerFn('rejectTenant', async ({ user, body }) => {
     String(b.reason || ''), b.tenant_id,
   );
   return { ok: true };
+});
+
+// SUPER-ADMIN — edit a tenant's owner details (name / phone / email). Used to
+// test onboarding with your own phone, then hand the tenant to the real owner
+// by swapping the phone. Onboarding + welcome follow owner_phone, so after a
+// change you can re-send credentials / restart onboarding to the new number.
+registerFn('updateTenantOwner', async ({ user, body }) => {
+  if (!isSuperAdmin(user)) throw new Error('super-admin only');
+  await ensurePlatformTables();
+  const b = (body || {}) as any;
+  if (!b.tenant_id) throw new Error('tenant_id required');
+  const sets: string[] = [];
+  const args: any[] = [];
+  let i = 1;
+  if (typeof b.owner_name === 'string' && b.owner_name.trim()) { sets.push(`owner_name = $${i++}`); args.push(b.owner_name.trim()); }
+  if (typeof b.owner_phone === 'string' && b.owner_phone.trim()) { sets.push(`owner_phone = $${i++}`); args.push(b.owner_phone.trim()); }
+  if (typeof b.owner_email === 'string' && b.owner_email.trim()) { sets.push(`owner_email = $${i++}`); args.push(b.owner_email.trim().toLowerCase()); }
+  if (!sets.length) throw new Error('nothing to update');
+  args.push(b.tenant_id);
+  await (prisma as any).$executeRawUnsafe(
+    `UPDATE "Tenant" SET ${sets.join(', ')}, "updatedAt" = NOW() WHERE id = $${i}`,
+    ...args,
+  );
+  const rows: any[] = await (prisma as any).$queryRawUnsafe(
+    `SELECT owner_name, owner_phone, owner_email FROM "Tenant" WHERE id = $1`, b.tenant_id,
+  );
+  return { ok: true, owner: rows[0] || null };
 });
 
 registerFn('listTenants', async ({ user, body }) => {
