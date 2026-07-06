@@ -31,6 +31,7 @@ import {
   listTodayEvents,
   listOpenTasks,
 } from './whatsappCalendar.js';
+import { matchEmployees } from './employeeMatch.js';
 
 const GEMINI_BASE = 'https://generativelanguage.googleapis.com/v1beta';
 const MODEL = process.env.GEMINI_AGENT_MODEL || 'gemini-2.5-flash';
@@ -461,14 +462,20 @@ async function tool_get_unpaid_invoices(_args: any, _phone: string): Promise<any
 }
 
 async function tool_search_employee(args: any, _phone: string): Promise<any> {
-  const name = String(args?.name || '').toLowerCase().trim();
-  if (!name) return { matches: [] };
+  const nameArg = String(args?.name || '').trim();
+  if (!nameArg) return { matches: [] };
   const emps: any[] = await (prisma as any).employee.findMany({ where: { status: 'active' }, take: 500 });
-  const matches = emps.filter((e: any) => String(e.full_name || '').toLowerCase().includes(name));
-  return { matches: matches.slice(0, 8).map((e: any) => ({
-    id: e.id, name: e.full_name, phone: e.phone,
-    positions: (e.positions || []).map((p: any) => p?.position_name || p).filter(Boolean),
-  })) };
+  const mm = matchEmployees(nameArg, emps);
+  const picked = mm.exact.length ? mm.exact : mm.suggestions;
+  // cross_script_guess=true means these are transliteration guesses (e.g. a
+  // Latin paste of a Hebrew name) — the agent should ask the user to confirm.
+  return {
+    cross_script_guess: !mm.exact.length && mm.suggestions.length > 0,
+    matches: picked.slice(0, 8).map((e: any) => ({
+      id: e.id, name: e.full_name, phone: e.phone,
+      positions: (e.positions || []).map((p: any) => p?.position_name || p).filter(Boolean),
+    })),
+  };
 }
 
 async function tool_search_lead(args: any, _phone: string): Promise<any> {
@@ -551,11 +558,17 @@ async function tool_propose_invoice_mark_paid(args: any, phone: string): Promise
 async function tool_propose_shift_assign(args: any, phone: string): Promise<any> {
   // Resolve employee fuzzy
   const emps: any[] = await (prisma as any).employee.findMany({ where: { status: 'active' }, take: 500 });
-  const q = String(args.employee_name).toLowerCase();
-  const matches = emps.filter((e: any) => String(e.full_name || '').toLowerCase().includes(q));
-  if (!matches.length) return { error: `no employee matching "${args.employee_name}"` };
-  if (matches.length > 1) return { ambiguous: true, candidates: matches.map((e: any) => e.full_name) };
-  const emp = matches[0];
+  const m = matchEmployees(String(args.employee_name || ''), emps);
+  if (!m.exact.length) {
+    if (m.suggestions.length) return {
+      not_found: true,
+      message: `לא מצאתי עובד פעיל בשם "${args.employee_name}". האם התכוונת לאחד מאלה?`,
+      suggestions: m.suggestions.map((e: any) => e.full_name),
+    };
+    return { error: `לא נמצא עובד פעיל בשם "${args.employee_name}" — בדוק איות או הוסף אותו.` };
+  }
+  if (m.exact.length > 1) return { ambiguous: true, candidates: m.exact.map((e: any) => e.full_name) };
+  const emp = m.exact[0];
   // Resolve date
   const dateStr = resolveDate(args.date);
   if (!dateStr) return { error: `couldn't parse date "${args.date}"` };
@@ -614,14 +627,24 @@ async function tool_propose_employee_shifts_batch(args: any, phone: string): Pro
 
   // Resolve employee fuzzy
   const emps: any[] = await (prisma as any).employee.findMany({ where: { status: 'active' }, take: 500 });
-  const lower = search.toLowerCase();
-  const matches = emps.filter((e: any) => String(e.full_name || '').toLowerCase().includes(lower));
-  if (!matches.length) return { error: `no active employee matching "${search}"` };
-  if (matches.length > 1) return {
+  const m = matchEmployees(search, emps);
+  if (!m.exact.length) {
+    // No same-script match. A Latin paste of a Hebrew-stored name (e.g.
+    // "Shiden Kitreab Berhe" vs "שידן קיבראב ברחה") lands here — surface the
+    // best cross-script guesses so the manager confirms the right person
+    // instead of hitting a dead-end and re-pasting.
+    if (m.suggestions.length) return {
+      not_found: true,
+      message: `לא מצאתי עובד פעיל בשם "${search}". האם התכוונת לאחד מאלה?`,
+      suggestions: m.suggestions.map((e: any) => e.full_name),
+    };
+    return { error: `לא נמצא עובד פעיל בשם "${search}" — בדוק איות או הוסף אותו במערכת.` };
+  }
+  if (m.exact.length > 1) return {
     ambiguous: true,
-    candidates: matches.slice(0, 6).map((e: any) => e.full_name),
+    candidates: m.exact.slice(0, 6).map((e: any) => e.full_name),
   };
-  const emp = matches[0];
+  const emp = m.exact[0];
 
   // Parse + classify each entry
   const now = new Date();
