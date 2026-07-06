@@ -47,35 +47,7 @@ const db = prisma as any; // generic delegate access
 
 // Public deploy marker — lets us confirm which build is live (and that
 // auto-deploy is working) without server access. Bump on each deploy test.
-registerFn('deployInfo', async () => ({ version: 'checklist-items-debug-2026-07-05', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
-
-// TEMP DEBUG — test whether the property name `items` (colliding with the
-// JSON-Schema `items` keyword) is what empties the array in Gemini output.
-// Runs the same LLM twice: once with `items`, once with `tasks`.
-registerFn('checklistsItemsDebug', async () => {
-  const base = `הצע 2 צ'ק-ליסטים לבר יין. לכל אחד: שם, ורשימת 4 משימות.`;
-  const run = async (key: string) => {
-    const r: any = await invokeLLM({
-      prompt: `${base}\n\nהחזר JSON: { checklists: [{ name, ${key}: string[] }] }`,
-      responseSchema: {
-        type: 'object',
-        properties: {
-          checklists: {
-            type: 'array',
-            items: {
-              type: 'object',
-              properties: { name: { type: 'string' }, [key]: { type: 'array', items: { type: 'string' } } },
-            },
-          },
-        },
-        required: ['checklists'],
-      },
-      _ctx: { fn_name: 'checklistsItemsDebug' },
-    }).catch((e: any) => ({ error: e?.message }));
-    return (r?.checklists || []).map((c: any) => ({ name: c.name, arr_len: Array.isArray(c[key]) ? c[key].length : -1, sample: (c[key] || []).slice(0, 2) }));
-  };
-  return { with_items: await run('items'), with_tasks: await run('tasks') };
-}, { public: true });
+registerFn('deployInfo', async () => ({ version: 'gemini-items-keyword-fix-2026-07-05', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
 
 
 
@@ -10264,15 +10236,17 @@ async function runMenuEngineer(input: any) {
     return { recommendations: [], note: 'הדבק נתוני מכירות (מנה, כמות שנמכרה, מחיר, עלות) כדי לקבל המלצות.' };
   }
   const result: any = await invokeLLM({
-    prompt: `אתה Menu Engineer במסעדת ${await getBrandName()}. נתח את נתוני המכירות הבאים וסווג כל מנה לאחת מ-4 קטגוריות BCG: Star (פופולרי+רווחי), Plowhorse (פופולרי+לא רווחי), Puzzle (לא פופולרי+רווחי), Dog (לא פופולרי+לא רווחי). תן המלצה קונקרטית לכל מנה.\n\nנתונים:\n${sales_data}\n\nהחזר JSON: { items: [{ name, category, margin_estimate, popularity, recommendation }], summary }`,
+    prompt: `אתה Menu Engineer במסעדת ${await getBrandName()}. נתח את נתוני המכירות הבאים וסווג כל מנה לאחת מ-4 קטגוריות BCG: Star (פופולרי+רווחי), Plowhorse (פופולרי+לא רווחי), Puzzle (לא פופולרי+רווחי), Dog (לא פופולרי+לא רווחי). תן המלצה קונקרטית לכל מנה.\n\nנתונים:\n${sales_data}\n\nהחזר JSON: { dishes: [{ name, category, margin_estimate, popularity, recommendation }], summary }`,
     responseSchema: {
       type: 'object',
       properties: {
-        items: { type: 'array', items: { type: 'object', properties: { name: { type: 'string' }, category: { type: 'string' }, margin_estimate: { type: 'string' }, popularity: { type: 'string' }, recommendation: { type: 'string' } } } },
+        // `dishes`, NOT `items` (Gemini keyword collision → empty).
+        dishes: { type: 'array', items: { type: 'object', properties: { name: { type: 'string' }, category: { type: 'string' }, margin_estimate: { type: 'string' }, popularity: { type: 'string' }, recommendation: { type: 'string' } } } },
         summary: { type: 'string' },
       },
     },
   });
+  if (result && !result.items && Array.isArray(result.dishes)) result.items = result.dishes;
   const stars = (result?.items || []).filter((i: any) => i.category === 'Star');
   const topStar = stars[0];
   return {

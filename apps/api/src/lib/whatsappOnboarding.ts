@@ -630,11 +630,12 @@ async function llmExtract(mediaUrl: string, prompt: string, schemaProps: any, li
 }
 
 async function extractAndInsertMenu(tenant: any, mediaUrl: string): Promise<number> {
+  // listKey `dishes`, NOT `items` (Gemini keyword collision → empty).
   const items = await llmExtract(
     mediaUrl,
     `הקובץ הוא תפריט מסעדה. חלץ את כל המנות: name, category (ראשונות/עיקריות/שתייה... או "כללי"), price (מספר בלבד), description אם יש. אל תמציא.`,
     { name: { type: 'string' }, category: { type: 'string' }, price: { type: 'number' }, description: { type: 'string' } },
-    'items', tenant.slug,
+    'dishes', tenant.slug,
   );
   const schema = `tenant_${tenant.slug}`;
   let n = 0;
@@ -651,13 +652,15 @@ async function extractAndInsertMenu(tenant: any, mediaUrl: string): Promise<numb
 }
 
 async function extractAndInsertChecklists(tenant: any, mediaUrl: string, _data: Record<string, any>): Promise<number> {
+  // Inner property `tasks`, NOT `items` (Gemini keyword collision → empty).
   const lists = await llmExtract(
     mediaUrl,
-    `הקובץ הוא צ'קליסט תפעולי של מסעדה (או כמה). חלץ: title (שם הצ'קליסט), category (פתיחה/סגירה/מטבח/בר/ניקיון או "כללי"), items (מערך של משימות כטקסט).`,
-    { title: { type: 'string' }, category: { type: 'string' }, items: { type: 'array', items: { type: 'string' } } },
+    `הקובץ הוא צ'קליסט תפעולי של מסעדה (או כמה). חלץ: title (שם הצ'קליסט), category (פתיחה/סגירה/מטבח/בר/ניקיון או "כללי"), tasks (מערך של משימות כטקסט).`,
+    { title: { type: 'string' }, category: { type: 'string' }, tasks: { type: 'array', items: { type: 'string' } } },
     'checklists', tenant.slug,
   );
-  return insertChecklists(tenant, lists);
+  const normalized = lists.map((cl: any) => ({ ...cl, items: Array.isArray(cl?.tasks) ? cl.tasks : (cl?.items || []) }));
+  return insertChecklists(tenant, normalized);
 }
 
 async function insertChecklists(tenant: any, lists: any[]): Promise<number> {
@@ -683,7 +686,7 @@ async function aiSuggestChecklists(tenant: any, data: Record<string, any>): Prom
     prompt:
       `בנה 3 צ'קליסטים תפעוליים למסעדה מסוג "${data.cuisine || 'כללי'}"` +
       `${data.description ? ` (${data.description})` : ''}: פתיחת בוקר, סגירת ערב, ומטבח.\n` +
-      `לכל אחד: title, category, items (6-12 משימות קצרות בעברית).`,
+      `לכל אחד: title, category, tasks (6-12 משימות קצרות בעברית).`,
     responseSchema: {
       type: 'object',
       properties: {
@@ -693,7 +696,8 @@ async function aiSuggestChecklists(tenant: any, data: Record<string, any>): Prom
             type: 'object',
             properties: {
               title: { type: 'string' }, category: { type: 'string' },
-              items: { type: 'array', items: { type: 'string' } },
+              // `tasks`, NOT `items` (Gemini keyword collision → empty).
+              tasks: { type: 'array', items: { type: 'string' } },
             },
           },
         },
@@ -702,7 +706,10 @@ async function aiSuggestChecklists(tenant: any, data: Record<string, any>): Prom
     },
     _ctx: { fn_name: 'onboardingSuggestChecklists', tenant_slug: tenant.slug },
   });
-  return insertChecklists(tenant, Array.isArray(result?.checklists) ? result.checklists : []);
+  const lists = (Array.isArray(result?.checklists) ? result.checklists : []).map((cl: any) => ({
+    ...cl, items: Array.isArray(cl?.tasks) ? cl.tasks : (cl?.items || []),
+  }));
+  return insertChecklists(tenant, lists);
 }
 
 async function insertSuppliersFromText(tenant: any, text: string): Promise<number> {
