@@ -172,6 +172,30 @@ function EmployeeReportsInner() {
         await base44.entities.WorkShift.update(ws.id, { assigned_staff: updatedStaff });
         await loadReportData();
     };
+
+    // Bulk-delete every "ללא שעון" (no clock-in) shift shown for the current
+    // employee in the current period. Irreversible — removes the assigned_staff
+    // entries from the schedule. Shows an exact count + hours before deleting.
+    const handleDeleteAllNoShow = async () => {
+        const noShowEntries = filteredData.hourlyShiftEntries.filter(e => e.noShow);
+        if (noShowEntries.length === 0) return;
+        const totalHours = noShowEntries.reduce((s, e) => s + (e.net_hours || 0), 0);
+        const emp = employees.find(e => e.id === selectedEmployeeId);
+        const monthLabel = format(selectedMonth, 'MMMM yyyy', { locale: he });
+        if (!confirm(`⚠️ פעולה בלתי הפיכה!\n\nלמחוק ${noShowEntries.length} משמרות ללא שעון (${totalHours.toFixed(2)} שעות) של ${emp?.full_name || ''} בחודש ${monthLabel}?\n\nהמשמרות יוסרו מהסידור ולא ניתן לשחזר.`)) return;
+        const byWs = {};
+        noShowEntries.forEach(e => { (byWs[e.workShiftId] = byWs[e.workShiftId] || []).push(e); });
+        for (const [wsId, entries] of Object.entries(byWs)) {
+            const ws = workShifts.find(w => w.id === wsId);
+            if (!ws) continue;
+            const delKeys = new Set(entries.map(e => `${e.start_time}|${e.end_time}|${e.position}`));
+            const updatedStaff = (ws.assigned_staff || []).filter(a =>
+                !(a.employee_id === selectedEmployeeId && delKeys.has(`${a.start_time}|${a.end_time}|${a.position}`))
+            );
+            await base44.entities.WorkShift.update(ws.id, { assigned_staff: updatedStaff });
+        }
+        await loadReportData();
+    };
     const WEEKLY_GOAL_HOURS = 40; // יעד שעות שבועי ברירת מחדל
     const OVERTIME_THRESHOLD = 8; // שעות נוספות מעל X שעות ביום
 
@@ -732,6 +756,9 @@ function EmployeeReportsInner() {
                     <AllEmployeesSummary
                         workShifts={workShifts}
                         employees={filteredForBulk}
+                        shifts={shifts}
+                        isAdmin={isAdmin}
+                        onReload={loadReportData}
                         selectedMonth={selectedMonth}
                         tipReports={tipReports}
                         approvedEmployees={approvedEmployees}
@@ -1132,6 +1159,12 @@ function EmployeeReportsInner() {
                                     </div>
                                     {isAdmin && (
                                         <div className="flex gap-2">
+                                            {filteredData.hourlyShiftEntries.some(e => e.noShow) && (
+                                                <Button size="sm" variant="outline" onClick={handleDeleteAllNoShow} className="flex items-center gap-2 border-red-400 text-red-600 hover:bg-red-50">
+                                                    <Trash2 className="w-4 h-4" />
+                                                    מחק ללא שעון ({filteredData.hourlyShiftEntries.filter(e => e.noShow).length})
+                                                </Button>
+                                            )}
                                             <Button size="sm" onClick={() => { setAddShiftForm({ date: format(selectedMonth, 'yyyy-MM') + '-01', shift_type: 'dinner', position: '', start_time: '', end_time: '', break_minutes: 0 }); setShowAddShift(true); }} className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white">
                                                 <Plus className="w-4 h-4" />
                                                 הוסף משמרת ידנית
@@ -1502,9 +1535,58 @@ function EmployeeReportsInner() {
     );
 }
 
-function AllEmployeesSummary({ workShifts, employees, selectedMonth, tipReports, onExport, approvedEmployees, toggleApproved }) {
+function AllEmployeesSummary({ workShifts, employees, shifts = [], isAdmin, onReload, selectedMonth, tipReports, onExport, approvedEmployees, toggleApproved }) {
     const monthStart = format(startOfMonth(selectedMonth), 'yyyy-MM-dd');
     const monthEnd = format(endOfMonth(selectedMonth), 'yyyy-MM-dd');
+
+    // Collect every "ללא שעון" (past scheduled shift with no clock-in) across all
+    // listed employees this month — used by the bulk-delete button below.
+    const noShowAll = [];
+    let noShowHours = 0;
+    const noShowEmps = new Set();
+    {
+        const todayStr = format(new Date(), 'yyyy-MM-dd');
+        const empById = new Map(employees.map(e => [e.id, e]));
+        const clockedByName = {};
+        (shifts || []).forEach(s => {
+            const d = String(s.date).slice(0, 10);
+            (clockedByName[s.employee_name] = clockedByName[s.employee_name] || new Set()).add(d);
+        });
+        workShifts.forEach(ws => {
+            const wsDate = String(ws.date).slice(0, 10);
+            if (!wsDate || wsDate < monthStart || wsDate > monthEnd) return;
+            (ws.assigned_staff || []).forEach(a => {
+                if (TIP_POSITIONS.includes(a.position)) return;
+                const emp = empById.get(a.employee_id);
+                if (!emp) return; // only employees in the current (filtered) list
+                const net = calcHours(a.start_time, a.end_time) - (a.total_break_minutes || 0) / 60;
+                if (net <= 0) return;
+                const clocked = clockedByName[emp.full_name]?.has(wsDate);
+                if (!(wsDate < todayStr && !clocked && !a.manual_entry)) return;
+                noShowAll.push({ wsId: ws.id, employee_id: a.employee_id, start_time: a.start_time, end_time: a.end_time, position: a.position });
+                noShowHours += net;
+                noShowEmps.add(a.employee_id);
+            });
+        });
+    }
+
+    const handleDeleteAllNoShowGlobal = async () => {
+        if (noShowAll.length === 0) return;
+        const monthLabel = format(selectedMonth, 'MMMM yyyy', { locale: he });
+        if (!confirm(`⚠️ פעולה בלתי הפיכה!\n\nלמחוק ${noShowAll.length} משמרות ללא שעון (${noShowHours.toFixed(2)} שעות) של ${noShowEmps.size} עובדים בחודש ${monthLabel}?\n\nהמשמרות יוסרו מהסידור ולא ניתן לשחזר.`)) return;
+        const byWs = {};
+        noShowAll.forEach(e => { (byWs[e.wsId] = byWs[e.wsId] || []).push(e); });
+        for (const [wsId, entries] of Object.entries(byWs)) {
+            const ws = workShifts.find(w => w.id === wsId);
+            if (!ws) continue;
+            const delKeys = new Set(entries.map(e => `${e.employee_id}|${e.start_time}|${e.end_time}|${e.position}`));
+            const updatedStaff = (ws.assigned_staff || []).filter(a =>
+                !delKeys.has(`${a.employee_id}|${a.start_time}|${a.end_time}|${a.position}`)
+            );
+            await base44.entities.WorkShift.update(ws.id, { assigned_staff: updatedStaff });
+        }
+        await onReload?.();
+    };
 
     const data = employees.map(emp => {
         // hourly shifts grouped by position, calculate overtime per shift entry directly
@@ -1627,6 +1709,12 @@ function AllEmployeesSummary({ workShifts, employees, selectedMonth, tipReports,
                 <h2 className="text-xl font-bold">דוח כללי - {format(selectedMonth, 'MMMM yyyy', { locale: he })}</h2>
 
                 <div className="flex gap-2">
+                    {isAdmin && noShowAll.length > 0 && (
+                        <Button onClick={handleDeleteAllNoShowGlobal} variant="outline" className="flex items-center gap-2 border-red-400 text-red-600 hover:bg-red-50">
+                            <Trash2 className="w-4 h-4" />
+                            מחק משמרות ללא שעון ({noShowAll.length})
+                        </Button>
+                    )}
                     <Button onClick={sendAllWhatsApp} variant="outline" className="flex items-center gap-2 border-green-400 text-green-600 hover:bg-green-50" disabled={data.length === 0}>
                         <span>📱</span>
                         שלח לוואטסאפ
