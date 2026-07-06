@@ -72,6 +72,7 @@ const adminLinks = [
   { title: "📊 קופה Live", url: createPageUrl("BeecommLive"), icon: Zap, isSubItem: true, color: "olive" },
   { title: "דוחות", url: createPageUrl("Reports"), icon: BarChart3, isSubItem: true, color: "olive" },
   { title: "💰 תזרים מזומנים", url: createPageUrl("CashFlow"), icon: Wallet, isSubItem: true, color: "olive" },
+  { title: "👥 עלות שכר", url: createPageUrl("LaborCost"), icon: BarChart3, isSubItem: true, color: "olive" },
   { title: "🍽 מתכונים ופוד-קוסט", url: createPageUrl("Recipes"), icon: ChefHat, isSubItem: true, color: "olive" },
   { title: "ניהול טיפים", url: createPageUrl("Tips"), icon: Banknote, isSubItem: true, color: "olive" },
   { title: "חשבוניות", url: createPageUrl("Invoices"), icon: FileText, isSubItem: true, color: "olive" },

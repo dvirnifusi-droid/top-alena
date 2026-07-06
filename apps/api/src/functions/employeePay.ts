@@ -3,24 +3,8 @@
 // department + pay_access_scope) and enforces payAccess rules.
 import { registerFn } from './index.js';
 import { prisma } from '../db.js';
-import { canViewPay, canEditPay, ALL_SCOPE, type Viewer } from '../lib/payAccess.js';
-
-async function buildViewer(user: { id: string; email: string; role?: string | null } | null): Promise<Viewer> {
-  const isOwner = user?.role === 'owner';
-  let emp: any = null;
-  if (user?.email) {
-    emp = await (prisma as any).employee.findFirst({
-      where: { email: user.email },
-      select: { id: true, department: true, pay_access_scope: true },
-    }).catch(() => null);
-  }
-  return {
-    isOwner,
-    employeeId: emp?.id ?? null,
-    department: emp?.department ?? null,
-    payAccessScope: emp?.pay_access_scope ?? null,
-  };
-}
+import { canViewPay, canEditPay, ALL_SCOPE } from '../lib/payAccess.js';
+import { buildPayViewer } from '../lib/payViewer.js';
 
 async function loadTarget(employeeId: string): Promise<{ employeeId: string; department: string | null; full_name: string } | null> {
   const t: any = await (prisma as any).employee.findUnique({
@@ -36,7 +20,7 @@ registerFn('getEmployeePay', async ({ body, user }) => {
   const employeeId = String((body as any)?.employee_id || '');
   const target = await loadTarget(employeeId);
   if (!target) throw new Error('employee_not_found');
-  const viewer = await buildViewer(user);
+  const viewer = await buildPayViewer(user);
   if (!canViewPay(viewer, target)) throw new Error('forbidden');
   const pay = await (prisma as any).employeePay.findUnique({ where: { employee_id: employeeId } }).catch(() => null);
   return { pay: pay ?? null, can_edit: canEditPay(viewer, target) };
@@ -45,7 +29,7 @@ registerFn('getEmployeePay', async ({ body, user }) => {
 // Returns pay rows the caller may see (owner/all → everyone; dept manager → their
 // department; employee → just themselves), each with the employee name.
 registerFn('listEmployeePay', async ({ user }) => {
-  const viewer = await buildViewer(user);
+  const viewer = await buildPayViewer(user);
   const employees: any[] = await (prisma as any).employee.findMany({
     select: { id: true, full_name: true, department: true },
   }).catch(() => []);
@@ -67,7 +51,7 @@ registerFn('setEmployeePay', async ({ body, user }) => {
   const employeeId = String(p.employee_id || '');
   const target = await loadTarget(employeeId);
   if (!target) throw new Error('employee_not_found');
-  const viewer = await buildViewer(user);
+  const viewer = await buildPayViewer(user);
   if (!canEditPay(viewer, target)) throw new Error('forbidden');
 
   const payType = ['hourly', 'monthly', 'tips'].includes(p.pay_type) ? p.pay_type : 'hourly';

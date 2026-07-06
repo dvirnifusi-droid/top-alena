@@ -4,22 +4,10 @@
 import { registerFn } from './index.js';
 import { prisma } from '../db.js';
 import { canViewPay, ALL_SCOPE, type Viewer } from '../lib/payAccess.js';
+import { buildPayViewer } from '../lib/payViewer.js';
 import { parseShiftHours, aggregateLabor, laborDeviation, type LaborEntry, type PayInfo } from '../lib/laborCost.js';
 
 const DAY_MS = 86400 * 1000;
-
-async function buildViewer(user: any): Promise<Viewer> {
-  // owner-only for salary-derived data — matches employeePay.ts exactly (no 'admin').
-  const isOwner = user?.role === 'owner';
-  let emp: any = null;
-  if (user?.email) {
-    emp = await (prisma as any).employee.findFirst({
-      where: { email: user.email },
-      select: { id: true, department: true, pay_access_scope: true },
-    }).catch(() => null);
-  }
-  return { isOwner, employeeId: emp?.id ?? null, department: emp?.department ?? null, payAccessScope: emp?.pay_access_scope ?? null };
-}
 
 function parseRange(body: any): { from: Date; to: Date } {
   const b = body || {};
@@ -45,7 +33,7 @@ async function visiblePay(viewer: Viewer) {
 
 // C: planned schedule cost vs actual worked cost + deviations.
 registerFn('getLaborCost', async ({ body, user }) => {
-  const viewer = await buildViewer(user);
+  const viewer = await buildPayViewer(user);
   const { from, to } = parseRange(body);
   const { visibleIds, payById, nameById } = await visiblePay(viewer);
 
@@ -92,7 +80,7 @@ registerFn('getLaborCost', async ({ body, user }) => {
 
 // D: labor cost % of revenue. Company-wide metric → owner / all-scope only.
 registerFn('getLaborCostRatio', async ({ body, user }) => {
-  const viewer = await buildViewer(user);
+  const viewer = await buildPayViewer(user);
   if (!viewer.isOwner && viewer.payAccessScope !== ALL_SCOPE) throw new Error('forbidden');
   const { from, to } = parseRange(body);
   const { visibleIds, payById } = await visiblePay(viewer);
