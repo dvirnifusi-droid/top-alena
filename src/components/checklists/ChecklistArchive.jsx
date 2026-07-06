@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { ChecklistExecutionArchive } from "@/entities/all";
+import { base44 } from '@/api/base44Client';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -512,6 +513,26 @@ export default function ChecklistArchive() {
                                                                     )}
                                                                     {result.notes && (
                                                                         <div className="text-sm text-gray-600 mt-1">הערות: {result.notes}</div>
+                                                                    )}
+                                                                    {result.ai_review && (
+                                                                        <div className="mt-1 text-sm">
+                                                                            <div className="text-slate-600">🤖 {result.ai_review.feedback}</div>
+                                                                            <div className="flex gap-2 mt-1">
+                                                                                <Button size="sm" variant="outline" onClick={async () => {
+                                                                                    try {
+                                                                                        await base44.functions.overrideChecklistItemReview({ execution_id: selectedArchive.original_execution_id, item_order: result.item_order ?? result.order, decision: 'approved' });
+                                                                                        alert('סומן כתקין — המערכת תלמד מזה');
+                                                                                    } catch { alert('שמירה נכשלה, נסה שוב'); }
+                                                                                }}>👍 תקין</Button>
+                                                                                <Button size="sm" variant="outline" onClick={async () => {
+                                                                                    const note = window.prompt('מה לא היה תקין? (אופציונלי)') || '';
+                                                                                    try {
+                                                                                        await base44.functions.overrideChecklistItemReview({ execution_id: selectedArchive.original_execution_id, item_order: result.item_order ?? result.order, decision: 'rejected', note });
+                                                                                        alert('סומן כלא תקין — המערכת תלמד מזה');
+                                                                                    } catch { alert('שמירה נכשלה, נסה שוב'); }
+                                                                                }}>👎 לא תקין</Button>
+                                                                            </div>
+                                                                        </div>
                                                                     )}
                                                                 </>
                                                             )}

@@ -218,6 +218,7 @@ export default function ChecklistExecutionComponent({ checklist, user, onComplet
                     photo_urls: itemResult.photo_urls || (itemResult.photo_url ? [itemResult.photo_url] : []),
                     photo_url: (itemResult.photo_urls || [])[0] || itemResult.photo_url || null,
                     performed_by: itemResult.performed_by || '', // שם המבצע של המשימה הספציפית
+                    ai_review: itemResult.ai_review || null,
                     timestamp: new Date().toISOString() // Timestamp for when this item result was recorded/archived
                 };
             });
@@ -246,7 +247,8 @@ export default function ChecklistExecutionComponent({ checklist, user, onComplet
                 detailed_results: detailedResults,
                 general_notes: notes, // This refers to the overall notes state
                 follow_up_required: Object.values(results).some(r => r.requires_followup),
-                issues_summary: issues || 'אין בעיות'
+                issues_summary: issues || 'אין בעיות',
+                ai_summary: aiSummary || ''
             };
 
             await ChecklistExecutionArchive.create(archiveData);
