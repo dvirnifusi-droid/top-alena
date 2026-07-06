@@ -193,7 +193,7 @@ export default function ChecklistExecutionComponent({ checklist, user, onComplet
             const savedExecution = await ChecklistExecution.create(executionData);
 
             // יצירת רשומת ארכיון מפורטת
-            await createExecutionArchive(savedExecution, score, completedItems, failedItems, criticalFailures);
+            await createExecutionArchive(savedExecution, score, completedItems, failedItems, criticalFailures, summary);
 
             onComplete();
         } catch (error) {
@@ -201,7 +201,7 @@ export default function ChecklistExecutionComponent({ checklist, user, onComplet
         }
     };
 
-    const createExecutionArchive = async (execution, score, completedItems, failedItems, criticalFailures) => {
+    const createExecutionArchive = async (execution, score, completedItems, failedItems, criticalFailures, summaryText) => {
         try {
             const now = new Date();
             const shiftType = now.getHours() < 16 ? 'morning' : 'evening';
@@ -248,7 +248,7 @@ export default function ChecklistExecutionComponent({ checklist, user, onComplet
                 general_notes: notes, // This refers to the overall notes state
                 follow_up_required: Object.values(results).some(r => r.requires_followup),
                 issues_summary: issues || 'אין בעיות',
-                ai_summary: aiSummary || ''
+                ai_summary: summaryText || aiSummary || ''
             };
 
             await ChecklistExecutionArchive.create(archiveData);
