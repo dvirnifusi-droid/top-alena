@@ -150,25 +150,61 @@ async function applyExtraction(tenant: any, result: any, data: Record<string, an
   return data;
 }
 
-// Classifies an inbound file and routes it to the right extractor. Returns
-// the kind + how many rows were embedded.
-async function classifyAndImport(
-  tenant: any, mediaUrl: string, _contentType: string, data: Record<string, any>,
-): Promise<{ kind: string; count: number }> {
+const KIND_LABEL: Record<string, string> = {
+  menu: 'תפריט', work_schedule: 'סידור עבודה', employee_list: 'רשימת עובדים',
+  checklist: 'צ׳קליסט', customer_list: 'מועדון לקוחות', knowledge: 'מסמך ידע', other: 'מסמך',
+};
+
+const CONFIRM_YES_RE = /^\s*(כן|אישור|נכון|בסדר|סבבה|יאללה|אוקי+|ok|yes|בטח|מטמיע|תטמיע|כן כן|יופי|מעולה)\b/i;
+
+// Owner-correction → kind. If the classifier guessed wrong and the owner says
+// "לא, זה סידור עבודה", this re-routes to the right extractor.
+const KIND_KEYWORDS: Array<[RegExp, string]> = [
+  [/תפריט|מנות|אוכל|menu/i, 'menu'],
+  [/סידור|משמרת|משמרות|שיבוץ|schedule/i, 'work_schedule'],
+  [/עובד|צוות|employee/i, 'employee_list'],
+  [/צ.?ק.?ליסט|checklist|משימות/i, 'checklist'],
+  [/לקוח|מועדון|customer/i, 'customer_list'],
+  [/ידע|נוהל|מתכון|מסמך|knowledge/i, 'knowledge'],
+];
+function matchKind(text: string): string {
+  for (const [re, k] of KIND_KEYWORDS) if (re.test(text)) return k;
+  return '';
+}
+
+// Classify a file WITHOUT importing — returns the guessed kind, a confidence,
+// and a 2-3 item sample of what the AI actually sees. Used to CONFIRM with the
+// owner before anything is saved (reliability across arbitrary file formats).
+async function classifyFile(tenant: any, mediaUrl: string): Promise<{ kind: string; confidence: string; sample: string[] }> {
   const { invokeLLM } = await import('./llm.js');
   const c: any = await invokeLLM({
     prompt:
-      `הקובץ המצורף שייך למסעדה שמתחילה לעבוד עם המערכת. סווג אותו לאחת מהקטגוריות:\n` +
-      `menu (תפריט אוכל/שתייה), work_schedule (סידור עבודה), employee_list (רשימת עובדים), ` +
+      `הקובץ המצורף שייך למסעדה. סווג אותו לאחת מהקטגוריות:\n` +
+      `menu (תפריט אוכל/שתייה), work_schedule (סידור עבודה/משמרות), employee_list (רשימת עובדים), ` +
       `checklist (צ׳קליסט תפעולי), customer_list (רשימת לקוחות/מועדון), knowledge (נוהל/מתכון/מסמך ידע/שאלות נפוצות), other.\n` +
-      `החזר kind בלבד.`,
+      `החזר: kind, confidence (high/medium/low לפי כמה ברור), ו-sample — 2-3 דוגמאות קצרות ממה שאתה בפועל רואה בקובץ (שמות מנות / תפקידים / שמות עובדים / משימות). אל תמציא — רק מה שכתוב.`,
     fileUrls: [mediaUrl],
-    responseSchema: { type: 'object', properties: { kind: { type: 'string' } }, required: ['kind'] },
-    timeoutMs: 40_000,
+    responseSchema: {
+      type: 'object',
+      properties: {
+        kind: { type: 'string' },
+        confidence: { type: 'string' },
+        sample: { type: 'array', items: { type: 'string' } },
+      },
+      required: ['kind'],
+    },
+    timeoutMs: 45_000,
     _ctx: { fn_name: 'onboardingClassify', tenant_slug: tenant.slug },
-  }).catch(() => ({ kind: 'other' }));
+  }).catch(() => ({ kind: 'other', confidence: 'low', sample: [] }));
+  return {
+    kind: String(c?.kind || 'other').trim(),
+    confidence: String(c?.confidence || 'medium').toLowerCase(),
+    sample: Array.isArray(c?.sample) ? c.sample.map((s: any) => String(s)).slice(0, 3) : [],
+  };
+}
 
-  const kind = String(c?.kind || 'other').trim();
+// Runs the right extractor for a confirmed kind and updates counts.
+async function importByKind(tenant: any, kind: string, mediaUrl: string, data: Record<string, any>): Promise<number> {
   data._counts = data._counts || {};
   let count = 0;
   try {
@@ -181,13 +217,8 @@ async function classifyAndImport(
   } catch (e: any) {
     console.warn(`[onboarding] import ${kind}:`, e?.message);
   }
-  return { kind, count };
+  return count;
 }
-
-const KIND_LABEL: Record<string, string> = {
-  menu: 'תפריט', work_schedule: 'סידור עבודה', employee_list: 'רשימת עובדים',
-  checklist: 'צ׳קליסט', customer_list: 'מועדון לקוחות', knowledge: 'מסמך ידע', other: 'מסמך',
-};
 
 // === Public API ============================================================
 
@@ -213,6 +244,42 @@ export async function tryHandleOnboardingMessage(fromPhone: string, body: string
 
   const data: Record<string, any> = state.collected_data || {};
   const history: any[] = Array.isArray(data._history) ? data._history : [];
+
+  // ── Pending file confirmation? The owner just got "נראה לי שזה תפריט,
+  // לאשר?" — interpret their reply BEFORE the normal brain flow.
+  if (data._pending_file?.url) {
+    const pf = data._pending_file;
+    const corrected = matchKind(body);
+    const confirmed = CONFIRM_YES_RE.test(body.trim());
+    if (confirmed || corrected) {
+      const kind = corrected || pf.kind;
+      const count = await importByKind(tenant, kind, pf.url, data).catch(() => 0);
+      delete data._pending_file;
+      history.push({ role: 'user', content: body });
+      const synthetic = count > 0
+        ? `[הבעלים אישר. הטמעת ${count} פריטים מסוג ${KIND_LABEL[kind] || kind}. הודה לו בקצרה (ציין את המספר), ואז המשך לשאלה הבאה שחסרה.]`
+        : `[ניסית לקרוא ${KIND_LABEL[kind] || kind} אבל לא זוהו פריטים. בקש מהבעלים לשלוח צילום ברור יותר או להמשיך.]`;
+      const r = await onboardingBrain(tenant, history, synthetic, data)
+        .catch(() => ({ reply: count > 0 ? `✅ קלטתי ${count} פריטים! נמשיך.` : 'לא הצלחתי לקרוא את הקובץ 🤔 אפשר לשלוח שוב ברור יותר?' }));
+      await applyExtraction(tenant, r, data).catch(() => {});
+      history.push({ role: 'assistant', content: r.reply });
+      data._history = history.slice(-24);
+      const fin = !!r.finished && !!data.name;
+      if (fin) {
+        await persistCoreData(tenant, data).catch(() => null);
+        await setPhase(state.tenant_id, 'done', data);
+        await sendWhatsApp(fromPhone, buildDoneMessage(tenant, data));
+      } else {
+        await setPhase(state.tenant_id, 'active', data);
+        await sendWhatsApp(fromPhone, r.reply);
+      }
+      return true;
+    }
+    // Not a confirm/correction — the owner moved on. Drop the pending file and
+    // treat this message normally.
+    delete data._pending_file;
+  }
+
   history.push({ role: 'user', content: body });
 
   const result = await onboardingBrain(tenant, history, body, data)
@@ -236,10 +303,12 @@ export async function tryHandleOnboardingMessage(fromPhone: string, body: string
   return true;
 }
 
-// File turn — classify + embed, then let the brain acknowledge naturally and
-// ask the next thing. ACK immediately in the caller; this runs in background.
+// File turn — CLASSIFY ONLY, then ask the owner to confirm before embedding.
+// Nothing is saved until the owner says "כן" (or corrects the kind). This is
+// what makes it reliable across arbitrary file formats: the owner always sees
+// what the AI understood + a real sample, and approves before anything lands.
 export async function tryHandleOnboardingMedia(
-  fromPhone: string, mediaUrl: string, contentType: string,
+  fromPhone: string, mediaUrl: string, _contentType: string,
 ): Promise<boolean> {
   const state = await findActiveOnboarding(fromPhone);
   if (!state) return false;
@@ -249,21 +318,20 @@ export async function tryHandleOnboardingMedia(
   void (async () => {
     const data: Record<string, any> = state.collected_data || {};
     const history: any[] = Array.isArray(data._history) ? data._history : [];
-    let synthetic: string;
-    try {
-      const { kind, count } = await classifyAndImport(tenant, mediaUrl, contentType, data);
-      synthetic = `[המערכת קלטה קובץ מסוג "${KIND_LABEL[kind] || kind}" והטמיעה ${count} פריטים. תודה לבעלים על הקובץ בקצרה, ואז המשך לשאלה הבאה שחסרה.]`;
-    } catch (e: any) {
-      synthetic = `[הקובץ לא נקרא (${String(e?.message || '').slice(0, 60)}). בקש מהבעלים לשלוח שוב בצילום ברור יותר, או להמשיך.]`;
-    }
+    const { kind, confidence, sample } = await classifyFile(tenant, mediaUrl);
+    // Stash the file so the owner's next reply ("כן" / "לא, זה תפריט") can act.
+    data._pending_file = { url: mediaUrl, kind };
+    const label = KIND_LABEL[kind] || 'מסמך';
+    const sampleTxt = sample.length ? `\n\nראיתי בקובץ למשל: *${sample.join('* · *')}*` : '';
+    const hedge = confidence === 'low' ? 'אני לא לגמרי בטוח, אבל ' : '';
+    const msg =
+      `📋 קיבלתי את הקובץ. ${hedge}נראה לי ש*זה ${label}*.${sampleTxt}\n\n` +
+      `שאקרא ואטמיע את כולו? כתוב *כן* לאישור — או תגיד לי מה זה אם טעיתי (תפריט / סידור עבודה / עובדים / צ׳קליסט / לקוחות / מסמך ידע) 🙂`;
     history.push({ role: 'user', content: '(שלח קובץ)' });
-    const result = await onboardingBrain(tenant, history, synthetic, data)
-      .catch(() => ({ reply: 'קלטתי את הקובץ ✅ נמשיך!' }));
-    await applyExtraction(tenant, result, data).catch(() => {});
-    history.push({ role: 'assistant', content: result.reply });
+    history.push({ role: 'assistant', content: msg });
     data._history = history.slice(-24);
     await setPhase(tenant.id, 'active', data).catch(() => {});
-    await sendWhatsApp(fromPhone, result.reply).catch(() => {});
+    await sendWhatsApp(fromPhone, msg).catch(() => {});
   })();
 
   return true;
