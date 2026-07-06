@@ -47,31 +47,7 @@ const db = prisma as any; // generic delegate access
 
 // Public deploy marker — lets us confirm which build is live (and that
 // auto-deploy is working) without server access. Bump on each deploy test.
-registerFn('deployInfo', async () => ({ version: 'checklist-create-debug-2026-07-05', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
-
-// TEMP DEBUG — reproduce the exact Checklist.create the import does, return
-// the real error. Remove after diagnosing.
-registerFn('debugChecklistCreate', async () => {
-  try {
-    const c = await (db as any).checklist.create({
-      data: {
-        title: 'DEBUG בדיקת יצירה',
-        category: 'בר',
-        frequency: 'daily',
-        description: 'debug',
-        department: null,
-        shift: 'בוקר',
-        items: [{ id: 'it_1', text: 'משימה 1', is_required: false }, { id: 'it_2', text: 'משימה 2', is_required: false }],
-        status: 'active',
-      },
-    });
-    // Clean up immediately so we don't leave debug rows.
-    await (db as any).checklist.delete({ where: { id: c.id } }).catch(() => {});
-    return { ok: true, created_id: c.id, items_len: Array.isArray(c.items) ? c.items.length : 0 };
-  } catch (e: any) {
-    return { ok: false, error: String(e?.message || e).slice(0, 800) };
-  }
-}, { public: true });
+registerFn('deployInfo', async () => ({ version: 'checklist-import-rebuild-2026-07-05', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
 
 
 
