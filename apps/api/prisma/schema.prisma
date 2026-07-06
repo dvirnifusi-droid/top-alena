@@ -491,6 +491,7 @@ model ChecklistExecution {
   approving_manager_name       String?
   execution_date               DateTime
   status                       String?  @default("in_progress")
+  ai_summary                   String?
   results                      Json?
   overall_score                Float?
   notes                        String?
@@ -3243,4 +3244,18 @@ model RecurringCost {
   createdBy    String?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+}
+
+model ChecklistItemExample {
+  id           String   @id @default(cuid())
+  checklist_id String
+  item_order   Int
+  photo_url    String
+  label        String   // 'good' | 'bad'
+  note         String?
+  source       String   @default("override") // manager_reference | approved_execution | override
+  created_by   String?
+  createdAt    DateTime @default(now())
+
+  @@index([checklist_id, item_order])
 }
