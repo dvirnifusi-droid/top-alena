@@ -48,21 +48,32 @@ const db = prisma as any; // generic delegate access
 // auto-deploy is working) without server access. Bump on each deploy test.
 registerFn('deployInfo', async () => ({ version: 'checklist-items-debug-2026-07-05', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
 
-// TEMP DEBUG — inspect what's actually stored in Checklist.items for this
-// tenant. Remove after diagnosing the empty-items import bug.
+// TEMP DEBUG — test whether the property name `items` (colliding with the
+// JSON-Schema `items` keyword) is what empties the array in Gemini output.
+// Runs the same LLM twice: once with `items`, once with `tasks`.
 registerFn('checklistsItemsDebug', async () => {
-  const rows: any[] = await (prisma as any).checklist.findMany({ orderBy: { id: 'desc' }, take: 10 });
-  return {
-    count: rows.length,
-    rows: rows.map((r: any) => ({
-      title: r.title,
-      category: r.category,
-      frequency: r.frequency,
-      items_type: Array.isArray(r.items) ? 'array' : typeof r.items,
-      items_len: Array.isArray(r.items) ? r.items.length : (r.items ? String(r.items).length : 0),
-      items_sample: Array.isArray(r.items) ? r.items.slice(0, 2) : r.items,
-    })),
+  const base = `הצע 2 צ'ק-ליסטים לבר יין. לכל אחד: שם, ורשימת 4 משימות.`;
+  const run = async (key: string) => {
+    const r: any = await invokeLLM({
+      prompt: `${base}\n\nהחזר JSON: { checklists: [{ name, ${key}: string[] }] }`,
+      responseSchema: {
+        type: 'object',
+        properties: {
+          checklists: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: { name: { type: 'string' }, [key]: { type: 'array', items: { type: 'string' } } },
+            },
+          },
+        },
+        required: ['checklists'],
+      },
+      _ctx: { fn_name: 'checklistsItemsDebug' },
+    }).catch((e: any) => ({ error: e?.message }));
+    return (r?.checklists || []).map((c: any) => ({ name: c.name, arr_len: Array.isArray(c[key]) ? c[key].length : -1, sample: (c[key] || []).slice(0, 2) }));
   };
+  return { with_items: await run('items'), with_tasks: await run('tasks') };
 }, { public: true });
 
 
