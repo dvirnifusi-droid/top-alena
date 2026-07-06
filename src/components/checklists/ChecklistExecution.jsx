@@ -1,4 +1,5 @@
 import React, { useState, useRef } from "react";
+import { base44 } from '@/api/base44Client';
 import { ChecklistExecution, ChecklistExecutionArchive } from "@/entities/all";
 // Assuming User entity is used for `user` prop
 import { UploadFile } from "@/integrations/Core";
@@ -29,6 +30,8 @@ export default function ChecklistExecutionComponent({ checklist, user, onComplet
     const [notes, setNotes] = useState('');
     const [approvingManagerName, setApprovingManagerName] = useState('');
     const [uploading, setUploading] = useState(false);
+    const [reviewing, setReviewing] = useState(false);
+    const [aiSummary, setAiSummary] = useState('');
     const [startTime, setStartTime] = useState(new Date()); // Track start time for completion duration
     const fileInputRef = useRef(null);
 
@@ -79,6 +82,24 @@ export default function ChecklistExecutionComponent({ checklist, user, onComplet
                     photo_urls: [...(prev[currentItem.order]?.photo_urls || []), file_url]
                 }
             }));
+
+            // AI review — advisory only, never blocks the upload
+            if (currentItem.ai_review) {
+                setReviewing(true);
+                try {
+                    const res = await base44.functions.reviewChecklistItem({
+                        checklist_id: checklist.id,
+                        item_order: currentItem.order,
+                        photo_url: file_url,
+                    });
+                    const rev = res?.data || res;
+                    setResults(prev => ({
+                        ...prev,
+                        [currentItem.order]: { ...prev[currentItem.order], ai_review: rev }
+                    }));
+                } catch { /* advisory only — ignore */ }
+                setReviewing(false);
+            }
         } catch (error) {
             console.error('שגיאה בהעלאת תמונה:', error);
         }
@@ -138,6 +159,19 @@ export default function ChecklistExecutionComponent({ checklist, user, onComplet
             item.critical && !results[item.order]?.checked
         ).length;
 
+        // AI end-of-run summary — advisory only, must NOT block the save
+        let summary = aiSummary;
+        try {
+            const resultsArr = Object.entries(results).map(([order, r]) => ({
+                item_order: Number(order),
+                task: checklist.items.find(i => i.order === Number(order))?.task,
+                ...r
+            }));
+            const s = await base44.functions.summarizeChecklistExecution({ results: resultsArr });
+            summary = (s?.data || s)?.ai_summary || '';
+            setAiSummary(summary);
+        } catch { /* advisory */ }
+
         const executionData = {
             checklist_id: checklist.id,
             executed_by: user?.id || 'anonymous',
@@ -151,6 +185,7 @@ export default function ChecklistExecutionComponent({ checklist, user, onComplet
             })),
             overall_score: score,
             notes,
+            ai_summary: summary,
             follow_up_required: hasFollowUp
         };
 
@@ -354,6 +389,25 @@ export default function ChecklistExecutionComponent({ checklist, user, onComplet
                             )}
                         </div>
 
+                        {/* AI review: reference block + spinner + verdict (advisory) */}
+                        {currentItem.ai_review && (currentItem.reference_photo_urls?.length || currentItem.expected_criteria) && (
+                            <div className="mt-2 p-2 bg-slate-50 rounded text-sm">
+                                {currentItem.expected_criteria && <div className="mb-1">🎯 <b>נדרש:</b> {currentItem.expected_criteria}</div>}
+                                {!!currentItem.reference_photo_urls?.length && (
+                                    <div className="flex gap-2 flex-wrap">
+                                        {currentItem.reference_photo_urls.map((u, i) => <img key={i} src={u} alt="ייחוס" className="w-16 h-16 object-cover rounded border" />)}
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                        {reviewing && <div className="mt-2 text-sm text-slate-500">🔍 בודק את התמונה...</div>}
+                        {results[currentItem.order]?.ai_review && (() => {
+                            const v = results[currentItem.order].ai_review;
+                            const style = v.verdict === 'ok' ? 'bg-emerald-50 text-emerald-800' : v.verdict === 'attention' ? 'bg-amber-50 text-amber-900' : 'bg-slate-100 text-slate-600';
+                            const icon = v.verdict === 'ok' ? '✓' : v.verdict === 'attention' ? '⚠️' : '❓';
+                            return <div className={`mt-2 p-2 rounded text-sm ${style}`}>{icon} {v.feedback} <span className="opacity-60">(המלצה בלבד)</span></div>;
+                        })()}
+
                         <div className="space-y-2">
                             <h4 className="font-semibold">הערות (אופציונלי)</h4>
                             <Textarea
@@ -363,6 +417,12 @@ export default function ChecklistExecutionComponent({ checklist, user, onComplet
                             />
                         </div>
                         
+                        {currentItemIndex === checklist.items.length - 1 && aiSummary && (
+                            <div className="my-2 p-3 bg-indigo-50 border border-indigo-200 rounded text-sm whitespace-pre-line">
+                                <b>🤖 סיכום AI לפני חתימה:</b>{'\n'}{aiSummary}
+                            </div>
+                        )}
+
                         {currentItemIndex === checklist.items.length - 1 && (
                             <div className="space-y-3 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
                                 <Label htmlFor="manager-signature" className="font-bold text-yellow-800 flex items-center gap-2">
