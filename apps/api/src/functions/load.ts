@@ -46,7 +46,24 @@ const db = prisma as any; // generic delegate access
 
 // Public deploy marker — lets us confirm which build is live (and that
 // auto-deploy is working) without server access. Bump on each deploy test.
-registerFn('deployInfo', async () => ({ version: 'abandoned-convos-2026-07-05', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
+registerFn('deployInfo', async () => ({ version: 'checklist-items-debug-2026-07-05', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
+
+// TEMP DEBUG — inspect what's actually stored in Checklist.items for this
+// tenant. Remove after diagnosing the empty-items import bug.
+registerFn('checklistsItemsDebug', async () => {
+  const rows: any[] = await (prisma as any).checklist.findMany({ orderBy: { id: 'desc' }, take: 10 });
+  return {
+    count: rows.length,
+    rows: rows.map((r: any) => ({
+      title: r.title,
+      category: r.category,
+      frequency: r.frequency,
+      items_type: Array.isArray(r.items) ? 'array' : typeof r.items,
+      items_len: Array.isArray(r.items) ? r.items.length : (r.items ? String(r.items).length : 0),
+      items_sample: Array.isArray(r.items) ? r.items.slice(0, 2) : r.items,
+    })),
+  };
+}, { public: true });
 
 
 
