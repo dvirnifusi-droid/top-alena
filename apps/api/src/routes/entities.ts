@@ -218,7 +218,19 @@ export const entitiesRoutes: FastifyPluginAsync = async (app) => {
     const delegate = modelDelegate(name);
     if (!delegate) return reply.code(404).send({ error: 'unknown_entity' });
     const safeData = stripProtectedFields(name, coerceData(name, req.body as Record<string, unknown>));
-    const created = await delegate.create({ data: safeData });
+    let created: any;
+    try {
+      created = await delegate.create({ data: safeData });
+    } catch (err: any) {
+      // Surface the exact Prisma reason + the keys we sent so a failed
+      // create is diagnosable from the client instead of a raw 500.
+      req.log.error({ err, entity: name, keys: Object.keys(safeData) }, 'entity create failed');
+      return reply.code(400).send({
+        error: 'create_failed',
+        message: String(err?.message || err).slice(0, 1500),
+        sent_keys: Object.keys(safeData),
+      });
+    }
     // Fire automation triggers fire-and-forget so we never block the response.
     fireTriggers(name, 'created', created).catch((e) => req.log.warn({ err: e }, 'trigger failed'));
     return reply.code(201).send(toFrontend(name, created));

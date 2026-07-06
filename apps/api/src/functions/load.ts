@@ -47,32 +47,7 @@ const db = prisma as any; // generic delegate access
 
 // Public deploy marker — lets us confirm which build is live (and that
 // auto-deploy is working) without server access. Bump on each deploy test.
-registerFn('deployInfo', async () => ({ version: 'checklist-create-debug2-2026-07-05', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
-
-// TEMP DEBUG — run Checklist.create with the EXACT payload the failing
-// import sends, return the full Prisma error. Remove after diagnosing.
-registerFn('debugChecklistCreate2', async () => {
-  const data = {
-    title: 'DEBUG2 בדיקה',
-    category: 'מטבח',
-    frequency: 'daily',
-    description: 'מטבח · בוקר/פתיחה',
-    department: 'מטבח',
-    shift: 'בוקר/פתיחה',
-    items: [
-      { id: 'it_a1b2c3', text: 'בדיקת טריות ואיכות חומרי הגלם', is_required: false },
-      { id: 'it_d4e5f6', text: 'הכנת מיז-אן-פלאס', is_required: false },
-    ],
-    status: 'active',
-  };
-  try {
-    const c = await (db as any).checklist.create({ data });
-    await (db as any).checklist.delete({ where: { id: c.id } }).catch(() => {});
-    return { ok: true, items_len: Array.isArray(c.items) ? c.items.length : 0 };
-  } catch (e: any) {
-    return { ok: false, error: String(e?.message || e).slice(0, 1500) };
-  }
-}, { public: true });
+registerFn('deployInfo', async () => ({ version: 'entity-create-error-surface-2026-07-05', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
 
 
 
