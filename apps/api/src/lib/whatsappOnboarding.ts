@@ -50,22 +50,42 @@ function summarizeState(data: Record<string, any>, tenant: any): string {
 
 // Returns the SINGLE next thing still missing, so the brain asks one atomic
 // question. Core first (name→address→hours→cuisine→menu→employees→tables),
-// then optional extras, then "ready to finish".
-function nextMissing(data: Record<string, any>): string {
+// then EVERY optional module (each skippable), then "ready to finish". The
+// brain must walk through all of these — it must NOT jump to finished until
+// every module below was offered (tracked via data._done_modules) or the owner
+// explicitly says they're done.
+const SKIP_RE = /(דלג|דלגי|אחר כך|אחרי זה|לא צריך|לא עכשיו|אין לי|אין|בהמשך|תמשיך|הבא)/i;
+const DONE_RE = /(סיימתי|זה הכל|זהו|מספיק|תסיים|סיים|גמרנו|נגמר|די)/i;
+
+// Optional modules in order. `done` = already satisfied; `offer` = how the
+// brain should present it (one atomic question).
+const MODULES: Array<{ key: string; done: (c: any, d: any) => boolean; offer: string }> = [
+  { key: 'menu', done: (c) => c.menu > 0, offer: 'תפריט — בקש שישלח צילום או PDF ואתה תקרא את כל המנות. (אפשר "אחר כך")' },
+  { key: 'seating', done: (c, d) => c.seating > 0 || c.tables > 0 || d.tables_count != null, offer: 'הושבה — שאל כמה שולחנות יש בערך, *או* הצע שישלח צילום/סקיצה של מפת ההושבה אם יש לו ואתה תבנה אותה. (אפשר "אחר כך")' },
+  { key: 'employees', done: (c) => c.employees > 0 || c.invited > 0, offer: 'עובדים — הוא יכול לשלוח רשימה או קובץ, *או* שתיתן לו קישור הצטרפות אחד שכל עובד נרשם דרכו לבד (action=send_join_link). (אפשר "אחר כך")' },
+  { key: 'roles', done: (c) => c.roles > 0, offer: 'תפקידים במסעדה — רשימה מופרדת בפסיק, *או* קובץ סידור עבודה קיים שאזהה ממנו תפקידים, *או* שאבנה תפקידים לפי סוג העסק (action=suggest_roles). (אפשר "אחר כך")' },
+  { key: 'checklists', done: (c) => c.checklists > 0, offer: 'צ׳קליסטים תפעוליים — קובץ קיים, *או* שאבנה לו צ׳קליסטים לפי סוג העסק (action=suggest_checklists). (אפשר "אחר כך")' },
+  { key: 'suppliers', done: (c) => c.suppliers > 0, offer: 'ספקים שהוא עובד איתם — שורה לכל ספק (שם, קטגוריה, טלפון). (אפשר "אחר כך")' },
+  { key: 'training', done: (c) => c.training > 0, offer: 'תוכנית הכשרת צוות — קובץ קיים, *או* שאבנה לו תוכנית לפי סוג העסק (action=suggest_training). (אפשר "אחר כך")' },
+  { key: 'customers', done: (c) => c.customers > 0, offer: 'מועדון לקוחות — אם יש לו קובץ לקוחות מאושר דיוור, שישלח ואייבא. (אפשר "אחר כך")' },
+  { key: 'knowledge', done: (c) => c.knowledge > 0, offer: 'מרכז ידע ל-AI — קבצים של נהלים/מתכונים/שאלות נפוצות שה-AI ישתמש בהם. שישלח אחד-אחד. (אפשר "אחר כך")' },
+  { key: 'slots', done: (c) => c.slots > 0, offer: 'סלוטים לראיונות עבודה — ימים ושעות שנוח לו לראיין (למשל "שני 14:00"). (אפשר "אחר כך")' },
+  { key: 'invoice', done: (c) => !!c.invoice_email, offer: 'מייל לאיסוף חשבוניות — הכתובת שאליה מגיעות חשבוניות מספקים, ואייבא אותן אוטומטית. (אפשר "אחר כך")' },
+];
+
+function nextMissing(data: Record<string, any>): { key: string; offer: string } {
   const c = data._counts || {};
-  if (!data.name) return 'שם המסעדה';
-  if (!data.address) return 'כתובת מדויקת (רחוב, מספר, עיר)';
-  if (!data.opening_hours) return 'שעות פתיחה';
-  if (!data.cuisine) return 'סוג המטבח (בשורה אחת)';
-  if (!c.menu) return 'תפריט — בקש ממנו לשלוח צילום או PDF ואתה תקרא את המנות (אפשר "אחר כך")';
-  if (!c.employees && !c.invited) return 'עובדים — הוא יכול לשלוח רשימה/קובץ, או שתשלח קישור הצטרפות שכל עובד נרשם לבד (אפשר "אחר כך")';
-  if (data.tables_count == null && !c.tables) return 'כמה שולחנות יש בערך (אפשר "אחר כך")';
-  if (!c.checklists) return 'צ׳קליסטים — קובץ קיים, או שתבנה לו לפי סוג העסק (אפשר "אחר כך")';
-  if (!c.suppliers) return 'ספקים שהוא עובד איתם (אפשר "אחר כך")';
-  if (!c.customers) return 'מועדון לקוחות — קובץ לייבוא (אפשר "אחר כך")';
-  if (!c.knowledge) return 'מסמכי ידע ל-AI — נהלים/מתכונים/שאלות נפוצות (אפשר "אחר כך")';
-  if (!c.invoice_email) return 'מייל שאליו מגיעות חשבוניות מספקים (אפשר "אחר כך")';
-  return 'הכל מוכן — סמן finished=true והציע לו את הקישור לאפליקציה';
+  if (!data.name) return { key: 'name', offer: 'שם המסעדה' };
+  if (!data.address) return { key: 'address', offer: 'כתובת מדויקת (רחוב, מספר, עיר)' };
+  if (!data.opening_hours) return { key: 'hours', offer: 'שעות פתיחה' };
+  if (!data.cuisine) return { key: 'cuisine', offer: 'סוג המטבח (בשורה אחת)' };
+  const done = new Set<string>(Array.isArray(data._done_modules) ? data._done_modules : []);
+  for (const m of MODULES) {
+    if (done.has(m.key)) continue;
+    if (m.done(c, data)) continue;
+    return { key: m.key, offer: m.offer };
+  }
+  return { key: 'finish', offer: 'עברת על הכל — עכשיו סמן finished=true, סכם בקצרה מה הוקם, והציע את הקישור לאפליקציה' };
 }
 
 // The brain. Given history + state + the owner's message, returns the natural
@@ -75,20 +95,30 @@ async function onboardingBrain(
 ): Promise<any> {
   const { invokeLLM } = await import('./llm.js');
   const convo = (history || []).slice(-12).map((t) => `${t.role === 'assistant' ? 'עוזר' : 'בעלים'}: ${t.content}`).join('\n');
+  const nm = nextMissing(data);
+  const joinLink = `https://${tenant.slug}.topalena.com/JoinTeam`;
   const prompt =
     `אתה "העוזר החכם" של TopAlena — מקים מסעדה בשם "${data.name || tenant.restaurant_name}" עבור ${tenant.owner_name || 'הבעלים'}.\n` +
     `דבר עברית טבעית, חמה ואנושית — כמו נציג אמיתי, לא בוט.\n\n` +
     `## חוקים\n` +
-    `1. שאל שאלה אחת אטומית בכל פעם. שם = שאלה, כתובת = שאלה נפרדת, שעות = נפרדת. לעולם אל תקבץ כמה דברים בשאלה אחת.\n` +
-    `2. אם הבעלים שואל אותך שאלה (איך.../מה זה.../כמה עולה/אפשר...) — ענה לו כמו שירות לקוחות אמיתי, קצר ומדויק, ואז חזור בעדינות לשאלה הבאה.\n` +
-    `3. קבל כל תשובה בשפה חופשית וחלץ את הערך. אל תמציא — אם לא ברור, שאל שוב יפה.\n` +
-    `4. אם הבעלים אומר "דלג"/"אחר כך"/"אין לי" — עבור לשאלה הבאה בלי לחץ.\n` +
-    `5. תגובות קצרות (משפט-שניים) + אימוג'י אחד מתאים. חם אבל לא מוגזם.\n\n` +
+    `1. שאל שאלה אחת אטומית בכל פעם. לעולם אל תקבץ כמה דברים בשאלה אחת.\n` +
+    `2. אם הבעלים שואל אותך שאלה — ענה כמו שירות לקוחות אמיתי, קצר ומדויק, ואז חזור בעדינות לשאלה הבאה.\n` +
+    `3. קבל כל תשובה בשפה חופשית וחלץ את הערך. אל תמציא.\n` +
+    `4. **חשוב מאוד: עבור על כל הנושאים לפי הסדר — אל תדלג ואל תסיים מוקדם.** רק אם עברת על כל הנושאים, או אם הבעלים אמר במפורש "סיימתי/זה הכל/מספיק", סמן finished=true. אחרת finished=false תמיד.\n` +
+    `5. אם הבעלים אומר "דלג"/"אחר כך"/"אין לי" על הנושא הנוכחי — עבור לנושא הבא (המערכת תזכור שדילג).\n` +
+    `6. תגובות קצרות (משפט-שניים) + אימוג'י אחד. חם אבל לא מוגזם.\n\n` +
+    `## קישור הצטרפות עובדים של המסעדה (השתמש בו רק אם הצעת action=send_join_link):\n${joinLink}\n\n` +
     `## מה כבר הוקם\n${summarizeState(data, tenant)}\n\n` +
-    `## מה עוד חסר — שאל את זה עכשיו (בטון טבעי):\n${nextMissing(data)}\n\n` +
+    `## הנושא הנוכחי — שאל עליו עכשיו (asking="${nm.key}"):\n${nm.offer}\n\n` +
     `## השיחה עד כה\n${convo || '(ההתחלה)'}\n\n` +
     `## ההודעה של הבעלים עכשיו\n"${message}"\n\n` +
-    `החזר JSON: reply (מה לשלוח), profile (שדות שהבעלים נתן עכשיו — רק אלה שבאמת הופיעו), list_kind + list_text (אם נתן רשימה בטקסט של עובדים/ספקים/תפקידים/מיילים), finished (true רק אם הבעלים סיים והליבה מוכנה).`;
+    `החזר JSON:\n` +
+    `- reply: מה לשלוח\n` +
+    `- profile: שדות שהבעלים נתן עכשיו (רק אלה שהופיעו)\n` +
+    `- list_kind + list_text: אם נתן רשימה בטקסט (list_kind = employees/suppliers/roles/interview_slots/invoice_emails, list_text = הטקסט)\n` +
+    `- action: אם הבעלים ביקש שתבנה לו — suggest_roles / suggest_checklists / suggest_training. אם ביקש קישור לעובדים — send_join_link. אחרת "".\n` +
+    `- asking: "${nm.key}" (הנושא שאתה שואל עליו עכשיו)\n` +
+    `- finished: true רק אם עברתם על הכל או שהבעלים אמר "סיימתי".`;
 
   const result: any = await invokeLLM({
     prompt,
@@ -106,6 +136,8 @@ async function onboardingBrain(
         },
         list_kind: { type: 'string' }, // '' | employees | suppliers | roles | invoice_emails
         list_text: { type: 'string' },
+        action: { type: 'string' }, // '' | suggest_roles | suggest_checklists | suggest_training | send_join_link
+        asking: { type: 'string' },
         finished: { type: 'boolean' },
       },
       required: ['reply'],
@@ -114,7 +146,36 @@ async function onboardingBrain(
     timeoutMs: 40_000,
     _ctx: { fn_name: 'onboardingBrain', tenant_slug: tenant.slug },
   });
-  return result && result.reply ? result : { reply: 'סליחה, רגע — אפשר לכתוב לי את זה שוב? 🙏' };
+  const out = result && result.reply ? result : { reply: 'סליחה, רגע — אפשר לכתוב לי את זה שוב? 🙏' };
+  if (!out.asking) out.asking = nm.key;
+  return out;
+}
+
+// Runs a brain-requested action (AI suggestion / join link). Returns a short
+// human note to append to the reply, or ''.
+async function runBrainAction(tenant: any, action: string, data: Record<string, any>): Promise<string> {
+  data._counts = data._counts || {};
+  try {
+    if (action === 'suggest_checklists') {
+      const n = await aiSuggestChecklists(tenant, data); data._counts.checklists = (data._counts.checklists || 0) + n;
+      return n ? `\n\n✅ בניתי לך ${n} צ׳קליסטים לפי סוג העסק (טיוטות — אפשר לערוך באפליקציה).` : '';
+    }
+    if (action === 'suggest_roles') {
+      const n = await aiSuggestRoles(tenant, data); data._counts.roles = (data._counts.roles || 0) + n;
+      return n ? `\n\n✅ הוספתי ${n} תפקידים מתאימים לעסק שלך.` : '';
+    }
+    if (action === 'suggest_training') {
+      const n = await aiSuggestTraining(tenant, data); data._counts.training = (data._counts.training || 0) + n;
+      return n ? `\n\n✅ בניתי תוכנית הכשרה (${n} פרקים) במרכז הידע.` : '';
+    }
+    if (action === 'send_join_link') {
+      data._counts.invited = data._counts.invited || 1; // mark employees handled via link
+      return `\n\n🔗 הנה קישור ההצטרפות לצוות — שתף אותו בקבוצת העובדים, כל אחד נרשם לבד ואתה מאשר:\nhttps://${tenant.slug}.topalena.com/JoinTeam`;
+    }
+  } catch (e: any) {
+    console.warn(`[onboarding] action ${action}:`, e?.message);
+  }
+  return '';
 }
 
 // Applies the brain's extraction to the tenant schema (profile scalars +
@@ -139,6 +200,7 @@ async function applyExtraction(tenant: any, result: any, data: Record<string, an
       if (kind === 'employees') data._counts.employees = (data._counts.employees || 0) + await insertEmployeesFromText(tenant, text);
       else if (kind === 'suppliers') data._counts.suppliers = (data._counts.suppliers || 0) + await insertSuppliersFromText(tenant, text);
       else if (kind === 'roles') data._counts.roles = (data._counts.roles || 0) + await insertRolesFromText(tenant, text);
+      else if (kind === 'interview_slots') data._counts.slots = (data._counts.slots || 0) + await insertInterviewSlots(tenant, text);
       else if (kind === 'invoice_emails') {
         const emails = text.split(/[,\s]+/).filter((e) => /\S+@\S+\.\S+/.test(e));
         if (emails.length) { await saveInvoiceEmails(tenant, emails); data._counts.invoice_email = emails.length; }
@@ -152,7 +214,8 @@ async function applyExtraction(tenant: any, result: any, data: Record<string, an
 
 const KIND_LABEL: Record<string, string> = {
   menu: 'תפריט', work_schedule: 'סידור עבודה', employee_list: 'רשימת עובדים',
-  checklist: 'צ׳קליסט', customer_list: 'מועדון לקוחות', knowledge: 'מסמך ידע', other: 'מסמך',
+  checklist: 'צ׳קליסט', customer_list: 'מועדון לקוחות', knowledge: 'מסמך ידע',
+  seating_map: 'מפת הושבה', other: 'מסמך',
 };
 
 const CONFIRM_YES_RE = /^\s*(כן|אישור|נכון|בסדר|סבבה|יאללה|אוקי+|ok|yes|בטח|מטמיע|תטמיע|כן כן|יופי|מעולה)\b/i;
@@ -165,6 +228,7 @@ const KIND_KEYWORDS: Array<[RegExp, string]> = [
   [/עובד|צוות|employee/i, 'employee_list'],
   [/צ.?ק.?ליסט|checklist|משימות/i, 'checklist'],
   [/לקוח|מועדון|customer/i, 'customer_list'],
+  [/הושבה|שולחנות|מפה|סקיצה|seating/i, 'seating_map'],
   [/ידע|נוהל|מתכון|מסמך|knowledge/i, 'knowledge'],
 ];
 function matchKind(text: string): string {
@@ -181,8 +245,9 @@ async function classifyFile(tenant: any, mediaUrl: string): Promise<{ kind: stri
     prompt:
       `הקובץ המצורף שייך למסעדה. סווג אותו לאחת מהקטגוריות:\n` +
       `menu (תפריט אוכל/שתייה), work_schedule (סידור עבודה/משמרות), employee_list (רשימת עובדים), ` +
-      `checklist (צ׳קליסט תפעולי), customer_list (רשימת לקוחות/מועדון), knowledge (נוהל/מתכון/מסמך ידע/שאלות נפוצות), other.\n` +
-      `החזר: kind, confidence (high/medium/low לפי כמה ברור), ו-sample — 2-3 דוגמאות קצרות ממה שאתה בפועל רואה בקובץ (שמות מנות / תפקידים / שמות עובדים / משימות). אל תמציא — רק מה שכתוב.`,
+      `checklist (צ׳קליסט תפעולי), customer_list (רשימת לקוחות/מועדון), seating_map (מפת הושבה/סקיצת שולחנות), ` +
+      `knowledge (נוהל/מתכון/מסמך ידע/שאלות נפוצות), other.\n` +
+      `החזר: kind, confidence (high/medium/low לפי כמה ברור), ו-sample — 2-3 דוגמאות קצרות ממה שאתה בפועל רואה בקובץ (שמות מנות / תפקידים / שמות עובדים / משימות / מספרי שולחנות). אל תמציא — רק מה שכתוב.`,
     fileUrls: [mediaUrl],
     responseSchema: {
       type: 'object',
@@ -213,6 +278,7 @@ async function importByKind(tenant: any, kind: string, mediaUrl: string, data: R
     else if (kind === 'employee_list') { count = await extractAndInsertEmployeesFromFile(tenant, mediaUrl); data._counts.employees = (data._counts.employees || 0) + count; }
     else if (kind === 'checklist') { count = await extractAndInsertChecklists(tenant, mediaUrl, data); data._counts.checklists = (data._counts.checklists || 0) + count; }
     else if (kind === 'customer_list') { count = await extractAndInsertCustomers(tenant, mediaUrl); data._counts.customers = (data._counts.customers || 0) + count; }
+    else if (kind === 'seating_map') { count = await extractAndInsertSeating(tenant, mediaUrl); data._counts.seating = (data._counts.seating || 0) + count; }
     else { count = await extractAndInsertKnowledge(tenant, mediaUrl, 'כללי'); data._counts.knowledge = (data._counts.knowledge || 0) + count; }
   } catch (e: any) {
     console.warn(`[onboarding] import ${kind}:`, e?.message);
@@ -282,14 +348,33 @@ export async function tryHandleOnboardingMessage(fromPhone: string, body: string
 
   history.push({ role: 'user', content: body });
 
+  // If the owner skipped the current topic, remember it so we don't re-ask.
+  if (SKIP_RE.test(body) && data._asking && data._asking !== 'name' && data._asking !== 'address' && data._asking !== 'hours' && data._asking !== 'cuisine') {
+    data._done_modules = Array.isArray(data._done_modules) ? data._done_modules : [];
+    if (!data._done_modules.includes(data._asking)) data._done_modules.push(data._asking);
+  }
+
   const result = await onboardingBrain(tenant, history, body, data)
     .catch((e: any) => { console.warn('[onboarding] brain:', e?.message); return { reply: 'סליחה, רגע קטן... אפשר לכתוב שוב? 🙏' }; });
   await applyExtraction(tenant, result, data).catch((e: any) => console.warn('[onboarding] apply:', e?.message));
 
-  history.push({ role: 'assistant', content: result.reply });
+  // Run any AI action the owner asked for (build checklists/roles/training,
+  // or send the employee join link) and append its result to the reply.
+  let reply = result.reply;
+  if (result.action) {
+    const note = await runBrainAction(tenant, String(result.action), data);
+    if (note) reply = `${reply}${note}`;
+  }
+  // Track the topic being asked so the NEXT turn can honor a skip.
+  if (result.asking) data._asking = String(result.asking);
+
+  history.push({ role: 'assistant', content: reply });
   data._history = history.slice(-24);
 
-  const finished = !!result.finished && !!data.name;
+  // Finish ONLY when everything was covered OR the owner explicitly said so —
+  // never just because the brain got eager (this is what caused early finish).
+  const allCovered = nextMissing(data).key === 'finish';
+  const finished = !!data.name && (!!result.finished && (allCovered || DONE_RE.test(body)));
   if (finished) {
     const summary = await persistCoreData(tenant, data).catch(() => null);
     data._counts = data._counts || {};
@@ -298,7 +383,7 @@ export async function tryHandleOnboardingMessage(fromPhone: string, body: string
     await sendWhatsApp(fromPhone, buildDoneMessage(tenant, data));
   } else {
     await setPhase(state.tenant_id, 'active', data);
-    await sendWhatsApp(fromPhone, result.reply);
+    await sendWhatsApp(fromPhone, reply);
   }
   return true;
 }
@@ -665,6 +750,105 @@ async function saveInvoiceEmails(tenant: any, emails: string[]): Promise<void> {
   }
 }
 
+// --- AI suggestions (when the owner has no file of their own) --------------
+
+async function aiSuggestChecklists(tenant: any, data: Record<string, any>): Promise<number> {
+  const { invokeLLM } = await import('./llm.js');
+  const result: any = await invokeLLM({
+    prompt:
+      `בנה 3 צ'קליסטים תפעוליים למסעדה מסוג "${data.cuisine || 'כללי'}"` +
+      `${data.description ? ` (${data.description})` : ''}: פתיחת בוקר, סגירת ערב, ומטבח.\n` +
+      `לכל אחד: title, category, tasks (6-12 משימות קצרות בעברית).`,
+    responseSchema: {
+      type: 'object',
+      properties: {
+        checklists: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              title: { type: 'string' }, category: { type: 'string' },
+              tasks: { type: 'array', items: { type: 'string' } }, // NOT `items` (Gemini keyword collision)
+            },
+          },
+        },
+      },
+      required: ['checklists'],
+    },
+    _ctx: { fn_name: 'onboardingSuggestChecklists', tenant_slug: tenant.slug },
+  });
+  const lists = (Array.isArray(result?.checklists) ? result.checklists : []).map((cl: any) => ({
+    ...cl, items: Array.isArray(cl?.tasks) ? cl.tasks : (cl?.items || []),
+  }));
+  return insertChecklists(tenant, lists);
+}
+
+async function aiSuggestRoles(tenant: any, data: Record<string, any>): Promise<number> {
+  const { invokeLLM } = await import('./llm.js');
+  const result: any = await invokeLLM({
+    prompt:
+      `הצע רשימת תפקידים טיפוסית למסעדה מסוג "${data.cuisine || 'כללי'}"` +
+      `${data.description ? ` (${data.description})` : ''}. החזר roles — מערך של שמות תפקידים בעברית (מלצר/ית, טבח, ברמן/ית, אחמ"ש, שוטף כלים, מארח/ת... התאם לעסק).`,
+    responseSchema: { type: 'object', properties: { roles: { type: 'array', items: { type: 'string' } } }, required: ['roles'] },
+    _ctx: { fn_name: 'onboardingSuggestRoles', tenant_slug: tenant.slug },
+  });
+  return insertRoles(tenant, (Array.isArray(result?.roles) ? result.roles : []).map((r: any) => String(r).trim()).filter(Boolean));
+}
+
+async function aiSuggestTraining(tenant: any, data: Record<string, any>): Promise<number> {
+  const { invokeLLM } = await import('./llm.js');
+  const result: any = await invokeLLM({
+    prompt:
+      `בנה תוכנית הכשרה לצוות מסעדה מסוג "${data.cuisine || 'כללי'}"` +
+      `${data.description ? ` (${data.description})` : ''}. חלק לפי תפקידים (מלצרים, מטבח, ברמנים).\n` +
+      `לכל פרק: title (שם הפרק כולל התפקיד), content (5-10 נקודות מפורטות בעברית).`,
+    responseSchema: {
+      type: 'object',
+      properties: { chapters: { type: 'array', items: { type: 'object', properties: { title: { type: 'string' }, content: { type: 'string' } } } } },
+      required: ['chapters'],
+    },
+    _ctx: { fn_name: 'onboardingSuggestTraining', tenant_slug: tenant.slug },
+  });
+  return insertKnowledgeEntries(tenant, Array.isArray(result?.chapters) ? result.chapters : [], 'הכשרה');
+}
+
+// Seating map from an image/sketch → SeatingLayout the owner can drag-fix.
+async function extractAndInsertSeating(tenant: any, mediaUrl: string): Promise<number> {
+  // property `tables`, NOT `items` — collision-safe.
+  const rows = await llmExtract(
+    mediaUrl,
+    `הקובץ הוא מפת הושבה / סקיצה של מסעדה. חלץ את השולחנות: label (מספר/שם), capacity (מספר סועדים), x ו-y (מיקום יחסי 0-100), shape (table/bar/booth/outdoor). אל תמציא.`,
+    { label: { type: 'string' }, capacity: { type: 'number' }, x: { type: 'number' }, y: { type: 'number' }, shape: { type: 'string' } },
+    'tables', tenant.slug,
+  );
+  if (!rows.length) return 0;
+  const schema = `tenant_${tenant.slug}`;
+  const tables = rows.map((t: any, i: number) => ({
+    table_number: String(t?.label || i + 1),
+    min_capacity: Math.max(1, Math.floor((Number(t?.capacity) || 2) * 0.5)),
+    max_capacity: Math.max(2, Number(t?.capacity) || 4),
+    location: t?.shape === 'outdoor' ? 'outdoor' : 'indoor',
+    area: t?.shape === 'bar' ? 'בר' : t?.shape === 'booth' ? 'פינה' : 'ראשי',
+    combinable_with: [], features: [],
+    x: Math.round((Number(t?.x) || 50) * 6), y: Math.round((Number(t?.y) || 50) * 5),
+    width: 80, height: 80,
+  }));
+  try {
+    const existing: any[] = await query(`SELECT id FROM "${schema}"."SeatingLayout" LIMIT 1`);
+    if (existing.length) {
+      await sql(`UPDATE "${schema}"."SeatingLayout" SET tables = $1::jsonb, "updatedAt" = NOW() WHERE id = $2`, JSON.stringify(tables), existing[0].id);
+    } else {
+      await sql(
+        `INSERT INTO "${schema}"."SeatingLayout" ("id", "layout_name", "tables", "createdAt", "updatedAt") VALUES ($1, 'מפה ראשית', $2::jsonb, NOW(), NOW())`,
+        await uuid(), JSON.stringify(tables),
+      );
+    }
+  } catch (e: any) {
+    console.warn('[onboarding] seating image insert:', e?.message);
+  }
+  return tables.length;
+}
+
 // === Shared helpers ========================================================
 
 // Lightweight check used by the webhook to decide whether to transcribe an
@@ -719,12 +903,13 @@ function buildDoneMessage(tenant: any, data: Record<string, any>): string {
     `*מה הוקם עבורך:*`,
     `✅ פרופיל עסקי מלא`,
     c.menu ? `✅ ${c.menu} מנות בתפריט` : '',
-    c.tables ? `✅ מפת הושבה עם ${c.tables} שולחנות` : '',
+    (c.seating || c.tables) ? `✅ מפת הושבה עם ${c.seating || c.tables} שולחנות` : '',
     c.employees ? `✅ ${c.employees} כרטיסי עובדים` : '',
-    c.invited ? `✅ ${c.invited} הזמנות וואטסאפ לעובדים` : '',
+    c.invited ? `✅ קישור הצטרפות לעובדים נשלח` : '',
     c.roles ? `✅ ${c.roles} תפקידים` : '',
     c.checklists ? `✅ ${c.checklists} צ'קליסטים` : '',
     c.suppliers ? `✅ ${c.suppliers} ספקים` : '',
+    c.training ? `✅ תוכנית הכשרה (${c.training} פרקים)` : '',
     c.slots ? `✅ ${c.slots} סלוטים לראיונות` : '',
     c.customers ? `✅ ${c.customers} לקוחות במועדון` : '',
     c.knowledge ? `✅ ${c.knowledge} מסמכים במרכז הידע` : '',
