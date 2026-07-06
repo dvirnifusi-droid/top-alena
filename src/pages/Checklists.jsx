@@ -56,7 +56,13 @@ function ChecklistsInner() {
             for (const c of chosen) {
                 await Checklist.create({
                     title: c.name,
-                    description: `${c.department || ''} · ${c.shift || ''}`.trim(),
+                    // category + frequency are required (no DB default) — the AI
+                    // suggestion returns department/shift, so map department→category
+                    // and default frequency to daily. Omitting these was throwing
+                    // "Invalid prisma.checklist.create() invocation".
+                    category: c.category || c.department || 'כללי',
+                    frequency: c.frequency || 'daily',
+                    description: `${c.department || ''} · ${c.shift || ''}`.replace(/^ · | · $/g, '').trim(),
                     department: c.department || null,
                     shift: c.shift || null,
                     items: (c.items || []).map((text) => ({ id: `it_${Math.random().toString(36).slice(2, 8)}`, text, is_required: false })),
