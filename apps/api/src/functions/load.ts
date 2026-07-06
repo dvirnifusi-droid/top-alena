@@ -10073,12 +10073,14 @@ registerFn('extractWaiterMenuFromFile', async ({ body }) => {
       `- price_ils: מחיר ש"ח כמספר שלם (0 אם לא מצוין)\n` +
       `- allergens: מהרשימה הסגורה ["גלוטן","אגוזים","לקטוז","ביצים","סויה","שומשום","סולפיטים"] — רק אם התפריט מציין במפורש\n` +
       `- notes: "פיקנטית" / "מנה גדולה לחלוקה" / "סיגנייצ׳ר" / "צמחוני" / "חדש" / "מומלץ" — רק אם מצוין\n\n` +
-      `החזר JSON בלבד — items עם כל הפריטים. אסור להחזיר מערך עם פחות פריטים ממה שיש בתפריט.`,
+      `החזר JSON בלבד — dishes עם כל הפריטים. אסור להחזיר מערך עם פחות פריטים ממה שיש בתפריט.`,
     fileUrls: [url],
     responseSchema: {
       type: 'object',
       properties: {
-        items: {
+        // `dishes`, NOT `items` — Gemini empties a property literally named
+        // `items` (JSON-Schema keyword collision, A/B-proven 2026-07-05).
+        dishes: {
           type: 'array',
           items: {
             type: 'object',
@@ -10100,12 +10102,12 @@ registerFn('extractWaiterMenuFromFile', async ({ body }) => {
   // pass with the prior items as 'do not return these again' context. Catches Gemini's
   // tendency to be lazy on long PDFs by giving it an explicit nudge for what was missed.
   const pass1: any = await callOnce([]);
-  const items1 = Array.isArray(pass1?.items) ? pass1.items : [];
+  const items1 = Array.isArray(pass1?.dishes) ? pass1.dishes : (Array.isArray(pass1?.items) ? pass1.items : []);
   let allItems = [...items1];
   if (items1.length > 0 && items1.length < 60) {
     try {
       const pass2: any = await callOnce(items1);
-      const items2 = Array.isArray(pass2?.items) ? pass2.items : [];
+      const items2 = Array.isArray(pass2?.dishes) ? pass2.dishes : (Array.isArray(pass2?.items) ? pass2.items : []);
       // Dedupe by name (case-insensitive) so we don't double-count anything Gemini repeated
       const seen = new Set(items1.map((i: any) => String(i.name || '').toLowerCase().trim()));
       for (const it of items2) {
