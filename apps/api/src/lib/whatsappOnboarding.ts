@@ -57,6 +57,16 @@ function summarizeState(data: Record<string, any>, tenant: any): string {
 const SKIP_RE = /(דלג|דלגי|אחר כך|אחרי זה|לא צריך|לא עכשיו|אין לי|אין|בהמשך|תמשיך|הבא)/i;
 const DONE_RE = /(סיימתי|זה הכל|זהו|מספיק|תסיים|סיים|גמרנו|נגמר|די)/i;
 
+// The brain returns this generic fallback when the LLM yields no usable reply
+// (it does NOT throw, so a plain .catch() won't help). After a SUCCESSFUL
+// import that reads terrible to the owner ("sorry, say that again?") — so use a
+// deterministic success line instead whenever the brain falls back or is empty.
+const BRAIN_FALLBACK_RE = /אפשר לכתוב לי את זה שוב|סליחה, רגע/;
+function pickReply(brainResult: any, deterministic: string): string {
+  const rep = brainResult && brainResult.reply;
+  return rep && !BRAIN_FALLBACK_RE.test(rep) ? rep : deterministic;
+}
+
 // Optional modules in order. `done` = already satisfied; `offer` = how the
 // brain should present it (one atomic question).
 const MODULES: Array<{ key: string; done: (c: any, d: any) => boolean; offer: string }> = [
@@ -337,19 +347,19 @@ export async function tryHandleOnboardingMessage(fromPhone: string, body: string
       const synthetic = count > 0
         ? `[הבעלים אישר. הטמעת ${count} פריטים מסוג ${KIND_LABEL[kind] || kind}. הודה לו בקצרה (ציין את המספר), ואז המשך לשאלה הבאה שחסרה.]`
         : `[ניסית לקרוא ${KIND_LABEL[kind] || kind} אבל לא זוהו פריטים. בקש מהבעלים לשלוח צילום ברור יותר או להמשיך.]`;
-      const r = await onboardingBrain(tenant, history, synthetic, data)
-        .catch(() => ({ reply: count > 0 ? `✅ קלטתי ${count} פריטים! נמשיך.` : 'לא הצלחתי לקרוא את הקובץ 🤔 אפשר לשלוח שוב ברור יותר?' }));
-      await applyExtraction(tenant, r, data).catch(() => {});
-      history.push({ role: 'assistant', content: r.reply });
+      const r = await onboardingBrain(tenant, history, synthetic, data).catch(() => null);
+      await applyExtraction(tenant, r || {}, data).catch(() => {});
+      const reply = pickReply(r, count > 0 ? `✅ קלטתי ${count} פריטים! נמשיך.` : 'לא הצלחתי לקרוא את הקובץ 🤔 אפשר לשלוח שוב ברור יותר?');
+      history.push({ role: 'assistant', content: reply });
       data._history = history.slice(-24);
-      const fin = !!r.finished && !!data.name;
+      const fin = !!(r && r.finished) && !!data.name;
       if (fin) {
         await persistCoreData(tenant, data).catch(() => null);
         await setPhase(state.tenant_id, 'done', data);
         await sendWhatsApp(fromPhone, buildDoneMessage(tenant, data));
       } else {
         await setPhase(state.tenant_id, 'active', data);
-        await sendWhatsApp(fromPhone, r.reply);
+        await sendWhatsApp(fromPhone, reply);
       }
       return true;
     }
@@ -377,13 +387,13 @@ export async function tryHandleOnboardingMessage(fromPhone: string, body: string
       const labels: Record<string, string> = { name: 'שם', address: 'כתובת', opening_hours: 'שעות', cuisine: 'מטבח' };
       const got = ['name', 'address', 'opening_hours', 'cuisine'].filter((k) => b[k]).map((k) => labels[k]).join(', ');
       const synthetic = `[הבעלים אישר ייבוא מהאתר. הוטמעו ${menuN} מנות${got ? ` ופרטי העסק (${got})` : ''}. הודה בקצרה וציין את המספר, ואז המשך לשאלה הבאה שחסרה.]`;
-      const r = await onboardingBrain(tenant, history, synthetic, data)
-        .catch(() => ({ reply: `✅ הטמעתי ${menuN} מנות מהאתר${got ? ' + פרטי העסק' : ''}! נמשיך.` }));
-      await applyExtraction(tenant, r, data).catch(() => {});
-      history.push({ role: 'assistant', content: r.reply });
+      const r = await onboardingBrain(tenant, history, synthetic, data).catch(() => null);
+      await applyExtraction(tenant, r || {}, data).catch(() => {});
+      const reply = pickReply(r, `✅ מעולה! הטמעתי ${menuN} מנות${got ? ` + פרטי העסק (${got})` : ''} מהאתר. נמשיך! 🙂`);
+      history.push({ role: 'assistant', content: reply });
       data._history = history.slice(-24);
       await setPhase(state.tenant_id, 'active', data);
-      await sendWhatsApp(fromPhone, r.reply);
+      await sendWhatsApp(fromPhone, reply);
       return true;
     }
     // Not "כן" — drop the pending import and treat this message normally.
@@ -407,13 +417,13 @@ export async function tryHandleOnboardingMessage(fromPhone: string, body: string
       history.push({ role: 'user', content: body });
       const editLink = `https://${tenant.slug}.topalena.com/SeatingSetup`;
       const synthetic = `[הבעלים אישר את מפת ההושבה. הוטמעו ${n} שולחנות. הודה בקצרה, ציין שאפשר לגרור ולערוך הכל ויזואלית בקישור ${editLink}, ואז המשך לשאלה הבאה שחסרה.]`;
-      const r = await onboardingBrain(tenant, history, synthetic, data)
-        .catch(() => ({ reply: `✅ הטמעתי ${n} שולחנות! אפשר לגרור ולערוך את המפה כאן:\n${editLink}\nנמשיך.` }));
-      await applyExtraction(tenant, r, data).catch(() => {});
-      history.push({ role: 'assistant', content: r.reply });
+      const r = await onboardingBrain(tenant, history, synthetic, data).catch(() => null);
+      await applyExtraction(tenant, r || {}, data).catch(() => {});
+      const reply = pickReply(r, `✅ הטמעתי ${n} שולחנות! אפשר לגרור ולערוך את המפה כאן:\n${editLink}\nנמשיך.`);
+      history.push({ role: 'assistant', content: reply });
       data._history = history.slice(-24);
       await setPhase(state.tenant_id, 'active', data);
-      await sendWhatsApp(fromPhone, r.reply);
+      await sendWhatsApp(fromPhone, reply);
       return true;
     }
     if (corrected && ps.url) {
@@ -424,13 +434,13 @@ export async function tryHandleOnboardingMessage(fromPhone: string, body: string
       const synthetic = count > 0
         ? `[הבעלים תיקן — הקובץ הוא ${KIND_LABEL[corrected] || corrected}. הוטמעו ${count} פריטים. הודה בקצרה והמשך לשאלה הבאה.]`
         : `[ניסית לקרוא ${KIND_LABEL[corrected] || corrected} אבל לא זוהו פריטים. בקש צילום ברור יותר או המשך.]`;
-      const r = await onboardingBrain(tenant, history, synthetic, data)
-        .catch(() => ({ reply: count > 0 ? `✅ קלטתי ${count} פריטים! נמשיך.` : 'לא הצלחתי לקרוא 🤔 אפשר לשלוח שוב ברור יותר?' }));
-      await applyExtraction(tenant, r, data).catch(() => {});
-      history.push({ role: 'assistant', content: r.reply });
+      const r = await onboardingBrain(tenant, history, synthetic, data).catch(() => null);
+      await applyExtraction(tenant, r || {}, data).catch(() => {});
+      const reply = pickReply(r, count > 0 ? `✅ קלטתי ${count} פריטים! נמשיך.` : 'לא הצלחתי לקרוא 🤔 אפשר לשלוח שוב ברור יותר?');
+      history.push({ role: 'assistant', content: reply });
       data._history = history.slice(-24);
       await setPhase(state.tenant_id, 'active', data);
-      await sendWhatsApp(fromPhone, r.reply);
+      await sendWhatsApp(fromPhone, reply);
       return true;
     }
     // Not a confirm/known correction — drop the preview and treat normally.
