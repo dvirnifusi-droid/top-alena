@@ -1,6 +1,9 @@
-// TOP ALENA service worker: Web Push + offline app shell.
-const CACHE = 'topalena-v2';
-const SHELL = ['/', '/manifest.json', '/icons/icon-192.png?v=1', '/icons/icon-512.png'];
+// TOP APOLLO service worker: Web Push + offline app shell.
+// Bump CACHE on any deploy that must purge stale clients — activate deletes
+// every cache whose name !== CACHE, so a version bump force-refreshes assets
+// for every browser (fixes stale bundles cached by an older SW).
+const CACHE = 'topapollo-v3';
+const SHELL = ['/', '/manifest.json', '/icons/icon-192.png?v=3', '/icons/icon-512.png?v=3'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).catch(() => {}));
