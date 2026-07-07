@@ -391,6 +391,52 @@ export async function tryHandleOnboardingMessage(fromPhone: string, body: string
     data._website_done = true;
   }
 
+  // ── Pending SEATING approval? We showed the extracted layout and asked to
+  // approve before embedding. Confirm → embed + visual-edit link; a correction
+  // to another kind → reroute the same file; otherwise drop and continue.
+  if (data._pending_seating?.tables) {
+    const ps = data._pending_seating;
+    const corrected = matchKind(body);
+    if (CONFIRM_YES_RE.test(body.trim()) || corrected === 'seating_map') {
+      const n = await insertSeatingTables(tenant, ps.tables).catch(() => 0);
+      data._counts = data._counts || {};
+      data._counts.seating = (data._counts.seating || 0) + n;
+      data._done_modules = Array.isArray(data._done_modules) ? data._done_modules : [];
+      if (!data._done_modules.includes('seating')) data._done_modules.push('seating');
+      delete data._pending_seating;
+      history.push({ role: 'user', content: body });
+      const editLink = `https://${tenant.slug}.topalena.com/SeatingSetup`;
+      const synthetic = `[הבעלים אישר את מפת ההושבה. הוטמעו ${n} שולחנות. הודה בקצרה, ציין שאפשר לגרור ולערוך הכל ויזואלית בקישור ${editLink}, ואז המשך לשאלה הבאה שחסרה.]`;
+      const r = await onboardingBrain(tenant, history, synthetic, data)
+        .catch(() => ({ reply: `✅ הטמעתי ${n} שולחנות! אפשר לגרור ולערוך את המפה כאן:\n${editLink}\nנמשיך.` }));
+      await applyExtraction(tenant, r, data).catch(() => {});
+      history.push({ role: 'assistant', content: r.reply });
+      data._history = history.slice(-24);
+      await setPhase(state.tenant_id, 'active', data);
+      await sendWhatsApp(fromPhone, r.reply);
+      return true;
+    }
+    if (corrected && ps.url) {
+      // Owner says the file is actually something else — reroute it.
+      const count = await importByKind(tenant, corrected, ps.url, data).catch(() => 0);
+      delete data._pending_seating;
+      history.push({ role: 'user', content: body });
+      const synthetic = count > 0
+        ? `[הבעלים תיקן — הקובץ הוא ${KIND_LABEL[corrected] || corrected}. הוטמעו ${count} פריטים. הודה בקצרה והמשך לשאלה הבאה.]`
+        : `[ניסית לקרוא ${KIND_LABEL[corrected] || corrected} אבל לא זוהו פריטים. בקש צילום ברור יותר או המשך.]`;
+      const r = await onboardingBrain(tenant, history, synthetic, data)
+        .catch(() => ({ reply: count > 0 ? `✅ קלטתי ${count} פריטים! נמשיך.` : 'לא הצלחתי לקרוא 🤔 אפשר לשלוח שוב ברור יותר?' }));
+      await applyExtraction(tenant, r, data).catch(() => {});
+      history.push({ role: 'assistant', content: r.reply });
+      data._history = history.slice(-24);
+      await setPhase(state.tenant_id, 'active', data);
+      await sendWhatsApp(fromPhone, r.reply);
+      return true;
+    }
+    // Not a confirm/known correction — drop the preview and treat normally.
+    delete data._pending_seating;
+  }
+
   // ── Owner pasted a website URL (and we haven't imported/attempted yet)?
   // ACK fast, then fetch + extract menu & details in the BACKGROUND and come
   // back with a confirm-before-embed summary. The fetch can take up to ~90s —
@@ -496,6 +542,24 @@ export async function tryHandleOnboardingMedia(
     const data: Record<string, any> = state.collected_data || {};
     const history: any[] = Array.isArray(data._history) ? data._history : [];
     const { kind, confidence, sample } = await classifyFile(tenant, mediaUrl);
+    // Seating sketch → extract the layout and show a real preview for approval
+    // BEFORE embedding (step 4). One confirm (the layout), not two.
+    if (kind === 'seating_map') {
+      const tables = await extractSeatingTables(tenant, mediaUrl).catch(() => []);
+      if (tables.length) {
+        data._pending_seating = { url: mediaUrl, tables };
+        const msg =
+          `🪑 קיבלתי את הסקיצה ובניתי ממנה טיוטת מפה:\n*${seatingSummary(tables)}*\n\n` +
+          `לאשר שאטמיע? כתוב *כן* — ותוכל אחר כך לגרור ולערוך הכל ויזואלית. אם לא זיהיתי נכון, תגיד לי מה זה (תפריט / עובדים / צ׳קליסט...).`;
+        history.push({ role: 'user', content: '(שלח סקיצת הושבה)' });
+        history.push({ role: 'assistant', content: msg });
+        data._history = history.slice(-24);
+        await setPhase(tenant.id, 'active', data).catch(() => {});
+        await sendWhatsApp(fromPhone, msg).catch(() => {});
+        return;
+      }
+      // extraction empty → fall through to the generic confirm below
+    }
     // Stash the file so the owner's next reply ("כן" / "לא, זה תפריט") can act.
     data._pending_file = { url: mediaUrl, kind };
     const label = KIND_LABEL[kind] || 'מסמך';
@@ -1041,7 +1105,9 @@ async function aiSuggestTraining(tenant: any, data: Record<string, any>): Promis
 }
 
 // Seating map from an image/sketch → SeatingLayout the owner can drag-fix.
-async function extractAndInsertSeating(tenant: any, mediaUrl: string): Promise<number> {
+// Extract the table layout from a sketch WITHOUT inserting — so the owner can
+// approve/adjust the preview before it embeds (step 4: sketch-for-approval).
+async function extractSeatingTables(tenant: any, mediaUrl: string): Promise<any[]> {
   // property `tables`, NOT `items` — collision-safe.
   const rows = await llmExtract(
     mediaUrl,
@@ -1049,9 +1115,7 @@ async function extractAndInsertSeating(tenant: any, mediaUrl: string): Promise<n
     { label: { type: 'string' }, capacity: { type: 'number' }, x: { type: 'number' }, y: { type: 'number' }, shape: { type: 'string' } },
     'tables', tenant.slug,
   );
-  if (!rows.length) return 0;
-  const schema = `tenant_${tenant.slug}`;
-  const tables = rows.map((t: any, i: number) => ({
+  return rows.map((t: any, i: number) => ({
     table_number: String(t?.label || i + 1),
     min_capacity: Math.max(1, Math.floor((Number(t?.capacity) || 2) * 0.5)),
     max_capacity: Math.max(2, Number(t?.capacity) || 4),
@@ -1061,6 +1125,11 @@ async function extractAndInsertSeating(tenant: any, mediaUrl: string): Promise<n
     x: Math.round((Number(t?.x) || 50) * 6), y: Math.round((Number(t?.y) || 50) * 5),
     width: 80, height: 80,
   }));
+}
+
+async function insertSeatingTables(tenant: any, tables: any[]): Promise<number> {
+  if (!Array.isArray(tables) || !tables.length) return 0;
+  const schema = `tenant_${tenant.slug}`;
   try {
     const existing: any[] = await query(`SELECT id FROM "${schema}"."SeatingLayout" LIMIT 1`);
     if (existing.length) {
@@ -1075,6 +1144,23 @@ async function extractAndInsertSeating(tenant: any, mediaUrl: string): Promise<n
     console.warn('[onboarding] seating image insert:', e?.message);
   }
   return tables.length;
+}
+
+// One-line human summary of an extracted layout (count + areas + capacity).
+function seatingSummary(tables: any[]): string {
+  const byArea: Record<string, number> = {};
+  let cap = 0;
+  for (const t of tables) {
+    const a = String(t?.area || 'ראשי');
+    byArea[a] = (byArea[a] || 0) + 1;
+    cap += Number(t?.max_capacity) || 0;
+  }
+  const areas = Object.entries(byArea).map(([a, n]) => `${a}: ${n}`).join(', ');
+  return `${tables.length} שולחנות (${areas}), קיבולת ~${cap} סועדים`;
+}
+
+async function extractAndInsertSeating(tenant: any, mediaUrl: string): Promise<number> {
+  return insertSeatingTables(tenant, await extractSeatingTables(tenant, mediaUrl));
 }
 
 // === Shared helpers ========================================================
