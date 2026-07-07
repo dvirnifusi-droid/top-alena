@@ -203,8 +203,8 @@ async function runBrainAction(tenant: any, action: string, data: Record<string, 
       return n ? `\n\n✅ בניתי לך ${n} צ׳קליסטים לפי סוג העסק (טיוטות — אפשר לערוך באפליקציה).` : '';
     }
     if (action === 'suggest_roles') {
-      const n = await aiSuggestRoles(tenant, data); data._counts.roles = (data._counts.roles || 0) + n;
-      return n ? `\n\n✅ הוספתי ${n} תפקידים מתאימים לעסק שלך.` : '';
+      const roles = await aiSuggestRoles(tenant, data); data._counts.roles = (data._counts.roles || 0) + roles.length;
+      return roles.length ? `\n\n✅ הוספתי ${roles.length} תפקידים: ${roles.join(', ')}. 🎯\nהם מוכנים לשיבוץ עובדים ולקישור ההצטרפות של הצוות.` : '';
     }
     if (action === 'suggest_training') {
       const n = await aiSuggestTraining(tenant, data); data._counts.training = (data._counts.training || 0) + n;
@@ -948,18 +948,21 @@ async function extractAndInsertRolesFromFile(tenant: any, mediaUrl: string): Pro
   return insertRoles(tenant, roles.map((r: any) => String(r?.name || '').trim()).filter(Boolean));
 }
 
+// Job positions (מלצר/טבח/ברמן) go to WorkPosition — the table the app's
+// positions manager (EmployeesHub → תפקידים) and the JoinTeam signup read.
+// NOT "Role", which is the permissions/access-level table.
 async function insertRoles(tenant: any, names: string[]): Promise<number> {
   const schema = `tenant_${tenant.slug}`;
   let n = 0;
   for (const name of names) {
     if (!name) continue;
-    const exists: any[] = await query(`SELECT 1 FROM "${schema}"."Role" WHERE name = $1 LIMIT 1`, name).catch(() => []);
+    const exists: any[] = await query(`SELECT 1 FROM "${schema}"."WorkPosition" WHERE position_name = $1 LIMIT 1`, name).catch(() => []);
     if (exists.length) continue;
     await sql(
-      `INSERT INTO "${schema}"."Role" ("id", "name", "level", "is_active", "createdAt", "updatedAt")
-       VALUES ($1, $2, 'staff', true, NOW(), NOW())`,
+      `INSERT INTO "${schema}"."WorkPosition" ("id", "position_name", "is_active", "createdAt", "updatedAt")
+       VALUES ($1, $2, true, NOW(), NOW())`,
       await uuid(), name,
-    ).then(() => n++).catch((e: any) => console.warn('[onboarding] role insert:', e?.message));
+    ).then(() => n++).catch((e: any) => console.warn('[onboarding] position insert:', e?.message));
   }
   return n;
 }
@@ -1120,16 +1123,19 @@ async function aiSuggestChecklists(tenant: any, data: Record<string, any>): Prom
   return insertChecklists(tenant, lists);
 }
 
-async function aiSuggestRoles(tenant: any, data: Record<string, any>): Promise<number> {
+async function aiSuggestRoles(tenant: any, data: Record<string, any>): Promise<string[]> {
   const { invokeLLM } = await import('./llm.js');
   const result: any = await invokeLLM({
     prompt:
       `הצע רשימת תפקידים טיפוסית למסעדה מסוג "${data.cuisine || 'כללי'}"` +
       `${data.description ? ` (${data.description})` : ''}. החזר roles — מערך של שמות תפקידים בעברית (מלצר/ית, טבח, ברמן/ית, אחמ"ש, שוטף כלים, מארח/ת... התאם לעסק).`,
     responseSchema: { type: 'object', properties: { roles: { type: 'array', items: { type: 'string' } } }, required: ['roles'] },
+    maxOutputTokens: 8192,
     _ctx: { fn_name: 'onboardingSuggestRoles', tenant_slug: tenant.slug },
   });
-  return insertRoles(tenant, (Array.isArray(result?.roles) ? result.roles : []).map((r: any) => String(r).trim()).filter(Boolean));
+  const roles = (Array.isArray(result?.roles) ? result.roles : []).map((r: any) => String(r).trim()).filter(Boolean);
+  await insertRoles(tenant, roles);
+  return roles;
 }
 
 async function aiSuggestTraining(tenant: any, data: Record<string, any>): Promise<number> {
