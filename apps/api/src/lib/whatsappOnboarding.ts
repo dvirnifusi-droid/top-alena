@@ -270,7 +270,11 @@ const KIND_LABEL: Record<string, string> = {
   seating_map: 'מפת הושבה', other: 'מסמך',
 };
 
-const CONFIRM_YES_RE = /^\s*(כן|אישור|נכון|בסדר|סבבה|יאללה|אוקי+|ok|yes|בטח|מטמיע|תטמיע|כן כן|יופי|מעולה)\b/i;
+// NOTE: never use \b next to Hebrew — JS \b is defined by [A-Za-z0-9_], which
+// excludes Hebrew, so "כן\b" NEVER matches. That silently broke every Hebrew
+// confirmation (file/website/seating "כן" fell through to the drop path).
+// Use a negative lookahead for a following letter instead — Hebrew-safe.
+const CONFIRM_YES_RE = /^\s*(כן|אישור|נכון|בסדר|סבבה|יאללה|אוקי+|ok|yes|בטח|מטמיע|תטמיע|יופי|מעולה)(?![א-תa-z])/i;
 
 // Owner-correction → kind. If the classifier guessed wrong and the owner says
 // "לא, זה סידור עבודה", this re-routes to the right extractor.
