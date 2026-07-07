@@ -58,6 +58,7 @@ const adminLinks = [
 
   { title: "תפעול המסעדה", url: "#", icon: Utensils, isCategory: true, color: "cinnamon" },
   { title: "ניהול תדריכים", url: createPageUrl("BriefingManagement"), icon: Megaphone, isSubItem: true, color: "cinnamon" },
+  { title: "🍽 ניהול תפריט", url: createPageUrl("MenuManagement"), icon: Utensils, isSubItem: true, color: "cinnamon" },
   { title: "ניהול שולחנות", url: createPageUrl("TablesManagement"), icon: Utensils, isSubItem: true, color: "cinnamon" },
   { title: "ניהול הושבה", url: createPageUrl("SeatingSetup"), icon: Map, isSubItem: true, color: "cinnamon" },
   { title: "ניקיון שירותים 🚽", url: createPageUrl("RestroomCleaning"), icon: ClipboardCheck, isSubItem: true, color: "cinnamon" },

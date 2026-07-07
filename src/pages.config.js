@@ -155,6 +155,7 @@ import QueueHub from './pages/QueueHub';
 import ColorPreview from './pages/ColorPreview';
 import Recipes from './pages/Recipes';
 import CashFlow from './pages/CashFlow';
+import MenuManagement from './pages/MenuManagement';
 import PlatformAdmin from './pages/PlatformAdmin';
 import PlatformAdminPending from './pages/PlatformAdminPending';
 import PlatformAdminTenants from './pages/PlatformAdminTenants';
@@ -280,6 +281,7 @@ export const PAGES = {
     "ColorPreview": ColorPreview,
     "Recipes": Recipes,
     "CashFlow": CashFlow,
+    "MenuManagement": MenuManagement,
     "PlatformAdmin": PlatformAdmin,
     "PlatformAdminPending": PlatformAdminPending,
     "PlatformAdminTenants": PlatformAdminTenants,
