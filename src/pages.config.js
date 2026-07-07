@@ -159,6 +159,11 @@ import PlatformAdmin from './pages/PlatformAdmin';
 import PlatformAdminPending from './pages/PlatformAdminPending';
 import PlatformAdminTenants from './pages/PlatformAdminTenants';
 import PlatformSettings from './pages/PlatformSettings';
+import PlatformFeatures from './pages/PlatformFeatures';
+import PlatformSubscriptions from './pages/PlatformSubscriptions';
+import PlatformUsers from './pages/PlatformUsers';
+import PlatformInvites from './pages/PlatformInvites';
+import PlatformWhiteLabel from './pages/PlatformWhiteLabel';
 import Branding from './pages/Branding';
 import Integrations from './pages/Integrations';
 import EmployeeComplete from './pages/EmployeeComplete';
@@ -279,6 +284,11 @@ export const PAGES = {
     "PlatformAdminPending": PlatformAdminPending,
     "PlatformAdminTenants": PlatformAdminTenants,
     "PlatformSettings": PlatformSettings,
+    "PlatformFeatures": PlatformFeatures,
+    "PlatformSubscriptions": PlatformSubscriptions,
+    "PlatformUsers": PlatformUsers,
+    "PlatformInvites": PlatformInvites,
+    "PlatformWhiteLabel": PlatformWhiteLabel,
     "Branding": Branding,
     "Integrations": Integrations,
     "EmployeeComplete": EmployeeComplete,

@@ -45,6 +45,16 @@ import ClubJoin from './pages/ClubJoin';
 import ClubUpdate from './pages/ClubUpdate';
 import ClubQR from './pages/ClubQR';
 import ErrorBoundary from '@/components/shared/ErrorBoundary';
+import PlatformLayout from '@/components/platform/PlatformLayout';
+
+// Super-Admin pages render in their own standalone shell (top-nav + owner gate),
+// NOT inside a tenant's sidebar. PlatformSettings stays tenant-level (it's the
+// per-restaurant module toggles), so it is intentionally NOT in this set.
+const PLATFORM_PAGES = new Set([
+  'PlatformAdmin', 'PlatformAdminPending', 'PlatformAdminTenants',
+  'PlatformFeatures', 'PlatformSubscriptions', 'PlatformUsers',
+  'PlatformInvites', 'PlatformWhiteLabel',
+]);
 
 const { Pages, Layout, mainPage } = pagesConfig;
 const mainPageKey = mainPage ?? Object.keys(Pages)[0];
@@ -107,7 +117,7 @@ const AuthenticatedApp = () => {
   return (
     <Routes>
       <Route path="/" element={<RoleBasedHome />} />
-      {Object.entries(Pages).map(([path, Page]) => (
+      {Object.entries(Pages).filter(([path]) => !PLATFORM_PAGES.has(path)).map(([path, Page]) => (
         <Route
           key={path}
           path={`/${path}`}
@@ -115,6 +125,17 @@ const AuthenticatedApp = () => {
             <LayoutWrapper currentPageName={path}>
               <Page />
             </LayoutWrapper>
+          }
+        />
+      ))}
+      {Object.entries(Pages).filter(([path]) => PLATFORM_PAGES.has(path)).map(([path, Page]) => (
+        <Route
+          key={path}
+          path={`/${path}`}
+          element={
+            <PlatformLayout currentPageName={path}>
+              <ErrorBoundary key={path} label={path}><Page /></ErrorBoundary>
+            </PlatformLayout>
           }
         />
       ))}

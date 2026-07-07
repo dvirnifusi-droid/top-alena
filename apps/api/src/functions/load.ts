@@ -47,7 +47,7 @@ const db = prisma as any; // generic delegate access
 
 // Public deploy marker — lets us confirm which build is live (and that
 // auto-deploy is working) without server access. Bump on each deploy test.
-registerFn('deployInfo', async () => ({ version: 'onboarding-seating-approval-2026-07-07', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
+registerFn('deployInfo', async () => ({ version: 'platform-console-standalone-2026-07-07', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
 
 
 
@@ -13081,6 +13081,31 @@ registerFn('getSuperAdminMetrics', async ({ user }) => {
      FROM "Tenant" WHERE status = 'live' ORDER BY "createdAt" ASC`,
   );
 
+  // Onboarding progress (public.OnboardingState, keyed by tenant_id). Onboarding
+  // v4 tracks core fields + optional modules in collected_data, so estimate a
+  // percentage from filled core fields + modules handled.
+  const onbByTenant: Record<string, any> = {};
+  try {
+    const onbRows: any[] = await (prisma as any).$queryRawUnsafe(
+      `SELECT tenant_id, current_step, collected_data, last_message_at FROM "OnboardingState"`,
+    );
+    for (const o of onbRows) onbByTenant[o.tenant_id] = o;
+  } catch { /* table may not exist yet */ }
+  const onbProgress = (o: any) => {
+    if (!o) return null;
+    const step = o.current_step;
+    if (step === 'done') return { progress_percent: 100, current_step: 'done', last_message_at: o.last_message_at };
+    let d = o.collected_data || {};
+    if (typeof d === 'string') { try { d = JSON.parse(d); } catch { d = {}; } }
+    const core = ['name', 'address', 'opening_hours', 'cuisine'].filter((k) => d[k]).length;
+    const doneMods = Array.isArray(d._done_modules) ? d._done_modules.length : 0;
+    const counts = d._counts || {};
+    const filledCounts = Object.values(counts).filter((v: any) => Number(v) > 0).length;
+    const modules = Math.max(doneMods, filledCounts);
+    const pct = step === 'welcome' && core === 0 ? 0 : Math.min(99, Math.round(((core + modules) / 15) * 100));
+    return { progress_percent: pct, current_step: step, last_message_at: o.last_message_at };
+  };
+
   const perTenant: any[] = [];
   let totalUsers = 0;
   let totalEmployees = 0;
@@ -13093,6 +13118,7 @@ registerFn('getSuperAdminMetrics', async ({ user }) => {
     const row: any = {
       id: t.id, slug: t.slug, name: t.restaurant_name,
       owner_phone: t.owner_phone, owner_email: t.owner_email,
+      onboarding: onbProgress(onbByTenant[t.id]),
       last_welcome_at: t.last_welcome_at,
       welcome: {
         sms: { status: t.last_welcome_sms_status, error: t.last_welcome_sms_error },
