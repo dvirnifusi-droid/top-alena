@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useTenantBranding } from '@/hooks/useTenantBranding';
 
 // Floating "install app" prompt. On Android/Chrome it uses the native
 // beforeinstallprompt; on iOS Safari (which has no such event) it shows the
@@ -16,6 +17,7 @@ function isIos() {
 }
 
 export default function InstallPrompt() {
+  const { name: brandName } = useTenantBranding();
   const [deferred, setDeferred] = useState(null);
   const [show, setShow] = useState(false);
   const [iosHint, setIosHint] = useState(false);
@@ -66,9 +68,9 @@ export default function InstallPrompt() {
       className="fixed bottom-4 inset-x-3 mx-auto max-w-sm bg-white rounded-2xl shadow-2xl border border-slate-200 p-4"
     >
       <div className="flex items-center gap-3">
-        <img src="/icons/icon-192.png" alt="עלינא" className="w-12 h-12 rounded-xl flex-shrink-0" />
+        <img src="/icons/icon-192.png" alt={brandName} className="w-12 h-12 rounded-xl flex-shrink-0" />
         <div className="flex-1 min-w-0">
-          <p className="font-black text-slate-800 text-sm">התקן את אפליקציית עלינא</p>
+          <p className="font-black text-slate-800 text-sm">התקן את אפליקציית {brandName}</p>
           <p className="text-slate-500 text-xs">גישה מהירה ממסך הבית + התראות</p>
         </div>
         <button onClick={dismiss} className="text-slate-300 hover:text-slate-500 text-xl leading-none px-1" aria-label="סגור">×</button>
