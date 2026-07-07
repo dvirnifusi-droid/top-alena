@@ -84,6 +84,33 @@ const MODULES: Array<{ key: string; done: (c: any, d: any) => boolean; offer: st
   { key: 'invoice', done: (c, d) => !!c.invoice_email || !!d._invoice_setup_sent, offer: 'איסוף חשבוניות ספקים אוטומטי מהמייל — זה דורש חיבור חד-פעמי של תיבת Gmail עם סיסמת-אפליקציה, אז אל תבקש כתובת; במקום זה הצע action=send_invoice_setup ואתה תשלח לו קישור הגדרה + הדרכה קצרה. (אפשר "אחר כך")' },
 ];
 
+// Clean, user-facing question per topic — used as a deterministic fallback so
+// the conversation ADVANCES even if the LLM turn fails (never "say that again"
+// forever).
+const FALLBACK_Q: Record<string, string> = {
+  name: 'איך קוראים למסעדה?',
+  address: 'מה הכתובת המדויקת? (רחוב, מספר, עיר)',
+  hours: 'מה שעות הפתיחה?',
+  cuisine: 'מה סוג המטבח?',
+  website: 'יש לעסק אתר אינטרנט? שלח לי את הקישור ואמשוך ממנו פרטים — או כתוב "אין לי".',
+  menu: 'יש לך תפריט? שלח צילום או PDF ואקרא את המנות — או "אחר כך".',
+  seating: 'כמה שולחנות יש בערך? (אפשר גם לשלוח צילום מפת הושבה, או "אחר כך")',
+  employees: 'רוצה להוסיף עובדים? שלח רשימה, או שאשלח קישור שכל עובד נרשם דרכו לבד. (או "אחר כך")',
+  roles: 'אילו תפקידים יש במסעדה? (רשימה מופרדת בפסיק, או "אחר כך")',
+  checklists: 'רוצה צ׳קליסטים תפעוליים? שלח קובץ קיים, או שאבנה לפי סוג העסק. (או "אחר כך")',
+  suppliers: 'עם אילו ספקים אתה עובד? (שורה לכל ספק: שם, קטגוריה, טלפון — או "אחר כך")',
+  training: 'יש תוכנית הכשרת צוות? שלח קובץ, או שאבנה לפי סוג העסק. (או "אחר כך")',
+  customers: 'יש קובץ מועדון לקוחות (מאושר דיוור)? שלח אותו. (או "אחר כך")',
+  knowledge: 'רוצה להעלות קבצי ידע ל-AI (נהלים/מתכונים/שאלות נפוצות)? שלח אחד-אחד. (או "אחר כך")',
+  slots: 'אילו ימים ושעות נוח לך לראיין מועמדים? (למשל "שני 14:00", או "אחר כך")',
+  invoice: 'רוצה איסוף חשבוניות אוטומטי מהמייל? כתוב "כן" ואשלח קישור הגדרה. (או "אחר כך")',
+  finish: 'עברנו על הכל! 🎉 סיימנו את ההקמה.',
+};
+function fallbackReply(nm: { key: string; offer: string }): string {
+  const q = FALLBACK_Q[nm.key];
+  return q ? (nm.key === 'finish' ? q : `בוא נמשיך 🙂 ${q}`) : 'אפשר לכתוב לי את זה שוב? 🙏';
+}
+
 function nextMissing(data: Record<string, any>): { key: string; offer: string } {
   const c = data._counts || {};
   if (!data.name) return { key: 'name', offer: 'שם המסעדה' };
@@ -153,11 +180,14 @@ async function onboardingBrain(
       },
       required: ['reply'],
     },
-    maxOutputTokens: 2048,
-    timeoutMs: 40_000,
+    // gemini-2.5-pro is a THINKING model — reasoning tokens count against this
+    // budget. 2048 got fully consumed by thinking, leaving an empty/truncated
+    // JSON body → parse failure → no reply → the fallback fired every turn.
+    maxOutputTokens: 8192,
+    timeoutMs: 45_000,
     _ctx: { fn_name: 'onboardingBrain', tenant_slug: tenant.slug },
   });
-  const out = result && result.reply ? result : { reply: 'סליחה, רגע — אפשר לכתוב לי את זה שוב? 🙏' };
+  const out = result && result.reply ? result : { reply: fallbackReply(nm), asking: nm.key };
   if (!out.asking) out.asking = nm.key;
   return out;
 }
