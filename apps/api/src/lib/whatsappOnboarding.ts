@@ -541,6 +541,15 @@ export async function tryHandleOnboardingMessage(fromPhone: string, body: string
     .catch((e: any) => { console.warn('[onboarding] brain:', e?.message); return { reply: 'סליחה, רגע קטן... אפשר לכתוב שוב? 🙏' }; });
   await applyExtraction(tenant, result, data).catch((e: any) => console.warn('[onboarding] apply:', e?.message));
 
+  // Deterministic suggest trigger — the brain sometimes replies "sure, I'll
+  // build it" WITHOUT emitting the action, then loops on the same topic. If
+  // we're on a suggestable topic and the owner asked to suggest/build, force it.
+  const askTopic = String(result.asking || data._asking || '');
+  const TOPIC_ACTION: Record<string, string> = { roles: 'suggest_roles', checklists: 'suggest_checklists', training: 'suggest_training' };
+  if (!result.action && TOPIC_ACTION[askTopic] && /(תציע|הצע|תבנה|בנה לי|תכין|הכן|אשמח|תעשה אתה|לפי סוג העסק)/i.test(body)) {
+    result.action = TOPIC_ACTION[askTopic];
+  }
+
   // Run any AI action the owner asked for (build checklists/roles/training,
   // or send the employee join link) and append its result to the reply.
   let reply = result.reply;
@@ -1115,6 +1124,7 @@ async function aiSuggestChecklists(tenant: any, data: Record<string, any>): Prom
       },
       required: ['checklists'],
     },
+    maxOutputTokens: 16384, // gemini-2.5-pro thinking + 3 checklists of tasks
     _ctx: { fn_name: 'onboardingSuggestChecklists', tenant_slug: tenant.slug },
   });
   const lists = (Array.isArray(result?.checklists) ? result.checklists : []).map((cl: any) => ({
