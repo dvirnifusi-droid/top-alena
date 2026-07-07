@@ -71,7 +71,7 @@ const MODULES: Array<{ key: string; done: (c: any, d: any) => boolean; offer: st
   { key: 'customers', done: (c) => c.customers > 0, offer: 'מועדון לקוחות — אם יש לו קובץ לקוחות מאושר דיוור, שישלח ואייבא. (אפשר "אחר כך")' },
   { key: 'knowledge', done: (c) => c.knowledge > 0, offer: 'מרכז ידע ל-AI — קבצים של נהלים/מתכונים/שאלות נפוצות שה-AI ישתמש בהם. שישלח אחד-אחד. (אפשר "אחר כך")' },
   { key: 'slots', done: (c) => c.slots > 0, offer: 'סלוטים לראיונות עבודה — ימים ושעות שנוח לו לראיין (למשל "שני 14:00"). (אפשר "אחר כך")' },
-  { key: 'invoice', done: (c) => !!c.invoice_email, offer: 'מייל לאיסוף חשבוניות — הכתובת שאליה מגיעות חשבוניות מספקים, ואייבא אותן אוטומטית. (אפשר "אחר כך")' },
+  { key: 'invoice', done: (c, d) => !!c.invoice_email || !!d._invoice_setup_sent, offer: 'איסוף חשבוניות ספקים אוטומטי מהמייל — זה דורש חיבור חד-פעמי של תיבת Gmail עם סיסמת-אפליקציה, אז אל תבקש כתובת; במקום זה הצע action=send_invoice_setup ואתה תשלח לו קישור הגדרה + הדרכה קצרה. (אפשר "אחר כך")' },
 ];
 
 function nextMissing(data: Record<string, any>): { key: string; offer: string } {
@@ -117,7 +117,7 @@ async function onboardingBrain(
     `- reply: מה לשלוח\n` +
     `- profile: שדות שהבעלים נתן עכשיו (רק אלה שהופיעו)\n` +
     `- list_kind + list_text: אם נתן רשימה בטקסט (list_kind = employees/suppliers/roles/interview_slots/invoice_emails, list_text = הטקסט)\n` +
-    `- action: אם הבעלים ביקש שתבנה לו — suggest_roles / suggest_checklists / suggest_training. אם ביקש קישור לעובדים — send_join_link. אחרת "".\n` +
+    `- action: אם הבעלים ביקש שתבנה לו — suggest_roles / suggest_checklists / suggest_training. אם ביקש קישור לעובדים — send_join_link. אם הנושא הוא איסוף חשבוניות מהמייל — send_invoice_setup. אחרת "".\n` +
     `- asking: "${nm.key}" (הנושא שאתה שואל עליו עכשיו)\n` +
     `- finished: true רק אם עברתם על הכל או שהבעלים אמר "סיימתי".`;
 
@@ -172,6 +172,16 @@ async function runBrainAction(tenant: any, action: string, data: Record<string, 
     if (action === 'send_join_link') {
       data._counts.invited = data._counts.invited || 1; // mark employees handled via link
       return `\n\n🔗 הנה קישור ההצטרפות לצוות — שתף אותו בקבוצת העובדים, כל אחד נרשם לבד ואתה מאשר:\nhttps://${tenant.slug}.topalena.com/JoinTeam`;
+    }
+    if (action === 'send_invoice_setup') {
+      data._invoice_setup_sent = true; // module handled — don't re-ask
+      return (
+        `\n\n🧾 כדי שאאסוף חשבוניות ספקים אוטומטית מהמייל, צריך לחבר תיבת Gmail פעם אחת:\n` +
+        `1️⃣ היכנס ל-https://myaccount.google.com/apppasswords (דורש אימות דו-שלבי פעיל)\n` +
+        `2️⃣ צור סיסמת אפליקציה בשם *TOP APOLLO* והעתק אותה (16 תווים)\n` +
+        `3️⃣ הדבק אותה + כתובת ה-Gmail כאן:\nhttps://${tenant.slug}.topalena.com/EmailInvoiceSettings\n\n` +
+        `מרגע החיבור אני סורק כל 10 דקות ומכניס חשבוניות ל"בהמתנה" לאישורך.`
+      );
     }
   } catch (e: any) {
     console.warn(`[onboarding] action ${action}:`, e?.message);
