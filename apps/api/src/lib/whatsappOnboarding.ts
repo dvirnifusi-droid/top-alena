@@ -60,7 +60,8 @@ const DONE_RE = /(סיימתי|זה הכל|זהו|מספיק|תסיים|סיים
 // Optional modules in order. `done` = already satisfied; `offer` = how the
 // brain should present it (one atomic question).
 const MODULES: Array<{ key: string; done: (c: any, d: any) => boolean; offer: string }> = [
-  { key: 'menu', done: (c) => c.menu > 0, offer: 'תפריט — בקש שישלח צילום או PDF ואתה תקרא את כל המנות. (אפשר "אחר כך")' },
+  { key: 'website', done: (c, d) => !!d._website_done, offer: 'אתר אינטרנט של העסק — אם יש, בקש שישלח את הקישור ואתה תמשוך ממנו תפריט + פרטי עסק (שם/כתובת/שעות/מטבח) אוטומטית. (אפשר "אין לי")' },
+  { key: 'menu', done: (c) => c.menu > 0, offer: 'תפריט — בקש שישלח צילום או PDF ואתה תקרא את כל המנות. (אם כבר משכנו מאתר, דלג). (אפשר "אחר כך")' },
   { key: 'seating', done: (c, d) => c.seating > 0 || c.tables > 0 || d.tables_count != null, offer: 'הושבה — שאל כמה שולחנות יש בערך, *או* הצע שישלח צילום/סקיצה של מפת ההושבה אם יש לו ואתה תבנה אותה. (אפשר "אחר כך")' },
   { key: 'employees', done: (c) => c.employees > 0 || c.invited > 0, offer: 'עובדים — הוא יכול לשלוח רשימה או קובץ, *או* שתיתן לו קישור הצטרפות אחד שכל עובד נרשם דרכו לבד (action=send_join_link). (אפשר "אחר כך")' },
   { key: 'roles', done: (c) => c.roles > 0, offer: 'תפקידים במסעדה — רשימה מופרדת בפסיק, *או* קובץ סידור עבודה קיים שאזהה ממנו תפקידים, *או* שאבנה תפקידים לפי סוג העסק (action=suggest_roles). (אפשר "אחר כך")' },
@@ -295,7 +296,8 @@ export async function startOnboarding(tenantId: string): Promise<void> {
   const first =
     `שלום ${tenant.owner_name || ''}! 🌿 אני העוזר החכם של TOP APOLLO, ואני אקים לך את המסעדה תוך כמה דקות — ` +
     `שאלה אחת בכל פעם. אפשר לענות בכתב, בהקלטה קולית, או פשוט לשלוח לי קבצים (תפריט, סידור עבודה, רשימת עובדים...) ואני אקרא ואטמיע לבד.\n\n` +
-    `בוא נתחיל — *איך קוראים למסעדה?*`;
+    `🌐 יש לעסק *אתר אינטרנט*? שלח לי עכשיו את הקישור ואמשוך ממנו לבד את רוב הפרטים — תפריט, כתובת, שעות ועוד.\n\n` +
+    `או שנתחיל ידני — *איך קוראים למסעדה?*`;
   const data: Record<string, any> = { _history: [{ role: 'assistant', content: first }] };
   await setPhase(tenantId, 'active', data);
   await sendWhatsApp(tenant.owner_phone, first);
@@ -344,6 +346,86 @@ export async function tryHandleOnboardingMessage(fromPhone: string, body: string
     // Not a confirm/correction — the owner moved on. Drop the pending file and
     // treat this message normally.
     delete data._pending_file;
+  }
+
+  // ── Pending WEBSITE import confirmation? The owner pasted a URL, we pulled
+  // menu + details and asked "לאשר?". Interpret their reply before the brain.
+  if (data._pending_website?.url) {
+    const pw = data._pending_website;
+    if (CONFIRM_YES_RE.test(body.trim())) {
+      const b = pw.business || {};
+      for (const k of ['name', 'address', 'phone', 'opening_hours', 'cuisine', 'description']) {
+        if (b[k] != null && String(b[k]).trim() && !data[k]) data[k] = String(b[k]).trim();
+      }
+      await persistCoreData(tenant, data).catch(() => {});
+      const menuN = await insertDishes(tenant, Array.isArray(pw.dishes) ? pw.dishes : []).catch(() => 0);
+      data._counts = data._counts || {};
+      data._counts.menu = (data._counts.menu || 0) + menuN;
+      data._website_done = true;
+      delete data._pending_website;
+      history.push({ role: 'user', content: body });
+      const labels: Record<string, string> = { name: 'שם', address: 'כתובת', opening_hours: 'שעות', cuisine: 'מטבח' };
+      const got = ['name', 'address', 'opening_hours', 'cuisine'].filter((k) => b[k]).map((k) => labels[k]).join(', ');
+      const synthetic = `[הבעלים אישר ייבוא מהאתר. הוטמעו ${menuN} מנות${got ? ` ופרטי העסק (${got})` : ''}. הודה בקצרה וציין את המספר, ואז המשך לשאלה הבאה שחסרה.]`;
+      const r = await onboardingBrain(tenant, history, synthetic, data)
+        .catch(() => ({ reply: `✅ הטמעתי ${menuN} מנות מהאתר${got ? ' + פרטי העסק' : ''}! נמשיך.` }));
+      await applyExtraction(tenant, r, data).catch(() => {});
+      history.push({ role: 'assistant', content: r.reply });
+      data._history = history.slice(-24);
+      await setPhase(state.tenant_id, 'active', data);
+      await sendWhatsApp(fromPhone, r.reply);
+      return true;
+    }
+    // Not "כן" — drop the pending import and treat this message normally.
+    delete data._pending_website;
+    data._website_done = true;
+  }
+
+  // ── Owner pasted a website URL (and we haven't imported/attempted yet)?
+  // ACK fast, then fetch + extract menu & details in the BACKGROUND and come
+  // back with a confirm-before-embed summary. The fetch can take up to ~90s —
+  // it must NOT block the webhook (Twilio retries after 15s → double-process).
+  const urlHit = !data._website_done && !data._pending_website && !data._website_fetching
+    ? body.match(/(https?:\/\/[^\s]+|www\.[^\s.]+\.[^\s]+)/i) : null;
+  if (urlHit) {
+    let url = urlHit[1].replace(/[.,)]+$/, '');
+    if (/^www\./i.test(url)) url = 'https://' + url;
+    history.push({ role: 'user', content: body });
+    data._website_fetching = true;
+    data._history = history.slice(-24);
+    await setPhase(state.tenant_id, 'active', data);
+    await sendWhatsApp(fromPhone, '🔎 רגע, נכנס לאתר ומושך ממנו תפריט ופרטים...');
+    void (async () => {
+      const ext = await extractFromWebsite(tenant, url).catch(() => null);
+      // Reload the latest state (the owner may have sent another message).
+      const fresh = await findActiveOnboarding(fromPhone).catch(() => null);
+      const d: Record<string, any> = fresh?.collected_data || data;
+      const h: any[] = Array.isArray(d._history) ? d._history : history;
+      delete d._website_fetching;
+      const hasBiz = !!ext && ext.business && Object.keys(ext.business).some((k) => ext.business[k]);
+      if (ext && (ext.dishes.length || hasBiz)) {
+        d._pending_website = { url, business: ext.business, dishes: ext.dishes };
+        const b = ext.business || {};
+        const detail = [b.name && `שם: ${b.name}`, b.address && `כתובת: ${b.address}`, b.opening_hours && `שעות: ${b.opening_hours}`, b.cuisine && `מטבח: ${b.cuisine}`, b.phone && `טלפון: ${b.phone}`].filter(Boolean).join('\n');
+        const sample = ext.dishes.slice(0, 4).map((x: any) => String(x?.name || '')).filter(Boolean).join('* · *');
+        const msg =
+          `מצאתי באתר 🌐\n${detail || '(לא זוהו פרטי עסק)'}\n\n` +
+          (ext.dishes.length ? `🍽 *${ext.dishes.length} מנות*${sample ? ` (למשל: *${sample}*)` : ''}\n\n` : 'לא זיהיתי תפריט מהאתר.\n\n') +
+          `שאטמיע את הכל? כתוב *כן* לאישור, או *לא*. (אפשר גם לשלוח צילום תפריט במקום)`;
+        h.push({ role: 'assistant', content: msg });
+        d._history = h.slice(-24);
+        await setPhase(state.tenant_id, 'active', d).catch(() => {});
+        await sendWhatsApp(fromPhone, msg).catch(() => {});
+      } else {
+        d._website_done = true;
+        const msg = 'לא הצלחתי למשוך תוכן מהאתר 🤔 אם בא לך שלח לי צילום או PDF של התפריט ואקרא אותו — או שנמשיך הלאה.';
+        h.push({ role: 'assistant', content: msg });
+        d._history = h.slice(-24);
+        await setPhase(state.tenant_id, 'active', d).catch(() => {});
+        await sendWhatsApp(fromPhone, msg).catch(() => {});
+      }
+    })();
+    return true;
   }
 
   history.push({ role: 'user', content: body });
@@ -534,18 +616,154 @@ async function extractAndInsertMenu(tenant: any, mediaUrl: string): Promise<numb
     { name: { type: 'string' }, category: { type: 'string' }, price: { type: 'number' }, description: { type: 'string' } },
     'dishes', tenant.slug,
   );
+  return insertDishes(tenant, items);
+}
+
+// Shared MenuItem insert — used by both the file extractor and the website
+// importer. One MenuItem table, split by `category` (food categories + שתייה
+// for drinks); there is no separate "food menu" vs "drink menu".
+async function insertDishes(tenant: any, dishes: any[]): Promise<number> {
   const schema = `tenant_${tenant.slug}`;
   let n = 0;
-  for (const it of items) {
+  for (const it of (Array.isArray(dishes) ? dishes : []).slice(0, 400)) {
     const name = String(it?.name || '').trim();
     if (!name) continue;
     await sql(
       `INSERT INTO "${schema}"."MenuItem" ("id", "name", "category", "description", "price", "available", "createdAt", "updatedAt")
        VALUES ($1, $2, $3, $4, $5, true, NOW(), NOW())`,
-      await uuid(), name, String(it?.category || 'כללי'), it?.description ? String(it.description) : null, Number(it?.price) || 0,
+      await uuid(), name.slice(0, 200), String(it?.category || 'כללי').slice(0, 80), it?.description ? String(it.description).slice(0, 500) : null, Number(it?.price) || 0,
     ).then(() => n++).catch((e: any) => console.warn('[onboarding] menu insert:', e?.message));
   }
   return n;
+}
+
+// === Website import ========================================================
+// Pull the menu + business details straight from the owner's existing website
+// so onboarding can start from a URL instead of a photo. Best-effort: fetches
+// the landing page + a couple of menu/about sub-pages, strips to text, keeps
+// any JSON-LD (Restaurant schema is gold), and lets the LLM extract.
+
+async function fetchHtml(url: string): Promise<string> {
+  try {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 15_000);
+    const res = await fetch(url, {
+      redirect: 'follow',
+      signal: ctrl.signal,
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (compatible; TopApolloBot/1.0; +https://topalena.com)',
+        'Accept': 'text/html,application/xhtml+xml',
+        'Accept-Language': 'he,en;q=0.8',
+      },
+    } as any);
+    clearTimeout(t);
+    const ct = res.headers.get('content-type') || '';
+    if (!res.ok || !/html|text/i.test(ct)) return '';
+    return (await res.text()).slice(0, 600_000);
+  } catch { return ''; }
+}
+
+function htmlToText(html: string): string {
+  return html
+    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<!--[\s\S]*?-->/g, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/gi, ' ').replace(/&amp;/gi, '&').replace(/&quot;/gi, '"')
+    .replace(/&#\d+;/g, ' ').replace(/&[a-z]+;/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function extractJsonLd(html: string): string {
+  const out: string[] = [];
+  const re = /<script[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(html)) && out.length < 4) out.push(m[1].trim().slice(0, 4000));
+  return out.length ? `\n\n[JSON-LD]\n${out.join('\n')}` : '';
+}
+
+function findRelevantLinks(html: string, base: string): string[] {
+  let origin: URL;
+  try { origin = new URL(base); } catch { return []; }
+  const kw = /(menu|תפריט|food|אוכל|משקאות|בר|about|אודות|עלינו|contact|צור.?קשר|שעות|hours)/i;
+  const links: string[] = [];
+  const re = /<a[^>]+href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(html)) && links.length < 6) {
+    const href = m[1]; const text = m[2].replace(/<[^>]+>/g, ' ');
+    if (!kw.test(href) && !kw.test(text)) continue;
+    try {
+      const abs = new URL(href, base);
+      if (abs.origin !== origin.origin) continue; // same-site only
+      const s = abs.toString().split('#')[0];
+      if (s !== base && !links.includes(s)) links.push(s);
+    } catch { /* ignore bad href */ }
+  }
+  return links;
+}
+
+async function fetchWebsiteText(url: string): Promise<string> {
+  const mainHtml = await fetchHtml(url);
+  if (!mainHtml) return '';
+  let combined = htmlToText(mainHtml) + extractJsonLd(mainHtml);
+  const seen = new Set<string>([url.split('#')[0]]);
+  const subs = findRelevantLinks(mainHtml, url);
+  // If the landing page exposes few/no menu links (splash pages, JS navs),
+  // also probe the most common menu/about paths so we still find the menu.
+  if (subs.length < 2) {
+    try {
+      const o = new URL(url);
+      for (const p of ['menu', 'תפריט', 'our-menu', 'food', 'about', 'אודות', 'contact']) {
+        const guess = `${o.origin}/${encodeURI(p)}`;
+        if (!subs.includes(guess)) subs.push(guess);
+      }
+    } catch { /* bad base URL */ }
+  }
+  for (const l of subs.slice(0, 5)) {
+    if (seen.has(l)) continue;
+    seen.add(l);
+    const h = await fetchHtml(l);
+    if (h) combined += `\n\n[${l}]\n` + htmlToText(h) + extractJsonLd(h);
+    if (combined.length > 30_000) break;
+  }
+  return combined.slice(0, 30_000);
+}
+
+async function extractFromWebsite(tenant: any, url: string): Promise<{ business: any; dishes: any[] } | null> {
+  const text = await fetchWebsiteText(url);
+  if (!text || text.length < 40) return null;
+  const { invokeLLM } = await import('./llm.js');
+  const result: any = await invokeLLM({
+    prompt:
+      `להלן טקסט שחולץ מאתר אינטרנט של מסעדה/עסק אוכל. חלץ ממנו רק מה שבאמת מופיע — אל תמציא כלום.\n` +
+      `1. business: name, address, phone, opening_hours (טקסט חופשי), cuisine (סוג מטבח), description (משפט תיאור קצר).\n` +
+      `2. dishes: כל המנות/פריטי התפריט — לכל אחת name, category (ראשונות/עיקריות/שתייה/קינוחים... או "כללי"), price (מספר בלבד), description אם יש.\n` +
+      `אם שדה לא מופיע — השאר ריק. אם אין תפריט בטקסט — dishes ריק.\n\n===\n${text}`,
+    responseSchema: {
+      type: 'object',
+      properties: {
+        business: {
+          type: 'object',
+          properties: {
+            name: { type: 'string' }, address: { type: 'string' }, phone: { type: 'string' },
+            opening_hours: { type: 'string' }, cuisine: { type: 'string' }, description: { type: 'string' },
+          },
+        },
+        // `dishes`, NOT `items` (Gemini keyword collision → empty).
+        dishes: {
+          type: 'array',
+          items: { type: 'object', properties: { name: { type: 'string' }, category: { type: 'string' }, price: { type: 'number' }, description: { type: 'string' } } },
+        },
+      },
+      required: ['dishes'],
+    },
+    maxOutputTokens: 32768,
+    timeoutMs: 90_000,
+    _ctx: { fn_name: 'onboardingWebsite', tenant_slug: tenant.slug },
+  }).catch(() => null);
+  if (!result) return null;
+  return { business: result.business || {}, dishes: Array.isArray(result.dishes) ? result.dishes : [] };
 }
 
 async function extractAndInsertChecklists(tenant: any, mediaUrl: string, _data: Record<string, any>): Promise<number> {
