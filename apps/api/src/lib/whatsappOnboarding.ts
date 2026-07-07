@@ -531,6 +531,30 @@ export async function tryHandleOnboardingMessage(fromPhone: string, body: string
 
   history.push({ role: 'user', content: body });
 
+  // ── Question-first checklists: the owner is answering our stations/critical/
+  // equipment question → generate TAILORED checklists from their answer + all
+  // known context (menu, cuisine). "תבנה מה שמתאים"/skip → build from context.
+  if (data._pending_checklist_qa) {
+    delete data._pending_checklist_qa;
+    data._checklist_qa_done = true;
+    const ctx = SKIP_RE.test(body) || /תבנה מה שמתאים|מה שאתה חושב|מה שיש|כמו שאתה/i.test(body) ? '' : body.trim();
+    const n = await aiSuggestChecklists(tenant, data, ctx).catch(() => 0);
+    data._counts = data._counts || {};
+    data._counts.checklists = (data._counts.checklists || 0) + n;
+    const note = n
+      ? `✅ מעולה! בניתי לך ${n} צ'קליסטים מדויקים (פתיחה / סגירה / מטבח) לפי מה שסיפרת. 📋\nתוכל לראות ולערוך אותם בעמוד "צ'קליסטים".`
+      : 'לא הצלחתי לבנות צ׳קליסטים כרגע 🤔 נמשיך ונחזור לזה.';
+    const r = await onboardingBrain(tenant, history, `[הבעלים ענה על שאלות הצ'קליסטים ובניתי ${n} צ'קליסטים. הודה בקצרה והמשך לשאלה הבאה שחסרה — אל תבקש שוב צ'קליסטים.]`, data).catch(() => null);
+    await applyExtraction(tenant, r || {}, data).catch(() => {});
+    const nm2 = nextMissing(data);
+    const reply = `${note}\n\n${pickReply(r, nm2.key === 'finish' ? 'עברנו על הכל! 🎉' : 'נמשיך! 🙂')}`;
+    history.push({ role: 'assistant', content: reply });
+    data._history = history.slice(-24);
+    await setPhase(state.tenant_id, 'active', data);
+    await sendWhatsApp(fromPhone, reply);
+    return true;
+  }
+
   // If the owner skipped the current topic, remember it so we don't re-ask.
   if (SKIP_RE.test(body) && data._asking && data._asking !== 'name' && data._asking !== 'address' && data._asking !== 'hours' && data._asking !== 'cuisine') {
     data._done_modules = Array.isArray(data._done_modules) ? data._done_modules : [];
@@ -548,6 +572,15 @@ export async function tryHandleOnboardingMessage(fromPhone: string, body: string
   const TOPIC_ACTION: Record<string, string> = { roles: 'suggest_roles', checklists: 'suggest_checklists', training: 'suggest_training' };
   if (!result.action && TOPIC_ACTION[askTopic] && /(תציע|הצע|תבנה|בנה לי|תכין|הכן|אשמח|תעשה אתה|לפי סוג העסק)/i.test(body)) {
     result.action = TOPIC_ACTION[askTopic];
+  }
+
+  // Checklists are QUESTION-FIRST for precision: before generating, ask ONE rich
+  // question about stations / critical items / equipment. The owner's next
+  // message answers it (handled above) and drives a tailored generation.
+  if (result.action === 'suggest_checklists' && !data._checklist_qa_done) {
+    data._pending_checklist_qa = true;
+    result.action = '';
+    result.reply = `${result.reply || 'בכיף! 📋'}\n\n📋 כדי לבנות צ'קליסטים מדויקים בדיוק לעסק שלך, ספר לי בקצרה:\n• אילו עמדות/תחנות יש? (בר / מטבח / עמדת אסאי / קופה / משלוחים)\n• מה 2-3 הדברים שהכי חשוב שלא יישכחו בפתיחה ובסגירה?\n• יש ציוד מיוחד שדורש טיפול יומי?\n\n(או פשוט כתוב "תבנה מה שמתאים" ואבנה לפי מה שכבר ידוע לי)`;
   }
 
   // Run any AI action the owner asked for (build checklists/roles/training,
@@ -1101,13 +1134,25 @@ async function saveInvoiceEmails(tenant: any, emails: string[]): Promise<void> {
 
 // --- AI suggestions (when the owner has no file of their own) --------------
 
-async function aiSuggestChecklists(tenant: any, data: Record<string, any>): Promise<number> {
+async function aiSuggestChecklists(tenant: any, data: Record<string, any>, extraContext = ''): Promise<number> {
   const { invokeLLM } = await import('./llm.js');
+  // Pull the actual menu for precision — what they make reveals equipment/stations.
+  let menuHint = '';
+  try {
+    const schema = `tenant_${tenant.slug}`;
+    const cats: any[] = await query(`SELECT DISTINCT category FROM "${schema}"."MenuItem" WHERE category IS NOT NULL LIMIT 12`).catch(() => []);
+    const names: any[] = await query(`SELECT name FROM "${schema}"."MenuItem" ORDER BY "createdAt" LIMIT 12`).catch(() => []);
+    const c = cats.map((r) => r.category).filter(Boolean);
+    const nm = names.map((r) => r.name).filter(Boolean);
+    if (c.length || nm.length) menuHint = `\nהתפריט כולל קטגוריות: ${c.join(', ')}. דוגמאות מנות: ${nm.slice(0, 10).join(', ')}. הסק מזה איזה ציוד/תחנות יש והתאם משימות.`;
+  } catch { /* menu not available */ }
   const result: any = await invokeLLM({
     prompt:
       `בנה 3 צ'קליסטים תפעוליים מדויקים למסעדה מסוג "${data.cuisine || 'כללי'}"` +
-      `${data.description ? ` (${data.description})` : ''}: (1) פתיחת בוקר, (2) סגירת ערב, (3) מטבח/הכנות.\n` +
-      `התאם את המשימות ספציפית לעסק הזה — קונקרטיות ורלוונטיות (למשל ציוד/תחנות אופייניות), לא כלליות.\n` +
+      `${data.description ? ` (${data.description})` : ''}: (1) פתיחת בוקר, (2) סגירת ערב, (3) מטבח/הכנות.` +
+      menuHint +
+      `${extraContext ? `\n\nמידע שהבעלים מסר (חשוב — השתמש בו לדיוק): ${extraContext}` : ''}\n` +
+      `התאם את המשימות ספציפית לעסק הזה — קונקרטיות ורלוונטיות (ציוד/תחנות אמיתיים), לא כלליות.\n` +
       `חובה: לכל אחד מ-3 הצ'קליסטים החזר title, category, ו-tasks (7-12 משימות קצרות בעברית). אל תשאיר אף צ'קליסט בלי משימות.`,
     responseSchema: {
       type: 'object',
