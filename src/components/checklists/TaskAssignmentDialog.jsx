@@ -12,7 +12,7 @@ export default function TaskAssignmentDialog({ isOpen, onClose, checklist, emplo
         if (checklist?.items) {
             const initialAssignments = {};
             checklist.items.forEach(item => {
-                const taskId = `${checklist.id}_${item.order}`;
+                const taskId = `${checklist.id}_${item.id ?? item.order}`;
                 initialAssignments[taskId] = item.assigned_to_employee_id || '';
             });
             setAssignments(initialAssignments);
@@ -39,7 +39,7 @@ export default function TaskAssignmentDialog({ isOpen, onClose, checklist, emplo
         setSaving(true);
         try {
             const updatedItems = checklist.items.map(item => {
-                const taskId = `${checklist.id}_${item.order}`;
+                const taskId = `${checklist.id}_${item.id ?? item.order}`;
                 const assignedEmployeeId = assignments[taskId];
                 return {
                     ...item,
@@ -58,12 +58,12 @@ export default function TaskAssignmentDialog({ isOpen, onClose, checklist, emplo
         // Build message grouped by employee
         const byEmployee = {};
         checklist.items?.forEach(item => {
-            const taskId = `${checklist.id}_${item.order}`;
+            const taskId = `${checklist.id}_${item.id ?? item.order}`;
             const empId = assignments[taskId];
             if (!empId) return;
             const name = getEmployeeName(empId);
             if (!byEmployee[name]) byEmployee[name] = [];
-            byEmployee[name].push(`• ${item.area} - ${item.task}`);
+            byEmployee[name].push(`• ${item.area ? item.area + ' - ' : ''}${item.task || item.text || item.name || ''}`);
         });
 
         if (Object.keys(byEmployee).length === 0) return;
@@ -73,7 +73,7 @@ export default function TaskAssignmentDialog({ isOpen, onClose, checklist, emplo
         for (const [name, tasks] of Object.entries(byEmployee)) {
             msg += `👤 *${name}:*\n${tasks.join('\n')}\n\n`;
         }
-        msg += `✅ סה"כ ${checklist.items?.filter(i => assignments[`${checklist.id}_${i.order}`]).length} משימות משויכות`;
+        msg += `✅ סה"כ ${checklist.items?.filter(i => assignments[`${checklist.id}_${i.id ?? i.order}`]).length} משימות משויכות`;
 
         const encoded = encodeURIComponent(msg);
         window.open(`https://wa.me/?text=${encoded}`, '_blank');
@@ -89,12 +89,12 @@ export default function TaskAssignmentDialog({ isOpen, onClose, checklist, emplo
                 
                 <div className="flex-grow overflow-y-auto pr-2 space-y-3">
                     {checklist.items?.map(item => {
-                        const taskId = `${checklist.id}_${item.order}`;
+                        const taskId = `${checklist.id}_${item.id ?? item.order}`;
                         return (
                             <div key={taskId} className="flex items-center justify-between p-3 border rounded-lg bg-gray-50">
                                 <div className="flex-1 mr-4">
-                                    <p className="font-semibold">{item.area} - {item.task}</p>
-                                    <p className="text-sm text-gray-500">{item.description}</p>
+                                    <p className="font-semibold">{item.area ? `${item.area} - ` : ''}{item.task || item.text || item.name || ''}</p>
+                                    {item.description && <p className="text-sm text-gray-500">{item.description}</p>}
                                 </div>
                                 <div className="w-56">
                                     <Select 

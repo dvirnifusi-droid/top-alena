@@ -200,7 +200,7 @@ async function runBrainAction(tenant: any, action: string, data: Record<string, 
   try {
     if (action === 'suggest_checklists') {
       const n = await aiSuggestChecklists(tenant, data); data._counts.checklists = (data._counts.checklists || 0) + n;
-      return n ? `\n\n✅ בניתי לך ${n} צ׳קליסטים לפי סוג העסק (טיוטות — אפשר לערוך באפליקציה).` : '';
+      return n ? `\n\n✅ בניתי לך ${n} צ׳קליסטים (פתיחה / סגירה / מטבח) לפי סוג העסק. 📋\nתוכל לראות ולערוך אותם בעמוד "צ׳קליסטים" באפליקציה.` : '';
     }
     if (action === 'suggest_roles') {
       const roles = await aiSuggestRoles(tenant, data); data._counts.roles = (data._counts.roles || 0) + roles.length;
@@ -1105,9 +1105,10 @@ async function aiSuggestChecklists(tenant: any, data: Record<string, any>): Prom
   const { invokeLLM } = await import('./llm.js');
   const result: any = await invokeLLM({
     prompt:
-      `בנה 3 צ'קליסטים תפעוליים למסעדה מסוג "${data.cuisine || 'כללי'}"` +
-      `${data.description ? ` (${data.description})` : ''}: פתיחת בוקר, סגירת ערב, ומטבח.\n` +
-      `לכל אחד: title, category, tasks (6-12 משימות קצרות בעברית).`,
+      `בנה 3 צ'קליסטים תפעוליים מדויקים למסעדה מסוג "${data.cuisine || 'כללי'}"` +
+      `${data.description ? ` (${data.description})` : ''}: (1) פתיחת בוקר, (2) סגירת ערב, (3) מטבח/הכנות.\n` +
+      `התאם את המשימות ספציפית לעסק הזה — קונקרטיות ורלוונטיות (למשל ציוד/תחנות אופייניות), לא כלליות.\n` +
+      `חובה: לכל אחד מ-3 הצ'קליסטים החזר title, category, ו-tasks (7-12 משימות קצרות בעברית). אל תשאיר אף צ'קליסט בלי משימות.`,
     responseSchema: {
       type: 'object',
       properties: {
@@ -1124,7 +1125,7 @@ async function aiSuggestChecklists(tenant: any, data: Record<string, any>): Prom
       },
       required: ['checklists'],
     },
-    maxOutputTokens: 16384, // gemini-2.5-pro thinking + 3 checklists of tasks
+    maxOutputTokens: 32768, // gemini-2.5-pro thinking + 3 full checklists (16384 truncated to 1)
     _ctx: { fn_name: 'onboardingSuggestChecklists', tenant_slug: tenant.slug },
   });
   const lists = (Array.isArray(result?.checklists) ? result.checklists : []).map((cl: any) => ({
