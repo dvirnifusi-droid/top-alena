@@ -47,7 +47,7 @@ const db = prisma as any; // generic delegate access
 
 // Public deploy marker — lets us confirm which build is live (and that
 // auto-deploy is working) without server access. Bump on each deploy test.
-registerFn('deployInfo', async () => ({ version: 'training-per-chapter-2026-07-08', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
+registerFn('deployInfo', async () => ({ version: 'plan-fn-body-fix-2026-07-08', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
 
 
 
@@ -13289,9 +13289,11 @@ registerFn('listPlans', async ({ user }) => {
   };
 });
 
-registerFn('upsertPlan', async ({ user, key, name, price_monthly, price_yearly, trial_days, max_users, max_employees, max_whatsapp, modules, sub_features, is_default, active }: any) => {
+registerFn('upsertPlan', async ({ user, body }: any) => {
   if (!isSuperAdmin(user)) throw new Error('super-admin only');
   await ensurePlatformTables();
+  // Params arrive under `body` (FnCtx = { body, user, req }) — NOT at top level.
+  const { key, name, price_monthly, price_yearly, trial_days, max_users, max_employees, max_whatsapp, modules, sub_features, is_default, active } = (body || {}) as any;
   const planKey = String(key || '').trim().toLowerCase().replace(/[^a-z0-9_-]/g, '');
   if (!planKey) throw new Error('missing plan key');
   const validKeys = new Set(MODULE_CATALOG.filter((m) => !m.core).map((m) => m.key));
@@ -13321,9 +13323,11 @@ registerFn('upsertPlan', async ({ user, key, name, price_monthly, price_yearly, 
 // ModuleSetting rows (so the tenant app's existing getMyTenantModules keeps
 // working with zero cross-schema reads at request time). Manual toggles made
 // afterwards act as per-tenant overrides until the plan is re-assigned.
-registerFn('assignTenantPlan', async ({ user, tenant_id, plan_key }: any) => {
+registerFn('assignTenantPlan', async ({ user, body }: any) => {
   if (!isSuperAdmin(user)) throw new Error('super-admin only');
   await ensurePlatformTables();
+  // Params arrive under `body` (FnCtx = { body, user, req }) — NOT at top level.
+  const { tenant_id, plan_key } = (body || {}) as any;
   const rows: any[] = await (prisma as any).$queryRawUnsafe(
     `SELECT id, slug FROM "Tenant" WHERE id = $1`, tenant_id,
   );
