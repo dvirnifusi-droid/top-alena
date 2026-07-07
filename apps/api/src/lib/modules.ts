@@ -240,3 +240,30 @@ export function getModuleForPage(pageName: string): ModuleDef | null {
   }
   return null;
 }
+
+// ── Sub-features ───────────────────────────────────────────────────────────
+// Granular capabilities WITHIN a module (e.g. basic vs advanced scheduling).
+// A plan can include a module but gate its premium sub-features. A sub-feature
+// can belong to a CORE module too (everyone gets basic scheduling; "advanced"
+// is a paid sub-feature). Enforced in the app via useFeature/FeatureGate.
+export interface SubFeatureDef {
+  key: string;
+  module_key: string;   // parent module
+  name_he: string;
+  description_he: string;
+}
+
+export const SUB_FEATURE_CATALOG: SubFeatureDef[] = [
+  { key: 'sched_advanced', module_key: 'work_scheduling', name_he: 'סידור מתקדם', description_he: 'הגשת אילוצים, חילופי משמרות אוטומטיים ובדיקת דיני עבודה.' },
+  { key: 'emp_performance', module_key: 'employees', name_he: 'ניתוח ביצועים', description_he: 'מדדי ביצוע, ניתוח סיכון ונשירה לכל עובד.' },
+  { key: 'emp_pay', module_key: 'employees', name_he: 'שכר ועלויות', description_he: 'שכר לעובד, עלות שכר מול תקציב, פרטיות לפי מחלקה.' },
+  { key: 'queue_analytics', module_key: 'queue', name_he: 'אנליטיקת תורים', description_he: 'זמני המתנה, שעות עומס וניתוח היסטורי של התור.' },
+  { key: 'events_contracts', module_key: 'events', name_he: 'חוזים ומקדמות', description_he: 'חוזים דיגיטליים, חתימה, מקדמות ותשלומים לאירועים.' },
+  { key: 'club_campaigns', module_key: 'customer_club', name_he: 'קמפיינים ודיוור', description_he: 'שליחת קמפיינים ממוקדים ללקוחות המועדון (וואטסאפ/SMS).' },
+  { key: 'fin_accountant', module_key: 'financial', name_he: 'ייצוא לרואה חשבון', description_he: 'ייצוא מסמכים ודוחות בפורמט לרו״ח.' },
+  { key: 'fin_bi', module_key: 'financial', name_he: 'דאשבורד BI + חיזוי', description_he: 'אנליטיקה אינטראקטיבית, השוואות וחיזוי עומסים מבוסס AI.' },
+];
+
+export function subFeaturesForModule(moduleKey: string): SubFeatureDef[] {
+  return SUB_FEATURE_CATALOG.filter((s) => s.module_key === moduleKey);
+}

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { base44 } from '@/api/base44Client';
 
 // 5-min localStorage cache to avoid a network call on every page load.
@@ -99,5 +99,26 @@ export function useTenantModules() {
   const isLocked = useCallback((pageName) => !!moduleForPage(pageName)?.locked, [moduleForPage]);
   const unlockPlanFor = useCallback((pageName) => moduleForPage(pageName)?.unlock_plan || null, [moduleForPage]);
 
-  return { modules, loading, isEnabled, pageEnabled, moduleForPage, isLocked, unlockPlanFor, refresh: load };
+  // Flat index of every feature key (module + sub-feature) → its state, for
+  // granular sub-feature gates via hasFeature('sched_advanced') etc.
+  const featureIndex = useMemo(() => {
+    const idx = {};
+    for (const m of (modules || [])) {
+      idx[m.key] = m;
+      for (const s of (m.sub_features || [])) idx[s.key] = s;
+    }
+    return idx;
+  }, [modules]);
+  const hasFeature = useCallback((key) => {
+    if (!modules) return true; // not loaded yet → don't flash a lock
+    const f = featureIndex[key];
+    return f ? !!f.enabled : true; // unknown key → allow (safe default)
+  }, [featureIndex, modules]);
+  const isFeatureLocked = useCallback((key) => !!featureIndex[key]?.locked, [featureIndex]);
+  const featureUnlockPlan = useCallback((key) => featureIndex[key]?.unlock_plan || null, [featureIndex]);
+
+  return {
+    modules, loading, isEnabled, pageEnabled, moduleForPage, isLocked, unlockPlanFor,
+    hasFeature, isFeatureLocked, featureUnlockPlan, refresh: load,
+  };
 }

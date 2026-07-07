@@ -20,7 +20,7 @@ import { sendEmail } from '../lib/email.js';
 import { invokeLLM, generateImage } from '../lib/llm.js';
 import { driveAccessToken, listDriveFiles, downloadDriveFile } from '../lib/gdrive.js';
 import { uploadStreamToS3 } from '../lib/storage.js';
-import { MODULE_CATALOG } from '../lib/modules.js';
+import { MODULE_CATALOG, SUB_FEATURE_CATALOG } from '../lib/modules.js';
 import { getMyMonthlyUsage } from '../lib/aiUsage.js';
 import { getBrandName, renderBrand } from '../lib/brandName.js';
 import { businessContextBlock, invalidateBusinessContextCache } from '../lib/businessContext.js';
@@ -47,7 +47,7 @@ const db = prisma as any; // generic delegate access
 
 // Public deploy marker — lets us confirm which build is live (and that
 // auto-deploy is working) without server access. Bump on each deploy test.
-registerFn('deployInfo', async () => ({ version: 'platform-billing-mrr-2026-07-07', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
+registerFn('deployInfo', async () => ({ version: 'platform-subfeatures-2026-07-07', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
 
 
 
@@ -12785,15 +12785,28 @@ async function ensurePlatformTables() {
     "max_employees" INTEGER,
     "max_whatsapp" INTEGER,
     "modules" JSONB NOT NULL DEFAULT '[]'::jsonb,
+    "sub_features" JSONB NOT NULL DEFAULT '[]'::jsonb,
     "is_default" BOOLEAN NOT NULL DEFAULT false,
     "active" BOOLEAN NOT NULL DEFAULT true,
     "sort_order" INTEGER NOT NULL DEFAULT 0,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
   )`);
+  await sql(`ALTER TABLE "Plan" ADD COLUMN IF NOT EXISTS "sub_features" JSONB NOT NULL DEFAULT '[]'::jsonb`);
   await sql(`ALTER TABLE "Tenant" ADD COLUMN IF NOT EXISTS "plan_key" TEXT`);
   await sql(`ALTER TABLE "Tenant" ADD COLUMN IF NOT EXISTS "plan_since" TIMESTAMP(3)`);
   await sql(`ALTER TABLE "Tenant" ADD COLUMN IF NOT EXISTS "trial_ends_at" TIMESTAMP(3)`);
+  // Backfill default sub-features for the built-in tiers (only if untouched, so
+  // owner edits survive). Pro gets the advanced sub-features; Enterprise all.
+  const proSubs = ['sched_advanced', 'emp_performance', 'emp_pay', 'queue_analytics', 'events_contracts', 'club_campaigns', 'fin_accountant'];
+  const entSubs = [...proSubs, 'fin_bi'];
+  for (const [k, subs] of [['pro', proSubs], ['enterprise', entSubs]] as [string, string[]][]) {
+    await sql(
+      `UPDATE "Plan" SET sub_features = $1::jsonb, "updatedAt" = NOW()
+       WHERE key = $2 AND (sub_features IS NULL OR jsonb_array_length(sub_features) = 0)`,
+      JSON.stringify(subs), k,
+    ).catch(() => {});
+  }
   // Seed the three default tiers (idempotent — ON CONFLICT keeps owner edits).
   const seedPlans = [
     { key: 'basic', name: 'Basic', price_monthly: 199, price_yearly: 1990, trial_days: 14, max_users: 3, max_employees: 15, max_whatsapp: 500, is_default: true, sort_order: 1,
@@ -13252,7 +13265,7 @@ registerFn('listPlans', async ({ user }) => {
   await ensurePlatformTables();
   const plans: any[] = await (prisma as any).$queryRawUnsafe(
     `SELECT key, name, price_monthly, price_yearly, trial_days, max_users, max_employees, max_whatsapp,
-            modules, is_default, active, sort_order
+            modules, sub_features, is_default, active, sort_order
      FROM "Plan" ORDER BY sort_order ASC, price_monthly ASC`,
   );
   // How many live tenants are on each plan (default plan covers the unassigned).
@@ -13265,30 +13278,36 @@ registerFn('listPlans', async ({ user }) => {
     plans: plans.map((p) => ({
       ...p,
       modules: Array.isArray(p.modules) ? p.modules : [],
+      sub_features: Array.isArray(p.sub_features) ? p.sub_features : [],
       tenant_count: countBy[p.key] || 0,
     })),
     unassigned: countBy['(none)'] || 0,
     catalog: optionalModuleDefs(),
+    sub_catalog: SUB_FEATURE_CATALOG.map((s) => ({
+      ...s, module_name: MODULE_CATALOG.find((m) => m.key === s.module_key)?.name_he || s.module_key,
+    })),
   };
 });
 
-registerFn('upsertPlan', async ({ user, key, name, price_monthly, price_yearly, trial_days, max_users, max_employees, max_whatsapp, modules, is_default, active }: any) => {
+registerFn('upsertPlan', async ({ user, key, name, price_monthly, price_yearly, trial_days, max_users, max_employees, max_whatsapp, modules, sub_features, is_default, active }: any) => {
   if (!isSuperAdmin(user)) throw new Error('super-admin only');
   await ensurePlatformTables();
   const planKey = String(key || '').trim().toLowerCase().replace(/[^a-z0-9_-]/g, '');
   if (!planKey) throw new Error('missing plan key');
   const validKeys = new Set(MODULE_CATALOG.filter((m) => !m.core).map((m) => m.key));
   const mods = (Array.isArray(modules) ? modules : []).filter((k: string) => validKeys.has(k));
+  const validSubKeys = new Set(SUB_FEATURE_CATALOG.map((s) => s.key));
+  const subs = (Array.isArray(sub_features) ? sub_features : []).filter((k: string) => validSubKeys.has(k));
   const nInt = (v: any) => (v === null || v === undefined || v === '' ? null : Math.max(0, Math.floor(Number(v)) || 0));
   await (prisma as any).$executeRawUnsafe(
-    `INSERT INTO "Plan" ("key","name","price_monthly","price_yearly","trial_days","max_users","max_employees","max_whatsapp","modules","is_default","active","sort_order","updatedAt")
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10,$11,$12,NOW())
+    `INSERT INTO "Plan" ("key","name","price_monthly","price_yearly","trial_days","max_users","max_employees","max_whatsapp","modules","sub_features","is_default","active","sort_order","updatedAt")
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10::jsonb,$11,$12,$13,NOW())
      ON CONFLICT ("key") DO UPDATE SET
        name=$2, price_monthly=$3, price_yearly=$4, trial_days=$5,
        max_users=$6, max_employees=$7, max_whatsapp=$8, modules=$9::jsonb,
-       is_default=$10, active=$11, "updatedAt"=NOW()`,
+       sub_features=$10::jsonb, is_default=$11, active=$12, "updatedAt"=NOW()`,
     planKey, String(name || planKey), nInt(price_monthly) || 0, nInt(price_yearly) || 0, nInt(trial_days) ?? 14,
-    nInt(max_users), nInt(max_employees), nInt(max_whatsapp), JSON.stringify(mods),
+    nInt(max_users), nInt(max_employees), nInt(max_whatsapp), JSON.stringify(mods), JSON.stringify(subs),
     !!is_default, active === undefined ? true : !!active, 99,
   );
   // Only one default plan.
@@ -13311,11 +13330,12 @@ registerFn('assignTenantPlan', async ({ user, tenant_id, plan_key }: any) => {
   const tenant = rows[0];
   if (!tenant) throw new Error('tenant not found');
   const planRows: any[] = await (prisma as any).$queryRawUnsafe(
-    `SELECT key, modules, trial_days FROM "Plan" WHERE key = $1 AND active = true`, plan_key,
+    `SELECT key, modules, sub_features, trial_days FROM "Plan" WHERE key = $1 AND active = true`, plan_key,
   );
   const plan = planRows[0];
   if (!plan) throw new Error('plan not found');
   const planModules: string[] = Array.isArray(plan.modules) ? plan.modules : [];
+  const planSubs: string[] = Array.isArray(plan.sub_features) ? plan.sub_features : [];
 
   const schema = `tenant_${tenant.slug}`;
   const { randomUUID } = await import('node:crypto');
@@ -13331,21 +13351,26 @@ registerFn('assignTenantPlan', async ({ user, tenant_id, plan_key }: any) => {
      )`,
   ).catch(() => {});
   let materialised = 0;
-  for (const m of MODULE_CATALOG.filter((mm) => !mm.core)) {
-    const enabled = planModules.includes(m.key);
+  // Materialise both modules AND sub-features into ModuleSetting (distinct keys
+  // coexist in the same table). enabled = the plan includes that key.
+  const featureRows: Array<{ key: string; on: boolean }> = [
+    ...MODULE_CATALOG.filter((mm) => !mm.core).map((m) => ({ key: m.key, on: planModules.includes(m.key) })),
+    ...SUB_FEATURE_CATALOG.map((s) => ({ key: s.key, on: planSubs.includes(s.key) })),
+  ];
+  for (const f of featureRows) {
     await (prisma as any).$executeRawUnsafe(
       `INSERT INTO "${schema}"."ModuleSetting" ("id","module_key","enabled","enabled_at","createdAt","updatedAt")
        VALUES ($1,$2,$3,NOW(),NOW(),NOW())
        ON CONFLICT ("module_key") DO UPDATE SET enabled=$3, enabled_at=NOW(), "updatedAt"=NOW()`,
-      randomUUID(), m.key, enabled,
-    ).then(() => { materialised++; }).catch((e: any) => console.warn('[assignPlan]', m.key, e?.message));
+      randomUUID(), f.key, f.on,
+    ).then(() => { materialised++; }).catch((e: any) => console.warn('[assignPlan]', f.key, e?.message));
   }
   // Snapshot the plan into the tenant's OWN schema so the tenant app can render
   // the paywall (locked features + "available in X") with no cross-schema read.
   // unlock_map: for each optional module NOT in this plan, the cheapest active
   // plan that DOES include it → the upsell target shown to the owner.
   const allPlans: any[] = await (prisma as any).$queryRawUnsafe(
-    `SELECT key, name, price_monthly, modules FROM "Plan" WHERE active = true ORDER BY price_monthly ASC`,
+    `SELECT key, name, price_monthly, modules, sub_features FROM "Plan" WHERE active = true ORDER BY price_monthly ASC`,
   );
   const unlockMap: Record<string, string> = {};
   for (const m of MODULE_CATALOG.filter((mm) => !mm.core)) {
@@ -13353,21 +13378,28 @@ registerFn('assignTenantPlan', async ({ user, tenant_id, plan_key }: any) => {
     const cheapest = allPlans.find((pl) => Array.isArray(pl.modules) && pl.modules.includes(m.key));
     if (cheapest) unlockMap[m.key] = cheapest.name;
   }
+  for (const s of SUB_FEATURE_CATALOG) {
+    if (planSubs.includes(s.key)) continue;
+    const cheapest = allPlans.find((pl) => Array.isArray(pl.sub_features) && pl.sub_features.includes(s.key));
+    if (cheapest) unlockMap[s.key] = cheapest.name;
+  }
   const planName = allPlans.find((pl) => pl.key === plan_key)?.name || plan_key;
   await (prisma as any).$executeRawUnsafe(
     `CREATE TABLE IF NOT EXISTS "${schema}"."TenantPlanInfo" (
        "id" INTEGER NOT NULL PRIMARY KEY DEFAULT 1,
        "plan_key" TEXT, "plan_name" TEXT, "modules" JSONB NOT NULL DEFAULT '[]'::jsonb,
+       "sub_features" JSONB NOT NULL DEFAULT '[]'::jsonb,
        "unlock_map" JSONB NOT NULL DEFAULT '{}'::jsonb,
        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
        CONSTRAINT "TenantPlanInfo_singleton" CHECK ("id" = 1)
      )`,
   ).catch(() => {});
+  await (prisma as any).$executeRawUnsafe(`ALTER TABLE "${schema}"."TenantPlanInfo" ADD COLUMN IF NOT EXISTS "sub_features" JSONB NOT NULL DEFAULT '[]'::jsonb`).catch(() => {});
   await (prisma as any).$executeRawUnsafe(
-    `INSERT INTO "${schema}"."TenantPlanInfo" ("id","plan_key","plan_name","modules","unlock_map","updatedAt")
-     VALUES (1,$1,$2,$3::jsonb,$4::jsonb,NOW())
-     ON CONFLICT ("id") DO UPDATE SET plan_key=$1, plan_name=$2, modules=$3::jsonb, unlock_map=$4::jsonb, "updatedAt"=NOW()`,
-    plan_key, planName, JSON.stringify(planModules), JSON.stringify(unlockMap),
+    `INSERT INTO "${schema}"."TenantPlanInfo" ("id","plan_key","plan_name","modules","sub_features","unlock_map","updatedAt")
+     VALUES (1,$1,$2,$3::jsonb,$4::jsonb,$5::jsonb,NOW())
+     ON CONFLICT ("id") DO UPDATE SET plan_key=$1, plan_name=$2, modules=$3::jsonb, sub_features=$4::jsonb, unlock_map=$5::jsonb, "updatedAt"=NOW()`,
+    plan_key, planName, JSON.stringify(planModules), JSON.stringify(planSubs), JSON.stringify(unlockMap),
   ).catch((e: any) => console.warn('[assignPlan snapshot]', e?.message));
 
   const trialDays = Number(plan.trial_days) || 0;
@@ -20160,6 +20192,15 @@ registerFn('getMyTenantModules', async ({ user }) => {
   } catch { /* table not present → no plan */ }
   const planModules: string[] | null = planInfo ? (Array.isArray(planInfo.modules) ? planInfo.modules : []) : null;
   const unlockMap: Record<string, string> = planInfo?.unlock_map && typeof planInfo.unlock_map === 'object' ? planInfo.unlock_map : {};
+  // Sub-feature snapshot — separate query so a pre-sub-feature TenantPlanInfo
+  // (missing the column) degrades to "no sub-feature gating" instead of failing.
+  let planSubs: string[] | null = null;
+  if (planInfo) {
+    try {
+      const ps: any[] = await (prisma as any).$queryRawUnsafe(`SELECT sub_features FROM "TenantPlanInfo" WHERE id = 1`);
+      planSubs = Array.isArray(ps[0]?.sub_features) ? ps[0].sub_features : [];
+    } catch { planSubs = null; }
+  }
 
   const modules = MODULE_CATALOG.map(m => {
     const enabled = m.core ? true : (settingByKey.get(m.key) ?? true);
@@ -20167,10 +20208,21 @@ registerFn('getMyTenantModules', async ({ user }) => {
     // Owner-disabled in-plan modules stay hidden (enabled=false, locked=false).
     const inPlan = m.core || !planModules || planModules.includes(m.key);
     const locked = !m.core && !!planModules && !inPlan;
+    const sub_features = SUB_FEATURE_CATALOG.filter(s => s.module_key === m.key).map(s => {
+      const sEnabled = settingByKey.get(s.key) ?? true;
+      const sInPlan = !planSubs || planSubs.includes(s.key);
+      const sLocked = !!planSubs && !sInPlan;
+      return {
+        key: s.key, name_he: s.name_he, description_he: s.description_he,
+        enabled: sEnabled, locked: sLocked, in_plan: sInPlan,
+        unlock_plan: sLocked ? (unlockMap[s.key] || null) : null,
+      };
+    });
     return {
       key: m.key, name_he: m.name_he, description_he: m.description_he,
       category: m.category, icon: m.icon, core: m.core, pages: m.pages,
       enabled, locked, in_plan: inPlan, unlock_plan: locked ? (unlockMap[m.key] || null) : null,
+      sub_features,
     };
   });
   return { modules, plan_key: planInfo?.plan_key || null, plan_name: planInfo?.plan_name || null };

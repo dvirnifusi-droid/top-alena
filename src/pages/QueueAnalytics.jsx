@@ -7,8 +7,18 @@ import {
   LineChart, Line, Legend, ScatterChart, Scatter
 } from 'recharts';
 import { Users, Clock, TrendingDown, UserCheck, Gift, AlertTriangle, Zap, Star } from 'lucide-react';
+import FeatureGate from '@/components/platform/FeatureGate';
 
+// Queue works on every plan; the analytics view is a premium sub-feature.
 export default function QueueAnalytics() {
+  return (
+    <FeatureGate feature="queue_analytics" title="אנליטיקת תורים" className="max-w-md mx-auto mt-10">
+      <QueueAnalyticsInner />
+    </FeatureGate>
+  );
+}
+
+function QueueAnalyticsInner() {
   const [entries, setEntries] = useState([]);
   const [timeframe, setTimeframe] = useState('today');
   const [loading, setLoading] = useState(true);

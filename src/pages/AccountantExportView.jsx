@@ -9,8 +9,19 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Button } from '@/components/ui/button';
 import { Loader2, AlertCircle, FileDown, FileText } from 'lucide-react';
 import { format } from 'date-fns';
+import FeatureGate from '@/components/platform/FeatureGate';
 
+// Sub-feature gate: everyone with `financial` can see the page shell, but the
+// accountant export itself is a premium sub-feature (fin_accountant).
 export default function AccountantExportView() {
+    return (
+        <FeatureGate feature="fin_accountant" title="ייצוא לרואה חשבון" className="max-w-md mx-auto mt-10">
+            <AccountantExportViewInner />
+        </FeatureGate>
+    );
+}
+
+function AccountantExportViewInner() {
     const [searchParams] = useSearchParams();
     const token = searchParams.get('token');
 

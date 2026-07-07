@@ -18,8 +18,8 @@ function LimitInput({ value, onChange, placeholder }) {
   );
 }
 
-function PlanCard({ plan, catalog, onSave }) {
-  const [p, setP] = useState(plan);
+function PlanCard({ plan, catalog, subCatalog, onSave }) {
+  const [p, setP] = useState({ ...plan, sub_features: plan.sub_features || [] });
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const set = (k, v) => { setP(prev => ({ ...prev, [k]: v })); setSaved(false); };
@@ -27,19 +27,27 @@ function PlanCard({ plan, catalog, onSave }) {
     const has = p.modules.includes(key);
     set('modules', has ? p.modules.filter(m => m !== key) : [...p.modules, key]);
   };
+  const toggleSub = (key) => {
+    const has = (p.sub_features || []).includes(key);
+    set('sub_features', has ? p.sub_features.filter(s => s !== key) : [...(p.sub_features || []), key]);
+  };
   const save = async () => {
     setSaving(true);
     try {
       await base44.functions.upsertPlan({
         key: p.key, name: p.name, price_monthly: p.price_monthly, price_yearly: p.price_yearly,
         trial_days: p.trial_days, max_users: p.max_users, max_employees: p.max_employees,
-        max_whatsapp: p.max_whatsapp, modules: p.modules, is_default: p.is_default, active: p.active,
+        max_whatsapp: p.max_whatsapp, modules: p.modules, sub_features: p.sub_features,
+        is_default: p.is_default, active: p.active,
       });
       setSaved(true);
       onSave?.();
     } catch (e) { alert('שגיאה: ' + (e?.message || '')); }
     finally { setSaving(false); }
   };
+
+  const subsByModule = {};
+  for (const s of (subCatalog || [])) { (subsByModule[s.module_name] = subsByModule[s.module_name] || []).push(s); }
 
   const byCat = {};
   for (const m of catalog) { (byCat[m.category] = byCat[m.category] || []).push(m); }
@@ -103,6 +111,33 @@ function PlanCard({ plan, catalog, onSave }) {
           ))}
         </div>
       </div>
+
+      {/* Sub-features */}
+      {Object.keys(subsByModule).length > 0 && (
+        <div className="mt-3">
+          <div className="text-[11px] text-slate-400 mb-1">תת-פיצ'רים מתקדמים</div>
+          <div className="space-y-1.5">
+            {Object.entries(subsByModule).map(([mod, subs]) => (
+              <div key={mod}>
+                <div className="text-[10px] text-slate-500">{mod}</div>
+                <div className="flex flex-wrap gap-1 mt-0.5">
+                  {subs.map(s => {
+                    const on = (p.sub_features || []).includes(s.key);
+                    return (
+                      <button key={s.key} onClick={() => toggleSub(s.key)} title={s.description_he}
+                        className={`text-[11px] px-2 py-1 rounded border transition ${on
+                          ? 'bg-sky-500/15 text-sky-300 border-sky-500/40'
+                          : 'bg-slate-800 text-slate-500 border-slate-700 hover:border-slate-600'}`}>
+                        {on && <Check className="w-3 h-3 inline ml-0.5" />}{s.name_he}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Footer */}
       <div className="flex items-center justify-between mt-4 pt-3 border-t border-slate-800">
@@ -170,7 +205,7 @@ export default function PlatformFeatures() {
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           {(data?.plans || []).map(p => (
-            <PlanCard key={p.key} plan={p} catalog={data?.catalog || []} onSave={load} />
+            <PlanCard key={p.key} plan={p} catalog={data?.catalog || []} subCatalog={data?.sub_catalog || []} onSave={load} />
           ))}
         </div>
       )}
