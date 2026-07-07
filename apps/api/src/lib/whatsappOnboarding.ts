@@ -970,7 +970,12 @@ async function insertChecklists(tenant: any, lists: any[]): Promise<number> {
       `INSERT INTO "${schema}"."Checklist" ("id", "title", "category", "frequency", "items", "status", "createdAt", "updatedAt")
        VALUES ($1, $2, $3, 'daily', $4::jsonb, 'active', NOW(), NOW())`,
       await uuid(), title, String(cl?.category || 'כללי'),
-      JSON.stringify(items.map((t: any, i: number) => ({ id: i + 1, text: String(t) }))),
+      // Carry EVERY field the various screens read: ChecklistCard uses `text`,
+      // the execution + assignment screens use `order`/`task`/`critical`.
+      JSON.stringify(items.map((t: any, i: number) => {
+        const txt = String(t);
+        return { id: `it_${i + 1}`, order: i + 1, task: txt, text: txt, area: '', critical: false, is_required: false };
+      })),
     ).then(() => n++).catch((e: any) => console.warn('[onboarding] checklist insert:', e?.message));
   }
   return n;

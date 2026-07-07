@@ -65,7 +65,9 @@ function ChecklistsInner() {
                     description: `${c.department || ''} · ${c.shift || ''}`.replace(/^ · | · $/g, '').trim(),
                     department: c.department || null,
                     shift: c.shift || null,
-                    items: (c.items || []).map((text) => ({ id: `it_${Math.random().toString(36).slice(2, 8)}`, text, is_required: false })),
+                    // Carry every field the execution + assignment screens read
+                    // (order/task/critical), not just text — otherwise they show blank.
+                    items: (c.items || []).map((text, i) => ({ id: `it_${Math.random().toString(36).slice(2, 8)}`, order: i + 1, task: text, text, area: '', critical: false, is_required: false })),
                     status: 'active',
                 });
             }
