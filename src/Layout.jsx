@@ -5,7 +5,7 @@ import { base44 } from "@/api/base44Client";
 import VoiceControl from "@/components/voice/VoiceControl";
 import {
   Users, GraduationCap, AlertTriangle, CheckSquare, Building, BarChart3,
-  LayoutGrid, Trophy, Menu, FileText, Utensils, Sparkles, Crown, Rocket, Map, Brain, Calendar, CalendarDays, CalendarHeart, Banknote, MessageSquare, Briefcase, QrCode, ClipboardCheck, Settings, TrendingUp, Zap, Megaphone, Bell, Package, Navigation, LogOut, Tablet, Download, ChefHat, Wallet, Shield
+  LayoutGrid, Trophy, Menu, FileText, Utensils, Sparkles, Crown, Rocket, Map, Brain, Calendar, CalendarDays, CalendarHeart, Banknote, MessageSquare, Briefcase, QrCode, ClipboardCheck, Settings, TrendingUp, Zap, Megaphone, Bell, Package, Navigation, LogOut, Tablet, Download, ChefHat, Wallet, Shield, Lock
 } from "lucide-react";
 import {
   Sidebar, SidebarContent,
@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 
 import { useTenantBranding } from "./hooks/useTenantBranding";
 import { useTenantModules } from "./hooks/useTenantModules";
+import FeaturePaywall from "./components/platform/FeaturePaywall";
 import AiChatWidget from "./components/ai-assistant/AiChatWidget";
 import DevicePreviewToggle from "./components/DevicePreviewToggle";
 import EnableStaffPush from "./components/EnableStaffPush";
@@ -136,7 +137,10 @@ const employeeLinks = [
 // owning module is disabled for this tenant. Category headers with no
 // surviving children are hidden. `pageEnabled` comes from useTenantModules.
 // URLs come from createPageUrl(pageName), so url.slice(1) is the page name.
-function filterByModules(items, pageEnabled) {
+function filterByModules(items, pageEnabled, isLocked) {
+  // Keep an item if its module is enabled OR locked (locked = show with 🔒 +
+  // upsell). Only owner-disabled (in-plan, off) items are dropped.
+  const keep = (pn) => !pn || pageEnabled(pn) || (isLocked && isLocked(pn));
   const out = [];
   let i = 0;
   while (i < items.length) {
@@ -145,15 +149,13 @@ function filterByModules(items, pageEnabled) {
       const kept = [];
       let j = i + 1;
       while (j < items.length && items[j].isSubItem) {
-        const pn = (items[j].url || '').replace(/^\//, '');
-        if (!pn || pageEnabled(pn)) kept.push(items[j]);
+        if (keep((items[j].url || '').replace(/^\//, ''))) kept.push(items[j]);
         j++;
       }
       if (kept.length) { out.push(item); out.push(...kept); }
       i = j;
     } else if (!item.isSubItem) {
-      const pn = (item.url || '').replace(/^\//, '');
-      if (!pn || pageEnabled(pn)) out.push(item);
+      if (keep((item.url || '').replace(/^\//, ''))) out.push(item);
       i++;
     } else {
       i++;
@@ -207,7 +209,12 @@ export default function Layout({ children, currentPageName }) {
   const [appTheme, setAppTheme] = React.useState(() => localStorage.getItem('gc_theme') || 'light');
   const branding = useTenantBranding();
   const brandName = branding?.name || 'TOP APOLLO';
-  const { pageEnabled } = useTenantModules();
+  const { pageEnabled, isLocked, unlockPlanFor } = useTenantModules();
+  const [paywall, setPaywall] = React.useState(null); // {title, plan} when a locked feature is clicked
+  const lockedOf = (item) => {
+    const pn = (item.url || '').replace(/^\//, '');
+    return pn && isLocked(pn) ? { title: item.title, plan: unlockPlanFor(pn) } : null;
+  };
 
   // D2 — inject tenant brand into CSS vars + document.title + PWA manifest.
   // Runs whenever branding changes. Skips when branding is default so we don't
@@ -381,7 +388,7 @@ export default function Layout({ children, currentPageName }) {
     : positionSidebar
       ? positionSidebar
       : [...employeeLinks, ...departmentManagerExtras];
-  const moduleFilteredLinks = filterByModules(baseLinks, pageEnabled);
+  const moduleFilteredLinks = filterByModules(baseLinks, pageEnabled, isLocked);
   const navigationItems = filterNav(moduleFilteredLinks, navFilter);
   const userName = user?.full_name || user?.email?.split('@')[0] || 'משתמש';
 
@@ -453,6 +460,8 @@ export default function Layout({ children, currentPageName }) {
         !new URLSearchParams(window.location.search).has('devpreview') && (
           <DevicePreviewToggle />
       )}
+
+      <FeaturePaywall info={paywall} onClose={() => setPaywall(null)} />
     </div>
   );
 }
@@ -563,6 +572,18 @@ const DesktopSidebar = ({ userName, isCurrentViewAdmin, isOriginalAdmin, navigat
                 <span>{item.title}</span>
               </div>
             </div>
+          ) : lockedOf(item) ? (
+            <button
+              key={item.url + item.title}
+              onClick={() => setPaywall(lockedOf(item))}
+              className={`group relative transition-all duration-150 rounded-xl flex items-center gap-3 px-4 py-2.5 w-full text-right ${
+                item.isSubItem ? 'mr-2' : ''
+              } ${c.hover} text-foreground/40 hover:text-foreground/60`}
+            >
+              <item.icon className="w-4.5 h-4.5 flex-shrink-0 opacity-50" />
+              <span className="text-sm font-semibold flex-1 truncate">{item.title}</span>
+              <Lock className="w-3.5 h-3.5 flex-shrink-0 text-amber-500" />
+            </button>
           ) : (
             <Link
               key={item.url + item.title}
@@ -652,6 +673,16 @@ const MobileSidebar = ({ userName, isCurrentViewAdmin, isOriginalAdmin, navigati
                 <span className="truncate">{item.title}</span>
               </div>
             </div>
+          ) : lockedOf(item) ? (
+            <SidebarMenuItem key={item.url + item.title}>
+              <SidebarMenuButton asChild className={`group rounded-lg ${item.isSubItem ? 'mr-2' : ''} ${c.hover} text-foreground/40`}>
+                <button onClick={() => setPaywall(lockedOf(item))} className="flex items-center gap-3 px-3 py-2 w-full min-w-0 text-right">
+                  <item.icon className="w-4 h-4 flex-shrink-0 opacity-50" />
+                  <span className="text-sm font-medium truncate flex-1">{item.title}</span>
+                  <Lock className="w-3.5 h-3.5 flex-shrink-0 text-amber-500" />
+                </button>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
           ) : (
             <SidebarMenuItem key={item.url + item.title}>
               <SidebarMenuButton

@@ -47,7 +47,7 @@ const db = prisma as any; // generic delegate access
 
 // Public deploy marker — lets us confirm which build is live (and that
 // auto-deploy is working) without server access. Bump on each deploy test.
-registerFn('deployInfo', async () => ({ version: 'platform-plan-engine-2026-07-07', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
+registerFn('deployInfo', async () => ({ version: 'platform-paywall-2026-07-07', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
 
 
 
@@ -13340,6 +13340,36 @@ registerFn('assignTenantPlan', async ({ user, tenant_id, plan_key }: any) => {
       randomUUID(), m.key, enabled,
     ).then(() => { materialised++; }).catch((e: any) => console.warn('[assignPlan]', m.key, e?.message));
   }
+  // Snapshot the plan into the tenant's OWN schema so the tenant app can render
+  // the paywall (locked features + "available in X") with no cross-schema read.
+  // unlock_map: for each optional module NOT in this plan, the cheapest active
+  // plan that DOES include it → the upsell target shown to the owner.
+  const allPlans: any[] = await (prisma as any).$queryRawUnsafe(
+    `SELECT key, name, price_monthly, modules FROM "Plan" WHERE active = true ORDER BY price_monthly ASC`,
+  );
+  const unlockMap: Record<string, string> = {};
+  for (const m of MODULE_CATALOG.filter((mm) => !mm.core)) {
+    if (planModules.includes(m.key)) continue;
+    const cheapest = allPlans.find((pl) => Array.isArray(pl.modules) && pl.modules.includes(m.key));
+    if (cheapest) unlockMap[m.key] = cheapest.name;
+  }
+  const planName = allPlans.find((pl) => pl.key === plan_key)?.name || plan_key;
+  await (prisma as any).$executeRawUnsafe(
+    `CREATE TABLE IF NOT EXISTS "${schema}"."TenantPlanInfo" (
+       "id" INTEGER NOT NULL PRIMARY KEY DEFAULT 1,
+       "plan_key" TEXT, "plan_name" TEXT, "modules" JSONB NOT NULL DEFAULT '[]'::jsonb,
+       "unlock_map" JSONB NOT NULL DEFAULT '{}'::jsonb,
+       "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+       CONSTRAINT "TenantPlanInfo_singleton" CHECK ("id" = 1)
+     )`,
+  ).catch(() => {});
+  await (prisma as any).$executeRawUnsafe(
+    `INSERT INTO "${schema}"."TenantPlanInfo" ("id","plan_key","plan_name","modules","unlock_map","updatedAt")
+     VALUES (1,$1,$2,$3::jsonb,$4::jsonb,NOW())
+     ON CONFLICT ("id") DO UPDATE SET plan_key=$1, plan_name=$2, modules=$3::jsonb, unlock_map=$4::jsonb, "updatedAt"=NOW()`,
+    plan_key, planName, JSON.stringify(planModules), JSON.stringify(unlockMap),
+  ).catch((e: any) => console.warn('[assignPlan snapshot]', e?.message));
+
   const trialDays = Number(plan.trial_days) || 0;
   await (prisma as any).$executeRawUnsafe(
     `UPDATE "Tenant" SET plan_key = $1, plan_since = NOW(),
@@ -20068,17 +20098,29 @@ registerFn('getMyTenantModules', async ({ user }) => {
   const settingByKey = new Map<string, boolean>(
     (rows as { module_key: string; enabled: boolean }[]).map(r => [r.module_key, r.enabled]),
   );
-  const modules = MODULE_CATALOG.map(m => ({
-    key: m.key,
-    name_he: m.name_he,
-    description_he: m.description_he,
-    category: m.category,
-    icon: m.icon,
-    core: m.core,
-    pages: m.pages,
-    enabled: m.core ? true : (settingByKey.get(m.key) ?? true),
-  }));
-  return { modules };
+  // Plan snapshot (written by assignTenantPlan). Absent → no plan assigned →
+  // no paywall (backward compatible: every optional module behaves as before).
+  let planInfo: any = null;
+  try {
+    const pi: any[] = await (prisma as any).$queryRawUnsafe(`SELECT plan_key, plan_name, modules, unlock_map FROM "TenantPlanInfo" WHERE id = 1`);
+    planInfo = pi[0] || null;
+  } catch { /* table not present → no plan */ }
+  const planModules: string[] | null = planInfo ? (Array.isArray(planInfo.modules) ? planInfo.modules : []) : null;
+  const unlockMap: Record<string, string> = planInfo?.unlock_map && typeof planInfo.unlock_map === 'object' ? planInfo.unlock_map : {};
+
+  const modules = MODULE_CATALOG.map(m => {
+    const enabled = m.core ? true : (settingByKey.get(m.key) ?? true);
+    // Locked = optional module NOT included in the assigned plan (upsell target).
+    // Owner-disabled in-plan modules stay hidden (enabled=false, locked=false).
+    const inPlan = m.core || !planModules || planModules.includes(m.key);
+    const locked = !m.core && !!planModules && !inPlan;
+    return {
+      key: m.key, name_he: m.name_he, description_he: m.description_he,
+      category: m.category, icon: m.icon, core: m.core, pages: m.pages,
+      enabled, locked, in_plan: inPlan, unlock_plan: locked ? (unlockMap[m.key] || null) : null,
+    };
+  });
+  return { modules, plan_key: planInfo?.plan_key || null, plan_name: planInfo?.plan_name || null };
 });
 
 // D2 — dynamic PWA manifest. The browser fetches this without auth on page

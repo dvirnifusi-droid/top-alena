@@ -41,16 +41,18 @@ export default function PageGuard({ pageName, pageTitle, children }) {
 
   // D1 — module gate. If the current page's module is disabled for this tenant,
   // bounce to Dashboard. Dashboard/PlatformSettings are exempt (always reachable).
-  const { pageEnabled, loading: modulesLoading } = useTenantModules();
+  const { pageEnabled, isLocked, unlockPlanFor, loading: modulesLoading } = useTenantModules();
   const navigate = useNavigate();
   useEffect(() => {
     if (modulesLoading) return;
     if (!pageName) return;
     if (pageName === 'Dashboard' || pageName === 'PlatformSettings') return;
-    if (!pageEnabled(pageName)) {
+    // Locked (not in plan) → show the upsell below, don't bounce. Only bounce
+    // pages the owner explicitly turned OFF (disabled and not locked).
+    if (!pageEnabled(pageName) && !isLocked(pageName)) {
       navigate('/Dashboard', { replace: true, state: { moduleDisabled: pageName } });
     }
-  }, [pageName, modulesLoading, pageEnabled, navigate]);
+  }, [pageName, modulesLoading, pageEnabled, isLocked, navigate]);
 
   const loadData = async () => {
     setLoading(true);
@@ -103,6 +105,31 @@ export default function PageGuard({ pageName, pageTitle, children }) {
   };
 
   if (loading) return null;
+
+  // Locked feature (not in the tenant's plan) → in-app upsell instead of content.
+  if (!modulesLoading && pageName && isLocked(pageName)) {
+    const plan = unlockPlanFor(pageName);
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50" dir="rtl">
+        <div className="text-center p-8 max-w-md">
+          <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center mx-auto mb-6">
+            <Lock className="w-10 h-10 text-white" />
+          </div>
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">{pageTitle || pageName}</h1>
+          <p className="text-gray-500 mb-6">
+            {plan ? <>הפיצ'ר הזה זמין בחבילת <b className="text-amber-600">{plan}</b>.</> : "הפיצ'ר הזה לא כלול בחבילה הנוכחית שלך."}
+          </p>
+          <a
+            href="https://wa.me/972532181900?text=%D7%90%D7%A9%D7%9E%D7%97%20%D7%9C%D7%A9%D7%93%D7%A8%D7%92%20%D7%90%D7%AA%20%D7%94%D7%97%D7%91%D7%99%D7%9C%D7%94"
+            target="_blank" rel="noreferrer"
+            className="inline-flex items-center gap-2 bg-amber-500 hover:bg-amber-400 text-white font-bold py-3 px-6 rounded-xl"
+          >
+            אני רוצה לשדרג
+          </a>
+        </div>
+      </div>
+    );
+  }
 
   const allowedRoles = permission ? permission.allowed_roles : ["employee", "manager", "owner"];
   const userRole = mapUserRole(user?.role);

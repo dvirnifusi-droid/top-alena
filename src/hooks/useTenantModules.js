@@ -3,7 +3,7 @@ import { base44 } from '@/api/base44Client';
 
 // 5-min localStorage cache to avoid a network call on every page load.
 // Also survives across tabs and page refreshes.
-const CACHE_KEY = 'tenant_modules_v1';
+const CACHE_KEY = 'tenant_modules_v2'; // v2 adds locked/unlock_plan for paywall
 const CACHE_TTL_MS = 5 * 60 * 1000;
 
 function readCache() {
@@ -77,17 +77,27 @@ export function useTenantModules() {
     [modules],
   );
 
-  const pageEnabled = useCallback(
+  const moduleForPage = useCallback(
     (pageName) => {
-      if (!modules) return true;
-      const m = modules.find(
-        (x) => Array.isArray(x.pages) && x.pages.includes(pageName),
-      );
-      if (!m) return true; // page not attached to any module = core
-      return m.enabled;
+      if (!modules) return null;
+      return modules.find((x) => Array.isArray(x.pages) && x.pages.includes(pageName)) || null;
     },
     [modules],
   );
 
-  return { modules, loading, isEnabled, pageEnabled, refresh: load };
+  const pageEnabled = useCallback(
+    (pageName) => {
+      const m = moduleForPage(pageName);
+      if (!m) return true; // page not attached to any module = core
+      return m.enabled;
+    },
+    [moduleForPage],
+  );
+
+  // Locked = the page's module is not in the tenant's plan (show with a lock +
+  // upsell rather than hide it). unlockPlanFor → name of the plan that unlocks.
+  const isLocked = useCallback((pageName) => !!moduleForPage(pageName)?.locked, [moduleForPage]);
+  const unlockPlanFor = useCallback((pageName) => moduleForPage(pageName)?.unlock_plan || null, [moduleForPage]);
+
+  return { modules, loading, isEnabled, pageEnabled, moduleForPage, isLocked, unlockPlanFor, refresh: load };
 }
