@@ -47,7 +47,7 @@ const db = prisma as any; // generic delegate access
 
 // Public deploy marker — lets us confirm which build is live (and that
 // auto-deploy is working) without server access. Bump on each deploy test.
-registerFn('deployInfo', async () => ({ version: 'platform-paywall-2026-07-07', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
+registerFn('deployInfo', async () => ({ version: 'platform-billing-mrr-2026-07-07', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
 
 
 
@@ -13379,6 +13379,59 @@ registerFn('assignTenantPlan', async ({ user, tenant_id, plan_key }: any) => {
     plan_key, tenant_id,
   );
   return { ok: true, tenant_id, plan_key, modules_materialised: materialised };
+});
+
+// ── Phase 4: billing / MRR overview (revenue is DERIVED from plan prices ×
+// live tenants — no external billing provider wired yet; that step needs the
+// owner's Stripe/Meshulam account, flagged in the UI).
+registerFn('getPlatformBilling', async ({ user }) => {
+  if (!isSuperAdmin(user)) throw new Error('super-admin only');
+  await ensurePlatformTables();
+  const plans: any[] = await (prisma as any).$queryRawUnsafe(
+    `SELECT key, name, price_monthly, price_yearly, is_default FROM "Plan" WHERE active = true ORDER BY price_monthly ASC`,
+  );
+  const planByKey: Record<string, any> = {};
+  for (const p of plans) planByKey[p.key] = p;
+  const defaultPlan = plans.find((p) => p.is_default) || null;
+
+  const tenants: any[] = await (prisma as any).$queryRawUnsafe(
+    `SELECT id, slug, restaurant_name, plan_key, plan_since, trial_ends_at, live_at
+     FROM "Tenant" WHERE status = 'live' ORDER BY "createdAt" ASC`,
+  );
+  const now = Date.now();
+  const soon = now + 7 * 24 * 60 * 60 * 1000;
+  let activeMrr = 0, potentialMrr = 0, trialing = 0, trialsExpiring = 0, unassigned = 0;
+  const byPlan: Record<string, { key: string; name: string; price_monthly: number; count: number; mrr: number }> = {};
+  for (const p of plans) byPlan[p.key] = { key: p.key, name: p.name, price_monthly: p.price_monthly, count: 0, mrr: 0 };
+
+  const rows = tenants.map((t) => {
+    const plan = t.plan_key ? planByKey[t.plan_key] : defaultPlan;
+    if (!t.plan_key) unassigned++;
+    const price = plan ? Number(plan.price_monthly) || 0 : 0;
+    const onTrial = t.trial_ends_at && new Date(t.trial_ends_at).getTime() > now;
+    if (onTrial) { trialing++; if (new Date(t.trial_ends_at).getTime() <= soon) trialsExpiring++; }
+    potentialMrr += price;
+    if (!onTrial && plan) activeMrr += price;
+    if (plan && byPlan[plan.key]) { byPlan[plan.key].count++; byPlan[plan.key].mrr += onTrial ? 0 : price; }
+    return {
+      id: t.id, slug: t.slug, name: t.restaurant_name,
+      plan_key: t.plan_key || null, plan_name: plan?.name || null, price_monthly: price,
+      on_trial: !!onTrial, trial_ends_at: t.trial_ends_at || null, plan_since: t.plan_since || null,
+    };
+  });
+
+  return {
+    active_mrr: activeMrr,
+    potential_mrr: potentialMrr,
+    active_arr: activeMrr * 12,
+    trialing,
+    trials_expiring_7d: trialsExpiring,
+    unassigned,
+    live_count: tenants.length,
+    by_plan: Object.values(byPlan),
+    tenants: rows,
+    billing_provider_connected: false, // Stripe/Meshulam not wired — see UI note
+  };
 });
 
 // Self-healing schema sync — creates in tenant_<slug> every table that
