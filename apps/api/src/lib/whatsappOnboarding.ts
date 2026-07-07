@@ -531,27 +531,47 @@ export async function tryHandleOnboardingMessage(fromPhone: string, body: string
 
   history.push({ role: 'user', content: body });
 
-  // ── Question-first checklists: the owner is answering our stations/critical/
-  // equipment question → generate TAILORED checklists from their answer + all
-  // known context (menu, cuisine). "תבנה מה שמתאים"/skip → build from context.
+  // ── Question-first checklists: ACCUMULATE the owner's answer across messages
+  // (they usually reply in several), then build only when they signal "תבנה"/done.
+  // Generation is backgrounded AFTER persisting the cleared flag — this prevents
+  // the multi-message race that fired N concurrent (rate-limited) generations.
   if (data._pending_checklist_qa) {
+    const buildNow = /(תבנה|בנה לי|^בנה|זהו|סיימתי|מספיק|קדימה|יאללה|זה הכל|תתחיל|מה שמתאים|מה שאתה|מה שיש)/i.test(body);
+    data._checklist_answer = `${data._checklist_answer || ''}\n${body}`.trim();
+    if (!buildNow) {
+      const ack = '👍 רשמתי. עוד משהו? (כשסיימת כתוב "תבנה")';
+      history.push({ role: 'assistant', content: ack });
+      data._history = history.slice(-24);
+      await setPhase(state.tenant_id, 'active', data);
+      await sendWhatsApp(fromPhone, ack);
+      return true;
+    }
+    const useContext = !/מה שמתאים|מה שאתה|מה שיש/i.test(body) && !SKIP_RE.test(body);
+    const ctx = useContext ? String(data._checklist_answer || '') : '';
     delete data._pending_checklist_qa;
+    delete data._checklist_answer;
     data._checklist_qa_done = true;
-    const ctx = SKIP_RE.test(body) || /תבנה מה שמתאים|מה שאתה חושב|מה שיש|כמו שאתה/i.test(body) ? '' : body.trim();
-    const n = await aiSuggestChecklists(tenant, data, ctx).catch(() => 0);
-    data._counts = data._counts || {};
-    data._counts.checklists = (data._counts.checklists || 0) + n;
-    const note = n
-      ? `✅ מעולה! בניתי לך ${n} צ'קליסטים מדויקים (פתיחה / סגירה / מטבח) לפי מה שסיפרת. 📋\nתוכל לראות ולערוך אותם בעמוד "צ'קליסטים".`
-      : 'לא הצלחתי לבנות צ׳קליסטים כרגע 🤔 נמשיך ונחזור לזה.';
-    const r = await onboardingBrain(tenant, history, `[הבעלים ענה על שאלות הצ'קליסטים ובניתי ${n} צ'קליסטים. הודה בקצרה והמשך לשאלה הבאה שחסרה — אל תבקש שוב צ'קליסטים.]`, data).catch(() => null);
-    await applyExtraction(tenant, r || {}, data).catch(() => {});
-    const nm2 = nextMissing(data);
-    const reply = `${note}\n\n${pickReply(r, nm2.key === 'finish' ? 'עברנו על הכל! 🎉' : 'נמשיך! 🙂')}`;
-    history.push({ role: 'assistant', content: reply });
-    data._history = history.slice(-24);
-    await setPhase(state.tenant_id, 'active', data);
-    await sendWhatsApp(fromPhone, reply);
+    await setPhase(state.tenant_id, 'active', data); // persist FIRST — race-safe
+    await sendWhatsApp(fromPhone, '📋 מעולה! בונה לך צ׳קליסטים מדויקים לפי מה שסיפרת... רגע 🚀');
+    void (async () => {
+      const n = await aiSuggestChecklists(tenant, data, ctx).catch((e: any) => { console.warn('[onboarding] checklist gen:', e?.message); return 0; });
+      const fresh = await findActiveOnboarding(fromPhone).catch(() => null);
+      const d: Record<string, any> = fresh?.collected_data || data;
+      const h: any[] = Array.isArray(d._history) ? d._history : history;
+      d._counts = d._counts || {};
+      d._counts.checklists = (d._counts.checklists || 0) + n;
+      const note = n
+        ? `✅ בניתי לך ${n} צ׳קליסטים מדויקים (פתיחה / סגירה / מטבח) לפי מה שסיפרת. 📋\nתוכל לראות ולערוך אותם בעמוד "צ׳קליסטים".`
+        : 'לא הצלחתי לבנות צ׳קליסטים כרגע 🤔 נמשיך ונחזור לזה.';
+      const r = await onboardingBrain(tenant, h, `[בניתי ${n} צ'קליסטים. הודה בקצרה והמשך לשאלה הבאה שחסרה — אל תבקש שוב צ'קליסטים.]`, d).catch(() => null);
+      await applyExtraction(tenant, r || {}, d).catch(() => {});
+      const nm2 = nextMissing(d);
+      const reply = `${note}\n\n${pickReply(r, nm2.key === 'finish' ? 'עברנו על הכל! 🎉' : 'נמשיך! 🙂')}`;
+      h.push({ role: 'assistant', content: reply });
+      d._history = h.slice(-24);
+      await setPhase(state.tenant_id, 'active', d).catch(() => {});
+      await sendWhatsApp(fromPhone, reply).catch(() => {});
+    })();
     return true;
   }
 
@@ -580,7 +600,7 @@ export async function tryHandleOnboardingMessage(fromPhone: string, body: string
   if (result.action === 'suggest_checklists' && !data._checklist_qa_done) {
     data._pending_checklist_qa = true;
     result.action = '';
-    result.reply = `${result.reply || 'בכיף! 📋'}\n\n📋 כדי לבנות צ'קליסטים מדויקים בדיוק לעסק שלך, ספר לי בקצרה:\n• אילו עמדות/תחנות יש? (בר / מטבח / עמדת אסאי / קופה / משלוחים)\n• מה 2-3 הדברים שהכי חשוב שלא יישכחו בפתיחה ובסגירה?\n• יש ציוד מיוחד שדורש טיפול יומי?\n\n(או פשוט כתוב "תבנה מה שמתאים" ואבנה לפי מה שכבר ידוע לי)`;
+    result.reply = `${result.reply || 'בכיף! 📋'}\n\n📋 כדי לבנות צ'קליסטים מדויקים בדיוק לעסק שלך, ספר לי בקצרה:\n• אילו עמדות/תחנות יש? (בר / מטבח / עמדת אסאי / קופה / משלוחים)\n• מה 2-3 הדברים שהכי חשוב שלא יישכחו בפתיחה ובסגירה?\n• יש ציוד מיוחד שדורש טיפול יומי?\n\nאפשר לענות בכמה הודעות — *כשסיימת כתוב "תבנה"*. (או "תבנה מה שמתאים" ואבנה לפי מה שכבר ידוע לי)`;
   }
 
   // Run any AI action the owner asked for (build checklists/roles/training,
@@ -1146,36 +1166,35 @@ async function aiSuggestChecklists(tenant: any, data: Record<string, any>, extra
     const nm = names.map((r) => r.name).filter(Boolean);
     if (c.length || nm.length) menuHint = `\nהתפריט כולל קטגוריות: ${c.join(', ')}. דוגמאות מנות: ${nm.slice(0, 10).join(', ')}. הסק מזה איזה ציוד/תחנות יש והתאם משימות.`;
   } catch { /* menu not available */ }
-  const result: any = await invokeLLM({
-    prompt:
-      `בנה 3 צ'קליסטים תפעוליים מדויקים למסעדה מסוג "${data.cuisine || 'כללי'}"` +
-      `${data.description ? ` (${data.description})` : ''}: (1) פתיחת בוקר, (2) סגירת ערב, (3) מטבח/הכנות.` +
-      menuHint +
-      `${extraContext ? `\n\nמידע שהבעלים מסר (חשוב — השתמש בו לדיוק): ${extraContext}` : ''}\n` +
-      `התאם את המשימות ספציפית לעסק הזה — קונקרטיות ורלוונטיות (ציוד/תחנות אמיתיים), לא כלליות.\n` +
-      `חובה: לכל אחד מ-3 הצ'קליסטים החזר title, category, ו-tasks (7-12 משימות קצרות בעברית). אל תשאיר אף צ'קליסט בלי משימות.`,
-    responseSchema: {
-      type: 'object',
-      properties: {
-        checklists: {
-          type: 'array',
-          items: {
-            type: 'object',
-            properties: {
-              title: { type: 'string' }, category: { type: 'string' },
-              tasks: { type: 'array', items: { type: 'string' } }, // NOT `items` (Gemini keyword collision)
-            },
-          },
+  // Generate ONE checklist per call. Gemini's responseSchema leaves a
+  // doubly-nested array (checklists[].tasks[]) EMPTY — so ask each checklist
+  // separately with a TOP-LEVEL tasks array of objects (the proven menu pattern).
+  const base = `למסעדה מסוג "${data.cuisine || 'כללי'}"${data.description ? ` (${data.description})` : ''}.` +
+    menuHint + `${extraContext ? `\nמידע שהבעלים מסר (חשוב מאוד לדיוק): ${extraContext}` : ''}`;
+  const TYPES = [
+    { title: 'צ׳קליסט פתיחת בוקר', category: 'פתיחה', desc: 'פתיחת בוקר (הדלקת/הכנת ציוד, בדיקת מלאים, הכנות, בדיקות טמפרטורה)' },
+    { title: 'צ׳קליסט סגירת ערב', category: 'סגירה', desc: 'סגירת ערב (ניקוי, כיבוי וסגירת ציוד, ספירת קופה, נעילה)' },
+    { title: 'צ׳קליסט מטבח והכנות', category: 'מטבח', desc: 'מטבח והכנות יומיות' },
+  ];
+  const lists: any[] = [];
+  for (const t of TYPES) {
+    try {
+      const r: any = await invokeLLM({
+        prompt:
+          `בנה צ'קליסט "${t.desc}" ${base}\n` +
+          `החזר tasks — מערך משימות, לכל אחת text (משפט קצר, קונקרטי ורלוונטי לעסק הזה, בעברית). 7-12 משימות. אל תמציא ציוד שלא קיים.`,
+        responseSchema: {
+          type: 'object',
+          properties: { tasks: { type: 'array', items: { type: 'object', properties: { text: { type: 'string' } } } } },
+          required: ['tasks'],
         },
-      },
-      required: ['checklists'],
-    },
-    maxOutputTokens: 32768, // gemini-2.5-pro thinking + 3 full checklists (16384 truncated to 1)
-    _ctx: { fn_name: 'onboardingSuggestChecklists', tenant_slug: tenant.slug },
-  });
-  const lists = (Array.isArray(result?.checklists) ? result.checklists : []).map((cl: any) => ({
-    ...cl, items: Array.isArray(cl?.tasks) ? cl.tasks : (cl?.items || []),
-  }));
+        maxOutputTokens: 8192,
+        _ctx: { fn_name: 'onboardingSuggestChecklist', tenant_slug: tenant.slug },
+      });
+      const items = (Array.isArray(r?.tasks) ? r.tasks : []).map((x: any) => String(x?.text || '').trim()).filter(Boolean);
+      if (items.length) lists.push({ title: t.title, category: t.category, items });
+    } catch (e: any) { console.warn('[onboarding] checklist gen', t.category, e?.message); }
+  }
   return insertChecklists(tenant, lists);
 }
 
