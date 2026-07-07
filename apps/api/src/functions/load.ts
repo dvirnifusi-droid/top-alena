@@ -47,7 +47,7 @@ const db = prisma as any; // generic delegate access
 
 // Public deploy marker — lets us confirm which build is live (and that
 // auto-deploy is working) without server access. Bump on each deploy test.
-registerFn('deployInfo', async () => ({ version: 'platform-console-standalone-2026-07-07', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
+registerFn('deployInfo', async () => ({ version: 'platform-plan-engine-2026-07-07', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
 
 
 
@@ -12770,6 +12770,48 @@ async function ensurePlatformTables() {
     "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
   )`);
   await sql(`CREATE INDEX IF NOT EXISTS "OnboardingState_current_step_idx" ON "OnboardingState"("current_step")`);
+
+  // ── Plans (subscription tiers) — Phase 2 plan/feature engine. Global catalog
+  // of packages; each defines which OPTIONAL modules are included + hard limits
+  // + pricing. Tenant.plan_key assigns a tenant to a plan; per-tenant module
+  // overrides live in the tenant's own ModuleSetting rows.
+  await sql(`CREATE TABLE IF NOT EXISTS "Plan" (
+    "key" TEXT NOT NULL PRIMARY KEY,
+    "name" TEXT NOT NULL,
+    "price_monthly" INTEGER NOT NULL DEFAULT 0,
+    "price_yearly" INTEGER NOT NULL DEFAULT 0,
+    "trial_days" INTEGER NOT NULL DEFAULT 14,
+    "max_users" INTEGER,
+    "max_employees" INTEGER,
+    "max_whatsapp" INTEGER,
+    "modules" JSONB NOT NULL DEFAULT '[]'::jsonb,
+    "is_default" BOOLEAN NOT NULL DEFAULT false,
+    "active" BOOLEAN NOT NULL DEFAULT true,
+    "sort_order" INTEGER NOT NULL DEFAULT 0,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+  )`);
+  await sql(`ALTER TABLE "Tenant" ADD COLUMN IF NOT EXISTS "plan_key" TEXT`);
+  await sql(`ALTER TABLE "Tenant" ADD COLUMN IF NOT EXISTS "plan_since" TIMESTAMP(3)`);
+  await sql(`ALTER TABLE "Tenant" ADD COLUMN IF NOT EXISTS "trial_ends_at" TIMESTAMP(3)`);
+  // Seed the three default tiers (idempotent — ON CONFLICT keeps owner edits).
+  const seedPlans = [
+    { key: 'basic', name: 'Basic', price_monthly: 199, price_yearly: 1990, trial_days: 14, max_users: 3, max_employees: 15, max_whatsapp: 500, is_default: true, sort_order: 1,
+      modules: ['reservations', 'queue', 'checklists', 'waiter'] },
+    { key: 'pro', name: 'Pro', price_monthly: 499, price_yearly: 4990, trial_days: 14, max_users: 10, max_employees: 60, max_whatsapp: 3000, is_default: false, sort_order: 2,
+      modules: ['reservations', 'queue', 'checklists', 'waiter', 'events', 'delivery', 'restroom_cleaning', 'kitchen_screen', 'customer_club', 'gamification', 'ai_assistant', 'marketing_advisor', 'recruitment', 'financial'] },
+    { key: 'enterprise', name: 'Enterprise', price_monthly: 999, price_yearly: 9990, trial_days: 30, max_users: null, max_employees: null, max_whatsapp: null, is_default: false, sort_order: 3,
+      modules: ['reservations', 'queue', 'delivery', 'events', 'restroom_cleaning', 'checklists', 'waiter', 'kitchen_screen', 'customer_club', 'gamification', 'ai_assistant', 'ceo_agent', 'marketing_advisor', 'stories', 'recruitment', 'financial'] },
+  ];
+  for (const p of seedPlans) {
+    await sql(
+      `INSERT INTO "Plan" ("key","name","price_monthly","price_yearly","trial_days","max_users","max_employees","max_whatsapp","modules","is_default","sort_order","updatedAt")
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10,$11,NOW())
+       ON CONFLICT ("key") DO NOTHING`,
+      p.key, p.name, p.price_monthly, p.price_yearly, p.trial_days, p.max_users, p.max_employees, p.max_whatsapp,
+      JSON.stringify(p.modules), p.is_default, p.sort_order,
+    ).catch((e: any) => console.warn('[plan seed]', p.key, e?.message));
+  }
   platformTablesReady = true;
 }
 
@@ -13010,7 +13052,7 @@ registerFn('listTenants', async ({ user, body }) => {
   const where = status ? `WHERE status = '${status.replace(/'/g, "''")}'` : '';
   const rows: any[] = await (prisma as any).$queryRawUnsafe(
     `SELECT id, slug, restaurant_name, owner_name, owner_phone, owner_email,
-            status, subdomain_url, approved_at, live_at, "createdAt" AS created_at
+            status, subdomain_url, approved_at, live_at, plan_key, trial_ends_at, "createdAt" AS created_at
      FROM "Tenant" ${where} ORDER BY "createdAt" DESC LIMIT 200`,
   );
   return { tenants: rows };
@@ -13197,6 +13239,116 @@ registerFn('getSuperAdminMetrics', async ({ user }) => {
     },
     per_tenant: perTenant,
   };
+});
+
+// ── Phase 2: plan / feature engine ─────────────────────────────────────────
+// The optional (non-core) module catalog the Plan Builder toggles per plan.
+const optionalModuleDefs = () => MODULE_CATALOG.filter((m) => !m.core).map((m) => ({
+  key: m.key, name_he: m.name_he, category: m.category, icon: m.icon,
+}));
+
+registerFn('listPlans', async ({ user }) => {
+  if (!isSuperAdmin(user)) throw new Error('super-admin only');
+  await ensurePlatformTables();
+  const plans: any[] = await (prisma as any).$queryRawUnsafe(
+    `SELECT key, name, price_monthly, price_yearly, trial_days, max_users, max_employees, max_whatsapp,
+            modules, is_default, active, sort_order
+     FROM "Plan" ORDER BY sort_order ASC, price_monthly ASC`,
+  );
+  // How many live tenants are on each plan (default plan covers the unassigned).
+  const counts: any[] = await (prisma as any).$queryRawUnsafe(
+    `SELECT COALESCE(plan_key, '(none)') AS k, COUNT(*)::int AS n FROM "Tenant" WHERE status = 'live' GROUP BY plan_key`,
+  );
+  const countBy: Record<string, number> = {};
+  for (const c of counts) countBy[c.k] = c.n;
+  return {
+    plans: plans.map((p) => ({
+      ...p,
+      modules: Array.isArray(p.modules) ? p.modules : [],
+      tenant_count: countBy[p.key] || 0,
+    })),
+    unassigned: countBy['(none)'] || 0,
+    catalog: optionalModuleDefs(),
+  };
+});
+
+registerFn('upsertPlan', async ({ user, key, name, price_monthly, price_yearly, trial_days, max_users, max_employees, max_whatsapp, modules, is_default, active }: any) => {
+  if (!isSuperAdmin(user)) throw new Error('super-admin only');
+  await ensurePlatformTables();
+  const planKey = String(key || '').trim().toLowerCase().replace(/[^a-z0-9_-]/g, '');
+  if (!planKey) throw new Error('missing plan key');
+  const validKeys = new Set(MODULE_CATALOG.filter((m) => !m.core).map((m) => m.key));
+  const mods = (Array.isArray(modules) ? modules : []).filter((k: string) => validKeys.has(k));
+  const nInt = (v: any) => (v === null || v === undefined || v === '' ? null : Math.max(0, Math.floor(Number(v)) || 0));
+  await (prisma as any).$executeRawUnsafe(
+    `INSERT INTO "Plan" ("key","name","price_monthly","price_yearly","trial_days","max_users","max_employees","max_whatsapp","modules","is_default","active","sort_order","updatedAt")
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10,$11,$12,NOW())
+     ON CONFLICT ("key") DO UPDATE SET
+       name=$2, price_monthly=$3, price_yearly=$4, trial_days=$5,
+       max_users=$6, max_employees=$7, max_whatsapp=$8, modules=$9::jsonb,
+       is_default=$10, active=$11, "updatedAt"=NOW()`,
+    planKey, String(name || planKey), nInt(price_monthly) || 0, nInt(price_yearly) || 0, nInt(trial_days) ?? 14,
+    nInt(max_users), nInt(max_employees), nInt(max_whatsapp), JSON.stringify(mods),
+    !!is_default, active === undefined ? true : !!active, 99,
+  );
+  // Only one default plan.
+  if (is_default) {
+    await (prisma as any).$executeRawUnsafe(`UPDATE "Plan" SET is_default=false WHERE key <> $1`, planKey);
+  }
+  return { ok: true, key: planKey };
+});
+
+// Assign a plan to a tenant and MATERIALISE its modules into that tenant's
+// ModuleSetting rows (so the tenant app's existing getMyTenantModules keeps
+// working with zero cross-schema reads at request time). Manual toggles made
+// afterwards act as per-tenant overrides until the plan is re-assigned.
+registerFn('assignTenantPlan', async ({ user, tenant_id, plan_key }: any) => {
+  if (!isSuperAdmin(user)) throw new Error('super-admin only');
+  await ensurePlatformTables();
+  const rows: any[] = await (prisma as any).$queryRawUnsafe(
+    `SELECT id, slug FROM "Tenant" WHERE id = $1`, tenant_id,
+  );
+  const tenant = rows[0];
+  if (!tenant) throw new Error('tenant not found');
+  const planRows: any[] = await (prisma as any).$queryRawUnsafe(
+    `SELECT key, modules, trial_days FROM "Plan" WHERE key = $1 AND active = true`, plan_key,
+  );
+  const plan = planRows[0];
+  if (!plan) throw new Error('plan not found');
+  const planModules: string[] = Array.isArray(plan.modules) ? plan.modules : [];
+
+  const schema = `tenant_${tenant.slug}`;
+  const { randomUUID } = await import('node:crypto');
+  // Ensure the per-tenant ModuleSetting table exists (older tenants may lack it).
+  await (prisma as any).$executeRawUnsafe(
+    `CREATE TABLE IF NOT EXISTS "${schema}"."ModuleSetting" (
+       "id" TEXT NOT NULL PRIMARY KEY,
+       "module_key" TEXT NOT NULL UNIQUE,
+       "enabled" BOOLEAN NOT NULL DEFAULT true,
+       "enabled_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+       "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+       "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+     )`,
+  ).catch(() => {});
+  let materialised = 0;
+  for (const m of MODULE_CATALOG.filter((mm) => !mm.core)) {
+    const enabled = planModules.includes(m.key);
+    await (prisma as any).$executeRawUnsafe(
+      `INSERT INTO "${schema}"."ModuleSetting" ("id","module_key","enabled","enabled_at","createdAt","updatedAt")
+       VALUES ($1,$2,$3,NOW(),NOW(),NOW())
+       ON CONFLICT ("module_key") DO UPDATE SET enabled=$3, enabled_at=NOW(), "updatedAt"=NOW()`,
+      randomUUID(), m.key, enabled,
+    ).then(() => { materialised++; }).catch((e: any) => console.warn('[assignPlan]', m.key, e?.message));
+  }
+  const trialDays = Number(plan.trial_days) || 0;
+  await (prisma as any).$executeRawUnsafe(
+    `UPDATE "Tenant" SET plan_key = $1, plan_since = NOW(),
+       trial_ends_at = ${trialDays > 0 ? `NOW() + INTERVAL '${trialDays} days'` : 'NULL'},
+       "updatedAt" = NOW()
+     WHERE id = $2`,
+    plan_key, tenant_id,
+  );
+  return { ok: true, tenant_id, plan_key, modules_materialised: materialised };
 });
 
 // Self-healing schema sync — creates in tenant_<slug> every table that

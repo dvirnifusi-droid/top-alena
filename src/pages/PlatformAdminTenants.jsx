@@ -37,6 +37,7 @@ function ProgressBar({ percent, label }) {
 export default function PlatformAdminTenants() {
   const [tenants, setTenants] = useState([]);
   const [metricsById, setMetricsById] = useState({});
+  const [plans, setPlans] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all');
   const [busyId, setBusyId] = useState(null);
@@ -48,15 +49,17 @@ export default function PlatformAdminTenants() {
   const load = async () => {
     setLoading(true);
     try {
-      const [listRes, metricsRes] = await Promise.all([
+      const [listRes, metricsRes, plansRes] = await Promise.all([
         base44.functions.listTenants(filter === 'all' ? {} : { status: filter }),
         base44.functions.getSuperAdminMetrics({}).catch(() => null),
+        base44.functions.listPlans({}).catch(() => null),
       ]);
       setTenants((listRes?.data || listRes)?.tenants || []);
       const per = (metricsRes?.data || metricsRes)?.per_tenant || [];
       const map = {};
       for (const m of per) map[m.id] = m;
       setMetricsById(map);
+      setPlans((plansRes?.data || plansRes)?.plans || []);
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
   };
@@ -116,6 +119,15 @@ export default function PlatformAdminTenants() {
 
   const retryFailed = (t) => act(t, 'retry', () => base44.functions.approveTenant({ tenant_id: t.id }),
     `לנסות שוב להקים את "${t.restaurant_name}"?`, '✅ נכנס לתור התקנה מחדש.').then(() => load());
+
+  const assignPlan = async (t, planKey) => {
+    if (!planKey || planKey === (t.plan_key || '')) return;
+    const plan = plans.find(p => p.key === planKey);
+    if (!window.confirm(`להקצות את "${t.restaurant_name}" לחבילת ${plan?.name || planKey}?\nזה יעדכן את הפיצ׳רים הזמינים למסעדה מיד.`)) return;
+    await act(t, 'plan', () => base44.functions.assignTenantPlan({ tenant_id: t.id, plan_key: planKey }), null,
+      (r) => `✅ הוקצתה חבילת ${plan?.name || planKey} — ${r?.modules_materialised || 0} מודולים עודכנו.`);
+    load();
+  };
 
   const runDiagnose = async () => {
     setDiagBusy(true); setDiagResult(null);
@@ -212,6 +224,7 @@ export default function PlatformAdminTenants() {
                   <th className="p-3 text-right">מסעדה</th>
                   <th className="p-3 text-right">בעלים</th>
                   <th className="p-3 text-right">סטטוס</th>
+                  <th className="p-3 text-right">חבילה</th>
                   <th className="p-3 text-center">משתמשים</th>
                   <th className="p-3 text-center">עובדים</th>
                   <th className="p-3 text-right">הטמעה</th>
@@ -246,6 +259,22 @@ export default function PlatformAdminTenants() {
                         <div className="text-[11px] text-slate-500" dir="ltr">{t.owner_phone || ''}</div>
                       </td>
                       <td className="p-3"><span className={`inline-block px-2 py-0.5 rounded border text-[11px] ${st.cls}`}>{st.label}</span></td>
+                      <td className="p-3">
+                        {isLive && !m?.is_main ? (
+                          <select
+                            value={t.plan_key || ''}
+                            disabled={busy(t, 'plan')}
+                            onChange={(e) => assignPlan(t, e.target.value)}
+                            className="bg-slate-800 border border-slate-700 rounded px-2 py-1 text-[11px] text-white focus:border-amber-500 outline-none"
+                          >
+                            <option value="">— ללא —</option>
+                            {plans.map(p => <option key={p.key} value={p.key}>{p.name}</option>)}
+                          </select>
+                        ) : <span className="text-[11px] text-slate-600">—</span>}
+                        {t.trial_ends_at && isLive && (
+                          <div className="text-[10px] text-amber-400/70 mt-0.5">ניסיון עד {String(t.trial_ends_at).slice(0, 10)}</div>
+                        )}
+                      </td>
                       <td className="p-3 text-center text-slate-300">{isLive ? (m?.users ?? '—') : '—'}</td>
                       <td className="p-3 text-center">
                         {isLive
