@@ -145,7 +145,8 @@ async function onboardingBrain(
     `4. **חשוב מאוד: עבור על כל הנושאים לפי הסדר — אל תדלג ואל תסיים מוקדם.** רק אם עברת על כל הנושאים, או אם הבעלים אמר במפורש "סיימתי/זה הכל/מספיק", סמן finished=true. אחרת finished=false תמיד.\n` +
     `5. אם הבעלים אומר "דלג"/"אחר כך"/"אין לי" על הנושא הנוכחי — עבור לנושא הבא (המערכת תזכור שדילג).\n` +
     `6. תגובות קצרות (משפט-שניים) + אימוג'י אחד. חם אבל לא מוגזם.\n` +
-    `7. **אל תתייחס לכשלים/תקלות קודמים בשיחה ואל תמציא בעיות.** אם פריט מופיע ב"מה כבר הוקם" עם "(הוטמע ✅)" או מספר > 0 — הוא כבר נקלט בהצלחה; אל תבקש אותו שוב ואל תגיד שהמערכת לא הצליחה למשוך אותו.\n\n` +
+    `7. **אל תתייחס לכשלים/תקלות קודמים בשיחה ואל תמציא בעיות.** אם פריט מופיע ב"מה כבר הוקם" עם "(הוטמע ✅)" או מספר > 0 — הוא כבר נקלט בהצלחה; אל תבקש אותו שוב ואל תגיד שהמערכת לא הצליחה למשוך אותו.\n` +
+    `8. **שאל אך ורק על "הנושא הנוכחי" (asking) שמופיע למטה.** אסור לחזור לנושא שכבר הוקם, ואסור לקפוץ קדימה לנושא אחר. נושא אחד בכל תור, לפי הסדר.\n\n` +
     `## קישור הצטרפות עובדים של המסעדה (השתמש בו רק אם הצעת action=send_join_link):\n${joinLink}\n\n` +
     `## מה כבר הוקם\n${summarizeState(data, tenant)}\n\n` +
     `## הנושא הנוכחי — שאל עליו עכשיו (asking="${nm.key}"):\n${nm.offer}\n\n` +
@@ -1220,19 +1221,36 @@ async function aiSuggestRoles(tenant: any, data: Record<string, any>): Promise<s
 
 async function aiSuggestTraining(tenant: any, data: Record<string, any>): Promise<number> {
   const { invokeLLM } = await import('./llm.js');
-  const result: any = await invokeLLM({
-    prompt:
-      `בנה תוכנית הכשרה לצוות מסעדה מסוג "${data.cuisine || 'כללי'}"` +
-      `${data.description ? ` (${data.description})` : ''}. חלק לפי תפקידים (מלצרים, מטבח, ברמנים).\n` +
-      `לכל פרק: title (שם הפרק כולל התפקיד), content (5-10 נקודות מפורטות בעברית).`,
-    responseSchema: {
-      type: 'object',
-      properties: { chapters: { type: 'array', items: { type: 'object', properties: { title: { type: 'string' }, content: { type: 'string' } } } } },
-      required: ['chapters'],
-    },
-    _ctx: { fn_name: 'onboardingSuggestTraining', tenant_slug: tenant.slug },
-  });
-  return insertKnowledgeEntries(tenant, Array.isArray(result?.chapters) ? result.chapters : [], 'הכשרה');
+  // One chapter per PLAN call fails (Gemini dumps everything into `title`). Build
+  // a chapter PER position instead — top-level points array (proven pattern) —
+  // and use the tenant's real positions so the plan fits the actual roles.
+  let roles: string[] = [];
+  try {
+    const rows: any[] = await query(`SELECT position_name FROM "tenant_${tenant.slug}"."WorkPosition" WHERE is_active = true ORDER BY "createdAt" LIMIT 6`).catch(() => []);
+    roles = rows.map((r) => r.position_name).filter(Boolean);
+  } catch { /* positions not available */ }
+  if (!roles.length) roles = ['דלפק ושירות', 'מטבח והכנות', 'בר / ברמנים'];
+  const base = `למסעדה מסוג "${data.cuisine || 'כללי'}"${data.description ? ` (${data.description})` : ''}`;
+  const chapters: any[] = [];
+  for (const role of roles.slice(0, 5)) {
+    try {
+      const r: any = await invokeLLM({
+        prompt:
+          `בנה פרק הכשרה לתפקיד "${role}" ${base}.\n` +
+          `החזר points — מערך של 5-10 נקודות הכשרה, לכל אחת text (משפט-שניים בעברית, קונקרטי לתפקיד ולעסק).`,
+        responseSchema: {
+          type: 'object',
+          properties: { points: { type: 'array', items: { type: 'object', properties: { text: { type: 'string' } } } } },
+          required: ['points'],
+        },
+        maxOutputTokens: 8192,
+        _ctx: { fn_name: 'onboardingSuggestTraining', tenant_slug: tenant.slug },
+      });
+      const points = (Array.isArray(r?.points) ? r.points : []).map((x: any) => String(x?.text || '').trim()).filter(Boolean);
+      if (points.length) chapters.push({ title: `הכשרה: ${role}`, content: points.map((p: string, i: number) => `${i + 1}. ${p}`).join('\n') });
+    } catch (e: any) { console.warn('[onboarding] training gen', role, e?.message); }
+  }
+  return insertKnowledgeEntries(tenant, chapters, 'הכשרה');
 }
 
 // Seating map from an image/sketch → SeatingLayout the owner can drag-fix.
