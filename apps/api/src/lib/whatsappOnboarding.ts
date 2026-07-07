@@ -209,7 +209,7 @@ async function runBrainAction(tenant: any, action: string, data: Record<string, 
     }
     if (action === 'suggest_training') {
       const n = await aiSuggestTraining(tenant, data); data._counts.training = (data._counts.training || 0) + n;
-      return n ? `\n\n✅ בניתי תוכנית הכשרה (${n} פרקים) במרכז הידע.` : '';
+      return n ? `\n\n✅ בניתי ${n} מסלולי הכשרה — קורס לכל תפקיד, עם שיעורים לפי סוג העסק. 🎓\nתראה אותם בעמוד "גיוס והכשרה" ← לשונית "הכשרות".` : '';
     }
     if (action === 'send_join_link') {
       data._counts.invited = data._counts.invited || 1; // mark employees handled via link
@@ -1219,25 +1219,38 @@ async function aiSuggestRoles(tenant: any, data: Record<string, any>): Promise<s
   return roles;
 }
 
+// A generated point comes back as "כותרת קצרה: הסבר..." — split on the first
+// colon for a clean lesson title, else fall back to a numbered step title.
+function splitLessonPoint(pt: string, order: number): { title: string; content: string } {
+  const idx = pt.indexOf(':');
+  if (idx > 1 && idx < 60) {
+    return { title: pt.slice(0, idx).trim().slice(0, 120), content: pt.slice(idx + 1).trim() || pt };
+  }
+  return { title: `שלב ${order}`, content: pt };
+}
+
 async function aiSuggestTraining(tenant: any, data: Record<string, any>): Promise<number> {
   const { invokeLLM } = await import('./llm.js');
-  // One chapter per PLAN call fails (Gemini dumps everything into `title`). Build
-  // a chapter PER position instead — top-level points array (proven pattern) —
-  // and use the tenant's real positions so the plan fits the actual roles.
+  const schema = `tenant_${tenant.slug}`;
+  // The Training page ("גיוס והכשרה" → "הכשרות") reads TrainingCourse + TrainingLesson
+  // — NOT KnowledgeBase. Build a COURSE per position (points → lessons). One chapter
+  // per PLAN call fails (Gemini dumps everything into `title`), so we generate
+  // per-position with a top-level points array (the proven pattern).
   let roles: string[] = [];
   try {
-    const rows: any[] = await query(`SELECT position_name FROM "tenant_${tenant.slug}"."WorkPosition" WHERE is_active = true ORDER BY "createdAt" LIMIT 6`).catch(() => []);
+    const rows: any[] = await query(`SELECT position_name FROM "${schema}"."WorkPosition" WHERE is_active = true ORDER BY "createdAt" LIMIT 6`).catch(() => []);
     roles = rows.map((r) => r.position_name).filter(Boolean);
   } catch { /* positions not available */ }
   if (!roles.length) roles = ['דלפק ושירות', 'מטבח והכנות', 'בר / ברמנים'];
   const base = `למסעדה מסוג "${data.cuisine || 'כללי'}"${data.description ? ` (${data.description})` : ''}`;
-  const chapters: any[] = [];
+  let coursesCreated = 0;
   for (const role of roles.slice(0, 5)) {
+    let points: string[] = [];
     try {
       const r: any = await invokeLLM({
         prompt:
           `בנה פרק הכשרה לתפקיד "${role}" ${base}.\n` +
-          `החזר points — מערך של 5-10 נקודות הכשרה, לכל אחת text (משפט-שניים בעברית, קונקרטי לתפקיד ולעסק).`,
+          `החזר points — מערך של 5-10 נקודות הכשרה. כל נקודה בפורמט "כותרת קצרה: הסבר מפורט של משפט-שניים בעברית", קונקרטי לתפקיד ולעסק.`,
         responseSchema: {
           type: 'object',
           properties: { points: { type: 'array', items: { type: 'object', properties: { text: { type: 'string' } } } } },
@@ -1246,11 +1259,28 @@ async function aiSuggestTraining(tenant: any, data: Record<string, any>): Promis
         maxOutputTokens: 8192,
         _ctx: { fn_name: 'onboardingSuggestTraining', tenant_slug: tenant.slug },
       });
-      const points = (Array.isArray(r?.points) ? r.points : []).map((x: any) => String(x?.text || '').trim()).filter(Boolean);
-      if (points.length) chapters.push({ title: `הכשרה: ${role}`, content: points.map((p: string, i: number) => `${i + 1}. ${p}`).join('\n') });
+      points = (Array.isArray(r?.points) ? r.points : []).map((x: any) => String(x?.text || '').trim()).filter(Boolean);
     } catch (e: any) { console.warn('[onboarding] training gen', role, e?.message); }
+    if (!points.length) continue;
+    const courseCode = `onb-${(await uuid()).slice(0, 8)}`;
+    let ok = false;
+    await sql(
+      `INSERT INTO "${schema}"."TrainingCourse" ("id","course_code","title","description","category","assigned_role","status","createdAt","updatedAt")
+       VALUES ($1,$2,$3,$4,'הכשרה',$5,'published',NOW(),NOW())`,
+      await uuid(), courseCode, `הכשרת ${role}`, `תוכנית הכשרה מותאמת לתפקיד ${role}`, role,
+    ).then(() => { ok = true; }).catch((err: any) => console.warn('[onboarding] course insert', role, err?.message));
+    if (!ok) continue;
+    coursesCreated++;
+    for (let i = 0; i < points.length; i++) {
+      const { title, content } = splitLessonPoint(points[i], i + 1);
+      await sql(
+        `INSERT INTO "${schema}"."TrainingLesson" ("id","lesson_id","course_code","title","content_type","content","order","createdAt","updatedAt")
+         VALUES ($1,$2,$3,$4,'text',$5,$6,NOW(),NOW())`,
+        await uuid(), await uuid(), courseCode, title, content, i + 1,
+      ).catch((err: any) => console.warn('[onboarding] lesson insert', err?.message));
+    }
   }
-  return insertKnowledgeEntries(tenant, chapters, 'הכשרה');
+  return coursesCreated;
 }
 
 // Seating map from an image/sketch → SeatingLayout the owner can drag-fix.
