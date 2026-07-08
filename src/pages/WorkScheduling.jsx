@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
@@ -22,10 +22,24 @@ import { RestaurantProfile } from '@/entities/RestaurantProfile';
 import ApparelCustomizer from '../components/gamification/ApparelCustomizer';
 import ScheduleInsights from '../components/scheduling/ScheduleInsights';
 
-const shiftTypesConfig = {
-    lunch: { label: 'צהריים', color: 'bg-[#F4ECD8] border-[#D9BD83]' },
-    dinner: { label: 'ערב', color: 'bg-[#F4ECD8] border-[#D9BD83]' }
-};
+// Default shifts (Alena's lunch/dinner). Each tenant can override via the
+// schedule-settings dialog — add בוקר/לילה, rename, retime, or hide positions.
+const SHIFT_COLOR = 'bg-[#F4ECD8] border-[#D9BD83]';
+const DEFAULT_SHIFTS = [
+    { key: 'lunch', label: 'צהריים', start: '12:00', end: '17:00' },
+    { key: 'dinner', label: 'ערב', start: '17:00', end: '23:00' },
+];
+const shiftTypesConfig = Object.fromEntries(DEFAULT_SHIFTS.map(s => [s.key, { label: s.label, color: SHIFT_COLOR, start: s.start, end: s.end }]));
+// Build the {key: {label,color,start,end,positions}} map the render loops expect
+// from a tenant's saved shifts list (falls back to the Alena default).
+function buildShiftConfig(shifts) {
+    const list = Array.isArray(shifts) && shifts.length ? shifts : DEFAULT_SHIFTS;
+    return Object.fromEntries(list.map(s => [s.key, {
+        label: s.label || s.key, color: SHIFT_COLOR,
+        start: s.start || '12:00', end: s.end || '23:00',
+        positions: Array.isArray(s.positions) && s.positions.length ? s.positions : null,
+    }]));
+}
 
 // New Fixed Order Definitions
 const LUNCH_POSITIONS_ORDER = ['קופה + אריזות', 'מלצר', 'חומוס', 'טבח', 'מתלמד פלור', 'בלתם'];
@@ -64,28 +78,36 @@ const DEPARTMENT_DEFINITIONS = {
 // business sees ITS OWN roles in the schedule and can staff by them.
 const ALENA_KNOWN_POSITIONS = new Set([...LUNCH_POSITIONS_ORDER, ...DINNER_POSITIONS_ORDER]);
 
-// Helper function to get ordered and included positions for a specific shift
-const getOrderedPositionsForShift = (allPositions, shiftType) => {
-    const orderList = shiftType === 'lunch' ? LUNCH_POSITIONS_ORDER : DINNER_POSITIONS_ORDER;
+// Helper: ordered positions for a shift. `cfg` (optional) carries per-tenant
+// config: cfg.hidden (Set of position names to drop everywhere) and
+// cfg.shiftPositions (explicit ordered list for THIS shift — overrides the
+// default order/append behaviour so a business can staff each shift precisely).
+const getOrderedPositionsForShift = (allPositions, shiftType, cfg = {}) => {
+    const hidden = cfg.hidden instanceof Set ? cfg.hidden : new Set(Array.isArray(cfg.hidden) ? cfg.hidden : []);
+    let result;
 
-    // Alena's positions for this shift, in the curated order.
-    const includedPositions = allPositions.filter(p => orderList.includes(p.position_name));
-    includedPositions.sort((a, b) => orderList.indexOf(a.position_name) - orderList.indexOf(b.position_name));
-
-    // Tenant-custom positions — not in EITHER Alena list — belong to this tenant;
-    // show them in every shift (sorted by their own name) so they're never lost.
-    const customPositions = allPositions
-        .filter(p => p.position_name && !ALENA_KNOWN_POSITIONS.has(p.position_name))
-        .sort((a, b) => String(a.position_name).localeCompare(String(b.position_name), 'he'));
-
-    const result = [...includedPositions, ...customPositions];
-
-    // הוסף את "בלתם" תמיד בסוף אם הוא בסדר הקבוע
-    if (orderList.includes('בלתם') && !result.some(p => p.position_name === 'בלתם')) {
-        result.push({ position_name: 'בלתם', id: 'unassigned' });
+    if (Array.isArray(cfg.shiftPositions) && cfg.shiftPositions.length) {
+        // Explicit per-shift positions, in the owner's chosen order.
+        result = cfg.shiftPositions.map(name =>
+            allPositions.find(p => p.position_name === name) || { position_name: name, id: 'ps_' + name });
+    } else {
+        const orderList = shiftType === 'lunch' ? LUNCH_POSITIONS_ORDER
+            : (shiftType === 'dinner' ? DINNER_POSITIONS_ORDER : []);
+        // Alena's positions for this shift, in the curated order.
+        const includedPositions = allPositions.filter(p => orderList.includes(p.position_name));
+        includedPositions.sort((a, b) => orderList.indexOf(a.position_name) - orderList.indexOf(b.position_name));
+        // Tenant-custom positions — not in EITHER Alena list — shown in every shift.
+        const customPositions = allPositions
+            .filter(p => p.position_name && !ALENA_KNOWN_POSITIONS.has(p.position_name))
+            .sort((a, b) => String(a.position_name).localeCompare(String(b.position_name), 'he'));
+        result = [...includedPositions, ...customPositions];
+        if (orderList.includes('בלתם') && !result.some(p => p.position_name === 'בלתם')) {
+            result.push({ position_name: 'בלתם', id: 'unassigned' });
+        }
     }
 
-    return result;
+    // Drop positions the owner hid from the schedule.
+    return result.filter(p => !hidden.has(p.position_name));
 };
 
 // Helper function to filter positions by department.
@@ -104,7 +126,7 @@ const filterPositionsByDepartment = (allPositions, departmentFilter) => {
 // =================================================================
 // ScheduleFilters Component
 // =================================================================
-const ScheduleFilters = ({ filters, onFilterChange, employees, currentEmployeeId }) => {
+const ScheduleFilters = ({ filters, onFilterChange, employees, currentEmployeeId, shiftTypesConfig = {} }) => {
     return (
         <div className="space-y-4">
             {/* פילטר משמרות שלי */}
@@ -131,8 +153,9 @@ const ScheduleFilters = ({ filters, onFilterChange, employees, currentEmployeeId
                     </SelectTrigger>
                     <SelectContent>
                         <SelectItem value="all">כל המשמרות</SelectItem>
-                        <SelectItem value="lunch">צהריים בלבד</SelectItem>
-                        <SelectItem value="dinner">ערב בלבד</SelectItem>
+                        {Object.entries(shiftTypesConfig).map(([key, cfg]) => (
+                            <SelectItem key={key} value={key}>{cfg.label} בלבד</SelectItem>
+                        ))}
                     </SelectContent>
                 </Select>
             </div>
@@ -184,7 +207,7 @@ const ScheduleFilters = ({ filters, onFilterChange, employees, currentEmployeeId
 // =================================================================
 // Mobile View Component
 // =================================================================
-const MobileScheduleView = ({ week, positions, employees, onCellClick, onAssignmentClick, filters, currentEmployeeId, tipReports, isAdmin, strengthLabel }) => {
+const MobileScheduleView = ({ week, positions, employees, onCellClick, onAssignmentClick, filters, currentEmployeeId, tipReports, isAdmin, strengthLabel, shiftTypesConfig = {}, hiddenPositions }) => {
     const [selectedDay, setSelectedDay] = useState(new Date());
 
     const weekDays = eachDayOfInterval({
@@ -324,7 +347,7 @@ const MobileScheduleView = ({ week, positions, employees, onCellClick, onAssignm
                 {Object.entries(shiftTypesConfig)
                     .filter(([shiftKey]) => filters.shiftType === 'all' || shiftKey === filters.shiftType)
                     .map(([shiftKey, shiftConfig]) => {
-                        let shiftPositions = getOrderedPositionsForShift(positions, shiftKey);
+                        let shiftPositions = getOrderedPositionsForShift(positions, shiftKey, { hidden: hiddenPositions, shiftPositions: shiftConfig.positions });
                         let finalFilteredPositions = filterPositionsByDepartment(shiftPositions, filters.department);
 
                         return (
@@ -405,6 +428,82 @@ const MobileScheduleView = ({ week, positions, employees, onCellClick, onAssignm
 
 
 // =================================================================
+// Schedule Settings — per-tenant shifts + which positions to show
+// =================================================================
+function ScheduleSettingsDialog({ open, onClose, initialShifts, initialHidden, allPositions, onSave }) {
+    const [shifts, setShifts] = useState([]);
+    const [hidden, setHidden] = useState([]);
+    const [saving, setSaving] = useState(false);
+
+    useEffect(() => {
+        if (open) {
+            const base = (Array.isArray(initialShifts) && initialShifts.length ? initialShifts : DEFAULT_SHIFTS);
+            setShifts(base.map(s => ({ key: s.key || ('s' + Math.floor(Math.random() * 1e9)), label: s.label || '', start: s.start || '12:00', end: s.end || '23:00' })));
+            setHidden(Array.isArray(initialHidden) ? [...initialHidden] : []);
+        }
+    }, [open, initialShifts, initialHidden]);
+
+    const updateShift = (i, field, val) => setShifts(prev => prev.map((s, idx) => idx === i ? { ...s, [field]: val } : s));
+    const addShift = () => setShifts(prev => [...prev, { key: 's' + Date.now(), label: 'משמרת חדשה', start: '08:00', end: '16:00' }]);
+    const removeShift = (i) => setShifts(prev => prev.filter((_, idx) => idx !== i));
+    const toggleHidden = (name) => setHidden(prev => prev.includes(name) ? prev.filter(n => n !== name) : [...prev, name]);
+
+    const uniqueNames = [...new Set((allPositions || []).map(p => p.position_name).filter(Boolean))];
+
+    const save = async () => {
+        setSaving(true);
+        const cleanShifts = shifts
+            .filter(s => s.label && s.label.trim())
+            .map(s => ({ key: s.key, label: s.label.trim(), start: s.start || '12:00', end: s.end || '23:00' }));
+        try { await onSave({ shifts: cleanShifts, hidden_positions: hidden }); } finally { setSaving(false); onClose(); }
+    };
+
+    return (
+        <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+            <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto" dir="rtl">
+                <DialogHeader><DialogTitle>⚙️ הגדרות סידור עבודה</DialogTitle></DialogHeader>
+                <div className="space-y-5 py-2">
+                    <div>
+                        <div className="flex items-center justify-between mb-1">
+                            <Label className="font-bold">המשמרות שלך</Label>
+                            <Button size="sm" variant="outline" onClick={addShift}><Plus className="w-4 h-4 ml-1" /> הוסף משמרת</Button>
+                        </div>
+                        <p className="text-xs text-gray-500 mb-2">הגדר את המשמרות של העסק — בוקר / צהריים / ערב / לילה, עם שעות.</p>
+                        <div className="space-y-2">
+                            {shifts.map((s, i) => (
+                                <div key={i} className="flex items-center gap-2">
+                                    <Input value={s.label} onChange={e => updateShift(i, 'label', e.target.value)} placeholder="שם המשמרת" className="flex-1" />
+                                    <Input type="time" value={s.start || ''} onChange={e => updateShift(i, 'start', e.target.value)} className="w-24" />
+                                    <Input type="time" value={s.end || ''} onChange={e => updateShift(i, 'end', e.target.value)} className="w-24" />
+                                    <Button size="icon" variant="ghost" onClick={() => removeShift(i)} className="text-red-500"><Trash2 className="w-4 h-4" /></Button>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                    <div>
+                        <Label className="font-bold">תפקידים בסידור</Label>
+                        <p className="text-xs text-gray-500 mb-2">בטל סימון כדי להסתיר תפקיד מהסידור (למשל כפילויות שאתה לא צריך).</p>
+                        <div className="grid grid-cols-2 gap-1 max-h-52 overflow-y-auto">
+                            {uniqueNames.map(name => (
+                                <label key={name} className="flex items-center gap-2 text-sm p-1 rounded hover:bg-gray-50 cursor-pointer">
+                                    <input type="checkbox" checked={!hidden.includes(name)} onChange={() => toggleHidden(name)} />
+                                    <span className={hidden.includes(name) ? 'line-through text-gray-400' : ''}>{name}</span>
+                                </label>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+                <DialogFooter>
+                    <Button variant="outline" onClick={onClose}>ביטול</Button>
+                    <Button onClick={save} disabled={saving}>{saving ? <Loader2 className="w-4 h-4 animate-spin" /> : 'שמור'}</Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
+
+// =================================================================
 // Main Component
 // =================================================================
 export default function WorkScheduling() {
@@ -423,6 +522,17 @@ export default function WorkScheduling() {
 
     // Filter states
     const [filters, setFilters] = useState({ shiftType: 'all', department: 'all', employee: 'all' });
+
+    // Per-tenant schedule config (dynamic shifts + hidden positions). Shadows the
+    // module-level `shiftTypesConfig` within this component so both render loops
+    // and MobileScheduleView use the tenant's shifts.
+    const [scheduleCfg, setScheduleCfg] = useState(null);
+    const [showScheduleSettings, setShowScheduleSettings] = useState(false);
+    const shiftTypesConfig = useMemo(() => buildShiftConfig(scheduleCfg?.shifts), [scheduleCfg]);
+    const hiddenPositions = useMemo(
+        () => new Set(Array.isArray(scheduleCfg?.hidden_positions) ? scheduleCfg.hidden_positions : []),
+        [scheduleCfg],
+    );
 
     // Department managers (e.g. kitchen manager) get admin-equivalent powers
     // here, but the page UI auto-scopes them to their department further below.
@@ -489,7 +599,7 @@ export default function WorkScheduling() {
             
             setCurrentEmployee(myEmployee);
 
-            const [shifts, allPositions, allTipReports, allAvailabilities, allTracks] = await Promise.all([
+            const [shifts, allPositions, allTipReports, allAvailabilities, allTracks, schedCfg] = await Promise.all([
                 // The '-date' orderBy on this endpoint sorts ascending (proven via
                 // a direct API probe in browser console: limit=100 returned the
                 // OLDEST 100 shifts, latest date 2026-04-06; with no limit there
@@ -503,7 +613,9 @@ export default function WorkScheduling() {
                 base44.entities.EmployeeAvailability.list(),
                 // Clock-ins of past 14 days — enough for the visible week + a buffer
                 base44.entities.ShiftTracking.list('-shift_start', 300).catch(() => []),
+                base44.functions.getScheduleConfig({}).then(r => r?.data || r || {}).catch(() => ({})),
             ]);
+            setScheduleCfg(schedCfg || {});
             // Build clock-in lookup: key = "employee_id|YYYY-MM-DD"
             const cMap = new Map();
             for (const t of (allTracks || [])) {
@@ -595,8 +707,8 @@ export default function WorkScheduling() {
                 const newShiftData = {
                     date: dateString,
                     shift_type: shiftType,
-                    start_time: shiftType === 'lunch' ? '12:00' : '17:00',
-                    end_time: shiftType === 'lunch' ? '17:00' : '23:00',
+                    start_time: shiftTypesConfig[shiftType]?.start || (shiftType === 'lunch' ? '12:00' : '17:00'),
+                    end_time: shiftTypesConfig[shiftType]?.end || (shiftType === 'lunch' ? '17:00' : '23:00'),
                     assigned_staff: [],
                     positions_needed: {}
                 };
@@ -801,6 +913,13 @@ export default function WorkScheduling() {
     };
 
     const isFilterActive = filters.shiftType !== 'all' || filters.department !== 'all' || filters.employee !== 'all';
+
+    // Save the per-tenant schedule config (shifts + hidden positions) and refresh.
+    const handleSaveScheduleConfig = async (cfg) => {
+        await base44.functions.setScheduleConfig(cfg);
+        const r = await base44.functions.getScheduleConfig({}).then(x => x?.data || x || {}).catch(() => ({}));
+        setScheduleCfg(r);
+    };
 
     const handleMoveShift = async () => {
         if (!moveShiftDialog || !moveShiftDate) return;
@@ -1044,6 +1163,11 @@ export default function WorkScheduling() {
                             <Button variant="outline" onClick={handleNextWeek}>שבוע הבא <ChevronLeft className="w-4 h-4 mr-2" /></Button>
                         </div>
                         <div className="flex items-center gap-2">
+                            {isAdminLike && (
+                                <Button variant="outline" onClick={() => setShowScheduleSettings(true)} className="border-[#D9BD83] text-[#44512C] hover:bg-[#F4ECD8]">
+                                    ⚙️ הגדרות סידור
+                                </Button>
+                            )}
                             <Button variant="outline" onClick={handleCopyAvailabilityLink} className={copied ? "bg-green-50 border-green-400 text-green-700" : ""}>
                                 {copied ? <Check className="w-4 h-4 ml-2 text-green-600" /> : <Link className="w-4 h-4 ml-2" />}
                                 {copied ? "הועתק!" : "העתק לינק לזמינות"}
@@ -1109,7 +1233,7 @@ export default function WorkScheduling() {
                         {Object.entries(shiftTypesConfig)
                             .filter(([type]) => filters.shiftType === 'all' || type === filters.shiftType)
                             .map(([type, config]) => {
-                                const shiftPositions = getOrderedPositionsForShift(positions, type);
+                                const shiftPositions = getOrderedPositionsForShift(positions, type, { hidden: hiddenPositions, shiftPositions: config.positions });
                                 const finalFilteredPositions = filterPositionsByDepartment(shiftPositions, filters.department);
 
                                 return (
@@ -1258,6 +1382,8 @@ export default function WorkScheduling() {
                     tipReports={tipReports}
                     isAdmin={isAdminLike}
                     strengthLabel={strengthLabel}
+                    shiftTypesConfig={shiftTypesConfig}
+                    hiddenPositions={hiddenPositions}
                 />
                 <Sheet>
                     <SheetTrigger asChild>
@@ -1275,6 +1401,7 @@ export default function WorkScheduling() {
                                 onFilterChange={handleFilterChange}
                                 employees={employees}
                                 currentEmployeeId={currentEmployee?.id}
+                                shiftTypesConfig={shiftTypesConfig}
                             />
                         </div>
                     </SheetContent>
@@ -1293,6 +1420,17 @@ export default function WorkScheduling() {
                     </div>
                 )}
             </div>
+
+            {isAdminLike && (
+                <ScheduleSettingsDialog
+                    open={showScheduleSettings}
+                    onClose={() => setShowScheduleSettings(false)}
+                    initialShifts={scheduleCfg?.shifts}
+                    initialHidden={scheduleCfg?.hidden_positions}
+                    allPositions={positions}
+                    onSave={handleSaveScheduleConfig}
+                />
+            )}
 
             {isQuickAssignOpen && (
                 <QuickAssignDialog

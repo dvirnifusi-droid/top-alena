@@ -48,7 +48,7 @@ const db = prisma as any; // generic delegate access
 
 // Public deploy marker — lets us confirm which build is live (and that
 // auto-deploy is working) without server access. Bump on each deploy test.
-registerFn('deployInfo', async () => ({ version: 'reservation-extras-2026-07-08', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
+registerFn('deployInfo', async () => ({ version: 'schedule-config-2026-07-08', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
 
 
 
@@ -6807,6 +6807,7 @@ registerFn('chatEventsInquiry', async ({ body }) => {
   const c: any = {
     contact_name: pickFirst('contact_name', 'name', 'customer_name', 'full_name', 'first_name'),
     contact_phone: pickFirst('contact_phone', 'phone', 'mobile', 'tel', 'phone_number'),
+    contact_email: pickFirst('contact_email', 'email', 'mail', 'e_mail'),
     event_date: pickFirst('event_date', 'date', 'booking_date'),
     event_date_iso: pickFirst('event_date_iso', 'date_iso', 'iso_date', 'event_date'),
     event_time: pickFirst('event_time', 'time', 'start_time', 'time_of_day'),
@@ -6872,6 +6873,11 @@ registerFn('chatEventsInquiry', async ({ body }) => {
   if (!c.contact_phone) {
     const phoneMatch = fullText.match(/0\s?5\d[\s-]?\d{3}[\s-]?\d{4}/);
     if (phoneMatch) c.contact_phone = phoneMatch[0].replace(/[\s-]/g, '');
+  }
+  // Backup email — scan only the customer's own messages (not the agent's).
+  if (!c.contact_email) {
+    const emailMatch = customerText.match(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/);
+    if (emailMatch) c.contact_email = emailMatch[0].trim();
   }
   if (!c.guest_count) {
     // Broader patterns: 'ל-30 איש', '30 אורחים', 'כ-30 איש', 'בערך 30 איש', '30 נפש'
@@ -7169,6 +7175,7 @@ registerFn('chatEventsInquiry', async ({ body }) => {
   })();
   const newMeta = {
     ...prevMeta,
+    ...(c.contact_email ? { contact_email: c.contact_email } : {}),
     ...(c.event_time ? { event_time: c.event_time } : {}),
     ...(c.location ? { location: c.location } : {}),
     ...(c.location_details ? { location_details: c.location_details } : {}),
@@ -9222,6 +9229,7 @@ registerFn('listEventLeads', async () => {
       location: meta.location || null,
       location_details: meta.location_details || null,
       special_requests: meta.special_requests || null,
+      contact_email: meta.contact_email || null,
       callback_at: meta.callback_at || null,
       callback_notes: meta.callback_notes || null,
       // Strip the META block from notes so the UI shows clean human text only.
@@ -9250,11 +9258,12 @@ const DEFAULT_EVENTS_PROMPT = `את דנה — מנהלת האירועים הפ�
 פתח רק אם זו ההודעה הראשונה (אין שיחה קודמת):
 "היי 🌿 אני דנה, מנהלת האירועים של {brand}. שמחה שחשבתם עלינו! יש לי כמה שאלות קצרות לאסוף ממך פרטים, ואז המנהל של המסעדה יחזור אליך אישית עם הצעה מותאמת. מתחילים?"
 
-איסוף מידע (שאלה אחת בכל פעם, לא ביחד) — ארבעה שדות בלבד:
-1. שם מלא וטלפון ליצירת קשר.
+איסוף מידע (שאלה אחת בכל פעם, לא ביחד) — חמישה שדות:
+1. **שם מלא — פרטי ומשפחה — וטלפון**. אם קיבלת רק שם פרטי (מילה אחת) — שאלי שוב: "ומה שם המשפחה?" ואל תתקדמי בלי שם משפחה. את הטלפון קראי בחזרה לאישור ("אז הטלפון הוא ..., נכון?") וּודאי שהוא נייד ישראלי תקין — 10 ספרות שמתחילות ב-05. אם לא תקין — בקשי לתקן: "נראה שחסרה ספרה במספר — תוכל/י לשלוח שוב את הנייד המלא?".
 2. תאריך + שעה — אפשר תאריך יחסי ("היום", "מחר", "עוד יומיים", "ראשון הבא"). שאלי גם **שעה מדויקת**: "באיזו שעה בדיוק? (לדוגמה 13:00 או 20:30)". אם הלקוח עונה רק "בצהריים" / "בערב" — תבקשי שעה ספציפית פעם נוספת: "תוכל/י להגיד שעה מדויקת בערך? זה עוזר למנהל להחזיר תשובה". אם גם בפעם השנייה לא קיבלת שעה מדויקת — תרשמי את החלון בלבד (hours_window). **לעולם אל תמציאי שעה מספרית.**
 3. **מיקום + סוג אירוע** — שאל בשאלה אחת: "האם האירוע אצלנו במסעדה או במקום אחר? ומה סוג האירוע? (יום הולדת, יום נישואין, חברה, חינה, משפחתי וכו')." **אם חוץ** — שאלי בנפרד: "באיזו עיר ומה הכתובת? (רחוב + מספר, או שם האולם)". אל תסתפקי בעיר בלבד — אם המנהל יוצא לאירוע חוץ הוא צריך כתובת מלאה. שמרי את התשובה ב-collected.location_details.
 4. כמות אנשים בערך. **אל תשאל על ילדים בנפרד** — זה ייסגר בשיחת הטלפון.
+5. **מייל לגיבוי** — לפני הסיכום בקשי פעם אחת: "ולסיום, מה כתובת המייל שלך? זה גיבוי למקרה שלא נצליח להשיג אותך בטלפון". אם הלקוח מסרב או מדלג — לא נורא, המשיכי בלי להתעקש.
 
 ⚠️ **אסור** לשאול: כמה ילדים, אלרגיות, צמחוני/טבעוני, כשר, תקציב, חבילות, תפריטים. אם הלקוח עצמו מציין משהו כזה — תרשמי בלי לשאול עוד. כל הפירוט יישאר לשיחה אישית עם המנהל.
 
@@ -9267,7 +9276,7 @@ const DEFAULT_EVENTS_PROMPT = `את דנה — מנהלת האירועים הפ�
 
 🛑 **שלב הסיכום והאישור — קריטי, בשתי תורות**:
 
-**תורת הסיכום** — ברגע שיש לך **4 השדות** (שם+טלפון, תאריך+שעה, מיקום+סוג, כמות):
+**תורת הסיכום** — ברגע שיש לך את הפרטים (שם מלא כולל שם משפחה + טלפון תקין, תאריך+שעה, מיקום+סוג, כמות; ומייל אם נמסר):
 1. רשמי: "מצוין, תודה רבה {שם}! אז אני מסכמת:"
 2. **אל תפרטי את השדות בעצמך** — המערכת תוסיף סיכום מובנה אוטומטית מתחת לתשובה שלך.
 3. סיימי בשאלה: "הפרטים נכונים? תאשר/י ואני שולחת למנהל המסעדה."
@@ -9284,7 +9293,7 @@ const DEFAULT_EVENTS_PROMPT = `את דנה — מנהלת האירועים הפ�
 
 החזר תמיד JSON בלבד:
 - reply: string (התשובה שלך בעברית)
-- collected: { contact_name, contact_phone, event_date, event_time, hours_window, location ('restaurant'|'external'), location_details, guest_count, event_type, special_requests }
+- collected: { contact_name, contact_phone, contact_email, event_date, event_time, hours_window, location ('restaurant'|'external'), location_details, guest_count, event_type, special_requests }
 - stage: 'collecting' (תמיד)
 - complete: boolean — true ברגע שיש 4 שדות החובה (שם+טלפון, תאריך, מיקום+סוג, כמות)
 - escalation: boolean — true רק במקרי קצה (יותר מ-200 אנשים, אירוע חוץ-לארץ, מעורבות מדיה)
