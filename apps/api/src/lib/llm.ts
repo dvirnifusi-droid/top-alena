@@ -55,6 +55,117 @@ async function streamToBuffer(stream: any): Promise<Buffer> {
   return Buffer.concat(chunks);
 }
 
+// --- Office / text extraction ------------------------------------------------
+// Gemini's inlineData reads images + PDF natively but CANNOT read Office formats
+// (docx/xlsx/pptx/odt) or raw rtf. Those are the files restaurant owners most
+// often send (menus, rosters, prep lists). Since every Office format is really a
+// ZIP of XML, we unzip + pull the text server-side and hand Gemini plain text
+// instead — so "read every file, even the weird ones" actually holds. Language
+// agnostic: we only turn bytes → text; Gemini handles he/en/es content as-is.
+
+function decodeXmlEntities(s: string): string {
+  return s
+    .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&apos;/g, "'")
+    .replace(/&#x([0-9a-fA-F]+);/g, (_m, h) => { try { return String.fromCodePoint(parseInt(h, 16)); } catch { return ''; } })
+    .replace(/&#(\d+);/g, (_m, d) => { try { return String.fromCodePoint(parseInt(d, 10)); } catch { return ''; } })
+    .replace(/&amp;/g, '&');
+}
+
+// Turn an OOXML/ODF body into text: break at paragraph closes, drop all tags.
+function xmlBodyToText(xml: string, paraCloseTags: string[]): string {
+  let s = xml;
+  for (const tag of paraCloseTags) s = s.split(`</${tag}>`).join('\n');
+  s = s.replace(/<[^>]+>/g, '');
+  return decodeXmlEntities(s).replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
+}
+
+function stripRtf(rtf: string): string {
+  return rtf
+    .replace(/\\'[0-9a-fA-F]{2}/g, ' ')
+    .replace(/\\[a-zA-Z]+-?\d* ?/g, '')
+    .replace(/[{}]/g, '')
+    .replace(/[ \t]{2,}/g, ' ')
+    .trim();
+}
+
+// Reconstruct a spreadsheet as pipe-delimited rows so the LLM keeps table
+// structure (name | price | ...). Resolves shared strings + inline/number cells.
+async function xlsxToText(zip: any): Promise<string> {
+  const readIf = async (p: string) => (zip.file(p) ? await zip.file(p).async('string') : '');
+  const ssXml = await readIf('xl/sharedStrings.xml');
+  const shared: string[] = [];
+  for (const m of ssXml.matchAll(/<si>([\s\S]*?)<\/si>/g)) {
+    let t = '';
+    for (const tm of m[1].matchAll(/<t[^>]*>([\s\S]*?)<\/t>/g)) t += tm[1];
+    shared.push(decodeXmlEntities(t.replace(/<[^>]+>/g, '')));
+  }
+  const sheetPaths = Object.keys(zip.files).filter((p) => /^xl\/worksheets\/sheet\d+\.xml$/.test(p)).sort();
+  const out: string[] = [];
+  for (const sp of sheetPaths) {
+    const sx = await zip.file(sp).async('string');
+    for (const rowM of sx.matchAll(/<row[^>]*>([\s\S]*?)<\/row>/g)) {
+      const cells: string[] = [];
+      for (const cM of rowM[1].matchAll(/<c\b([^>]*)>([\s\S]*?)<\/c>/g)) {
+        const type = (cM[1].match(/\bt="([^"]*)"/) || [])[1] || '';
+        const inner = cM[2] || '';
+        let val = '';
+        if (type === 's') { const vi = inner.match(/<v>([\s\S]*?)<\/v>/); if (vi) val = shared[parseInt(vi[1], 10)] || ''; }
+        else if (type === 'inlineStr' || type === 'str') { const ti = inner.match(/<t[^>]*>([\s\S]*?)<\/t>/); if (ti) val = decodeXmlEntities(ti[1]); }
+        else { const vi = inner.match(/<v>([\s\S]*?)<\/v>/); if (vi) val = decodeXmlEntities(vi[1]); }
+        cells.push(val.trim());
+      }
+      const line = cells.join(' | ').trim();
+      if (line.replace(/[|\s]/g, '')) out.push(line);
+    }
+    out.push('');
+  }
+  return out.join('\n');
+}
+
+// Returns extracted text for Office/text formats, or null to pass the raw bytes
+// through to the model (images, PDF, unknown binary). Never throws.
+async function extractDocText(mime: string, url: string, buf: Buffer): Promise<string | null> {
+  try {
+    const hint = `${mime} ${url}`.toLowerCase();
+    const isZip = buf.length > 4 && buf[0] === 0x50 && buf[1] === 0x4b && (buf[2] === 0x03 || buf[2] === 0x05 || buf[2] === 0x07);
+    if (!isZip) {
+      if (/\brtf\b|\.rtf/.test(hint) || buf.slice(0, 5).toString('latin1') === '{\\rtf') return stripRtf(buf.toString('latin1')).slice(0, 100_000) || null;
+      if (/text\/csv|\.csv/.test(hint)) return buf.toString('utf8').slice(0, 100_000) || null;
+      if (/text\/(plain|markdown)|\.txt|\.md\b/.test(hint)) return buf.toString('utf8').slice(0, 100_000) || null;
+      return null; // image / pdf / .doc(old) / unknown → let the model try natively
+    }
+    const JSZip = (await import('jszip')).default;
+    const zip = await JSZip.loadAsync(buf);
+    const names = Object.keys(zip.files);
+    let text: string | null = null;
+    if (zip.file('word/document.xml')) {
+      text = xmlBodyToText(await zip.file('word/document.xml')!.async('string'), ['w:p']);
+    } else if (names.some((n) => /^xl\/worksheets\/sheet\d+\.xml$/.test(n))) {
+      text = await xlsxToText(zip);
+    } else if (names.some((n) => /^ppt\/slides\/slide\d+\.xml$/.test(n))) {
+      const slides = names.filter((n) => /^ppt\/slides\/slide\d+\.xml$/.test(n)).sort();
+      const parts: string[] = [];
+      for (const s of slides) parts.push(xmlBodyToText(await zip.file(s)!.async('string'), ['a:p']));
+      text = parts.join('\n\n');
+    } else if (zip.file('content.xml')) { // ODF: odt / ods / odp
+      text = xmlBodyToText(await zip.file('content.xml')!.async('string'), ['text:p', 'text:h', 'table:table-row']);
+    }
+    if (text && text.trim()) return text.slice(0, 100_000);
+    return null;
+  } catch {
+    return null; // any failure → passthrough, never break the read
+  }
+}
+
+// Return { mime, data } ready for inlineData. Office/text files are transparently
+// converted to text/plain so the model can read them.
+function finalizeFile(mime: string, url: string, buf: Buffer): Promise<{ mime: string; data: string }> {
+  return extractDocText(mime, url, buf).then((text) => {
+    if (text && text.trim()) return { mime: 'text/plain', data: Buffer.from(text, 'utf8').toString('base64') };
+    return { mime, data: buf.toString('base64') };
+  });
+}
+
 async function fetchFileAsBase64(url: string) {
   // Uploaded files are stored with a relative URL of the form `/api/files/<key>`
   // (see lib/storage.ts). Node's fetch() can't parse relative URLs, and the
@@ -67,14 +178,14 @@ async function fetchFileAsBase64(url: string) {
     const stream = await minio.getObject(S3_BUCKET, key);
     const buf = await streamToBuffer(stream);
     const mime = (stat.metaData?.['content-type'] as string) || 'application/octet-stream';
-    return { mime, data: buf.toString('base64') };
+    return finalizeFile(mime, url, buf);
   }
 
   const res = await fetch(url);
   if (!res.ok) throw new Error(`Failed to fetch file (${res.status})`);
   const mime = res.headers.get('content-type') ?? 'application/octet-stream';
   const buf = Buffer.from(await res.arrayBuffer());
-  return { mime, data: buf.toString('base64') };
+  return finalizeFile(mime, url, buf);
 }
 
 type InvokeArgs = {

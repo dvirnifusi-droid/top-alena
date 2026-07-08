@@ -29,6 +29,7 @@
     "google-auth-library": "^10.6.2",
     "imapflow": "^1.4.3",
     "jsonwebtoken": "^9.0.2",
+    "jszip": "^3.10.1",
     "mailparser": "^3.9.12",
     "minio": "^8.0.1",
     "nanoid": "^5.0.7",
