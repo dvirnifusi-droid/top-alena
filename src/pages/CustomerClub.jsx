@@ -12,7 +12,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Users, Search, Loader2, AlertTriangle, Heart, Frown, RefreshCw, Upload, Mail, CheckSquare, Square, MessageSquare, UserPlus, ImagePlus, X } from 'lucide-react';
+import { Users, Search, Loader2, AlertTriangle, Heart, Frown, RefreshCw, Upload, Mail, CheckSquare, Square, MessageSquare, UserPlus, ImagePlus, X, QrCode } from 'lucide-react';
 import { sendSms } from '@/functions/sendSms';
 import { sendCustomerEmail } from '@/functions/sendCustomerEmail';
 import { format } from 'date-fns';
@@ -399,6 +399,15 @@ export default function CustomerClubPage() {
                             <Button variant="outline" onClick={() => { setShowImport(true); setImportResult(null); }}>
                                 <Upload className="w-4 h-4 ml-1" />
                                 ייבוא מאקסל
+                            </Button>
+                            <Button
+                                variant="outline"
+                                onClick={() => window.open(createPageUrl('ClubQR'), '_blank')}
+                                className="border-[#B89556] text-[#7A3722] hover:bg-[#FAF5E8]"
+                                title="פתח עמדת הרשמה עם קוד QR — להדפסה והצבה בקופה"
+                            >
+                                <QrCode className="w-4 h-4 ml-1" />
+                                QR הצטרפות
                             </Button>
                             <Button
                                 variant="outline"

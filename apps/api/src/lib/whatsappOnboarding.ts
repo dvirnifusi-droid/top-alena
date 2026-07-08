@@ -146,7 +146,9 @@ async function onboardingBrain(
     `5. אם הבעלים אומר "דלג"/"אחר כך"/"אין לי" על הנושא הנוכחי — עבור לנושא הבא (המערכת תזכור שדילג).\n` +
     `6. תגובות קצרות (משפט-שניים) + אימוג'י אחד. חם אבל לא מוגזם.\n` +
     `7. **אל תתייחס לכשלים/תקלות קודמים בשיחה ואל תמציא בעיות.** אם פריט מופיע ב"מה כבר הוקם" עם "(הוטמע ✅)" או מספר > 0 — הוא כבר נקלט בהצלחה; אל תבקש אותו שוב ואל תגיד שהמערכת לא הצליחה למשוך אותו.\n` +
-    `8. **שאל אך ורק על "הנושא הנוכחי" (asking) שמופיע למטה.** אסור לחזור לנושא שכבר הוקם, ואסור לקפוץ קדימה לנושא אחר. נושא אחד בכל תור, לפי הסדר.\n\n` +
+    `8. **שאל אך ורק על "הנושא הנוכחי" (asking) שמופיע למטה.** אסור לחזור לנושא שכבר הוקם, ואסור לקפוץ קדימה לנושא אחר. נושא אחד בכל תור, לפי הסדר.\n` +
+    `9. **כתוב אך ורק בעברית תקנית.** אסור להשתמש באותיות ערביות או בסימני ניקוד ערביים. אם אתה לא בטוח באות — כתוב מילה עברית פשוטה במקום.\n` +
+    `10. **אל תבטיח פעולות שלא קיימות.** תאר רק מה שהמערכת באמת עושה (התאמות לפי ה-actions הזמינים). אל תמציא "עמדות", "הטבות" או "קודים" שלא ביקשת מהמערכת ליצור.\n\n` +
     `## קישור הצטרפות עובדים של המסעדה (השתמש בו רק אם הצעת action=send_join_link):\n${joinLink}\n\n` +
     `## מה כבר הוקם\n${summarizeState(data, tenant)}\n\n` +
     `## הנושא הנוכחי — שאל עליו עכשיו (asking="${nm.key}"):\n${nm.offer}\n\n` +
@@ -191,7 +193,23 @@ async function onboardingBrain(
   });
   const out = result && result.reply ? result : { reply: fallbackReply(nm), asking: nm.key };
   if (!out.asking) out.asking = nm.key;
+  out.reply = sanitizeReply(out.reply);
   return out;
+}
+
+// gemini-2.5-pro occasionally injects Arabic script / diacritics into otherwise
+// Hebrew text (e.g. "עֻجْ"). Drop any whitespace token that contains an Arabic
+// character — reads cleaner than leaving a mangled fragment — then tidy spaces.
+const ARABIC_RE = new RegExp('[\\u0600-\\u06FF\\u0750-\\u077F\\u08A0-\\u08FF\\uFB50-\\uFDFF\\uFE70-\\uFEFF]');
+function sanitizeReply(s: string): string {
+  if (!s || !ARABIC_RE.test(s)) return s || '';
+  return s
+    .split(/(\s+)/)
+    .map((tok) => (/^\s+$/.test(tok) ? tok : (ARABIC_RE.test(tok) ? '' : tok)))
+    .join('')
+    .replace(/[ \t]{2,}/g, ' ')
+    .replace(/ +([.,!?:;])/g, '$1')
+    .trim();
 }
 
 // Runs a brain-requested action (AI suggestion / join link). Returns a short
