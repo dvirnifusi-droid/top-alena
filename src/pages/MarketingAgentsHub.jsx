@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Loader2, Sparkles, Image as ImgIcon, TrendingUp, BookOpen, ChefHat, MessageCircle, DollarSign, CalendarHeart, UtensilsCrossed, Moon, BarChart3, Megaphone, AlertTriangle, CheckCircle2, Key, ArrowLeft, Crown, Rocket, FileCheck, X as XIcon, ExternalLink, Zap } from 'lucide-react';
 import { toast } from 'sonner';
 import { useTenantBranding } from '@/hooks/useTenantBranding';
+import { isMainAlena } from '@/lib/tenant';
 
 const AGENTS = [
   { key: 'vp_marketing',         label: 'VP Marketing (מנהל שיווק)',   group: 'leadership', icon: Crown,         desc: 'תגיד לו יעד עסקי — הוא ינתח מצב, יבנה תוכנית, ויחלק עבודה לכל הסוכנים' },
@@ -340,6 +341,12 @@ function RunOutputView({ run }) {
 
 export default function MarketingAgentsHub() {
   const brandName = useTenantBranding()?.name || 'המסעדה';
+  const isAlena = isMainAlena();
+  // Alena's Meta ad-account; other tenants get the generic Ads Manager (their own
+  // default account) rather than being sent into Alena's account.
+  const metaAdsUrl = (campaignId) => isAlena
+    ? `https://business.facebook.com/adsmanager/manage/campaigns?act=1678566132326169&selected_campaign_ids=${campaignId}`
+    : `https://business.facebook.com/adsmanager/manage/campaigns`;
   const [activeAgent, setActiveAgent] = useState(null);
   const [input, setInput] = useState({});
   const [running, setRunning] = useState(false);
@@ -451,7 +458,7 @@ export default function MarketingAgentsHub() {
   const approveAndLaunchBrief = async () => {
     if (!activeBrief) return;
     const budget = Number(activeBrief.daily_budget_ils || 0);
-    const landing = activeBrief.landing_url || 'topalena.com/EventsInquiry';
+    const landing = activeBrief.landing_url || `${window.location.host}/EventsInquiry`;
     const confirmMsg = [
       `אישור והשקה LIVE של הקמפיין "${activeBrief.title}"?`,
       '',
@@ -888,7 +895,7 @@ export default function MarketingAgentsHub() {
                 </div>
                 {activeBrief.meta_campaign_id && (
                   <a
-                    href={`https://business.facebook.com/adsmanager/manage/campaigns?act=1678566132326169&selected_campaign_ids=${activeBrief.meta_campaign_id}`}
+                    href={metaAdsUrl(activeBrief.meta_campaign_id)}
                     target="_blank" rel="noreferrer"
                     className="text-xs text-fuchsia-700 underline flex items-center gap-1 mt-1"
                   >
@@ -994,7 +1001,7 @@ export default function MarketingAgentsHub() {
                 )}
                 {activeBrief.status === 'launched' && activeBrief.meta_campaign_id && (
                   <a
-                    href={`https://business.facebook.com/adsmanager/manage/campaigns?act=1678566132326169&selected_campaign_ids=${activeBrief.meta_campaign_id}`}
+                    href={metaAdsUrl(activeBrief.meta_campaign_id)}
                     target="_blank" rel="noreferrer"
                     className="w-full"
                   >
