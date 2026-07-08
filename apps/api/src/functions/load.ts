@@ -6757,7 +6757,16 @@ registerFn('chatEventsInquiry', async ({ body }) => {
   const langDirective = language === 'Hebrew'
     ? ''
     : `\n\n--- LANGUAGE DIRECTIVE ---\nThe customer is communicating in ${language}. The "reply" field MUST be written in ${language}, even if the rest of the prompt is in Hebrew. Be warm, natural, and use idiomatic ${language}. Field extraction (booking data, ai_summary, etc) should stay in Hebrew so the manager can read it.`;
-  const prompt = `${systemPrompt}${dateContext}${kitContext}${closingInstructions}${langDirective}\n--- שיחה עד כה ---\n${transcript || '(אין עדיין הודעות — זו תחילת השיחה)'}${newPart}\n\nהחזר JSON בלבד.`;
+  // Contact-quality rules — appended to EVERY events prompt (default OR a custom
+  // kit.system_prompt), so a missing surname / bad phone can never lose a lead.
+  const contactRules =
+    `\n--- כללי איסוף פרטי קשר (חובה — גובר על כל הנחיה אחרת) ---\n` +
+    `• שם מלא: חובה פרטי + משפחה. אם הלקוח נתן רק מילה אחת (שם פרטי בלבד) — אל תתקדם לשאלה הבאה, שאל: "ומה שם המשפחה?". רק אחרי שיש שם משפחה המשך.\n` +
+    `• טלפון: ודא נייד ישראלי תקין — 10 ספרות שמתחילות ב-05. קרא אותו בחזרה לאישור ("אז הטלפון הוא ..., נכון?"). אם לא תקין (לא מתחיל ב-05 או לא 10 ספרות) — בקש לתקן: "נראה שחסרה ספרה — תוכל/י לשלוח שוב את הנייד המלא?".\n` +
+    `• מייל גיבוי: לפני הסיכום בקש פעם אחת את כתובת המייל ("ולסיום, מה המייל שלך? לגיבוי למקרה שלא נצליח להשיג בטלפון"). אם הלקוח מדלג — המשך בלי להתעקש.\n` +
+    `• אל תעבור לשלב הסיכום/אישור לפני שיש שם מלא (כולל שם משפחה) וטלפון תקין.\n` +
+    `--- סוף כללי פרטי קשר ---\n`;
+  const prompt = `${systemPrompt}${dateContext}${kitContext}${closingInstructions}${contactRules}${langDirective}\n--- שיחה עד כה ---\n${transcript || '(אין עדיין הודעות — זו תחילת השיחה)'}${newPart}\n\nהחזר JSON בלבד.`;
 
   let result: any;
   let llmError: any = null;
