@@ -17,3 +17,4 @@ FROM nginx:1.27-alpine
 COPY dist /usr/share/nginx/html
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 EXPOSE 80
+# Force-rebuild trigger: touched 2026-07-09 to recover missing CSS asset (index-DsyemGhw.css 404 → web served stale image without it).
