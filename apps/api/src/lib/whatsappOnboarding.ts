@@ -773,7 +773,7 @@ export async function tryHandleOnboardingMedia(
     const hedge = confidence === 'low' ? 'אני לא לגמרי בטוח, אבל ' : '';
     const msg =
       `📋 קיבלתי את הקובץ. ${hedge}נראה לי ש*זה ${label}*.${sampleTxt}\n\n` +
-      `שאקרא ואטמיע את כולו? כתוב *כן* לאישור — או תגיד לי מה זה אם טעיתי (תפריט / סידור עבודה / עובדים / צ׳קליסט / לקוחות / מסמך ידע) 🙂`;
+      `שאקרא ואטמיע את כולו? כתוב *כן* לאישור — או תגיד לי מה זה אם טעיתי (תפריט / סידור עבודה / עובדים / צ׳קליסט / מפת הושבה / לקוחות / מסמך ידע) 🙂`;
     history.push({ role: 'user', content: '(שלח קובץ)' });
     history.push({ role: 'assistant', content: msg });
     data._history = history.slice(-24);

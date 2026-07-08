@@ -162,7 +162,13 @@ export const twilioWebhookRoutes: FastifyPluginAsync = async (app) => {
         // owner mid-onboarding, that flow trumps the admin agent. Otherwise
         // an admin who owns multiple tenants would get generic admin replies
         // instead of the onboarding wizard.
-        if (body) {
+        //
+        // numMedia === 0 GUARD: WhatsApp sends documents (docx/xlsx/pdf) with the
+        // FILENAME as Body. Without this guard the text brain consumed the file
+        // message ("just paste the content") and the file handler below never
+        // ran — so office files were never read. When there's an attachment, let
+        // the audio/file branches handle it; text-only messages come here.
+        if (body && numMedia === 0) {
           try {
             const handled = await tryHandleOnboardingMessage(from, body);
             if (handled) {
