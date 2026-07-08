@@ -11,7 +11,9 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { FileText, Plus, Send, Copy, Check, ExternalLink, Eye, Pencil, Calendar, Users, X, RotateCcw, Trash2 } from 'lucide-react';
-import { OFFICIAL_EVENT_TERMS } from '@/data/eventContractTerms';
+import { renderEventTerms } from '@/data/eventContractTerms';
+import { useTenantBranding } from '@/hooks/useTenantBranding';
+import { isMainAlena } from '@/lib/tenant';
 
 // Default catalogue mirrored from the owner's Word sign-off form.
 // Editable manually in the dialog after pre-checking what's relevant.
@@ -50,6 +52,7 @@ const STATUS_BADGE = {
 };
 
 export default function EventContracts() {
+  const brandName = useTenantBranding()?.name || 'המסעדה';
   const [contracts, setContracts] = useState([]);
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -116,7 +119,7 @@ export default function EventContracts() {
       await base44.functions.sendEventContract({ id: c.id, via: 'whatsapp' });
       const phone = (c.customer_phone || '').replace(/[^\d]/g, '');
       const url = publicUrl(c.public_token);
-      const msg = `שלום ${c.customer_name || ''} 👋\n\nמצורף החוזה הדיגיטלי לאירוע שלך בעלינא:\n${url}\n\nניתן לחתום ישירות מהטלפון. נא לחתום עד 48 שעות לפני האירוע.\n\nתודה,\nעלינא אירועים 🔥`;
+      const msg = `שלום ${c.customer_name || ''} 👋\n\nמצורף החוזה הדיגיטלי לאירוע שלך ב${brandName}:\n${url}\n\nניתן לחתום ישירות מהטלפון. נא לחתום עד 48 שעות לפני האירוע.\n\nתודה,\n${brandName} אירועים 🔥`;
       const target = phone ? `https://wa.me/${phone.startsWith('0') ? '972' + phone.slice(1) : phone}?text=${encodeURIComponent(msg)}` : `https://wa.me/?text=${encodeURIComponent(msg)}`;
       window.open(target, '_blank');
       await loadAll();
@@ -227,7 +230,7 @@ export default function EventContracts() {
                         )}
                         {c.status === 'signed' && !c.rep_signed_at && (
                           <Button size="sm" className="bg-amber-600 hover:bg-amber-700 text-white" onClick={() => setRepSigning(c)}>
-                            ✍️ חתום כנציג עלינא
+                            ✍️ חתום כנציג {brandName}
                           </Button>
                         )}
                         {c.status === 'signed' && c.rep_signed_at && (
@@ -315,8 +318,11 @@ export default function EventContracts() {
 }
 
 function RepSignDialog({ contract, onClose }) {
+  const brandName = useTenantBranding()?.name || 'המסעדה';
   const canvasRef = React.useRef(null);
-  const [repName, setRepName] = React.useState('דביר ניפוסי');
+  // Prefill the rep name only on the flagship Alena app (the owner's name);
+  // other tenants start blank so they type their own representative.
+  const [repName, setRepName] = React.useState(isMainAlena() ? 'דביר ניפוסי' : '');
   const [submitting, setSubmitting] = React.useState(false);
   const drawing = React.useRef(false);
   const hasInk = React.useRef(false);
@@ -430,12 +436,12 @@ function RepSignDialog({ contract, onClose }) {
     <Dialog open={true} onOpenChange={(o) => !o && onClose()}>
       <DialogContent dir="rtl" className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>✍️ חתימת נציג עלינא — {contract.contract_number || ''}</DialogTitle>
+          <DialogTitle>✍️ חתימת נציג {brandName} — {contract.contract_number || ''}</DialogTitle>
         </DialogHeader>
         <div className="space-y-3 py-2">
           <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-900">
             הלקוח חתם ב-{contract.signed_at ? new Date(contract.signed_at).toLocaleString('he-IL', { dateStyle: 'short', timeStyle: 'short' }) : '—'}.
-            חתום עכשיו כנציג עלינא להשלמת התקשרות מחייבת.
+            חתום עכשיו כנציג {brandName} להשלמת התקשרות מחייבת.
           </div>
           <Field label="שם הנציג">
             <Input value={repName} onChange={e => setRepName(e.target.value)} placeholder="שם מלא" />
@@ -461,6 +467,7 @@ function RepSignDialog({ contract, onClose }) {
 }
 
 function EditDialog({ contract, onClose }) {
+  const brandName = useTenantBranding()?.name || 'המסעדה';
   const [c, setC] = useState(contract);
   const [saving, setSaving] = useState(false);
   const set = (k, v) => setC(prev => ({ ...prev, [k]: v }));
@@ -543,6 +550,7 @@ function EditDialog({ contract, onClose }) {
           <TermsEditor
             value={c.terms_snapshot}
             onChange={(arr) => set('terms_snapshot', arr)}
+            brandName={brandName}
           />
 
           <Field label="הערות"><Textarea rows={2} value={c.notes || ''} onChange={e => set('notes', e.target.value)} /></Field>
@@ -717,7 +725,7 @@ function MenuPicker({ value, onChange }) {
 
 // Terms editor — handles strings, arrays of strings, arrays of {text}, and the
 // legacy {cancellation_days, headcount_deadline_days} JSON object from the kit.
-function TermsEditor({ value, onChange }) {
+function TermsEditor({ value, onChange, brandName = 'המסעדה' }) {
   // Normalize to array of strings
   const lines = (() => {
     if (Array.isArray(value)) return value.map(t => typeof t === 'string' ? t : (t.text || t.label || ''));
@@ -742,8 +750,8 @@ function TermsEditor({ value, onChange }) {
           variant="ghost"
           size="sm"
           onClick={() => {
-            if (text.trim() && !confirm('זה ידרוס את כל התנאים הנוכחיים בתבנית הרשמית של עלינא. להמשיך?')) return;
-            onChange([...OFFICIAL_EVENT_TERMS]);
+            if (text.trim() && !confirm(`זה ידרוס את כל התנאים הנוכחיים בתבנית הרשמית של ${brandName}. להמשיך?`)) return;
+            onChange(renderEventTerms(brandName));
           }}
           className="h-7 text-xs text-amber-700 hover:text-amber-900"
         >

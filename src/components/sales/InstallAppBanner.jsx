@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
+import { useTenantBranding } from '@/hooks/useTenantBranding';
 import { X } from 'lucide-react';
 
 const DISMISS_KEY = 'install_app_dismissed_until';
 
 export default function InstallAppBanner() {
+    const brandName = useTenantBranding()?.name || 'המסעדה';
     const [promptEvent, setPromptEvent] = useState(null);
     const [show, setShow] = useState(false);
 
@@ -39,7 +41,7 @@ export default function InstallAppBanner() {
             <div className="flex items-start gap-2">
                 <span className="text-2xl">📲</span>
                 <div className="flex-1">
-                    <p className="text-sm font-bold">התקן את עלינא במסך הבית</p>
+                    <p className="text-sm font-bold">התקן את {brandName} במסך הבית</p>
                     <p className="text-xs text-gray-500 mt-1">קיצור דרך עם הקלטה מהירה ועוד</p>
                     <div className="flex gap-2 mt-2">
                         <Button size="sm" onClick={install}>התקן</Button>

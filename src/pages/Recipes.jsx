@@ -6,8 +6,10 @@ import { Badge } from '@/components/ui/badge';
 import { Loader2, ChefHat, RefreshCw, TrendingUp, AlertTriangle, Edit3, Upload, Sparkles } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import PageGuard from '../components/shared/PageGuard';
+import { isMainAlena } from '@/lib/tenant';
 
 function RecipesInner() {
+  const isAlena = isMainAlena();
   const [recipes, setRecipes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('DISH');
@@ -200,10 +202,12 @@ function RecipesInner() {
           </p>
         </div>
         <div className="flex gap-2">
-          <Button size="sm" variant="outline" onClick={handleApplyMenuPrices} disabled={syncing} className="border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-900">
-            {syncing ? <Loader2 className="w-4 h-4 animate-spin" /> : <TrendingUp className="w-4 h-4 ml-1" />}
-            הזן מחירי תפריט מה-PDF
-          </Button>
+          {isAlena && (
+            <Button size="sm" variant="outline" onClick={handleApplyMenuPrices} disabled={syncing} className="border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-900">
+              {syncing ? <Loader2 className="w-4 h-4 animate-spin" /> : <TrendingUp className="w-4 h-4 ml-1" />}
+              הזן מחירי תפריט מה-PDF
+            </Button>
+          )}
           <Button size="sm" variant="outline" onClick={handleSyncPrices} disabled={syncing} className="border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-900">
             {syncing ? <Loader2 className="w-4 h-4 animate-spin" /> : <TrendingUp className="w-4 h-4 ml-1" />}
             סנכרן מ-MenuItem

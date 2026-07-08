@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
+import { useTenantBranding } from '@/hooks/useTenantBranding';
 import { User } from '@/entities/User';
 import { Employee } from '@/entities/Employee';
 import { Button } from "@/components/ui/button";
@@ -31,6 +32,7 @@ function readPosition() {
 }
 
 export default function ShiftClockWidget() {
+    const brandName = useTenantBranding()?.name || 'המסעדה';
     const [user, setUser] = useState(null);
     const [activeShift, setActiveShift] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -509,7 +511,7 @@ export default function ShiftClockWidget() {
         setBreakEditUnlocked(false);
         setEditBreakByManager(false);
 
-        // הפתעה עלינא — רק אם מילא לפחות שאלה אחת בשאלון
+        // הפתעה מהמסעדה — רק אם מילא לפחות שאלה אחת בשאלון
         const filledSurvey = feedbackRatings.atmosphere > 0 || feedbackRatings.sales > 0 || feedbackRatings.effort > 0 || feedbackRatings.drank;
         setActiveShift(null);
         setActionLoading(false);
@@ -663,7 +665,7 @@ export default function ShiftClockWidget() {
                     </DialogHeader>
                     <div className="bg-gradient-to-r from-purple-50 to-pink-50 border-y border-purple-200 px-4 py-2 shrink-0 flex items-center gap-2">
                       <span className="text-xl">🎁</span>
-                      <p className="text-sm text-purple-700 font-semibold">מלא את השאלון ותקבל הפתעה עלינא! 🎉</p>
+                      <p className="text-sm text-purple-700 font-semibold">מלא את השאלון ותקבל הפתעה מ{brandName}! 🎉</p>
                     </div>
 
                     <div className="overflow-y-auto flex-1 px-4 py-3">

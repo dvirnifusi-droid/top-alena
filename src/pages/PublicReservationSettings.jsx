@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { ReservationSettings } from '@/entities/ReservationSettings';
+import { useTenantBranding } from '@/hooks/useTenantBranding';
+import { isMainAlena } from '@/lib/tenant';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,12 +12,20 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Settings, Phone, MessageSquare, Calendar, Save } from 'lucide-react';
 
 export default function PublicReservationSettings() {
+    const branding = useTenantBranding();
+    const isAlena = isMainAlena();
+    // Alena keeps its historical defaults; a fresh tenant defaults to its own
+    // branding (name/address) or an empty value it can fill in — never Alena's.
+    const defaultName = isAlena ? 'עלינא' : (branding?.name || '');
+    const defaultWelcome = isAlena
+        ? 'ברוכים הבאים למסעדת עלינא - חוויה קולינרית מיוחדת מחכה לכם'
+        : (defaultName ? `ברוכים הבאים למסעדת ${defaultName} - חוויה קולינרית מיוחדת מחכה לכם` : '');
     const [settings, setSettings] = useState({
-        restaurant_name: 'עלינא',
-        welcome_message: 'ברוכים הבאים למסעדת עלינא - חוויה קולינרית מיוחדת מחכה לכם',
-        phone: '03-1234567',
-        email: 'reservations@alina.co.il',
-        address: 'רחוב הדוגמה 123, תל אביב',
+        restaurant_name: defaultName,
+        welcome_message: defaultWelcome,
+        phone: isAlena ? '03-1234567' : '',
+        email: isAlena ? 'reservations@alina.co.il' : '',
+        address: isAlena ? 'רחוב הדוגמה 123, תל אביב' : (branding?.address || ''),
         whatsapp_group_link: 'https://chat.whatsapp.com/KwD8J5F3aE9JnZ2vB4XyQr',
         whatsapp_group_enabled: true,
         min_party_size: 1,

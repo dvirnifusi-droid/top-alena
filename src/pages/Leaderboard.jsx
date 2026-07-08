@@ -8,8 +8,10 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import ReactMarkdown from 'react-markdown';
 import ApparelCustomizer from '../components/gamification/ApparelCustomizer';
+import { useTenantBranding } from '@/hooks/useTenantBranding';
 
 function LeaderboardInner() {
+    const brandName = useTenantBranding()?.name || 'המסעדה';
     const [performanceData, setPerformanceData] = useState([]);
     const [timeFrame, setTimeFrame] = useState('monthly');
     const [loading, setLoading] = useState(true);
@@ -219,7 +221,7 @@ function LeaderboardInner() {
                         <TrendingUp className="w-12 h-12" />
                         <div>
                             <CardTitle className="text-4xl font-bold">לוח המובילים</CardTitle>
-                            <CardDescription className="text-orange-100 text-lg">טבלת המצטיינים של עלינא</CardDescription>
+                            <CardDescription className="text-orange-100 text-lg">טבלת המצטיינים של {brandName}</CardDescription>
                         </div>
                     </CardHeader>
                 </Card>

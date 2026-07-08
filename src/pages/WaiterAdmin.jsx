@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Loader2, Plus, Trash2, Save, Utensils, Sparkles, Settings, MessageSquareCode, AlertCircle, RefreshCw, X, Upload, FileText, Wine } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
+import { useTenantBranding } from '@/hooks/useTenantBranding';
 import toast from 'react-hot-toast';
 
 const DEFAULT_CATEGORIES = [
@@ -134,7 +135,7 @@ function MenuUploader({ menu, setMenu }) {
 }
 
 const MENU_TIERS = [
-  { id: 'evening',  label: '🌙 ערב',                    hint: 'התפריט הראשי של עלינא — סטייל burger-bar, מנות שיתוף.' },
+  { id: 'evening',  label: '🌙 ערב',                    hint: 'התפריט הראשי — מנות עיקריות ומנות שיתוף.' },
   { id: 'lunch',    label: '☀️ עסקיות צהריים',           hint: 'תפריט יום צהריים — בדרך כלל מנה + תוספת במחיר משולב.' },
   { id: 'delivery', label: '🛵 משלוחים וטייק אווי',      hint: 'תפריט למשלוח וטייק אווי — בלי מנות שלא טסות טוב.' },
 ];
@@ -153,6 +154,7 @@ function normalizeMenus(rawMenu) {
 }
 
 function MenuTab({ menu: rawMenu, setMenu: setRawMenu }) {
+  const brandName = useTenantBranding()?.name || 'המסעדה';
   const [activeTier, setActiveTier] = React.useState('evening');
   const menus = normalizeMenus(rawMenu);
   const menu = menus[activeTier] || { categories: [] };
@@ -217,7 +219,7 @@ function MenuTab({ menu: rawMenu, setMenu: setRawMenu }) {
       {categories.length === 0 && (
         <Card className="bg-amber-50 border-amber-200">
           <CardContent className="p-4 text-center">
-            <p className="text-sm text-amber-900 mb-3">או — התחל ממבנה ריק של עלינא (סלטים / חלוקה — ירק / חלוקה — בשר / עיקריות בצלחת / אלכוהול / קינוחים) ותוסיף ידנית.</p>
+            <p className="text-sm text-amber-900 mb-3">או — התחל ממבנה ריק של {brandName} (סלטים / חלוקה — ירק / חלוקה — בשר / עיקריות בצלחת / אלכוהול / קינוחים) ותוסיף ידנית.</p>
             <Button variant="outline" onClick={seedDefaults}><Plus className="w-4 h-4 ml-1" /> טען מבנה ריק</Button>
           </CardContent>
         </Card>
@@ -356,7 +358,7 @@ function GeneralInfoTab({ info, setInfo }) {
         </div>
         <div className="grid md:grid-cols-2 gap-2">
           <div><Label>📶 WiFi (שם רשת + סיסמה)</Label>
-            <Input value={info?.wifi || ''} onChange={(e) => upd({ wifi: e.target.value })} placeholder="Alena_Guest / 12345678" />
+            <Input value={info?.wifi || ''} onChange={(e) => upd({ wifi: e.target.value })} placeholder="Guest_WiFi / 12345678" />
           </div>
           <div><Label>🅿️ חניה</Label>
             <Input value={info?.parking || ''} onChange={(e) => upd({ parking: e.target.value })} placeholder="חניון ציבורי במרחק 50 מ׳" />
@@ -365,7 +367,7 @@ function GeneralInfoTab({ info, setInfo }) {
             <Input value={info?.hours || ''} onChange={(e) => upd({ hours: e.target.value })} placeholder="א-ה 18-23, ו 12-15+19-24, ש 19-24" />
           </div>
           <div><Label>📍 כתובת</Label>
-            <Input value={info?.address || ''} onChange={(e) => upd({ address: e.target.value })} placeholder="רחוב X, ראשון לציון" />
+            <Input value={info?.address || ''} onChange={(e) => upd({ address: e.target.value })} placeholder="רחוב X, עיר" />
           </div>
         </div>
       </CardContent></Card>

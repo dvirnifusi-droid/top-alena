@@ -21,6 +21,7 @@ import LiveSimulation from "../components/training/LiveSimulation";
 import ToneTraining from "../components/training/ToneTraining";
 import QuizManager from "../components/training/QuizManager";
 import SimulationScriptEditor from "../components/training/SimulationScriptEditor";
+import { useTenantBranding } from '@/hooks/useTenantBranding';
 
 // --- Components ---
 
@@ -252,6 +253,7 @@ const QuizView = ({ quizId, onComplete }) => {
 };
 
 const SimulationView = ({ scriptId, onComplete }) => {
+    const brandName = useTenantBranding()?.name || 'המסעדה';
     const [scripts, setScripts] = useState([]);
     const [currentScriptIndex, setCurrentScriptIndex] = useState(0);
     const [answers, setAnswers] = useState({});
@@ -370,7 +372,7 @@ const SimulationView = ({ scriptId, onComplete }) => {
             `,
             'first_time_visitors_script': `
 **למה חשוב להסביר ללקוחות חדשים:**
-לקוחות חדשים לא מכירים את הקונסטרקט של עלינא. הסבר מונע בלבול ויוצר ציפיות נכונות.
+לקוחות חדשים לא מכירים את הקונסטרקט של ${brandName}. הסבר מונע בלבול ויוצר ציפיות נכונות.
 
 **מה לכלול בהסבר:**
 - חמארה ים תיכונית
@@ -392,7 +394,7 @@ const SimulationView = ({ scriptId, onComplete }) => {
 **מטרה:** לגרום להם להרגיש מיוחדים ולנסות דברים חדשים
             `,
             'restaurant_explanation_script': `
-**איך להסביר את עלינא בצורה מושכת:**
+**איך להסביר את ${brandName} בצורה מושכת:**
 ההסבר על המקום צריך לעורר תיאבון ולהכין את הלקוח לחוויה מיוחדת.
 
 **מרכיבי ההסבר המנצח:**
@@ -407,7 +409,7 @@ const SimulationView = ({ scriptId, onComplete }) => {
 **למה חשוב לקבוע עוגן:**
 בלי עוגן, הלקוח לא יודע כמה להזמין ואתה לא יודע איך להוביל אותו.
 
-**העוגן של עלינא: 4-5 מנות לזוג**
+**העוגן של ${brandName}: 4-5 מנות לזוג**
 - נותן מסגרת ברורה
 - מונע הזמנה של יותר מדי או פחות מדי
 - מאפשר לך לבנות הזמנה מותאמת
@@ -428,7 +430,7 @@ const SimulationView = ({ scriptId, onComplete }) => {
             `,
             'alcohol_recommendation_script': `
 **למה כל שולחן חייב אלכוהול:**
-זה לא רק רווח - זה חלק מהחוויה של עלינא כבר מסעדה.
+זה לא רק רווח - זה חלק מהחוויה של ${brandName} כבר מסעדה.
 
 **איך להציע נכון:**
 - תמיד הזכר את ה-Happy Hour (40% הנחה)

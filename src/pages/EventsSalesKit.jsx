@@ -201,7 +201,7 @@ export default function EventsSalesKit() {
             </div>
             <Textarea rows={24} value={kit.system_prompt || ''} onChange={(e) => setKit({ ...kit, system_prompt: e.target.value })} className="font-mono text-xs" />
             <p className="text-xs text-muted-foreground">
-              השינוי נכנס לתוקף ב-turn הבא של כל שיחה. **הערה:** בזמן ריצה, כל &quot;עלינא&quot; שנשאר בטקסט יוחלף אוטומטית בשם המסעדה שלך + פרופיל העסק יזרם בראש הפרומפט.
+              השינוי נכנס לתוקף ב-turn הבא של כל שיחה. **הערה:** בזמן ריצה, שם מסעדה ישן שנשאר בטקסט יוחלף אוטומטית בשם המסעדה שלך + פרופיל העסק יזרם בראש הפרומפט.
             </p>
           </CardContent></Card>
         </TabsContent>

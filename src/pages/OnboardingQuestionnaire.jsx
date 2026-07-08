@@ -12,7 +12,7 @@ import { Brain, Download, Save, Trash2, CheckCircle2, Loader2 } from 'lucide-rea
  * שאלון הצטרפות לעסק חדש → בונה את "ידע של דביר".
  * בשמירה: מייצרים מסמך Markdown של כל התשובות, מעלים אותו (UploadFile)
  * ורושמים אותו כ-AiAssistantFile פעיל. משם askGemini קורא ממנו ישירות
- * (text/markdown נתמך), בדיוק כמו הקבצים של עלינא.
+ * (text/markdown נתמך), בדיוק כמו שאר קובצי הידע של העסק.
  * הטיוטה נשמרת אוטומטית ב-localStorage.
  */
 

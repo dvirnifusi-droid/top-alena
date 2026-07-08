@@ -3,6 +3,7 @@ import { invokePublic } from '@/lib/publicFetch';
 import { Send, Sparkles, CheckCircle2, AlertCircle, Utensils } from 'lucide-react';
 import LanguagePicker from '@/components/shared/LanguagePicker';
 import { useI18n, LANG_NAMES_FOR_LLM } from '@/lib/i18n';
+import { useTenantBranding } from '@/hooks/useTenantBranding';
 
 // Progressive "thinking" indicator. The first 3s feel snappy with "מקליד…",
 // past 3s we rotate reassuring messages so 13s doesn't feel like a stall.
@@ -63,6 +64,7 @@ function readOrCreateSessionId() {
 export default function Waiter() {
   const [tableHint] = useState(readTableHint);
   const [sessionId] = useState(readOrCreateSessionId);
+  const brandName = useTenantBranding()?.name || 'המסעדה';
   const [, lang] = useI18n();
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
@@ -99,9 +101,9 @@ export default function Waiter() {
   // message the second the page loads. Localized per UI language.
   useEffect(() => {
     const welcome = {
-      he: 'ברוכים הבאים לעלינא 🌿 אני המלצר הדיגיטלי שלכם. אעזור לכם לבנות ארוחה מושלמת — סלטים, מנות חלוקה בשריות, ירקות מהגוספר, אלכוהול ועוד. כדי להתחיל — כמה אתם הערב?',
-      en: 'Welcome to Alina 🌿 I\'m your digital waiter. I\'ll help you build a perfect meal — salads, shareable mains, grilled vegetables, drinks and more. To start — how many of you are dining tonight?',
-      ru: 'Добро пожаловать в Алина 🌿 Я ваш цифровой официант. Помогу составить идеальный ужин — салаты, основные блюда для компании, овощи на гриле, напитки и многое другое. Для начала — сколько вас сегодня?',
+      he: `ברוכים הבאים ל${brandName} 🌿 אני המלצר הדיגיטלי שלכם. אעזור לכם לבנות ארוחה מושלמת — סלטים, מנות חלוקה בשריות, ירקות מהגוספר, אלכוהול ועוד. כדי להתחיל — כמה אתם הערב?`,
+      en: `Welcome to ${brandName} 🌿 I'm your digital waiter. I'll help you build a perfect meal — salads, shareable mains, grilled vegetables, drinks and more. To start — how many of you are dining tonight?`,
+      ru: `Добро пожаловать в ${brandName} 🌿 Я ваш цифровой официант. Помогу составить идеальный ужин — салаты, основные блюда для компании, овощи на гриле, напитки и многое другое. Для начала — сколько вас сегодня?`,
     };
     setMessages([{ role: 'assistant', content: welcome[lang] || welcome.he }]);
     /* eslint-disable-next-line */
@@ -121,10 +123,10 @@ export default function Waiter() {
 
   const isRtl = lang === 'he';
   const header = {
-    he: { title: 'עלינא — ראש מלצרים', sub: 'בנו את הארוחה לפי הטעם שלכם' },
-    en: { title: 'Alina — Digital Waiter', sub: 'Build your meal your way' },
-    ru: { title: 'Алина — Цифровой официант', sub: 'Соберите ужин по своему вкусу' },
-  }[lang] || { title: 'עלינא — ראש מלצרים', sub: 'בנו את הארוחה לפי הטעם שלכם' };
+    he: { title: `${brandName} — ראש מלצרים`, sub: 'בנו את הארוחה לפי הטעם שלכם' },
+    en: { title: `${brandName} — Digital Waiter`, sub: 'Build your meal your way' },
+    ru: { title: `${brandName} — Цифровой официант`, sub: 'Соберите ужин по своему вкусу' },
+  }[lang] || { title: `${brandName} — ראש מלצרים`, sub: 'בנו את הארוחה לפי הטעם שלכם' };
   return (
     <div className="min-h-screen bg-gradient-to-br from-amber-50 via-orange-50 to-amber-100 flex flex-col" dir={isRtl ? 'rtl' : 'ltr'}>
       <header className="bg-white/90 backdrop-blur border-b border-amber-200 p-4 sticky top-0 z-10">
@@ -197,7 +199,7 @@ export default function Waiter() {
       </main>
 
       <footer className="text-center text-xs text-amber-700/70 p-3">
-        🔒 השיחה והפרטים שלכם נשמרים במערכת של עלינא בלבד.
+        🔒 השיחה והפרטים שלכם נשמרים במערכת של {brandName} בלבד.
       </footer>
     </div>
   );

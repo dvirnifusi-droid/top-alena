@@ -10,12 +10,14 @@ import { Textarea } from '@/components/ui/textarea';
 import { Loader2, Send, ArrowRight, Megaphone } from 'lucide-react';
 import { createPageUrl } from '@/utils';
 import { VENDOR_CATEGORIES } from './EventVendors';
+import { useTenantBranding } from '@/hooks/useTenantBranding';
 
 export default function EventVendorCampaign() {
+    const brandName = useTenantBranding()?.name || 'המסעדה';
     const [category, setCategory] = useState('all');
     const [channel, setChannel] = useState('whatsapp');
     const [subject, setSubject] = useState('');
-    const [template, setTemplate] = useState('שלום {contact}! 👋\nרצינו לעדכן ש[פרטים כאן]\nנשמח לשמוע מכם 🌿\nצוות עלינא');
+    const [template, setTemplate] = useState(`שלום {contact}! 👋\nרצינו לעדכן ש[פרטים כאן]\nנשמח לשמוע מכם 🌿\nצוות ${brandName}`);
     const [preview, setPreview] = useState({ count: 0, sample: [] });
     const [loading, setLoading] = useState(false);
     const [sending, setSending] = useState(false);

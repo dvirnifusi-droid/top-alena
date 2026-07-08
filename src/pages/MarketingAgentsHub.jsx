@@ -8,10 +8,11 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Loader2, Sparkles, Image as ImgIcon, TrendingUp, BookOpen, ChefHat, MessageCircle, DollarSign, CalendarHeart, UtensilsCrossed, Moon, BarChart3, Megaphone, AlertTriangle, CheckCircle2, Key, ArrowLeft, Crown, Rocket, FileCheck, X as XIcon, ExternalLink, Zap } from 'lucide-react';
 import { toast } from 'sonner';
+import { useTenantBranding } from '@/hooks/useTenantBranding';
 
 const AGENTS = [
   { key: 'vp_marketing',         label: 'VP Marketing (מנהל שיווק)',   group: 'leadership', icon: Crown,         desc: 'תגיד לו יעד עסקי — הוא ינתח מצב, יבנה תוכנית, ויחלק עבודה לכל הסוכנים' },
-  { key: 'copywriter',           label: 'Copywriter',                  group: 'creative', icon: Sparkles,         desc: 'קופי לפוסטים/מודעות/ניוזלטר בקול עלינא' },
+  { key: 'copywriter',           label: 'Copywriter',                  group: 'creative', icon: Sparkles,         desc: 'קופי לפוסטים/מודעות/ניוזלטר בקול המסעדה' },
   { key: 'visual_designer',      label: 'Visual Designer',             group: 'creative', icon: ImgIcon,          desc: 'תמונות וסרטונים (Midjourney/Ideogram + Canva)' },
   { key: 'trend_spotter',        label: 'Trend-Spotter',               group: 'creative', icon: TrendingUp,       desc: 'זוויות תוכן טרנדיות מ-TikTok/Reels' },
   { key: 'storyteller',          label: 'Storyteller / Newsletter',    group: 'creative', icon: BookOpen,         desc: 'סיפורי מותג, ניוזלטר שבועי/חודשי' },
@@ -113,7 +114,7 @@ function AgentInputForm({ agentKey, onChange, value }) {
             </select>
           </div>
           <Textarea placeholder="מטרה ספציפית להרצה (אופציונלי — למשל: 'תקציב קמפיין אירועים נגמר תוך 3 ימים, מה לעשות?')" value={value.goal || ''} onChange={(e) => set('goal', e.target.value)} />
-          <div className="text-xs text-slate-500">חשבון: "pita alena" (1678566132326169)</div>
+          <div className="text-xs text-slate-500">חשבון המדיה מוגדר במפתחות ה-API</div>
         </div>
       );
     default:
@@ -338,6 +339,7 @@ function RunOutputView({ run }) {
 }
 
 export default function MarketingAgentsHub() {
+  const brandName = useTenantBranding()?.name || 'המסעדה';
   const [activeAgent, setActiveAgent] = useState(null);
   const [input, setInput] = useState({});
   const [running, setRunning] = useState(false);
@@ -496,7 +498,7 @@ export default function MarketingAgentsHub() {
       await base44.functions.setIntegrationSecret({
         key: 'DRIVE_AD_PHOTOS_FOLDER_ID',
         value: driveFolderId.trim(),
-        note: 'Drive folder with ad-ready photos for עלינא',
+        note: `Drive folder with ad-ready photos for ${brandName}`,
       });
       setDriveFolderSet(true);
       setDriveFolderId('');
@@ -582,7 +584,7 @@ export default function MarketingAgentsHub() {
     if (!metaToken.trim()) return;
     setSavingToken(true);
     try {
-      await base44.functions.setIntegrationSecret({ key: 'META_ADS_ACCESS_TOKEN', value: metaToken.trim(), note: 'pita alena Ad Account (1678566132326169)' });
+      await base44.functions.setIntegrationSecret({ key: 'META_ADS_ACCESS_TOKEN', value: metaToken.trim(), note: `${brandName} Meta Ad Account` });
       setMetaTokenSet(true);
       setMetaToken('');
       toast.success('הטוקן נשמר. סוכני המדיה פעילים.');
@@ -790,7 +792,7 @@ export default function MarketingAgentsHub() {
                 className="w-full border rounded p-2 text-sm bg-white"
               >
                 <option value="drive">תיקיית Drive שלך {driveFolderSet ? '✅' : '⚠️ לא הוגדרה'}</option>
-                <option value="instagram">אינסטגרם של עלינא (דורש הרשאת IG בטוקן)</option>
+                <option value="instagram">{`אינסטגרם של ${brandName} (דורש הרשאת IG בטוקן)`}</option>
                 <option value="ai">AI (Google Imagen — תמונה גנרית, פחות מומלץ)</option>
                 <option value="auto">אוטומטי (Drive → Instagram → AI)</option>
               </select>
@@ -1016,7 +1018,7 @@ export default function MarketingAgentsHub() {
                 <label className="text-sm font-semibold">META Ads Access Token</label>
                 {metaTokenSet && <Badge variant="default" className="text-xs">מוגדר</Badge>}
               </div>
-              <p className="text-xs text-slate-500 mb-2">חשבון "pita alena" (1678566132326169). הטוקן נשמר ב-DB ומוצפן ברמת השרת. {metaTokenSet ? 'אפשר להחליף אותו כאן כשצריך.' : 'בלעדיו 5 סוכני המדיה לא פעילים.'}</p>
+              <p className="text-xs text-slate-500 mb-2">טוקן ה-Meta Ads של המסעדה שלך. הטוקן נשמר ב-DB ומוצפן ברמת השרת. {metaTokenSet ? 'אפשר להחליף אותו כאן כשצריך.' : 'בלעדיו 5 סוכני המדיה לא פעילים.'}</p>
               <Textarea
                 rows={3}
                 placeholder="EAA..."
@@ -1035,7 +1037,7 @@ export default function MarketingAgentsHub() {
                 {driveFolderSet && <Badge variant="default" className="text-xs">מוגדר</Badge>}
               </div>
               <p className="text-xs text-slate-500 mb-2">
-                תיקייה ב-Drive עם תמונות אמיתיות של עלינא (מנות, אווירה, אירועים). שתף את התיקייה עם service account של Google שיש לך מוגדר, בהרשאת Viewer. הדבק כאן את ה-folder ID (החלק האחרון בכתובת ה-Drive — אחרי <code>folders/</code>).
+                {`תיקייה ב-Drive עם תמונות אמיתיות של ${brandName} (מנות, אווירה, אירועים). שתף את התיקייה עם service account של Google שיש לך מוגדר, בהרשאת Viewer. הדבק כאן את ה-folder ID (החלק האחרון בכתובת ה-Drive — אחרי `}<code>folders/</code>).
               </p>
               <Input
                 placeholder="1abc...XYZ (folder ID בלבד, לא URL מלא)"

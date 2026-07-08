@@ -3,38 +3,48 @@
 // right pane = active thread. Mobile = single pane that toggles.
 import React, { useEffect, useState, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
+import { useTenantBranding } from '@/hooks/useTenantBranding';
+import { isMainAlena } from '@/lib/tenant';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Loader2, Send, ArrowRight, MessageCircle, RefreshCw } from 'lucide-react';
 
-const QUICK_TEMPLATES = [
-    {
-        key: 'confirm',
-        label: '✅ אישור הזמנה',
-        text: 'שלום 🌿\nההזמנה שלך אצלנו אושרה!\nנשמח לראותך בעלינא — רוטשילד 104, ראשון לציון.\nלכל שאלה אנחנו כאן 03-6228055 שלוחה 3',
-    },
-    {
-        key: 'menu',
-        label: '📜 תפריט',
-        text: 'הנה התפריט שלנו 🍽️\nhttps://topalena.com/menu\nבתאבון!',
-    },
-    {
-        key: 'hours',
-        label: '🕐 שעות',
-        text: 'שעות הפתיחה שלנו:\nא׳–ה׳: 12:00–23:00\nו׳: 12:00–16:00\nשבת: סגור\nנשמח לראותך 🌿',
-    },
-    {
-        key: 'deposit',
-        label: '💳 פיקדון',
-        text: 'כדי להבטיח את ההזמנה, נבקש פיקדון של 50 ₪ לאדם.\nקישור לתשלום מאובטח:\nhttps://topalena.com/deposit\nההזמנה תאושר מיד עם השלמת התשלום ✅',
-    },
-    {
-        key: 'thanks',
-        label: '🙏 תודה',
-        text: 'תודה שבחרת בעלינא 🌿\nנשמח לראותך שוב בקרוב!\n— צוות עלינא',
-    },
-];
+// Quick-reply templates. Brand name comes from tenant branding; the
+// confirmation template's address + phone line is Alena-specific, so it
+// only renders on the flagship (other tenants get a generic confirmation).
+function buildQuickTemplates(brandName, isAlena) {
+    const confirmVenueLine = isAlena
+        ? `נשמח לראותך בעלינא — רוטשילד 104, ראשון לציון.\nלכל שאלה אנחנו כאן 03-6228055 שלוחה 3`
+        : `נשמח לראותך ב${brandName}.`;
+    return [
+        {
+            key: 'confirm',
+            label: '✅ אישור הזמנה',
+            text: `שלום 🌿\nההזמנה שלך אצלנו אושרה!\n${confirmVenueLine}`,
+        },
+        {
+            key: 'menu',
+            label: '📜 תפריט',
+            text: 'הנה התפריט שלנו 🍽️\nhttps://topalena.com/menu\nבתאבון!',
+        },
+        {
+            key: 'hours',
+            label: '🕐 שעות',
+            text: 'שעות הפתיחה שלנו:\nא׳–ה׳: 12:00–23:00\nו׳: 12:00–16:00\nשבת: סגור\nנשמח לראותך 🌿',
+        },
+        {
+            key: 'deposit',
+            label: '💳 פיקדון',
+            text: 'כדי להבטיח את ההזמנה, נבקש פיקדון של 50 ₪ לאדם.\nקישור לתשלום מאובטח:\nhttps://topalena.com/deposit\nההזמנה תאושר מיד עם השלמת התשלום ✅',
+        },
+        {
+            key: 'thanks',
+            label: '🙏 תודה',
+            text: `תודה שבחרת ב${brandName} 🌿\nנשמח לראותך שוב בקרוב!\n— צוות ${brandName}`,
+        },
+    ];
+}
 
 function fmtTime(ts) {
     if (!ts) return '';
@@ -117,6 +127,8 @@ function ConversationList({ conversations, activeContact, onSelect, loading }) {
 }
 
 function MessageThread({ messages, sending, error, onSend, onMarkRead, contactPhone, contactName, onBack, onDelete }) {
+    const brandName = useTenantBranding()?.name || 'המסעדה';
+    const quickTemplates = buildQuickTemplates(brandName, isMainAlena());
     const [text, setText] = useState('');
     const scrollRef = useRef(null);
 
@@ -190,7 +202,7 @@ function MessageThread({ messages, sending, error, onSend, onMarkRead, contactPh
             <div className="bg-white border-t p-3">
                 {error && <p className="text-xs text-red-700 mb-2">❌ {error}</p>}
                 <div className="flex flex-wrap gap-1.5 mb-2">
-                    {QUICK_TEMPLATES.map(t => (
+                    {quickTemplates.map(t => (
                         <button
                             key={t.key}
                             type="button"

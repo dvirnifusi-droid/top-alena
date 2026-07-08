@@ -5,6 +5,7 @@
 // some inactivity), owner just visits this page and pastes fresh values.
 import React, { useEffect, useState } from 'react';
 import { base44 } from '@/api/base44Client';
+import { isMainAlena } from '@/lib/tenant';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -295,7 +296,7 @@ export default function AdminGomileyCookies() {
                     </div>
 
                     <div>
-                        <Label className="text-sm">restaurant_id (ברירת מחדל 1968 לעלינא)</Label>
+                        <Label className="text-sm">restaurant_id{isMainAlena() ? ' (ברירת מחדל 1968 לעלינא)' : ' (מזהה המסעדה ב-Gomiley)'}</Label>
                         <Input
                             value={restaurantId}
                             onChange={e => setRestaurantId(e.target.value)}

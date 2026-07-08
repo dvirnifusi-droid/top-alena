@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import { useTenantBranding } from '@/hooks/useTenantBranding';
+import { isMainAlena } from '@/lib/tenant';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -65,6 +67,9 @@ import { TableSession } from "@/entities/TableSession";
 import { Camera, Send, Lightbulb, Loader2, MessageCircle } from 'lucide-react';
 
 export default function WaiterAiAssistant({ session, currentStep, onClose }) {
+    const branding = useTenantBranding();
+    const brandName = branding?.name || 'המסעדה';
+    const isAlena = isMainAlena();
     const [question, setQuestion] = useState('');
     const [response, setResponse] = useState('');
     const [loading, setLoading] = useState(false);
@@ -82,7 +87,11 @@ export default function WaiterAiAssistant({ session, currentStep, onClose }) {
             solo: 'אדם יחיד'
         };
 
-        return `אתה עוזר AI מומחה למלצרים במסעדה "עלינא" - מסעדת חמארה ים תיכונית יוקרתית.
+        const restaurantDescriptor = isAlena
+            ? 'מסעדת חמארה ים תיכונית יוקרתית'
+            : (branding?.cuisine || 'מסעדה');
+
+        return `אתה עוזר AI מומחה למלצרים במסעדה "${brandName}" - ${restaurantDescriptor}.
 
 פרטי השולחן הנוכחי:
 - שולחן מספר: ${session.table_number}

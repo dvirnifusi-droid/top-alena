@@ -28,6 +28,8 @@ import ReservationSourceBadge from '@/components/shared/ReservationSourceBadge';
 import TablePicker from '@/components/dashboard/TablePicker';
 import { base44 } from '@/api/base44Client';
 import VoiceControl from '@/components/voice/VoiceControl';
+import { useTenantBranding } from '@/hooks/useTenantBranding';
+import { isMainAlena } from '@/lib/tenant';
 
 // Dialog לעריכת הזמנה - עם כל הפרטים
 function ReservationEditDialog({ open, setOpen, reservation, onUpdate, tables, reservations }) {
@@ -266,6 +268,8 @@ const FACILITY_TYPES = {
 };
 
 export default function SeatingSetup() {
+    const brandName = useTenantBranding()?.name || 'המסעדה';
+    const isAlena = isMainAlena();
     const [layout, setLayout] = useState(null);
     const [tables, setTables] = useState([]);
     const [facilities, setFacilities] = useState([]);
@@ -725,14 +729,14 @@ export default function SeatingSetup() {
             const existing = await SeatingLayout.list().catch(() => []);
             if (existing && existing.length > 0) {
                 await SeatingLayout.update(existing[0].id, {
-                    layout_name: "מפה ראשית - עלינא", tables: allTables, facilities: defaultFacilities,
+                    layout_name: `מפה ראשית - ${brandName}`, tables: allTables, facilities: defaultFacilities,
                 });
                 // Best-effort cleanup of any leftover duplicates
                 for (let i = 1; i < existing.length; i++) {
                     await SeatingLayout.delete(existing[i].id).catch(() => {});
                 }
             } else {
-                await SeatingLayout.create({ layout_name: "מפה ראשית - עלינא", tables: allTables, facilities: defaultFacilities });
+                await SeatingLayout.create({ layout_name: `מפה ראשית - ${brandName}`, tables: allTables, facilities: defaultFacilities });
             }
             await loadLayout();
             alert("כל 57 השולחנות ו-3 אלמנטים פיזיים נטענו בהצלחה!");
@@ -778,7 +782,7 @@ export default function SeatingSetup() {
         setIsSaving(true);
         try {
             const layoutData = {
-                layout_name: layout?.layout_name || "מפה ראשית - עלינא",
+                layout_name: layout?.layout_name || `מפה ראשית - ${brandName}`,
                 tables,
                 facilities,
                 combos,
@@ -1089,7 +1093,7 @@ export default function SeatingSetup() {
                         await base44.functions.sendQueuePush({
                             entry_id: entry.id,
                             title: '🔔 הגיע תורכם!',
-                            message: '🔔 עלינא קוראת לכם! השולחן שלכם מוכן.',
+                            message: `🔔 ${brandName} קוראת לכם! השולחן שלכם מוכן.`,
                         }).catch(() => {});
                         await loadQueue();
                         return { ok: true, message: `קראתי ל-${cmd.name}` };
@@ -2351,23 +2355,32 @@ export default function SeatingSetup() {
                                 <Settings className="w-3 h-3 ml-1" />
                                 הגדרות הזמנות
                             </Button>
+                            {isAlena && (
                             <Button variant="outline" size="sm" onClick={createAllTables} className="bg-red-50 border-red-200 text-red-700 hover:bg-red-100 text-xs">
                                 <Wand2 className="w-3 h-3 ml-1" />
                                 איפוס מפה
                             </Button>
+                            )}
                         </div>
                     </div>
                 </CardHeader>
                 )}
                 <CardContent className={bigMapMode ? 'p-0' : ''}>
                     {tables.length === 0 && facilities.length === 0 ? (
+                        isAlena ? (
                         <div className="text-center py-12">
-                            <p className="mb-4">לא נמצאו שולחנות או אלמנטים. האם ברצונך לטעון את כל 41 השולחנות של עלינא ואלמנטים בסיסיים?</p>
+                            <p className="mb-4">לא נמצאו שולחנות או אלמנטים. האם ברצונך לטעון את כל 41 השולחנות של {brandName} ואלמנטים בסיסיים?</p>
                             <Button onClick={createAllTables} className="bg-green-600 hover:bg-green-700">
-                                     <Wand2 className="w-4 h-4 ml-2" /> 
+                                     <Wand2 className="w-4 h-4 ml-2" />
                                      כן, טען את כל השולחנות ואלמנטים (41 שולחנות)
                                  </Button>
                         </div>
+                        ) : (
+                        <div className="text-center py-12">
+                            <p className="mb-2 font-bold text-slate-700">עדיין אין שולחנות</p>
+                            <p className="text-slate-500 text-sm">הוסף שולחנות ידנית עם "הוסף שולחן", או שלח סקיצת הושבה בהטמעה ונבנה לך את המפה אוטומטית.</p>
+                        </div>
+                        )
                     ) : (
                         viewMode === 'list' ? (
                             <div className="space-y-4">
@@ -4871,6 +4884,7 @@ function queueIsFarAway(entry) {
 
 // === CompactQueueStrip — third tab in big-map rail, walk-ins waiting now ====
 function CompactQueueStrip({ queueEntries, abandonedEntries, onSeat, onAbandon, onRestore, onRefresh, onApprove, onReject }) {
+    const brandName = useTenantBranding()?.name || 'המסעדה';
     const [showAbandoned, setShowAbandoned] = useState(true);
     const [sizeFilter, setSizeFilter] = useState('all');
     const [waitTimeInput, setWaitTimeInput] = useState({}); // {entryId: '15'}
@@ -4911,7 +4925,7 @@ function CompactQueueStrip({ queueEntries, abandonedEntries, onSeat, onAbandon, 
             await base44.functions.sendQueuePush({
                 entry_id: entry.id,
                 title: '🔔 הגיע תורכם!',
-                message: '🔔 עלינא קוראת לכם! השולחן שלכם מוכן — יש לכם 3 דקות להגיע למארחת.',
+                message: `🔔 ${brandName} קוראת לכם! השולחן שלכם מוכן — יש לכם 3 דקות להגיע למארחת.`,
             }).catch(() => {}); // push is best-effort
             onRefresh?.();
         } catch (e) { console.warn('call guest failed', e); }
@@ -4926,7 +4940,7 @@ function CompactQueueStrip({ queueEntries, abandonedEntries, onSeat, onAbandon, 
             await base44.functions.sendQueuePush({
                 entry_id: entry.id,
                 title: '📍 בדיקת מיקום',
-                message: 'עלינא רוצים לוודא שאתם בסביבה — האם אתם קרובים?',
+                message: `${brandName} רוצים לוודא שאתם בסביבה — האם אתם קרובים?`,
             }).catch(() => {});
             onRefresh?.();
         } catch (e) { console.warn('proximity check failed', e); }

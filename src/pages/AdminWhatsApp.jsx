@@ -6,6 +6,7 @@
 //      compose message, dry-run count + send.
 import React, { useEffect, useState } from 'react';
 import { base44 } from '@/api/base44Client';
+import { useTenantBranding } from '@/hooks/useTenantBranding';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -76,8 +77,9 @@ function StatusRow({ label, ok, warn, value, sub }) {
 }
 
 function TestSendSection() {
+    const brandName = useTenantBranding()?.name || 'המסעדה';
     const [phone, setPhone] = useState('');
-    const [message, setMessage] = useState('שלום! זו בדיקה מ-עלינא 🌿');
+    const [message, setMessage] = useState(`שלום! זו בדיקה מ-${brandName} 🌿`);
     const [sending, setSending] = useState(false);
     const [result, setResult] = useState(null);
 
@@ -129,6 +131,7 @@ function TestSendSection() {
 }
 
 function BroadcastSection() {
+    const brandName = useTenantBranding()?.name || 'המסעדה';
     const [audience, setAudience] = useState('delivery_customers');
     const [message, setMessage] = useState('');
     const [count, setCount] = useState(null);
@@ -189,7 +192,7 @@ function BroadcastSection() {
                     </div>
 
                     <Label className="text-xs">הודעה</Label>
-                    <Textarea rows={5} value={message} onChange={e => setMessage(e.target.value)} placeholder="היי! ב-עלינא יש מבצע מיוחד השבוע: ..." />
+                    <Textarea rows={5} value={message} onChange={e => setMessage(e.target.value)} placeholder={`היי! ב-${brandName} יש מבצע מיוחד השבוע: ...`} />
                     <p className="text-xs text-gray-500">{message.length} תווים</p>
 
                     <Button
@@ -219,6 +222,7 @@ function BroadcastSection() {
 }
 
 export default function AdminWhatsApp() {
+    const brandName = useTenantBranding()?.name || 'המסעדה';
     return (
         <div className="p-6 max-w-3xl mx-auto" dir="rtl">
             <h1 className="text-2xl font-bold mb-2">💬 WhatsApp · Twilio</h1>
@@ -236,7 +240,7 @@ export default function AdminWhatsApp() {
                     <ol className="list-decimal pr-5 space-y-1">
                         <li>Twilio Console → Messaging → Senders → WhatsApp Senders → + New Sender</li>
                         <li>בחר "Use a Twilio phone number" — בחר את המספר הקיים שלך</li>
-                        <li>Display Name: "עלינא" · Category: Food & Beverage · Website: topalena.com</li>
+                        <li>Display Name: "{brandName}" · Category: Food & Beverage · Website: topalena.com</li>
                         <li>בשלב Verification — בחר <b>SMS</b> (לא Voice Call)</li>
                         <li>קבל את הקוד דרך Twilio Console → Monitor → Messaging Logs (Incoming)</li>
                         <li>אחרי אישור Meta — עדכן את <code className="bg-white px-1 rounded">TWILIO_WHATSAPP_FROM</code> ב-Hetzner</li>

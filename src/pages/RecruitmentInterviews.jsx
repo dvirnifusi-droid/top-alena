@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import { createPageUrl } from '@/utils';
+import { useTenantBranding } from '@/hooks/useTenantBranding';
 
 // Owner-controllable AI threshold: candidates with score >= this get the
 // auto-interview slot picker in the chat. Lower the threshold on high-pressure
@@ -98,12 +99,12 @@ function normalizePhoneIL(p) {
   return n;
 }
 
-function reminderText(iv) {
+function reminderText(iv, brand = 'המסעדה') {
   const d = new Date(iv.scheduled_date + 'T' + iv.scheduled_time);
   const dStr = d.toLocaleDateString('he-IL', { weekday: 'long', day: '2-digit', month: '2-digit' });
   return (
     `היי ${iv.candidate_name || ''} 🌿\n` +
-    `מזכיר/ה לך — נפגשים לראיון במסעדת עלינא ב${dStr} בשעה ${iv.scheduled_time}.\n` +
+    `מזכיר/ה לך — נפגשים לראיון במסעדת ${brand} ב${dStr} בשעה ${iv.scheduled_time}.\n` +
     `נשמח לראותך, ואם משהו השתנה — תכתוב/י לי כאן.`
   );
 }
@@ -145,6 +146,7 @@ const TONE_CLASSES = {
 };
 
 export default function RecruitmentInterviews() {
+  const brandName = useTenantBranding()?.name || 'המסעדה';
   const [inbox, setInbox] = useState({ upcoming: [], recent: [], toCallBack: [], topUnscheduled: [], trainees: [], rejected: [], abandoned: [], funnel: null });
   const [loading, setLoading] = useState(true);
   const [actionId, setActionId] = useState(null);
@@ -202,7 +204,7 @@ export default function RecruitmentInterviews() {
   const sendWhatsApp = (iv) => {
     const phone = normalizePhoneIL(iv.candidate_phone);
     if (!phone) { alert('אין מספר טלפון למועמד'); return; }
-    const text = encodeURIComponent(reminderText(iv));
+    const text = encodeURIComponent(reminderText(iv, brandName));
     window.open(`https://wa.me/${phone}?text=${text}`, '_blank');
   };
 
@@ -505,7 +507,7 @@ export default function RecruitmentInterviews() {
           <div className="space-y-2">
             {(inbox.topUnscheduled || []).map((c) => {
               const phone = normalizePhoneIL(c.phone);
-              const waText = encodeURIComponent(`היי ${c.full_name} 🌿\nראיתי את הפניה שלך לעלינא, התרשמנו ממך 🙏 בא לקבוע ראיון?`);
+              const waText = encodeURIComponent(`היי ${c.full_name} 🌿\nראיתי את הפניה שלך ל${brandName}, התרשמנו ממך 🙏 בא לקבוע ראיון?`);
               const open = openSlotCand === c.id;
               return (
                 <div key={c.id} className="border-2 border-amber-200 rounded-xl p-3 bg-amber-50/30">
@@ -590,7 +592,7 @@ export default function RecruitmentInterviews() {
           <div className="space-y-2">
             {inbox.toCallBack.map((c) => {
               const phone = normalizePhoneIL(c.phone);
-              const waText = encodeURIComponent(`היי ${c.full_name} 🌿\nראיתי את הפניה שלך לעלינא. אשמח לתאם איתך ראיון בקרוב — מתי נוח לך?`);
+              const waText = encodeURIComponent(`היי ${c.full_name} 🌿\nראיתי את הפניה שלך ל${brandName}. אשמח לתאם איתך ראיון בקרוב — מתי נוח לך?`);
               return (
                 <div key={c.id} className="border border-slate-200 rounded-xl p-3 flex flex-wrap items-center gap-3">
                   <div className="flex-1 min-w-[160px]">
@@ -682,7 +684,8 @@ export default function RecruitmentInterviews() {
                 final_review: '✔️ הגיע לסוף, לא אישר',
               }[c.abandoned_stage] || c.abandoned_stage);
               const phone = normalizePhoneIL(c.phone);
-              const waText = encodeURIComponent(`היי ${c.full_name || ''} 🌿\nראיתי שהתחלת בשיחה עם עלינא ולא סיימת. רוצה לחזור ולהמשיך?\nhttps://topalena.com/apply`);
+              const applyUrl = `${typeof window !== 'undefined' && window.location?.origin ? window.location.origin : 'https://topalena.com'}/apply`;
+              const waText = encodeURIComponent(`היי ${c.full_name || ''} 🌿\nראיתי שהתחלת בשיחה עם ${brandName} ולא סיימת. רוצה לחזור ולהמשיך?\n${applyUrl}`);
               return (
                 <div key={c.id} className="border border-orange-200 rounded-xl p-3 bg-orange-50/30">
                   <div className="flex flex-wrap items-center gap-3">
@@ -713,7 +716,7 @@ export default function RecruitmentInterviews() {
           <div className="space-y-2">
             {(inbox.rejected || []).map((c) => {
               const phone = normalizePhoneIL(c.phone);
-              const waText = encodeURIComponent(`היי ${c.full_name || ''} 🌿\nבדקתי שוב את הפניה שלך לעלינא ובא לי להמשיך איתך. תוכל לחזור אלינו?`);
+              const waText = encodeURIComponent(`היי ${c.full_name || ''} 🌿\nבדקתי שוב את הפניה שלך ל${brandName} ובא לי להמשיך איתך. תוכל לחזור אלינו?`);
               return (
                 <div key={c.id} className="border border-red-200 rounded-xl p-3 bg-red-50/30">
                   <div className="flex flex-wrap items-center gap-3">

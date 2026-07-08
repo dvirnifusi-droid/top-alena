@@ -4,6 +4,8 @@
 // New-delivery toast banner appears for 8s when pending count grows.
 import React, { useEffect, useRef, useState } from 'react';
 import { base44 } from '@/api/base44Client';
+import { useTenantBranding } from '@/hooks/useTenantBranding';
+import { isMainAlena } from '@/lib/tenant';
 
 const REFRESH_MS = 30_000;
 
@@ -28,6 +30,10 @@ function fmtDayHebrew(d) {
 }
 
 export default function KitchenScreen() {
+  const branding = useTenantBranding();
+  const brandName = branding?.name || 'המסעדה';
+  const isAlena = isMainAlena();
+  const displayAddress = isAlena ? 'רוטשילד 104, ראשון לציון' : (branding?.address || '');
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
   const [newDeliveryToast, setNewDeliveryToast] = useState(null);
@@ -118,8 +124,8 @@ export default function KitchenScreen() {
           <div style={{ fontSize: '20px', color: '#94a3b8', marginTop: '4px' }}>{fmtDayHebrew(now)}</div>
         </div>
         <div style={{ textAlign: 'center' }}>
-          <div style={{ fontSize: '40px', fontWeight: 'bold', color: '#f59e0b' }}>עלינא</div>
-          <div style={{ fontSize: '14px', color: '#64748b' }}>רוטשילד 104, ראשון לציון</div>
+          <div style={{ fontSize: '40px', fontWeight: 'bold', color: '#f59e0b' }}>{brandName}</div>
+          {displayAddress && <div style={{ fontSize: '14px', color: '#64748b' }}>{displayAddress}</div>}
         </div>
         <div style={{ textAlign: 'left' }}>
           <div style={{ fontSize: '12px', color: '#64748b' }}>עדכון אחרון</div>

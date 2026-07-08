@@ -15,8 +15,10 @@ import { MenuItem } from '@/entities/MenuItem';
 import { RestaurantProfile } from '@/entities/RestaurantProfile';
 import BriefEditor from '../components/briefing/BriefEditor';
 import BriefingAiGenerator from '@/components/ai/BriefingAiGenerator';
+import { useTenantBranding } from '@/hooks/useTenantBranding';
 
 export default function BriefingManagement() {
+    const brandName = useTenantBranding()?.name || 'המסעדה';
     const [briefs, setBriefs] = useState([]);
     const [currentBriefData, setCurrentBriefData] = useState(null);
     const [date, setDate] = useState(new Date());
@@ -103,7 +105,8 @@ export default function BriefingManagement() {
             const restaurantProfile = profiles.length > 0 ? profiles[0] : null;
             const menuItems = await MenuItem.list();
 
-            let promptContext = `אתה מנהל מסעדה מנוסה בשם 'עלינא'. המשימה שלך היא לכתוב טקסט עבור תדריך יומי לעובדים.`;
+            const restaurantName = restaurantProfile?.restaurant_name || restaurantProfile?.name || brandName;
+            let promptContext = `אתה מנהל מסעדה מנוסה בשם '${restaurantName}'. המשימה שלך היא לכתוב טקסט עבור תדריך יומי לעובדים.`;
             if (restaurantProfile) {
                 promptContext += `\nפרופיל המסעדה: סגנון ${restaurantProfile.cuisine_style}, קהל יעד - ${restaurantProfile.target_audience}. נקודות חוזק: ${restaurantProfile.unique_selling_points?.join(', ')}.`;
             }

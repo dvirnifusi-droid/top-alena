@@ -259,7 +259,7 @@ async function dispatchCommand(cmd, state) {
                     await base44.functions.sendQueuePush({
                         entry_id: entry.id,
                         title: '🔔 הגיע תורכם!',
-                        message: '🔔 עלינא קוראת לכם! השולחן שלכם מוכן.',
+                        message: '🔔 המסעדה קוראת לכם! השולחן שלכם מוכן.',
                     }).catch(() => {});
                     return { ok: true, message: `בוצע ✓ נקראה ${cmd.name}` };
                 } catch { return { ok: false, message: 'שגיאה בקריאה' }; }

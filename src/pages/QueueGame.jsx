@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
 import { invokePublic } from '@/lib/publicFetch';
+import { useTenantBranding } from '@/hooks/useTenantBranding';
 import TicTacToe from '@/components/games/TicTacToe';
 import GameSetup from '@/components/games/GameSetup';
 import FortuneWheel from '@/components/games/FortuneWheel';
@@ -8,7 +9,7 @@ import QuestionGame from '@/components/games/QuestionGame';
 
 const FALLBACK_QUESTIONS = [
   { question: 'מה שם המסעדה?', options: ['עלינא', 'נועה', 'אליס', 'בלינה'], answer: 0 },
-  { question: 'מה הסלוגן של עלינא?', options: ['אוכל של אמא', 'כי מגיע לך', 'טעים תמיד', 'הכי טוב בעיר'], answer: 1 },
+  { question: 'מה הסלוגן של המסעדה?', options: ['אוכל של אמא', 'כי מגיע לך', 'טעים תמיד', 'הכי טוב בעיר'], answer: 1 },
   { question: 'כמה שנים פועלת המסעדה?', options: ['2', '5', '10', '15'], answer: 2 },
   { question: 'מה המנה הפופולרית ביותר?', options: ['שניצל', 'סטייק', 'פסטה', 'סביח'], answer: 1 },
   { question: 'באיזה עיר נמצאת המסעדה?', options: ['תל אביב', 'ירושלים', 'חיפה', 'רמת גן'], answer: 0 },
@@ -20,6 +21,7 @@ const TIME_PER_Q = 12;
 
 // ===== TRIVIA GAME =====
 function TriviaGame({ playerName, entryId, allQuestions }) {
+  const brandName = useTenantBranding()?.name || 'המסעדה';
   const [phase, setPhase] = useState('playing');
   const [questions] = useState(() => {
     const pool = allQuestions.length >= TOTAL_Q ? allQuestions : FALLBACK_QUESTIONS;
@@ -100,7 +102,7 @@ function TriviaGame({ playerName, entryId, allQuestions }) {
             <p className="text-[#A04A2E] text-sm">נקודות</p>
           </div>
           <button
-            onClick={() => navigator.share ? navigator.share({ title: `${score} נקודות בטריוויה של עלינא!`, url: shareUrl }) : (navigator.clipboard.writeText(shareUrl), alert('הועתק!'))}
+            onClick={() => navigator.share ? navigator.share({ title: `${score} נקודות בטריוויה של ${brandName}!`, url: shareUrl }) : (navigator.clipboard.writeText(shareUrl), alert('הועתק!'))}
             className="w-full bg-[#A04A2E] hover:bg-[#7A3722] text-white font-bold py-3 rounded-2xl text-sm mb-2 transition-all"
           >📤 שתף את הניקוד</button>
           <button onClick={() => setPhase(null)} className="w-full bg-[#44512C] hover:bg-[#44512C] text-white font-bold py-3 rounded-2xl text-sm mb-2 transition-all">🎮 המשך לשחק</button>

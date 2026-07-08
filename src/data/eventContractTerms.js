@@ -1,6 +1,10 @@
-// Official event-contract terms — verbatim from "הסכם קיום אירוע - עלינא"
-// docx provided by the owner. Each line is one term. Lines starting with
-// '## ' are section headers; the signing page renders them as bold sub-titles.
+// Official event-contract terms — verbatim from the owner's event-contract
+// docx. Each line is one term. Lines starting with '## ' are section headers;
+// the signing page renders them as bold sub-titles.
+//
+// The restaurant name appears as the `{brand}` placeholder — substitute it with
+// the tenant's brand name at the call site (see renderEventTerms / EventContracts).
+// This mirrors the backend OFFICIAL_EVENT_TERMS_TEMPLATE in apps/api load.ts.
 //
 // To update, edit this file. Existing draft contracts can be refreshed via the
 // "↺ אפס לברירת מחדל" button in TermsEditor (EventContracts page).
@@ -8,7 +12,7 @@ export const OFFICIAL_EVENT_TERMS = [
   '## שינויים בהזמנה',
   'ניתן לעדכן את התפריט ואת מספר הסועדים עד 72 שעות לפני מועד האירוע.',
   'לאחר מועד זה לא ניתן לבצע שינויים בתפריט או להפחית את מספר הסועדים המחויב.',
-  'הגדלת מספר הסועדים לאחר מועד זה כפופה לאישור עלינא בלבד ובהתאם לתפוסת המסעדה וזמינות המקום.',
+  'הגדלת מספר הסועדים לאחר מועד זה כפופה לאישור {brand} בלבד ובהתאם לתפוסת המסעדה וזמינות המקום.',
   'במקרה שבו יגיעו פחות סועדים מהכמות שאושרה, החיוב יתבצע לפי הכמות שסוכמה 72 שעות לפני האירוע.',
   'במקרה שבו יגיעו סועדים נוספים ויתאפשר לארחם, יחויב כל סועד נוסף במחיר המלא שנקבע בהסכם.',
 
@@ -29,10 +33,10 @@ export const OFFICIAL_EVENT_TERMS = [
   '## איחורים',
   'השולחן יישמר למשך 15 דקות ממועד ההגעה שנקבע.',
   'במקרה של איחור העולה על 15 דקות, זמן האירוע ייחשב החל משעת ההגעה המקורית שנקבעה בהזמנה ולא משעת ההגעה בפועל.',
-  'עלינא שומרת לעצמה את הזכות לבצע התאמות במיקום הישיבה, בסדר ההגשה ובקצב השירות בהתאם לתפוסת המסעדה ולצרכיה התפעוליים.',
+  '{brand} שומרת לעצמה את הזכות לבצע התאמות במיקום הישיבה, בסדר ההגשה ובקצב השירות בהתאם לתפוסת המסעדה ולצרכיה התפעוליים.',
 
   '## התנהלות במהלך האירוע',
-  'עלינא הינה מסעדה פעילה והאירוע אינו מהווה אירוע פרטי או סגירת המסעדה, אלא אם סוכם אחרת בכתב.',
+  '{brand} הינה מסעדה פעילה והאירוע אינו מהווה אירוע פרטי או סגירת המסעדה, אלא אם סוכם אחרת בכתב.',
   'המוזיקה המושמעת במסעדה נבחרת על ידי המסעדה והווליום נקבע על ידה בלבד.',
   'נאומים, מצגות, הקרנות, מערכות הגברה, הופעות או כל פעילות העלולה להפריע לאורחי המסעדה מחייבות אישור מראש ובכתב.',
   'משך האירוח במסגרת ההזמנה הינו עד שעתיים ממועד ההגעה שנקבע.',
@@ -60,6 +64,16 @@ export const OFFICIAL_EVENT_TERMS = [
   'המזמין יהיה אחראי לכל נזק חריג שייגרם לציוד, ריהוט, מתקנים או רכוש המסעדה על ידי מי מאורחי האירוע.',
   'המסעדה אינה אחראית לאובדן, גניבה או נזק לציוד אישי של אורחי האירוע.',
 ];
+
+// Substitute the tenant's brand name into the {brand} placeholders. Also
+// strips any legacy hardcoded "עלינא" so tenants never see the flagship name.
+// Mirrors the backend replaceAll('{brand}', brand).replaceAll('עלינא', brand).
+export function renderEventTerms(brand) {
+  const name = brand || 'המסעדה';
+  return OFFICIAL_EVENT_TERMS.map((t) =>
+    String(t).replaceAll('{brand}', name).replaceAll('עלינא', name)
+  );
+}
 
 // Boilerplate confirmation paragraph that appears just above the signature box
 // per the official contract template.

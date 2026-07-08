@@ -7,8 +7,9 @@ import {
   Play, BookOpen, Crown, Utensils, Clock, Star, Image, Upload, X, ZoomIn, Move
 } from "lucide-react";
 import { base44 } from "@/api/base44Client";
+import { useTenantBranding } from "@/hooks/useTenantBranding";
 
-const sections = [
+const buildSections = (brandName) => [
   {
     id: "intro",
     icon: Crown,
@@ -125,7 +126,7 @@ const sections = [
     color: "bg-amber-100 text-amber-700",
     audience: ["עובד"],
     content: [
-      { title: "מטבעות עלינא", text: "צוברים מטבעות על: השלמת הכשרות, הגשת זמינות, ביצוע צ'קליסטים, ועוד." },
+      { title: `מטבעות ${brandName}`, text: "צוברים מטבעות על: השלמת הכשרות, הגשת זמינות, ביצוע צ'קליסטים, ועוד." },
       { title: "חנות בגדים", text: "ניתן להשתמש במטבעות לקנות פריטי לבוש לדמות האישית שלכם." },
       { title: "סלון דמויות", text: "מתאימים את הדמות האישית שלכם — עיצוב, בגדים ואביזרים." },
     ]
@@ -402,6 +403,8 @@ const Section = ({ section, isAdmin, mediaData, onSaveVideo, onSaveImage, onSave
 };
 
 export default function UserGuide() {
+  const brandName = useTenantBranding()?.name || 'המסעדה';
+  const sections = React.useMemo(() => buildSections(brandName), [brandName]);
   const [filter, setFilter] = useState("הכל");
   const [mediaData, setMediaData] = useState({}); // sectionId -> { video, image, imagePosition, videoId, imageId }
   const [isAdmin, setIsAdmin] = useState(false);

@@ -7,6 +7,7 @@ import { Loader2, Palette, Upload, Save, RefreshCw, Sparkles, Building2, MapPin,
 import { base44 } from '@/api/base44Client';
 import PageGuard from '../components/shared/PageGuard';
 import { useTenantBranding, invalidateBrandingCache } from '@/hooks/useTenantBranding';
+import { isMainAlena } from '@/lib/tenant';
 
 const FONT_OPTIONS = [
   { value: '', label: 'ברירת מחדל (Heebo)' },
@@ -215,7 +216,7 @@ function BrandingInner() {
             <Input
               value={restaurantName}
               onChange={(e) => setRestaurantName(e.target.value)}
-              placeholder="עלינא / יואבי / ..."
+              placeholder={isMainAlena() ? 'עלינא / יואבי / ...' : 'שם המסעדה שלך'}
               className="mt-1"
             />
           </div>
