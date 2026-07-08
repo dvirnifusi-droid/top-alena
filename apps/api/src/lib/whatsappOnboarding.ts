@@ -1130,15 +1130,32 @@ async function extractFromWebsite(tenant: any, url: string): Promise<{ business:
 }
 
 async function extractAndInsertChecklists(tenant: any, mediaUrl: string, _data: Record<string, any>): Promise<number> {
-  // Inner property `tasks`, NOT `items` (Gemini keyword collision → empty).
-  const lists = await llmExtract(
+  // FLAT tasks array ({checklist, text}) — Gemini returns EMPTY for doubly-nested
+  // arrays (checklists[].tasks[]), which is why file checklists came back with 0
+  // items. Grouped by section in code (same fix as menu / pasted-checklist text).
+  const tasks = await llmExtract(
     mediaUrl,
-    `הקובץ הוא צ'קליסט תפעולי של מסעדה (או כמה). חלץ: title (שם הצ'קליסט), category (פתיחה/סגירה/מטבח/בר/ניקיון או "כללי"), tasks (מערך של משימות כטקסט).`,
-    { title: { type: 'string' }, category: { type: 'string' }, tasks: { type: 'array', items: { type: 'string' } } },
-    'checklists', tenant.slug,
+    `הקובץ הוא רשימות תפעוליות של מסעדה (צ׳קליסטים / פתיחה / סגירה / הכנות). חלץ את *כל* המשימות. ` +
+    `לכל משימה: checklist (שם הסקשן/הצ׳קליסט שאליו היא שייכת — למשל "פתיחה - עמדה חמה", "סגירה", "הכנות"), text (המשימה עצמה, משפט קצר). ` +
+    `שמור על החלוקה לסקשנים בדיוק כפי שמופיעה בקובץ. אם הקובץ באנגלית — שמור אנגלית. אל תמציא ואל תשמיט.`,
+    { checklist: { type: 'string' }, text: { type: 'string' } },
+    'tasks', tenant.slug,
   );
-  const normalized = lists.map((cl: any) => ({ ...cl, items: Array.isArray(cl?.tasks) ? cl.tasks : (cl?.items || []) }));
-  return insertChecklists(tenant, normalized);
+  return insertChecklists(tenant, groupTasksIntoChecklists(tasks));
+}
+
+// Group a flat [{checklist, text}] list into [{title, category, items[]}].
+function groupTasksIntoChecklists(tasks: any[]): any[] {
+  const groups = new Map<string, string[]>();
+  for (const t of (Array.isArray(tasks) ? tasks : [])) {
+    const cl = (String(t?.checklist || '').trim() || 'צ׳קליסט').slice(0, 80);
+    const txt = String(t?.text || '').trim();
+    if (!txt) continue;
+    if (!groups.has(cl)) groups.set(cl, []);
+    const arr = groups.get(cl)!;
+    if (arr.length < 60) arr.push(txt);
+  }
+  return [...groups.entries()].slice(0, 8).map(([title, items]) => ({ title, category: 'תפעול', items }));
 }
 
 async function insertChecklists(tenant: any, lists: any[]): Promise<number> {
