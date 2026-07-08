@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ReservationSettings } from '@/entities/ReservationSettings';
+import { base44 } from '@/api/base44Client';
 import { useTenantBranding } from '@/hooks/useTenantBranding';
 import { isMainAlena } from '@/lib/tenant';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -49,6 +50,8 @@ export default function PublicReservationSettings() {
     });
     const [loading, setLoading] = useState(false);
     const [message, setMessage] = useState('');
+    // Phase 2 — reservation-page styling (separate, isolated store).
+    const [extras, setExtras] = useState({ tagline: '', tags: '', hero_image_url: '', instagram_url: '', tiktok_url: '', facebook_url: '' });
 
     useEffect(() => {
         loadSettings();
@@ -63,6 +66,20 @@ export default function PublicReservationSettings() {
         } catch (error) {
             console.error('Error loading settings:', error);
         }
+        try {
+            const r = await base44.functions.getReservationPageExtras({});
+            const e = r?.data || r || {};
+            setExtras({
+                tagline: e.tagline || '',
+                tags: Array.isArray(e.tags) ? e.tags.join(', ') : '',
+                hero_image_url: e.hero_image_url || '',
+                instagram_url: e.instagram_url || '',
+                tiktok_url: e.tiktok_url || '',
+                facebook_url: e.facebook_url || '',
+            });
+        } catch (error) {
+            console.warn('Error loading page extras:', error);
+        }
     };
 
     const handleSave = async () => {
@@ -75,7 +92,17 @@ export default function PublicReservationSettings() {
             } else {
                 await ReservationSettings.create(settings);
             }
-            
+
+            // Phase 2 — save reservation-page styling (isolated store).
+            await base44.functions.setReservationPageExtras({
+                tagline: extras.tagline,
+                tags: String(extras.tags || '').split(',').map(s => s.trim()).filter(Boolean),
+                hero_image_url: extras.hero_image_url,
+                instagram_url: extras.instagram_url,
+                tiktok_url: extras.tiktok_url,
+                facebook_url: extras.facebook_url,
+            }).catch((e) => console.warn('save extras failed', e));
+
             setMessage('ההגדרות נשמרו בהצלחה! ✅');
             setTimeout(() => setMessage(''), 3000);
         } catch (error) {
@@ -125,8 +152,9 @@ export default function PublicReservationSettings() {
                 )}
 
                 <Tabs defaultValue="general" className="space-y-6">
-                    <TabsList className="grid w-full grid-cols-4">
+                    <TabsList className="grid w-full grid-cols-5">
                         <TabsTrigger value="general">כללי</TabsTrigger>
+                        <TabsTrigger value="design">עיצוב הדף</TabsTrigger>
                         <TabsTrigger value="whatsapp">וואטסאפ</TabsTrigger>
                         <TabsTrigger value="hours">שעות פעילות</TabsTrigger>
                         <TabsTrigger value="booking">הזמנות</TabsTrigger>
@@ -183,6 +211,58 @@ export default function PublicReservationSettings() {
                                         value={settings.address}
                                         onChange={(e) => setSettings({...settings, address: e.target.value})}
                                     />
+                                </div>
+                            </CardContent>
+                        </Card>
+                    </TabsContent>
+
+                    <TabsContent value="design">
+                        <Card>
+                            <CardHeader>
+                                <CardTitle className="flex items-center gap-2">
+                                    <Settings className="w-5 h-5" /> עיצוב דף ההזמנות
+                                </CardTitle>
+                                <p className="text-sm text-gray-500">כך יראה דף ההזמנות הציבורי שלך. הכל אופציונלי — מה שתשאיר ריק פשוט לא יוצג.</p>
+                            </CardHeader>
+                            <CardContent className="space-y-4">
+                                <div>
+                                    <Label htmlFor="tagline">שורת תיאור (מתחת לשם)</Label>
+                                    <Input id="tagline" placeholder="למשל: בר אסאי ושייקים טבעיים"
+                                        value={extras.tagline}
+                                        onChange={(e) => setExtras({ ...extras, tagline: e.target.value })} />
+                                </div>
+                                <div>
+                                    <Label htmlFor="tags">תגיות (מופרדות בפסיק)</Label>
+                                    <Input id="tags" placeholder="טבעוני, כשר, ללא גלוטן, אווירה"
+                                        value={extras.tags}
+                                        onChange={(e) => setExtras({ ...extras, tags: e.target.value })} />
+                                </div>
+                                <div>
+                                    <Label htmlFor="hero">תמונת רקע (קישור URL)</Label>
+                                    <Input id="hero" placeholder="https://... (תמונה רחבה של המסעדה)"
+                                        value={extras.hero_image_url}
+                                        onChange={(e) => setExtras({ ...extras, hero_image_url: e.target.value })} />
+                                    <p className="text-xs text-gray-400 mt-1">אם ריק — יוצג רקע בצבעי המותג. הלוגו נלקח מעמוד המיתוג.</p>
+                                </div>
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                    <div>
+                                        <Label htmlFor="ig">Instagram</Label>
+                                        <Input id="ig" placeholder="https://instagram.com/..."
+                                            value={extras.instagram_url}
+                                            onChange={(e) => setExtras({ ...extras, instagram_url: e.target.value })} />
+                                    </div>
+                                    <div>
+                                        <Label htmlFor="tt">TikTok</Label>
+                                        <Input id="tt" placeholder="https://tiktok.com/@..."
+                                            value={extras.tiktok_url}
+                                            onChange={(e) => setExtras({ ...extras, tiktok_url: e.target.value })} />
+                                    </div>
+                                    <div>
+                                        <Label htmlFor="fb">Facebook</Label>
+                                        <Input id="fb" placeholder="https://facebook.com/..."
+                                            value={extras.facebook_url}
+                                            onChange={(e) => setExtras({ ...extras, facebook_url: e.target.value })} />
+                                    </div>
                                 </div>
                             </CardContent>
                         </Card>

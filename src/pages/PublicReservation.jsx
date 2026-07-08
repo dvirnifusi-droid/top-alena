@@ -212,7 +212,13 @@ export default function PublicReservationPage() {
     (async () => {
       try {
         const s = await invokePublic('getReservationSettings');
-        if (s) setSettings(s);
+        // Phase 2: merge this tenant's page styling (tags/hero/tagline/socials).
+        // Guarded — if the extras endpoint fails, the page just uses fallbacks.
+        const extras = await invokePublic('getReservationPageExtras').catch(() => ({}));
+        const cleanExtras = Object.fromEntries(
+          Object.entries(extras || {}).filter(([, v]) => v != null && v !== '')
+        );
+        if (s || Object.keys(cleanExtras).length) setSettings({ ...(s || {}), ...cleanExtras });
       } catch (e) { console.warn('settings load failed', e); }
       // Fire all four public reads in parallel — none block each other
       const [countRes, menuRes, revRes] = await Promise.all([

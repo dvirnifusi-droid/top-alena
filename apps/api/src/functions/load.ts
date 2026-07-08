@@ -48,7 +48,7 @@ const db = prisma as any; // generic delegate access
 
 // Public deploy marker — lets us confirm which build is live (and that
 // auto-deploy is working) without server access. Bump on each deploy test.
-registerFn('deployInfo', async () => ({ version: 'app-i18n-runtime-2026-07-08', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
+registerFn('deployInfo', async () => ({ version: 'reservation-extras-2026-07-08', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
 
 
 
@@ -5125,6 +5125,67 @@ registerFn('getReservationSettings', async () => {
   const s = await db.reservationSettings.findFirst();
   return s ?? null;
 }, { public: true });
+
+// ── Phase 2: per-tenant reservation-page styling (tags/hero/tagline/socials).
+// Stored in an ISOLATED table so it never touches the existing settings path.
+// Every access is guarded so a failure degrades to "no extras" — the public
+// reservation page keeps working with its neutral fallbacks, never 500s.
+let _rpcEnsured = false;
+async function ensureReservationPageConfig(): Promise<void> {
+  if (_rpcEnsured) return;
+  await (prisma as any).$executeRawUnsafe(
+    `CREATE TABLE IF NOT EXISTS "ReservationPageConfig" (
+       "id" TEXT PRIMARY KEY,
+       "tagline" TEXT,
+       "tags" JSONB,
+       "hero_image_url" TEXT,
+       "instagram_url" TEXT,
+       "tiktok_url" TEXT,
+       "facebook_url" TEXT,
+       "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+     )`,
+  );
+  _rpcEnsured = true;
+}
+
+// PUBLIC — extras for THIS tenant's reservation page (its own schema). Fully
+// guarded: any failure returns {} so the page falls back to neutral defaults.
+registerFn('getReservationPageExtras', async () => {
+  try {
+    await ensureReservationPageConfig();
+    const rows: any[] = await (prisma as any).$queryRawUnsafe(`SELECT * FROM "ReservationPageConfig" LIMIT 1`);
+    return rows[0] || {};
+  } catch {
+    return {};
+  }
+}, { public: true });
+
+// AUTHED — save this tenant's reservation-page styling.
+registerFn('setReservationPageExtras', async ({ user, body }: any) => {
+  if (!user?.id) throw new Error('unauthorized');
+  await ensureReservationPageConfig();
+  const b = (body || {}) as any;
+  const tags = Array.isArray(b.tags)
+    ? b.tags.map((t: any) => String(t).trim()).filter(Boolean).slice(0, 8)
+    : null;
+  const norm = (v: any) => { const s = String(v ?? '').trim(); return s || null; };
+  const { randomUUID } = await import('node:crypto');
+  const existing: any[] = await (prisma as any).$queryRawUnsafe(`SELECT id FROM "ReservationPageConfig" LIMIT 1`);
+  const vals = [norm(b.tagline), tags ? JSON.stringify(tags) : null, norm(b.hero_image_url), norm(b.instagram_url), norm(b.tiktok_url), norm(b.facebook_url)];
+  if (existing.length) {
+    await (prisma as any).$executeRawUnsafe(
+      `UPDATE "ReservationPageConfig" SET tagline=$1, tags=$2::jsonb, hero_image_url=$3, instagram_url=$4, tiktok_url=$5, facebook_url=$6, "updatedAt"=NOW() WHERE id=$7`,
+      ...vals, existing[0].id,
+    );
+  } else {
+    await (prisma as any).$executeRawUnsafe(
+      `INSERT INTO "ReservationPageConfig" ("id","tagline","tags","hero_image_url","instagram_url","tiktok_url","facebook_url","updatedAt")
+       VALUES ($1,$2,$3::jsonb,$4,$5,$6,$7,NOW())`,
+      randomUUID(), ...vals,
+    );
+  }
+  return { ok: true };
+});
 
 // Public: check capacity + find an available table. Returns aggregate counts
 // and a single available table number — never any customer details.
