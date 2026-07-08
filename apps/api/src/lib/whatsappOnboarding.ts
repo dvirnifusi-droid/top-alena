@@ -148,7 +148,8 @@ async function onboardingBrain(
     `7. **אל תתייחס לכשלים/תקלות קודמים בשיחה ואל תמציא בעיות.** אם פריט מופיע ב"מה כבר הוקם" עם "(הוטמע ✅)" או מספר > 0 — הוא כבר נקלט בהצלחה; אל תבקש אותו שוב ואל תגיד שהמערכת לא הצליחה למשוך אותו.\n` +
     `8. **שאל אך ורק על "הנושא הנוכחי" (asking) שמופיע למטה.** אסור לחזור לנושא שכבר הוקם, ואסור לקפוץ קדימה לנושא אחר. נושא אחד בכל תור, לפי הסדר.\n` +
     `9. **כתוב אך ורק בעברית תקנית.** אסור להשתמש באותיות ערביות או בסימני ניקוד ערביים. אם אתה לא בטוח באות — כתוב מילה עברית פשוטה במקום.\n` +
-    `10. **אל תבטיח פעולות שלא קיימות.** תאר רק מה שהמערכת באמת עושה (התאמות לפי ה-actions הזמינים). אל תמציא "עמדות", "הטבות" או "קודים" שלא ביקשת מהמערכת ליצור.\n\n` +
+    `10. **אל תבטיח פעולות שלא קיימות.** תאר רק מה שהמערכת באמת עושה (התאמות לפי ה-actions הזמינים). אל תמציא "עמדות", "הטבות" או "קודים" שלא ביקשת מהמערכת ליצור.\n` +
+    `11. **אל תשאל שאלות משנה אופציונליות ואל תבזבז תורים.** אין צורך לשאול על טבעוני/ללא-גלוטן, אם המחירים כלולים, אם המנות זמינות בכל השעות, או "איך התפריט מחולק" — המערכת קוראת את הכל מהתפריט לבד. ברגע שקיבלת תפריט או תשובה לנושא — אמת במשפט קצר ועבור מיד לנושא הבא. שאלה אחת לכל נושא, לא יותר.\n\n` +
     `## קישור הצטרפות עובדים של המסעדה (השתמש בו רק אם הצעת action=send_join_link):\n${joinLink}\n\n` +
     `## מה כבר הוקם\n${summarizeState(data, tenant)}\n\n` +
     `## הנושא הנוכחי — שאל עליו עכשיו (asking="${nm.key}"):\n${nm.offer}\n\n` +
@@ -548,6 +549,46 @@ export async function tryHandleOnboardingMessage(fromPhone: string, body: string
     return true;
   }
 
+  // ── Owner pasted a MENU as text (not a file/link)? Parse it straight into
+  // MenuItems. This was the #1 gap: the bot kept asking for a "file" when the
+  // owner had already dropped the whole menu in chat. Runs BEFORE the brain,
+  // gated to fire once (menu not yet done) and only on clearly menu-like text.
+  const menuAlreadyDone = (data._counts?.menu || 0) > 0
+    || (Array.isArray(data._done_modules) && data._done_modules.includes('menu'))
+    || !!data._website_done;
+  if (!menuAlreadyDone && !data._menu_parsing && looksLikeMenu(body)) {
+    history.push({ role: 'user', content: body });
+    data._menu_parsing = true;
+    data._history = history.slice(-24);
+    await setPhase(state.tenant_id, 'active', data);
+    await sendWhatsApp(fromPhone, '🍽 קיבלתי את התפריט! קורא ומטמיע את המנות עם הקטגוריות... רגע 🚀');
+    void (async () => {
+      const dishes = await extractDishesFromText(tenant, body).catch(() => []);
+      const n = dishes.length ? await insertDishes(tenant, dishes).catch(() => 0) : 0;
+      const fresh = await findActiveOnboarding(fromPhone).catch(() => null);
+      const d: Record<string, any> = fresh?.collected_data || data;
+      const h: any[] = Array.isArray(d._history) ? d._history : history;
+      delete d._menu_parsing;
+      d._counts = d._counts || {};
+      d._counts.menu = (d._counts.menu || 0) + n;
+      if (n > 0) {
+        d._done_modules = Array.isArray(d._done_modules) ? d._done_modules : [];
+        if (!d._done_modules.includes('menu')) d._done_modules.push('menu');
+      }
+      const synthetic = n > 0
+        ? `[הבעלים הדביק תפריט בטקסט. הוטמעו ${n} מנות עם הקטגוריות מהתפריט. הודה במשפט קצר וציין את המספר. אל תבקש שוב תפריט/קובץ/צילום, ואל תשאל שאלות משנה (טבעוני/גלוטן/מחירים/חלוקה/שעות). המשך מיד לשאלה הבאה שחסרה.]`
+        : `[לא הצלחתי לחלץ מנות מהטקסט. בקש מהבעלים לשלוח צילום או PDF של התפריט, או להמשיך הלאה.]`;
+      const r = await onboardingBrain(tenant, h, synthetic, d).catch(() => null);
+      await applyExtraction(tenant, r || {}, d).catch(() => {});
+      const reply = pickReply(r, n > 0 ? `✅ קלטתי ${n} מנות מהתפריט! נמשיך.` : 'לא הצלחתי לקרוא את התפריט מהטקסט 🤔 אפשר לשלוח צילום או PDF?');
+      h.push({ role: 'assistant', content: reply });
+      d._history = h.slice(-24);
+      await setPhase(state.tenant_id, 'active', d).catch(() => {});
+      await sendWhatsApp(fromPhone, reply).catch(() => {});
+    })();
+    return true;
+  }
+
   history.push({ role: 'user', content: body });
 
   // ── Question-first checklists: ACCUMULATE the owner's answer across messages
@@ -817,6 +858,43 @@ async function extractAndInsertMenu(tenant: any, mediaUrl: string): Promise<numb
     'dishes', tenant.slug,
   );
   return insertDishes(tenant, items);
+}
+
+// Heuristic: does this pasted text look like a menu the owner dropped in chat?
+// Menus have many lines, several with prices ("— 12", "$12", "12 ₪") and/or
+// section headers. Deliberately strict so normal answers don't misfire.
+function looksLikeMenu(text: string): boolean {
+  const t = String(text || '');
+  if (t.length < 120) return false;
+  const lines = t.split('\n').map((l) => l.trim()).filter(Boolean);
+  if (lines.length < 4) return false;
+  const priceRe = /(—|–|-)\s*\d{1,4}(\.\d{1,2})?\b|[$₪€]\s?\d{1,4}|\d{1,4}\s?[$₪€]|\b\d{1,3}\.\d{2}\b/;
+  const priceLines = lines.filter((l) => priceRe.test(l)).length;
+  const headers = /(\bBREAD\b|\bSTARTERS?\b|\bMAINS?\b|\bDESSERTS?\b|\bDRINKS?\b|\bSIDES?\b|\bAPPETIZERS?\b|\bSALADS?\b|ראשונות|עיקריות|קינוחים|שתייה|שתיה|תוספות|סלטים|מנות ראשונות|מנות עיקריות)/i.test(t);
+  return priceLines >= 3 || (headers && priceLines >= 1);
+}
+
+// Parse a pasted menu TEXT into dishes — mirrors the file extractor but on raw
+// text. Keeps the section headers the owner used as categories.
+async function extractDishesFromText(tenant: any, text: string): Promise<any[]> {
+  const { invokeLLM } = await import('./llm.js');
+  const r: any = await invokeLLM({
+    prompt:
+      `הטקסט הבא הוא תפריט מסעדה שהבעלים הדביק בצ׳אט. חלץ את *כל* המנות — אל תשמיט אף אחת ואל תמציא.\n` +
+      `שמור על הקטגוריות/כותרות שמופיעות בטקסט (למשל BREAD, STARTERS, MAINS, ראשונות, עיקריות, קינוחים).\n` +
+      `החזר dishes — מערך, לכל מנה: name, category (הכותרת שמעליה, או "כללי"), price (מספר בלבד ללא סימן מטבע), description (אם מופיע).\n\n---\n${text.slice(0, 12000)}`,
+    responseSchema: {
+      type: 'object',
+      properties: { dishes: { type: 'array', items: { type: 'object', properties: {
+        name: { type: 'string' }, category: { type: 'string' }, price: { type: 'number' }, description: { type: 'string' },
+      } } } },
+      required: ['dishes'],
+    },
+    maxOutputTokens: 32768,
+    timeoutMs: 60_000,
+    _ctx: { fn_name: 'onboardingMenuText', tenant_slug: tenant.slug },
+  }).catch(() => null);
+  return Array.isArray(r?.dishes) ? r.dishes : [];
 }
 
 // Shared MenuItem insert — used by both the file extractor and the website
