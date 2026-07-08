@@ -119,15 +119,23 @@ export default function AiAssistantFilesManager() {
               גודל מקסימלי לקובץ: {MAX_MB}MB. כל סוגי הקבצים מתקבלים (PDF, Word, Excel, תמונות, טקסט).
             </CardDescription>
           </div>
-          <Button
-            onClick={migrateFromDrive}
-            disabled={migrating}
-            variant="outline"
-            className="border-amber-300 text-amber-700 hover:bg-amber-50"
-          >
-            {migrating ? <Loader2 className="w-4 h-4 animate-spin ml-2" /> : <Download className="w-4 h-4 ml-2" />}
-            ייבוא חד-פעמי מ-Google Drive
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <a
+              href="/OnboardingQuestionnaire"
+              className="inline-flex items-center gap-2 rounded-lg border border-teal-300 bg-teal-50 px-4 py-2 text-sm font-semibold text-teal-700 hover:bg-teal-100"
+            >
+              📋 מלא שאלון הצטרפות
+            </a>
+            <Button
+              onClick={migrateFromDrive}
+              disabled={migrating}
+              variant="outline"
+              className="border-amber-300 text-amber-700 hover:bg-amber-50"
+            >
+              {migrating ? <Loader2 className="w-4 h-4 animate-spin ml-2" /> : <Download className="w-4 h-4 ml-2" />}
+              ייבוא חד-פעמי מ-Google Drive
+            </Button>
+          </div>
         </div>
       </CardHeader>
 

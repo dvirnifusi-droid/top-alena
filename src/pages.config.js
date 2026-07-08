@@ -85,6 +85,7 @@ import InterviewSettings from './pages/InterviewSettings';
 import InvoiceDetails from './pages/InvoiceDetails';
 import LaborCost from './pages/LaborCost';
 import Invoices from './pages/Invoices';
+import OnboardingQuestionnaire from './pages/OnboardingQuestionnaire';
 import Leaderboard from './pages/Leaderboard';
 import LeaveRequests from './pages/LeaveRequests';
 import LocationSettings from './pages/LocationSettings';
@@ -211,6 +212,7 @@ export const PAGES = {
     "InvoiceDetails": InvoiceDetails,
     "LaborCost": LaborCost,
     "Invoices": Invoices,
+    "OnboardingQuestionnaire": OnboardingQuestionnaire,
     "Leaderboard": Leaderboard,
     "LeaveRequests": LeaveRequests,
     "LocationSettings": LocationSettings,
