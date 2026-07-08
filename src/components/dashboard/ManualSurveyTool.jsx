@@ -9,8 +9,11 @@ import { User } from '@/entities/User';
 import { MessageSquare, History, CheckCircle, Clock, Copy, ExternalLink, QrCode } from 'lucide-react';
 import { createPageUrl } from '@/utils';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { useTenantBranding } from '@/hooks/useTenantBranding';
 
 export default function ManualSurveyTool() {
+    const branding = useTenantBranding();
+    const brandName = branding?.name || 'המסעדה';
     const [customerName, setCustomerName] = useState('');
     const [customerPhone, setCustomerPhone] = useState('');
     const [notes, setNotes] = useState('');
@@ -79,7 +82,7 @@ export default function ManualSurveyTool() {
             const surveyUrl = window.location.origin + createPageUrl(`CustomerSurvey?s=${shortId}`);
             
             // הכנת הודעת הוואטסאפ
-            const message = `היי ${customerName}, תודה שביקרת אצלנו בעלינא! נשמח אם תקדיש רגע לדרג את החוויה שלך: ${surveyUrl}`;
+            const message = `היי ${customerName}, תודה שביקרת אצלנו ב${brandName}! נשמח אם תקדיש רגע לדרג את החוויה שלך: ${surveyUrl}`;
 
             // העתקת ההודעה ללוח
             try {

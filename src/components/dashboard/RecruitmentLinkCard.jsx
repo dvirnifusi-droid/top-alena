@@ -44,7 +44,7 @@ export default function RecruitmentLinkCard() {
   const link = withUtm(src.utm);
 
   const message =
-    `היי, ברוך/ה הבא/ה לעלינא 🌿\n` +
+    `היי, ברוך/ה הבא/ה ל${brandName} 🌿\n` +
     `נשמח שתעבור/י ראיון התאמה ראשוני עם הסוכן הדיגיטלי שלנו — לוקח ~3 דקות:\n\n` +
     `${link}`;
 

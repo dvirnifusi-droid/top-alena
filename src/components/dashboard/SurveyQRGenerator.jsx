@@ -5,8 +5,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { QrCode, Download, Printer, Copy, Check } from 'lucide-react';
+import { useTenantBranding } from '@/hooks/useTenantBranding';
 
 export default function SurveyQRGenerator() {
+    const branding = useTenantBranding();
+    const brandName = branding?.name || 'המסעדה';
     const [qrText, setQrText] = useState('');
     const [copied, setCopied] = useState(false);
     
@@ -64,7 +67,7 @@ export default function SurveyQRGenerator() {
                     </style>
                 </head>
                 <body>
-                    <h2>🍽️ עלינא - סקר שביעות רצון</h2>
+                    <h2>🍽️ ${brandName} - סקר שביעות רצון</h2>
                     <div class="qr-container">
                         <img src="${qrText}" alt="QR Code" style="max-width: 200px;">
                     </div>
