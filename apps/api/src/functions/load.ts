@@ -9,6 +9,7 @@ import './checklistAi.js';
 import './employeePay.js';
 import './cashflowLive.js';
 import './laborCost.js';
+import './i18nTranslate.js';
 import { randomUUID } from 'node:crypto';
 import { prisma } from '../db.js';
 import { registerFn, functionHandlers } from './index.js';
@@ -47,7 +48,7 @@ const db = prisma as any; // generic delegate access
 
 // Public deploy marker — lets us confirm which build is live (and that
 // auto-deploy is working) without server access. Bump on each deploy test.
-registerFn('deployInfo', async () => ({ version: 'office-file-reader-2026-07-08', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
+registerFn('deployInfo', async () => ({ version: 'app-i18n-runtime-2026-07-08', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
 
 
 

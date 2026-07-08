@@ -18,6 +18,7 @@ import { useTenantBranding } from "./hooks/useTenantBranding";
 import { useTenantModules } from "./hooks/useTenantModules";
 import FeaturePaywall from "./components/platform/FeaturePaywall";
 import AiChatWidget from "./components/ai-assistant/AiChatWidget";
+import AppLanguagePicker from "./components/shared/AppLanguagePicker";
 import DevicePreviewToggle from "./components/DevicePreviewToggle";
 import EnableStaffPush from "./components/EnableStaffPush";
 import PopupManager from "./components/PopupManager";
@@ -624,6 +625,7 @@ const DesktopSidebar = ({ userName, isCurrentViewAdmin, isOriginalAdmin, navigat
       {isOriginalAdmin && (
         <RoleImpersonationDropdown user={user} setUser={setUser} />
       )}
+      <div className="mt-2"><AppLanguagePicker /></div>
       <Button
         onClick={() => base44.auth.logout()}
         variant="outline"
@@ -725,6 +727,7 @@ const MobileSidebar = ({ userName, isCurrentViewAdmin, isOriginalAdmin, navigati
       {isOriginalAdmin && (
         <RoleImpersonationDropdown user={user} setUser={setUser} compact />
       )}
+      <div className="mt-1"><AppLanguagePicker compact /></div>
       <Button
         onClick={() => base44.auth.logout()}
         variant="outline"

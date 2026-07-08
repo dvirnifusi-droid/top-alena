@@ -2,6 +2,10 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from '@/App.jsx'
 import '@/index.css'
+import { initAppLanguage } from '@/lib/appI18n'
+
+// Activate the chosen UI language (no-op for Hebrew, the default → zero cost).
+try { initAppLanguage() } catch (e) { console.warn('i18n init failed', e) }
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <App />
