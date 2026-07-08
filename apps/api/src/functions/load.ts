@@ -48,7 +48,7 @@ const db = prisma as any; // generic delegate access
 
 // Public deploy marker — lets us confirm which build is live (and that
 // auto-deploy is working) without server access. Bump on each deploy test.
-registerFn('deployInfo', async () => ({ version: 'schedule-config-2026-07-08', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
+registerFn('deployInfo', async () => ({ version: 'checklist-from-text-2026-07-09', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
 
 
 
@@ -5182,6 +5182,60 @@ registerFn('setReservationPageExtras', async ({ user, body }: any) => {
       `INSERT INTO "ReservationPageConfig" ("id","tagline","tags","hero_image_url","instagram_url","tiktok_url","facebook_url","updatedAt")
        VALUES ($1,$2,$3::jsonb,$4,$5,$6,$7,NOW())`,
       randomUUID(), ...vals,
+    );
+  }
+  return { ok: true };
+});
+
+// ── Per-tenant work-schedule configuration (dynamic shifts + which positions
+// appear). Isolated table + guarded, same safe pattern as ReservationPageConfig.
+// Lets each business define its own shifts (בוקר/צהריים/ערב/לילה) and hide
+// positions it doesn't staff, instead of Alena's fixed lunch/dinner.
+let _schedCfgEnsured = false;
+async function ensureScheduleConfig(): Promise<void> {
+  if (_schedCfgEnsured) return;
+  await (prisma as any).$executeRawUnsafe(
+    `CREATE TABLE IF NOT EXISTS "ScheduleConfig" (
+       "id" TEXT PRIMARY KEY,
+       "shifts" JSONB,
+       "hidden_positions" JSONB,
+       "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+     )`,
+  );
+  _schedCfgEnsured = true;
+}
+
+registerFn('getScheduleConfig', async ({ user }: any) => {
+  if (!user?.id) throw new Error('unauthorized');
+  try {
+    await ensureScheduleConfig();
+    const rows: any[] = await (prisma as any).$queryRawUnsafe(`SELECT * FROM "ScheduleConfig" LIMIT 1`);
+    return rows[0] || {};
+  } catch {
+    return {};
+  }
+});
+
+registerFn('setScheduleConfig', async ({ user, body }: any) => {
+  if (!user?.id) throw new Error('unauthorized');
+  await ensureScheduleConfig();
+  const b = (body || {}) as any;
+  // shifts: [{ key, label, start, end, positions? }]; hidden_positions: [names]
+  const shifts = Array.isArray(b.shifts) ? b.shifts.slice(0, 12) : null;
+  const hidden = Array.isArray(b.hidden_positions)
+    ? b.hidden_positions.map((s: any) => String(s).trim()).filter(Boolean)
+    : null;
+  const { randomUUID } = await import('node:crypto');
+  const existing: any[] = await (prisma as any).$queryRawUnsafe(`SELECT id FROM "ScheduleConfig" LIMIT 1`);
+  if (existing.length) {
+    await (prisma as any).$executeRawUnsafe(
+      `UPDATE "ScheduleConfig" SET shifts=$1::jsonb, hidden_positions=$2::jsonb, "updatedAt"=NOW() WHERE id=$3`,
+      shifts ? JSON.stringify(shifts) : null, hidden ? JSON.stringify(hidden) : null, existing[0].id,
+    );
+  } else {
+    await (prisma as any).$executeRawUnsafe(
+      `INSERT INTO "ScheduleConfig" ("id","shifts","hidden_positions","updatedAt") VALUES ($1,$2::jsonb,$3::jsonb,NOW())`,
+      randomUUID(), shifts ? JSON.stringify(shifts) : null, hidden ? JSON.stringify(hidden) : null,
     );
   }
   return { ok: true };

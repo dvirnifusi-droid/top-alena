@@ -589,6 +589,45 @@ export async function tryHandleOnboardingMessage(fromPhone: string, body: string
     return true;
   }
 
+  // ── Owner pasted CHECKLISTS as text (an opening/closing/prep sheet — often from
+  // a Word/Excel doc they can't copy field-by-field). Parse into real checklists,
+  // split by section. Fires when checklists aren't ingested yet — even after a
+  // "skip" — since pasting a whole sheet is a strong signal they want it in.
+  const checklistsDone = (data._counts?.checklists || 0) > 0;
+  if (!checklistsDone && !data._checklist_text_parsing && looksLikeChecklist(body)) {
+    history.push({ role: 'user', content: body });
+    data._checklist_text_parsing = true;
+    data._history = history.slice(-24);
+    await setPhase(state.tenant_id, 'active', data);
+    await sendWhatsApp(fromPhone, '📋 קיבלתי את הצ׳קליסטים! קורא ומטמיע לפי הסקשנים (פתיחה / סגירה / הכנות)... רגע 🚀');
+    void (async () => {
+      const lists = await extractChecklistsFromText(tenant, body).catch(() => []);
+      const n = lists.length ? await insertChecklists(tenant, lists).catch(() => 0) : 0;
+      const fresh = await findActiveOnboarding(fromPhone).catch(() => null);
+      const d: Record<string, any> = fresh?.collected_data || data;
+      const h: any[] = Array.isArray(d._history) ? d._history : history;
+      delete d._checklist_text_parsing;
+      d._counts = d._counts || {};
+      d._counts.checklists = (d._counts.checklists || 0) + n;
+      if (n > 0) {
+        d._done_modules = Array.isArray(d._done_modules) ? d._done_modules : [];
+        if (!d._done_modules.includes('checklists')) d._done_modules.push('checklists');
+      }
+      const names = lists.map((l: any) => String(l?.title || '')).filter(Boolean).slice(0, 5).join(', ');
+      const synthetic = n > 0
+        ? `[הבעלים הדביק צ'קליסטים בטקסט. הוטמעו ${n} צ'קליסטים (${names}). הודה במשפט קצר וציין את המספר. אל תבקש שוב צ'קליסטים/קובץ. המשך מיד לשאלה הבאה שחסרה.]`
+        : `[לא הצלחתי לחלץ צ'קליסטים מהטקסט. המשך הלאה.]`;
+      const r = await onboardingBrain(tenant, h, synthetic, d).catch(() => null);
+      await applyExtraction(tenant, r || {}, d).catch(() => {});
+      const reply = pickReply(r, n > 0 ? `✅ קלטתי ${n} צ׳קליסטים${names ? ` (${names})` : ''}! תוכל לראות ולערוך אותם בעמוד "צ׳קליסטים". נמשיך.` : 'לא הצלחתי לקרוא את הצ׳קליסטים מהטקסט 🤔 נמשיך.');
+      h.push({ role: 'assistant', content: reply });
+      d._history = h.slice(-24);
+      await setPhase(state.tenant_id, 'active', d).catch(() => {});
+      await sendWhatsApp(fromPhone, reply).catch(() => {});
+    })();
+    return true;
+  }
+
   history.push({ role: 'user', content: body });
 
   // ── Question-first checklists: ACCUMULATE the owner's answer across messages
@@ -895,6 +934,52 @@ async function extractDishesFromText(tenant: any, text: string): Promise<any[]> 
     _ctx: { fn_name: 'onboardingMenuText', tenant_slug: tenant.slug },
   }).catch(() => null);
   return Array.isArray(r?.dishes) ? r.dishes : [];
+}
+
+// Does this pasted text look like operational checklists (opening/closing/prep)?
+// Strict-ish so normal answers don't misfire: many lines + checklist signals.
+function looksLikeChecklist(text: string): boolean {
+  const t = String(text || '');
+  if (t.length < 200) return false;
+  const lines = t.split('\n').map((l) => l.trim()).filter(Boolean);
+  if (lines.length < 8) return false;
+  const signals = /(פתיחה|סגירה|צ.?ק.?ליסט|הכנות|משמרת|opening|closing|checklist|check ?list|prep|station|mise|shift)/i.test(t);
+  const shortLines = lines.filter((l) => l.length <= 70).length;
+  return signals && shortLines >= 6;
+}
+
+// Parse pasted checklist TEXT into real checklists, split by section. Uses a
+// FLAT tasks array ({checklist, text}) — Gemini returns EMPTY for nested
+// arrays (checklists[].items[]), so we group by `checklist` in code instead.
+async function extractChecklistsFromText(tenant: any, text: string): Promise<any[]> {
+  const { invokeLLM } = await import('./llm.js');
+  const r: any = await invokeLLM({
+    prompt:
+      `הטקסט הבא הוא רשימות תפעוליות של מסעדה (צ׳קליסטים / פתיחה / סגירה / רשימות הכנה) שהבעלים הדביק — לפעמים מקובץ Word/Excel.\n` +
+      `חלץ את המשימות. החזר tasks — מערך *שטוח*, לכל משימה: checklist (שם הסקשן/הצ׳קליסט שאליו היא שייכת — למשל "פתיחה - עמדה חמה", "סגירה", "הכנות לבוקר") ו-text (המשימה עצמה, משפט קצר).\n` +
+      `שמור על החלוקה לסקשנים בדיוק כפי שמופיעה בטקסט. אל תמציא ואל תשמיט. אם הטקסט באנגלית — שמור אנגלית.\n\n---\n${text.slice(0, 14000)}`,
+    responseSchema: {
+      type: 'object',
+      properties: { tasks: { type: 'array', items: { type: 'object', properties: {
+        checklist: { type: 'string' }, text: { type: 'string' },
+      } } } },
+      required: ['tasks'],
+    },
+    maxOutputTokens: 32768,
+    timeoutMs: 90_000,
+    _ctx: { fn_name: 'onboardingChecklistText', tenant_slug: tenant.slug },
+  }).catch(() => null);
+  const tasks = Array.isArray(r?.tasks) ? r.tasks : [];
+  const groups = new Map<string, string[]>();
+  for (const t of tasks) {
+    const cl = (String(t?.checklist || '').trim() || 'צ׳קליסט').slice(0, 80);
+    const txt = String(t?.text || '').trim();
+    if (!txt) continue;
+    if (!groups.has(cl)) groups.set(cl, []);
+    const arr = groups.get(cl)!;
+    if (arr.length < 60) arr.push(txt);
+  }
+  return [...groups.entries()].slice(0, 8).map(([title, items]) => ({ title, category: 'תפעול', items }));
 }
 
 // Shared MenuItem insert — used by both the file extractor and the website
