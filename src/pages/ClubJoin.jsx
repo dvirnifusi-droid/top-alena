@@ -63,7 +63,7 @@ export default function ClubJoin() {
                     </p>
                     <p className="text-sm text-gray-500">
                         מהיום — הטבות, הפתעות ביום ההולדת, ועדכונים על מנות חדשות.
-                        <br />נתראה ברוטשילד 104, ראשון לציון!
+                        {branding?.address && <><br />{`נתראה ב${branding.address}!`}</>}
                     </p>
                 </div>
             </div>

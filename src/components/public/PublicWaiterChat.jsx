@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { MessageCircle, X, Send, Loader2 } from 'lucide-react';
 import { invokePublic } from '@/lib/publicFetch';
+import { useTenantBranding } from '@/hooks/useTenantBranding';
 
 // Floating AI concierge bubble for /PublicReservation.
 // Backed by the guestInquiry public function (apps/api/src/functions/load.ts).
@@ -21,14 +22,14 @@ const SUGGESTED_OPENERS = [
   'איך מארגנים יום הולדת?',
 ];
 
-const INITIAL_GREETING = {
-  role: 'assistant',
-  content: 'שלום! אני המלצר הוירטואלי של עלינא 🌿 אפשר לשאול אותי על הזמנות, תפריט, אירועים, חניה — כל מה שבא לכם.',
-};
-
 export default function PublicWaiterChat() {
+  const branding = useTenantBranding();
+  const brandName = branding?.name || 'המסעדה';
   const [open, setOpen] = useState(false);
-  const [messages, setMessages] = useState([INITIAL_GREETING]);
+  const [messages, setMessages] = useState(() => [{
+    role: 'assistant',
+    content: `שלום! אני המלצר הוירטואלי של ${brandName} 🌿 אפשר לשאול אותי על הזמנות, תפריט, אירועים, חניה — כל מה שבא לכם.`,
+  }]);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
   const [showBadge, setShowBadge] = useState(false);
@@ -167,7 +168,7 @@ export default function PublicWaiterChat() {
                   </svg>
                 </div>
                 <div>
-                  <div className="font-bold text-sm leading-tight">מלצר עלינא</div>
+                  <div className="font-bold text-sm leading-tight">{`מלצר ${brandName}`}</div>
                   <div className="text-[11px] flex items-center gap-1" style={{ color: '#D9BD83' }}>
                     <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: '#7A8A48' }}></span>
                     מקוון · עונה תוך שניות

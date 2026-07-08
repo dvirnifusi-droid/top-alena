@@ -4,6 +4,8 @@ import { base44 } from '@/api/base44Client';
 import { format, parseISO } from 'date-fns';
 import { he } from 'date-fns/locale';
 import { Calendar, Clock, Users, MapPin, Navigation, Phone, X, CheckCircle, AlertTriangle } from 'lucide-react';
+import { useTenantBranding } from '@/hooks/useTenantBranding';
+import { isMainAlena } from '@/lib/tenant';
 
 // Customer-facing reservation tracking page.
 // Accessed via the link sent in the SMS / email after booking:
@@ -19,6 +21,9 @@ export default function ReservationView() {
   const [cancelOpen, setCancelOpen] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const branding = useTenantBranding();
+  const brandName = branding?.name || 'המסעדה';
+  const isAlena = isMainAlena();
 
   useEffect(() => {
     if (!token) { setError('קישור לא תקין'); setLoading(false); return; }
@@ -72,7 +77,7 @@ export default function ReservationView() {
 
         {/* Header */}
         <div className="text-center border-b pb-4">
-          <div className="text-3xl font-black text-amber-900">🔥 עלינא</div>
+          <div className="text-3xl font-black text-amber-900">{`🔥 ${brandName}`}</div>
           <div className="text-sm text-gray-500 mt-1">ההזמנה שלך</div>
         </div>
 
@@ -103,11 +108,13 @@ export default function ReservationView() {
         </div>
 
         {/* Address + Waze */}
+        {(isAlena || branding?.address) && (
         <div className="bg-[#F4ECD8] border border-[#E8D9B5] rounded-2xl p-4">
           <div className="font-bold text-blue-900 flex items-center gap-2 mb-2">
             <MapPin className="w-4 h-4" /> איפה אנחנו
           </div>
-          <div className="text-sm text-[#2E3819]">רוטשילד 104, ראשון לציון</div>
+          <div className="text-sm text-[#2E3819]">{branding?.address || 'רוטשילד 104, ראשון לציון'}</div>
+          {isAlena && (
           <a
             href="https://waze.com/ul?ll=31.96,34.79&navigate=yes"
             target="_blank" rel="noopener noreferrer"
@@ -115,9 +122,12 @@ export default function ReservationView() {
           >
             <Navigation className="w-4 h-4" /> ניווט בוייז
           </a>
+          )}
         </div>
+        )}
 
-        {/* Parking */}
+        {/* Parking — Alena-specific details */}
+        {isAlena && (
         <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4">
           <div className="font-bold text-emerald-900 mb-1">🅿️ חניה</div>
           <ul className="text-sm text-emerald-800 space-y-1 list-disc pr-5">
@@ -125,6 +135,7 @@ export default function ReservationView() {
             <li>רחובות סמוכים: רוטשילד, הרצל, וייצמן — כחול-לבן</li>
           </ul>
         </div>
+        )}
 
         {/* Policy */}
         <div className="bg-[#FAF5E8] border border-yellow-200 rounded-2xl p-4 text-sm text-yellow-900">
@@ -146,16 +157,18 @@ export default function ReservationView() {
           </button>
         )}
 
-        {/* Contact */}
+        {/* Contact — only when we have a number (Alena's, for now) */}
+        {isAlena && (
         <a
           href="tel:031234567"
           className="w-full bg-zinc-900 hover:bg-zinc-800 text-white font-bold py-3 rounded-xl text-sm flex items-center justify-center gap-2"
         >
           <Phone className="w-4 h-4" /> התקשר למסעדה
         </a>
+        )}
 
         <div className="text-center text-xs text-gray-400 pt-2 border-t">
-          ❤️ עלינא · אוכל · אלכוהול · אווירה · אנשים
+          {isAlena ? '❤️ עלינא · אוכל · אלכוהול · אווירה · אנשים' : `❤️ ${brandName}`}
         </div>
       </div>
 

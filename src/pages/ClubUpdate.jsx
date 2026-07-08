@@ -5,6 +5,8 @@
 import React, { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { invokePublic } from '@/lib/publicFetch';
+import { useTenantBranding } from '@/hooks/useTenantBranding';
+import { isMainAlena } from '@/lib/tenant';
 
 const CITIES = [
     'ראשון לציון', 'רחובות', 'נס ציונה', 'תל אביב', 'חולון', 'בת ים',
@@ -14,6 +16,9 @@ const CITIES = [
 export default function ClubUpdate() {
     const [params] = useSearchParams();
     const cid = params.get('cid');
+    const branding = useTenantBranding();
+    const brandName = branding?.name || 'המסעדה';
+    const isAlena = isMainAlena();
 
     const [profile, setProfile] = useState(null); // {first_name, has_*}
     const [loading, setLoading] = useState(true);
@@ -56,7 +61,7 @@ export default function ClubUpdate() {
     };
 
     const handleUnsubscribe = async () => {
-        if (!confirm('להסיר אותך מרשימת הדיוור של עלינא?\nלא תקבל/י עוד הודעות שיווק.')) return;
+        if (!confirm(`להסיר אותך מרשימת הדיוור של ${brandName}?\nלא תקבל/י עוד הודעות שיווק.`)) return;
         try {
             await invokePublic('clubUnsubscribe', { cid });
             setUnsubscribed(true);
@@ -79,7 +84,7 @@ export default function ClubUpdate() {
                 <div className="text-center py-6">
                     <div className="text-4xl mb-3">🤔</div>
                     <p className="font-bold text-gray-800">הקישור לא תקין או שפג תוקפו</p>
-                    <p className="text-sm text-gray-500 mt-2">אפשר להירשם למועדון מחדש בכתובת topalena.com/ClubJoin</p>
+                    <p className="text-sm text-gray-500 mt-2">אפשר להירשם למועדון מחדש בכל עת דרך עמוד ההרשמה של {brandName}</p>
                 </div>
             </Shell>
         );
@@ -91,7 +96,7 @@ export default function ClubUpdate() {
                 <div className="text-center py-6">
                     <div className="text-4xl mb-3">👋</div>
                     <h1 className="text-xl font-black mb-2" style={{ color: '#A04A2E' }}>הוסרת מרשימת הדיוור</h1>
-                    <p className="text-sm text-gray-600">לא תקבל/י עוד הודעות שיווק מעלינא.<br />תמיד אפשר לחזור — נשמח לראותך 🌿</p>
+                    <p className="text-sm text-gray-600">{`לא תקבל/י עוד הודעות שיווק מ${brandName}.`}<br />תמיד אפשר לחזור — נשמח לראותך 🌿</p>
                 </div>
             </Shell>
         );
@@ -105,7 +110,7 @@ export default function ClubUpdate() {
                     <h1 className="text-xl font-black mb-2" style={{ color: '#A04A2E' }}>תודה {profile.first_name}!</h1>
                     <p className="text-sm text-gray-600">
                         הפרטים נשמרו — מהיום ההטבות בדרך אליך.
-                        <br />נתראה בעלינא, רוטשילד 104 🌿
+                        <br />{`נתראה ב${brandName}${isAlena ? ', רוטשילד 104' : (branding?.address ? ', ' + branding.address : '')} 🌿`}
                     </p>
                 </div>
             </Shell>
@@ -180,7 +185,7 @@ export default function ClubUpdate() {
 
             <div className="mt-6 pt-4 border-t text-center" style={{ borderColor: '#F4ECD8' }}>
                 <button onClick={handleUnsubscribe} className="text-[11px] text-gray-400 hover:text-red-600 underline">
-                    להסרה מרשימת הדיוור של עלינא לחצו כאן
+                    {`להסרה מרשימת הדיוור של ${brandName} לחצו כאן`}
                 </button>
             </div>
         </Shell>
