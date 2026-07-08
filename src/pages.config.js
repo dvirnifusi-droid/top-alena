@@ -157,6 +157,7 @@ import ColorPreview from './pages/ColorPreview';
 import Recipes from './pages/Recipes';
 import CashFlow from './pages/CashFlow';
 import MenuManagement from './pages/MenuManagement';
+import PrepSheet from './pages/PrepSheet';
 import PlatformAdmin from './pages/PlatformAdmin';
 import PlatformAdminPending from './pages/PlatformAdminPending';
 import PlatformAdminTenants from './pages/PlatformAdminTenants';
@@ -284,6 +285,7 @@ export const PAGES = {
     "Recipes": Recipes,
     "CashFlow": CashFlow,
     "MenuManagement": MenuManagement,
+    "PrepSheet": PrepSheet,
     "PlatformAdmin": PlatformAdmin,
     "PlatformAdminPending": PlatformAdminPending,
     "PlatformAdminTenants": PlatformAdminTenants,

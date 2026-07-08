@@ -48,7 +48,7 @@ const db = prisma as any; // generic delegate access
 
 // Public deploy marker — lets us confirm which build is live (and that
 // auto-deploy is working) without server access. Bump on each deploy test.
-registerFn('deployInfo', async () => ({ version: 'checklist-flat-extract-2026-07-09', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
+registerFn('deployInfo', async () => ({ version: 'prep-sheet-2026-07-09', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
 
 
 
@@ -5238,6 +5238,86 @@ registerFn('setScheduleConfig', async ({ user, body }: any) => {
       randomUUID(), shifts ? JSON.stringify(shifts) : null, hidden ? JSON.stringify(hidden) : null,
     );
   }
+  return { ok: true };
+});
+
+// ── Prep Sheet — per-tenant mise-en-place / par-level list. Each row is a
+// product with a TARGET; the cook fills HAVE (what's on hand), the sheet shows
+// PREP (to make) = target − have, and checks ✓. Isolated table + guarded, same
+// safe pattern as ScheduleConfig / ReservationPageConfig.
+let _prepEnsured = false;
+async function ensurePrepItems(): Promise<void> {
+  if (_prepEnsured) return;
+  await (prisma as any).$executeRawUnsafe(
+    `CREATE TABLE IF NOT EXISTS "PrepItem" (
+       "id" TEXT PRIMARY KEY,
+       "name" TEXT NOT NULL,
+       "category" TEXT,
+       "unit" TEXT,
+       "target" TEXT,
+       "have" TEXT,
+       "done" BOOLEAN NOT NULL DEFAULT false,
+       "sort" INTEGER NOT NULL DEFAULT 0,
+       "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+     )`,
+  );
+  _prepEnsured = true;
+}
+
+registerFn('getPrepItems', async ({ user }: any) => {
+  if (!user?.id) throw new Error('unauthorized');
+  try {
+    await ensurePrepItems();
+    const rows: any[] = await (prisma as any).$queryRawUnsafe(`SELECT * FROM "PrepItem" ORDER BY "sort" ASC, "category" ASC`);
+    return { items: rows };
+  } catch {
+    return { items: [] };
+  }
+});
+
+// Bulk replace — used by the admin editor + text import.
+registerFn('savePrepItems', async ({ user, body }: any) => {
+  if (!user?.id) throw new Error('unauthorized');
+  await ensurePrepItems();
+  const b = (body || {}) as any;
+  const items: any[] = Array.isArray(b.items) ? b.items.slice(0, 500) : [];
+  const { randomUUID } = await import('node:crypto');
+  await (prisma as any).$executeRawUnsafe(`DELETE FROM "PrepItem"`);
+  let n = 0;
+  for (let i = 0; i < items.length; i++) {
+    const it = items[i] || {};
+    const name = String(it.name || '').trim();
+    if (!name) continue;
+    await (prisma as any).$executeRawUnsafe(
+      `INSERT INTO "PrepItem" ("id","name","category","unit","target","have","done","sort","updatedAt")
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,NOW())`,
+      it.id && String(it.id).length > 8 ? String(it.id) : randomUUID(),
+      name.slice(0, 200), it.category ? String(it.category).slice(0, 80) : null,
+      it.unit ? String(it.unit).slice(0, 40) : null, it.target != null ? String(it.target).slice(0, 40) : null,
+      it.have != null ? String(it.have).slice(0, 40) : null, !!it.done, Number.isFinite(+it.sort) ? Math.floor(+it.sort) : i,
+    ).then(() => { n++; }).catch((e: any) => console.warn('[prep] insert', e?.message));
+  }
+  return { ok: true, count: n };
+});
+
+// Single-row update — the cook's daily "have"/"done" without rewriting all.
+registerFn('updatePrepItem', async ({ user, body }: any) => {
+  if (!user?.id) throw new Error('unauthorized');
+  await ensurePrepItems();
+  const b = (body || {}) as any;
+  if (!b.id) throw new Error('id required');
+  await (prisma as any).$executeRawUnsafe(
+    `UPDATE "PrepItem" SET have=$1, done=$2, "updatedAt"=NOW() WHERE id=$3`,
+    b.have != null ? String(b.have).slice(0, 40) : null, !!b.done, String(b.id),
+  );
+  return { ok: true };
+});
+
+// Clear the daily counts (start a fresh prep day) — keeps the product template.
+registerFn('resetPrepCounts', async ({ user }: any) => {
+  if (!user?.id) throw new Error('unauthorized');
+  await ensurePrepItems();
+  await (prisma as any).$executeRawUnsafe(`UPDATE "PrepItem" SET have=NULL, done=false, "updatedAt"=NOW()`);
   return { ok: true };
 });
 
