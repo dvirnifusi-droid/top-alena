@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { X, Plus } from 'lucide-react';
+import { useTenantBranding } from '@/hooks/useTenantBranding';
 
 const CATEGORIES = {
   friends: { label: '👯 ארוחת חברים', vibe: '😂 מצחיק • מביך • טיפשי', color: 'from-pink-500 to-rose-500' },
@@ -17,6 +18,7 @@ const GAME_TYPES = [
 ];
 
 export default function GameSetup({ onStart }) {
+  const brandName = useTenantBranding()?.name || 'המסעדה';
   const [step, setStep] = useState(1); // 1: שמות, 2: קטגוריה, 3: משחק
   const [players, setPlayers] = useState(['']);
   const [selectedCategory, setSelectedCategory] = useState('friends');
@@ -44,7 +46,7 @@ export default function GameSetup({ onStart }) {
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex flex-col items-center justify-start pt-8 pb-8 px-4" dir="rtl">
         <div className="text-center mb-8">
           <div className="text-5xl mb-2">🍽️</div>
-          <h2 className="text-3xl font-black text-white mb-2">עלינא</h2>
+          <h2 className="text-3xl font-black text-white mb-2">{brandName}</h2>
           <p className="text-purple-300 text-sm">🎮 מי איתנו?</p>
         </div>
 

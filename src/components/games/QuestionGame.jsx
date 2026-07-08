@@ -2,8 +2,10 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Share2, Download } from 'lucide-react';
 import html2canvas from 'html2canvas';
+import { useTenantBranding } from '@/hooks/useTenantBranding';
 
 export default function QuestionGame({ players, category, questions }) {
+  const brandName = useTenantBranding()?.name || 'המסעדה';
   const [currentQuestion, setCurrentQuestion] = useState(null);
   const [currentPlayer, setCurrentPlayer] = useState(null);
   const [answered, setAnswered] = useState([]);
@@ -58,7 +60,7 @@ export default function QuestionGame({ players, category, questions }) {
         if (navigator.share && navigator.canShare({ files: [new File([blob], 'story.png', { type: 'image/png' })] })) {
           navigator.share({
             files: [new File([blob], 'story.png', { type: 'image/png' })],
-            title: 'עלינא - משחק השאלות',
+            title: `${brandName} - משחק השאלות`,
           });
         } else {
           // Fallback: download
@@ -81,10 +83,10 @@ export default function QuestionGame({ players, category, questions }) {
   const handleShare = () => {
     if (!currentQuestion) return;
     
-    const text = `🎮 עלינא - משחק השאלות!\n\n${currentQuestion.text}\n\nתשובה: ___________\n\n#עלינא #משחקים #התור`;
-    
+    const text = `🎮 ${brandName} - משחק השאלות!\n\n${currentQuestion.text}\n\nתשובה: ___________\n\n#משחקים #התור`;
+
     if (navigator.share) {
-      navigator.share({ title: 'עלינא - משחק השאלות', text });
+      navigator.share({ title: `${brandName} - משחק השאלות`, text });
     } else {
       navigator.clipboard.writeText(text);
       alert('✅ הטקסט הועתק!');
@@ -140,7 +142,7 @@ export default function QuestionGame({ players, category, questions }) {
       >
         <div>
           <div className="text-6xl mb-4">🎮</div>
-          <p className="text-4xl font-black text-white mb-8">עלינא</p>
+          <p className="text-4xl font-black text-white mb-8">{brandName}</p>
         </div>
         <div className="flex-1 flex flex-col items-center justify-center">
           <p className="text-white text-2xl font-black leading-relaxed break-words max-w-xs mb-8">
@@ -149,15 +151,15 @@ export default function QuestionGame({ players, category, questions }) {
           <p className="text-3xl font-black text-yellow-300 mb-4">{currentPlayer}</p>
         </div>
         <div className="text-white text-sm font-bold">
-          🎮 משחק השאלות של עלינא
-          <p className="text-xs mt-2 opacity-80">#עלינא #משחקים</p>
+          {`🎮 משחק השאלות של ${brandName}`}
+          <p className="text-xs mt-2 opacity-80">#משחקים</p>
         </div>
       </div>
 
       {/* לוגו */}
       <div className="text-center mb-8">
         <div className="text-5xl mb-2">🍽️</div>
-        <h1 className="text-2xl font-black text-white">עלינא</h1>
+        <h1 className="text-2xl font-black text-white">{brandName}</h1>
         <p className="text-purple-300 text-xs mt-1">משחק השאלות</p>
       </div>
 

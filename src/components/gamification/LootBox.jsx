@@ -182,7 +182,7 @@ export default function LootBox({ employeeId, employeeName, onDone }) {
           result = { type: 'coins', coins };
           await base44.entities.CoinTransaction.create({
             employee_id: employeeId, employee_name: employeeName,
-            amount: coins, reason: `🎲 הפתעה עלינא - יציאה ממשמרת`,
+            amount: coins, reason: `🎲 הפתעה - יציאה ממשמרת`,
             type: 'earned', trigger: 'manager_bonus', status: 'approved'
           });
           playSound('reveal'); setPrize(result); setPhase('reveal'); return;
@@ -193,12 +193,12 @@ export default function LootBox({ employeeId, employeeName, onDone }) {
           employee_id: employeeId,
           employee_name: employeeName,
           amount: 0,
-          reason: `🎁 זכייה בהפתעה עלינא: ${picked.emoji} ${picked.title}`,
+          reason: `🎁 זכייה בהפתעה: ${picked.emoji} ${picked.title}`,
           type: 'redeemed',
           trigger: 'redemption',
           status: 'pending_approval',
           redemption_reward: picked.id || picked.title,
-          manager_notes: 'זכייה אוטומטית מהפתעה עלינא - יציאה ממשמרת'
+          manager_notes: 'זכייה אוטומטית מהפתעה - יציאה ממשמרת'
         });
       } else {
         const coins = pickCoinPrize(settings.coinPrizes);
@@ -207,7 +207,7 @@ export default function LootBox({ employeeId, employeeName, onDone }) {
           employee_id: employeeId,
           employee_name: employeeName,
           amount: coins,
-          reason: `🎲 הפתעה עלינא - יציאה ממשמרת`,
+          reason: `🎲 הפתעה - יציאה ממשמרת`,
           type: 'earned',
           trigger: 'manager_bonus',
           status: 'approved'
@@ -247,7 +247,7 @@ export default function LootBox({ employeeId, employeeName, onDone }) {
             <div className="absolute bottom-16 right-10 text-lg star3">⭐</div>
             <div className="text-9xl" style={{ animation: 'bigBounce 1.4s ease-in-out infinite', display:'inline-block' }}>🎁</div>
             <div>
-              <h2 className="text-3xl font-black text-white drop-shadow-lg">הפתעה עלינא!</h2>
+              <h2 className="text-3xl font-black text-white drop-shadow-lg">הפתעה!</h2>
               <p className="text-white/80 text-base mt-1">סיימת משמרת מלאה — מגיע לך פרס! 🎉</p>
             </div>
             <Button
