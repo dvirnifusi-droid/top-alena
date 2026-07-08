@@ -57,26 +57,35 @@ const DEPARTMENT_DEFINITIONS = {
     ] },
 };
 
+// The fixed order lists below are ALENA's positions. For any OTHER tenant, its
+// own positions (from its WorkPosition table) won't appear in these lists — so
+// we must NOT drop them. We keep Alena's positions in their curated order, then
+// append the tenant's custom positions (those in neither Alena list) so every
+// business sees ITS OWN roles in the schedule and can staff by them.
+const ALENA_KNOWN_POSITIONS = new Set([...LUNCH_POSITIONS_ORDER, ...DINNER_POSITIONS_ORDER]);
+
 // Helper function to get ordered and included positions for a specific shift
 const getOrderedPositionsForShift = (allPositions, shiftType) => {
     const orderList = shiftType === 'lunch' ? LUNCH_POSITIONS_ORDER : DINNER_POSITIONS_ORDER;
 
-    // Filter positions to include only those in the orderList
+    // Alena's positions for this shift, in the curated order.
     const includedPositions = allPositions.filter(p => orderList.includes(p.position_name));
+    includedPositions.sort((a, b) => orderList.indexOf(a.position_name) - orderList.indexOf(b.position_name));
 
-    // Sort the included positions based on the predefined order list
-    includedPositions.sort((a, b) => {
-        const indexA = orderList.indexOf(a.position_name);
-        const indexB = orderList.indexOf(b.position_name);
-        return indexA - indexB;
-    });
+    // Tenant-custom positions — not in EITHER Alena list — belong to this tenant;
+    // show them in every shift (sorted by their own name) so they're never lost.
+    const customPositions = allPositions
+        .filter(p => p.position_name && !ALENA_KNOWN_POSITIONS.has(p.position_name))
+        .sort((a, b) => String(a.position_name).localeCompare(String(b.position_name), 'he'));
+
+    const result = [...includedPositions, ...customPositions];
 
     // הוסף את "בלתם" תמיד בסוף אם הוא בסדר הקבוע
-    if (orderList.includes('בלתם') && !includedPositions.some(p => p.position_name === 'בלתם')) {
-        includedPositions.push({ position_name: 'בלתם', id: 'unassigned' });
+    if (orderList.includes('בלתם') && !result.some(p => p.position_name === 'בלתם')) {
+        result.push({ position_name: 'בלתם', id: 'unassigned' });
     }
 
-    return includedPositions;
+    return result;
 };
 
 // Helper function to filter positions by department.

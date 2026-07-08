@@ -3,6 +3,7 @@ import LanguagePicker from '@/components/shared/LanguagePicker';
 import { useI18n } from '@/lib/i18n';
 import { invokePublic } from '@/lib/publicFetch';
 import { useTenantBranding } from '@/hooks/useTenantBranding';
+import { isMainAlena } from '@/lib/tenant';
 import { format, addDays, addMinutes, parse, isSameDay } from 'date-fns';
 import { he } from 'date-fns/locale';
 import {
@@ -424,16 +425,19 @@ export default function PublicReservationPage() {
 
   // --- Derived data
   const branding = useTenantBranding();
-  const restaurantName = settings?.restaurant_name || branding?.name || 'המסעדה';
-  const welcomeMessage = settings?.welcome_message || 'בשר על האש, אווירה אחרת, אנשים נכונים';
-  const phone = settings?.phone || '03-1234567';
-  const address = settings?.address || 'רוטשילד 104, ראשון לציון';
+  // Alena keeps its curated copy as the fallback; EVERY other tenant falls back
+  // to its own RestaurantProfile/settings or neutral values — never Alena's.
+  const isAlena = isMainAlena();
+  const restaurantName = settings?.restaurant_name || (branding?.is_default ? (isAlena ? 'עלינא' : 'המסעדה') : branding?.name) || 'המסעדה';
+  const welcomeMessage = settings?.welcome_message || (isAlena ? 'בשר על האש, אווירה אחרת, אנשים נכונים' : '');
+  const phone = settings?.phone || (isAlena ? '03-1234567' : '');
+  const address = settings?.address || branding?.address || (isAlena ? 'רוטשילד 104, ראשון לציון' : '');
   const wazeUrl = `https://waze.com/ul?ll=31.96,34.79&navigate=yes`;
   const social = {
-    instagram: settings?.instagram_url || 'https://instagram.com/alina_restaurant',
-    tiktok:    settings?.tiktok_url    || 'https://tiktok.com/@alina_restaurant',
+    instagram: settings?.instagram_url || (isAlena ? 'https://instagram.com/alina_restaurant' : null),
+    tiktok:    settings?.tiktok_url    || (isAlena ? 'https://tiktok.com/@alina_restaurant' : null),
     facebook:  settings?.facebook_url  || null,
-    whatsapp:  settings?.whatsapp_url  || `https://wa.me/972${phone.replace(/\D/g, '').replace(/^0/, '')}`,
+    whatsapp:  settings?.whatsapp_url  || (phone ? `https://wa.me/972${phone.replace(/\D/g, '').replace(/^0/, '')}` : null),
   };
 
   // Date strip — today + next 6 days
@@ -564,7 +568,9 @@ export default function PublicReservationPage() {
           style={{
             backgroundImage: settings?.hero_image_url
               ? `url(${settings.hero_image_url})`
-              : `linear-gradient(180deg, rgba(31,27,23,0.35) 0%, rgba(31,27,23,0.55) 60%, rgba(31,27,23,0.80) 100%), url('https://alena.topalena.com/gallery/spread.jpg')`,
+              : isAlena
+                ? `linear-gradient(180deg, rgba(31,27,23,0.35) 0%, rgba(31,27,23,0.55) 60%, rgba(31,27,23,0.80) 100%), url('https://alena.topalena.com/gallery/spread.jpg')`
+                : `linear-gradient(135deg, #2E3819 0%, #44512C 55%, #7A3722 100%)`,
             backgroundSize: 'cover',
             backgroundPosition: 'center 40%',
           }}
@@ -574,23 +580,43 @@ export default function PublicReservationPage() {
 
           {/* Hero center stack: official PNG wordmark */}
           <div className="absolute inset-0 z-[5] flex flex-col items-center justify-center text-center pointer-events-none px-4">
-            <p className="text-[10px] md:text-xs uppercase tracking-[0.4em] drop-shadow mb-3" style={{ color: '#D9BD83' }}>
-              רוטשילד 104 · ראשון לציון
-            </p>
-            <img
-              src="/logo-alena-light.png"
-              alt={restaurantName}
-              className="mx-auto drop-shadow-2xl"
-              style={{ width: 'clamp(220px, 48vw, 480px)', height: 'auto', filter: 'drop-shadow(0 10px 28px rgba(0,0,0,0.55))' }}
-            />
+            {address && (
+              <p className="text-[10px] md:text-xs uppercase tracking-[0.4em] drop-shadow mb-3" style={{ color: '#D9BD83' }}>
+                {address}
+              </p>
+            )}
+            {isAlena ? (
+              <img
+                src="/logo-alena-light.png"
+                alt={restaurantName}
+                className="mx-auto drop-shadow-2xl"
+                style={{ width: 'clamp(220px, 48vw, 480px)', height: 'auto', filter: 'drop-shadow(0 10px 28px rgba(0,0,0,0.55))' }}
+              />
+            ) : branding?.logo_url ? (
+              <img
+                src={branding.logo_url}
+                alt={restaurantName}
+                className="mx-auto drop-shadow-2xl"
+                style={{ width: 'clamp(160px, 40vw, 360px)', height: 'auto', maxHeight: 200, objectFit: 'contain', filter: 'drop-shadow(0 10px 28px rgba(0,0,0,0.55))' }}
+              />
+            ) : (
+              <h1 className="mx-auto font-black drop-shadow-2xl" style={{ fontSize: 'clamp(2.5rem, 9vw, 5rem)', color: '#F4ECD8', filter: 'drop-shadow(0 10px 28px rgba(0,0,0,0.55))' }}>
+                {restaurantName}
+              </h1>
+            )}
             <div className="flex items-center justify-center gap-2 mt-3" aria-hidden="true">
               <span style={{ width: 32, height: 1, background: 'rgba(217,189,131,0.7)' }} />
               <span style={{ width: 4, height: 4, borderRadius: 2, background: '#D9BD83' }} />
               <span style={{ width: 32, height: 1, background: 'rgba(217,189,131,0.7)' }} />
             </div>
-            <p className="mt-3 text-sm md:text-base font-medium drop-shadow" style={{ color: 'rgba(244,236,216,0.92)' }}>
-              חמארה ים-תיכונית · כשרה
-            </p>
+            {(() => {
+              const tagline = settings?.tagline || (isAlena ? 'חמארה ים-תיכונית · כשרה' : (branding?.cuisine || ''));
+              return tagline ? (
+                <p className="mt-3 text-sm md:text-base font-medium drop-shadow" style={{ color: 'rgba(244,236,216,0.92)' }}>
+                  {tagline}
+                </p>
+              ) : null;
+            })()}
           </div>
         </div>
       </header>
@@ -600,18 +626,22 @@ export default function PublicReservationPage() {
         <div className="max-w-3xl mx-auto px-4 md:px-8 pt-3 pb-4 text-center">
           {/* Tags */}
           <div className="flex flex-wrap items-center justify-center gap-1.5">
-            {(settings?.tags && Array.isArray(settings.tags) ? settings.tags : ['בשר על האש', 'כשר', 'אלכוהול', 'אווירה']).map(tag => (
+            {(settings?.tags && Array.isArray(settings.tags) ? settings.tags : (isAlena ? ['בשר על האש', 'כשר', 'אלכוהול', 'אווירה'] : [])).map(tag => (
               <span key={tag} className="rounded-full px-2.5 py-0.5 text-[11px] font-bold" style={{ background: 'rgba(184,149,86,0.15)', color: '#8B5A3A', border: '1px solid rgba(184,149,86,0.4)' }}>{tag}</span>
             ))}
           </div>
 
           {/* Rating + live count — single line on desktop, wraps on mobile */}
           <div className="mt-2.5 flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-sm">
-            <div className="flex items-center gap-1">
-              {[1,2,3,4,5].map(i => <Star key={i} className="w-3.5 h-3.5" style={{ fill: '#B89556', color: '#B89556' }} />)}
-              <span className="font-black mr-1" style={{ color: '#1F1B17' }}>4.8</span>
-              <span className="text-xs" style={{ color: '#8B7F65' }}>(1,247 ביקורות)</span>
-            </div>
+            {(isAlena || settings?.rating) && (
+              <div className="flex items-center gap-1">
+                {[1,2,3,4,5].map(i => <Star key={i} className="w-3.5 h-3.5" style={{ fill: '#B89556', color: '#B89556' }} />)}
+                <span className="font-black mr-1" style={{ color: '#1F1B17' }}>{settings?.rating || '4.8'}</span>
+                {(settings?.review_count || isAlena) && (
+                  <span className="text-xs" style={{ color: '#8B7F65' }}>({settings?.review_count || '1,247'} ביקורות)</span>
+                )}
+              </div>
+            )}
             {liveCount !== null && liveCount > 0 && (
               <div className="inline-flex items-center gap-1.5 text-xs">
                 <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: '#44512C' }}></span>
@@ -646,8 +676,8 @@ export default function PublicReservationPage() {
         .brand-input:focus { border-color: #B89556 !important; box-shadow: 0 0 0 3px rgba(184,149,86,0.20); }
       `}</style>
 
-      {/* ============ THEME RIBBON — live day-aware catalogue ============ */}
-      {(() => {
+      {/* ============ THEME RIBBON — live day-aware catalogue (Alena-specific) ============ */}
+      {isAlena && (() => {
         const now = new Date();
         const todayD = now.getDay();
         const todayH = now.getHours();
@@ -683,7 +713,7 @@ export default function PublicReservationPage() {
         <div className="max-w-6xl mx-auto lg:grid lg:grid-cols-12 lg:gap-8">
           {/* LEFT — SmartBanner + Booking card */}
           <div className="lg:col-span-7 space-y-4">
-            <SmartReserveBanner />
+            {isAlena && <SmartReserveBanner />}
             {/* ============ BOOKING CARD ============ */}
             <main id="booking" ref={bookingCardRef} className="rounded-3xl p-5 md:p-8 space-y-5" style={{ background: '#FFFEFB', border: '1px solid rgba(184,149,86,0.4)', boxShadow: '0 30px 60px -25px rgba(31,27,23,0.30), 0 8px 20px -10px rgba(31,27,23,0.15)' }}>
           <div className="text-center">
@@ -896,8 +926,8 @@ export default function PublicReservationPage() {
                   </div>
                 )}
 
-                {/* Specials active in the chosen slot — pulls from THEME_NIGHTS catalogue */}
-                {time && (() => {
+                {/* Specials active in the chosen slot — pulls from THEME_NIGHTS catalogue (Alena) */}
+                {isAlena && time && (() => {
                   const specials = getSpecialsForSlot(date, time);
                   if (specials.length === 0) return null;
                   return (
@@ -1199,7 +1229,8 @@ export default function PublicReservationPage() {
         </section>
       )}
 
-      {/* ============ THEME NIGHTS — what's on, every day ============ */}
+      {/* ============ THEME NIGHTS — what's on, every day (Alena-specific) ============ */}
+      {isAlena && (
       <section className="px-3 md:px-5 py-12" style={{ background: '#1F1B17', borderTop: '1px solid rgba(184,149,86,0.25)' }}>
         <div className="max-w-6xl mx-auto">
           <div className="text-center mb-7">
@@ -1220,6 +1251,7 @@ export default function PublicReservationPage() {
           </div>
         </div>
       </section>
+      )}
 
       {/* ============ REVIEWS BLOCK ============ */}
       {reviews.length > 0 && (

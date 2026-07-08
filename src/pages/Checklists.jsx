@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Checklist, ChecklistExecution } from "@/entities/all";
 import PageGuard from "../components/shared/PageGuard";
+import { isMainAlena } from "@/lib/tenant";
 import { User } from "@/entities/User";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -354,6 +355,7 @@ function ChecklistsInner() {
                     </TabsContent>
 
                     <TabsContent value="procedures">
+                        {isMainAlena() ? (
                         <Card className="shadow-2xl border-0 bg-gradient-to-br from-white via-orange-50 to-red-50 backdrop-blur-sm overflow-hidden">
                             <CardHeader className="bg-gradient-to-r from-orange-600 via-red-600 to-[#A04A2E] text-white rounded-t-lg relative overflow-hidden">
                                 <div className="absolute inset-0 bg-gradient-to-r from-yellow-400/20 via-orange-400/20 to-red-400/20"></div>
@@ -493,6 +495,18 @@ function ChecklistsInner() {
                                 </div>
                             </CardContent>
                         </Card>
+                        ) : (
+                          <div className="bg-white/70 backdrop-blur-sm rounded-3xl p-10 shadow-xl border border-white/50 text-center">
+                            <FileText className="w-12 h-12 mx-auto text-orange-300 mb-3" />
+                            <h3 className="text-xl font-bold text-slate-700 mb-1">אין נהלים עדיין</h3>
+                            <p className="text-slate-500 mb-4">בנה נהלים משלך למסעדה — כמויות רטבים, אריזת משלוחים, הכנות ועוד.</p>
+                            <Link to={createPageUrl("AiDashboard")}>
+                              <Button className="bg-orange-600 hover:bg-orange-700 text-white font-bold">
+                                <Pencil className="w-4 h-4 mr-2" /> הוסף נוהל
+                              </Button>
+                            </Link>
+                          </div>
+                        )}
                     </TabsContent>
 
                     <TabsContent value="archive">
