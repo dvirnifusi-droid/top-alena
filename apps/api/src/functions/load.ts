@@ -48,7 +48,7 @@ const db = prisma as any; // generic delegate access
 
 // Public deploy marker — lets us confirm which build is live (and that
 // auto-deploy is working) without server access. Bump on each deploy test.
-registerFn('deployInfo', async () => ({ version: 'permission-tiers-2026-07-09', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
+registerFn('deployInfo', async () => ({ version: 'dish-guide-2026-07-09', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
 
 
 
@@ -5400,6 +5400,93 @@ registerFn('savePermissionTiers', async ({ user, body }: any) => {
     ).then(() => { n++; }).catch((e: any) => console.warn('[perm] insert', e?.message));
   }
   return { ok: true, count: n };
+});
+
+// ── Dish Guide — every component of every dish, so cooks can look it up mid-
+// service if they forget what's on a plate. Isolated table + guarded. Plus a
+// one-tap builder that turns the guide into a training course (per dish).
+let _dishGuideEnsured = false;
+async function ensureDishGuide(): Promise<void> {
+  if (_dishGuideEnsured) return;
+  await (prisma as any).$executeRawUnsafe(
+    `CREATE TABLE IF NOT EXISTS "DishGuide" (
+       "id" TEXT PRIMARY KEY,
+       "name" TEXT NOT NULL,
+       "category" TEXT,
+       "components" JSONB,
+       "notes" TEXT,
+       "sort" INTEGER NOT NULL DEFAULT 0,
+       "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+     )`,
+  );
+  _dishGuideEnsured = true;
+}
+
+registerFn('getDishGuide', async ({ user }: any) => {
+  if (!user?.id) throw new Error('unauthorized');
+  try {
+    await ensureDishGuide();
+    const rows: any[] = await (prisma as any).$queryRawUnsafe(`SELECT * FROM "DishGuide" ORDER BY "sort" ASC`);
+    return { dishes: rows };
+  } catch {
+    return { dishes: [] };
+  }
+});
+
+// Bulk replace — from the editor or the text import.
+registerFn('saveDishGuide', async ({ user, body }: any) => {
+  if (!user?.id) throw new Error('unauthorized');
+  await ensureDishGuide();
+  const b = (body || {}) as any;
+  const dishes: any[] = Array.isArray(b.dishes) ? b.dishes.slice(0, 300) : [];
+  const { randomUUID } = await import('node:crypto');
+  await (prisma as any).$executeRawUnsafe(`DELETE FROM "DishGuide"`);
+  let n = 0;
+  for (let i = 0; i < dishes.length; i++) {
+    const d = dishes[i] || {};
+    const name = String(d.name || '').trim();
+    if (!name) continue;
+    const components = Array.isArray(d.components)
+      ? d.components.map((c: any) => String(c).trim()).filter(Boolean).slice(0, 40)
+      : [];
+    await (prisma as any).$executeRawUnsafe(
+      `INSERT INTO "DishGuide" ("id","name","category","components","notes","sort","updatedAt")
+       VALUES ($1,$2,$3,$4::jsonb,$5,$6,NOW())`,
+      d.id && String(d.id).length > 8 ? String(d.id) : randomUUID(),
+      name.slice(0, 200), d.category ? String(d.category).slice(0, 80) : null,
+      JSON.stringify(components), d.notes ? String(d.notes).slice(0, 1000) : null, i,
+    ).then(() => { n++; }).catch((e: any) => console.warn('[dishguide] insert', e?.message));
+  }
+  return { ok: true, count: n };
+});
+
+// Turn the Dish Guide into a training course (one lesson per dish: its
+// components). Reuses the TrainingCourse/TrainingLesson tables.
+registerFn('buildTrainingFromDishGuide', async ({ user }: any) => {
+  if (!user?.id) throw new Error('unauthorized');
+  await ensureDishGuide();
+  const dishes: any[] = await (prisma as any).$queryRawUnsafe(`SELECT * FROM "DishGuide" ORDER BY "sort" ASC`).catch(() => []);
+  if (!dishes.length) return { ok: false, reason: 'no_dishes', lessons: 0 };
+  const { randomUUID } = await import('node:crypto');
+  const courseCode = `dishguide-${randomUUID().slice(0, 8)}`;
+  await (prisma as any).$executeRawUnsafe(
+    `INSERT INTO "TrainingCourse" ("id","course_code","title","description","category","status","createdAt","updatedAt")
+     VALUES ($1,$2,$3,$4,'מנות','published',NOW(),NOW())`,
+    randomUUID(), courseCode, 'מדריך מנות — הרכב כל מנה', 'לכל מנה: מתוך מה היא מורכבת. לימוד + רענון לצוות.',
+  ).catch((e: any) => console.warn('[dishguide] course', e?.message));
+  let lessons = 0;
+  for (let i = 0; i < dishes.length; i++) {
+    const d = dishes[i];
+    const comps = Array.isArray(d.components) ? d.components : [];
+    if (!comps.length) continue;
+    const content = comps.map((c: string, j: number) => `${j + 1}. ${c}`).join('\n') + (d.notes ? `\n\n${d.notes}` : '');
+    await (prisma as any).$executeRawUnsafe(
+      `INSERT INTO "TrainingLesson" ("id","lesson_id","course_code","title","content_type","content","order","createdAt","updatedAt")
+       VALUES ($1,$2,$3,$4,'text',$5,$6,NOW(),NOW())`,
+      randomUUID(), randomUUID(), courseCode, String(d.name).slice(0, 200), content, i + 1,
+    ).then(() => { lessons++; }).catch((e: any) => console.warn('[dishguide] lesson', e?.message));
+  }
+  return { ok: true, lessons };
 });
 
 // Public: check capacity + find an available table. Returns aggregate counts

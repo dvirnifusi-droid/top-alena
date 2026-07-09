@@ -61,6 +61,7 @@ const adminLinks = [
   { title: "ניהול תדריכים", url: createPageUrl("BriefingManagement"), icon: Megaphone, isSubItem: true, color: "cinnamon" },
   { title: "🍽 ניהול תפריט", url: createPageUrl("MenuManagement"), icon: Utensils, isSubItem: true, color: "cinnamon" },
   { title: "👨‍🍳 דף הכנות", url: createPageUrl("PrepSheet"), icon: ChefHat, isSubItem: true, color: "cinnamon" },
+  { title: "📖 מדריך מנות", url: createPageUrl("DishGuide"), icon: Utensils, isSubItem: true, color: "cinnamon" },
   { title: "ניהול שולחנות", url: createPageUrl("TablesManagement"), icon: Utensils, isSubItem: true, color: "cinnamon" },
   { title: "ניהול הושבה", url: createPageUrl("SeatingSetup"), icon: Map, isSubItem: true, color: "cinnamon" },
   { title: "ניקיון שירותים 🚽", url: createPageUrl("RestroomCleaning"), icon: ClipboardCheck, isSubItem: true, color: "cinnamon" },
@@ -345,6 +346,8 @@ export default function Layout({ children, currentPageName }) {
   const cookLinks = [
     { title: "בית", url: createPageUrl("EmployeeHome"), icon: LayoutGrid, color: "slate" },
     { title: "כלי עבודה יומיים", url: "#", icon: Zap, isCategory: true, color: "cyan" },
+    { title: "📖 מדריך מנות", url: createPageUrl("DishGuide"), icon: Utensils, isSubItem: true, color: "cyan" },
+    { title: "👨‍🍳 דף הכנות", url: createPageUrl("PrepSheet"), icon: ChefHat, isSubItem: true, color: "cyan" },
     { title: "צ'קליסטים", url: createPageUrl("Checklists"), icon: CheckSquare, isSubItem: true, color: "cyan" },
     { title: "ניקיון שירותים 🚽", url: createPageUrl("RestroomCleaning"), icon: ClipboardCheck, isSubItem: true, color: "cyan" },
     { title: "דיווח תקרית", url: createPageUrl("Incidents"), icon: AlertTriangle, isSubItem: true, color: "cyan" },
@@ -398,7 +401,7 @@ export default function Layout({ children, currentPageName }) {
     return next && next.isSubItem;
   });
   const MANAGER_EXCLUDE = new Set(['AdminSettings', 'PlatformSettings', 'Branding', 'Integrations', 'DataExport', 'PushNotifications', 'Popups', 'PlatformAdmin']);
-  const SHIFT_LEAD_URLS = new Set(['Dashboard', 'BriefingManagement', 'MenuManagement', 'PrepSheet', 'TablesManagement', 'SeatingSetup', 'RestroomCleaning', 'Checklists', 'Incidents', 'ShiftEndReport', 'QueueHub', 'EmployeesHub']);
+  const SHIFT_LEAD_URLS = new Set(['Dashboard', 'BriefingManagement', 'MenuManagement', 'PrepSheet', 'DishGuide', 'TablesManagement', 'SeatingSetup', 'RestroomCleaning', 'Checklists', 'Incidents', 'ShiftEndReport', 'QueueHub', 'EmployeesHub']);
   const managerLinks = React.useMemo(() => dropEmptyCategories(adminLinksFiltered.filter((l) => l.isCategory || !MANAGER_EXCLUDE.has(urlKey(l.url)))), [adminLinksFiltered]);
   const shiftLeadLinks = React.useMemo(() => dropEmptyCategories(adminLinksFiltered.filter((l) => l.isCategory || SHIFT_LEAD_URLS.has(urlKey(l.url)))), [adminLinksFiltered]);
 
