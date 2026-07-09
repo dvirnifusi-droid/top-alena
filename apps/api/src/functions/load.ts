@@ -48,7 +48,7 @@ const db = prisma as any; // generic delegate access
 
 // Public deploy marker — lets us confirm which build is live (and that
 // auto-deploy is working) without server access. Bump on each deploy test.
-registerFn('deployInfo', async () => ({ version: 'dup-contract-2026-07-09', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
+registerFn('deployInfo', async () => ({ version: 'ai-training-builder-2026-07-09', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
 
 
 
@@ -5487,6 +5487,63 @@ registerFn('buildTrainingFromDishGuide', async ({ user }: any) => {
     ).then(() => { lessons++; }).catch((e: any) => console.warn('[dishguide] lesson', e?.message));
   }
   return { ok: true, lessons };
+});
+
+// Build a training course with AI, tailored to THIS business. The Training page
+// collects the "analysis" up front (topic + audience + focus); we add the
+// restaurant's own cuisine/positions as context. Single-field flat `lessons`
+// array (Gemini-safe), each "title: body" split into a text lesson.
+registerFn('buildAiTraining', async ({ user, body }: any) => {
+  if (!user?.id) throw new Error('unauthorized');
+  const b = (body || {}) as any;
+  const topic = String(b.topic || '').trim();
+  const audience = String(b.audience || '').trim();
+  const focus = String(b.focus || '').trim();
+  const { invokeLLM } = await import('../lib/llm.js');
+  const profile: any = await (db as any).restaurantProfile.findFirst().catch(() => null);
+  const cuisine = profile?.cuisine_style || profile?.business_type || 'מסעדה';
+  const desc = profile?.description ? ` (${profile.description})` : '';
+  let roles: string[] = [];
+  try {
+    const rows: any[] = await (prisma as any).$queryRawUnsafe(`SELECT position_name FROM "WorkPosition" WHERE is_active = true ORDER BY "createdAt" LIMIT 8`).catch(() => []);
+    roles = rows.map((r) => r.position_name).filter(Boolean);
+  } catch { /* none */ }
+  const base = `למסעדה מסוג "${cuisine}"${desc}${roles.length ? `. תפקידים בצוות: ${roles.join(', ')}` : ''}`;
+  const prompt =
+    (topic
+      ? `בנה תוכנית הכשרה מקצועית בנושא "${topic}" ${base}.`
+      : `בנה תוכנית הכשרה מקצועית וכללית לצוות ${base}, שמכסה שירות, תפעול ותרבות העסק.`) +
+    (audience ? `\nקהל היעד: ${audience}.` : '') +
+    (focus ? `\nדגשים חשובים לבעלים: ${focus}.` : '') +
+    `\nהחזר lessons — מערך של 6-12 שיעורים. כל שיעור בפורמט "כותרת קצרה: הסבר מפורט של 2-4 משפטים בעברית, קונקרטי לעסק". אל תמציא עובדות ספציפיות על העסק.`;
+  const r: any = await invokeLLM({
+    prompt,
+    responseSchema: { type: 'object', properties: { lessons: { type: 'array', items: { type: 'object', properties: { text: { type: 'string' } } } } }, required: ['lessons'] },
+    maxOutputTokens: 8192, timeoutMs: 60_000, _ctx: { fn_name: 'buildAiTraining' },
+  }).catch(() => null);
+  const lessonTexts = (Array.isArray(r?.lessons) ? r.lessons : []).map((x: any) => String(x?.text || '').trim()).filter(Boolean);
+  if (!lessonTexts.length) return { ok: false, reason: 'empty', lessons: 0 };
+  const { randomUUID } = await import('node:crypto');
+  const courseCode = `ai-${randomUUID().slice(0, 8)}`;
+  const title = topic ? `הכשרה: ${topic}` : `הכשרה לצוות — ${cuisine}`;
+  await (prisma as any).$executeRawUnsafe(
+    `INSERT INTO "TrainingCourse" ("id","course_code","title","description","category","status","createdAt","updatedAt")
+     VALUES ($1,$2,$3,$4,'הכשרה','published',NOW(),NOW())`,
+    randomUUID(), courseCode, title.slice(0, 200), (focus || `הכשרה שנבנתה ב-AI ${base}`).slice(0, 500),
+  ).catch((e: any) => console.warn('[aitraining] course', e?.message));
+  let lessons = 0;
+  for (let i = 0; i < lessonTexts.length; i++) {
+    const pt = lessonTexts[i];
+    const idx = pt.indexOf(':');
+    const lt = idx > 1 && idx < 60 ? pt.slice(0, idx).trim().slice(0, 120) : `שלב ${i + 1}`;
+    const lc = idx > 1 && idx < 60 ? (pt.slice(idx + 1).trim() || pt) : pt;
+    await (prisma as any).$executeRawUnsafe(
+      `INSERT INTO "TrainingLesson" ("id","lesson_id","course_code","title","content_type","content","order","createdAt","updatedAt")
+       VALUES ($1,$2,$3,$4,'text',$5,$6,NOW(),NOW())`,
+      randomUUID(), randomUUID(), courseCode, lt, lc, i + 1,
+    ).then(() => { lessons++; }).catch((e: any) => console.warn('[aitraining] lesson', e?.message));
+  }
+  return { ok: true, lessons, title };
 });
 
 // Public: check capacity + find an available table. Returns aggregate counts

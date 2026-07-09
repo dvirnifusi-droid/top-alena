@@ -12,7 +12,7 @@ import MenuLearning from "../components/training/MenuLearning";
 
 // New Imports for Lesson Management
 import { Edit, Trash2, ChevronUp, ChevronDown, Save, X } from "lucide-react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -966,6 +966,30 @@ function TrainingInner() {
     const [user, setUser] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
     const [deletingCourse, setDeletingCourse] = useState(null);
+    // AI training builder (tailored to the business + optional analysis questions)
+    const [showAiBuild, setShowAiBuild] = useState(false);
+    const [aiTopic, setAiTopic] = useState('');
+    const [aiAudience, setAiAudience] = useState('');
+    const [aiFocus, setAiFocus] = useState('');
+    const [aiBuilding, setAiBuilding] = useState(false);
+    const [aiMsg, setAiMsg] = useState('');
+
+    const buildAiTraining = async () => {
+        setAiBuilding(true); setAiMsg('');
+        try {
+            const res = await base44.functions.buildAiTraining({ topic: aiTopic.trim(), audience: aiAudience.trim(), focus: aiFocus.trim() });
+            const d = res?.data || res || {};
+            if (d.ok && d.lessons) {
+                setAiMsg(`✅ נבנה קורס "${d.title}" עם ${d.lessons} שיעורים!`);
+                setAiTopic(''); setAiAudience(''); setAiFocus('');
+                await loadData();
+                setTimeout(() => { setShowAiBuild(false); setAiMsg(''); }, 1800);
+            } else {
+                setAiMsg('לא הצלחתי לבנות הכשרה כרגע 🤔 נסה שוב או שנה את הנושא.');
+            }
+        } catch (e) { setAiMsg('שגיאה: ' + (e?.message || e)); }
+        setAiBuilding(false);
+    };
 
     const loadData = async () => {
         setIsLoading(true);
@@ -1037,7 +1061,7 @@ function TrainingInner() {
         return <div className="flex justify-center items-center h-screen"><Loader2 className="w-12 h-12 animate-spin text-orange-600" /></div>
     }
 
-    const isAdmin = user?.role === 'admin';
+    const isAdmin = user?.role === 'admin' || user?.role === 'owner' || !!user?.managed_department;
 
     return (
         <div className="p-4 sm:p-8 bg-gradient-to-br from-orange-50 to-red-50 min-h-screen" dir="rtl">
@@ -1143,7 +1167,42 @@ function TrainingInner() {
                                             דלג על התיאוריה - ישר לתרגול!
                                         </span>
                                     </Button>
+                                    {isAdmin && (
+                                        <div className="mt-3">
+                                            <Button variant="outline" onClick={() => setShowAiBuild(true)} className="border-orange-300 text-orange-700 hover:bg-orange-50 text-base px-6 py-3 rounded-xl">
+                                                <GraduationCap className="w-5 h-5 ml-2" /> 🤖 בנה הכשרה עם AI
+                                            </Button>
+                                            <p className="text-xs text-gray-400 mt-1">ה-AI בונה קורס מותאם לעסק שלך — לפי הנושא והדגשים שתיתן.</p>
+                                        </div>
+                                    )}
                                 </div>
+                                <Dialog open={showAiBuild} onOpenChange={(o) => !o && setShowAiBuild(false)}>
+                                    <DialogContent className="sm:max-w-[480px]" dir="rtl">
+                                        <DialogHeader><DialogTitle>🤖 בנה הכשרה עם AI</DialogTitle></DialogHeader>
+                                        <div className="space-y-3 py-2 text-right">
+                                            <p className="text-sm text-gray-500">ה-AI בונה קורס מותאם לעסק שלך. מלא מה שרלוונטי — הכל אופציונלי.</p>
+                                            <div>
+                                                <label className="text-sm font-medium">נושא ההכשרה</label>
+                                                <Input value={aiTopic} onChange={(e) => setAiTopic(e.target.value)} placeholder="שירות ומכירה / הכרת התפריט / בטיחות (ריק = כללי)" />
+                                            </div>
+                                            <div>
+                                                <label className="text-sm font-medium">למי מיועד?</label>
+                                                <Input value={aiAudience} onChange={(e) => setAiAudience(e.target.value)} placeholder="מלצרים חדשים / צוות מטבח..." />
+                                            </div>
+                                            <div>
+                                                <label className="text-sm font-medium">דגשים / מה חשוב לך?</label>
+                                                <Textarea value={aiFocus} onChange={(e) => setAiFocus(e.target.value)} rows={3} placeholder="דגש על אפ-סייל, סטנדרט שירות, כשרות..." />
+                                            </div>
+                                            {aiMsg && <p className="text-sm font-bold text-center text-[#7A3722]">{aiMsg}</p>}
+                                        </div>
+                                        <DialogFooter>
+                                            <Button variant="outline" onClick={() => setShowAiBuild(false)}>סגור</Button>
+                                            <Button onClick={buildAiTraining} disabled={aiBuilding} className="bg-orange-600 hover:bg-orange-700 text-white">
+                                                {aiBuilding ? <><Loader2 className="w-4 h-4 animate-spin ml-2" />בונה...</> : 'בנה הכשרה'}
+                                            </Button>
+                                        </DialogFooter>
+                                    </DialogContent>
+                                </Dialog>
                                 {courses.length === 0 ? (
                                     <div className="text-center py-12">
                                         <GraduationCap className="w-16 h-16 mx-auto text-gray-400 mb-4" />
