@@ -321,7 +321,9 @@ export default function Layout({ children, currentPageName }) {
   }, []);
 
   const isCurrentViewAdmin = user?.role === 'admin' || user?.role === 'owner';
-  const isOriginalAdmin = originalUserRole === 'admin';
+  // Owners are admin-equivalent — they get the "view as role" preview dropdown
+  // and device-preview too (multi-tenant owners have role='owner', not 'admin').
+  const isOriginalAdmin = originalUserRole === 'admin' || originalUserRole === 'owner';
 
   // Department managers (e.g. kitchen manager) see the employee sidebar plus
   // a small admin-style section scoped to their managed department.

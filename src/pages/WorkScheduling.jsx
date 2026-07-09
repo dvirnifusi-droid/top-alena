@@ -537,7 +537,7 @@ export default function WorkScheduling() {
     // Department managers (e.g. kitchen manager) get admin-equivalent powers
     // here, but the page UI auto-scopes them to their department further below.
     const managedDept = currentUser?.managed_department || null;
-    const isAdminLike = currentUser?.role === 'admin' || !!managedDept;
+    const isAdminLike = currentUser?.role === 'admin' || currentUser?.role === 'owner' || !!managedDept;
 
     // Once we know this user manages a department, force the department filter
     // to it and don't let them switch (the Select is also disabled below).
