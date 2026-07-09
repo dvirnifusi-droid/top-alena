@@ -5,7 +5,9 @@ import { isMainAlena } from "@/lib/tenant";
 import { User } from "@/entities/User";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { CheckSquare, Clock, CheckCircle, AlertTriangle, FileText, Pencil, Plus, Sparkles, Loader2 } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { CheckSquare, Clock, CheckCircle, AlertTriangle, FileText, Pencil, Plus, Sparkles, Loader2, Upload } from "lucide-react";
 import { base44 } from "@/api/base44Client";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Link } from "react-router-dom";
@@ -34,6 +36,9 @@ function ChecklistsInner() {
     const [aiSuggesting, setAiSuggesting] = useState(false);
     const [aiChecklists, setAiChecklists] = useState(null);
     const [importingCl, setImportingCl] = useState(false);
+    const [showTextImport, setShowTextImport] = useState(false);
+    const [importTitle, setImportTitle] = useState('Order List');
+    const [importItemsText, setImportItemsText] = useState('');
 
     const runAiSuggestChecklists = async () => {
         setAiSuggesting(true);
@@ -73,6 +78,32 @@ function ChecklistsInner() {
                 });
             }
             setAiChecklists(null);
+            loadData();
+        } catch (e) {
+            alert('שגיאה בייבוא: ' + (e?.message || ''));
+        } finally {
+            setImportingCl(false);
+        }
+    };
+
+    // Create ONE checklist from a title + pasted items (one per line). Section
+    // headers (ALL-CAPS lines / lines with no lowercase) become "— HEADER —"
+    // separators so a categorized list (Order List by category) stays readable.
+    const importFromText = async () => {
+        const lines = importItemsText.split('\n').map((l) => l.trim()).filter(Boolean);
+        if (!importTitle.trim() || !lines.length) return;
+        setImportingCl(true);
+        try {
+            const items = lines.map((line, i) => {
+                const isHeader = line.length < 40 && line === line.toUpperCase() && /[A-Za-zֽ-׿]/.test(line) && !/\d/.test(line);
+                const text = isHeader ? `— ${line} —` : line;
+                return { id: `it_${Math.random().toString(36).slice(2, 8)}`, order: i + 1, task: text, text, area: '', critical: false, is_required: !isHeader ? false : false };
+            });
+            await Checklist.create({
+                title: importTitle.trim(), category: 'הזמנות', frequency: 'daily', status: 'active',
+                description: 'יובא מטקסט', items,
+            });
+            setShowTextImport(false); setImportItemsText('');
             loadData();
         } catch (e) {
             alert('שגיאה בייבוא: ' + (e?.message || ''));
@@ -247,10 +278,13 @@ function ChecklistsInner() {
                                     </Button>
                                 ))}
                             </div>
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2 flex-wrap">
                                 <Button variant="outline" onClick={runAiSuggestChecklists} disabled={aiSuggesting} className="gap-1">
                                     {aiSuggesting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
                                     {aiSuggesting ? 'AI...' : 'הצע לפי הפרופיל'}
+                                </Button>
+                                <Button variant="outline" onClick={() => setShowTextImport((v) => !v)} className="gap-1">
+                                    <Upload className="w-4 h-4" /> ייבוא מטקסט
                                 </Button>
                                 <Button
                                     onClick={() => setEditingChecklist({})}
@@ -260,6 +294,27 @@ function ChecklistsInner() {
                                 </Button>
                             </div>
                         </div>
+                        {showTextImport && (
+                            <Card className="mb-4 border-emerald-200 bg-white/80">
+                                <CardHeader className="pb-2"><CardTitle className="text-base flex items-center gap-2"><Upload className="w-4 h-4" /> ייבוא צ'קליסט מטקסט</CardTitle></CardHeader>
+                                <CardContent className="space-y-3">
+                                    <div>
+                                        <label className="text-sm font-medium">שם הצ'קליסט</label>
+                                        <Input value={importTitle} onChange={(e) => setImportTitle(e.target.value)} placeholder="Order List" />
+                                    </div>
+                                    <div>
+                                        <label className="text-sm font-medium">פריטים (שורה לכל פריט; שורות ב-CAPS הופכות לכותרות קטגוריה)</label>
+                                        <Textarea value={importItemsText} onChange={(e) => setImportItemsText(e.target.value)} rows={10} placeholder={'MEAT & POULTRY\nBeef — ribeye\nChicken thighs\nFISH & SEAFOOD\nSalmon fillet'} />
+                                    </div>
+                                    <div className="flex justify-end gap-2">
+                                        <Button variant="outline" size="sm" onClick={() => setShowTextImport(false)}>ביטול</Button>
+                                        <Button size="sm" onClick={importFromText} disabled={importingCl || !importItemsText.trim()} className="bg-emerald-600 hover:bg-emerald-700 text-white">
+                                            {importingCl ? <Loader2 className="w-4 h-4 animate-spin" /> : 'ייבא צ׳קליסט'}
+                                        </Button>
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        )}
                         {aiChecklists && (
                             <div className="border border-amber-200 bg-amber-50 rounded-lg p-4 space-y-2">
                                 <div className="flex items-center justify-between">
