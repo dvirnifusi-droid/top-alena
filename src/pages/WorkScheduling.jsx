@@ -1385,6 +1385,11 @@ export default function WorkScheduling() {
                     shiftTypesConfig={shiftTypesConfig}
                     hiddenPositions={hiddenPositions}
                 />
+                {isAdminLike && (
+                    <Button onClick={() => setShowScheduleSettings(true)} className="fixed bottom-36 right-4 z-20 h-14 px-4 rounded-full shadow-lg bg-[#44512C] hover:bg-[#7A3722] text-white gap-1">
+                        ⚙️ הגדרות סידור
+                    </Button>
+                )}
                 <Sheet>
                     <SheetTrigger asChild>
                         <Button className="fixed bottom-20 right-4 z-20 h-14 w-14 rounded-full shadow-lg">
