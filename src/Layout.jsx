@@ -388,11 +388,28 @@ export default function Layout({ children, currentPageName }) {
     () => isPlatformOwner ? adminLinks : adminLinks.filter(l => !String(l.url || '').includes('PlatformAdmin')),
     [isPlatformOwner],
   );
-  const baseLinks = isCurrentViewAdmin
-    ? adminLinksFiltered
-    : positionSidebar
-      ? positionSidebar
-      : [...employeeLinks, ...departmentManagerExtras];
+  // Per-tenant permission levels. A "manager" sees everything except owner-only
+  // settings/platform; a "shift lead" sees only day-to-day operations. Empty
+  // category headers are dropped so the sidebar stays clean.
+  const urlKey = (u) => String(u || '').replace(/^\//, '');
+  const dropEmptyCategories = (links) => links.filter((l, i) => {
+    if (!l.isCategory) return true;
+    const next = links[i + 1];
+    return next && next.isSubItem;
+  });
+  const MANAGER_EXCLUDE = new Set(['AdminSettings', 'PlatformSettings', 'Branding', 'Integrations', 'DataExport', 'PushNotifications', 'Popups', 'PlatformAdmin']);
+  const SHIFT_LEAD_URLS = new Set(['Dashboard', 'BriefingManagement', 'MenuManagement', 'PrepSheet', 'TablesManagement', 'SeatingSetup', 'RestroomCleaning', 'Checklists', 'Incidents', 'ShiftEndReport', 'QueueHub', 'EmployeesHub']);
+  const managerLinks = React.useMemo(() => dropEmptyCategories(adminLinksFiltered.filter((l) => l.isCategory || !MANAGER_EXCLUDE.has(urlKey(l.url)))), [adminLinksFiltered]);
+  const shiftLeadLinks = React.useMemo(() => dropEmptyCategories(adminLinksFiltered.filter((l) => l.isCategory || SHIFT_LEAD_URLS.has(urlKey(l.url)))), [adminLinksFiltered]);
+
+  const viewLevel = user?._viewLevel; // set only while previewing a permission tier
+  const baseLinks = viewLevel === 'admin' ? adminLinksFiltered
+    : viewLevel === 'manager' ? managerLinks
+    : viewLevel === 'shift_lead' ? shiftLeadLinks
+    : viewLevel === 'employee' ? [...employeeLinks, ...departmentManagerExtras]
+    : isCurrentViewAdmin ? adminLinksFiltered
+    : positionSidebar ? positionSidebar
+    : [...employeeLinks, ...departmentManagerExtras];
   const moduleFilteredLinks = filterByModules(baseLinks, pageEnabled, isLocked);
   const navigationItems = filterNav(moduleFilteredLinks, navFilter);
   const userName = user?.full_name || user?.email?.split('@')[0] || 'משתמש';
@@ -486,53 +503,83 @@ export default function Layout({ children, currentPageName }) {
 //   employee       → default employeeLinks (waiter/runner/host etc.)
 //   cook           → cookLinks (kitchen-focused)
 //   kitchen_manager→ kitchenManagerLinks (cook + manage)
-const RoleImpersonationDropdown = ({ user, setUser, compact = false }) => {
-  const currentMode = user?.role === 'admin'
-    ? 'admin'
-    : user?.employee_position === 'טבח'
-      ? 'cook'
-      : user?.employee_position === 'מנהל מטבח'
-        ? 'kitchen_manager'
-        : 'employee';
+// The 4 base access levels a permission tier can map to.
+const LEVEL_OPTIONS = [['admin', 'ניהול מלא'], ['manager', 'מנהל'], ['shift_lead', 'אחראי משמרת'], ['employee', 'עובד']];
 
-  const handleChange = (e) => {
-    const mode = e.target.value;
-    setUser(prev => ({
+// Data-driven "view as" dropdown: reflects THIS tenant's permission tiers
+// (auto-seeded from its WorkPositions, editable by the owner) instead of Alena's
+// fixed roles. Picking a tier previews the app at that tier's base access level.
+const RoleImpersonationDropdown = ({ user, setUser, compact = false }) => {
+  const [tiers, setTiers] = React.useState([]);
+  const [editing, setEditing] = React.useState(false);
+  const [draft, setDraft] = React.useState([]);
+  const [saving, setSaving] = React.useState(false);
+
+  const loadTiers = React.useCallback(() => {
+    base44.functions.getPermissionTiers({})
+      .then((r) => setTiers(((r?.data || r) || {}).tiers || []))
+      .catch(() => setTiers([]));
+  }, []);
+  React.useEffect(() => { loadTiers(); }, [loadTiers]);
+
+  const currentLevel = user?._viewLevel || (user?.role === 'admin' || user?.role === 'owner' ? 'admin' : 'employee');
+
+  const applyLevel = (level) => {
+    setUser((prev) => ({
       ...prev,
-      role: mode === 'admin' ? 'admin' : 'temp_employee',
-      employee_position:
-        mode === 'cook' ? 'טבח' :
-        mode === 'kitchen_manager' ? 'מנהל מטבח' :
-        mode === 'admin' ? prev._original_position || null :
-        null, // employee = clear
-      // Snapshot original position on first switch so we can restore it.
-      _original_position: prev._original_position !== undefined
-        ? prev._original_position
-        : (prev.employee_position || null),
+      _viewLevel: level,
+      // admin/manager/shift_lead keep the admin chrome (nav differs via _viewLevel);
+      // employee switches to the full employee experience.
+      role: level === 'employee' ? 'temp_employee' : 'admin',
+      employee_position: null,
+      _original_position: prev._original_position !== undefined ? prev._original_position : (prev.employee_position || null),
     }));
   };
 
+  const startEdit = () => { setDraft((tiers.length ? tiers : [{ label: 'מנהל / בעלים', base_level: 'admin' }]).map((t) => ({ label: t.label, base_level: t.base_level }))); setEditing(true); };
+  const saveEdit = async () => {
+    setSaving(true);
+    try { await base44.functions.savePermissionTiers({ tiers: draft.filter((t) => t.label && t.label.trim()) }); setEditing(false); loadTiers(); }
+    catch (e) { alert('שגיאה: ' + (e?.message || '')); }
+    setSaving(false);
+  };
+
+  const shownTiers = tiers.length ? tiers : [{ label: 'מנהל (ניהול מלא)', base_level: 'admin' }, { label: 'עובד', base_level: 'employee' }];
+
   return (
     <div className={`w-full ${compact ? 'mb-1' : 'mb-2'}`}>
-      <label className={`block text-[10px] text-blue-700 font-bold mb-0.5 ${compact ? '' : ''}`}>
-        👁️ צפה כ:
-      </label>
+      <div className="flex items-center justify-between mb-0.5">
+        <label className="text-[10px] text-blue-700 font-bold">👁️ צפה כ:</label>
+        <button onClick={startEdit} className="text-[10px] text-blue-500 hover:text-blue-700 font-bold">⚙️ ערוך רמות</button>
+      </div>
       <select
-        value={currentMode}
-        onChange={handleChange}
-        className={`w-full rounded-md border border-blue-300 bg-blue-50 text-blue-900 font-semibold focus:outline-none focus:ring-2 focus:ring-blue-400 ${
-          compact ? 'text-xs py-1 px-2' : 'text-sm py-1.5 px-2'
-        }`}
+        value={currentLevel}
+        onChange={(e) => applyLevel(e.target.value)}
+        className={`w-full rounded-md border border-blue-300 bg-blue-50 text-blue-900 font-semibold focus:outline-none focus:ring-2 focus:ring-blue-400 ${compact ? 'text-xs py-1 px-2' : 'text-sm py-1.5 px-2'}`}
       >
-        <option value="admin">⚙️ מנהל (ניהול מלא)</option>
-        <option value="employee">👤 עובד רגיל (מלצר/ראנר/מארחת)</option>
-        <option value="cook">👨‍🍳 טבח</option>
-        <option value="kitchen_manager">👨‍🍳⚙️ מנהל מטבח</option>
+        {shownTiers.map((t, i) => <option key={i} value={t.base_level}>{t.label}</option>)}
       </select>
-      {currentMode !== 'admin' && (
-        <p className="text-[9px] text-orange-700 font-bold mt-0.5 text-center">
-          🔄 מצב צפייה — חזור ל"מנהל" לעבודה רגילה
-        </p>
+      {currentLevel !== 'admin' && (
+        <p className="text-[9px] text-orange-700 font-bold mt-0.5 text-center">🔄 מצב צפייה — חזור לרמה הבכירה לעבודה רגילה</p>
+      )}
+      {editing && (
+        <div className="mt-2 p-2 bg-white rounded-lg border border-blue-200 space-y-1.5" dir="rtl">
+          <p className="text-[10px] text-gray-500">שם הרמה של העסק + מה היא רואה באפליקציה.</p>
+          {draft.map((t, i) => (
+            <div key={i} className="flex items-center gap-1">
+              <input value={t.label} onChange={(e) => setDraft((d) => d.map((x, j) => (j === i ? { ...x, label: e.target.value } : x)))} placeholder="שם הרמה" className="flex-1 min-w-0 text-xs border rounded px-1 py-1" />
+              <select value={t.base_level} onChange={(e) => setDraft((d) => d.map((x, j) => (j === i ? { ...x, base_level: e.target.value } : x)))} className="text-xs border rounded px-1 py-1">
+                {LEVEL_OPTIONS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+              </select>
+              <button onClick={() => setDraft((d) => d.filter((_, j) => j !== i))} className="text-red-400 text-sm px-1">✕</button>
+            </div>
+          ))}
+          <button onClick={() => setDraft((d) => [...d, { label: '', base_level: 'employee' }])} className="text-[11px] text-blue-600 font-bold">+ הוסף רמה</button>
+          <div className="flex justify-end gap-1 pt-1 border-t">
+            <button onClick={() => setEditing(false)} className="text-[11px] text-gray-500 px-2 py-1">ביטול</button>
+            <button onClick={saveEdit} disabled={saving} className="text-[11px] bg-blue-600 text-white rounded px-3 py-1 font-bold">{saving ? '...' : 'שמור'}</button>
+          </div>
+        </div>
       )}
     </div>
   );

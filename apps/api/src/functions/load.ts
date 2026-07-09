@@ -48,7 +48,7 @@ const db = prisma as any; // generic delegate access
 
 // Public deploy marker — lets us confirm which build is live (and that
 // auto-deploy is working) without server access. Bump on each deploy test.
-registerFn('deployInfo', async () => ({ version: 'prep-sheet-2026-07-09', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
+registerFn('deployInfo', async () => ({ version: 'permission-tiers-2026-07-09', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
 
 
 
@@ -5319,6 +5319,87 @@ registerFn('resetPrepCounts', async ({ user }: any) => {
   await ensurePrepItems();
   await (prisma as any).$executeRawUnsafe(`UPDATE "PrepItem" SET have=NULL, done=false, "updatedAt"=NOW()`);
   return { ok: true };
+});
+
+// ── Per-tenant permission tiers. Each business defines its OWN levels (label +
+// base access level), so the "view as" dropdown + sidebar reflect the tenant's
+// hierarchy (מנהל סניף / אחראי משמרת / עובד...) instead of Alena's fixed roles.
+// base_level ∈ admin | manager | shift_lead | employee. Isolated table + guarded.
+let _permEnsured = false;
+async function ensurePermissionTiers(): Promise<void> {
+  if (_permEnsured) return;
+  await (prisma as any).$executeRawUnsafe(
+    `CREATE TABLE IF NOT EXISTS "PermissionTier" (
+       "id" TEXT PRIMARY KEY,
+       "label" TEXT NOT NULL,
+       "base_level" TEXT NOT NULL DEFAULT 'employee',
+       "sort" INTEGER NOT NULL DEFAULT 0,
+       "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+     )`,
+  );
+  _permEnsured = true;
+}
+// Map a WorkPosition name → a sensible default base level (option 3: seed from
+// the tenant's real positions so the owner starts from reality, then tweaks).
+function levelForPosition(name: string): string {
+  const s = String(name || '');
+  if (/מנהל\s*כללי|בעל|owner|gm\b/i.test(s)) return 'admin';
+  if (/מנהל/.test(s)) return 'manager';
+  if (/אחראי|אחמ|אחמ״ש|אחמ"ש|משמרת|shift/i.test(s)) return 'shift_lead';
+  if (/מנהל\s*מטבח/.test(s)) return 'manager';
+  return 'employee';
+}
+
+registerFn('getPermissionTiers', async ({ user }: any) => {
+  if (!user?.id) throw new Error('unauthorized');
+  try {
+    await ensurePermissionTiers();
+    const rows: any[] = await (prisma as any).$queryRawUnsafe(`SELECT * FROM "PermissionTier" ORDER BY "sort" ASC`);
+    if (rows.length) return { tiers: rows, seeded: false };
+    // No saved config → derive defaults from the tenant's WorkPositions.
+    const positions: any[] = await (prisma as any).$queryRawUnsafe(
+      `SELECT position_name FROM "WorkPosition" WHERE is_active = true ORDER BY "createdAt" ASC LIMIT 20`,
+    ).catch(() => []);
+    const seen = new Set<string>();
+    const tiers = [{ id: 'seed_admin', label: 'מנהל / בעלים', base_level: 'admin', sort: 0 }];
+    let s = 1;
+    for (const p of positions) {
+      const label = String(p.position_name || '').trim();
+      if (!label || seen.has(label)) continue;
+      seen.add(label);
+      tiers.push({ id: `seed_${s}`, label, base_level: levelForPosition(label), sort: s });
+      s++;
+    }
+    if (tiers.length === 1) { // no positions yet → a minimal sensible default
+      tiers.push({ id: 'seed_1', label: 'אחראי משמרת', base_level: 'shift_lead', sort: 1 });
+      tiers.push({ id: 'seed_2', label: 'עובד', base_level: 'employee', sort: 2 });
+    }
+    return { tiers, seeded: true };
+  } catch {
+    return { tiers: [], seeded: false };
+  }
+});
+
+registerFn('savePermissionTiers', async ({ user, body }: any) => {
+  if (!user?.id) throw new Error('unauthorized');
+  await ensurePermissionTiers();
+  const b = (body || {}) as any;
+  const items: any[] = Array.isArray(b.tiers) ? b.tiers.slice(0, 30) : [];
+  const ok = new Set(['admin', 'manager', 'shift_lead', 'employee']);
+  const { randomUUID } = await import('node:crypto');
+  await (prisma as any).$executeRawUnsafe(`DELETE FROM "PermissionTier"`);
+  let n = 0;
+  for (let i = 0; i < items.length; i++) {
+    const t = items[i] || {};
+    const label = String(t.label || '').trim();
+    if (!label) continue;
+    const level = ok.has(String(t.base_level)) ? String(t.base_level) : 'employee';
+    await (prisma as any).$executeRawUnsafe(
+      `INSERT INTO "PermissionTier" ("id","label","base_level","sort","updatedAt") VALUES ($1,$2,$3,$4,NOW())`,
+      randomUUID(), label.slice(0, 80), level, i,
+    ).then(() => { n++; }).catch((e: any) => console.warn('[perm] insert', e?.message));
+  }
+  return { ok: true, count: n };
 });
 
 // Public: check capacity + find an available table. Returns aggregate counts
