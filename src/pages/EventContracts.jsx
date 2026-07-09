@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { FileText, Plus, Send, Copy, Check, ExternalLink, Eye, Pencil, Calendar, Users, X, RotateCcw, Trash2 } from 'lucide-react';
+import { FileText, Plus, Send, Copy, Check, ExternalLink, Eye, Pencil, Calendar, Users, X, RotateCcw, Trash2, Files } from 'lucide-react';
 import { renderEventTerms } from '@/data/eventContractTerms';
 import { useTenantBranding } from '@/hooks/useTenantBranding';
 import { isMainAlena } from '@/lib/tenant';
@@ -103,6 +103,18 @@ export default function EventContracts() {
       setShowCreate(false);
       setEditing(data.contract);
     } catch (e) { alert('שגיאה ביצירה: ' + (e?.message || e)); }
+    finally { setCreating(false); }
+  };
+
+  const duplicateContract = async (c) => {
+    setCreating(true);
+    try {
+      const res = await base44.functions.duplicateEventContract({ id: c.id });
+      const data = res?.data || res;
+      if (!data?.ok) throw new Error(data?.message || 'שגיאה');
+      await loadAll();
+      setEditing(data.contract); // open the fresh draft for tweaks
+    } catch (e) { alert('שגיאה בשכפול: ' + (e?.message || e)); }
     finally { setCreating(false); }
   };
 
@@ -216,6 +228,9 @@ export default function EventContracts() {
                         )}
                         <Button size="sm" variant="outline" onClick={() => window.open(publicUrl(c.public_token), '_blank')}>
                           <Eye className="w-3.5 h-3.5 ml-1" /> צפה
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={() => duplicateContract(c)} disabled={creating} title="צור חוזה חדש (טיוטה) מהחוזה הזה">
+                          <Files className="w-3.5 h-3.5 ml-1" /> שכפל
                         </Button>
                         <Button size="sm" variant="outline" onClick={() => copyLink(c.public_token)}>
                           {copiedToken === c.public_token

@@ -48,7 +48,7 @@ const db = prisma as any; // generic delegate access
 
 // Public deploy marker — lets us confirm which build is live (and that
 // auto-deploy is working) without server access. Bump on each deploy test.
-registerFn('deployInfo', async () => ({ version: 'dish-guide-2026-07-09', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
+registerFn('deployInfo', async () => ({ version: 'dup-contract-2026-07-09', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
 
 
 
@@ -14705,6 +14705,40 @@ registerFn('createEventContract', async ({ body, user }) => {
       })(),
       notes: b.notes ?? null,
       status: 'draft',
+      createdBy: user?.email || null,
+    },
+  });
+  return { ok: true, contract: created };
+});
+
+// Duplicate an existing contract into a fresh DRAFT — same customer/event/menu/
+// terms/pricing, but a new number + token and NO signatures. Handy for repeat
+// clients or building the next contract off an old one.
+registerFn('duplicateEventContract', async ({ body, user }) => {
+  await ensureEventContractTable();
+  const id = String((body as any)?.id || '');
+  if (!id) throw new Error('id required');
+  const src: any = await (prisma as any).eventContract.findUnique({ where: { id } });
+  if (!src) throw new Error('Not found');
+  const seq = (await (prisma as any).eventContract.count()) + 1;
+  const created = await (prisma as any).eventContract.create({
+    data: {
+      booking_id: src.booking_id ?? null,
+      contract_number: fmtContractNumber(seq),
+      public_token: randomToken(28),
+      customer_name: src.customer_name, customer_phone: src.customer_phone,
+      customer_email: src.customer_email, customer_address: src.customer_address,
+      customer_id_or_taxno: src.customer_id_or_taxno, company_or_event_label: src.company_or_event_label,
+      event_type: src.event_type, event_location: src.event_location,
+      event_date: src.event_date, event_start_time: src.event_start_time, event_end_time: src.event_end_time,
+      guest_count: src.guest_count, kids_count: src.kids_count,
+      package_label: src.package_label, price_per_guest_ils: src.price_per_guest_ils,
+      upsells_total_ils: src.upsells_total_ils, subtotal_ils: src.subtotal_ils,
+      deposit_ils: src.deposit_ils, balance_ils: src.balance_ils,
+      menu_snapshot: src.menu_snapshot ?? null, upsells_snapshot: src.upsells_snapshot ?? null,
+      terms_snapshot: src.terms_snapshot ?? null,
+      notes: src.notes ?? null,
+      status: 'draft', // fresh draft — no signatures carried over
       createdBy: user?.email || null,
     },
   });
