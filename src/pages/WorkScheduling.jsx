@@ -647,6 +647,25 @@ export default function WorkScheduling() {
         setSavingBudget(false);
     };
 
+    // Draft → Publish. Only FUTURE weeks are gated (current/past always visible),
+    // so existing weeks keep working. A future week is a draft until published.
+    const thisWeekStr = format(startOfWeek(new Date(), { weekStartsOn: 0 }), 'yyyy-MM-dd');
+    const isFutureWeek = weekStartStr > thisWeekStr;
+    const isPublished = !isFutureWeek || (Array.isArray(scheduleCfg?.published_weeks) && scheduleCfg.published_weeks.includes(weekStartStr));
+    const hideForEmployee = !isAdminLike && isFutureWeek && !isPublished;
+    const [publishing, setPublishing] = useState(false);
+
+    const doPublish = async (publish = true) => {
+        setPublishing(true);
+        try {
+            await base44.functions.publishSchedule({ week_start: weekStartStr, publish });
+            const r = await base44.functions.getScheduleConfig({}).then(x => x?.data || x || {}).catch(() => ({}));
+            setScheduleCfg(r);
+            if (publish && window.confirm('הסידור פורסם ✓\nלשלוח לצוות בוואטסאפ עכשיו?')) setWhatsappDialogOpen(true);
+        } catch (e) { console.warn('publish', e); alert('שגיאה בפרסום'); }
+        setPublishing(false);
+    };
+
     const loadScheduleData = useCallback(async () => {
         // Full-page spinner ONLY on the first load. Later refreshes (after an
         // assign/edit/delete) update the data in place so the page doesn't blank
@@ -1136,8 +1155,38 @@ export default function WorkScheduling() {
         return <div className="flex justify-center items-center h-screen"><Loader2 className="w-8 h-8 animate-spin" /></div>;
     }
 
+    // Employees don't see a future week until the manager publishes it.
+    if (hideForEmployee) {
+        return (
+            <div className="p-4 sm:p-8 max-w-md mx-auto" dir="rtl">
+                <Card><CardContent className="text-center py-12">
+                    <CalendarIcon className="w-12 h-12 mx-auto text-gray-300 mb-3" />
+                    <p className="text-lg font-bold text-slate-700">הסידור לשבוע זה עדיין בהכנה</p>
+                    <p className="text-sm text-gray-500 mt-1">המנהל עדיין עובד על הסידור — הוא יפורסם בקרוב.</p>
+                    <div className="flex justify-center gap-2 mt-5">
+                        <Button variant="outline" onClick={handlePrevWeek}><ChevronRight className="w-4 h-4 ml-1" /> שבוע קודם</Button>
+                        <Button variant="outline" onClick={handleNextWeek}>שבוע הבא <ChevronLeft className="w-4 h-4 mr-1" /></Button>
+                    </div>
+                </CardContent></Card>
+            </div>
+        );
+    }
+
     return (
         <div className="p-4 md:p-6" dir="rtl">
+            {/* Draft / Publish banner (future weeks, admin) */}
+            {isAdminLike && isFutureWeek && (
+                <div className={`mb-4 flex items-center justify-between gap-3 flex-wrap rounded-lg px-4 py-3 border ${isPublished ? 'bg-green-50 border-green-300' : 'bg-amber-50 border-amber-300'}`}>
+                    <span className={`font-semibold text-sm ${isPublished ? 'text-green-800' : 'text-amber-800'}`}>
+                        {isPublished ? '✅ הסידור לשבוע זה פורסם — העובדים רואים אותו.' : '🚧 טיוטה — השבוע הזה עדיין לא פורסם. העובדים לא רואים אותו עד שתפרסם.'}
+                    </span>
+                    <div className="flex gap-2">
+                        {isPublished
+                            ? <Button size="sm" variant="outline" onClick={() => doPublish(false)} disabled={publishing}>בטל פרסום</Button>
+                            : <Button size="sm" onClick={() => doPublish(true)} disabled={publishing} className="bg-[#44512C] hover:bg-[#7A3722] text-white">{publishing ? <Loader2 className="w-4 h-4 animate-spin" /> : '📣 פרסם סידור'}</Button>}
+                    </div>
+                </div>
+            )}
             {/* Undo banners */}
             {lastEditedShift && (
                 <div className="mb-4 flex items-center justify-between bg-[#F4ECD8] border border-[#D9BD83] rounded-lg px-4 py-3">
