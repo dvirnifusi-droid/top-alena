@@ -3135,8 +3135,8 @@ export default function SeatingSetup() {
                                         } else {
                                             // AVAILABLE — clean white w/ soft green border (indoor) or soft amber (outdoor)
                                             tableColorClass = table.location === 'indoor'
-                                                ? 'bg-white border-emerald-300 text-emerald-900'
-                                                : 'bg-stone-50 border-amber-400 text-amber-900';
+                                                ? 'bg-white border-emerald-400 text-emerald-900'
+                                                : 'bg-stone-50 border-amber-500 text-amber-900';
                                         }
                                         // Smart-map mode: dim non-recommended (placeholder — no recommendations yet)
                                         if (isSmartMapMode) {
@@ -3173,7 +3173,7 @@ export default function SeatingSetup() {
                                                     minWidth: 112,
                                                     minHeight: 66,
                                                 }}
-                                                className={`rounded-xl shadow-md border-2 transition-all hover:scale-[1.06] hover:shadow-lg hover:z-20 relative group ${
+                                                className={`${table.shape === 'round' ? 'rounded-full' : 'rounded-lg'} shadow-md border-[2.5px] transition-all hover:scale-[1.06] hover:shadow-lg hover:z-20 relative group ${
                                                     isBlockedForInteraction ? 'cursor-not-allowed' : (swapping || assigningTable || isSelectingTables ? 'cursor-crosshair' : 'cursor-pointer')
                                                 } ${tableColorClass}`}
                                             >
@@ -3205,6 +3205,16 @@ export default function SeatingSetup() {
                                                                 title="שנה לניקוי"
                                                             >
                                                                 ניקוי
+                                                            </button>
+                                                            <button
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    setTables(prev => prev.map(t => t.table_number === table.table_number ? { ...t, shape: t.shape === 'round' ? 'rect' : 'round' } : t));
+                                                                }}
+                                                                className="px-2 py-1 text-xs rounded bg-blue-100 hover:bg-blue-200 text-blue-800"
+                                                                title={table.shape === 'round' ? 'הפוך למרובע' : 'הפוך לעגול'}
+                                                            >
+                                                                {table.shape === 'round' ? '⬛' : '⭕'}
                                                             </button>
                                                         </div>
                                                     </div>
@@ -3251,15 +3261,15 @@ export default function SeatingSetup() {
                                                             </>
                                                         ) : futureReservationsForTable.length > 0 ? (
                                                             <div className="w-full flex flex-col gap-0.5">
-                                                                {futureReservationsForTable.slice(0, 2).map((res, ri) => (
+                                                                {futureReservationsForTable.slice(0, 3).map((res, ri) => (
                                                                     <div key={res.id} className={`w-full rounded px-1 py-0.5 flex items-center gap-1 leading-tight font-bold ${ri === 0 ? 'bg-[#44512C] text-white text-[11px]' : 'bg-[#44512C]/15 text-[#44512C] text-[10px]'}`}>
                                                                         <span className="tabular-nums whitespace-nowrap">{res.time?.slice(0, 5)}</span>
                                                                         <span className="truncate flex-1 text-center">{getFirstName(res.customer_name)}</span>
                                                                         <span className="whitespace-nowrap">×{res.party_size}</span>
                                                                     </div>
                                                                 ))}
-                                                                {futureReservationsForTable.length > 2 && (
-                                                                    <div className="text-[10px] text-[#44512C] font-black leading-none">+{futureReservationsForTable.length - 2} עוד</div>
+                                                                {futureReservationsForTable.length > 3 && (
+                                                                    <div className="text-[10px] text-[#44512C] font-black leading-none">+{futureReservationsForTable.length - 3} עוד</div>
                                                                 )}
                                                             </div>
                                                         ) : (
