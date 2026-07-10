@@ -3304,23 +3304,21 @@ export default function SeatingSetup() {
                                                                 <button
                                                                     onClick={(e) => {
                                                                         e.stopPropagation();
-                                                                        // Fewest-clicks move: pick the relevant reservation on this
-                                                                        // table, enter single-target assign mode → next click on the
-                                                                        // map moves it instantly (no dialog, no OK).
+                                                                        // Move flow: open multi-table selection so you can pick ONE
+                                                                        // target (deselect the current) OR several tables to combine,
+                                                                        // then click "שמור שיוך" — exactly like the full move flow.
                                                                         const resToMove = seatedReservation || upcomingToday || futureReservationsForTable[0];
                                                                         if (resToMove) {
-                                                                            setIsSelectingTables(false);
-                                                                            setSelectedTablesForReservation([]);
-                                                                            setMultiAssignReservationId(null);
+                                                                            setAssigningTable(null);
                                                                             setSwapping(null);
-                                                                            setAssigningTable({ reservationId: resToMove.id });
+                                                                            startMultiTableSelection(resToMove.id);
                                                                         } else {
                                                                             // Walk-in session with no reservation → move via details panel
                                                                             showTableDetails(table);
                                                                         }
                                                                     }}
                                                                     className="px-2 py-1 text-xs rounded bg-blue-100 hover:bg-blue-200 text-blue-800 flex items-center"
-                                                                    title="העברת שולחן — לחץ ואז בחר יעד"
+                                                                    title="העברת שולחן — בחר שולחן/ות ואז 'שמור שיוך'"
                                                                 >
                                                                     <ArrowRight className="w-3.5 h-3.5" />
                                                                 </button>
