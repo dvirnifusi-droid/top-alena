@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import {
   Loader2, Building, RefreshCw, ExternalLink, LogIn, Send, MessageCircle,
-  Activity, ChevronDown, ChevronUp,
+  Activity, ChevronDown, ChevronUp, Trash2,
 } from 'lucide-react';
 
 const STATUS_BADGE = {
@@ -119,6 +119,18 @@ export default function PlatformAdminTenants() {
 
   const retryFailed = (t) => act(t, 'retry', () => base44.functions.approveTenant({ tenant_id: t.id }),
     `לנסות שוב להקים את "${t.restaurant_name}"?`, '✅ נכנס לתור התקנה מחדש.').then(() => load());
+
+  const deleteTenant = async (t) => {
+    const typed = window.prompt(
+      `⚠️ מחיקת "${t.restaurant_name}".\n\nהעסק ייעלם מהקונסולה. הנתונים נשמרים וניתן לשחזר (מחיקה מלאה של הסכמה/קונטיינר תתבצע בנפרד).\n\nלאישור, הקלד את המזהה של העסק:  ${t.slug}`,
+      '',
+    );
+    if (typed === null) return;
+    if (typed.trim().toLowerCase() !== String(t.slug).toLowerCase()) { alert('המזהה לא תואם — לא נמחק.'); return; }
+    await act(t, 'del', () => base44.functions.deleteTenant({ tenant_id: t.id, confirm_slug: typed.trim() }), null,
+      (r) => `🗑️ "${r?.restaurant_name || t.restaurant_name}" הוסר מהקונסולה.`);
+    load();
+  };
 
   const assignPlan = async (t, planKey) => {
     if (!planKey || planKey === (t.plan_key || '')) return;
@@ -316,6 +328,10 @@ export default function PlatformAdminTenants() {
                               <button onClick={() => editOwner(t)} disabled={busy(t, 'edit')} title="ערוך בעלים"
                                 className="text-xs px-2 py-1 rounded bg-slate-800 text-slate-300 border border-slate-700 hover:border-slate-500">
                                 {busy(t, 'edit') ? spin : '✏️'}
+                              </button>
+                              <button onClick={() => deleteTenant(t)} disabled={busy(t, 'del')} title="מחק עסק"
+                                className="text-xs px-2 py-1 rounded bg-red-500/10 text-red-300 border border-red-500/30 hover:border-red-500/60 inline-flex items-center gap-1">
+                                {busy(t, 'del') ? spin : <Trash2 className="w-3.5 h-3.5" />}
                               </button>
                             </>
                           )}

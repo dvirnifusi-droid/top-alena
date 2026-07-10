@@ -48,7 +48,7 @@ const db = prisma as any; // generic delegate access
 
 // Public deploy marker — lets us confirm which build is live (and that
 // auto-deploy is working) without server access. Bump on each deploy test.
-registerFn('deployInfo', async () => ({ version: 'prep-daily-reminder-2026-07-10', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
+registerFn('deployInfo', async () => ({ version: 'delete-tenant-and-shift-2026-07-10', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
 
 
 
@@ -13787,13 +13787,40 @@ registerFn('listTenants', async ({ user, body }) => {
   await ensurePlatformTables();
   const b = (body || {}) as any;
   const status = b.status ? String(b.status) : null;
-  const where = status ? `WHERE status = '${status.replace(/'/g, "''")}'` : '';
+  // Soft-deleted tenants are hidden everywhere except when asked for explicitly.
+  const where = status
+    ? `WHERE status = '${status.replace(/'/g, "''")}'`
+    : `WHERE status IS DISTINCT FROM 'deleted'`;
   const rows: any[] = await (prisma as any).$queryRawUnsafe(
     `SELECT id, slug, restaurant_name, owner_name, owner_phone, owner_email,
             status, subdomain_url, approved_at, live_at, plan_key, trial_ends_at, "createdAt" AS created_at
      FROM "Tenant" ${where} ORDER BY "createdAt" DESC LIMIT 200`,
   );
   return { tenants: rows };
+});
+
+// SUPER-ADMIN — soft-delete a tenant: mark status='deleted' so it disappears
+// from the console. REVERSIBLE — the schema, container and data are left intact
+// (a full teardown of the schema/container/Caddy route is a separate op that
+// needs VPS access). Requires the caller to echo back the exact slug so a whole
+// business can't be removed by a stray click.
+registerFn('deleteTenant', async ({ user, body }) => {
+  if (!isSuperAdmin(user)) throw new Error('super-admin only');
+  await ensurePlatformTables();
+  const b = (body || {}) as any;
+  if (!b.tenant_id) throw new Error('tenant_id required');
+  const rows: any[] = await (prisma as any).$queryRawUnsafe(
+    `SELECT id, slug, restaurant_name, status FROM "Tenant" WHERE id = $1`, b.tenant_id,
+  );
+  if (!rows.length) throw new Error('tenant not found');
+  const t = rows[0];
+  if (String(b.confirm_slug || '').trim().toLowerCase() !== String(t.slug).toLowerCase()) {
+    throw new Error('confirm_slug does not match the tenant slug');
+  }
+  await (prisma as any).$executeRawUnsafe(
+    `UPDATE "Tenant" SET status = 'deleted' WHERE id = $1`, b.tenant_id,
+  );
+  return { ok: true, slug: t.slug, restaurant_name: t.restaurant_name };
 });
 
 // SUPER-ADMIN — Cross-tenant aggregated metrics. Iterates over every live

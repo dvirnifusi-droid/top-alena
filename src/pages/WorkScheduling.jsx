@@ -207,7 +207,7 @@ const ScheduleFilters = ({ filters, onFilterChange, employees, currentEmployeeId
 // =================================================================
 // Mobile View Component
 // =================================================================
-const MobileScheduleView = ({ week, positions, employees, onCellClick, onAssignmentClick, filters, currentEmployeeId, tipReports, isAdmin, strengthLabel, shiftTypesConfig = {}, hiddenPositions }) => {
+const MobileScheduleView = ({ week, positions, employees, onCellClick, onAssignmentClick, onAssignmentDelete, filters, currentEmployeeId, tipReports, isAdmin, strengthLabel, shiftTypesConfig = {}, hiddenPositions }) => {
     const [selectedDay, setSelectedDay] = useState(new Date());
 
     const weekDays = eachDayOfInterval({
@@ -394,7 +394,7 @@ const MobileScheduleView = ({ week, positions, employees, onCellClick, onAssignm
                                                                  return (
                                                                  <div
                                                                      key={assignment.employee_id}
-                                                                     className={`p-2 rounded-lg cursor-pointer flex justify-between items-center ${cardClass}`}
+                                                                     className={`p-2 rounded-lg cursor-pointer flex justify-between items-center gap-1 ${cardClass}`}
                                                                      onClick={() => onAssignmentClick(selectedDay, shiftKey, position.position_name, assignment)}
                                                                  >
                                                                      <span className="truncate flex items-center gap-1">
@@ -403,7 +403,18 @@ const MobileScheduleView = ({ week, positions, employees, onCellClick, onAssignm
                                                                          {tipRole === 'opening' && <span className="text-xs">🟣</span>}
                                                                          {assignment.employee_name}
                                                                      </span>
-                                                                     <span className="text-sm">{assignment.start_time} - {assignment.end_time}</span>
+                                                                     <span className="flex items-center gap-1.5 flex-shrink-0">
+                                                                         <span className="text-sm">{assignment.start_time} - {assignment.end_time}</span>
+                                                                         {isAdmin && onAssignmentDelete && (
+                                                                             <button
+                                                                                 onClick={(e) => { e.stopPropagation(); onAssignmentDelete(selectedDay, shiftKey, position.position_name, assignment); }}
+                                                                                 className="text-red-500 hover:text-red-700"
+                                                                                 title="הסר שיבוץ"
+                                                                             >
+                                                                                 <X className="w-4 h-4" />
+                                                                             </button>
+                                                                         )}
+                                                                     </span>
                                                                  </div>
                                                                  );
                                                              })}
@@ -688,6 +699,12 @@ export default function WorkScheduling() {
     const handleEditAssignment = (day, shiftType, positionName, assignment) => {
         setSelectedAssignment({ ...assignment, date: day, shift_type: shiftType, position: positionName });
         setIsAssignmentEditorOpen(true);
+    };
+
+    // Remove a single assignment straight from its card (no edit dialog).
+    const quickDeleteAssignment = (day, shiftType, positionName, assignment) => {
+        if (!window.confirm(`להסיר את ${assignment.employee_name} מהשיבוץ?`)) return;
+        handleAssignmentDelete({ ...assignment, date: day, shift_type: shiftType, position: positionName });
     };
 
     const handleEditShift = (shift) => {
@@ -1330,6 +1347,15 @@ export default function WorkScheduling() {
                                                                             <Star className={`w-3 h-3 ${rating > 0 ? 'fill-yellow-400 text-yellow-500' : 'text-gray-400'}`} />
                                                                         </button>
                                                                     )}
+                                                                    {isAdminLike && (
+                                                                        <button
+                                                                            onClick={(e) => { e.stopPropagation(); quickDeleteAssignment(day, type, position.position_name, assignment); }}
+                                                                            className="absolute top-0.5 right-0.5 text-red-400 hover:text-red-600 z-10"
+                                                                            title="הסר שיבוץ"
+                                                                        >
+                                                                            <X className="w-3.5 h-3.5" />
+                                                                        </button>
+                                                                    )}
                                                                     <p className="font-semibold text-sm truncate flex items-center justify-center gap-1">
                                                                         {isMyAssignment(assignment) && <Crown className="w-3 h-3 text-yellow-700" />}
                                                                         {tipRole === 'closing' && <span title="סגירה" className="text-xs">🔴</span>}
@@ -1378,6 +1404,7 @@ export default function WorkScheduling() {
                     filters={filters}
                     onCellClick={handleQuickAssign}
                     onAssignmentClick={handleEditAssignment}
+                    onAssignmentDelete={quickDeleteAssignment}
                     currentEmployeeId={currentEmployee?.id}
                     tipReports={tipReports}
                     isAdmin={isAdminLike}
