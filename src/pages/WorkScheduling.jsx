@@ -714,21 +714,27 @@ export default function WorkScheduling() {
         setIsShiftEditorOpen(true);
     };
 
-    // Bulk assign one employee across the week — for each selected (day, shift)
-    // find-or-create the WorkShift and add the employee at the chosen role.
-    const handleBulkAssign = async ({ employee_id, position, selections }) => {
+    // Bulk assign one employee across the week — each selection carries its own
+    // shift, hours and role. For each, find-or-create the WorkShift and add the
+    // employee. The shift WINDOW uses the shift config; the assignment gets the
+    // per-shift custom start/end + role.
+    const handleBulkAssign = async ({ employee_id, selections }) => {
         const employee = employees.find(e => e.id === employee_id);
-        if (!employee || !position || !selections?.length) return;
+        if (!employee || !selections?.length) return;
         let created = 0, skipped = 0;
-        for (const { date, shiftType } of selections) {
+        for (const sel of selections) {
             try {
+                const { date, shiftType } = sel;
                 const dateString = format(date, 'yyyy-MM-dd');
-                const start = shiftTypesConfig[shiftType]?.start || (shiftType === 'lunch' ? '12:00' : '17:00');
-                const end = shiftTypesConfig[shiftType]?.end || (shiftType === 'lunch' ? '17:00' : '23:00');
+                const cfgStart = shiftTypesConfig[shiftType]?.start || (shiftType === 'lunch' ? '12:00' : '17:00');
+                const cfgEnd = shiftTypesConfig[shiftType]?.end || (shiftType === 'lunch' ? '17:00' : '23:00');
+                const start = sel.start || cfgStart;
+                const end = sel.end || cfgEnd;
+                const position = sel.position || 'עובד';
                 let shift = getShiftFor(date, shiftType);
                 if (!shift) {
                     shift = await base44.entities.WorkShift.create({
-                        date: dateString, shift_type: shiftType, start_time: start, end_time: end,
+                        date: dateString, shift_type: shiftType, start_time: cfgStart, end_time: cfgEnd,
                         assigned_staff: [], positions_needed: {},
                     });
                 }

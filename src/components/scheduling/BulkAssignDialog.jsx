@@ -1,10 +1,12 @@
 // Bulk "assign one employee across the week" — a horizontal alternative to
-// clicking cell-by-cell. The manager picks an employee + role, then ticks, for
-// each day, which shift(s) that employee works (צהריים / ערב / both). Built for
-// a technophobe kitchen manager who staffs straight from the schedule.
+// clicking cell-by-cell. Pick an employee + a DEFAULT role, then per day tick
+// which shift(s) they work. Each ticked shift gets its own start/end time and
+// its own role (pre-filled from the shift config + the default role, editable
+// per shift). Built for a technophobe kitchen manager who staffs from the grid.
 import React, { useState, useMemo, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Loader2, UserPlus } from 'lucide-react';
@@ -17,42 +19,55 @@ export default function BulkAssignDialog({ open, onClose, employees = [], positi
     [shiftTypesConfig],
   );
   const [employeeId, setEmployeeId] = useState('');
-  const [position, setPosition] = useState('');
-  const [sel, setSel] = useState({}); // { 'yyyy-MM-dd|shiftKey': true }
+  const [position, setPosition] = useState(''); // default role
+  const [rows, setRows] = useState({}); // key 'yyyy-MM-dd|shiftKey' -> { start, end, role }
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => { if (open) { setEmployeeId(''); setPosition(''); setSel({}); } }, [open]);
+  useEffect(() => { if (open) { setEmployeeId(''); setPosition(''); setRows({}); } }, [open]);
 
   const keyOf = (day, st) => `${format(day, 'yyyy-MM-dd')}|${st}`;
-  const toggle = (day, st) => setSel((p) => ({ ...p, [keyOf(day, st)]: !p[keyOf(day, st)] }));
-  const toggleColumn = (st) => {
-    const allOn = days.every((d) => sel[keyOf(d, st)]);
-    setSel((p) => { const n = { ...p }; days.forEach((d) => { n[keyOf(d, st)] = !allOn; }); return n; });
+  const defOf = (st) => {
+    const c = shiftTypesConfig[st] || {};
+    return { start: c.start || (st === 'lunch' ? '12:00' : '17:00'), end: c.end || (st === 'lunch' ? '17:00' : '23:00') };
   };
-  const toggleRow = (day) => {
-    const allOn = shiftTypes.every((s) => sel[keyOf(day, s.key)]);
-    setSel((p) => { const n = { ...p }; shiftTypes.forEach((s) => { n[keyOf(day, s.key)] = !allOn; }); return n; });
-  };
+  const isOn = (day, st) => !!rows[keyOf(day, st)];
+  const toggle = (day, st) => setRows((p) => {
+    const k = keyOf(day, st); const n = { ...p };
+    if (n[k]) delete n[k]; else { const d = defOf(st); n[k] = { start: d.start, end: d.end, role: '' }; }
+    return n;
+  });
+  const setField = (day, st, field, val) => setRows((p) => {
+    const k = keyOf(day, st); if (!p[k]) return p;
+    return { ...p, [k]: { ...p[k], [field]: val } };
+  });
+  const toggleColumn = (st) => setRows((p) => {
+    const allOn = days.every((d) => p[keyOf(d, st)]); const n = { ...p };
+    days.forEach((d) => { const k = keyOf(d, st); if (allOn) delete n[k]; else if (!n[k]) { const dd = defOf(st); n[k] = { start: dd.start, end: dd.end, role: '' }; } });
+    return n;
+  });
 
-  const count = Object.values(sel).filter(Boolean).length;
+  const count = Object.keys(rows).length;
   const emp = employees.find((e) => e.id === employeeId);
 
   const submit = async () => {
     if (!employeeId || !position || count === 0) return;
     const selections = [];
-    for (const d of days) for (const s of shiftTypes) if (sel[keyOf(d, s.key)]) selections.push({ date: d, shiftType: s.key });
+    for (const d of days) for (const s of shiftTypes) {
+      const k = keyOf(d, s.key); const r = rows[k];
+      if (r) selections.push({ date: d, shiftType: s.key, start: r.start, end: r.end, position: r.role || position });
+    }
     setSaving(true);
-    try { await onSubmit({ employee_id: employeeId, position, selections }); onClose(); }
+    try { await onSubmit({ employee_id: employeeId, selections }); onClose(); }
     catch (e) { console.warn('bulk assign', e); }
     setSaving(false);
   };
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="sm:max-w-lg max-h-[92vh] overflow-y-auto overflow-x-hidden" dir="rtl">
+      <DialogContent className="sm:max-w-xl max-h-[92vh] overflow-y-auto overflow-x-hidden" dir="rtl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2"><UserPlus className="w-5 h-5" /> שיבוץ עובד לשבוע</DialogTitle>
-          <DialogDescription>בחר עובד ותפקיד, וסמן לכל יום איזו משמרת ({shiftTypes.map((s) => s.label).join(' / ') || 'צהריים / ערב'}).</DialogDescription>
+          <DialogDescription>בחר עובד ותפקיד ברירת-מחדל, סמן לכל יום איזו משמרת, וכוונן שעות/תפקיד לכל משמרת בנפרד.</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-3 py-2">
@@ -65,7 +80,7 @@ export default function BulkAssignDialog({ open, onClose, employees = [], positi
               </Select>
             </div>
             <div className="space-y-1.5">
-              <Label className="font-semibold">תפקיד</Label>
+              <Label className="font-semibold">תפקיד ברירת-מחדל</Label>
               <Select value={position} onValueChange={setPosition}>
                 <SelectTrigger><SelectValue placeholder="בחר תפקיד" /></SelectTrigger>
                 <SelectContent>{positions.map((p) => <SelectItem key={p.id} value={p.position_name}>{p.position_name}</SelectItem>)}</SelectContent>
@@ -73,39 +88,46 @@ export default function BulkAssignDialog({ open, onClose, employees = [], positi
             </div>
           </div>
 
-          {/* rows = days, columns = shift types; tap a header to toggle the whole week/day */}
-          <div className="border rounded-lg overflow-hidden">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="bg-gray-50 text-xs text-gray-600">
-                  <th className="p-2 text-right">יום</th>
-                  {shiftTypes.map((s) => (
-                    <th key={s.key} className="p-2 text-center">
-                      <button type="button" onClick={() => toggleColumn(s.key)} className="font-semibold hover:text-orange-600" title="סמן/בטל לכל השבוע">{s.label}</button>
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {days.map((d) => (
-                  <tr key={format(d, 'yyyy-MM-dd')} className="border-t">
-                    <td className="p-2">
-                      <button type="button" onClick={() => toggleRow(d)} className="text-right hover:text-orange-600" title="סמן/בטל את כל המשמרות ביום זה">
-                        <span className="font-medium">{format(d, 'EEEE', { locale: he })}</span>
-                        <span className="text-xs text-gray-400 block">{format(d, 'dd/MM')}</span>
-                      </button>
-                    </td>
-                    {shiftTypes.map((s) => (
-                      <td key={s.key} className="p-2 text-center">
-                        <input type="checkbox" checked={!!sel[keyOf(d, s.key)]} onChange={() => toggle(d, s.key)} className="w-5 h-5 accent-orange-600 cursor-pointer" />
-                      </td>
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          {/* Quick-fill a whole shift-type for the week */}
+          <div className="flex flex-wrap gap-2">
+            {shiftTypes.map((s) => (
+              <Button key={s.key} type="button" size="sm" variant="outline" onClick={() => toggleColumn(s.key)} className="text-xs">
+                כל השבוע · {s.label}
+              </Button>
+            ))}
           </div>
-          <p className="text-xs text-gray-500">טיפ: לחיצה על שם משמרת מסמנת אותה לכל השבוע; לחיצה על שם יום מסמנת את כל המשמרות באותו יום.</p>
+
+          {/* One card per day; each ticked shift reveals its own times + role */}
+          <div className="space-y-2">
+            {days.map((d) => (
+              <div key={format(d, 'yyyy-MM-dd')} className="border rounded-lg p-2">
+                <div className="font-semibold text-sm mb-1">{format(d, 'EEEE', { locale: he })} <span className="text-xs text-gray-400">{format(d, 'dd/MM')}</span></div>
+                {shiftTypes.map((s) => {
+                  const on = isOn(d, s.key);
+                  const r = rows[keyOf(d, s.key)] || {};
+                  return (
+                    <div key={s.key} className="flex items-center gap-2 py-1 flex-wrap">
+                      <label className="flex items-center gap-1.5 w-24 flex-shrink-0 cursor-pointer">
+                        <input type="checkbox" checked={on} onChange={() => toggle(d, s.key)} className="w-4 h-4 accent-orange-600" />
+                        <span className="text-sm">{s.label}</span>
+                      </label>
+                      {on && (
+                        <>
+                          <Input type="time" value={r.start || ''} onChange={(e) => setField(d, s.key, 'start', e.target.value)} className="h-8 w-[104px] text-sm" />
+                          <span className="text-gray-400">-</span>
+                          <Input type="time" value={r.end || ''} onChange={(e) => setField(d, s.key, 'end', e.target.value)} className="h-8 w-[104px] text-sm" />
+                          <Select value={r.role || position || undefined} onValueChange={(v) => setField(d, s.key, 'role', v)}>
+                            <SelectTrigger className="h-8 w-32 text-sm"><SelectValue placeholder="תפקיד" /></SelectTrigger>
+                            <SelectContent>{positions.map((p) => <SelectItem key={p.id} value={p.position_name}>{p.position_name}</SelectItem>)}</SelectContent>
+                          </Select>
+                        </>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            ))}
+          </div>
         </div>
 
         <DialogFooter className="!flex-row !flex-wrap gap-2 !justify-between pt-2 border-t mt-1">
