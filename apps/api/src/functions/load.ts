@@ -48,7 +48,7 @@ const db = prisma as any; // generic delegate access
 
 // Public deploy marker — lets us confirm which build is live (and that
 // auto-deploy is working) without server access. Bump on each deploy test.
-registerFn('deployInfo', async () => ({ version: 'tenant-default-lang-2026-07-10', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
+registerFn('deployInfo', async () => ({ version: 'prep-have-prep-2026-07-10', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
 
 
 
@@ -5302,14 +5302,17 @@ async function ensurePrepItems(): Promise<void> {
        "unit" TEXT,
        "target" TEXT,
        "have" TEXT,
+       "prep" TEXT,
        "to_prep" BOOLEAN NOT NULL DEFAULT false,
        "done" BOOLEAN NOT NULL DEFAULT false,
        "sort" INTEGER NOT NULL DEFAULT 0,
        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
      )`,
   );
-  // Additive — table may predate the "to_prep" column (olive&fig imported earlier).
+  // Additive — the table may predate these columns (olive&fig imported earlier).
+  // "have" = how much on hand, "prep" = how much to make (both free-text amounts).
   await (prisma as any).$executeRawUnsafe(`ALTER TABLE "PrepItem" ADD COLUMN IF NOT EXISTS "to_prep" BOOLEAN NOT NULL DEFAULT false`).catch(() => {});
+  await (prisma as any).$executeRawUnsafe(`ALTER TABLE "PrepItem" ADD COLUMN IF NOT EXISTS "prep" TEXT`).catch(() => {});
   _prepEnsured = true;
 }
 
@@ -5338,26 +5341,29 @@ registerFn('savePrepItems', async ({ user, body }: any) => {
     const name = String(it.name || '').trim();
     if (!name) continue;
     await (prisma as any).$executeRawUnsafe(
-      `INSERT INTO "PrepItem" ("id","name","category","unit","target","have","to_prep","done","sort","updatedAt")
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,NOW())`,
+      `INSERT INTO "PrepItem" ("id","name","category","unit","target","have","prep","to_prep","done","sort","updatedAt")
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,NOW())`,
       it.id && String(it.id).length > 8 ? String(it.id) : randomUUID(),
       name.slice(0, 200), it.category ? String(it.category).slice(0, 80) : null,
       it.unit ? String(it.unit).slice(0, 40) : null, it.target != null ? String(it.target).slice(0, 40) : null,
-      it.have != null ? String(it.have).slice(0, 40) : null, !!it.to_prep, !!it.done, Number.isFinite(+it.sort) ? Math.floor(+it.sort) : i,
+      it.have != null ? String(it.have).slice(0, 40) : null, it.prep != null ? String(it.prep).slice(0, 40) : null,
+      !!it.to_prep, !!it.done, Number.isFinite(+it.sort) ? Math.floor(+it.sort) : i,
     ).then(() => { n++; }).catch((e: any) => console.warn('[prep] insert', e?.message));
   }
   return { ok: true, count: n };
 });
 
-// Single-row update — the cook's daily "have"/"done" without rewriting all.
+// Single-row update — the cook's daily "have"/"prep"/"done" without rewriting all.
 registerFn('updatePrepItem', async ({ user, body }: any) => {
   if (!user?.id) throw new Error('unauthorized');
   await ensurePrepItems();
   const b = (body || {}) as any;
   if (!b.id) throw new Error('id required');
   await (prisma as any).$executeRawUnsafe(
-    `UPDATE "PrepItem" SET have=$1, to_prep=$2, done=$3, "updatedAt"=NOW() WHERE id=$4`,
-    b.have != null ? String(b.have).slice(0, 40) : null, !!b.to_prep, !!b.done, String(b.id),
+    `UPDATE "PrepItem" SET have=$1, prep=$2, done=$3, "updatedAt"=NOW() WHERE id=$4`,
+    b.have != null ? String(b.have).slice(0, 40) : null,
+    b.prep != null ? String(b.prep).slice(0, 40) : null,
+    !!b.done, String(b.id),
   );
   return { ok: true };
 });
@@ -5366,7 +5372,7 @@ registerFn('updatePrepItem', async ({ user, body }: any) => {
 registerFn('resetPrepCounts', async ({ user }: any) => {
   if (!user?.id) throw new Error('unauthorized');
   await ensurePrepItems();
-  await (prisma as any).$executeRawUnsafe(`UPDATE "PrepItem" SET have=NULL, to_prep=false, done=false, "updatedAt"=NOW()`);
+  await (prisma as any).$executeRawUnsafe(`UPDATE "PrepItem" SET have=NULL, prep=NULL, to_prep=false, done=false, "updatedAt"=NOW()`);
   return { ok: true };
 });
 
