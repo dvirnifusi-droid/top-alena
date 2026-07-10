@@ -13,7 +13,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { ChefHat, Plus, Trash2, Save, RotateCcw, Upload, Loader2, Check, Camera, Search, History, Pencil, X } from 'lucide-react';
+import { ChefHat, Plus, Trash2, Save, RotateCcw, Upload, Loader2, Check, Camera, Search, History, Pencil, X, Printer, Share2, StickyNote } from 'lucide-react';
 
 const fmtWhen = (iso) => {
   if (!iso) return '';
@@ -108,8 +108,28 @@ export default function PrepSheet() {
 
   const saveOne = async (it) => {
     try {
-      await base44.functions.updatePrepItem({ id: it.id, have: it.have, prep: it.prep, to_prep: it.to_prep, done: it.done, photo_url: it.photo_url });
+      await base44.functions.updatePrepItem({ id: it.id, have: it.have, prep: it.prep, to_prep: it.to_prep, done: it.done, photo_url: it.photo_url, note: it.note });
     } catch (e) { console.warn('save prep row', e); }
+  };
+
+  // Print (kitchen wall) + share (WhatsApp / native share) the active list.
+  const doPrint = () => { try { window.print(); } catch (e) { console.warn('print', e); } };
+  const buildShareText = () => {
+    const lines = [`🍳 דף הכנות — ${activeName}`, ''];
+    for (const [cat, rows] of groups) {
+      lines.push(`▪ ${cat}`);
+      for (const it of rows) {
+        const status = it.done ? '✅' : (it.to_prep ? '⬜' : '');
+        lines.push(`  • ${it.name}${it.prep ? ` — ${it.prep}` : ''}${status ? ` ${status}` : ''}${it.note ? `  (${it.note})` : ''}`);
+      }
+      lines.push('');
+    }
+    return lines.join('\n').trim();
+  };
+  const doShare = async () => {
+    const text = buildShareText();
+    try { if (navigator.share) { await navigator.share({ title: `דף הכנות — ${activeName}`, text }); return; } } catch { /* cancelled / unsupported */ }
+    try { window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank'); } catch (e) { console.warn('share', e); }
   };
 
   const toggle = (it, field) => {
@@ -146,7 +166,7 @@ export default function PrepSheet() {
     setSaving(false);
   };
 
-  const addRow = () => setItems((prev) => [...prev, { id: `new_${Date.now()}_${prev.length}`, name: '', category: 'הכנות', unit: '', target: '', have: '', prep: '', to_prep: false, done: false, sort: prev.length }]);
+  const addRow = () => setItems((prev) => [...prev, { id: `new_${Date.now()}_${prev.length}`, name: '', category: 'הכנות', unit: '', target: '', have: '', prep: '', to_prep: false, done: false, note: '', sort: prev.length }]);
   const delRow = (id) => setItems((prev) => prev.filter((it) => it.id !== id));
 
   const resetCounts = async () => {
@@ -214,10 +234,14 @@ export default function PrepSheet() {
 
   return (
     <div dir="rtl" className="p-4 sm:p-8 bg-gradient-to-br from-orange-50 to-amber-50 min-h-screen">
+      {/* Print: show only the list, drop chrome. Inline (ships in JS, not the CSS bundle). */}
+      <style>{`@media print { .no-print { display: none !important; } body { background: #fff !important; } .prep-card { break-inside: avoid; } }`}</style>
       <div className="max-w-4xl mx-auto">
         <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
           <h1 className="text-2xl md:text-3xl font-black text-[#A04A2E] flex items-center gap-2"><ChefHat className="w-7 h-7" /> דף הכנות</h1>
-          <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-2 flex-wrap no-print">
+            <Button variant="outline" size="sm" onClick={doShare} title="שתף בוואטסאפ"><Share2 className="w-4 h-4 ml-1" /> שתף</Button>
+            <Button variant="outline" size="sm" onClick={doPrint} title="הדפס לתלייה במטבח"><Printer className="w-4 h-4 ml-1" /> הדפס</Button>
             <Button variant="outline" size="sm" onClick={openArchive}><History className="w-4 h-4 ml-1" /> היסטוריה</Button>
             {isAdmin && <Button variant="outline" size="sm" onClick={resetCounts}><RotateCcw className="w-4 h-4 ml-1" /> יום חדש</Button>}
             {isAdmin && <Button variant="outline" size="sm" onClick={() => setShowImport((v) => !v)}><Upload className="w-4 h-4 ml-1" /> ייבוא</Button>}
@@ -228,7 +252,7 @@ export default function PrepSheet() {
         </div>
 
         {/* List tabs */}
-        <div className="flex items-center gap-1.5 mb-4 flex-wrap">
+        <div className="flex items-center gap-1.5 mb-4 flex-wrap no-print">
           {lists.map((l) => (
             <button key={l.id} onClick={() => switchList(l.id)}
               className={`px-3 py-1.5 rounded-full text-sm font-semibold border transition-colors ${l.id === activeList ? 'bg-orange-600 border-orange-600 text-white' : 'bg-white border-gray-200 text-slate-600 hover:border-orange-300'}`}>
@@ -300,7 +324,7 @@ export default function PrepSheet() {
 
         {/* Search + filter */}
         {items.length > 0 && (
-          <div className="flex items-center gap-2 mb-3 flex-wrap">
+          <div className="flex items-center gap-2 mb-3 flex-wrap no-print">
             <div className="relative flex-1 min-w-[160px]">
               <Search className="w-4 h-4 text-gray-400 absolute right-2 top-1/2 -translate-y-1/2" />
               <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="חיפוש מוצר…" className="h-9 pr-8" />
@@ -334,7 +358,7 @@ export default function PrepSheet() {
         ) : (
           <div className="space-y-5">
             {groups.map(([cat, rows]) => (
-              <Card key={cat} className="overflow-hidden">
+              <Card key={cat} className="overflow-hidden prep-card">
                 <CardHeader className="bg-gradient-to-l from-orange-100 to-amber-50 py-2.5"><CardTitle className="text-base text-[#7A3722]">{cat}</CardTitle></CardHeader>
                 <CardContent className="p-0">
                   <div className="overflow-x-auto">
@@ -351,9 +375,17 @@ export default function PrepSheet() {
                         {rows.map((it) => (
                           <tr key={it.id} className={`border-b last:border-0 align-top ${it.done ? 'bg-green-50/50' : it.to_prep ? 'bg-orange-50/40' : ''}`}>
                             <td className="p-2">
-                              {editMode
-                                ? <Input value={it.name} onChange={(e) => patch(it.id, 'name', e.target.value)} className="h-8 text-sm" placeholder="שם מוצר" />
-                                : <span className={`font-medium ${it.done ? 'line-through text-gray-400' : 'text-slate-800'}`}>{it.name}</span>}
+                              {editMode ? (
+                                <div className="space-y-1">
+                                  <Input value={it.name} onChange={(e) => patch(it.id, 'name', e.target.value)} className="h-8 text-sm" placeholder="שם מוצר" />
+                                  <Input value={it.note || ''} onChange={(e) => patch(it.id, 'note', e.target.value)} className="h-7 text-xs text-gray-500" placeholder="הערה / הוראת הכנה (אופציונלי)" />
+                                </div>
+                              ) : (
+                                <>
+                                  <span className={`font-medium ${it.done ? 'line-through text-gray-400' : 'text-slate-800'}`}>{it.name}</span>
+                                  {it.note && <div className="text-xs text-gray-500 mt-0.5 flex items-start gap-1"><StickyNote className="w-3 h-3 mt-0.5 flex-shrink-0 text-amber-500" /><span>{it.note}</span></div>}
+                                </>
+                              )}
                             </td>
                             <td className="p-2 text-center">
                               <Input value={it.have || ''} onChange={(e) => patch(it.id, 'have', e.target.value)} onBlur={() => !editMode && saveOne(items.find((x) => x.id === it.id))} className="h-8 text-sm text-center" placeholder="—" />

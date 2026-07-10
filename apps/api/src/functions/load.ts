@@ -48,7 +48,7 @@ const db = prisma as any; // generic delegate access
 
 // Public deploy marker — lets us confirm which build is live (and that
 // auto-deploy is working) without server access. Bump on each deploy test.
-registerFn('deployInfo', async () => ({ version: 'prep-lists-archive-2026-07-10', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
+registerFn('deployInfo', async () => ({ version: 'prep-notes-print-2026-07-10', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
 
 
 
@@ -5309,6 +5309,7 @@ async function ensurePrepItems(): Promise<void> {
        "done_by" TEXT,
        "done_at" TIMESTAMP(3),
        "photo_url" TEXT,
+       "note" TEXT,
        "list_id" TEXT,
        "sort" INTEGER NOT NULL DEFAULT 0,
        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -5322,6 +5323,7 @@ async function ensurePrepItems(): Promise<void> {
   await (prisma as any).$executeRawUnsafe(`ALTER TABLE "PrepItem" ADD COLUMN IF NOT EXISTS "done_by" TEXT`).catch(() => {});
   await (prisma as any).$executeRawUnsafe(`ALTER TABLE "PrepItem" ADD COLUMN IF NOT EXISTS "done_at" TIMESTAMP(3)`).catch(() => {});
   await (prisma as any).$executeRawUnsafe(`ALTER TABLE "PrepItem" ADD COLUMN IF NOT EXISTS "photo_url" TEXT`).catch(() => {});
+  await (prisma as any).$executeRawUnsafe(`ALTER TABLE "PrepItem" ADD COLUMN IF NOT EXISTS "note" TEXT`).catch(() => {});
   await (prisma as any).$executeRawUnsafe(`ALTER TABLE "PrepItem" ADD COLUMN IF NOT EXISTS "list_id" TEXT`).catch(() => {});
   // Multiple named lists (e.g. "הכנות בוקר"/"הכנות ערב") + a per-day archive
   // captured on reset. Isolated, guarded — same safe pattern.
@@ -5437,13 +5439,13 @@ registerFn('savePrepItems', async ({ user, body }: any) => {
     const name = String(it.name || '').trim();
     if (!name) continue;
     await (prisma as any).$executeRawUnsafe(
-      `INSERT INTO "PrepItem" ("id","name","category","unit","target","have","prep","to_prep","done","list_id","sort","updatedAt")
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,NOW())`,
+      `INSERT INTO "PrepItem" ("id","name","category","unit","target","have","prep","to_prep","done","note","list_id","sort","updatedAt")
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,NOW())`,
       it.id && String(it.id).length > 8 ? String(it.id) : randomUUID(),
       name.slice(0, 200), it.category ? String(it.category).slice(0, 80) : null,
       it.unit ? String(it.unit).slice(0, 40) : null, it.target != null ? String(it.target).slice(0, 40) : null,
       it.have != null ? String(it.have).slice(0, 40) : null, it.prep != null ? String(it.prep).slice(0, 40) : null,
-      !!it.to_prep, !!it.done, listId, Number.isFinite(+it.sort) ? Math.floor(+it.sort) : i,
+      !!it.to_prep, !!it.done, it.note != null ? String(it.note).slice(0, 300) : null, listId, Number.isFinite(+it.sort) ? Math.floor(+it.sort) : i,
     ).then(() => { n++; }).catch((e: any) => console.warn('[prep] insert', e?.message));
   }
   return { ok: true, count: n };
@@ -5466,12 +5468,14 @@ registerFn('updatePrepItem', async ({ user, body }: any) => {
        done_by = CASE WHEN $4 THEN COALESCE(done_by, $5) ELSE NULL END,
        done_at = CASE WHEN $4 THEN COALESCE(done_at, NOW()) ELSE NULL END,
        photo_url = COALESCE($6, photo_url),
+       note = COALESCE($7, note),
        "updatedAt"=NOW()
-     WHERE id=$7`,
+     WHERE id=$8`,
     b.have != null ? String(b.have).slice(0, 40) : null,
     b.prep != null ? String(b.prep).slice(0, 40) : null,
     !!b.to_prep, done, name,
     b.photo_url != null ? String(b.photo_url).slice(0, 500) : null,
+    b.note != null ? String(b.note).slice(0, 300) : null,
     String(b.id),
   );
   return { ok: true };
