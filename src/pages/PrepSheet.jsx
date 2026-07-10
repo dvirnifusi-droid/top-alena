@@ -13,7 +13,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { ChefHat, Plus, Trash2, Save, RotateCcw, Upload, Loader2, Check, Camera, Search, History, Pencil, X, Printer, Share2, StickyNote } from 'lucide-react';
+import { ChefHat, Plus, Trash2, Save, RotateCcw, Upload, Loader2, Check, Camera, Search, History, Pencil, X, Printer, Share2, StickyNote, Bell } from 'lucide-react';
 
 const fmtWhen = (iso) => {
   if (!iso) return '';
@@ -41,6 +41,10 @@ export default function PrepSheet() {
   const [showArchive, setShowArchive] = useState(false);
   const [archive, setArchive] = useState([]);
   const [openSnap, setOpenSnap] = useState(null);
+  const [reminderOn, setReminderOn] = useState(false);
+  const [reminderTime, setReminderTime] = useState('15:00');
+  const [showReminderCfg, setShowReminderCfg] = useState(false);
+  const [savingReminder, setSavingReminder] = useState(false);
 
   const loadItems = async (listId) => {
     setLoading(true);
@@ -69,10 +73,18 @@ export default function PrepSheet() {
   useEffect(() => {
     (async () => {
       try { const u = await User.me(); setMe(u); setIsAdmin(u?.role === 'admin' || u?.role === 'owner' || !!u?.managed_department); } catch { /* staff */ }
+      try { const s = await base44.functions.getAppSettings({}); const d = s?.data || s || {}; setReminderOn(!!d.prep_reminder_enabled); setReminderTime(d.prep_reminder_time || '15:00'); } catch { /* defaults */ }
       const pick = await loadLists();
       await loadItems(pick);
     })();
   }, []);
+
+  const saveReminder = async () => {
+    setSavingReminder(true);
+    try { await base44.functions.setAppSettings({ prep_reminder_enabled: reminderOn, prep_reminder_time: reminderTime }); setShowReminderCfg(false); }
+    catch (e) { console.warn('save reminder', e); }
+    setSavingReminder(false);
+  };
 
   const switchList = async (id) => {
     if (id === activeList) return;
@@ -243,6 +255,7 @@ export default function PrepSheet() {
             <Button variant="outline" size="sm" onClick={doShare} title="שתף בוואטסאפ"><Share2 className="w-4 h-4 ml-1" /> שתף</Button>
             <Button variant="outline" size="sm" onClick={doPrint} title="הדפס לתלייה במטבח"><Printer className="w-4 h-4 ml-1" /> הדפס</Button>
             <Button variant="outline" size="sm" onClick={openArchive}><History className="w-4 h-4 ml-1" /> היסטוריה</Button>
+            {isAdmin && <Button variant="outline" size="sm" onClick={() => setShowReminderCfg((v) => !v)} className={reminderOn ? 'border-orange-400 text-orange-700' : ''}><Bell className="w-4 h-4 ml-1" /> תזכורת</Button>}
             {isAdmin && <Button variant="outline" size="sm" onClick={resetCounts}><RotateCcw className="w-4 h-4 ml-1" /> יום חדש</Button>}
             {isAdmin && <Button variant="outline" size="sm" onClick={() => setShowImport((v) => !v)}><Upload className="w-4 h-4 ml-1" /> ייבוא</Button>}
             {isAdmin && (editMode
@@ -250,6 +263,23 @@ export default function PrepSheet() {
               : <Button size="sm" variant="outline" onClick={() => setEditMode(true)}>ערוך מוצרים</Button>)}
           </div>
         </div>
+
+        {/* Daily reminder config (admin) */}
+        {showReminderCfg && isAdmin && (
+          <Card className="mb-4 border-orange-200 no-print">
+            <CardContent className="py-3 flex items-center gap-3 flex-wrap">
+              <label className="flex items-center gap-2 text-sm cursor-pointer">
+                <input type="checkbox" checked={reminderOn} onChange={(e) => setReminderOn(e.target.checked)} className="w-4 h-4 accent-orange-600" />
+                שלח תזכורת יומית (וואטסאפ/פוש למנהלים) על הכנות שסומנו ולא בוצעו
+              </label>
+              <div className="flex items-center gap-1 text-sm text-gray-600">בשעה
+                <Input type="time" value={reminderTime} onChange={(e) => setReminderTime(e.target.value)} className="h-8 w-28" disabled={!reminderOn} />
+              </div>
+              <Button size="sm" onClick={saveReminder} disabled={savingReminder} className="bg-orange-600 hover:bg-orange-700 text-white">{savingReminder ? <Loader2 className="w-4 h-4 animate-spin" /> : 'שמור'}</Button>
+              <span className="text-xs text-gray-400">התזכורת נשלחת פעם ביום, רק אם נשארו הכנות פתוחות.</span>
+            </CardContent>
+          </Card>
+        )}
 
         {/* List tabs */}
         <div className="flex items-center gap-1.5 mb-4 flex-wrap no-print">

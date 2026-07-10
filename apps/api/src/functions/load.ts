@@ -48,7 +48,7 @@ const db = prisma as any; // generic delegate access
 
 // Public deploy marker — lets us confirm which build is live (and that
 // auto-deploy is working) without server access. Bump on each deploy test.
-registerFn('deployInfo', async () => ({ version: 'prep-notes-print-2026-07-10', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
+registerFn('deployInfo', async () => ({ version: 'prep-daily-reminder-2026-07-10', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
 
 
 
@@ -5258,33 +5258,57 @@ async function ensureAppSettings(): Promise<void> {
   _appSettingsEnsured = true;
 }
 
-// Public: called on every app boot to pick the default language. Guarded so a
-// missing table / DB hiccup just yields Hebrew (the app's authored default).
+// Public: called on every app boot to pick the default language (+ carries the
+// prep-reminder config). Guarded so a missing table / DB hiccup just yields the
+// authored defaults (Hebrew, reminder off).
 registerFn('getAppSettings', async () => {
   try {
     await ensureAppSettings();
     const rows: any[] = await (prisma as any).$queryRawUnsafe(
-      `SELECT "value" FROM "AppSettings" WHERE "key"='default_language' LIMIT 1`,
+      `SELECT "key","value" FROM "AppSettings" WHERE "key" IN ('default_language','prep_reminder_enabled','prep_reminder_time')`,
     );
-    return { default_language: rows[0]?.value || 'he' };
+    const m: Record<string, string> = {};
+    for (const r of rows) m[r.key] = r.value;
+    return {
+      default_language: m.default_language || 'he',
+      prep_reminder_enabled: m.prep_reminder_enabled === '1',
+      prep_reminder_time: /^\d{2}:\d{2}$/.test(m.prep_reminder_time || '') ? m.prep_reminder_time : '15:00',
+    };
   } catch {
-    return { default_language: 'he' };
+    return { default_language: 'he', prep_reminder_enabled: false, prep_reminder_time: '15:00' };
   }
 }, { public: true });
+
+async function upsertAppSetting(key: string, value: string): Promise<void> {
+  await (prisma as any).$executeRawUnsafe(
+    `INSERT INTO "AppSettings" ("key","value","updatedAt") VALUES ($1,$2,NOW())
+     ON CONFLICT ("key") DO UPDATE SET "value"=$2, "updatedAt"=NOW()`,
+    key, value,
+  );
+}
 
 registerFn('setAppSettings', async ({ user, body }: any) => {
   if (!user?.id) throw new Error('unauthorized');
   if (!['admin', 'owner'].includes(String(user.role))) throw new Error('forbidden');
   await ensureAppSettings();
   const b = (body || {}) as any;
-  const allowed = ['he', 'en', 'es', 'ru', 'ar'];
-  const lang = allowed.includes(String(b.default_language)) ? String(b.default_language) : 'he';
-  await (prisma as any).$executeRawUnsafe(
-    `INSERT INTO "AppSettings" ("key","value","updatedAt") VALUES ('default_language',$1,NOW())
-     ON CONFLICT ("key") DO UPDATE SET "value"=$1, "updatedAt"=NOW()`,
-    lang,
-  );
-  return { ok: true, default_language: lang };
+  const out: any = { ok: true };
+  if (b.default_language !== undefined) {
+    const allowed = ['he', 'en', 'es', 'ru', 'ar'];
+    const lang = allowed.includes(String(b.default_language)) ? String(b.default_language) : 'he';
+    await upsertAppSetting('default_language', lang);
+    out.default_language = lang;
+  }
+  if (b.prep_reminder_enabled !== undefined) {
+    await upsertAppSetting('prep_reminder_enabled', b.prep_reminder_enabled ? '1' : '0');
+    out.prep_reminder_enabled = !!b.prep_reminder_enabled;
+  }
+  if (b.prep_reminder_time !== undefined) {
+    const t = /^\d{2}:\d{2}$/.test(String(b.prep_reminder_time)) ? String(b.prep_reminder_time) : '15:00';
+    await upsertAppSetting('prep_reminder_time', t);
+    out.prep_reminder_time = t;
+  }
+  return out;
 });
 
 // ── Prep Sheet — per-tenant mise-en-place / par-level list. Each row is a
@@ -5532,6 +5556,56 @@ registerFn('getPrepArchive', async ({ user, body }: any) => {
     return { archive: [] };
   }
 });
+
+// Daily prep reminder — runs in-process in EVERY tenant container (so no crontab
+// change is needed; each container reminds its own admins). When enabled, once
+// per day at the configured Israel-time it pushes admins a summary of prep items
+// still flagged-to-make but not done. Gated + de-duped via AppSettings so it
+// fires at most once per day even with a 5-minute tick.
+async function runPrepReminder(): Promise<void> {
+  try {
+    await ensureAppSettings();
+    const cfg: any[] = await (prisma as any).$queryRawUnsafe(
+      `SELECT "key","value" FROM "AppSettings" WHERE "key" IN ('prep_reminder_enabled','prep_reminder_time','prep_reminder_last')`,
+    );
+    const m: Record<string, string> = {};
+    for (const r of cfg) m[r.key] = r.value;
+    if (m.prep_reminder_enabled !== '1') return;
+    const time = /^\d{2}:\d{2}$/.test(m.prep_reminder_time || '') ? m.prep_reminder_time : '15:00';
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Jerusalem', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false,
+    }).formatToParts(new Date());
+    const get = (t: string) => parts.find((p) => p.type === t)?.value || '';
+    const ilDate = `${get('year')}-${get('month')}-${get('day')}`;
+    const ilMin = parseInt(get('hour'), 10) * 60 + parseInt(get('minute'), 10);
+    const [th, tm] = time.split(':').map(Number);
+    const targetMin = th * 60 + tm;
+    // Fire only inside a 15-min window from the configured time, once per day.
+    if (ilMin < targetMin || ilMin >= targetMin + 15) return;
+    if (m.prep_reminder_last === ilDate) return;
+    await upsertAppSetting('prep_reminder_last', ilDate); // mark first so we never double-send
+    await ensurePrepItems();
+    const pending: any[] = await (prisma as any).$queryRawUnsafe(
+      `SELECT p."name", l."name" AS list_name FROM "PrepItem" p LEFT JOIN "PrepList" l ON l.id = p.list_id
+       WHERE p.to_prep = true AND p.done = false ORDER BY p.list_id, p.sort`,
+    ).catch(() => []);
+    if (!pending.length) return; // nothing pending → no nag
+    const byList = new Map<string, string[]>();
+    for (const it of pending) { const k = it.list_name || 'הכנות'; if (!byList.has(k)) byList.set(k, []); byList.get(k)!.push(it.name); }
+    const lines: string[] = [];
+    for (const [ln, names] of byList) lines.push(`▪ ${ln}: ${names.slice(0, 25).join(', ')}${names.length > 25 ? '…' : ''}`);
+    await pushoverToAdmins('⏰ תזכורת הכנות', `נותרו ${pending.length} הכנות שטרם בוצעו:\n${lines.join('\n')}`).catch(() => {});
+  } catch (e: any) {
+    console.warn('[prep-reminder]', e?.message);
+  }
+}
+if (!(globalThis as any).__prepReminderTimer) {
+  (globalThis as any).__prepReminderTimer = setTimeout(function loop() {
+    runPrepReminder().finally(() => {
+      (globalThis as any).__prepReminderTimer = setTimeout(loop, 5 * 60 * 1000);
+    });
+  }, 4 * 60 * 1000); // 4 min after boot
+}
 
 // ── Per-tenant permission tiers. Each business defines its OWN levels (label +
 // base access level), so the "view as" dropdown + sidebar reflect the tenant's
