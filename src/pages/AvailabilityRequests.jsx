@@ -12,6 +12,7 @@ import { he } from 'date-fns/locale';
 import { Loader2, Users, ChevronLeft, ChevronRight, CheckCircle2, Zap, Edit2, ChevronDown, ChevronUp, Plus, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 import PageGuard from '../components/shared/PageGuard';
+import { canonRole, canonRoles } from '@/lib/roles';
 
 const AVAILABILITY_TYPES = {
     available: { label: '✅ פנוי/ה', color: 'bg-green-100 text-green-800' },
@@ -150,8 +151,11 @@ function AvailabilityRequestsInner() {
 
     const handleSaveEdit = async () => {
         try {
-            await base44.entities.EmployeeAvailability.update(editingAvail.id, editData);
-            setAvailabilities(prev => prev.map(a => a.id === editingAvail.id ? editData : a));
+            // Normalize the role on save so 'מלצרית' persists as 'מלצר' (matches
+            // the schedule) — not just displayed canonically.
+            const cleaned = { ...editData, positions: canonRoles(editData.positions) };
+            await base44.entities.EmployeeAvailability.update(editingAvail.id, cleaned);
+            setAvailabilities(prev => prev.map(a => a.id === editingAvail.id ? cleaned : a));
             setEditingAvail(null);
             toast.success('זמינות עודכנה');
         } catch (e) {
@@ -204,7 +208,7 @@ function AvailabilityRequestsInner() {
                          if (!emp) continue;
 
                          // Determine position
-                         const position = avail.positions?.length > 0 ? avail.positions[0] : (emp.positions?.[0]?.position_name || 'מלצר');
+                         const position = canonRole(avail.positions?.length > 0 ? avail.positions[0] : (emp.positions?.[0]?.position_name || 'מלצר'));
 
                          newStaff.push({
                              employee_id: avail.employee_id,
@@ -272,7 +276,7 @@ function AvailabilityRequestsInner() {
                  return;
              }
 
-             const position = avail.positions?.length > 0 ? avail.positions[0] : (emp.positions?.[0]?.position_name || 'מלצר');
+             const position = canonRole(avail.positions?.length > 0 ? avail.positions[0] : (emp.positions?.[0]?.position_name || 'מלצר'));
 
              const newStaff = [...currentStaff, {
                  employee_id: avail.employee_id,

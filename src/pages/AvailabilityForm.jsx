@@ -11,6 +11,7 @@ import { he } from 'date-fns/locale';
 import { CheckCircle2, Loader2, CalendarDays, User } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 import { awardAvailabilityCoins } from '@/functions/awardAvailabilityCoins';
+import { canonRoles } from '@/lib/roles';
 
 const DEFAULT_POSITIONS = ['מלצר', 'ברמן', 'ראנר', 'מארח/ת'];
 
@@ -368,7 +369,7 @@ export default function AvailabilityForm() {
                     availability_type: data.availability_type,
                     shift_preference: data.shift_preference,
                     reason: data.reason,
-                    positions: data.positions,
+                    positions: canonRoles(data.positions), // מלצרית → מלצר at the source
                     available_from: data.availability_type === 'partial' ? data.available_from || '' : '',
                     available_until: data.availability_type === 'partial' ? data.available_until || '' : '',
                     department: selectedDepartment,

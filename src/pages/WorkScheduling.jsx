@@ -16,6 +16,7 @@ import QuickAssignDialog from '../components/scheduling/QuickAssignDialog';
 import ShiftEditDialog from '../components/scheduling/ShiftEditDialog';
 import AssignmentEditDialog from '../components/scheduling/AssignmentEditDialog';
 import BulkAssignDialog from '../components/scheduling/BulkAssignDialog';
+import { canonRole as canon } from '@/lib/roles';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import ShiftNotificationBell from '../components/shared/ShiftNotificationBell';
 import SendScheduleWhatsAppDialog from '../components/scheduling/SendScheduleWhatsAppDialog';
@@ -32,24 +33,8 @@ const DEFAULT_SHIFTS = [
 ];
 const shiftTypesConfig = Object.fromEntries(DEFAULT_SHIFTS.map(s => [s.key, { label: s.label, color: SHIFT_COLOR, start: s.start, end: s.end }]));
 
-// Feminine → canonical role mapping so assignments stored under a feminine name
-// ('מלצרית' / 'טבחית' / 'מארחת' ...) render in the canonical schedule row (the
-// grid only has rows for canonical names). READ-ONLY — nothing in the DB moves.
-// Module-scope so BOTH the mobile and desktop grids use the same normalization.
-const POSITION_ALIASES = {
-    'מלצרית': 'מלצר', 'ברמנית': 'ברמן', 'ראנרית': 'ראנר',
-    'מארחת': 'מארח/ת', 'מארח': 'מארח/ת',
-    'מנהלת משמרת': 'מנהל משמרת',
-    'טבחית': 'טבח',
-    'שוטפת כלים': 'שוטף כלים',
-    'מתלמדת פלור': 'מתלמד פלור',
-    'מתלמדת מטבח': 'מתלמד מטבח',
-    'מנהלת פלור': 'מנהל פלור',
-    'מנהלת מטבח': 'מנהל מטבח',
-    'קופה ואריזות': 'קופה + אריזות',
-    'קופה +אריזות': 'קופה + אריזות',
-};
-const canon = (p) => POSITION_ALIASES[String(p || '').trim()] || String(p || '').trim();
+// canon() (feminine → canonical role) is imported from '@/lib/roles' — the single
+// source of truth shared with the availability screens, applied at write time.
 // Build the {key: {label,color,start,end,positions}} map the render loops expect
 // from a tenant's saved shifts list (falls back to the Alena default).
 function buildShiftConfig(shifts) {
@@ -736,7 +721,7 @@ export default function WorkScheduling() {
                 const cfgEnd = shiftTypesConfig[shiftType]?.end || (shiftType === 'lunch' ? '17:00' : '23:00');
                 const start = sel.start || cfgStart;
                 const end = sel.end || cfgEnd;
-                const position = sel.position || 'עובד';
+                const position = canon(sel.position || 'עובד');
                 let shift = getShiftFor(date, shiftType);
                 if (!shift) {
                     shift = await base44.entities.WorkShift.create({
@@ -793,6 +778,7 @@ export default function WorkScheduling() {
 
             const newAssignment = {
                 ...assignmentData,
+                position: canon(assignmentData.position),
                 employee_name: employee.full_name,
                 breaks: [],
                 notes: '',
@@ -823,6 +809,9 @@ export default function WorkScheduling() {
 
     const handleAssignmentSave = async (updatedAssignmentData) => {
         setIsAssignmentEditorOpen(false);
+        // Persist the role canonically so a feminine name ('מלצרית') is stored as
+        // 'מלצר' and matches the schedule everywhere (not just at display time).
+        updatedAssignmentData = { ...updatedAssignmentData, position: canon(updatedAssignmentData.position) };
 
         if (!selectedAssignment) {
             console.error("Original assignment context is missing.");
