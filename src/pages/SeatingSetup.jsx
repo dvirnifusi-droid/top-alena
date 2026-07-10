@@ -808,38 +808,44 @@ export default function SeatingSetup() {
         } catch (err) { alert('שגיאה: ' + (err?.message || '')); }
     };
 
-    // Tidy the currently-filtered area(s): lay their tables out in an even grid,
-    // anchored at each zone's top corner (so the zone stays put), uniform size.
-    // Nothing is saved until the user hits שמור — reload reverts (= undo).
+    // Align the currently-filtered area(s) into clean ROWS — keeps the tables
+    // roughly where they are on the real sketch (doesn't rebuild a generic grid),
+    // just snaps each row to a shared Y and evens the horizontal spacing + size.
+    // Nothing saves until שמור — reload reverts (= undo).
     const autoTidyArea = () => {
         const targetAreas = selectedAreas.includes('all')
             ? [...new Set(tables.map(t => t.area).filter(Boolean))]
             : selectedAreas;
         if (!targetAreas.length) { alert('בחר אזור בסרגל למעלה (או "הכל") ואז לחץ שוב.'); return; }
         const label = selectedAreas.includes('all') ? 'כל האזורים' : targetAreas.join(', ');
-        if (!window.confirm(`לסדר את השולחנות של ${label} ברשת מיושרת?\n(שאר המפה לא זזה. לביטול — פשוט אל תשמור / רענן.)`)) return;
-        const CARD_W = 112, CARD_H = 74, GAP_X = 14, GAP_Y = 14;
+        if (!window.confirm(`ליישר את השולחנות של ${label} לשורות מסודרות?\n(נשמר על הסקיצה — לא בונה רשת חדשה. לביטול: אל תשמור / רענן.)`)) return;
+        const ROW_THRESHOLD = 44; // tables within this vertical distance = same row
+        const CARD_W = 88, CARD_H = 62, GAP_X = 12;
         const updated = tables.map(t => ({ ...t }));
         for (const area of targetAreas) {
             const zoneTables = updated.filter(t => t.area === area);
             if (!zoneTables.length) continue;
-            const minX = Math.min(...zoneTables.map(t => t.x || 0));
-            const minY = Math.min(...zoneTables.map(t => t.y || 0));
-            const maxX = Math.max(...zoneTables.map(t => (t.x || 0) + (t.width || CARD_W)));
-            const zoneWidth = Math.max(CARD_W, maxX - minX);
-            const cols = Math.max(1, Math.round((zoneWidth + GAP_X) / (CARD_W + GAP_X)));
-            zoneTables.sort((a, b) => String(a.table_number).localeCompare(String(b.table_number), undefined, { numeric: true }));
-            zoneTables.forEach((t, i) => {
-                const row = Math.floor(i / cols);
-                const col = i % cols;
-                t.x = Math.round(minX + col * (CARD_W + GAP_X));
-                t.y = Math.round(minY + row * (CARD_H + GAP_Y));
-                t.width = CARD_W;
-                t.height = CARD_H;
-            });
+            zoneTables.sort((a, b) => (a.y || 0) - (b.y || 0) || (a.x || 0) - (b.x || 0));
+            const rows = [];
+            for (const t of zoneTables) {
+                const last = rows[rows.length - 1];
+                if (last && Math.abs((t.y || 0) - last.y) <= ROW_THRESHOLD) last.items.push(t);
+                else rows.push({ y: t.y || 0, items: [t] });
+            }
+            for (const row of rows) {
+                const rowY = Math.min(...row.items.map(t => t.y || 0));
+                const startX = Math.min(...row.items.map(t => t.x || 0));
+                row.items.sort((a, b) => (a.x || 0) - (b.x || 0));
+                row.items.forEach((t, i) => {
+                    t.y = Math.round(rowY);
+                    t.x = Math.round(startX + i * (CARD_W + GAP_X));
+                    t.width = CARD_W;
+                    t.height = CARD_H;
+                });
+            }
         }
         setTables(updated);
-        alert('✅ סודר ברשת. בדוק — ואם טוב, לחץ "שמור". לביטול: אל תשמור / רענן.');
+        alert('✅ יושר לשורות. בדוק ואם טוב — לחץ "שמור". לביטול: אל תשמור / רענן.');
     };
 
     const handleSaveLayout = async () => {
@@ -2903,8 +2909,8 @@ export default function SeatingSetup() {
                                                 </div>
                                             </PopoverContent>
                                         </Popover>
-                                            <Button variant="outline" size="sm" className="h-9 border-[#D9BD83] text-[#7A3722] hover:bg-[#F4ECD8]" onClick={autoTidyArea} title="סדר את השולחנות של האזור הנבחר ברשת מיושרת">
-                                                <span className="text-xs">🧹 סדר אזור</span>
+                                            <Button variant="outline" size="sm" className="h-9 border-[#D9BD83] text-[#7A3722] hover:bg-[#F4ECD8]" onClick={autoTidyArea} title="יישר את שולחנות האזור לשורות מסודרות (נשמר על הסקיצה)">
+                                                <span className="text-xs">📐 יישר שורות</span>
                                             </Button>
                                             {/* Clock */}
                                             <div className="hidden sm:block text-center px-2.5 py-1 bg-gradient-to-bl from-slate-900 to-slate-700 text-white rounded-lg shrink-0">
@@ -3168,10 +3174,9 @@ export default function SeatingSetup() {
                                                     top: table.y || 50,
                                                     width: table.width || 80,
                                                     height: table.height || 100,
-                                                    // Floor for readability — wide enough that time · name · party fits
-                                                    // on ONE row, never cramped for the host.
-                                                    minWidth: 112,
-                                                    minHeight: 66,
+                                                    // Readable minimum that still fits the real floor-plan layout.
+                                                    minWidth: 84,
+                                                    minHeight: 62,
                                                 }}
                                                 className={`${table.shape === 'round' ? 'rounded-full' : 'rounded-lg'} shadow-md border-[2.5px] transition-all hover:scale-[1.06] hover:shadow-lg hover:z-20 relative group ${
                                                     isBlockedForInteraction ? 'cursor-not-allowed' : (swapping || assigningTable || isSelectingTables ? 'cursor-crosshair' : 'cursor-pointer')
