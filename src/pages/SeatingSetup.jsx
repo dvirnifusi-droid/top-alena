@@ -2186,10 +2186,15 @@ export default function SeatingSetup() {
 
             const isReallyOccupied = activeSession || seatedReservation;
 
-            if (isReallyOccupied) {
+            const movingRes = reservations.find(r => r.id === multiAssignReservationId);
+            // The reservation's OWN current table is always toggleable — clicking it
+            // DESELECTS it (so you can move the guest off it). It's "occupied" by the
+            // very guest you're moving, so the occupancy block must not apply here.
+            const isOwnTable = movingRes && Array.isArray(movingRes.assigned_table) && movingRes.assigned_table.map(String).includes(String(tableNumber));
+
+            if (isReallyOccupied && !isOwnTable) {
                 // Allow if the reservation we're moving starts AFTER the current
                 // occupant's end time (the table frees up in time — turn re-use).
-                const movingRes = reservations.find(r => r.id === multiAssignReservationId);
                 const occEnd = seatedReservation?.reservation_end_time || null;
                 const freesBefore = movingRes?.time && occEnd && occEnd <= movingRes.time;
                 if (!freesBefore) {
@@ -3196,7 +3201,10 @@ export default function SeatingSetup() {
                                         const movingResId = isSelectingTables ? multiAssignReservationId : (assigningTable ? assigningTable.reservationId : null);
                                         const movingRes = movingResId ? reservations.find(r => r.id === movingResId) : null;
                                         const freesBeforeMove = !!(movingRes?.time && computedEndTime && computedEndTime <= movingRes.time);
-                                        const isBlockedForInteraction = (isSelectingTables || assigningTable) && isReallyOccupied && !freesBeforeMove;
+                                        // The reservation's OWN current table must always stay clickable so you can
+                                        // DESELECT it (to move off it) — it's "occupied" by the guest you're moving.
+                                        const isOwnMovingTable = !!(movingRes && Array.isArray(movingRes.assigned_table) && movingRes.assigned_table.map(String).includes(String(table.table_number)));
+                                        const isBlockedForInteraction = (isSelectingTables || assigningTable) && isReallyOccupied && !freesBeforeMove && !isOwnMovingTable;
                                         if (isBlockedForInteraction) {
                                             tableColorClass += ' opacity-50 cursor-not-allowed';
                                         }
