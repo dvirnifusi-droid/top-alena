@@ -3132,7 +3132,7 @@ export default function SeatingSetup() {
                                                     width: table.width || 80,
                                                     height: table.height || 100
                                                 }}
-                                                className={`rounded-lg shadow-lg border-2 transition-all hover:scale-105 relative group ${
+                                                className={`rounded-xl shadow-md border-2 transition-all hover:scale-[1.06] hover:shadow-lg hover:z-20 relative group ${
                                                     isBlockedForInteraction ? 'cursor-not-allowed' : (swapping || assigningTable || isSelectingTables ? 'cursor-crosshair' : 'cursor-pointer')
                                                 } ${tableColorClass}`}
                                             >
@@ -3178,12 +3178,12 @@ export default function SeatingSetup() {
                                                         <span className="absolute top-0 left-1 text-base" title="באיחור">⚠️</span>
                                                     )}
 
-                                                    {/* TOP corners: capacity badge + table number — clear and out of the way */}
-                                                    <div className="flex justify-between items-start leading-none">
-                                                        <Badge variant="secondary" className="text-[10px] px-1 py-0 leading-none font-bold">
+                                                    {/* TOP: table number is the hero; capacity is a subtle chip */}
+                                                    <div className="flex justify-between items-center leading-none mb-0.5">
+                                                        <span className="text-[10px] font-bold leading-none px-1.5 py-0.5 rounded-full bg-black/10 opacity-70 whitespace-nowrap">
                                                             {table.min_capacity}-{table.max_capacity}
-                                                        </Badge>
-                                                        <div className="font-black text-base leading-none">{table.table_number}</div>
+                                                        </span>
+                                                        <div className="font-black text-lg leading-none tracking-tight">{table.table_number}</div>
                                                     </div>
 
                                                     {/* MIDDLE: the ESSENTIAL — guests + name + time (no other lines) */}
@@ -3226,7 +3226,10 @@ export default function SeatingSetup() {
                                                                 )}
                                                             </div>
                                                         ) : (
-                                                            <div className="text-sm font-black">פנוי</div>
+                                                            <div className="flex items-center gap-1 text-xs font-bold opacity-75">
+                                                                <span className="w-1.5 h-1.5 rounded-full bg-current inline-block"></span>
+                                                                פנוי
+                                                            </div>
                                                         )}
                                                     </div>
 
