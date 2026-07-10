@@ -30,6 +30,7 @@ function AvailabilityRequestsInner() {
      const [currentUser, setCurrentUser] = useState(null);
      const [availabilities, setAvailabilities] = useState([]);
      const [shifts, setShifts] = useState([]); // existing WorkShifts → who's already assigned
+     const [workPositions, setWorkPositions] = useState([]); // the business's canonical roles
      const [employees, setEmployees] = useState([]);
      const [settings, setSettings] = useState(null);
      const [loading, setLoading] = useState(true);
@@ -70,16 +71,18 @@ function AvailabilityRequestsInner() {
     const loadData = async () => {
         setLoading(true);
         try {
-            const [me, allAvail, allEmps, inactiveEmps, sett, allShifts] = await Promise.all([
+            const [me, allAvail, allEmps, inactiveEmps, sett, allShifts, allPositions] = await Promise.all([
                 base44.auth.me().catch(() => null),
                 base44.entities.EmployeeAvailability.list(),
                 base44.entities.Employee.filter({ status: 'active' }),
                 base44.entities.Employee.filter({ status: 'inactive' }).catch(() => []),
                 base44.entities.AvailabilityFormSettings.list(),
                 base44.entities.WorkShift.list('-date', 2000).catch(() => []),
+                base44.entities.WorkPosition.filter({ is_active: true }).catch(() => []),
             ]);
             setCurrentUser(me);
             setShifts(Array.isArray(allShifts) ? allShifts : []);
+            setWorkPositions(Array.isArray(allPositions) ? allPositions : []);
             // Normalize ISO/Date values to the YYYY-MM-DD that humans in Israel
             // call that day. Plain .slice(0,10) on an ISO UTC string silently
             // returns the WRONG day for any avail row stored as midnight-Israel
@@ -132,8 +135,17 @@ function AvailabilityRequestsInner() {
         setEditData({ ...avail });
     };
 
-    const getAvailablePositions = () => {
-        return settings?.positions || [];
+    // Role options for the edit dialog. Union of: the form's configured positions,
+    // the business's real WorkPositions, and roles seen on employees — plus the
+    // row's CURRENT value (so a legacy/feminine "מלצרית" still shows and can be
+    // switched to "מלצר"). De-duped, so the dropdown is never empty.
+    const roleOptionsFor = (current) => {
+        const set = new Set();
+        (settings?.positions || []).forEach(p => { const n = typeof p === 'string' ? p : (p?.position_name || p?.name); if (n) set.add(n); });
+        (workPositions || []).forEach(p => { if (p?.position_name) set.add(p.position_name); });
+        (allRoleOptions || []).forEach(r => { if (r) set.add(r); });
+        if (current) set.add(current);
+        return [...set];
     };
 
     const handleSaveEdit = async () => {
@@ -835,7 +847,7 @@ function AvailabilityRequestsInner() {
                                          <SelectValue placeholder="בחר תפקיד" />
                                      </SelectTrigger>
                                      <SelectContent position="popper" side="bottom" align="start" className="z-[9999]">
-                                         {getAvailablePositions().map(pos => (
+                                         {roleOptionsFor(editData.positions?.[0]).map(pos => (
                                              <SelectItem key={pos} value={pos}>{pos}</SelectItem>
                                          ))}
                                      </SelectContent>
