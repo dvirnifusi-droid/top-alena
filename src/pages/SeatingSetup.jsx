@@ -1772,6 +1772,13 @@ export default function SeatingSetup() {
 
         const availableTables = tables.filter(t => t.table_number !== table.table_number && !getTableSession(t.table_number));
 
+        // A guest seated via a RESERVATION (not a live session) — so we can offer
+        // edit / move for them too (the session path is handled separately below).
+        const seatedRes = reservations.find(r =>
+            Array.isArray(r.assigned_table) && r.assigned_table.includes(table.table_number) &&
+            r.date === format(new Date(), 'yyyy-MM-dd') && r.status === 'seated'
+        );
+
         const handleEditReservation = (reservation) => {
             setEditingReservation(reservation);
             setIsEditReservationOpen(true);
@@ -1861,6 +1868,24 @@ export default function SeatingSetup() {
                         </div>
                     )}
                     
+                    {!session && seatedRes && (
+                        <div className="border rounded-lg p-4 bg-green-50 border-green-200">
+                            <h3 className="font-bold text-lg mb-1 flex items-center gap-2">
+                                <Users className="w-5 h-5 text-green-600" />
+                                יושבים כעת: {seatedRes.customer_name} <span className="text-sm text-gray-500">({seatedRes.party_size} · {seatedRes.time?.slice(0, 5)})</span>
+                            </h3>
+                            <p className="text-xs text-gray-500 mb-3">אפשר לערוך את ההזמנה או להעביר את היושבים לשולחן אחר.</p>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                <Button variant="outline" onClick={() => handleEditReservation(seatedRes)}>
+                                    <Edit className="w-4 h-4 ml-2" /> ערוך הזמנה
+                                </Button>
+                                <Button variant="outline" className="border-blue-300 text-blue-700 hover:bg-blue-50" onClick={() => handleMoveReservation(seatedRes)}>
+                                    <ArrowRight className="w-4 h-4 ml-2" /> העבר לשולחן אחר
+                                </Button>
+                            </div>
+                        </div>
+                    )}
+
                     {session ? (
                         <>
                             <div className="border rounded-lg p-4 bg-[#F4ECD8]">
