@@ -1854,6 +1854,33 @@ export default function SeatingSetup() {
                     </div>
                     <p className="text-[11px] text-gray-400 -mt-4 px-1">שינוי הצורה נשמר בלחיצה על "שמור מפה".</p>
 
+                    {/* Remove this table from the WHOLE system — map, every priority list, auto-assign */}
+                    <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+                        <Button
+                            variant="outline"
+                            className="w-full text-red-700 border-red-300 hover:bg-red-100"
+                            onClick={() => {
+                                const num = String(table.table_number);
+                                if (session || seatedRes) {
+                                    alert('לא ניתן להסיר שולחן שיושבים עליו כרגע. שחרר אותו קודם.');
+                                    return;
+                                }
+                                if (!window.confirm(`להסיר את שולחן ${num} מהמערכת לגמרי?\n\nהוא ייעלם מהמפה, מכל רשימות העדיפות ומהשיבוץ האוטומטי.\n(יש ללחוץ "שמור מפה" אחר כך כדי לשמור.)`)) return;
+                                // Drop the table, scrub it from every other table's combinable_with,
+                                // and remove any priority entry (combo) that referenced it.
+                                setTables(prev => prev
+                                    .filter(t => String(t.table_number) !== num)
+                                    .map(t => ({ ...t, combinable_with: (Array.isArray(t.combinable_with) ? t.combinable_with : []).filter(x => String(x) !== num) })));
+                                setCombos(prev => prev.filter(c => !((Array.isArray(c.tables) ? c.tables : []).map(String).includes(num))));
+                                setTableDetailsOpen(false);
+                            }}
+                        >
+                            <Trash2 className="w-4 h-4 ml-2" />
+                            הסר שולחן מהמערכת
+                        </Button>
+                        <p className="text-[11px] text-red-500 mt-1.5 text-center">לשולחן שכבר לא קיים במסעדה. נשמר בלחיצה על "שמור מפה".</p>
+                    </div>
+
                     {futureReservations.length > 0 && (
                         <div className="border rounded-lg p-4 bg-[#F4ECD8]">
                             <h3 className="font-bold text-lg mb-3 flex items-center gap-2">
