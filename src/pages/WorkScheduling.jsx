@@ -1247,74 +1247,45 @@ export default function WorkScheduling() {
 
             {/* Filters - for desktop */}
             <div className="hidden lg:block">
-                <Card className="mb-6">
-                    <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
-                            <Filter className="w-5 h-5" />
-                            סינון תצוגה
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <Card className="mb-4">
+                    <CardContent className="py-2.5">
+                        <div className="flex items-center gap-2 flex-wrap">
+                            <span className="flex items-center gap-1 text-sm font-semibold text-slate-600 whitespace-nowrap"><Filter className="w-4 h-4" /> סינון:</span>
                             {currentEmployee && (
-                                <div>
-                                    <Label className="font-medium mb-2 block">תצוגה מהירה</Label>
-                                    <Button
-                                        variant={filters.employee === currentEmployee.id ? "default" : "outline"}
-                                        onClick={() => handleFilterChange('employee', filters.employee === currentEmployee.id ? 'all' : currentEmployee.id)}
-                                        className="w-full"
-                                    >
-                                        <Crown className="w-4 h-4 ml-2" />
-                                        📌 המשמרות שלי בלבד
-                                    </Button>
-                                </div>
-                            )}
-                            <div>
-                                <Label className="font-medium mb-2 block">סוג משמרת</Label>
-                                <Select value={filters.shiftType} onValueChange={(value) => handleFilterChange('shiftType', value)}>
-                                    <SelectTrigger><SelectValue placeholder="כל המשמרות" /></SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="all">כל המשמרות</SelectItem>
-                                        <SelectItem value="lunch">צהריים</SelectItem>
-                                        <SelectItem value="dinner">ערב</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                            <div>
-                                <Label className="font-medium mb-2 block">מחלקה {managedDept && <span className="text-xs text-gray-400 mr-1">(נעול למחלקה שלך)</span>}</Label>
-                                <Select value={filters.department} onValueChange={(value) => handleFilterChange('department', value)} disabled={!!managedDept}>
-                                    <SelectTrigger><SelectValue placeholder="כל המחלקות" /></SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="all">כל המחלקות</SelectItem>
-                                        <SelectItem value="floor">סידור פלור</SelectItem>
-                                        <SelectItem value="kitchen">סידור מטבח</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                            <div>
-                                <Label className="font-medium mb-2 block">עובד</Label>
-                                <Select value={filters.employee} onValueChange={(value) => handleFilterChange('employee', value)}>
-                                    <SelectTrigger><SelectValue placeholder="כל העובדים" /></SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="all">כל העובדים</SelectItem>
-                                        {employees.map(e => <SelectItem key={e.id} value={e.id}>{e.full_name}</SelectItem>)}
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                            <div className="flex items-end">
-                                <Button variant="outline" onClick={() => handleFilterChange('reset')} className="w-full">
-                                    <RotateCcw className="w-4 h-4 ml-2" />
-                                    נקה הכל
+                                <Button size="sm" variant={filters.employee === currentEmployee.id ? 'default' : 'outline'} className="h-9"
+                                    onClick={() => handleFilterChange('employee', filters.employee === currentEmployee.id ? 'all' : currentEmployee.id)}>
+                                    <Crown className="w-4 h-4 ml-1" /> המשמרות שלי
                                 </Button>
-                            </div>
+                            )}
+                            <Select value={filters.shiftType} onValueChange={(value) => handleFilterChange('shiftType', value)}>
+                                <SelectTrigger className="h-9 w-36"><SelectValue placeholder="כל המשמרות" /></SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="all">כל המשמרות</SelectItem>
+                                    <SelectItem value="lunch">צהריים</SelectItem>
+                                    <SelectItem value="dinner">ערב</SelectItem>
+                                </SelectContent>
+                            </Select>
+                            <Select value={filters.department} onValueChange={(value) => handleFilterChange('department', value)} disabled={!!managedDept}>
+                                <SelectTrigger className="h-9 w-40" title={managedDept ? 'נעול למחלקה שלך' : undefined}><SelectValue placeholder="כל המחלקות" /></SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="all">כל המחלקות</SelectItem>
+                                    <SelectItem value="floor">סידור פלור</SelectItem>
+                                    <SelectItem value="kitchen">סידור מטבח</SelectItem>
+                                </SelectContent>
+                            </Select>
+                            <Select value={filters.employee} onValueChange={(value) => handleFilterChange('employee', value)}>
+                                <SelectTrigger className="h-9 w-44"><SelectValue placeholder="כל העובדים" /></SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="all">כל העובדים</SelectItem>
+                                    {employees.map(e => <SelectItem key={e.id} value={e.id}>{e.full_name}</SelectItem>)}
+                                </SelectContent>
+                            </Select>
+                            {isFilterActive && (
+                                <Button size="sm" variant="ghost" className="h-9 text-gray-500" onClick={() => handleFilterChange('reset')}>
+                                    <RotateCcw className="w-4 h-4 ml-1" /> נקה
+                                </Button>
+                            )}
                         </div>
-                        {isFilterActive && (
-                            <div className="mt-4 flex gap-2 flex-wrap">
-                                {filters.shiftType !== 'all' && <Badge variant="secondary" className="cursor-pointer" onClick={() => handleFilterChange('shiftType', 'all')}>משמרת: {shiftTypesConfig[filters.shiftType]?.label} <X className="w-3 h-3 mr-1" /></Badge>}
-                                {filters.department !== 'all' && <Badge variant="secondary" className="cursor-pointer" onClick={() => handleFilterChange('department', 'all')}>מחלקה: {DEPARTMENT_DEFINITIONS[filters.department]?.name} <X className="w-3 h-3 mr-1" /></Badge>}
-                                {filters.employee !== 'all' && <Badge variant="secondary" className="cursor-pointer" onClick={() => handleFilterChange('employee', 'all')}>עובד: {employees.find(e => e.id === filters.employee)?.full_name} <X className="w-3 h-3 mr-1" /></Badge>}
-                            </div>
-                        )}
                     </CardContent>
                 </Card>
             </div>
