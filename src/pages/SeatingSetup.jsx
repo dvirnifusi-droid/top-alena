@@ -778,6 +778,36 @@ export default function SeatingSetup() {
         setTables(tables.filter((_, i) => i !== index));
     };
 
+    // Scan a floor-plan image/sketch → AI extracts tables → append to the map.
+    // Shared by the header "סרוק מפה" button and the getting-started screen.
+    const runMapScan = async (file) => {
+        if (!file) return;
+        try {
+            const { base44 } = await import('@/api/base44Client');
+            const { file_url } = await base44.integrations.Core.UploadFile({ file });
+            const res = await base44.functions.extractSeatingFromImage({ file_url });
+            const data = res?.data || res;
+            const newTables = (data?.tables || []).map((t, i) => ({
+                table_number: t.label || `S${i + 1}`,
+                min_capacity: Math.max(1, Math.floor((t.capacity || 2) * 0.5)),
+                max_capacity: Math.max(2, t.capacity || 4),
+                location: (t.shape === 'outdoor') ? 'outdoor' : 'indoor',
+                area: t.shape === 'bar' ? 'בר' : t.shape === 'booth' ? 'פינה' : 'חדש',
+                combinable_with: [], features: [],
+                x: Math.round(((t.x ?? 50) * 6) / 20) * 20,
+                y: Math.round(((t.y ?? 50) * 5) / 20) * 20,
+                width: 80, height: 80,
+            }));
+            if (!newTables.length) {
+                const debug = data?._debug ? `\n\n(debug: ${data._debug})` : '';
+                alert(`לא זוהו שולחנות בתמונה.${debug}\n\nנסה תמונה ברורה יותר, או ציור ידני של המפה.`);
+                return;
+            }
+            setTables(prev => [...prev, ...newTables]);
+            alert(`✅ נוספו ${newTables.length} שולחנות. גרור לתקן ושמור.`);
+        } catch (err) { alert('שגיאה: ' + (err?.message || '')); }
+    };
+
     const handleSaveLayout = async () => {
         setIsSaving(true);
         try {
@@ -2367,20 +2397,42 @@ export default function SeatingSetup() {
                 )}
                 <CardContent className={bigMapMode ? 'p-0' : ''}>
                     {tables.length === 0 && facilities.length === 0 ? (
-                        isAlena ? (
-                        <div className="text-center py-12">
-                            <p className="mb-4">לא נמצאו שולחנות או אלמנטים. האם ברצונך לטעון את כל 41 השולחנות של {brandName} ואלמנטים בסיסיים?</p>
-                            <Button onClick={createAllTables} className="bg-green-600 hover:bg-green-700">
-                                     <Wand2 className="w-4 h-4 ml-2" />
-                                     כן, טען את כל השולחנות ואלמנטים (41 שולחנות)
-                                 </Button>
+                        <div className="max-w-3xl mx-auto py-10 px-4">
+                            <div className="text-center mb-8">
+                                <div className="w-16 h-16 mx-auto rounded-2xl bg-gradient-to-br from-[#F4ECD8] to-amber-100 flex items-center justify-center text-3xl mb-3">🗺️</div>
+                                <h2 className="text-2xl font-black text-slate-800">בוא נבנה את מפת ההושבה שלך</h2>
+                                <p className="text-slate-500 mt-1">בחר איך להתחיל — תמיד אפשר לגרור, לערוך ולשמור אחר כך.</p>
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                {/* Scan with AI */}
+                                <label className="cursor-pointer group rounded-2xl border-2 border-amber-200 bg-amber-50/60 hover:border-amber-400 hover:bg-amber-50 transition-colors p-5 text-center flex flex-col items-center">
+                                    <div className="w-12 h-12 rounded-xl bg-amber-100 flex items-center justify-center text-2xl mb-2 group-hover:scale-110 transition-transform">✨</div>
+                                    <div className="font-bold text-slate-800">סרוק תמונה / סקיצה</div>
+                                    <div className="text-xs text-slate-500 mt-1">צלם או העלה תרשים — הבינה תזהה את השולחנות</div>
+                                    <input type="file" accept="image/*,.pdf" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; runMapScan(f); }} />
+                                </label>
+                                {/* Add manually */}
+                                <button onClick={() => { handleAddTable(); setViewMode('list'); }} className="group rounded-2xl border-2 border-emerald-200 bg-emerald-50/60 hover:border-emerald-400 hover:bg-emerald-50 transition-colors p-5 text-center flex flex-col items-center">
+                                    <div className="w-12 h-12 rounded-xl bg-emerald-100 flex items-center justify-center text-2xl mb-2 group-hover:scale-110 transition-transform">➕</div>
+                                    <div className="font-bold text-slate-800">הוסף שולחן ידנית</div>
+                                    <div className="text-xs text-slate-500 mt-1">התחל שולחן-שולחן ומקם על המפה</div>
+                                </button>
+                                {/* Template (Alena) or onboarding hint */}
+                                {isAlena ? (
+                                    <button onClick={createAllTables} className="group rounded-2xl border-2 border-[#D9BD83] bg-[#F4ECD8]/60 hover:border-[#A04A2E] hover:bg-[#F4ECD8] transition-colors p-5 text-center flex flex-col items-center">
+                                        <div className="w-12 h-12 rounded-xl bg-[#F4ECD8] flex items-center justify-center text-2xl mb-2 group-hover:scale-110 transition-transform">🏛️</div>
+                                        <div className="font-bold text-slate-800">טען את 41 השולחנות</div>
+                                        <div className="text-xs text-slate-500 mt-1">המפה המלאה של {brandName} + אלמנטים</div>
+                                    </button>
+                                ) : (
+                                    <div className="rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50/50 p-5 text-center flex flex-col items-center justify-center">
+                                        <div className="text-2xl mb-2">💬</div>
+                                        <div className="font-bold text-slate-700 text-sm">או דרך ההטמעה</div>
+                                        <div className="text-xs text-slate-500 mt-1">שלח סקיצת הושבה בוואטסאפ ונבנה לך אוטומטית</div>
+                                    </div>
+                                )}
+                            </div>
                         </div>
-                        ) : (
-                        <div className="text-center py-12">
-                            <p className="mb-2 font-bold text-slate-700">עדיין אין שולחנות</p>
-                            <p className="text-slate-500 text-sm">הוסף שולחנות ידנית עם "הוסף שולחן", או שלח סקיצת הושבה בהטמעה ונבנה לך את המפה אוטומטית.</p>
-                        </div>
-                        )
                     ) : (
                         viewMode === 'list' ? (
                             <div className="space-y-4">
