@@ -21,7 +21,6 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/co
 import ShiftNotificationBell from '../components/shared/ShiftNotificationBell';
 import SendScheduleWhatsAppDialog from '../components/scheduling/SendScheduleWhatsAppDialog';
 import { RestaurantProfile } from '@/entities/RestaurantProfile';
-import ApparelCustomizer from '../components/gamification/ApparelCustomizer';
 import ScheduleInsights from '../components/scheduling/ScheduleInsights';
 
 // Default shifts (Alena's lunch/dinner). Each tenant can override via the
@@ -1243,21 +1242,6 @@ export default function WorkScheduling() {
                             <X className="w-4 h-4" />
                         </Button>
                     </div>
-                </div>
-            )}
-
-            {/* בחר הלבוש - מודגש וזעיר */}
-            {currentEmployee && (
-                <div className="mb-4 p-3 bg-gradient-to-r from-[#F4ECD8] to-[#F4ECD8] rounded-lg border-2 border-purple-200">
-                    <h3 className="text-sm font-bold text-slate-800 mb-2">🎨 התאימו את הדמות שלכם</h3>
-                    <ApparelCustomizer 
-                        employeeId={currentEmployee.id}
-                        employeeAvatar={currentEmployee.avatar_url}
-                        onAvatarUpdate={async (newUrl) => {
-                            await base44.entities.Employee.update(currentEmployee.id, { avatar_url: newUrl });
-                        }}
-                        balance={0}
-                    />
                 </div>
             )}
 
