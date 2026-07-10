@@ -1531,17 +1531,17 @@ export default function WorkScheduling() {
                 />
             )}
 
-            {isAssignmentEditorOpen && (
-                <BulkAssignDialog
-                    open={isBulkAssignOpen}
-                    onClose={() => setIsBulkAssignOpen(false)}
-                    employees={employees}
-                    positions={positions}
-                    days={days}
-                    shiftTypesConfig={shiftTypesConfig}
-                    onSubmit={handleBulkAssign}
-                />
+            <BulkAssignDialog
+                open={isBulkAssignOpen}
+                onClose={() => setIsBulkAssignOpen(false)}
+                employees={employees}
+                positions={positions}
+                days={days}
+                shiftTypesConfig={shiftTypesConfig}
+                onSubmit={handleBulkAssign}
+            />
 
+            {isAssignmentEditorOpen && (
                 <AssignmentEditDialog
                     isOpen={isAssignmentEditorOpen}
                     onOpenChange={setIsAssignmentEditorOpen}
