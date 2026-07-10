@@ -819,8 +819,8 @@ export default function SeatingSetup() {
         if (!targetAreas.length) { alert('בחר אזור בסרגל למעלה (או "הכל") ואז לחץ שוב.'); return; }
         const label = selectedAreas.includes('all') ? 'כל האזורים' : targetAreas.join(', ');
         if (!window.confirm(`ליישר את השולחנות של ${label} לשורות מסודרות?\n(נשמר על הסקיצה — לא בונה רשת חדשה. לביטול: אל תשמור / רענן.)`)) return;
-        const ROW_THRESHOLD = 44; // tables within this vertical distance = same row
-        const CARD_W = 88, CARD_H = 62, GAP_X = 12;
+        const ROW_THRESHOLD = 48; // tables within this vertical distance = same row
+        const CARD_W = 90, CARD_H = 76, GAP_X = 12;
         const updated = tables.map(t => ({ ...t }));
         for (const area of targetAreas) {
             const zoneTables = updated.filter(t => t.area === area);
@@ -3174,9 +3174,10 @@ export default function SeatingSetup() {
                                                     top: table.y || 50,
                                                     width: table.width || 80,
                                                     height: table.height || 100,
-                                                    // Readable minimum that still fits the real floor-plan layout.
-                                                    minWidth: 84,
-                                                    minHeight: 62,
+                                                    // Balanced minimum: wide enough for the name on its own line,
+                                                    // tall enough for 2 sittings, still fits the real layout.
+                                                    minWidth: 90,
+                                                    minHeight: 76,
                                                 }}
                                                 className={`${table.shape === 'round' ? 'rounded-full' : 'rounded-lg'} shadow-md border-[2.5px] transition-all hover:scale-[1.06] hover:shadow-lg hover:z-20 relative group ${
                                                     isBlockedForInteraction ? 'cursor-not-allowed' : (swapping || assigningTable || isSelectingTables ? 'cursor-crosshair' : 'cursor-pointer')
@@ -3266,15 +3267,24 @@ export default function SeatingSetup() {
                                                             </>
                                                         ) : futureReservationsForTable.length > 0 ? (
                                                             <div className="w-full flex flex-col gap-0.5">
-                                                                {futureReservationsForTable.slice(0, 3).map((res, ri) => (
-                                                                    <div key={res.id} className={`w-full rounded px-1 py-0.5 flex items-center gap-1 leading-tight font-bold ${ri === 0 ? 'bg-[#44512C] text-white text-[11px]' : 'bg-[#44512C]/15 text-[#44512C] text-[10px]'}`}>
-                                                                        <span className="tabular-nums whitespace-nowrap">{res.time?.slice(0, 5)}</span>
-                                                                        <span className="truncate flex-1 text-center">{getFirstName(res.customer_name)}</span>
-                                                                        <span className="whitespace-nowrap">×{res.party_size}</span>
+                                                                {(() => {
+                                                                    const res = futureReservationsForTable[0];
+                                                                    return (
+                                                                        <div className="w-full bg-[#44512C] text-white rounded px-1 py-0.5 leading-tight">
+                                                                            <div className="font-black text-[11px] truncate">{getFirstName(res.customer_name) || 'שמור'}</div>
+                                                                            <div className="text-[9px] font-bold opacity-90 flex items-center justify-between tabular-nums"><span>{res.time?.slice(0, 5)}</span><span>×{res.party_size}</span></div>
+                                                                        </div>
+                                                                    );
+                                                                })()}
+                                                                {futureReservationsForTable[1] && (
+                                                                    <div className="w-full bg-[#44512C]/15 text-[#44512C] rounded px-1 flex items-center justify-between text-[9px] font-bold leading-tight tabular-nums">
+                                                                        <span>{futureReservationsForTable[1].time?.slice(0, 5)}</span>
+                                                                        <span className="truncate mx-1">{getFirstName(futureReservationsForTable[1].customer_name)}</span>
+                                                                        <span>×{futureReservationsForTable[1].party_size}</span>
                                                                     </div>
-                                                                ))}
-                                                                {futureReservationsForTable.length > 3 && (
-                                                                    <div className="text-[10px] text-[#44512C] font-black leading-none">+{futureReservationsForTable.length - 3} עוד</div>
+                                                                )}
+                                                                {futureReservationsForTable.length > 2 && (
+                                                                    <div className="text-[9px] text-[#44512C] font-black leading-none">+{futureReservationsForTable.length - 2} עוד</div>
                                                                 )}
                                                             </div>
                                                         ) : (
