@@ -1,8 +1,7 @@
 // Prep Sheet — per-tenant mise-en-place / par-level list.
-// Cook view: for each product sees the TARGET, fills what they HAVE, the sheet
-// shows how much to PREP (target − have), and checks ✓. Admin can edit the
-// product template (name / target / unit / category), import from text, and
-// reset the daily counts.
+// Cook view: for each product (with its target quantity) the cook toggles
+// "להכין" (needs making) and, once made, "בוצע ✓". Admin can edit the product
+// template (name / quantity / category), import from text, and reset the counts.
 import React, { useState, useEffect, useMemo } from 'react';
 import { base44 } from '@/api/base44Client';
 import { User } from '@/entities/User';
@@ -11,9 +10,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { ChefHat, Plus, Trash2, Save, RotateCcw, Upload, Loader2, Check } from 'lucide-react';
-
-// Leading number out of a "20 ליטר" / "8" string → 20 / 8 (null if none).
-const numOf = (s) => { const m = String(s ?? '').match(/-?\d+(\.\d+)?/); return m ? parseFloat(m[0]) : null; };
 
 export default function PrepSheet() {
   const [items, setItems] = useState([]);
@@ -69,7 +65,7 @@ export default function PrepSheet() {
   const delRow = (id) => setItems((prev) => prev.filter((it) => it.id !== id));
 
   const resetCounts = async () => {
-    if (!window.confirm('לאפס את הספירה היומית (יש/✓) לכל המוצרים?')) return;
+    if (!window.confirm('לאפס את הסימונים (להכין/בוצע) לכל המוצרים?')) return;
     try { await base44.functions.resetPrepCounts({}); await load(); } catch (e) { console.warn('reset', e); }
   };
 

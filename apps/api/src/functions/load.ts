@@ -48,7 +48,7 @@ const db = prisma as any; // generic delegate access
 
 // Public deploy marker — lets us confirm which build is live (and that
 // auto-deploy is working) without server access. Bump on each deploy test.
-registerFn('deployInfo', async () => ({ version: 'prep-toprep-toggle-2026-07-09', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
+registerFn('deployInfo', async () => ({ version: 'tenant-default-lang-2026-07-10', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
 
 
 
@@ -5239,6 +5239,52 @@ registerFn('setScheduleConfig', async ({ user, body }: any) => {
     );
   }
   return { ok: true };
+});
+
+// ── Per-tenant app settings (currently: default UI language). Lets a business
+// open in English/Spanish/etc. for every staffer automatically, without each
+// person picking a language. Public guarded read (boot-time, never 500s the
+// app); admin/owner write. Isolated table, same safe pattern as ScheduleConfig.
+let _appSettingsEnsured = false;
+async function ensureAppSettings(): Promise<void> {
+  if (_appSettingsEnsured) return;
+  await (prisma as any).$executeRawUnsafe(
+    `CREATE TABLE IF NOT EXISTS "AppSettings" (
+       "key" TEXT PRIMARY KEY,
+       "value" TEXT,
+       "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+     )`,
+  );
+  _appSettingsEnsured = true;
+}
+
+// Public: called on every app boot to pick the default language. Guarded so a
+// missing table / DB hiccup just yields Hebrew (the app's authored default).
+registerFn('getAppSettings', async () => {
+  try {
+    await ensureAppSettings();
+    const rows: any[] = await (prisma as any).$queryRawUnsafe(
+      `SELECT "value" FROM "AppSettings" WHERE "key"='default_language' LIMIT 1`,
+    );
+    return { default_language: rows[0]?.value || 'he' };
+  } catch {
+    return { default_language: 'he' };
+  }
+}, { public: true });
+
+registerFn('setAppSettings', async ({ user, body }: any) => {
+  if (!user?.id) throw new Error('unauthorized');
+  if (!['admin', 'owner'].includes(String(user.role))) throw new Error('forbidden');
+  await ensureAppSettings();
+  const b = (body || {}) as any;
+  const allowed = ['he', 'en', 'es', 'ru', 'ar'];
+  const lang = allowed.includes(String(b.default_language)) ? String(b.default_language) : 'he';
+  await (prisma as any).$executeRawUnsafe(
+    `INSERT INTO "AppSettings" ("key","value","updatedAt") VALUES ('default_language',$1,NOW())
+     ON CONFLICT ("key") DO UPDATE SET "value"=$1, "updatedAt"=NOW()`,
+    lang,
+  );
+  return { ok: true, default_language: lang };
 });
 
 // ── Prep Sheet — per-tenant mise-en-place / par-level list. Each row is a

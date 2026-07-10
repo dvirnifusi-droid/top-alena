@@ -34,6 +34,21 @@ export function getAppLanguage() {
   try { return localStorage.getItem(LS_LANG) || 'he'; } catch { return 'he'; }
 }
 
+// Raw stored choice — null when the user has NEVER picked a language (so we may
+// fall back to the tenant default). Distinct from getAppLanguage()'s 'he'.
+function storedChoice() {
+  try { return localStorage.getItem(LS_LANG); } catch { return null; }
+}
+
+// This tenant's admin-set default language (from backend AppSettings). Cheap,
+// guarded — any failure yields 'he' so the app just stays in Hebrew.
+async function fetchTenantDefault() {
+  try {
+    const res = await base44.functions.getAppSettings({});
+    return res?.default_language || res?.data?.default_language || 'he';
+  } catch { return 'he'; }
+}
+
 function loadCache(lang) {
   try { cache = JSON.parse(localStorage.getItem(LS_CACHE(lang)) || '{}') || {}; } catch { cache = {}; }
 }
@@ -155,16 +170,32 @@ export function setAppLanguage(lang) {
   scan(document.body);
 }
 
-// Call once on app boot. No-op for Hebrew (the default) → zero cost/risk.
-export function initAppLanguage() {
-  const lang = getAppLanguage();
+// Admin action: make `lang` the default for EVERY staffer of this business.
+// Staff who never picked their own language will open in this language.
+export async function setTenantDefaultLanguage(lang) {
+  await base44.functions.setAppSettings({ default_language: lang });
+}
+
+// Activate a language WITHOUT persisting it as the user's choice (used for the
+// tenant default). Deferred to after first paint so React has rendered.
+function activateDeferred(lang) {
   const meta = APP_LANGUAGES.find((l) => l.code === lang);
   if (!meta || lang === 'he') return;
   current = lang;
   setDir(meta);
   loadCache(lang);
-  // Defer to after first paint so React has rendered the tree.
   const kick = () => { startObserver(); scan(document.body); };
   if (typeof requestAnimationFrame === 'function') requestAnimationFrame(() => setTimeout(kick, 0));
   else setTimeout(kick, 50);
+}
+
+// Call once on app boot. If the user has explicitly picked a language we honor
+// it; otherwise we follow the business's default (AppSettings). No-op for
+// Hebrew → zero cost/risk. Every path is guarded → never blocks the app.
+export function initAppLanguage() {
+  const chosen = storedChoice();
+  if (chosen) { activateDeferred(chosen); return; } // user's own pick wins
+  // Never chose → adopt the tenant default (does NOT write localStorage, so it
+  // keeps tracking the business default and a later admin change takes effect).
+  fetchTenantDefault().then((lang) => { if (lang && lang !== 'he') activateDeferred(lang); }).catch(() => {});
 }
