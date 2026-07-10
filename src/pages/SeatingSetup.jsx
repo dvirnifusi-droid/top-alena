@@ -324,6 +324,7 @@ export default function SeatingSetup() {
     const [queueNewBanner, setQueueNewBanner] = useState(null);   // {id, name, party_size} popup data
     const pageLoadTimeRef = useRef(Date.now());                  // any entry registered AFTER this is "new"
     const seenQueueIdsRef = useRef(new Set());                   // ids we've already shown the banner for
+    const initialLoadedRef = useRef(false);                      // full-page spinner shows ONLY on the very first load
     const toggleArea = (key) => {
         if (key === 'all') { setSelectedAreas(['all']); return; }
         setSelectedAreas(prev => {
@@ -338,7 +339,10 @@ export default function SeatingSetup() {
 
     // טוען את המפה והשולחנות — פעם אחת בלבד (לא מאפס כשיש polling)
     const loadLayout = useCallback(async () => {
-        setIsLoading(true);
+        // Full-page spinner ONLY on the very first load. Every later refresh
+        // (after an assignment, seating, date change…) updates data in place
+        // without unmounting the page — no 'טוען הגדרות' flash, no scroll jump.
+        if (!initialLoadedRef.current) setIsLoading(true);
         try {
             const dateString = format(selectedDate, 'yyyy-MM-dd');
             const [layouts, sessions, steps, dateReservations, allCustomers] = await Promise.all([
@@ -368,6 +372,7 @@ export default function SeatingSetup() {
         } catch (error) {
             console.error('Error loading layout:', error);
         } finally {
+            initialLoadedRef.current = true;
             setIsLoading(false);
         }
     }, [selectedDate]);
@@ -604,7 +609,7 @@ export default function SeatingSetup() {
                 timestamp_seated: new Date().toISOString(),
             });
             await loadQueue();
-            await loadLayout();
+            await loadLiveData();
             // Only enter map-assigning mode if no pre-picked table
             if (!preTables) {
                 setAssigningTable({ reservationId: created.id });
@@ -994,8 +999,8 @@ export default function SeatingSetup() {
                 });
                 setTableDetailsOpen(false);
             }
-            
-            loadLayout();
+
+            loadLiveData();
         } catch (error) {
             console.error('Error updating table status:', error);
             alert('שגיאה בעדכון סטטוס השולחן');
@@ -1732,8 +1737,7 @@ export default function SeatingSetup() {
                 session_end: new Date().toISOString() 
             });
             setTableDetailsOpen(false);
-            loadLayout();
-            alert(`שולחן ${tableNumber} שוחרר בהצלחה`);
+            loadLiveData();
         } catch (error) {
             console.error('Error releasing table:', error);
             alert('שגיאה בשחרור השולחן');
@@ -1750,8 +1754,7 @@ export default function SeatingSetup() {
                 notes: (session.notes ? session.notes + ' | ' : '') + `הועבר משולחן ${fromTable} בשעה ${new Date().toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit'})}`
             });
             setTableDetailsOpen(false);
-            loadLayout();
-            alert(`הפגישה הועברה משולחן ${fromTable} לשולחן ${toTable} בהצלחה`);
+            loadLiveData();
         } catch (error) {
             console.error('Error moving table:', error);
             alert('שגיאה בהעברת השולחן');
@@ -1799,8 +1802,7 @@ export default function SeatingSetup() {
                     notes: (session.notes ? session.notes + ' | ' : '') + `הועבר משולחן ${table.table_number} בשעה ${new Date().toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit'})}`
                 });
                 setTableDetailsOpen(false);
-                loadLayout();
-                alert(`הפגישה הועברה משולחן ${table.table_number} לשולחן ${targetTable} בהצלחה`);
+                loadLiveData();
             } catch (error) {
                 console.error('Error moving table:', error);
                 alert('שגיאה בהעברת השולחן');
@@ -2141,28 +2143,30 @@ export default function SeatingSetup() {
         setIsSelectingTables(true);
         setSelectedTablesForReservation(resToAssign.assigned_table || []);
         setIsEditReservationOpen(false);
-        alert(`בחר שולחנות להזמנה של ${resToAssign.customer_name}. לחץ על שולחנות במפה. לחץ שוב כדי לבטל בחירה.`);
+        // No blocking alert — the persistent purple banner at the top already
+        // says we're in multi-select mode. Keep the flow uninterrupted.
     };
 
     const saveMultiTableAssignment = async () => {
         if (!multiAssignReservationId) return;
-    
+        const id = multiAssignReservationId;
+        const chosen = [...selectedTablesForReservation];
+        patchReservationLocal(id, { assigned_table: chosen });  // instant map update
+        cancelMultiTableAssignment();
         try {
-            await Reservation.update(multiAssignReservationId, { assigned_table: selectedTablesForReservation });
-            alert(`הזמנה שויכה לשולחנות: ${selectedTablesForReservation.join(', ')}`);
-            cancelMultiTableAssignment();
-            loadLayout();
+            await Reservation.update(id, { assigned_table: chosen });
+            loadLiveData();  // silent resync, no spinner
         } catch (error) {
             console.error('Error saving multi-table assignment:', error);
             alert('שגיאה בשמירת שיוך השולחנות המרובה.');
+            loadLiveData();
         }
     };
-    
+
     const cancelMultiTableAssignment = () => {
         setIsSelectingTables(false);
         setSelectedTablesForReservation([]);
         setMultiAssignReservationId(null);
-        alert('שיוך שולחנות מרובה בוטל.');
     };
 
     const handleTableClick = async (table) => {
@@ -2254,17 +2258,24 @@ export default function SeatingSetup() {
 
             if (conflictingReservation) {
                 if (confirm(`⚠️ קונפליקט! שולחן ${table.table_number} כבר משויך להזמנה של ${conflictingReservation.customer_name} באותה שעה. האם ברצונך להעביר את ההזמנה של ${conflictingReservation.customer_name} למצב "לא משויך" ולהושיב את ${resToAssign.customer_name} במקומה?`)) {
+                    patchReservationLocal(conflictingReservation.id, { assigned_table: [] });
                     await Reservation.update(conflictingReservation.id, { assigned_table: [] });
                 } else {
                     setAssigningTable(null);
                     return;
                 }
             }
-            
-            await Reservation.update(assigningTable.reservationId, { assigned_table: [table.table_number] });
-            alert(`✅ הזמנה עבור ${resToAssign.customer_name} שויכה לשולחן ${table.table_number}`);
+
+            const rid = assigningTable.reservationId;
+            patchReservationLocal(rid, { assigned_table: [table.table_number] });  // instant, no alert
             setAssigningTable(null);
-            loadLayout();
+            try {
+                await Reservation.update(rid, { assigned_table: [table.table_number] });
+                loadLiveData();  // silent resync, no spinner
+            } catch (e) {
+                console.error('assign failed', e);
+                loadLiveData();
+            }
         } else {
             showTableDetails(table);
         }
@@ -2282,7 +2293,7 @@ export default function SeatingSetup() {
             setAssigningTable(null);
             setSwapping(null);
         } else {
-            loadLayout();
+            loadLiveData();
         }
     };
 
@@ -2764,7 +2775,7 @@ export default function SeatingSetup() {
                                                                 table_style: 'couple',
                                                             });
                                                         }
-                                                        await loadLayout();
+                                                        await loadLiveData();
                                                     } catch (e) { alert('שגיאה בהושבה: ' + (e?.message || e)); }
                                                 }}
                                                 onSeatWalkIn={async (tableNums, name, phone, partySize) => {
@@ -2781,7 +2792,7 @@ export default function SeatingSetup() {
                                                             waiter_id: 'manager_seated',
                                                             table_style: 'couple',
                                                         });
-                                                        await loadLayout();
+                                                        await loadLiveData();
                                                     } catch (e) { alert('שגיאה בהושבה: ' + (e?.message || e)); }
                                                 }}
                                                 onSwitchToListMode={() => { setViewMode('list'); setBigMapMode(false); }}
@@ -2821,7 +2832,7 @@ export default function SeatingSetup() {
                                     {/* Collapsible Smart Booker */}
                                     {smartBookerOpen && (
                                         <div className="bg-[#F4ECD8] border border-[#E8D9B5] rounded-lg p-2">
-                                            <ReservationTool onReservationCreated={() => { loadLayout(); setSmartBookerOpen(false); }} />
+                                            <ReservationTool onReservationCreated={() => { loadLiveData(); setSmartBookerOpen(false); }} />
                                         </div>
                                     )}
 
@@ -3503,7 +3514,7 @@ export default function SeatingSetup() {
                                 assigned_table: [table_number],
                                 source: source_label || 'walkin',
                             });
-                            await loadLayout();
+                            await loadLiveData();
                             setQuickSeatOpen(false);
                         } catch (e) {
                             alert('שגיאה בהושבה: ' + (e?.message || e));
