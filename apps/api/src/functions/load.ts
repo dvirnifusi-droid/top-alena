@@ -48,7 +48,7 @@ const db = prisma as any; // generic delegate access
 
 // Public deploy marker — lets us confirm which build is live (and that
 // auto-deploy is working) without server access. Bump on each deploy test.
-registerFn('deployInfo', async () => ({ version: 'auto-assign-priority-2026-07-11', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
+registerFn('deployInfo', async () => ({ version: 'auto-assign-priority-2026-07-11b', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
 
 
 
@@ -6150,8 +6150,11 @@ function pickFreeTableByPriority(opts: {
     : [];
   combos.sort((a: any, b: any) => (a.priority || 999) - (b.priority || 999));
   for (const c of combos) {
+    // Skip entries with wildcard slots — we can't safely resolve which real table
+    // fills the 🃏 slot here, and assigning only the fixed part would under-seat.
+    if (Array.isArray(c.flex_slots) && c.flex_slots.length > 0) continue;
     const ids: string[] = Array.isArray(c.tables) ? c.tables.map(String) : [];
-    if (ids.length === 0) continue; // wildcard-only entries handled by fallback
+    if (ids.length === 0) continue;
     if (ids.every((id) => isFree(id))) {
       return { table_number: ids[0], table_numbers: ids };
     }
