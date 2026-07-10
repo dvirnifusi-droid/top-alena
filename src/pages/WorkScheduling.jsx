@@ -31,6 +31,25 @@ const DEFAULT_SHIFTS = [
     { key: 'dinner', label: 'ערב', start: '17:00', end: '23:00' },
 ];
 const shiftTypesConfig = Object.fromEntries(DEFAULT_SHIFTS.map(s => [s.key, { label: s.label, color: SHIFT_COLOR, start: s.start, end: s.end }]));
+
+// Feminine → canonical role mapping so assignments stored under a feminine name
+// ('מלצרית' / 'טבחית' / 'מארחת' ...) render in the canonical schedule row (the
+// grid only has rows for canonical names). READ-ONLY — nothing in the DB moves.
+// Module-scope so BOTH the mobile and desktop grids use the same normalization.
+const POSITION_ALIASES = {
+    'מלצרית': 'מלצר', 'ברמנית': 'ברמן', 'ראנרית': 'ראנר',
+    'מארחת': 'מארח/ת', 'מארח': 'מארח/ת',
+    'מנהלת משמרת': 'מנהל משמרת',
+    'טבחית': 'טבח',
+    'שוטפת כלים': 'שוטף כלים',
+    'מתלמדת פלור': 'מתלמד פלור',
+    'מתלמדת מטבח': 'מתלמד מטבח',
+    'מנהלת פלור': 'מנהל פלור',
+    'מנהלת מטבח': 'מנהל מטבח',
+    'קופה ואריזות': 'קופה + אריזות',
+    'קופה +אריזות': 'קופה + אריזות',
+};
+const canon = (p) => POSITION_ALIASES[String(p || '').trim()] || String(p || '').trim();
 // Build the {key: {label,color,start,end,positions}} map the render loops expect
 // from a tenant's saved shifts list (falls back to the Alena default).
 function buildShiftConfig(shifts) {
@@ -224,25 +243,7 @@ const MobileScheduleView = ({ week, positions, employees, onCellClick, onAssignm
         setSelectedDay(addDays(selectedDay, 7));
     };
 
-    // Feminine → canonical mapping so legacy assignments stored as 'מלצרית' /
-    // 'טבחית' / 'מארחת' / etc. show in the masculine schedule row (the grid
-    // only renders rows for the canonical names). READ-ONLY normalization —
-    // doesn't move anything between days or change what's stored in DB.
-    const POSITION_ALIASES = {
-        'מלצרית': 'מלצר', 'ברמנית': 'ברמן', 'ראנרית': 'ראנר',
-        'מארחת': 'מארח/ת', 'מארח': 'מארח/ת',
-        'מנהלת משמרת': 'מנהל משמרת',
-        'טבחית': 'טבח',
-        'שוטפת כלים': 'שוטף כלים',
-        'מתלמדת פלור': 'מתלמד פלור',
-        'מתלמדת מטבח': 'מתלמד מטבח',
-        'מנהלת פלור': 'מנהל פלור',
-        'מנהלת מטבח': 'מנהל מטבח',
-        'קופה ואריזות': 'קופה + אריזות',
-        'קופה +אריזות': 'קופה + אריזות',
-    };
-    const canon = (p) => POSITION_ALIASES[String(p || '').trim()] || String(p || '').trim();
-
+    // canon() / POSITION_ALIASES are module-scope (shared with the desktop grid).
     const getAssignmentsFor = (day, shiftType, positionName) => {
         const dateString = format(day, 'yyyy-MM-dd');
         // AGGREGATE across ALL shifts matching date+type — older code paths can
@@ -1322,7 +1323,7 @@ export default function WorkScheduling() {
                                                             {days.reduce((total, day) => {
                                                                 const s = getShiftFor(day, type);
                                                                 let assignments = (s?.assigned_staff || [])
-                                                                    .filter(a => a.position === position.position_name);
+                                                                    .filter(a => canon(a.position) === position.position_name);
                                                                 if (filters.employee !== 'all') {
                                                                     assignments = assignments.filter(a => a.employee_id === filters.employee);
                                                                 }
@@ -1335,7 +1336,7 @@ export default function WorkScheduling() {
                                                 {days.map(day => {
                                                     const shift = getShiftFor(day, type);
                                                     let assignments = (shift?.assigned_staff || [])
-                                                        .filter(a => a.position === position.position_name);
+                                                        .filter(a => canon(a.position) === position.position_name);
 
                                                     if (filters.employee !== 'all') {
                                                         assignments = assignments.filter(a => a.employee_id === filters.employee);
