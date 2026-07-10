@@ -3131,9 +3131,10 @@ export default function SeatingSetup() {
                                                     top: table.y || 50,
                                                     width: table.width || 80,
                                                     height: table.height || 100,
-                                                    // Floor for readability — tiny tables never get cramped for the host.
-                                                    minWidth: 88,
-                                                    minHeight: 70,
+                                                    // Floor for readability — wide enough that time · name · party fits
+                                                    // on ONE row, never cramped for the host.
+                                                    minWidth: 112,
+                                                    minHeight: 66,
                                                 }}
                                                 className={`rounded-xl shadow-md border-2 transition-all hover:scale-[1.06] hover:shadow-lg hover:z-20 relative group ${
                                                     isBlockedForInteraction ? 'cursor-not-allowed' : (swapping || assigningTable || isSelectingTables ? 'cursor-crosshair' : 'cursor-pointer')
@@ -3213,20 +3214,15 @@ export default function SeatingSetup() {
                                                             </>
                                                         ) : futureReservationsForTable.length > 0 ? (
                                                             <div className="w-full flex flex-col gap-0.5">
-                                                                {(() => {
-                                                                    const res = futureReservationsForTable[0];
-                                                                    return (
-                                                                        <div className="w-full bg-[#44512C] text-white rounded px-1 py-0.5 leading-tight">
-                                                                            <div className="font-black text-xs truncate">{getFirstName(res.customer_name) || 'שמור'}</div>
-                                                                            <div className="text-[10px] font-bold opacity-90 flex items-center justify-between tabular-nums">
-                                                                                <span>{res.time?.slice(0, 5)}</span>
-                                                                                <span>👥{res.party_size}</span>
-                                                                            </div>
-                                                                        </div>
-                                                                    );
-                                                                })()}
-                                                                {futureReservationsForTable.length > 1 && (
-                                                                    <div className="text-[10px] text-[#44512C] font-black">+{futureReservationsForTable.length - 1} עוד היום</div>
+                                                                {futureReservationsForTable.slice(0, 2).map((res, ri) => (
+                                                                    <div key={res.id} className={`w-full rounded px-1 py-0.5 flex items-center gap-1 leading-tight font-bold ${ri === 0 ? 'bg-[#44512C] text-white text-[11px]' : 'bg-[#44512C]/15 text-[#44512C] text-[10px]'}`}>
+                                                                        <span className="tabular-nums whitespace-nowrap">{res.time?.slice(0, 5)}</span>
+                                                                        <span className="truncate flex-1 text-center">{getFirstName(res.customer_name)}</span>
+                                                                        <span className="whitespace-nowrap">×{res.party_size}</span>
+                                                                    </div>
+                                                                ))}
+                                                                {futureReservationsForTable.length > 2 && (
+                                                                    <div className="text-[10px] text-[#44512C] font-black leading-none">+{futureReservationsForTable.length - 2} עוד</div>
                                                                 )}
                                                             </div>
                                                         ) : (
