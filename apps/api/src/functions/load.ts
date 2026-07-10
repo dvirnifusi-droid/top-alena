@@ -48,7 +48,7 @@ const db = prisma as any; // generic delegate access
 
 // Public deploy marker — lets us confirm which build is live (and that
 // auto-deploy is working) without server access. Bump on each deploy test.
-registerFn('deployInfo', async () => ({ version: 'schedule-coverage-2026-07-10', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
+registerFn('deployInfo', async () => ({ version: 'schedule-labor-cost-2026-07-10', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
 
 
 
@@ -5257,6 +5257,60 @@ registerFn('setScheduleConfig', async ({ user, body }: any) => {
     );
   }
   return { ok: true };
+});
+
+// ── Live labor-cost estimate for a scheduled week. Computed SERVER-SIDE (pay is
+// sensitive) and returned as AGGREGATES only (per day / per shift / total) — no
+// per-employee amounts. Admin/owner only. hours × hourly_rate × (1+employer%),
+// rate from EmployeePay then a fallback to the WorkPosition's hourly_rate.
+registerFn('getScheduleLaborCost', async ({ user, body }: any) => {
+  if (!user?.id) throw new Error('unauthorized');
+  if (!['admin', 'owner'].includes(String(user.role))) throw new Error('forbidden');
+  try {
+    await ensureScheduleConfig();
+    const b = (body || {}) as any;
+    const weekStart = String(b.week_start || '').slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(weekStart)) return { total: 0, hours: 0, by_day: {}, by_shift: {}, has_rates: false, budget: null };
+    const start = new Date(weekStart + 'T00:00:00Z');
+    const dates = new Set<string>();
+    for (let d = 0; d < 7; d++) dates.add(new Date(start.getTime() + d * 86400000).toISOString().slice(0, 10));
+
+    const pays: any[] = await (prisma as any).$queryRawUnsafe(`SELECT employee_id, hourly_rate, employer_pct FROM "EmployeePay"`).catch(() => []);
+    const payMap = new Map<string, any>(); for (const p of pays) payMap.set(p.employee_id, p);
+    const positions: any[] = await (prisma as any).$queryRawUnsafe(`SELECT position_name, hourly_rate FROM "WorkPosition"`).catch(() => []);
+    const posRate = new Map<string, number>(); for (const p of positions) if (p.hourly_rate != null) posRate.set(p.position_name, Number(p.hourly_rate));
+
+    const shifts: any[] = await (prisma as any).$queryRawUnsafe(`SELECT date, shift_type, assigned_staff FROM "WorkShift" ORDER BY date DESC LIMIT 3000`).catch(() => []);
+    const toMin = (t: any) => { const m = String(t || '').match(/(\d{1,2}):(\d{2})/); return m ? (+m[1]) * 60 + (+m[2]) : null; };
+    const hoursBetween = (s: any, e: any) => { const a = toMin(s), z0 = toMin(e); if (a == null || z0 == null) return 0; let z = z0; if (z < a) z += 24 * 60; return (z - a) / 60; };
+
+    let total = 0, hours = 0, hasRates = false;
+    const byDay: Record<string, number> = {}, byShift: Record<string, number> = {};
+    for (const sh of shifts) {
+      const ds = String(sh.date).slice(0, 10);
+      if (!dates.has(ds)) continue;
+      const staff = Array.isArray(sh.assigned_staff) ? sh.assigned_staff : [];
+      for (const a of staff) {
+        let hrs = hoursBetween(a.start_time, a.end_time);
+        if (a.total_break_minutes) hrs = Math.max(0, hrs - Number(a.total_break_minutes) / 60);
+        const pay = payMap.get(a.employee_id);
+        const rate = (pay && pay.hourly_rate != null) ? Number(pay.hourly_rate) : (posRate.get(a.position) ?? 0);
+        if (rate > 0) hasRates = true;
+        const mult = 1 + (Number(pay?.employer_pct) || 0) / 100;
+        const cost = hrs * rate * mult;
+        total += cost; hours += hrs;
+        byDay[ds] = (byDay[ds] || 0) + cost;
+        byShift[sh.shift_type] = (byShift[sh.shift_type] || 0) + cost;
+      }
+    }
+    for (const k of Object.keys(byDay)) byDay[k] = Math.round(byDay[k]);
+    for (const k of Object.keys(byShift)) byShift[k] = Math.round(byShift[k]);
+    const cfg: any[] = await (prisma as any).$queryRawUnsafe(`SELECT labor_budget FROM "ScheduleConfig" LIMIT 1`).catch(() => []);
+    const budget = cfg[0]?.labor_budget != null ? Number(cfg[0].labor_budget) : null;
+    return { total: Math.round(total), hours: Math.round(hours * 10) / 10, by_day: byDay, by_shift: byShift, has_rates: hasRates, budget };
+  } catch {
+    return { total: 0, hours: 0, by_day: {}, by_shift: {}, has_rates: false, budget: null };
+  }
 });
 
 // ── Per-tenant app settings (currently: default UI language). Lets a business

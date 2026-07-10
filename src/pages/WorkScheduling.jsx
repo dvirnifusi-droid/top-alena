@@ -601,6 +601,13 @@ export default function WorkScheduling() {
     // Built once on load. Used to overlay "no-show" badges on scheduled cells
     // when shift_type matches but no matching clock-in exists for that date.
     const [clockIns, setClockIns] = useState(new Map());
+    const [laborCost, setLaborCost] = useState(null); // { total, hours, by_day, by_shift, has_rates, budget }
+    const [budgetInput, setBudgetInput] = useState('');
+    const [savingBudget, setSavingBudget] = useState(false);
+    const [showBudgetEdit, setShowBudgetEdit] = useState(false);
+
+    // Only owner/admin see labor cost (pay is sensitive); managed-dept leads don't.
+    const canSeeCost = currentUser?.role === 'admin' || currentUser?.role === 'owner';
 
     const handleCopyAvailabilityLink = () => {
         const url = `${window.location.origin}/AvailabilityForm`;
@@ -614,6 +621,31 @@ export default function WorkScheduling() {
         end: endOfWeek(currentDate, { weekStartsOn: 0 })
     };
     const days = eachDayOfInterval(weekInterval);
+    const weekStartStr = format(weekInterval.start, 'yyyy-MM-dd');
+
+    // Labor cost — recomputed server-side when the week or the assignments change.
+    useEffect(() => {
+        if (!canSeeCost) return;
+        let cancelled = false;
+        (async () => {
+            try {
+                const res = await base44.functions.getScheduleLaborCost({ week_start: weekStartStr });
+                const d = res?.data || res || {};
+                if (!cancelled) { setLaborCost(d); setBudgetInput(d.budget != null ? String(d.budget) : ''); }
+            } catch { /* forbidden / error → hide strip */ }
+        })();
+        return () => { cancelled = true; };
+    }, [weekStartStr, week, canSeeCost]);
+
+    const saveBudget = async () => {
+        setSavingBudget(true);
+        try {
+            await base44.functions.setScheduleConfig({ labor_budget: budgetInput === '' ? null : Number(budgetInput) });
+            setShowBudgetEdit(false);
+            setLaborCost(prev => prev ? { ...prev, budget: budgetInput === '' ? null : Number(budgetInput) } : prev);
+        } catch (e) { console.warn('save budget', e); }
+        setSavingBudget(false);
+    };
 
     const loadScheduleData = useCallback(async () => {
         // Full-page spinner ONLY on the first load. Later refreshes (after an
@@ -1298,6 +1330,34 @@ export default function WorkScheduling() {
                     </div>
                 </CardHeader>
                 <CardContent className="overflow-x-auto">
+                    {/* Labor-cost strip (owner/admin) */}
+                    {canSeeCost && laborCost && (laborCost.has_rates ? (
+                        <div className="mb-3 flex items-center gap-4 flex-wrap bg-[#F4ECD8]/60 border border-[#D9BD83] rounded-lg px-3 py-2 text-sm">
+                            <div>💰 <span className="font-black text-lg text-[#7A3722]">₪{Number(laborCost.total).toLocaleString()}</span> <span className="text-gray-500">עלות שכר משוערת השבוע</span></div>
+                            <div className="text-gray-600">{laborCost.hours} שעות</div>
+                            {laborCost.budget != null && (() => {
+                                const over = laborCost.total > laborCost.budget;
+                                const pct = laborCost.budget ? Math.round((laborCost.total / laborCost.budget) * 100) : 0;
+                                return (
+                                    <div className={`flex items-center gap-1.5 font-semibold ${over ? 'text-red-600' : 'text-green-700'}`}>
+                                        <span>תקציב ₪{Number(laborCost.budget).toLocaleString()}</span>
+                                        <span>· {pct}%{over ? ' — חריגה ⚠️' : ' ✓'}</span>
+                                    </div>
+                                );
+                            })()}
+                            <button onClick={() => setShowBudgetEdit(v => !v)} className="text-xs text-gray-500 hover:text-[#44512C] underline">
+                                {laborCost.budget != null ? 'ערוך תקציב' : 'הגדר תקציב'}
+                            </button>
+                            {showBudgetEdit && (
+                                <span className="flex items-center gap-1">
+                                    <Input type="number" value={budgetInput} onChange={e => setBudgetInput(e.target.value)} placeholder="₪ לשבוע" className="w-28 h-8" />
+                                    <Button size="sm" onClick={saveBudget} disabled={savingBudget} className="h-8">{savingBudget ? <Loader2 className="w-4 h-4 animate-spin" /> : 'שמור'}</Button>
+                                </span>
+                            )}
+                        </div>
+                    ) : (
+                        <div className="mb-3 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">💰 כדי לראות עלות שכר של הסידור — הזן תעריף שעתי לעובדים (ניהול עובדים → שכר).</div>
+                    ))}
                     {/* מקרא צבעים */}
                     <div className="flex gap-3 mb-3 text-xs flex-wrap">
                         <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-red-200 border border-red-300 inline-block"></span> 🔴 סגירה (מניהול טיפים)</span>
