@@ -101,38 +101,39 @@ export default function AssignmentEditDialog({ isOpen, onOpenChange, assignment,
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto" dir="rtl">
+      <DialogContent className="sm:max-w-lg max-h-[92vh] overflow-y-auto overflow-x-hidden" dir="rtl">
         <DialogHeader>
           <DialogTitle>עריכת שיבוץ - {editData.employee_name}</DialogTitle>
           <DialogDescription>
             {format(new Date(editData.date), 'EEEE, dd/MM/yyyy', { locale: he })}
           </DialogDescription>
         </DialogHeader>
-        <div className="space-y-6 py-4">
-          {/* עובד */}
-          {employees && employees.length > 0 && (
-            <div className="space-y-2">
-              <Label className="font-semibold flex items-center gap-2">👤 עובד</Label>
-              <Select value={editData.employee_id} onValueChange={val => {
-                const emp = employees.find(e => e.id === val);
-                setEditData({ ...editData, employee_id: val, employee_name: emp?.full_name || editData.employee_name });
-              }}>
-                <SelectTrigger>
-                  <SelectValue placeholder="בחר עובד" />
-                </SelectTrigger>
-                <SelectContent>
-                  {employees.map(emp => (
-                    <SelectItem key={emp.id} value={emp.id}>{emp.full_name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
+        <div className="space-y-3 py-2">
+          {/* עובד + תפקיד — side by side to save vertical space */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {employees && employees.length > 0 && (
+              <div className="space-y-1.5">
+                <Label className="font-semibold flex items-center gap-2">👤 עובד</Label>
+                <Select value={editData.employee_id} onValueChange={val => {
+                  const emp = employees.find(e => e.id === val);
+                  setEditData({ ...editData, employee_id: val, employee_name: emp?.full_name || editData.employee_name });
+                }}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="בחר עובד" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {employees.map(emp => (
+                      <SelectItem key={emp.id} value={emp.id}>{emp.full_name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
 
-          {/* תפקיד */}
-          <div className="space-y-2">
-            <Label htmlFor="position" className="font-semibold flex items-center gap-2"><Briefcase className="w-4 h-4"/>תפקיד</Label>
-             <Select value={editData.position} onValueChange={val => setEditData({...editData, position: val})}>
+            {/* תפקיד */}
+            <div className="space-y-1.5">
+              <Label htmlFor="position" className="font-semibold flex items-center gap-2"><Briefcase className="w-4 h-4"/>תפקיד</Label>
+              <Select value={editData.position} onValueChange={val => setEditData({...editData, position: val})}>
                 <SelectTrigger>
                     <SelectValue placeholder="בחר תפקיד" />
                 </SelectTrigger>
@@ -143,11 +144,12 @@ export default function AssignmentEditDialog({ isOpen, onOpenChange, assignment,
                         </SelectItem>
                     ))}
                 </SelectContent>
-            </Select>
+              </Select>
+            </div>
           </div>
 
           {/* שעות עבודה */}
-          <div className="space-y-4">
+          <div className="space-y-2">
             <h3 className="font-semibold flex items-center gap-2"><Clock className="w-4 h-4"/>שעות עבודה</h3>
             <div className="grid grid-cols-2 gap-4">
               <div>
@@ -160,9 +162,9 @@ export default function AssignmentEditDialog({ isOpen, onOpenChange, assignment,
               </div>
             </div>
           </div>
-          
+
           {/* ארוחה */}
-          <div className="space-y-4">
+          <div className="space-y-2">
              <div className="flex items-center justify-between">
                 <h3 className="font-semibold flex items-center gap-2"><Utensils className="w-4 h-4"/>ארוחה</h3>
                 <Switch checked={editData.had_meal} onCheckedChange={val => setEditData({...editData, had_meal: val})} />
@@ -176,7 +178,7 @@ export default function AssignmentEditDialog({ isOpen, onOpenChange, assignment,
           </div>
 
           {/* הפסקות */}
-          <div className="space-y-4">
+          <div className="space-y-2">
             <div className="flex items-center justify-between">
               <h3 className="font-semibold flex items-center gap-2"><Coffee className="w-4 h-4"/>הפסקות</h3>
               <Button size="sm" variant="outline" onClick={addBreak}><Plus className="w-4 h-4 ml-1"/>הוסף הפסקה</Button>
@@ -214,9 +216,9 @@ export default function AssignmentEditDialog({ isOpen, onOpenChange, assignment,
           )}
 
           {/* הערות מנהל */}
-          <div>
+          <div className="space-y-1.5">
             <Label>📝 הערת מנהל למשמרת</Label>
-            <Textarea value={editData.notes} onChange={e => setEditData({...editData, notes: e.target.value})} placeholder="הוסף הערה שתוצג בסידור..." />
+            <Textarea rows={2} value={editData.notes} onChange={e => setEditData({...editData, notes: e.target.value})} placeholder="הוסף הערה שתוצג בסידור..." />
           </div>
         </div>
         {showMoveDate && (() => {
@@ -248,9 +250,11 @@ export default function AssignmentEditDialog({ isOpen, onOpenChange, assignment,
             </div>
           );
         })()}
-        <DialogFooter className="justify-between flex-row gap-1">
-            <Button size="sm" variant="destructive" onClick={handleDeleteConfirm}><Trash2 className="w-3.5 h-3.5 ml-1"/>מחק שיבוץ</Button>
-            <div className="flex gap-1">
+        {/* flex-wrap → the action buttons wrap onto extra rows on narrow screens
+            instead of overflowing the dialog horizontally (no side-scroll). */}
+        <DialogFooter className="!flex-row !flex-wrap gap-2 !justify-between pt-2 border-t mt-1">
+            <Button size="sm" variant="destructive" className="px-2" onClick={handleDeleteConfirm}><Trash2 className="w-3.5 h-3.5 ml-1"/>מחק</Button>
+            <div className="flex flex-wrap gap-2 justify-end">
                 {onMoveShift && (
                   <Button size="sm" variant="outline" className="border-blue-300 text-blue-600 hover:bg-blue-50 px-2" onClick={() => setShowMoveDate(v => !v)}>
                     <MoveRight className="w-3.5 h-3.5 ml-1"/>העבר תאריך
@@ -269,12 +273,12 @@ export default function AssignmentEditDialog({ isOpen, onOpenChange, assignment,
                         onOpenChange(false);
                       }}
                     >
-                      🔁 העבר ל-{targetLabel}
+                      🔁 ל-{targetLabel}
                     </Button>
                   );
                 })()}
-                <Button size="sm" variant="outline" onClick={() => onOpenChange(false)}><X className="w-3.5 h-3.5 ml-1"/>ביטול</Button>
-                <Button size="sm" onClick={handleSave}><Save className="w-3.5 h-3.5 ml-1"/>שמור</Button>
+                <Button size="sm" variant="outline" className="px-2" onClick={() => onOpenChange(false)}><X className="w-3.5 h-3.5 ml-1"/>ביטול</Button>
+                <Button size="sm" className="px-3" onClick={handleSave}><Save className="w-3.5 h-3.5 ml-1"/>שמור</Button>
             </div>
         </DialogFooter>
       </DialogContent>
