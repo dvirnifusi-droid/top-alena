@@ -3195,15 +3195,13 @@ export default function SeatingSetup() {
                                                             <>
                                                                 {session ? (
                                                                     <>
-                                                                        <div className="text-base font-black">👥{session.party_size} · {getFirstName(session.customer_name) || '—'}</div>
-                                                                        <div className="text-xs font-bold opacity-90">{getActiveTime(session)}</div>
+                                                                        <div className="font-black text-sm truncate w-full">{getFirstName(session.customer_name) || '—'}</div>
+                                                                        <div className="text-[11px] font-bold opacity-90 flex items-center justify-center gap-1 tabular-nums"><span>👥{session.party_size}</span><span>·</span><span>{getActiveTime(session)}</span></div>
                                                                     </>
                                                                 ) : seatedReservation ? (
                                                                     <>
-                                                                        <div className="text-base font-black">👥{seatedReservation.party_size} · {getFirstName(seatedReservation.customer_name) || '—'}</div>
-                                                                        <div className="text-xs font-bold opacity-90">
-                                                                            {seatedReservation.time}{computedEndTime ? `–${computedEndTime}` : ''}
-                                                                        </div>
+                                                                        <div className="font-black text-sm truncate w-full">{getFirstName(seatedReservation.customer_name) || '—'}</div>
+                                                                        <div className="text-[11px] font-bold opacity-90 flex items-center justify-center gap-1 tabular-nums"><span>👥{seatedReservation.party_size}</span><span>·</span><span>{seatedReservation.time}{computedEndTime ? `–${computedEndTime}` : ''}</span></div>
                                                                     </>
                                                                 ) : null}
                                                                 {/* NEXT seating chip — only if exists, smaller line */}
@@ -3215,17 +3213,20 @@ export default function SeatingSetup() {
                                                             </>
                                                         ) : futureReservationsForTable.length > 0 ? (
                                                             <div className="w-full flex flex-col gap-0.5">
-                                                                {futureReservationsForTable.slice(0, 2).map((res, ri) => (
-                                                                    <div key={res.id} className={`w-full rounded px-1 py-0.5 font-bold flex items-center justify-between gap-1 leading-tight ${ri === 0 ? 'bg-[#44512C] text-white text-xs' : 'bg-[#44512C]/15 text-[#44512C] text-[11px]'}`}>
-                                                                        <span className="tabular-nums">{res.time?.slice(0, 5)}</span>
-                                                                        <span className="truncate flex-1 text-center">{getFirstName(res.customer_name)}</span>
-                                                                        <span className="whitespace-nowrap">👥{res.party_size}</span>
-                                                                    </div>
-                                                                ))}
-                                                                {futureReservationsForTable.length > 2 && (
-                                                                    <div className="text-[10px] text-[#44512C] font-black">
-                                                                        +{futureReservationsForTable.length - 2} עוד
-                                                                    </div>
+                                                                {(() => {
+                                                                    const res = futureReservationsForTable[0];
+                                                                    return (
+                                                                        <div className="w-full bg-[#44512C] text-white rounded px-1 py-0.5 leading-tight">
+                                                                            <div className="font-black text-xs truncate">{getFirstName(res.customer_name) || 'שמור'}</div>
+                                                                            <div className="text-[10px] font-bold opacity-90 flex items-center justify-between tabular-nums">
+                                                                                <span>{res.time?.slice(0, 5)}</span>
+                                                                                <span>👥{res.party_size}</span>
+                                                                            </div>
+                                                                        </div>
+                                                                    );
+                                                                })()}
+                                                                {futureReservationsForTable.length > 1 && (
+                                                                    <div className="text-[10px] text-[#44512C] font-black">+{futureReservationsForTable.length - 1} עוד היום</div>
                                                                 )}
                                                             </div>
                                                         ) : (
