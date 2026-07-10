@@ -48,7 +48,7 @@ const db = prisma as any; // generic delegate access
 
 // Public deploy marker — lets us confirm which build is live (and that
 // auto-deploy is working) without server access. Bump on each deploy test.
-registerFn('deployInfo', async () => ({ version: 'prep-full-who-when-photo-2026-07-10', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
+registerFn('deployInfo', async () => ({ version: 'prep-lists-archive-2026-07-10', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
 
 
 
@@ -5291,6 +5291,7 @@ registerFn('setAppSettings', async ({ user, body }: any) => {
 // product with a TARGET; the cook fills HAVE (what's on hand), the sheet shows
 // PREP (to make) = target − have, and checks ✓. Isolated table + guarded, same
 // safe pattern as ScheduleConfig / ReservationPageConfig.
+const DEFAULT_PREP_LIST = 'list_default';
 let _prepEnsured = false;
 async function ensurePrepItems(): Promise<void> {
   if (_prepEnsured) return;
@@ -5308,6 +5309,7 @@ async function ensurePrepItems(): Promise<void> {
        "done_by" TEXT,
        "done_at" TIMESTAMP(3),
        "photo_url" TEXT,
+       "list_id" TEXT,
        "sort" INTEGER NOT NULL DEFAULT 0,
        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
      )`,
@@ -5320,41 +5322,128 @@ async function ensurePrepItems(): Promise<void> {
   await (prisma as any).$executeRawUnsafe(`ALTER TABLE "PrepItem" ADD COLUMN IF NOT EXISTS "done_by" TEXT`).catch(() => {});
   await (prisma as any).$executeRawUnsafe(`ALTER TABLE "PrepItem" ADD COLUMN IF NOT EXISTS "done_at" TIMESTAMP(3)`).catch(() => {});
   await (prisma as any).$executeRawUnsafe(`ALTER TABLE "PrepItem" ADD COLUMN IF NOT EXISTS "photo_url" TEXT`).catch(() => {});
+  await (prisma as any).$executeRawUnsafe(`ALTER TABLE "PrepItem" ADD COLUMN IF NOT EXISTS "list_id" TEXT`).catch(() => {});
+  // Multiple named lists (e.g. "הכנות בוקר"/"הכנות ערב") + a per-day archive
+  // captured on reset. Isolated, guarded — same safe pattern.
+  await (prisma as any).$executeRawUnsafe(
+    `CREATE TABLE IF NOT EXISTS "PrepList" (
+       "id" TEXT PRIMARY KEY,
+       "name" TEXT NOT NULL,
+       "sort" INTEGER NOT NULL DEFAULT 0,
+       "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+     )`,
+  );
+  await (prisma as any).$executeRawUnsafe(
+    `CREATE TABLE IF NOT EXISTS "PrepArchive" (
+       "id" TEXT PRIMARY KEY,
+       "list_id" TEXT,
+       "list_name" TEXT,
+       "snapshot" JSONB,
+       "item_count" INTEGER NOT NULL DEFAULT 0,
+       "done_count" INTEGER NOT NULL DEFAULT 0,
+       "archived_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+     )`,
+  );
+  // Guarantee at least one list, and adopt any pre-existing items into it.
+  const anyList: any[] = await (prisma as any).$queryRawUnsafe(`SELECT id FROM "PrepList" LIMIT 1`).catch(() => []);
+  if (!anyList.length) {
+    await (prisma as any).$executeRawUnsafe(
+      `INSERT INTO "PrepList" ("id","name","sort","updatedAt") VALUES ($1,$2,0,NOW())`,
+      DEFAULT_PREP_LIST, 'הכנות',
+    ).catch(() => {});
+  }
+  await (prisma as any).$executeRawUnsafe(`UPDATE "PrepItem" SET list_id=$1 WHERE list_id IS NULL`, DEFAULT_PREP_LIST).catch(() => {});
   _prepEnsured = true;
 }
 
-registerFn('getPrepItems', async ({ user }: any) => {
+// The lists this business has (one shared set for the whole tenant).
+registerFn('getPrepLists', async ({ user }: any) => {
   if (!user?.id) throw new Error('unauthorized');
   try {
     await ensurePrepItems();
-    const rows: any[] = await (prisma as any).$queryRawUnsafe(`SELECT * FROM "PrepItem" ORDER BY "sort" ASC, "category" ASC`);
+    const rows: any[] = await (prisma as any).$queryRawUnsafe(`SELECT * FROM "PrepList" ORDER BY "sort" ASC, "updatedAt" ASC`);
+    return { lists: rows };
+  } catch {
+    return { lists: [] };
+  }
+});
+
+// Create (no id) or rename (with id) a list.
+registerFn('savePrepList', async ({ user, body }: any) => {
+  if (!user?.id) throw new Error('unauthorized');
+  await ensurePrepItems();
+  const b = (body || {}) as any;
+  const name = String(b.name || '').trim().slice(0, 80);
+  if (!name) throw new Error('name required');
+  if (b.id) {
+    await (prisma as any).$executeRawUnsafe(`UPDATE "PrepList" SET name=$1, "updatedAt"=NOW() WHERE id=$2`, name, String(b.id));
+    return { ok: true, id: String(b.id) };
+  }
+  const { randomUUID } = await import('node:crypto');
+  const id = randomUUID();
+  const mx: any[] = await (prisma as any).$queryRawUnsafe(`SELECT COALESCE(MAX("sort"),0)+1 AS s FROM "PrepList"`);
+  await (prisma as any).$executeRawUnsafe(
+    `INSERT INTO "PrepList" ("id","name","sort","updatedAt") VALUES ($1,$2,$3,NOW())`,
+    id, name, Number(mx[0]?.s) || 0,
+  );
+  return { ok: true, id };
+});
+
+// Delete a list and its items; never leave the business with zero lists.
+registerFn('deletePrepList', async ({ user, body }: any) => {
+  if (!user?.id) throw new Error('unauthorized');
+  await ensurePrepItems();
+  const id = String((body || {}).id || '');
+  if (!id) throw new Error('id required');
+  await (prisma as any).$executeRawUnsafe(`DELETE FROM "PrepItem" WHERE list_id=$1`, id);
+  await (prisma as any).$executeRawUnsafe(`DELETE FROM "PrepList" WHERE id=$1`, id);
+  const left: any[] = await (prisma as any).$queryRawUnsafe(`SELECT id FROM "PrepList" LIMIT 1`);
+  if (!left.length) {
+    await (prisma as any).$executeRawUnsafe(
+      `INSERT INTO "PrepList" ("id","name","sort","updatedAt") VALUES ($1,$2,0,NOW())`,
+      DEFAULT_PREP_LIST, 'הכנות',
+    ).catch(() => {});
+  }
+  return { ok: true };
+});
+
+registerFn('getPrepItems', async ({ user, body }: any) => {
+  if (!user?.id) throw new Error('unauthorized');
+  try {
+    await ensurePrepItems();
+    const listId = (body || {}).list_id ? String((body as any).list_id) : null;
+    const rows: any[] = listId
+      ? await (prisma as any).$queryRawUnsafe(`SELECT * FROM "PrepItem" WHERE list_id=$1 ORDER BY "sort" ASC, "category" ASC`, listId)
+      : await (prisma as any).$queryRawUnsafe(`SELECT * FROM "PrepItem" ORDER BY "sort" ASC, "category" ASC`);
     return { items: rows };
   } catch {
     return { items: [] };
   }
 });
 
-// Bulk replace — used by the admin editor + text import.
+// Bulk replace ONE list — used by the admin editor + text import. Scoped to the
+// given list so editing "morning" never wipes "evening".
 registerFn('savePrepItems', async ({ user, body }: any) => {
   if (!user?.id) throw new Error('unauthorized');
   await ensurePrepItems();
   const b = (body || {}) as any;
+  const listId = b.list_id ? String(b.list_id) : DEFAULT_PREP_LIST;
   const items: any[] = Array.isArray(b.items) ? b.items.slice(0, 500) : [];
   const { randomUUID } = await import('node:crypto');
-  await (prisma as any).$executeRawUnsafe(`DELETE FROM "PrepItem"`);
+  await (prisma as any).$executeRawUnsafe(`DELETE FROM "PrepItem" WHERE list_id=$1`, listId);
   let n = 0;
   for (let i = 0; i < items.length; i++) {
     const it = items[i] || {};
     const name = String(it.name || '').trim();
     if (!name) continue;
     await (prisma as any).$executeRawUnsafe(
-      `INSERT INTO "PrepItem" ("id","name","category","unit","target","have","prep","to_prep","done","sort","updatedAt")
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,NOW())`,
+      `INSERT INTO "PrepItem" ("id","name","category","unit","target","have","prep","to_prep","done","list_id","sort","updatedAt")
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,NOW())`,
       it.id && String(it.id).length > 8 ? String(it.id) : randomUUID(),
       name.slice(0, 200), it.category ? String(it.category).slice(0, 80) : null,
       it.unit ? String(it.unit).slice(0, 40) : null, it.target != null ? String(it.target).slice(0, 40) : null,
       it.have != null ? String(it.have).slice(0, 40) : null, it.prep != null ? String(it.prep).slice(0, 40) : null,
-      !!it.to_prep, !!it.done, Number.isFinite(+it.sort) ? Math.floor(+it.sort) : i,
+      !!it.to_prep, !!it.done, listId, Number.isFinite(+it.sort) ? Math.floor(+it.sort) : i,
     ).then(() => { n++; }).catch((e: any) => console.warn('[prep] insert', e?.message));
   }
   return { ok: true, count: n };
@@ -5388,14 +5477,56 @@ registerFn('updatePrepItem', async ({ user, body }: any) => {
   return { ok: true };
 });
 
-// Clear the daily counts (start a fresh prep day) — keeps the product template.
-registerFn('resetPrepCounts', async ({ user }: any) => {
+// Start a fresh prep day: snapshot the current state into PrepArchive (so past
+// days — who prepped what, when, with which photo — are kept), then clear the
+// daily fields. Scoped to one list when list_id is given, else the whole sheet.
+registerFn('resetPrepCounts', async ({ user, body }: any) => {
   if (!user?.id) throw new Error('unauthorized');
   await ensurePrepItems();
-  await (prisma as any).$executeRawUnsafe(
-    `UPDATE "PrepItem" SET have=NULL, prep=NULL, to_prep=false, done=false, done_by=NULL, done_at=NULL, photo_url=NULL, "updatedAt"=NOW()`,
-  );
+  const listId = (body || {}).list_id ? String((body as any).list_id) : null;
+  const rows: any[] = listId
+    ? await (prisma as any).$queryRawUnsafe(`SELECT * FROM "PrepItem" WHERE list_id=$1 ORDER BY "sort" ASC`, listId)
+    : await (prisma as any).$queryRawUnsafe(`SELECT * FROM "PrepItem" ORDER BY "sort" ASC`);
+  if (rows.length) {
+    const { randomUUID } = await import('node:crypto');
+    let listName: string | null = null;
+    if (listId) {
+      const lr: any[] = await (prisma as any).$queryRawUnsafe(`SELECT name FROM "PrepList" WHERE id=$1 LIMIT 1`, listId).catch(() => []);
+      listName = lr[0]?.name || null;
+    }
+    const doneCount = rows.filter((r: any) => r.done).length;
+    await (prisma as any).$executeRawUnsafe(
+      `INSERT INTO "PrepArchive" ("id","list_id","list_name","snapshot","item_count","done_count","archived_at")
+       VALUES ($1,$2,$3,$4::jsonb,$5,$6,NOW())`,
+      randomUUID(), listId, listName, JSON.stringify(rows), rows.length, doneCount,
+    ).catch((e: any) => console.warn('[prep] archive', e?.message));
+  }
+  if (listId) {
+    await (prisma as any).$executeRawUnsafe(
+      `UPDATE "PrepItem" SET have=NULL, prep=NULL, to_prep=false, done=false, done_by=NULL, done_at=NULL, photo_url=NULL, "updatedAt"=NOW() WHERE list_id=$1`,
+      listId,
+    );
+  } else {
+    await (prisma as any).$executeRawUnsafe(
+      `UPDATE "PrepItem" SET have=NULL, prep=NULL, to_prep=false, done=false, done_by=NULL, done_at=NULL, photo_url=NULL, "updatedAt"=NOW()`,
+    );
+  }
   return { ok: true };
+});
+
+// Past prep days (snapshots taken on reset). Newest first, capped.
+registerFn('getPrepArchive', async ({ user, body }: any) => {
+  if (!user?.id) throw new Error('unauthorized');
+  try {
+    await ensurePrepItems();
+    const listId = (body || {}).list_id ? String((body as any).list_id) : null;
+    const rows: any[] = listId
+      ? await (prisma as any).$queryRawUnsafe(`SELECT "id","list_id","list_name","snapshot","item_count","done_count","archived_at" FROM "PrepArchive" WHERE list_id=$1 ORDER BY "archived_at" DESC LIMIT 60`, listId)
+      : await (prisma as any).$queryRawUnsafe(`SELECT "id","list_id","list_name","snapshot","item_count","done_count","archived_at" FROM "PrepArchive" ORDER BY "archived_at" DESC LIMIT 60`);
+    return { archive: rows };
+  } catch {
+    return { archive: [] };
+  }
 });
 
 // ── Per-tenant permission tiers. Each business defines its OWN levels (label +

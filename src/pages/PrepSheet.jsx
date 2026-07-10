@@ -1,8 +1,10 @@
-// Prep Sheet — per-tenant mise-en-place list, grouped by dish.
-// Flow: the manager builds the list (item + how much you HAVE + how much to
-// PREP) and flags which items need making ("לסמן להכין"). Cooks then work the
-// list: mark "בוצע" when done — which stamps WHO did it, WHEN, and lets them
-// attach a photo as proof. A summary at the top shows overall status.
+// Prep Sheet — per-tenant mise-en-place, grouped by dish, with multiple named
+// lists (בוקר/ערב/תחנה...) and a per-day archive.
+// Flow: the manager builds a list (item + how much you HAVE + how much to PREP)
+// and flags which items need making ("לסמן"). Cooks work the list: mark "בוצע"
+// when done — stamping WHO + WHEN + an optional photo. "יום חדש" snapshots the
+// list into the archive (history) and clears it for the next day. A summary at
+// the top shows overall status; search + "רק שנשאר" narrow a long list.
 import React, { useState, useEffect, useMemo } from 'react';
 import { base44 } from '@/api/base44Client';
 import { User } from '@/entities/User';
@@ -11,18 +13,20 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { ChefHat, Plus, Trash2, Save, RotateCcw, Upload, Loader2, Check, Camera } from 'lucide-react';
+import { ChefHat, Plus, Trash2, Save, RotateCcw, Upload, Loader2, Check, Camera, Search, History, Pencil, X } from 'lucide-react';
 
-// ISO timestamp → short "DD/MM HH:mm" in Hebrew locale (null-safe).
 const fmtWhen = (iso) => {
   if (!iso) return '';
-  try {
-    const d = new Date(iso);
-    return d.toLocaleString('he-IL', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
-  } catch { return ''; }
+  try { return new Date(iso).toLocaleString('he-IL', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }); } catch { return ''; }
+};
+const fmtDate = (iso) => {
+  if (!iso) return '';
+  try { return new Date(iso).toLocaleDateString('he-IL', { day: '2-digit', month: '2-digit', year: 'numeric' }); } catch { return ''; }
 };
 
 export default function PrepSheet() {
+  const [lists, setLists] = useState([]);
+  const [activeList, setActiveList] = useState(null);
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
@@ -32,52 +36,82 @@ export default function PrepSheet() {
   const [uploadingId, setUploadingId] = useState(null);
   const [showImport, setShowImport] = useState(false);
   const [importText, setImportText] = useState('');
+  const [search, setSearch] = useState('');
+  const [onlyRemaining, setOnlyRemaining] = useState(false);
+  const [showArchive, setShowArchive] = useState(false);
+  const [archive, setArchive] = useState([]);
+  const [openSnap, setOpenSnap] = useState(null);
 
-  const load = async () => {
+  const loadItems = async (listId) => {
     setLoading(true);
     try {
-      const res = await base44.functions.getPrepItems({});
+      const res = await base44.functions.getPrepItems(listId ? { list_id: listId } : {});
       const data = res?.data || res || {};
       setItems(Array.isArray(data.items) ? data.items.map((it, i) => ({ ...it, sort: it.sort ?? i })) : []);
     } catch (e) { console.warn('load prep', e); }
     setLoading(false);
   };
 
+  const loadLists = async (preferId) => {
+    try {
+      const res = await base44.functions.getPrepLists({});
+      const data = res?.data || res || {};
+      const ls = Array.isArray(data.lists) ? data.lists : [];
+      setLists(ls);
+      const pick = (preferId && ls.some((l) => l.id === preferId)) ? preferId
+        : (activeList && ls.some((l) => l.id === activeList)) ? activeList
+        : (ls[0]?.id || null);
+      setActiveList(pick);
+      return pick;
+    } catch (e) { console.warn('load lists', e); return null; }
+  };
+
   useEffect(() => {
     (async () => {
       try { const u = await User.me(); setMe(u); setIsAdmin(u?.role === 'admin' || u?.role === 'owner' || !!u?.managed_department); } catch { /* staff */ }
-      load();
+      const pick = await loadLists();
+      await loadItems(pick);
     })();
   }, []);
 
-  // Group by dish/category (preserve first-seen order).
-  const groups = useMemo(() => {
-    const m = new Map();
-    for (const it of items) { const c = it.category || 'כללי'; if (!m.has(c)) m.set(c, []); m.get(c).push(it); }
-    return [...m.entries()];
-  }, [items]);
+  const switchList = async (id) => {
+    if (id === activeList) return;
+    setEditMode(false); setShowImport(false); setShowArchive(false);
+    setActiveList(id);
+    await loadItems(id);
+  };
 
-  // List-wide status summary.
+  const activeName = useMemo(() => lists.find((l) => l.id === activeList)?.name || '', [lists, activeList]);
+
+  // search + "only remaining" filter, then group by dish/category.
+  const groups = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    const filtered = items.filter((it) => {
+      if (onlyRemaining && !(it.to_prep && !it.done)) return false;
+      if (q && !String(it.name || '').toLowerCase().includes(q)) return false;
+      return true;
+    });
+    const m = new Map();
+    for (const it of filtered) { const c = it.category || 'כללי'; if (!m.has(c)) m.set(c, []); m.get(c).push(it); }
+    return [...m.entries()];
+  }, [items, search, onlyRemaining]);
+
   const summary = useMemo(() => {
     const total = items.length;
     const toPrep = items.filter((i) => i.to_prep).length;
     const doneToPrep = items.filter((i) => i.to_prep && i.done).length;
-    const doneAll = items.filter((i) => i.done).length;
     const remaining = items.filter((i) => i.to_prep && !i.done);
-    return { total, toPrep, doneToPrep, doneAll, remaining };
+    return { total, toPrep, doneToPrep, remaining };
   }, [items]);
 
   const patch = (id, field, val) => setItems((prev) => prev.map((it) => (it.id === id ? { ...it, [field]: val } : it)));
 
-  // Cook autosave — one row, no full rewrite. Sends the full row so who/when is
-  // stamped server-side on 'done' and to_prep/photo are preserved.
   const saveOne = async (it) => {
     try {
       await base44.functions.updatePrepItem({ id: it.id, have: it.have, prep: it.prep, to_prep: it.to_prep, done: it.done, photo_url: it.photo_url });
     } catch (e) { console.warn('save prep row', e); }
   };
 
-  // Toggle a boolean field (to_prep / done) with optimistic who/when stamping.
   const toggle = (it, field) => {
     const nv = !it[field];
     let next = { ...it, [field]: nv };
@@ -105,8 +139,8 @@ export default function PrepSheet() {
   const saveAll = async () => {
     setSaving(true);
     try {
-      await base44.functions.savePrepItems({ items: items.map((it, i) => ({ ...it, sort: i })) });
-      await load();
+      await base44.functions.savePrepItems({ list_id: activeList, items: items.map((it, i) => ({ ...it, sort: i })) });
+      await loadItems(activeList);
       setEditMode(false);
     } catch (e) { console.warn('save all', e); }
     setSaving(false);
@@ -116,13 +150,39 @@ export default function PrepSheet() {
   const delRow = (id) => setItems((prev) => prev.filter((it) => it.id !== id));
 
   const resetCounts = async () => {
-    if (!window.confirm('לאפס את הרשימה (יש/להכין/סימונים/בוצע/תמונות) ולהתחיל יום הכנות חדש?')) return;
-    try { await base44.functions.resetPrepCounts({}); await load(); } catch (e) { console.warn('reset', e); }
+    if (!window.confirm(`"${activeName}" — לסגור את היום? הרשימה תישמר בהיסטוריה והסימונים יתאפסו (המוצרים נשארים).`)) return;
+    try { await base44.functions.resetPrepCounts({ list_id: activeList }); await loadItems(activeList); } catch (e) { console.warn('reset', e); }
+  };
+
+  // ── lists management (admin) ──
+  const addList = async () => {
+    const name = window.prompt('שם הרשימה החדשה (למשל: הכנות בוקר):', '');
+    if (!name || !name.trim()) return;
+    try { const res = await base44.functions.savePrepList({ name: name.trim() }); const id = res?.data?.id || res?.id; await loadLists(id); await loadItems(id); }
+    catch (e) { console.warn('add list', e); }
+  };
+  const renameList = async () => {
+    const name = window.prompt('שם חדש לרשימה:', activeName);
+    if (!name || !name.trim()) return;
+    try { await base44.functions.savePrepList({ id: activeList, name: name.trim() }); await loadLists(activeList); }
+    catch (e) { console.warn('rename list', e); }
+  };
+  const deleteList = async () => {
+    if (lists.length <= 1) { window.alert('חייבת להישאר לפחות רשימה אחת.'); return; }
+    if (!window.confirm(`למחוק את הרשימה "${activeName}" וכל הפריטים שבה?`)) return;
+    try { await base44.functions.deletePrepList({ id: activeList }); const pick = await loadLists(); await loadItems(pick); }
+    catch (e) { console.warn('delete list', e); }
+  };
+
+  const openArchive = async () => {
+    setShowArchive(true); setOpenSnap(null);
+    try { const res = await base44.functions.getPrepArchive({ list_id: activeList }); const data = res?.data || res || {}; setArchive(Array.isArray(data.archive) ? data.archive : []); }
+    catch (e) { console.warn('archive', e); setArchive([]); }
   };
 
   // Import: dish headers group items; a line with "*" is an item under the
-  // current dish. Title / legend / note lines are skipped. If the text has no
-  // "*" at all, every line is treated as a flat item (optionally "name — qty").
+  // current dish. Title / legend / note lines are skipped. If no "*" at all,
+  // every line is a flat item (optionally "name — qty").
   const runImport = async () => {
     const lines = importText.split('\n').map((l) => l.trim()).filter(Boolean);
     const isJunk = (l) => /^(מפתח|key\b|prep for tomorrow|הכנות לבוקר|רכיבים משותפים|have\s*=|prep\s*=|✓\s*=)/i.test(l);
@@ -136,7 +196,7 @@ export default function PrepSheet() {
         const name = line.replace(/\*/g, '').replace(/\s{2,}/g, ' ').trim();
         if (!name) continue;
         if (isItem) parsed.push({ name, category: cat, have: '', prep: '', to_prep: false, done: false, sort: parsed.length });
-        else cat = name; // header line → the dish these items belong to
+        else cat = name;
       } else {
         const m = line.match(/^(.+?)[\s:–-]+(\d[\d.,]*\s*.*)$/);
         if (m) parsed.push({ name: m[1].trim(), target: m[2].trim(), category: cat, have: '', prep: '', to_prep: false, done: false, sort: parsed.length });
@@ -145,30 +205,78 @@ export default function PrepSheet() {
     }
     if (!parsed.length) return;
     setSaving(true);
-    try { await base44.functions.savePrepItems({ items: parsed }); setShowImport(false); setImportText(''); await load(); }
+    try { await base44.functions.savePrepItems({ list_id: activeList, items: parsed }); setShowImport(false); setImportText(''); await loadItems(activeList); }
     catch (e) { console.warn('import', e); }
     setSaving(false);
   };
-
-  if (loading) return <div className="flex justify-center items-center h-64"><Loader2 className="w-8 h-8 animate-spin text-orange-600" /></div>;
 
   const pct = summary.toPrep ? Math.round((summary.doneToPrep / summary.toPrep) * 100) : 0;
 
   return (
     <div dir="rtl" className="p-4 sm:p-8 bg-gradient-to-br from-orange-50 to-amber-50 min-h-screen">
       <div className="max-w-4xl mx-auto">
-        <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+        <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
           <h1 className="text-2xl md:text-3xl font-black text-[#A04A2E] flex items-center gap-2"><ChefHat className="w-7 h-7" /> דף הכנות</h1>
           <div className="flex items-center gap-2 flex-wrap">
+            <Button variant="outline" size="sm" onClick={openArchive}><History className="w-4 h-4 ml-1" /> היסטוריה</Button>
             {isAdmin && <Button variant="outline" size="sm" onClick={resetCounts}><RotateCcw className="w-4 h-4 ml-1" /> יום חדש</Button>}
-            {isAdmin && <Button variant="outline" size="sm" onClick={() => setShowImport((v) => !v)}><Upload className="w-4 h-4 ml-1" /> ייבוא מטקסט</Button>}
+            {isAdmin && <Button variant="outline" size="sm" onClick={() => setShowImport((v) => !v)}><Upload className="w-4 h-4 ml-1" /> ייבוא</Button>}
             {isAdmin && (editMode
               ? <Button size="sm" onClick={saveAll} disabled={saving} className="bg-orange-600 hover:bg-orange-700 text-white">{saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Save className="w-4 h-4 ml-1" /> שמור</>}</Button>
               : <Button size="sm" variant="outline" onClick={() => setEditMode(true)}>ערוך מוצרים</Button>)}
           </div>
         </div>
 
-        {/* Summary — overall status of the list */}
+        {/* List tabs */}
+        <div className="flex items-center gap-1.5 mb-4 flex-wrap">
+          {lists.map((l) => (
+            <button key={l.id} onClick={() => switchList(l.id)}
+              className={`px-3 py-1.5 rounded-full text-sm font-semibold border transition-colors ${l.id === activeList ? 'bg-orange-600 border-orange-600 text-white' : 'bg-white border-gray-200 text-slate-600 hover:border-orange-300'}`}>
+              {l.name}
+            </button>
+          ))}
+          {isAdmin && (
+            <>
+              <button onClick={addList} title="רשימה חדשה" className="px-2.5 py-1.5 rounded-full text-sm border border-dashed border-gray-300 text-gray-500 hover:border-orange-400 hover:text-orange-600"><Plus className="w-4 h-4" /></button>
+              {activeList && <button onClick={renameList} title="שנה שם" className="text-gray-400 hover:text-orange-600 p-1"><Pencil className="w-4 h-4" /></button>}
+              {activeList && lists.length > 1 && <button onClick={deleteList} title="מחק רשימה" className="text-gray-400 hover:text-red-600 p-1"><Trash2 className="w-4 h-4" /></button>}
+            </>
+          )}
+        </div>
+
+        {/* Archive (history) */}
+        {showArchive && (
+          <Card className="mb-4 border-orange-200">
+            <CardHeader className="flex flex-row items-center justify-between py-3">
+              <CardTitle className="text-base flex items-center gap-2"><History className="w-4 h-4" /> היסטוריית ימים — {activeName}</CardTitle>
+              <button onClick={() => setShowArchive(false)} className="text-gray-400 hover:text-gray-700"><X className="w-4 h-4" /></button>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {archive.length === 0 ? <p className="text-sm text-gray-500 py-4 text-center">עדיין אין ימים שמורים. הם נשמרים כשלוחצים "יום חדש".</p> : archive.map((a) => (
+                <div key={a.id} className="border rounded-lg overflow-hidden">
+                  <button onClick={() => setOpenSnap(openSnap === a.id ? null : a.id)} className="w-full flex items-center justify-between px-3 py-2 bg-gray-50 hover:bg-gray-100 text-sm">
+                    <span className="font-semibold text-slate-700">{fmtDate(a.archived_at)} · {fmtWhen(a.archived_at).split(' ').pop()}</span>
+                    <span className="text-xs text-gray-500">{a.done_count}/{a.item_count} בוצעו</span>
+                  </button>
+                  {openSnap === a.id && (
+                    <div className="p-2 space-y-1">
+                      {(Array.isArray(a.snapshot) ? a.snapshot : []).map((s, idx) => (
+                        <div key={idx} className="flex items-center gap-2 text-xs border-b last:border-0 py-1">
+                          <span className={`w-4 h-4 rounded-full inline-flex items-center justify-center flex-shrink-0 ${s.done ? 'bg-green-500 text-white' : 'bg-gray-200'}`}>{s.done && <Check className="w-3 h-3" />}</span>
+                          <span className="flex-1 text-slate-700">{s.name}{s.prep ? ` · ${s.prep}` : ''}</span>
+                          {s.done_by && <span className="text-gray-500">{s.done_by} · {fmtWhen(s.done_at)}</span>}
+                          {s.photo_url && <a href={s.photo_url} target="_blank" rel="noreferrer"><img src={s.photo_url} alt="" className="w-6 h-6 rounded object-cover" /></a>}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Summary */}
         {items.length > 0 && (
           <Card className="mb-4 border-orange-200/70">
             <CardContent className="py-3">
@@ -179,24 +287,31 @@ export default function PrepSheet() {
                   <div><span className="text-2xl font-black text-green-600">{summary.doneToPrep}</span> <span className="text-gray-500">בוצעו</span></div>
                 </div>
                 <div className="flex-1 min-w-[140px]">
-                  <div className="h-2.5 rounded-full bg-gray-200 overflow-hidden">
-                    <div className="h-full bg-green-500 transition-all" style={{ width: `${pct}%` }} />
-                  </div>
+                  <div className="h-2.5 rounded-full bg-gray-200 overflow-hidden"><div className="h-full bg-green-500 transition-all" style={{ width: `${pct}%` }} /></div>
                   <div className="text-xs text-gray-500 mt-1 text-left">{pct}% מההכנות הושלמו</div>
                 </div>
               </div>
               {summary.remaining.length > 0 && (
-                <div className="mt-2 text-xs text-gray-600">
-                  <span className="font-semibold text-orange-700">נותרו להכנה:</span> {summary.remaining.map((r) => r.name).join(' · ')}
-                </div>
+                <div className="mt-2 text-xs text-gray-600"><span className="font-semibold text-orange-700">נותרו להכנה:</span> {summary.remaining.map((r) => r.name).join(' · ')}</div>
               )}
             </CardContent>
           </Card>
         )}
 
+        {/* Search + filter */}
+        {items.length > 0 && (
+          <div className="flex items-center gap-2 mb-3 flex-wrap">
+            <div className="relative flex-1 min-w-[160px]">
+              <Search className="w-4 h-4 text-gray-400 absolute right-2 top-1/2 -translate-y-1/2" />
+              <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="חיפוש מוצר…" className="h-9 pr-8" />
+            </div>
+            <Button variant={onlyRemaining ? 'default' : 'outline'} size="sm" onClick={() => setOnlyRemaining((v) => !v)} className={onlyRemaining ? 'bg-orange-600 hover:bg-orange-700 text-white' : ''}>רק שנשאר להכין</Button>
+          </div>
+        )}
+
         {showImport && isAdmin && (
           <Card className="mb-4 border-orange-200">
-            <CardHeader><CardTitle className="text-base">ייבוא רשימת הכנות</CardTitle></CardHeader>
+            <CardHeader><CardTitle className="text-base">ייבוא רשימת הכנות — {activeName}</CardTitle></CardHeader>
             <CardContent className="space-y-2">
               <p className="text-xs text-gray-500">כותרת מנה בשורה נפרדת, ולפני כל פריט הכנה סמן <code>*</code>. הפריטים יקובצו תחת המנה. (שורות מפתח/הסבר יידלגו אוטומטית.)</p>
               <Textarea value={importText} onChange={(e) => setImportText(e.target.value)} rows={8} placeholder={'FOCACCIA (פוקאצ׳ה)\n* Bake focaccia (אפיית פוקאצ׳ה)\n* Seasonal jam (ריבה עונתית)\n\nSPICY PLATE (צלחת חריפים)\n* Zhug (סחוג)\n* Fried chili (צ׳ילי מטוגן)'} />
@@ -208,11 +323,13 @@ export default function PrepSheet() {
           </Card>
         )}
 
-        {items.length === 0 ? (
+        {loading ? (
+          <div className="flex justify-center items-center h-40"><Loader2 className="w-8 h-8 animate-spin text-orange-600" /></div>
+        ) : items.length === 0 ? (
           <Card><CardContent className="text-center py-12 text-gray-500">
             <ChefHat className="w-12 h-12 mx-auto text-orange-300 mb-3" />
-            <p className="font-bold text-slate-700 mb-1">אין עדיין רשימת הכנות</p>
-            {isAdmin ? <p className="text-sm">לחץ "ייבוא מטקסט" והדבק את רשימת ההכנות שלך.</p> : <p className="text-sm">המנהל עדיין לא הגדיר רשימת הכנות.</p>}
+            <p className="font-bold text-slate-700 mb-1">אין עדיין רשימת הכנות ב"{activeName}"</p>
+            {isAdmin ? <p className="text-sm">לחץ "ייבוא" והדבק את רשימת ההכנות, או "ערוך מוצרים" כדי להוסיף ידנית.</p> : <p className="text-sm">המנהל עדיין לא הגדיר רשימת הכנות.</p>}
           </CardContent></Card>
         ) : (
           <div className="space-y-5">
@@ -238,38 +355,23 @@ export default function PrepSheet() {
                                 ? <Input value={it.name} onChange={(e) => patch(it.id, 'name', e.target.value)} className="h-8 text-sm" placeholder="שם מוצר" />
                                 : <span className={`font-medium ${it.done ? 'line-through text-gray-400' : 'text-slate-800'}`}>{it.name}</span>}
                             </td>
-                            {/* יש — how much is on hand */}
                             <td className="p-2 text-center">
                               <Input value={it.have || ''} onChange={(e) => patch(it.id, 'have', e.target.value)} onBlur={() => !editMode && saveOne(items.find((x) => x.id === it.id))} className="h-8 text-sm text-center" placeholder="—" />
                             </td>
-                            {/* להכין — how much to make */}
                             <td className="p-2 text-center">
                               <Input value={it.prep || ''} onChange={(e) => patch(it.id, 'prep', e.target.value)} onBlur={() => !editMode && saveOne(items.find((x) => x.id === it.id))} className="h-8 text-sm text-center font-semibold text-orange-700" placeholder="—" />
                             </td>
-                            {/* לסמן להכין — flag it needs making */}
                             <td className="p-2 text-center">
-                              <button
-                                onClick={() => toggle(it, 'to_prep')}
-                                title="סמן שצריך להכין"
-                                className={`w-7 h-7 rounded border-2 inline-flex items-center justify-center transition-colors ${it.to_prep ? 'bg-orange-500 border-orange-500 text-white' : 'border-gray-300 hover:border-orange-400'}`}
-                              >{it.to_prep && <Check className="w-4 h-4" />}</button>
+                              <button onClick={() => toggle(it, 'to_prep')} title="סמן שצריך להכין"
+                                className={`w-7 h-7 rounded border-2 inline-flex items-center justify-center transition-colors ${it.to_prep ? 'bg-orange-500 border-orange-500 text-white' : 'border-gray-300 hover:border-orange-400'}`}>{it.to_prep && <Check className="w-4 h-4" />}</button>
                             </td>
-                            {/* בוצע — toggle + who/when + photo proof */}
                             <td className="p-2">
                               <div className="flex flex-col items-center gap-1">
-                                <button
-                                  onClick={() => toggle(it, 'done')}
-                                  className={`w-7 h-7 rounded border-2 inline-flex items-center justify-center transition-colors ${it.done ? 'bg-green-500 border-green-500 text-white' : 'border-gray-300 hover:border-green-400'}`}
-                                >{it.done && <Check className="w-4 h-4" />}</button>
-                                {it.done && it.done_by && (
-                                  <span className="text-[10px] leading-tight text-gray-500 text-center">{it.done_by}{it.done_at ? ` · ${fmtWhen(it.done_at)}` : ''}</span>
-                                )}
+                                <button onClick={() => toggle(it, 'done')}
+                                  className={`w-7 h-7 rounded border-2 inline-flex items-center justify-center transition-colors ${it.done ? 'bg-green-500 border-green-500 text-white' : 'border-gray-300 hover:border-green-400'}`}>{it.done && <Check className="w-4 h-4" />}</button>
+                                {it.done && it.done_by && <span className="text-[10px] leading-tight text-gray-500 text-center">{it.done_by}{it.done_at ? ` · ${fmtWhen(it.done_at)}` : ''}</span>}
                                 <div className="flex items-center gap-1">
-                                  {it.photo_url && (
-                                    <a href={it.photo_url} target="_blank" rel="noreferrer">
-                                      <img src={it.photo_url} alt="" className="w-8 h-8 rounded object-cover border border-gray-200" />
-                                    </a>
-                                  )}
+                                  {it.photo_url && <a href={it.photo_url} target="_blank" rel="noreferrer"><img src={it.photo_url} alt="" className="w-8 h-8 rounded object-cover border border-gray-200" /></a>}
                                   <label className="cursor-pointer text-gray-400 hover:text-orange-600" title="צרף תמונה">
                                     {uploadingId === it.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Camera className="w-4 h-4" />}
                                     <input type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; attachPhoto(it, f); }} />
