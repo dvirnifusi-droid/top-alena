@@ -3130,7 +3130,10 @@ export default function SeatingSetup() {
                                                     left: table.x || 50,
                                                     top: table.y || 50,
                                                     width: table.width || 80,
-                                                    height: table.height || 100
+                                                    height: table.height || 100,
+                                                    // Floor for readability — tiny tables never get cramped for the host.
+                                                    minWidth: 88,
+                                                    minHeight: 70,
                                                 }}
                                                 className={`rounded-xl shadow-md border-2 transition-all hover:scale-[1.06] hover:shadow-lg hover:z-20 relative group ${
                                                     isBlockedForInteraction ? 'cursor-not-allowed' : (swapping || assigningTable || isSelectingTables ? 'cursor-crosshair' : 'cursor-pointer')
@@ -3212,16 +3215,16 @@ export default function SeatingSetup() {
                                                             </>
                                                         ) : futureReservationsForTable.length > 0 ? (
                                                             <div className="w-full flex flex-col gap-0.5">
-                                                                {futureReservationsForTable.slice(0, 2).map(res => (
-                                                                    <div key={res.id} className="w-full bg-[#44512C] text-white px-1 rounded text-[11px] font-bold flex items-center justify-between leading-tight">
-                                                                        <span>{res.time?.slice(0, 5)}</span>
-                                                                        <span className="truncate mx-1">{getFirstName(res.customer_name)}</span>
-                                                                        <span>×{res.party_size}</span>
+                                                                {futureReservationsForTable.slice(0, 2).map((res, ri) => (
+                                                                    <div key={res.id} className={`w-full rounded px-1 py-0.5 font-bold flex items-center justify-between gap-1 leading-tight ${ri === 0 ? 'bg-[#44512C] text-white text-xs' : 'bg-[#44512C]/15 text-[#44512C] text-[11px]'}`}>
+                                                                        <span className="tabular-nums">{res.time?.slice(0, 5)}</span>
+                                                                        <span className="truncate flex-1 text-center">{getFirstName(res.customer_name)}</span>
+                                                                        <span className="whitespace-nowrap">👥{res.party_size}</span>
                                                                     </div>
                                                                 ))}
                                                                 {futureReservationsForTable.length > 2 && (
-                                                                    <div className="text-[11px] text-[#44512C] font-black">
-                                                                        +{futureReservationsForTable.length - 2}
+                                                                    <div className="text-[10px] text-[#44512C] font-black">
+                                                                        +{futureReservationsForTable.length - 2} עוד
                                                                     </div>
                                                                 )}
                                                             </div>
