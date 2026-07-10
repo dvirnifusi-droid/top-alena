@@ -281,7 +281,18 @@ function AvailabilityRequestsInner() {
              }
              toast.success(`${avail.employee_name} שובץ ל-${shiftType === 'lunch' ? 'צהריים' : 'ערב'} בהצלחה!`);
              setSingleAssignModal(null);
-             await loadData(); // Refresh so the UI reflects the new assignment immediately
+             // Update local shifts IN PLACE so the card flips pink/green immediately
+             // WITHOUT a full loadData() — which would flash the loading spinner and
+             // reset the scroll to the top mid-assigning.
+             setShifts(prev => {
+                 const idx = prev.findIndex(s => s.id === shift.id);
+                 if (idx >= 0) {
+                     const next = [...prev];
+                     next[idx] = { ...next[idx], assigned_staff: newStaff };
+                     return next;
+                 }
+                 return [...prev, { ...shift, assigned_staff: newStaff }];
+             });
          } catch (e) {
              console.error('[singleAssign] failed:', e);
              toast.error('שגיאה בשיבוץ: ' + (e?.message || e));
