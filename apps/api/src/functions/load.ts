@@ -48,7 +48,7 @@ const db = prisma as any; // generic delegate access
 
 // Public deploy marker — lets us confirm which build is live (and that
 // auto-deploy is working) without server access. Bump on each deploy test.
-registerFn('deployInfo', async () => ({ version: 'schedule-draft-publish-2026-07-10', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
+registerFn('deployInfo', async () => ({ version: 'schedule-publish-by-dept-2026-07-10', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
 
 
 
@@ -5313,9 +5313,10 @@ registerFn('getScheduleLaborCost', async ({ user, body }: any) => {
   }
 });
 
-// ── Publish / unpublish a week. Adds (or removes) the week-start in
-// ScheduleConfig.published_weeks so employees see it only once the manager is
-// ready. Only FUTURE weeks are gated in the UI; current/past are always visible.
+// ── Publish / unpublish a week PER DEPARTMENT (floor / kitchen). Stored in
+// ScheduleConfig.published_weeks as "weekStart|dept" keys (a legacy bare
+// "weekStart" entry = whole week, both depts). Only FUTURE weeks are gated in
+// the UI; current/past are always visible.
 registerFn('publishSchedule', async ({ user, body }: any) => {
   if (!user?.id) throw new Error('unauthorized');
   if (!['admin', 'owner'].includes(String(user.role)) && !(user as any).managed_department) throw new Error('forbidden');
@@ -5323,6 +5324,7 @@ registerFn('publishSchedule', async ({ user, body }: any) => {
   const b = (body || {}) as any;
   const ws = String(b.week_start || '').slice(0, 10);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(ws)) throw new Error('week_start required');
+  const dept = ['floor', 'kitchen'].includes(String(b.department)) ? String(b.department) : null;
   const { randomUUID } = await import('node:crypto');
   const existing: any[] = await (prisma as any).$queryRawUnsafe(`SELECT id, published_weeks FROM "ScheduleConfig" LIMIT 1`);
   let id: string; let current: any[];
@@ -5332,8 +5334,10 @@ registerFn('publishSchedule', async ({ user, body }: any) => {
     current = [];
   } else { id = existing[0].id; current = Array.isArray(existing[0].published_weeks) ? existing[0].published_weeks : []; }
   const set = new Set<string>(current.map(String));
-  if (b.publish === false) set.delete(ws); else set.add(ws);
-  const arr = [...set].slice(-60);
+  // dept given → that department only; else both departments ("all").
+  const keys = dept ? [`${ws}|${dept}`] : [`${ws}|floor`, `${ws}|kitchen`];
+  for (const k of keys) { if (b.publish === false) set.delete(k); else set.add(k); }
+  const arr = [...set].slice(-120);
   await (prisma as any).$executeRawUnsafe(`UPDATE "ScheduleConfig" SET published_weeks=$1::jsonb, "updatedAt"=NOW() WHERE id=$2`, JSON.stringify(arr), id);
   return { ok: true, published_weeks: arr };
 });

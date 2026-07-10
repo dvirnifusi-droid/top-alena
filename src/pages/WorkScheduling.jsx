@@ -647,21 +647,38 @@ export default function WorkScheduling() {
         setSavingBudget(false);
     };
 
-    // Draft → Publish. Only FUTURE weeks are gated (current/past always visible),
-    // so existing weeks keep working. A future week is a draft until published.
+    // Draft → Publish, PER DEPARTMENT (floor / kitchen). Only FUTURE weeks are
+    // gated (current/past always visible), so existing weeks keep working.
     const thisWeekStr = format(startOfWeek(new Date(), { weekStartsOn: 0 }), 'yyyy-MM-dd');
     const isFutureWeek = weekStartStr > thisWeekStr;
-    const isPublished = !isFutureWeek || (Array.isArray(scheduleCfg?.published_weeks) && scheduleCfg.published_weeks.includes(weekStartStr));
-    const hideForEmployee = !isAdminLike && isFutureWeek && !isPublished;
+    const publishedWeeks = Array.isArray(scheduleCfg?.published_weeks) ? scheduleCfg.published_weeks : [];
+    // A dept is published if its "week|dept" key exists, or a legacy bare "week".
+    const isDeptPublished = (dept) => publishedWeeks.includes(`${weekStartStr}|${dept}`) || publishedWeeks.includes(weekStartStr);
+    // Infer which department an employee belongs to (for the visibility gate).
+    const inferDept = (emp) => {
+        if (!emp) return null;
+        if (emp.department === 'floor' || emp.department === 'kitchen') return emp.department;
+        const names = [emp.role, ...((Array.isArray(emp.positions) ? emp.positions : []).map(p => typeof p === 'string' ? p : (p?.position_name || p?.name)))].filter(Boolean).map(canon);
+        const kitchen = new Set((DEPARTMENT_DEFINITIONS.kitchen.positionNames || []).map(canon));
+        const floor = new Set((DEPARTMENT_DEFINITIONS.floor.positionNames || []).map(canon));
+        if (names.some(n => kitchen.has(n))) return 'kitchen';
+        if (names.some(n => floor.has(n))) return 'floor';
+        return null;
+    };
+    const empDept = inferDept(currentEmployee);
+    const hideForEmployee = !isAdminLike && isFutureWeek && (
+        empDept ? !isDeptPublished(empDept) : (!isDeptPublished('floor') && !isDeptPublished('kitchen'))
+    );
     const [publishing, setPublishing] = useState(false);
 
-    const doPublish = async (publish = true) => {
+    const doPublish = async (department, publish = true) => {
         setPublishing(true);
         try {
-            await base44.functions.publishSchedule({ week_start: weekStartStr, publish });
+            await base44.functions.publishSchedule({ week_start: weekStartStr, department, publish });
             const r = await base44.functions.getScheduleConfig({}).then(x => x?.data || x || {}).catch(() => ({}));
             setScheduleCfg(r);
-            if (publish && window.confirm('הסידור פורסם ✓\nלשלוח לצוות בוואטסאפ עכשיו?')) setWhatsappDialogOpen(true);
+            const deptLabel = department === 'floor' ? 'פלור' : department === 'kitchen' ? 'מטבח' : 'הסידור';
+            if (publish && window.confirm(`פורסם (${deptLabel}) ✓\nלשלוח לצוות בוואטסאפ עכשיו?`)) setWhatsappDialogOpen(true);
         } catch (e) { console.warn('publish', e); alert('שגיאה בפרסום'); }
         setPublishing(false);
     };
@@ -1174,19 +1191,28 @@ export default function WorkScheduling() {
 
     return (
         <div className="p-4 md:p-6" dir="rtl">
-            {/* Draft / Publish banner (future weeks, admin) */}
-            {isAdminLike && isFutureWeek && (
-                <div className={`mb-4 flex items-center justify-between gap-3 flex-wrap rounded-lg px-4 py-3 border ${isPublished ? 'bg-green-50 border-green-300' : 'bg-amber-50 border-amber-300'}`}>
-                    <span className={`font-semibold text-sm ${isPublished ? 'text-green-800' : 'text-amber-800'}`}>
-                        {isPublished ? '✅ הסידור לשבוע זה פורסם — העובדים רואים אותו.' : '🚧 טיוטה — השבוע הזה עדיין לא פורסם. העובדים לא רואים אותו עד שתפרסם.'}
-                    </span>
-                    <div className="flex gap-2">
-                        {isPublished
-                            ? <Button size="sm" variant="outline" onClick={() => doPublish(false)} disabled={publishing}>בטל פרסום</Button>
-                            : <Button size="sm" onClick={() => doPublish(true)} disabled={publishing} className="bg-[#44512C] hover:bg-[#7A3722] text-white">{publishing ? <Loader2 className="w-4 h-4 animate-spin" /> : '📣 פרסם סידור'}</Button>}
+            {/* Draft / Publish banner — per department (future weeks, admin) */}
+            {isAdminLike && isFutureWeek && (() => {
+                const bothPublished = isDeptPublished('floor') && isDeptPublished('kitchen');
+                return (
+                    <div className={`mb-4 rounded-lg px-4 py-3 border ${bothPublished ? 'bg-green-50 border-green-300' : 'bg-amber-50 border-amber-300'}`}>
+                        <div className="flex items-center justify-between gap-3 flex-wrap">
+                            <span className={`font-semibold text-sm ${bothPublished ? 'text-green-800' : 'text-amber-800'}`}>
+                                {bothPublished ? '✅ פורסם לפלור ולמטבח — העובדים רואים.' : '🚧 טיוטה — פרסם לפי מחלקה. כל עובד רואה רק אחרי שהמחלקה שלו פורסמה.'}
+                            </span>
+                            <div className="flex gap-2 flex-wrap">
+                                {['floor', 'kitchen'].map(dept => {
+                                    const pub = isDeptPublished(dept);
+                                    const label = dept === 'floor' ? 'פלור' : 'מטבח';
+                                    return pub
+                                        ? <Button key={dept} size="sm" variant="outline" className="border-green-400 text-green-700 hover:bg-green-50" onClick={() => doPublish(dept, false)} disabled={publishing}>✅ {label} — בטל</Button>
+                                        : <Button key={dept} size="sm" onClick={() => doPublish(dept, true)} disabled={publishing} className="bg-[#44512C] hover:bg-[#7A3722] text-white">{publishing ? <Loader2 className="w-4 h-4 animate-spin" /> : `📣 פרסם ${label}`}</Button>;
+                                })}
+                            </div>
+                        </div>
                     </div>
-                </div>
-            )}
+                );
+            })()}
             {/* Undo banners */}
             {lastEditedShift && (
                 <div className="mb-4 flex items-center justify-between bg-[#F4ECD8] border border-[#D9BD83] rounded-lg px-4 py-3">
