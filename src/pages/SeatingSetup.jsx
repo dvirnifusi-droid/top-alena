@@ -1835,6 +1835,24 @@ export default function SeatingSetup() {
                         </div>
                     </div>
 
+                    {/* Table shape — moved here from the card hover menu (freed that spot for "move table") */}
+                    <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                        <Label className="text-sm font-semibold text-gray-600">צורת שולחן</Label>
+                        <div className="flex gap-2">
+                            <Button
+                                size="sm"
+                                variant={table.shape !== 'round' ? 'default' : 'outline'}
+                                onClick={() => setTables(prev => prev.map(t => t.table_number === table.table_number ? { ...t, shape: 'rect' } : t))}
+                            >⬛ מרובע</Button>
+                            <Button
+                                size="sm"
+                                variant={table.shape === 'round' ? 'default' : 'outline'}
+                                onClick={() => setTables(prev => prev.map(t => t.table_number === table.table_number ? { ...t, shape: 'round' } : t))}
+                            >⭕ עגול</Button>
+                        </div>
+                    </div>
+                    <p className="text-[11px] text-gray-400 -mt-4 px-1">שינוי הצורה נשמר בלחיצה על "שמור מפה".</p>
+
                     {futureReservations.length > 0 && (
                         <div className="border rounded-lg p-4 bg-[#F4ECD8]">
                             <h3 className="font-bold text-lg mb-3 flex items-center gap-2">
@@ -2385,6 +2403,14 @@ export default function SeatingSetup() {
                         שמור שיוך
                     </Button>
                     <Button variant="ghost" size="sm" onClick={cancelMultiTableAssignment}>
+                        בטל
+                    </Button>
+                </div>
+            )}
+            {assigningTable && (
+                <div className="fixed top-0 left-0 right-0 bg-emerald-500 text-white p-2 text-center z-50 font-bold flex items-center justify-center gap-4">
+                    🔀 העברת שולחן — לחץ על שולחן היעד
+                    <Button variant="ghost" size="sm" onClick={() => setAssigningTable(null)} className="bg-white text-emerald-700 hover:bg-gray-100">
                         בטל
                     </Button>
                 </div>
@@ -3274,16 +3300,31 @@ export default function SeatingSetup() {
                                                             >
                                                                 ניקוי
                                                             </button>
-                                                            <button
-                                                                onClick={(e) => {
-                                                                    e.stopPropagation();
-                                                                    setTables(prev => prev.map(t => t.table_number === table.table_number ? { ...t, shape: t.shape === 'round' ? 'rect' : 'round' } : t));
-                                                                }}
-                                                                className="px-2 py-1 text-xs rounded bg-blue-100 hover:bg-blue-200 text-blue-800"
-                                                                title={table.shape === 'round' ? 'הפוך למרובע' : 'הפוך לעגול'}
-                                                            >
-                                                                {table.shape === 'round' ? '⬛' : '⭕'}
-                                                            </button>
+                                                            {(isReallyOccupied || upcomingToday) && (
+                                                                <button
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        // Fewest-clicks move: pick the relevant reservation on this
+                                                                        // table, enter single-target assign mode → next click on the
+                                                                        // map moves it instantly (no dialog, no OK).
+                                                                        const resToMove = seatedReservation || upcomingToday || futureReservationsForTable[0];
+                                                                        if (resToMove) {
+                                                                            setIsSelectingTables(false);
+                                                                            setSelectedTablesForReservation([]);
+                                                                            setMultiAssignReservationId(null);
+                                                                            setSwapping(null);
+                                                                            setAssigningTable({ reservationId: resToMove.id });
+                                                                        } else {
+                                                                            // Walk-in session with no reservation → move via details panel
+                                                                            showTableDetails(table);
+                                                                        }
+                                                                    }}
+                                                                    className="px-2 py-1 text-xs rounded bg-blue-100 hover:bg-blue-200 text-blue-800 flex items-center"
+                                                                    title="העברת שולחן — לחץ ואז בחר יעד"
+                                                                >
+                                                                    <ArrowRight className="w-3.5 h-3.5" />
+                                                                </button>
+                                                            )}
                                                         </div>
                                                     </div>
                                                 )}
