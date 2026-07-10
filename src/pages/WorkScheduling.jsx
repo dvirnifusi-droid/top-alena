@@ -251,7 +251,7 @@ const MobileScheduleView = ({ week, positions, employees, onCellClick, onAssignm
             uniqueStaff.push(a);
         }
 
-        let filteredAssignments = uniqueStaff.filter(a => canon(a.position) === positionName);
+        let filteredAssignments = uniqueStaff.filter(a => canon(a.position) === canon(positionName));
 
         if (filters.employee !== 'all') {
             filteredAssignments = filteredAssignments.filter(a => a.employee_id === filters.employee);
@@ -1312,7 +1312,7 @@ export default function WorkScheduling() {
                                                             {days.reduce((total, day) => {
                                                                 const s = getShiftFor(day, type);
                                                                 let assignments = (s?.assigned_staff || [])
-                                                                    .filter(a => canon(a.position) === position.position_name);
+                                                                    .filter(a => canon(a.position) === canon(position.position_name));
                                                                 if (filters.employee !== 'all') {
                                                                     assignments = assignments.filter(a => a.employee_id === filters.employee);
                                                                 }
@@ -1325,7 +1325,7 @@ export default function WorkScheduling() {
                                                 {days.map(day => {
                                                     const shift = getShiftFor(day, type);
                                                     let assignments = (shift?.assigned_staff || [])
-                                                        .filter(a => canon(a.position) === position.position_name);
+                                                        .filter(a => canon(a.position) === canon(position.position_name));
 
                                                     if (filters.employee !== 'all') {
                                                         assignments = assignments.filter(a => a.employee_id === filters.employee);

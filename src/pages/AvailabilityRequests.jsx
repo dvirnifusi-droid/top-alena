@@ -259,16 +259,6 @@ function AvailabilityRequestsInner() {
                  });
              }
 
-             const currentStaff = shift.assigned_staff || [];
-             const alreadyIn = currentStaff.some(s => s.employee_id === avail.employee_id);
-
-             if (alreadyIn) {
-                 toast.info('העובד כבר שובץ למשמרת זו');
-                 setSingleAssignModal(null);
-                 setSingleAssignLoading(false);
-                 return;
-             }
-
              const emp = employees.find(e => e.id === avail.employee_id);
              if (!emp) {
                  toast.error('לא נמצא עובד');
@@ -277,14 +267,32 @@ function AvailabilityRequestsInner() {
              }
 
              const position = canonRole(avail.positions?.length > 0 ? avail.positions[0] : (emp.positions?.[0]?.position_name || 'מלצר'));
+             const currentStaff = shift.assigned_staff || [];
+             const existingIdx = currentStaff.findIndex(s => s.employee_id === avail.employee_id);
 
-             const newStaff = [...currentStaff, {
-                 employee_id: avail.employee_id,
-                 employee_name: avail.employee_name || emp.full_name,
-                 position,
-                 start_time: shiftType === 'lunch' ? '12:00' : '17:00',
-                 end_time: shiftType === 'lunch' ? '17:00' : '23:00',
-             }];
+             let newStaff;
+             if (existingIdx >= 0) {
+                 // Already in this shift. If the role already matches → nothing to do.
+                 // Otherwise UPDATE the existing row's role — so a stale/feminine role
+                 // ('מארחת', which has no row in this shift) becomes the chosen role
+                 // instead of the assign being silently refused (which left the
+                 // employee stuck AND invisible in the grid).
+                 if (canonRole(currentStaff[existingIdx].position) === position) {
+                     toast.info('העובד כבר שובץ למשמרת זו בתפקיד זה');
+                     setSingleAssignModal(null);
+                     setSingleAssignLoading(false);
+                     return;
+                 }
+                 newStaff = currentStaff.map((s, i) => i === existingIdx ? { ...s, position } : s);
+             } else {
+                 newStaff = [...currentStaff, {
+                     employee_id: avail.employee_id,
+                     employee_name: avail.employee_name || emp.full_name,
+                     position,
+                     start_time: shiftType === 'lunch' ? '12:00' : '17:00',
+                     end_time: shiftType === 'lunch' ? '17:00' : '23:00',
+                 }];
+             }
 
              const updated = await base44.entities.WorkShift.update(shift.id, { assigned_staff: newStaff });
              // Verify the staff is actually in the response so we know the save took.
