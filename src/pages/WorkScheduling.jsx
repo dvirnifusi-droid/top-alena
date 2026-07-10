@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
-import { Loader2, Plus, Calendar as CalendarIcon, ChevronLeft, ChevronRight, Filter, RotateCcw, X, Crown, Link, Check, Trash2, MoveRight, Phone, MessageCircle, Star, Copy } from 'lucide-react';
+import { Loader2, Plus, Calendar as CalendarIcon, ChevronLeft, ChevronRight, Filter, RotateCcw, X, Crown, Link, Check, Trash2, MoveRight, Phone, MessageCircle, Star, Copy, UserPlus } from 'lucide-react';
 import EmployeeRatingDialog from '../components/scheduling/EmployeeRatingDialog';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -15,6 +15,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import QuickAssignDialog from '../components/scheduling/QuickAssignDialog';
 import ShiftEditDialog from '../components/scheduling/ShiftEditDialog';
 import AssignmentEditDialog from '../components/scheduling/AssignmentEditDialog';
+import BulkAssignDialog from '../components/scheduling/BulkAssignDialog';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import ShiftNotificationBell from '../components/shared/ShiftNotificationBell';
 import SendScheduleWhatsAppDialog from '../components/scheduling/SendScheduleWhatsAppDialog';
@@ -526,6 +527,7 @@ export default function WorkScheduling() {
     const [loading, setLoading] = useState(true);
     const [currentDate, setCurrentDate] = useState(new Date());
     const [isQuickAssignOpen, setIsQuickAssignOpen] = useState(false);
+    const [isBulkAssignOpen, setIsBulkAssignOpen] = useState(false);
     const [isShiftEditorOpen, setIsShiftEditorOpen] = useState(false);
     const [isAssignmentEditorOpen, setIsAssignmentEditorOpen] = useState(false);
     const [dialogContext, setDialogContext] = useState(null);
@@ -710,6 +712,41 @@ export default function WorkScheduling() {
     const handleEditShift = (shift) => {
         setDialogContext({ shift });
         setIsShiftEditorOpen(true);
+    };
+
+    // Bulk assign one employee across the week — for each selected (day, shift)
+    // find-or-create the WorkShift and add the employee at the chosen role.
+    const handleBulkAssign = async ({ employee_id, position, selections }) => {
+        const employee = employees.find(e => e.id === employee_id);
+        if (!employee || !position || !selections?.length) return;
+        let created = 0, skipped = 0;
+        for (const { date, shiftType } of selections) {
+            try {
+                const dateString = format(date, 'yyyy-MM-dd');
+                const start = shiftTypesConfig[shiftType]?.start || (shiftType === 'lunch' ? '12:00' : '17:00');
+                const end = shiftTypesConfig[shiftType]?.end || (shiftType === 'lunch' ? '17:00' : '23:00');
+                let shift = getShiftFor(date, shiftType);
+                if (!shift) {
+                    shift = await base44.entities.WorkShift.create({
+                        date: dateString, shift_type: shiftType, start_time: start, end_time: end,
+                        assigned_staff: [], positions_needed: {},
+                    });
+                }
+                const updatedStaff = [...(shift.assigned_staff || [])];
+                if (updatedStaff.some(a => a.employee_id === employee_id && a.position === position)) { skipped++; continue; }
+                updatedStaff.push({
+                    employee_id, employee_name: employee.full_name, position,
+                    start_time: start, end_time: end,
+                    breaks: [], notes: '', had_meal: false, meal_details: '', total_break_minutes: 0,
+                });
+                await base44.entities.WorkShift.update(shift.id, { assigned_staff: updatedStaff });
+                created++;
+            } catch (e) {
+                console.error('bulk assign row failed', e);
+            }
+        }
+        await loadScheduleData();
+        alert(`שובץ ${employee.full_name}: ${created} משמרות${skipped ? ` (${skipped} כבר היו קיימות)` : ''}.`);
     };
 
     const handleQuickAssignAction = async (assignmentData) => {
@@ -1181,6 +1218,11 @@ export default function WorkScheduling() {
                         </div>
                         <div className="flex items-center gap-2">
                             {isAdminLike && (
+                                <Button onClick={() => setIsBulkAssignOpen(true)} className="bg-[#44512C] hover:bg-[#7A3722] text-white">
+                                    <UserPlus className="w-4 h-4 ml-2" /> שיבוץ עובד
+                                </Button>
+                            )}
+                            {isAdminLike && (
                                 <Button variant="outline" onClick={() => setShowScheduleSettings(true)} className="border-[#D9BD83] text-[#44512C] hover:bg-[#F4ECD8]">
                                     ⚙️ הגדרות סידור
                                 </Button>
@@ -1417,6 +1459,11 @@ export default function WorkScheduling() {
                         ⚙️ הגדרות סידור
                     </Button>
                 )}
+                {isAdminLike && (
+                    <Button onClick={() => setIsBulkAssignOpen(true)} className="fixed bottom-52 right-4 z-20 h-14 px-4 rounded-full shadow-lg bg-[#7A3722] hover:bg-[#44512C] text-white gap-1">
+                        <UserPlus className="w-5 h-5" /> שיבוץ עובד
+                    </Button>
+                )}
                 <Sheet>
                     <SheetTrigger asChild>
                         <Button className="fixed bottom-20 right-4 z-20 h-14 w-14 rounded-full shadow-lg">
@@ -1485,6 +1532,16 @@ export default function WorkScheduling() {
             )}
 
             {isAssignmentEditorOpen && (
+                <BulkAssignDialog
+                    open={isBulkAssignOpen}
+                    onClose={() => setIsBulkAssignOpen(false)}
+                    employees={employees}
+                    positions={positions}
+                    days={days}
+                    shiftTypesConfig={shiftTypesConfig}
+                    onSubmit={handleBulkAssign}
+                />
+
                 <AssignmentEditDialog
                     isOpen={isAssignmentEditorOpen}
                     onOpenChange={setIsAssignmentEditorOpen}
