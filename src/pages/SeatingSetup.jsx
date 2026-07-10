@@ -808,6 +808,40 @@ export default function SeatingSetup() {
         } catch (err) { alert('שגיאה: ' + (err?.message || '')); }
     };
 
+    // Tidy the currently-filtered area(s): lay their tables out in an even grid,
+    // anchored at each zone's top corner (so the zone stays put), uniform size.
+    // Nothing is saved until the user hits שמור — reload reverts (= undo).
+    const autoTidyArea = () => {
+        const targetAreas = selectedAreas.includes('all')
+            ? [...new Set(tables.map(t => t.area).filter(Boolean))]
+            : selectedAreas;
+        if (!targetAreas.length) { alert('בחר אזור בסרגל למעלה (או "הכל") ואז לחץ שוב.'); return; }
+        const label = selectedAreas.includes('all') ? 'כל האזורים' : targetAreas.join(', ');
+        if (!window.confirm(`לסדר את השולחנות של ${label} ברשת מיושרת?\n(שאר המפה לא זזה. לביטול — פשוט אל תשמור / רענן.)`)) return;
+        const CARD_W = 112, CARD_H = 74, GAP_X = 14, GAP_Y = 14;
+        const updated = tables.map(t => ({ ...t }));
+        for (const area of targetAreas) {
+            const zoneTables = updated.filter(t => t.area === area);
+            if (!zoneTables.length) continue;
+            const minX = Math.min(...zoneTables.map(t => t.x || 0));
+            const minY = Math.min(...zoneTables.map(t => t.y || 0));
+            const maxX = Math.max(...zoneTables.map(t => (t.x || 0) + (t.width || CARD_W)));
+            const zoneWidth = Math.max(CARD_W, maxX - minX);
+            const cols = Math.max(1, Math.round((zoneWidth + GAP_X) / (CARD_W + GAP_X)));
+            zoneTables.sort((a, b) => String(a.table_number).localeCompare(String(b.table_number), undefined, { numeric: true }));
+            zoneTables.forEach((t, i) => {
+                const row = Math.floor(i / cols);
+                const col = i % cols;
+                t.x = Math.round(minX + col * (CARD_W + GAP_X));
+                t.y = Math.round(minY + row * (CARD_H + GAP_Y));
+                t.width = CARD_W;
+                t.height = CARD_H;
+            });
+        }
+        setTables(updated);
+        alert('✅ סודר ברשת. בדוק — ואם טוב, לחץ "שמור". לביטול: אל תשמור / רענן.');
+    };
+
     const handleSaveLayout = async () => {
         setIsSaving(true);
         try {
@@ -2869,6 +2903,9 @@ export default function SeatingSetup() {
                                                 </div>
                                             </PopoverContent>
                                         </Popover>
+                                            <Button variant="outline" size="sm" className="h-9 border-[#D9BD83] text-[#7A3722] hover:bg-[#F4ECD8]" onClick={autoTidyArea} title="סדר את השולחנות של האזור הנבחר ברשת מיושרת">
+                                                <span className="text-xs">🧹 סדר אזור</span>
+                                            </Button>
                                             {/* Clock */}
                                             <div className="hidden sm:block text-center px-2.5 py-1 bg-gradient-to-bl from-slate-900 to-slate-700 text-white rounded-lg shrink-0">
                                                 <div className="text-base font-black tabular-nums leading-none">{format(clockTick, 'HH:mm')}</div>
