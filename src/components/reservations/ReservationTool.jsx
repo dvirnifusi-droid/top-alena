@@ -13,6 +13,7 @@ import { Customer } from '@/entities/Customer';
 import { format, addMinutes, parse } from "date-fns";
 import { Calendar, Clock, Users, Wand2, Loader2, AlertCircle, CheckCircle } from 'lucide-react';
 import TimePicker from '../shared/TimePicker';
+import { invokePublic } from '@/lib/publicFetch';
 
 const updateCustomerClub = async (phone, name, visitDate) => {
     try {
@@ -89,51 +90,25 @@ export default function ReservationTool({ onReservationCreated }) {
 
         try {
             const dateString = format(date, 'yyyy-MM-dd');
-            const reservationStartTime = parse(`${dateString} ${time}`, 'yyyy-MM-dd HH:mm', new Date());
-            const duration = getSeatingDuration(partySize);
-            const reservationEndTime = addMinutes(reservationStartTime, duration);
-
-            const [layouts, activeSessions, existingReservations] = await Promise.all([
-                SeatingLayout.list(),
-                TableSession.filter({ status: 'active' }),
-                Reservation.filter({ date: dateString })
-            ]);
-
-            if (!layouts || layouts.length === 0) {
-                setError("לא נמצאה מפת הושבה. יש להגדיר אותה קודם.");
-                setIsLoading(false);
-                return;
-            }
-            
-            const allTables = layouts[0].tables;
-            const occupiedNow = activeSessions.map(s => s.table_number);
-            
-            let availableTables = allTables.filter(t => !occupiedNow.includes(t.table_number));
-
-            availableTables = availableTables.filter(table => {
-                const reservationsForTable = existingReservations.filter(r => {
-                    if (!r.assigned_table || r.assigned_table.length === 0) return false;
-                    const assignedTables = Array.isArray(r.assigned_table) ? r.assigned_table : [r.assigned_table];
-                    return assignedTables.includes(table.table_number);
-                });
-
-                for (const res of reservationsForTable) {
-                    if (res.status === 'cancelled' || res.status === 'no_show') continue;
-                    const resStart = parse(`${res.date} ${res.time}`, 'yyyy-MM-dd HH:mm', new Date());
-                    const resEnd = addMinutes(resStart, getSeatingDuration(res.party_size));
-                    if ((reservationStartTime < resEnd) && (reservationEndTime > resStart)) {
-                        return false;
-                    }
-                }
-                return true;
+            // Use the SERVER's table-finder — the single source of truth. It honors
+            // the owner's priority list (singles + combos) and refuses any table with
+            // a time-overlapping reservation, so the app booker can never double-book
+            // (same logic that online reservations use).
+            const result = await invokePublic('searchReservationTable', {
+                date: dateString,
+                time,
+                party_size: partySize,
             });
 
-            const perfectFit = availableTables.find(t => t.min_capacity <= partySize && t.max_capacity >= partySize);
-            
-            if (perfectFit) {
+            if (result?.reason === 'too_large_use_events') {
+                setError(`ל-${partySize} סועדים ומעלה — יש לפנות דרך אירועים.`);
+            } else if (result?.canAccommodate && result?.table) {
+                const tables = Array.isArray(result.table.table_numbers) && result.table.table_numbers.length > 0
+                    ? result.table.table_numbers
+                    : [result.table.table_number];
                 setSuggestion({
-                    tables: [perfectFit.table_number],
-                    reason: `מושלם עבור ${partySize} סועדים`
+                    tables,
+                    reason: tables.length > 1 ? `חיבור שולחנות ${tables.join(' + ')}` : `שולחן ${tables[0]} — פנוי ומתאים`,
                 });
             } else {
                 setError(`לא נמצא שולחן פנוי מתאים ל-${partySize} סועדים בשעה ${time}. אנא נסה שעה אחרת.`);

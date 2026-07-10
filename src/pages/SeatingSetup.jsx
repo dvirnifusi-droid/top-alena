@@ -318,6 +318,7 @@ export default function SeatingSetup() {
     const [bigMapMode, setBigMapMode] = useState(false);  // hostess fullscreen workflow — map + compact tonight strip
     const [dashboardDrawerOpen, setDashboardDrawerOpen] = useState(false);  // overlay slide-in of full dashboard
     const [smartBookerOpen, setSmartBookerOpen] = useState(false);  // collapsible "+ הזמנה חדשה" panel
+    const [isAutoAssigning, setIsAutoAssigning] = useState(false);  // "שבץ הכל" — batch auto-assignment in flight
     const [mobileView, setMobileView] = useState('reservations');  // 'reservations' | 'map' — tab switcher on mobile
     const [queueEntries, setQueueEntries] = useState([]);        // live restaurant queue (walk-ins waiting)
     const [railTab, setRailTab] = useState('tonight');           // 'tonight' | 'full' | 'queue'
@@ -2299,6 +2300,31 @@ export default function SeatingSetup() {
         }
     };
 
+    // "שבץ הכל" — assign every unassigned reservation for the selected date, by the
+    // owner's priority list, on the server (overlap-safe, no double-booking).
+    const handleAutoAssignAll = async () => {
+        if (isAutoAssigning) return;
+        const dateStr = format(selectedDate, 'yyyy-MM-dd');
+        if (!window.confirm(`לשבץ אוטומטית את כל ההזמנות ללא שולחן בתאריך ${format(selectedDate, 'dd/MM')} — לפי סדר העדיפות שהגדרת?`)) return;
+        setIsAutoAssigning(true);
+        try {
+            const res = await base44.functions.autoAssignAllReservations({ date: dateStr });
+            const d = res?.data || res || {};
+            await loadLiveData();
+            let msg = `✅ שובצו ${d.assigned_count || 0} הזמנות.`;
+            if (d.failed_count > 0) {
+                const names = (d.failed || []).map(f => `${f.customer_name} (${f.time}, ${f.party_size})`).join('\n');
+                msg += `\n\n⚠️ ${d.failed_count} ללא שולחן פנוי מתאים:\n${names}`;
+            }
+            window.alert(msg);
+        } catch (e) {
+            console.error('auto-assign all failed', e);
+            window.alert('שגיאה בשיבוץ האוטומטי: ' + (e?.message || e));
+        } finally {
+            setIsAutoAssigning(false);
+        }
+    };
+
     const handleUpdateReservation = (updateInfo) => {
         if (updateInfo && updateInfo.type === 'start_assigning') {
             setAssigningTable({ reservationId: updateInfo.reservationId });
@@ -2914,6 +2940,15 @@ export default function SeatingSetup() {
                                             >
                                                 <Plus className="w-3.5 h-3.5" />
                                                 הושבה מהירה
+                                            </button>
+                                            <button
+                                                onClick={handleAutoAssignAll}
+                                                disabled={isAutoAssigning}
+                                                title="משבץ אוטומטית את כל ההזמנות של היום שאין להן שולחן — לפי סדר העדיפות שהגדרת, בלי כפילות"
+                                                className="bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-300 text-white font-bold text-xs sm:text-sm px-3 h-9 rounded-lg flex items-center gap-1"
+                                            >
+                                                {isAutoAssigning ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Wand2 className="w-3.5 h-3.5" />}
+                                                שבץ הכל
                                             </button>
                                         </div>
 

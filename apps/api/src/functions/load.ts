@@ -48,7 +48,7 @@ const db = prisma as any; // generic delegate access
 
 // Public deploy marker — lets us confirm which build is live (and that
 // auto-deploy is working) without server access. Bump on each deploy test.
-registerFn('deployInfo', async () => ({ version: 'schedule-publish-by-dept-2026-07-10', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
+registerFn('deployInfo', async () => ({ version: 'auto-assign-priority-2026-07-11', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
 
 
 
@@ -6099,6 +6099,77 @@ registerFn('releaseDeposit', async ({ body, user }) => {
   return { success: true };
 });
 
+// ── Shared table-picker: the ONE source of truth for auto-assignment ─────────
+// Used by searchReservationTable (online + app booker) AND autoAssignAllReservations.
+// Honors the owner's priority list (singles AND combos, ranked), refuses any
+// table with a time-overlapping reservation or an active session (no double-book),
+// and falls back to the smallest single table that fits. All table-number
+// comparisons are string-normalized so a stored "10" never slips past a numeric 10.
+function pickFreeTableByPriority(opts: {
+  layout: any;
+  reservations: any[];
+  activeSessions: any[];
+  time: string;
+  size: number;
+  excludeReservationId?: string | null;
+}): { table_number: string; table_numbers: string[] } | null {
+  const { layout, reservations, activeSessions, time, size, excludeReservationId } = opts;
+  const startMin = toMin(time);
+  const endMin = startMin + seatingDuration(size);
+  const tables: any[] = layout?.tables ?? [];
+
+  // Occupied RIGHT NOW by an active session. Combo sessions are stored as "10,11".
+  const occupied = new Set<string>();
+  for (const s of activeSessions) {
+    String(s.table_number || '').split(/[,+]/).forEach((p: string) => {
+      const v = p.trim();
+      if (v) occupied.add(v);
+    });
+  }
+  const active = (r: any) => r.status !== 'cancelled' && r.status !== 'no_show';
+
+  const isFree = (tableNum: any): boolean => {
+    const key = String(tableNum);
+    if (occupied.has(key)) return false;
+    for (const r of reservations) {
+      if (excludeReservationId && r.id === excludeReservationId) continue;
+      if (!active(r) || !r.assigned_table || !r.time) continue;
+      const at = (Array.isArray(r.assigned_table) ? r.assigned_table : [r.assigned_table]).map(String);
+      if (!at.includes(key)) continue;
+      const rs = toMin(r.time);
+      const re = rs + seatingDuration(r.party_size || 2);
+      if (startMin < re && endMin > rs) return false; // time overlap → taken
+    }
+    return true;
+  };
+
+  // 1) Owner-saved priority list (singles AND combos) for this exact party size.
+  //    Try top-to-bottom; first entry whose ALL fixed tables are free wins.
+  const combos: any[] = Array.isArray(layout?.combos)
+    ? layout.combos.filter((c: any) => Number(c.party_size) === size)
+    : [];
+  combos.sort((a: any, b: any) => (a.priority || 999) - (b.priority || 999));
+  for (const c of combos) {
+    const ids: string[] = Array.isArray(c.tables) ? c.tables.map(String) : [];
+    if (ids.length === 0) continue; // wildcard-only entries handled by fallback
+    if (ids.every((id) => isFree(id))) {
+      return { table_number: ids[0], table_numbers: ids };
+    }
+  }
+
+  // 2) Fallback — smallest single free table that fits (don't waste a 6-top on a couple).
+  const fits = tables
+    .filter((t: any) => isFree(t.table_number) && Number(t.min_capacity) <= size && Number(t.max_capacity) >= size)
+    .sort((a: any, b: any) =>
+      (Number(a.max_capacity) - Number(b.max_capacity)) ||
+      (Number(a.min_capacity) - Number(b.min_capacity)));
+  if (fits.length > 0) {
+    const t = fits[0];
+    return { table_number: String(t.table_number), table_numbers: [String(t.table_number)] };
+  }
+  return null;
+}
+
 registerFn('searchReservationTable', async ({ body }) => {
   const { date, time, party_size } = body as any;
   if (!date || !time || !party_size) throw new Error('date, time, party_size required');
@@ -6107,7 +6178,6 @@ registerFn('searchReservationTable', async ({ body }) => {
     return { canAccommodate: false, reason: 'too_large_use_events', currentCapacity: 0, availableCapacity: 0, table: null };
   }
   const startMin = toMin(time);
-  const endMin = startMin + seatingDuration(size);
 
   const { start: dayStart, next: dayNext } = dayRange(date);
   const reservations = await db.reservation.findMany({
@@ -6124,42 +6194,8 @@ registerFn('searchReservationTable', async ({ body }) => {
   let table: any = null;
   if (canAccommodate) {
     const layout = await db.seatingLayout.findFirst();
-    const tables: any[] = layout?.tables ?? [];
     const activeSessions = await db.tableSession.findMany({ where: { status: 'active' } });
-    const occupied = new Set(activeSessions.map((s: any) => s.table_number));
-
-    const free = tables.filter((t: any) => {
-      if (occupied.has(t.table_number)) return false;
-      const conflicts = reservations.filter((r: any) => {
-        if (!active(r) || !r.assigned_table || !r.time) return false;
-        const at = Array.isArray(r.assigned_table) ? r.assigned_table : [r.assigned_table];
-        if (!at.includes(t.table_number)) return false;
-        const rs = toMin(r.time);
-        const re = rs + seatingDuration(r.party_size || 2);
-        return startMin < re && endMin > rs;
-      });
-      return conflicts.length === 0;
-    });
-    // 1) Owner-saved priority list (singles AND combos for this exact party size).
-    //    Try them top-to-bottom; first one whose ALL tables are free wins.
-    const combos: any[] = Array.isArray((layout as any)?.combos)
-      ? (layout!.combos as any[]).filter((c) => Number(c.party_size) === size)
-      : [];
-    combos.sort((a, b) => (a.priority || 999) - (b.priority || 999));
-    const freeSet = new Set(free.map((t: any) => String(t.table_number)));
-    for (const c of combos) {
-      const tableIds: string[] = Array.isArray(c.tables) ? c.tables.map(String) : [];
-      if (tableIds.length === 0) continue;
-      if (tableIds.every((id) => freeSet.has(id))) {
-        table = { table_number: tableIds[0], table_numbers: tableIds };
-        break;
-      }
-    }
-    // 2) Fallback — if owner didn't rank anything (or all ranked options taken), take any single table whose capacity fits.
-    if (!table) {
-      const fit = free.find((t: any) => t.min_capacity <= size && t.max_capacity >= size);
-      if (fit) table = { table_number: fit.table_number, table_numbers: [fit.table_number] };
-    }
+    table = pickFreeTableByPriority({ layout, reservations, activeSessions, time, size });
   }
 
   return {
@@ -6169,6 +6205,51 @@ registerFn('searchReservationTable', async ({ body }) => {
     table,
   };
 }, { public: true });
+
+// AUTHED — "שבץ הכל": assign every unassigned reservation for a date, by priority.
+// Walks the day's reservations in time order; each assignment is written and
+// reflected in-memory so the next pick sees the table as taken (no batch double-book).
+registerFn('autoAssignAllReservations', async ({ body }: any) => {
+  const { date } = body as any;
+  if (!date) throw new Error('date required');
+  const { start: dayStart, next: dayNext } = dayRange(date);
+  const layout = await db.seatingLayout.findFirst();
+  const activeSessions = await db.tableSession.findMany({ where: { status: 'active' } });
+  const all: any[] = await db.reservation.findMany({ where: { date: { gte: dayStart, lt: dayNext } } });
+
+  const isActive = (r: any) => r.status !== 'cancelled' && r.status !== 'no_show' && r.status !== 'completed';
+  const needsTable = (r: any) => {
+    const at = r.assigned_table;
+    const hasTable = Array.isArray(at) ? at.length > 0 : !!at;
+    return isActive(r) && !hasTable && r.time && r.party_size;
+  };
+  const toAssign = all
+    .filter(needsTable)
+    .sort((a, b) => toMin(a.time) - toMin(b.time));
+
+  const assigned: any[] = [];
+  const failed: any[] = [];
+  for (const r of toAssign) {
+    const size = parseInt(r.party_size);
+    const pick = pickFreeTableByPriority({
+      layout, reservations: all, activeSessions, time: r.time, size, excludeReservationId: r.id,
+    });
+    if (!pick) {
+      failed.push({ id: r.id, customer_name: r.customer_name, time: r.time, party_size: r.party_size });
+      continue;
+    }
+    const endMin = toMin(r.time) + seatingDuration(size);
+    const end_time = `${String(Math.floor(endMin / 60) % 24).padStart(2, '0')}:${String(endMin % 60).padStart(2, '0')}`;
+    await db.reservation.update({
+      where: { id: r.id },
+      data: { assigned_table: pick.table_numbers, reservation_end_time: end_time } as any,
+    });
+    const idx = all.findIndex((x) => x.id === r.id);
+    if (idx >= 0) all[idx] = { ...all[idx], assigned_table: pick.table_numbers, reservation_end_time: end_time };
+    assigned.push({ id: r.id, customer_name: r.customer_name, time: r.time, party_size: r.party_size, tables: pick.table_numbers });
+  }
+  return { assigned_count: assigned.length, failed_count: failed.length, assigned, failed };
+});
 
 // Public: create a reservation. Re-validates server-side, upserts the customer
 // by phone, returns only a confirmation id.
