@@ -2863,6 +2863,15 @@ export default function SeatingSetup() {
                                             title="הצג המלצות AI"
                                         >✨ AI</button>
                                     </div>
+                                    {/* Table-status legend — explains the map colors at a glance */}
+                                    <div className="flex items-center gap-x-3 gap-y-1 flex-wrap text-[11px] text-gray-600 mb-2 px-1">
+                                        <span className="font-bold text-gray-500">מקרא:</span>
+                                        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm border-2 bg-white border-emerald-300 inline-block"></span> פנוי</span>
+                                        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm border-2 bg-[#FAF5E8] border-yellow-400 inline-block"></span> שמור להיום</span>
+                                        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm border-2 bg-rose-100 border-rose-400 inline-block"></span> יושבים</span>
+                                        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm border-2 bg-amber-200 border-amber-500 inline-block"></span> מסיים בקרוב</span>
+                                        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm border-2 bg-[#A04A2E] border-rose-700 inline-block"></span> חריגת זמן</span>
+                                    </div>
                                     <div className="w-full border rounded-lg bg-gray-100 overscroll-contain" style={{
                                         // Bounded scroll inside the card; iOS momentum + horizontal+vertical pan.
                                         height: bigMapMode ? 'calc(100vh - 110px)' : '70vh',
