@@ -2957,78 +2957,80 @@ export default function SeatingSetup() {
                                         {/* Divider */}
                                         <div className="hidden md:block h-7 w-px bg-gray-200" />
 
-                                        {/* Section 2 — Area filter (scrollable on overflow) */}
-                                        <div className="flex gap-1 flex-1 min-w-0 overflow-x-auto whitespace-nowrap py-0.5">
-                                            {[
-                                                { key: 'all', label: 'הכל' },
-                                                { key: 'אזור חום', label: 'אזור חום' },
-                                                { key: 'כניסה', label: 'כניסה' },
-                                                { key: 'אדום מרוכזי', label: 'אדום מרוכזי' },
-                                                { key: 'זוהרה', label: 'זוהרה' },
-                                                { key: 'מספרה', label: 'מספרה' },
-                                                { key: 'גבטה', label: 'גבטה' },
-                                                { key: 'ורוד', label: 'ורוד' },
-                                            ].map(area => {
-                                                const active = selectedAreas.includes(area.key);
-                                                return (
-                                                    <button
-                                                        key={area.key}
-                                                        onClick={() => toggleArea(area.key)}
-                                                        className={`px-2.5 h-8 rounded-lg text-xs font-bold transition-colors shrink-0
-                                                            ${active
-                                                                ? 'bg-slate-900 text-white shadow-sm'
-                                                                : 'bg-gray-50 text-gray-600 hover:bg-gray-100'}`}
-                                                    >{area.label}</button>
-                                                );
-                                            })}
-                                        </div>
-
-                                        {/* Divider */}
-                                        <div className="hidden md:block h-7 w-px bg-gray-200" />
-
-                                        {/* Section 3 — Tools + view links + clock */}
-                                        <div className="flex items-center gap-1.5 shrink-0">
-                                            <Button
-                                                variant="outline"
-                                                size="sm"
-                                                onClick={() => window.open(window.location.origin + '/PublicReservation', '_blank')}
-                                                className="bg-[#F4ECD8] border-[#E8D9B5] text-[#44512C] hover:bg-[#F4ECD8] hidden md:flex h-9"
-                                            >
-                                                <Eye className="w-3.5 h-3.5 ml-1" />
-                                                <span className="text-xs">הזמנות</span>
-                                            </Button>
+                                        {/* Section 2 — Area filter grouped into ONE dropdown (was 8 inline buttons) */}
                                         <Popover>
                                             <PopoverTrigger asChild>
-                                                <Button variant="outline" size="sm" className="h-9">
-                                                    <Wrench className="w-3.5 h-3.5 ml-1" />
-                                                    <span className="text-xs">כלים</span>
+                                                <Button variant="outline" size="sm" className="h-9 shrink-0">
+                                                    <MapPin className="w-3.5 h-3.5 ml-1" />
+                                                    <span className="text-xs max-w-[130px] truncate">
+                                                        {selectedAreas.includes('all') ? 'כל האזורים' : selectedAreas.join(', ')}
+                                                    </span>
+                                                    <span className="text-[10px] opacity-60 mr-1">▾</span>
                                                 </Button>
                                             </PopoverTrigger>
-                                            <PopoverContent className="w-60" dir="rtl">
-                                                <div className="space-y-4 p-4">
-                                                    <h4 className="font-bold">הוסף אלמנטים</h4>
-                                                    <Select value={selectedFacilityType} onValueChange={setSelectedFacilityType}>
-                                                        <SelectTrigger>
-                                                            <SelectValue placeholder="בחר סוג אלמנט" />
-                                                        </SelectTrigger>
-                                                        <SelectContent>
-                                                            {Object.entries(FACILITY_TYPES).map(([key, facility]) => (
-                                                                <SelectItem key={key} value={key}>
-                                                                    {facility.icon} {facility.name}
-                                                                </SelectItem>
-                                                            ))}
-                                                        </SelectContent>
-                                                    </Select>
-                                                    <Button onClick={handleAddFacility} variant="outline" className="w-full">
-                                                        <Plus className="w-4 h-4 ml-2" />
-                                                        הוסף
-                                                    </Button>
+                                            <PopoverContent className="w-64" dir="rtl">
+                                                <div className="text-[11px] font-bold text-gray-500 mb-2">סנן לפי אזור</div>
+                                                <div className="flex flex-wrap gap-1.5">
+                                                    {[{ key: 'all', label: 'הכל' }, ...Array.from(new Set((tables || []).map(t => t.area).filter(Boolean))).map(a => ({ key: a, label: a }))].map(area => {
+                                                        const active = selectedAreas.includes(area.key);
+                                                        return (
+                                                            <button
+                                                                key={area.key}
+                                                                onClick={() => toggleArea(area.key)}
+                                                                className={`px-2.5 h-8 rounded-lg text-xs font-bold transition-colors
+                                                                    ${active
+                                                                        ? 'bg-slate-900 text-white shadow-sm'
+                                                                        : 'bg-gray-50 text-gray-600 hover:bg-gray-100'}`}
+                                                            >{area.label}</button>
+                                                        );
+                                                    })}
                                                 </div>
                                             </PopoverContent>
                                         </Popover>
-                                            <Button variant="outline" size="sm" className="h-9 border-[#D9BD83] text-[#7A3722] hover:bg-[#F4ECD8]" onClick={autoTidyArea} title="יישר את שולחנות האזור לשורות מסודרות (נשמר על הסקיצה)">
-                                                <span className="text-xs">📐 יישר שורות</span>
-                                            </Button>
+
+                                        {/* Spacer — pushes tools + clock to the far edge */}
+                                        <div className="flex-1 min-w-0" />
+
+                                        {/* Section 3 — ALL tools in one menu + clock */}
+                                        <div className="flex items-center gap-1.5 shrink-0">
+                                            <Popover>
+                                                <PopoverTrigger asChild>
+                                                    <Button variant="outline" size="sm" className="h-9">
+                                                        <Wrench className="w-3.5 h-3.5 ml-1" />
+                                                        <span className="text-xs">כלים</span>
+                                                        <span className="text-[10px] opacity-60 mr-1">▾</span>
+                                                    </Button>
+                                                </PopoverTrigger>
+                                                <PopoverContent className="w-64" dir="rtl">
+                                                    <div className="space-y-2 p-1">
+                                                        <Button variant="outline" className="w-full justify-start h-9 border-[#D9BD83] text-[#7A3722] hover:bg-[#F4ECD8]" onClick={autoTidyArea} title="יישר את שולחנות האזור לשורות מסודרות (נשמר על הסקיצה)">
+                                                            📐 יישר שורות
+                                                        </Button>
+                                                        <Button variant="outline" className="w-full justify-start h-9 bg-[#F4ECD8] border-[#E8D9B5] text-[#44512C] hover:bg-[#F4ECD8]" onClick={() => window.open(window.location.origin + '/PublicReservation', '_blank')}>
+                                                            <Eye className="w-3.5 h-3.5 ml-1.5" /> עמוד הזמנות ציבורי
+                                                        </Button>
+                                                        <div className="border-t pt-2 mt-1 space-y-2">
+                                                            <h4 className="font-bold text-sm">הוסף אלמנט למפה</h4>
+                                                            <Select value={selectedFacilityType} onValueChange={setSelectedFacilityType}>
+                                                                <SelectTrigger>
+                                                                    <SelectValue placeholder="בחר סוג אלמנט" />
+                                                                </SelectTrigger>
+                                                                <SelectContent>
+                                                                    {Object.entries(FACILITY_TYPES).map(([key, facility]) => (
+                                                                        <SelectItem key={key} value={key}>
+                                                                            {facility.icon} {facility.name}
+                                                                        </SelectItem>
+                                                                    ))}
+                                                                </SelectContent>
+                                                            </Select>
+                                                            <Button onClick={handleAddFacility} variant="outline" className="w-full">
+                                                                <Plus className="w-4 h-4 ml-2" />
+                                                                הוסף
+                                                            </Button>
+                                                        </div>
+                                                    </div>
+                                                </PopoverContent>
+                                            </Popover>
                                             {/* Clock */}
                                             <div className="hidden sm:block text-center px-2.5 py-1 bg-gradient-to-bl from-slate-900 to-slate-700 text-white rounded-lg shrink-0">
                                                 <div className="text-base font-black tabular-nums leading-none">{format(clockTick, 'HH:mm')}</div>
