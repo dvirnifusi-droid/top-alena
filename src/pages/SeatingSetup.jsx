@@ -3800,6 +3800,12 @@ function TableCombosBreakdown({ tables, combos = [], onAddCombo, onRemoveCombo, 
             window.alert('בחר לפחות שולחן אחד או וויילדקארד');
             return;
         }
+        // A SINGLE table (no pair to connect) only enters the list as a priority
+        // entry — which needs a party size. Without one it would silently do nothing.
+        if (totalPicked === 1 && !pickedSize) {
+            window.alert('כדי להוסיף שולחן בודד לעדיפויות — בחר קודם לכמה סועדים 👥');
+            return;
+        }
         // Connect ALL pairs of FIXED picked tables — wildcards don't create graph edges.
         for (let i = 0; i < pickedTables.length; i++) {
             for (let j = i + 1; j < pickedTables.length; j++) {
@@ -4081,7 +4087,7 @@ function TableCombosBreakdown({ tables, combos = [], onAddCombo, onRemoveCombo, 
                                     <div className="flex items-center gap-2">
                                         <button
                                             onClick={addConnection}
-                                            disabled={pickedTables.length < 2}
+                                            disabled={(pickedTables.length + flexSlots.length) < 1}
                                             className="text-xs font-bold px-3 py-1.5 rounded bg-emerald-600 text-white hover:bg-emerald-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
                                         >הוסף לעדיפויות {(pickedTables.length + flexSlots.length) > 0 ? `(${pickedTables.length + flexSlots.length})` : ''}</button>
                                         <button onClick={finishAdding} className="text-xs px-3 py-1.5 rounded bg-slate-700 text-white hover:bg-slate-800">סיים</button>
