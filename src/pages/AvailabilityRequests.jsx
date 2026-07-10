@@ -29,6 +29,7 @@ const SHIFT_PREF = {
 function AvailabilityRequestsInner() {
      const [currentUser, setCurrentUser] = useState(null);
      const [availabilities, setAvailabilities] = useState([]);
+     const [shifts, setShifts] = useState([]); // existing WorkShifts → who's already assigned
      const [employees, setEmployees] = useState([]);
      const [settings, setSettings] = useState(null);
      const [loading, setLoading] = useState(true);
@@ -69,14 +70,16 @@ function AvailabilityRequestsInner() {
     const loadData = async () => {
         setLoading(true);
         try {
-            const [me, allAvail, allEmps, inactiveEmps, sett] = await Promise.all([
+            const [me, allAvail, allEmps, inactiveEmps, sett, allShifts] = await Promise.all([
                 base44.auth.me().catch(() => null),
                 base44.entities.EmployeeAvailability.list(),
                 base44.entities.Employee.filter({ status: 'active' }),
                 base44.entities.Employee.filter({ status: 'inactive' }).catch(() => []),
                 base44.entities.AvailabilityFormSettings.list(),
+                base44.entities.WorkShift.list('-date', 2000).catch(() => []),
             ]);
             setCurrentUser(me);
+            setShifts(Array.isArray(allShifts) ? allShifts : []);
             // Normalize ISO/Date values to the YYYY-MM-DD that humans in Israel
             // call that day. Plain .slice(0,10) on an ISO UTC string silently
             // returns the WRONG day for any avail row stored as midnight-Israel
@@ -103,6 +106,22 @@ function AvailabilityRequestsInner() {
     const getAvailForDay = (dateStr) => {
         return filteredAvails.filter(a => a.date === dateStr);
     };
+
+    // Who's ALREADY assigned, from existing WorkShifts. Key: employee|date|shift.
+    // Used to tint an availability card pink (don't double-book) + green the
+    // specific shift button that's already covered.
+    const assignedSet = React.useMemo(() => {
+        const set = new Set();
+        for (const s of shifts) {
+            const ds = String(s.date).slice(0, 10);
+            const st = s.shift_type;
+            for (const a of (s.assigned_staff || [])) {
+                if (a?.employee_id) set.add(`${a.employee_id}|${ds}|${st}`);
+            }
+        }
+        return set;
+    }, [shifts]);
+    const isAssigned = (empId, ds, st) => assignedSet.has(`${empId}|${ds}|${st}`);
 
     const getDepartmentLabel = (dept) => {
         return settings?.departments?.find(d => d.key === dept)?.label || dept;
@@ -685,8 +704,9 @@ function AvailabilityRequestsInner() {
                                                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                                                     {deptAvails.map(avail => {
                                                         const typeConfig = AVAILABILITY_TYPES[avail.availability_type] || AVAILABILITY_TYPES.available;
+                                                        const anyAssigned = isAssigned(avail.employee_id, dateStr, 'lunch') || isAssigned(avail.employee_id, dateStr, 'dinner');
                                                         return (
-                                                            <div key={avail.id} className={`p-3 rounded-lg border ${typeConfig.color.replace('text-', 'border-').replace('-800', '-300').replace('-100', '-50')}`}>
+                                                            <div key={avail.id} className={`p-3 rounded-lg border ${anyAssigned ? 'bg-pink-100 border-pink-300' : typeConfig.color.replace('text-', 'border-').replace('-800', '-300').replace('-100', '-50')}`}>
                                                                 <div className="flex items-center justify-between mb-2">
                                                                     <span className="font-bold">{avail.employee_name}</span>
                                                                     <div className="flex gap-1">
@@ -712,17 +732,20 @@ function AvailabilityRequestsInner() {
                                                                     <p className="text-xs text-gray-500 mt-2 italic">"{avail.reason}"</p>
                                                                 )}
                                                                 <div className="flex gap-1 mt-2 flex-wrap">
-                                                                    {['lunch', 'dinner'].map(st => (
-                                                                        <Button
-                                                                            key={st}
-                                                                            size="sm"
-                                                                            variant="outline"
-                                                                            className="text-xs h-7"
-                                                                            onClick={() => setSingleAssignModal({ avail, shiftType: st })}
-                                                                        >
-                                                                            שבץ {st === 'lunch' ? 'צהריים' : 'ערב'}
-                                                                        </Button>
-                                                                    ))}
+                                                                    {['lunch', 'dinner'].map(st => {
+                                                                        const done = isAssigned(avail.employee_id, dateStr, st);
+                                                                        return (
+                                                                            <Button
+                                                                                key={st}
+                                                                                size="sm"
+                                                                                variant="outline"
+                                                                                className={`text-xs h-7 ${done ? 'bg-green-600 hover:bg-green-700 text-white border-green-600' : ''}`}
+                                                                                onClick={() => setSingleAssignModal({ avail, shiftType: st })}
+                                                                            >
+                                                                                {done ? '✓ ' : ''}שבץ {st === 'lunch' ? 'צהריים' : 'ערב'}
+                                                                            </Button>
+                                                                        );
+                                                                    })}
                                                                 </div>
                                                                 </div>
                                                                 );
