@@ -2437,16 +2437,6 @@ export default function SeatingSetup() {
             </div>
             )}
 
-            {/* Floating exit button — only in fullscreen big-map mode */}
-            {bigMapMode && (
-                <button
-                    onClick={() => setBigMapMode(false)}
-                    className="fixed top-3 left-3 z-[55] bg-zinc-900 hover:bg-zinc-800 text-white rounded-full pl-3 pr-4 py-2 shadow-2xl flex items-center gap-1.5 text-sm font-bold"
-                >
-                    <X className="w-4 h-4" />
-                    סגור מצב מסך מלא
-                </button>
-            )}
 
             {isSelectingTables && (
                 <div className="fixed top-0 left-0 right-0 bg-purple-400 text-white p-2 text-center z-50 font-bold flex items-center justify-center gap-4">
@@ -2501,69 +2491,50 @@ export default function SeatingSetup() {
                                 )}
                                 <Button variant={viewMode === 'list' ? 'secondary' : 'outline'} size="icon" className="h-9 w-9" onClick={() => { setViewMode('list'); setBigMapMode(false); }}><Edit className="w-4 h-4"/></Button>
                                 <Button variant={viewMode === 'map' ? 'secondary' : 'outline'} size="icon" className="h-9 w-9" onClick={() => setViewMode('map')}><Eye className="w-4 h-4"/></Button>
-                                <label className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md border border-amber-300 bg-amber-50 text-amber-900 hover:bg-amber-100 text-xs cursor-pointer h-9">
-                                    <Sparkles className="w-3.5 h-3.5" />
-                                    <span className="hidden sm:inline">סרוק מפה (AI)</span>
-                                    <input
-                                        type="file"
-                                        accept="image/*,.pdf"
-                                        onChange={async (e) => {
-                                            const file = e.target.files?.[0];
-                                            if (!file) return;
-                                            try {
-                                                const { base44 } = await import('@/api/base44Client');
-                                                const { file_url } = await base44.integrations.Core.UploadFile({ file });
-                                                const res = await base44.functions.extractSeatingFromImage({ file_url });
-                                                const data = res?.data || res;
-                                                const newTables = (data?.tables || []).map((t, i) => ({
-                                                    table_number: t.label || `S${i + 1}`,
-                                                    min_capacity: Math.max(1, Math.floor((t.capacity || 2) * 0.5)),
-                                                    max_capacity: Math.max(2, t.capacity || 4),
-                                                    location: (t.shape === 'outdoor') ? 'outdoor' : 'indoor',
-                                                    area: t.shape === 'bar' ? 'בר' : t.shape === 'booth' ? 'פינה' : 'חדש',
-                                                    combinable_with: [],
-                                                    features: [],
-                                                    x: Math.round(((t.x ?? 50) * 6) / 20) * 20,
-                                                    y: Math.round(((t.y ?? 50) * 5) / 20) * 20,
-                                                    width: 80,
-                                                    height: 80,
-                                                }));
-                                                if (!newTables.length) {
-                                                    const debug = data?._debug ? `\n\n(debug: ${data._debug})` : '';
-                                                    const raw = data?._raw_llm_response ? `\n\nGemini response:\n${data._raw_llm_response.slice(0, 300)}` : '';
-                                                    alert(`לא זוהו שולחנות בתמונה.${debug}${raw}\n\nנסה תמונה ברורה יותר, או ציור ידני של המפה.`);
-                                                    return;
-                                                }
-                                                setTables([...tables, ...newTables]);
-                                                alert(`✅ נוספו ${newTables.length} שולחנות. גרור לתקן ושמור.`);
-                                            } catch (err) { alert('שגיאה: ' + (err?.message || '')); }
-                                            finally { e.target.value = ''; }
-                                        }}
-                                        className="hidden"
-                                    />
-                                </label>
+                                {/* ⚙️ Settings — every setup action in ONE menu (scan, reservation settings, reset map) */}
+                                <Popover>
+                                    <PopoverTrigger asChild>
+                                        <Button variant="outline" size="sm" className="h-9">
+                                            <Settings className="w-4 h-4 sm:ml-1" />
+                                            <span className="hidden sm:inline text-xs">הגדרות</span>
+                                            <span className="hidden sm:inline text-[10px] opacity-60 mr-1">▾</span>
+                                        </Button>
+                                    </PopoverTrigger>
+                                    <PopoverContent className="w-64" dir="rtl">
+                                        <div className="space-y-2 p-1">
+                                            <label className="flex items-center gap-2 w-full h-9 px-3 rounded-md border border-amber-300 bg-amber-50 text-amber-900 hover:bg-amber-100 text-sm cursor-pointer">
+                                                <Sparkles className="w-4 h-4" /> סרוק מפה מתמונה (AI)
+                                                <input
+                                                    type="file"
+                                                    accept="image/*,.pdf"
+                                                    onChange={async (e) => { const file = e.target.files?.[0]; await runMapScan(file); e.target.value = ''; }}
+                                                    className="hidden"
+                                                />
+                                            </label>
+                                            <Button
+                                                variant="outline"
+                                                className="w-full justify-start h-9 bg-orange-50 border-orange-200 text-orange-700 hover:bg-orange-100"
+                                                onClick={() => window.open(window.location.origin + '/PublicReservationSettings', '_blank')}
+                                            >
+                                                <Settings className="w-4 h-4 ml-2" /> הגדרות הזמנות
+                                            </Button>
+                                            {isAlena && (
+                                                <Button
+                                                    variant="outline"
+                                                    className="w-full justify-start h-9 text-red-700 border-red-300 hover:bg-red-50"
+                                                    onClick={createAllTables}
+                                                >
+                                                    <Wand2 className="w-4 h-4 ml-2" /> איפוס מפה
+                                                </Button>
+                                            )}
+                                        </div>
+                                    </PopoverContent>
+                                </Popover>
                                 <Button onClick={handleSaveLayout} disabled={isSaving} size="sm">
                                     {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
                                     <span className="hidden sm:inline mr-1">שמור</span>
                                 </Button>
                             </div>
-                        </div>
-                        <div className="flex gap-2 flex-wrap">
-                            <Button 
-                                variant="outline"
-                                size="sm"
-                                onClick={() => window.open(window.location.origin + '/PublicReservationSettings', '_blank')}
-                                className="bg-orange-50 border-orange-200 text-orange-700 hover:bg-orange-100 text-xs"
-                            >
-                                <Settings className="w-3 h-3 ml-1" />
-                                הגדרות הזמנות
-                            </Button>
-                            {isAlena && (
-                            <Button variant="outline" size="sm" onClick={createAllTables} className="bg-red-50 border-red-200 text-red-700 hover:bg-red-100 text-xs">
-                                <Wand2 className="w-3 h-3 ml-1" />
-                                איפוס מפה
-                            </Button>
-                            )}
                         </div>
                     </div>
                 </CardHeader>
@@ -2956,6 +2927,16 @@ export default function SeatingSetup() {
                                     <div className="bg-white border border-gray-200 rounded-2xl shadow-sm p-2 flex flex-wrap items-center gap-2">
                                         {/* Section 1 — Primary actions */}
                                         <div className="flex gap-1.5 shrink-0">
+                                            {bigMapMode && (
+                                                <button
+                                                    onClick={() => setBigMapMode(false)}
+                                                    title="צא ממצב מפה גדולה"
+                                                    className="bg-zinc-900 hover:bg-zinc-800 text-white font-bold text-xs sm:text-sm px-3 h-9 rounded-lg flex items-center gap-1"
+                                                >
+                                                    <X className="w-3.5 h-3.5" />
+                                                    צא ממפה גדולה
+                                                </button>
+                                            )}
                                             <button
                                                 onClick={() => setSmartReserveOpen(true)}
                                                 className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs sm:text-sm px-3 h-9 rounded-lg flex items-center gap-1"
@@ -3596,6 +3577,19 @@ export default function SeatingSetup() {
             )}
 
             {/* QUICK SEAT (walk-in) flow */}
+            {/* "+ הזמנה חדשה" from the map toolbar — opens the booker as a modal
+                (works in every layout incl. big-map mode). */}
+            {smartReserveOpen && (
+                <Dialog open={smartReserveOpen} onOpenChange={setSmartReserveOpen}>
+                    <DialogContent className="max-w-lg w-full max-h-[90vh] overflow-y-auto" dir="rtl">
+                        <DialogHeader>
+                            <DialogTitle>הזמנה חדשה</DialogTitle>
+                        </DialogHeader>
+                        <ReservationTool onReservationCreated={() => { loadLiveData(); setSmartReserveOpen(false); }} />
+                    </DialogContent>
+                </Dialog>
+            )}
+
             {quickSeatOpen && (
                 <QuickSeatDialog
                     open={quickSeatOpen}
