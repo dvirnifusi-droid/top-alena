@@ -48,7 +48,7 @@ const db = prisma as any; // generic delegate access
 
 // Public deploy marker — lets us confirm which build is live (and that
 // auto-deploy is working) without server access. Bump on each deploy test.
-registerFn('deployInfo', async () => ({ version: 'ai-training-builder-2026-07-09', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
+registerFn('deployInfo', async () => ({ version: 'prep-toprep-toggle-2026-07-09', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
 
 
 
@@ -5256,11 +5256,14 @@ async function ensurePrepItems(): Promise<void> {
        "unit" TEXT,
        "target" TEXT,
        "have" TEXT,
+       "to_prep" BOOLEAN NOT NULL DEFAULT false,
        "done" BOOLEAN NOT NULL DEFAULT false,
        "sort" INTEGER NOT NULL DEFAULT 0,
        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
      )`,
   );
+  // Additive — table may predate the "to_prep" column (olive&fig imported earlier).
+  await (prisma as any).$executeRawUnsafe(`ALTER TABLE "PrepItem" ADD COLUMN IF NOT EXISTS "to_prep" BOOLEAN NOT NULL DEFAULT false`).catch(() => {});
   _prepEnsured = true;
 }
 
@@ -5289,12 +5292,12 @@ registerFn('savePrepItems', async ({ user, body }: any) => {
     const name = String(it.name || '').trim();
     if (!name) continue;
     await (prisma as any).$executeRawUnsafe(
-      `INSERT INTO "PrepItem" ("id","name","category","unit","target","have","done","sort","updatedAt")
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,NOW())`,
+      `INSERT INTO "PrepItem" ("id","name","category","unit","target","have","to_prep","done","sort","updatedAt")
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,NOW())`,
       it.id && String(it.id).length > 8 ? String(it.id) : randomUUID(),
       name.slice(0, 200), it.category ? String(it.category).slice(0, 80) : null,
       it.unit ? String(it.unit).slice(0, 40) : null, it.target != null ? String(it.target).slice(0, 40) : null,
-      it.have != null ? String(it.have).slice(0, 40) : null, !!it.done, Number.isFinite(+it.sort) ? Math.floor(+it.sort) : i,
+      it.have != null ? String(it.have).slice(0, 40) : null, !!it.to_prep, !!it.done, Number.isFinite(+it.sort) ? Math.floor(+it.sort) : i,
     ).then(() => { n++; }).catch((e: any) => console.warn('[prep] insert', e?.message));
   }
   return { ok: true, count: n };
@@ -5307,8 +5310,8 @@ registerFn('updatePrepItem', async ({ user, body }: any) => {
   const b = (body || {}) as any;
   if (!b.id) throw new Error('id required');
   await (prisma as any).$executeRawUnsafe(
-    `UPDATE "PrepItem" SET have=$1, done=$2, "updatedAt"=NOW() WHERE id=$3`,
-    b.have != null ? String(b.have).slice(0, 40) : null, !!b.done, String(b.id),
+    `UPDATE "PrepItem" SET have=$1, to_prep=$2, done=$3, "updatedAt"=NOW() WHERE id=$4`,
+    b.have != null ? String(b.have).slice(0, 40) : null, !!b.to_prep, !!b.done, String(b.id),
   );
   return { ok: true };
 });
@@ -5317,7 +5320,7 @@ registerFn('updatePrepItem', async ({ user, body }: any) => {
 registerFn('resetPrepCounts', async ({ user }: any) => {
   if (!user?.id) throw new Error('unauthorized');
   await ensurePrepItems();
-  await (prisma as any).$executeRawUnsafe(`UPDATE "PrepItem" SET have=NULL, done=false, "updatedAt"=NOW()`);
+  await (prisma as any).$executeRawUnsafe(`UPDATE "PrepItem" SET have=NULL, to_prep=false, done=false, "updatedAt"=NOW()`);
   return { ok: true };
 });
 

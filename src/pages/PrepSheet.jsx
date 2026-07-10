@@ -52,7 +52,7 @@ export default function PrepSheet() {
 
   // Cook autosave (have / done) — single-row, no full rewrite.
   const saveOne = async (it) => {
-    try { await base44.functions.updatePrepItem({ id: it.id, have: it.have, done: it.done }); } catch (e) { console.warn('save prep row', e); }
+    try { await base44.functions.updatePrepItem({ id: it.id, have: it.have, to_prep: it.to_prep, done: it.done }); } catch (e) { console.warn('save prep row', e); }
   };
 
   const saveAll = async () => {
@@ -133,47 +133,41 @@ export default function PrepSheet() {
                     <table className="w-full text-sm">
                       <thead><tr className="text-xs text-gray-500 border-b bg-gray-50/60">
                         <th className="text-right p-2 font-semibold">מוצר</th>
-                        <th className="text-center p-2 font-semibold w-20">יעד</th>
-                        <th className="text-center p-2 font-semibold w-24">יש</th>
-                        <th className="text-center p-2 font-semibold w-24">להכין</th>
-                        <th className="text-center p-2 font-semibold w-12">✓</th>
+                        <th className="text-center p-2 font-semibold w-24">כמות</th>
+                        <th className="text-center p-2 font-semibold w-20">להכין</th>
+                        <th className="text-center p-2 font-semibold w-20">בוצע ✓</th>
                         {editMode && <th className="w-8"></th>}
                       </tr></thead>
                       <tbody>
-                        {rows.map((it) => {
-                          const tN = numOf(it.target); const hN = numOf(it.have);
-                          const prep = tN != null && hN != null ? Math.max(0, tN - hN) : null;
-                          const unit = (String(it.target || '').match(/\d[\d.,]*\s*(.*)$/) || [])[1] || it.unit || '';
-                          return (
-                            <tr key={it.id} className={`border-b last:border-0 ${it.done ? 'bg-green-50/50' : ''}`}>
-                              <td className="p-2">
-                                {editMode
-                                  ? <Input value={it.name} onChange={(e) => patch(it.id, 'name', e.target.value)} className="h-8 text-sm" placeholder="שם מוצר" />
-                                  : <span className={`font-medium ${it.done ? 'line-through text-gray-400' : 'text-slate-800'}`}>{it.name}</span>}
-                              </td>
-                              <td className="p-2 text-center">
-                                {editMode
-                                  ? <Input value={it.target || ''} onChange={(e) => patch(it.id, 'target', e.target.value)} className="h-8 text-sm text-center" placeholder="20 ליטר" />
-                                  : <span className="text-gray-600 whitespace-nowrap">{it.target || '—'}</span>}
-                              </td>
-                              <td className="p-2 text-center">
-                                <Input value={it.have || ''} onChange={(e) => patch(it.id, 'have', e.target.value)} onBlur={() => !editMode && saveOne(items.find((x) => x.id === it.id))} className="h-8 text-sm text-center" placeholder="—" />
-                              </td>
-                              <td className="p-2 text-center">
-                                <span className={`font-bold ${prep > 0 ? 'text-orange-700' : prep === 0 ? 'text-green-600' : 'text-gray-300'}`}>
-                                  {prep != null ? `${prep}${unit ? ' ' + unit : ''}` : '—'}
-                                </span>
-                              </td>
-                              <td className="p-2 text-center">
-                                <button
-                                  onClick={() => { const nv = !it.done; patch(it.id, 'done', nv); if (!editMode) saveOne({ ...it, done: nv }); }}
-                                  className={`w-6 h-6 rounded border-2 inline-flex items-center justify-center transition-colors ${it.done ? 'bg-green-500 border-green-500 text-white' : 'border-gray-300 hover:border-green-400'}`}
-                                >{it.done && <Check className="w-4 h-4" />}</button>
-                              </td>
-                              {editMode && <td className="p-1"><button onClick={() => delRow(it.id)} className="text-red-400 hover:text-red-600"><Trash2 className="w-4 h-4" /></button></td>}
-                            </tr>
-                          );
-                        })}
+                        {rows.map((it) => (
+                          <tr key={it.id} className={`border-b last:border-0 ${it.done ? 'bg-green-50/50' : it.to_prep ? 'bg-orange-50/50' : ''}`}>
+                            <td className="p-2">
+                              {editMode
+                                ? <Input value={it.name} onChange={(e) => patch(it.id, 'name', e.target.value)} className="h-8 text-sm" placeholder="שם מוצר" />
+                                : <span className={`font-medium ${it.done ? 'line-through text-gray-400' : 'text-slate-800'}`}>{it.name}</span>}
+                            </td>
+                            <td className="p-2 text-center">
+                              {editMode
+                                ? <Input value={it.target || ''} onChange={(e) => patch(it.id, 'target', e.target.value)} className="h-8 text-sm text-center" placeholder="20 ליטר" />
+                                : <span className="text-gray-600 whitespace-nowrap">{it.target || '—'}</span>}
+                            </td>
+                            {/* להכין — the cook marks which items need making */}
+                            <td className="p-2 text-center">
+                              <button
+                                onClick={() => { const nv = !it.to_prep; patch(it.id, 'to_prep', nv); if (!editMode) saveOne({ ...it, to_prep: nv }); }}
+                                className={`w-7 h-7 rounded border-2 inline-flex items-center justify-center transition-colors ${it.to_prep ? 'bg-orange-500 border-orange-500 text-white' : 'border-gray-300 hover:border-orange-400'}`}
+                              >{it.to_prep && <Check className="w-4 h-4" />}</button>
+                            </td>
+                            {/* בוצע */}
+                            <td className="p-2 text-center">
+                              <button
+                                onClick={() => { const nv = !it.done; patch(it.id, 'done', nv); if (!editMode) saveOne({ ...it, done: nv }); }}
+                                className={`w-7 h-7 rounded border-2 inline-flex items-center justify-center transition-colors ${it.done ? 'bg-green-500 border-green-500 text-white' : 'border-gray-300 hover:border-green-400'}`}
+                              >{it.done && <Check className="w-4 h-4" />}</button>
+                            </td>
+                            {editMode && <td className="p-1"><button onClick={() => delRow(it.id)} className="text-red-400 hover:text-red-600"><Trash2 className="w-4 h-4" /></button></td>}
+                          </tr>
+                        ))}
                       </tbody>
                     </table>
                   </div>
