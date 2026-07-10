@@ -122,12 +122,15 @@ export default function PlatformAdminTenants() {
 
   const deleteTenant = async (t) => {
     const typed = window.prompt(
-      `⚠️ מחיקת "${t.restaurant_name}".\n\nהעסק ייעלם מהקונסולה. הנתונים נשמרים וניתן לשחזר (מחיקה מלאה של הסכמה/קונטיינר תתבצע בנפרד).\n\nלאישור, הקלד את המזהה של העסק:  ${t.slug}`,
+      `⚠️ מחיקת "${t.restaurant_name}".\n\nהעסק ייעלם מהקונסולה. הנתונים נשמרים וניתן לשחזר (מחיקה מלאה של הסכמה/קונטיינר תתבצע בנפרד).\n\nלאישור, הקלד את המילה:  מחק`,
       '',
     );
     if (typed === null) return;
-    if (typed.trim().toLowerCase() !== String(t.slug).toLowerCase()) { alert('המזהה לא תואם — לא נמחק.'); return; }
-    await act(t, 'del', () => base44.functions.deleteTenant({ tenant_id: t.id, confirm_slug: typed.trim() }), null,
+    if (typed.trim() !== 'מחק') { alert('לא נמחק. יש להקליד בדיוק: מחק'); return; }
+    // The button is already restricted to the platform owner; this is just an
+    // anti-misclick guard. The backend still verifies the slug, which the client
+    // supplies automatically (no secret to expose).
+    await act(t, 'del', () => base44.functions.deleteTenant({ tenant_id: t.id, confirm_slug: t.slug }), null,
       (r) => `🗑️ "${r?.restaurant_name || t.restaurant_name}" הוסר מהקונסולה.`);
     load();
   };
