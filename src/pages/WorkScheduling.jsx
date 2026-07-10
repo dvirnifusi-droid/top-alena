@@ -1192,7 +1192,7 @@ export default function WorkScheduling() {
 
             <Card className="hidden lg:block">
                 <CardHeader>
-                    <div className="flex justify-between items-center">
+                    <div className="flex flex-wrap justify-between items-center gap-3">
                         <CardTitle className="flex items-center gap-2">
                             <CalendarIcon className="w-6 h-6" />
                             סידור עבודה
@@ -1209,14 +1209,14 @@ export default function WorkScheduling() {
                                 </>
                             )}
                         </CardTitle>
-                        <div className="flex items-center gap-4">
+                        <div className="flex items-center gap-3 flex-wrap">
                             <Button variant="outline" onClick={handlePrevWeek}><ChevronRight className="w-4 h-4 ml-2" /> שבוע קודם</Button>
                             <span className="font-semibold text-lg whitespace-nowrap">
                                 {format(weekInterval.start, 'dd/MM')} - {format(weekInterval.end, 'dd/MM/yyyy')}
                             </span>
                             <Button variant="outline" onClick={handleNextWeek}>שבוע הבא <ChevronLeft className="w-4 h-4 mr-2" /></Button>
                         </div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex flex-wrap items-center gap-2">
                             {isAdminLike && (
                                 <Button onClick={() => setIsBulkAssignOpen(true)} className="bg-[#44512C] hover:bg-[#7A3722] text-white">
                                     <UserPlus className="w-4 h-4 ml-2" /> שיבוץ עובד
