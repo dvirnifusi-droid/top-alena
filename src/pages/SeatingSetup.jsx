@@ -2681,22 +2681,24 @@ export default function SeatingSetup() {
                                         setCombos(prev => prev.filter(c => c.id !== comboId));
                                     }}
                                     onReorderCombo={(comboId, direction) => {
-                                        // direction: 'up' (lower priority number = higher rank) or 'down'
+                                        // direction: 'up' (higher rank) or 'down'. Re-sequences ALL priorities
+                                        // for that party size to 1..N after the move — so ties/gaps in old data
+                                        // can never freeze the swap ("לא נותן להחליף").
                                         setCombos(prev => {
                                             const target = prev.find(c => c.id === comboId);
                                             if (!target) return prev;
+                                            const psize = Number(target.party_size);
                                             const sameSize = prev
-                                                .filter(c => Number(c.party_size) === Number(target.party_size))
-                                                .sort((a, b) => (a.priority || 999) - (b.priority || 999));
+                                                .filter(c => Number(c.party_size) === psize)
+                                                .sort((a, b) => (a.priority || 999) - (b.priority || 999) || String(a.id).localeCompare(String(b.id)));
                                             const idx = sameSize.findIndex(c => c.id === comboId);
                                             const swapIdx = direction === 'up' ? idx - 1 : idx + 1;
                                             if (swapIdx < 0 || swapIdx >= sameSize.length) return prev;
-                                            const a = sameSize[idx], b = sameSize[swapIdx];
-                                            return prev.map(c => {
-                                                if (c.id === a.id) return { ...c, priority: b.priority || (swapIdx + 1) };
-                                                if (c.id === b.id) return { ...c, priority: a.priority || (idx + 1) };
-                                                return c;
-                                            });
+                                            const reordered = [...sameSize];
+                                            const [moved] = reordered.splice(idx, 1);
+                                            reordered.splice(swapIdx, 0, moved);
+                                            const priorityById = new Map(reordered.map((c, i) => [c.id, i + 1]));
+                                            return prev.map(c => priorityById.has(c.id) ? { ...c, priority: priorityById.get(c.id) } : c);
                                         });
                                     }}
                                     onSetConnection={(numA, numB, connect) => {
@@ -4226,9 +4228,20 @@ function TableCombosBreakdown({ tables, combos = [], onAddCombo, onRemoveCombo, 
                                 )}
                                 {autoSingles.length > 0 && (
                                     <div className="mb-2">
-                                        <div className="text-[10px] font-bold text-gray-500 mb-1">🪑 לבד (אוטומטי — לא בעדיפויות)</div>
+                                        <div className="text-[10px] font-bold text-gray-500 mb-1">🪑 לבד — לחץ ★ כדי להעלות לרשימת העדיפות</div>
                                         <div className="flex flex-wrap gap-1.5">
-                                            {autoSingles.map(id => <Chip key={id} color="green">#{id}</Chip>)}
+                                            {autoSingles.map(id => (
+                                                <span key={id} className="inline-flex items-center gap-1 text-xs font-bold px-2 py-1 rounded-full border bg-green-100 text-green-800 border-green-300">
+                                                    #{id}
+                                                    {onAddCombo && (
+                                                        <button
+                                                            onClick={(e) => { e.stopPropagation(); onAddCombo(n, [id], []); }}
+                                                            title={`הוסף את #${id} לרשימת העדיפות של ${n} סועדים`}
+                                                            className="ml-0.5 w-4 h-4 rounded-full bg-green-200 hover:bg-emerald-600 hover:text-white text-green-900 text-[10px] flex items-center justify-center"
+                                                        >★</button>
+                                                    )}
+                                                </span>
+                                            ))}
                                         </div>
                                     </div>
                                 )}
@@ -4240,6 +4253,13 @@ function TableCombosBreakdown({ tables, combos = [], onAddCombo, onRemoveCombo, 
                                                 <span key={i} className="inline-flex items-center gap-1 text-xs font-bold px-2 py-1 rounded-full border bg-[#F4ECD8] text-[#2E3819] border-[#D9BD83]">
                                                     {c.ids.map(id => `#${id}`).join(' + ')}
                                                     <span className="opacity-60">({c.sumMin}-{c.sumMax})</span>
+                                                    {onAddCombo && (
+                                                        <button
+                                                            onClick={(e) => { e.stopPropagation(); onAddCombo(n, c.ids, []); }}
+                                                            title={`הוסף את החיבור ${c.ids.map(id => '#'+id).join('+')} לעדיפות של ${n} סועדים`}
+                                                            className="ml-0.5 w-4 h-4 rounded-full bg-[#E8D9B5] hover:bg-emerald-600 hover:text-white text-emerald-900 text-[10px] flex items-center justify-center"
+                                                        >★</button>
+                                                    )}
                                                     {onSetConnection && (
                                                         <button
                                                             onClick={(e) => { e.stopPropagation(); disconnectCombo(c.ids); }}
