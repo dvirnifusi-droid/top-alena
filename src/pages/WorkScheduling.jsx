@@ -428,9 +428,10 @@ const MobileScheduleView = ({ week, positions, employees, onCellClick, onAssignm
 // =================================================================
 // Schedule Settings — per-tenant shifts + which positions to show
 // =================================================================
-function ScheduleSettingsDialog({ open, onClose, initialShifts, initialHidden, allPositions, onSave }) {
+function ScheduleSettingsDialog({ open, onClose, initialShifts, initialHidden, initialCoverage, allPositions, onSave }) {
     const [shifts, setShifts] = useState([]);
     const [hidden, setHidden] = useState([]);
+    const [coverage, setCoverage] = useState({}); // { [shiftKey]: { [position]: count } }
     const [saving, setSaving] = useState(false);
 
     useEffect(() => {
@@ -438,13 +439,21 @@ function ScheduleSettingsDialog({ open, onClose, initialShifts, initialHidden, a
             const base = (Array.isArray(initialShifts) && initialShifts.length ? initialShifts : DEFAULT_SHIFTS);
             setShifts(base.map(s => ({ key: s.key || ('s' + Math.floor(Math.random() * 1e9)), label: s.label || '', start: s.start || '12:00', end: s.end || '23:00' })));
             setHidden(Array.isArray(initialHidden) ? [...initialHidden] : []);
+            setCoverage(initialCoverage && typeof initialCoverage === 'object' ? initialCoverage : {});
         }
-    }, [open, initialShifts, initialHidden]);
+    }, [open, initialShifts, initialHidden, initialCoverage]);
 
     const updateShift = (i, field, val) => setShifts(prev => prev.map((s, idx) => idx === i ? { ...s, [field]: val } : s));
     const addShift = () => setShifts(prev => [...prev, { key: 's' + Date.now(), label: 'משמרת חדשה', start: '08:00', end: '16:00' }]);
     const removeShift = (i) => setShifts(prev => prev.filter((_, idx) => idx !== i));
     const toggleHidden = (name) => setHidden(prev => prev.includes(name) ? prev.filter(n => n !== name) : [...prev, name]);
+    const setCoverageVal = (shiftKey, pos, val) => setCoverage(prev => {
+        const n = parseInt(val, 10);
+        const next = { ...prev, [shiftKey]: { ...(prev[shiftKey] || {}) } };
+        if (!val || isNaN(n) || n <= 0) delete next[shiftKey][pos];
+        else next[shiftKey][pos] = n;
+        return next;
+    });
 
     const uniqueNames = [...new Set((allPositions || []).map(p => p.position_name).filter(Boolean))];
 
@@ -453,7 +462,7 @@ function ScheduleSettingsDialog({ open, onClose, initialShifts, initialHidden, a
         const cleanShifts = shifts
             .filter(s => s.label && s.label.trim())
             .map(s => ({ key: s.key, label: s.label.trim(), start: s.start || '12:00', end: s.end || '23:00' }));
-        try { await onSave({ shifts: cleanShifts, hidden_positions: hidden }); } finally { setSaving(false); onClose(); }
+        try { await onSave({ shifts: cleanShifts, hidden_positions: hidden, coverage }); } finally { setSaving(false); onClose(); }
     };
 
     return (
@@ -488,6 +497,31 @@ function ScheduleSettingsDialog({ open, onClose, initialShifts, initialHidden, a
                                     <span className={hidden.includes(name) ? 'line-through text-gray-400' : ''}>{name}</span>
                                 </label>
                             ))}
+                        </div>
+                    </div>
+
+                    {/* Coverage targets: how many of each role each shift needs. */}
+                    <div>
+                        <Label className="font-bold">כמה צריך בכל משמרת (כיסוי)</Label>
+                        <p className="text-xs text-gray-500 mb-2">כמה עובדים דרושים לכל תפקיד. הרשת תסמן באדום כשחסר. השאר ריק = בלי יעד.</p>
+                        <div className="space-y-3">
+                            {shifts.filter(s => s.label && s.label.trim()).map(s => {
+                                const names = uniqueNames.filter(n => !hidden.includes(n));
+                                if (!names.length) return null;
+                                return (
+                                    <div key={s.key} className="border rounded-lg p-2">
+                                        <div className="font-semibold text-sm mb-1 text-[#7A3722]">{s.label}</div>
+                                        <div className="grid grid-cols-2 gap-x-3 gap-y-1">
+                                            {names.map(n => (
+                                                <div key={n} className="flex items-center justify-between gap-2 text-sm">
+                                                    <span className="truncate">{n}</span>
+                                                    <Input type="number" min="0" value={coverage[s.key]?.[n] ?? ''} onChange={e => setCoverageVal(s.key, n, e.target.value)} className="w-14 h-7 text-center flex-shrink-0" placeholder="0" />
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                );
+                            })}
                         </div>
                     </div>
                 </div>
@@ -1335,8 +1369,11 @@ export default function WorkScheduling() {
                                                     }
 
                                                     const dateStr = format(day, 'yyyy-MM-dd');
+                                                    // Coverage: how many of this role this shift needs vs how many assigned.
+                                                    const need = Number(scheduleCfg?.coverage?.[type]?.[position.position_name]) || 0;
+                                                    const short = need > 0 ? Math.max(0, need - assignments.length) : 0;
                                                     return (
-                                                       <div key={day.toISOString()} className="p-2 border-b border-r min-h-[60px] space-y-1 group relative">
+                                                       <div key={day.toISOString()} className={`p-2 border-b border-r min-h-[60px] space-y-1 group relative ${short > 0 ? 'bg-red-50' : ''}`}>
                                                             {shift && positionIdx === 0 && (
                                                                 <button
                                                                     title="העבר משמרת לתאריך אחר"
@@ -1424,6 +1461,11 @@ export default function WorkScheduling() {
                                                                 </div>
                                                                 );
                                                             })}
+                                                            {short > 0 && (
+                                                                <div className="text-[10px] font-bold text-red-700 bg-red-100 border border-red-300 rounded px-1 text-center leading-tight">
+                                                                    חסר {short} (צריך {need})
+                                                                </div>
+                                                            )}
                                                             <div
                                                                 className="flex justify-center items-center h-full text-gray-400 cursor-pointer hover:bg-gray-100 rounded"
                                                                 onClick={() => handleQuickAssign(day, type, position.position_name)}
@@ -1510,6 +1552,7 @@ export default function WorkScheduling() {
                     onClose={() => setShowScheduleSettings(false)}
                     initialShifts={scheduleCfg?.shifts}
                     initialHidden={scheduleCfg?.hidden_positions}
+                    initialCoverage={scheduleCfg?.coverage}
                     allPositions={positions}
                     onSave={handleSaveScheduleConfig}
                 />

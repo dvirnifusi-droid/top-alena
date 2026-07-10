@@ -48,7 +48,7 @@ const db = prisma as any; // generic delegate access
 
 // Public deploy marker — lets us confirm which build is live (and that
 // auto-deploy is working) without server access. Bump on each deploy test.
-registerFn('deployInfo', async () => ({ version: 'delete-tenant-and-shift-2026-07-10', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
+registerFn('deployInfo', async () => ({ version: 'schedule-coverage-2026-07-10', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
 
 
 
@@ -5199,9 +5199,18 @@ async function ensureScheduleConfig(): Promise<void> {
        "id" TEXT PRIMARY KEY,
        "shifts" JSONB,
        "hidden_positions" JSONB,
+       "coverage" JSONB,
+       "labor_budget" JSONB,
+       "published_weeks" JSONB,
        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
      )`,
   );
+  // Additive — the table may predate these columns.
+  // coverage = { [shiftKey]: { [positionName]: requiredCount } }
+  // labor_budget = weekly ₪ target; published_weeks = [ 'yyyy-MM-dd' week starts ]
+  await (prisma as any).$executeRawUnsafe(`ALTER TABLE "ScheduleConfig" ADD COLUMN IF NOT EXISTS "coverage" JSONB`).catch(() => {});
+  await (prisma as any).$executeRawUnsafe(`ALTER TABLE "ScheduleConfig" ADD COLUMN IF NOT EXISTS "labor_budget" JSONB`).catch(() => {});
+  await (prisma as any).$executeRawUnsafe(`ALTER TABLE "ScheduleConfig" ADD COLUMN IF NOT EXISTS "published_weeks" JSONB`).catch(() => {});
   _schedCfgEnsured = true;
 }
 
@@ -5216,26 +5225,35 @@ registerFn('getScheduleConfig', async ({ user }: any) => {
   }
 });
 
+// PARTIAL update — only the fields present in the body are written, so saving
+// coverage / budget / publish never wipes shifts, and vice-versa.
 registerFn('setScheduleConfig', async ({ user, body }: any) => {
   if (!user?.id) throw new Error('unauthorized');
   await ensureScheduleConfig();
   const b = (body || {}) as any;
-  // shifts: [{ key, label, start, end, positions? }]; hidden_positions: [names]
-  const shifts = Array.isArray(b.shifts) ? b.shifts.slice(0, 12) : null;
-  const hidden = Array.isArray(b.hidden_positions)
-    ? b.hidden_positions.map((s: any) => String(s).trim()).filter(Boolean)
-    : null;
   const { randomUUID } = await import('node:crypto');
-  const existing: any[] = await (prisma as any).$queryRawUnsafe(`SELECT id FROM "ScheduleConfig" LIMIT 1`);
-  if (existing.length) {
+  // Guarantee a single config row exists.
+  let existing: any[] = await (prisma as any).$queryRawUnsafe(`SELECT id FROM "ScheduleConfig" LIMIT 1`);
+  let id: string;
+  if (!existing.length) {
+    id = randomUUID();
+    await (prisma as any).$executeRawUnsafe(`INSERT INTO "ScheduleConfig" ("id","updatedAt") VALUES ($1,NOW())`, id);
+  } else { id = existing[0].id; }
+
+  const sets: string[] = [];
+  const params: any[] = [];
+  let i = 1;
+  const addJson = (col: string, val: any) => { sets.push(`"${col}"=$${i}::jsonb`); params.push(val == null ? null : JSON.stringify(val)); i++; };
+  if (b.shifts !== undefined) addJson('shifts', Array.isArray(b.shifts) ? b.shifts.slice(0, 12) : null);
+  if (b.hidden_positions !== undefined) addJson('hidden_positions', Array.isArray(b.hidden_positions) ? b.hidden_positions.map((s: any) => String(s).trim()).filter(Boolean) : null);
+  if (b.coverage !== undefined) addJson('coverage', (b.coverage && typeof b.coverage === 'object') ? b.coverage : null);
+  if (b.labor_budget !== undefined) addJson('labor_budget', (b.labor_budget == null || b.labor_budget === '') ? null : Number(b.labor_budget) || null);
+  if (b.published_weeks !== undefined) addJson('published_weeks', Array.isArray(b.published_weeks) ? b.published_weeks.slice(0, 60) : null);
+
+  if (sets.length) {
+    params.push(id);
     await (prisma as any).$executeRawUnsafe(
-      `UPDATE "ScheduleConfig" SET shifts=$1::jsonb, hidden_positions=$2::jsonb, "updatedAt"=NOW() WHERE id=$3`,
-      shifts ? JSON.stringify(shifts) : null, hidden ? JSON.stringify(hidden) : null, existing[0].id,
-    );
-  } else {
-    await (prisma as any).$executeRawUnsafe(
-      `INSERT INTO "ScheduleConfig" ("id","shifts","hidden_positions","updatedAt") VALUES ($1,$2::jsonb,$3::jsonb,NOW())`,
-      randomUUID(), shifts ? JSON.stringify(shifts) : null, hidden ? JSON.stringify(hidden) : null,
+      `UPDATE "ScheduleConfig" SET ${sets.join(', ')}, "updatedAt"=NOW() WHERE id=$${i}`, ...params,
     );
   }
   return { ok: true };
