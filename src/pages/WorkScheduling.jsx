@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
@@ -525,6 +525,7 @@ export default function WorkScheduling() {
     const [currentUser, setCurrentUser] = useState(null);
     const [currentEmployee, setCurrentEmployee] = useState(null);
     const [loading, setLoading] = useState(true);
+    const initialLoadedRef = useRef(false); // first load blanks the page; refreshes don't
     const [currentDate, setCurrentDate] = useState(new Date());
     const [isQuickAssignOpen, setIsQuickAssignOpen] = useState(false);
     const [isBulkAssignOpen, setIsBulkAssignOpen] = useState(false);
@@ -595,7 +596,10 @@ export default function WorkScheduling() {
     const days = eachDayOfInterval(weekInterval);
 
     const loadScheduleData = useCallback(async () => {
-        setLoading(true);
+        // Full-page spinner ONLY on the first load. Later refreshes (after an
+        // assign/edit/delete) update the data in place so the page doesn't blank
+        // and the scroll doesn't jump back to the top mid-work.
+        if (!initialLoadedRef.current) setLoading(true);
         try {
             // Load current user
             const user = await base44.auth.me();
@@ -662,6 +666,7 @@ export default function WorkScheduling() {
         } catch (error) {
             console.error("Error loading schedule data:", error);
         } finally {
+            initialLoadedRef.current = true;
             setLoading(false);
         }
     }, []);
