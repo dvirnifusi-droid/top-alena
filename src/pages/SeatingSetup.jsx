@@ -3133,8 +3133,8 @@ export default function SeatingSetup() {
                                         } else if (isOvertime) {
                                             tableColorClass = 'bg-[#A04A2E] border-rose-700 text-white';
                                         } else if (isReallyOccupied) {
-                                            // SEATED — pastel pink/red
-                                            tableColorClass = 'bg-rose-100 border-rose-400 text-rose-900';
+                                            // SEATED — light green (distinct from white "available")
+                                            tableColorClass = 'bg-green-50 border-green-500 text-green-900';
                                         } else if (upcomingToday) {
                                             // RESERVED — pastel yellow
                                             tableColorClass = 'bg-[#FAF5E8] border-yellow-400 text-yellow-900';
@@ -3246,25 +3246,24 @@ export default function SeatingSetup() {
                                                     {/* MIDDLE: the ESSENTIAL — guests + name + time (no other lines) */}
                                                     <div className="flex-1 flex flex-col justify-center items-center leading-tight">
                                                         {isReallyOccupied ? (
-                                                            <>
-                                                                {session ? (
-                                                                    <>
-                                                                        <div className="font-black text-sm truncate w-full">{getFirstName(session.customer_name) || '—'}</div>
-                                                                        <div className="text-[11px] font-bold opacity-90 flex items-center justify-center gap-1 tabular-nums"><span>👥{session.party_size}</span><span>·</span><span>{getActiveTime(session)}</span></div>
-                                                                    </>
-                                                                ) : seatedReservation ? (
-                                                                    <>
-                                                                        <div className="font-black text-sm truncate w-full">{getFirstName(seatedReservation.customer_name) || '—'}</div>
-                                                                        <div className="text-[11px] font-bold opacity-90 flex items-center justify-center gap-1 tabular-nums"><span>👥{seatedReservation.party_size}</span><span>·</span><span>{seatedReservation.time}{computedEndTime ? `–${computedEndTime}` : ''}</span></div>
-                                                                    </>
-                                                                ) : null}
-                                                                {/* NEXT seating chip — only if exists, smaller line */}
-                                                                {nextSeating && (
-                                                                    <div className="mt-0.5 w-full bg-[#44512C] text-white rounded px-1 text-[11px] font-bold truncate leading-tight">
-                                                                        ↓ {nextSeating.time?.slice(0,5)} · {getFirstName(nextSeating.customer_name)} ×{nextSeating.party_size}
+                                                            <div className="w-full flex flex-col gap-0.5">
+                                                                {/* Seated guest — LIGHT GREEN chip */}
+                                                                <div className="w-full bg-green-200 text-green-900 rounded px-1 py-0.5 leading-tight">
+                                                                    <div className="font-black text-[11px] truncate">{getFirstName(session?.customer_name || seatedReservation?.customer_name) || '—'}</div>
+                                                                    <div className="text-[9px] font-bold opacity-90 flex items-center justify-between tabular-nums">
+                                                                        <span>{session ? getActiveTime(session) : `${seatedReservation?.time || ''}${computedEndTime ? `–${computedEndTime}` : ''}`}</span>
+                                                                        <span>×{session?.party_size || seatedReservation?.party_size}</span>
                                                                     </div>
-                                                                )}
-                                                            </>
+                                                                </div>
+                                                                {/* Upcoming bookings AFTER the seated guest — so the host sees who's next */}
+                                                                {futureReservationsForTable.filter(r => r.id !== seatedReservation?.id).slice(0, 2).map(res => (
+                                                                    <div key={res.id} className="w-full bg-[#44512C]/15 text-[#44512C] rounded px-1 flex items-center justify-between text-[9px] font-bold leading-tight tabular-nums">
+                                                                        <span>{res.time?.slice(0, 5)}</span>
+                                                                        <span className="truncate mx-1">{getFirstName(res.customer_name)}</span>
+                                                                        <span>×{res.party_size}</span>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
                                                         ) : futureReservationsForTable.length > 0 ? (
                                                             <div className="w-full flex flex-col gap-0.5">
                                                                 {(() => {
@@ -3363,7 +3362,7 @@ export default function SeatingSetup() {
                                             <span className="w-px h-3 bg-gray-300"></span>
                                             <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm border-2 bg-white border-emerald-300 inline-block"></span>פנוי</span>
                                             <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm border-2 bg-[#FAF5E8] border-yellow-400 inline-block"></span>שמור</span>
-                                            <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm border-2 bg-rose-100 border-rose-400 inline-block"></span>יושבים</span>
+                                            <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm border-2 bg-green-100 border-green-500 inline-block"></span>יושבים</span>
                                             <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm border-2 bg-amber-200 border-amber-500 inline-block"></span>מסיים</span>
                                             <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm border-2 bg-[#A04A2E] border-rose-700 inline-block"></span>חריגה</span>
                                         </div>
