@@ -48,7 +48,7 @@ const db = prisma as any; // generic delegate access
 
 // Public deploy marker — lets us confirm which build is live (and that
 // auto-deploy is working) without server access. Bump on each deploy test.
-registerFn('deployInfo', async () => ({ version: 'prep-have-prep-2026-07-10', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
+registerFn('deployInfo', async () => ({ version: 'prep-full-who-when-photo-2026-07-10', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
 
 
 
@@ -5305,14 +5305,21 @@ async function ensurePrepItems(): Promise<void> {
        "prep" TEXT,
        "to_prep" BOOLEAN NOT NULL DEFAULT false,
        "done" BOOLEAN NOT NULL DEFAULT false,
+       "done_by" TEXT,
+       "done_at" TIMESTAMP(3),
+       "photo_url" TEXT,
        "sort" INTEGER NOT NULL DEFAULT 0,
        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
      )`,
   );
   // Additive — the table may predate these columns (olive&fig imported earlier).
-  // "have" = how much on hand, "prep" = how much to make (both free-text amounts).
+  // "have"=on hand, "prep"=how much to make (free-text amounts); "to_prep"=flag it
+  // needs making; on "done" we stamp who/when + optional photo (accountability).
   await (prisma as any).$executeRawUnsafe(`ALTER TABLE "PrepItem" ADD COLUMN IF NOT EXISTS "to_prep" BOOLEAN NOT NULL DEFAULT false`).catch(() => {});
   await (prisma as any).$executeRawUnsafe(`ALTER TABLE "PrepItem" ADD COLUMN IF NOT EXISTS "prep" TEXT`).catch(() => {});
+  await (prisma as any).$executeRawUnsafe(`ALTER TABLE "PrepItem" ADD COLUMN IF NOT EXISTS "done_by" TEXT`).catch(() => {});
+  await (prisma as any).$executeRawUnsafe(`ALTER TABLE "PrepItem" ADD COLUMN IF NOT EXISTS "done_at" TIMESTAMP(3)`).catch(() => {});
+  await (prisma as any).$executeRawUnsafe(`ALTER TABLE "PrepItem" ADD COLUMN IF NOT EXISTS "photo_url" TEXT`).catch(() => {});
   _prepEnsured = true;
 }
 
@@ -5353,17 +5360,30 @@ registerFn('savePrepItems', async ({ user, body }: any) => {
   return { ok: true, count: n };
 });
 
-// Single-row update — the cook's daily "have"/"prep"/"done" without rewriting all.
+// Single-row update — the cook's daily have / prep / to_prep / done without
+// rewriting all. On the FIRST time an item is marked done we stamp who + when
+// (COALESCE keeps that first stamp on later edits); un-doing clears it. An
+// optional photo_url (uploaded client-side) is stored as proof of the prep.
 registerFn('updatePrepItem', async ({ user, body }: any) => {
   if (!user?.id) throw new Error('unauthorized');
   await ensurePrepItems();
   const b = (body || {}) as any;
   if (!b.id) throw new Error('id required');
+  const name = String((user as any).full_name || user.email || 'עובד');
+  const done = !!b.done;
   await (prisma as any).$executeRawUnsafe(
-    `UPDATE "PrepItem" SET have=$1, prep=$2, done=$3, "updatedAt"=NOW() WHERE id=$4`,
+    `UPDATE "PrepItem" SET
+       have=$1, prep=$2, to_prep=$3, done=$4,
+       done_by = CASE WHEN $4 THEN COALESCE(done_by, $5) ELSE NULL END,
+       done_at = CASE WHEN $4 THEN COALESCE(done_at, NOW()) ELSE NULL END,
+       photo_url = COALESCE($6, photo_url),
+       "updatedAt"=NOW()
+     WHERE id=$7`,
     b.have != null ? String(b.have).slice(0, 40) : null,
     b.prep != null ? String(b.prep).slice(0, 40) : null,
-    !!b.done, String(b.id),
+    !!b.to_prep, done, name,
+    b.photo_url != null ? String(b.photo_url).slice(0, 500) : null,
+    String(b.id),
   );
   return { ok: true };
 });
@@ -5372,7 +5392,9 @@ registerFn('updatePrepItem', async ({ user, body }: any) => {
 registerFn('resetPrepCounts', async ({ user }: any) => {
   if (!user?.id) throw new Error('unauthorized');
   await ensurePrepItems();
-  await (prisma as any).$executeRawUnsafe(`UPDATE "PrepItem" SET have=NULL, prep=NULL, to_prep=false, done=false, "updatedAt"=NOW()`);
+  await (prisma as any).$executeRawUnsafe(
+    `UPDATE "PrepItem" SET have=NULL, prep=NULL, to_prep=false, done=false, done_by=NULL, done_at=NULL, photo_url=NULL, "updatedAt"=NOW()`,
+  );
   return { ok: true };
 });
 
