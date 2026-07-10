@@ -2187,11 +2187,18 @@ export default function SeatingSetup() {
             const isReallyOccupied = activeSession || seatedReservation;
 
             if (isReallyOccupied) {
-                const occupantName = activeSession ? (activeSession.customer_name || 'לקוח') : (seatedReservation?.customer_name || 'לקוח');
-                alert(`🚫 שולחן ${tableNumber} תפוס כעת על ידי ${occupantName}, לא ניתן לבחור אותו.`);
-                return;
+                // Allow if the reservation we're moving starts AFTER the current
+                // occupant's end time (the table frees up in time — turn re-use).
+                const movingRes = reservations.find(r => r.id === multiAssignReservationId);
+                const occEnd = seatedReservation?.reservation_end_time || null;
+                const freesBefore = movingRes?.time && occEnd && occEnd <= movingRes.time;
+                if (!freesBefore) {
+                    const occupantName = activeSession ? (activeSession.customer_name || 'לקוח') : (seatedReservation?.customer_name || 'לקוח');
+                    alert(`🚫 שולחן ${tableNumber} תפוס על ידי ${occupantName}${occEnd ? ` עד ${occEnd}` : ''} — לא מתפנה עד שעת ההזמנה.`);
+                    return;
+                }
             }
-            
+
             if (index > -1) {
                 currentSelection.splice(index, 1);
             } else {
@@ -2220,13 +2227,19 @@ export default function SeatingSetup() {
             const isReallyOccupied = activeSession || seatedReservation;
 
             if (isReallyOccupied) {
-                const occupantName = activeSession ? (activeSession.customer_name || 'לקוח') : (seatedReservation?.customer_name || 'לקוח');
-                alert(`🚫 שולחן ${table.table_number} תפוס כעת על ידי ${occupantName}, לא ניתן לשייך אליו הזמנה.`);
-                setAssigningTable(null);
-                return;
+                // Allow if the reservation we're assigning starts AFTER the current
+                // occupant's end time (the table frees up in time — turn re-use).
+                const occEnd = seatedReservation?.reservation_end_time || null;
+                const freesBefore = resToAssign?.time && occEnd && occEnd <= resToAssign.time;
+                if (!freesBefore) {
+                    const occupantName = activeSession ? (activeSession.customer_name || 'לקוח') : (seatedReservation?.customer_name || 'לקוח');
+                    alert(`🚫 שולחן ${table.table_number} תפוס על ידי ${occupantName}${occEnd ? ` עד ${occEnd}` : ''} — לא מתפנה עד שעת ההזמנה.`);
+                    setAssigningTable(null);
+                    return;
+                }
             }
 
-            const conflictingReservation = reservations.find(r => 
+            const conflictingReservation = reservations.find(r =>
                 r.id !== resToAssign.id &&
                 Array.isArray(r.assigned_table) && r.assigned_table.includes(table.table_number) &&
                 r.date === resToAssign.date &&
@@ -3178,7 +3191,12 @@ export default function SeatingSetup() {
                                             tableColorClass += ' ring-4 ring-purple-500 ring-offset-2';
                                         }
 
-                                        const isBlockedForInteraction = (isSelectingTables || assigningTable) && isReallyOccupied;
+                                        // A table occupied NOW is still a valid target if the reservation
+                                        // being moved starts AFTER the current occupant's end time (turn re-use).
+                                        const movingResId = isSelectingTables ? multiAssignReservationId : (assigningTable ? assigningTable.reservationId : null);
+                                        const movingRes = movingResId ? reservations.find(r => r.id === movingResId) : null;
+                                        const freesBeforeMove = !!(movingRes?.time && computedEndTime && computedEndTime <= movingRes.time);
+                                        const isBlockedForInteraction = (isSelectingTables || assigningTable) && isReallyOccupied && !freesBeforeMove;
                                         if (isBlockedForInteraction) {
                                             tableColorClass += ' opacity-50 cursor-not-allowed';
                                         }
