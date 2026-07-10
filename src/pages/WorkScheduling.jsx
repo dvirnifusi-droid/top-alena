@@ -909,9 +909,14 @@ export default function WorkScheduling() {
         const assignmentDate = new Date(assignmentToDelete.date);
         const dateString = format(assignmentDate, 'yyyy-MM-dd');
 
+        // Match by canon(position) on BOTH sides: the card passes the canonical
+        // ROW name ("מלצר") while the stored assignment may be a feminine/variant
+        // ("מלצרית") — an exact compare misses it and the delete "can't find" the
+        // shift. canon() unifies them.
+        const samePerson = (a) => a.employee_id === assignmentToDelete.employee_id && canon(a.position) === canon(assignmentToDelete.position);
         let targetShift = null;
         for (const s of week) {
-            if (s.date === dateString && s.shift_type === assignmentToDelete.shift_type && s.assigned_staff?.some(a => a.employee_id === assignmentToDelete.employee_id && a.position === assignmentToDelete.position)) {
+            if (s.date === dateString && s.shift_type === assignmentToDelete.shift_type && s.assigned_staff?.some(samePerson)) {
                 targetShift = s;
                 break;
             }
@@ -923,9 +928,7 @@ export default function WorkScheduling() {
             return;
         }
 
-        const updatedStaff = targetShift.assigned_staff.filter(staff =>
-            !(staff.employee_id === assignmentToDelete.employee_id && staff.position === assignmentToDelete.position)
-        );
+        const updatedStaff = targetShift.assigned_staff.filter(staff => !samePerson(staff));
 
         try {
             await base44.entities.WorkShift.update(targetShift.id, { assigned_staff: updatedStaff });
