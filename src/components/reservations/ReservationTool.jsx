@@ -229,7 +229,11 @@ export default function ReservationTool({ onReservationCreated }) {
                                         mode="single"
                                         selected={date}
                                         onSelect={(d) => d && setDate(d)}
-                                        disabled={(d) => d < new Date(new Date().setHours(0,0,0,0))}
+                                        disabled={(d) => {
+                                            const today = new Date(); today.setHours(0, 0, 0, 0);
+                                            const max = new Date(today); max.setDate(max.getDate() + 180); // 6 months ahead
+                                            return d < today || d > max;
+                                        }}
                                     />
                                 </PopoverContent>
                             </Popover>
