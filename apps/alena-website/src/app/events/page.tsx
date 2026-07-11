@@ -3,6 +3,9 @@ import { Container } from "@/components/layout/Container";
 import { EventInquiryForm } from "@/components/events/EventInquiryForm";
 import { pageMetadata } from "@/lib/seo";
 import { env } from "@/lib/env";
+import { getSitePhoto } from "@/lib/sitePhotos";
+
+export const revalidate = 60;
 
 export const metadata = pageMetadata({
   title: "אירועים פרטיים בעלינא — אולם פרטי עד 50 איש, ראשון לציון",
@@ -72,7 +75,11 @@ const included = [
   },
 ];
 
-export default function EventsPage() {
+export default async function EventsPage() {
+  const agentImg = await getSitePhoto("eventsAgentImage", "/gallery/IMG_6770.JPG");
+  const gal1 = await getSitePhoto("eventsGallery1", "/gallery/burger-hero.jpg");
+  const gal2 = await getSitePhoto("eventsGallery2", "/gallery/spread.jpg");
+  const gal3 = await getSitePhoto("eventsGallery3", "/gallery/IMG_6904.JPG");
   return (
     <Container className="py-16">
       <header className="text-center">
@@ -113,11 +120,12 @@ export default function EventsPage() {
           </div>
           <div className="relative aspect-[4/5] overflow-hidden rounded-2xl ring-1 ring-brass/30">
             <Image
-              src="/gallery/IMG_6770.JPG"
-              alt="זוג אורחים בעלינא — אירוע פרטי"
+              src={agentImg}
+              alt="אירוע פרטי בעלינא"
               fill
               sizes="(min-width:768px) 35vw, 100vw"
               className="object-cover"
+              unoptimized={agentImg.startsWith("http")}
             />
           </div>
         </div>
@@ -165,13 +173,13 @@ export default function EventsPage() {
       <section className="mt-20">
         <div className="grid gap-4 sm:grid-cols-3">
           <div className="relative aspect-square overflow-hidden rounded-3xl ring-1 ring-brass/20">
-            <Image src="/gallery/burger-hero.jpg" alt="עלינאבורגר" fill sizes="(min-width:640px) 33vw, 100vw" className="object-cover" />
+            <Image src={gal1} alt="עלינא — אירוע פרטי" fill sizes="(min-width:640px) 33vw, 100vw" className="object-cover" unoptimized={gal1.startsWith("http")} />
           </div>
           <div className="relative aspect-square overflow-hidden rounded-3xl ring-1 ring-brass/20">
-            <Image src="/gallery/spread.jpg" alt="שולחן מלא בעלינא" fill sizes="(min-width:640px) 33vw, 100vw" className="object-cover" />
+            <Image src={gal2} alt="שולחן מלא בעלינא" fill sizes="(min-width:640px) 33vw, 100vw" className="object-cover" unoptimized={gal2.startsWith("http")} />
           </div>
           <div className="relative aspect-square overflow-hidden rounded-3xl ring-1 ring-brass/20">
-            <Image src="/gallery/IMG_6904.JPG" alt="קוקטיילים על הבר" fill sizes="(min-width:640px) 33vw, 100vw" className="object-cover" />
+            <Image src={gal3} alt="קוקטיילים על הבר" fill sizes="(min-width:640px) 33vw, 100vw" className="object-cover" unoptimized={gal3.startsWith("http")} />
           </div>
         </div>
       </section>

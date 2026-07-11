@@ -1,4 +1,5 @@
 import siteSettings from "./siteSettings";
+import sitePhotos from "./sitePhotos";
 import hours from "./hours";
 import menuCategory from "./menuCategory";
 import menuItem from "./menuItem";
@@ -11,6 +12,7 @@ import galleryImage from "./galleryImage";
 
 export const schemaTypes = [
   siteSettings,
+  sitePhotos,
   hours,
   menuCategory,
   menuItem,
