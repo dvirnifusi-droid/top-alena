@@ -194,6 +194,17 @@ export default function PublicReservationSettings() {
         } catch (err) { alert('שגיאה בהעלאת התמונה: ' + (err?.message || err)); }
         finally { setUploadingImg(false); e.target.value = ''; }
     };
+    const handleHeaderUpload = async (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        setUploadingImg(true);
+        try {
+            const optimized = await resizeImageForWeb(file);
+            const { file_url } = await base44.integrations.Core.UploadFile({ file: optimized });
+            if (file_url) updateCC({ header_image: file_url });
+        } catch (err) { alert('שגיאה בהעלאת התמונה: ' + (err?.message || err)); }
+        finally { setUploadingImg(false); e.target.value = ''; }
+    };
 
     const dayNames = {
         sunday: 'ראשון',
@@ -510,6 +521,24 @@ export default function PublicReservationSettings() {
                                 <p className="text-xs text-gray-500">מה שהלקוח רואה בקישור האישור (ReservationView). כתובת + טלפון נלקחים מטאב "כללי".</p>
                             </CardHeader>
                             <CardContent className="space-y-5">
+                                {/* Header background image (behind the logo) */}
+                                <div>
+                                    <Label>תמונת רקע להאדר (מאחורי הלוגו)</Label>
+                                    <div className="flex items-center gap-2 mt-2">
+                                        {cc.header_image ? (
+                                            <div className="relative w-32 h-16 rounded-lg overflow-hidden border">
+                                                <img src={cc.header_image} alt="" className="w-full h-full object-cover" />
+                                                <button type="button" onClick={() => updateCC({ header_image: '' })} className="absolute top-0 left-0 bg-red-600 text-white w-5 h-5 text-xs flex items-center justify-center">×</button>
+                                            </div>
+                                        ) : (
+                                            <label className="w-32 h-16 rounded-lg border-2 border-dashed border-gray-300 flex items-center justify-center cursor-pointer text-2xl text-gray-400 hover:border-emerald-400">
+                                                {uploadingImg ? '…' : '+'}
+                                                <input type="file" accept="image/*" className="hidden" onChange={handleHeaderUpload} disabled={uploadingImg} />
+                                            </label>
+                                        )}
+                                        <p className="text-[11px] text-gray-400">תמונה כהה/אווירתית עובדת הכי טוב (הכיתוב יופיע מעליה עם הצללה).</p>
+                                    </div>
+                                </div>
                                 {/* Images */}
                                 <div>
                                     <Label>תמונות לעמוד</Label>

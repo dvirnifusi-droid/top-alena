@@ -109,10 +109,16 @@ export default function ReservationView() {
       <style>{`@import url('https://fonts.googleapis.com/css2?family=Frank+Ruhl+Libre:wght@500;700;900&family=Heebo:wght@300;400;500;700;900&display=swap');.rv-display{font-family:'Frank Ruhl Libre',serif}`}</style>
       <div className="max-w-md mx-auto space-y-4">
 
-        {/* HERO */}
-        <div className="rounded-3xl overflow-hidden shadow-xl" style={{ background: 'linear-gradient(135deg, #1F1B17 0%, #44512C 55%, #7A3722 100%)' }}>
-          <div className="px-6 pt-7 pb-6 text-center text-white">
-            <div className="rv-display text-3xl font-black tracking-tight" style={{ color: '#F4ECD8' }}>{isAlena ? 'עלינא' : brandName}</div>
+        {/* HERO — optional owner background image behind the logo, dark overlay for legibility */}
+        <div className="rounded-3xl overflow-hidden shadow-xl relative" style={{ background: 'linear-gradient(135deg, #1F1B17 0%, #44512C 55%, #7A3722 100%)' }}>
+          {cc.header_image && (
+            <>
+              <div className="absolute inset-0" style={{ backgroundImage: `url(${cc.header_image})`, backgroundSize: 'cover', backgroundPosition: 'center' }} />
+              <div className="absolute inset-0" style={{ background: 'linear-gradient(180deg, rgba(31,27,23,0.45), rgba(31,27,23,0.8))' }} />
+            </>
+          )}
+          <div className="relative px-6 pt-7 pb-6 text-center text-white">
+            <div className="rv-display text-3xl font-black tracking-tight" style={{ color: '#F4ECD8', textShadow: cc.header_image ? '0 2px 12px rgba(0,0,0,0.5)' : 'none' }}>{isAlena ? 'עלינא' : brandName}</div>
             <div className="mt-1 text-[11px] tracking-[0.25em]" style={{ color: '#D9BD83' }}>אוכל · אלכוהול · אווירה · אנשים</div>
             <div className="mt-5 inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-sm font-bold" style={{ background: isCancelled ? 'rgba(160,74,46,0.25)' : 'rgba(217,189,131,0.22)', color: '#FAF5E8' }}>
               {isCancelled ? (isNoShow ? '⚠️ ההזמנה בוטלה (איחור)' : '❌ ההזמנה בוטלה') : <><CheckCircle className="w-4 h-4" style={{ color: '#D9BD83' }} /> ההזמנה אושרה</>}
@@ -179,18 +185,13 @@ export default function ReservationView() {
 
         {/* Quick actions — add to calendar / share / whatsapp */}
         {!isCancelled && (
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-2 gap-2">
             <a href={icsHref} download="reservation.ics" className="flex flex-col items-center gap-1 bg-white rounded-2xl shadow py-3 text-[11px] font-bold" style={{ color: '#44512C' }}>
               <CalendarPlus className="w-5 h-5" /> הוסף ליומן
             </a>
             <button onClick={doShare} className="flex flex-col items-center gap-1 bg-white rounded-2xl shadow py-3 text-[11px] font-bold" style={{ color: '#44512C' }}>
               <Share2 className="w-5 h-5" /> שיתוף
             </button>
-            {waHref ? (
-              <a href={waHref} target="_blank" rel="noopener noreferrer" className="flex flex-col items-center gap-1 bg-white rounded-2xl shadow py-3 text-[11px] font-bold" style={{ color: '#25863F' }}>
-                <MessageCircle className="w-5 h-5" /> וואטסאפ
-              </a>
-            ) : <div />}
           </div>
         )}
 
