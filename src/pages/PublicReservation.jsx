@@ -711,18 +711,6 @@ export default function PublicReservationPage() {
         </div>
       </section>
 
-      {/* Owner marketing video (events etc.) — a real section in the page body */}
-      {bc.body_video && (
-        <section className="max-w-3xl mx-auto px-4 md:px-8 mt-4">
-          {bc.body_video_title && (
-            <h2 className="text-center brand-display text-xl md:text-2xl font-black mb-3" style={{ color: '#1F1B17' }}>{bc.body_video_title}</h2>
-          )}
-          <div className="rounded-2xl overflow-hidden shadow-lg bg-black">
-            <video src={`${bc.body_video}${bc.body_video.includes('?') ? '&' : '?'}r=1`} className="w-full h-auto block" autoPlay muted loop playsInline preload="auto" />
-          </div>
-        </section>
-      )}
-
       {/* Tiny CSS keyframes (avoid global stylesheet edits) */}
       <style>{`
         @keyframes fadeIn { from {opacity:0; transform:translateY(4px)} to {opacity:1; transform:translateY(0)} }
@@ -1249,6 +1237,18 @@ export default function PublicReservationPage() {
           )}
         </div>{/* /grid */}
       </div>{/* /two-column section */}
+
+      {/* Owner marketing video (events etc.) — leads into the menu, kept as a subtle banner */}
+      {bc.body_video && (
+        <section className="max-w-3xl mx-auto px-3 md:px-5 pt-10">
+          {bc.body_video_title && (
+            <h3 className="text-center brand-display text-xl md:text-2xl mb-3" style={{ color: '#1F1B17' }}>{bc.body_video_title}</h3>
+          )}
+          <div className="rounded-2xl overflow-hidden shadow-md bg-black">
+            <video src={`${bc.body_video}${bc.body_video.includes('?') ? '&' : '?'}r=1`} className="w-full h-56 md:h-72 object-cover block" autoPlay muted loop playsInline preload="auto" />
+          </div>
+        </section>
+      )}
 
       {/* ============ FEATURED MENU CAROUSEL — mobile only (below form) ============ */}
       {featuredMenu.length > 0 && (
