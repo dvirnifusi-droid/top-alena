@@ -106,13 +106,17 @@ function getSpecialsForSlot(dateObj, hhmm) {
   return THEME_NIGHTS.filter(t => t.match(d, h));
 }
 
-// All specials relevant to a given day at ANY hour during open windows.
-// Used for the day-level tag chip that appears after the user picks a date.
-function getDaySpecials(dateObj) {
+// All specials relevant to a given day — gated by the day's ACTUAL open window
+// (from settings). A lunch-time special never shows on a day the place only opens
+// at night (e.g. מוצ"ש opens 21:00 → no "עסקיות צהריים" 12-17). Closed day → none.
+function getDaySpecials(dateObj, openWindow) {
   const d = dateObj.getDay();
+  if (openWindow && openWindow.start === '00:00' && openWindow.end === '00:00') return [];
   const seen = new Set();
   const out = [];
-  for (const h of [13, 18, 21]) {
+  const startH = openWindow ? (parseInt(String(openWindow.start).split(':')[0]) || 12) : 12;
+  const endH = openWindow ? (parseInt(String(openWindow.end).split(':')[0]) || 23) : 23;
+  for (let h = startH; h <= endH; h++) {
     THEME_NIGHTS.forEach(t => {
       if (!seen.has(t.id) && t.match(d, h)) { seen.add(t.id); out.push(t); }
     });
@@ -799,7 +803,7 @@ export default function PublicReservationPage() {
             </div>
             {/* Day-level specials tag — visible as soon as a date is picked */}
             {(() => {
-              const dayItems = getDaySpecials(date);
+              const dayItems = getDaySpecials(date, openingHours);
               if (dayItems.length === 0) return null;
               return (
                 <div className="mt-3 flex flex-wrap items-center gap-1.5">
