@@ -217,6 +217,22 @@ export default function PublicReservationSettings() {
         finally { setUploadingImg(false); e.target.value = ''; }
     };
 
+    // ── Booking-page media (hero image/video behind the wordmark + a marketing body video) ──
+    const bc = settings.booking_config || {};
+    const updateBC = (patch) => setSettings(s => ({ ...s, booking_config: { ...(s.booking_config || {}), ...patch } }));
+    const uploadBookingMedia = async (e, key, isVideo) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        if (isVideo && file.size > 25 * 1024 * 1024 && !window.confirm('הסרטון גדול מ-25MB — עלול להיטען לאט. להמשיך?')) { e.target.value = ''; return; }
+        setUploadingImg(true);
+        try {
+            const f = isVideo ? file : await resizeImageForWeb(file);
+            const { file_url } = await base44.integrations.Core.UploadFile({ file: f });
+            if (file_url) updateBC({ [key]: file_url });
+        } catch (err) { alert('שגיאה בהעלאה: ' + (err?.message || err)); }
+        finally { setUploadingImg(false); e.target.value = ''; }
+    };
+
     const dayNames = {
         sunday: 'ראשון',
         monday: 'שני',
@@ -316,6 +332,35 @@ export default function PublicReservationSettings() {
                                 <p className="text-sm text-gray-500">כך יראה דף ההזמנות הציבורי שלך. הכל אופציונלי — מה שתשאיר ריק פשוט לא יוצג.</p>
                             </CardHeader>
                             <CardContent className="space-y-4">
+                                {/* Booking-page media: hero background (image/video) + body marketing video */}
+                                <div className="rounded-xl border border-indigo-200 bg-indigo-50/40 p-3 space-y-3">
+                                    <div className="font-black text-sm text-indigo-900">🎬 מדיה לעמוד ההזמנה</div>
+                                    <div>
+                                        <Label>רקע ל-hero (מאחורי הלוגו)</Label>
+                                        <div className="flex flex-wrap items-center gap-2 mt-1">
+                                            {bc.hero_image && (
+                                                <div className="relative w-24 h-14 rounded overflow-hidden border"><img src={bc.hero_image} alt="" className="w-full h-full object-cover" /><button type="button" onClick={() => updateBC({ hero_image: '' })} className="absolute top-0 left-0 bg-red-600 text-white w-4 h-4 text-[10px] flex items-center justify-center">×</button></div>
+                                            )}
+                                            <label className="inline-flex items-center gap-1 h-8 px-2 rounded border bg-white text-xs cursor-pointer hover:bg-gray-50">🖼️ תמונת רקע<input type="file" accept="image/*" className="hidden" onChange={e => uploadBookingMedia(e, 'hero_image', false)} disabled={uploadingImg} /></label>
+                                            {bc.hero_video && (
+                                                <div className="relative"><video src={bc.hero_video} className="w-24 h-14 rounded object-cover border" muted playsInline /><button type="button" onClick={() => updateBC({ hero_video: '' })} className="absolute top-0 left-0 bg-red-600 text-white w-4 h-4 text-[10px] flex items-center justify-center">×</button></div>
+                                            )}
+                                            <label className="inline-flex items-center gap-1 h-8 px-2 rounded border border-purple-300 bg-purple-50 text-purple-800 text-xs cursor-pointer hover:bg-purple-100">🎬 סרטון רקע<input type="file" accept="video/*" className="hidden" onChange={e => uploadBookingMedia(e, 'hero_video', true)} disabled={uploadingImg} /></label>
+                                        </div>
+                                        <p className="text-[11px] text-gray-400 mt-1">סרטון גובר על תמונה. אם שניהם ריקים — נשארת ברירת המחדל.</p>
+                                    </div>
+                                    <div>
+                                        <Label>סרטון שיווקי בגוף העמוד (אירועים וכו')</Label>
+                                        <div className="flex flex-wrap items-center gap-2 mt-1">
+                                            {bc.body_video ? (
+                                                <div className="relative"><video src={bc.body_video} className="w-32 h-16 rounded object-cover border" muted playsInline /><button type="button" onClick={() => updateBC({ body_video: '' })} className="absolute top-0 left-0 bg-red-600 text-white w-4 h-4 text-[10px] flex items-center justify-center">×</button></div>
+                                            ) : (
+                                                <label className="inline-flex items-center gap-1 h-8 px-2 rounded border border-purple-300 bg-purple-50 text-purple-800 text-xs cursor-pointer hover:bg-purple-100">🎬 העלה סרטון<input type="file" accept="video/*" className="hidden" onChange={e => uploadBookingMedia(e, 'body_video', true)} disabled={uploadingImg} /></label>
+                                            )}
+                                        </div>
+                                        <Input placeholder="כותרת מעל הסרטון (אופציונלי) — למשל: אירועים בעלינא" value={bc.body_video_title || ''} onChange={e => updateBC({ body_video_title: e.target.value })} className="mt-2" />
+                                    </div>
+                                </div>
                                 <div>
                                     <Label htmlFor="tagline">שורת תיאור (מתחת לשם)</Label>
                                     <Input id="tagline" placeholder="למשל: בר אסאי ושייקים טבעיים"

@@ -185,6 +185,8 @@ export default function PublicReservationPage() {
   const maxParty = Number(settings?.max_party_size) || 11;
   // Owner-blocked ranges for the selected day (piggybacks on opening_hours JSON).
   const dayBlocks = settings?.opening_hours?.[['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'][date.getDay()]]?.blocks || [];
+  // Owner-editable booking-page media (hero image/video + body marketing video).
+  const bc = settings?.booking_config || {};
 
   const [liveCount, setLiveCount] = useState(null);
   const [featuredMenu, setFeaturedMenu] = useState([]);
@@ -600,8 +602,8 @@ export default function PublicReservationPage() {
         <div
           className="w-full h-[40vh] md:h-[54vh] min-h-[280px] md:min-h-[340px] max-h-[480px] relative overflow-hidden"
           style={{
-            backgroundImage: settings?.hero_image_url
-              ? `url(${settings.hero_image_url})`
+            backgroundImage: (bc.hero_image || settings?.hero_image_url)
+              ? `url(${bc.hero_image || settings.hero_image_url})`
               : isAlena
                 ? `linear-gradient(180deg, rgba(31,27,23,0.35) 0%, rgba(31,27,23,0.55) 60%, rgba(31,27,23,0.80) 100%), url('https://alena.topalena.com/gallery/spread.jpg')`
                 : `linear-gradient(135deg, #2E3819 0%, #44512C 55%, #7A3722 100%)`,
@@ -609,6 +611,13 @@ export default function PublicReservationPage() {
             backgroundPosition: 'center 40%',
           }}
         >
+          {/* Owner-chosen hero background video (overrides the image) */}
+          {bc.hero_video && (
+            <>
+              <video src={`${bc.hero_video}${bc.hero_video.includes('?') ? '&' : '?'}r=1`} className="absolute inset-0 w-full h-full object-cover z-0" autoPlay muted loop playsInline preload="auto" />
+              <div className="absolute inset-0 z-[1]" style={{ background: 'linear-gradient(180deg, rgba(31,27,23,0.30) 0%, rgba(31,27,23,0.45) 55%, rgba(31,27,23,0.7) 100%)' }} />
+            </>
+          )}
           {/* Bottom fade for legibility of identity strip */}
           <div className="absolute inset-x-0 bottom-0 h-28 z-[2]" style={{ background: 'linear-gradient(to top, #FFFEFB 0%, rgba(255,254,251,0.72) 50%, transparent 100%)' }}></div>
 
@@ -701,6 +710,18 @@ export default function PublicReservationPage() {
           )}
         </div>
       </section>
+
+      {/* Owner marketing video (events etc.) — a real section in the page body */}
+      {bc.body_video && (
+        <section className="max-w-3xl mx-auto px-4 md:px-8 mt-4">
+          {bc.body_video_title && (
+            <h2 className="text-center brand-display text-xl md:text-2xl font-black mb-3" style={{ color: '#1F1B17' }}>{bc.body_video_title}</h2>
+          )}
+          <div className="rounded-2xl overflow-hidden shadow-lg bg-black">
+            <video src={`${bc.body_video}${bc.body_video.includes('?') ? '&' : '?'}r=1`} className="w-full h-auto block" autoPlay muted loop playsInline preload="auto" />
+          </div>
+        </section>
+      )}
 
       {/* Tiny CSS keyframes (avoid global stylesheet edits) */}
       <style>{`

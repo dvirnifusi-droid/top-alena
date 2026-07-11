@@ -2004,6 +2004,9 @@ model ReservationSettings {
   // Owner-editable content for the customer confirmation page (ReservationView):
   // { images:[url], parking, policy:[line], nearby, waze_url }. Falls back to defaults.
   confirmation_config          Json?
+  // Owner-editable media for the public BOOKING page (PublicReservation):
+  // { hero_image, hero_video, body_video, body_video_title }.
+  booking_config               Json?
   advance_booking_days         Int?  @default(30)
   booking_cutoff_hours         Int?  @default(2)
   special_message              String?
