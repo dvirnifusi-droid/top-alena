@@ -477,11 +477,20 @@ export default function PublicReservationPage() {
   };
 
   // Date strip — today + next 6 days
+  // Quick-pick strip: two weeks of day chips. Beyond that, the "more dates"
+  // chip opens a native calendar (up to 6 months ahead).
   const dateOptions = useMemo(() => {
     const arr = [];
-    for (let i = 0; i < 7; i++) arr.push(addDays(new Date(), i));
+    for (let i = 0; i < 14; i++) arr.push(addDays(new Date(), i));
     return arr;
   }, []);
+  const moreDateRef = useRef(null);
+  const maxBookableDate = useMemo(() => addDays(new Date(), 180), []);
+  // Is the currently-selected date outside the visible 14-day strip?
+  const isCustomDate = useMemo(
+    () => date && !dateOptions.some(d => isSameDay(d, date)),
+    [date, dateOptions]
+  );
 
   // ===========================================================================
   // RENDER — SUCCESS STATE
@@ -830,7 +839,49 @@ export default function PublicReservationPage() {
                   </button>
                 );
               })}
+
+              {/* "More dates" chip — opens a native calendar up to 6 months ahead.
+                  Shows the chosen far date when one is selected. */}
+              <button
+                type="button"
+                onClick={() => {
+                  const el = moreDateRef.current;
+                  if (!el) return;
+                  if (typeof el.showPicker === 'function') { try { el.showPicker(); return; } catch { /* fall through */ } }
+                  el.focus(); el.click();
+                }}
+                className="flex-shrink-0 min-w-[64px] rounded-xl px-2 py-2.5 text-center transition-all"
+                style={isCustomDate
+                  ? { background: '#A04A2E', border: '1px solid #8B3D24', color: '#F4ECD8', boxShadow: '0 8px 16px -6px rgba(160,74,46,0.55)', transform: 'scale(1.05)' }
+                  : { background: '#FFFEFB', border: '1px dashed rgba(184,149,86,0.55)', color: '#B89556' }}
+              >
+                {isCustomDate ? (
+                  <>
+                    <div className="text-[10px] font-bold uppercase opacity-80">{format(date, 'EEE', { locale: he })}</div>
+                    <div className="text-xl font-black leading-none mt-0.5">{format(date, 'd', { locale: he })}</div>
+                    <div className="text-[10px] opacity-70">{format(date, 'MMM', { locale: he })}</div>
+                  </>
+                ) : (
+                  <>
+                    <Calendar className="w-4 h-4 mx-auto" />
+                    <div className="text-[11px] font-black leading-none mt-1">עוד</div>
+                    <div className="text-[9px] opacity-70 mt-0.5">תאריכים</div>
+                  </>
+                )}
+              </button>
             </div>
+            {/* Hidden native date input — the OS/browser calendar, capped at +6 months */}
+            <input
+              ref={moreDateRef}
+              type="date"
+              min={format(new Date(), 'yyyy-MM-dd')}
+              max={format(maxBookableDate, 'yyyy-MM-dd')}
+              value={date ? format(date, 'yyyy-MM-dd') : ''}
+              onChange={(e) => { if (e.target.value) setDate(parse(e.target.value, 'yyyy-MM-dd', new Date())); }}
+              className="sr-only"
+              tabIndex={-1}
+              aria-hidden="true"
+            />
             {/* Day-level specials tag — visible as soon as a date is picked */}
             {(() => {
               const dayItems = getDaySpecials(date, openingHours);
