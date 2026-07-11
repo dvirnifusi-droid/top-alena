@@ -111,15 +111,12 @@ export default function ReservationView() {
 
         {/* HERO — optional owner background image behind the logo, dark overlay for legibility */}
         <div className="rounded-3xl overflow-hidden shadow-xl relative" style={{ background: 'linear-gradient(135deg, #1F1B17 0%, #44512C 55%, #7A3722 100%)' }}>
-          {/* Image is the base layer (also the video's poster/fallback); video plays on top if set. */}
+          {/* Header background = image only (the video is now a standalone section below). */}
           {cc.header_image && (
-            <div className="absolute inset-0" style={{ backgroundImage: `url(${cc.header_image})`, backgroundSize: 'cover', backgroundPosition: 'center' }} />
-          )}
-          {cc.header_video && (
-            <video src={`${cc.header_video}${cc.header_video.includes('?') ? '&' : '?'}r=1`} poster={cc.header_image || undefined} className="absolute inset-0 w-full h-full object-cover" autoPlay muted loop playsInline preload="auto" />
-          )}
-          {(cc.header_image || cc.header_video) && (
-            <div className="absolute inset-0" style={{ background: 'linear-gradient(180deg, rgba(31,27,23,0.45), rgba(31,27,23,0.8))' }} />
+            <>
+              <div className="absolute inset-0" style={{ backgroundImage: `url(${cc.header_image})`, backgroundSize: 'cover', backgroundPosition: 'center' }} />
+              <div className="absolute inset-0" style={{ background: 'linear-gradient(180deg, rgba(31,27,23,0.45), rgba(31,27,23,0.8))' }} />
+            </>
           )}
           <div className="relative px-6 pt-7 pb-6 text-center text-white">
             <div className="rv-display text-3xl font-black tracking-tight" style={{ color: '#F4ECD8', textShadow: (cc.header_image || cc.header_video) ? '0 2px 12px rgba(0,0,0,0.5)' : 'none' }}>{isAlena ? 'עלינא' : brandName}</div>
@@ -129,6 +126,18 @@ export default function ReservationView() {
             </div>
           </div>
         </div>
+
+        {/* Standalone atmospheric video — a real part of the page (not a background) */}
+        {cc.header_video && (
+          <div className="rounded-3xl overflow-hidden shadow-lg bg-black">
+            <video
+              src={`${cc.header_video}${cc.header_video.includes('?') ? '&' : '?'}r=1`}
+              poster={cc.header_image || undefined}
+              className="w-full h-auto block"
+              autoPlay muted loop playsInline preload="auto"
+            />
+          </div>
+        )}
 
         {/* Greeting + core details */}
         <div className="bg-white rounded-3xl shadow-lg p-6">

@@ -558,11 +558,11 @@ export default function PublicReservationSettings() {
                                             </div>
                                         ) : (
                                             <label className="inline-flex items-center gap-1 h-9 px-3 rounded-md border border-purple-300 bg-purple-50 text-purple-800 text-xs cursor-pointer hover:bg-purple-100">
-                                                🎬 {uploadingImg ? 'מעלה…' : 'העלה סרטון רקע (אופציונלי)'}
+                                                🎬 {uploadingImg ? 'מעלה…' : 'העלה סרטון לעמוד (אופציונלי)'}
                                                 <input type="file" accept="video/*" className="hidden" onChange={handleVideoUpload} disabled={uploadingImg} />
                                             </label>
                                         )}
-                                        <p className="text-[11px] text-gray-400">סרטון רקע (מושתק, בלופ) גובר על התמונה. מומלץ קליפ קצר.</p>
+                                        <p className="text-[11px] text-gray-400">סרטון קצר שיוצג בגוף עמוד האישור (מושתק, בלופ). התמונה נשארת ברקע ההאדר.</p>
                                     </div>
                                 </div>
                                 {/* Images */}

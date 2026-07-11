@@ -609,13 +609,6 @@ export default function PublicReservationPage() {
             backgroundPosition: 'center 40%',
           }}
         >
-          {/* Optional atmospheric background video (shared with the confirmation page) */}
-          {settings?.confirmation_config?.header_video && (
-            <>
-              <video src={`${settings.confirmation_config.header_video}${settings.confirmation_config.header_video.includes('?') ? '&' : '?'}r=1`} className="absolute inset-0 w-full h-full object-cover z-0" autoPlay muted loop playsInline preload="auto" />
-              <div className="absolute inset-0 z-[1]" style={{ background: 'linear-gradient(180deg, rgba(31,27,23,0.35) 0%, rgba(31,27,23,0.45) 55%, rgba(31,27,23,0.7) 100%)' }} />
-            </>
-          )}
           {/* Bottom fade for legibility of identity strip */}
           <div className="absolute inset-x-0 bottom-0 h-28 z-[2]" style={{ background: 'linear-gradient(to top, #FFFEFB 0%, rgba(255,254,251,0.72) 50%, transparent 100%)' }}></div>
 
