@@ -48,7 +48,7 @@ const db = prisma as any; // generic delegate access
 
 // Public deploy marker — lets us confirm which build is live (and that
 // auto-deploy is working) without server access. Bump on each deploy test.
-registerFn('deployInfo', async () => ({ version: 'reservation-analytics-2026-07-11', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
+registerFn('deployInfo', async () => ({ version: 'reservation-analytics-detail-2026-07-11', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
 
 
 
@@ -5147,7 +5147,7 @@ registerFn('getReservationAnalytics', async ({ body }: any) => {
   const { from, to, compare_from, compare_to } = (body || {}) as any;
   if (!from || !to) throw new Error('from, to required');
 
-  const aggregate = async (fromD: string, toD: string) => {
+  const aggregate = async (fromD: string, toD: string, includeRows = false) => {
     const start = dayRange(fromD).start;
     const end = dayRange(toD).next;
     const rows: any[] = await db.reservation.findMany({ where: { date: { gte: start, lt: end } } });
@@ -5185,6 +5185,29 @@ registerFn('getReservationAnalytics', async ({ body }: any) => {
     const cancelled = by_status['cancelled'] || 0;
     const seatedDone = (by_status['seated'] || 0) + (by_status['completed'] || 0);
 
+    // Full per-reservation drill-down (authed → PII is fine): WHO came via WHICH campaign.
+    let details: any[] | undefined;
+    if (includeRows) {
+      details = rows
+        .map((r) => ({
+          id: r.id,
+          customer_name: r.customer_name || '',
+          customer_phone: r.customer_phone || '',
+          customer_email: r.customer_email || '',
+          date: (r.date instanceof Date ? r.date.toISOString() : String(r.date)).slice(0, 10),
+          time: r.time || '',
+          party_size: r.party_size || 0,
+          status: r.status || 'pending',
+          source: r.source || 'ישיר',
+          campaign: r.campaign || '',
+          medium: r.medium || '',
+          landing_url: r.landing_url || '',
+          referrer: r.referrer || '',
+          booked_at: r.createdAt ? new Date(r.createdAt).toISOString() : null,
+        }))
+        .sort((a, b) => (b.booked_at || '').localeCompare(a.booked_at || '') || b.date.localeCompare(a.date));
+    }
+
     return {
       from: fromD, to: toD,
       total_reservations, total_guests, avg_party,
@@ -5198,11 +5221,12 @@ registerFn('getReservationAnalytics', async ({ body }: any) => {
       by_campaign: groupBy('campaign', '(ללא קמפיין)'),
       by_medium: groupBy('medium', '(ללא)'),
       daily,
+      ...(details ? { details } : {}),
     };
   };
 
-  const range = await aggregate(from, to);
-  const compare = (compare_from && compare_to) ? await aggregate(compare_from, compare_to) : null;
+  const range = await aggregate(from, to, true);
+  const compare = (compare_from && compare_to) ? await aggregate(compare_from, compare_to, false) : null;
   return { range, compare };
 });
 

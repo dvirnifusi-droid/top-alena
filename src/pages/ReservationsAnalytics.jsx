@@ -22,6 +22,12 @@ const SOURCE_META = {
 };
 const srcMeta = (k) => SOURCE_META[k] || { label: k, emoji: '🌐' };
 
+const STATUS_L = { confirmed: 'מאושר', seated: 'ישב', completed: 'הושלם', pending: 'ממתין', cancelled: 'בוטל', no_show: 'הבריז', standby: 'המתנה', request: 'בקשה' };
+const STATUS_COLOR = {
+  confirmed: 'bg-emerald-100 text-emerald-700', seated: 'bg-green-100 text-green-700', completed: 'bg-slate-100 text-slate-600',
+  pending: 'bg-amber-100 text-amber-700', cancelled: 'bg-gray-100 text-gray-500', no_show: 'bg-rose-100 text-rose-700', standby: 'bg-yellow-100 text-yellow-700',
+};
+
 const PRESETS = [
   { key: '7', label: '7 ימים' },
   { key: '30', label: '30 ימים' },
@@ -67,6 +73,8 @@ export default function ReservationsAnalytics() {
   const [compareOn, setCompareOn] = useState(true);
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [q, setQ] = useState('');            // free-text search over the detail table
+  const [srcFilter, setSrcFilter] = useState(null); // click a source bar → filter detail table
 
   const applyPreset = (key) => {
     setPreset(key);
@@ -100,6 +108,16 @@ export default function ReservationsAnalytics() {
   const cmp = data?.compare;
   const maxDaily = range?.daily?.length ? Math.max(...range.daily.map(d => d.count)) : 0;
   const maxSource = range?.by_source?.length ? Math.max(...range.by_source.map(s => s.count)) : 0;
+
+  // Detailed drill-down rows, filtered by the source-bar click + the search box.
+  const details = range?.details || [];
+  const filtered = details.filter(r => {
+    if (srcFilter && r.source !== srcFilter) return false;
+    if (!q.trim()) return true;
+    const s = q.trim().toLowerCase();
+    return [r.customer_name, r.customer_phone, r.customer_email, r.campaign, r.source, r.medium]
+      .some(v => String(v || '').toLowerCase().includes(s));
+  });
 
   return (
     <div dir="rtl" className="p-4 sm:p-6 max-w-6xl mx-auto space-y-4">
@@ -161,16 +179,18 @@ export default function ReservationsAnalytics() {
                 <div className="space-y-2">
                   {range.by_source.map(s => {
                     const m = srcMeta(s.key);
+                    const active = srcFilter === s.key;
                     return (
-                      <div key={s.key} className="flex items-center gap-2">
-                        <div className="w-28 sm:w-36 shrink-0 text-sm font-bold text-gray-700 truncate">{m.emoji} {m.label}</div>
+                      <button key={s.key} onClick={() => setSrcFilter(active ? null : s.key)} title="לחץ כדי לסנן את הרשימה המפורטת"
+                        className={`w-full flex items-center gap-2 rounded-lg px-1 py-0.5 transition-colors ${active ? 'bg-indigo-50 ring-1 ring-indigo-300' : 'hover:bg-gray-50'}`}>
+                        <div className="w-28 sm:w-36 shrink-0 text-sm font-bold text-gray-700 truncate text-right">{m.emoji} {m.label}</div>
                         <div className="flex-1 bg-gray-100 rounded-full h-6 overflow-hidden">
                           <div className="h-full bg-indigo-500 rounded-full flex items-center justify-end px-2" style={{ width: `${maxSource ? (s.count / maxSource) * 100 : 0}%`, minWidth: s.count ? '2rem' : 0 }}>
                             <span className="text-[11px] font-black text-white tabular-nums">{s.count}</span>
                           </div>
                         </div>
                         <div className="w-24 shrink-0 text-[11px] text-gray-500 text-left tabular-nums">{s.guests} סועדים · {pct(s.count, range.total_reservations)}%</div>
-                      </div>
+                      </button>
                     );
                   })}
                 </div>
@@ -233,6 +253,59 @@ export default function ReservationsAnalytics() {
                 <span>{range.daily[0]?.date}</span>
                 <span>{range.daily[range.daily.length - 1]?.date}</span>
               </div>
+            </CardContent>
+          </Card>
+
+          {/* Detailed drill-down — WHO came via WHICH campaign, per reservation */}
+          <Card className="shadow-sm">
+            <CardContent className="p-4">
+              <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+                <h2 className="font-black text-gray-900">🔎 כל ההזמנות — מפורט <span className="text-xs font-normal text-gray-400">({filtered.length})</span></h2>
+                <div className="flex items-center gap-2">
+                  {srcFilter && (
+                    <button onClick={() => setSrcFilter(null)} className="text-[11px] font-bold text-indigo-700 bg-indigo-50 px-2 py-1 rounded-full">
+                      {srcMeta(srcFilter).emoji} {srcMeta(srcFilter).label} ✕
+                    </button>
+                  )}
+                  <Input value={q} onChange={e => setQ(e.target.value)} placeholder="חפש שם / טלפון / קמפיין…" className="h-9 w-48 sm:w-56 text-sm" />
+                </div>
+              </div>
+              {filtered.length === 0 ? <p className="text-sm text-gray-400 py-6 text-center">אין הזמנות תואמות.</p> : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm min-w-[720px]">
+                    <thead>
+                      <tr className="text-[11px] text-gray-400 text-right border-b border-gray-200">
+                        <th className="font-medium pb-2 pr-1">לקוח</th>
+                        <th className="font-medium pb-2">מתי</th>
+                        <th className="font-medium pb-2 text-center">סועדים</th>
+                        <th className="font-medium pb-2">סטטוס</th>
+                        <th className="font-medium pb-2">מקור</th>
+                        <th className="font-medium pb-2">קמפיין</th>
+                        <th className="font-medium pb-2">Medium</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filtered.map(r => {
+                        const m = srcMeta(r.source);
+                        return (
+                          <tr key={r.id} className="border-b border-gray-50 hover:bg-gray-50 align-top">
+                            <td className="py-2 pr-1">
+                              <div className="font-bold text-gray-800">{r.customer_name || '—'}</div>
+                              <div className="text-[11px] text-gray-400" dir="ltr">{r.customer_phone}{r.customer_email ? ` · ${r.customer_email}` : ''}</div>
+                            </td>
+                            <td className="py-2 whitespace-nowrap text-gray-600 text-xs">{r.date}<br />{r.time}</td>
+                            <td className="py-2 text-center tabular-nums">{r.party_size}</td>
+                            <td className="py-2"><span className={`text-[11px] px-1.5 py-0.5 rounded ${STATUS_COLOR[r.status] || 'bg-gray-100 text-gray-600'}`}>{STATUS_L[r.status] || r.status}</span></td>
+                            <td className="py-2 whitespace-nowrap">{m.emoji} {m.label}</td>
+                            <td className="py-2 font-bold text-indigo-700 truncate max-w-[160px]" title={r.campaign}>{r.campaign || <span className="text-gray-300 font-normal">—</span>}</td>
+                            <td className="py-2 text-gray-500 text-xs">{r.medium || '—'}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </CardContent>
           </Card>
 
