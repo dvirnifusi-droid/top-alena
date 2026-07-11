@@ -2513,6 +2513,13 @@ export default function SeatingSetup() {
                                             </label>
                                             <Button
                                                 variant="outline"
+                                                className="w-full justify-start h-9 bg-indigo-50 border-indigo-200 text-indigo-700 hover:bg-indigo-100"
+                                                onClick={() => window.open(window.location.origin + '/ReservationsAnalytics', '_blank')}
+                                            >
+                                                📊 דאשבורד הזמנות
+                                            </Button>
+                                            <Button
+                                                variant="outline"
                                                 className="w-full justify-start h-9 bg-orange-50 border-orange-200 text-orange-700 hover:bg-orange-100"
                                                 onClick={() => window.open(window.location.origin + '/PublicReservationSettings', '_blank')}
                                             >

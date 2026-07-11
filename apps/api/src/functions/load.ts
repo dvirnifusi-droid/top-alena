@@ -48,7 +48,7 @@ const db = prisma as any; // generic delegate access
 
 // Public deploy marker — lets us confirm which build is live (and that
 // auto-deploy is working) without server access. Bump on each deploy test.
-registerFn('deployInfo', async () => ({ version: 'per-tenant-slot-capacity-2026-07-11', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
+registerFn('deployInfo', async () => ({ version: 'reservation-analytics-2026-07-11', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
 
 
 
@@ -5139,6 +5139,72 @@ registerFn('getReservationSettings', async () => {
   const s = await db.reservationSettings.findFirst();
   return s ?? null;
 }, { public: true });
+
+// AUTHED — reservation + marketing analytics for a date range (+ optional compare range).
+// Every reservation already carries source/campaign/medium/utm, so this is pure aggregation
+// over THIS tenant's own reservations (schema-scoped). Powers the reservations dashboard.
+registerFn('getReservationAnalytics', async ({ body }: any) => {
+  const { from, to, compare_from, compare_to } = (body || {}) as any;
+  if (!from || !to) throw new Error('from, to required');
+
+  const aggregate = async (fromD: string, toD: string) => {
+    const start = dayRange(fromD).start;
+    const end = dayRange(toD).next;
+    const rows: any[] = await db.reservation.findMany({ where: { date: { gte: start, lt: end } } });
+
+    const total_reservations = rows.length;
+    const total_guests = rows.reduce((s, r) => s + (r.party_size || 0), 0);
+    const avg_party = total_reservations ? Math.round((total_guests / total_reservations) * 10) / 10 : 0;
+
+    const by_status: Record<string, number> = {};
+    for (const r of rows) { const st = r.status || 'pending'; by_status[st] = (by_status[st] || 0) + 1; }
+
+    const groupBy = (key: string, fallback: string) => {
+      const m = new Map<string, { count: number; guests: number }>();
+      for (const r of rows) {
+        const raw = r[key];
+        const k = (raw === null || raw === undefined || raw === '') ? fallback : String(raw);
+        const cur = m.get(k) || { count: 0, guests: 0 };
+        cur.count++; cur.guests += (r.party_size || 0);
+        m.set(k, cur);
+      }
+      return Array.from(m.entries()).map(([k, v]) => ({ key: k, ...v })).sort((a, b) => b.count - a.count);
+    };
+
+    const dayMap = new Map<string, { count: number; guests: number }>();
+    for (const r of rows) {
+      const d = (r.date instanceof Date ? r.date.toISOString() : String(r.date)).slice(0, 10);
+      const cur = dayMap.get(d) || { count: 0, guests: 0 };
+      cur.count++; cur.guests += (r.party_size || 0);
+      dayMap.set(d, cur);
+    }
+    const daily = Array.from(dayMap.entries()).map(([date, v]) => ({ date, ...v })).sort((a, b) => a.date.localeCompare(b.date));
+
+    const uniquePhones = new Set(rows.map((r) => String(r.customer_phone || '').replace(/\D/g, '')).filter(Boolean));
+    const noShow = by_status['no_show'] || 0;
+    const cancelled = by_status['cancelled'] || 0;
+    const seatedDone = (by_status['seated'] || 0) + (by_status['completed'] || 0);
+
+    return {
+      from: fromD, to: toD,
+      total_reservations, total_guests, avg_party,
+      unique_customers: uniquePhones.size,
+      no_show: noShow,
+      no_show_rate: total_reservations ? Math.round((noShow / total_reservations) * 100) : 0,
+      cancelled,
+      seated_completed: seatedDone,
+      by_status,
+      by_source: groupBy('source', 'ישיר'),
+      by_campaign: groupBy('campaign', '(ללא קמפיין)'),
+      by_medium: groupBy('medium', '(ללא)'),
+      daily,
+    };
+  };
+
+  const range = await aggregate(from, to);
+  const compare = (compare_from && compare_to) ? await aggregate(compare_from, compare_to) : null;
+  return { range, compare };
+});
 
 // ── Phase 2: per-tenant reservation-page styling (tags/hero/tagline/socials).
 // Stored in an ISOLATED table so it never touches the existing settings path.

@@ -99,6 +99,7 @@ import MySchedule from './pages/MySchedule';
 import PositionsManagement from './pages/PositionsManagement';
 import PublicReservation from './pages/PublicReservation';
 import PublicReservationSettings from './pages/PublicReservationSettings';
+import ReservationsAnalytics from './pages/ReservationsAnalytics';
 import EventVendors from './pages/EventVendors';
 import EventVendorDetails from './pages/EventVendorDetails';
 import EventVendorCampaign from './pages/EventVendorCampaign';
@@ -228,6 +229,7 @@ export const PAGES = {
     "PositionsManagement": PositionsManagement,
     "PublicReservation": PublicReservation,
     "PublicReservationSettings": PublicReservationSettings,
+    "ReservationsAnalytics": ReservationsAnalytics,
     "EventVendors": EventVendors,
     "EventVendorDetails": EventVendorDetails,
     "EventVendorCampaign": EventVendorCampaign,
