@@ -127,18 +127,6 @@ export default function ReservationView() {
           </div>
         </div>
 
-        {/* Standalone atmospheric video — a real part of the page (not a background) */}
-        {cc.header_video && (
-          <div className="rounded-3xl overflow-hidden shadow-lg bg-black">
-            <video
-              src={`${cc.header_video}${cc.header_video.includes('?') ? '&' : '?'}r=1`}
-              poster={cc.header_image || undefined}
-              className="w-full h-auto block"
-              autoPlay muted loop playsInline preload="auto"
-            />
-          </div>
-        )}
-
         {/* Greeting + core details */}
         <div className="bg-white rounded-3xl shadow-lg p-6">
           <div className="text-center">
@@ -161,6 +149,18 @@ export default function ReservationView() {
             {ccImages.map((url, i) => (
               <img key={i} src={url} alt="" className="h-28 w-44 object-cover rounded-2xl shadow-md flex-shrink-0" />
             ))}
+          </div>
+        )}
+
+        {/* Atmospheric video — placed AFTER the confirmation details so the page reads clearly as a confirmation first */}
+        {cc.header_video && (
+          <div className="rounded-3xl overflow-hidden shadow-lg bg-black">
+            <video
+              src={`${cc.header_video}${cc.header_video.includes('?') ? '&' : '?'}r=1`}
+              poster={cc.header_image || undefined}
+              className="w-full h-auto block"
+              autoPlay muted loop playsInline preload="auto"
+            />
           </div>
         )}
 
