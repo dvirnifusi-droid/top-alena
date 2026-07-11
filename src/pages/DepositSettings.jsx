@@ -16,10 +16,16 @@ function DepositSettingsInner() {
     const [settings, setSettings] = useState(null);
     const [saving, setSaving] = useState(false);
     const [saved, setSaved] = useState(false);
+    // PayPlus credentials — write-only. Secrets never come back from the server (masked),
+    // so api_key/secret_key start blank; the non-secret fields prefill from settings.
+    const [cred, setCred] = useState({ api_key: '', secret_key: '', payment_page_uid: '', terminal: '', j5: false });
 
     useEffect(() => { (async () => {
         const r = await base44.functions.getDepositSettings({});
-        setSettings(r?.data || r);
+        const s = r?.data || r;
+        setSettings(s);
+        const pc = s?.provider_credentials || {};
+        setCred(c => ({ ...c, payment_page_uid: pc.payment_page_uid || '', terminal: pc.terminal || '454111', j5: !!pc.j5 }));
     })(); }, []);
 
     if (!settings) return <div className="p-6 text-center text-gray-500">טוען הגדרות...</div>;
@@ -45,7 +51,10 @@ function DepositSettingsInner() {
                 small_party_threshold: Number(settings.small_party_threshold) || 6,
                 provider: settings.provider || null,
                 enabled: !!settings.enabled,
+                provider_credentials: cred,
             });
+            // Clear the secret fields from memory after a successful save.
+            setCred(c => ({ ...c, api_key: '', secret_key: '' }));
             setSaved(true);
             setTimeout(() => setSaved(false), 2500);
         } catch (e) {
@@ -195,7 +204,30 @@ function DepositSettingsInner() {
                     <option value="payplus">PayPlus</option>
                     <option value="cardcom">Cardcom</option>
                 </select>
-                <div className="text-[11px] text-amber-700 mt-2">⚠️ ה-credentials של הספק (Terminal ID / API Key) ייוסיפו דרך פאנל ניהול נפרד אחרי שתבחר.</div>
+
+                {settings.provider === 'payplus' && (
+                    <div className="mt-4 space-y-2 border-t border-gray-100 pt-3">
+                        <div className="text-sm font-black text-gray-800">🔑 מפתחות PayPlus</div>
+                        {settings.has_credentials ? (
+                            <div className="text-[11px] text-emerald-700 font-bold bg-emerald-50 rounded px-2 py-1">✅ מפתחות מוגדרים. השאר את שדות המפתח/סוד ריקים כדי לא לשנות אותם.</div>
+                        ) : (
+                            <div className="text-[11px] text-amber-700 bg-amber-50 rounded px-2 py-1">הדבק את המפתחות שלך מ-PayPlus. הם נשמרים מוצפנים לעסק שלך ולא נחשפים חזרה.</div>
+                        )}
+                        <input value={cred.api_key} onChange={e => setCred(c => ({ ...c, api_key: e.target.value }))} placeholder={settings.has_credentials ? 'API Key (מוגדר — השאר ריק)' : 'API Key'} dir="ltr" className="w-full border border-gray-300 rounded px-3 py-2 text-sm" />
+                        <input value={cred.secret_key} onChange={e => setCred(c => ({ ...c, secret_key: e.target.value }))} type="password" placeholder={settings.has_credentials ? 'Secret Key (מוגדר — השאר ריק)' : 'Secret Key'} dir="ltr" className="w-full border border-gray-300 rounded px-3 py-2 text-sm" />
+                        <input value={cred.payment_page_uid} onChange={e => setCred(c => ({ ...c, payment_page_uid: e.target.value }))} placeholder="Payment Page UID" dir="ltr" className="w-full border border-gray-300 rounded px-3 py-2 text-sm" />
+                        <input value={cred.terminal} onChange={e => setCred(c => ({ ...c, terminal: e.target.value }))} placeholder="Terminal (מספר מסוף)" dir="ltr" className="w-full border border-gray-300 rounded px-3 py-2 text-sm" />
+                        <label className="flex items-center gap-2 text-xs font-bold text-gray-700 cursor-pointer pt-1">
+                            <input type="checkbox" checked={cred.j5} onChange={e => setCred(c => ({ ...c, j5: e.target.checked }))} className="w-4 h-4 accent-emerald-600" />
+                            J5 — תפיסת סכום (hold) במקום חיוב מיידי (מומלץ לפיקדון — גובים רק אם הבריז)
+                        </label>
+                        <div className="text-[10px] text-gray-400">המפתחות נשמרים לעסק שלך בלבד (מולטי-טננט). לחיצה על "שמור" למטה תשמור אותם.</div>
+                    </div>
+                )}
+
+                {settings.provider && settings.provider !== 'payplus' && (
+                    <div className="text-[11px] text-amber-700 mt-2">⚠️ אינטגרציית המפתחות עבור {settings.provider} עדיין לא נבנתה. כרגע נתמך PayPlus.</div>
+                )}
             </section>
 
             {/* Save bar */}

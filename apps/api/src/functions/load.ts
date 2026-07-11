@@ -48,7 +48,7 @@ const db = prisma as any; // generic delegate access
 
 // Public deploy marker — lets us confirm which build is live (and that
 // auto-deploy is working) without server access. Bump on each deploy test.
-registerFn('deployInfo', async () => ({ version: 'blocked-hours-2026-07-11', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
+registerFn('deployInfo', async () => ({ version: 'payplus-credentials-ui-2026-07-11', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
 
 
 
@@ -6168,7 +6168,19 @@ registerFn('getDepositSettings', async () => {
       },
     });
   }
-  return settings;
+  // NEVER return raw provider secrets to the client — mask them (write-only fields).
+  const cred: any = settings?.provider_credentials || {};
+  return {
+    ...settings,
+    provider_credentials: {
+      payment_page_uid: cred.payment_page_uid || '',
+      terminal: cred.terminal || '',
+      j5: !!cred.j5,
+      has_api_key: !!cred.api_key,
+      has_secret: !!cred.secret_key,
+    },
+    has_credentials: !!(cred.api_key && cred.secret_key),
+  };
 });
 
 registerFn('updateDepositSettings', async ({ body, user }) => {
@@ -6182,12 +6194,33 @@ registerFn('updateDepositSettings', async ({ body, user }) => {
   const data: any = {};
   for (const k of allowed) if ((body as any)?.[k] !== undefined) data[k] = (body as any)[k];
   let settings: any = await (prisma as any).depositSettings.findFirst({ where: { singleton: true } }).catch(() => null);
+  // Merge provider credentials (write-only): only overwrite fields actually provided,
+  // so leaving the secret blank in the UI keeps the existing one. Per-tenant (own schema).
+  const incoming = (body as any)?.provider_credentials;
+  if (incoming && typeof incoming === 'object') {
+    const existing: any = settings?.provider_credentials || {};
+    const merged: any = { ...existing };
+    for (const k of ['api_key', 'secret_key', 'payment_page_uid', 'terminal']) {
+      const v = incoming[k];
+      if (v !== undefined && v !== null && String(v).trim() !== '') merged[k] = String(v).trim();
+    }
+    if (incoming.j5 !== undefined) merged.j5 = !!incoming.j5;
+    data.provider_credentials = merged;
+  }
   if (!settings) {
     settings = await (prisma as any).depositSettings.create({ data: { singleton: true, ...data } });
   } else {
     settings = await (prisma as any).depositSettings.update({ where: { id: settings.id }, data });
   }
-  return settings;
+  const cred: any = settings?.provider_credentials || {};
+  return {
+    ...settings,
+    provider_credentials: {
+      payment_page_uid: cred.payment_page_uid || '', terminal: cred.terminal || '', j5: !!cred.j5,
+      has_api_key: !!cred.api_key, has_secret: !!cred.secret_key,
+    },
+    has_credentials: !!(cred.api_key && cred.secret_key),
+  };
 });
 
 // Hostess: manually capture (charge no-show) or release (refund/cancel) a deposit hold.
