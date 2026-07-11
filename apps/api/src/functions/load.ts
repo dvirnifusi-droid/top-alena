@@ -48,7 +48,7 @@ const db = prisma as any; // generic delegate access
 
 // Public deploy marker — lets us confirm which build is live (and that
 // auto-deploy is working) without server access. Bump on each deploy test.
-registerFn('deployInfo', async () => ({ version: 'deposit-5min-timer-2026-07-11', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
+registerFn('deployInfo', async () => ({ version: 'reservationview-redesign-2026-07-11', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
 
 
 
@@ -6257,6 +6257,9 @@ async function payplusGenerateLink(cred: any, opts: {
     charge_method: opts.charge_method, // 1 = charge now, 2 = J5 approval/hold
     amount: opts.amount,
     currency_code: 'ILS',
+    // Only Visa + Mastercard (covers Israeli Isracard/Cal/Max) → blocks Amex & Diners.
+    // Direct/debit can't hold a J5 authorization anyway, so the deposit stays a real hold.
+    allowed_cards: ['mastercard', 'visa'],
     sendEmailApproval: false,
     sendEmailFailure: false,
     refURL_success: opts.success_url,

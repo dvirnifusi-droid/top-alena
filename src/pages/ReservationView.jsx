@@ -69,104 +69,96 @@ export default function ReservationView() {
   const dateStr = format(dateObj, 'yyyy-MM-dd');
   const startMs = new Date(`${dateStr}T${reservation.time}:00`).getTime();
   const hoursUntil = (startMs - Date.now()) / (60 * 60 * 1000);
-  const willBeLateCancel = hoursUntil < 2 && hoursUntil >= -1;
+  const willBeLateCancel = hoursUntil < 3 && hoursUntil >= -1;
+
+  const address = branding?.address || (isAlena ? 'רוטשילד 104, ראשון לציון' : '');
+  const phone = branding?.phone || (isAlena ? '03-6228055' : '');
+  const wazeUrl = address ? `https://waze.com/ul?q=${encodeURIComponent(address)}&navigate=yes` : null;
+  const timeRange = `${reservation.time}${reservation.reservation_end_time ? ` – ${reservation.reservation_end_time}` : ''}`;
 
   return (
-    <div dir="rtl" className="min-h-screen bg-gradient-to-br from-amber-50 via-[#F4ECD8] to-orange-100 p-4 py-8">
-      <div className="max-w-md mx-auto bg-white rounded-3xl shadow-2xl p-6 space-y-5">
+    <div dir="rtl" className="min-h-screen p-4 py-8" style={{ background: 'linear-gradient(135deg, #FAF5E8 0%, #F4ECD8 55%, #E8D9B5 100%)', fontFamily: "'Heebo', system-ui, sans-serif" }}>
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=Frank+Ruhl+Libre:wght@500;700;900&family=Heebo:wght@300;400;500;700;900&display=swap');.rv-display{font-family:'Frank Ruhl Libre',serif}`}</style>
+      <div className="max-w-md mx-auto space-y-4">
 
-        {/* Header */}
-        <div className="text-center border-b pb-4">
-          <div className="text-3xl font-black text-amber-900">{`🔥 ${brandName}`}</div>
-          <div className="text-sm text-gray-500 mt-1">ההזמנה שלך</div>
-        </div>
-
-        {/* Status banner */}
-        {isCancelled && (
-          <div className={`rounded-xl p-3 text-center text-sm font-bold ${isNoShow ? 'bg-rose-100 text-rose-900' : 'bg-gray-100 text-gray-700'}`}>
-            {isNoShow ? '⚠️ ההזמנה בוטלה (איחור בביטול)' : '❌ ההזמנה בוטלה'}
+        {/* HERO */}
+        <div className="rounded-3xl overflow-hidden shadow-xl" style={{ background: 'linear-gradient(135deg, #1F1B17 0%, #44512C 55%, #7A3722 100%)' }}>
+          <div className="px-6 pt-7 pb-6 text-center text-white">
+            <div className="rv-display text-3xl font-black tracking-tight" style={{ color: '#F4ECD8' }}>{isAlena ? 'עלינא' : brandName}</div>
+            <div className="mt-1 text-[11px] tracking-[0.25em]" style={{ color: '#D9BD83' }}>אוכל · אלכוהול · אווירה · אנשים</div>
+            <div className="mt-5 inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-sm font-bold" style={{ background: isCancelled ? 'rgba(160,74,46,0.25)' : 'rgba(217,189,131,0.22)', color: '#FAF5E8' }}>
+              {isCancelled ? (isNoShow ? '⚠️ ההזמנה בוטלה (איחור)' : '❌ ההזמנה בוטלה') : <><CheckCircle className="w-4 h-4" style={{ color: '#D9BD83' }} /> ההזמנה אושרה</>}
+            </div>
           </div>
-        )}
-
-        {/* Greeting */}
-        <div className="text-center">
-          <div className="text-2xl font-black text-gray-900">שלום {reservation.customer_name}</div>
-          {!isCancelled && <div className="text-sm text-gray-600 mt-1">נשמח לראותך 🍷</div>}
         </div>
 
-        {/* Reservation details */}
-        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 space-y-2">
-          <Row icon={<Calendar className="w-4 h-4 text-amber-700" />} label="תאריך" value={dateLabel} />
-          <Row icon={<Clock className="w-4 h-4 text-amber-700" />} label="שעה" value={`${reservation.time}${reservation.reservation_end_time ? ` עד ${reservation.reservation_end_time}` : ''}`} />
-          <Row icon={<Users className="w-4 h-4 text-amber-700" />} label="סועדים" value={reservation.party_size} />
-          {/* Table number intentionally hidden from the customer-facing confirmation. */}
+        {/* Greeting + core details */}
+        <div className="bg-white rounded-3xl shadow-lg p-6">
+          <div className="text-center">
+            <div className="rv-display text-2xl font-black" style={{ color: '#1F1B17' }}>שלום {reservation.customer_name}</div>
+            {!isCancelled && <div className="text-sm mt-1" style={{ color: '#A04A2E' }}>שמורים לכם מקום ✨</div>}
+          </div>
+          <div className="mt-5 grid grid-cols-3 gap-2 text-center">
+            <Stat icon={<Calendar className="w-4 h-4" />} label="תאריך" value={format(dateObj, 'dd/MM', { locale: he })} sub={format(dateObj, 'EEEE', { locale: he })} />
+            <Stat icon={<Clock className="w-4 h-4" />} label="שעה" value={reservation.time} sub={reservation.reservation_end_time ? `עד ${reservation.reservation_end_time}` : ''} />
+            <Stat icon={<Users className="w-4 h-4" />} label="סועדים" value={reservation.party_size} sub="" />
+          </div>
           {reservation.special_occasion && (
-            <Row icon="🎉" label="חוגגים" value={reservation.special_occasion} />
+            <div className="mt-3 text-center text-sm rounded-xl py-2" style={{ background: '#FAF5E8', color: '#7A3722' }}>🎉 חוגגים {reservation.special_occasion}</div>
           )}
         </div>
 
-        {/* Address + Waze */}
-        {(isAlena || branding?.address) && (
-        <div className="bg-[#F4ECD8] border border-[#E8D9B5] rounded-2xl p-4">
-          <div className="font-bold text-blue-900 flex items-center gap-2 mb-2">
-            <MapPin className="w-4 h-4" /> איפה אנחנו
+        {/* Location + Waze */}
+        {address && (
+          <div className="bg-white rounded-3xl shadow-lg p-5">
+            <div className="flex items-center gap-2 font-black" style={{ color: '#44512C' }}><MapPin className="w-4 h-4" /> איפה אנחנו</div>
+            <div className="text-sm mt-1" style={{ color: '#2E3819' }}>{address}</div>
+            {wazeUrl && (
+              <a href={wazeUrl} target="_blank" rel="noopener noreferrer" className="mt-3 flex items-center justify-center gap-2 text-white text-sm font-black py-2.5 rounded-xl" style={{ background: '#44512C' }}>
+                <Navigation className="w-4 h-4" /> נווט בוייז
+              </a>
+            )}
           </div>
-          <div className="text-sm text-[#2E3819]">{branding?.address || 'רוטשילד 104, ראשון לציון'}</div>
-          {isAlena && (
-          <a
-            href="https://waze.com/ul?ll=31.96,34.79&navigate=yes"
-            target="_blank" rel="noopener noreferrer"
-            className="mt-2 inline-flex items-center gap-1.5 bg-[#44512C] hover:bg-[#44512C] text-white text-sm font-bold py-2 px-4 rounded-lg"
-          >
-            <Navigation className="w-4 h-4" /> ניווט בוייז
-          </a>
-          )}
-        </div>
         )}
 
-        {/* Parking — Alena-specific details */}
+        {/* Parking */}
         {isAlena && (
-        <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4">
-          <div className="font-bold text-emerald-900 mb-1">🅿️ חניה</div>
-          <ul className="text-sm text-emerald-800 space-y-1 list-disc pr-5">
-            <li><b>חניון בן גוריון</b> — חינם אחר הצהריים, 2 דק׳ הליכה</li>
-            <li>רחובות סמוכים: רוטשילד, הרצל, וייצמן — כחול-לבן</li>
-          </ul>
-        </div>
+          <div className="bg-white rounded-3xl shadow-lg p-5">
+            <div className="font-black mb-1.5" style={{ color: '#44512C' }}>🅿️ חניה</div>
+            <ul className="text-sm space-y-1.5 list-disc pr-5" style={{ color: '#2E3819' }}>
+              <li><b>חניון מול מרכז בן גוריון</b> — הליכה קצרה מהמקום.</li>
+              <li>רחובות סמוכים: רוטשילד, הרצל, וייצמן (כחול-לבן).</li>
+            </ul>
+          </div>
         )}
 
         {/* Policy */}
-        <div className="bg-[#FAF5E8] border border-yellow-200 rounded-2xl p-4 text-sm text-yellow-900">
-          <div className="font-bold mb-1">📋 מדיניות</div>
-          <ul className="space-y-1 list-disc pr-5">
-            <li>השולחן ימתין לכם עד 10 דקות מעבר לשעה</li>
-            <li>ניתן לבטל ללא חיוב <b>עד שעתיים</b> לפני המועד</li>
-            <li>ביטול בפחות משעתיים: 30₪ פיקדון לסועד</li>
+        <div className="rounded-3xl shadow-lg p-5" style={{ background: '#FAF5E8', border: '1px solid #E8D9B5' }}>
+          <div className="font-black mb-2" style={{ color: '#7A3722' }}>📋 מדיניות</div>
+          <ul className="text-[13px] space-y-2 list-disc pr-5" style={{ color: '#4a3f30' }}>
+            <li>השולחן ימתין לכם עד <b>10 דקות</b> מהשעה המצוינת בהזמנה.</li>
+            <li>ניתן לבטל <b>עד 3 שעות</b> לפני המועד — ללא חיוב.</li>
+            <li>ביטול בפחות מ-3 שעות (גם אם הזמנתם בתוך הטווח הזה) — יחויב בפיקדון של <b>30 ₪ לסועד</b>.</li>
+            <li>לא ניתן להתחייב למיקום הושבה ספציפי.</li>
           </ul>
         </div>
 
-        {/* Cancel button */}
+        {/* Actions */}
         {!isCancelled && (
-          <button
-            onClick={() => setCancelOpen(true)}
-            className="w-full bg-white border-2 border-red-300 text-red-600 hover:bg-red-50 font-bold py-3 rounded-xl text-sm flex items-center justify-center gap-2"
-          >
-            <X className="w-4 h-4" /> ביטול הזמנה
-          </button>
+          <div className="space-y-2">
+            {phone && (
+              <a href={`tel:${phone.replace(/[^\d+]/g, '')}`} className="w-full text-white font-black py-3.5 rounded-2xl text-sm flex items-center justify-center gap-2 shadow-lg" style={{ background: 'linear-gradient(135deg, #A04A2E, #7A3722)' }}>
+                <Phone className="w-4 h-4" /> התקשרו למסעדה
+              </a>
+            )}
+            <button onClick={() => setCancelOpen(true)} className="w-full bg-white border-2 font-bold py-3 rounded-2xl text-sm flex items-center justify-center gap-2" style={{ borderColor: '#E8D9B5', color: '#9a5b3f' }}>
+              <X className="w-4 h-4" /> ביטול הזמנה
+            </button>
+          </div>
         )}
 
-        {/* Contact — only when we have a number (Alena's, for now) */}
-        {isAlena && (
-        <a
-          href="tel:031234567"
-          className="w-full bg-zinc-900 hover:bg-zinc-800 text-white font-bold py-3 rounded-xl text-sm flex items-center justify-center gap-2"
-        >
-          <Phone className="w-4 h-4" /> התקשר למסעדה
-        </a>
-        )}
-
-        <div className="text-center text-xs text-gray-400 pt-2 border-t">
-          {isAlena ? '❤️ עלינא · אוכל · אלכוהול · אווירה · אנשים' : `❤️ ${brandName}`}
+        <div className="text-center text-[11px] pt-1" style={{ color: '#B89556' }}>
+          {isAlena ? '❤️ עלינא · רוטשילד 104, ראשון לציון' : `❤️ ${brandName}`}
         </div>
       </div>
 
@@ -180,7 +172,7 @@ export default function ReservationView() {
                 <AlertTriangle className="w-5 h-5 flex-shrink-0 mt-0.5" />
                 <div>
                   <div className="font-bold">⚠️ ביטול מאוחר</div>
-                  <div className="text-xs mt-1">פחות משעתיים לפני המועד — ההזמנה תסומן כ"לא הגיע" וייתכן חיוב פיקדון של 30₪ לסועד.</div>
+                  <div className="text-xs mt-1">פחות מ-3 שעות לפני המועד — ייתכן חיוב פיקדון של 30 ₪ לסועד בהתאם למדיניות.</div>
                 </div>
               </div>
             ) : (
@@ -212,6 +204,17 @@ export default function ReservationView() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function Stat({ icon, label, value, sub }) {
+  return (
+    <div className="rounded-2xl py-3 px-1" style={{ background: '#FAF5E8' }}>
+      <div className="flex justify-center mb-1" style={{ color: '#A04A2E' }}>{icon}</div>
+      <div className="text-[10px]" style={{ color: '#9a8a6f' }}>{label}</div>
+      <div className="text-lg font-black leading-none mt-0.5" style={{ color: '#1F1B17' }}>{value}</div>
+      {sub ? <div className="text-[10px] mt-0.5" style={{ color: '#7A3722' }}>{sub}</div> : null}
     </div>
   );
 }
