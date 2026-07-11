@@ -1238,14 +1238,15 @@ export default function PublicReservationPage() {
         </div>{/* /grid */}
       </div>{/* /two-column section */}
 
-      {/* Owner marketing video (events etc.) — leads into the menu, kept as a subtle banner */}
+      {/* Owner marketing video — MOBILE ONLY (doesn't sit well on desktop), natural size
+          (owner uploads a post-sized clip, so no forced crop). Leads into the menu. */}
       {bc.body_video && (
-        <section className="max-w-3xl mx-auto px-3 md:px-5 pt-10">
+        <section className="lg:hidden max-w-md mx-auto px-3 pt-10">
           {bc.body_video_title && (
-            <h3 className="text-center brand-display text-xl md:text-2xl mb-3" style={{ color: '#1F1B17' }}>{bc.body_video_title}</h3>
+            <h3 className="text-center brand-display text-xl mb-3" style={{ color: '#1F1B17' }}>{bc.body_video_title}</h3>
           )}
           <div className="rounded-2xl overflow-hidden shadow-md bg-black">
-            <video src={`${bc.body_video}${bc.body_video.includes('?') ? '&' : '?'}r=1`} className="w-full h-56 md:h-72 object-cover block" autoPlay muted loop playsInline preload="auto" />
+            <video src={`${bc.body_video}${bc.body_video.includes('?') ? '&' : '?'}r=1`} className="w-full h-auto block" autoPlay muted loop playsInline preload="auto" />
           </div>
         </section>
       )}
