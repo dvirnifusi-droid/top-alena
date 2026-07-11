@@ -12,6 +12,16 @@ import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Settings, Phone, MessageSquare, Calendar, Save } from 'lucide-react';
 
+// Defaults for the customer confirmation page (ReservationView). The editor pre-fills these.
+const DEFAULT_PARKING = 'חניון מול מרכז בן גוריון — הליכה קצרה מהמקום.';
+const DEFAULT_NEARBY = 'רחובות סמוכים: רוטשילד, הרצל, וייצמן (כחול-לבן).';
+const DEFAULT_POLICY = [
+  'השולחן ימתין לכם עד 10 דקות מהשעה המצוינת בהזמנה.',
+  'ניתן לבטל עד 3 שעות לפני המועד — ללא חיוב.',
+  'ביטול בפחות מ-3 שעות (גם אם הזמנתם בתוך הטווח) — יחויב בפיקדון של 30 ₪ לסועד.',
+  'המסעדה אינה מתחייבת לשולחן או אזור ישיבה ספציפי.',
+];
+
 export default function PublicReservationSettings() {
     const branding = useTenantBranding();
     const isAlena = isMainAlena();
@@ -50,6 +60,7 @@ export default function PublicReservationSettings() {
         }
     });
     const [loading, setLoading] = useState(false);
+    const [uploadingImg, setUploadingImg] = useState(false);
     const [message, setMessage] = useState('');
     // Phase 2 — reservation-page styling (separate, isolated store).
     const [extras, setExtras] = useState({ tagline: '', tags: '', hero_image_url: '', instagram_url: '', tiktok_url: '', facebook_url: '' });
@@ -137,6 +148,25 @@ export default function PublicReservationSettings() {
     };
     const removeBlock = (day, i) => handleOpeningHourChange(day, 'blocks', (settings.opening_hours[day].blocks || []).filter((_, idx) => idx !== i));
 
+    // ── Confirmation-page editor (ReservationView content: images / parking / policy / nearby) ──
+    const cc = settings.confirmation_config || {};
+    const updateCC = (patch) => setSettings(s => ({ ...s, confirmation_config: { ...(s.confirmation_config || {}), ...patch } }));
+    const ccPolicy = Array.isArray(cc.policy) ? cc.policy : DEFAULT_POLICY;
+    const addPolicy = () => updateCC({ policy: [...ccPolicy, ''] });
+    const updatePolicy = (i, v) => updateCC({ policy: ccPolicy.map((l, idx) => idx === i ? v : l) });
+    const removePolicy = (i) => updateCC({ policy: ccPolicy.filter((_, idx) => idx !== i) });
+    const removeImage = (i) => updateCC({ images: (cc.images || []).filter((_, idx) => idx !== i) });
+    const handleImageUpload = async (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        setUploadingImg(true);
+        try {
+            const { file_url } = await base44.integrations.Core.UploadFile({ file });
+            if (file_url) updateCC({ images: [...(cc.images || []), file_url] });
+        } catch (err) { alert('שגיאה בהעלאת התמונה: ' + (err?.message || err)); }
+        finally { setUploadingImg(false); e.target.value = ''; }
+    };
+
     const dayNames = {
         sunday: 'ראשון',
         monday: 'שני',
@@ -162,12 +192,13 @@ export default function PublicReservationSettings() {
                 )}
 
                 <Tabs defaultValue="general" className="space-y-6">
-                    <TabsList className="grid w-full grid-cols-5">
+                    <TabsList className="grid w-full grid-cols-6">
                         <TabsTrigger value="general">כללי</TabsTrigger>
                         <TabsTrigger value="design">עיצוב הדף</TabsTrigger>
                         <TabsTrigger value="whatsapp">וואטסאפ</TabsTrigger>
                         <TabsTrigger value="hours">שעות פעילות</TabsTrigger>
                         <TabsTrigger value="booking">הזמנות</TabsTrigger>
+                        <TabsTrigger value="confirm">עמוד אישור</TabsTrigger>
                     </TabsList>
 
                     <TabsContent value="general">
@@ -440,6 +471,58 @@ export default function PublicReservationSettings() {
                                         className="h-20"
                                     />
                                 </div>
+                            </CardContent>
+                        </Card>
+                    </TabsContent>
+
+                    <TabsContent value="confirm">
+                        <Card>
+                            <CardHeader>
+                                <CardTitle className="flex items-center gap-2">📄 עמוד אישור ההזמנה</CardTitle>
+                                <p className="text-xs text-gray-500">מה שהלקוח רואה בקישור האישור (ReservationView). כתובת + טלפון נלקחים מטאב "כללי".</p>
+                            </CardHeader>
+                            <CardContent className="space-y-5">
+                                {/* Images */}
+                                <div>
+                                    <Label>תמונות לעמוד</Label>
+                                    <div className="flex flex-wrap gap-2 mt-2">
+                                        {(cc.images || []).map((url, i) => (
+                                            <div key={i} className="relative w-20 h-20 rounded-lg overflow-hidden border">
+                                                <img src={url} alt="" className="w-full h-full object-cover" />
+                                                <button type="button" onClick={() => removeImage(i)} className="absolute top-0 left-0 bg-red-600 text-white w-5 h-5 text-xs flex items-center justify-center">×</button>
+                                            </div>
+                                        ))}
+                                        <label className="w-20 h-20 rounded-lg border-2 border-dashed border-gray-300 flex items-center justify-center cursor-pointer text-2xl text-gray-400 hover:border-emerald-400">
+                                            {uploadingImg ? '…' : '+'}
+                                            <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} disabled={uploadingImg} />
+                                        </label>
+                                    </div>
+                                    <p className="text-[11px] text-gray-400 mt-1">מומלץ תמונות רוחביות של המסעדה/מנות. הן יופיעו כגלריה בעמוד.</p>
+                                </div>
+                                {/* Parking */}
+                                <div>
+                                    <Label>חניה</Label>
+                                    <Textarea value={cc.parking ?? DEFAULT_PARKING} onChange={e => updateCC({ parking: e.target.value })} className="h-16" />
+                                </div>
+                                {/* Nearby */}
+                                <div>
+                                    <Label>רחובות סמוכים</Label>
+                                    <Input value={cc.nearby ?? DEFAULT_NEARBY} onChange={e => updateCC({ nearby: e.target.value })} />
+                                </div>
+                                {/* Policy lines */}
+                                <div>
+                                    <Label>שורות מדיניות</Label>
+                                    <div className="space-y-1 mt-1">
+                                        {ccPolicy.map((line, i) => (
+                                            <div key={i} className="flex items-start gap-1">
+                                                <Textarea value={line} onChange={e => updatePolicy(i, e.target.value)} className="h-12 text-sm" />
+                                                <button type="button" onClick={() => removePolicy(i)} className="text-rose-500 hover:text-rose-700 text-xs px-2 pt-2 shrink-0">הסר</button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                    <button type="button" onClick={addPolicy} className="text-xs text-indigo-600 hover:text-indigo-800 font-bold mt-1">+ הוסף שורת מדיניות</button>
+                                </div>
+                                <div className="text-[11px] text-amber-700 bg-amber-50 rounded p-2">💡 השאר שדה ריק כדי להשתמש בברירת המחדל. לחץ "שמור" למטה כדי לפרסם.</div>
                             </CardContent>
                         </Card>
                     </TabsContent>

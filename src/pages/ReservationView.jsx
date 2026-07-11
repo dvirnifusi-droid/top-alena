@@ -3,7 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { format, parseISO } from 'date-fns';
 import { he } from 'date-fns/locale';
-import { Calendar, Clock, Users, MapPin, Navigation, Phone, X, CheckCircle, AlertTriangle } from 'lucide-react';
+import { Calendar, Clock, Users, MapPin, Navigation, Phone, X, CheckCircle, AlertTriangle, CalendarPlus, Share2, MessageCircle } from 'lucide-react';
 import { useTenantBranding } from '@/hooks/useTenantBranding';
 import { isMainAlena } from '@/lib/tenant';
 
@@ -16,6 +16,7 @@ export default function ReservationView() {
   const [search] = useSearchParams();
   const token = search.get('token') || '';
   const [reservation, setReservation] = useState(null);
+  const [settings, setSettings] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [cancelOpen, setCancelOpen] = useState(false);
@@ -32,6 +33,9 @@ export default function ReservationView() {
         const res = await base44.asServiceRole.functions.getReservationByToken({ token });
         const data = res?.data || res;
         setReservation(data);
+        // Owner-editable confirmation-page content (parking / policy / images / nearby).
+        base44.asServiceRole.functions.getReservationSettings({})
+          .then(s => setSettings(s?.data || s)).catch(() => {});
       } catch (e) {
         setError(e?.message === 'not_found' ? 'ההזמנה לא נמצאה' : 'שגיאה בטעינת ההזמנה');
       } finally { setLoading(false); }
@@ -76,6 +80,30 @@ export default function ReservationView() {
   const wazeUrl = address ? `https://waze.com/ul?q=${encodeURIComponent(address)}&navigate=yes` : null;
   const timeRange = `${reservation.time}${reservation.reservation_end_time ? ` – ${reservation.reservation_end_time}` : ''}`;
 
+  // Owner-editable confirmation content (falls back to Alena defaults).
+  const cc = settings?.confirmation_config || {};
+  const ccImages = Array.isArray(cc.images) ? cc.images : [];
+  const ccParking = cc.parking || 'חניון מול מרכז בן גוריון — הליכה קצרה מהמקום.';
+  const ccNearby = cc.nearby || 'רחובות סמוכים: רוטשילד, הרצל, וייצמן (כחול-לבן).';
+  const ccPolicy = (Array.isArray(cc.policy) && cc.policy.length) ? cc.policy : [
+    'השולחן ימתין לכם עד 10 דקות מהשעה המצוינת בהזמנה.',
+    'ניתן לבטל עד 3 שעות לפני המועד — ללא חיוב.',
+    'ביטול בפחות מ-3 שעות (גם אם הזמנתם בתוך הטווח) — יחויב בפיקדון של 30 ₪ לסועד.',
+    'המסעדה אינה מתחייבת לשולחן או אזור ישיבה ספציפי.',
+  ];
+
+  // Add-to-calendar (.ics, floating time = same wall-clock everywhere) + share + WhatsApp.
+  const icsStart = `${dateStr.replace(/-/g, '')}T${(reservation.time || '20:00').replace(':', '')}00`;
+  const icsEnd = `${dateStr.replace(/-/g, '')}T${(reservation.reservation_end_time || reservation.time || '22:00').replace(':', '')}00`;
+  const icsHref = 'data:text/calendar;charset=utf-8,' + encodeURIComponent(
+    ['BEGIN:VCALENDAR', 'VERSION:2.0', 'BEGIN:VEVENT', `DTSTART:${icsStart}`, `DTEND:${icsEnd}`, `SUMMARY:הזמנה ב${brandName}`, `LOCATION:${address}`, `DESCRIPTION:${reservation.party_size} סועדים`, 'END:VEVENT', 'END:VCALENDAR'].join('\r\n'));
+  const waHref = phone ? `https://wa.me/972${phone.replace(/\D/g, '').replace(/^0/, '')}` : null;
+  const doShare = async () => {
+    const url = window.location.href;
+    if (navigator.share) { try { await navigator.share({ title: `הזמנה ב${brandName}`, url }); } catch { /* cancelled */ } }
+    else { try { await navigator.clipboard.writeText(url); alert('הקישור הועתק ✓'); } catch { /* noop */ } }
+  };
+
   return (
     <div dir="rtl" className="min-h-screen p-4 py-8" style={{ background: 'linear-gradient(135deg, #FAF5E8 0%, #F4ECD8 55%, #E8D9B5 100%)', fontFamily: "'Heebo', system-ui, sans-serif" }}>
       <style>{`@import url('https://fonts.googleapis.com/css2?family=Frank+Ruhl+Libre:wght@500;700;900&family=Heebo:wght@300;400;500;700;900&display=swap');.rv-display{font-family:'Frank Ruhl Libre',serif}`}</style>
@@ -108,6 +136,15 @@ export default function ReservationView() {
           )}
         </div>
 
+        {/* Photo gallery (owner-uploaded via settings) */}
+        {ccImages.length > 0 && (
+          <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1" style={{ scrollbarWidth: 'none' }}>
+            {ccImages.map((url, i) => (
+              <img key={i} src={url} alt="" className="h-28 w-44 object-cover rounded-2xl shadow-md flex-shrink-0" />
+            ))}
+          </div>
+        )}
+
         {/* Location + Waze */}
         {address && (
           <div className="bg-white rounded-3xl shadow-lg p-5">
@@ -121,29 +158,43 @@ export default function ReservationView() {
           </div>
         )}
 
-        {/* Parking */}
-        {isAlena && (
+        {/* Parking + nearby (owner-editable; shown for Alena or any tenant that set it) */}
+        {(isAlena || cc.parking) && (
           <div className="bg-white rounded-3xl shadow-lg p-5">
             <div className="font-black mb-1.5" style={{ color: '#44512C' }}>🅿️ חניה</div>
             <ul className="text-sm space-y-1.5 list-disc pr-5" style={{ color: '#2E3819' }}>
-              <li><b>חניון מול מרכז בן גוריון</b> — הליכה קצרה מהמקום.</li>
-              <li>רחובות סמוכים: רוטשילד, הרצל, וייצמן (כחול-לבן).</li>
+              <li>{ccParking}</li>
+              {ccNearby && <li>{ccNearby}</li>}
             </ul>
           </div>
         )}
 
-        {/* Policy */}
+        {/* Policy (owner-editable) */}
         <div className="rounded-3xl shadow-lg p-5" style={{ background: '#FAF5E8', border: '1px solid #E8D9B5' }}>
           <div className="font-black mb-2" style={{ color: '#7A3722' }}>📋 מדיניות</div>
           <ul className="text-[13px] space-y-2 list-disc pr-5" style={{ color: '#4a3f30' }}>
-            <li>השולחן ימתין לכם עד <b>10 דקות</b> מהשעה המצוינת בהזמנה.</li>
-            <li>ניתן לבטל <b>עד 3 שעות</b> לפני המועד — ללא חיוב.</li>
-            <li>ביטול בפחות מ-3 שעות (גם אם הזמנתם בתוך הטווח הזה) — יחויב בפיקדון של <b>30 ₪ לסועד</b>.</li>
-            <li>לא ניתן להתחייב למיקום הושבה ספציפי.</li>
+            {ccPolicy.map((line, i) => <li key={i}>{line}</li>)}
           </ul>
         </div>
 
-        {/* Actions */}
+        {/* Quick actions — add to calendar / share / whatsapp */}
+        {!isCancelled && (
+          <div className="grid grid-cols-3 gap-2">
+            <a href={icsHref} download="reservation.ics" className="flex flex-col items-center gap-1 bg-white rounded-2xl shadow py-3 text-[11px] font-bold" style={{ color: '#44512C' }}>
+              <CalendarPlus className="w-5 h-5" /> הוסף ליומן
+            </a>
+            <button onClick={doShare} className="flex flex-col items-center gap-1 bg-white rounded-2xl shadow py-3 text-[11px] font-bold" style={{ color: '#44512C' }}>
+              <Share2 className="w-5 h-5" /> שיתוף
+            </button>
+            {waHref ? (
+              <a href={waHref} target="_blank" rel="noopener noreferrer" className="flex flex-col items-center gap-1 bg-white rounded-2xl shadow py-3 text-[11px] font-bold" style={{ color: '#25863F' }}>
+                <MessageCircle className="w-5 h-5" /> וואטסאפ
+              </a>
+            ) : <div />}
+          </div>
+        )}
+
+        {/* Primary actions */}
         {!isCancelled && (
           <div className="space-y-2">
             {phone && (
