@@ -169,6 +169,8 @@ export default function PublicReservationPage() {
   // nearby open slots and a standby-waitlist button.
   const [alternatives, setAlternatives] = useState([]); // [{ time, offset_min }]
   const [depositInfo, setDepositInfo] = useState(null); // { required, amount_ils, reason, free_cancel_until_iso }
+  // Large-group threshold is PER-TENANT (this business's max_party_size). Above it → event.
+  const maxParty = Number(settings?.max_party_size) || 11;
 
   const [liveCount, setLiveCount] = useState(null);
   const [featuredMenu, setFeaturedMenu] = useState([]);
@@ -308,7 +310,7 @@ export default function PublicReservationPage() {
   // --- Fetch availability snapshot for the HOUR-level grid (one dot per hour)
   useEffect(() => {
     if (!hourSlots.length) { setAvailability({}); return; }
-    if (Number(partySize) >= 12) { setAvailability({}); return; }
+    if (Number(partySize) > maxParty) { setAvailability({}); return; }
     let cancelled = false;
     (async () => {
       try {
@@ -327,7 +329,7 @@ export default function PublicReservationPage() {
   const [quarterStripAvail, setQuarterStripAvail] = useState({});
   useEffect(() => {
     if (!selectedHour) { setQuarterStripAvail({}); return; }
-    if (Number(partySize) >= 12) return;
+    if (Number(partySize) > maxParty) return;
     const strip = buildQuarterStrip(selectedHour, openingHours.start, openingHours.end);
     if (!strip.length) return;
     let cancelled = false;
@@ -353,7 +355,7 @@ export default function PublicReservationPage() {
     acceptStandby = acceptStandby === true;
     setErrorMsg('');
     if (!acceptStandby) setAlternatives([]); // reset any prior alts on a fresh attempt
-    if (Number(partySize) >= 12) return setErrorMsg('12 סועדים ומעלה נחשב לאירוע — מלא את טופס האירועים');
+    if (Number(partySize) > maxParty) return setErrorMsg(`${maxParty + 1} סועדים ומעלה נחשב לאירוע — מלא את טופס האירועים`);
     if (!customerName.trim()) return setErrorMsg('יש למלא שם מלא');
     if (!customerPhone.trim() || customerPhone.replace(/\D/g, '').length < 9) return setErrorMsg('יש למלא מספר טלפון תקין');
     if (!customerEmail.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customerEmail.trim())) return setErrorMsg('יש למלא כתובת אימייל תקינה');
@@ -427,8 +429,8 @@ export default function PublicReservationPage() {
     }
   };
 
-  // For party 12+ — render the events redirect block instead of booking flow
-  const isEventSize = Number(partySize) >= 12;
+  // For party above this tenant's max — render the events redirect block instead of booking flow
+  const isEventSize = Number(partySize) > maxParty;
 
   // --- Derived data
   const branding = useTenantBranding();
@@ -732,17 +734,19 @@ export default function PublicReservationPage() {
           <div>
             <Label icon={<Users className="w-4 h-4" />}>כמות סועדים</Label>
             <div className="flex flex-wrap gap-1.5 mt-2">
-              {[1, 2, 3, 4, 5, 6, 8, 10, 11, 12].map(n => (
-                <Chip key={n} active={Number(partySize) === n} onClick={() => setPartySize(n)}>
-                  {n === 12 ? '12+' : n}
-                </Chip>
+              {/* Bookable sizes come from this tenant's max; the last chip is the "event" bucket */}
+              {[1, 2, 3, 4, 5, 6, 8, 10, 11, 12, 14, 16, 20].filter(n => n <= maxParty).map(n => (
+                <Chip key={n} active={Number(partySize) === n} onClick={() => setPartySize(n)}>{n}</Chip>
               ))}
+              <Chip active={Number(partySize) > maxParty} onClick={() => setPartySize(maxParty + 1)}>
+                {maxParty + 1}+
+              </Chip>
             </div>
             <div className="text-[10px] text-gray-400 mt-1.5">
               {Number(partySize) <= 5 && '· משך שולחן 2:00 שעות'}
               {Number(partySize) >= 6 && Number(partySize) <= 10 && '· משך שולחן 2:15 שעות'}
               {Number(partySize) === 11 && '· משך שולחן 2:30 שעות'}
-              {Number(partySize) >= 12 && '· 12+ סועדים = אירוע פרטי, ראה למטה'}
+              {Number(partySize) > maxParty && `· ${maxParty + 1}+ סועדים = אירוע פרטי, ראה למטה`}
             </div>
           </div>
 
@@ -754,7 +758,7 @@ export default function PublicReservationPage() {
                 <div className="brand-display text-lg" style={{ color: '#1F1B17' }}>קבוצה גדולה? זה אירוע פרטי</div>
               </div>
               <p className="text-sm leading-relaxed" style={{ color: '#44512C' }}>
-                ל-12 סועדים ומעלה אנחנו סוגרים תפריט אירוע אישי שמתאים בדיוק לקבוצה שלך —
+                ל-{maxParty + 1} סועדים ומעלה אנחנו סוגרים תפריט אירוע אישי שמתאים בדיוק לקבוצה שלך —
                 תאמת אישית עם בעלת המקום, מנות מרכזיות, שתייה ואפילו חדר פרטי.
               </p>
               <a

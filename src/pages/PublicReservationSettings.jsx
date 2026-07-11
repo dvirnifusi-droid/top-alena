@@ -31,6 +31,7 @@ export default function PublicReservationSettings() {
         whatsapp_group_enabled: true,
         min_party_size: 1,
         max_party_size: 12,
+        slot_capacity: 36,
         advance_booking_days: 30,
         booking_cutoff_hours: 2,
         special_message: '',
@@ -385,16 +386,28 @@ export default function PublicReservationSettings() {
                                         />
                                     </div>
                                     <div>
-                                        <Label htmlFor="max_party_size">מקסימום סועדים</Label>
-                                        <Input 
+                                        <Label htmlFor="max_party_size">מקסימום סועדים להזמנה</Label>
+                                        <Input
                                             id="max_party_size"
                                             type="number"
                                             value={settings.max_party_size}
                                             onChange={(e) => setSettings({...settings, max_party_size: parseInt(e.target.value)})}
                                         />
+                                        <p className="text-[11px] text-gray-400 mt-1">מעל מספר זה → אירוע פרטי (טופס אירועים)</p>
                                     </div>
                                 </div>
-                                
+
+                                <div>
+                                    <Label htmlFor="slot_capacity">קיבולת לרבע שעה (סה"כ סועדים)</Label>
+                                    <Input
+                                        id="slot_capacity"
+                                        type="number"
+                                        value={settings.slot_capacity}
+                                        onChange={(e) => setSettings({...settings, slot_capacity: parseInt(e.target.value)})}
+                                    />
+                                    <p className="text-[11px] text-gray-400 mt-1">מעל זה נחסם אישור מיידי — הלקוח יקבל שעות חלופיות או ייכנס לרשימת המתנה. כל עסק קובע את שלו.</p>
+                                </div>
+
                                 <div>
                                     <Label htmlFor="special_message">הודעה מיוחדת (אופציונלי)</Label>
                                     <Textarea 

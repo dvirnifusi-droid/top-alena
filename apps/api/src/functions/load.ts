@@ -48,7 +48,7 @@ const db = prisma as any; // generic delegate access
 
 // Public deploy marker — lets us confirm which build is live (and that
 // auto-deploy is working) without server access. Bump on each deploy test.
-registerFn('deployInfo', async () => ({ version: 'reservation-email-req-largegroup12-2026-07-11', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
+registerFn('deployInfo', async () => ({ version: 'per-tenant-slot-capacity-2026-07-11', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
 
 
 
@@ -5120,6 +5120,20 @@ const toMin = (t: string) => {
   return h * 60 + m;
 };
 
+// Per-tenant reservation policy — read from THIS tenant's ReservationSettings row
+// (schema-scoped, so it's automatically the current tenant's own numbers). Each
+// business sets its own slot capacity + max public party; defaults keep any
+// un-configured tenant working. The old module constants are just the fallbacks.
+async function getReservationPolicy(): Promise<{ slotCapacity: number; maxParty: number }> {
+  const s: any = await db.reservationSettings.findFirst().catch(() => null);
+  const cap = Number(s?.slot_capacity);
+  const maxP = Number(s?.max_party_size);
+  return {
+    slotCapacity: Number.isFinite(cap) && cap > 0 ? cap : RES_MAX_PER_SLOT,
+    maxParty: Number.isFinite(maxP) && maxP > 0 ? maxP : PUBLIC_RESERVATION_MAX_PARTY,
+  };
+}
+
 // Public: restaurant reservation settings (config only — not PII).
 registerFn('getReservationSettings', async () => {
   const s = await db.reservationSettings.findFirst();
@@ -5963,7 +5977,8 @@ async function computeDepositRequirement(params: {
     return { required: false, amount_ils: 0, reason: 'מערכת פיקדון לא פעילה', free_cancel_until_iso: null };
   }
   const sz = Number(party_size) || 0;
-  const eventFlag = !!is_event || sz >= 12;
+  const { maxParty } = await getReservationPolicy(); // per-tenant large-group threshold
+  const eventFlag = !!is_event || sz > maxParty;
   // Determine day-of-week from date.
   let dayName = 'sunday';
   try {
@@ -6177,7 +6192,8 @@ registerFn('searchReservationTable', async ({ body }) => {
   const { date, time, party_size } = body as any;
   if (!date || !time || !party_size) throw new Error('date, time, party_size required');
   const size = parseInt(party_size);
-  if (size > PUBLIC_RESERVATION_MAX_PARTY) {
+  const policy = await getReservationPolicy(); // per-tenant slot capacity + max party
+  if (size > policy.maxParty) {
     return { canAccommodate: false, reason: 'too_large_use_events', currentCapacity: 0, availableCapacity: 0, table: null };
   }
   const startMin = toMin(time);
@@ -6188,11 +6204,11 @@ registerFn('searchReservationTable', async ({ body }) => {
   });
   const active = (r: any) => r.status !== 'cancelled' && r.status !== 'no_show';
 
-  // Capacity within the 15-min slot
+  // Capacity within the 15-min slot (per-tenant ceiling)
   const slotCount = reservations
     .filter((r: any) => active(r) && r.time && toMin(r.time) >= startMin && toMin(r.time) < startMin + 15)
     .reduce((sum: number, r: any) => sum + (r.party_size || 0), 0);
-  const canAccommodate = slotCount + size <= RES_MAX_PER_SLOT;
+  const canAccommodate = slotCount + size <= policy.slotCapacity;
 
   let table: any = null;
   if (canAccommodate) {
@@ -6204,7 +6220,7 @@ registerFn('searchReservationTable', async ({ body }) => {
   return {
     canAccommodate,
     currentCapacity: slotCount,
-    availableCapacity: Math.max(0, RES_MAX_PER_SLOT - slotCount),
+    availableCapacity: Math.max(0, policy.slotCapacity - slotCount),
     table,
   };
 }, { public: true });
@@ -6375,7 +6391,8 @@ registerFn('createPublicReservation', async ({ body }) => {
     // For format errors, let the regular flow handle it (don't block on parse).
   }
   const size = parseInt(party_size);
-  if (size > PUBLIC_RESERVATION_MAX_PARTY) {
+  const { maxParty } = await getReservationPolicy(); // per-tenant large-group threshold
+  if (size > maxParty) {
     return { success: false, reason: 'too_large_use_events' };
   }
   const source = classifyReservationSource({ utm_source, referrer, landing_url });

@@ -1997,6 +1997,9 @@ model ReservationSettings {
   opening_hours                Json?
   min_party_size               Int?  @default(1)
   max_party_size               Int?  @default(12)
+  // Per-tenant reservation capacity: max total guests bookable per 15-min slot.
+  // Each business sets its own (Alena 36, another might be 20). Read server-side.
+  slot_capacity                Int?  @default(36)
   advance_booking_days         Int?  @default(30)
   booking_cutoff_hours         Int?  @default(2)
   special_message              String?
