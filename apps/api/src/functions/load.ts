@@ -48,7 +48,7 @@ const db = prisma as any; // generic delegate access
 
 // Public deploy marker — lets us confirm which build is live (and that
 // auto-deploy is working) without server access. Bump on each deploy test.
-registerFn('deployInfo', async () => ({ version: 'auto-assign-priority-2026-07-11b', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
+registerFn('deployInfo', async () => ({ version: 'reservation-email-req-largegroup12-2026-07-11', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
 
 
 
@@ -5110,11 +5110,11 @@ const RES_MAX_PER_SLOT = 36;
 // Table holding duration per Dvir's policy:
 //   2-5  guests → 120 min
 //   6-10 guests → 135 min (2:15)
-//  11-12 guests → 150 min (2:30)
-//  13+   guests → not a public reservation — must go through EventsInquiry
+//  11    guests → 150 min (2:30)
+//  12+   guests → not a public reservation — must go through EventsInquiry (large group)
 const seatingDuration = (size: number) =>
   size >= 11 ? 150 : size >= 6 ? 135 : 120;
-const PUBLIC_RESERVATION_MAX_PARTY = 12;
+const PUBLIC_RESERVATION_MAX_PARTY = 11;
 const toMin = (t: string) => {
   const [h, m] = String(t).split(':').map(Number);
   return h * 60 + m;
@@ -5963,7 +5963,7 @@ async function computeDepositRequirement(params: {
     return { required: false, amount_ils: 0, reason: 'מערכת פיקדון לא פעילה', free_cancel_until_iso: null };
   }
   const sz = Number(party_size) || 0;
-  const eventFlag = !!is_event || sz >= 13;
+  const eventFlag = !!is_event || sz >= 12;
   // Determine day-of-week from date.
   let dayName = 'sunday';
   try {
@@ -6340,6 +6340,11 @@ registerFn('createPublicReservation', async ({ body }) => {
   } = body as any;
   if (!customer_name || !customer_phone || !date || !time || !party_size) {
     throw new Error('missing_required_fields');
+  }
+  // Email is now MANDATORY for public reservations (owner requirement).
+  const emailRaw = String((body as any)?.customer_email || '').trim();
+  if (!emailRaw || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailRaw)) {
+    throw Object.assign(new Error('נא להזין כתובת אימייל תקינה.'), { code: 'email_required' });
   }
   // Time-in-past guard: reservation must be at least 15 minutes from now (Israel time).
   // DST-safe: read current IL wall-clock via Intl.DateTimeFormat instead of hardcoded +3 (which is wrong in winter UTC+2).

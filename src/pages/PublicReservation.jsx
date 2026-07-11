@@ -308,7 +308,7 @@ export default function PublicReservationPage() {
   // --- Fetch availability snapshot for the HOUR-level grid (one dot per hour)
   useEffect(() => {
     if (!hourSlots.length) { setAvailability({}); return; }
-    if (Number(partySize) > 12) { setAvailability({}); return; }
+    if (Number(partySize) >= 12) { setAvailability({}); return; }
     let cancelled = false;
     (async () => {
       try {
@@ -327,7 +327,7 @@ export default function PublicReservationPage() {
   const [quarterStripAvail, setQuarterStripAvail] = useState({});
   useEffect(() => {
     if (!selectedHour) { setQuarterStripAvail({}); return; }
-    if (Number(partySize) > 12) return;
+    if (Number(partySize) >= 12) return;
     const strip = buildQuarterStrip(selectedHour, openingHours.start, openingHours.end);
     if (!strip.length) return;
     let cancelled = false;
@@ -353,9 +353,10 @@ export default function PublicReservationPage() {
     acceptStandby = acceptStandby === true;
     setErrorMsg('');
     if (!acceptStandby) setAlternatives([]); // reset any prior alts on a fresh attempt
-    if (Number(partySize) > 12) return setErrorMsg('יותר מ-12 סועדים נחשב לאירוע — מלא את טופס האירועים');
+    if (Number(partySize) >= 12) return setErrorMsg('12 סועדים ומעלה נחשב לאירוע — מלא את טופס האירועים');
     if (!customerName.trim()) return setErrorMsg('יש למלא שם מלא');
     if (!customerPhone.trim() || customerPhone.replace(/\D/g, '').length < 9) return setErrorMsg('יש למלא מספר טלפון תקין');
+    if (!customerEmail.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customerEmail.trim())) return setErrorMsg('יש למלא כתובת אימייל תקינה');
     if (!time) return setErrorMsg('יש לבחור שעה');
 
     setIsBooking(true);
@@ -426,8 +427,8 @@ export default function PublicReservationPage() {
     }
   };
 
-  // For party > 12 — render the events redirect block instead of booking flow
-  const isEventSize = Number(partySize) > 12;
+  // For party 12+ — render the events redirect block instead of booking flow
+  const isEventSize = Number(partySize) >= 12;
 
   // --- Derived data
   const branding = useTenantBranding();
@@ -731,21 +732,21 @@ export default function PublicReservationPage() {
           <div>
             <Label icon={<Users className="w-4 h-4" />}>כמות סועדים</Label>
             <div className="flex flex-wrap gap-1.5 mt-2">
-              {[1, 2, 3, 4, 5, 6, 8, 10, 12, 13].map(n => (
+              {[1, 2, 3, 4, 5, 6, 8, 10, 11, 12].map(n => (
                 <Chip key={n} active={Number(partySize) === n} onClick={() => setPartySize(n)}>
-                  {n === 13 ? '13+' : n}
+                  {n === 12 ? '12+' : n}
                 </Chip>
               ))}
             </div>
             <div className="text-[10px] text-gray-400 mt-1.5">
               {Number(partySize) <= 5 && '· משך שולחן 2:00 שעות'}
               {Number(partySize) >= 6 && Number(partySize) <= 10 && '· משך שולחן 2:15 שעות'}
-              {Number(partySize) >= 11 && Number(partySize) <= 12 && '· משך שולחן 2:30 שעות'}
-              {Number(partySize) > 12 && '· 13+ סועדים = אירוע פרטי, ראה למטה'}
+              {Number(partySize) === 11 && '· משך שולחן 2:30 שעות'}
+              {Number(partySize) >= 12 && '· 12+ סועדים = אירוע פרטי, ראה למטה'}
             </div>
           </div>
 
-          {/* 13+ guests — redirect to events flow */}
+          {/* 12+ guests — redirect to events flow */}
           {isEventSize && (
             <div className="rounded-2xl p-4 space-y-3" style={{ background: 'linear-gradient(135deg, rgba(68,81,44,0.08), rgba(184,149,86,0.12))', border: '2px solid rgba(68,81,44,0.30)' }}>
               <div className="flex items-center gap-2">
@@ -753,7 +754,7 @@ export default function PublicReservationPage() {
                 <div className="brand-display text-lg" style={{ color: '#1F1B17' }}>קבוצה גדולה? זה אירוע פרטי</div>
               </div>
               <p className="text-sm leading-relaxed" style={{ color: '#44512C' }}>
-                ל-13 סועדים ומעלה אנחנו סוגרים תפריט אירוע אישי שמתאים בדיוק לקבוצה שלך —
+                ל-12 סועדים ומעלה אנחנו סוגרים תפריט אירוע אישי שמתאים בדיוק לקבוצה שלך —
                 תאמת אישית עם בעלת המקום, מנות מרכזיות, שתייה ואפילו חדר פרטי.
               </p>
               <a
@@ -1029,11 +1030,12 @@ export default function PublicReservationPage() {
             </div>
           </div>
 
-          {/* Optional email — for email confirmation */}
+          {/* Email — REQUIRED (owner requirement) */}
           <div>
-            <Label>אימייל <span className="font-normal text-gray-400">(אופציונלי, לאישור במייל)</span></Label>
+            <Label>אימייל <span className="font-normal text-[#A04A2E]">(חובה — לאישור ועדכונים)</span></Label>
             <input
               type="email"
+              required
               value={customerEmail}
               onChange={e => setCustomerEmail(e.target.value)}
               placeholder="you@example.com"
