@@ -1611,7 +1611,7 @@ export default function SeatingSetup() {
         return fullName.split(' ')[0];
     };
 
-    const ReservationsDashboard = () => {
+    const ReservationsDashboard = ({ hideDatePicker = false } = {}) => {
         const [timeFilter, setTimeFilter] = useState('');
         const [timeBucket, setTimeBucket] = useState('all'); // all|morning|noon|evening|night
         // Apply time bucket → set time filter to first hour digit of range
@@ -1673,22 +1673,31 @@ export default function SeatingSetup() {
                         הזמנות ({filteredReservations.length}) - סה"כ {totalGuests} אורחים
                     </h3>
                     
-                    <Popover>
-                        <PopoverTrigger asChild>
-                            <Button variant="outline" size="sm">
-                                <Calendar className="w-4 h-4 ml-2" />
-                                {format(selectedDate, 'dd/MM/yyyy')}
-                            </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0">
-                            <CalendarComponent
-                                mode="single"
-                                selected={selectedDate}
-                                onSelect={date => { if(date) setSelectedDate(date)}}
-                                initialFocus
-                            />
-                        </PopoverContent>
-                    </Popover>
+                    {!hideDatePicker && (
+                    <div className="flex items-center gap-1.5">
+                        <Popover>
+                            <PopoverTrigger asChild>
+                                <Button variant="outline" size="sm">
+                                    <Calendar className="w-4 h-4 ml-2" />
+                                    {format(selectedDate, 'dd/MM/yyyy')}
+                                </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0">
+                                <CalendarComponent
+                                    mode="single"
+                                    selected={selectedDate}
+                                    onSelect={date => { if(date) setSelectedDate(date)}}
+                                    initialFocus
+                                />
+                            </PopoverContent>
+                        </Popover>
+                        <Button
+                            variant="outline" size="sm"
+                            className={format(selectedDate, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd') ? 'bg-slate-900 text-white' : ''}
+                            onClick={() => setSelectedDate(new Date())}
+                        >היום</Button>
+                    </div>
+                    )}
                 </div>
 
                 {/* Search box — name or phone */}
@@ -2936,7 +2945,7 @@ export default function SeatingSetup() {
                                     )}
 
                                     {/* Date picker — always visible in big-map mode so hostess can switch days fast */}
-                                    <div className="bg-white border border-gray-200 rounded-lg p-2 flex items-center justify-between">
+                                    <div className="bg-white border border-gray-200 rounded-lg p-2 flex items-center gap-1.5">
                                         <Popover>
                                             <PopoverTrigger asChild>
                                                 <Button variant="outline" size="sm" className="text-xs">
@@ -2954,8 +2963,13 @@ export default function SeatingSetup() {
                                             </PopoverContent>
                                         </Popover>
                                         <Button
+                                            variant="outline" size="sm"
+                                            className={`text-xs ${format(selectedDate, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd') ? 'bg-slate-900 text-white' : ''}`}
+                                            onClick={() => setSelectedDate(new Date())}
+                                        >היום</Button>
+                                        <Button
                                             size="sm"
-                                            className="text-xs bg-emerald-600 hover:bg-emerald-700"
+                                            className="text-xs bg-emerald-600 hover:bg-emerald-700 mr-auto"
                                             onClick={() => setSmartBookerOpen(v => !v)}
                                         >
                                             <Plus className="w-3.5 h-3.5 ml-1" />
@@ -2970,7 +2984,7 @@ export default function SeatingSetup() {
                                         </div>
                                     )}
 
-                                    {railTab === 'full' && <ReservationsDashboard />}
+                                    {railTab === 'full' && <ReservationsDashboard hideDatePicker />}
                                     {railTab === 'tonight' && (
                                         <CompactTonightStrip
                                             reservations={reservations}
@@ -3808,14 +3822,17 @@ function CompactTonightStrip({ reservations, selectedDate, onEdit, onOpenFullDas
                 />
             </div>
 
-            {/* List */}
+            {/* List — wrapped in a block container with vertical spacing so the
+                cards don't become direct flex-items of the rail column (which
+                shrinks/overlaps them under many rows). */}
             {tonight.length === 0 ? (
                 <div className="bg-white border border-gray-200 rounded-2xl p-5 text-center">
                     <div className="text-3xl mb-1">🌙</div>
                     <div className="text-sm text-gray-500">אין הזמנות הערב</div>
                 </div>
             ) : (
-                tonight.map((r) => {
+                <div className="space-y-1.5">
+                {tonight.map((r) => {
                     const flagColor = {
                         green:  'bg-emerald-500',
                         orange: 'bg-orange-500',
@@ -3851,7 +3868,8 @@ function CompactTonightStrip({ reservations, selectedDate, onEdit, onOpenFullDas
                         </div>
                     </button>
                     );
-                })
+                })}
+                </div>
             )}
         </>
     );
