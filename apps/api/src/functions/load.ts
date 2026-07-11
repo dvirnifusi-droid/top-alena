@@ -48,7 +48,7 @@ const db = prisma as any; // generic delegate access
 
 // Public deploy marker — lets us confirm which build is live (and that
 // auto-deploy is working) without server access. Bump on each deploy test.
-registerFn('deployInfo', async () => ({ version: 'deposit-manual-amount-2026-07-11', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
+registerFn('deployInfo', async () => ({ version: 'deposit-confirm-after-card-2026-07-11', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
 
 
 
@@ -6342,8 +6342,10 @@ registerFn('sendDepositRequest', async ({ body, user, req }: any) => {
   const smsBody = [
     `שלום ${r.customer_name || ''} 👋`,
     ``,
-    `לאישור ההזמנה ב${brand} יש להזין פיקדון אשראי בסך ₪${amount}.`,
-    cred?.j5 ? `הכרטיס לא מחויב — רק נתפס כפיקדון, ותחויב רק במקרה של אי-הגעה.` : `סכום הפיקדון ייגבה כעת.`,
+    `עוד כמה שניות לאישור ההזמנה שלך ב${brand} ✨`,
+    cred?.j5
+      ? `רק מאבטחים את הכרטיס (לא מחייבים אותו) — פורמליות קטנה ששומרת לך את השולחן.`
+      : `להשלמת ההזמנה:`,
     ``,
     `🔗 ${link.payment_page_link}`,
   ].join('\n');
@@ -6365,12 +6367,19 @@ registerFn('payplusCallback', async ({ body }: any) => {
     const r: any = await db.reservation.findUnique({ where: { id: String(moreInfo) } }).catch(() => null);
     if (!r) return { ok: true, note: 'reservation not found' };
     if (approved) {
-      // J5 → authorized (hold placed, 🟢); immediate charge → captured.
-      const isHold = r.deposit_provider === 'payplus';
-      await db.reservation.update({
+      const wasPending = r.status === 'pending' && !r.is_standby;
+      const firstAuth = wasPending || r.deposit_status !== 'authorized';
+      const updated = await db.reservation.update({
         where: { id: r.id },
-        data: { deposit_status: isHold ? 'authorized' : 'captured', deposit_authorized_at: new Date(), deposit_provider_ref: transactionUid || r.deposit_provider_ref } as any,
+        data: {
+          deposit_status: 'authorized', // card placed (J5 hold) → 🟢
+          deposit_authorized_at: new Date(),
+          deposit_provider_ref: transactionUid || r.deposit_provider_ref,
+          ...(wasPending ? { status: 'confirmed' } : {}),
+        } as any,
       });
+      // First-time authorization → the booking is now really confirmed; notify the guest.
+      if (firstAuth) { await notifyReservationConfirmed(updated).catch(() => {}); }
     } else {
       await db.reservation.update({ where: { id: r.id }, data: { deposit_status: 'failed' } as any });
     }
@@ -6658,6 +6667,39 @@ function classifyReservationSource(opts: { utm_source?: string; referrer?: strin
   return 'other';
 }
 
+// Send the booking-confirmed messages (SMS + WhatsApp + email) from a reservation row.
+// Called when no deposit is needed, and from the PayPlus webhook once the card is placed.
+async function notifyReservationConfirmed(r: any): Promise<void> {
+  try {
+    const brand = await getBrandName().catch(() => 'המסעדה');
+    const base = process.env.PUBLIC_BASE_URL || 'https://topalena.com';
+    const trackUrl = r.tracking_token ? `${base}/ReservationView?token=${r.tracking_token}` : base;
+    const dateStr = (r.date instanceof Date ? r.date.toISOString() : String(r.date)).slice(0, 10).split('-').reverse().join('/');
+    const depLine = r.deposit_status === 'authorized' ? `🔒 הפיקדון נתפס בכרטיס — לא חויב.` : '';
+    const phone = String(r.customer_phone || '').trim();
+    const smsBody = [
+      `שלום ${r.customer_name || ''} 👋`, ``,
+      `ההזמנה שלך ב${brand} אושרה ✅`,
+      `📅 ${dateStr} בשעה ${r.time}`,
+      `👥 ${r.party_size} סועדים`,
+      ...(depLine ? [depLine] : []),
+      ``, `📋 צפיה בהזמנה: ${trackUrl}`,
+    ].join('\n');
+    sendSms(phone, smsBody).catch((e: any) => console.warn('[confirm sms]', e?.message));
+    const waTemplateSid = process.env.TWILIO_WA_TEMPLATE_SID || 'HX42bd4ae96abaa7312aeeae1af997c3da';
+    sendWhatsAppTemplate(phone, waTemplateSid, {
+      '1': r.customer_name || '', '2': dateStr, '3': r.time || '', '4': String(r.party_size || ''), '5': trackUrl, '6': 'ניתן לבטל לפי מדיניות ההזמנה',
+    }).catch(() => { sendWhatsApp(phone, smsBody).catch(() => {}); });
+    if (r.customer_email) {
+      sendEmail({
+        to: r.customer_email,
+        subject: `אישור הזמנה - ${dateStr} בשעה ${r.time} - ${brand}`,
+        html: `<div dir="rtl" style="font-family:Arial,Helvetica,sans-serif;max-width:560px;margin:auto;padding:24px;background:#fafafa;border-radius:12px;color:#1f1b17"><p style="font-size:18px;margin:0 0 4px">שלום ${r.customer_name || ''} 👋</p><p style="margin:0 0 16px;color:#a04a2e;font-size:20px;font-weight:bold">ההזמנה שלך ב${brand} אושרה ✅</p><div style="background:#fff;border:1px solid #e5d9c4;border-radius:10px;padding:16px"><p style="margin:4px 0">📅 <b>${dateStr}</b> בשעה <b>${r.time}</b></p><p style="margin:4px 0">👥 <b>${r.party_size} סועדים</b></p>${depLine ? `<p style="margin:4px 0">${depLine}</p>` : ''}</div><p style="margin:24px 0 0;text-align:center"><a href="${trackUrl}" style="background:#a04a2e;color:#F4ECD8;padding:12px 20px;border-radius:8px;text-decoration:none;font-weight:bold;display:inline-block">📋 צפיה בהזמנה</a></p></div>`,
+      }).catch((e: any) => console.warn('[confirm email]', e?.message));
+    }
+  } catch (e: any) { console.warn('[notifyReservationConfirmed]', e?.message); }
+}
+
 registerFn('createPublicReservation', async ({ body, req }: any) => {
   await ensureReservationSourceCols();
   const brand = await getBrandName();
@@ -6740,19 +6782,25 @@ registerFn('createPublicReservation', async ({ body, req }: any) => {
   const customer_email = (body as any)?.customer_email
     ? String((body as any).customer_email).slice(0, 200).trim() : null;
   const marketing_consent = !!(body as any)?.marketing_consent;
-  // Compute deposit requirement (does NOT block booking yet — provider integration tomorrow).
   const depositInfo = await computeDepositRequirement({
     date, time, party_size: size, is_event: false,
   }).catch(() => ({ required: false, amount_ils: 0 }));
+  // Will we collect the deposit online (redirect to PayPlus)? Only if required, PayPlus
+  // configured+enabled, and not standby. If so, the booking stays 'pending' and NO
+  // confirmation is sent until the card is placed — the webhook flips it to 'confirmed'
+  // and sends the confirmation then.
+  const depSettings: any = await (prisma as any).depositSettings.findFirst({ where: { singleton: true } }).catch(() => null);
+  const depCred = depSettings?.provider_credentials;
+  const willCollectDeposit = !!(depositInfo.required && (depositInfo as any).amount_ils > 0 && !isStandby && depSettings?.enabled && depCred?.api_key && depCred?.payment_page_uid);
   const reservation = await db.reservation.create({
     data: {
       customer_name: String(customer_name).trim(),
       customer_phone: String(customer_phone).trim(),
       date: bookingDate, time,
       party_size: size,
-      // Standby reservations sit in 'pending' until promoted; confirmed
-      // ones are real bookings with an assigned table.
-      status: isStandby ? 'pending' : 'confirmed',
+      // Standby waits for a table; a deposit-required booking waits for the card.
+      // Both stay 'pending' until resolved; otherwise it's a confirmed booking.
+      status: (isStandby || willCollectDeposit) ? 'pending' : 'confirmed',
       is_standby: isStandby,
       standby_requested_time: isStandby ? time : null,
       special_requests: special_requests || null,
@@ -6768,7 +6816,8 @@ registerFn('createPublicReservation', async ({ body, req }: any) => {
       customer_email,
       deposit_required: !!depositInfo.required,
       deposit_amount: depositInfo.required ? depositInfo.amount_ils : null,
-      deposit_status: depositInfo.required ? 'pending' : null,
+      deposit_status: willCollectDeposit ? 'pending' : (depositInfo.required ? 'pending' : null),
+      deposit_provider: willCollectDeposit ? 'payplus' : null,
       marketing_consent,
       marketing_consent_at: marketing_consent ? new Date() : null,
     } as any,
@@ -6820,15 +6869,16 @@ registerFn('createPublicReservation', async ({ body, req }: any) => {
         ``,
         `📋 צפיה בהזמנה: ${trackUrl}`,
       ].join('\n');
-  // SMS
-  sendSms(String(customer_phone).trim(), smsBody).catch((e) =>
+  // SMS — but NOT when we're about to collect a deposit: the confirmation is held
+  // until the card is placed (sent from the webhook on authorization).
+  if (!willCollectDeposit) sendSms(String(customer_phone).trim(), smsBody).catch((e) =>
     console.warn('[reservation] sms failed', e?.message)
   );
   // WhatsApp — use the approved template (booking_confirmation_he, SID HX42...).
   // Business-initiated requires a Meta-approved template; passing variables that
   // match the {{1}}..{{6}} placeholders in the template body.
   const waTemplateSid = process.env.TWILIO_WA_TEMPLATE_SID || 'HX42bd4ae96abaa7312aeeae1af997c3da';
-  if (!isStandby) {
+  if (!isStandby && !willCollectDeposit) {
     sendWhatsAppTemplate(
       String(customer_phone).trim(),
       waTemplateSid,
@@ -6851,8 +6901,8 @@ registerFn('createPublicReservation', async ({ body, req }: any) => {
       console.warn('[reservation] whatsapp standby failed', e?.message)
     );
   }
-  // Email — best-effort if address provided
-  if (customer_email) {
+  // Email — best-effort if address provided (held until card is placed for deposit bookings)
+  if (customer_email && !willCollectDeposit) {
     const html = `
       <div dir="rtl" style="font-family:Arial,Helvetica,sans-serif;max-width:560px;margin:auto;padding:24px;background:#fafafa;border-radius:12px;color:#1f1b17">
         <p style="font-size:18px;margin:0 0 4px">שלום ${customer_name} 👋</p>
@@ -6967,27 +7017,26 @@ registerFn('createPublicReservation', async ({ body, req }: any) => {
   // customer places the hold as PART of booking. Reservation already exists (deposit 🟠 pending);
   // the webhook flips it to authorized (🟢) once the hold is placed. Non-fatal if it fails.
   let deposit_link: string | null = null;
-  if (depositInfo.required && (depositInfo as any).amount_ils > 0 && !isStandby) {
+  if (willCollectDeposit) {
     try {
-      const dset: any = await (prisma as any).depositSettings.findFirst({ where: { singleton: true } }).catch(() => null);
-      const cred = dset?.provider_credentials;
-      if (dset?.enabled && cred?.api_key && cred?.payment_page_uid) {
-        const host = req?.headers?.host || baseUrl.replace(/^https?:\/\//, '');
-        const hostBase = `https://${host}`;
-        const link = await payplusGenerateLink(cred, {
-          amount: (depositInfo as any).amount_ils,
-          charge_method: cred?.j5 ? 2 : 1,
-          customer: { customer_name: String(customer_name).trim(), email: customer_email || '', phone: String(customer_phone).trim() },
-          more_info: reservation.id,
-          callback_url: `${hostBase}/api/public/fn/payplusCallback`,
-          success_url: `${hostBase}/ReservationView?token=${tracking_token}`,
-          failure_url: `${hostBase}/PublicReservation`,
-        });
-        deposit_link = link.payment_page_link || null;
-        await db.reservation.update({ where: { id: reservation.id }, data: { deposit_provider: 'payplus', deposit_provider_ref: link.page_request_uid || null } as any });
-      }
+      const host = req?.headers?.host || baseUrl.replace(/^https?:\/\//, '');
+      const hostBase = `https://${host}`;
+      const link = await payplusGenerateLink(depCred, {
+        amount: (depositInfo as any).amount_ils,
+        charge_method: depCred?.j5 ? 2 : 1,
+        customer: { customer_name: String(customer_name).trim(), email: customer_email || '', phone: String(customer_phone).trim() },
+        more_info: reservation.id,
+        callback_url: `${hostBase}/api/public/fn/payplusCallback`,
+        success_url: `${hostBase}/ReservationView?token=${tracking_token}`,
+        failure_url: `${hostBase}/PublicReservation`,
+      });
+      deposit_link = link.payment_page_link || null;
+      await db.reservation.update({ where: { id: reservation.id }, data: { deposit_provider_ref: link.page_request_uid || null } as any });
     } catch (e: any) {
-      console.warn('[createPublicReservation] deposit link failed', e?.message);
+      console.warn('[createPublicReservation] deposit link failed — confirming without deposit', e?.message);
+      // PayPlus failed → don't leave the guest stuck as pending with no message.
+      await db.reservation.update({ where: { id: reservation.id }, data: { status: 'confirmed', deposit_status: null } as any }).catch(() => {});
+      await notifyReservationConfirmed({ ...reservation, status: 'confirmed', deposit_status: null }).catch(() => {});
     }
   }
 

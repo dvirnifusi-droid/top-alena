@@ -1144,13 +1144,13 @@ export default function PublicReservationPage() {
             </div>
           )}
 
-          {/* Deposit notice — appears when a hold is required for this slot */}
+          {/* Deposit notice — kept gentle & reassuring (secures the card, doesn't charge) */}
           {depositInfo?.required && (
             <div className="rounded-2xl p-3 border-2 border-emerald-300 bg-emerald-50 mb-2">
-              <div className="font-bold text-sm text-emerald-900 mb-1">💳 פיקדון נדרש להזמנה זו: ₪{depositInfo.amount_ils}</div>
+              <div className="font-bold text-sm text-emerald-900 mb-1">💳 שמירת שולחן — רק מאבטחים את הכרטיס</div>
               <div className="text-[12px] text-emerald-800 leading-relaxed">
-                {depositInfo.reason} · אנחנו ננפיק על הכרטיס שלך <strong>אישור עסקה בלבד</strong> — הכסף לא יורד מהחשבון. <br/>
-                ביטול חופשי עד {depositInfo.cancel_hours} שעות לפני ההזמנה. אחרי זה — אם תבטל או לא תגיע, נחייב ב-₪{depositInfo.amount_ils} בלבד.
+                בסיום ההזמנה נבקש כרטיס אשראי ל<strong>אבטחה בלבד</strong> — הכסף <strong>לא יורד</strong> מהחשבון, זו רק פורמליות ששומרת לך את השולחן. <br/>
+                ביטול חופשי עד {depositInfo.cancel_hours} שעות לפני. רק אם לא תגיעו ולא תבטלו — נחויב ₪{depositInfo.amount_ils}.
               </div>
             </div>
           )}

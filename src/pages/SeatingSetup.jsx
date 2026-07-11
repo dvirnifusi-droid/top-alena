@@ -263,8 +263,17 @@ function ReservationEditDialog({ open, setOpen, reservation, onUpdate, tables, r
                             <span>בקשות ישיבה</span>
                         </div>
                         <div className="flex gap-2">
-                            <div className="bg-green-100 border border-green-300 p-2 rounded">💳</div>
-                            <div className="bg-green-100 border border-green-300 p-2 rounded">🎁</div>
+                            {(() => {
+                                const ds = reservation?.deposit_status;
+                                const noShow = reservation?.status === 'no_show';
+                                const cfg = ds === 'authorized' ? { c: 'bg-green-100 border-green-400', t: 'אשראי נתפס 🟢' }
+                                    : ds === 'captured' ? { c: 'bg-blue-100 border-blue-400', t: 'פיקדון חויב 💰' }
+                                    : (noShow && reservation?.deposit_required) ? { c: 'bg-rose-100 border-rose-400', t: 'הבריז — ניתן לחייב 🔴' }
+                                    : ds === 'pending' ? { c: 'bg-amber-100 border-amber-400', t: 'ממתין לאשראי 🟡' }
+                                    : { c: 'bg-gray-100 border-gray-300', t: 'ללא פיקדון' };
+                                return <div className={`border p-2 rounded ${cfg.c}`} title={`פיקדון: ${cfg.t}`}>💳</div>;
+                            })()}
+                            <div className={`border p-2 rounded ${reservation?.special_occasion ? 'bg-green-100 border-green-400' : 'bg-gray-100 border-gray-300'}`} title={reservation?.special_occasion ? `אירוע: ${reservation.special_occasion}` : 'ללא אירוע'}>🎁</div>
                         </div>
                     </div>
                 </div>
