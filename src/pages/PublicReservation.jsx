@@ -1241,7 +1241,7 @@ export default function PublicReservationPage() {
       {/* Owner marketing video — MOBILE ONLY (doesn't sit well on desktop), natural size
           (owner uploads a post-sized clip, so no forced crop). Leads into the menu. */}
       {bc.body_video && (
-        <section className="lg:hidden max-w-md mx-auto px-3 pt-10">
+        <section className="md:hidden max-w-md mx-auto px-3 pt-10">
           {bc.body_video_title && (
             <h3 className="text-center brand-display text-xl mb-3" style={{ color: '#1F1B17' }}>{bc.body_video_title}</h3>
           )}
