@@ -1,6 +1,6 @@
 // Static gallery manifest — curated owner photos in /public/gallery/.
-// Two sources: 6 originals owner uploaded to chat, plus 9 food shots
-// processed from the Drive folder via scripts/process-gallery.mjs.
+// Sources: original owner uploads + 48 photos from the "עלינא 24.6.26 bar" Drive shoot
+// (see /public/gallery/karela/), processed via scripts/process-logo.mjs / manual sharp.
 // Later all of this can move to Sanity for self-service editing.
 
 export type GalleryPhoto = {
@@ -11,14 +11,179 @@ export type GalleryPhoto = {
   hero?: boolean; // optional single hero pick
 };
 
+// KARELA photoshoot base path (WebP web-optimised, max 1600px)
+const K = "/gallery/karela/web";
+
 export const galleryPhotos: GalleryPhoto[] = [
-  // FOOD — the new hero direction. Burger leads.
+  // ===== KARELA 2026-06-24 PHOTOSHOOT — hero + signatures =====
+  {
+    src: `${K}/karela-04859.webp`,
+    alt: "מנת החתימה — דג/חציל מזוגג עם טחינה, צ'ילי ופטרוזיליה",
+    category: "אוכל",
+    featured: true,
+    hero: true,
+  },
+  {
+    src: `${K}/karela-04899.webp`,
+    alt: "מנה חמה על קרש עץ — עלינא ג'וספר",
+    category: "אוכל",
+    featured: true,
+  },
+  {
+    src: `${K}/karela-05085.webp`,
+    alt: "חומוס עם ירקות מוקפצים, לימון ופתיתי טחינה — מבט על",
+    category: "אוכל",
+    featured: true,
+  },
+  {
+    src: `${K}/karela-05063.webp`,
+    alt: "חומוס עם קובה טרייה על צלחת קרמיקה מעוטרת",
+    category: "אוכל",
+    featured: true,
+  },
+  {
+    src: `${K}/karela-04884.webp`,
+    alt: "חומוס פרימיום עם כובעי טחינה זרוקים — top view",
+    category: "אוכל",
+    featured: true,
+  },
+  {
+    src: `${K}/karela-04825.webp`,
+    alt: "חומוס בשרי + כוס יין לבן — קומפוזיציה",
+    category: "אוכל",
+    featured: true,
+  },
+  {
+    src: `${K}/karela-05019.webp`,
+    alt: "ברוסקטה עם זיתים ולחם ז'ולייני",
+    category: "אוכל",
+    featured: true,
+  },
+  {
+    src: `${K}/karela-04764.webp`,
+    alt: "חומוס כפרי עם פיתה על מגש עץ",
+    category: "אוכל",
+    featured: true,
+  },
+  {
+    src: `${K}/karela-04736.webp`,
+    alt: "מנת חתימה שנייה — דג/חציל מזוגג",
+    category: "אוכל",
+  },
+  {
+    src: `${K}/karela-04745.webp`,
+    alt: "מנת חתימה — זווית קרובה",
+    category: "אוכל",
+  },
+  {
+    src: `${K}/karela-05080.webp`,
+    alt: "חומוס עגבניה ולימון — מבט על",
+    category: "אוכל",
+  },
+  {
+    src: `${K}/karela-05063-2.webp`,
+    alt: "חומוס עם קובה — קומפוזיציה שנייה",
+    category: "אוכל",
+  },
+
+  // ===== BAR / COCKTAILS =====
+  {
+    src: `${K}/karela-3.webp`,
+    alt: "מזיגת קוקטייל דרמטית — בוקה על רקע בר כהה",
+    category: "ברים",
+    featured: true,
+  },
+  {
+    src: `${K}/karela-5.webp`,
+    alt: "קוקטייל אדום על גזע ארוך על רקע בוקה של בר",
+    category: "ברים",
+    featured: true,
+  },
+  {
+    src: `${K}/karela-4.webp`,
+    alt: "קוקטייל אדום ביד — רגע האמת",
+    category: "ברים",
+    featured: true,
+  },
+  {
+    src: `${K}/karela-04946.webp`,
+    alt: "ברמן בעבודה — מזיגת קוקטייל בבר עלינא",
+    category: "ברים",
+    featured: true,
+  },
+  {
+    src: `${K}/karela-04951.webp`,
+    alt: "ברמן שר עם קוקטייל — אנרגיה בבר",
+    category: "ברים",
+  },
+  {
+    src: `${K}/karela-04908.webp`,
+    alt: "ברמן מכין קוקטייל — קלאסי",
+    category: "ברים",
+  },
+  {
+    src: `${K}/karela-05111.webp`,
+    alt: "שולחן מלא עם משקאות — אווירת ערב בעלינא",
+    category: "אווירה",
+    featured: true,
+  },
+
+  // ===== GUESTS & LIFESTYLE =====
+  {
+    src: `${K}/karela-2.webp`,
+    alt: "בחורה מחייכת עם המבורגר עלינא",
+    category: "אורחים",
+    featured: true,
+  },
+  {
+    src: `${K}/karela-04796.webp`,
+    alt: "אורחת בחולצה אדומה נהנית ממנה חמה",
+    category: "אורחים",
+  },
+  {
+    src: `${K}/karela-04853.webp`,
+    alt: "אורחת עם יין ומנה — רגע אינטימי בבר",
+    category: "אורחים",
+  },
+  {
+    src: `${K}/karela-04899-2.webp`,
+    alt: "מנת חתימה על שולחן העץ",
+    category: "אוכל",
+  },
+  {
+    src: `${K}/karela-04863.webp`,
+    alt: "מזיגת יין לכוס לצד סלט חם",
+    category: "אווירה",
+  },
+  {
+    src: `${K}/karela-05113.webp`,
+    alt: "אורחת עם משקאות בשולחן ערב",
+    category: "אורחים",
+  },
+
+  // ===== TEAM / PORTRAITS =====
+  {
+    src: `${K}/karela-04779.webp`,
+    alt: "בעל המקום — דיוקן במעטפת הבר",
+    category: "מטבח",
+  },
+  {
+    src: `${K}/karela-04788.webp`,
+    alt: "בעל המקום — דיוקן שני",
+    category: "מטבח",
+  },
+  {
+    src: `${K}/karela-04714.webp`,
+    alt: "שקית טייק-אווי של עלינא בפיתה — ברנדינג",
+    category: "אווירה",
+  },
+
+  // ===== ORIGINAL OWNER UPLOADS (kept for continuity) =====
   {
     src: "/gallery/burger-hero.jpg",
     alt: "המבורגר עלינא עם בצל מקורמל ולחמנייה ביתית",
     category: "אוכל",
     featured: true,
-    hero: true,
   },
   {
     src: "/gallery/spread.jpg",

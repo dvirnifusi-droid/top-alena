@@ -3,12 +3,15 @@
 import Image from "next/image";
 import { motion } from "framer-motion";
 import { ReservationCTA } from "@/components/shared/ReservationCTA";
-import { featuredPhotos } from "@/lib/gallery";
+import { featuredPhotos, heroPhoto } from "@/lib/gallery";
 
+// Prefer the landscape signature-dish shot from the KARELA shoot as hero bg.
+// Falls back to atmospheric table spread, then original bar mood shot.
 const bgPhoto =
+  featuredPhotos.find((p) => p.src.includes("karela-04859")) ??
+  featuredPhotos.find((p) => p.src.includes("karela-05111")) ??
   featuredPhotos.find((p) => p.src.includes("IMG_4682")) ??
-  featuredPhotos.find((p) => p.src.includes("IMG_6904")) ??
-  featuredPhotos[0];
+  heroPhoto;
 
 export function Hero() {
   return (
