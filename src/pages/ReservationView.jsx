@@ -111,14 +111,19 @@ export default function ReservationView() {
 
         {/* HERO — optional owner background image behind the logo, dark overlay for legibility */}
         <div className="rounded-3xl overflow-hidden shadow-xl relative" style={{ background: 'linear-gradient(135deg, #1F1B17 0%, #44512C 55%, #7A3722 100%)' }}>
-          {cc.header_image && (
+          {cc.header_video ? (
+            <>
+              <video src={cc.header_video} className="absolute inset-0 w-full h-full object-cover" autoPlay muted loop playsInline />
+              <div className="absolute inset-0" style={{ background: 'linear-gradient(180deg, rgba(31,27,23,0.45), rgba(31,27,23,0.8))' }} />
+            </>
+          ) : cc.header_image ? (
             <>
               <div className="absolute inset-0" style={{ backgroundImage: `url(${cc.header_image})`, backgroundSize: 'cover', backgroundPosition: 'center' }} />
               <div className="absolute inset-0" style={{ background: 'linear-gradient(180deg, rgba(31,27,23,0.45), rgba(31,27,23,0.8))' }} />
             </>
-          )}
+          ) : null}
           <div className="relative px-6 pt-7 pb-6 text-center text-white">
-            <div className="rv-display text-3xl font-black tracking-tight" style={{ color: '#F4ECD8', textShadow: cc.header_image ? '0 2px 12px rgba(0,0,0,0.5)' : 'none' }}>{isAlena ? 'עלינא' : brandName}</div>
+            <div className="rv-display text-3xl font-black tracking-tight" style={{ color: '#F4ECD8', textShadow: (cc.header_image || cc.header_video) ? '0 2px 12px rgba(0,0,0,0.5)' : 'none' }}>{isAlena ? 'עלינא' : brandName}</div>
             <div className="mt-1 text-[11px] tracking-[0.25em]" style={{ color: '#D9BD83' }}>אוכל · אלכוהול · אווירה · אנשים</div>
             <div className="mt-5 inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-sm font-bold" style={{ background: isCancelled ? 'rgba(160,74,46,0.25)' : 'rgba(217,189,131,0.22)', color: '#FAF5E8' }}>
               {isCancelled ? (isNoShow ? '⚠️ ההזמנה בוטלה (איחור)' : '❌ ההזמנה בוטלה') : <><CheckCircle className="w-4 h-4" style={{ color: '#D9BD83' }} /> ההזמנה אושרה</>}

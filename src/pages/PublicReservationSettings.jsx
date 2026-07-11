@@ -205,6 +205,17 @@ export default function PublicReservationSettings() {
         } catch (err) { alert('שגיאה בהעלאת התמונה: ' + (err?.message || err)); }
         finally { setUploadingImg(false); e.target.value = ''; }
     };
+    const handleVideoUpload = async (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        if (file.size > 25 * 1024 * 1024 && !window.confirm('הסרטון גדול מ-25MB — עלול להיטען לאט. להמשיך? (מומלץ קליפ קצר עד ~10 שניות)')) { e.target.value = ''; return; }
+        setUploadingImg(true);
+        try {
+            const { file_url } = await base44.integrations.Core.UploadFile({ file }); // video uploaded as-is
+            if (file_url) updateCC({ header_video: file_url });
+        } catch (err) { alert('שגיאה בהעלאת הסרטון: ' + (err?.message || err)); }
+        finally { setUploadingImg(false); e.target.value = ''; }
+    };
 
     const dayNames = {
         sunday: 'ראשון',
@@ -537,6 +548,21 @@ export default function PublicReservationSettings() {
                                             </label>
                                         )}
                                         <p className="text-[11px] text-gray-400">תמונה כהה/אווירתית עובדת הכי טוב (הכיתוב יופיע מעליה עם הצללה).</p>
+                                    </div>
+                                    {/* Optional background VIDEO (autoplay, muted, loop) — overrides the image if set */}
+                                    <div className="flex items-center gap-2 mt-2">
+                                        {cc.header_video ? (
+                                            <div className="flex items-center gap-2">
+                                                <video src={cc.header_video} className="w-32 h-16 rounded-lg object-cover border" muted playsInline />
+                                                <button type="button" onClick={() => updateCC({ header_video: '' })} className="text-rose-500 text-xs">הסר סרטון</button>
+                                            </div>
+                                        ) : (
+                                            <label className="inline-flex items-center gap-1 h-9 px-3 rounded-md border border-purple-300 bg-purple-50 text-purple-800 text-xs cursor-pointer hover:bg-purple-100">
+                                                🎬 {uploadingImg ? 'מעלה…' : 'העלה סרטון רקע (אופציונלי)'}
+                                                <input type="file" accept="video/*" className="hidden" onChange={handleVideoUpload} disabled={uploadingImg} />
+                                            </label>
+                                        )}
+                                        <p className="text-[11px] text-gray-400">סרטון רקע (מושתק, בלופ) גובר על התמונה. מומלץ קליפ קצר.</p>
                                     </div>
                                 </div>
                                 {/* Images */}
