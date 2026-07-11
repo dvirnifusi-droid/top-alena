@@ -518,9 +518,21 @@ export default function SeatingSetup() {
         loadLayout();
     }, [loadLayout]);
 
+    // Live background refresh. loadLiveData is now light (2 small indexed queries),
+    // so poll every 12s — new online reservations / walk-ins land on the map on
+    // their own. Skip while the tab is hidden (no point, saves load) and refresh
+    // the instant the hostess returns to the tab, so it always shows current state.
     useEffect(() => {
-        const interval = setInterval(loadLiveData, 60000);
-        return () => clearInterval(interval);
+        const tick = () => { if (!document.hidden) loadLiveData(); };
+        const interval = setInterval(tick, 12000);
+        const onVisible = () => { if (!document.hidden) loadLiveData(); };
+        document.addEventListener('visibilitychange', onVisible);
+        window.addEventListener('focus', onVisible);
+        return () => {
+            clearInterval(interval);
+            document.removeEventListener('visibilitychange', onVisible);
+            window.removeEventListener('focus', onVisible);
+        };
     }, [loadLiveData]);
 
     // Slow refresh of the rarely-changing customers table — off the action path.
@@ -661,8 +673,16 @@ export default function SeatingSetup() {
 
     useEffect(() => {
         loadQueue();
-        const id = setInterval(loadQueue, 15000);
-        return () => clearInterval(id);
+        const tick = () => { if (!document.hidden) loadQueue(); };
+        const id = setInterval(tick, 12000);
+        const onVisible = () => { if (!document.hidden) loadQueue(); };
+        document.addEventListener('visibilitychange', onVisible);
+        window.addEventListener('focus', onVisible);
+        return () => {
+            clearInterval(id);
+            document.removeEventListener('visibilitychange', onVisible);
+            window.removeEventListener('focus', onVisible);
+        };
     }, [loadQueue]);
 
     // Listen for voice-driven data changes — instant refresh instead of waiting for poll.
