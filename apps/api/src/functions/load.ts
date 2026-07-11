@@ -48,7 +48,7 @@ const db = prisma as any; // generic delegate access
 
 // Public deploy marker — lets us confirm which build is live (and that
 // auto-deploy is working) without server access. Bump on each deploy test.
-registerFn('deployInfo', async () => ({ version: 'reservation-analytics-detail-2026-07-11', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
+registerFn('deployInfo', async () => ({ version: 'blocked-hours-2026-07-11', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
 
 
 
@@ -5124,14 +5124,31 @@ const toMin = (t: string) => {
 // (schema-scoped, so it's automatically the current tenant's own numbers). Each
 // business sets its own slot capacity + max public party; defaults keep any
 // un-configured tenant working. The old module constants are just the fallbacks.
-async function getReservationPolicy(): Promise<{ slotCapacity: number; maxParty: number }> {
+async function getReservationPolicy(): Promise<{ slotCapacity: number; maxParty: number; settings: any }> {
   const s: any = await db.reservationSettings.findFirst().catch(() => null);
   const cap = Number(s?.slot_capacity);
   const maxP = Number(s?.max_party_size);
   return {
     slotCapacity: Number.isFinite(cap) && cap > 0 ? cap : RES_MAX_PER_SLOT,
     maxParty: Number.isFinite(maxP) && maxP > 0 ? maxP : PUBLIC_RESERVATION_MAX_PARTY,
+    settings: s,
   };
+}
+
+// Is a date+time inside a manually-BLOCKED range for this tenant? Blocks live inside
+// each day's opening_hours entry: { open, close, closed, blocks: [{start,end}] }.
+// No DB migration — piggybacks on the existing opening_hours JSON.
+function slotBlocked(settings: any, date: string, time: string): boolean {
+  try {
+    const oh = settings?.opening_hours;
+    if (!oh || !time) return false;
+    const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+    const dow = new Date(`${date}T12:00:00.000Z`).getUTCDay();
+    const blocks = oh[dayNames[dow]]?.blocks;
+    if (!Array.isArray(blocks) || !blocks.length) return false;
+    const t = toMin(time);
+    return blocks.some((b: any) => b?.start && b?.end && t >= toMin(b.start) && t < toMin(b.end));
+  } catch { return false; }
 }
 
 // Public: restaurant reservation settings (config only — not PII).
@@ -6285,6 +6302,10 @@ registerFn('searchReservationTable', async ({ body }) => {
   const policy = await getReservationPolicy(); // per-tenant slot capacity + max party
   if (size > policy.maxParty) {
     return { canAccommodate: false, reason: 'too_large_use_events', currentCapacity: 0, availableCapacity: 0, table: null };
+  }
+  // Owner-blocked time range for this tenant/day → not bookable.
+  if (slotBlocked(policy.settings, date, time)) {
+    return { canAccommodate: false, reason: 'blocked', currentCapacity: 0, availableCapacity: 0, table: null };
   }
   const startMin = toMin(time);
 

@@ -68,6 +68,14 @@ function buildQuarterStrip(hourSlot, startTime, endTime) {
   return out;
 }
 
+// Is a time within any owner-blocked range for the day? Mirrors backend slotBlocked().
+function timeInBlocks(blocks, hhmm) {
+  if (!Array.isArray(blocks) || !blocks.length || !hhmm) return false;
+  const toM = (t) => { const [h, m] = String(t).split(':').map(Number); return h * 60 + (m || 0); };
+  const t = toM(hhmm);
+  return blocks.some((b) => b?.start && b?.end && t >= toM(b.start) && t < toM(b.end));
+}
+
 // Estimate end time given a start "HH:mm" and party size — mirrors backend policy.
 function estimateEndTime(startHHmm, partySize) {
   if (!startHHmm) return '';
@@ -175,6 +183,8 @@ export default function PublicReservationPage() {
   const [depositInfo, setDepositInfo] = useState(null); // { required, amount_ils, reason, free_cancel_until_iso }
   // Large-group threshold is PER-TENANT (this business's max_party_size). Above it → event.
   const maxParty = Number(settings?.max_party_size) || 11;
+  // Owner-blocked ranges for the selected day (piggybacks on opening_hours JSON).
+  const dayBlocks = settings?.opening_hours?.[['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'][date.getDay()]]?.blocks || [];
 
   const [liveCount, setLiveCount] = useState(null);
   const [featuredMenu, setFeaturedMenu] = useState([]);
@@ -288,7 +298,10 @@ export default function PublicReservationPage() {
       hoursToUse = getOpeningHours(date);
     }
     setOpeningHours(hoursToUse);
-    const slots = generateHourSlots(hoursToUse.start, hoursToUse.end);
+    const blocks = settings?.opening_hours?.[currentDayName]?.blocks;
+    // Drop whole hours that are fully owner-blocked (quarter-level blocking happens in the strip).
+    const slots = generateHourSlots(hoursToUse.start, hoursToUse.end)
+      .filter(s => !timeInBlocks(blocks, s));
     setHourSlots(slots);
     setSelectedHour('');
     setTime('');
@@ -334,7 +347,7 @@ export default function PublicReservationPage() {
   useEffect(() => {
     if (!selectedHour) { setQuarterStripAvail({}); return; }
     if (Number(partySize) > maxParty) return;
-    const strip = buildQuarterStrip(selectedHour, openingHours.start, openingHours.end);
+    const strip = buildQuarterStrip(selectedHour, openingHours.start, openingHours.end).filter(s => !timeInBlocks(dayBlocks, s));
     if (!strip.length) return;
     let cancelled = false;
     (async () => {
@@ -878,7 +891,7 @@ export default function PublicReservationPage() {
 
                 {/* Step 2: quarter-hour drill-down strip (appears after hour is picked) */}
                 {selectedHour && (() => {
-                  const strip = buildQuarterStrip(selectedHour, openingHours.start, openingHours.end);
+                  const strip = buildQuarterStrip(selectedHour, openingHours.start, openingHours.end).filter(s => !timeInBlocks(dayBlocks, s));
                   return (
                     <div className="mt-3 rounded-xl p-2.5" style={{ background: 'rgba(68,81,44,0.06)', border: '1px solid rgba(68,81,44,0.25)' }}>
                       <div className="text-[10px] font-bold mb-1.5 text-center tracking-wider" style={{ color: '#44512C' }}>

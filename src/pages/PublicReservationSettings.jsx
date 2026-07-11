@@ -128,6 +128,15 @@ export default function PublicReservationSettings() {
         });
     };
 
+    // Blocked time ranges per day (stored inside opening_hours[day].blocks — no DB migration).
+    const addBlock = (day) => handleOpeningHourChange(day, 'blocks', [...(settings.opening_hours[day].blocks || []), { start: '14:00', end: '17:00' }]);
+    const updateBlock = (day, i, field, value) => {
+        const blocks = [...(settings.opening_hours[day].blocks || [])];
+        blocks[i] = { ...blocks[i], [field]: value };
+        handleOpeningHourChange(day, 'blocks', blocks);
+    };
+    const removeBlock = (day, i) => handleOpeningHourChange(day, 'blocks', (settings.opening_hours[day].blocks || []).filter((_, idx) => idx !== i));
+
     const dayNames = {
         sunday: 'ראשון',
         monday: 'שני',
@@ -324,10 +333,10 @@ export default function PublicReservationSettings() {
                             <CardContent>
                                 <div className="space-y-4">
                                     {Object.keys(settings.opening_hours).map(day => (
-                                        <div key={day} className="flex items-center gap-4 p-3 border rounded-lg">
+                                        <div key={day} className="flex flex-wrap items-center gap-4 p-3 border rounded-lg">
                                             <div className="w-16 font-semibold">{dayNames[day]}</div>
                                             <div className="flex items-center gap-2">
-                                                <Switch 
+                                                <Switch
                                                     checked={!settings.opening_hours[day].closed}
                                                     onCheckedChange={(checked) => handleOpeningHourChange(day, 'closed', !checked)}
                                                 />
@@ -335,19 +344,32 @@ export default function PublicReservationSettings() {
                                             </div>
                                             {!settings.opening_hours[day].closed && (
                                                 <>
-                                                    <Input 
+                                                    <Input
                                                         type="time"
                                                         value={settings.opening_hours[day].open}
                                                         onChange={(e) => handleOpeningHourChange(day, 'open', e.target.value)}
                                                         className="w-24"
                                                     />
                                                     <span>עד</span>
-                                                    <Input 
+                                                    <Input
                                                         type="time"
                                                         value={settings.opening_hours[day].close}
                                                         onChange={(e) => handleOpeningHourChange(day, 'close', e.target.value)}
                                                         className="w-24"
                                                     />
+                                                    {/* Blocked ranges within this open day — no reservations allowed */}
+                                                    <div className="w-full mt-1 pr-16">
+                                                        {(settings.opening_hours[day].blocks || []).map((b, i) => (
+                                                            <div key={i} className="flex items-center gap-1 mb-1">
+                                                                <span className="text-[11px] text-rose-600 font-bold w-14">🚫 חסום</span>
+                                                                <Input type="time" value={b.start || '14:00'} onChange={(e) => updateBlock(day, i, 'start', e.target.value)} className="w-24 h-8" />
+                                                                <span className="text-xs">עד</span>
+                                                                <Input type="time" value={b.end || '17:00'} onChange={(e) => updateBlock(day, i, 'end', e.target.value)} className="w-24 h-8" />
+                                                                <button type="button" onClick={() => removeBlock(day, i)} className="text-rose-500 hover:text-rose-700 text-xs px-2">הסר</button>
+                                                            </div>
+                                                        ))}
+                                                        <button type="button" onClick={() => addBlock(day)} className="text-xs text-indigo-600 hover:text-indigo-800 font-bold">+ חסום טווח שעות</button>
+                                                    </div>
                                                 </>
                                             )}
                                         </div>
