@@ -22,6 +22,33 @@ const DEFAULT_POLICY = [
   'המסעדה אינה מתחייבת לשולחן או אזור ישיבה ספציפי.',
 ];
 
+// Shrink a (possibly huge, 30MB) photo to a web-friendly JPEG before upload — client-side
+// via canvas, so the confirmation page loads fast. Falls back to the original on error.
+function resizeImageForWeb(file, maxDim = 1600, quality = 0.82) {
+  return new Promise((resolve) => {
+    try {
+      const img = new Image();
+      img.onload = () => {
+        let { width, height } = img;
+        if (width > maxDim || height > maxDim) {
+          if (width >= height) { height = Math.round(height * maxDim / width); width = maxDim; }
+          else { width = Math.round(width * maxDim / height); height = maxDim; }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width; canvas.height = height;
+        canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+        canvas.toBlob((blob) => {
+          URL.revokeObjectURL(img.src);
+          if (!blob) return resolve(file);
+          resolve(new File([blob], (file.name || 'image').replace(/\.[^.]+$/, '') + '.jpg', { type: 'image/jpeg' }));
+        }, 'image/jpeg', quality);
+      };
+      img.onerror = () => resolve(file);
+      img.src = URL.createObjectURL(file);
+    } catch { resolve(file); }
+  });
+}
+
 export default function PublicReservationSettings() {
     const branding = useTenantBranding();
     const isAlena = isMainAlena();
@@ -161,7 +188,8 @@ export default function PublicReservationSettings() {
         if (!file) return;
         setUploadingImg(true);
         try {
-            const { file_url } = await base44.integrations.Core.UploadFile({ file });
+            const optimized = await resizeImageForWeb(file); // shrink huge photos before upload
+            const { file_url } = await base44.integrations.Core.UploadFile({ file: optimized });
             if (file_url) updateCC({ images: [...(cc.images || []), file_url] });
         } catch (err) { alert('שגיאה בהעלאת התמונה: ' + (err?.message || err)); }
         finally { setUploadingImg(false); e.target.value = ''; }
