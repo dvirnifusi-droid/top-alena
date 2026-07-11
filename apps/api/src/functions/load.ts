@@ -48,7 +48,7 @@ const db = prisma as any; // generic delegate access
 
 // Public deploy marker — lets us confirm which build is live (and that
 // auto-deploy is working) without server access. Bump on each deploy test.
-registerFn('deployInfo', async () => ({ version: 'online-deposit-collect-2026-07-11', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
+registerFn('deployInfo', async () => ({ version: 'deposit-manual-amount-2026-07-11', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
 
 
 
@@ -6300,6 +6300,7 @@ registerFn('payplusTest', async ({ user }: any) => {
 registerFn('sendDepositRequest', async ({ body, user, req }: any) => {
   if (!user) throw new Error('auth required');
   const { reservation_id } = body as any;
+  const overrideAmount = Number((body as any)?.amount) || 0; // manager-chosen amount (optional)
   const r: any = await db.reservation.findUnique({ where: { id: String(reservation_id) } });
   if (!r) throw new Error('not_found');
   const s: any = await (prisma as any).depositSettings.findFirst({ where: { singleton: true } }).catch(() => null);
@@ -6307,12 +6308,19 @@ registerFn('sendDepositRequest', async ({ body, user, req }: any) => {
   if (!cred?.api_key) throw new Error('PayPlus לא מוגדר — הזן מפתחות בהגדרות פיקדון.');
 
   const dateStr = (r.date instanceof Date ? r.date.toISOString() : String(r.date)).slice(0, 10);
-  let amount = Number(r.deposit_amount) || 0;
+  // Amount priority: manager override → already-set → auto-rules → per-guest fallback.
+  // A MANUAL send is the manager deciding to request a deposit even when the auto-rules
+  // don't require it, so we always fall back to per-guest × party rather than erroring.
+  let amount = overrideAmount || Number(r.deposit_amount) || 0;
   if (!amount) {
     const dep: any = await computeDepositRequirement({ date: dateStr, time: r.time, party_size: r.party_size, is_event: false }).catch(() => null);
     amount = Number(dep?.amount_ils) || 0;
   }
-  if (amount <= 0) throw new Error('לא הוגדר סכום פיקדון לתרחיש זה (בדוק את הגדרות הפיקדון).');
+  if (!amount) {
+    const perGuest = Number(s?.amount_per_guest_ils) || 30;
+    amount = perGuest * (Number(r.party_size) || 1);
+  }
+  if (amount <= 0) throw new Error('לא ניתן לחשב סכום פיקדון — הגדר "סכום לסועד" בהגדרות הפיקדון.');
 
   // Callback must hit THIS tenant's own host/container so the right secret verifies it.
   const host = req?.headers?.host || (process.env.PUBLIC_BASE_URL || 'topalena.com').replace(/^https?:\/\//, '');

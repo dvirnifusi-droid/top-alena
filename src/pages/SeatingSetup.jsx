@@ -37,6 +37,12 @@ function DepositSection({ reservation, onDone }) {
     const [busy, setBusy] = useState(false);
     const st = reservation?.deposit_status;
     const amt = reservation?.deposit_amount;
+    const sendDeposit = () => {
+        const input = window.prompt('סכום פיקדון לבקש מהלקוח (₪). השאר ריק לסכום לפי ההגדרות:', reservation.deposit_amount ? String(reservation.deposit_amount) : '');
+        if (input === null) return; // cancelled
+        const amount = parseInt(input, 10);
+        run(() => base44.functions.sendDepositRequest({ reservation_id: reservation.id, ...(Number.isFinite(amount) && amount > 0 ? { amount } : {}) }));
+    };
     const run = async (fn, confirmMsg) => {
         if (confirmMsg && !window.confirm(confirmMsg)) return;
         setBusy(true);
@@ -64,10 +70,10 @@ function DepositSection({ reservation, onDone }) {
             </div>
             <div className="flex flex-wrap gap-2">
                 {(!st || st === 'failed' || st === 'released') && (
-                    <Button size="sm" disabled={busy} onClick={() => run(() => base44.functions.sendDepositRequest({ reservation_id: reservation.id }))}>שלח בקשת פיקדון</Button>
+                    <Button size="sm" disabled={busy} onClick={sendDeposit}>שלח בקשת פיקדון</Button>
                 )}
                 {st === 'pending' && (
-                    <Button size="sm" variant="outline" disabled={busy} onClick={() => run(() => base44.functions.sendDepositRequest({ reservation_id: reservation.id }))}>שלח שוב</Button>
+                    <Button size="sm" variant="outline" disabled={busy} onClick={sendDeposit}>שלח שוב</Button>
                 )}
                 {st === 'authorized' && (
                     <>
