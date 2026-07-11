@@ -48,7 +48,7 @@ const db = prisma as any; // generic delegate access
 
 // Public deploy marker — lets us confirm which build is live (and that
 // auto-deploy is working) without server access. Bump on each deploy test.
-registerFn('deployInfo', async () => ({ version: 'deposit-confirm-after-card-2026-07-11', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
+registerFn('deployInfo', async () => ({ version: 'deposit-no-card-no-booking-2026-07-11', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
 
 
 
@@ -6433,6 +6433,18 @@ registerFn('releaseDeposit', async ({ body, user }) => {
 
 // ── Shared table-picker: the ONE source of truth for auto-assignment ─────────
 // Used by searchReservationTable (online + app booker) AND autoAssignAllReservations.
+// A booking that requires a deposit but hasn't been paid within this window is an
+// ABANDONED hold — the guest reached PayPlus and never entered a card. It must stop
+// blocking the table/slot (no card = no reservation), without needing a cron.
+const STALE_UNPAID_HOLD_MS = 20 * 60 * 1000;
+function isStaleUnpaidHold(r: any): boolean {
+  return r?.status === 'pending'
+    && r?.deposit_required
+    && (r?.deposit_status === 'pending' || r?.deposit_status === 'failed')
+    && r?.createdAt != null
+    && (Date.now() - new Date(r.createdAt).getTime() > STALE_UNPAID_HOLD_MS);
+}
+
 // Honors the owner's priority list (singles AND combos, ranked), refuses any
 // table with a time-overlapping reservation or an active session (no double-book),
 // and falls back to the smallest single table that fits. All table-number
@@ -6465,7 +6477,7 @@ function pickFreeTableByPriority(opts: {
     if (occupied.has(key)) return false;
     for (const r of reservations) {
       if (excludeReservationId && r.id === excludeReservationId) continue;
-      if (!active(r) || !r.assigned_table || !r.time) continue;
+      if (!active(r) || isStaleUnpaidHold(r) || !r.assigned_table || !r.time) continue;
       const at = (Array.isArray(r.assigned_table) ? r.assigned_table : [r.assigned_table]).map(String);
       if (!at.includes(key)) continue;
       const rs = toMin(r.time);
@@ -6527,7 +6539,7 @@ registerFn('searchReservationTable', async ({ body }) => {
 
   // Capacity within the 15-min slot (per-tenant ceiling)
   const slotCount = reservations
-    .filter((r: any) => active(r) && r.time && toMin(r.time) >= startMin && toMin(r.time) < startMin + 15)
+    .filter((r: any) => active(r) && !isStaleUnpaidHold(r) && r.time && toMin(r.time) >= startMin && toMin(r.time) < startMin + 15)
     .reduce((sum: number, r: any) => sum + (r.party_size || 0), 0);
   const canAccommodate = slotCount + size <= policy.slotCapacity;
 
@@ -7033,10 +7045,10 @@ registerFn('createPublicReservation', async ({ body, req }: any) => {
       deposit_link = link.payment_page_link || null;
       await db.reservation.update({ where: { id: reservation.id }, data: { deposit_provider_ref: link.page_request_uid || null } as any });
     } catch (e: any) {
-      console.warn('[createPublicReservation] deposit link failed — confirming without deposit', e?.message);
-      // PayPlus failed → don't leave the guest stuck as pending with no message.
-      await db.reservation.update({ where: { id: reservation.id }, data: { status: 'confirmed', deposit_status: null } as any }).catch(() => {});
-      await notifyReservationConfirmed({ ...reservation, status: 'confirmed', deposit_status: null }).catch(() => {});
+      console.warn('[createPublicReservation] deposit link failed — cancelling (no deposit = no booking)', e?.message);
+      // No payment page could be created → NO booking. Free the table + tell the guest to retry.
+      await db.reservation.update({ where: { id: reservation.id }, data: { status: 'cancelled', deposit_status: 'failed' } as any }).catch(() => {});
+      return { success: false, reason: 'deposit_setup_failed' };
     }
   }
 

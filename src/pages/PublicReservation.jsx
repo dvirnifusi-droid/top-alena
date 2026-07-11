@@ -407,6 +407,8 @@ export default function PublicReservationPage() {
           const alts = Array.isArray(res?.alternatives) ? res.alternatives : [];
           setAlternatives(alts);
           setErrorMsg('');
+        } else if (res?.reason === 'deposit_setup_failed') {
+          setErrorMsg('לא הצלחנו לעבד את הפיקדון כרגע. נסה שוב בעוד רגע — ההזמנה תיסגר רק אחרי אבטחת הכרטיס.');
         } else {
           setErrorMsg('שגיאה בביצוע ההזמנה. אנא נסה שוב.');
         }
