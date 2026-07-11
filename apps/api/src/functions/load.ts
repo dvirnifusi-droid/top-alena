@@ -48,7 +48,7 @@ const db = prisma as any; // generic delegate access
 
 // Public deploy marker — lets us confirm which build is live (and that
 // auto-deploy is working) without server access. Bump on each deploy test.
-registerFn('deployInfo', async () => ({ version: 'payplus-test-connection-2026-07-11', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
+registerFn('deployInfo', async () => ({ version: 'payplus-deposit-flow-2026-07-11', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
 
 
 
@@ -6224,8 +6224,27 @@ registerFn('updateDepositSettings', async ({ body, user }) => {
 });
 
 // ── PayPlus REST client — per-tenant credentials from DepositSettings.provider_credentials.
-// Auth is a single Authorization header carrying a JSON of {api_key, secret_key}.
+// Send BOTH documented auth styles (Authorization JSON + separate api-key/secret-key headers)
+// so every endpoint is happy regardless of which it expects.
 const PAYPLUS_BASE = process.env.PAYPLUS_BASE_URL || 'https://restapi.payplus.co.il/api/v1.0';
+function payplusHeaders(cred: any): Record<string, string> {
+  return {
+    'Content-Type': 'application/json',
+    Authorization: JSON.stringify({ api_key: cred.api_key, secret_key: cred.secret_key }),
+    'api-key': cred.api_key,
+    'secret-key': cred.secret_key,
+  };
+}
+async function payplusPost(cred: any, path: string, body: any): Promise<any> {
+  const resp = await fetch(`${PAYPLUS_BASE}/${path}`, { method: 'POST', headers: payplusHeaders(cred), body: JSON.stringify(body) });
+  const json: any = await resp.json().catch(() => ({}));
+  const status = json?.results?.status || json?.status;
+  if (status !== 'success') {
+    const desc = json?.results?.description || json?.message || `HTTP ${resp.status}`;
+    throw Object.assign(new Error(`PayPlus: ${desc}`), { payplus: json });
+  }
+  return json;
+}
 async function payplusGenerateLink(cred: any, opts: {
   amount: number; charge_method: number; customer: any; more_info: string;
   callback_url: string; success_url: string; failure_url: string;
@@ -6233,7 +6252,7 @@ async function payplusGenerateLink(cred: any, opts: {
   if (!cred?.api_key || !cred?.secret_key || !cred?.payment_page_uid) {
     throw new Error('חסרים מפתחות PayPlus (API key / secret / page uid) — הגדר אותם בהגדרות פיקדון.');
   }
-  const body = {
+  const json = await payplusPost(cred, 'PaymentPages/generateLink', {
     payment_page_uid: cred.payment_page_uid,
     charge_method: opts.charge_method, // 1 = charge now, 2 = J5 approval/hold
     amount: opts.amount,
@@ -6245,22 +6264,12 @@ async function payplusGenerateLink(cred: any, opts: {
     refURL_callback: opts.callback_url,
     more_info: opts.more_info,
     customer: opts.customer,
-  };
-  const resp = await fetch(`${PAYPLUS_BASE}/PaymentPages/generateLink`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: JSON.stringify({ api_key: cred.api_key, secret_key: cred.secret_key }),
-    },
-    body: JSON.stringify(body),
   });
-  const json: any = await resp.json().catch(() => ({}));
-  const status = json?.results?.status || json?.status;
-  if (status !== 'success') {
-    const desc = json?.results?.description || json?.message || `HTTP ${resp.status}`;
-    throw Object.assign(new Error(`PayPlus: ${desc}`), { payplus: json });
-  }
   return { page_request_uid: json?.data?.page_request_uid, payment_page_link: json?.data?.payment_page_link, raw: json };
+}
+// Charge (capture) a previously J5-approved transaction — used ONLY for a manual no-show charge.
+async function payplusChargeByUID(cred: any, transaction_uid: string, amount: number): Promise<any> {
+  return payplusPost(cred, 'Transactions/ChargeByTransactionUID', { transaction_uid, amount });
 }
 
 // AUTHED — verify the tenant's PayPlus keys by generating a real ₪1 link. No one is charged
@@ -6286,6 +6295,84 @@ registerFn('payplusTest', async ({ user }: any) => {
   }
 });
 
+// AUTHED — generate a per-tenant PayPlus deposit link for a reservation and SMS it to the guest.
+// Uses J5 (hold) when enabled, so the card is only RESERVED — never charged automatically.
+registerFn('sendDepositRequest', async ({ body, user, req }: any) => {
+  if (!user) throw new Error('auth required');
+  const { reservation_id } = body as any;
+  const r: any = await db.reservation.findUnique({ where: { id: String(reservation_id) } });
+  if (!r) throw new Error('not_found');
+  const s: any = await (prisma as any).depositSettings.findFirst({ where: { singleton: true } }).catch(() => null);
+  const cred = s?.provider_credentials;
+  if (!cred?.api_key) throw new Error('PayPlus לא מוגדר — הזן מפתחות בהגדרות פיקדון.');
+
+  const dateStr = (r.date instanceof Date ? r.date.toISOString() : String(r.date)).slice(0, 10);
+  let amount = Number(r.deposit_amount) || 0;
+  if (!amount) {
+    const dep: any = await computeDepositRequirement({ date: dateStr, time: r.time, party_size: r.party_size, is_event: false }).catch(() => null);
+    amount = Number(dep?.amount_ils) || 0;
+  }
+  if (amount <= 0) throw new Error('לא הוגדר סכום פיקדון לתרחיש זה (בדוק את הגדרות הפיקדון).');
+
+  // Callback must hit THIS tenant's own host/container so the right secret verifies it.
+  const host = req?.headers?.host || (process.env.PUBLIC_BASE_URL || 'topalena.com').replace(/^https?:\/\//, '');
+  const base = `https://${host}`;
+  const link = await payplusGenerateLink(cred, {
+    amount,
+    charge_method: cred?.j5 ? 2 : 1, // J5 hold by default — manual charge only, per owner
+    customer: { customer_name: r.customer_name || '', email: r.customer_email || '', phone: r.customer_phone || '' },
+    more_info: r.id,
+    callback_url: `${base}/api/public/fn/payplusCallback`,
+    success_url: r.tracking_token ? `${base}/ReservationView?token=${r.tracking_token}` : `${base}/`,
+    failure_url: `${base}/`,
+  });
+  await db.reservation.update({
+    where: { id: r.id },
+    data: { deposit_required: true, deposit_provider: 'payplus', deposit_amount: amount, deposit_provider_ref: link.page_request_uid || null, deposit_status: 'pending' } as any,
+  });
+  const brand = await getBrandName().catch(() => 'המסעדה');
+  const smsBody = [
+    `שלום ${r.customer_name || ''} 👋`,
+    ``,
+    `לאישור ההזמנה ב${brand} יש להזין פיקדון אשראי בסך ₪${amount}.`,
+    cred?.j5 ? `הכרטיס לא מחויב — רק נתפס כפיקדון, ותחויב רק במקרה של אי-הגעה.` : `סכום הפיקדון ייגבה כעת.`,
+    ``,
+    `🔗 ${link.payment_page_link}`,
+  ].join('\n');
+  sendSms(String(r.customer_phone || '').trim(), smsBody).catch((e: any) => console.warn('[deposit] sms failed', e?.message));
+  return { success: true, link: link.payment_page_link, amount };
+});
+
+// PUBLIC webhook — PayPlus posts the transaction result here. Matches the reservation by
+// more_info (= reservation id). Lands on this tenant's own container (per-tenant callback host).
+registerFn('payplusCallback', async ({ body }: any) => {
+  try {
+    const tx = body?.transaction || body?.data || body || {};
+    const moreInfo = tx.more_info || body?.more_info;
+    const transactionUid = tx.uid || tx.transaction_uid || body?.transaction_uid || null;
+    const statusCode = String(tx.status_code ?? tx.status ?? body?.status_code ?? '');
+    const approved = statusCode === '000' || !!tx.approval_num || String(tx.status || '').toLowerCase() === 'approved';
+    console.log('[payplusCallback] more_info=%s uid=%s status=%s approved=%s', moreInfo, transactionUid, statusCode, approved);
+    if (!moreInfo || moreInfo === 'connection_test') return { ok: true, note: 'no reservation' };
+    const r: any = await db.reservation.findUnique({ where: { id: String(moreInfo) } }).catch(() => null);
+    if (!r) return { ok: true, note: 'reservation not found' };
+    if (approved) {
+      // J5 → authorized (hold placed, 🟢); immediate charge → captured.
+      const isHold = r.deposit_provider === 'payplus';
+      await db.reservation.update({
+        where: { id: r.id },
+        data: { deposit_status: isHold ? 'authorized' : 'captured', deposit_authorized_at: new Date(), deposit_provider_ref: transactionUid || r.deposit_provider_ref } as any,
+      });
+    } else {
+      await db.reservation.update({ where: { id: r.id }, data: { deposit_status: 'failed' } as any });
+    }
+    return { ok: true };
+  } catch (e: any) {
+    console.error('[payplusCallback]', e?.message);
+    return { ok: false };
+  }
+}, { public: true });
+
 // Hostess: manually capture (charge no-show) or release (refund/cancel) a deposit hold.
 // PROVIDER-SPECIFIC WIRING goes here once we know which gateway (MAX Online / Tranzila / PayPlus).
 // For now these only update DB state and log; real provider call is a TODO.
@@ -6295,12 +6382,22 @@ registerFn('captureDeposit', async ({ body, user }) => {
   const r: any = await (prisma as any).reservation.findUnique({ where: { id: String(reservation_id) } });
   if (!r) throw new Error('not_found');
   if (r.deposit_status !== 'authorized') return { success: false, reason: 'not_authorized', currentStatus: r.deposit_status };
-  // TODO: call provider API to capture
-  await (prisma as any).reservation.update({
-    where: { id: r.id },
-    data: { deposit_status: 'captured', deposit_charged_at: new Date(), deposit_charge_amount: r.deposit_amount },
-  });
-  return { success: true, captured_ils: r.deposit_amount };
+  // MANUAL no-show charge only (never automatic) — captures the J5 hold via PayPlus.
+  const s: any = await (prisma as any).depositSettings.findFirst({ where: { singleton: true } }).catch(() => null);
+  const cred = s?.provider_credentials;
+  if (!cred?.api_key || !r.deposit_provider_ref) {
+    return { success: false, error: 'חסר מזהה עסקה או מפתחות PayPlus.' };
+  }
+  try {
+    await payplusChargeByUID(cred, r.deposit_provider_ref, r.deposit_amount);
+    await (prisma as any).reservation.update({
+      where: { id: r.id },
+      data: { deposit_status: 'captured', deposit_charged_at: new Date(), deposit_charge_amount: r.deposit_amount },
+    });
+    return { success: true, captured_ils: r.deposit_amount };
+  } catch (e: any) {
+    return { success: false, error: e?.message || String(e) };
+  }
 });
 
 registerFn('releaseDeposit', async ({ body, user }) => {

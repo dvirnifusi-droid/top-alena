@@ -32,6 +32,54 @@ import { useTenantBranding } from '@/hooks/useTenantBranding';
 import { isMainAlena } from '@/lib/tenant';
 
 // Dialog לעריכת הזמנה - עם כל הפרטים
+// Deposit actions for a reservation — send request (J5 hold), manual no-show charge, release.
+function DepositSection({ reservation, onDone }) {
+    const [busy, setBusy] = useState(false);
+    const st = reservation?.deposit_status;
+    const amt = reservation?.deposit_amount;
+    const run = async (fn, confirmMsg) => {
+        if (confirmMsg && !window.confirm(confirmMsg)) return;
+        setBusy(true);
+        try {
+            const res = await fn();
+            const d = res?.data || res || {};
+            if (d.success === false) alert('שגיאה: ' + (d.error || d.reason || 'לא ידוע'));
+            else if (d.link) alert(`✅ נשלחה בקשת פיקדון ללקוח (₪${d.amount}).`);
+            else if (d.captured_ils) alert(`💰 חויב פיקדון ₪${d.captured_ils}.`);
+            onDone && onDone();
+        } catch (e) { alert('שגיאה: ' + (e?.message || e)); }
+        finally { setBusy(false); }
+    };
+    const badge = st === 'authorized' ? { t: '🟢 אשראי נתפס', c: 'bg-green-100 text-green-800' }
+        : st === 'pending' ? { t: '🟠 נשלח — ממתין לאשראי', c: 'bg-amber-100 text-amber-800' }
+        : st === 'captured' ? { t: `💰 חויב ₪${reservation.deposit_charge_amount || amt || ''}`, c: 'bg-slate-200 text-slate-700' }
+        : st === 'released' ? { t: 'שוחרר', c: 'bg-gray-100 text-gray-500' }
+        : st === 'failed' ? { t: '❌ נכשל', c: 'bg-rose-100 text-rose-700' }
+        : null;
+    return (
+        <div className="bg-gray-50 p-3 rounded mt-3">
+            <div className="flex items-center justify-between mb-2">
+                <span className="font-bold text-sm">💳 פיקדון{amt ? ` · ₪${amt}` : ''}</span>
+                {badge && <span className={`text-[11px] font-bold px-2 py-0.5 rounded ${badge.c}`}>{badge.t}</span>}
+            </div>
+            <div className="flex flex-wrap gap-2">
+                {(!st || st === 'failed' || st === 'released') && (
+                    <Button size="sm" disabled={busy} onClick={() => run(() => base44.functions.sendDepositRequest({ reservation_id: reservation.id }))}>שלח בקשת פיקדון</Button>
+                )}
+                {st === 'pending' && (
+                    <Button size="sm" variant="outline" disabled={busy} onClick={() => run(() => base44.functions.sendDepositRequest({ reservation_id: reservation.id }))}>שלח שוב</Button>
+                )}
+                {st === 'authorized' && (
+                    <>
+                        <Button size="sm" variant="outline" className="text-rose-700 border-rose-300 hover:bg-rose-50" disabled={busy} onClick={() => run(() => base44.functions.captureDeposit({ reservation_id: reservation.id }), `לחייב פיקדון ₪${amt} — הלקוח הבריז? זה גובה בפועל מהכרטיס.`)}>חייב (הבריז)</Button>
+                        <Button size="sm" variant="ghost" disabled={busy} onClick={() => run(() => base44.functions.releaseDeposit({ reservation_id: reservation.id }), 'לשחרר את תפיסת הפיקדון?')}>שחרר</Button>
+                    </>
+                )}
+            </div>
+        </div>
+    );
+}
+
 function ReservationEditDialog({ open, setOpen, reservation, onUpdate, tables, reservations }) {
     const [editedReservation, setEditedReservation] = useState(null);
 
@@ -122,6 +170,8 @@ function ReservationEditDialog({ open, setOpen, reservation, onUpdate, tables, r
                     </Select>
                     <CheckCircle className="w-5 h-5" />
                 </div>
+
+                <DepositSection reservation={reservation} onDone={() => { onUpdate(); setOpen(false); }} />
 
                 <div className="bg-gray-100 p-4 rounded mt-4">
                     <h3 className="font-bold text-center mb-4">פרטי ההזמנה</h3>
