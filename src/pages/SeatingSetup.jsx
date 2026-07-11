@@ -464,26 +464,55 @@ export default function SeatingSetup() {
     const fingerprintCustomers = (arr) =>
         (arr || []).map(c => `${c.id}|${c.total_visits}`).join('§');
 
+    // Guard against overlapping loadLiveData fetches: a slow in-flight refresh
+    // returning stale rows would otherwise clobber a newer optimistic edit
+    // (looked like "my change reverted / didn't stick until I refreshed"). Run
+    // one at a time; if more refreshes are requested mid-flight, run exactly one
+    // more afterwards so the final state reflects the last write.
+    const liveInFlightRef = useRef(false);
+    const livePendingRef = useRef(false);
     const loadLiveData = useCallback(async () => {
+        if (liveInFlightRef.current) { livePendingRef.current = true; return; }
+        liveInFlightRef.current = true;
         try {
             const dateString = format(selectedDate, 'yyyy-MM-dd');
-            const [sessions, dateReservations, allCustomers] = await Promise.all([
+            // HOT PATH — runs after every action + on the 60s poll. Fetch ONLY the
+            // two things that change with an action: active sessions + this date's
+            // reservations. Both are small and indexed. Customers (a full, unbounded
+            // table that changes rarely) are loaded separately in loadCustomers so
+            // they never slow down an action's refresh — that fetch was the reason
+            // the map appeared "frozen until refresh".
+            const [sessions, dateReservations] = await Promise.all([
                 TableSession.filter({ status: 'active' }),
                 Reservation.filter({ date: dateString }, 'time'),
-                Customer.list()
             ]);
             const newSessions = sessions || [];
             const newRes = (dateReservations || []).map(r => ({ ...r, date: typeof r.date === 'string' ? r.date.slice(0, 10) : r.date }));
-            const newCustomers = allCustomers || [];
             // Only setState when something actually changed — preserves scroll position,
             // popovers, and prevents unnecessary card re-renders during 60s polls.
             setActiveSessions(prev => fingerprintSessions(prev) === fingerprintSessions(newSessions) ? prev : newSessions);
             setReservations(prev => fingerprintReservations(prev) === fingerprintReservations(newRes) ? prev : newRes);
-            setCustomers(prev => fingerprintCustomers(prev) === fingerprintCustomers(newCustomers) ? prev : newCustomers);
         } catch (error) {
             console.error('Error loading live data:', error);
+        } finally {
+            liveInFlightRef.current = false;
+            if (livePendingRef.current) { livePendingRef.current = false; loadLiveData(); }
         }
     }, [selectedDate]);
+
+    // Customers change rarely (a booking creates one). Kept OUT of loadLiveData's
+    // hot path — loaded once on mount (via loadLayout) and refreshed on a slow
+    // 5-minute cadence so returning-guest badges stay reasonably fresh without
+    // taxing every seating action.
+    const loadCustomers = useCallback(async () => {
+        try {
+            const all = await Customer.list();
+            const next = all || [];
+            setCustomers(prev => fingerprintCustomers(prev) === fingerprintCustomers(next) ? prev : next);
+        } catch (error) {
+            console.error('Error loading customers:', error);
+        }
+    }, []);
 
     useEffect(() => {
         loadLayout();
@@ -493,6 +522,12 @@ export default function SeatingSetup() {
         const interval = setInterval(loadLiveData, 60000);
         return () => clearInterval(interval);
     }, [loadLiveData]);
+
+    // Slow refresh of the rarely-changing customers table — off the action path.
+    useEffect(() => {
+        const interval = setInterval(loadCustomers, 5 * 60000);
+        return () => clearInterval(interval);
+    }, [loadCustomers]);
 
     // The 'voice:data-changed' useEffect moved further down — AFTER loadQueue
     // is declared (otherwise TDZ error 'Cannot access loadQueue before init').
@@ -679,17 +714,24 @@ export default function SeatingSetup() {
                 source: 'queue',
                 ...(preTables ? { assigned_table: preTables } : {}),
             });
-            await QueueEntry.update(entry.id, {
-                treated: true,
-                status: 'seated',
-                timestamp_seated: new Date().toISOString(),
-            });
-            await loadQueue();
-            await loadLiveData();
+            // Optimistically show the seated reservation right away so the hostess
+            // can pick a table without waiting for the queue-update + resync
+            // round-trips (those run in the background below).
+            setReservations(prev => [
+                ...prev,
+                { ...created, date: typeof created.date === 'string' ? created.date.slice(0, 10) : created.date },
+            ]);
             // Only enter map-assigning mode if no pre-picked table
             if (!preTables) {
                 setAssigningTable({ reservationId: created.id });
             }
+            // Background: mark the queue entry seated + resync — don't block the UI.
+            QueueEntry.update(entry.id, {
+                treated: true,
+                status: 'seated',
+                timestamp_seated: new Date().toISOString(),
+            }).then(() => loadQueue()).catch(err => console.warn('queue update failed', err));
+            loadLiveData();
         } catch (e) {
             console.error('seat from queue failed', e);
             alert('שגיאה בהושבה מהתור');
