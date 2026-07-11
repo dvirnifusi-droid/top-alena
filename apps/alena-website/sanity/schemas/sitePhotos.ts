@@ -24,7 +24,9 @@ export default defineType({
   fields: [
     // ===== Home =====
     { ...slot("homeHeroBg", "בית · רקע Hero (מנת חתימה / אווירה)", "התמונה שברקע של כרטיס הכניסה בעמוד הבית"), group: "home" },
-    { ...slot("homeStoryImage", "בית · תמונת ה-Story"), group: "home" },
+    { ...slot("homeStoryImage1", "בית · Story · פרק 1 — 'בית. רוטשילד 104'"), group: "home" },
+    { ...slot("homeStoryImage2", "בית · Story · פרק 2 — 'ג'וספר 600 מעלות'"), group: "home" },
+    { ...slot("homeStoryImage3", "בית · Story · פרק 3 — 'ערקים מתובלים בבית'"), group: "home" },
     { ...slot("homeChefImage", "בית · תמונת השף"), group: "home" },
     { ...slot("homeMenuTeaserImage", "בית · תמונה בכרטיס תפריט"), group: "home" },
     { ...slot("homeEventsTeaserImage", "בית · תמונה בכרטיס אירועים"), group: "home" },

@@ -16,21 +16,28 @@ import { JsonLd } from "@/components/seo/JsonLd";
 import { restaurantSchema } from "@/components/seo/schemas";
 import { env } from "@/lib/env";
 import { featuredPhotos } from "@/lib/gallery";
+import { getSitePhoto } from "@/lib/sitePhotos";
 
-export const revalidate = 600;
+export const revalidate = 60;
 
-export default function HomePage() {
+export default async function HomePage() {
   const stripImages: StripImage[] = featuredPhotos.map((p, i) => ({
     _id: `local-${i}`,
     url: p.src,
     alt: p.alt,
   }));
 
+  const [storyImg1, storyImg2, storyImg3] = await Promise.all([
+    getSitePhoto("homeStoryImage1", "/gallery/IMG_6770.JPG"),
+    getSitePhoto("homeStoryImage2", "/gallery/burger-hero.jpg"),
+    getSitePhoto("homeStoryImage3", "/gallery/IMG_4682.JPG"),
+  ]);
+
   return (
     <>
       <Hero />
       <NextNight />
-      <Story />
+      <Story imageOverrides={[storyImg1, storyImg2, storyImg3]} />
       <MenuTeaser />
       <InstagramStrip images={stripImages} />
       <Chef />

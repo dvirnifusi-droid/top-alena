@@ -4,7 +4,8 @@ import Image from "next/image";
 import { motion } from "framer-motion";
 import { Container } from "@/components/layout/Container";
 
-const chapters = [
+// Text lives here; images can be overridden per-chapter via Sanity ("תמונות באתר" → Story · פרק N).
+const DEFAULT_CHAPTERS = [
   {
     eyebrow: "המקום",
     title: "בית. רוטשילד 104.",
@@ -28,7 +29,11 @@ const chapters = [
   },
 ];
 
-export function Story() {
+export function Story({ imageOverrides }: { imageOverrides?: [string?, string?, string?] } = {}) {
+  const chapters = DEFAULT_CHAPTERS.map((c, i) => ({
+    ...c,
+    image: imageOverrides?.[i] ?? c.image,
+  }));
   return (
     <section className="py-24 md:py-32">
       <Container className="max-w-5xl">
@@ -77,6 +82,7 @@ export function Story() {
                   fill
                   sizes="(min-width:768px) 45vw, 100vw"
                   className="object-cover"
+                  unoptimized={c.image.startsWith("http")}
                 />
               </motion.div>
             </div>

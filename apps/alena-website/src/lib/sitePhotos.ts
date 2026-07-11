@@ -9,7 +9,9 @@ import { urlFor } from "../../sanity/lib/image";
 // Slot names must match sanity/schemas/sitePhotos.ts fields.
 export type SitePhotoSlot =
   | "homeHeroBg"
-  | "homeStoryImage"
+  | "homeStoryImage1"
+  | "homeStoryImage2"
+  | "homeStoryImage3"
   | "homeChefImage"
   | "homeMenuTeaserImage"
   | "homeEventsTeaserImage"
