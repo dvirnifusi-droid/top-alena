@@ -116,7 +116,7 @@ export default function ReservationView() {
             <div className="absolute inset-0" style={{ backgroundImage: `url(${cc.header_image})`, backgroundSize: 'cover', backgroundPosition: 'center' }} />
           )}
           {cc.header_video && (
-            <video src={cc.header_video} poster={cc.header_image || undefined} className="absolute inset-0 w-full h-full object-cover" autoPlay muted loop playsInline preload="auto" />
+            <video src={`${cc.header_video}${cc.header_video.includes('?') ? '&' : '?'}r=1`} poster={cc.header_image || undefined} className="absolute inset-0 w-full h-full object-cover" autoPlay muted loop playsInline preload="auto" />
           )}
           {(cc.header_image || cc.header_video) && (
             <div className="absolute inset-0" style={{ background: 'linear-gradient(180deg, rgba(31,27,23,0.45), rgba(31,27,23,0.8))' }} />

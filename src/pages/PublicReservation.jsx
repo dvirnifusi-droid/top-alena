@@ -612,7 +612,7 @@ export default function PublicReservationPage() {
           {/* Optional atmospheric background video (shared with the confirmation page) */}
           {settings?.confirmation_config?.header_video && (
             <>
-              <video src={settings.confirmation_config.header_video} className="absolute inset-0 w-full h-full object-cover z-0" autoPlay muted loop playsInline />
+              <video src={`${settings.confirmation_config.header_video}${settings.confirmation_config.header_video.includes('?') ? '&' : '?'}r=1`} className="absolute inset-0 w-full h-full object-cover z-0" autoPlay muted loop playsInline preload="auto" />
               <div className="absolute inset-0 z-[1]" style={{ background: 'linear-gradient(180deg, rgba(31,27,23,0.35) 0%, rgba(31,27,23,0.45) 55%, rgba(31,27,23,0.7) 100%)' }} />
             </>
           )}
