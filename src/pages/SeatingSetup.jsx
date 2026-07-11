@@ -3266,7 +3266,10 @@ export default function SeatingSetup() {
                                         })}
 
                                     {tables.filter(t => selectedAreas.includes('all') || selectedAreas.includes(t.area)).map((table) => {
-                                       const session = getTableSession(table.table_number);
+                                        // Active sessions ("who's sitting NOW") only belong on TODAY's map.
+                                        // When viewing another date, show only that date's reservations.
+                                        const mapIsToday = format(selectedDate, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd');
+                                        const session = mapIsToday ? getTableSession(table.table_number) : null;
                                         const progress = session ? Math.round(((session.steps_completed?.length || 0) / 23) * 100) : 0;
 
                                         const futureReservationsForTable = reservations.filter(r => {
