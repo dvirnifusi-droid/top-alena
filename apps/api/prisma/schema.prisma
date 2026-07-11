@@ -1899,6 +1899,7 @@ model Reservation {
   deposit_provider             String?  // 'max_online' | 'tranzila' | 'payplus' | 'cardcom' (set after we know which)
   deposit_provider_ref         String?  // transaction id at the provider
   deposit_status               String?  // 'pending' | 'authorized' | 'captured' | 'released' | 'failed'
+  deposit_sent_at              DateTime? // when the deposit request/link was created — drives the 5-min timer
   deposit_authorized_at        DateTime?
   deposit_released_at          DateTime?
   // Standby waitlist — guest opted in when their preferred slot was full.

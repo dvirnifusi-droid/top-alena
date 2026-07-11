@@ -35,8 +35,18 @@ import { isMainAlena } from '@/lib/tenant';
 // Deposit actions for a reservation — send request (J5 hold), manual no-show charge, release.
 function DepositSection({ reservation, onDone }) {
     const [busy, setBusy] = useState(false);
+    const [nowTick, setNowTick] = useState(Date.now());
     const st = reservation?.deposit_status;
     const amt = reservation?.deposit_amount;
+    // Live 5-minute countdown while a deposit request is out (pending).
+    useEffect(() => {
+        if (st !== 'pending') return;
+        const id = setInterval(() => setNowTick(Date.now()), 1000);
+        return () => clearInterval(id);
+    }, [st]);
+    const sentAt = reservation?.deposit_sent_at ? new Date(reservation.deposit_sent_at).getTime() : null;
+    const remainMs = sentAt != null ? Math.max(0, sentAt + 5 * 60 * 1000 - nowTick) : null;
+    const remainTxt = remainMs != null ? `${Math.floor(remainMs / 60000)}:${String(Math.floor((remainMs % 60000) / 1000)).padStart(2, '0')}` : null;
     const sendDeposit = () => {
         const input = window.prompt('סכום פיקדון לבקש מהלקוח (₪). השאר ריק לסכום לפי ההגדרות:', reservation.deposit_amount ? String(reservation.deposit_amount) : '');
         if (input === null) return; // cancelled
@@ -57,7 +67,7 @@ function DepositSection({ reservation, onDone }) {
         finally { setBusy(false); }
     };
     const badge = st === 'authorized' ? { t: '🟢 אשראי נתפס', c: 'bg-green-100 text-green-800' }
-        : st === 'pending' ? { t: '🟠 נשלח — ממתין לאשראי', c: 'bg-amber-100 text-amber-800' }
+        : st === 'pending' ? { t: remainMs === 0 ? '🟠 נשלח אשראי פיקדון · פג תוקף' : `🟠 נשלח אשראי פיקדון · ${remainTxt}`, c: 'bg-amber-100 text-amber-800' }
         : st === 'captured' ? { t: `💰 חויב ₪${reservation.deposit_charge_amount || amt || ''}`, c: 'bg-slate-200 text-slate-700' }
         : st === 'released' ? { t: 'שוחרר', c: 'bg-gray-100 text-gray-500' }
         : st === 'failed' ? { t: '❌ נכשל', c: 'bg-rose-100 text-rose-700' }

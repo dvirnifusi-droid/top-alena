@@ -48,7 +48,7 @@ const db = prisma as any; // generic delegate access
 
 // Public deploy marker — lets us confirm which build is live (and that
 // auto-deploy is working) without server access. Bump on each deploy test.
-registerFn('deployInfo', async () => ({ version: 'deposit-no-card-no-booking-2026-07-11', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
+registerFn('deployInfo', async () => ({ version: 'deposit-5min-timer-2026-07-11', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
 
 
 
@@ -6336,7 +6336,7 @@ registerFn('sendDepositRequest', async ({ body, user, req }: any) => {
   });
   await db.reservation.update({
     where: { id: r.id },
-    data: { deposit_required: true, deposit_provider: 'payplus', deposit_amount: amount, deposit_provider_ref: link.page_request_uid || null, deposit_status: 'pending' } as any,
+    data: { deposit_required: true, deposit_provider: 'payplus', deposit_amount: amount, deposit_provider_ref: link.page_request_uid || null, deposit_status: 'pending', deposit_sent_at: new Date() } as any,
   });
   const brand = await getBrandName().catch(() => 'המסעדה');
   const smsBody = [
@@ -6436,13 +6436,14 @@ registerFn('releaseDeposit', async ({ body, user }) => {
 // A booking that requires a deposit but hasn't been paid within this window is an
 // ABANDONED hold — the guest reached PayPlus and never entered a card. It must stop
 // blocking the table/slot (no card = no reservation), without needing a cron.
-const STALE_UNPAID_HOLD_MS = 20 * 60 * 1000;
+const STALE_UNPAID_HOLD_MS = 5 * 60 * 1000; // 5 minutes to enter a card, else the table frees
 function isStaleUnpaidHold(r: any): boolean {
+  const since = r?.deposit_sent_at || r?.createdAt;
   return r?.status === 'pending'
     && r?.deposit_required
     && (r?.deposit_status === 'pending' || r?.deposit_status === 'failed')
-    && r?.createdAt != null
-    && (Date.now() - new Date(r.createdAt).getTime() > STALE_UNPAID_HOLD_MS);
+    && since != null
+    && (Date.now() - new Date(since).getTime() > STALE_UNPAID_HOLD_MS);
 }
 
 // Honors the owner's priority list (singles AND combos, ranked), refuses any
@@ -6830,6 +6831,7 @@ registerFn('createPublicReservation', async ({ body, req }: any) => {
       deposit_amount: depositInfo.required ? depositInfo.amount_ils : null,
       deposit_status: willCollectDeposit ? 'pending' : (depositInfo.required ? 'pending' : null),
       deposit_provider: willCollectDeposit ? 'payplus' : null,
+      deposit_sent_at: willCollectDeposit ? new Date() : null,
       marketing_consent,
       marketing_consent_at: marketing_consent ? new Date() : null,
     } as any,

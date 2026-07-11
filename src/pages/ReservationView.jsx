@@ -99,9 +99,7 @@ export default function ReservationView() {
           <Row icon={<Calendar className="w-4 h-4 text-amber-700" />} label="תאריך" value={dateLabel} />
           <Row icon={<Clock className="w-4 h-4 text-amber-700" />} label="שעה" value={`${reservation.time}${reservation.reservation_end_time ? ` עד ${reservation.reservation_end_time}` : ''}`} />
           <Row icon={<Users className="w-4 h-4 text-amber-700" />} label="סועדים" value={reservation.party_size} />
-          {Array.isArray(reservation.assigned_table) && reservation.assigned_table.length > 0 && (
-            <Row icon="🪑" label="שולחן" value={`#${reservation.assigned_table.join(', ')}`} />
-          )}
+          {/* Table number intentionally hidden from the customer-facing confirmation. */}
           {reservation.special_occasion && (
             <Row icon="🎉" label="חוגגים" value={reservation.special_occasion} />
           )}
