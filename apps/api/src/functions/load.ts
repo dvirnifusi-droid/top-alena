@@ -48,7 +48,7 @@ const db = prisma as any; // generic delegate access
 
 // Public deploy marker — lets us confirm which build is live (and that
 // auto-deploy is working) without server access. Bump on each deploy test.
-registerFn('deployInfo', async () => ({ version: 'payplus-deposit-flow-2026-07-11', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
+registerFn('deployInfo', async () => ({ version: 'online-deposit-collect-2026-07-11', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
 
 
 
@@ -6650,7 +6650,7 @@ function classifyReservationSource(opts: { utm_source?: string; referrer?: strin
   return 'other';
 }
 
-registerFn('createPublicReservation', async ({ body }) => {
+registerFn('createPublicReservation', async ({ body, req }: any) => {
   await ensureReservationSourceCols();
   const brand = await getBrandName();
   const {
@@ -6955,11 +6955,42 @@ registerFn('createPublicReservation', async ({ body }) => {
     console.warn('[createPublicReservation] customer upsert failed', e);
   }
 
+  // If a deposit is required AND PayPlus is configured/enabled, generate a J5 link so the
+  // customer places the hold as PART of booking. Reservation already exists (deposit 🟠 pending);
+  // the webhook flips it to authorized (🟢) once the hold is placed. Non-fatal if it fails.
+  let deposit_link: string | null = null;
+  if (depositInfo.required && (depositInfo as any).amount_ils > 0 && !isStandby) {
+    try {
+      const dset: any = await (prisma as any).depositSettings.findFirst({ where: { singleton: true } }).catch(() => null);
+      const cred = dset?.provider_credentials;
+      if (dset?.enabled && cred?.api_key && cred?.payment_page_uid) {
+        const host = req?.headers?.host || baseUrl.replace(/^https?:\/\//, '');
+        const hostBase = `https://${host}`;
+        const link = await payplusGenerateLink(cred, {
+          amount: (depositInfo as any).amount_ils,
+          charge_method: cred?.j5 ? 2 : 1,
+          customer: { customer_name: String(customer_name).trim(), email: customer_email || '', phone: String(customer_phone).trim() },
+          more_info: reservation.id,
+          callback_url: `${hostBase}/api/public/fn/payplusCallback`,
+          success_url: `${hostBase}/ReservationView?token=${tracking_token}`,
+          failure_url: `${hostBase}/PublicReservation`,
+        });
+        deposit_link = link.payment_page_link || null;
+        await db.reservation.update({ where: { id: reservation.id }, data: { deposit_provider: 'payplus', deposit_provider_ref: link.page_request_uid || null } as any });
+      }
+    } catch (e: any) {
+      console.warn('[createPublicReservation] deposit link failed', e?.message);
+    }
+  }
+
   return {
     success: true,
     reservation_id: reservation.id,
     table_number: isStandby ? null : avail.table.table_number,
     is_standby: isStandby,
+    requires_deposit: !!deposit_link,
+    deposit_link,
+    deposit_amount: depositInfo.required ? (depositInfo as any).amount_ils : 0,
   };
 }, { public: true });
 

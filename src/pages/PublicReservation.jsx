@@ -413,6 +413,12 @@ export default function PublicReservationPage() {
         return;
       }
       setAlternatives([]);
+      // Deposit required → send the guest straight to PayPlus to place the hold.
+      // After payment PayPlus redirects to ReservationView and the webhook confirms it.
+      if (res.requires_deposit && res.deposit_link) {
+        window.location.href = res.deposit_link;
+        return;
+      }
       setSuccess({
         customer_name: customerName,
         time,
