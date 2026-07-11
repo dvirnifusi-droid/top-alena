@@ -19,6 +19,18 @@ function DepositSettingsInner() {
     // PayPlus credentials — write-only. Secrets never come back from the server (masked),
     // so api_key/secret_key start blank; the non-secret fields prefill from settings.
     const [cred, setCred] = useState({ api_key: '', secret_key: '', payment_page_uid: '', terminal: '', j5: false });
+    const [testing, setTesting] = useState(false);
+    const [testResult, setTestResult] = useState(null); // { ok, link, error }
+
+    const testConnection = async () => {
+        setTesting(true); setTestResult(null);
+        try {
+            const r = await base44.functions.payplusTest({});
+            setTestResult(r?.data || r);
+        } catch (e) {
+            setTestResult({ ok: false, error: e?.message || String(e) });
+        } finally { setTesting(false); }
+    };
 
     useEffect(() => { (async () => {
         const r = await base44.functions.getDepositSettings({});
@@ -222,6 +234,22 @@ function DepositSettingsInner() {
                             J5 — תפיסת סכום (hold) במקום חיוב מיידי (מומלץ לפיקדון — גובים רק אם הבריז)
                         </label>
                         <div className="text-[10px] text-gray-400">המפתחות נשמרים לעסק שלך בלבד (מולטי-טננט). לחיצה על "שמור" למטה תשמור אותם.</div>
+                        <div className="pt-1">
+                            <button type="button" onClick={testConnection} disabled={testing}
+                                className="text-xs font-bold bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-300 text-white px-3 py-1.5 rounded-lg">
+                                {testing ? 'בודק…' : '🧪 בדוק חיבור (מייצר קישור ₪1, אף אחד לא מחויב)'}
+                            </button>
+                            {testResult && (testResult.ok ? (
+                                <div className="mt-2 text-[12px] text-emerald-700 bg-emerald-50 border border-emerald-200 rounded p-2">
+                                    ✅ החיבור עובד! נוצר קישור תשלום בדיקה. <a href={testResult.link} target="_blank" rel="noreferrer" className="underline font-bold">פתח את הקישור</a> כדי לראות את עמוד ה-PayPlus (אל תשלם — זו בדיקה).
+                                </div>
+                            ) : (
+                                <div className="mt-2 text-[12px] text-rose-700 bg-rose-50 border border-rose-200 rounded p-2">
+                                    ❌ החיבור נכשל: {testResult.error}
+                                    <div className="text-[10px] text-rose-400 mt-1">בדוק שהמפתחות הודבקו נכון ושמרת. אם התקלה נמשכת — שלח לי את הטקסט הזה.</div>
+                                </div>
+                            ))}
+                        </div>
                     </div>
                 )}
 

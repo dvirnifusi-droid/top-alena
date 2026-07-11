@@ -48,7 +48,7 @@ const db = prisma as any; // generic delegate access
 
 // Public deploy marker — lets us confirm which build is live (and that
 // auto-deploy is working) without server access. Bump on each deploy test.
-registerFn('deployInfo', async () => ({ version: 'payplus-credentials-ui-2026-07-11', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
+registerFn('deployInfo', async () => ({ version: 'payplus-test-connection-2026-07-11', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
 
 
 
@@ -6221,6 +6221,69 @@ registerFn('updateDepositSettings', async ({ body, user }) => {
     },
     has_credentials: !!(cred.api_key && cred.secret_key),
   };
+});
+
+// ── PayPlus REST client — per-tenant credentials from DepositSettings.provider_credentials.
+// Auth is a single Authorization header carrying a JSON of {api_key, secret_key}.
+const PAYPLUS_BASE = process.env.PAYPLUS_BASE_URL || 'https://restapi.payplus.co.il/api/v1.0';
+async function payplusGenerateLink(cred: any, opts: {
+  amount: number; charge_method: number; customer: any; more_info: string;
+  callback_url: string; success_url: string; failure_url: string;
+}): Promise<{ page_request_uid: string; payment_page_link: string; raw: any }> {
+  if (!cred?.api_key || !cred?.secret_key || !cred?.payment_page_uid) {
+    throw new Error('חסרים מפתחות PayPlus (API key / secret / page uid) — הגדר אותם בהגדרות פיקדון.');
+  }
+  const body = {
+    payment_page_uid: cred.payment_page_uid,
+    charge_method: opts.charge_method, // 1 = charge now, 2 = J5 approval/hold
+    amount: opts.amount,
+    currency_code: 'ILS',
+    sendEmailApproval: false,
+    sendEmailFailure: false,
+    refURL_success: opts.success_url,
+    refURL_failure: opts.failure_url,
+    refURL_callback: opts.callback_url,
+    more_info: opts.more_info,
+    customer: opts.customer,
+  };
+  const resp = await fetch(`${PAYPLUS_BASE}/PaymentPages/generateLink`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: JSON.stringify({ api_key: cred.api_key, secret_key: cred.secret_key }),
+    },
+    body: JSON.stringify(body),
+  });
+  const json: any = await resp.json().catch(() => ({}));
+  const status = json?.results?.status || json?.status;
+  if (status !== 'success') {
+    const desc = json?.results?.description || json?.message || `HTTP ${resp.status}`;
+    throw Object.assign(new Error(`PayPlus: ${desc}`), { payplus: json });
+  }
+  return { page_request_uid: json?.data?.page_request_uid, payment_page_link: json?.data?.payment_page_link, raw: json };
+}
+
+// AUTHED — verify the tenant's PayPlus keys by generating a real ₪1 link. No one is charged
+// unless they actually open and pay it, so this is a safe connection test before we build on top.
+registerFn('payplusTest', async ({ user }: any) => {
+  if (!user) throw new Error('auth required');
+  const s: any = await (prisma as any).depositSettings.findFirst({ where: { singleton: true } }).catch(() => null);
+  const cred = s?.provider_credentials;
+  const base = process.env.PUBLIC_BASE_URL || 'https://topalena.com';
+  try {
+    const r = await payplusGenerateLink(cred, {
+      amount: 1,
+      charge_method: cred?.j5 ? 2 : 1,
+      customer: { customer_name: 'בדיקת חיבור', email: 'test@topalena.com', phone: '0500000000' },
+      more_info: 'connection_test',
+      callback_url: `${base}/api/public/fn/payplusCallback`,
+      success_url: `${base}/`,
+      failure_url: `${base}/`,
+    });
+    return { ok: true, link: r.payment_page_link, page_request_uid: r.page_request_uid };
+  } catch (e: any) {
+    return { ok: false, error: e?.message || String(e), payplus: e?.payplus || null };
+  }
 });
 
 // Hostess: manually capture (charge no-show) or release (refund/cancel) a deposit hold.
