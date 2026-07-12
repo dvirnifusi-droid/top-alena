@@ -5,7 +5,7 @@
 // when done — stamping WHO + WHEN + an optional photo. "יום חדש" snapshots the
 // list into the archive (history) and clears it for the next day. A summary at
 // the top shows overall status; search + "רק שנשאר" narrow a long list.
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
 import { User } from '@/entities/User';
 import { UploadFile } from '@/integrations/Core';
@@ -47,6 +47,11 @@ export default function PrepSheet() {
   const [showReminderCfg, setShowReminderCfg] = useState(false);
   const [savingReminder, setSavingReminder] = useState(false);
 
+  // Records the last time the cook touched a field, so the live poll never
+  // clobbers a value that's mid-typing / just-toggled.
+  const lastInteractionRef = useRef(0);
+  const markInteraction = () => { lastInteractionRef.current = Date.now(); };
+
   const loadItems = async (listId) => {
     setLoading(true);
     try {
@@ -55,6 +60,23 @@ export default function PrepSheet() {
       setItems(Array.isArray(data.items) ? data.items.map((it, i) => ({ ...it, sort: it.sort ?? i })) : []);
     } catch (e) { console.warn('load prep', e); }
     setLoading(false);
+  };
+
+  // Silent live refresh — no spinner, skips when a local edit is in flight, and
+  // only re-renders when something actually changed (fingerprint). This is what
+  // lets a second cook / the kitchen manager see marks appear on their own.
+  const prepFp = (arr) => (arr || []).map((x) => `${x.id}|${x.have}|${x.prep}|${x.to_prep}|${x.done}|${x.done_by}|${x.photo_url}|${x.note}|${x.name}|${x.category}`).join('§');
+  const refreshItemsSilent = async (listId) => {
+    if (!listId) return;
+    try {
+      const res = await base44.functions.getPrepItems({ list_id: listId });
+      const data = res?.data || res || {};
+      const next = Array.isArray(data.items) ? data.items.map((it, i) => ({ ...it, sort: it.sort ?? i })) : [];
+      setItems((prev) => {
+        if (Date.now() - lastInteractionRef.current < 6000) return prev; // don't clobber a fresh local edit
+        return prepFp(prev) === prepFp(next) ? prev : next;
+      });
+    } catch { /* ignore poll errors */ }
   };
 
   const loadLists = async (preferId) => {
@@ -79,6 +101,24 @@ export default function PrepSheet() {
       await loadItems(pick);
     })();
   }, []);
+
+  // Live sync — every 12s (and the moment the page regains focus) pull the
+  // latest marks so cooks + the kitchen manager all see the same picture. Paused
+  // while editing the product list or right after a local change.
+  useEffect(() => {
+    if (!activeList) return;
+    const tick = () => {
+      if (document.hidden || editMode) return;
+      if (Date.now() - lastInteractionRef.current < 6000) return;
+      refreshItemsSilent(activeList);
+    };
+    const interval = setInterval(tick, 12000);
+    const onVisible = () => { if (!document.hidden && !editMode && Date.now() - lastInteractionRef.current > 3000) refreshItemsSilent(activeList); };
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('focus', onVisible);
+    return () => { clearInterval(interval); document.removeEventListener('visibilitychange', onVisible); window.removeEventListener('focus', onVisible); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeList, editMode]);
 
   const saveReminder = async () => {
     setSavingReminder(true);
@@ -117,7 +157,7 @@ export default function PrepSheet() {
     return { total, toPrep, doneToPrep, remaining };
   }, [items]);
 
-  const patch = (id, field, val) => setItems((prev) => prev.map((it) => (it.id === id ? { ...it, [field]: val } : it)));
+  const patch = (id, field, val) => { markInteraction(); setItems((prev) => prev.map((it) => (it.id === id ? { ...it, [field]: val } : it))); };
 
   const saveOne = async (it) => {
     try {
@@ -146,6 +186,7 @@ export default function PrepSheet() {
   };
 
   const toggle = (it, field) => {
+    markInteraction();
     const nv = !it[field];
     let next = { ...it, [field]: nv };
     if (field === 'done') {
@@ -392,61 +433,54 @@ export default function PrepSheet() {
               <Card key={cat} className="overflow-hidden prep-card">
                 <CardHeader className="bg-gradient-to-l from-orange-100 to-amber-50 py-2.5"><CardTitle className="text-base text-[#7A3722]">{cat}</CardTitle></CardHeader>
                 <CardContent className="p-0">
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead><tr className="text-xs text-gray-500 border-b bg-gray-50/60">
-                        <th className="text-right p-2 font-semibold">מוצר</th>
-                        <th className="text-center p-2 font-semibold w-20">יש</th>
-                        <th className="text-center p-2 font-semibold w-20">להכין</th>
-                        <th className="text-center p-2 font-semibold w-14">לסמן</th>
-                        <th className="text-center p-2 font-semibold w-28">בוצע</th>
-                        {editMode && <th className="w-8"></th>}
-                      </tr></thead>
-                      <tbody>
-                        {rows.map((it) => (
-                          <tr key={it.id} className={`border-b last:border-0 align-top ${it.done ? 'bg-green-50/50' : it.to_prep ? 'bg-orange-50/40' : ''}`}>
-                            <td className="p-2">
-                              {editMode ? (
-                                <div className="space-y-1">
-                                  <Input value={it.name} onChange={(e) => patch(it.id, 'name', e.target.value)} className="h-8 text-sm" placeholder="שם מוצר" />
-                                  <Input value={it.note || ''} onChange={(e) => patch(it.id, 'note', e.target.value)} className="h-7 text-xs text-gray-500" placeholder="הערה / הוראת הכנה (אופציונלי)" />
-                                </div>
-                              ) : (
-                                <>
-                                  <span className={`font-medium ${it.done ? 'line-through text-gray-400' : 'text-slate-800'}`}>{it.name}</span>
-                                  {it.note && <div className="text-xs text-gray-500 mt-0.5 flex items-start gap-1"><StickyNote className="w-3 h-3 mt-0.5 flex-shrink-0 text-amber-500" /><span>{it.note}</span></div>}
-                                </>
-                              )}
-                            </td>
-                            <td className="p-2 text-center">
-                              <Input value={it.have || ''} onChange={(e) => patch(it.id, 'have', e.target.value)} onBlur={() => !editMode && saveOne(items.find((x) => x.id === it.id))} className="h-8 text-sm text-center" placeholder="—" />
-                            </td>
-                            <td className="p-2 text-center">
-                              <Input value={it.prep || ''} onChange={(e) => patch(it.id, 'prep', e.target.value)} onBlur={() => !editMode && saveOne(items.find((x) => x.id === it.id))} className="h-8 text-sm text-center font-semibold text-orange-700" placeholder="—" />
-                            </td>
-                            <td className="p-2 text-center">
-                              <button onClick={() => toggle(it, 'to_prep')} title="סמן שצריך להכין"
-                                className={`w-7 h-7 rounded border-2 inline-flex items-center justify-center transition-colors ${it.to_prep ? 'bg-orange-500 border-orange-500 text-white' : 'border-gray-300 hover:border-orange-400'}`}>{it.to_prep && <Check className="w-4 h-4" />}</button>
-                            </td>
-                            <td className="p-2">
-                              <div className="flex flex-col items-center gap-1">
-                                <button onClick={() => toggle(it, 'done')}
-                                  className={`w-7 h-7 rounded border-2 inline-flex items-center justify-center transition-colors ${it.done ? 'bg-green-500 border-green-500 text-white' : 'border-gray-300 hover:border-green-400'}`}>{it.done && <Check className="w-4 h-4" />}</button>
-                                {it.done && it.done_by && <span className="text-[10px] leading-tight text-gray-500 text-center">{it.done_by}{it.done_at ? ` · ${fmtWhen(it.done_at)}` : ''}</span>}
-                                <div className="flex items-center gap-1">
-                                  {it.photo_url && <a href={it.photo_url} target="_blank" rel="noreferrer"><img src={it.photo_url} alt="" className="w-8 h-8 rounded object-cover border border-gray-200" /></a>}
-                                  <label className="cursor-pointer text-gray-400 hover:text-orange-600" title="צרף תמונה">
-                                    {uploadingId === it.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Camera className="w-4 h-4" />}
-                                    <input type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; attachPhoto(it, f); }} />
-                                  </label>
-                                </div>
+                  {/* Card-per-item layout — wraps to fit any width, so a kitchen
+                      phone/tablet never has to scroll sideways. */}
+                  <div className="divide-y">
+                    {rows.map((it) => (
+                      <div key={it.id} className={`p-3 ${it.done ? 'bg-green-50/50' : it.to_prep ? 'bg-orange-50/40' : ''}`}>
+                        <div className="flex items-start justify-between gap-3">
+                          {/* name + note */}
+                          <div className="min-w-0 flex-1">
+                            {editMode ? (
+                              <div className="space-y-1">
+                                <Input value={it.name} onChange={(e) => patch(it.id, 'name', e.target.value)} className="h-8 text-sm" placeholder="שם מוצר" />
+                                <Input value={it.note || ''} onChange={(e) => patch(it.id, 'note', e.target.value)} className="h-7 text-xs text-gray-500" placeholder="הערה / הוראת הכנה (אופציונלי)" />
                               </div>
-                            </td>
-                            {editMode && <td className="p-1"><button onClick={() => delRow(it.id)} className="text-red-400 hover:text-red-600"><Trash2 className="w-4 h-4" /></button></td>}
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                            ) : (
+                              <>
+                                <span className={`font-medium break-words ${it.done ? 'line-through text-gray-400' : 'text-slate-800'}`}>{it.name}</span>
+                                {it.note && <div className="text-xs text-gray-500 mt-0.5 flex items-start gap-1"><StickyNote className="w-3 h-3 mt-0.5 flex-shrink-0 text-amber-500" /><span className="break-words">{it.note}</span></div>}
+                                {it.done && it.done_by && <div className="text-[10px] leading-tight text-gray-500 mt-0.5">✓ {it.done_by}{it.done_at ? ` · ${fmtWhen(it.done_at)}` : ''}</div>}
+                              </>
+                            )}
+                          </div>
+                          {/* to_prep + done toggles */}
+                          <div className="flex items-center gap-2 shrink-0">
+                            <button onClick={() => toggle(it, 'to_prep')} title="סמן שצריך להכין"
+                              className={`w-8 h-8 rounded border-2 inline-flex items-center justify-center transition-colors ${it.to_prep ? 'bg-orange-500 border-orange-500 text-white' : 'border-gray-300 hover:border-orange-400'}`}>{it.to_prep ? <Check className="w-4 h-4" /> : <span className="text-[9px] font-bold text-gray-400">לסמן</span>}</button>
+                            <button onClick={() => toggle(it, 'done')} title="בוצע"
+                              className={`w-8 h-8 rounded border-2 inline-flex items-center justify-center transition-colors ${it.done ? 'bg-green-500 border-green-500 text-white' : 'border-gray-300 hover:border-green-400'}`}>{it.done ? <Check className="w-4 h-4" /> : <span className="text-[9px] font-bold text-gray-400">בוצע</span>}</button>
+                            {editMode && <button onClick={() => delRow(it.id)} className="text-red-400 hover:text-red-600 p-1"><Trash2 className="w-4 h-4" /></button>}
+                          </div>
+                        </div>
+                        {/* have / prep / photo — wraps */}
+                        <div className="flex items-center gap-3 mt-2 flex-wrap">
+                          <label className="flex items-center gap-1 text-xs text-gray-500">יש
+                            <Input value={it.have || ''} onChange={(e) => patch(it.id, 'have', e.target.value)} onBlur={() => !editMode && saveOne(items.find((x) => x.id === it.id))} className="h-8 w-16 text-sm text-center" placeholder="—" />
+                          </label>
+                          <label className="flex items-center gap-1 text-xs text-gray-500">להכין
+                            <Input value={it.prep || ''} onChange={(e) => patch(it.id, 'prep', e.target.value)} onBlur={() => !editMode && saveOne(items.find((x) => x.id === it.id))} className="h-8 w-16 text-sm text-center font-semibold text-orange-700" placeholder="—" />
+                          </label>
+                          <div className="flex items-center gap-1 mr-auto">
+                            {it.photo_url && <a href={it.photo_url} target="_blank" rel="noreferrer"><img src={it.photo_url} alt="" className="w-8 h-8 rounded object-cover border border-gray-200" /></a>}
+                            <label className="cursor-pointer text-gray-400 hover:text-orange-600" title="צרף תמונה">
+                              {uploadingId === it.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Camera className="w-4 h-4" />}
+                              <input type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; attachPhoto(it, f); }} />
+                            </label>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </CardContent>
               </Card>
