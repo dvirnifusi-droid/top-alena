@@ -3277,6 +3277,21 @@ export default function SeatingSetup() {
                                                     </div>
                                                 </PopoverContent>
                                             </Popover>
+                                            {/* Realtime push status — green "live" when the SSE stream is
+                                                delivering, muted "syncing" when it's on the poll fallback. */}
+                                            <div
+                                                className={`hidden sm:flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-[10px] font-bold shrink-0 border ${
+                                                    realtimeConnected
+                                                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                                        : 'bg-gray-100 text-gray-500 border-gray-200'
+                                                }`}
+                                                title={realtimeConnected
+                                                    ? 'עדכונים בזמן אמת פעילים — הזמנות נכנסות לבד'
+                                                    : 'מסתנכרן ברקע — מתחבר מחדש'}
+                                            >
+                                                <span className={`w-2 h-2 rounded-full ${realtimeConnected ? 'bg-emerald-500 animate-pulse' : 'bg-gray-400'}`}></span>
+                                                {realtimeConnected ? 'חי' : 'מסתנכרן'}
+                                            </div>
                                             {/* Clock */}
                                             <div className="hidden sm:block text-center px-2.5 py-1 bg-gradient-to-bl from-slate-900 to-slate-700 text-white rounded-lg shrink-0">
                                                 <div className="text-base font-black tabular-nums leading-none">{format(clockTick, 'HH:mm')}</div>
