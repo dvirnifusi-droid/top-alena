@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Loader2, Palette, Upload, Save, RefreshCw, Sparkles, Building2, MapPin, Phone, Clock, Users, ChefHat } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import PageGuard from '../components/shared/PageGuard';
+import TimePicker from '@/components/shared/TimePicker';
 import { useTenantBranding, invalidateBrandingCache } from '@/hooks/useTenantBranding';
 import { isMainAlena } from '@/lib/tenant';
 
@@ -422,18 +423,14 @@ function BrandingInner() {
                 return (
                   <div key={k} className="flex items-center gap-1 border rounded-lg p-2 text-xs">
                     <span className="font-bold w-4">{label}</span>
-                    <input
-                      type="time"
+                    <TimePicker
                       value={v.open || ''}
-                      onChange={(e) => setOpeningHours((h) => ({ ...h, [k]: { ...(h?.[k] || {}), open: e.target.value } }))}
-                      className="w-full text-xs border-0 focus:outline-none"
+                      onChange={(val) => setOpeningHours((h) => ({ ...h, [k]: { ...(h?.[k] || {}), open: val } }))}
                     />
                     <span>-</span>
-                    <input
-                      type="time"
+                    <TimePicker
                       value={v.close || ''}
-                      onChange={(e) => setOpeningHours((h) => ({ ...h, [k]: { ...(h?.[k] || {}), close: e.target.value } }))}
-                      className="w-full text-xs border-0 focus:outline-none"
+                      onChange={(val) => setOpeningHours((h) => ({ ...h, [k]: { ...(h?.[k] || {}), close: val } }))}
                     />
                   </div>
                 );

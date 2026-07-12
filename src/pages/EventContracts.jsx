@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import TimePicker from '@/components/shared/TimePicker';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
@@ -539,8 +540,8 @@ function EditDialog({ contract, onClose }) {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <Field label="מיקום"><Input value={c.event_location || ''} onChange={e => set('event_location', e.target.value)} /></Field>
             <Field label="תאריך"><Input type="date" value={c.event_date || ''} onChange={e => set('event_date', e.target.value)} /></Field>
-            <Field label="שעת הגעה"><Input type="time" value={c.event_start_time || ''} onChange={e => set('event_start_time', e.target.value)} /></Field>
-            <Field label="שעת סיום"><Input type="time" value={c.event_end_time || ''} onChange={e => set('event_end_time', e.target.value)} /></Field>
+            <Field label="שעת הגעה"><TimePicker value={c.event_start_time || ''} onChange={v => set('event_start_time', v)} /></Field>
+            <Field label="שעת סיום"><TimePicker value={c.event_end_time || ''} onChange={v => set('event_end_time', v)} /></Field>
             <Field label="כמות סועדים מחויב"><Input type="number" value={c.guest_count || ''} onChange={e => set('guest_count', e.target.value)} /></Field>
             <Field label="ילדים (עד גיל 12)"><Input type="number" value={c.kids_count || ''} onChange={e => set('kids_count', e.target.value)} placeholder="0" /></Field>
             <Field label="חבילה (טקסט חופשי)"><Input value={c.package_label || ''} onChange={e => set('package_label', e.target.value)} placeholder="150 ₪ לסועד / שולחן שוק / תפריט מותאם" /></Field>

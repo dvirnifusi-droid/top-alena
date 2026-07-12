@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Plus, Edit2, Trash2, Eye, EyeOff, Bell, Upload, Search } from 'lucide-react';
 import PageGuard from '@/components/shared/PageGuard';
+import TimePicker from '@/components/shared/TimePicker';
 
 const DISPLAY_TYPES = [
   { value: 'modal', label: 'מודאל (חוסם מסך)', icon: '🪟' },
@@ -355,14 +356,14 @@ function PopupsInner() {
                   <input type="datetime-local" value={form.scheduled_at} onChange={e => set('scheduled_at', e.target.value)} className="border rounded-lg px-3 py-2 text-sm w-full" />
                 )}
                 {form.schedule_type === 'daily' && (
-                  <input type="time" value={form.daily_time} onChange={e => set('daily_time', e.target.value)} className="border rounded-lg px-3 py-2 text-sm" />
+                  <TimePicker value={form.daily_time} onChange={v => set('daily_time', v)} />
                 )}
                 {form.schedule_type === 'weekly' && (
                   <div className="flex gap-3">
                     <select value={form.weekly_day} onChange={e => set('weekly_day', Number(e.target.value))} className="border rounded-lg px-3 py-2 text-sm">
                       {WEEKDAYS.map((d, i) => <option key={i} value={i}>{d}</option>)}
                     </select>
-                    <input type="time" value={form.weekly_time} onChange={e => set('weekly_time', e.target.value)} className="border rounded-lg px-3 py-2 text-sm" />
+                    <TimePicker value={form.weekly_time} onChange={v => set('weekly_time', v)} />
                   </div>
                 )}
               </section>

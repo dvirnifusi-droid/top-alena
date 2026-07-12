@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import TimePicker from '@/components/shared/TimePicker';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Loader2, UserPlus } from 'lucide-react';
 import { format } from 'date-fns';
@@ -113,9 +114,9 @@ export default function BulkAssignDialog({ open, onClose, employees = [], positi
                       </label>
                       {on && (
                         <>
-                          <Input type="time" value={r.start || ''} onChange={(e) => setField(d, s.key, 'start', e.target.value)} className="h-8 w-[104px] text-sm" />
+                          <TimePicker value={r.start || ''} onChange={(v) => setField(d, s.key, 'start', v)} />
                           <span className="text-gray-400">-</span>
-                          <Input type="time" value={r.end || ''} onChange={(e) => setField(d, s.key, 'end', e.target.value)} className="h-8 w-[104px] text-sm" />
+                          <TimePicker value={r.end || ''} onChange={(v) => setField(d, s.key, 'end', v)} />
                           <Select value={r.role || position || undefined} onValueChange={(v) => setField(d, s.key, 'role', v)}>
                             <SelectTrigger className="h-8 w-32 text-sm"><SelectValue placeholder="תפקיד" /></SelectTrigger>
                             <SelectContent>{positions.map((p) => <SelectItem key={p.id} value={p.position_name}>{p.position_name}</SelectItem>)}</SelectContent>

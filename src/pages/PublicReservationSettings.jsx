@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import TimePicker from '@/components/shared/TimePicker';
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -470,27 +471,23 @@ export default function PublicReservationSettings() {
                                             </div>
                                             {!settings.opening_hours[day].closed && (
                                                 <>
-                                                    <Input
-                                                        type="time"
+                                                    <TimePicker
                                                         value={settings.opening_hours[day].open}
-                                                        onChange={(e) => handleOpeningHourChange(day, 'open', e.target.value)}
-                                                        className="w-24"
+                                                        onChange={(v) => handleOpeningHourChange(day, 'open', v)}
                                                     />
                                                     <span>עד</span>
-                                                    <Input
-                                                        type="time"
+                                                    <TimePicker
                                                         value={settings.opening_hours[day].close}
-                                                        onChange={(e) => handleOpeningHourChange(day, 'close', e.target.value)}
-                                                        className="w-24"
+                                                        onChange={(v) => handleOpeningHourChange(day, 'close', v)}
                                                     />
                                                     {/* Blocked ranges within this open day — no reservations allowed */}
                                                     <div className="w-full mt-1 pr-16">
                                                         {(settings.opening_hours[day].blocks || []).map((b, i) => (
                                                             <div key={i} className="flex items-center gap-1 mb-1">
                                                                 <span className="text-[11px] text-rose-600 font-bold w-14">🚫 חסום</span>
-                                                                <Input type="time" value={b.start || '14:00'} onChange={(e) => updateBlock(day, i, 'start', e.target.value)} className="w-24 h-8" />
+                                                                <TimePicker value={b.start || '14:00'} onChange={(v) => updateBlock(day, i, 'start', v)} />
                                                                 <span className="text-xs">עד</span>
-                                                                <Input type="time" value={b.end || '17:00'} onChange={(e) => updateBlock(day, i, 'end', e.target.value)} className="w-24 h-8" />
+                                                                <TimePicker value={b.end || '17:00'} onChange={(v) => updateBlock(day, i, 'end', v)} />
                                                                 <button type="button" onClick={() => removeBlock(day, i)} className="text-rose-500 hover:text-rose-700 text-xs px-2">הסר</button>
                                                             </div>
                                                         ))}

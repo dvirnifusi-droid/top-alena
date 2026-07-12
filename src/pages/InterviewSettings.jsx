@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
+import TimePicker from '@/components/shared/TimePicker';
 
 // Owner-facing: weekly recurring interview slot definition.
 // Stored as InterviewSlotTemplate {weekday, time, duration_minutes, active}.
@@ -128,11 +129,9 @@ export default function InterviewSettings() {
                   >
                     {WEEKDAYS.map((w) => <option key={w.value} value={w.value}>יום {w.label}</option>)}
                   </select>
-                  <input
-                    type="time"
+                  <TimePicker
                     value={r.time}
-                    onChange={(e) => updateRow(i, { time: e.target.value })}
-                    className="border border-slate-300 rounded-lg px-2 py-1.5 text-sm bg-white"
+                    onChange={(v) => updateRow(i, { time: v })}
                   />
                   <select
                     value={r.duration_minutes}

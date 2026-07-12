@@ -3,6 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import TimePicker from '@/components/shared/TimePicker';
 import { Loader2, Save, Trash2 } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 
@@ -126,11 +127,11 @@ export default function ShiftEditInlineDialog({ open, onClose, shiftEntry, workS
                     <div className="grid grid-cols-2 gap-3">
                         <div>
                             <Label>שעת כניסה</Label>
-                            <Input type="time" value={form.start_time} onChange={e => setForm(p => ({ ...p, start_time: e.target.value }))} />
+                            <TimePicker value={form.start_time} onChange={v => setForm(p => ({ ...p, start_time: v }))} />
                         </div>
                         <div>
                             <Label>שעת יציאה</Label>
-                            <Input type="time" value={form.end_time} onChange={e => setForm(p => ({ ...p, end_time: e.target.value }))} />
+                            <TimePicker value={form.end_time} onChange={v => setForm(p => ({ ...p, end_time: v }))} />
                         </div>
                     </div>
                     <div>

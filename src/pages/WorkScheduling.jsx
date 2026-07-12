@@ -6,6 +6,7 @@ import { Loader2, Plus, Calendar as CalendarIcon, ChevronLeft, ChevronRight, Fil
 import EmployeeRatingDialog from '../components/scheduling/EmployeeRatingDialog';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import TimePicker from '@/components/shared/TimePicker';
 import { format, addDays, subDays, startOfWeek, endOfWeek, eachDayOfInterval, isToday } from 'date-fns';
 import { he } from 'date-fns/locale';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -479,8 +480,8 @@ function ScheduleSettingsDialog({ open, onClose, initialShifts, initialHidden, i
                             {shifts.map((s, i) => (
                                 <div key={i} className="flex items-center gap-2">
                                     <Input value={s.label} onChange={e => updateShift(i, 'label', e.target.value)} placeholder="שם המשמרת" className="flex-1" />
-                                    <Input type="time" value={s.start || ''} onChange={e => updateShift(i, 'start', e.target.value)} className="w-24" />
-                                    <Input type="time" value={s.end || ''} onChange={e => updateShift(i, 'end', e.target.value)} className="w-24" />
+                                    <TimePicker value={s.start || ''} onChange={v => updateShift(i, 'start', v)} />
+                                    <TimePicker value={s.end || ''} onChange={v => updateShift(i, 'end', v)} />
                                     <Button size="icon" variant="ghost" onClick={() => removeShift(i)} className="text-red-500"><Trash2 className="w-4 h-4" /></Button>
                                 </div>
                             ))}

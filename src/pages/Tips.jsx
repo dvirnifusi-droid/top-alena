@@ -8,6 +8,7 @@ import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/componen
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import TimePicker from '@/components/shared/TimePicker';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -632,8 +633,8 @@ function TipsInner() {
                                                         </SelectContent>
                                                     </Select>
                                                 </TableCell>
-                                                <TableCell><Input type="time" value={staff.start_time} onChange={e => handleStaffDetailChange(index, 'start_time', e.target.value)} /></TableCell>
-                                                <TableCell><Input type="time" value={staff.end_time} onChange={e => handleStaffDetailChange(index, 'end_time', e.target.value)} /></TableCell>
+                                                <TableCell><TimePicker value={staff.start_time} onChange={v => handleStaffDetailChange(index, 'start_time', v)} /></TableCell>
+                                                <TableCell><TimePicker value={staff.end_time} onChange={v => handleStaffDetailChange(index, 'end_time', v)} /></TableCell>
                                                 <TableCell>
                                                     <div className="space-y-1">
                                                         <Input type="number" value={staff.break_minutes} onChange={e => handleStaffDetailChange(index, 'break_minutes', e.target.value)} className="w-24"/>

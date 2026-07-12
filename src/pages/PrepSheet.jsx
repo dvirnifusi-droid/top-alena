@@ -13,6 +13,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import TimePicker from '@/components/shared/TimePicker';
 import { ChefHat, Plus, Trash2, Save, RotateCcw, Upload, Loader2, Check, Camera, Search, History, Pencil, X, Printer, Share2, StickyNote, Bell } from 'lucide-react';
 
 const fmtWhen = (iso) => {
@@ -273,7 +274,7 @@ export default function PrepSheet() {
                 שלח תזכורת יומית (וואטסאפ/פוש למנהלים) על הכנות שסומנו ולא בוצעו
               </label>
               <div className="flex items-center gap-1 text-sm text-gray-600">בשעה
-                <Input type="time" value={reminderTime} onChange={(e) => setReminderTime(e.target.value)} className="h-8 w-28" disabled={!reminderOn} />
+                <TimePicker value={reminderTime} onChange={(v) => setReminderTime(v)} />
               </div>
               <Button size="sm" onClick={saveReminder} disabled={savingReminder} className="bg-orange-600 hover:bg-orange-700 text-white">{savingReminder ? <Loader2 className="w-4 h-4 animate-spin" /> : 'שמור'}</Button>
               <span className="text-xs text-gray-400">התזכורת נשלחת פעם ביום, רק אם נשארו הכנות פתוחות.</span>
