@@ -32,6 +32,70 @@ import VoiceControl from '@/components/voice/VoiceControl';
 import { useTenantBranding } from '@/hooks/useTenantBranding';
 import { isMainAlena } from '@/lib/tenant';
 
+// Convert an "HH:mm" clock time to an absolute Date anchored to `ref` (default
+// now), rolling early-morning times (before 06:00) to the NEXT day when it's
+// currently evening. Without this, plain "HH:mm" string/`setHours` math treats a
+// 00:30 end time as ~23h in the PAST, which broke turn-reuse ("frees before")
+// checks and the AI/live-stat time math after midnight. Returns null on bad input.
+function clockToDate(hhmm, ref = new Date()) {
+    if (!hhmm || typeof hhmm !== 'string') return null;
+    const [h, m] = hhmm.split(':').map(Number);
+    if (Number.isNaN(h)) return null;
+    const d = new Date(ref);
+    d.setHours(h, Number.isNaN(m) ? 0 : m, 0, 0);
+    if (h < 6 && ref.getHours() >= 18) d.setDate(d.getDate() + 1);
+    return d;
+}
+// True when clock time `a` is at or before clock time `b`, both anchored tonight
+// (after-midnight aware). Used for "occupant frees before the next booking".
+function clockLdE(a, b, ref = new Date()) {
+    const da = clockToDate(a, ref);
+    const db = clockToDate(b, ref);
+    if (!da || !db) return false;
+    return da.getTime() <= db.getTime();
+}
+// Set of table numbers occupied RIGHT NOW — the union of active sessions AND
+// today's `seated` reservations. Several seating paths (queue walk-in, app booker,
+// manual "seated") create a seated reservation with NO TableSession, so counting
+// sessions alone under-reports occupancy and lets a second party be seated on a
+// table that's actually taken.
+// "HH:mm" → minutes since midnight, with early-morning (<06:00) rolled to the
+// following night so a 00:30 slot sorts AFTER 21:00 on the same restaurant night.
+// Date-independent, for comparing two same-date bookings.
+function clockToMinutes(hhmm) {
+    if (!hhmm || typeof hhmm !== 'string') return null;
+    const [h, m] = hhmm.split(':').map(Number);
+    if (Number.isNaN(h)) return null;
+    let mins = h * 60 + (Number.isNaN(m) ? 0 : m);
+    if (h < 6) mins += 24 * 60;
+    return mins;
+}
+// Do two "HH:mm" bookings on the same date overlap in time? Uses end times when
+// present, otherwise a `defaultMin`-minute seating. Null-safe (returns false).
+function bookingsOverlap(startA, endA, startB, endB, defaultMin = 120) {
+    const s1 = clockToMinutes(startA); const s2 = clockToMinutes(startB);
+    if (s1 == null || s2 == null) return false;
+    const e1 = clockToMinutes(endA) ?? s1 + defaultMin;
+    const e2 = clockToMinutes(endB) ?? s2 + defaultMin;
+    return s1 < e2 && s2 < e1;
+}
+function occupiedTableSet(activeSessions = [], reservations = [], ref = new Date()) {
+    const todayStr = `${ref.getFullYear()}-${String(ref.getMonth() + 1).padStart(2, '0')}-${String(ref.getDate()).padStart(2, '0')}`;
+    const set = new Set();
+    for (const s of (activeSessions || [])) {
+        if (s?.status && s.status !== 'active') continue;
+        String(s?.table_number || '').split(/[,+]/).forEach(p => { const t = p.trim(); if (t) set.add(t); });
+    }
+    for (const r of (reservations || [])) {
+        if (r?.status !== 'seated') continue;
+        const rDate = typeof r.date === 'string' ? r.date.slice(0, 10) : r.date;
+        if (rDate !== todayStr) continue;
+        const tabs = Array.isArray(r.assigned_table) ? r.assigned_table : (r.assigned_table ? [r.assigned_table] : []);
+        tabs.forEach(t => set.add(String(t)));
+    }
+    return set;
+}
+
 // Dialog לעריכת הזמנה - עם כל הפרטים
 // Deposit actions for a reservation — send request (J5 hold), manual no-show charge, release.
 function DepositSection({ reservation, onDone }) {
@@ -363,6 +427,14 @@ export default function SeatingSetup() {
     const [selectedStatus, setSelectedStatus] = useState('all');
     const [swapping, setSwapping] = useState(null);
     const [assigningTable, setAssigningTable] = useState(null);
+    // Non-blocking toast for map feedback (replaces flow-breaking alert() popups).
+    const [toast, setToast] = useState(null);
+    const toastTimer = useRef(null);
+    const showToast = (text) => {
+        setToast(text);
+        clearTimeout(toastTimer.current);
+        toastTimer.current = setTimeout(() => setToast(null), 3500);
+    };
     const [isSelectingTables, setIsSelectingTables] = useState(false);
     const [selectedTablesForReservation, setSelectedTablesForReservation] = useState([]);
     const [multiAssignReservationId, setMultiAssignReservationId] = useState(null);
@@ -1335,7 +1407,7 @@ export default function SeatingSetup() {
                     return { ok: true, message: `${pending.length} חבורות, ${totalGuests} אנשים` };
                 }
                 case 'q_free_tables': {
-                    const occupied = new Set(activeSessions.flatMap(s => String(s.table_number || '').split(/[,+]/).map(p => p.trim())));
+                    const occupied = occupiedTableSet(activeSessions, reservations);
                     const free = (tables || []).filter(t => !occupied.has(String(t.table_number))).length;
                     return { ok: true, message: `${free} שולחנות פנויים` };
                 }
@@ -1995,12 +2067,22 @@ export default function SeatingSetup() {
     const handleMoveToTable = async (fromTable, toTable) => {
         const session = getTableSession(fromTable);
         if (!session) return;
-        
+
         try {
-            await TableSession.update(session.id, { 
+            await TableSession.update(session.id, {
                 table_number: toTable,
-                notes: (session.notes ? session.notes + ' | ' : '') + `הועבר משולחן ${fromTable} בשעה ${new Date().toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit'})}`
+                notes: (session.notes ? session.notes + ' | ' : '') + `הועבר משולחן ${fromTable} בשעה ${new Date().toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit', hour12: false })}`
             });
+            // Keep a seated reservation's table assignment in sync, else the guest
+            // still lights up the OLD table (shown on two tables at once).
+            const movedRes = reservations.find(r =>
+                Array.isArray(r.assigned_table) && r.assigned_table.map(String).includes(String(fromTable)) &&
+                r.date === format(new Date(), 'yyyy-MM-dd') && r.status === 'seated'
+            );
+            if (movedRes) {
+                const next = [...new Set(movedRes.assigned_table.map(String).map(t => t === String(fromTable) ? String(toTable) : t))];
+                await Reservation.update(movedRes.id, { assigned_table: next });
+            }
             setTableDetailsOpen(false);
             loadLiveData();
         } catch (error) {
@@ -2043,12 +2125,17 @@ export default function SeatingSetup() {
         
         const handleMoveToSpecificTable = async (targetTable) => {
             if (!session) return;
-            
+
             try {
-                await TableSession.update(session.id, { 
+                await TableSession.update(session.id, {
                     table_number: targetTable,
-                    notes: (session.notes ? session.notes + ' | ' : '') + `הועבר משולחן ${table.table_number} בשעה ${new Date().toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit'})}`
+                    notes: (session.notes ? session.notes + ' | ' : '') + `הועבר משולחן ${table.table_number} בשעה ${new Date().toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit', hour12: false })}`
                 });
+                // Move a seated reservation's assignment too, so it doesn't stay on the old table.
+                if (seatedRes && Array.isArray(seatedRes.assigned_table)) {
+                    const next = [...new Set(seatedRes.assigned_table.map(String).map(t => t === String(table.table_number) ? String(targetTable) : t))];
+                    await Reservation.update(seatedRes.id, { assigned_table: next });
+                }
                 setTableDetailsOpen(false);
                 loadLiveData();
             } catch (error) {
@@ -2370,7 +2457,7 @@ export default function SeatingSetup() {
         setIsSelectingTables(false);
         setSelectedTablesForReservation([]);
         setMultiAssignReservationId(null);
-        alert(`בחר שולחן להחלפה עם שולחן ${tableNumber}`);
+        // The yellow "מצב החלפה" banner already states this — no blocking alert.
     };
 
     const handleSwapTables = async (fromTable, toTable) => {
@@ -2390,9 +2477,9 @@ export default function SeatingSetup() {
             if (sessionTo) {
                 updates.push(TableSession.update(sessionTo.id, { table_number: fromTable }));
             }
-            const reservationsToUpdate = reservations.filter(r => 
-                (Array.isArray(r.assigned_table) && (r.assigned_table.includes(fromTable) || r.assigned_table.includes(toTable))) && 
-                (r.status === 'confirmed' || r.status === 'pending')
+            const reservationsToUpdate = reservations.filter(r =>
+                (Array.isArray(r.assigned_table) && (r.assigned_table.includes(fromTable) || r.assigned_table.includes(toTable))) &&
+                (r.status === 'confirmed' || r.status === 'pending' || r.status === 'seated')
             );
             for (const res of reservationsToUpdate) {
                 let newAssignedTable = res.assigned_table ? [...res.assigned_table] : [];
@@ -2416,10 +2503,10 @@ export default function SeatingSetup() {
             }
 
             await Promise.all(updates);
-            alert(`שולחנות ${fromTable} ו-${toTable} הוחלפו בהצלחה!`);
+            showToast(`✅ שולחנות ${fromTable} ו-${toTable} הוחלפו`);
         } catch (error) {
             console.error("Error swapping tables:", error);
-            alert("שגיאה בהחלפת שולחנות.");
+            showToast("שגיאה בהחלפת שולחנות");
         } finally {
             setSwapping(null);
             loadLayout();
@@ -2493,10 +2580,10 @@ export default function SeatingSetup() {
                 // Allow if the reservation we're moving starts AFTER the current
                 // occupant's end time (the table frees up in time — turn re-use).
                 const occEnd = seatedReservation?.reservation_end_time || null;
-                const freesBefore = movingRes?.time && occEnd && occEnd <= movingRes.time;
+                const freesBefore = movingRes?.time && occEnd && clockLdE(occEnd, movingRes.time);
                 if (!freesBefore) {
                     const occupantName = activeSession ? (activeSession.customer_name || 'לקוח') : (seatedReservation?.customer_name || 'לקוח');
-                    alert(`🚫 שולחן ${tableNumber} תפוס על ידי ${occupantName}${occEnd ? ` עד ${occEnd}` : ''} — לא מתפנה עד שעת ההזמנה.`);
+                    showToast(`🚫 שולחן ${tableNumber} תפוס — ${occupantName}${occEnd ? ` עד ${occEnd}` : ''}`);
                     return;
                 }
             }
@@ -2511,7 +2598,7 @@ export default function SeatingSetup() {
         } else if (assigningTable) {
             const resToAssign = reservations.find(r => r.id === assigningTable.reservationId);
             if (!resToAssign) {
-                alert('ההזמנה לא נמצאה.');
+                showToast('ההזמנה לא נמצאה.');
                 setAssigningTable(null);
                 return;
             }
@@ -2532,10 +2619,10 @@ export default function SeatingSetup() {
                 // Allow if the reservation we're assigning starts AFTER the current
                 // occupant's end time (the table frees up in time — turn re-use).
                 const occEnd = seatedReservation?.reservation_end_time || null;
-                const freesBefore = resToAssign?.time && occEnd && occEnd <= resToAssign.time;
+                const freesBefore = resToAssign?.time && occEnd && clockLdE(occEnd, resToAssign.time);
                 if (!freesBefore) {
                     const occupantName = activeSession ? (activeSession.customer_name || 'לקוח') : (seatedReservation?.customer_name || 'לקוח');
-                    alert(`🚫 שולחן ${table.table_number} תפוס על ידי ${occupantName}${occEnd ? ` עד ${occEnd}` : ''} — לא מתפנה עד שעת ההזמנה.`);
+                    showToast(`🚫 שולחן ${table.table_number} תפוס — ${occupantName}${occEnd ? ` עד ${occEnd}` : ''}`);
                     setAssigningTable(null);
                     return;
                 }
@@ -2545,7 +2632,9 @@ export default function SeatingSetup() {
                 r.id !== resToAssign.id &&
                 Array.isArray(r.assigned_table) && r.assigned_table.includes(table.table_number) &&
                 r.date === resToAssign.date &&
-                r.time === resToAssign.time &&
+                // Any TIME-OVERLAP, not just an identical start time — a 20:30
+                // booking conflicts with a 20:00 party that sits ~2h.
+                bookingsOverlap(resToAssign.time, resToAssign.reservation_end_time, r.time, r.reservation_end_time) &&
                 (r.status === 'confirmed' || r.status === 'seated' || r.status === 'pending')
             );
 
@@ -2620,14 +2709,14 @@ export default function SeatingSetup() {
     // the next 60 / 240 minutes. The hostess sees this AT A GLANCE.
     const liveStats = (() => {
         const now = new Date();
-        const occupiedTables = activeSessions.length;
+        const occupiedTables = occupiedTableSet(activeSessions, reservations).size;
         const guestsInside = activeSessions.reduce((s, sess) => s + (sess.party_size || 0), 0);
         let arriving1h = 0, arriving4h = 0, guestsArriving1h = 0;
         for (const r of (reservations || [])) {
             if (!r.time) continue;
             if (r.status === 'cancelled' || r.status === 'no_show' || r.status === 'seated') continue;
-            const [h, m] = String(r.time).split(':').map(Number);
-            const resAt = new Date(now); resAt.setHours(h, m || 0, 0, 0);
+            const resAt = clockToDate(String(r.time), now); // after-midnight aware
+            if (!resAt) continue;
             const diffMin = (resAt.getTime() - now.getTime()) / 60000;
             if (diffMin >= -10 && diffMin <= 60) { arriving1h++; guestsArriving1h += (r.party_size || 0); }
             else if (diffMin > 60 && diffMin <= 240) { arriving4h++; }
@@ -2685,6 +2774,11 @@ export default function SeatingSetup() {
             )}
 
 
+            {toast && (
+                <div className="fixed top-14 left-1/2 -translate-x-1/2 z-[60] bg-slate-900 text-white px-4 py-2.5 rounded-xl shadow-xl text-sm font-bold max-w-[90vw] text-center animate-in fade-in slide-in-from-top-2">
+                    {toast}
+                </div>
+            )}
             {isSelectingTables && (
                 <div className="fixed top-0 left-0 right-0 bg-purple-400 text-white p-2 text-center z-50 font-bold flex items-center justify-center gap-4">
                     מצב שיוך שולחנות מרובים: בחר שולחנות עבור הזמנה {multiAssignReservationId?.slice(-4)}.
@@ -2708,11 +2802,6 @@ export default function SeatingSetup() {
             {swapping && (
                 <div className="fixed top-0 left-0 right-0 bg-yellow-400 text-black p-2 text-center z-50 font-bold">
                     מצב החלפה: בחר שולחן להחלפה עם שולחן {swapping.from}. <Button variant="ghost" size="sm" onClick={() => setSwapping(null)}>בטל</Button>
-                </div>
-            )}
-            {assigningTable && (
-                 <div className="fixed top-0 left-0 right-0 bg-blue-400 text-white p-2 text-center z-50 font-bold">
-                    מצב שיוך: בחר שולחן מהמפה לשייך להזמנה. <Button variant="ghost" size="sm" onClick={() => setAssigningTable(null)}>בטל</Button>
                 </div>
             )}
             <Card className={bigMapMode ? 'border-0 shadow-none bg-transparent' : ''}>
@@ -3561,7 +3650,7 @@ export default function SeatingSetup() {
                                         // being moved starts AFTER the current occupant's end time (turn re-use).
                                         const movingResId = isSelectingTables ? multiAssignReservationId : (assigningTable ? assigningTable.reservationId : null);
                                         const movingRes = movingResId ? reservations.find(r => r.id === movingResId) : null;
-                                        const freesBeforeMove = !!(movingRes?.time && computedEndTime && computedEndTime <= movingRes.time);
+                                        const freesBeforeMove = !!(movingRes?.time && computedEndTime && clockLdE(computedEndTime, movingRes.time));
                                         // The reservation's OWN current table must always stay clickable so you can
                                         // DESELECT it (to move off it) — it's "occupied" by the guest you're moving.
                                         const isOwnMovingTable = !!(movingRes && Array.isArray(movingRes.assigned_table) && movingRes.assigned_table.map(String).includes(String(table.table_number)));
@@ -3602,7 +3691,7 @@ export default function SeatingSetup() {
                                                 )}
 
                                                 {!isBlockedForInteraction && (
-                                                    <div className="absolute -top-8 left-0 right-0 flex justify-center opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                                                    <div className="absolute -top-8 left-0 right-0 flex justify-center opacity-0 group-hover:opacity-100 [@media(hover:none)]:opacity-100 transition-opacity z-10">
                                                         <div className="bg-white border shadow-lg rounded-lg p-1 flex gap-1">
                                                             <button
                                                                 onClick={(e) => {
@@ -4901,8 +4990,8 @@ function AiAssistantPanel({ tables, reservations, activeSessions, queueEntries, 
     // 1. Tables finishing in next 30 min + queue waiting
     const occupiedFinishingSoon = (reservations || []).filter(r => {
         if (r.status !== 'seated' || !r.reservation_end_time) return false;
-        const [eh, em] = r.reservation_end_time.split(':').map(Number);
-        const end = new Date(); end.setHours(eh, em || 0, 0, 0);
+        const end = clockToDate(r.reservation_end_time, now); // after-midnight aware
+        if (!end) return false;
         const minsLeft = (end.getTime() - now.getTime()) / 60000;
         return minsLeft >= 0 && minsLeft <= 30;
     });
@@ -4923,8 +5012,8 @@ function AiAssistantPanel({ tables, reservations, activeSessions, queueEntries, 
     const upcomingLarge = (reservations || []).filter(r => {
         if (!r.time || r.status !== 'confirmed') return false;
         if (r.party_size < 6) return false;
-        const [h, m] = r.time.split(':').map(Number);
-        const start = new Date(); start.setHours(h, m || 0, 0, 0);
+        const start = clockToDate(r.time, now); // after-midnight aware
+        if (!start) return false;
         const mins = (start.getTime() - now.getTime()) / 60000;
         return mins >= 0 && mins <= 120;
     });
@@ -4962,8 +5051,8 @@ function AiAssistantPanel({ tables, reservations, activeSessions, queueEntries, 
     const todayStr = format(now, 'yyyy-MM-dd');
     (reservations || []).forEach(r => {
         if (r.status !== 'seated' || !r.reservation_end_time || !r.assigned_table) return;
-        const [eh, em] = r.reservation_end_time.split(':').map(Number);
-        const end = new Date(); end.setHours(eh, em || 0, 0, 0);
+        const end = clockToDate(r.reservation_end_time, now); // after-midnight aware
+        if (!end) return;
         const minsLate = (now.getTime() - end.getTime()) / 60000;
         if (minsLate < -5) return; // not late yet
         const assigned = Array.isArray(r.assigned_table) ? r.assigned_table : [r.assigned_table];
@@ -4976,8 +5065,7 @@ function AiAssistantPanel({ tables, reservations, activeSessions, queueEntries, 
             r2.time
         );
         if (blocker) {
-            const [bh, bm] = blocker.time.split(':').map(Number);
-            const blkStart = new Date(); blkStart.setHours(bh, bm || 0, 0, 0);
+            const blkStart = clockToDate(blocker.time, now) || now; // after-midnight aware
             const minsTilBlocker = (blkStart.getTime() - now.getTime()) / 60000;
             recs.push({
                 icon: '🚨',
@@ -5306,9 +5394,7 @@ function QuickSeatDialog({ open, onClose, tables, reservations, activeSessions, 
     // Build availability map
     const now = new Date();
     // Multi-table sessions stored as 'A,B' or 'A+B' — expand into individual table numbers
-    const occupied = new Set(activeSessions.flatMap(s =>
-        String(s.table_number || '').split(/[,+]/).map(p => p.trim()).filter(Boolean)
-    ));
+    const occupied = occupiedTableSet(activeSessions, reservations, now);
     const todayStr = format(now, 'yyyy-MM-dd');
     const todayReservations = (reservations || []).filter(r => {
         const d = r.date instanceof Date ? format(r.date, 'yyyy-MM-dd') : String(r.date).slice(0,10);
