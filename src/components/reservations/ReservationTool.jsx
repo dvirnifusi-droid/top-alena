@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -47,12 +47,70 @@ function nextQuarterHour() {
     return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 }
 
-export default function ReservationTool({ onReservationCreated }) {
+export default function ReservationTool({ onReservationCreated, customers }) {
     const [date, setDate] = useState(new Date());
     const [time, setTime] = useState(() => nextQuarterHour());
     const [partySize, setPartySize] = useState(2);
     const [customerName, setCustomerName] = useState('');
     const [customerPhone, setCustomerPhone] = useState('');
+
+    // Customer autocomplete — suggest past / club customers as the hostess types
+    // a name or phone, so a returning guest is one tap to fill. Uses the list
+    // passed from the parent (already loaded on the seating page); falls back to
+    // fetching once if used standalone.
+    const [fetchedCustomers, setFetchedCustomers] = useState([]);
+    const custList = (customers && customers.length) ? customers : fetchedCustomers;
+    useEffect(() => {
+        if (customers && customers.length) return;
+        let alive = true;
+        Customer.list(undefined, 2000).then(list => { if (alive) setFetchedCustomers(list || []); }).catch(() => {});
+        return () => { alive = false; };
+    }, [customers]);
+    const [activeField, setActiveField] = useState(null); // 'name' | 'phone' | null
+    const digitsOnly = (s) => String(s || '').replace(/\D/g, '');
+    const custMatches = useMemo(() => {
+        if (activeField === 'name') {
+            const q = customerName.toLowerCase().trim();
+            if (q.length < 2) return [];
+            return custList.filter(c => (c.name || '').toLowerCase().includes(q)).slice(0, 6);
+        }
+        if (activeField === 'phone') {
+            const q = digitsOnly(customerPhone);
+            if (q.length < 3) return [];
+            return custList.filter(c => digitsOnly(c.phone).includes(q)).slice(0, 6);
+        }
+        return [];
+    }, [activeField, customerName, customerPhone, custList]);
+    const pickCustomer = (c) => {
+        setCustomerName(c.name || '');
+        setCustomerPhone(c.phone || '');
+        setActiveField(null);
+        setSuggestion(null); // customer changed → require a fresh table search
+    };
+    const CustomerSuggestions = () => (
+        custMatches.length > 0 ? (
+            <div className="absolute z-30 top-full mt-1 left-0 right-0 bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden">
+                {custMatches.map(c => (
+                    <button
+                        key={c.id}
+                        type="button"
+                        onMouseDown={(e) => { e.preventDefault(); pickCustomer(c); }}
+                        className="w-full text-right px-3 py-2 hover:bg-[#F4ECD8] flex items-center justify-between gap-2 border-b last:border-b-0 border-gray-100"
+                    >
+                        <span className="font-bold text-sm text-gray-800 truncate">{c.name || 'ללא שם'}</span>
+                        <span className="flex items-center gap-2 shrink-0">
+                            {(c.total_visits > 1 || c.visit_count > 1) && (
+                                <span className="text-[10px] font-bold text-[#A04A2E] bg-[#F4ECD8] rounded-full px-1.5">
+                                    {Math.round(c.total_visits || c.visit_count)} ביקורים
+                                </span>
+                            )}
+                            <span className="text-xs text-gray-500 tabular-nums" dir="ltr">{c.phone}</span>
+                        </span>
+                    </button>
+                ))}
+            </div>
+        ) : null
+    );
     
     const [isLoading, setIsLoading] = useState(false);
     const [suggestion, setSuggestion] = useState(null);
@@ -205,21 +263,30 @@ export default function ReservationTool({ onReservationCreated }) {
             <CardContent>
                 <div className="space-y-4">
                     <div className="grid grid-cols-2 gap-4">
-                        <div>
+                        <div className="relative">
                             <Label>שם הלקוח</Label>
-                            <Input 
+                            <Input
                                 value={customerName}
-                                onChange={(e) => setCustomerName(e.target.value)}
+                                onChange={(e) => { setCustomerName(e.target.value); setSuggestion(null); }}
+                                onFocus={() => setActiveField('name')}
+                                onBlur={() => setTimeout(() => setActiveField(f => f === 'name' ? null : f), 120)}
                                 placeholder="שם מלא"
+                                autoComplete="off"
                             />
+                            {activeField === 'name' && <CustomerSuggestions />}
                         </div>
-                        <div>
+                        <div className="relative">
                             <Label>טלפון</Label>
-                            <Input 
+                            <Input
                                 value={customerPhone}
-                                onChange={(e) => setCustomerPhone(e.target.value)}
+                                onChange={(e) => { setCustomerPhone(e.target.value); setSuggestion(null); }}
+                                onFocus={() => setActiveField('phone')}
+                                onBlur={() => setTimeout(() => setActiveField(f => f === 'phone' ? null : f), 120)}
                                 placeholder="מספר טלפון"
+                                autoComplete="off"
+                                inputMode="tel"
                             />
+                            {activeField === 'phone' && <CustomerSuggestions />}
                         </div>
                     </div>
 
@@ -234,7 +301,7 @@ export default function ReservationTool({ onReservationCreated }) {
                                 min="1"
                                 max="20"
                                 value={partySize}
-                                onChange={(e) => setPartySize(parseInt(e.target.value))}
+                                onChange={(e) => { setPartySize(parseInt(e.target.value)); setSuggestion(null); }}
                             />
                         </div>
                         <div>
@@ -252,7 +319,7 @@ export default function ReservationTool({ onReservationCreated }) {
                                     <CalendarComponent
                                         mode="single"
                                         selected={date}
-                                        onSelect={(d) => d && setDate(d)}
+                                        onSelect={(d) => { if (d) { setDate(d); setSuggestion(null); } }}
                                         disabled={(d) => {
                                             const today = new Date(); today.setHours(0, 0, 0, 0);
                                             const max = new Date(today); max.setDate(max.getDate() + 180); // 6 months ahead
@@ -269,7 +336,7 @@ export default function ReservationTool({ onReservationCreated }) {
                             </Label>
                             <TimePicker
                                 value={time}
-                                onChange={setTime}
+                                onChange={(v) => { setTime(v); setSuggestion(null); }}
                             />
                         </div>
                     </div>

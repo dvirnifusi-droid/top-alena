@@ -2995,7 +2995,7 @@ export default function SeatingSetup() {
                                         : 'hidden lg:block'
                                 }`}>
                                     <ReservationsDashboard />
-                                    <ReservationTool onReservationCreated={loadLayout} />
+                                    <ReservationTool customers={customers} onReservationCreated={loadLayout} />
                                 </div>
                                 )}
 
@@ -3143,7 +3143,7 @@ export default function SeatingSetup() {
                                     {/* Collapsible Smart Booker */}
                                     {smartBookerOpen && (
                                         <div className="bg-[#F4ECD8] border border-[#E8D9B5] rounded-lg p-2">
-                                            <ReservationTool onReservationCreated={() => { loadLiveData(); setSmartBookerOpen(false); }} />
+                                            <ReservationTool customers={customers} onReservationCreated={() => { loadLiveData(); setSmartBookerOpen(false); }} />
                                         </div>
                                     )}
 
@@ -3862,7 +3862,7 @@ export default function SeatingSetup() {
                         <DialogHeader>
                             <DialogTitle>הזמנה חדשה</DialogTitle>
                         </DialogHeader>
-                        <ReservationTool onReservationCreated={() => { loadLiveData(); setSmartReserveOpen(false); }} />
+                        <ReservationTool customers={customers} onReservationCreated={() => { loadLiveData(); setSmartReserveOpen(false); }} />
                     </DialogContent>
                 </Dialog>
             )}
@@ -3928,7 +3928,7 @@ export default function SeatingSetup() {
                         </div>
                         <div className="space-y-4">
                             <ReservationsDashboard />
-                            <ReservationTool onReservationCreated={loadLayout} />
+                            <ReservationTool customers={customers} onReservationCreated={loadLayout} />
                         </div>
                     </div>
                 </div>
