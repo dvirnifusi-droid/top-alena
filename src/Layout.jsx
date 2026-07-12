@@ -112,6 +112,8 @@ const employeeLinks = [
   { title: "השולחנות שלי", url: createPageUrl("WaiterTables"), icon: Utensils, isSubItem: true, color: "cinnamon" },
   { title: "ניהול הושבה", url: createPageUrl("SeatingSetup"), icon: Map, isSubItem: true, color: "cinnamon" },
   { title: "תדריכים", url: createPageUrl("BriefingManagement"), icon: Megaphone, isSubItem: true, color: "cinnamon" },
+  { title: "📖 מדריך מנות", url: createPageUrl("DishGuide"), icon: Utensils, isSubItem: true, color: "cinnamon" },
+  { title: "👨‍🍳 דף הכנות", url: createPageUrl("PrepSheet"), icon: ChefHat, isSubItem: true, color: "cinnamon" },
   { title: "צ'קליסטים", url: createPageUrl("Checklists"), icon: CheckSquare, isSubItem: true, color: "cinnamon" },
   { title: "ניקיון שירותים 🚽", url: createPageUrl("RestroomCleaning"), icon: ClipboardCheck, isSubItem: true, color: "cinnamon" },
   { title: "דיווח תקרית", url: createPageUrl("Incidents"), icon: AlertTriangle, isSubItem: true, color: "cinnamon" },
