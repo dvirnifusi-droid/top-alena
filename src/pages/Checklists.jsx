@@ -18,6 +18,7 @@ import ChecklistExecutionComponent from "../components/checklists/ChecklistExecu
 import ChecklistEditDialog from "../components/checklists/ChecklistEditDialog";
 import ChecklistArchive from "../components/checklists/ChecklistArchive";
 import TaskAssignmentDialog from "../components/checklists/TaskAssignmentDialog"; // Import the new dialog
+import ChecklistLiveRun from "../components/checklists/ChecklistLiveRun";
 import { Employee } from '@/entities/all'; // Import Employee entity
 
 function ChecklistsInner() {
@@ -37,6 +38,7 @@ function ChecklistsInner() {
     const [aiChecklists, setAiChecklists] = useState(null);
     const [importingCl, setImportingCl] = useState(false);
     const [showTextImport, setShowTextImport] = useState(false);
+    const [liveRunChecklist, setLiveRunChecklist] = useState(null);
     const [importTitle, setImportTitle] = useState('Order List');
     const [importItemsText, setImportItemsText] = useState('');
 
@@ -394,6 +396,7 @@ function ChecklistsInner() {
                                         onEdit={handleEditChecklist}
                                         onDelete={handleDeleteChecklist}
                                         onAssignTasks={() => setAssigningTasksFor(checklist)}
+                                        onLiveRun={setLiveRunChecklist}
                                     />
                                 </div>
                             ))}
@@ -644,6 +647,13 @@ function ChecklistsInner() {
                 onClose={() => setAssigningTasksFor(null)}
                 onSave={handleSaveAssignments}
             />
+            {liveRunChecklist && (
+                <ChecklistLiveRun
+                    checklist={liveRunChecklist}
+                    user={user}
+                    onClose={() => setLiveRunChecklist(null)}
+                />
+            )}
         </div>
     );
 }

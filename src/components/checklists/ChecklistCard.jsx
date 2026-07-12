@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Play, Edit, Trash2, MoreHorizontal, CheckSquare, User, Users, Download } from "lucide-react";
+import { Play, Edit, Trash2, MoreHorizontal, CheckSquare, User, Users, Download, ClipboardList } from "lucide-react";
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -28,7 +28,7 @@ const SHIFT_LABELS = {
     all:      { label: 'כל המשמרות',  emoji: '🔁' },
 };
 
-export default function ChecklistCard({ checklist, onStart, executions, onEdit, onDelete, onAssignTasks }) {
+export default function ChecklistCard({ checklist, onStart, executions, onEdit, onDelete, onAssignTasks, onLiveRun }) {
     const [isDeleting, setIsDeleting] = useState(false);
 
     const exportToPdf = () => {
@@ -152,6 +152,12 @@ export default function ChecklistCard({ checklist, onStart, executions, onEdit, 
                             <Users className="w-4 h-4 mr-2" />
                             שייך משימות
                         </DropdownMenuItem>
+                        {onLiveRun && (
+                            <DropdownMenuItem onClick={() => onLiveRun(checklist)} className="rounded-xl">
+                                <ClipboardList className="w-4 h-4 mr-2" />
+                                תצוגת הכנות (לייב)
+                            </DropdownMenuItem>
+                        )}
                         <DropdownMenuItem onClick={exportToPdf} className="rounded-xl">
                             <Download className="w-4 h-4 mr-2" />
                             ייצוא PDF להדפסה

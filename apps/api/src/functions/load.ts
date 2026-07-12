@@ -5730,6 +5730,48 @@ registerFn('updatePrepItem', async ({ user, body }: any) => {
 // Start a fresh prep day: snapshot the current state into PrepArchive (so past
 // days — who prepped what, when, with which photo — are kept), then clear the
 // daily fields. Scoped to one list when list_id is given, else the whole sheet.
+// ── Live checklist run (prep-sheet-style shared marking) ───────────────────
+// A single shared ChecklistExecution per (checklist, Israel-day) that everyone
+// marks together, so cooks + the kitchen manager see the same live picture —
+// exactly like the prep sheet. Deterministic id → open is idempotent (no
+// duplicate runs when two people open at once).
+registerFn('openChecklistLiveRun', async ({ user, body }: any) => {
+  if (!user?.id) throw new Error('unauthorized');
+  const checklistId = String((body || {}).checklist_id || '');
+  if (!checklistId) throw new Error('missing_checklist');
+  const ilDate = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jerusalem' }).format(new Date());
+  const id = `live_${checklistId}_${ilDate}`;
+  const byName = user.full_name || user.fullName || user.email || '';
+  await db.$executeRawUnsafe(
+    `INSERT INTO "ChecklistExecution" ("id","checklist_id","executed_by","executed_by_name","execution_date","status","results","createdAt","updatedAt")
+     VALUES ($1,$2,$3,$4,NOW(),'in_progress','{}'::jsonb,NOW(),NOW())
+     ON CONFLICT ("id") DO NOTHING`,
+    id, checklistId, user.id, byName,
+  );
+  const rows: any[] = await db.$queryRawUnsafe(`SELECT id, results, status FROM "ChecklistExecution" WHERE id=$1 LIMIT 1`, id);
+  return { execution: rows[0] || null };
+});
+
+// Toggle ONE item atomically (jsonb_set on the shared run) so simultaneous marks
+// by different cooks never clobber each other's items.
+registerFn('toggleChecklistLiveItem', async ({ user, body }: any) => {
+  if (!user?.id) throw new Error('unauthorized');
+  const b = (body || {}) as any;
+  const execId = String(b.execution_id || '');
+  const itemKey = String(b.item_key || '');
+  if (!execId || !itemKey) throw new Error('missing_params');
+  const byName = user.full_name || user.fullName || user.email || 'עובד';
+  const val = b.checked
+    ? { checked: true, checked_by: byName, checked_at: new Date().toISOString(), ...(b.photo_url ? { photo_url: b.photo_url } : {}) }
+    : { checked: false };
+  await db.$executeRawUnsafe(
+    `UPDATE "ChecklistExecution" SET results = jsonb_set(COALESCE(results,'{}'::jsonb), ARRAY[$2]::text[], $3::jsonb, true), "updatedAt"=NOW() WHERE id=$1`,
+    execId, itemKey, JSON.stringify(val),
+  );
+  const rows: any[] = await db.$queryRawUnsafe(`SELECT results FROM "ChecklistExecution" WHERE id=$1 LIMIT 1`, execId);
+  return { ok: true, results: rows[0]?.results || {} };
+});
+
 registerFn('resetPrepCounts', async ({ user, body }: any) => {
   if (!user?.id) throw new Error('unauthorized');
   await ensurePrepItems();
