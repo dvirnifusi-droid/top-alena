@@ -1900,6 +1900,7 @@ model Reservation {
   deposit_provider_ref         String?  // transaction id at the provider
   deposit_status               String?  // 'pending' | 'authorized' | 'captured' | 'released' | 'failed'
   deposit_sent_at              DateTime? // when the deposit request/link was created — drives the 5-min timer
+  reminder_sent_at             DateTime? // day-of reminder sent (idempotency for the reservation-reminder cron)
   deposit_authorized_at        DateTime?
   deposit_released_at          DateTime?
   // Standby waitlist — guest opted in when their preferred slot was full.

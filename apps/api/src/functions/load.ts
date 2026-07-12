@@ -6716,6 +6716,87 @@ async function notifyReservationConfirmed(r: any): Promise<void> {
   } catch (e: any) { console.warn('[notifyReservationConfirmed]', e?.message); }
 }
 
+// ---------------------------------------------------------------------------
+// Day-of reservation reminder. Cron pings /api/cron/reservation-reminder every
+// ~15 min; this sends a single reminder (SMS + WhatsApp + email) to each of
+// TODAY's confirmed guests whose seating is 90 min – 6 h away and who hasn't
+// been reminded yet. Idempotent via Reservation.reminder_sent_at. Includes the
+// tracking link so the guest can confirm or cancel — cuts no-shows.
+export async function sendReservationReminders() {
+  // Current wall-clock in Israel (DST-safe).
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Jerusalem', year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', hour12: false,
+  }).formatToParts(new Date());
+  const get = (t: string) => parts.find((p) => p.type === t)?.value || '';
+  const ilDateStr = `${get('year')}-${get('month')}-${get('day')}`;
+  const nowMin = parseInt(get('hour'), 10) * 60 + parseInt(get('minute'), 10);
+  const WINDOW_MIN = 90;   // don't remind someone who just booked for soon
+  const WINDOW_MAX = 360;  // remind up to 6h ahead
+
+  const dayStart = new Date(ilDateStr + 'T00:00:00.000Z');
+  const dayEnd = new Date(ilDateStr + 'T23:59:59.999Z');
+  let candidates: any[] = [];
+  try {
+    candidates = await (db as any).reservation.findMany({
+      where: {
+        date: { gte: dayStart, lte: dayEnd },
+        status: 'confirmed',
+        reminder_sent_at: null,
+        customer_phone: { not: null },
+      },
+      take: 200,
+    });
+  } catch (e: any) {
+    // If the column isn't there yet (pre-migration), fail soft.
+    console.warn('[reservation-reminder] query failed', e?.message);
+    return { ok: false, reason: 'query_failed', attempted: 0, reminded: 0 };
+  }
+
+  const brand = await getBrandName().catch(() => 'המסעדה');
+  const base = process.env.PUBLIC_BASE_URL || 'https://topalena.com';
+  let reminded = 0;
+  const due = candidates.filter((r) => {
+    const [hh, mm] = String(r.time || '').split(':').map((s: string) => parseInt(s, 10));
+    if (!Number.isFinite(hh)) return false;
+    const startMin = hh * 60 + (mm || 0);
+    const minsAway = startMin - nowMin;
+    return minsAway >= WINDOW_MIN && minsAway <= WINDOW_MAX;
+  });
+
+  for (const r of due) {
+    try {
+      const trackUrl = r.tracking_token ? `${base}/ReservationView?token=${r.tracking_token}` : base;
+      const dateStr = (r.date instanceof Date ? r.date.toISOString() : String(r.date)).slice(0, 10).split('-').reverse().join('/');
+      const phone = String(r.customer_phone || '').trim();
+      const body = [
+        `שלום ${r.customer_name || ''} 👋`, ``,
+        `תזכורת: ההזמנה שלך ב${brand} היום`,
+        `📅 ${dateStr} בשעה ${r.time}`,
+        `👥 ${r.party_size} סועדים`,
+        ``, `מחכים לך! לצפייה / ביטול: ${trackUrl}`,
+      ].join('\n');
+      sendSms(phone, body).catch((e: any) => console.warn('[reminder sms]', e?.message));
+      const waTemplateSid = process.env.TWILIO_WA_TEMPLATE_SID || 'HX42bd4ae96abaa7312aeeae1af997c3da';
+      sendWhatsAppTemplate(phone, waTemplateSid, {
+        '1': r.customer_name || '', '2': dateStr, '3': r.time || '', '4': String(r.party_size || ''), '5': trackUrl, '6': 'לצפייה או ביטול בקישור',
+      }).catch(() => { sendWhatsApp(phone, body).catch(() => {}); });
+      if (r.customer_email) {
+        sendEmail({
+          to: r.customer_email,
+          subject: `תזכורת: ההזמנה שלך היום בשעה ${r.time} - ${brand}`,
+          html: `<div dir="rtl" style="font-family:Arial,Helvetica,sans-serif;max-width:560px;margin:auto;padding:24px;background:#fafafa;border-radius:12px;color:#1f1b17"><p style="font-size:18px;margin:0 0 4px">שלום ${r.customer_name || ''} 👋</p><p style="margin:0 0 16px;color:#a04a2e;font-size:20px;font-weight:bold">תזכורת: ההזמנה שלך ב${brand} היום</p><div style="background:#fff;border:1px solid #e5d9c4;border-radius:10px;padding:16px"><p style="margin:4px 0">📅 <b>${dateStr}</b> בשעה <b>${r.time}</b></p><p style="margin:4px 0">👥 <b>${r.party_size} סועדים</b></p></div><p style="margin:24px 0 0;text-align:center"><a href="${trackUrl}" style="background:#a04a2e;color:#F4ECD8;padding:12px 20px;border-radius:8px;text-decoration:none;font-weight:bold;display:inline-block">📋 לצפייה או ביטול</a></p></div>`,
+        }).catch((e: any) => console.warn('[reminder email]', e?.message));
+      }
+      await (db as any).reservation.update({ where: { id: r.id }, data: { reminder_sent_at: new Date() } });
+      reminded++;
+    } catch (e: any) {
+      console.warn('[reservation-reminder] send failed', r?.id, e?.message);
+    }
+  }
+  return { ok: true, date: ilDateStr, attempted: due.length, reminded };
+}
+
 registerFn('createPublicReservation', async ({ body, req }: any) => {
   await ensureReservationSourceCols();
   const brand = await getBrandName();
