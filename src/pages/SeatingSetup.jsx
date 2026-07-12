@@ -464,6 +464,11 @@ export default function SeatingSetup() {
     const fingerprintCustomers = (arr) =>
         (arr || []).map(c => `${c.id}|${c.total_visits}`).join('§');
 
+    // True while the SSE push stream is delivering events end-to-end. When live,
+    // we slow the safety-net poll right down; when the stream drops we fall back
+    // to fast polling automatically.
+    const [realtimeConnected, setRealtimeConnected] = useState(false);
+
     // Guard against overlapping loadLiveData fetches: a slow in-flight refresh
     // returning stale rows would otherwise clobber a newer optimistic edit
     // (looked like "my change reverted / didn't stick until I refreshed"). Run
@@ -523,8 +528,11 @@ export default function SeatingSetup() {
     // their own. Skip while the tab is hidden (no point, saves load) and refresh
     // the instant the hostess returns to the tab, so it always shows current state.
     useEffect(() => {
+        // Push (SSE) delivers changes instantly, so the poll is only a safety net
+        // then (45s). Without a live stream it's the primary mechanism (12s).
+        const pollMs = realtimeConnected ? 45000 : 12000;
         const tick = () => { if (!document.hidden) loadLiveData(); };
-        const interval = setInterval(tick, 12000);
+        const interval = setInterval(tick, pollMs);
         const onVisible = () => { if (!document.hidden) loadLiveData(); };
         document.addEventListener('visibilitychange', onVisible);
         window.addEventListener('focus', onVisible);
@@ -533,7 +541,7 @@ export default function SeatingSetup() {
             document.removeEventListener('visibilitychange', onVisible);
             window.removeEventListener('focus', onVisible);
         };
-    }, [loadLiveData]);
+    }, [loadLiveData, realtimeConnected]);
 
     // Slow refresh of the rarely-changing customers table — off the action path.
     useEffect(() => {
@@ -673,8 +681,9 @@ export default function SeatingSetup() {
 
     useEffect(() => {
         loadQueue();
+        const pollMs = realtimeConnected ? 45000 : 12000;
         const tick = () => { if (!document.hidden) loadQueue(); };
-        const id = setInterval(tick, 12000);
+        const id = setInterval(tick, pollMs);
         const onVisible = () => { if (!document.hidden) loadQueue(); };
         document.addEventListener('visibilitychange', onVisible);
         window.addEventListener('focus', onVisible);
@@ -683,7 +692,78 @@ export default function SeatingSetup() {
             document.removeEventListener('visibilitychange', onVisible);
             window.removeEventListener('focus', onVisible);
         };
-    }, [loadQueue]);
+    }, [loadQueue, realtimeConnected]);
+
+    // ── Realtime push (SSE) ────────────────────────────────────────────────
+    // One long-lived stream for the page lifetime. On any change signal we
+    // refetch via the existing fast paths. Uses fetch streaming (not native
+    // EventSource) so the Bearer token rides in a header, not the URL. Refs let
+    // the stream survive date changes without reconnecting. Auto-reconnects with
+    // backoff; the polling above is the fallback if the stream can't be opened
+    // (or a proxy buffers it — we only flip to "live" once bytes actually flow).
+    const loadLiveDataRef = useRef(loadLiveData);
+    const loadQueueRef = useRef(loadQueue);
+    useEffect(() => { loadLiveDataRef.current = loadLiveData; }, [loadLiveData]);
+    useEffect(() => { loadQueueRef.current = loadQueue; }, [loadQueue]);
+    useEffect(() => {
+        let cancelled = false;
+        let reader = null;
+        let attempt = 0;
+        let debTimer = null;
+        let live = false;
+        const API_BASE = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, '') || '/api';
+        const setLive = (v) => { if (v !== live) { live = v; if (!cancelled) setRealtimeConnected(v); } };
+
+        const refetch = () => {
+            clearTimeout(debTimer);
+            // Debounce bursts (seating writes several rows at once).
+            debTimer = setTimeout(() => { loadLiveDataRef.current?.(); loadQueueRef.current?.(); }, 250);
+        };
+
+        const connect = async () => {
+            let token = null;
+            try { token = localStorage.getItem('auth_token'); } catch { token = null; }
+            if (!token) { if (!cancelled) setTimeout(connect, 4000); return; }
+            try {
+                const res = await fetch(`${API_BASE}/events/stream`, {
+                    headers: { Authorization: `Bearer ${token}`, Accept: 'text/event-stream' },
+                });
+                if (!res.ok || !res.body) throw new Error(`sse ${res.status}`);
+                reader = res.body.getReader();
+                const decoder = new TextDecoder();
+                let buf = '';
+                while (!cancelled) {
+                    const { value, done } = await reader.read();
+                    if (done) break;
+                    setLive(true);          // bytes flowing end-to-end
+                    attempt = 0;
+                    buf += decoder.decode(value, { stream: true });
+                    let sep;
+                    while ((sep = buf.indexOf('\n\n')) !== -1) {
+                        const frame = buf.slice(0, sep);
+                        buf = buf.slice(sep + 2);
+                        if (frame.includes('event: change')) refetch();
+                    }
+                }
+            } catch {
+                /* reconnect below */
+            } finally {
+                setLive(false);
+                if (!cancelled) {
+                    attempt = Math.min(attempt + 1, 6);
+                    setTimeout(connect, 1000 * attempt); // linear backoff, cap 6s
+                }
+            }
+        };
+        connect();
+
+        return () => {
+            cancelled = true;
+            clearTimeout(debTimer);
+            try { reader?.cancel(); } catch { /* noop */ }
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     // Listen for voice-driven data changes — instant refresh instead of waiting for poll.
     // Mounted HERE because loadQueue (above) must be declared first.
