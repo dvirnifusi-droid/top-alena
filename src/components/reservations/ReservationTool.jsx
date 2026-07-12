@@ -38,9 +38,18 @@ const updateCustomerClub = async (phone, name, visitDate) => {
     }
 };
 
+// Next quarter-hour from now, as "HH:mm" — a sensible live default so the booker
+// never opens on a time that's already in the past.
+function nextQuarterHour() {
+    const d = new Date();
+    d.setSeconds(0, 0);
+    d.setMinutes(d.getMinutes() + ((15 - (d.getMinutes() % 15)) % 15 || 15));
+    return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
+
 export default function ReservationTool({ onReservationCreated }) {
     const [date, setDate] = useState(new Date());
-    const [time, setTime] = useState('19:00');
+    const [time, setTime] = useState(() => nextQuarterHour());
     const [partySize, setPartySize] = useState(2);
     const [customerName, setCustomerName] = useState('');
     const [customerPhone, setCustomerPhone] = useState('');
@@ -61,6 +70,15 @@ export default function ReservationTool({ onReservationCreated }) {
     const isTimeValid = () => {
         const hours = getOpeningHours(date);
         return time >= hours.start && time <= hours.end;
+    };
+
+    // Live "now" guard — booking a time that has already passed makes no sense.
+    // Only applies when the chosen date is today.
+    const isPastTime = () => {
+        const now = new Date();
+        if (format(date, 'yyyy-MM-dd') !== format(now, 'yyyy-MM-dd')) return false;
+        const nowHHMM = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+        return time < nowHHMM;
     };
 
     const getSeatingDuration = (size) => {
@@ -84,6 +102,12 @@ export default function ReservationTool({ onReservationCreated }) {
         if (!isTimeValid()) {
             const hours = getOpeningHours(date);
             setError(`השעה הנבחרת אינה בשעות הפעילות. שעות פעילות: ${hours.start}-${hours.end}`);
+            setIsLoading(false);
+            return;
+        }
+
+        if (isPastTime()) {
+            setError('השעה שנבחרה כבר עברה — בחרו שעה מאוחרת יותר.');
             setIsLoading(false);
             return;
         }
@@ -154,7 +178,7 @@ export default function ReservationTool({ onReservationCreated }) {
             
             setCustomerName('');
             setCustomerPhone('');
-            setTime('19:00');
+            setTime(nextQuarterHour());
             setPartySize(2);
             
             if(onReservationCreated) onReservationCreated();

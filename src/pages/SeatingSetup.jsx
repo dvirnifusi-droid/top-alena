@@ -25,6 +25,7 @@ import ReservationTool from '../components/reservations/ReservationTool';
 import TableIncidentDialog from '../components/seating/TableIncidentDialog';
 import TableIncidentHistory from '../components/seating/TableIncidentHistory';
 import ReservationSourceBadge from '@/components/shared/ReservationSourceBadge';
+import TimePicker from '@/components/shared/TimePicker';
 import TablePicker from '@/components/dashboard/TablePicker';
 import { base44 } from '@/api/base44Client';
 import VoiceControl from '@/components/voice/VoiceControl';
@@ -216,11 +217,9 @@ function ReservationEditDialog({ open, setOpen, reservation, onUpdate, tables, r
                             <span>זמן התחלה</span>
                         </div>
                         <div className="text-left">
-                            <Input 
-                                type="time" 
-                                value={editedReservation.time || ''} 
-                                onChange={e => setEditedReservation({...editedReservation, time: e.target.value})} 
-                                className="h-8"
+                            <TimePicker
+                                value={editedReservation.time || ''}
+                                onChange={v => setEditedReservation({...editedReservation, time: v})}
                             />
                         </div>
 
@@ -228,11 +227,9 @@ function ReservationEditDialog({ open, setOpen, reservation, onUpdate, tables, r
                             <span>זמן סיום</span>
                         </div>
                         <div className="text-left">
-                            <Input
-                                type="time"
+                            <TimePicker
                                 value={editedReservation.reservation_end_time || ''}
-                                onChange={e => setEditedReservation({...editedReservation, reservation_end_time: e.target.value})}
-                                className="h-8"
+                                onChange={v => setEditedReservation({...editedReservation, reservation_end_time: v})}
                             />
                         </div>
 
@@ -1202,19 +1199,43 @@ export default function SeatingSetup() {
 
     const handleTableStatusChange = async (tableNumber, newStatus) => {
         try {
-            const session = getTableSession(tableNumber);
-            
-            if (newStatus === 'available' && session) {
-                await TableSession.update(session.id, { 
-                    status: 'completed', 
-                    session_end: new Date().toISOString() 
-                });
+            // Multi-table reservations act as ONE unit: an action on any one of
+            // their tables applies to the whole booking. Find the reservation that
+            // holds this table (if any) so we can span all of its tables.
+            const activeOnTable = reservations.filter(r =>
+                Array.isArray(r.assigned_table) &&
+                r.assigned_table.map(String).includes(String(tableNumber)) &&
+                !['cancelled', 'completed', 'no_show', 'deleted'].includes(r.status || '')
+            );
+            // Prefer the reservation actually seated now over a later one on the same table.
+            const heldReservation = activeOnTable.find(r => r.status === 'seated') || activeOnTable[0] || null;
+            const spanTables = heldReservation && Array.isArray(heldReservation.assigned_table) && heldReservation.assigned_table.length
+                ? heldReservation.assigned_table.map(String)
+                : [String(tableNumber)];
+
+            // Every active session that covers any of those tables (deduped — a
+            // multi-table session like "10,11" is shared, count it once).
+            const sessions = [];
+            const seen = new Set();
+            for (const t of spanTables) {
+                const s = getTableSession(t);
+                if (s && !seen.has(s.id)) { seen.add(s.id); sessions.push(s); }
+            }
+
+            if (newStatus === 'available') {
+                await Promise.all(sessions.map(s => TableSession.update(s.id, {
+                    status: 'completed', session_end: new Date().toISOString(),
+                })));
+                // Free the booking too, so both table cards clear together.
+                if (heldReservation && heldReservation.status === 'seated') {
+                    patchReservationLocal(heldReservation.id, { status: 'completed' });
+                    await Reservation.update(heldReservation.id, { status: 'completed' });
+                }
                 setTableDetailsOpen(false);
-            } else if (newStatus === 'cleaning' && session) {
-                await TableSession.update(session.id, { 
-                    status: 'to_be_cleaned', 
-                    session_end: new Date().toISOString() 
-                });
+            } else if (newStatus === 'cleaning') {
+                await Promise.all(sessions.map(s => TableSession.update(s.id, {
+                    status: 'to_be_cleaned', session_end: new Date().toISOString(),
+                })));
                 setTableDetailsOpen(false);
             }
 
