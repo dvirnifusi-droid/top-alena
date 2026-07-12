@@ -207,6 +207,18 @@ const auth = {
     setToken(res.token);
     return res.user;
   },
+  // Central multi-tenant Google sign-in. On the hosted handoff page (topalena.com)
+  // exchange the Google credential for a short-lived handoff token…
+  googleHandoff: async (credential) => {
+    const res = await http('/auth/google-handoff', { method: 'POST', body: { credential } });
+    return res.handoff;
+  },
+  // …and back on the tenant subdomain, exchange that handoff token for a session.
+  googleConsume: async (handoff) => {
+    const res = await http('/auth/google-consume', { method: 'POST', body: { handoff } });
+    setToken(res.token);
+    return res.user;
+  },
   logout: (redirectTo) => {
     setToken(null);
     if (redirectTo && typeof window !== 'undefined') window.location.href = redirectTo;

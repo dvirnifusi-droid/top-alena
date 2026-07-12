@@ -14,6 +14,24 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
     password: z.string().min(6),
   });
 
+  // Find/create THIS tenant's user for a Google-verified email and mint a
+  // session token. Returns { token, user } or null when the email isn't a known
+  // user/employee of this tenant. Shared by /google and /google-consume.
+  async function issueSessionForEmail(reply: any, email: string, name?: string | null) {
+    let user = await prisma.user.findUnique({ where: { email } });
+    if (!user) {
+      const employee = await prisma.employee.findFirst({ where: { email } });
+      if (!employee) return null; // not_registered on this tenant
+      user = await prisma.user.create({
+        data: { email, fullName: employee.full_name ?? name ?? null, role: 'user' },
+      });
+    } else if (!user.fullName && name) {
+      user = await prisma.user.update({ where: { id: user.id }, data: { fullName: name } });
+    }
+    const token = await reply.jwtSign({ id: user.id, email: user.email, role: user.role });
+    return { token, user: { id: user.id, email: user.email, role: user.role, fullName: user.fullName, full_name: user.fullName } };
+  }
+
   app.post('/register', async (req, reply) => {
     const parsed = credsSchema.safeParse(req.body);
     if (!parsed.success) return reply.code(400).send({ error: 'invalid_input' });
@@ -71,26 +89,58 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
       return reply.code(401).send({ error: 'unverified_google_email' });
     }
 
-    let user = await prisma.user.findUnique({ where: { email } });
-    if (!user) {
-      // No user yet — only allow if this email belongs to a known employee.
-      const employee = await prisma.employee.findFirst({ where: { email } });
-      if (!employee) {
-        return reply.code(403).send({ error: 'not_registered' });
-      }
-      user = await prisma.user.create({
-        data: {
-          email,
-          fullName: employee.full_name ?? payload?.name ?? null,
-          role: 'user',
-        },
-      });
-    } else if (!user.fullName && payload?.name) {
-      user = await prisma.user.update({ where: { id: user.id }, data: { fullName: payload.name } });
-    }
+    const result = await issueSessionForEmail(reply, email, payload?.name);
+    if (!result) return reply.code(403).send({ error: 'not_registered' });
+    return result;
+  });
 
-    const token = await reply.jwtSign({ id: user.id, email: user.email, role: user.role });
-    return { token, user: { id: user.id, email: user.email, role: user.role, fullName: user.fullName, full_name: user.fullName } };
+  // ── Central Google sign-in (multi-tenant) ────────────────────────────────
+  // Google won't authorize a wildcard origin, so the GIS button only renders on
+  // topalena.com. Tenant subdomains bounce the user to a hosted handoff page
+  // there; it verifies the Google credential HERE and mints a short-lived,
+  // single-purpose token the tenant exchanges for its own session below. The
+  // Google credential itself never crosses origins.
+  app.post('/google-handoff', async (req, reply) => {
+    const { credential } = (req.body ?? {}) as { credential?: string };
+    if (!credential) return reply.code(400).send({ error: 'missing_credential' });
+    if (!GOOGLE_CLIENT_ID) return reply.code(500).send({ error: 'google_not_configured' });
+    let payload;
+    try {
+      const ticket = await googleClient.verifyIdToken({ idToken: credential, audience: GOOGLE_CLIENT_ID });
+      payload = ticket.getPayload();
+    } catch {
+      return reply.code(401).send({ error: 'invalid_google_token' });
+    }
+    const email = payload?.email?.toLowerCase();
+    if (!email || payload?.email_verified === false) {
+      return reply.code(401).send({ error: 'unverified_google_email' });
+    }
+    // Short-lived (2 min), single-purpose. Signed with the fleet-shared
+    // JWT_SECRET so any tenant api can verify it in /google-consume.
+    const handoff = await reply.jwtSign(
+      { email, name: payload?.name ?? null, purpose: 'google_handoff' } as any,
+      { expiresIn: '2m' },
+    );
+    return { handoff };
+  });
+
+  // The tenant exchanges the handoff token for its own session. Verifies the
+  // signature + expiry + purpose, then looks the email up in THIS tenant's DB.
+  app.post('/google-consume', async (req, reply) => {
+    const { handoff } = (req.body ?? {}) as { handoff?: string };
+    if (!handoff) return reply.code(400).send({ error: 'missing_handoff' });
+    let decoded: any;
+    try {
+      decoded = app.jwt.verify(handoff);
+    } catch {
+      return reply.code(401).send({ error: 'invalid_or_expired_handoff' });
+    }
+    if (decoded?.purpose !== 'google_handoff' || !decoded?.email) {
+      return reply.code(401).send({ error: 'invalid_handoff' });
+    }
+    const result = await issueSessionForEmail(reply, String(decoded.email).toLowerCase(), decoded.name);
+    if (!result) return reply.code(403).send({ error: 'not_registered' });
+    return result;
   });
 
   app.get('/me', { preHandler: requireAuth }, async (req) => {

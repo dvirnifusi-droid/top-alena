@@ -39,6 +39,7 @@ import DataExport from './pages/DataExport';
 import UserGuide from './pages/UserGuide';
 import InstagramStudio from './pages/InstagramStudio';
 import Login from './pages/Login';
+import GoogleHandoff from './pages/GoogleHandoff';
 import PublicReservation from './pages/PublicReservation';
 import Signup from './pages/Signup';
 import ClubJoin from './pages/ClubJoin';
@@ -172,6 +173,7 @@ function App() {
         <Routes>
           {/* ציבורי - ללא התחברות */}
           <Route path="/login" element={<Login />} />
+          <Route path="/GoogleHandoff" element={<GoogleHandoff />} />
           <Route path="/QueueJoin" element={<QueueJoin />} />
           <Route path="/QueueGame" element={<QueueGame />} />
           <Route path="/QueueFeedback" element={<QueueFeedback />} />
