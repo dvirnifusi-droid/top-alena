@@ -40,6 +40,22 @@ const TR = {
   },
 };
 
+// Role names come from the tenant (Hebrew). Translate the common ones for the
+// EN/ES views; unknown/custom roles fall back to the original text.
+const ROLE_TR = {
+  'מלצר/ית':   { en: 'Waiter',        es: 'Camarero/a' },
+  'מלצר':      { en: 'Waiter',        es: 'Camarero/a' },
+  'טבח/ית':    { en: 'Cook',          es: 'Cocinero/a' },
+  'טבח':       { en: 'Cook',          es: 'Cocinero/a' },
+  'ברמן/ית':   { en: 'Bartender',     es: 'Barman' },
+  'ברמן':      { en: 'Bartender',     es: 'Barman' },
+  'אחמ"ש':     { en: 'Shift manager', es: 'Encargado/a de turno' },
+  'שוטף כלים': { en: 'Dishwasher',    es: 'Lavaplatos' },
+  'מארח/ת':    { en: 'Host',          es: 'Anfitrión/a' },
+  'מנהל/ת':    { en: 'Manager',       es: 'Gerente' },
+  'מנהל':      { en: 'Manager',       es: 'Gerente' },
+};
+
 const initLang = () => {
   try { const s = localStorage.getItem('topalena_lang'); if (s && LANGS.some((l) => l.code === s)) return s; } catch { /* noop */ }
   const n = ((typeof navigator !== 'undefined' && navigator.language) || '').toLowerCase();
@@ -54,6 +70,7 @@ export default function JoinTeam() {
   const [lang, setLang] = useState(initLang);
   const dir = LANGS.find((l) => l.code === lang)?.dir || 'rtl';
   const t = (key) => (TR[key]?.[lang] || TR[key]?.he || '').replace('{brand}', brand);
+  const roleLabel = (r) => (lang === 'he' ? r : (ROLE_TR[r]?.[lang] || r));
   const changeLang = (code) => { setLang(code); try { localStorage.setItem('topalena_lang', code); } catch { /* noop */ } };
 
   const [roles, setRoles] = useState([]);
@@ -161,7 +178,7 @@ export default function JoinTeam() {
                       role === r ? 'border-[#44512C] bg-[#F4ECD8]' : 'border-gray-200 bg-white hover:border-gray-300'
                     }`}
                   >
-                    {r}
+                    {roleLabel(r)}
                   </button>
                 ))}
               </div>

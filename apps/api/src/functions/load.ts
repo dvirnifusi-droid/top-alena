@@ -22011,7 +22011,44 @@ registerFn('approveEmployee', async ({ user, body }) => {
   } catch (e: any) {
     console.warn('[approveEmployee] user/creds failed:', e?.message);
   }
-  return { ok: true, status: 'active', creds_sent: credsSent };
+  // Approval email with a big one-tap button to chat with the restaurant's
+  // WhatsApp assistant. Email is always present (required at signup). Bilingual
+  // (English + Hebrew) since many kitchens are staffed by non-Hebrew speakers.
+  let emailSent = false;
+  try {
+    const brand = await getBrandName();
+    const origin = process.env.PUBLIC_BASE_URL || `https://${process.env.TENANT_SLUG || 'topalena'}.topalena.com`;
+    const waFrom = String(process.env.TWILIO_WHATSAPP_FROM || '').replace(/^whatsapp:\+?/, '').replace(/[^\d]/g, '');
+    const opener = `Hi! I'm ${emp.full_name || ''} — I just joined the ${brand} team 👋`;
+    const waLink = waFrom ? `https://wa.me/${waFrom}?text=${encodeURIComponent(opener)}` : origin;
+    const firstName = String(emp.full_name || '').split(/\s+/)[0] || '';
+    if (emp.email) {
+      await sendEmail({
+        to: emp.email,
+        subject: `🎉 You're approved — ${brand} / אושרת לצוות ${brand}`,
+        html: `<div dir="ltr" style="font-family:Arial,Helvetica,sans-serif;max-width:560px;margin:auto;padding:24px;background:#fafafa;border-radius:12px;color:#1f1b17">
+          <p style="font-size:20px;font-weight:bold;color:#44512C;margin:0 0 4px">Welcome to ${brand}! 🎉</p>
+          <p style="margin:0 0 16px;color:#44512C">ברוך/ה הבא/ה לצוות ${brand}!</p>
+          <p style="margin:0 0 8px">Hi ${firstName}, your manager approved you — you're now part of the team.</p>
+          <p style="margin:0 0 16px" dir="rtl">${firstName}, המנהל אישר אותך — אתה חלק מהצוות 🙌</p>
+          <div style="background:#fff;border:1px solid #e5d9c4;border-radius:10px;padding:16px;margin:0 0 20px">
+            <p style="margin:4px 0"><b>Login / כניסה:</b> <a href="${origin}" style="color:#a04a2e">${origin}</a></p>
+            <p style="margin:4px 0"><b>Email:</b> ${emp.email}</p>
+            <p style="margin:4px 0"><b>Temp password / סיסמה זמנית:</b> <code style="background:#f4ecd8;padding:2px 6px;border-radius:4px">${tempPassword}</code></p>
+          </div>
+          <p style="text-align:center;margin:0 0 8px">Questions? Talk to your personal assistant on WhatsApp:</p>
+          <p style="text-align:center;margin:0" dir="rtl">שאלות? דבר/י עם העוזר/ת האישי/ת שלך בוואטסאפ:</p>
+          <p style="text-align:center;margin:16px 0 0">
+            <a href="${waLink}" style="background:#25D366;color:#fff;padding:16px 28px;border-radius:12px;text-decoration:none;font-weight:bold;font-size:18px;display:inline-block">💬 Chat with your assistant</a>
+          </p>
+        </div>`,
+      });
+      emailSent = true;
+    }
+  } catch (e: any) {
+    console.warn('[approveEmployee] approval email failed:', e?.message);
+  }
+  return { ok: true, status: 'active', creds_sent: credsSent, email_sent: emailSent };
 });
 
 // BP — Invite a new employee via WhatsApp. Owner enters name+phone, we
