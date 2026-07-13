@@ -18,12 +18,16 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
   // session token. Returns { token, user } or null when the email isn't a known
   // user/employee of this tenant. Shared by /google and /google-consume.
   async function issueSessionForEmail(reply: any, email: string, name?: string | null) {
-    let user = await prisma.user.findUnique({ where: { email } });
+    // Case/space-insensitive match — the Google email is already lowercased, but
+    // an Employee/User row imported or hand-added with different casing (or a
+    // stray space) would otherwise miss and wrongly report "not registered".
+    const emailNorm = String(email || '').trim().toLowerCase();
+    let user = await prisma.user.findFirst({ where: { email: { equals: emailNorm, mode: 'insensitive' } } });
     if (!user) {
-      const employee = await prisma.employee.findFirst({ where: { email } });
+      const employee = await prisma.employee.findFirst({ where: { email: { equals: emailNorm, mode: 'insensitive' } } });
       if (!employee) return null; // not_registered on this tenant
       user = await prisma.user.create({
-        data: { email, fullName: employee.full_name ?? name ?? null, role: 'user' },
+        data: { email: emailNorm, fullName: employee.full_name ?? name ?? null, role: 'user' },
       });
     } else if (!user.fullName && name) {
       user = await prisma.user.update({ where: { id: user.id }, data: { fullName: name } });
