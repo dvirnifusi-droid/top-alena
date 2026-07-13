@@ -170,7 +170,7 @@ export default function SupplierOrders() {
                         <button onClick={() => setOpenId(open ? null : s.id)} className="p-2 rounded-lg text-slate-500 hover:bg-slate-100"><ChevronDown className={`w-4 h-4 transition-transform ${open ? 'rotate-180' : ''}`} /></button>
                       </div>
                     </div>
-                    {open && <ItemsEditor supplier={s} onSaved={load} onImport={(mode) => setImportFor({ id: s.id, mode, sheet_url: s.sheet_url })} lastInteraction={lastInteraction} />}
+                    {open && <ItemsEditor supplier={s} onSaved={load} onImport={(mode) => setImportFor({ id: s.id, mode, sheet_url: s.sheet_url, items: s.items })} lastInteraction={lastInteraction} />}
                   </CardContent>
                 </Card>
               );
@@ -324,10 +324,17 @@ function ImportDialog({ target, onClose, onSaved }) {
   const [url, setUrl] = useState(target.sheet_url || '');
   const [busy, setBusy] = useState(false);
   const runText = async () => {
-    const items = parseInventoryText(text);
-    if (!items.length) return;
+    const parsed = parseInventoryText(text);
+    if (!parsed.length) return;
     setBusy(true);
-    try { await base44.functions.saveSupplierOrderItems({ id: target.id, items }); if (onSaved) await onSaved(); onClose(); }
+    try {
+      // Append to the existing list — never wipe rows the manager already entered.
+      const existing = Array.isArray(target.items) ? target.items : [];
+      const items = [...existing, ...parsed];
+      await base44.functions.saveSupplierOrderItems({ id: target.id, items });
+      if (onSaved) await onSaved();
+      onClose();
+    }
     catch (e) { alert('שגיאה: ' + (e?.message || '')); }
     setBusy(false);
   };
@@ -349,7 +356,7 @@ function ImportDialog({ target, onClose, onSaved }) {
           </>
         ) : (
           <>
-            <p className="text-xs text-slate-500">הדבק את הטבלה מהגיליון (כולל שורת הכותרות) — המערכת מזהה לבד את העמודות: <b>שם/סוג/מחיר/מלאי קיים/מלאי שצריך</b>. או שורה לכל מוצר.</p>
+            <p className="text-xs text-slate-500">הדבק את הטבלה (כולל שורת הכותרות) — המערכת מזהה לבד את העמודות: <b>שם/סוג/מחיר/מלאי קיים/מלאי שצריך</b>. או שורה לכל מוצר. <b className="text-[#A04A2E]">המוצרים מתווספים לרשימה הקיימת (לא מוחקים).</b></p>
             <Textarea value={text} onChange={(e) => setText(e.target.value)} rows={9} dir="rtl" placeholder={'סוג המשקה\tשם המותג\tמחיר\tמלאי קיים\tמלאי שצריך\nיין אדום\tרזרב מרלו\t27.74\t13\t4\nאלכוהול\tאבסולוט\t81.12\t9\t2'} />
             <Button onClick={runText} disabled={busy || !text.trim()} className="w-full bg-[#A04A2E] hover:bg-[#8B3D24] text-white">{busy ? <Loader2 className="w-4 h-4 animate-spin" /> : 'ייבא רשימה'}</Button>
           </>
