@@ -4419,7 +4419,9 @@ registerFn('askGemini', async ({ body }) => {
       thinkingConfig: { thinkingBudget: 0 },
     },
   };
-  if (systemPrompt) reqBody.system_instruction = { parts: [{ text: systemPrompt }] };
+  // Always reply in the user's language (staff may be non-Hebrew speakers).
+  const LANG_DIRECTIVE = 'IMPORTANT: Reply in the SAME language the user writes in — Hebrew, English, or Spanish. Match the language of their latest message.';
+  reqBody.system_instruction = { parts: [{ text: (systemPrompt ? systemPrompt + '\n\n' : '') + LANG_DIRECTIVE }] };
 
   const callGemini = async (body: any) => {
     const r = await fetch(
