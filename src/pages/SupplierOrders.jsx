@@ -11,6 +11,28 @@ import { Loader2, Plus, Trash2, Pencil, Truck, Bell, Check, X, Upload, ChevronDo
 
 const DAY_NAMES = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'];
 
+// Parse a pasted inventory table (tab/comma separated). Detects a header row and
+// maps columns by keyword: name, type/category, price, current stock, par
+// ("should be"). Falls back to "product per line" when there's no header.
+function parseInventoryText(text) {
+  const rows = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean)
+    .map((l) => l.split(/\t|,/).map((c) => c.replace(/^"|"$/g, '').trim()));
+  if (!rows.length) return [];
+  const header = rows[0].map((h) => h.toLowerCase());
+  const find = (re) => header.findIndex((h) => re.test(h));
+  const nameCol = find(/שם|מותג|משקה|מוצר|product|name|item/);
+  const catCol = find(/סוג|קטגור|type|category/);
+  const priceCol = find(/מחיר|price|עלות|cost/);
+  const curCol = find(/מלאי קיים|קיים|current|במלאי|stock/);
+  const parCol = find(/שצריך|יעד|par|אמור|נדרש|מבוקש/);
+  const hasHeader = [nameCol, catCol, priceCol, curCol, parCol].some((i) => i >= 0);
+  const pCol = nameCol >= 0 ? nameCol : 0;
+  const at = (r, i) => (i >= 0 ? (r[i] || '').trim() : '');
+  return (hasHeader ? rows.slice(1) : rows)
+    .map((r) => ({ product: at(r, pCol), category: at(r, catCol), price: at(r, priceCol), current: at(r, curCol), par: at(r, parCol), unit: '' }))
+    .filter((it) => it.product);
+}
+
 // Next occurrence of weekday `dow` (0=Sun) at HH:mm, strictly after `from`.
 function nextDeadline(dow, hhmm, from = new Date()) {
   if (dow == null || dow < 0) return null;
@@ -170,7 +192,7 @@ function ItemsEditor({ supplier, onSaved, onImport }) {
   const [dirty, setDirty] = useState(false);
   useEffect(() => { setItems(Array.isArray(supplier.items) ? supplier.items.map((x) => ({ ...x })) : []); setDirty(false); }, [supplier.id]);
   const patch = (i, k, v) => { setItems((p) => p.map((x, j) => (j === i ? { ...x, [k]: v } : x))); setDirty(true); };
-  const add = () => { setItems((p) => [...p, { product: '', par: '', current: '', unit: '' }]); setDirty(true); };
+  const add = (category = '') => { setItems((p) => [...p, { product: '', category, price: '', par: '', current: '', unit: '' }]); setDirty(true); };
   const del = (i) => { setItems((p) => p.filter((_, j) => j !== i)); setDirty(true); };
   const save = async () => {
     setSaving(true);
@@ -178,38 +200,60 @@ function ItemsEditor({ supplier, onSaved, onImport }) {
     catch (e) { alert('שגיאה: ' + (e?.message || '')); }
     setSaving(false);
   };
-  const toOrder = (it) => { const p = Number(it.par), c = Number(it.current); return Number.isFinite(p) && Number.isFinite(c) ? Math.max(0, p - c) : ''; };
+  // to-order = par - current (his convention): positive = order that many;
+  // zero/negative = enough / surplus. null when a number is missing.
+  const diffOf = (it) => { const p = Number(it.par), c = Number(it.current); return Number.isFinite(p) && Number.isFinite(c) ? p - c : null; };
+  const groups = useMemo(() => {
+    const m = new Map();
+    items.forEach((it, i) => { const c = (it.category || '').trim() || 'כללי'; if (!m.has(c)) m.set(c, []); m.get(c).push({ it, i }); });
+    return [...m.entries()];
+  }, [items]);
+  const totalToOrder = items.filter((it) => (diffOf(it) ?? 0) > 0).length;
+  const GRID = 'grid grid-cols-[1fr_50px_42px_42px_46px_22px] gap-1';
   return (
     <div className="border-t border-[#E8D9B5] bg-[#FAF5E8]/40 p-3">
       <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
         <div className="flex gap-1.5">
-          <Button size="sm" variant="outline" onClick={() => onImport('text')} className="border-[#D9BD83] text-[#7A5A2E] h-8"><Upload className="w-3.5 h-3.5 ml-1" /> ייבוא טקסט</Button>
+          <Button size="sm" variant="outline" onClick={() => onImport('text')} className="border-[#D9BD83] text-[#7A5A2E] h-8"><Upload className="w-3.5 h-3.5 ml-1" /> הדבק טבלה</Button>
           <Button size="sm" variant="outline" onClick={() => onImport('sheet')} className="border-[#D9BD83] text-[#7A5A2E] h-8">📊 גוגל שיטס</Button>
+          {totalToOrder > 0 && <span className="text-xs font-bold text-white bg-[#A04A2E] rounded-full px-2 py-1 self-center">{totalToOrder} להזמין</span>}
         </div>
         <Button size="sm" onClick={save} disabled={!dirty || saving} className={dirty ? 'bg-emerald-600 hover:bg-emerald-700 text-white h-8' : 'bg-slate-200 text-slate-400 h-8'}>{saving ? <Loader2 className="w-4 h-4 animate-spin" /> : dirty ? '💾 שמור' : 'נשמר ✓'}</Button>
       </div>
       {items.length === 0 ? (
-        <p className="text-center text-sm text-slate-500 py-4">אין מוצרים. הוסף ידנית או ייבא.</p>
+        <p className="text-center text-sm text-slate-500 py-4">אין מוצרים. הדבק טבלה, ייבא מגוגל שיטס, או הוסף ידנית.</p>
       ) : (
-        <div className="overflow-hidden rounded-lg border border-[#E8D9B5] bg-white">
-          <div className="grid grid-cols-[1fr_64px_64px_64px_32px] gap-1 px-2 py-1.5 text-[11px] font-bold text-slate-500 bg-gray-50 border-b">
-            <span>מוצר</span><span className="text-center">יעד</span><span className="text-center">יש</span><span className="text-center">להזמין</span><span></span>
-          </div>
-          {items.map((it, i) => {
-            const need = toOrder(it);
+        <div className="space-y-2.5">
+          {groups.map(([cat, rows]) => {
+            const need = rows.filter(({ it }) => (diffOf(it) ?? 0) > 0).length;
             return (
-              <div key={i} className={`grid grid-cols-[1fr_64px_64px_64px_32px] gap-1 px-2 py-1 items-center border-b last:border-0 ${need > 0 ? 'bg-[#F4ECD8]/40' : ''}`}>
-                <Input value={it.product} onChange={(e) => patch(i, 'product', e.target.value)} placeholder="שם מוצר" className="h-8 text-sm" />
-                <Input value={it.par} onChange={(e) => patch(i, 'par', e.target.value)} inputMode="numeric" className="h-8 text-sm text-center" />
-                <Input value={it.current} onChange={(e) => patch(i, 'current', e.target.value)} inputMode="numeric" className="h-8 text-sm text-center" />
-                <div className={`text-center text-sm font-black ${need > 0 ? 'text-[#A04A2E]' : 'text-slate-300'}`}>{need === '' ? '—' : need}</div>
-                <button onClick={() => del(i)} className="text-red-300 hover:text-red-600"><X className="w-4 h-4" /></button>
+              <div key={cat} className="rounded-lg border border-[#E8D9B5] bg-white overflow-hidden">
+                <div className="flex items-center justify-between px-2 py-1.5 bg-[#F4ECD8] text-xs font-bold text-[#7A5A2E]">
+                  <span className="flex items-center gap-2">{cat}{need > 0 && <span className="text-[#A04A2E]">· {need} להזמין</span>}</span>
+                  <button onClick={() => add(cat === 'כללי' ? '' : cat)} title="הוסף לקטגוריה" className="text-[#7A5A2E] hover:text-[#A04A2E]"><Plus className="w-4 h-4" /></button>
+                </div>
+                <div className={`${GRID} px-2 py-1 text-[10px] font-bold text-slate-400 border-b`}>
+                  <span>מוצר</span><span className="text-center">מחיר</span><span className="text-center">יעד</span><span className="text-center">יש</span><span className="text-center">להזמין</span><span></span>
+                </div>
+                {rows.map(({ it, i }) => {
+                  const d = diffOf(it);
+                  return (
+                    <div key={i} className={`${GRID} px-2 py-1 items-center border-b last:border-0 ${d != null && d > 0 ? 'bg-[#F4ECD8]/40' : ''}`}>
+                      <Input value={it.product} onChange={(e) => patch(i, 'product', e.target.value)} placeholder="שם מוצר" className="h-7 text-xs px-1.5" />
+                      <Input value={it.price ?? ''} onChange={(e) => patch(i, 'price', e.target.value)} inputMode="decimal" placeholder="₪" className="h-7 text-xs text-center px-1" />
+                      <Input value={it.par ?? ''} onChange={(e) => patch(i, 'par', e.target.value)} inputMode="numeric" className="h-7 text-xs text-center px-1" />
+                      <Input value={it.current ?? ''} onChange={(e) => patch(i, 'current', e.target.value)} inputMode="numeric" className="h-7 text-xs text-center px-1" />
+                      <div className={`text-center text-xs font-black ${d == null ? 'text-slate-300' : d > 0 ? 'text-[#A04A2E]' : 'text-slate-400'}`}>{d == null ? '—' : d}</div>
+                      <button onClick={() => del(i)} className="text-red-300 hover:text-red-600"><X className="w-3.5 h-3.5" /></button>
+                    </div>
+                  );
+                })}
               </div>
             );
           })}
         </div>
       )}
-      <button onClick={add} className="w-full mt-2 text-xs font-bold text-[#7A5A2E] border border-dashed border-[#D9BD83] rounded-lg py-1.5 hover:bg-[#F4ECD8]"><Plus className="w-3.5 h-3.5 inline ml-1" /> הוסף מוצר</button>
+      <button onClick={() => add('')} className="w-full mt-2 text-xs font-bold text-[#7A5A2E] border border-dashed border-[#D9BD83] rounded-lg py-1.5 hover:bg-[#F4ECD8]"><Plus className="w-3.5 h-3.5 inline ml-1" /> הוסף מוצר</button>
     </div>
   );
 }
@@ -280,10 +324,7 @@ function ImportDialog({ target, onClose, onSaved }) {
   const [url, setUrl] = useState(target.sheet_url || '');
   const [busy, setBusy] = useState(false);
   const runText = async () => {
-    const items = text.split('\n').map((l) => l.trim()).filter(Boolean).map((line) => {
-      const parts = line.split(/[,\t]/).map((x) => x.trim());
-      return { product: parts[0], par: parts[1] || '', current: parts[2] || '', unit: '' };
-    }).filter((x) => x.product);
+    const items = parseInventoryText(text);
     if (!items.length) return;
     setBusy(true);
     try { await base44.functions.saveSupplierOrderItems({ id: target.id, items }); if (onSaved) await onSaved(); onClose(); }
@@ -308,8 +349,8 @@ function ImportDialog({ target, onClose, onSaved }) {
           </>
         ) : (
           <>
-            <p className="text-xs text-slate-500">שורה לכל מוצר. אפשר גם <code>מוצר, יעד, יש</code> מופרד בפסיק.</p>
-            <Textarea value={text} onChange={(e) => setText(e.target.value)} rows={8} placeholder={'קוקה קולה 1.5 ל\nספרייט 1.5 ל, 40, 12\nמים מינרלים'} />
+            <p className="text-xs text-slate-500">הדבק את הטבלה מהגיליון (כולל שורת הכותרות) — המערכת מזהה לבד את העמודות: <b>שם/סוג/מחיר/מלאי קיים/מלאי שצריך</b>. או שורה לכל מוצר.</p>
+            <Textarea value={text} onChange={(e) => setText(e.target.value)} rows={9} dir="rtl" placeholder={'סוג המשקה\tשם המותג\tמחיר\tמלאי קיים\tמלאי שצריך\nיין אדום\tרזרב מרלו\t27.74\t13\t4\nאלכוהול\tאבסולוט\t81.12\t9\t2'} />
             <Button onClick={runText} disabled={busy || !text.trim()} className="w-full bg-[#A04A2E] hover:bg-[#8B3D24] text-white">{busy ? <Loader2 className="w-4 h-4 animate-spin" /> : 'ייבא רשימה'}</Button>
           </>
         )}

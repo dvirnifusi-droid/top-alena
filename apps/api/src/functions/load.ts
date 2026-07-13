@@ -5828,6 +5828,28 @@ async function ensureSupplierOrderTable() {
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT NOW(), "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT NOW())`).catch(() => {});
 }
 
+// Map a pasted/imported table (rows of cells) to inventory items by detecting a
+// header row (Hebrew or English) and mapping columns: name, type/category,
+// price, current stock, par ("should be"). Falls back to first-column-as-name.
+// The supplier column and the computed "to order" column are ignored.
+function mapInventoryRows(rows: string[][]): any[] {
+  if (!rows.length) return [];
+  const header = (rows[0] || []).map((h) => String(h || '').toLowerCase().trim());
+  const find = (re: RegExp) => header.findIndex((h) => re.test(h));
+  const nameCol = find(/שם|מותג|משקה|מוצר|product|name|item/);
+  const catCol = find(/סוג|קטגור|type|category/);
+  const priceCol = find(/מחיר|price|עלות|cost/);
+  const curCol = find(/מלאי קיים|קיים|current|במלאי|stock/);
+  const parCol = find(/שצריך|יעד|par|אמור|נדרש|מבוקש/);
+  const hasHeader = [nameCol, catCol, priceCol, curCol, parCol].some((i) => i >= 0);
+  const pCol = nameCol >= 0 ? nameCol : 0;
+  const data = hasHeader ? rows.slice(1) : rows;
+  const at = (r: string[], i: number) => (i >= 0 ? String(r[i] || '').trim() : '');
+  return data
+    .map((r) => ({ product: at(r, pCol), category: at(r, catCol), price: at(r, priceCol), current: at(r, curCol), par: at(r, parCol), unit: '' }))
+    .filter((it) => it.product);
+}
+
 registerFn('getSupplierOrders', async ({ user }: any) => {
   if (!user?.id) throw new Error('unauthorized');
   await ensureSupplierOrderTable();
@@ -5865,6 +5887,8 @@ registerFn('saveSupplierOrderItems', async ({ user, body }: any) => {
   if (!b.id) throw new Error('id_required');
   const items = Array.isArray(b.items) ? b.items.map((it: any) => ({
     product: String(it.product || '').slice(0, 200),
+    category: String(it.category || '').slice(0, 60),
+    price: it.price ?? '',
     par: it.par ?? '', current: it.current ?? '', unit: String(it.unit || '').slice(0, 20),
   })).filter((it: any) => it.product) : [];
   await db.$executeRawUnsafe(`UPDATE "SupplierOrderList" SET "items"=$2::jsonb, "updatedAt"=NOW() WHERE id=$1`, String(b.id), JSON.stringify(items));
@@ -5908,14 +5932,7 @@ registerFn('importSupplierSheet', async ({ user, body }: any) => {
     throw Object.assign(new Error('הגיליון פרטי — הגדר "כל מי שיש לו הקישור: צפייה" ונסה שוב.'), { code: 'sheet_private' });
   }
   const rows = text.split(/\r?\n/).map((l) => l.split(',').map((c) => c.replace(/^"|"$/g, '').trim()));
-  const header = (rows[0] || []).map((h) => h.toLowerCase());
-  const parCol = header.findIndex((h) => /par|יעד|צריך|אמור|מלאי מבוקש/.test(h));
-  const curCol = header.findIndex((h) => /current|יש|במלאי|כמות/.test(h));
-  const hasHeader = parCol >= 0 || curCol >= 0;
-  const dataRows = hasHeader ? rows.slice(1) : rows;
-  const items = dataRows
-    .filter((r) => (r[0] || '').trim())
-    .map((r) => ({ product: r[0].trim(), par: parCol >= 0 ? (r[parCol] || '') : '', current: curCol >= 0 ? (r[curCol] || '') : '', unit: '' }));
+  const items = mapInventoryRows(rows);
   await db.$executeRawUnsafe(`UPDATE "SupplierOrderList" SET "items"=$2::jsonb, "sheet_url"=$3, "updatedAt"=NOW() WHERE id=$1`, String(b.id), JSON.stringify(items), url);
   return { ok: true, count: items.length };
 });
