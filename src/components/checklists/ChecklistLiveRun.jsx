@@ -6,7 +6,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { ChecklistExecution } from '@/entities/all';
 import { UploadFile } from '@/integrations/Core';
-import { Loader2, Check, Camera, X, StickyNote, ChefHat, ChevronDown } from 'lucide-react';
+import { Loader2, Check, Camera, X, StickyNote, ChefHat, ChevronDown, MessageCircle } from 'lucide-react';
 
 const fmtWhen = (iso) => {
   if (!iso) return '';
@@ -26,6 +26,10 @@ export default function ChecklistLiveRun({ checklist, user, onClose }) {
   // sub-tasks. The header turns green once every sub-task is done.
   const [expanded, setExpanded] = useState({});
   const toggleGroup = (area) => setExpanded((p) => ({ ...p, [area]: !p[area] }));
+  // Closing checklists get a footer: who closed + a one-tap WhatsApp to the chef.
+  const isClosing = String(checklist?.category || '').toLowerCase() === 'closing';
+  const [closedBy, setClosedBy] = useState('');
+  const closedByFocused = useRef(false);
 
   const items = useMemo(() => (Array.isArray(checklist?.items) ? checklist.items : []), [checklist]);
 
@@ -35,7 +39,7 @@ export default function ChecklistLiveRun({ checklist, user, onClose }) {
       try {
         const res = await base44.functions.openChecklistLiveRun({ checklist_id: checklist.id });
         const ex = (res?.data || res)?.execution;
-        if (ex) { setExecId(ex.id); setResults(ex.results || {}); }
+        if (ex) { setExecId(ex.id); setResults(ex.results || {}); if (ex.notes) setClosedBy(ex.notes); }
       } catch (e) { console.warn('open live run', e); }
       setLoading(false);
     })();
@@ -50,6 +54,7 @@ export default function ChecklistLiveRun({ checklist, user, onClose }) {
       try {
         const row = await ChecklistExecution.get(execId);
         if (row?.results) setResults((prev) => (JSON.stringify(prev) === JSON.stringify(row.results) ? prev : row.results));
+        if (!closedByFocused.current && row?.notes != null) setClosedBy((prev) => (prev === row.notes ? prev : row.notes));
       } catch { /* ignore */ }
     };
     const iv = setInterval(pull, 12000);
@@ -99,6 +104,14 @@ export default function ChecklistLiveRun({ checklist, user, onClose }) {
     } catch (e) { console.warn('live photo', e); }
     setUploadingKey(null);
   };
+
+  const saveClosedBy = async () => {
+    closedByFocused.current = false;
+    if (!execId) return;
+    try { await ChecklistExecution.update(execId, { notes: closedBy }); } catch { /* ignore */ }
+  };
+  const chefMsg = `היי שף, המסעדה סגורה ועברתי על הכל 🌙 לילה טוב${closedBy ? ` — ${closedBy}` : ''}`;
+  const chefWaLink = `https://wa.me/?text=${encodeURIComponent(chefMsg)}`;
 
   return (
     <div dir="rtl" className="fixed inset-0 z-50 bg-black/40 flex items-start justify-center p-3 overflow-y-auto" onClick={onClose}>
@@ -181,6 +194,34 @@ export default function ChecklistLiveRun({ checklist, user, onClose }) {
             </div>
             );
           })}
+
+          {/* Closing footer — who closed + one-tap WhatsApp to the chef. */}
+          {isClosing && !loading && (
+            <div className="bg-white rounded-xl border border-rose-200 p-4 space-y-3">
+              <div>
+                <label className="text-xs font-bold text-gray-500">נסגר ע"י / Closed by</label>
+                <input
+                  value={closedBy}
+                  onChange={(e) => { closedByFocused.current = true; setClosedBy(e.target.value); }}
+                  onFocus={() => { closedByFocused.current = true; }}
+                  onBlur={saveClosedBy}
+                  placeholder="שם מלא / Full name"
+                  className="mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:border-rose-400 focus:outline-none"
+                />
+              </div>
+              <a
+                href={chefWaLink}
+                target="_blank"
+                rel="noreferrer"
+                onClick={saveClosedBy}
+                className="w-full flex items-center justify-center gap-2 bg-[#25D366] hover:bg-[#1fb457] text-white font-bold py-3 rounded-xl transition-colors"
+              >
+                <MessageCircle className="w-5 h-5" />
+                שלח לשף: המסעדה סגורה 🌙
+              </a>
+              <p className="text-[11px] text-gray-400 text-center">"היי שף, המסעדה סגורה ועברתי על הכל 🌙 לילה טוב"</p>
+            </div>
+          )}
         </div>
       </div>
     </div>

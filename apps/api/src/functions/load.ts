@@ -5748,7 +5748,7 @@ registerFn('openChecklistLiveRun', async ({ user, body }: any) => {
      ON CONFLICT ("id") DO NOTHING`,
     id, checklistId, user.id, byName,
   );
-  const rows: any[] = await db.$queryRawUnsafe(`SELECT id, results, status FROM "ChecklistExecution" WHERE id=$1 LIMIT 1`, id);
+  const rows: any[] = await db.$queryRawUnsafe(`SELECT id, results, status, notes FROM "ChecklistExecution" WHERE id=$1 LIMIT 1`, id);
   return { execution: rows[0] || null };
 });
 
