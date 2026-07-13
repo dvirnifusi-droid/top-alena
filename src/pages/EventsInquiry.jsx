@@ -55,11 +55,16 @@ export default function EventsInquiry() {
 
   useEffect(() => { initMetaPixel(); sendTurn(''); /* eslint-disable-next-line */ }, []);
   useEffect(() => {
-    if (leadId && !leadTrackedRef.current) {
+    // Fire the Meta "Lead" conversion ONLY for a REAL, qualified lead — i.e. the
+    // chat reached completion AND wasn't rejected (spam / not-a-fit) AND a lead
+    // was actually saved. Not on the preliminary lead_id created early in the
+    // conversation, and not on a plain page visit. This is the event a campaign
+    // should optimize for.
+    if (done && !rejected && leadId && !leadTrackedRef.current) {
       leadTrackedRef.current = true;
       trackLead();
     }
-  }, [leadId]);
+  }, [done, rejected, leadId]);
   useEffect(() => {
     const el = scrollRef.current;
     if (el) el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
