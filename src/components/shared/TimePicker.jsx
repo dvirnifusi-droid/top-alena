@@ -26,11 +26,18 @@ function pad2(n) {
   return String(n).padStart(2, '0');
 }
 
-export default function TimePicker({ value, onChange, autoFocus = false, id }) {
+export default function TimePicker({ value, onChange, autoFocus = false, id, size = 'md' }) {
   const { hh: initialHH, mm: initialMM } = splitValue(value);
   const [hh, setHH] = useState(initialHH);
   const [mm, setMM] = useState(initialMM);
   const mmRef = useRef(null);
+  // Compact variant for dense tables/cards (Tips staff rows on mobile): narrower
+  // fields + smaller text so HH:MM fits a tight column instead of overflowing.
+  const sm = size === 'sm';
+  const fieldCls = sm
+    ? 'text-center text-sm font-bold w-9 px-1'
+    : 'text-center text-lg font-bold w-16 px-2';
+  const colonCls = sm ? 'text-sm font-bold text-slate-500' : 'text-lg font-bold text-slate-500';
 
   // Keep local fields in sync if parent updates the value externally.
   useEffect(() => {
@@ -104,10 +111,10 @@ export default function TimePicker({ value, onChange, autoFocus = false, id }) {
         onFocus={(e) => e.target.select()}
         maxLength={2}
         placeholder="HH"
-        className="text-center text-lg font-bold w-16 px-2"
+        className={fieldCls}
         aria-label="שעה"
       />
-      <span className="text-lg font-bold text-slate-500">:</span>
+      <span className={colonCls}>:</span>
       <Input
         ref={mmRef}
         type="text"
@@ -119,7 +126,7 @@ export default function TimePicker({ value, onChange, autoFocus = false, id }) {
         onFocus={(e) => e.target.select()}
         maxLength={2}
         placeholder="MM"
-        className="text-center text-lg font-bold w-16 px-2"
+        className={fieldCls}
         aria-label="דקות"
       />
     </div>

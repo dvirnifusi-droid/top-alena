@@ -17,6 +17,14 @@ import { he } from 'date-fns/locale';
 import { Loader2, CalendarIcon, Save, Printer, UserPlus, Trash2, Lock, Unlock, AlertTriangle } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { toast } from 'sonner';
+import { base44 } from '@/api/base44Client';
+
+// Warm Alena design tokens (matches Checklists / SupplierOrders restyle).
+const WARM = {
+  terracotta: '#A04A2E', olive: '#44512C', brass: '#B89556',
+  cream: '#FAF5E8', creamCard: '#F4ECD8', border: '#E8D9B5',
+  charcoal: '#1F1B17', muted: '#7A6F5D',
+};
 
 const MINIMUM_WAGE = 32; // שכר מינימום לשעה
 
@@ -437,15 +445,19 @@ function TipsInner() {
     };
 
     return (
-        <div className="p-4 md:p-8" dir="rtl">
+        <div className="p-4 md:p-8 min-h-screen" dir="rtl" style={{ background: 'linear-gradient(180deg,#FBF7EE 0%,#F4ECD8 100%)' }}>
+            <style>{`@import url('https://fonts.googleapis.com/css2?family=Frank+Ruhl+Libre:wght@500;700&display=swap');.tips-serif{font-family:'Frank Ruhl Libre',Georgia,serif;}`}</style>
             <UnlockedReportsAlert />
-            <Card className="max-w-7xl mx-auto">
-                <CardHeader>
-                    <CardTitle className="text-2xl">ניהול טיפים</CardTitle>
+            <Card className="max-w-7xl mx-auto rounded-2xl border-2 shadow-sm" style={{ borderColor: WARM.border, background: '#FFFDF8' }}>
+                <CardHeader className="rounded-t-2xl" style={{ background: WARM.creamCard, borderBottom: `1px solid ${WARM.border}` }}>
+                    <CardTitle className="text-2xl tips-serif flex items-center gap-2" style={{ color: WARM.terracotta }}>
+                        <span className="text-2xl">💰</span> ניהול טיפים
+                    </CardTitle>
+                    <p className="text-sm mt-1" style={{ color: WARM.muted }}>חישוב, חלוקה ונעילת דוח משמרת — כולל עדכון שעות בפועל לסידור סוף יום</p>
                 </CardHeader>
                 <CardContent className="space-y-6">
                     {/* Filters */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 border rounded-lg bg-gray-50">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 rounded-xl border-2" style={{ background: WARM.cream, borderColor: WARM.border }}>
                         <div>
                             <Label>תאריך</Label>
                             <Popover>
@@ -564,11 +576,11 @@ function TipsInner() {
                                 </Card>
                             </div>
                             
-                            {/* Staff Details Table */}
-                            <div className="overflow-x-auto">
+                            {/* Staff Details Table — desktop (≥md). Mobile gets a card list below. */}
+                            <div className="hidden md:block overflow-x-auto rounded-xl border-2" style={{ borderColor: WARM.border }}>
                                 <Table>
                                     <TableHeader>
-                                        <TableRow>
+                                        <TableRow style={{ background: WARM.cream }}>
                                             <TableHead>שולם</TableHead>
                                             <TableHead>שם העובד</TableHead>
                                             <TableHead>תפקיד</TableHead>
@@ -633,8 +645,8 @@ function TipsInner() {
                                                         </SelectContent>
                                                     </Select>
                                                 </TableCell>
-                                                <TableCell><TimePicker value={staff.start_time} onChange={v => handleStaffDetailChange(index, 'start_time', v)} /></TableCell>
-                                                <TableCell><TimePicker value={staff.end_time} onChange={v => handleStaffDetailChange(index, 'end_time', v)} /></TableCell>
+                                                <TableCell><TimePicker size="sm" value={staff.start_time} onChange={v => handleStaffDetailChange(index, 'start_time', v)} /></TableCell>
+                                                <TableCell><TimePicker size="sm" value={staff.end_time} onChange={v => handleStaffDetailChange(index, 'end_time', v)} /></TableCell>
                                                 <TableCell>
                                                     <div className="space-y-1">
                                                         <Input type="number" value={staff.break_minutes} onChange={e => handleStaffDetailChange(index, 'break_minutes', e.target.value)} className="w-24"/>
@@ -663,9 +675,82 @@ function TipsInner() {
                                     </TableBody>
                                 </Table>
                             </div>
+
+                            {/* Staff Details — mobile card list (<md). One card per employee so
+                                the 14-column table doesn't become an unreadable horizontal scroll. */}
+                            <div className="md:hidden space-y-3">
+                                {calculatedResults.staffDetails.length === 0 && (
+                                    <p className="text-center text-sm py-4" style={{ color: WARM.muted }}>אין עובדים במשמרת — הוסף עובד או סנכרן שעות מהסידור.</p>
+                                )}
+                                {calculatedResults.staffDetails.map((staff, index) => {
+                                    const isPaid = paidEmployeeIds.has(staff.employee_id);
+                                    return (
+                                        <div key={index} className="rounded-2xl border-2 p-3 space-y-3" style={{ borderColor: isPaid ? '#86B049' : WARM.border, background: isPaid ? '#F3F8EC' : '#FFFDF8' }}>
+                                            {/* header: paid toggle + name + delete */}
+                                            <div className="flex items-center gap-2">
+                                                <button
+                                                    onClick={() => { if (staff.employee_id) setPaidEmployeeIds(prev => { const n = new Set(prev); n.has(staff.employee_id) ? n.delete(staff.employee_id) : n.add(staff.employee_id); return n; }); }}
+                                                    className={`shrink-0 w-9 h-9 rounded-full border-2 flex items-center justify-center transition-colors ${isPaid ? 'bg-[#6E8B3D] border-[#6E8B3D] text-white' : 'border-gray-300'}`}
+                                                    title={isPaid ? 'חולק ✓' : 'סמן כשולם'}
+                                                >{isPaid ? '✓' : ''}</button>
+                                                <div className="flex-1 min-w-0">
+                                                    <Select value={staff.employee_id} onValueChange={(value) => { const employee = allEmployees.find(e => e.id === value); handleStaffDetailChange(index, 'employee_id', value); handleStaffDetailChange(index, 'employee_name', employee?.full_name || ''); }}>
+                                                        <SelectTrigger className="h-9 font-semibold"><SelectValue placeholder="בחר עובד" /></SelectTrigger>
+                                                        <SelectContent>{allEmployees.map(e => <SelectItem key={e.id} value={e.id}>{e.full_name}</SelectItem>)}</SelectContent>
+                                                    </Select>
+                                                </div>
+                                                <Button variant="ghost" size="icon" className="shrink-0" onClick={() => handleRemoveStaff(index)}><Trash2 className="w-4 h-4 text-red-500"/></Button>
+                                            </div>
+                                            {/* role */}
+                                            <Select value={staff.position} onValueChange={(value) => handleStaffDetailChange(index, 'position', value)}>
+                                                <SelectTrigger className="h-9"><SelectValue placeholder="תפקיד" /></SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="מלצר">מלצר</SelectItem>
+                                                    <SelectItem value="ראנר">ראנר</SelectItem>
+                                                    <SelectItem value="ברמן">ברמן</SelectItem>
+                                                    <SelectItem value="מנהל משמרת">מנהל משמרת</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                            {/* times */}
+                                            <div className="grid grid-cols-2 gap-2">
+                                                <div className="rounded-lg border p-2" style={{ borderColor: WARM.border, background: WARM.cream }}>
+                                                    <div className="text-[11px] mb-1 text-center" style={{ color: WARM.muted }}>שעת כניסה</div>
+                                                    <TimePicker size="sm" value={staff.start_time} onChange={v => handleStaffDetailChange(index, 'start_time', v)} />
+                                                </div>
+                                                <div className="rounded-lg border p-2" style={{ borderColor: WARM.border, background: WARM.cream }}>
+                                                    <div className="text-[11px] mb-1 text-center" style={{ color: WARM.muted }}>שעת יציאה</div>
+                                                    <TimePicker size="sm" value={staff.end_time} onChange={v => handleStaffDetailChange(index, 'end_time', v)} />
+                                                </div>
+                                            </div>
+                                            {/* break / meal / bonus */}
+                                            <div className="grid grid-cols-3 gap-2">
+                                                <label className="block"><span className="text-[11px]" style={{ color: WARM.muted }}>הפסקה (ד')</span><Input type="number" value={staff.break_minutes} onChange={e => handleStaffDetailChange(index, 'break_minutes', e.target.value)} className="h-9"/></label>
+                                                <label className="block"><span className="text-[11px]" style={{ color: WARM.muted }}>ארוחה ₪</span><Input type="number" value={staff.meal_cost} onChange={e => handleStaffDetailChange(index, 'meal_cost', e.target.value)} className="h-9"/></label>
+                                                <label className="block"><span className="text-[11px]" style={{ color: WARM.muted }}>בונוס ₪</span><Input type="number" value={staff.sales_bonus} onChange={e => handleStaffDetailChange(index, 'sales_bonus', e.target.value)} className="h-9"/></label>
+                                            </div>
+                                            {staff.breaks && staff.breaks.length > 0 && (
+                                                <div className="text-[11px] space-y-0.5" style={{ color: WARM.muted }}>
+                                                    {staff.breaks.map((b, bi) => (
+                                                        <div key={bi} className="rounded px-1.5 py-0.5" style={{ background: WARM.creamCard }}>🕐 {b.break_start ? b.break_start.slice(11,16) : '?'} – {b.break_end ? b.break_end.slice(11,16) : '?'}{b.duration_minutes ? ` (${Math.round(b.duration_minutes)} ד')` : ''}</div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                            {/* results */}
+                                            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs pt-2 border-t" style={{ borderColor: WARM.border, color: WARM.charcoal }}>
+                                                <span>שעות: <b>{staff.effectiveHours.toFixed(2)}</b></span>
+                                                <span>ברוטו: <b>₪{staff.grossTip.toFixed(2)}</b></span>
+                                                <span>נטו: <b>₪{staff.finalTip.toFixed(2)}</b></span>
+                                                {staff.supplement > 0 && <span style={{ color: WARM.terracotta }}>השלמה: <b>₪{staff.supplement.toFixed(2)}</b></span>}
+                                                <span className="ms-auto text-sm font-bold px-2 py-0.5 rounded-lg" style={{ background: WARM.olive, color: '#fff' }}>סה"כ ₪{staff.totalEarnings.toFixed(2)}</span>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+
                             {/* פתיחה / סגירה */}
-                            <div className="border rounded-xl p-4 bg-gray-50 space-y-4">
-                                <h3 className="font-bold text-gray-800">פתיחה וסגירה</h3>
+                            <div className="border-2 rounded-xl p-4 space-y-4" style={{ borderColor: WARM.border, background: WARM.cream }}>
+                                <h3 className="font-bold tips-serif" style={{ color: WARM.terracotta }}>פתיחה וסגירה</h3>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                     {/* פתיחה */}
                                     <div>
@@ -808,7 +893,15 @@ function TipsInner() {
                                        locked_at: new Date().toISOString(),
                                    };
                                    await TipReport.update(existingReport.id, reportData);
-                                   toast.success("דוח ננעל בהצלחה! הנתונים יופיעו בדוחות העובדים.");
+                                   // End-of-day reconciliation: push the manager-verified hours into
+                                   // ShiftTracking so the schedule / labor-cost "actual" reflects reality.
+                                   let syncMsg = "";
+                                   try {
+                                       const res = await base44.functions.syncTipHoursToEndOfDay({ date: format(date, 'yyyy-MM-dd'), shift_type: shiftType });
+                                       const r = res?.data || res;
+                                       if (r?.ok) syncMsg = ` · סידור סוף יום עודכן: ${r.employees} עובדים, ${r.total_hours} שע'`;
+                                   } catch (se) { console.error('end-of-day sync failed', se); }
+                                   toast.success("דוח ננעל בהצלחה! הנתונים יופיעו בדוחות העובדים." + syncMsg);
                                    fetchShiftData();
                                } catch (e) {
                                    toast.error("שגיאה בנעילת הדוח");

@@ -13612,6 +13612,104 @@ registerFn('adminCloseEmployeeShift', async ({ user, body }) => {
   return { ok: true, end_time: endHHMM, total_hours: totalHours, work_shifts_synced: synced };
 });
 
+// End-of-day reconciliation: when a manager LOCKS a tip report, the hours he
+// entered/verified per waiter are the authoritative "actual worked hours".
+// Push them into ShiftTracking (which drives the LaborCost "actual" + the
+// end-of-day picture) so the schedule reflects reality — not raw geofence
+// clock-ins that are often missing or wrong. Idempotent: re-locking overwrites
+// the same tips-sourced row instead of duplicating labor hours.
+registerFn('syncTipHoursToEndOfDay', async ({ user, body }) => {
+  if (!user?.id) throw new Error('unauthorized');
+  if (!isAdminRole((user as any)?.role)) throw new Error('admin only');
+  const { date, shift_type } = (body || {}) as { date?: string; shift_type?: string };
+  if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error('date (YYYY-MM-DD) required');
+  const shift = shift_type === 'lunch' ? 'lunch' : 'dinner';
+
+  const reports: any[] = await (prisma as any).tipReport.findMany({ where: { date, shift_type: shift }, take: 1 });
+  const report = reports?.[0];
+  if (!report) throw new Error('tip_report_not_found');
+  const staff: any[] = Array.isArray(report.staff_details) ? report.staff_details : [];
+
+  // Israel wall-clock -> UTC instant (handles IST/IDT via the runtime TZ db).
+  const ilOffsetMin = (d: Date): number => {
+    try {
+      const s = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Jerusalem', timeZoneName: 'shortOffset' })
+        .formatToParts(d).find(p => p.type === 'timeZoneName')?.value || 'GMT+3';
+      const m = s.match(/GMT([+-]?\d{1,2})(?::(\d{2}))?/);
+      if (!m) return 180;
+      const h = parseInt(m[1], 10);
+      return h * 60 + (h < 0 ? -1 : 1) * parseInt(m[2] || '0', 10);
+    } catch { return 180; }
+  };
+  const wallToUtc = (dateStr: string, hhmm: string, addDays = 0): Date => {
+    const [hh, mm] = String(hhmm).split(':').map(n => parseInt(n, 10));
+    const base = new Date(`${dateStr}T00:00:00.000Z`);
+    base.setUTCDate(base.getUTCDate() + addDays);
+    const approx = new Date(base.getTime() + ((hh || 0) * 60 + (mm || 0)) * 60000);
+    return new Date(approx.getTime() - ilOffsetMin(approx) * 60000);
+  };
+  const ilHour = (d: Date): number => {
+    try { return parseInt(new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Jerusalem', hour: '2-digit', hour12: false }).format(d), 10) % 24; }
+    catch { return d.getUTCHours(); }
+  };
+  const inWindow = (h: number) => shift === 'lunch' ? h < 16 : h >= 16;
+
+  const day0 = new Date(`${date}T00:00:00.000Z`);
+  const day1 = new Date(`${date}T23:59:59.999Z`);
+  const existing: any[] = await (prisma as any).shiftTracking.findMany({ where: { date: { gte: day0, lte: day1 } }, take: 200 });
+
+  let updated = 0, created = 0, totalHours = 0;
+  const touched: string[] = [];
+  for (const s of staff) {
+    const empId = s?.employee_id;
+    if (!empId || !s.start_time || !s.end_time) continue;
+    const startHH = parseInt(String(s.start_time).split(':')[0], 10) || 0;
+    const endHH = parseInt(String(s.end_time).split(':')[0], 10) || 0;
+    const overnight = endHH < startHH;
+    const shiftStart = wallToUtc(date, s.start_time);
+    const shiftEnd = wallToUtc(date, s.end_time, overnight ? 1 : 0);
+    const eff = Number(s.effective_hours) || 0;
+    const gross = Number(s.total_hours) || eff;
+    totalHours += gross;
+
+    // Match priority: a prior tips row for this shift, else an untagged geofence
+    // row in the same daypart window, else create fresh.
+    const mine = existing.filter(r => r.employee_id === empId);
+    let target = mine.find(r => r.source === 'tips' && r.shift_type === shift)
+      || mine.find(r => r.source !== 'tips' && inWindow(ilHour(new Date(r.shift_start))));
+
+    if (target) {
+      await (prisma as any).shiftTracking.update({
+        where: { id: target.id },
+        data: {
+          employee_name: s.employee_name || target.employee_name,
+          shift_start: shiftStart, shift_end: shiftEnd, status: 'completed',
+          total_hours: gross, effective_hours: eff,
+          total_break_minutes: Number(s.break_minutes) || 0,
+          source: 'tips', shift_type: shift,
+        },
+      });
+      // Prevent a second staff row from re-matching this same geofence record.
+      target.source = 'tips'; target.shift_type = shift;
+      updated++;
+    } else {
+      await (prisma as any).shiftTracking.create({
+        data: {
+          employee_id: empId, employee_name: s.employee_name || 'עובד', date: day0,
+          shift_start: shiftStart, shift_end: shiftEnd, status: 'completed',
+          total_hours: gross, effective_hours: eff,
+          total_break_minutes: Number(s.break_minutes) || 0,
+          source: 'tips', shift_type: shift,
+        },
+      });
+      created++;
+    }
+    touched.push(empId);
+  }
+
+  return { ok: true, date, shift_type: shift, employees: touched.length, updated, created, total_hours: Math.round(totalHours * 100) / 100 };
+});
+
 // Authed — heartbeat from the active shift widget. Debounce: requires
 // (a) past warm-up window AND (b) previous reading was also over threshold
 // before auto-closing. Kills GPS jitter false positives.
