@@ -13,7 +13,7 @@ import './i18nTranslate.js';
 import { randomUUID } from 'node:crypto';
 import { prisma } from '../db.js';
 import { registerFn, functionHandlers } from './index.js';
-import { sendSms, sendWhatsApp, sendWhatsAppTemplate } from '../lib/twilio.js';
+import { sendSms, sendWhatsApp, sendWhatsAppTemplate, invalidateTwilioCredsCache, twilioAuth } from '../lib/twilio.js';
 import { pushover, pushoverToAdmins, pushoverEventsOwners } from '../lib/pushover.js';
 import { checkDailyHoursReportSchedule, sendDailyHoursReport, buildDailyHoursReport } from '../lib/dailyHoursReport.js';
 import { fireTriggers } from '../lib/triggers.js';
@@ -2457,8 +2457,10 @@ registerFn('getWhatsAppStatus', async ({ user }) => {
   if ((user as any).role !== 'admin' && (user as any).role !== 'owner') {
     throw new Error('admin only');
   }
-  const sid = process.env.TWILIO_ACCOUNT_SID;
-  const token = process.env.TWILIO_AUTH_TOKEN;
+  // Effective creds — DB override (owner-pasted) with env fallback, so the probe
+  // tests what sendWhatsApp actually uses.
+  const { sid, token } = await twilioAuth();
+  const dbCred: any = (await (prisma as any).restaurantProfile.findFirst({ select: { twilio_credentials: true } }).catch(() => null))?.twilio_credentials || {};
   const from = process.env.TWILIO_WHATSAPP_FROM ?? (process.env.TWILIO_PHONE_NUMBER ? `whatsapp:${process.env.TWILIO_PHONE_NUMBER}` : '');
   const templateSid = process.env.TWILIO_WA_TEMPLATE_SID || 'HX42bd4ae96abaa7312aeeae1af997c3da';
   const mask = (s: string | undefined) => s ? `${s.slice(0, 6)}…${s.slice(-4)}` : '';
@@ -2467,6 +2469,7 @@ registerFn('getWhatsAppStatus', async ({ user }) => {
     has_token: !!token,
     has_from: !!from,
     has_template: !!templateSid,
+    token_source: dbCred.auth_token ? 'app_override' : 'env',
     from_masked: from ? from.replace(/(\+?\d{4})\d+(\d{2})/, '$1…$2') : '',
     template_masked: mask(templateSid),
     sender_ok: null as boolean | null,
@@ -2498,6 +2501,62 @@ registerFn('getWhatsAppStatus', async ({ user }) => {
     }
   }
   return out;
+});
+
+// Masked read of the app-stored Twilio credential override (never returns the
+// raw token). Used by /AdminWhatsApp to show whether an override is active.
+registerFn('getTwilioCredStatus', async ({ user }) => {
+  if (!user) throw new Error('auth required');
+  if ((user as any).role !== 'admin' && (user as any).role !== 'owner') throw new Error('admin only');
+  const p: any = await (prisma as any).restaurantProfile.findFirst({ select: { twilio_credentials: true } }).catch(() => null);
+  const c: any = p?.twilio_credentials || {};
+  const tok = c.auth_token || '';
+  return {
+    has_override_token: !!tok,
+    has_override_sid: !!c.account_sid,
+    token_masked: tok ? `${String(tok).slice(0, 4)}…${String(tok).slice(-4)}` : '',
+    sid_masked: c.account_sid ? `${String(c.account_sid).slice(0, 6)}…${String(c.account_sid).slice(-4)}` : '',
+  };
+});
+
+// Owner writes a new Twilio Auth Token (and optionally Account SID) from the app
+// when the server .env is unreachable. Stored write-only; takes effect within
+// ~30s (cache) — we also bust the cache + probe Twilio immediately for feedback.
+registerFn('updateTwilioCredentials', async ({ user, body }) => {
+  if (!user) throw new Error('auth required');
+  if ((user as any).role !== 'admin' && (user as any).role !== 'owner') throw new Error('admin only');
+  const b = (body || {}) as any;
+  const authToken = typeof b.auth_token === 'string' ? b.auth_token.trim() : '';
+  const accountSid = typeof b.account_sid === 'string' ? b.account_sid.trim() : '';
+  if (!authToken && !accountSid && b.clear !== true) throw new Error('auth_token required');
+
+  let profile: any = await (prisma as any).restaurantProfile.findFirst();
+  if (!profile) profile = await (prisma as any).restaurantProfile.create({ data: {} });
+  const existing: any = profile.twilio_credentials || {};
+  const merged: any = b.clear === true ? {} : { ...existing };
+  if (authToken) merged.auth_token = authToken;
+  if (accountSid) merged.account_sid = accountSid;
+  await (prisma as any).restaurantProfile.update({ where: { id: profile.id }, data: { twilio_credentials: merged } });
+  invalidateTwilioCredsCache();
+
+  // Immediate probe with the effective creds so the owner gets instant feedback.
+  const { sid, token } = await twilioAuth();
+  const from = process.env.TWILIO_WHATSAPP_FROM ?? (process.env.TWILIO_PHONE_NUMBER ? `whatsapp:${process.env.TWILIO_PHONE_NUMBER}` : '');
+  let sender_ok: boolean | null = null; let sender_error: string | null = null;
+  if (sid && token && from) {
+    try {
+      const creds = Buffer.from(`${sid}:${token}`).toString('base64');
+      const r = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`, {
+        method: 'POST',
+        headers: { Authorization: `Basic ${creds}`, 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ From: from, To: 'whatsapp:+15005550006', Body: 'probe' }),
+      });
+      const data: any = await r.json();
+      sender_ok = r.ok;
+      if (!r.ok) sender_error = `${data?.code || r.status}: ${data?.message || 'unknown'}`;
+    } catch (e: any) { sender_ok = false; sender_error = e?.message || String(e); }
+  }
+  return { ok: true, saved: b.clear === true ? 'cleared' : 'saved', sender_ok, sender_error };
 });
 
 // Preview broadcast — counts how many recipients an audience filter matches,

@@ -1,3 +1,5 @@
+import { prisma } from '../db.js';
+
 export function normalizeIsraeliPhone(input: string): string {
   let n = input.replace(/\D/g, '');
   if (n.startsWith('0')) return '+972' + n.slice(1);
@@ -5,9 +7,26 @@ export function normalizeIsraeliPhone(input: string): string {
   return '+972' + n;
 }
 
+// Twilio SID/token — DB override (RestaurantProfile.twilio_credentials) with env
+// fallback, cached 30s. Lets the owner rotate a changed Auth Token from the app
+// when the server .env is unreachable; falls back to TWILIO_* env when unset.
+let _twCache: { at: number; sid?: string; token?: string } = { at: 0 };
+export function invalidateTwilioCredsCache() { _twCache = { at: 0 }; }
+export async function twilioAuth(): Promise<{ sid?: string; token?: string }> {
+  const envSid = process.env.TWILIO_ACCOUNT_SID;
+  const envToken = process.env.TWILIO_AUTH_TOKEN;
+  if (Date.now() - _twCache.at > 30000) {
+    try {
+      const p: any = await (prisma as any).restaurantProfile.findFirst({ select: { twilio_credentials: true } });
+      const c = p?.twilio_credentials || {};
+      _twCache = { at: Date.now(), sid: c.account_sid || undefined, token: c.auth_token || undefined };
+    } catch { _twCache = { at: Date.now() }; }
+  }
+  return { sid: _twCache.sid || envSid, token: _twCache.token || envToken };
+}
+
 export async function sendSms(to: string, body: string) {
-  const sid = process.env.TWILIO_ACCOUNT_SID;
-  const token = process.env.TWILIO_AUTH_TOKEN;
+  const { sid, token } = await twilioAuth();
   const from = process.env.TWILIO_PHONE_NUMBER;
   if (!sid || !token || !from) {
     console.warn('[twilio] missing credentials, skipping', { to, body: body.slice(0, 60) });
@@ -35,8 +54,7 @@ export async function sendWhatsAppTemplate(
   templateSid: string,
   variables: Record<string, string>,
 ) {
-  const sid = process.env.TWILIO_ACCOUNT_SID;
-  const token = process.env.TWILIO_AUTH_TOKEN;
+  const { sid, token } = await twilioAuth();
   const from =
     process.env.TWILIO_WHATSAPP_FROM ??
     (process.env.TWILIO_PHONE_NUMBER ? `whatsapp:${process.env.TWILIO_PHONE_NUMBER}` : undefined);
@@ -75,8 +93,7 @@ export async function sendWhatsApp(
   body: string,
   opts: { mediaUrl?: string; statusCallback?: string; recipientId?: string } = {},
 ) {
-  const sid = process.env.TWILIO_ACCOUNT_SID;
-  const token = process.env.TWILIO_AUTH_TOKEN;
+  const { sid, token } = await twilioAuth();
   const from =
     process.env.TWILIO_WHATSAPP_FROM ??
     (process.env.TWILIO_PHONE_NUMBER ? `whatsapp:${process.env.TWILIO_PHONE_NUMBER}` : undefined);

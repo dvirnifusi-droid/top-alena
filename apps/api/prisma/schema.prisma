@@ -2076,6 +2076,10 @@ model RestaurantProfile {
   // Latest daily-hours report snapshot (rows) — used by the WhatsApp approve/
   // correct flow to know which ShiftTracking rows a correction like "דני 6" hits.
   daily_hours_report_snapshot  Json?
+  // DB override for Twilio credentials (write-only, masked on read) so the owner
+  // can rotate the Auth Token from the app when the server .env is unreachable.
+  // Falls back to TWILIO_* env when unset. { account_sid, auth_token }.
+  twilio_credentials           Json?
   // Business Profile — deep context injected into every AI prompt so
   // outputs match the actual business (wine bar vs steakhouse vs cafe).
   business_type                String?

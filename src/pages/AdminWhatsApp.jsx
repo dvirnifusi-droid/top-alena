@@ -221,6 +221,77 @@ function BroadcastSection() {
     );
 }
 
+// Owner-editable Twilio Auth Token override — for when the server .env is
+// unreachable and the token was rotated (Twilio 401). Takes effect within ~30s.
+function TwilioCredsSection() {
+    const [token, setToken] = useState('');
+    const [sid, setSid] = useState('');
+    const [saving, setSaving] = useState(false);
+    const [result, setResult] = useState(null);
+    const [override, setOverride] = useState(null);
+
+    const loadStatus = async () => {
+        try { const r = await base44.functions.getTwilioCredStatus({}); setOverride(r?.data ?? r); } catch { /* noop */ }
+    };
+    useEffect(() => { loadStatus(); }, []);
+
+    const save = async () => {
+        if (!token.trim()) { setResult({ err: 'הדבק את ה-Auth Token' }); return; }
+        setSaving(true); setResult(null);
+        try {
+            const res = await base44.functions.updateTwilioCredentials({ auth_token: token.trim(), account_sid: sid.trim() || undefined });
+            const r = res?.data ?? res;
+            setResult(r?.sender_ok ? { ok: 'הטוקן נשמר ו-Twilio אישר אותו ✅ הסוכן אמור לחזור לעבוד.' }
+                : { err: `נשמר, אבל Twilio עדיין דוחה: ${r?.sender_error || 'בדוק שהעתקת את הטוקן הנכון / שהחשבון פעיל'}` });
+            setToken('');
+            loadStatus();
+        } catch (e) { setResult({ err: e?.message || String(e) }); }
+        setSaving(false);
+    };
+
+    const clearOverride = async () => {
+        setSaving(true); setResult(null);
+        try { await base44.functions.updateTwilioCredentials({ clear: true }); setResult({ ok: 'ה-override נמחק — חוזרים ל-.env של השרת.' }); loadStatus(); }
+        catch (e) { setResult({ err: e?.message || String(e) }); }
+        setSaving(false);
+    };
+
+    return (
+        <Card className="mb-4 border-amber-300 bg-amber-50/50" dir="rtl">
+            <CardContent className="p-4">
+                <h3 className="font-bold text-lg flex items-center gap-2 mb-1">
+                    🔑 עדכון Auth Token של Twilio
+                </h3>
+                <p className="text-xs text-gray-600 mb-3">
+                    אם הסוכן לא מגיב ורואים שגיאת <b>401</b> — סימן שה-Auth Token התחלף ב-Twilio. העתק אותו מ-
+                    <b> Twilio Console → Account → API keys &amp; tokens → Auth Token</b> והדבק כאן. נכנס לתוקף תוך ~30 שניות, בלי גישת שרת.
+                    {override?.has_override_token && <span className="block mt-1 text-emerald-700">כרגע פעיל override מהאפליקציה (טוקן {override.token_masked}).</span>}
+                </p>
+                <div className="space-y-2">
+                    <div>
+                        <Label className="text-xs">Auth Token (חובה)</Label>
+                        <Input type="password" value={token} onChange={e => setToken(e.target.value)} placeholder="הדבק את ה-Auth Token העדכני" dir="ltr" autoComplete="off" />
+                    </div>
+                    <div>
+                        <Label className="text-xs">Account SID (רק אם גם הוא השתנה — לרוב לא)</Label>
+                        <Input value={sid} onChange={e => setSid(e.target.value)} placeholder="ACxxxxxxxx (אופציונלי)" dir="ltr" autoComplete="off" />
+                    </div>
+                    <div className="flex gap-2 flex-wrap">
+                        <Button onClick={save} disabled={saving} className="bg-emerald-600 hover:bg-emerald-700 text-white">
+                            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : 'שמור ובדוק מול Twilio'}
+                        </Button>
+                        {override?.has_override_token && (
+                            <Button onClick={clearOverride} disabled={saving} variant="outline" className="border-gray-300">מחק override</Button>
+                        )}
+                    </div>
+                    {result?.ok && <p className="text-emerald-700 text-sm">✅ {result.ok}</p>}
+                    {result?.err && <p className="text-red-700 text-sm">❌ {result.err}</p>}
+                </div>
+            </CardContent>
+        </Card>
+    );
+}
+
 export default function AdminWhatsApp() {
     const brandName = useTenantBranding()?.name || 'המסעדה';
     return (
@@ -231,6 +302,7 @@ export default function AdminWhatsApp() {
             </p>
 
             <StatusSection />
+            <TwilioCredsSection />
             <TestSendSection />
             <BroadcastSection />
 
