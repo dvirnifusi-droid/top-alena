@@ -460,12 +460,11 @@ function ChecklistsInner() {
 
                     <TabsContent value="procedures">
                         {isMainAlena() ? (
-                        <Card className="shadow-2xl border-0 bg-gradient-to-br from-white via-orange-50 to-red-50 backdrop-blur-sm overflow-hidden">
-                            <CardHeader className="bg-gradient-to-r from-orange-600 via-red-600 to-[#A04A2E] text-white rounded-t-lg relative overflow-hidden">
-                                <div className="absolute inset-0 bg-gradient-to-r from-yellow-400/20 via-orange-400/20 to-red-400/20"></div>
+                        <Card className="shadow-sm border border-[#E8D9B5] bg-white overflow-hidden rounded-2xl">
+                            <CardHeader className="bg-[#44512C] text-white rounded-t-lg relative overflow-hidden">
                                 <div className="flex justify-between items-center relative">
-                                    <CardTitle className="text-3xl flex items-center gap-4 font-black">
-                                        <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-sm">
+                                    <CardTitle className="chk-serif text-2xl md:text-3xl flex items-center gap-4 font-black">
+                                        <div className="w-11 h-11 bg-white/15 rounded-xl flex items-center justify-center">
                                             <FileText className="w-7 h-7" />
                                         </div>
                                         נוהל אריזת משלוחים - רטבים ותוספות
@@ -600,13 +599,13 @@ function ChecklistsInner() {
                             </CardContent>
                         </Card>
                         ) : (
-                          <div className="bg-white/70 backdrop-blur-sm rounded-3xl p-10 shadow-xl border border-white/50 text-center">
-                            <FileText className="w-12 h-12 mx-auto text-orange-300 mb-3" />
-                            <h3 className="text-xl font-bold text-slate-700 mb-1">אין נהלים עדיין</h3>
-                            <p className="text-slate-500 mb-4">בנה נהלים משלך למסעדה — כמויות רטבים, אריזת משלוחים, הכנות ועוד.</p>
+                          <div className="bg-white rounded-2xl p-8 shadow-sm border border-[#E8D9B5] text-center">
+                            <FileText className="w-12 h-12 mx-auto text-[#D9BD83] mb-3" />
+                            <h3 className="text-xl font-bold text-[#1F1B17] mb-1">אין נהלים עדיין</h3>
+                            <p className="text-[#7A6F5D] mb-4">בנה נהלים משלך למסעדה — כמויות רטבים, אריזת משלוחים, הכנות ועוד.</p>
                             <Link to={createPageUrl("AiDashboard")}>
-                              <Button className="bg-orange-600 hover:bg-orange-700 text-white font-bold">
-                                <Pencil className="w-4 h-4 mr-2" /> הוסף נוהל
+                              <Button className="bg-[#A04A2E] hover:bg-[#8B3D24] text-white font-bold">
+                                <Pencil className="w-4 h-4 ml-2" /> הוסף נוהל
                               </Button>
                             </Link>
                           </div>
@@ -614,63 +613,33 @@ function ChecklistsInner() {
                     </TabsContent>
 
                     <TabsContent value="archive">
-                        <div className="bg-white/70 backdrop-blur-sm rounded-3xl p-8 shadow-xl border border-white/50">
+                        <div className="bg-white rounded-2xl p-4 md:p-6 shadow-sm border border-[#E8D9B5]">
                             <ChecklistArchive />
                         </div>
                     </TabsContent>
 
                     <TabsContent value="stats">
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                            <Card className="bg-gradient-to-br from-green-50 to-emerald-100 border-0 shadow-xl hover:shadow-2xl transition-all duration-500 hover:scale-105">
-                                <CardHeader>
-                                    <CardTitle className="flex items-center gap-3 text-emerald-800">
-                                        <div className="w-12 h-12 bg-gradient-to-r from-green-500 to-emerald-500 rounded-xl flex items-center justify-center shadow-lg">
-                                            <CheckCircle className="w-6 h-6 text-white" />
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            {[
+                                { icon: CheckCircle, tint: 'bg-emerald-50 text-emerald-600', num: 'text-emerald-600', label: 'הושלמו השבוע',
+                                  value: executions.filter(e => e.status === 'completed' && e.execution_date && (Date.now() - new Date(e.execution_date).getTime()) < 7*24*60*60*1000).length },
+                                { icon: Clock, tint: 'bg-[#F4ECD8] text-[#7A5A2E]', num: 'text-[#7A5A2E]', label: 'בתהליך כעת',
+                                  value: executions.filter(e => e.status === 'in_progress').length },
+                                { icon: AlertTriangle, tint: 'bg-rose-50 text-rose-600', num: 'text-rose-600', label: 'דורשים תשומת לב',
+                                  value: executions.filter(e => e.status === 'requires_attention').length },
+                            ].map((s, i) => (
+                                <Card key={i} className="bg-white border border-[#E8D9B5] shadow-sm rounded-2xl">
+                                    <CardContent className="p-5 flex items-center gap-4">
+                                        <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${s.tint}`}>
+                                            <s.icon className="w-6 h-6" />
                                         </div>
-                                        הושלמו השבוע
-                                    </CardTitle>
-                                </CardHeader>
-                                <CardContent>
-                                    <div className="text-4xl font-black text-emerald-600 mb-2">
-                                        {executions.filter(e => e.status === 'completed' && e.execution_date && (Date.now() - new Date(e.execution_date).getTime()) < 7*24*60*60*1000).length}
-                                    </div>
-                                    <p className="text-emerald-700 font-medium">צ'קליסטים מושלמים ✨</p>
-                                </CardContent>
-                            </Card>
-
-                            <Card className="bg-gradient-to-br from-orange-50 to-amber-100 border-0 shadow-xl hover:shadow-2xl transition-all duration-500 hover:scale-105">
-                                <CardHeader>
-                                    <CardTitle className="flex items-center gap-3 text-orange-800">
-                                        <div className="w-12 h-12 bg-gradient-to-r from-orange-500 to-amber-500 rounded-xl flex items-center justify-center shadow-lg">
-                                            <Clock className="w-6 h-6 text-white" />
+                                        <div>
+                                            <div className={`text-4xl font-black leading-none ${s.num}`}>{s.value}</div>
+                                            <p className="text-sm text-[#7A6F5D] mt-1">{s.label}</p>
                                         </div>
-                                        בתהליך
-                                    </CardTitle>
-                                </CardHeader>
-                                <CardContent>
-                                    <div className="text-4xl font-black text-orange-600 mb-2">
-                                        {executions.filter(e => e.status === 'in_progress').length}
-                                    </div>
-                                    <p className="text-orange-700 font-medium">מתבצעים כעת 🔄</p>
-                                </CardContent>
-                            </Card>
-
-                            <Card className="bg-gradient-to-br from-red-50 to-[#F4ECD8] border-0 shadow-xl hover:shadow-2xl transition-all duration-500 hover:scale-105">
-                                <CardHeader>
-                                    <CardTitle className="flex items-center gap-3 text-red-800">
-                                        <div className="w-12 h-12 bg-gradient-to-r from-red-500 to-[#A04A2E] rounded-xl flex items-center justify-center shadow-lg">
-                                            <AlertTriangle className="w-6 h-6 text-white" />
-                                        </div>
-                                        דורשים תשומת לב
-                                    </CardTitle>
-                                </CardHeader>
-                                <CardContent>
-                                    <div className="text-4xl font-black text-red-600 mb-2">
-                                        {executions.filter(e => e.status === 'requires_attention').length}
-                                    </div>
-                                    <p className="text-red-700 font-medium">דרושה בדיקה 🚨</p>
-                                </CardContent>
-                            </Card>
+                                    </CardContent>
+                                </Card>
+                            ))}
                         </div>
                     </TabsContent>
                 </Tabs>
