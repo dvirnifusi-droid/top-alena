@@ -149,11 +149,6 @@ export default function Suppliers() {
             <p className="text-lg text-slate-600 mt-2">ניהול כל הספקים, המוצרים וההזמנות</p>
           </div>
           <div className="flex items-center gap-2">
-            <Link to={createPageUrl("SupplierOrders")}>
-              <Button variant="outline" className="border-2 border-[#D9BD83] text-[#7A5A2E] hover:bg-[#F4ECD8] font-bold">
-                🛒 הזמנות ספקים
-              </Button>
-            </Link>
             <Button onClick={() => openForm()} className="bg-orange-600 hover:bg-orange-700">
               <Plus className="w-5 h-5 ml-2" />
               הוסף ספק חדש
