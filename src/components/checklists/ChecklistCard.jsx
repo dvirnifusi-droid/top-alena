@@ -233,10 +233,10 @@ export default function ChecklistCard({ checklist, onStart, executions, onEdit, 
                 <div className="mt-6">
                     <Button
                         onClick={() => onStart(checklist)}
-                        className={`w-full h-12 text-lg font-bold rounded-2xl shadow-lg transition-all duration-300 hover:shadow-xl text-white bg-gradient-to-r ${
+                        className={`w-full h-12 text-lg font-bold rounded-2xl shadow-sm transition-all duration-300 hover:shadow-md text-white bg-gradient-to-r ${
                             lastExecution && lastExecution.status === 'completed'
-                                ? 'from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600'
-                                : `${colors.gradient} ${colors.hover}`
+                                ? 'from-[#B89556] to-[#A0824A] hover:from-[#a8854c] hover:to-[#8f7442]'
+                                : 'from-[#A04A2E] to-[#8B3D24] hover:from-[#8B3D24] hover:to-[#7A3722]'
                         }`}
                     >
                         <Play className="w-6 h-6 ml-3" />
@@ -249,7 +249,7 @@ export default function ChecklistCard({ checklist, onStart, executions, onEdit, 
                         <Button
                             onClick={() => onLiveRun(checklist)}
                             variant="outline"
-                            className="w-full h-12 text-base font-bold rounded-2xl mt-2 border-2 border-orange-300 text-orange-700 hover:bg-orange-50 bg-white/70"
+                            className="w-full h-12 text-base font-bold rounded-2xl mt-2 border-2 border-[#D9BD83] text-[#7A5A2E] hover:bg-[#F4ECD8] bg-white"
                         >
                             <ClipboardList className="w-5 h-5 ml-2" />
                             📋 תצוגת הכנות (לייב)

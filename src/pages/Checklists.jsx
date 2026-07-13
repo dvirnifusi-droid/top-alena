@@ -250,38 +250,32 @@ function ChecklistsInner() {
     });
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-[#F4ECD8] to-[#F4ECD8] p-4 md:p-8" dir="rtl">
+        <div className="min-h-screen bg-gradient-to-b from-[#FAF5E8] to-[#F4ECD8] p-4 md:p-8" dir="rtl">
             <div className="max-w-7xl mx-auto">
-                {/* Header מושלם */}
-                <div className="text-center mb-6 md:mb-10 relative">
-                    <div className="absolute inset-0 bg-gradient-to-r from-emerald-400/20 via-cyan-400/20 to-blue-400/20 rounded-3xl -rotate-1"></div>
-                    <div className="relative bg-white/70 backdrop-blur-sm rounded-3xl p-8 shadow-lg border border-white/50">
-                        <h1 className="text-2xl md:text-5xl font-black text-transparent bg-gradient-to-r from-emerald-600 via-[#B89556] to-[#44512C] bg-clip-text mb-4 flex items-center justify-center gap-4">
-                            <div className="w-16 h-16 bg-gradient-to-r from-emerald-500 to-[#B89556] rounded-2xl hidden md:flex items-center justify-center shadow-xl rotate-3 hover:rotate-0 transition-transform duration-500">
-                                <CheckSquare className="w-8 h-8 text-white" />
-                            </div>
-                            רשימות בדיקה
-                            <div className="w-16 h-16 bg-gradient-to-r from-[#B89556] to-[#44512C] rounded-2xl hidden md:flex items-center justify-center shadow-xl -rotate-3 hover:rotate-0 transition-transform duration-500">
-                                <CheckSquare className="w-8 h-8 text-white" />
-                            </div>
-                        </h1>
-                        <p className="text-xl text-gray-600 font-medium">ניהול מקצועי לצ'קליסטים יומיים בטעם של מקצועיות ✨</p>
+                {/* Header — clean, warm and restrained to match the app's line */}
+                <div className="mb-6 md:mb-8 flex items-center gap-3">
+                    <div className="w-11 h-11 rounded-xl bg-[#44512C] flex items-center justify-center shadow-sm shrink-0">
+                        <CheckSquare className="w-6 h-6 text-[#F4ECD8]" />
+                    </div>
+                    <div>
+                        <h1 className="text-2xl md:text-3xl font-black text-[#1F1B17] leading-tight">רשימות בדיקה</h1>
+                        <p className="text-sm text-[#7A6F5D]">ניהול הצ'קליסטים היומיים של המסעדה</p>
                     </div>
                 </div>
 
                 <Tabs defaultValue="active" className="w-full space-y-6">
                     {/* טאבים - גריד 2x2 במובייל, שורה אחת בדסקטופ */}
-                    <TabsList className="grid grid-cols-2 sm:grid-cols-4 bg-white/80 backdrop-blur-xl p-1.5 rounded-2xl border border-white/30 shadow-lg gap-1 h-auto">
-                        <TabsTrigger value="active" className="py-3 px-3 text-sm font-bold rounded-xl data-[state=active]:bg-emerald-500 data-[state=active]:text-white transition-all">
+                    <TabsList className="grid grid-cols-2 sm:grid-cols-4 bg-white p-1.5 rounded-2xl border border-[#E8D9B5] shadow-sm gap-1 h-auto">
+                        <TabsTrigger value="active" className="py-2.5 px-3 text-sm font-bold rounded-xl text-[#7A6F5D] data-[state=active]:bg-[#44512C] data-[state=active]:text-white transition-all">
                             🎯 פעילים
                         </TabsTrigger>
-                        <TabsTrigger value="procedures" className="py-3 px-3 text-sm font-bold rounded-xl data-[state=active]:bg-orange-500 data-[state=active]:text-white transition-all">
+                        <TabsTrigger value="procedures" className="py-2.5 px-3 text-sm font-bold rounded-xl text-[#7A6F5D] data-[state=active]:bg-[#44512C] data-[state=active]:text-white transition-all">
                             📋 נהלים
                         </TabsTrigger>
-                        <TabsTrigger value="archive" className="py-3 px-3 text-sm font-bold rounded-xl data-[state=active]:bg-[#A04A2E] data-[state=active]:text-white transition-all">
+                        <TabsTrigger value="archive" className="py-2.5 px-3 text-sm font-bold rounded-xl text-[#7A6F5D] data-[state=active]:bg-[#44512C] data-[state=active]:text-white transition-all">
                             🗂️ ארכיון
                         </TabsTrigger>
-                        <TabsTrigger value="stats" className="py-3 px-3 text-sm font-bold rounded-xl data-[state=active]:bg-[#44512C] data-[state=active]:text-white transition-all">
+                        <TabsTrigger value="stats" className="py-2.5 px-3 text-sm font-bold rounded-xl text-[#7A6F5D] data-[state=active]:bg-[#44512C] data-[state=active]:text-white transition-all">
                             📊 סטטיסטיקות
                         </TabsTrigger>
                     </TabsList>
@@ -298,10 +292,10 @@ function ChecklistsInner() {
                                 ].map(s => (
                                     <Button
                                         key={s.value}
-                                        variant={shiftFilter === s.value ? 'default' : 'outline'}
+                                        variant="outline"
                                         size="sm"
                                         onClick={() => setShiftFilter(s.value)}
-                                        className="rounded-xl"
+                                        className={`rounded-xl ${shiftFilter === s.value ? 'bg-[#44512C] hover:bg-[#3a4526] text-white border-[#44512C]' : 'border-[#E8D9B5] text-[#7A6F5D]'}`}
                                     >
                                         {s.label}
                                     </Button>
@@ -317,7 +311,7 @@ function ChecklistsInner() {
                                 </Button>
                                 <Button
                                     onClick={() => setEditingChecklist({})}
-                                    className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                                    className="bg-[#A04A2E] hover:bg-[#8B3D24] text-white"
                                 >
                                     <Plus className="w-4 h-4 ml-1" /> צ'קליסט חדש
                                 </Button>
@@ -327,25 +321,22 @@ function ChecklistsInner() {
                         <div className="flex flex-wrap gap-2">
                             <span className="text-xs font-bold text-gray-500 self-center">מחלקה</span>
                             {[
-                                { value: 'all', label: '🗂️ כל המחלקות', color: 'gray' },
-                                { value: 'floor', label: '🍽️ פלור', color: 'amber' },
-                                { value: 'bar', label: '🍷 בר', color: 'rose' },
-                                { value: 'kitchen', label: '🍳 מטבח', color: 'orange' },
-                                { value: 'managers', label: '👔 מנהלים', color: 'blue' },
+                                { value: 'all', label: '🗂️ כל המחלקות' },
+                                { value: 'floor', label: '🍽️ פלור' },
+                                { value: 'bar', label: '🍷 בר' },
+                                { value: 'kitchen', label: '🍳 מטבח' },
+                                { value: 'managers', label: '👔 מנהלים' },
                             ].map(d => {
                                 const isActive = deptFilter === d.value;
-                                const palette = {
-                                    gray: isActive ? 'bg-gray-700 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200',
-                                    amber: isActive ? 'bg-amber-600 text-white' : 'bg-amber-50 text-amber-700 hover:bg-amber-100',
-                                    rose: isActive ? 'bg-rose-600 text-white' : 'bg-rose-50 text-rose-700 hover:bg-rose-100',
-                                    orange: isActive ? 'bg-orange-600 text-white' : 'bg-orange-50 text-orange-700 hover:bg-orange-100',
-                                    blue: isActive ? 'bg-blue-600 text-white' : 'bg-blue-50 text-blue-700 hover:bg-blue-100',
-                                };
                                 return (
                                     <button
                                         key={d.value}
                                         onClick={() => setDeptFilter(d.value)}
-                                        className={`px-3 py-1.5 rounded-xl text-sm font-bold transition-colors ${palette[d.color]}`}
+                                        className={`px-3 py-1.5 rounded-xl text-sm font-bold border transition-colors ${
+                                            isActive
+                                                ? 'bg-[#A04A2E] border-[#A04A2E] text-white'
+                                                : 'bg-white border-[#E8D9B5] text-[#7A6F5D] hover:border-[#D9BD83]'
+                                        }`}
                                     >
                                         {d.label}
                                     </button>
