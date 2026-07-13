@@ -6,7 +6,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { ChecklistExecution } from '@/entities/all';
 import { UploadFile } from '@/integrations/Core';
-import { Loader2, Check, Camera, X, StickyNote, ChefHat } from 'lucide-react';
+import { Loader2, Check, Camera, X, StickyNote, ChefHat, ChevronDown } from 'lucide-react';
 
 const fmtWhen = (iso) => {
   if (!iso) return '';
@@ -22,6 +22,10 @@ export default function ChecklistLiveRun({ checklist, user, onClose }) {
   const [uploadingKey, setUploadingKey] = useState(null);
   const lastInteractionRef = useRef(0);
   const mark = () => { lastInteractionRef.current = Date.now(); };
+  // Each dish is a collapsible header — collapsed by default; open to mark its
+  // sub-tasks. The header turns green once every sub-task is done.
+  const [expanded, setExpanded] = useState({});
+  const toggleGroup = (area) => setExpanded((p) => ({ ...p, [area]: !p[area] }));
 
   const items = useMemo(() => (Array.isArray(checklist?.items) ? checklist.items : []), [checklist]);
 
@@ -126,9 +130,28 @@ export default function ChecklistLiveRun({ checklist, user, onClose }) {
             <div className="flex justify-center py-12"><Loader2 className="w-7 h-7 animate-spin text-orange-600" /></div>
           ) : items.length === 0 ? (
             <div className="text-center py-12 text-gray-500">אין פריטים בצ'קליסט הזה.</div>
-          ) : groups.map(([area, rows]) => (
-            <div key={area} className="bg-white rounded-xl overflow-hidden border border-orange-100">
-              <div className="bg-gradient-to-l from-orange-100 to-amber-50 px-3 py-2 text-sm font-bold text-[#7A3722]">{area}</div>
+          ) : groups.map(([area, rows]) => {
+            const gTotal = rows.length;
+            const gDone = rows.filter(({ it, i }) => results[keyOf(it, i)]?.checked).length;
+            const allDone = gTotal > 0 && gDone === gTotal;
+            const isOpen = !!expanded[area];
+            return (
+            <div key={area} className={`bg-white rounded-xl overflow-hidden border ${allDone ? 'border-green-300' : 'border-orange-100'}`}>
+              {/* Dish header — click to expand its sub-tasks. Green when complete. */}
+              <button
+                onClick={() => toggleGroup(area)}
+                className={`w-full flex items-center justify-between px-3 py-2.5 text-sm font-bold transition-colors ${allDone ? 'bg-green-500 text-white' : 'bg-gradient-to-l from-orange-100 to-amber-50 text-[#7A3722] hover:from-orange-200'}`}
+              >
+                <span className="flex items-center gap-2 min-w-0">
+                  {allDone && <Check className="w-4 h-4 shrink-0" />}
+                  <span className="break-words text-right">{area}</span>
+                </span>
+                <span className="flex items-center gap-2 shrink-0">
+                  <span className={`text-xs font-bold ${allDone ? 'text-white/90' : gDone > 0 ? 'text-orange-600' : 'text-gray-400'}`}>{gDone}/{gTotal}</span>
+                  <ChevronDown className={`w-4 h-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+                </span>
+              </button>
+              {isOpen && (
               <div className="divide-y">
                 {rows.map(({ it, i }) => {
                   const k = keyOf(it, i);
@@ -154,8 +177,10 @@ export default function ChecklistLiveRun({ checklist, user, onClose }) {
                   );
                 })}
               </div>
+              )}
             </div>
-          ))}
+            );
+          })}
         </div>
       </div>
     </div>
