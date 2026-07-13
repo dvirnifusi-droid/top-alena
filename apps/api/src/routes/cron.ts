@@ -1,6 +1,7 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { sendRestroomReminder, sendAbandonedReminder, sendT24SurveyReminders, runAutoTrackerAnalysis, runSalesAutoClose, runWeeklyPersonalGoals, captureBeecommSnapshot, backfillBeecommHistory, reopenAutoClosedShifts, runWeeklyScheduleOpen, runWeeklyScheduleReminder, runWeeklyScheduleFinalReminder, runWeeklyScheduleBuild, runNoShowWatcher, runInvoiceClassifier, runCrisisAgent, runContentGenerator, runCashFlowAgent, sendReservationReminders, runSupplierOrderAlerts } from '../functions/load.js';
 import { sendMorningBrief, buildMorningBrief, sendEndOfDayBrief, buildEndOfDayBrief } from '../lib/morningBrief.js';
+import { sendDailyHoursReport, checkDailyHoursReportSchedule } from '../lib/dailyHoursReport.js';
 import { dispatchDueReminders } from '../lib/reminders.js';
 import { sendWeeklyInsights, buildWeeklyInsights } from '../lib/weeklyInsights.js';
 import { pullAllConnectedCalendars } from '../lib/googleSync.js';
@@ -82,6 +83,17 @@ export const cronRoutes: FastifyPluginAsync = async (app) => {
   // tips yesterday, open leads, unpaid invoices, missing availability).
   app.post('/morning-brief', async () => {
     return sendMorningBrief();
+  });
+
+  // Daily staff-hours report. The in-process timer is primary; this endpoint is
+  // a backup/manual trigger. '/daily-hours-report' respects the slot+dedup;
+  // '/daily-hours-report-now' forces a send regardless of slot.
+  app.post('/daily-hours-report', async () => {
+    await checkDailyHoursReportSchedule();
+    return { ok: true };
+  });
+  app.post('/daily-hours-report-now', async () => {
+    return sendDailyHoursReport({ force: true });
   });
 
   // Preview/debug — return the brief text WITHOUT sending. Useful for

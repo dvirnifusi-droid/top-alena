@@ -2070,6 +2070,12 @@ model RestaurantProfile {
   recruitment_min_score        Int?      @default(80)
   recruitment_monthly_targets  Json?
   recruitment_criteria         Json?     // per-tenant AI screening criteria: {min_age, weekend_required, min_experience, location_pref, extra}
+  // Last time the scheduled daily-hours report was sent. Doubles as the "since"
+  // cursor for the next report's rolling coverage window + the dedup lock.
+  last_daily_hours_report_at   DateTime?
+  // Latest daily-hours report snapshot (rows) — used by the WhatsApp approve/
+  // correct flow to know which ShiftTracking rows a correction like "דני 6" hits.
+  daily_hours_report_snapshot  Json?
   // Business Profile — deep context injected into every AI prompt so
   // outputs match the actual business (wine bar vs steakhouse vs cafe).
   business_type                String?

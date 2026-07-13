@@ -14,6 +14,7 @@ import { pushoverToAdmins } from '../lib/pushover.js';
 import { tryHandleAdminCommand, isWhatsAppAdmin } from '../lib/whatsappAgent.js';
 import { handleAdminInvoiceMedia, tryConfirmPendingInvoice } from '../lib/whatsappInvoice.js';
 import { tryProposeAction, tryConfirmPendingAction } from '../lib/whatsappActions.js';
+import { tryHandleDailyHoursReply } from '../lib/dailyHoursReply.js';
 import { transcribeWhatsAppVoice } from '../lib/whatsappVoice.js';
 import { runConversationAgent } from '../lib/whatsappConversation.js';
 import { tryHandleOnboardingMessage, tryHandleOnboardingMedia, isOnboardingActive } from '../lib/whatsappOnboarding.js';
@@ -328,6 +329,27 @@ export const twilioWebhookRoutes: FastifyPluginAsync = async (app) => {
               .replace(/"/g, '&quot;').replace(/'/g, '&apos;');
             reply.type('text/xml').send(
               `<?xml version="1.0" encoding="UTF-8"?><Response><Message>${escapedConfirm}</Message></Response>`,
+            );
+            return;
+          }
+          // (B1) Daily-hours report reply — "מאושר" to approve, or "דני 6 שעות"
+          // to correct. Only engages when a recent report snapshot exists; else
+          // returns null and we fall through to the normal admin flow.
+          const hoursReply = await tryHandleDailyHoursReply(from, body);
+          if (hoursReply) {
+            await (prisma as any).whatsAppMessage.create({
+              data: {
+                twilio_sid: sid || null, direction: 'inbound', from_phone: from, to_phone: to,
+                contact_phone: from, body, num_media: numMedia, status: 'received',
+                raw: { ...params, admin_hours_reply: true } as any, is_read: true,
+              },
+            }).catch(() => {});
+            req.log.info({ from, body: body.slice(0, 60) }, '[whatsapp-agent] daily-hours reply handled');
+            const escapedHours = hoursReply
+              .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+              .replace(/"/g, '&quot;').replace(/'/g, '&apos;');
+            reply.type('text/xml').send(
+              `<?xml version="1.0" encoding="UTF-8"?><Response><Message>${escapedHours}</Message></Response>`,
             );
             return;
           }

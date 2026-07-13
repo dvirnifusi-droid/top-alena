@@ -15,6 +15,7 @@ import { prisma } from '../db.js';
 import { registerFn, functionHandlers } from './index.js';
 import { sendSms, sendWhatsApp, sendWhatsAppTemplate } from '../lib/twilio.js';
 import { pushover, pushoverToAdmins, pushoverEventsOwners } from '../lib/pushover.js';
+import { checkDailyHoursReportSchedule, sendDailyHoursReport, buildDailyHoursReport } from '../lib/dailyHoursReport.js';
 import { fireTriggers } from '../lib/triggers.js';
 import { sendTelegramMessage } from '../lib/telegram.js';
 import { sendEmail } from '../lib/email.js';
@@ -1778,6 +1779,33 @@ if (!(globalThis as any).__ceoDailyBriefTimer) {
     });
   }, 60 * 1000);
 }
+
+// ── Daily staff-hours report scheduler (Asia/Jerusalem) ──────────────────────
+// In-process timer (TZ-safe, no crontab). Fires once per slot: Sun–Wed 01:00,
+// Thu 03:30, Fri 17:00, Sat 02:00. See lib/dailyHoursReport.ts.
+if (!(globalThis as any).__dailyHoursReportTimer) {
+  (globalThis as any).__dailyHoursReportTimer = setTimeout(function loop() {
+    checkDailyHoursReportSchedule().finally(() => {
+      (globalThis as any).__dailyHoursReportTimer = setTimeout(loop, 5 * 60 * 1000);
+    });
+  }, 90 * 1000);
+}
+
+// Preview the daily-hours report text WITHOUT sending (admin hand-test).
+registerFn('previewDailyHoursReport', async ({ user }) => {
+  if (!isAdminRole((user as any)?.role)) throw new Error('admin only');
+  const now = new Date();
+  const profile = await (prisma as any).restaurantProfile.findFirst().catch(() => null);
+  const since = profile?.last_daily_hours_report_at ? new Date(profile.last_daily_hours_report_at) : new Date(now.getTime() - 26 * 3600 * 1000);
+  const r = await buildDailyHoursReport(since, now);
+  return { text: r.text, count: r.count, totalHours: r.totalHours, flagged: r.flagged, rows: r.rows };
+});
+
+// Send the daily-hours report NOW to all channels (admin-triggered, ignores slot).
+registerFn('sendDailyHoursReportNow', async ({ user }) => {
+  if (!isAdminRole((user as any)?.role)) throw new Error('admin only');
+  return sendDailyHoursReport({ force: true });
+});
 
 // ============================================================================
 // DAILY BIRTHDAY + ANNIVERSARY CRON — fires once per day around 09:00 IL.
