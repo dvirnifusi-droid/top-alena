@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, Users, TrendingUp, RefreshCw } from 'lucide-react';
+import { Loader2, Users, TrendingUp, RefreshCw, Send } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import PageGuard from '../components/shared/PageGuard';
 
@@ -12,6 +12,21 @@ function LaborCostInner() {
   const [ratio, setRatio] = useState(null);
   const [loading, setLoading] = useState(true);
   const [allowed, setAllowed] = useState(true);
+  const [sending, setSending] = useState(false);
+
+  const sendHoursReport = async () => {
+    if (sending) return;
+    setSending(true);
+    try {
+      const res = await base44.functions.sendDailyHoursReportNow();
+      const r = res?.data || res;
+      const ch = r?.sent || {};
+      alert(`📤 דוח שעות נשלח!\n${r?.count ?? 0} עובדים · ${r?.flagged ?? 0} חריגים\nוואטסאפ: ${ch.whatsapp ?? 0} · מייל: ${ch.email ?? 0} · פוש: ${ch.push ? '✓' : '✗'}`);
+    } catch (e) {
+      alert('שגיאה בשליחת הדוח: ' + (e?.message || 'unknown'));
+    }
+    setSending(false);
+  };
 
   const load = async () => {
     setLoading(true);
@@ -47,6 +62,9 @@ function LaborCostInner() {
             ))}
           </div>
           <Button variant="outline" size="sm" onClick={load} disabled={loading}><RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} /></Button>
+          <Button variant="outline" size="sm" onClick={sendHoursReport} disabled={sending} className="h-7 px-2 text-xs gap-1" title="שלח עכשיו דוח שעות יומי לוואטסאפ/פוש/מייל (בדיקה)">
+            {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />} דוח שעות
+          </Button>
         </div>
       </div>
 
