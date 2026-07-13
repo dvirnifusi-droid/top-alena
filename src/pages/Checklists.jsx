@@ -92,17 +92,35 @@ function ChecklistsInner() {
     // headers (ALL-CAPS lines / lines with no lowercase) become "— HEADER —"
     // separators so a categorized list (Order List by category) stays readable.
     const importFromText = async () => {
-        const lines = importItemsText.split('\n').map((l) => l.trim()).filter(Boolean);
-        if (!importTitle.trim() || !lines.length) return;
+        const rawLines = importItemsText.split('\n').map((l) => l.trim()).filter(Boolean);
+        if (!importTitle.trim() || !rawLines.length) return;
         setImportingCl(true);
         try {
-            const items = lines.map((line, i) => {
-                const isHeader = line.length < 40 && /[A-Z]/.test(line) && line === line.toUpperCase() && /[A-Za-zֽ-׿]/.test(line) && !/\d/.test(line);
-                const text = isHeader ? `— ${line} —` : line;
-                return { id: `it_${Math.random().toString(36).slice(2, 8)}`, order: i + 1, task: text, text, area: '', critical: false, is_required: !isHeader ? false : false };
-            });
+            // Dish → sub-tasks. A line starting with a bullet (-, •, *, ▪) is a
+            // sub-task under the current heading; any other line is a HEADING
+            // (dish/section) and becomes the `area` that groups the sub-tasks
+            // beneath it — works in Hebrew and English. Prefix ★ = critical.
+            // If there are no bullets at all, treat every line as a flat item.
+            const bullet = /^[-•*▪·]\s+/;
+            const anyBullets = rawLines.some((l) => bullet.test(l));
+            const items = [];
+            let area = '';
+            let ord = 0;
+            const mk = (t, crit) => ({ id: `it_${Math.random().toString(36).slice(2, 8)}`, order: ++ord, task: t, text: t, area, critical: !!crit, is_required: false });
+            for (const line of rawLines) {
+                if (!anyBullets) { items.push(mk(line, false)); continue; }
+                if (bullet.test(line)) {
+                    const crit = line.includes('★');
+                    const t = line.replace(bullet, '').replace(/^★\s*/, '').trim();
+                    if (t) items.push(mk(t, crit));
+                } else {
+                    area = line.replace(/^\d+\.\s*/, '').replace(/\s*\(.*\)\s*$/, '').trim();
+                }
+            }
+            if (!items.length) { setImportingCl(false); return; }
             await Checklist.create({
-                title: importTitle.trim(), category: 'הזמנות', frequency: 'daily', status: 'active',
+                title: importTitle.trim(), category: 'operational', frequency: 'daily', status: 'active',
+                department: 'kitchen', color: 'orange',
                 description: 'יובא מטקסט', items,
             });
             setShowTextImport(false); setImportItemsText('');
@@ -354,8 +372,8 @@ function ChecklistsInner() {
                                         <Input value={importTitle} onChange={(e) => setImportTitle(e.target.value)} placeholder="Order List" />
                                     </div>
                                     <div>
-                                        <label className="text-sm font-medium">פריטים (שורה לכל פריט; שורות ב-CAPS הופכות לכותרות קטגוריה)</label>
-                                        <Textarea value={importItemsText} onChange={(e) => setImportItemsText(e.target.value)} rows={10} placeholder={'MEAT & POULTRY\nBeef — ribeye\nChicken thighs\nFISH & SEAFOOD\nSalmon fillet'} />
+                                        <label className="text-sm font-medium">פריטים — כתוב <b>כותרת מנה/קבוצה</b> בשורה, ותחתיה כל תת-משימה עם <code>-</code>. (★ בתחילת שורה = קריטי)</label>
+                                        <Textarea value={importItemsText} onChange={(e) => setImportItemsText(e.target.value)} rows={10} placeholder={"פוקאצ'ה\n- לאפות פוקאצ'ה\n- ריבה עונתית\n- טחינה גולמית\n\nצלחת חריפים\n- סחוג\n- צ'ילי קלוי\n- שיפקה"} />
                                     </div>
                                     <div className="flex justify-end gap-2">
                                         <Button variant="outline" size="sm" onClick={() => setShowTextImport(false)}>ביטול</Button>

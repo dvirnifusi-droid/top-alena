@@ -338,12 +338,13 @@ export default function ChecklistEditDialog({ isOpen, checklist, employees, onCl
                                                 />
                                             </div>
                                             <div>
-                                                <Label>אזור</Label>
+                                                <Label>כותרת מנה / קבוצה</Label>
                                                 <Input
                                                     value={currentItem.area || ''}
                                                     onChange={(e) => updateItem(selectedItemIndex, 'area', e.target.value)}
-                                                    placeholder="לדוגמה: מטבח"
+                                                    placeholder="לדוגמה: פוקאצ'ה"
                                                 />
+                                                <p className="text-[11px] text-gray-400 mt-0.5">משימות עם אותה כותרת מקובצות יחד בתצוגת ההכנות</p>
                                             </div>
                                         </div>
 
