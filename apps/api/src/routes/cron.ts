@@ -1,5 +1,5 @@
 import type { FastifyPluginAsync } from 'fastify';
-import { sendRestroomReminder, sendAbandonedReminder, sendT24SurveyReminders, runAutoTrackerAnalysis, runSalesAutoClose, runWeeklyPersonalGoals, captureBeecommSnapshot, backfillBeecommHistory, reopenAutoClosedShifts, runWeeklyScheduleOpen, runWeeklyScheduleReminder, runWeeklyScheduleFinalReminder, runWeeklyScheduleBuild, runNoShowWatcher, runInvoiceClassifier, runCrisisAgent, runContentGenerator, runCashFlowAgent, sendReservationReminders } from '../functions/load.js';
+import { sendRestroomReminder, sendAbandonedReminder, sendT24SurveyReminders, runAutoTrackerAnalysis, runSalesAutoClose, runWeeklyPersonalGoals, captureBeecommSnapshot, backfillBeecommHistory, reopenAutoClosedShifts, runWeeklyScheduleOpen, runWeeklyScheduleReminder, runWeeklyScheduleFinalReminder, runWeeklyScheduleBuild, runNoShowWatcher, runInvoiceClassifier, runCrisisAgent, runContentGenerator, runCashFlowAgent, sendReservationReminders, runSupplierOrderAlerts } from '../functions/load.js';
 import { sendMorningBrief, buildMorningBrief, sendEndOfDayBrief, buildEndOfDayBrief } from '../lib/morningBrief.js';
 import { dispatchDueReminders } from '../lib/reminders.js';
 import { sendWeeklyInsights, buildWeeklyInsights } from '../lib/weeklyInsights.js';
@@ -33,6 +33,12 @@ export const cronRoutes: FastifyPluginAsync = async (app) => {
   // 90 min – 6 h away (idempotent via reminder_sent_at). Includes confirm/cancel link.
   app.post('/reservation-reminder', async () => {
     return sendReservationReminders();
+  });
+
+  // Hourly — supplier order reminders (WhatsApp + push) on each supplier's
+  // configured alert days/time so orders are never missed.
+  app.post('/supplier-order-alerts', async () => {
+    return runSupplierOrderAlerts();
   });
 
   // Daily ~12:00 — WhatsApps yesterday's diners with a feedback link.

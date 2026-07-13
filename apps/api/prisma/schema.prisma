@@ -2387,6 +2387,27 @@ model StaffQuestion {
   updatedAt  DateTime @updatedAt
 }
 
+// Per-supplier ordering list + schedule. The owner keeps a par/current stock
+// list per supplier (to_order = par - current, computed), and a delivery/order
+// schedule that drives WhatsApp+push reminders so orders are never missed.
+model SupplierOrderList {
+  id             String   @id @default(cuid())
+  name           String                       // supplier name (טמפו, קוקה קולה משקאות…)
+  category       String?                      // optional grouping (משקאות, אלכוהול…)
+  delivery_day   Int?                         // 0=Sun … 6=Sat — when the delivery arrives
+  order_by_day   Int?                         // 0=Sun … 6=Sat — order must be placed by this day
+  order_by_time  String?  @default("12:00")   // HH:mm deadline on order_by_day
+  alert_days     Json?                        // [Int] weekdays to send a reminder (0=Sun…6=Sat)
+  alert_time     String?  @default("10:00")   // HH:mm to fire each reminder
+  items          Json?                        // [{ product, par, current, unit }]
+  last_ordered_at DateTime?                    // set when marked ordered — resets the cycle status
+  sheet_url      String?                      // optional public Google-Sheet URL for re-import
+  notes          String?
+  sort           Int?     @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
 model Supplier {
   id        String   @id @default(cuid())
   company_name                 String

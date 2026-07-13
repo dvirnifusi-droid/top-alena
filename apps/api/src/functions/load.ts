@@ -5818,6 +5818,153 @@ registerFn('toggleChecklistLiveItem', async ({ user, body }: any) => {
   return { ok: true, results: rows[0]?.results || {} };
 });
 
+// ── Supplier ordering lists + schedule reminders ───────────────────────────
+async function ensureSupplierOrderTable() {
+  await db.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "SupplierOrderList" (
+    "id" TEXT PRIMARY KEY, "name" TEXT NOT NULL, "category" TEXT, "delivery_day" INTEGER,
+    "order_by_day" INTEGER, "order_by_time" TEXT DEFAULT '12:00', "alert_days" JSONB,
+    "alert_time" TEXT DEFAULT '10:00', "items" JSONB, "last_ordered_at" TIMESTAMP(3),
+    "sheet_url" TEXT, "notes" TEXT, "sort" INTEGER DEFAULT 0,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT NOW(), "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT NOW())`).catch(() => {});
+}
+
+registerFn('getSupplierOrders', async ({ user }: any) => {
+  if (!user?.id) throw new Error('unauthorized');
+  await ensureSupplierOrderTable();
+  const rows: any[] = await db.$queryRawUnsafe(`SELECT * FROM "SupplierOrderList" ORDER BY "sort" ASC, "name" ASC`).catch(() => []);
+  return { suppliers: rows };
+});
+
+registerFn('saveSupplierOrder', async ({ user, body }: any) => {
+  if (!user?.id) throw new Error('unauthorized');
+  await ensureSupplierOrderTable();
+  const b = (body || {}) as any;
+  const { randomUUID } = await import('node:crypto');
+  const id = b.id ? String(b.id) : `sup_${randomUUID().slice(0, 12)}`;
+  const name = String(b.name || '').trim();
+  if (!name) throw new Error('name_required');
+  const alertDays = Array.isArray(b.alert_days) ? b.alert_days.map((n: any) => Number(n)).filter((n: number) => n >= 0 && n <= 6) : [];
+  await db.$executeRawUnsafe(
+    `INSERT INTO "SupplierOrderList" ("id","name","category","delivery_day","order_by_day","order_by_time","alert_days","alert_time","sheet_url","notes","sort","createdAt","updatedAt")
+     VALUES ($1,$2,$3,$4,$5,$6,$7::jsonb,$8,$9,$10,$11,NOW(),NOW())
+     ON CONFLICT ("id") DO UPDATE SET "name"=$2,"category"=$3,"delivery_day"=$4,"order_by_day"=$5,"order_by_time"=$6,"alert_days"=$7::jsonb,"alert_time"=$8,"sheet_url"=$9,"notes"=$10,"updatedAt"=NOW()`,
+    id, name, b.category || null,
+    b.delivery_day == null ? null : Number(b.delivery_day),
+    b.order_by_day == null ? null : Number(b.order_by_day),
+    String(b.order_by_time || '12:00'), JSON.stringify(alertDays), String(b.alert_time || '10:00'),
+    b.sheet_url || null, b.notes || null, Number(b.sort) || 0,
+  );
+  const rows: any[] = await db.$queryRawUnsafe(`SELECT * FROM "SupplierOrderList" WHERE id=$1`, id);
+  return { supplier: rows[0] || null };
+});
+
+registerFn('saveSupplierOrderItems', async ({ user, body }: any) => {
+  if (!user?.id) throw new Error('unauthorized');
+  await ensureSupplierOrderTable();
+  const b = (body || {}) as any;
+  if (!b.id) throw new Error('id_required');
+  const items = Array.isArray(b.items) ? b.items.map((it: any) => ({
+    product: String(it.product || '').slice(0, 200),
+    par: it.par ?? '', current: it.current ?? '', unit: String(it.unit || '').slice(0, 20),
+  })).filter((it: any) => it.product) : [];
+  await db.$executeRawUnsafe(`UPDATE "SupplierOrderList" SET "items"=$2::jsonb, "updatedAt"=NOW() WHERE id=$1`, String(b.id), JSON.stringify(items));
+  return { ok: true, count: items.length };
+});
+
+registerFn('markSupplierOrdered', async ({ user, body }: any) => {
+  if (!user?.id) throw new Error('unauthorized');
+  await ensureSupplierOrderTable();
+  const b = (body || {}) as any;
+  if (!b.id) throw new Error('id_required');
+  await db.$executeRawUnsafe(`UPDATE "SupplierOrderList" SET "last_ordered_at"=NOW(), "updatedAt"=NOW() WHERE id=$1`, String(b.id));
+  return { ok: true };
+});
+
+registerFn('deleteSupplierOrder', async ({ user, body }: any) => {
+  if (!user?.id) throw new Error('unauthorized');
+  await ensureSupplierOrderTable();
+  const b = (body || {}) as any;
+  if (!b.id) throw new Error('id_required');
+  await db.$executeRawUnsafe(`DELETE FROM "SupplierOrderList" WHERE id=$1`, String(b.id));
+  return { ok: true };
+});
+
+// Import items from a PUBLIC Google-Sheet URL (owner shares "anyone with link").
+// First column = product; header cells matching par/יעד/צריך and יש/מלאי/current
+// map to par/current, otherwise those stay blank for manual fill.
+registerFn('importSupplierSheet', async ({ user, body }: any) => {
+  if (!user?.id) throw new Error('unauthorized');
+  await ensureSupplierOrderTable();
+  const b = (body || {}) as any;
+  if (!b.id) throw new Error('id_required');
+  const url = String(b.sheet_url || '').trim();
+  const m = url.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
+  if (!m) throw new Error('bad_sheet_url');
+  const gidM = url.match(/[#&?]gid=(\d+)/);
+  const csvUrl = `https://docs.google.com/spreadsheets/d/${m[1]}/export?format=csv${gidM ? `&gid=${gidM[1]}` : ''}`;
+  const res = await fetch(csvUrl);
+  const text = await res.text();
+  if (!res.ok || /<!DOCTYPE html>|ServiceLogin/i.test(text)) {
+    throw Object.assign(new Error('הגיליון פרטי — הגדר "כל מי שיש לו הקישור: צפייה" ונסה שוב.'), { code: 'sheet_private' });
+  }
+  const rows = text.split(/\r?\n/).map((l) => l.split(',').map((c) => c.replace(/^"|"$/g, '').trim()));
+  const header = (rows[0] || []).map((h) => h.toLowerCase());
+  const parCol = header.findIndex((h) => /par|יעד|צריך|אמור|מלאי מבוקש/.test(h));
+  const curCol = header.findIndex((h) => /current|יש|במלאי|כמות/.test(h));
+  const hasHeader = parCol >= 0 || curCol >= 0;
+  const dataRows = hasHeader ? rows.slice(1) : rows;
+  const items = dataRows
+    .filter((r) => (r[0] || '').trim())
+    .map((r) => ({ product: r[0].trim(), par: parCol >= 0 ? (r[parCol] || '') : '', current: curCol >= 0 ? (r[curCol] || '') : '', unit: '' }));
+  await db.$executeRawUnsafe(`UPDATE "SupplierOrderList" SET "items"=$2::jsonb, "sheet_url"=$3, "updatedAt"=NOW() WHERE id=$1`, String(b.id), JSON.stringify(items), url);
+  return { ok: true, count: items.length };
+});
+
+// Cron — hourly. For each supplier whose alert_days includes today (Israel) and
+// whose alert_time hour is now, WhatsApp + push the owner the shopping list.
+export async function runSupplierOrderAlerts() {
+  await ensureSupplierOrderTable();
+  const parts = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Jerusalem', weekday: 'short', hour: '2-digit', hour12: false }).formatToParts(new Date());
+  const g = (t: string) => parts.find((x) => x.type === t)?.value || '';
+  const wd: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+  const dow = wd[g('weekday')] ?? -1;
+  const hour = parseInt(g('hour'), 10);
+  const DAY_HE = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'];
+  const rows: any[] = await db.$queryRawUnsafe(`SELECT * FROM "SupplierOrderList"`).catch(() => []);
+  let sent = 0;
+  for (const s of rows) {
+    const days: number[] = Array.isArray(s.alert_days) ? s.alert_days : [];
+    if (!days.includes(dow)) continue;
+    const at = parseInt(String(s.alert_time || '10:00').split(':')[0], 10);
+    if (hour !== at) continue;
+    // Skip if already marked ordered in the last 2 days (don't nag).
+    if (s.last_ordered_at && Date.now() - new Date(s.last_ordered_at).getTime() < 2 * 24 * 60 * 60 * 1000) continue;
+    const items: any[] = Array.isArray(s.items) ? s.items : [];
+    const toOrder = items.filter((it) => {
+      const par = Number(it.par); const cur = Number(it.current);
+      return Number.isFinite(par) && Number.isFinite(cur) ? par - cur > 0 : true;
+    });
+    const deadlineTxt = s.order_by_day != null ? `יום ${DAY_HE[s.order_by_day]} ${s.order_by_time || ''}`.trim() : '';
+    const lines = [
+      `🛒 תזכורת הזמנה: *${s.name}*`,
+      deadlineTxt ? `⏰ דדליין הזמנה: ${deadlineTxt}` : null,
+      s.delivery_day != null ? `🚚 אספקה: יום ${DAY_HE[s.delivery_day]}` : null,
+      '',
+      toOrder.length
+        ? `להזמין (${toOrder.length}):\n${toOrder.slice(0, 30).map((it) => `• ${it.product}${(Number(it.par) - Number(it.current)) > 0 ? ` — ${Number(it.par) - Number(it.current)}${it.unit ? ' ' + it.unit : ''}` : ''}`).join('\n')}`
+        : 'עברו על הרשימה ועדכנו כמויות.',
+    ].filter((x) => x != null).join('\n');
+    try { await pushoverToAdmins(`🛒 הזמנה — ${s.name}`, lines); } catch { /* ignore */ }
+    try {
+      const nums = String(process.env.WHATSAPP_ADMIN_NUMBERS || '').split(',').map((x) => x.trim()).filter(Boolean);
+      const { sendWhatsApp } = await import('../lib/twilio.js');
+      for (const n of nums) await sendWhatsApp(n, lines).catch(() => {});
+    } catch { /* ignore */ }
+    sent++;
+  }
+  return { ok: true, dow, hour, sent };
+}
+
 registerFn('resetPrepCounts', async ({ user, body }: any) => {
   if (!user?.id) throw new Error('unauthorized');
   await ensurePrepItems();
