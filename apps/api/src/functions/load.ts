@@ -81,11 +81,11 @@ const RECRUITMENT_SYSTEM_PROMPT_TEMPLATE = `אתה מנהל הגיוס הדיג�
 9. משהו שלא שאלנו ואת/ה רוצה לשתף אותנו?
 
 חוקי סינון (לאכוף בקפדנות):
-- אם הגיל מתחת ל-17: השב "תודה על הפנייה! כרגע המיונים הם לגילאי 17 ומעלה. נשמור את פרטיך לעתיד 🙏" וסיים (complete=true, rejected=true, rejection_reason="גיל מתחת ל-17").
-- אם המועמד מציין שלא יכול לעבוד כלל בסופ"ש: השב "תודה על הכנות! עבודה בסופי שבוע (חמישי ערב / מוצש) היא חלק בלתי נפרד מהעבודה אצלנו. לצערי לא נוכל להתקדם הפעם 🙏" וסיים (complete=true, rejected=true, rejection_reason="אין זמינות לסופי שבוע").
+- אם הגיל מתחת ל-{min_age}: השב "תודה על הפנייה! כרגע המיונים הם לגילאי {min_age} ומעלה. נשמור את פרטיך לעתיד 🙏" וסיים (complete=true, rejected=true, rejection_reason="גיל מתחת ל-{min_age}").
+{weekend_rule}{extra_criteria}
 
 בסיום איסוף כל 8 הפרטים (כשהוא לא נדחה):
-- חשב ציון התאמה 0-100 לפי: ניסיון רלוונטי, זמינות, אזור מגורים (קרבה לראשל"צ), גיל.
+- חשב ציון התאמה 0-100 לפי: {scoring_factors}.
 - השב: "מעולה, תודה על כל המידע! 🌿 העברתי את הפרטים למנהל המסעדה. אם תהיה התאמה, נחזור אליך בהקדם לתיאום ראיון. בהצלחה!"
 - החזר complete=true, rejected=false, score=<מספר>.
 
@@ -608,7 +608,31 @@ registerFn('chatJobApplication', async ({ body }) => {
 
   const brandName = await getBrandName();
   const bpBlock = await businessContextBlock();
-  const RECRUITMENT_SYSTEM_PROMPT = RECRUITMENT_SYSTEM_PROMPT_TEMPLATE.replaceAll('{brand}', brandName);
+
+  // Per-tenant recruitment criteria (owner-set on the RecruitmentHub). Falls
+  // back to the historical Alena defaults (17+, weekends mandatory, proximity
+  // to Rishon LeZion) when the owner hasn't set anything.
+  const rprofile = await db.restaurantProfile.findFirst().catch(() => null);
+  const crit = (rprofile?.recruitment_criteria || {}) as any;
+  const minAge = Number.isFinite(Number(crit.min_age)) && Number(crit.min_age) > 0 ? Math.round(Number(crit.min_age)) : 17;
+  const weekendRequired = crit.weekend_required !== false; // default: required
+  const weekendRule = weekendRequired
+    ? `- אם המועמד מציין שלא יכול לעבוד כלל בסופ"ש: השב "תודה על הכנות! עבודה בסופי שבוע (חמישי ערב / מוצש) היא חלק בלתי נפרד מהעבודה אצלנו. לצערי לא נוכל להתקדם הפעם 🙏" וסיים (complete=true, rejected=true, rejection_reason="אין זמינות לסופי שבוע").\n`
+    : '';
+  const locationPref = String(crit.location_pref || '').trim();
+  const scoringFactors = `ניסיון רלוונטי, זמינות, גיל${locationPref ? `, קרבה ל${locationPref}` : ''}`;
+  const extraParts: string[] = [];
+  if (String(crit.min_experience || '').trim()) extraParts.push(`- ניסיון נדרש/מועדף: ${String(crit.min_experience).trim()}.`);
+  if (locationPref) extraParts.push(`- אזור מועדף: ${locationPref}.`);
+  if (String(crit.extra || '').trim()) extraParts.push(String(crit.extra).trim());
+  const extraCriteria = extraParts.length ? `\nקריטריונים ספציפיים של העסק (גוברים על ברירת המחדל, אכוף אותם):\n${extraParts.join('\n')}\n` : '';
+
+  const RECRUITMENT_SYSTEM_PROMPT = RECRUITMENT_SYSTEM_PROMPT_TEMPLATE
+    .replaceAll('{brand}', brandName)
+    .replaceAll('{min_age}', String(minAge))
+    .replace('{weekend_rule}', weekendRule)
+    .replace('{scoring_factors}', scoringFactors)
+    .replace('{extra_criteria}', extraCriteria);
   const prompt = `${bpBlock}${RECRUITMENT_SYSTEM_PROMPT}${kashrutClause}${langDirective}\n\n--- שיחה עד כה ---\n${transcript || '(אין עדיין הודעות — זו תחילת השיחה)'}${newPart}\n\nהחזר את התגובה הבאה כ-JSON בלבד.`;
 
   const result: any = await invokeLLM({
@@ -1294,6 +1318,7 @@ registerFn('getRecruitmentInbox', async () => {
     settings: {
       min_score: minScore,
       monthly_targets: monthlyTargets,
+      recruitment_criteria: profile?.recruitment_criteria || null,
     },
     goals_progress: goalsProgress,
   };
@@ -1432,6 +1457,25 @@ registerFn('updateRecruitmentMinScore', async ({ body }) => {
   if (!profile) throw new Error('no_profile');
   await db.restaurantProfile.update({ where: { id: profile.id }, data: { recruitment_min_score: Math.round(n) } });
   return { ok: true, recruitment_min_score: Math.round(n) };
+});
+
+// Per-tenant recruitment screening criteria. The AI recruiter screens + scores
+// candidates against these instead of the hardcoded Alena defaults.
+// Shape: { min_age, weekend_required, min_experience, location_pref, extra }.
+registerFn('updateRecruitmentCriteria', async ({ user, body }: any) => {
+  if (!user?.id) throw new Error('unauthorized');
+  const c = ((body || {}).criteria || {}) as any;
+  const clean = {
+    min_age: Number.isFinite(Number(c.min_age)) && Number(c.min_age) > 0 ? Math.min(80, Math.round(Number(c.min_age))) : 17,
+    weekend_required: c.weekend_required !== false,
+    min_experience: String(c.min_experience || '').slice(0, 300),
+    location_pref: String(c.location_pref || '').slice(0, 120),
+    extra: String(c.extra || '').slice(0, 1500),
+  };
+  const profile = await db.restaurantProfile.findFirst();
+  if (!profile) throw new Error('no_profile');
+  await db.restaurantProfile.update({ where: { id: profile.id }, data: { recruitment_criteria: clean } });
+  return { ok: true, recruitment_criteria: clean };
 });
 
 // Owner-tunable monthly hiring targets, e.g. {waiter: 3, kitchen: 2, runner: 1}

@@ -76,6 +76,71 @@ function MinScoreControl({ currentScore, onSaved }) {
   );
 }
 
+// Per-tenant recruitment criteria — the AI recruiter screens + scores candidates
+// by THESE instead of the hardcoded defaults. Structured fields for the common
+// knobs + a free-text box for anything else / scoring priorities.
+function RecruitmentCriteriaControl({ criteria, onSaved }) {
+  const norm = (cr) => ({
+    min_age: cr?.min_age ?? 17,
+    weekend_required: cr?.weekend_required !== false,
+    min_experience: cr?.min_experience || '',
+    location_pref: cr?.location_pref || '',
+    extra: cr?.extra || '',
+  });
+  const [c, setC] = useState(() => norm(criteria));
+  const [saving, setSaving] = useState(false);
+  const [open, setOpen] = useState(false);
+  useEffect(() => { setC(norm(criteria)); }, [criteria]);
+  const set = (k, v) => setC((p) => ({ ...p, [k]: v }));
+  const save = async () => {
+    setSaving(true);
+    try {
+      await base44.functions.updateRecruitmentCriteria({ criteria: c });
+      if (onSaved) await onSaved();
+      setOpen(false);
+    } catch (e) { alert('שגיאה: ' + (e?.data?.message || e?.message || '')); }
+    finally { setSaving(false); }
+  };
+  return (
+    <div className="mt-4 pt-3 border-t border-indigo-200">
+      <button onClick={() => setOpen((v) => !v)} className="w-full flex items-center justify-between text-xs font-semibold text-slate-700">
+        <span>🎯 קריטריוני הסינון של הסוכן</span>
+        <span className="text-slate-400">{open ? '▲ סגור' : '▼ ערוך'}</span>
+      </button>
+      {!open && (
+        <p className="text-[11px] text-slate-500 mt-1">
+          גיל {c.min_age}+ · סופ"ש {c.weekend_required ? 'חובה' : 'לא חובה'}{c.location_pref ? ` · ${c.location_pref}` : ''}{c.min_experience ? ` · ${c.min_experience}` : ''}
+        </p>
+      )}
+      {open && (
+        <div className="space-y-2.5 mt-2">
+          <div className="grid grid-cols-2 gap-2 items-end">
+            <label className="text-[11px] text-slate-600">גיל מינימלי
+              <input type="number" min="14" max="80" value={c.min_age} onChange={(e) => set('min_age', e.target.value)} className="mt-0.5 w-full text-sm border border-slate-300 rounded-lg py-1.5 px-2" />
+            </label>
+            <label className="text-[11px] text-slate-600 flex items-center gap-2 pb-2">
+              <input type="checkbox" checked={c.weekend_required} onChange={(e) => set('weekend_required', e.target.checked)} className="w-4 h-4 accent-indigo-600" />
+              זמינות סופ"ש חובה
+            </label>
+          </div>
+          <label className="block text-[11px] text-slate-600">ניסיון נדרש / מועדף
+            <input value={c.min_experience} onChange={(e) => set('min_experience', e.target.value)} placeholder="לדוגמה: שנה ניסיון במסעדנות" className="mt-0.5 w-full text-sm border border-slate-300 rounded-lg py-1.5 px-2" />
+          </label>
+          <label className="block text-[11px] text-slate-600">מיקום / אזור מועדף
+            <input value={c.location_pref} onChange={(e) => set('location_pref', e.target.value)} placeholder="לדוגמה: ראשון לציון והסביבה" className="mt-0.5 w-full text-sm border border-slate-300 rounded-lg py-1.5 px-2" />
+          </label>
+          <label className="block text-[11px] text-slate-600">קריטריונים נוספים + מה לתעדף בניקוד (חופשי)
+            <textarea value={c.extra} onChange={(e) => set('extra', e.target.value)} rows={3} placeholder="כל דרישה נוספת — למשל: העדפה לניסיון בבר, רישיון נהיגה, זמינות למשמרות בוקר, תעדף דוברי שפות…" className="mt-0.5 w-full text-sm border border-slate-300 rounded-lg py-1.5 px-2" />
+          </label>
+          <button onClick={save} disabled={saving} className="text-xs font-bold px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-50">
+            {saving ? 'שומר…' : '💾 שמור קריטריונים'}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // Manager-facing: upcoming interviews + status + WhatsApp reminders + training pipeline.
 
 const STAGE_LABELS = {
@@ -444,6 +509,7 @@ export default function RecruitmentInterviews() {
 
           {/* Min-score slider — owner-tunable threshold for auto interview booking */}
           <MinScoreControl currentScore={inbox.settings?.min_score ?? 80} onSaved={load} />
+          <RecruitmentCriteriaControl criteria={inbox.settings?.recruitment_criteria} onSaved={load} />
         </section>
       )}
 

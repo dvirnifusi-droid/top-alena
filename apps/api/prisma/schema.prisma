@@ -2069,6 +2069,7 @@ model RestaurantProfile {
   // hardcoded in the function code.
   recruitment_min_score        Int?      @default(80)
   recruitment_monthly_targets  Json?
+  recruitment_criteria         Json?     // per-tenant AI screening criteria: {min_age, weekend_required, min_experience, location_pref, extra}
   // Business Profile — deep context injected into every AI prompt so
   // outputs match the actual business (wine bar vs steakhouse vs cafe).
   business_type                String?
