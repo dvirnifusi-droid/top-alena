@@ -130,11 +130,11 @@ export default function ChecklistCard({ checklist, onStart, executions, onEdit, 
     };
 
     return (
-        <Card className="group relative overflow-hidden bg-white/80 backdrop-blur-sm border-0 shadow-xl hover:shadow-2xl transition-all duration-500 hover:-translate-y-2 rounded-3xl flex flex-col h-full">
+        <Card className="group relative overflow-hidden bg-white border-0 shadow-xl hover:shadow-2xl transition-all duration-500 rounded-2xl flex flex-col h-full">
             {/* רקע צבעוני לפי צבע הצ'קליסט */}
             <div className={`absolute inset-0 bg-gradient-to-br ${colors.bg} opacity-0 group-hover:opacity-100 transition-opacity duration-500`}></div>
             {/* פס צבע עליון */}
-            <div className={`absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r ${colors.gradient} rounded-t-3xl`}></div>
+            <div className={`absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r ${colors.gradient} rounded-t-2xl`}></div>
             
             <div className="absolute top-4 left-4 z-10">
                 <DropdownMenu>
@@ -145,15 +145,15 @@ export default function ChecklistCard({ checklist, onStart, executions, onEdit, 
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="bg-white/95 backdrop-blur-sm border border-white/50 shadow-xl rounded-2xl">
                         <DropdownMenuItem onClick={() => onEdit(checklist)} className="rounded-xl">
-                            <Edit className="w-4 h-4 mr-2" />
+                            <Edit className="w-4 h-4 ml-2" />
                             ערוך צ'קליסט
                         </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => onAssignTasks(checklist)} className="rounded-xl">
-                            <Users className="w-4 h-4 mr-2" />
+                            <Users className="w-4 h-4 ml-2" />
                             שייך משימות
                         </DropdownMenuItem>
                         <DropdownMenuItem onClick={exportToPdf} className="rounded-xl">
-                            <Download className="w-4 h-4 mr-2" />
+                            <Download className="w-4 h-4 ml-2" />
                             ייצוא PDF להדפסה
                         </DropdownMenuItem>
                         <DropdownMenuItem 
@@ -161,7 +161,7 @@ export default function ChecklistCard({ checklist, onStart, executions, onEdit, 
                             className="text-red-600 focus:text-red-600 rounded-xl"
                             disabled={isDeleting}
                         >
-                            <Trash2 className="w-4 h-4 mr-2" />
+                            <Trash2 className="w-4 h-4 ml-2" />
                             {isDeleting ? 'מוחק...' : 'מחק צ\'קליסט'}
                         </DropdownMenuItem>
                     </DropdownMenuContent>
@@ -174,7 +174,7 @@ export default function ChecklistCard({ checklist, onStart, executions, onEdit, 
                         <CardTitle className="text-2xl font-bold text-gray-800 group-hover:text-emerald-700 transition-colors duration-300">
                             {checklist.title}
                         </CardTitle>
-                        <CardDescription className="text-gray-600 text-base h-12">
+                        <CardDescription className="text-gray-600 text-base line-clamp-2 min-h-[2.5rem]">
                             {checklist.description}
                         </CardDescription>
                     </div>
@@ -198,7 +198,7 @@ export default function ChecklistCard({ checklist, onStart, executions, onEdit, 
                         </div>
                         <div className="flex items-center gap-2 text-gray-700">
                             <User className="w-4 h-4 text-blue-500" />
-                            <span className="font-semibold">תפקיד: {checklist.assigned_role}</span>
+                            <span className="font-semibold">תפקיד: {checklist.assigned_role || 'לכל התפקידים'}</span>
                         </div>
                     </div>
                     
@@ -221,13 +221,13 @@ export default function ChecklistCard({ checklist, onStart, executions, onEdit, 
                 <div className="mt-6">
                     <Button
                         onClick={() => onStart(checklist)}
-                        className={`w-full h-14 text-lg font-bold rounded-2xl shadow-lg transition-all duration-300 hover:shadow-xl hover:scale-105 text-white bg-gradient-to-r ${
+                        className={`w-full h-12 text-lg font-bold rounded-2xl shadow-lg transition-all duration-300 hover:shadow-xl hover:scale-105 text-white bg-gradient-to-r ${
                             lastExecution && lastExecution.status === 'completed'
                                 ? 'from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600'
                                 : `${colors.gradient} ${colors.hover}`
                         }`}
                     >
-                        <Play className="w-6 h-6 mr-3" />
+                        <Play className="w-6 h-6 ml-3" />
                         {lastExecution && lastExecution.status === 'completed'
                             ? '🔄 התחל מחדש (הושלם היום)'
                             : '🚀 התחל ביצוע'
@@ -239,10 +239,11 @@ export default function ChecklistCard({ checklist, onStart, executions, onEdit, 
                             variant="outline"
                             className="w-full h-12 text-base font-bold rounded-2xl mt-2 border-2 border-orange-300 text-orange-700 hover:bg-orange-50 bg-white/70"
                         >
-                            <ClipboardList className="w-5 h-5 mr-2" />
+                            <ClipboardList className="w-5 h-5 ml-2" />
                             📋 תצוגת הכנות (לייב)
                         </Button>
                     )}
+                    <p className="text-[11px] text-gray-400 text-center mt-1.5">ביצוע = מילוי מודרך וחתימה · תצוגת הכנות = סימון מהיר משותף</p>
                 </div>
             </CardContent>
         </Card>

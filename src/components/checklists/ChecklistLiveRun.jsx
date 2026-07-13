@@ -90,6 +90,14 @@ export default function ChecklistLiveRun({ checklist, user, onClose }) {
     return [...m.entries()];
   }, [items]);
 
+  // Start with every dish group expanded once the groups load, so prep staff see
+  // all sub-tasks by default instead of an all-collapsed accordion.
+  useEffect(() => {
+    const all = {};
+    groups.forEach(([area]) => { all[area] = true; });
+    setExpanded(all);
+  }, [groups.length]);
+
   const summary = useMemo(() => {
     const total = items.length;
     const done = items.filter((it, i) => results[keyOf(it, i)]?.checked).length;
@@ -154,6 +162,12 @@ export default function ChecklistLiveRun({ checklist, user, onClose }) {
             <div className="text-sm"><span className="text-xl font-black text-green-600">{summary.done}</span><span className="text-gray-500">/{summary.total} בוצעו</span></div>
             <div className="flex-1"><div className="h-2 rounded-full bg-gray-200 overflow-hidden"><div className="h-full bg-green-500 transition-all" style={{ width: `${summary.pct}%` }} /></div></div>
             <div className="text-xs text-gray-500">{summary.pct}%</div>
+            <button
+              onClick={() => { const anyClosed = groups.some(([a]) => !expanded[a]); const next = {}; groups.forEach(([a]) => { next[a] = anyClosed; }); setExpanded(next); }}
+              className="text-[11px] font-bold text-orange-600"
+            >
+              פתח/כווץ הכל
+            </button>
           </div>
         </div>
 
@@ -199,12 +213,12 @@ export default function ChecklistLiveRun({ checklist, user, onClose }) {
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
                         {r.photo_url && <a href={r.photo_url} target="_blank" rel="noreferrer"><img src={r.photo_url} alt="" className="w-8 h-8 rounded object-cover border border-gray-200" /></a>}
-                        <label className="cursor-pointer text-gray-400 hover:text-orange-600" title="צרף תמונה">
+                        <label className="cursor-pointer text-gray-400 hover:text-orange-600 p-1.5" title="צרף תמונה">
                           {uploadingKey === k ? <Loader2 className="w-4 h-4 animate-spin" /> : <Camera className="w-4 h-4" />}
                           <input type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; attachPhoto(it, i, f); }} />
                         </label>
                         <button onClick={() => toggle(it, i)} title="בוצע"
-                          className={`w-8 h-8 rounded border-2 inline-flex items-center justify-center transition-colors ${r.checked ? 'bg-green-500 border-green-500 text-white' : 'border-gray-300 hover:border-green-400'}`}>{r.checked ? <Check className="w-4 h-4" /> : <span className="text-[9px] font-bold text-gray-400">בוצע</span>}</button>
+                          className={`w-11 h-11 rounded border-2 inline-flex items-center justify-center transition-colors ${r.checked ? 'bg-green-500 border-green-500 text-white' : 'border-gray-300 hover:border-green-400'}`}>{r.checked ? <Check className="w-4 h-4" /> : <span className="text-[9px] font-bold text-gray-400">בוצע</span>}</button>
                       </div>
                     </div>
                   );

@@ -97,7 +97,7 @@ function ChecklistsInner() {
         setImportingCl(true);
         try {
             const items = lines.map((line, i) => {
-                const isHeader = line.length < 40 && line === line.toUpperCase() && /[A-Za-zֽ-׿]/.test(line) && !/\d/.test(line);
+                const isHeader = line.length < 40 && /[A-Z]/.test(line) && line === line.toUpperCase() && /[A-Za-zֽ-׿]/.test(line) && !/\d/.test(line);
                 const text = isHeader ? `— ${line} —` : line;
                 return { id: `it_${Math.random().toString(36).slice(2, 8)}`, order: i + 1, task: text, text, area: '', critical: false, is_required: !isHeader ? false : false };
             });
@@ -223,19 +223,27 @@ function ChecklistsInner() {
         );
     }
 
+    // Active-tab list after applying the shift + department filters. Computed once
+    // so the grid and the "no results" empty state stay in sync.
+    const visibleChecklists = checklists.filter(c => {
+        if (shiftFilter !== 'all' && c.shift && c.shift !== 'all' && c.shift !== shiftFilter) return false;
+        if (deptFilter !== 'all' && c.department !== deptFilter) return false;
+        return true;
+    });
+
     return (
         <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-[#F4ECD8] to-[#F4ECD8] p-4 md:p-8" dir="rtl">
             <div className="max-w-7xl mx-auto">
                 {/* Header מושלם */}
-                <div className="text-center mb-12 relative">
+                <div className="text-center mb-6 md:mb-10 relative">
                     <div className="absolute inset-0 bg-gradient-to-r from-emerald-400/20 via-cyan-400/20 to-blue-400/20 rounded-3xl -rotate-1"></div>
                     <div className="relative bg-white/70 backdrop-blur-sm rounded-3xl p-8 shadow-lg border border-white/50">
-                        <h1 className="text-5xl font-black text-transparent bg-gradient-to-r from-emerald-600 via-[#B89556] to-[#44512C] bg-clip-text mb-4 flex items-center justify-center gap-4">
-                            <div className="w-16 h-16 bg-gradient-to-r from-emerald-500 to-[#B89556] rounded-2xl flex items-center justify-center shadow-xl rotate-3 hover:rotate-0 transition-transform duration-500">
+                        <h1 className="text-2xl md:text-5xl font-black text-transparent bg-gradient-to-r from-emerald-600 via-[#B89556] to-[#44512C] bg-clip-text mb-4 flex items-center justify-center gap-4">
+                            <div className="w-16 h-16 bg-gradient-to-r from-emerald-500 to-[#B89556] rounded-2xl hidden md:flex items-center justify-center shadow-xl rotate-3 hover:rotate-0 transition-transform duration-500">
                                 <CheckSquare className="w-8 h-8 text-white" />
                             </div>
                             רשימות בדיקה
-                            <div className="w-16 h-16 bg-gradient-to-r from-[#B89556] to-[#44512C] rounded-2xl flex items-center justify-center shadow-xl -rotate-3 hover:rotate-0 transition-transform duration-500">
+                            <div className="w-16 h-16 bg-gradient-to-r from-[#B89556] to-[#44512C] rounded-2xl hidden md:flex items-center justify-center shadow-xl -rotate-3 hover:rotate-0 transition-transform duration-500">
                                 <CheckSquare className="w-8 h-8 text-white" />
                             </div>
                         </h1>
@@ -263,6 +271,7 @@ function ChecklistsInner() {
                     <TabsContent value="active" className="space-y-6">
                         <div className="flex flex-wrap items-center justify-between gap-3">
                             <div className="flex flex-wrap gap-2">
+                                <span className="text-xs font-bold text-gray-500 self-center">משמרת</span>
                                 {[
                                     { value: 'all', label: '🔁 הכל' },
                                     { value: 'morning', label: '🌅 בוקר' },
@@ -296,6 +305,35 @@ function ChecklistsInner() {
                                 </Button>
                             </div>
                         </div>
+                        {/* Department chip row — sits directly under the shift filters */}
+                        <div className="flex flex-wrap gap-2">
+                            <span className="text-xs font-bold text-gray-500 self-center">מחלקה</span>
+                            {[
+                                { value: 'all', label: '🗂️ כל המחלקות', color: 'gray' },
+                                { value: 'floor', label: '🍽️ פלור', color: 'amber' },
+                                { value: 'bar', label: '🍷 בר', color: 'rose' },
+                                { value: 'kitchen', label: '🍳 מטבח', color: 'orange' },
+                                { value: 'managers', label: '👔 מנהלים', color: 'blue' },
+                            ].map(d => {
+                                const isActive = deptFilter === d.value;
+                                const palette = {
+                                    gray: isActive ? 'bg-gray-700 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200',
+                                    amber: isActive ? 'bg-amber-600 text-white' : 'bg-amber-50 text-amber-700 hover:bg-amber-100',
+                                    rose: isActive ? 'bg-rose-600 text-white' : 'bg-rose-50 text-rose-700 hover:bg-rose-100',
+                                    orange: isActive ? 'bg-orange-600 text-white' : 'bg-orange-50 text-orange-700 hover:bg-orange-100',
+                                    blue: isActive ? 'bg-blue-600 text-white' : 'bg-blue-50 text-blue-700 hover:bg-blue-100',
+                                };
+                                return (
+                                    <button
+                                        key={d.value}
+                                        onClick={() => setDeptFilter(d.value)}
+                                        className={`px-3 py-1.5 rounded-xl text-sm font-bold transition-colors ${palette[d.color]}`}
+                                    >
+                                        {d.label}
+                                    </button>
+                                );
+                            })}
+                        </div>
                         {showTextImport && (
                             <Card className="mb-4 border-emerald-200 bg-white/80">
                                 <CardHeader className="pb-2"><CardTitle className="text-base flex items-center gap-2"><Upload className="w-4 h-4" /> ייבוא צ'קליסט מטקסט</CardTitle></CardHeader>
@@ -324,6 +362,7 @@ function ChecklistsInner() {
                                         <Sparkles className="w-4 h-4 text-amber-600" /> הצעות AI ({aiChecklists.length})
                                     </h3>
                                     <div className="flex gap-2">
+                                        <Button variant="ghost" size="sm" onClick={() => { const allSel = aiChecklists.every(c => c.selected); setAiChecklists(aiChecklists.map(c => ({ ...c, selected: !allSel }))); }}>בחר הכל / נקה</Button>
                                         <Button variant="ghost" size="sm" onClick={() => setAiChecklists(null)}>ביטול</Button>
                                         <Button size="sm" onClick={importChecklists} disabled={importingCl || !aiChecklists.some(c => c.selected)}>
                                             {importingCl ? <Loader2 className="w-3 h-3 animate-spin ml-1" /> : null}
@@ -354,41 +393,9 @@ function ChecklistsInner() {
                                 ))}
                             </div>
                         )}
-                        {/* Department chip row — second-level filter */}
-                        <div className="flex flex-wrap gap-2">
-                            {[
-                                { value: 'all', label: '🗂️ כל המחלקות', color: 'gray' },
-                                { value: 'floor', label: '🍽️ פלור', color: 'amber' },
-                                { value: 'bar', label: '🍷 בר', color: 'rose' },
-                                { value: 'kitchen', label: '🍳 מטבח', color: 'orange' },
-                                { value: 'managers', label: '👔 מנהלים', color: 'blue' },
-                            ].map(d => {
-                                const isActive = deptFilter === d.value;
-                                const palette = {
-                                    gray: isActive ? 'bg-gray-700 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200',
-                                    amber: isActive ? 'bg-amber-600 text-white' : 'bg-amber-50 text-amber-700 hover:bg-amber-100',
-                                    rose: isActive ? 'bg-rose-600 text-white' : 'bg-rose-50 text-rose-700 hover:bg-rose-100',
-                                    orange: isActive ? 'bg-orange-600 text-white' : 'bg-orange-50 text-orange-700 hover:bg-orange-100',
-                                    blue: isActive ? 'bg-blue-600 text-white' : 'bg-blue-50 text-blue-700 hover:bg-blue-100',
-                                };
-                                return (
-                                    <button
-                                        key={d.value}
-                                        onClick={() => setDeptFilter(d.value)}
-                                        className={`px-3 py-1.5 rounded-xl text-sm font-bold transition-colors ${palette[d.color]}`}
-                                    >
-                                        {d.label}
-                                    </button>
-                                );
-                            })}
-                        </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                            {checklists.filter(c => {
-                                if (shiftFilter !== 'all' && c.shift && c.shift !== 'all' && c.shift !== shiftFilter) return false;
-                                if (deptFilter !== 'all' && c.department !== deptFilter) return false;
-                                return true;
-                            }).map((checklist, index) => (
-                                <div key={checklist.id} className="transform hover:scale-105 transition-all duration-500" style={{ animationDelay: `${index * 100}ms` }}>
+                            {visibleChecklists.map((checklist) => (
+                                <div key={checklist.id} className="transform transition-all duration-500">
                                     <ChecklistCard
                                         checklist={checklist}
                                         onStart={startExecution}
@@ -401,13 +408,23 @@ function ChecklistsInner() {
                                 </div>
                             ))}
                         </div>
-                        {checklists.length === 0 && (
+                        {checklists.length === 0 ? (
                             <div className="text-center py-20">
                                 <div className="w-32 h-32 bg-gradient-to-r from-gray-300 to-gray-400 rounded-full flex items-center justify-center mx-auto mb-6 opacity-50">
                                     <CheckSquare className="w-16 h-16 text-white" />
                                 </div>
                                 <p className="text-2xl text-gray-500 font-medium">אין צ'קליסטים פעילים כרגע</p>
                                 <p className="text-gray-400 mt-2">צור צ'קליסט חדש או פעל קיימים</p>
+                            </div>
+                        ) : visibleChecklists.length === 0 && (
+                            <div className="text-center py-16">
+                                <p className="text-xl text-gray-500 font-medium mb-4">אין צ'קליסטים בסינון הזה</p>
+                                <Button
+                                    variant="outline"
+                                    onClick={() => { setShiftFilter('all'); setDeptFilter('all'); }}
+                                >
+                                    נקה סינון
+                                </Button>
                             </div>
                         )}
                     </TabsContent>
@@ -586,7 +603,7 @@ function ChecklistsInner() {
                                 </CardHeader>
                                 <CardContent>
                                     <div className="text-4xl font-black text-emerald-600 mb-2">
-                                        {executions.filter(e => e.status === 'completed').length}
+                                        {executions.filter(e => e.status === 'completed' && e.execution_date && (Date.now() - new Date(e.execution_date).getTime()) < 7*24*60*60*1000).length}
                                     </div>
                                     <p className="text-emerald-700 font-medium">צ'קליסטים מושלמים ✨</p>
                                 </CardContent>

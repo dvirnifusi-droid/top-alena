@@ -264,7 +264,7 @@ export default function ChecklistExecutionComponent({ checklist, user, onComplet
     }
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4" dir="rtl">
+        <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-[#F4ECD8] to-[#F4ECD8] p-4" dir="rtl">
             <div className="max-w-4xl mx-auto space-y-6">
                 <div className="flex justify-between items-center">
                     <h1 className="text-3xl font-bold text-gray-900">{checklist.title}</h1>
