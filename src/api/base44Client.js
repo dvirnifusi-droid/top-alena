@@ -204,8 +204,10 @@ const auth = {
   // Sign in with a Google ID token (credential from Google Identity Services).
   googleLogin: async (credential) => {
     const res = await http('/auth/google', { method: 'POST', body: { credential } });
-    setToken(res.token);
-    return res.user;
+    // Response is one of: {token,user} (logged in here) | {route_to,handoff}
+    // (belongs to one other restaurant) | {choose_tenant,handoff} (several).
+    if (res.token) setToken(res.token);
+    return res;
   },
   // Central multi-tenant Google sign-in. On the hosted handoff page (topalena.com)
   // exchange the Google credential for a short-lived handoff token…

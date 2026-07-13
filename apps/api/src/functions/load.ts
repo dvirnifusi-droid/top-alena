@@ -16,6 +16,7 @@ import { registerFn, functionHandlers } from './index.js';
 import { sendSms, sendWhatsApp, sendWhatsAppTemplate, invalidateTwilioCredsCache, twilioAuth } from '../lib/twilio.js';
 import { pushover, pushoverToAdmins, pushoverEventsOwners } from '../lib/pushover.js';
 import { checkDailyHoursReportSchedule, sendDailyHoursReport, buildDailyHoursReport } from '../lib/dailyHoursReport.js';
+import { registerEmailTenant } from '../lib/emailTenantMap.js';
 import { fireTriggers } from '../lib/triggers.js';
 import { sendTelegramMessage } from '../lib/telegram.js';
 import { sendEmail } from '../lib/email.js';
@@ -1778,6 +1779,20 @@ if (!(globalThis as any).__ceoDailyBriefTimer) {
       (globalThis as any).__ceoDailyBriefTimer = setTimeout(loop, 5 * 60 * 1000);
     });
   }, 60 * 1000);
+}
+
+// ── Email→tenant directory backfill ──────────────────────────────────────────
+// Sync this container's employees+users into the shared platform.EmailTenantMap
+// so the unified login (topalena.com) can route people to their restaurant.
+// Runs 40s after boot, then every 6h. Self-healing — covers every add path.
+if (!(globalThis as any).__emailTenantBackfillTimer) {
+  (globalThis as any).__emailTenantBackfillTimer = setTimeout(function loop() {
+    import('../lib/emailTenantMap.js')
+      .then(m => m.backfillEmailTenantMap())
+      .then(r => console.log('[emailTenantMap] backfill', r))
+      .catch(e => console.warn('[emailTenantMap] backfill failed', e?.message))
+      .finally(() => { (globalThis as any).__emailTenantBackfillTimer = setTimeout(loop, 6 * 60 * 60 * 1000); });
+  }, 40 * 1000);
 }
 
 // ── Daily staff-hours report scheduler (Asia/Jerusalem) ──────────────────────
@@ -22357,6 +22372,8 @@ registerFn('joinTeamRequest', async ({ body }) => {
   await (db as any).employee.create({
     data: { full_name: fullName, email, phone, role, status: 'pending_approval' },
   });
+  // Register in the central email→restaurant directory for the unified login.
+  registerEmailTenant(email).catch(() => {});
   // Ping the owner so approval doesn't wait for him to stumble on it.
   try {
     const { pushoverToAdmins } = await import('../lib/pushover.js');
@@ -22379,6 +22396,8 @@ registerFn('approveEmployee', async ({ user, body }) => {
     return { ok: true, status: 'rejected' };
   }
   await (db as any).employee.update({ where: { id: emp.id }, data: { status: 'active' } });
+  // Register in the central email→restaurant directory for the unified login.
+  if (emp.email) registerEmailTenant(emp.email).catch(() => {});
   // Login account — update-then-insert on email (see resendTenantWelcome for
   // why not ON CONFLICT).
   const tempPassword = `Team-${Math.floor(1000 + Math.random() * 9000)}`;

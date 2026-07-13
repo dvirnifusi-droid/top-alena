@@ -4,9 +4,16 @@ import { z } from 'zod';
 import { OAuth2Client } from 'google-auth-library';
 import { prisma } from '../db.js';
 import { requireAuth } from '../middleware/auth.js';
+import { resolveEmailTenants, registerEmailTenant } from '../lib/emailTenantMap.js';
 
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID ?? '';
 const googleClient = new OAuth2Client(GOOGLE_CLIENT_ID);
+
+// Public URL for a tenant slug. Alena is the platform origin (topalena.com).
+function tenantUrl(slug: string): string {
+  const s = String(slug || '').toLowerCase();
+  return s === 'alena' ? 'https://topalena.com' : `https://${s}.topalena.com`;
+}
 
 export const authRoutes: FastifyPluginAsync = async (app) => {
   const credsSchema = z.object({
@@ -32,6 +39,8 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
     } else if (!user.fullName && name) {
       user = await prisma.user.update({ where: { id: user.id }, data: { fullName: name } });
     }
+    // Self-populate the central directory on every successful resolution.
+    registerEmailTenant(user.email).catch(() => {});
     const token = await reply.jwtSign({ id: user.id, email: user.email, role: user.role });
     return { token, user: { id: user.id, email: user.email, role: user.role, fullName: user.fullName, full_name: user.fullName } };
   }
@@ -94,8 +103,22 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
     }
 
     const result = await issueSessionForEmail(reply, email, payload?.name);
-    if (!result) return reply.code(403).send({ error: 'not_registered' });
-    return result;
+    if (result) return result;
+
+    // Not in THIS DB (Alena) — see if the email belongs to another restaurant and
+    // route the user there instead of a dead-end "not registered". Reuses the
+    // handoff token the tenant's /google-consume already knows how to exchange.
+    const tenants = (await resolveEmailTenants(email)).filter(t => t.slug && t.slug !== 'alena');
+    if (tenants.length > 0) {
+      const handoff = await reply.jwtSign(
+        { email, name: payload?.name ?? null, purpose: 'google_handoff' } as any,
+        { expiresIn: '5m' },
+      );
+      const list = tenants.map(t => ({ slug: t.slug, name: t.name, url: tenantUrl(t.slug) }));
+      if (list.length === 1) return { route_to: list[0], handoff };
+      return { choose_tenant: list, handoff };
+    }
+    return reply.code(403).send({ error: 'not_registered' });
   });
 
   // ── Central Google sign-in (multi-tenant) ────────────────────────────────
