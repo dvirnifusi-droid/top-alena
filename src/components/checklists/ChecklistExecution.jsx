@@ -266,16 +266,21 @@ export default function ChecklistExecutionComponent({ checklist, user, onComplet
     return (
         <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-[#F4ECD8] to-[#F4ECD8] p-4" dir="rtl">
             <div className="max-w-4xl mx-auto space-y-6">
-                <div className="flex justify-between items-center">
-                    <h1 className="text-3xl font-bold text-gray-900">{checklist.title}</h1>
-                    <div className="flex gap-3">
-                        <Button variant="outline" onClick={restartChecklist} className="text-orange-600 border-orange-300 hover:bg-orange-50">
-                            <RotateCcw className="w-4 h-4 mr-2" />
+                <div className="space-y-3">
+                    {/* Clear, always-visible back button — lets a confused user return
+                        to the checklist list to pick a different one (olive&fig UX request). */}
+                    <button
+                        onClick={onCancel}
+                        className="inline-flex items-center gap-1.5 text-sm font-bold text-emerald-800 hover:text-emerald-900 bg-white/70 hover:bg-white rounded-lg px-3 py-1.5 shadow-sm border border-emerald-200"
+                    >
+                        <ArrowRight className="w-4 h-4" />
+                        חזרה לצ'קליסטים
+                    </button>
+                    <div className="flex justify-between items-center gap-2 flex-wrap">
+                        <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">{checklist.title}</h1>
+                        <Button variant="outline" size="sm" onClick={restartChecklist} className="text-orange-600 border-orange-300 hover:bg-orange-50">
+                            <RotateCcw className="w-4 h-4 ml-1.5" />
                             התחל מחדש
-                        </Button>
-                        <Button variant="outline" onClick={onCancel}>
-                            <X className="w-4 h-4 mr-2" />
-                            יציאה
                         </Button>
                     </div>
                 </div>

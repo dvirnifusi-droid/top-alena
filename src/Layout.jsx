@@ -10,7 +10,7 @@ import {
 import {
   Sidebar, SidebarContent,
   SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarHeader, SidebarFooter,
-  SidebarProvider, SidebarTrigger,
+  SidebarProvider, SidebarTrigger, useSidebar,
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 
@@ -694,7 +694,11 @@ const DesktopSidebar = ({ userName, isCurrentViewAdmin, isOriginalAdmin, navigat
   </div>
 );
 
-const MobileSidebar = ({ userName, isCurrentViewAdmin, isOriginalAdmin, navigationItems, location, user, setUser, hasUnreadChat, navFilter, setNavFilter, lockedOf = () => null, setPaywall = () => {}, brandName = "TOP APOLLO", logoUrl = null }) => (
+const MobileSidebar = ({ userName, isCurrentViewAdmin, isOriginalAdmin, navigationItems, location, user, setUser, hasUnreadChat, navFilter, setNavFilter, lockedOf = () => null, setPaywall = () => {}, brandName = "TOP APOLLO", logoUrl = null }) => {
+  // Close the mobile drawer on any nav tap so it doesn't stay open over the
+  // page that just opened (per olive&fig UX request). No-op on desktop.
+  const { setOpenMobile } = useSidebar();
+  return (
   <Sidebar className="bg-card z-50">
     <SidebarHeader className="border-b border-border p-3">
       <div className="flex items-center gap-2 mb-2">
@@ -754,7 +758,7 @@ const MobileSidebar = ({ userName, isCurrentViewAdmin, isOriginalAdmin, navigati
                     : `${c.hover} text-foreground/80 hover:text-foreground`
                 }`}
               >
-                <Link to={item.url} className="flex items-center gap-3 px-3 py-2 w-full min-w-0 relative">
+                <Link to={item.url} onClick={() => setOpenMobile(false)} className="flex items-center gap-3 px-3 py-2 w-full min-w-0 relative">
                   <item.icon className="w-4 h-4 flex-shrink-0" />
                   <span className="text-sm font-medium truncate">{item.title}</span>
                   {item.title === 'צ\'אט משמרת' && hasUnreadChat && (
@@ -794,7 +798,8 @@ const MobileSidebar = ({ userName, isCurrentViewAdmin, isOriginalAdmin, navigati
       </Button>
     </SidebarFooter>
   </Sidebar>
-);
+  );
+};
 
 const MobileHeader = ({ isCurrentViewAdmin, brandName = "TOP APOLLO", logoUrl = null }) => (
   <header
