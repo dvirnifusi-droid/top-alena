@@ -152,12 +152,6 @@ export default function ChecklistCard({ checklist, onStart, executions, onEdit, 
                             <Users className="w-4 h-4 mr-2" />
                             שייך משימות
                         </DropdownMenuItem>
-                        {onLiveRun && (
-                            <DropdownMenuItem onClick={() => onLiveRun(checklist)} className="rounded-xl">
-                                <ClipboardList className="w-4 h-4 mr-2" />
-                                תצוגת הכנות (לייב)
-                            </DropdownMenuItem>
-                        )}
                         <DropdownMenuItem onClick={exportToPdf} className="rounded-xl">
                             <Download className="w-4 h-4 mr-2" />
                             ייצוא PDF להדפסה
@@ -234,11 +228,21 @@ export default function ChecklistCard({ checklist, onStart, executions, onEdit, 
                         }`}
                     >
                         <Play className="w-6 h-6 mr-3" />
-                        {lastExecution && lastExecution.status === 'completed' 
-                            ? '🔄 התחל מחדש (הושלם היום)' 
+                        {lastExecution && lastExecution.status === 'completed'
+                            ? '🔄 התחל מחדש (הושלם היום)'
                             : '🚀 התחל ביצוע'
                         }
                     </Button>
+                    {onLiveRun && (
+                        <Button
+                            onClick={() => onLiveRun(checklist)}
+                            variant="outline"
+                            className="w-full h-12 text-base font-bold rounded-2xl mt-2 border-2 border-orange-300 text-orange-700 hover:bg-orange-50 bg-white/70"
+                        >
+                            <ClipboardList className="w-5 h-5 mr-2" />
+                            📋 תצוגת הכנות (לייב)
+                        </Button>
+                    )}
                 </div>
             </CardContent>
         </Card>

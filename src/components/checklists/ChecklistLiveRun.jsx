@@ -30,6 +30,26 @@ export default function ChecklistLiveRun({ checklist, user, onClose }) {
   const isClosing = String(checklist?.category || '').toLowerCase() === 'closing';
   const [closedBy, setClosedBy] = useState('');
   const closedByFocused = useRef(false);
+  // Footer language — follows the staff member's chosen/browser language so
+  // non-Hebrew kitchens get an English (or Spanish) closing footer + WhatsApp.
+  const lang = (() => {
+    try { const s = localStorage.getItem('topalena_lang'); if (['he', 'en', 'es'].includes(s)) return s; } catch { /* noop */ }
+    const n = ((typeof navigator !== 'undefined' && navigator.language) || '').toLowerCase();
+    if (n.startsWith('es')) return 'es';
+    if (n.startsWith('en')) return 'en';
+    return 'he';
+  })();
+  const FTR = {
+    closed_by: { he: 'נסגר ע"י', en: 'Closed by', es: 'Cerrado por' },
+    name_ph:   { he: 'שם מלא', en: 'Full name', es: 'Nombre completo' },
+    send_chef: { he: 'שלח לשף: המסעדה סגורה 🌙', en: 'Notify chef: kitchen closed 🌙', es: 'Avisar al chef: cocina cerrada 🌙' },
+    chef_msg:  {
+      he: 'היי שף, המסעדה סגורה ועברתי על הכל 🌙 לילה טוב',
+      en: 'Hi chef, the restaurant is closed and I went over everything 🌙 Good night',
+      es: 'Hola chef, el restaurante está cerrado y revisé todo 🌙 Buenas noches',
+    },
+  };
+  const ft = (k) => FTR[k][lang] || FTR[k].he;
 
   const items = useMemo(() => (Array.isArray(checklist?.items) ? checklist.items : []), [checklist]);
 
@@ -110,7 +130,7 @@ export default function ChecklistLiveRun({ checklist, user, onClose }) {
     if (!execId) return;
     try { await ChecklistExecution.update(execId, { notes: closedBy }); } catch { /* ignore */ }
   };
-  const chefMsg = `היי שף, המסעדה סגורה ועברתי על הכל 🌙 לילה טוב${closedBy ? ` — ${closedBy}` : ''}`;
+  const chefMsg = `${ft('chef_msg')}${closedBy ? ` — ${closedBy}` : ''}`;
   const chefWaLink = `https://wa.me/?text=${encodeURIComponent(chefMsg)}`;
 
   return (
@@ -197,15 +217,15 @@ export default function ChecklistLiveRun({ checklist, user, onClose }) {
 
           {/* Closing footer — who closed + one-tap WhatsApp to the chef. */}
           {isClosing && !loading && (
-            <div className="bg-white rounded-xl border border-rose-200 p-4 space-y-3">
+            <div dir={lang === 'he' ? 'rtl' : 'ltr'} className="bg-white rounded-xl border border-rose-200 p-4 space-y-3">
               <div>
-                <label className="text-xs font-bold text-gray-500">נסגר ע"י / Closed by</label>
+                <label className="text-xs font-bold text-gray-500">{ft('closed_by')}</label>
                 <input
                   value={closedBy}
                   onChange={(e) => { closedByFocused.current = true; setClosedBy(e.target.value); }}
                   onFocus={() => { closedByFocused.current = true; }}
                   onBlur={saveClosedBy}
-                  placeholder="שם מלא / Full name"
+                  placeholder={ft('name_ph')}
                   className="mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:border-rose-400 focus:outline-none"
                 />
               </div>
@@ -217,9 +237,9 @@ export default function ChecklistLiveRun({ checklist, user, onClose }) {
                 className="w-full flex items-center justify-center gap-2 bg-[#25D366] hover:bg-[#1fb457] text-white font-bold py-3 rounded-xl transition-colors"
               >
                 <MessageCircle className="w-5 h-5" />
-                שלח לשף: המסעדה סגורה 🌙
+                {ft('send_chef')}
               </a>
-              <p className="text-[11px] text-gray-400 text-center">"היי שף, המסעדה סגורה ועברתי על הכל 🌙 לילה טוב"</p>
+              <p className="text-[11px] text-gray-400 text-center">"{ft('chef_msg')}"</p>
             </div>
           )}
         </div>
