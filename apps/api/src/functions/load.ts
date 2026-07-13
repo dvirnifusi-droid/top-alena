@@ -5732,6 +5732,9 @@ async function ensurePrepItems(): Promise<void> {
   // list_type separates prep lists from order lists (same tables, same item
   // mechanics: to_prep="needed", done="ordered"). NULL/'prep' = a prep list.
   await (prisma as any).$executeRawUnsafe(`ALTER TABLE "PrepList" ADD COLUMN IF NOT EXISTS "list_type" TEXT`).catch(() => {});
+  // par_locked: on an order list, locks the "should be in stock" (target) column
+  // so daily staff only edit "how much we have" — default locked once set.
+  await (prisma as any).$executeRawUnsafe(`ALTER TABLE "PrepList" ADD COLUMN IF NOT EXISTS "par_locked" BOOLEAN NOT NULL DEFAULT true`).catch(() => {});
   await (prisma as any).$executeRawUnsafe(
     `CREATE TABLE IF NOT EXISTS "PrepArchive" (
        "id" TEXT PRIMARY KEY,
@@ -5807,6 +5810,17 @@ registerFn('deleteOrderList', async ({ user, body }: any) => {
   await (prisma as any).$executeRawUnsafe(`DELETE FROM "PrepItem" WHERE list_id=$1`, id);
   await (prisma as any).$executeRawUnsafe(`DELETE FROM "PrepList" WHERE id=$1 AND "list_type"='order'`, id);
   return { ok: true };
+});
+
+// Lock/unlock the "should be in stock" (target/par) column on an order list.
+registerFn('setOrderListLock', async ({ user, body }: any) => {
+  if (!user?.id) throw new Error('unauthorized');
+  if (!isAdminRole((user as any)?.role) && !(user as any)?.managed_department) throw new Error('admin only');
+  await ensurePrepItems();
+  const b = (body || {}) as any;
+  if (!b.id) throw new Error('id required');
+  await (prisma as any).$executeRawUnsafe(`UPDATE "PrepList" SET "par_locked"=$1, "updatedAt"=NOW() WHERE id=$2`, !!b.par_locked, String(b.id));
+  return { ok: true, par_locked: !!b.par_locked };
 });
 
 // Create (no id) or rename (with id) a list.
@@ -5900,21 +5914,33 @@ registerFn('updatePrepItem', async ({ user, body }: any) => {
   const b = (body || {}) as any;
   if (!b.id) throw new Error('id required');
   const name = String((user as any).full_name || user.email || 'עובד');
-  const done = !!b.done;
+  // Partial-safe: only fields PRESENT in the body change; anything omitted is
+  // left as-is (COALESCE). This lets callers toggle just to_prep or just done
+  // without wiping have/target/note. Adds `target` (par / desired stock level).
+  const has = (k: string) => b[k] !== undefined && b[k] !== null;
+  const haveV = has('have') ? String(b.have).slice(0, 40) : null;
+  const prepV = has('prep') ? String(b.prep).slice(0, 40) : null;
+  const targetV = has('target') ? String(b.target).slice(0, 40) : null;
+  const noteV = has('note') ? String(b.note).slice(0, 300) : null;
+  const photoV = has('photo_url') ? String(b.photo_url).slice(0, 500) : null;
+  const toPrepProvided = b.to_prep !== undefined;
+  const doneProvided = b.done !== undefined;
   await (prisma as any).$executeRawUnsafe(
     `UPDATE "PrepItem" SET
-       have=$1, prep=$2, to_prep=$3, done=$4,
-       done_by = CASE WHEN $4 THEN COALESCE(done_by, $5) ELSE NULL END,
-       done_at = CASE WHEN $4 THEN COALESCE(done_at, NOW()) ELSE NULL END,
-       photo_url = COALESCE($6, photo_url),
-       note = COALESCE($7, note),
+       have = COALESCE($1, have),
+       prep = COALESCE($2, prep),
+       target = COALESCE($3, target),
+       note = COALESCE($4, note),
+       photo_url = COALESCE($5, photo_url),
+       to_prep = CASE WHEN $6 THEN $7 ELSE to_prep END,
+       done = CASE WHEN $8 THEN $9 ELSE done END,
+       done_by = CASE WHEN $8 THEN (CASE WHEN $9 THEN COALESCE(done_by, $10) ELSE NULL END) ELSE done_by END,
+       done_at = CASE WHEN $8 THEN (CASE WHEN $9 THEN COALESCE(done_at, NOW()) ELSE NULL END) ELSE done_at END,
        "updatedAt"=NOW()
-     WHERE id=$8`,
-    b.have != null ? String(b.have).slice(0, 40) : null,
-    b.prep != null ? String(b.prep).slice(0, 40) : null,
-    !!b.to_prep, done, name,
-    b.photo_url != null ? String(b.photo_url).slice(0, 500) : null,
-    b.note != null ? String(b.note).slice(0, 300) : null,
+     WHERE id=$11`,
+    haveV, prepV, targetV, noteV, photoV,
+    toPrepProvided, !!b.to_prep,
+    doneProvided, !!b.done, name,
     String(b.id),
   );
   return { ok: true };

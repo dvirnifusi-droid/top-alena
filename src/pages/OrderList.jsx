@@ -49,7 +49,7 @@ function OrderListInner() {
     setLoading(false);
   };
 
-  const fp = (arr) => (arr || []).map(x => `${x.id}|${x.to_prep}|${x.done}|${x.note}|${x.name}|${x.category}`).join('§');
+  const fp = (arr) => (arr || []).map(x => `${x.id}|${x.to_prep}|${x.done}|${x.note}|${x.target}|${x.have}|${x.name}|${x.category}`).join('§');
   const refreshSilent = async (listId) => {
     if (!listId) return;
     try {
@@ -97,7 +97,27 @@ function OrderListInner() {
   const setNote = (it, note) => { lastInteractionRef.current = Date.now(); patchItem(it.id, { note }); };
   const commitNote = async (it) => { try { await base44.functions.updatePrepItem({ id: it.id, note: it.note || '' }); } catch { /* ignore */ } };
 
-  const needed = useMemo(() => items.filter(i => i.to_prep && !i.done), [items]);
+  // Quantitative model: target=par ("should be in stock"), have=current.
+  // to-order = par - current (auto). An item flows to the order list when
+  // to-order > 0 OR it was manually flagged.
+  const numOr = (v) => { const n = parseFloat(v); return Number.isFinite(n) ? n : null; };
+  const toOrderOf = (it) => { const p = numOr(it.target); if (p == null) return null; const h = numOr(it.have) ?? 0; const d = p - h; return d > 0 ? Math.round(d * 100) / 100 : 0; };
+  const neededOf = (it) => (toOrderOf(it) || 0) > 0 || !!it.to_prep;
+  const qtyOf = (it) => (it.note && String(it.note).trim()) ? String(it.note).trim() : (toOrderOf(it) ? String(toOrderOf(it)) : '');
+  const needed = useMemo(() => items.filter(it => neededOf(it) && !it.done), [items]);
+
+  const activeListObj = useMemo(() => lists.find(l => l.id === activeList) || null, [lists, activeList]);
+  const parLocked = activeListObj ? activeListObj.par_locked !== false : true;
+  const toggleLock = async () => {
+    if (!activeList) return;
+    const next = !parLocked;
+    setLists(ls => ls.map(l => l.id === activeList ? { ...l, par_locked: next } : l));
+    try { await base44.functions.setOrderListLock({ id: activeList, par_locked: next }); } catch { /* ignore */ }
+  };
+  const setPar = (it, v) => { lastInteractionRef.current = Date.now(); patchItem(it.id, { target: v }); };
+  const commitPar = async (it) => { try { await base44.functions.updatePrepItem({ id: it.id, target: it.target ?? '' }); } catch { /* ignore */ } };
+  const setCur = (it, v) => { lastInteractionRef.current = Date.now(); patchItem(it.id, { have: v }); };
+  const commitCur = async (it) => { try { await base44.functions.updatePrepItem({ id: it.id, have: it.have ?? '' }); } catch { /* ignore */ } };
 
   const groupsFor = (arr) => {
     const q = search.trim().toLowerCase();
@@ -146,7 +166,7 @@ function OrderListInner() {
   };
 
   const copyOrder = () => {
-    const txt = groupsFor(needed).map(([c, arr]) => `*${c}*\n${arr.map(it => `• ${it.name}${it.note ? ` — ${it.note}` : ''}`).join('\n')}`).join('\n\n');
+    const txt = groupsFor(needed).map(([c, arr]) => `*${c}*\n${arr.map(it => { const q = qtyOf(it); return `• ${it.name}${q ? ` — ${q}` : ''}`; }).join('\n')}`).join('\n\n');
     const full = `🛒 רשימת הזמנה — ${lists.find(l => l.id === activeList)?.name || ''}\n\n${txt}`;
     try { navigator.clipboard.writeText(full); alert('הרשימה הועתקה ✓ אפשר להדביק בוואטסאפ'); } catch { /* noop */ }
   };
@@ -211,7 +231,8 @@ function OrderListInner() {
               {draft.map((r, i) => (
                 <div key={r.id} className="flex gap-2 items-center">
                   <Input value={r.name} onChange={e => setDraft(d => d.map((x, j) => j === i ? { ...x, name: e.target.value } : x))} placeholder="שם מוצר" className="flex-1" />
-                  <Input value={r.category || ''} onChange={e => setDraft(d => d.map((x, j) => j === i ? { ...x, category: e.target.value } : x))} placeholder="קטגוריה" className="w-32" />
+                  <Input value={r.category || ''} onChange={e => setDraft(d => d.map((x, j) => j === i ? { ...x, category: e.target.value } : x))} placeholder="קטגוריה" className="w-28" />
+                  <Input type="number" value={r.target ?? ''} onChange={e => setDraft(d => d.map((x, j) => j === i ? { ...x, target: e.target.value } : x))} placeholder="יעד" className="w-16" title="כמה צריך במלאי" />
                   <button onClick={() => setDraft(d => d.filter((_, j) => j !== i))} className="text-red-500 p-1"><Trash2 className="w-4 h-4" /></button>
                 </div>
               ))}
@@ -243,25 +264,56 @@ function OrderListInner() {
             ) : view === 'mark' ? (
               /* ── Mark view — full catalog, tap to flag ── */
               <div className="space-y-4">
-                <div className="relative">
-                  <Search className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2" style={{ color: W.muted }} />
-                  <Input value={search} onChange={e => setSearch(e.target.value)} placeholder="חיפוש מוצר..." className="pr-9" />
+                <div className="flex gap-2 items-center">
+                  <div className="relative flex-1">
+                    <Search className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2" style={{ color: W.muted }} />
+                    <Input value={search} onChange={e => setSearch(e.target.value)} placeholder="חיפוש מוצר..." className="pr-9" />
+                  </div>
+                  {isAdmin && (
+                    <Button size="sm" variant="outline" onClick={toggleLock} title="נעילת עמודת היעד (כמה צריך במלאי)"
+                      className="shrink-0" style={parLocked ? {} : { borderColor: W.terracotta, color: W.terracotta }}>
+                      {parLocked ? '🔒 יעד נעול' : '🔓 יעד פתוח'}
+                    </Button>
+                  )}
                 </div>
+                <p className="text-[11px] -mt-2" style={{ color: W.muted }}>הזן <b>יעד</b> (כמה צריך במלאי) ו<b>יש</b> (כמה יש בפועל) — המערכת תחשב לבד כמה להזמין ותעביר לרשימת ההזמנה.</p>
                 {items.length === 0 ? (
                   <p className="text-center text-sm py-8" style={{ color: W.muted }}>הקטלוג ריק. {isAdmin ? 'לחץ "ערוך קטלוג" כדי להוסיף מוצרים.' : 'המנהל עדיין לא הוסיף מוצרים.'}</p>
                 ) : groupsFor(items).map(([cat, arr]) => (
                   <div key={cat} className="rounded-2xl border-2 overflow-hidden" style={{ borderColor: W.border, background: '#FFFDF8' }}>
                     <div className="px-3 py-2 font-bold text-sm" style={{ background: W.creamCard, color: W.terracotta }}>{cat}</div>
                     <div className="divide-y" style={{ borderColor: W.border }}>
-                      {arr.map(it => (
-                        <button key={it.id} onClick={() => toggleNeeded(it)} className="w-full flex items-center gap-3 px-3 py-2.5 text-right transition hover:bg-black/[.02]">
-                          <span className="w-6 h-6 rounded-md border-2 flex items-center justify-center shrink-0 transition"
-                            style={it.to_prep ? { background: W.terracotta, borderColor: W.terracotta } : { borderColor: '#cbb98f' }}>
-                            {it.to_prep && <Check className="w-4 h-4 text-white" />}
-                          </span>
-                          <span className="flex-1 text-sm font-medium" style={{ color: it.to_prep ? W.terracotta : W.charcoal }}>{it.name}</span>
-                        </button>
-                      ))}
+                      {arr.map(it => {
+                        const to = toOrderOf(it); const need = neededOf(it);
+                        return (
+                        <div key={it.id} className="px-3 py-2.5 space-y-2" style={need ? { background: '#FCF6EE' } : {}}>
+                          <div className="flex items-center gap-2">
+                            <button onClick={() => toggleNeeded(it)} title="הוסף ידנית לרשימה"
+                              className="w-6 h-6 rounded-md border-2 flex items-center justify-center shrink-0 transition"
+                              style={it.to_prep ? { background: W.terracotta, borderColor: W.terracotta } : { borderColor: '#cbb98f' }}>
+                              {it.to_prep && <Check className="w-4 h-4 text-white" />}
+                            </button>
+                            <span className="flex-1 text-sm font-medium" style={{ color: need ? W.terracotta : W.charcoal }}>{it.name}</span>
+                            {to > 0 && <span className="text-xs font-bold rounded-full px-2 py-0.5 shrink-0" style={{ background: W.terracotta, color: '#fff' }}>להזמין {to}</span>}
+                          </div>
+                          <div className="flex items-center gap-3 pr-8">
+                            <label className="flex items-center gap-1 text-[11px]" style={{ color: W.muted }}>
+                              יעד
+                              <input type="number" inputMode="decimal" value={it.target ?? ''} disabled={parLocked}
+                                onChange={e => setPar(it, e.target.value)} onBlur={() => commitPar(it)}
+                                className="w-14 h-7 rounded-md border px-1 text-center text-sm disabled:bg-gray-100 disabled:text-gray-400" style={{ borderColor: W.border }} />
+                              {parLocked && <span className="opacity-40 text-[10px]">🔒</span>}
+                            </label>
+                            <label className="flex items-center gap-1 text-[11px]" style={{ color: W.muted }}>
+                              יש
+                              <input type="number" inputMode="decimal" value={it.have ?? ''}
+                                onChange={e => setCur(it, e.target.value)} onBlur={() => commitCur(it)}
+                                className="w-14 h-7 rounded-md border px-1 text-center text-sm" style={{ borderColor: W.border, background: '#fff' }} />
+                            </label>
+                          </div>
+                        </div>
+                        );
+                      })}
                     </div>
                   </div>
                 ))}
@@ -286,8 +338,12 @@ function OrderListInner() {
                       {arr.map(it => (
                         <div key={it.id} className="flex items-center gap-2 px-3 py-2.5">
                           <span className="flex-1 text-sm font-semibold" style={{ color: W.charcoal }}>{it.name}</span>
-                          <Input value={it.note || ''} onChange={e => setNote(it, e.target.value)} onBlur={() => commitNote(it)} placeholder="כמות" className="w-20 h-8 text-sm" />
-                          <button onClick={() => toggleOrdered(it)} title="סמן כהוזמן" className="text-xs font-bold rounded-lg px-2.5 py-1.5 border transition" style={{ borderColor: W.olive, color: W.olive }}>הוזמן ✓</button>
+                          <label className="flex items-center gap-1 text-[11px]" style={{ color: W.muted }}>
+                            כמות
+                            <Input value={it.note || ''} onChange={e => setNote(it, e.target.value)} onBlur={() => commitNote(it)}
+                              placeholder={toOrderOf(it) ? String(toOrderOf(it)) : '—'} className="w-16 h-8 text-sm text-center" />
+                          </label>
+                          <button onClick={() => toggleOrdered(it)} title="סמן כהוזמן" className="text-xs font-bold rounded-lg px-2.5 py-1.5 border transition shrink-0" style={{ borderColor: W.olive, color: W.olive }}>הוזמן ✓</button>
                         </div>
                       ))}
                     </div>
