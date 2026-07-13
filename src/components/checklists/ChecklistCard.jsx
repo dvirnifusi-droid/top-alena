@@ -202,15 +202,33 @@ export default function ChecklistCard({ checklist, onStart, executions, onEdit, 
                         </div>
                     </div>
 
-                    {/* Last run — one compact line (name, not raw email; time, not full date). */}
-                    {lastExecution && (
-                        <div className="flex items-center flex-wrap gap-x-2 gap-y-1 text-xs text-gray-500 px-1">
-                            <span className="font-semibold text-gray-600">📊 ביצוע אחרון:</span>
-                            <span className="tabular-nums">{new Date(lastExecution.execution_date).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}</span>
-                            {lastExecution.executed_by_name && <span>· {String(lastExecution.executed_by_name).split('@')[0]}</span>}
-                            {lastExecution.overall_score != null && <span className="font-bold text-emerald-600">· {lastExecution.overall_score}%</span>}
-                        </div>
-                    )}
+                    {/* Live status — shows the shared run's real-time progress (done/total
+                        + bar) so a manager sees what's happening now at a glance. */}
+                    {lastExecution && (() => {
+                        const results = lastExecution.results || {};
+                        const done = Object.values(results).filter((r) => r && r.checked).length;
+                        const total = checklist.items?.length || 0;
+                        const pct = total ? Math.round((done / total) * 100) : 0;
+                        const inProgress = lastExecution.status !== 'completed' && done < total;
+                        return (
+                            <div className="px-1 space-y-1.5">
+                                <div className="flex items-center flex-wrap gap-x-2 gap-y-1 text-xs">
+                                    {inProgress
+                                        ? <span className="font-bold text-emerald-600 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />בתהליך עכשיו</span>
+                                        : <span className="font-bold text-gray-600">✅ הושלם</span>}
+                                    <span className="text-gray-500 tabular-nums">{done}/{total} בוצעו</span>
+                                    <span className="text-gray-400">· {new Date(lastExecution.execution_date).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}</span>
+                                    {lastExecution.executed_by_name && <span className="text-gray-400 truncate">· {String(lastExecution.executed_by_name).split('@')[0]}</span>}
+                                    {lastExecution.overall_score != null && <span className="font-bold text-emerald-600">· {lastExecution.overall_score}%</span>}
+                                </div>
+                                {total > 0 && (
+                                    <div className="h-1.5 rounded-full bg-gray-200 overflow-hidden">
+                                        <div className={`h-full transition-all ${pct === 100 ? 'bg-emerald-500' : 'bg-emerald-400'}`} style={{ width: `${pct}%` }} />
+                                    </div>
+                                )}
+                            </div>
+                        );
+                    })()}
                 </div>
                 <div className="mt-6">
                     <Button

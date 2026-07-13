@@ -140,6 +140,24 @@ function ChecklistsInner() {
         setLoading(false);
     };
 
+    // Live-ish: refresh executions every 15s (+ on focus) so the cards' progress
+    // bars reflect what cooks are marking in the shared prep run right now.
+    const refreshExecutions = async () => {
+        try {
+            const data = await ChecklistExecution.list('-execution_date');
+            setExecutions((prev) => (JSON.stringify(prev) === JSON.stringify(data) ? prev : data));
+        } catch { /* ignore poll errors */ }
+    };
+    useEffect(() => {
+        const tick = () => { if (!document.hidden && !isExecuting) refreshExecutions(); };
+        const iv = setInterval(tick, 15000);
+        const onVis = () => { if (!document.hidden && !isExecuting) refreshExecutions(); };
+        document.addEventListener('visibilitychange', onVis);
+        window.addEventListener('focus', onVis);
+        return () => { clearInterval(iv); document.removeEventListener('visibilitychange', onVis); window.removeEventListener('focus', onVis); };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isExecuting]);
+
     const startExecution = (checklist) => {
         setSelectedChecklist(checklist);
         setIsExecuting(true);
