@@ -99,16 +99,16 @@ export default function ChecklistCard({ checklist, onStart, executions, onEdit, 
 
     const getStatusBadge = () => {
         if (!lastExecution) {
-            return <Badge variant="outline" className="bg-gray-100">לא הושלם היום</Badge>;
+            return <Badge variant="outline" className="bg-gray-50 text-gray-500 border-gray-200">לא הושלם היום</Badge>;
         }
 
         switch (lastExecution.status) {
             case 'completed':
-                return <Badge className="bg-green-100 text-green-800">הושלם</Badge>;
+                return <Badge className="bg-emerald-50 text-emerald-700 border border-emerald-200">הושלם</Badge>;
             case 'in_progress':
-                return <Badge className="bg-blue-100 text-blue-800">בתהליך</Badge>;
+                return <Badge className="bg-[#F4ECD8] text-[#7A5A2E] border border-[#D9BD83]">בתהליך</Badge>;
             case 'requires_attention':
-                return <Badge className="bg-red-100 text-red-800">דורש תשומת לב</Badge>;
+                return <Badge className="bg-rose-50 text-rose-700 border border-rose-200">דורש תשומת לב</Badge>;
             default:
                 return <Badge variant="outline">לא ידוע</Badge>;
         }
@@ -130,11 +130,11 @@ export default function ChecklistCard({ checklist, onStart, executions, onEdit, 
     };
 
     return (
-        <Card className="group relative overflow-hidden bg-white border-0 shadow-xl hover:shadow-2xl transition-all duration-500 rounded-2xl flex flex-col h-full">
-            {/* רקע צבעוני לפי צבע הצ'קליסט */}
-            <div className={`absolute inset-0 bg-gradient-to-br ${colors.bg} opacity-0 group-hover:opacity-100 transition-opacity duration-500`}></div>
-            {/* פס צבע עליון */}
-            <div className={`absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r ${colors.gradient} rounded-t-2xl`}></div>
+        <Card className="group relative overflow-hidden bg-white border border-[#E8D9B5] shadow-sm hover:shadow-md transition-all duration-300 rounded-2xl flex flex-col h-full">
+            {/* subtle warm wash on hover */}
+            <div className="absolute inset-0 bg-gradient-to-br from-[#FAF5E8] to-[#F4ECD8] opacity-0 group-hover:opacity-60 transition-opacity duration-300"></div>
+            {/* top accent bar — one warm gradient across all cards */}
+            <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-[#A04A2E] to-[#B89556] rounded-t-2xl"></div>
             
             <div className="absolute top-4 left-4 z-10">
                 <DropdownMenu>
@@ -171,7 +171,7 @@ export default function ChecklistCard({ checklist, onStart, executions, onEdit, 
             <CardHeader className="relative pb-4">
                 <div className="flex justify-between items-start pr-14">
                     <div className="space-y-2">
-                        <CardTitle className="text-2xl font-bold text-gray-800 group-hover:text-emerald-700 transition-colors duration-300">
+                        <CardTitle className="chk-serif text-2xl font-bold text-[#1F1B17] group-hover:text-[#A04A2E] transition-colors duration-300">
                             {checklist.title}
                         </CardTitle>
                         <CardDescription className="text-gray-600 text-base line-clamp-2 min-h-[2.5rem]">

@@ -251,6 +251,8 @@ function ChecklistsInner() {
 
     return (
         <div className="min-h-screen bg-gradient-to-b from-[#FAF5E8] to-[#F4ECD8] p-4 md:p-8" dir="rtl">
+            {/* Alena's signature serif for headings (premium, restaurant feel). */}
+            <style>{`@import url('https://fonts.googleapis.com/css2?family=Frank+Ruhl+Libre:wght@500;700;900&display=swap'); .chk-serif{font-family:'Frank Ruhl Libre',serif;letter-spacing:-0.01em}`}</style>
             <div className="max-w-7xl mx-auto">
                 {/* Header — clean, warm and restrained to match the app's line */}
                 <div className="mb-6 md:mb-8 flex items-center gap-3">
@@ -258,7 +260,7 @@ function ChecklistsInner() {
                         <CheckSquare className="w-6 h-6 text-[#F4ECD8]" />
                     </div>
                     <div>
-                        <h1 className="text-2xl md:text-3xl font-black text-[#1F1B17] leading-tight">רשימות בדיקה</h1>
+                        <h1 className="chk-serif text-2xl md:text-3xl font-black text-[#1F1B17] leading-tight">רשימות בדיקה</h1>
                         <p className="text-sm text-[#7A6F5D]">ניהול הצ'קליסטים היומיים של המסעדה</p>
                     </div>
                 </div>
