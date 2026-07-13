@@ -128,6 +128,7 @@ import StoriesNotifications from './pages/StoriesNotifications';
 import SupplierDetails from './pages/SupplierDetails';
 import Suppliers from './pages/Suppliers';
 import SupplierOrders from './pages/SupplierOrders';
+import OrderList from './pages/OrderList';
 import SurveyQRCodes from './pages/SurveyQRCodes';
 import TablesManagement from './pages/TablesManagement';
 import TipReportDetails from './pages/TipReportDetails';
@@ -259,6 +260,7 @@ export const PAGES = {
     "SupplierDetails": SupplierDetails,
     "Suppliers": Suppliers,
     "SupplierOrders": SupplierOrders,
+    "OrderList": OrderList,
     "SurveyQRCodes": SurveyQRCodes,
     "TablesManagement": TablesManagement,
     "TipReportDetails": TipReportDetails,

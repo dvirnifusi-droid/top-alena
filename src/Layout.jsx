@@ -5,7 +5,7 @@ import { base44 } from "@/api/base44Client";
 import VoiceControl from "@/components/voice/VoiceControl";
 import {
   Users, GraduationCap, AlertTriangle, CheckSquare, Building, BarChart3,
-  LayoutGrid, Trophy, Menu, FileText, Utensils, Sparkles, Crown, Rocket, Map, Brain, Calendar, CalendarDays, CalendarHeart, Banknote, MessageSquare, Briefcase, QrCode, ClipboardCheck, Settings, TrendingUp, Zap, Megaphone, Bell, Package, Navigation, LogOut, Tablet, Download, ChefHat, Wallet, Shield, Lock
+  LayoutGrid, Trophy, Menu, FileText, Utensils, Sparkles, Crown, Rocket, Map, Brain, Calendar, CalendarDays, CalendarHeart, Banknote, MessageSquare, Briefcase, QrCode, ClipboardCheck, Settings, TrendingUp, Zap, Megaphone, Bell, Package, Navigation, LogOut, Tablet, Download, ChefHat, Wallet, Shield, Lock, ShoppingCart
 } from "lucide-react";
 import {
   Sidebar, SidebarContent,
@@ -66,6 +66,7 @@ const adminLinks = [
   { title: "ניהול הושבה", url: createPageUrl("SeatingSetup"), icon: Map, isSubItem: true, color: "cinnamon" },
   { title: "ניקיון שירותים 🚽", url: createPageUrl("RestroomCleaning"), icon: ClipboardCheck, isSubItem: true, color: "cinnamon" },
   { title: "צ'קליסטים", url: createPageUrl("Checklists"), icon: CheckSquare, isSubItem: true, color: "cinnamon" },
+  { title: "🛒 רשימת הזמנה", url: createPageUrl("OrderList"), icon: ShoppingCart, isSubItem: true, color: "cinnamon" },
   { title: "תקריות", url: createPageUrl("Incidents"), icon: AlertTriangle, isSubItem: true, color: "cinnamon" },
   { title: "דוח סיום משמרת", url: createPageUrl("ShiftEndReport"), icon: ClipboardCheck, isSubItem: true, color: "cinnamon" },
 
@@ -115,6 +116,7 @@ const employeeLinks = [
   { title: "📖 מדריך מנות", url: createPageUrl("DishGuide"), icon: Utensils, isSubItem: true, color: "cinnamon" },
   { title: "👨‍🍳 דף הכנות", url: createPageUrl("PrepSheet"), icon: ChefHat, isSubItem: true, color: "cinnamon" },
   { title: "צ'קליסטים", url: createPageUrl("Checklists"), icon: CheckSquare, isSubItem: true, color: "cinnamon" },
+  { title: "🛒 רשימת הזמנה", url: createPageUrl("OrderList"), icon: ShoppingCart, isSubItem: true, color: "cinnamon" },
   { title: "ניקיון שירותים 🚽", url: createPageUrl("RestroomCleaning"), icon: ClipboardCheck, isSubItem: true, color: "cinnamon" },
   { title: "דיווח תקרית", url: createPageUrl("Incidents"), icon: AlertTriangle, isSubItem: true, color: "cinnamon" },
 
@@ -351,6 +353,7 @@ export default function Layout({ children, currentPageName }) {
     { title: "📖 מדריך מנות", url: createPageUrl("DishGuide"), icon: Utensils, isSubItem: true, color: "cyan" },
     { title: "👨‍🍳 דף הכנות", url: createPageUrl("PrepSheet"), icon: ChefHat, isSubItem: true, color: "cyan" },
     { title: "צ'קליסטים", url: createPageUrl("Checklists"), icon: CheckSquare, isSubItem: true, color: "cyan" },
+    { title: "🛒 רשימת הזמנה", url: createPageUrl("OrderList"), icon: ShoppingCart, isSubItem: true, color: "cyan" },
     { title: "ניקיון שירותים 🚽", url: createPageUrl("RestroomCleaning"), icon: ClipboardCheck, isSubItem: true, color: "cyan" },
     { title: "דיווח תקרית", url: createPageUrl("Incidents"), icon: AlertTriangle, isSubItem: true, color: "cyan" },
     { title: "ספקים", url: createPageUrl("Suppliers"), icon: Building, isSubItem: true, color: "cyan" },

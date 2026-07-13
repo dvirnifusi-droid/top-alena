@@ -5729,6 +5729,9 @@ async function ensurePrepItems(): Promise<void> {
        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
      )`,
   );
+  // list_type separates prep lists from order lists (same tables, same item
+  // mechanics: to_prep="needed", done="ordered"). NULL/'prep' = a prep list.
+  await (prisma as any).$executeRawUnsafe(`ALTER TABLE "PrepList" ADD COLUMN IF NOT EXISTS "list_type" TEXT`).catch(() => {});
   await (prisma as any).$executeRawUnsafe(
     `CREATE TABLE IF NOT EXISTS "PrepArchive" (
        "id" TEXT PRIMARY KEY,
@@ -5757,11 +5760,53 @@ registerFn('getPrepLists', async ({ user }: any) => {
   if (!user?.id) throw new Error('unauthorized');
   try {
     await ensurePrepItems();
-    const rows: any[] = await (prisma as any).$queryRawUnsafe(`SELECT * FROM "PrepList" ORDER BY "sort" ASC, "updatedAt" ASC`);
+    const rows: any[] = await (prisma as any).$queryRawUnsafe(`SELECT * FROM "PrepList" WHERE COALESCE("list_type",'prep') <> 'order' ORDER BY "sort" ASC, "updatedAt" ASC`);
     return { lists: rows };
   } catch {
     return { lists: [] };
   }
+});
+
+// ── Order lists — same PrepItem mechanics (to_prep="needs ordering", done=
+// "ordered") on lists tagged list_type='order'. Items reuse getPrepItems /
+// savePrepItems / updatePrepItem (they're list-scoped, type-agnostic). ──
+registerFn('getOrderLists', async ({ user }: any) => {
+  if (!user?.id) throw new Error('unauthorized');
+  try {
+    await ensurePrepItems();
+    const rows: any[] = await (prisma as any).$queryRawUnsafe(`SELECT * FROM "PrepList" WHERE "list_type"='order' ORDER BY "sort" ASC, "updatedAt" ASC`);
+    return { lists: rows };
+  } catch { return { lists: [] }; }
+});
+
+registerFn('saveOrderList', async ({ user, body }: any) => {
+  if (!user?.id) throw new Error('unauthorized');
+  await ensurePrepItems();
+  const b = (body || {}) as any;
+  const name = String(b.name || '').trim().slice(0, 80);
+  if (!name) throw new Error('name required');
+  if (b.id) {
+    await (prisma as any).$executeRawUnsafe(`UPDATE "PrepList" SET name=$1, "updatedAt"=NOW() WHERE id=$2`, name, String(b.id));
+    return { ok: true, id: String(b.id) };
+  }
+  const { randomUUID } = await import('node:crypto');
+  const id = randomUUID();
+  const mx: any[] = await (prisma as any).$queryRawUnsafe(`SELECT COALESCE(MAX("sort"),0)+1 AS s FROM "PrepList"`);
+  await (prisma as any).$executeRawUnsafe(
+    `INSERT INTO "PrepList" ("id","name","sort","list_type","updatedAt") VALUES ($1,$2,$3,'order',NOW())`,
+    id, name, Number(mx[0]?.s) || 0,
+  );
+  return { ok: true, id };
+});
+
+registerFn('deleteOrderList', async ({ user, body }: any) => {
+  if (!user?.id) throw new Error('unauthorized');
+  await ensurePrepItems();
+  const id = String((body || {}).id || '');
+  if (!id) throw new Error('id required');
+  await (prisma as any).$executeRawUnsafe(`DELETE FROM "PrepItem" WHERE list_id=$1`, id);
+  await (prisma as any).$executeRawUnsafe(`DELETE FROM "PrepList" WHERE id=$1 AND "list_type"='order'`, id);
+  return { ok: true };
 });
 
 // Create (no id) or rename (with id) a list.
