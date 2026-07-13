@@ -190,8 +190,8 @@ export default function ChecklistCard({ checklist, onStart, executions, onEdit, 
             </CardHeader>
 
             <CardContent className="relative flex-grow flex flex-col justify-between">
-                <div className="space-y-6">
-                    <div className="flex justify-between text-sm bg-gradient-to-r from-gray-50 to-blue-50 p-4 rounded-2xl border border-gray-100">
+                <div className="space-y-3">
+                    <div className="flex justify-between text-sm bg-gray-50 p-3 rounded-xl border border-gray-100">
                         <div className="flex items-center gap-2 text-gray-700">
                             <CheckSquare className="w-4 h-4 text-emerald-500" />
                             <span className="font-semibold">פריטים: {checklist.items?.length || 0}</span>
@@ -201,27 +201,21 @@ export default function ChecklistCard({ checklist, onStart, executions, onEdit, 
                             <span className="font-semibold">תפקיד: {checklist.assigned_role || 'לכל התפקידים'}</span>
                         </div>
                     </div>
-                    
+
+                    {/* Last run — one compact line (name, not raw email; time, not full date). */}
                     {lastExecution && (
-                        <div className="text-sm text-gray-600 p-5 bg-gradient-to-r from-blue-50 via-cyan-50 to-emerald-50 rounded-2xl border border-blue-100 space-y-2">
-                            <h4 className="font-bold text-gray-800 text-base mb-3">📊 ביצוע אחרון</h4>
-                            <p><strong>תאריך:</strong> {new Date(lastExecution.execution_date).toLocaleString('he-IL')}</p>
-                            {lastExecution.executed_by_name && (
-                                <p><strong>בוצע ע"י:</strong> <span className="text-blue-600 font-semibold">{lastExecution.executed_by_name}</span></p>
-                            )}
-                            {lastExecution.approving_manager_name && (
-                                <p><strong>אושר ע"י:</strong> <span className="text-green-600 font-semibold">{lastExecution.approving_manager_name}</span></p>
-                            )}
-                            {lastExecution.overall_score != null && (
-                                <p><strong>ציון:</strong> <span className="text-purple-600 font-bold text-lg">{lastExecution.overall_score}%</span></p>
-                            )}
+                        <div className="flex items-center flex-wrap gap-x-2 gap-y-1 text-xs text-gray-500 px-1">
+                            <span className="font-semibold text-gray-600">📊 ביצוע אחרון:</span>
+                            <span className="tabular-nums">{new Date(lastExecution.execution_date).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}</span>
+                            {lastExecution.executed_by_name && <span>· {String(lastExecution.executed_by_name).split('@')[0]}</span>}
+                            {lastExecution.overall_score != null && <span className="font-bold text-emerald-600">· {lastExecution.overall_score}%</span>}
                         </div>
                     )}
                 </div>
                 <div className="mt-6">
                     <Button
                         onClick={() => onStart(checklist)}
-                        className={`w-full h-12 text-lg font-bold rounded-2xl shadow-lg transition-all duration-300 hover:shadow-xl hover:scale-105 text-white bg-gradient-to-r ${
+                        className={`w-full h-12 text-lg font-bold rounded-2xl shadow-lg transition-all duration-300 hover:shadow-xl text-white bg-gradient-to-r ${
                             lastExecution && lastExecution.status === 'completed'
                                 ? 'from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600'
                                 : `${colors.gradient} ${colors.hover}`
