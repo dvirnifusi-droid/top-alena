@@ -47,6 +47,17 @@ function snapshotDate(snap: any): Date {
 }
 
 export async function tryHandleDailyHoursReply(fromPhone: string, body: string): Promise<string | null> {
+  try {
+    return await handleDailyHoursReplyInner(fromPhone, body);
+  } catch (e: any) {
+    // Bulletproof: this runs on EVERY admin message before the normal agent, so
+    // it must never throw and silence the agent. Any error → fall through.
+    console.warn('[daily-hours-reply] non-fatal error, falling through', e?.message);
+    return null;
+  }
+}
+
+async function handleDailyHoursReplyInner(fromPhone: string, body: string): Promise<string | null> {
   const text = String(body || '').trim();
   if (!text) return null;
 
@@ -115,9 +126,11 @@ export async function tryHandleDailyHoursReply(fromPhone: string, body: string):
     }).catch(() => {});
   }
 
-  if (!applied.length && !problems.length) return null;
-  const lines: string[] = [];
-  if (applied.length) lines.push(`✅ *עודכן:* ${applied.join(' · ')}`);
+  // Only claim the message if we actually applied a correction. If nothing
+  // matched a report employee, fall through so a normal admin command that just
+  // happens to contain a number (e.g. "כמה הזמנות ל-19:00") reaches the agent.
+  if (!applied.length) return null;
+  const lines: string[] = [`✅ *עודכן:* ${applied.join(' · ')}`];
   if (problems.length) lines.push(`⚠️ ${problems.join(' · ')}`);
   lines.push('_העדכון נכנס לסידור ולעלות העבודה._');
   return lines.join('\n');
