@@ -45,6 +45,14 @@ if ! crontab -l 2>/dev/null | grep -q 'provisioner-cron.sh'; then
   (crontab -l 2>/dev/null; echo '* * * * * bash /opt/top-alena/scripts/provisioner-cron.sh >> /var/log/topalena-provisioner.log 2>&1') | crontab -
 fi
 
+# Self-installing hourly supplier-order reminder cron (idempotent). Placed here
+# BEFORE the no-change fast-exit so it lands even when the box is unreachable
+# by SSH — a plain git push wires it on the next autodeploy tick.
+if ! crontab -l 2>/dev/null | grep -q 'supplier-order-alerts'; then
+  echo "==> Installing supplier-order-alerts crontab entry (hourly)"
+  (crontab -l 2>/dev/null; echo '0 * * * * curl -fsS -X POST -H "x-cron-secret: $(grep ^CRON_SECRET /opt/top-alena/apps/api/.env | cut -d= -f2-)" http://localhost:3001/api/cron/supplier-order-alerts > /dev/null 2>&1') | crontab -
+fi
+
 # Skip if no lock — but do quick fetch to see if there's anything new.
 git fetch origin "$BRANCH" --quiet 2>/dev/null || { echo "fetch failed, skipping"; exit 0; }
 
