@@ -56,6 +56,7 @@ const adminLinks = [
   { title: "לוח בקרה", url: createPageUrl("Dashboard"), icon: LayoutGrid, color: "cinnamon" },
 
   { title: "🤖 כלי AI", url: createPageUrl("AIHub"), icon: Sparkles, color: "gold" },
+  { title: "💰 עלויות תפעול", url: createPageUrl("OperatingCosts"), icon: Wallet, isSubItem: true, color: "gold" },
 
   { title: "תפעול המסעדה", url: "#", icon: Utensils, isCategory: true, color: "cinnamon" },
   { title: "ניהול תדריכים", url: createPageUrl("BriefingManagement"), icon: Megaphone, isSubItem: true, color: "cinnamon" },

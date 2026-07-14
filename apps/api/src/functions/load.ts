@@ -5867,6 +5867,45 @@ registerFn('getOwnerDashboard', async ({ user }: any) => {
   return out;
 });
 
+// Operating costs — real AI spend (platform.AiUsage this month) + a messaging
+// estimate from outbound-message count, plus configurable fixed infra costs.
+// The EXACT Twilio $ lives in the Twilio invoice; here we estimate from volume.
+registerFn('getOperatingCosts', async ({ user }: any) => {
+  if (!user?.id) throw new Error('unauthorized');
+  if (!isAdminRole((user as any)?.role)) throw new Error('admin only');
+  const db2 = prisma as any;
+  const slug = (process.env.TENANT_SLUG || 'alena').toLowerCase();
+  const USD_ILS = Number(process.env.USD_ILS || 3.7);
+
+  // AI — real, from the shared usage ledger.
+  let ai = { ils: 0, calls: 0, tokens: 0 };
+  try {
+    const rows: any[] = await db2.$queryRawUnsafe(
+      `SELECT COALESCE(SUM(cost_ils),0) AS ils, COUNT(*) AS calls, COALESCE(SUM(tokens_in+tokens_out),0) AS tokens
+       FROM "platform"."AiUsage" WHERE tenant_slug=$1 AND day >= date_trunc('month', CURRENT_DATE)`, slug);
+    ai = { ils: Math.round((Number(rows?.[0]?.ils) || 0) * 100) / 100, calls: Number(rows?.[0]?.calls) || 0, tokens: Number(rows?.[0]?.tokens) || 0 };
+  } catch { /* table may not exist yet */ }
+
+  // Messaging — count this month's outbound and estimate (~$0.012 per WhatsApp msg).
+  const now = new Date();
+  const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+  const msgsOut = await db2.whatsAppMessage.count({ where: { direction: 'outbound', createdAt: { gte: monthStart } } }).catch(() => 0);
+  const msgEstIls = Math.round(msgsOut * 0.012 * USD_ILS);
+
+  // Fixed monthly infra — estimates (override per deployment via env).
+  const fixed = {
+    server_ils: Number(process.env.COST_SERVER_ILS || 130),
+    email_ils: Number(process.env.COST_EMAIL_ILS || 40),
+    domain_ils: Number(process.env.COST_DOMAIN_ILS || 5),
+  };
+  const total = Math.round(ai.ils + msgEstIls + fixed.server_ils + fixed.email_ils + fixed.domain_ils);
+  return {
+    month: monthStart.toISOString().slice(0, 7),
+    ai, messaging: { out: msgsOut, est_ils: msgEstIls },
+    fixed, total_est_ils: total, usd_ils: USD_ILS,
+  };
+});
+
 // Bulk-resolve every open incident (owner cleanup). Returns how many closed.
 registerFn('clearAllIncidents', async ({ user }: any) => {
   if (!user?.id) throw new Error('unauthorized');
