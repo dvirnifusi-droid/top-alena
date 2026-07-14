@@ -386,7 +386,7 @@ export default function StoriesBar({ currentEmployee }) {
           })}
 
           {groups.length === 0 && !currentEmployee && (
-            <p className="text-sm text-gray-400 self-center">אין סטוריז כרגע</p>
+            <p className="text-sm text-gray-400 self-center">עדיין אין סטוריז — היו הראשונים! 📸</p>
           )}
         </div>
         <input ref={fileInputRef} type="file" accept="image/*,video/*" className="hidden" onChange={handleFileSelect} />

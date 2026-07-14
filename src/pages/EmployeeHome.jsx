@@ -369,7 +369,11 @@ export default function EmployeeHome() {
 
                 {/* גאדג'טים לפי סדר המשתמש */}
                 <div className="space-y-4">
-                    {widgetOrder.map(id => widgets[id] || null)}
+                    {widgetOrder.map((id, i) => (
+                        widgets[id]
+                            ? <div key={id} className="animate-in fade-in slide-in-from-bottom-3 duration-500" style={{ animationDelay: `${Math.min(i * 55, 400)}ms`, animationFillMode: 'both' }}>{widgets[id]}</div>
+                            : null
+                    ))}
                 </div>
             </div>
 

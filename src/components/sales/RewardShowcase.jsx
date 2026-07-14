@@ -137,10 +137,14 @@ export default function RewardShowcase() {
                 )}
 
                 {data.affordable.length === 0 && data.locked.length === 0 && (
-                    <p className="text-sm text-gray-500 text-center py-4">אין פרסים זמינים. דבר עם המנהל.</p>
+                    <div className="text-center py-5">
+                        <div className="text-3xl mb-1">🎁</div>
+                        <p className="text-sm font-medium text-slate-600">פרסים בדרך!</p>
+                        <p className="text-xs text-slate-400 mt-0.5">אספו מטבעות — המנהל יוסיף כאן פרסים לזכייה.</p>
+                    </div>
                 )}
 
-                <Link to="/GamificationCenter" className="block text-center text-xs text-blue-600 mt-3 underline">
+                <Link to="/GamificationCenter" className="block text-center text-xs mt-3 underline" style={{ color: 'var(--brand-primary, #A04A2E)' }}>
                     כל הפרסים →
                 </Link>
             </CardContent>

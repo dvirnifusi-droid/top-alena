@@ -94,9 +94,11 @@ export default function ShiftSupervisorPanel() {
 
     if (goals.length === 0 && shiftStaff.length === 0) {
         return (
-            <Card className="mb-4 border-2 border-dashed border-gray-300">
-                <CardContent className="p-4 text-center">
-                    <p className="text-gray-600 mb-3">הצוות שלך עוד לא מתחרה.</p>
+            <Card className="mb-4 rounded-2xl border border-[#EADFC8] bg-white/95">
+                <CardContent className="p-5 text-center">
+                    <div className="text-3xl mb-1">🏆</div>
+                    <p className="font-bold text-[#3A2E1E] mb-0.5">הפעילו יעד משמרת</p>
+                    <p className="text-gray-500 text-sm mb-3">קבעו יעד מכירה — והצוות מתחיל להתחרות על הפרסים.</p>
                     <Button onClick={() => setShowActivate(true)}><Plus className="w-4 h-4 ml-1" /> הפעל יעד</Button>
                 </CardContent>
                 <ActivateGoalDialog open={showActivate} onClose={() => setShowActivate(false)} onActivated={load} />
