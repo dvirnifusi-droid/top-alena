@@ -5828,9 +5828,12 @@ registerFn('getOwnerDashboard', async ({ user }: any) => {
   const t0 = new Date(dayStart.getTime() - 3 * 3600 * 1000); // TZ cushion
   const out: any = { day: ymd, generated_at: now.toISOString() };
 
-  // Who's clocked in right now.
+  // Who's clocked in right now — TODAY only + active/on_break (matches the
+  // ActiveEmployeesWidget; without the date scope, stale never-clocked-out rows
+  // from earlier days inflate the count).
   out.active_shift = await db2.shiftTracking.findMany({
-    where: { status: 'active' }, orderBy: { shift_start: 'asc' }, take: 40,
+    where: { status: { in: ['active', 'on_break'] }, date: { gte: dayStart, lte: dayEnd } },
+    orderBy: { shift_start: 'asc' }, take: 40,
     select: { employee_name: true, shift_start: true, employee_id: true },
   }).then((r: any[]) => r.map(x => ({ name: x.employee_name, since: x.shift_start }))).catch(() => []);
 
@@ -5862,6 +5865,17 @@ registerFn('getOwnerDashboard', async ({ user }: any) => {
     breakdown: { whatsapp: out.whatsapp_today || 0, reservations: out.reservations_today || 0, checklists: clDone },
   };
   return out;
+});
+
+// Bulk-resolve every open incident (owner cleanup). Returns how many closed.
+registerFn('clearAllIncidents', async ({ user }: any) => {
+  if (!user?.id) throw new Error('unauthorized');
+  if (!isAdminRole((user as any)?.role)) throw new Error('admin only');
+  const r = await (prisma as any).incident.updateMany({
+    where: { NOT: { status: { in: ['resolved', 'closed'] } } },
+    data: { status: 'resolved', resolution_date: new Date() },
+  });
+  return { ok: true, cleared: r?.count ?? 0 };
 });
 
 // Lock/unlock the "should be in stock" (target/par) column on an order list.

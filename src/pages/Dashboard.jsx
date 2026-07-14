@@ -317,7 +317,7 @@ function DashboardInner() {
         gomiley_dashboard: isVisible('gomiley_dashboard') && <GomileyDashboardWidget key="gomiley_dashboard" />,
         shift_insights: isVisible('shift_insights') && <ShiftInsightsWidget key="shift_insights" />,
         whatsapp_inbox: isVisible('whatsapp_inbox') && <WhatsAppInboxWidget key="whatsapp_inbox" />,
-        active_employees: isVisible('active_employees') && <ActiveEmployeesWidget key="active_employees" />,
+        // active_employees now renders once, right under the Apollo hero (above).
         treats_report: isVisible('treats_report') && <TreatsReport key="treats_report" />,
         brief_readers: isVisible('brief_readers') && <BriefReadersWidget key="brief_readers" />,
         recent_incidents: isVisible('recent_incidents') && <RecentIncidents key="recent_incidents" />,
@@ -349,6 +349,7 @@ function DashboardInner() {
                 </div>
 
                 <ApolloHero />
+                <ActiveEmployeesWidget />
                 <OnboardingProgressCard />
                 {widgetOrder.map(id => adminWidgets[id] || null)}
             </div>

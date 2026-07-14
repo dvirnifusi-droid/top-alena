@@ -118,19 +118,8 @@ export default function ApolloHero() {
         ))}
       </div>
 
-      {/* who's on shift */}
-      {active.length > 0 && (
-        <div className="px-4 pt-3">
-          <div className="text-[11px] font-bold mb-1.5" style={{ color: A.muted }}>🟢 פעילים במשמרת עכשיו</div>
-          <div className="flex gap-1.5 flex-wrap">
-            {active.map((e, i) => (
-              <span key={i} className="text-[12px] font-semibold rounded-full px-2.5 py-1" style={{ background: '#eef6e2', color: '#3c5223', border: '1px solid #cfe3ad' }}>
-                {e.name}{e.since ? <span style={{ color: A.muted }}> · מ-{ilTime(e.since)}</span> : ''}
-              </span>
-            ))}
-          </div>
-        </div>
-      )}
+      {/* Active-on-shift lives in the real ActiveEmployeesWidget rendered right
+          below the hero (accurate, today-scoped, with dept tabs + close-shift). */}
 
       {/* agent feed */}
       {(d.feed || []).length > 0 && (

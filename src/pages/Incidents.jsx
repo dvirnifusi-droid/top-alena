@@ -538,6 +538,19 @@ function IncidentsInner() {
                 <RefreshCw className="w-3 h-3 lg:w-4 lg:h-4 ml-1 lg:ml-2" />
                 רענן רשימה
               </Button>
+              {isAdmin && openIncidents > 0 && (
+                <Button
+                  variant="outline" size="sm"
+                  className="text-xs lg:text-sm border-red-300 text-red-700 hover:bg-red-50"
+                  onClick={async () => {
+                    if (!window.confirm(`לנקות (לסגור) את כל ${openIncidents} התקריות הפתוחות? תמיד אפשר לפתוח מחדש תקרית בודדת.`)) return;
+                    try { const res = await base44.functions.clearAllIncidents(); const r = res?.data || res; alert(`נוקו ${r?.cleared ?? 0} תקריות ✓`); loadData(); }
+                    catch (e) { alert('שגיאה: ' + (e?.message || 'unknown')); }
+                  }}
+                >
+                  🧹 נקה את כל התקריות
+                </Button>
+              )}
             </div>
           </div>
           
