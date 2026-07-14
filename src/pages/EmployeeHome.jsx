@@ -19,6 +19,7 @@ import AiQuickAdd from '../components/dashboard/AiQuickAdd';
 import DailyBriefView from '../components/briefing/DailyBriefView';
 import ShiftClockWidget from '../components/shift/ShiftClockWidget';
 import NextShiftCountdown from '../components/employee/NextShiftCountdown';
+import HeroGlance from '../components/employee/HeroGlance';
 import WeeklyScheduleSummary from '../components/employee/WeeklyScheduleSummary';
 import CoinWidget from '../components/gamification/CoinWidget';
 import DailyChallengeCard from '../components/gamification/DailyChallengeCard';
@@ -352,7 +353,7 @@ export default function EmployeeHome() {
                                     <img src={branding.logo_url} alt="logo" className="h-9 w-9 rounded-xl object-cover bg-white/90 p-0.5 shadow-sm flex-shrink-0" />
                                 )}
                                 <span className="text-white font-bold text-base sm:text-lg drop-shadow-sm truncate">{branding?.name}</span>
-                                <span className="text-white/40 text-[9px] font-mono flex-shrink-0">v10</span>
+                                <span className="text-white/40 text-[9px] font-mono flex-shrink-0">v11</span>
                             </div>
                             <div className="flex items-center gap-2 flex-shrink-0">
                                 {currentEmployee && <CoinWidget employeeId={currentEmployee.id} employeeName={currentEmployee.full_name} />}
@@ -396,6 +397,8 @@ export default function EmployeeHome() {
                                 <ChevronDown className="w-3 h-3" />
                             </button>
                         </div>
+                        {/* 🎯 מבט על — נתונים אישיים שקופצים לעין מיד */}
+                        <HeroGlance user={user} currentEmployee={currentEmployee} />
                     </div>
                 </div>
 
