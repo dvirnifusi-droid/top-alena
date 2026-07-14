@@ -14,6 +14,7 @@ import { Plus, CalendarDays, Check, X, Clock, Loader2, Pencil } from 'lucide-rea
 import { format, parseISO, eachDayOfInterval } from 'date-fns';
 import { he } from 'date-fns/locale';
 import PageGuard from '../components/shared/PageGuard';
+import PageHeader, { PageShell } from '@/components/shared/PageHeader';
 
 const LEAVE_TYPES = {
     vacation: { label: 'חופשה', color: 'bg-[#F4ECD8] text-[#2E3819]', emoji: '🏖️' },
@@ -350,22 +351,18 @@ function LeaveRequestsInner() {
     if (loading) return <div className="flex justify-center p-10"><Loader2 className="w-6 h-6 animate-spin" /></div>;
 
     return (
-         <div className="p-4 md:p-8 max-w-5xl mx-auto" dir="rtl">
-            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-6">
-                <div className="flex-1 min-w-0">
-                    <h1 className="text-xl md:text-2xl font-bold flex items-center gap-2 flex-wrap">
-                        <CalendarDays className="w-6 h-6 md:w-7 md:h-7 text-[#44512C] flex-shrink-0" />
-                        {isAdmin ? 'ניהול בקשות חופשה' : 'הבקשות שלי'}
-                    </h1>
-                    <p className="text-gray-500 text-xs md:text-sm mt-1">{isAdmin ? 'אשר או דחה בקשות חופשה ומחלה של עובדים' : 'הגש בקשת חופשה, מחלה או היעדרות'}</p>
-                </div>
-                {(currentEmployee || currentUser) && (
+         <PageShell>
+            <PageHeader
+                title={isAdmin ? 'ניהול בקשות חופשה' : 'הבקשות שלי'}
+                subtitle={isAdmin ? 'אשר או דחה בקשות חופשה ומחלה של עובדים' : 'הגש בקשת חופשה, מחלה או היעדרות'}
+                icon={CalendarDays}
+                action={(currentEmployee || currentUser) && (
                     <Button onClick={() => setNewOpen(true)} className="w-full md:w-auto">
                         <Plus className="w-4 h-4 ml-2" />
                         בקשה חדשה
                     </Button>
                 )}
-            </div>
+            />
 
             {isAdmin && <LeaveCalendar requests={requests} />}
 
@@ -409,7 +406,7 @@ function LeaveRequestsInner() {
 
             <RejectDialog open={!!rejectTarget} onClose={() => setRejectTarget(null)} onConfirm={handleReject} loading={actionLoading === rejectTarget?.id + '_r'} />
             {editTarget && <EditDatesDialog open={!!editTarget} onClose={() => setEditTarget(null)} req={editTarget} onSaved={loadData} />}
-        </div>
+        </PageShell>
     );
 }
 

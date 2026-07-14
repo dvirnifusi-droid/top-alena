@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Loader2, ChefHat, RefreshCw, TrendingUp, AlertTriangle, Edit3, Upload, Sparkles } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import PageGuard from '../components/shared/PageGuard';
+import PageHeader from '@/components/shared/PageHeader';
 import { isMainAlena } from '@/lib/tenant';
 
 function RecipesInner() {
@@ -192,15 +193,11 @@ function RecipesInner() {
 
   return (
     <div className="p-4 md:p-6 space-y-4 max-w-6xl mx-auto" dir="rtl">
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2">
-            <ChefHat className="w-6 h-6 text-amber-600" /> מתכונים ופוד-קוסט
-          </h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            {filter === 'DISH' ? `${dishesWithFc.length} מנות עם מחיר · פוד-קוסט ממוצע ${avgFc.toFixed(1)}%` : `${recipes.length} הכנות בסיס`}
-          </p>
-        </div>
+      <PageHeader
+        title="מתכונים ופוד-קוסט"
+        subtitle={filter === 'DISH' ? `${dishesWithFc.length} מנות עם מחיר · פוד-קוסט ממוצע ${avgFc.toFixed(1)}%` : `${recipes.length} הכנות בסיס`}
+        icon={ChefHat}
+        action={
         <div className="flex gap-2">
           {isAlena && (
             <Button size="sm" variant="outline" onClick={handleApplyMenuPrices} disabled={syncing} className="border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-900">
@@ -225,7 +222,8 @@ function RecipesInner() {
             <RefreshCw className={`w-4 h-4 ml-1 ${loading ? 'animate-spin' : ''}`} /> רענן
           </Button>
         </div>
-      </div>
+        }
+      />
 
       {aiPreps && filter === 'PREP' && (
         <Card className="border-amber-200 bg-amber-50">

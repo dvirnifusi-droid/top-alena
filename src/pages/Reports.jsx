@@ -20,8 +20,9 @@ import {
     AlertDialogFooter, 
     AlertDialogHeader, 
     AlertDialogTitle, 
-    AlertDialogTrigger 
+    AlertDialogTrigger
 } from '@/components/ui/alert-dialog';
+import PageHeader from '@/components/shared/PageHeader';
 
 function ReportsInner() {
     const [tipReports, setTipReports] = useState([]);
@@ -323,23 +324,21 @@ function ReportsInner() {
         employeeMonthlyData.filter(emp => emp.name.includes(selectedEmployee));
 
     return (
-        <div className="p-4 md:p-8 bg-gray-100 min-h-screen" dir="rtl">
+        <div className="p-4 md:p-8 bg-gradient-to-br from-[#FAF5E8] via-[#F7EFDD] to-[#F1E6CE] min-h-screen" dir="rtl">
             <div className="max-w-7xl mx-auto space-y-6">
-                
+
                 {/* Header */}
-                <div className="flex justify-between items-center mb-8">
-                    <div>
-                        <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
-                            <FileText className="w-8 h-8 text-[#44512C]" />
-                            דוחות טיפים ומשכורות
-                        </h1>
-                        <p className="text-gray-600 mt-2">ניהול ומעקב אחר חלוקת טיפים ונתוני משכורות</p>
-                    </div>
-                    <Button onClick={exportToCSV} className="bg-green-600 hover:bg-green-700">
-                        <Download className="w-4 h-4 ml-2" />
-                        ייצא ל-CSV
-                    </Button>
-                </div>
+                <PageHeader
+                    title="דוחות טיפים ומשכורות"
+                    subtitle="ניהול ומעקב אחר חלוקת טיפים ונתוני משכורות"
+                    icon={FileText}
+                    action={
+                        <Button onClick={exportToCSV} className="bg-green-600 hover:bg-green-700">
+                            <Download className="w-4 h-4 ml-2" />
+                            ייצא ל-CSV
+                        </Button>
+                    }
+                />
 
                 {/* Enhanced Filters */}
                 <Card>

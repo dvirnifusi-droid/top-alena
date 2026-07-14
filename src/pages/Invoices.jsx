@@ -13,6 +13,7 @@ import { format } from 'date-fns';
 import InvoiceFilters from '../components/invoices/InvoiceFilters';
 import ExportDialog from '../components/invoices/ExportDialog'; // Import the new dialog component
 import InvoiceReviewModal from '../components/invoices/InvoiceReviewModal';
+import PageHeader from '@/components/shared/PageHeader';
 
 export default function InvoicesPage() {
     const [invoices, setInvoices] = useState([]);
@@ -109,21 +110,19 @@ export default function InvoicesPage() {
     }
 
     return (
-        <div className="p-4 sm:p-8 bg-gray-50 min-h-screen" dir="rtl">
+        <div className="p-4 sm:p-8 bg-gradient-to-br from-[#FAF5E8] via-[#F7EFDD] to-[#F1E6CE] min-h-screen" dir="rtl">
             <div className="max-w-7xl mx-auto">
-                <div className="flex justify-between items-center mb-8">
-                    <div>
-                        <h1 className="text-3xl lg:text-4xl font-bold text-slate-900 flex items-center gap-3">
-                            <FileText className="w-8 h-8" />
-                            ארכיון חשבוניות
-                        </h1>
-                        <p className="text-lg text-slate-600 mt-2">היסטוריית כל החשבוניות שנסרקו למערכת.</p>
-                    </div>
-                    <Button onClick={() => setShowExportDialog(true)}>
-                        ייצא לרו"ח
-                    </Button>
-                </div>
-                
+                <PageHeader
+                    title="ארכיון חשבוניות"
+                    subtitle="היסטוריית כל החשבוניות שנסרקו למערכת."
+                    icon={FileText}
+                    action={
+                        <Button onClick={() => setShowExportDialog(true)}>
+                            ייצא לרו"ח
+                        </Button>
+                    }
+                />
+
                 <InvoiceFilters 
                     suppliers={suppliersList}
                     onFilterChange={setFilters}

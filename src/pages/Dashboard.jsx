@@ -243,7 +243,7 @@ function DashboardInner() {
                 <div className="max-w-7xl mx-auto">
                     <div className="mb-8 flex items-start justify-between">
                         <div>
-                            <h1 className="text-3xl font-bold text-slate-900 mb-2">שלום {user?.full_name?.split(' ')[0] || 'עובד'}! 👋</h1>
+                            <h1 className="text-3xl font-bold text-slate-900 mb-2">שלום {user?.full_name?.split(' ')[0] || 'עובד'}!</h1>
                             <p className="text-slate-600">הכלים שלך למשמרת היום</p>
                         </div>
                         <button onClick={() => setShowCustomizer(true)} className="flex items-center gap-1.5 bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-600 hover:bg-slate-50 shadow-sm">
@@ -280,7 +280,7 @@ function DashboardInner() {
     const adminWidgets = {
         smart_tools: isVisible('smart_tools') && (
             <section key="smart_tools">
-                <h2 className="text-2xl font-bold text-slate-900 mb-4 flex items-center gap-2">🤖 כלי עבודה חכמים <Badge className="bg-[#F4ECD8] text-indigo-800">AI</Badge></h2>
+                <h2 className="text-2xl font-bold text-slate-900 mb-4 flex items-center gap-2">כלי עבודה חכמים <Badge className="bg-[#F4ECD8] text-indigo-800">AI</Badge></h2>
                 <SmartToolsPanel />
             </section>
         ),
@@ -289,7 +289,7 @@ function DashboardInner() {
         ),
         quick_stats: isVisible('quick_stats') && (
             <section key="quick_stats">
-                <h2 className="text-2xl font-bold text-slate-900 mb-4">📊 מבט מהיר</h2>
+                <h2 className="text-2xl font-bold text-slate-900 mb-4">מבט מהיר</h2>
                 <QuickStats />
             </section>
         ),
@@ -298,7 +298,7 @@ function DashboardInner() {
                 <Card className="bg-gradient-to-r from-green-600 to-emerald-600 text-white cursor-pointer hover:shadow-xl transition-all duration-300 transform hover:scale-105">
                     <CardContent className="p-6 flex items-center justify-between">
                         <div>
-                            <h3 className="text-xl font-bold mb-1 flex items-center gap-2"><BookOpen className="w-6 h-6" />📖 מדריך שימוש במערכת</h3>
+                            <h3 className="text-xl font-bold mb-1 flex items-center gap-2"><BookOpen className="w-6 h-6" />מדריך שימוש במערכת</h3>
                             <p className="text-green-100">הסברים מפורטים + סרטוני הדרכה לכל הכלים</p>
                         </div>
                         <ChevronRight className="w-8 h-8 opacity-70" />
@@ -308,7 +308,7 @@ function DashboardInner() {
         ),
         sales_chart: isVisible('sales_chart') && (
             <section key="sales_chart">
-                <h2 className="text-2xl font-bold text-slate-900 mb-4">📈 מכירות וביצועים</h2>
+                <h2 className="text-2xl font-bold text-slate-900 mb-4">מכירות וביצועים</h2>
                 <SalesChart />
             </section>
         ),
@@ -339,7 +339,7 @@ function DashboardInner() {
             <div className="max-w-7xl mx-auto space-y-8">
                 <div className="mb-8 flex items-start justify-between">
                     <div>
-                        <h1 className="text-4xl font-bold text-slate-900 mb-2">ברוך הבא, {user?.full_name?.split(' ')[0] || 'מנהל'}! 🎯</h1>
+                        <h1 className="text-4xl font-bold text-slate-900 mb-2">ברוך הבא, {user?.full_name?.split(' ')[0] || 'מנהל'}!</h1>
                         <p className="text-xl text-slate-600">מבט כולל על מצב המסעדה היום</p>
                     </div>
                     <button onClick={() => setShowCustomizer(true)} className="flex items-center gap-1.5 bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-600 hover:bg-slate-50 shadow-sm font-medium">

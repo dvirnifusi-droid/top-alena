@@ -12,6 +12,7 @@ import {
   Plus, Pencil, Trash2, Play, Video, FolderOpen, X, Search
 } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
+import PageHeader from "@/components/shared/PageHeader";
 
 export default function TrainingVideos() {
   const [videos, setVideos] = useState([]);
@@ -137,23 +138,19 @@ export default function TrainingVideos() {
   };
 
   return (
-    <div className="p-4 md:p-8 max-w-6xl mx-auto" dir="rtl">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
-            <Video className="w-7 h-7 text-primary" />
-            סרטוני הדרכה
-          </h1>
-          <p className="text-muted-foreground text-sm mt-1">{videos.length} סרטונים בסך הכל</p>
-        </div>
-        {isAdmin && (
+    <div className="min-h-screen bg-gradient-to-br from-[#FAF5E8] via-[#F7EFDD] to-[#F1E6CE] p-4 md:p-8" dir="rtl">
+      <div className="max-w-6xl mx-auto">
+      <PageHeader
+        title="סרטוני הדרכה"
+        subtitle={`${videos.length} סרטונים בסך הכל`}
+        icon={Video}
+        action={isAdmin && (
           <Button onClick={openAdd} className="gap-2">
             <Plus className="w-4 h-4" />
             הוסף סרטון
           </Button>
         )}
-      </div>
+      />
 
       {/* Filters */}
       <div className="flex flex-wrap gap-2 mb-6">
@@ -307,6 +304,7 @@ export default function TrainingVideos() {
           )}
         </DialogContent>
       </Dialog>
+      </div>
     </div>
   );
 }

@@ -18,6 +18,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { MoreHorizontal, Key } from "lucide-react";
 import { base44 } from '@/api/base44Client';
+import PageHeader from '@/components/shared/PageHeader';
 
 
 function EmployeeForm({ employee, onSave, onCancel }) {
@@ -827,16 +828,13 @@ function EmployeesInner() {
   };
 
   return (
-    <div className="min-h-screen p-4 md:p-8 bg-gradient-to-br from-gray-50 to-slate-100" dir="rtl">
+    <div className="min-h-screen p-4 md:p-8 bg-gradient-to-br from-[#FAF5E8] via-[#F7EFDD] to-[#F1E6CE]" dir="rtl">
       <div className="max-w-7xl mx-auto">
-        <div className="flex justify-between items-center mb-8">
-           <div>
-             <h1 className="text-4xl font-bold text-gray-900 flex items-center gap-3">
-               <Users className="w-10 h-10 text-[#44512C]" />
-               ניהול עובדים
-             </h1>
-             <p className="text-gray-600 mt-2">הוספה, עריכה וניהול של צוות המסעדה</p>
-           </div>
+        <PageHeader
+          title="ניהול עובדים"
+          subtitle="הוספה, עריכה וניהול של צוות המסעדה"
+          icon={Users}
+          action={
            <div className="flex gap-2 flex-wrap">
              <Button
                variant="outline"
@@ -868,12 +866,13 @@ function EmployeesInner() {
                הוסף עובד חדש
              </Button>
            </div>
-         </div>
+          }
+        />
 
          {allEmployees.filter(e => e.status === 'pending_approval').length > 0 && (
            <Card className="border-blue-300 bg-blue-50/60 mb-6">
              <CardContent className="p-4">
-               <h3 className="font-bold mb-3">👥 ממתינים לאישורך ({allEmployees.filter(e => e.status === 'pending_approval').length})</h3>
+               <h3 className="font-bold mb-3">ממתינים לאישורך ({allEmployees.filter(e => e.status === 'pending_approval').length})</h3>
                <div className="space-y-2">
                  {allEmployees.filter(e => e.status === 'pending_approval').map(emp => (
                    <div key={emp.id} className="flex flex-wrap items-center gap-3 bg-white rounded-lg p-3 border border-blue-100">

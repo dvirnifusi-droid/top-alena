@@ -13,6 +13,7 @@ import { Loader2, Users, ChevronLeft, ChevronRight, CheckCircle2, Zap, Edit2, Ch
 import { toast } from 'sonner';
 import PageGuard from '../components/shared/PageGuard';
 import { canonRole, canonRoles } from '@/lib/roles';
+import PageHeader, { PageShell } from '@/components/shared/PageHeader';
 
 const AVAILABILITY_TYPES = {
     available: { label: '✅ פנוי/ה', color: 'bg-green-100 text-green-800' },
@@ -474,7 +475,7 @@ function AvailabilityRequestsInner() {
         };
 
         return (
-            <div className="flex items-center justify-center min-h-screen p-4">
+            <div className="flex items-center justify-center min-h-screen p-4 bg-gradient-to-br from-[#FAF5E8] via-[#F7EFDD] to-[#F1E6CE]">
                 <Card className="max-w-md w-full">
                     <CardHeader className="text-center">
                         <CardTitle className="text-2xl">בחר חטיבה לעדכון הזמינות</CardTitle>
@@ -558,50 +559,45 @@ function AvailabilityRequestsInner() {
     };
 
     return (
-        <div className="p-4 sm:p-8 max-w-7xl mx-auto" dir="rtl">
-            <div className="flex items-center justify-between mb-6 flex-wrap gap-4">
-                <div>
-                    <h1 className="text-3xl font-bold flex items-center gap-2">
-                        <Users className="w-8 h-8 text-primary" />
-                        בקשות זמינות - {currentDeptLabel}
-                    </h1>
-                    <p className="text-gray-500 mt-1">
-                        שבוע {format(weekStart, 'dd/MM')} – {format(weekEnd, 'dd/MM/yyyy')} ·{' '}
-                        <span className="font-semibold text-primary">{uniqueEmployeesSubmitted}</span> עובדים הגישו זמינות
-                    </p>
-                </div>
-                <div className="flex gap-2 items-center flex-wrap">
-                    <Button variant="outline" size="sm" onClick={() => setSelectedDepartment(null)}>
-                        חזור לבחירה
-                    </Button>
-                    <Button variant="outline" size="sm" onClick={() => setWeekOffset(w => w - 1)}>
-                        <ChevronRight className="w-4 h-4" />
-                    </Button>
-                    {[1, 2, 3].map(w => (
-                        <Button
-                            key={w}
-                            variant={weekOffset === w ? 'default' : 'outline'}
-                            size="sm"
-                            onClick={() => setWeekOffset(w)}
-                        >
-                            {w === 1 ? 'שבוע הבא' : w === 2 ? 'עוד שבועיים' : 'עוד 3 שבועות'}
+        <PageShell>
+            <PageHeader
+                title={`בקשות זמינות - ${currentDeptLabel || ''}`}
+                subtitle={<>שבוע {format(weekStart, 'dd/MM')} – {format(weekEnd, 'dd/MM/yyyy')} ·{' '}<span className="font-semibold text-primary">{uniqueEmployeesSubmitted}</span> עובדים הגישו זמינות</>}
+                icon={Users}
+                action={
+                    <div className="flex gap-2 items-center flex-wrap">
+                        <Button variant="outline" size="sm" onClick={() => setSelectedDepartment(null)}>
+                            חזור לבחירה
                         </Button>
-                    ))}
-                    <Button variant="outline" size="sm" onClick={() => setWeekOffset(w => w + 1)}>
-                        <ChevronLeft className="w-4 h-4" />
-                    </Button>
-                    <Button
-                        onClick={handleAutoAssign}
-                        disabled={autoAssigning || weekAvailabilities.length === 0}
-                        className="bg-green-600 hover:bg-green-700 text-white"
-                    >
-                        {autoAssigning
-                            ? <Loader2 className="w-4 h-4 animate-spin ml-2" />
-                            : <Zap className="w-4 h-4 ml-2" />}
-                        שבץ אוטומטית לסידור
-                    </Button>
-                </div>
-            </div>
+                        <Button variant="outline" size="sm" onClick={() => setWeekOffset(w => w - 1)}>
+                            <ChevronRight className="w-4 h-4" />
+                        </Button>
+                        {[1, 2, 3].map(w => (
+                            <Button
+                                key={w}
+                                variant={weekOffset === w ? 'default' : 'outline'}
+                                size="sm"
+                                onClick={() => setWeekOffset(w)}
+                            >
+                                {w === 1 ? 'שבוע הבא' : w === 2 ? 'עוד שבועיים' : 'עוד 3 שבועות'}
+                            </Button>
+                        ))}
+                        <Button variant="outline" size="sm" onClick={() => setWeekOffset(w => w + 1)}>
+                            <ChevronLeft className="w-4 h-4" />
+                        </Button>
+                        <Button
+                            onClick={handleAutoAssign}
+                            disabled={autoAssigning || weekAvailabilities.length === 0}
+                            className="bg-green-600 hover:bg-green-700 text-white"
+                        >
+                            {autoAssigning
+                                ? <Loader2 className="w-4 h-4 animate-spin ml-2" />
+                                : <Zap className="w-4 h-4 ml-2" />}
+                            שבץ אוטומטית לסידור
+                        </Button>
+                    </div>
+                }
+            />
 
             {/* ---------- Filter bar ---------- */}
             <Card className="mb-4 p-3">
@@ -904,7 +900,7 @@ function AvailabilityRequestsInner() {
                      </DialogFooter>
                  </DialogContent>
              </Dialog>
-            </div>
+            </PageShell>
     );
 }
 

@@ -12,9 +12,10 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Plus, CheckCircle, Coffee, Lightbulb } from 'lucide-react';
+import { Plus, CheckCircle, Coffee, Lightbulb, Utensils } from 'lucide-react';
 import { format } from 'date-fns';
 import WaiterAiAssistant from '../components/waiter/WaiterAiAssistant';
+import PageHeader from '@/components/shared/PageHeader';
 
 export default function WaiterTablesPage() {
     const [user, setUser] = useState(null);
@@ -147,13 +148,13 @@ export default function WaiterTablesPage() {
     if (loading) return <div className="flex justify-center items-center h-screen">טוען...</div>;
 
     return (
-        <div className="p-4 sm:p-8 bg-gray-50 min-h-screen" dir="rtl">
+        <div className="p-4 sm:p-8 bg-gradient-to-br from-[#FAF5E8] via-[#F7EFDD] to-[#F1E6CE] min-h-screen" dir="rtl">
             <div className="max-w-7xl mx-auto">
-                <div className="flex justify-between items-center mb-8">
-                    <div>
-                        <h1 className="text-3xl font-bold text-slate-900">השולחנות שלי</h1>
-                        <p className="text-slate-600 mt-1">ניהול שולחנות ומעקב שלבי השירות</p>
-                    </div>
+                <PageHeader
+                    title="השולחנות שלי"
+                    subtitle="ניהול שולחנות ומעקב שלבי השירות"
+                    icon={Utensils}
+                    action={(
                     <Dialog open={showNewTableDialog} onOpenChange={setShowNewTableDialog}>
                         <DialogTrigger asChild>
                             <Button className="bg-orange-600 hover:bg-orange-700">
@@ -230,7 +231,8 @@ export default function WaiterTablesPage() {
                             </DialogFooter>
                         </DialogContent>
                     </Dialog>
-                </div>
+                    )}
+                />
 
                 <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
                     {sessions.map(session => {

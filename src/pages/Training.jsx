@@ -23,6 +23,7 @@ import ToneTraining from "../components/training/ToneTraining";
 import QuizManager from "../components/training/QuizManager";
 import SimulationScriptEditor from "../components/training/SimulationScriptEditor";
 import { useTenantBranding } from '@/hooks/useTenantBranding';
+import PageHeader from '@/components/shared/PageHeader';
 
 // --- Components ---
 
@@ -1065,7 +1066,7 @@ function TrainingInner() {
     const isAdmin = user?.role === 'admin' || user?.role === 'owner' || !!user?.managed_department;
 
     return (
-        <div className="p-4 sm:p-8 bg-gradient-to-br from-orange-50 to-red-50 min-h-screen" dir="rtl">
+        <div className="p-4 sm:p-8 bg-gradient-to-br from-[#FAF5E8] via-[#F7EFDD] to-[#F1E6CE] min-h-screen" dir="rtl">
             <div className="max-w-7xl mx-auto">
                 {showQuickPractice ? (
                     <div className="space-y-8">
@@ -1103,11 +1104,10 @@ function TrainingInner() {
                     />
                 ) : (
                     <>
-                        <div className="flex items-center justify-between mb-4">
-                            <h1 className="text-4xl font-bold text-slate-900">
-                                {showQuizManager ? 'ניהול מבחנים' : 'מסלולי הכשרה'}
-                            </h1>
-                            {isAdmin && (
+                        <PageHeader
+                            title={showQuizManager ? 'ניהול מבחנים' : 'מסלולי הכשרה'}
+                            icon={GraduationCap}
+                            action={isAdmin && (
                                 <div className="flex gap-2 border rounded-xl p-1 bg-white shadow-sm">
                                     <Button
                                         variant={!showQuizManager && !editingSimulationScript ? 'default' : 'ghost'}
@@ -1134,7 +1134,7 @@ function TrainingInner() {
                                     </Button>
                                 </div>
                             )}
-                        </div>
+                        />
 
                         {isAdmin && editingSimulationScript ? (
                             <div className="space-y-4">

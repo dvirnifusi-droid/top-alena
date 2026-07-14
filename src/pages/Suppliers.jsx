@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import InvoiceScanner from '../components/dashboard/InvoiceScanner';
+import PageHeader from '@/components/shared/PageHeader';
 
 function SupplierForm({ supplier, onSave, onCancel }) {
   const [formData, setFormData] = useState(
@@ -143,18 +144,17 @@ export default function Suppliers() {
   return (
     <div className="p-4 sm:p-8 bg-gradient-to-br from-orange-50 to-red-50 min-h-screen" dir="rtl">
       <div className="max-w-7xl mx-auto">
-        <div className="flex justify-between items-center mb-8">
-          <div>
-            <h1 className="text-3xl lg:text-4xl font-bold text-slate-900">ניהול ספקים</h1>
-            <p className="text-lg text-slate-600 mt-2">ניהול כל הספקים, המוצרים וההזמנות</p>
-          </div>
-          <div className="flex items-center gap-2">
+        <PageHeader
+          title="ניהול ספקים"
+          subtitle="ניהול כל הספקים, המוצרים וההזמנות"
+          icon={Building}
+          action={
             <Button onClick={() => openForm()} className="bg-orange-600 hover:bg-orange-700">
               <Plus className="w-5 h-5 ml-2" />
               הוסף ספק חדש
             </Button>
-          </div>
-        </div>
+          }
+        />
         
         <div className="mb-8">
             <InvoiceScanner />

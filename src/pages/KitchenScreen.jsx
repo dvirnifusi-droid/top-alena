@@ -155,7 +155,7 @@ export default function KitchenScreen() {
           {/* Row 3a — Daily Specials from today's brief (info banner) */}
           {dailySpecials.length > 0 && (
             <div style={{ background: 'linear-gradient(135deg, #831843, #9d174d)', border: '2px solid #f9a8d440', borderRadius: '16px', padding: '16px', marginBottom: '20px' }}>
-              <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#fbcfe8', marginBottom: '12px' }}>💡 ספיישלים — היום</div>
+              <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#fbcfe8', marginBottom: '12px' }}>ספיישלים — היום</div>
               <div style={{ display: 'grid', gridTemplateColumns: `repeat(${Math.min(dailySpecials.length, 3)}, 1fr)`, gap: '12px' }}>
                 {dailySpecials.slice(0, 3).map((s, i) => (
                   <div key={i} style={{ background: 'rgba(0,0,0,0.25)', borderRadius: '10px', padding: '12px' }}>
@@ -174,7 +174,7 @@ export default function KitchenScreen() {
 
           {/* Row 3b — Active SalesGoals with progress + marking */}
           {goals.length > 0 && (
-            <Panel title="🎯 יעדים פעילים — מד התקדמות">
+            <Panel title="יעדים פעילים — מד התקדמות">
               <div style={{ display: 'grid', gridTemplateColumns: `repeat(${Math.min(goals.length, 3)}, 1fr)`, gap: '12px' }}>
                 {goals.slice(0, 3).map(g => (
                   <GoalCard key={g.id} goal={g} />
@@ -185,13 +185,13 @@ export default function KitchenScreen() {
 
           {/* Row 4 — Shortages (2 cols) */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '20px' }}>
-            <ShortagesPanel title="🍳 חוסרים — מטבח" items={lowKitchen} color="#f59e0b" />
-            <ShortagesPanel title="🍷 חוסרים — בר" items={lowBar} color="#a855f7" />
+            <ShortagesPanel title="חוסרים — מטבח" items={lowKitchen} color="#f59e0b" />
+            <ShortagesPanel title="חוסרים — בר" items={lowBar} color="#a855f7" />
           </div>
 
           {/* Row 5 — Waiters in shift (compact) */}
           {workers.length > 0 && (
-            <Panel title="👥 במשמרת">
+            <Panel title="במשמרת">
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '8px' }}>
                 {workers.map((w, i) => (
                   <div key={i} style={{ background: 'rgba(255,255,255,0.04)', borderRadius: '8px', padding: '10px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>

@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import EmployeePaySection from '../components/employees/EmployeePaySection';
+import PageHeader from '@/components/shared/PageHeader';
 
 
 function ShiftForm({ shift, employeeId, employeeName, onSave, onCancel }) {
@@ -245,43 +246,43 @@ export default function EmployeeDetailsPage() {
     if (!employee) return <p>עובד לא נמצא.</p>;
 
     return (
-        <div className="min-h-screen p-4 md:p-8 bg-gradient-to-br from-gray-50 to-slate-100" dir="rtl">
+        <div className="min-h-screen p-4 md:p-8 bg-gradient-to-br from-[#FAF5E8] via-[#F7EFDD] to-[#F1E6CE]" dir="rtl">
             <div className="max-w-7xl mx-auto space-y-8">
                 {/* Header */}
-                <div className="flex justify-between items-center">
-                    <div>
-                        <Link to={createPageUrl('Employees')} className="text-[#44512C] hover:underline flex items-center gap-2 mb-2">
-                            <ArrowRight className="w-4 h-4" />
-                            חזרה לכל העובדים
-                        </Link>
-                        <h1 className="text-4xl font-bold text-gray-900 flex items-center gap-3">
-                            <User className="w-10 h-10 text-[#44512C]" />
-                            {employee.full_name}
-                        </h1>
-                        <p className="text-gray-600 mt-2">{employee.role}</p>
-                    </div>
-                    <Dialog open={isShiftFormOpen} onOpenChange={setIsShiftFormOpen}>
-                        <DialogTrigger asChild>
-                            <Button onClick={() => { setEditingShift(null); setIsShiftFormOpen(true); }} className="bg-[#44512C] hover:bg-[#44512C]">
-                                <Plus className="w-5 h-5 ml-2" />
-                                הוסף משמרת
-                            </Button>
-                        </DialogTrigger>
-                        <DialogContent className="sm:max-w-[600px]">
-                            <DialogHeader>
-                                <DialogTitle>{editingShift ? 'עריכת משמרת' : 'הוספת משמרת חדשה'}</DialogTitle>
-                            </DialogHeader>
-                            <div className="py-4">
-                                <ShiftForm
-                                    shift={editingShift}
-                                    employeeId={employee.id}
-                                    employeeName={employee.full_name}
-                                    onSave={handleSaveShift}
-                                    onCancel={() => setIsShiftFormOpen(false)}
-                                />
-                            </div>
-                        </DialogContent>
-                    </Dialog>
+                <div>
+                    <Link to={createPageUrl('Employees')} className="text-[#44512C] hover:underline flex items-center gap-2 mb-2">
+                        <ArrowRight className="w-4 h-4" />
+                        חזרה לכל העובדים
+                    </Link>
+                    <PageHeader
+                        title={employee.full_name}
+                        subtitle={employee.role}
+                        icon={User}
+                        action={
+                            <Dialog open={isShiftFormOpen} onOpenChange={setIsShiftFormOpen}>
+                                <DialogTrigger asChild>
+                                    <Button onClick={() => { setEditingShift(null); setIsShiftFormOpen(true); }} className="bg-[#44512C] hover:bg-[#44512C]">
+                                        <Plus className="w-5 h-5 ml-2" />
+                                        הוסף משמרת
+                                    </Button>
+                                </DialogTrigger>
+                                <DialogContent className="sm:max-w-[600px]">
+                                    <DialogHeader>
+                                        <DialogTitle>{editingShift ? 'עריכת משמרת' : 'הוספת משמרת חדשה'}</DialogTitle>
+                                    </DialogHeader>
+                                    <div className="py-4">
+                                        <ShiftForm
+                                            shift={editingShift}
+                                            employeeId={employee.id}
+                                            employeeName={employee.full_name}
+                                            onSave={handleSaveShift}
+                                            onCancel={() => setIsShiftFormOpen(false)}
+                                        />
+                                    </div>
+                                </DialogContent>
+                            </Dialog>
+                        }
+                    />
                 </div>
                 
                 {/* Positions & Salary Info */}

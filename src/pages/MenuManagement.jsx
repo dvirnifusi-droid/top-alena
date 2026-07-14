@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Utensils, Plus, Edit, Trash2, Search, Loader2, RefreshCw, EyeOff, Eye } from 'lucide-react';
+import PageHeader from '@/components/shared/PageHeader';
 
 const emptyItem = { name: '', category: 'כללי', price: '', description: '', available: true };
 
@@ -111,24 +112,21 @@ export default function MenuManagement() {
 
   return (
     <div className="p-4 md:p-6 space-y-4 max-w-5xl mx-auto" dir="rtl">
-      <div className="flex items-center justify-between flex-wrap gap-2">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
-            <Utensils className="w-6 h-6 text-[#A04A2E]" /> ניהול תפריט
-          </h1>
-          <p className="text-sm text-slate-500 mt-1">
-            {loading ? '...' : `${items.length} מנות ב-${categories.length} קטגוריות`}
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={load} disabled={loading}>
-            <RefreshCw className={`w-4 h-4 ml-1 ${loading ? 'animate-spin' : ''}`} /> רענן
-          </Button>
-          <Button onClick={() => setDialog({ item: null })} className="bg-[#A04A2E] hover:bg-[#7A3722]">
-            <Plus className="w-4 h-4 ml-1" /> מנה חדשה
-          </Button>
-        </div>
-      </div>
+      <PageHeader
+        title="ניהול תפריט"
+        subtitle={loading ? '...' : `${items.length} מנות ב-${categories.length} קטגוריות`}
+        icon={Utensils}
+        action={
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={load} disabled={loading}>
+              <RefreshCw className={`w-4 h-4 ml-1 ${loading ? 'animate-spin' : ''}`} /> רענן
+            </Button>
+            <Button onClick={() => setDialog({ item: null })} className="bg-[#A04A2E] hover:bg-[#7A3722]">
+              <Plus className="w-4 h-4 ml-1" /> מנה חדשה
+            </Button>
+          </div>
+        }
+      />
 
       <div className="relative">
         <Search className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" />

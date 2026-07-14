@@ -126,7 +126,7 @@ export default function ShiftChat() {
     };
 
     return (
-        <div className="flex flex-col h-[calc(100vh-8rem)] max-w-4xl mx-auto gap-4" dir="rtl">
+        <div className="flex flex-col h-[calc(100vh-8rem)] max-w-4xl mx-auto gap-4 bg-gradient-to-br from-[#FAF5E8] via-[#F7EFDD] to-[#F1E6CE]" dir="rtl">
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
                 {/* צד שמאל - צ'אט */}
@@ -267,7 +267,7 @@ export default function ShiftChat() {
 
                {/* צד ימין - בחר הלבוש */}
                <div className="lg:col-span-1 bg-white rounded-xl border border-slate-200 p-4">
-                    <h2 className="text-lg font-bold text-slate-800 mb-4">🎨 הדמות שלי</h2>
+                    <h2 className="text-lg font-bold text-slate-800 mb-4">הדמות שלי</h2>
                     {currentEmployee ? (
                         <ApparelCustomizer 
                             employeeId={currentEmployee.id}
