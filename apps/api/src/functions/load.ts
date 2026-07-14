@@ -6004,12 +6004,33 @@ registerFn('debugEmployeeHours', async ({ user, body }: any) => {
 
   const since = new Date(Date.now() - 40 * 86400 * 1000);
   const shifts: any[] = await db2.workShift.findMany({ where: { date: { gte: since } }, select: { date: true, assigned_staff: true } }).catch(() => []);
+  // TIP positions (waiter roles) that go to tips, not schedule-hours
+  const TIP_POS = ['מלצר', 'מלצרית', 'ראנר', 'ראנרית', 'בריסטה', 'ברמן', 'ברמנית', 'מארחת', 'מארח', 'הוסטס', 'שיפודאי'];
+  const calcH = (st: any, et: any) => { if (!st || !et) return 0; const [sh, sm] = String(st).split(':').map(Number); const [eh, em] = String(et).split(':').map(Number); let s = sh * 60 + sm, e = eh * 60 + em; if (e < s) e += 1440; return (e - s) / 60; };
+  // current-month window (Israel), matches the report's default "month" period
+  const nowIl = ilDay(new Date()); const ym = nowIl.slice(0, 7); // YYYY-MM
+  const mineId = short(matchEmps[0]?.id);
   const asgIds = new Map<string, number>(); const asgSample: any[] = [];
+  let asgNoEnd = 0, asgWithHours = 0;
+  // report simulation for THIS employee, THIS month
+  let simMonthAsg = 0, simTip = 0, simNoEnd = 0, simCounted = 0; let simHours = 0;
   for (const ws of shifts) {
+    const wsDay = ilDay(ws.date);
     for (const a of (Array.isArray(ws.assigned_staff) ? ws.assigned_staff : [])) {
-      if (norm(a?.employee_name).includes(q) || q.includes(norm(a?.employee_name))) {
+      const idMatch = short(a.employee_id) === mineId && !!mineId;
+      if (norm(a?.employee_name).includes(q) || q.includes(norm(a?.employee_name)) || idMatch) {
         const k = short(a.employee_id); asgIds.set(k, (asgIds.get(k) || 0) + 1);
-        if (asgSample.length < 8) asgSample.push({ day: ilDay(ws.date), eid: short(a.employee_id), name: `"${a.employee_name}"`, pos: a.position });
+        const hasEnd = !!(a.start_time && a.end_time);
+        if (!a.end_time) asgNoEnd++; else if (hasEnd) asgWithHours++;
+        if (asgSample.length < 12) asgSample.push({ day: wsDay, st: a.start_time || '(ריק)', et: a.end_time || '(ריק)', pos: a.position, mine: idMatch });
+      }
+      // exact report logic: id match, this month, non-tip, hours>0
+      if (idMatch && wsDay.slice(0, 7) === ym) {
+        simMonthAsg++;
+        if (TIP_POS.includes(a.position)) { simTip++; continue; }
+        const h = calcH(a.start_time, a.end_time);
+        if (h <= 0) { simNoEnd++; continue; }
+        simCounted++; simHours += h;
       }
     }
   }
@@ -6028,6 +6049,20 @@ registerFn('debugEmployeeHours', async ({ user, body }: any) => {
     assignment_ids: [...asgIds.entries()].map(([id, n]) => ({ id, count: n, is_this_employee: matchEmps.some(e => short(e.id) === id), is_some_employee: emps.some(e => short(e.id) === id) })),
     track_ids: [...trkIds.entries()].map(([id, n]) => ({ id, count: n })),
     assignment_sample: asgSample, track_sample: trkSample,
+    // ►► THE ANSWER: what the report SHOULD show for this month ◄◄
+    end_time_stats: { assignments_missing_end_time: asgNoEnd, assignments_with_hours: asgWithHours },
+    REPORT_SIM_THIS_MONTH: {
+      month: ym,
+      my_assignments_this_month: simMonthAsg,
+      skipped_as_tip: simTip,
+      skipped_no_end_time: simNoEnd,
+      counted_shifts: simCounted,
+      total_hours: Math.round(simHours * 10) / 10,
+      verdict: simMonthAsg === 0 ? 'NO assignments this month for this id — period/id issue'
+        : simCounted === 0 && simNoEnd > 0 ? 'assignments exist but MISSING end_time → calcHours=0'
+        : simCounted === 0 && simTip > 0 ? 'all assignments are TIP positions → go to tips not schedule'
+        : `report SHOULD show ${simCounted} shifts / ${Math.round(simHours * 10) / 10}h — bug is elsewhere (selectedEmployeeId on page?)`,
+    },
   };
 });
 
