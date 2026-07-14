@@ -6014,23 +6014,37 @@ registerFn('debugEmployeeHours', async ({ user, body }: any) => {
   const calcH = (st: any, et: any) => { if (!st || !et) return 0; const [sh, sm] = String(st).split(':').map(Number); const [eh, em] = String(et).split(':').map(Number); let s = sh * 60 + sm, e = eh * 60 + em; if (e < s) e += 1440; return (e - s) / 60; };
   // current-month window (Israel), matches the report's default "month" period
   const nowIl = ilDay(new Date()); const ym = nowIl.slice(0, 7); // YYYY-MM
-  const mineId = short(matchEmps[0]?.id);
+  const fullMineId = String(matchEmps[0]?.id || '');       // FULL Employee.id
+  const mineId = short(fullMineId);
+  const mineName = norm(matchEmps[0]?.full_name);            // normalized full_name
   const asgIds = new Map<string, number>(); const asgSample: any[] = [];
   let asgNoEnd = 0, asgWithHours = 0;
-  // report simulation for THIS employee, THIS month
+  // report simulation for THIS employee, THIS month — EXACT frontend logic
   let simMonthAsg = 0, simTip = 0, simNoEnd = 0, simCounted = 0; let simHours = 0;
+  // match-breakdown so we can see WHY the frontend match fails
+  let mExactId = 0, mNameOnly = 0; const mismatchSample: any[] = [];
   for (const ws of shifts) {
     const wsDay = ilDay(ws.date);
     for (const a of (Array.isArray(ws.assigned_staff) ? ws.assigned_staff : [])) {
-      const idMatch = short(a.employee_id) === mineId && !!mineId;
-      if (norm(a?.employee_name).includes(q) || q.includes(norm(a?.employee_name)) || idMatch) {
+      const exactId = !!fullMineId && String(a.employee_id || '') === fullMineId; // FULL string, like frontend
+      const nameMatch = !!mineName && norm(a.employee_name) === mineName;
+      const short10 = short(a.employee_id) === mineId && !!mineId;
+      if (norm(a?.employee_name).includes(q) || q.includes(norm(a?.employee_name)) || short10) {
         const k = short(a.employee_id); asgIds.set(k, (asgIds.get(k) || 0) + 1);
         const hasEnd = !!(a.start_time && a.end_time);
         if (!a.end_time) asgNoEnd++; else if (hasEnd) asgWithHours++;
-        if (asgSample.length < 12) asgSample.push({ day: wsDay, st: a.start_time || '(ריק)', et: a.end_time || '(ריק)', pos: a.position, mine: idMatch });
+        if (asgSample.length < 12) asgSample.push({ day: wsDay, st: a.start_time || '(ריק)', et: a.end_time || '(ריק)', pos: a.position, mine: exactId });
       }
-      // exact report logic: id match, this month, non-tip, hours>0
-      if (idMatch && wsDay.slice(0, 7) === ym) {
+      // count this-month match breakdown (name-matched rows only, to focus on this employee)
+      if (wsDay.slice(0, 7) === ym && (nameMatch || short10)) {
+        if (exactId) mExactId++;
+        else if (nameMatch) {
+          mNameOnly++;
+          if (mismatchSample.length < 6) mismatchSample.push({ day: wsDay, asg_id: String(a.employee_id || '(ריק)'), emp_id: fullMineId, asg_name: `"${a.employee_name}"`, emp_name: `"${matchEmps[0]?.full_name}"` });
+        }
+      }
+      // exact report logic: FULL id match, this month, non-tip, hours>0
+      if (exactId && wsDay.slice(0, 7) === ym) {
         simMonthAsg++;
         if (TIP_POS.includes(a.position)) { simTip++; continue; }
         const h = calcH(a.start_time, a.end_time);
@@ -6064,6 +6078,13 @@ registerFn('debugEmployeeHours', async ({ user, body }: any) => {
       today: nowIl,
       truncated_future: totalWorkShifts > shifts.length && (loadedDays[0] || '') > nowIl,
     },
+    // ►► WHY the frontend match fails: FULL-string id vs name breakdown ◄◄
+    match_breakdown_this_month: {
+      full_id: fullMineId,
+      exact_id_matches: mExactId,          // a.employee_id === Employee.id (full) — what the OLD frontend needs
+      name_only_matches: mNameOnly,        // name matches but full id DIFFERS — the id-divergence smoking gun
+      mismatch_samples: mismatchSample,    // shows full asg_id vs emp_id when they differ
+    },
     REPORT_SIM_THIS_MONTH: {
       month: ym,
       my_assignments_this_month: simMonthAsg,
@@ -6072,10 +6093,11 @@ registerFn('debugEmployeeHours', async ({ user, body }: any) => {
       counted_shifts: simCounted,
       total_hours: Math.round(simHours * 10) / 10,
       verdict: (totalWorkShifts > shifts.length && (loadedDays[0] || '') > nowIl) ? '⚠️ 500-LIMIT TRUNCATED: newest 500 shifts are all future-dated → this month is not loaded'
+        : (mExactId === 0 && mNameOnly > 0) ? `⚠️ ID DIVERGENCE: ${mNameOnly} assignments match by NAME but their employee_id differs from Employee.id → old exact-id match fails. name-fallback fix required.`
         : simMonthAsg === 0 ? 'NO assignments this month for this id — period/id issue'
         : simCounted === 0 && simNoEnd > 0 ? 'assignments exist but MISSING end_time → calcHours=0'
         : simCounted === 0 && simTip > 0 ? 'all assignments are TIP positions → go to tips not schedule'
-        : `report SHOULD show ${simCounted} shifts / ${Math.round(simHours * 10) / 10}h — bug is elsewhere (selectedEmployeeId on page?)`,
+        : `report SHOULD show ${simCounted} shifts / ${Math.round(simHours * 10) / 10}h via exact id — if UI still 0, the page bundle is stale (hard refresh)`,
     },
   };
 });
