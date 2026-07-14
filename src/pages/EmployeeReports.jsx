@@ -55,6 +55,24 @@ function calcHours(startTime, endTime) {
     return (end - start) / 60;
 }
 
+// Normalized name for matching (strips repeated/edge whitespace, case-fold).
+const normEmpName = (s) => String(s || '').trim().replace(/\s+/g, ' ').toLowerCase();
+
+// Actual worked hours from a ShiftTracking (clock) record — the source of truth
+// when the schedule assignment is missing an end_time. Returns {gross, net}.
+function trackHours(t) {
+    if (!t) return { gross: 0, net: 0 };
+    let gross = 0;
+    if (t.total_hours != null) gross = Number(t.total_hours) || 0;
+    else if (t.shift_start && t.shift_end) {
+        const h = (new Date(t.shift_end) - new Date(t.shift_start)) / 3600000;
+        gross = h > 0 ? h : 0;
+    }
+    const breaksH = (Number(t.total_break_minutes) || 0) / 60;
+    const net = t.effective_hours != null ? (Number(t.effective_hours) || 0) : Math.max(0, gross - breaksH);
+    return { gross: gross || net, net };
+}
+
 // Split daily hours into regular / 125% / 150% overtime buckets
 function calcOvertimeBreakdown(dailyHours) {
     const regular = Math.min(dailyHours, 8);
@@ -320,18 +338,46 @@ function EmployeeReportsInner() {
         // תפקידים רבים (מתלמד, פס הכנה, מנהל משמרת) לא מחתימים שעון כלל.
         // המתג hideNoShow חוזר להתנהגות "לפי שעון בלבד" ומוריד אותן מהחישוב.
         const todayStr = format(new Date(), 'yyyy-MM-dd');
-        const clockedDays = new Set(
-            (shifts || [])
-                .filter(s => s.employee_name === selectedEmp?.full_name)
-                .map(s => s.date)
+        const selName = normEmpName(selectedEmp?.full_name);
+        // Clock (ShiftTracking) records for THIS employee, keyed by date → the
+        // actual worked hours. Used as the source of truth when the schedule
+        // assignment has no end_time (e.g. clock-out didn't write it back).
+        const empClock = (shifts || []).filter(s =>
+            (s.employee_id && s.employee_id === selectedEmployeeId) ||
+            (s.employee_name && selName && normEmpName(s.employee_name) === selName)
         );
+        const clockByKey = new Map();      // 'date|shift_type' → ShiftTracking
+        const clockByDate = new Map();     // 'date' → ShiftTracking (fallback)
+        empClock.forEach(s => {
+            if (s.shift_type) clockByKey.set(`${s.date}|${s.shift_type}`, s);
+            if (!clockByDate.has(s.date)) clockByDate.set(s.date, s);
+        });
+        const clockedDays = new Set(empClock.map(s => s.date));
         const hourlyShiftEntries = [];
         workShifts.forEach(ws => {
             if (!inPeriod(ws.date)) return;
             (ws.assigned_staff || []).forEach(a => {
-                if (a.employee_id !== selectedEmployeeId) return;
+                // Match by id OR normalized name (id can diverge for Google-auth
+                // users; name is the stable link the manager sees).
+                const idMatch = a.employee_id && a.employee_id === selectedEmployeeId;
+                const nameMatch = a.employee_name && selName && normEmpName(a.employee_name) === selName;
+                if (!idMatch && !nameMatch) return;
                 if (TIP_POSITIONS.includes(a.position)) return; // טיפ-based - לא כאן
-                const hours = calcHours(a.start_time, a.end_time);
+                let hours = calcHours(a.start_time, a.end_time);
+                let breakMin = a.total_break_minutes || 0;
+                let netHours = hours - breakMin / 60;
+                let fromClock = false;
+                let clockEnd = a.end_time;
+                if (hours <= 0) {
+                    // Schedule has no end_time → use the actual clock hours.
+                    const t = clockByKey.get(`${ws.date}|${ws.shift_type}`) || clockByDate.get(ws.date);
+                    const th = trackHours(t);
+                    if (th.gross > 0) {
+                        hours = th.gross; netHours = th.net; fromClock = true;
+                        breakMin = Number(t?.total_break_minutes) || 0;
+                        try { if (t?.shift_end) clockEnd = format(new Date(t.shift_end), 'HH:mm'); } catch { /* noop */ }
+                    }
+                }
                 if (hours <= 0) return;
                 // משמרת בעבר בלי החתמת שעון (ולא הוזנה ידנית) = "ללא שעון".
                 // נספרת כברירת מחדל ומסומנת בדגל; מוסתרת רק אם hideNoShow דולק.
@@ -343,10 +389,11 @@ function EmployeeReportsInner() {
                     shift_type: ws.shift_type,
                     position: a.position,
                     start_time: a.start_time,
-                    end_time: a.end_time,
+                    end_time: clockEnd,
                     hours,
-                    break_minutes: a.total_break_minutes || 0,
-                    net_hours: hours - (a.total_break_minutes || 0) / 60,
+                    fromClock,
+                    break_minutes: breakMin,
+                    net_hours: netHours,
                     workShiftId: ws.id,
                     noShow,
                 });
@@ -363,13 +410,34 @@ function EmployeeReportsInner() {
         const monthStart = startOfMonth(selectedMonth);
         const monthEnd = endOfMonth(selectedMonth);
 
+        // Same id-or-name match + clock-hours fallback as the detailed table,
+        // so the headline monthly total reconciles with the actual worked hours.
+        const selEmp = employees.find(e => e.id === selectedEmployeeId);
+        const selName = normEmpName(selEmp?.full_name);
+        const empClock = (shifts || []).filter(s =>
+            (s.employee_id && s.employee_id === selectedEmployeeId) ||
+            (s.employee_name && selName && normEmpName(s.employee_name) === selName)
+        );
+        const clockByKey = new Map(), clockByDate = new Map();
+        empClock.forEach(s => {
+            if (s.shift_type) clockByKey.set(`${s.date}|${s.shift_type}`, s);
+            if (!clockByDate.has(s.date)) clockByDate.set(s.date, s);
+        });
+
         // כל משמרות העובד בחודש
         const monthEntries = [];
         workShifts.forEach(ws => {
             if (!ws.date || ws.date < format(monthStart, 'yyyy-MM-dd') || ws.date > format(monthEnd, 'yyyy-MM-dd')) return;
             (ws.assigned_staff || []).forEach(a => {
-                if (a.employee_id !== selectedEmployeeId) return;
-                const hours = calcHours(a.start_time, a.end_time) - (a.total_break_minutes || 0) / 60;
+                const idMatch = a.employee_id && a.employee_id === selectedEmployeeId;
+                const nameMatch = a.employee_name && selName && normEmpName(a.employee_name) === selName;
+                if (!idMatch && !nameMatch) return;
+                let hours = calcHours(a.start_time, a.end_time) - (a.total_break_minutes || 0) / 60;
+                if (hours <= 0) {
+                    const t = clockByKey.get(`${ws.date}|${ws.shift_type}`) || clockByDate.get(ws.date);
+                    const th = trackHours(t);
+                    if (th.net > 0) hours = th.net;
+                }
                 if (hours <= 0) return;
                 monthEntries.push({ date: ws.date, hours });
             });
@@ -400,7 +468,7 @@ function EmployeeReportsInner() {
         const totalRegular = totalHours - totalOvertime;
 
         return { weeks, totalRegular: totalRegular.toFixed(1), totalOvertime: totalOvertime.toFixed(1), totalHours: totalHours.toFixed(1) };
-    }, [workShifts, selectedEmployeeId, selectedMonth]);
+    }, [workShifts, shifts, employees, selectedEmployeeId, selectedMonth]);
 
     // חישובים
     const calculations = useMemo(() => {
