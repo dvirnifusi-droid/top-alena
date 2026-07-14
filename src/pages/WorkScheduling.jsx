@@ -1252,7 +1252,7 @@ export default function WorkScheduling() {
                                                 onClick={async () => {
                                                     if (!window.confirm(`לתקן ${reconcile.tracks_to_fix} רשומות שעון + ${reconcile.assignments_to_fix} שיבוצים? (בטוח, מבוסס-מייל)`)) return;
                                                     setReconcileBusy(true);
-                                                    try { const r = await base44.functions.reconcileClockIdentities({ apply: true }); setReconcile(r?.data || r); await loadData(); }
+                                                    try { const r = await base44.functions.reconcileClockIdentities({ apply: true }); setReconcile(r?.data || r); await loadScheduleData(); }
                                                     catch (e) { setReconcile({ error: e?.message || 'failed' }); }
                                                     setReconcileBusy(false);
                                                 }}
