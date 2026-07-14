@@ -14,6 +14,7 @@ import { buildTodayOverview, listOpenTasks } from './whatsappCalendar.js';
 import { buildConsentUrl, isGoogleConnected } from './googleSync.js';
 import { buildMorningBrief, buildEndOfDayBrief } from './morningBrief.js';
 import { buildPersonalReport } from './personalReport.js';
+import { sendDailyHoursReport } from './dailyHoursReport.js';
 
 // Strip 'whatsapp:+972...' / '+972...' / '0532...' down to a digit-only
 // canonical form so we can match against the env allowlist regardless of
@@ -61,6 +62,9 @@ async function cmdHelp(): Promise<string> {
   return [
     `👋 אני העוזר של ${await getBrandName()} ב-WhatsApp. הפקודות שלי:`,
     '',
+    '🧠 *מה קורה* — לוח בקרה: מדד החופש, מי במשמרת, מה דורש אותך',
+    '🟢 *מי במשמרת* — עובדים פעילים כרגע',
+    '📤 *שלח דוח שעות* — שולח עכשיו את דוח השעות היומי',
     '📋 *מה היום* — האירועים, המשימות והסידור שלך להיום',
     '✅ *משימות* — רשימת המשימות הפתוחות שלך',
     '🌅 *סיכום בוקר* — כל המידע הבוקרי + משפט מוטיבציה',
@@ -375,8 +379,66 @@ async function cmdBuildScheduleNow(
 // IMPORTANT: don't use \b in JS regex with Hebrew — Hebrew letters aren't
 // "word chars" by default, so /^עזרה\b/ matches nothing. Use (?:\s|$|[.,!?])
 // as an explicit end-of-token guard, or rely on the leading anchor + length.
+// ── Apollo control commands (WhatsApp = a control surface for the app) ──
+const ilNow = () => new Date();
+const ilYMD = (d = ilNow()) => d.toLocaleDateString('en-CA', { timeZone: 'Asia/Jerusalem' });
+const ilHM = (iso: any) => { try { return new Intl.DateTimeFormat('he-IL', { timeZone: 'Asia/Jerusalem', hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(iso)); } catch { return ''; } };
+
+async function cmdActiveShift(): Promise<string> {
+  const ymd = ilYMD();
+  const d0 = new Date(`${ymd}T00:00:00.000Z`), d1 = new Date(`${ymd}T23:59:59.999Z`);
+  const rows: any[] = await (prisma as any).shiftTracking.findMany({
+    where: { status: { in: ['active', 'on_break'] }, date: { gte: d0, lte: d1 } },
+    orderBy: { shift_start: 'asc' }, take: 40,
+    select: { employee_name: true, shift_start: true, status: true },
+  }).catch(() => []);
+  if (!rows.length) return '🟢 אין עובדים פעילים במשמרת כרגע.';
+  const lines = rows.map(r => `• ${r.employee_name}${r.shift_start ? ` · מ-${ilHM(r.shift_start)}` : ''}${r.status === 'on_break' ? ' ☕(בהפסקה)' : ''}`);
+  return [`🟢 *פעילים במשמרת עכשיו (${rows.length})*`, ...lines].join('\n');
+}
+
+async function cmdDashboard(): Promise<string> {
+  const ymd = ilYMD();
+  const d0 = new Date(`${ymd}T00:00:00.000Z`), d1 = new Date(`${ymd}T23:59:59.999Z`);
+  const t0 = new Date(d0.getTime() - 3 * 3600 * 1000);
+  const db = prisma as any;
+  const [active, resv, incidents, cands, tipsOpen, waOut, clDone] = await Promise.all([
+    db.shiftTracking.count({ where: { status: { in: ['active', 'on_break'] }, date: { gte: d0, lte: d1 } } }).catch(() => 0),
+    db.reservation.count({ where: { date: { gte: d0, lte: d1 } } }).catch(() => 0),
+    db.incident.count({ where: { NOT: { status: { in: ['resolved', 'closed'] } } } }).catch(() => 0),
+    db.jobCandidate.count({ where: { status: { in: ['pending', 'pending_review', 'new'] } } }).catch(() => 0),
+    db.tipReport.count({ where: { date: ymd, NOT: { status: 'locked' } } }).catch(() => 0),
+    db.whatsAppMessage.count({ where: { direction: 'outbound', createdAt: { gte: t0, lte: d1 } } }).catch(() => 0),
+    db.checklistExecution.count({ where: { status: 'completed', updatedAt: { gte: t0, lte: d1 } } }).catch(() => 0),
+  ]);
+  const automated = waOut + resv + clDone;
+  const pending = incidents + cands + tipsOpen;
+  const freedom = (automated + pending) > 0 ? Math.round((automated / (automated + pending)) * 100) : 100;
+  return [
+    `🧠 *TOP Apollo — מה קורה עכשיו*`,
+    `🎯 מדד החופש: *${freedom}%* (אפולו טיפל ב-${automated} · ${pending} דורשים אותך)`,
+    '',
+    `🟢 במשמרת: *${active}* · 📅 הזמנות היום: *${resv}* · ✅ צ׳קליסטים: *${clDone}*`,
+    `💬 וואטסאפ היום: *${waOut}*`,
+    '',
+    `⚠️ *דורש אותך:* ${incidents} תקריות · ${cands} מועמדים · ${tipsOpen} דוחות טיפים`,
+    '',
+    '_שלח "מי במשמרת" / "שלח דוח שעות" לפעולות._',
+  ].join('\n');
+}
+
+async function cmdSendHoursReport(): Promise<string> {
+  try {
+    const r = await sendDailyHoursReport({ force: true });
+    return `📤 *דוח שעות נשלח.*\n${r?.count ?? 0} עובדים · ${r?.flagged ?? 0} חריגים · וואטסאפ ${r?.sent?.whatsapp ?? 0} · מייל ${r?.sent?.email ?? 0}`;
+  } catch (e: any) { return `⚠️ שגיאה בשליחת דוח השעות: ${e?.message || 'unknown'}`; }
+}
+
 const END = '(?:\\s|$|[.,!?])';
 const COMMAND_MATCHERS: Array<{ test: (s: string) => boolean; run: () => Promise<string> }> = [
+  { test: (s) => new RegExp(`^(מי\\s+במשמרת|עובדים\\s+פעילים|משמרת\\s+עכשיו|מי\\s+עובד)${END}`, 'i').test(s), run: cmdActiveShift },
+  { test: (s) => new RegExp(`^(מה\\s+קורה|דאשבורד|מדד\\s+החופש|לוח\\s+בקרה|apollo)${END}`, 'i').test(s), run: cmdDashboard },
+  { test: (s) => new RegExp(`^(שלח\\s+דוח\\s+שעות|דוח\\s+שעות\\s+עכשיו)${END}`, 'i').test(s), run: cmdSendHoursReport },
   { test: (s) => new RegExp(`^(עזרה|help|פקודות)${END}`, 'i').test(s), run: cmdHelp },
   { test: (s) => /^סידור\s+(היום|today)/i.test(s), run: cmdScheduleToday },
   { test: (s) => /^סידור\s+(מחר|tomorrow)/i.test(s), run: cmdScheduleTomorrow },
