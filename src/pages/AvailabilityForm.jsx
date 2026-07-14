@@ -90,7 +90,12 @@ export default function AvailabilityForm() {
          setSystemPositions(prev => prev.includes(name) ? prev : [...prev, name]);
      };
 
-     const AVAILABILITY_TYPES = settings ? Object.fromEntries(settings.availability_types.map(t => [t.key, { label: t.label, color: t.color }])) : DEFAULT_AVAILABILITY_TYPES;
+     // Guard availability_types: a tenant's settings row can exist with this
+     // field null/unset → settings.availability_types.map would crash the page
+     // ("Cannot read properties of null (reading 'map')"). Fall back to defaults.
+     const AVAILABILITY_TYPES = (settings && Array.isArray(settings.availability_types) && settings.availability_types.length)
+         ? Object.fromEntries(settings.availability_types.map(t => [t.key, { label: t.label, color: t.color }]))
+         : DEFAULT_AVAILABILITY_TYPES;
      const SHIFT_OPTIONS = settings?.shift_options || DEFAULT_SHIFT_OPTIONS;
      const DEPARTMENTS = settings?.departments || [];
 
@@ -295,7 +300,7 @@ export default function AvailabilityForm() {
              const rawExisting = await base44.entities.EmployeeAvailability.filter({ employee_id: emp.id });
              // API returns date as ISO string post-migration — normalize to YYYY-MM-DD
              // so the .find(a => a.date === dateStr) checks below still match.
-             const existing = rawExisting.map(a => ({ ...a, date: typeof a.date === 'string' ? a.date.slice(0, 10) : a.date }));
+             const existing = (rawExisting || []).map(a => ({ ...a, date: typeof a.date === 'string' ? a.date.slice(0, 10) : a.date }));
                   setExistingAvailabilities(existing);
                   const currentWeekDays = getWeekDays(selectedWeekOffset);
                   const newDayData = initDayData(currentWeekDays);
