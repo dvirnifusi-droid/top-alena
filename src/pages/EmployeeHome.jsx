@@ -351,7 +351,7 @@ export default function EmployeeHome() {
                                     <img src={branding.logo_url} alt="logo" className="h-9 w-9 rounded-xl object-cover bg-white/90 p-0.5 shadow-sm flex-shrink-0" />
                                 )}
                                 <span className="text-white font-bold text-base sm:text-lg drop-shadow-sm truncate">{branding?.name}</span>
-                                <span className="text-white/40 text-[9px] font-mono flex-shrink-0">v13</span>
+                                <span className="text-white/40 text-[9px] font-mono flex-shrink-0">v14</span>
                             </div>
                             <div className="flex items-center gap-2 flex-shrink-0">
                                 {currentEmployee && <CoinWidget employeeId={currentEmployee.id} employeeName={currentEmployee.full_name} />}

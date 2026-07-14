@@ -95,3 +95,13 @@
   font-family: 'Frank Ruhl Libre', Georgia, 'Times New Roman', serif;
   letter-spacing: -0.01em;
 }
+
+/* App-wide editorial headings: every semantic heading + shadcn Card/Dialog title
+   picks up the display serif so the whole app reads as one hand-designed brand,
+   not the default system-font "AI" look. Utilities can still override per-case. */
+h1, h2, h3,
+[data-slot="card-title"],
+.cds-card-title {
+  font-family: 'Frank Ruhl Libre', Georgia, 'Times New Roman', serif;
+  letter-spacing: -0.01em;
+}
