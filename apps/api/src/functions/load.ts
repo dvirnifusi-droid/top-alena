@@ -5931,14 +5931,21 @@ registerFn('reconcileClockIdentities', async ({ user, body }: any) => {
   for (const e of emps) { const n = norm(e.full_name); if (n && nameCount.get(n) === 1) empByName.set(n, e); }
   const userEmail = new Map(users.map(u => [u.id, String(u.email || '').toLowerCase()]));
 
-  // Resolve (id, name) → canonical Employee, WITHOUT touching already-correct rows.
+  // Resolve (id, name) → canonical Employee. The NAME is the source of truth
+  // (it's what everyone reads), so if the current id points at a DIFFERENT
+  // employee than the name says, we re-point it. Only touches rows that are
+  // actually wrong; unique-name-only so duplicates are never mis-mapped.
   const resolve = (id: string, name: string): any => {
-    if (id && empById.has(id)) return null; // already an Employee.id → leave as-is
-    const em = userEmail.get(id);
-    if (em && empByEmail.has(em)) return empByEmail.get(em); // User.id → email → Employee
     const n = norm(name);
-    if (n && empByName.has(n)) return empByName.get(n); // unique exact-ish name
-    return null;
+    const cur = id ? empById.get(id) : null;
+    // Current id is a real Employee whose name matches the record → already correct.
+    if (cur && norm(cur.full_name) === n) return null;
+    // Name uniquely identifies an employee → that's who it is.
+    if (n && empByName.has(n)) return empByName.get(n);
+    // No name match: try User.id → email → Employee.
+    const em = userEmail.get(id);
+    if (em && empByEmail.has(em)) return empByEmail.get(em);
+    return null; // can't confidently resolve → leave untouched
   };
 
   // ── ShiftTracking ──
