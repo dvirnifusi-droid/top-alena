@@ -6,8 +6,26 @@ import { Button } from '@/components/ui/button';
 import { format, startOfWeek, addDays } from 'date-fns';
 import { he } from 'date-fns/locale';
 import { User } from '@/entities/User';
-import { ArrowLeftRight } from 'lucide-react';
+import { ArrowLeftRight, CalendarPlus } from 'lucide-react';
 import ShiftSwapRequestDialog from '../scheduling/ShiftSwapRequestDialog';
+
+// Build a Google Calendar "add event" link for a single shift (Israel time).
+function googleCalUrl(shift) {
+    const dateStr = shift.dateStr || String(shift.date).slice(0, 10);
+    const ymd = (s) => s.replace(/-/g, '');
+    const hms = (t, fb) => (t || fb).replace(':', '') + '00';
+    const startYmd = ymd(dateStr);
+    const overnight = shift.start_time && shift.end_time && shift.end_time < shift.start_time;
+    let endYmd = startYmd;
+    if (overnight) {
+        const d = new Date(dateStr + 'T00:00:00');
+        d.setDate(d.getDate() + 1);
+        endYmd = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
+    }
+    const dates = `${startYmd}T${hms(shift.start_time, '09:00')}/${endYmd}T${hms(shift.end_time, '17:00')}`;
+    const text = encodeURIComponent(`משמרת${shift.position ? ' · ' + shift.position : ''}`);
+    return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${text}&dates=${dates}&ctz=Asia/Jerusalem`;
+}
 import { Employee } from '@/entities/Employee';
 import { RestaurantProfile } from '@/entities/RestaurantProfile';
 
@@ -107,18 +125,28 @@ function ShiftsList({ shifts, loading, currentEmployee, allEmployees, managerPho
                                     ? `${shift.start_time} - ${shift.end_time}`
                                     : 'שעות לא קבועות'}
                             </p>
-                            <p className="text-xs text-blue-600 font-medium">{shift.position}</p>
-                            {currentEmployee && (
-                                <Button
-                                    size="sm"
-                                    variant="outline"
-                                    className="mt-1 h-6 text-xs border-orange-300 text-orange-600 hover:bg-orange-50"
-                                    onClick={() => setSwapShift({ ...shift, date: shift.dateStr })}
+                            <p className="text-xs font-medium" style={{ color: 'var(--brand-primary, #A04A2E)' }}>{shift.position}</p>
+                            <div className="flex items-center gap-1.5 justify-end mt-1">
+                                <button
+                                    onClick={() => window.open(googleCalUrl(shift), '_blank', 'noopener')}
+                                    className="inline-flex items-center gap-1 h-6 px-2 text-xs rounded-md border border-slate-200 text-slate-600 hover:bg-slate-50"
+                                    title="הוסף ליומן Google"
                                 >
-                                    <ArrowLeftRight className="w-3 h-3 ml-1" />
-                                    בקש החלפה
-                                </Button>
-                            )}
+                                    <CalendarPlus className="w-3 h-3" />
+                                    ליומן
+                                </button>
+                                {currentEmployee && (
+                                    <Button
+                                        size="sm"
+                                        variant="outline"
+                                        className="h-6 text-xs border-orange-300 text-orange-600 hover:bg-orange-50"
+                                        onClick={() => setSwapShift({ ...shift, date: shift.dateStr })}
+                                    >
+                                        <ArrowLeftRight className="w-3 h-3 ml-1" />
+                                        החלפה
+                                    </Button>
+                                )}
+                            </div>
                         </div>
                     </div>
                 ))}

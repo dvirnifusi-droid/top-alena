@@ -75,7 +75,7 @@ export default function EmployeeHome() {
     const hasCover = !!branding?.cover_photo_url;
     const heroStyle = hasCover
         ? { backgroundImage: `url("${branding.cover_photo_url}")`, backgroundSize: 'cover', backgroundPosition: 'center' }
-        : { background: `linear-gradient(135deg, ${primary} 0%, ${secondary} 100%)` };
+        : { background: `radial-gradient(130% 120% at 12% 8%, ${accent}66 0%, transparent 42%), linear-gradient(140deg, ${primary} 0%, ${secondary} 78%, ${primary} 130%)` };
     const overlayStyle = hasCover
         // Bottom-weighted scrim: dark where the greeting sits (readable), light at
         // the top so the photo breathes.
@@ -383,12 +383,18 @@ export default function EmployeeHome() {
                 <ConfettiEffect trigger={showConfetti} message={confettiMsg} emoji="🎉" onDone={() => setShowConfetti(false)} />
 
                 {/* גאדג'טים לפי סדר המשתמש */}
-                {/* פעולה ראשית — השעון מוצמד ישר מתחת לאדר, לא נגרר לאמצע הגלילה */}
+                {/* פעולות ראשיות — שעון + סידור מוצמדים ישר מתחת לאדר, לא נגררים לאמצע */}
                 {widgets.shift_clock && (
                     <div className="mb-4 animate-in fade-in slide-in-from-bottom-3 duration-500">{widgets.shift_clock}</div>
                 )}
+                {widgets.next_shift && (
+                    <div className="mb-4 animate-in fade-in slide-in-from-bottom-3 duration-500">{widgets.next_shift}</div>
+                )}
+                {widgets.weekly_schedule && (
+                    <div className="mb-4 animate-in fade-in slide-in-from-bottom-3 duration-500">{widgets.weekly_schedule}</div>
+                )}
                 <div className="space-y-4">
-                    {widgetOrder.filter(id => id !== 'shift_clock').map((id, i) => (
+                    {widgetOrder.filter(id => !['shift_clock', 'next_shift', 'weekly_schedule'].includes(id)).map((id, i) => (
                         widgets[id]
                             ? <div key={id} className="animate-in fade-in slide-in-from-bottom-3 duration-500" style={{ animationDelay: `${Math.min(i * 55, 400)}ms`, animationFillMode: 'both' }}>{widgets[id]}</div>
                             : null
