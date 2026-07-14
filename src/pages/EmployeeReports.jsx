@@ -98,6 +98,7 @@ function EmployeeReportsInner() {
     const [tipReports, setTipReports] = useState([]);
     const [myEmployeeRecord, setMyEmployeeRecord] = useState(null);
     const [loading, setLoading] = useState(true);
+    const [loadErrors, setLoadErrors] = useState({}); // TEMP diag: per-entity load errors
     
     // Filters
     const [selectedEmployeeId, setSelectedEmployeeId] = useState(''); // Employee entity id
@@ -252,27 +253,24 @@ function EmployeeReportsInner() {
 
     const loadReportData = async () => {
         setLoading2(true);
-        try {
-            // Load PAST/present shifts only (date <= today). Reports never need
-            // future-scheduled shifts, and including them let a large future
-            // backlog consume the row limit under '-date' desc, pushing the
-            // current month out of the window → the report showed 0 hours.
-            const todayEnd = new Date();
-            todayEnd.setHours(23, 59, 59, 999);
-            const [allShifts, allTipReports, allWorkShifts] = await Promise.all([
-                base44.entities.ShiftTracking.list(),
-                base44.entities.TipReport.list(),
-                base44.entities.WorkShift.filter({ date: { lte: todayEnd.toISOString() } }, '-date', 3000),
-            ]);
-            // Normalize ISO date strings to YYYY-MM-DD across all three sets
-            // so the equality-based filtering below still works.
-            const sliceDate = (x) => (typeof x === 'string' ? x.slice(0, 10) : x);
-            setShifts(allShifts.map(s => ({ ...s, date: sliceDate(s.date) })));
-            setTipReports(allTipReports.map(t => ({ ...t, date: sliceDate(t.date) })));
-            setWorkShifts(allWorkShifts.map(w => ({ ...w, date: sliceDate(w.date) })));
-        } catch (error) {
-            console.error('Error loading report data:', error);
-        }
+        // Load each entity INDEPENDENTLY — a single Promise.all would let one
+        // failing call zero out all three (which is exactly what happened: the
+        // whole report showed 0 because one entity load threw). Each .catch
+        // keeps the others alive and records the error for the debug banner.
+        const errs = {};
+        const [allShifts, allTipReports, allWorkShifts] = await Promise.all([
+            base44.entities.ShiftTracking.list().catch(e => { errs.shiftTracking = e?.message || String(e); return []; }),
+            base44.entities.TipReport.list().catch(e => { errs.tipReport = e?.message || String(e); return []; }),
+            base44.entities.WorkShift.list('-date', 3000).catch(e => { errs.workShift = e?.message || String(e); return []; }),
+        ]);
+        // Normalize ISO date strings to YYYY-MM-DD across all three sets
+        // so the equality-based filtering below still works.
+        const sliceDate = (x) => (typeof x === 'string' ? x.slice(0, 10) : x);
+        setShifts((allShifts || []).map(s => ({ ...s, date: sliceDate(s.date) })));
+        setTipReports((allTipReports || []).map(t => ({ ...t, date: sliceDate(t.date) })));
+        setWorkShifts((allWorkShifts || []).map(w => ({ ...w, date: sliceDate(w.date) })));
+        setLoadErrors(errs);
+        if (Object.keys(errs).length) console.error('Report entity load errors:', errs);
         setLoading2(false);
     };
 
@@ -708,7 +706,10 @@ function EmployeeReportsInner() {
                         <b className="text-yellow-300">CLIENT DEBUG (temp)</b><br/>
                         selectedEmployeeId = <b>{String(selectedEmployeeId)}</b><br/>
                         selectedEmp.full_name = <b>{String(_selEmpDbg?.full_name ?? '(undefined!)')}</b><br/>
-                        workShifts loaded = <b>{(workShifts || []).length}</b> · shiftTracking = <b>{(shifts || []).length}</b><br/>
+                        workShifts loaded = <b>{(workShifts || []).length}</b> · shiftTracking = <b>{(shifts || []).length}</b> · tipReports = <b>{(tipReports || []).length}</b><br/>
+                        {Object.keys(loadErrors).length > 0 && (
+                            <span className="text-red-400">LOAD ERRORS = <b>{JSON.stringify(loadErrors)}</b><br/></span>
+                        )}
                         assignments matching by ID = <b className="text-yellow-300">{_idM}</b> · by NAME = <b className="text-yellow-300">{_nmM}</b><br/>
                         hourlyShiftEntries = <b className="text-yellow-300">{filteredData.hourlyShiftEntries.length}</b> · monthTotal = <b className="text-yellow-300">{monthlyBreakdown.totalHours}</b> · period = <b>{filterPeriod}</b>
                     </div>
