@@ -93,8 +93,33 @@ export default function RewardShowcase() {
             <CardContent className="p-4">
                 <div className="flex justify-between items-center mb-3">
                     <h3 className="font-bold">💎 הפרסים שלך</h3>
-                    <span className="text-sm font-bold text-amber-600">{data.balance} 🪙</span>
+                    <span className="text-sm font-bold text-amber-600">{Number(data.balance || 0).toLocaleString()} 🪙</span>
                 </div>
+
+                {(() => {
+                    const next = [...(data.locked || [])]
+                        .filter(r => Number(r.cost || 0) > data.balance)
+                        .sort((a, b) => a.cost - b.cost)[0];
+                    if (next) {
+                        const pct = Math.min(100, Math.round((data.balance / Math.max(1, next.cost)) * 100));
+                        const need = Math.max(0, Number(next.cost || 0) - data.balance);
+                        return (
+                            <div className="mb-3 rounded-xl bg-[#FBF6EA] border border-[#EADFC8] p-2.5">
+                                <div className="flex items-center justify-between text-xs mb-1.5">
+                                    <span className="font-bold text-[#3A2E1E]">🎯 עוד {need.toLocaleString()} 🪙 ל{next.emoji || '🎁'} {next.title}</span>
+                                    <span className="text-slate-500">{pct}%</span>
+                                </div>
+                                <div className="h-2 bg-white rounded-full overflow-hidden">
+                                    <div className="h-full rounded-full" style={{ width: `${pct}%`, background: 'var(--brand-primary, #A04A2E)' }} />
+                                </div>
+                            </div>
+                        );
+                    }
+                    if ((data.affordable || []).length > 0) {
+                        return <p className="text-xs font-medium mb-3" style={{ color: 'var(--brand-primary, #A04A2E)' }}>🎉 יש לך מספיק ל-{data.affordable.length} פרסים — לך תממש!</p>;
+                    }
+                    return null;
+                })()}
 
                 {(data.affordable.length > 0 || data.locked.length > 0) && (
                     <>
@@ -120,7 +145,7 @@ export default function RewardShowcase() {
                             data.affordable.length > 0 ? (
                                 <div className="flex gap-2 overflow-x-auto pb-2">
                                     {data.affordable.slice(0, 8).map(r => (
-                                        <div key={r.id} className="flex-shrink-0 w-28 bg-green-50 border border-green-200 rounded-xl p-2 text-center">
+                                        <div key={r.id} className="flex-shrink-0 w-24 bg-green-50 border border-green-200 rounded-xl p-2 text-center">
                                             <div className="text-2xl">{r.emoji || '🎁'}</div>
                                             <div className="text-xs font-bold mt-1 line-clamp-2">{r.title}</div>
                                             <div className="text-xs text-gray-600">{r.cost} 🪙</div>
@@ -142,7 +167,7 @@ export default function RewardShowcase() {
                                         const pct = Math.min(100, Math.round((data.balance / Math.max(1, r.cost)) * 100));
                                         const need = Math.max(0, Number(r.cost || 0) - data.balance);
                                         return (
-                                            <div key={r.id} className="flex-shrink-0 w-28 bg-gray-50 border rounded-xl p-2 text-center">
+                                            <div key={r.id} className="flex-shrink-0 w-24 bg-gray-50 border rounded-xl p-2 text-center">
                                                 <div className="text-2xl opacity-60">{r.emoji || '🎁'}</div>
                                                 <div className="text-xs font-bold mt-1 line-clamp-2">{r.title}</div>
                                                 <div className="text-xs text-gray-600">{r.cost} 🪙</div>

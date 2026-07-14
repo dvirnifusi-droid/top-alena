@@ -337,7 +337,28 @@ export default function StoriesBar({ currentEmployee }) {
 
   return (
     <>
-      {/* Stories Bar */}
+      {/* Stories Bar — slim strip when empty so it doesn't waste a full card */}
+      {groups.length === 0 ? (
+        currentEmployee ? (
+          <div
+            className="flex items-center gap-3 bg-white/70 rounded-2xl border border-[#EADFC8] px-4 py-2.5 mb-4 cursor-pointer hover:bg-white transition-colors"
+            onClick={() => fileInputRef.current?.click()}
+          >
+            <div className="relative w-9 h-9 flex-shrink-0">
+              <div className="w-9 h-9 rounded-full bg-gray-100 border border-gray-200 flex items-center justify-center overflow-hidden">
+                {currentEmployee.avatar_url
+                  ? <img src={currentEmployee.avatar_url} className="w-full h-full object-cover" alt="" />
+                  : <span className="text-sm font-bold text-gray-500">{currentEmployee.full_name?.charAt(0)}</span>}
+              </div>
+              <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-primary rounded-full flex items-center justify-center border-2 border-white">
+                <Plus className="w-2.5 h-2.5 text-white" />
+              </div>
+            </div>
+            <span className="text-sm text-slate-600 font-medium">שתף סטורי מהמשמרת 📸</span>
+            <input ref={fileInputRef} type="file" accept="image/*,video/*" className="hidden" onChange={handleFileSelect} />
+          </div>
+        ) : null
+      ) : (
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 mb-6 relative">
         {/* Scroll arrows */}
         <button onClick={() => scrollBar(-1)} className="absolute right-1 top-1/2 -translate-y-1/2 z-10 bg-white/90 shadow rounded-full w-7 h-7 flex items-center justify-center text-gray-500 hover:bg-gray-100">
@@ -385,12 +406,10 @@ export default function StoriesBar({ currentEmployee }) {
             );
           })}
 
-          {groups.length === 0 && !currentEmployee && (
-            <p className="text-sm text-gray-400 self-center">עדיין אין סטוריז — היו הראשונים! 📸</p>
-          )}
         </div>
         <input ref={fileInputRef} type="file" accept="image/*,video/*" className="hidden" onChange={handleFileSelect} />
       </div>
+      )}
 
       {/* Story Viewer */}
       {viewingStory && currentStory && (
