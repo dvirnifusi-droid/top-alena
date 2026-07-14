@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Loader2, Users, TrendingUp, RefreshCw, Send } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import PageGuard from '../components/shared/PageGuard';
+import PageHeader, { PageShell } from '@/components/shared/PageHeader';
 
 function LaborCostInner() {
   const [days, setDays] = useState(30);
@@ -49,24 +50,26 @@ function LaborCostInner() {
   const devColor = (n) => n > 0 ? 'text-red-600' : n < 0 ? 'text-emerald-600' : 'text-slate-500';
 
   return (
-    <div className="p-4 md:p-6 space-y-4 max-w-6xl mx-auto" dir="rtl">
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2"><Users className="w-6 h-6 text-indigo-600" /> עלות שכר (Labor Cost)</h1>
-          <p className="text-sm text-muted-foreground mt-1">עלות מתוכננת (סידור) מול בפועל (שעות אמת) · שעתיים בלבד · טווח {days} יום</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="flex gap-1">
-            {[7, 14, 30, 90].map(d => (
-              <Button key={d} size="sm" variant={days === d ? 'default' : 'outline'} onClick={() => setDays(d)} className="h-7 px-2 text-xs">{d} ימים</Button>
-            ))}
+    <PageShell>
+      <PageHeader
+        title="עלות שכר (Labor Cost)"
+        subtitle={`עלות מתוכננת (סידור) מול בפועל (שעות אמת) · שעתיים בלבד · טווח ${days} יום`}
+        icon={Users}
+        action={
+          <div className="flex items-center gap-2">
+            <div className="flex gap-1">
+              {[7, 14, 30, 90].map(d => (
+                <Button key={d} size="sm" variant={days === d ? 'default' : 'outline'} onClick={() => setDays(d)} className="h-7 px-2 text-xs">{d} ימים</Button>
+              ))}
+            </div>
+            <Button variant="outline" size="sm" onClick={load} disabled={loading}><RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} /></Button>
+            <Button variant="outline" size="sm" onClick={sendHoursReport} disabled={sending} className="h-7 px-2 text-xs gap-1" title="שלח עכשיו דוח שעות יומי לוואטסאפ/פוש/מייל (בדיקה)">
+              {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />} דוח שעות
+            </Button>
           </div>
-          <Button variant="outline" size="sm" onClick={load} disabled={loading}><RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} /></Button>
-          <Button variant="outline" size="sm" onClick={sendHoursReport} disabled={sending} className="h-7 px-2 text-xs gap-1" title="שלח עכשיו דוח שעות יומי לוואטסאפ/פוש/מייל (בדיקה)">
-            {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />} דוח שעות
-          </Button>
-        </div>
-      </div>
+        }
+      />
+      <div className="space-y-4">
 
       {loading ? (
         <div className="flex justify-center py-10"><Loader2 className="w-6 h-6 animate-spin text-slate-400" /></div>
@@ -144,7 +147,8 @@ function LaborCostInner() {
           </Card>
         </>
       )}
-    </div>
+      </div>
+    </PageShell>
   );
 }
 

@@ -445,13 +445,13 @@ function TipsInner() {
     };
 
     return (
-        <div className="p-4 md:p-8 min-h-screen" dir="rtl" style={{ background: 'linear-gradient(180deg,#FBF7EE 0%,#F4ECD8 100%)' }}>
+        <div className="p-4 md:p-8 min-h-screen bg-gradient-to-br from-[#FAF5E8] via-[#F7EFDD] to-[#F1E6CE]" dir="rtl">
             <style>{`@import url('https://fonts.googleapis.com/css2?family=Frank+Ruhl+Libre:wght@500;700&display=swap');.tips-serif{font-family:'Frank Ruhl Libre',Georgia,serif;}`}</style>
             <UnlockedReportsAlert />
             <Card className="max-w-7xl mx-auto rounded-2xl border-2 shadow-sm" style={{ borderColor: WARM.border, background: '#FFFDF8' }}>
                 <CardHeader className="rounded-t-2xl" style={{ background: WARM.creamCard, borderBottom: `1px solid ${WARM.border}` }}>
                     <CardTitle className="text-2xl tips-serif flex items-center gap-2" style={{ color: WARM.terracotta }}>
-                        <span className="text-2xl">💰</span> ניהול טיפים
+                        ניהול טיפים
                     </CardTitle>
                     <p className="text-sm mt-1" style={{ color: WARM.muted }}>חישוב, חלוקה ונעילת דוח משמרת — כולל עדכון שעות בפועל לסידור סוף יום</p>
                 </CardHeader>

@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Loader2, Calendar as CalendarIcon, CheckCircle2, Trash2, MessageCircle, RefreshCw } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
+import PageHeader, { PageShell } from '@/components/shared/PageHeader';
 
 const TZ = 'Asia/Jerusalem';
 const HE_DAYS = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'];
@@ -75,20 +76,18 @@ export default function MySchedulePage() {
   const sortedDates = Object.keys(eventsByDate).sort();
 
   return (
-    <div className="p-4 md:p-6 space-y-6 max-w-4xl mx-auto" dir="rtl">
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2">
-            <CalendarIcon className="w-6 h-6 text-emerald-600" /> הלוז שלי
-          </h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            הפגישות והמשימות שהזנת דרך העוזר ב-WhatsApp.
-          </p>
-        </div>
-        <Button variant="outline" onClick={load} disabled={loading}>
-          <RefreshCw className={`w-4 h-4 ml-1 ${loading ? 'animate-spin' : ''}`} /> רענן
-        </Button>
-      </div>
+    <PageShell>
+      <div className="space-y-6 max-w-4xl mx-auto">
+      <PageHeader
+        title="הלוז שלי"
+        subtitle="הפגישות והמשימות שהזנת דרך העוזר ב-WhatsApp."
+        icon={CalendarIcon}
+        action={(
+          <Button variant="outline" onClick={load} disabled={loading}>
+            <RefreshCw className={`w-4 h-4 ml-1 ${loading ? 'animate-spin' : ''}`} /> רענן
+          </Button>
+        )}
+      />
 
       <Card className="bg-emerald-50 border-emerald-200">
         <CardContent className="p-4 text-sm text-emerald-900 flex items-start gap-2">
@@ -191,6 +190,7 @@ export default function MySchedulePage() {
           )}
         </CardContent>
       </Card>
-    </div>
+      </div>
+    </PageShell>
   );
 }

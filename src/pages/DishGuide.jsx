@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { UtensilsCrossed, Search, Upload, Loader2, GraduationCap, Save, Plus, Trash2, X } from 'lucide-react';
+import PageHeader from '@/components/shared/PageHeader';
 
 // ALL-CAPS-ish line = a dish header; following lines = its components.
 function parseGuide(text) {
@@ -99,9 +100,7 @@ export default function DishGuide() {
   return (
     <div dir="rtl" className="p-4 sm:p-8 bg-gradient-to-br from-orange-50 to-amber-50 min-h-screen">
       <div className="max-w-3xl mx-auto">
-        <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-          <h1 className="text-2xl md:text-3xl font-black text-[#A04A2E] flex items-center gap-2"><UtensilsCrossed className="w-7 h-7" /> מדריך מנות</h1>
-          {isAdmin && (
+        <PageHeader title="מדריך מנות" icon={UtensilsCrossed} action={isAdmin && (
             <div className="flex items-center gap-2 flex-wrap">
               <Button variant="outline" size="sm" onClick={() => setShowImport((v) => !v)}><Upload className="w-4 h-4 ml-1" /> ייבוא מטקסט</Button>
               <Button variant="outline" size="sm" onClick={buildTraining} disabled={saving || !dishes.length}><GraduationCap className="w-4 h-4 ml-1" /> בנה הכשרה</Button>
@@ -109,8 +108,7 @@ export default function DishGuide() {
                 ? <Button size="sm" onClick={saveAll} disabled={saving} className="bg-orange-600 hover:bg-orange-700 text-white">{saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Save className="w-4 h-4 ml-1" /> שמור</>}</Button>
                 : <Button size="sm" variant="outline" onClick={() => setEditMode(true)}>ערוך</Button>}
             </div>
-          )}
-        </div>
+          )} />
 
         {msg && <div className="mb-3 p-2 rounded-lg bg-green-50 border border-green-200 text-green-800 text-sm">{msg}</div>}
 

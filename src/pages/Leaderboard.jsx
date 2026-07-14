@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import ReactMarkdown from 'react-markdown';
 import ApparelCustomizer from '../components/gamification/ApparelCustomizer';
 import { useTenantBranding } from '@/hooks/useTenantBranding';
+import PageHeader from '@/components/shared/PageHeader';
 
 function LeaderboardInner() {
     const brandName = useTenantBranding()?.name || 'המסעדה';
@@ -214,17 +215,9 @@ function LeaderboardInner() {
     };
 
     return (
-        <div className="p-4 sm:p-8 bg-gray-50 min-h-screen" dir="rtl">
+        <div className="p-4 sm:p-8 bg-gradient-to-br from-[#FAF5E8] via-[#F7EFDD] to-[#F1E6CE] min-h-screen" dir="rtl">
             <div className="max-w-4xl mx-auto">
-                <Card className="bg-gradient-to-br from-orange-500 to-red-600 text-white shadow-2xl mb-8">
-                    <CardHeader className="flex flex-row items-center gap-4">
-                        <TrendingUp className="w-12 h-12" />
-                        <div>
-                            <CardTitle className="text-4xl font-bold">לוח המובילים</CardTitle>
-                            <CardDescription className="text-orange-100 text-lg">טבלת המצטיינים של {brandName}</CardDescription>
-                        </div>
-                    </CardHeader>
-                </Card>
+                <PageHeader title="לוח המובילים" subtitle={`טבלת המצטיינים של ${brandName}`} icon={Trophy} />
 
                 <Card className="mb-4 bg-orange-50 border-orange-200">
                     <CardContent className="p-3">

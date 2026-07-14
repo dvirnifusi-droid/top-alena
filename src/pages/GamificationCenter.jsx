@@ -151,7 +151,7 @@ export default function GamificationCenter() {
   const shiftsCompleted = transactions.filter(t => t.trigger === 'shift_completed').length;
 
   return (
-    <div className="min-h-screen p-4 pb-20" dir="rtl">
+    <div className="min-h-screen p-4 pb-20 bg-gradient-to-br from-[#FAF5E8] via-[#F7EFDD] to-[#F1E6CE]" dir="rtl">
       <ConfettiEffect trigger={showConfetti} message={confettiMsg} emoji="🏆" onDone={() => setShowConfetti(false)} />
 
       <div className="max-w-2xl mx-auto space-y-5">
@@ -247,7 +247,7 @@ export default function GamificationCenter() {
         {/* סטטיסטיקות אישיות — "השיא שלי" */}
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-base">📊 השיא שלי</CardTitle>
+            <CardTitle className="text-base">השיא שלי</CardTitle>
           </CardHeader>
           <CardContent className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             {[
@@ -339,7 +339,7 @@ export default function GamificationCenter() {
       <Dialog open={showAvatarPicker} onOpenChange={setShowAvatarPicker}>
         <DialogContent dir="rtl" className="max-w-sm w-[95vw] max-h-[85vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="text-center">🖼️ האווטר שלי</DialogTitle>
+            <DialogTitle className="text-center">האווטר שלי</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
             {/* אמוג'ים מהירים */}
@@ -375,7 +375,7 @@ export default function GamificationCenter() {
       <Dialog open={showThemePicker} onOpenChange={setShowThemePicker}>
         <DialogContent dir="rtl" className="max-w-xs">
           <DialogHeader>
-            <DialogTitle className="text-center">🎨 ערכת נושא לכל האפליקציה</DialogTitle>
+            <DialogTitle className="text-center">ערכת נושא לכל האפליקציה</DialogTitle>
           </DialogHeader>
           <p className="text-xs text-center text-gray-500 mb-2">השינוי יחול על כל הדפים</p>
           <div className="grid grid-cols-2 gap-3 p-2">
@@ -405,7 +405,7 @@ export default function GamificationCenter() {
       <Dialog open={showRedeem} onOpenChange={setShowRedeem}>
         <DialogContent dir="rtl" className="max-w-sm">
           <DialogHeader>
-            <DialogTitle className="text-center text-xl">🎁 פדה את הפרס שלך</DialogTitle>
+            <DialogTitle className="text-center text-xl">פדה את הפרס שלך</DialogTitle>
           </DialogHeader>
           <p className="text-center text-2xl font-black text-yellow-600 mb-4">{balance.toLocaleString()} 🪙 זמינים</p>
           <div className="space-y-3">
@@ -444,7 +444,7 @@ export default function GamificationCenter() {
       <Dialog open={showShop} onOpenChange={setShowShop}>
         <DialogContent dir="rtl" className="max-w-2xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="text-center">👗 חנות בגדים - התחפשות לדמות</DialogTitle>
+            <DialogTitle className="text-center">חנות בגדים - התחפשות לדמות</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             {employee && (

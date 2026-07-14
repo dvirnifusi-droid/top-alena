@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Incident } from '@/entities/all';
 import PageGuard from '../components/shared/PageGuard';
+import PageHeader from '@/components/shared/PageHeader';
 import { User } from '@/entities/User';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -512,16 +513,12 @@ function IncidentsInner() {
   const isAdmin = currentUser?.role === 'admin'; // Added
 
   return (
-    <div className="min-h-screen p-4 md:p-8 bg-gradient-to-br from-red-50 to-orange-50" dir="rtl">
+    <div className="min-h-screen p-4 md:p-8 bg-gradient-to-br from-[#FAF5E8] via-[#F7EFDD] to-[#F1E6CE]" dir="rtl">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-8 gap-4">
           <div className="w-full lg:w-auto">
-            <h1 className="text-3xl lg:text-4xl font-bold text-gray-900 flex items-center gap-3">
-              <AlertTriangle className="w-8 h-8 lg:w-10 lg:h-10 text-red-600" />
-              ניהול תקריות
-            </h1>
-            <p className="text-gray-600 mt-2">תיעוד ומעקב אחרי כל התקריות במסעדה (כולל משוב שלילי מלקוחות)</p>
+            <PageHeader title="ניהול תקריות" subtitle="תיעוד ומעקב אחרי כל התקריות במסעדה (כולל משוב שלילי מלקוחות)" icon={AlertTriangle} />
             <div className="flex flex-wrap items-center gap-2 lg:gap-4 mt-4">
               <Badge className="bg-red-100 text-red-800 text-xs lg:text-sm px-2 lg:px-3 py-1">
                 {openIncidents} תקריות פתוחות

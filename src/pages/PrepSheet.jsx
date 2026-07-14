@@ -14,6 +14,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import TimePicker from '@/components/shared/TimePicker';
+import PageHeader from '@/components/shared/PageHeader';
 import { ChefHat, Plus, Trash2, Save, RotateCcw, Upload, Loader2, Check, Camera, Search, History, Pencil, X, Printer, Share2, StickyNote, Bell } from 'lucide-react';
 
 const fmtWhen = (iso) => {
@@ -291,8 +292,7 @@ export default function PrepSheet() {
       {/* Print: show only the list, drop chrome. Inline (ships in JS, not the CSS bundle). */}
       <style>{`@media print { .no-print { display: none !important; } body { background: #fff !important; } .prep-card { break-inside: avoid; } }`}</style>
       <div className="max-w-4xl mx-auto">
-        <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
-          <h1 className="text-2xl md:text-3xl font-black text-[#A04A2E] flex items-center gap-2"><ChefHat className="w-7 h-7" /> דף הכנות</h1>
+        <PageHeader title="דף הכנות" icon={ChefHat} action={(
           <div className="flex items-center gap-2 flex-wrap no-print">
             <Button variant="outline" size="sm" onClick={doShare} title="שתף בוואטסאפ"><Share2 className="w-4 h-4 ml-1" /> שתף</Button>
             <Button variant="outline" size="sm" onClick={doPrint} title="הדפס לתלייה במטבח"><Printer className="w-4 h-4 ml-1" /> הדפס</Button>
@@ -304,7 +304,7 @@ export default function PrepSheet() {
               ? <Button size="sm" onClick={saveAll} disabled={saving} className="bg-orange-600 hover:bg-orange-700 text-white">{saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Save className="w-4 h-4 ml-1" /> שמור</>}</Button>
               : <Button size="sm" variant="outline" onClick={() => setEditMode(true)}>ערוך מוצרים</Button>)}
           </div>
-        </div>
+        )} />
 
         {/* Daily reminder config (admin) */}
         {showReminderCfg && isAdmin && (

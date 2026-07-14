@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Progress } from "@/components/ui/progress";
 import { Calendar, Clock, DollarSign, Star, Target, AlertCircle, RefreshCw } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
+import PageHeader from '@/components/shared/PageHeader';
 
 export default function MyPerformance() {
     const [user, setUser] = useState(null);
@@ -123,7 +124,7 @@ export default function MyPerformance() {
 
     if (isLoading) {
         return (
-            <div className="p-4 md:p-8 bg-gradient-to-br from-[#F4ECD8] to-[#F4ECD8] min-h-screen" dir="rtl">
+            <div className="p-4 md:p-8 bg-gradient-to-br from-[#FAF5E8] via-[#F7EFDD] to-[#F1E6CE] min-h-screen" dir="rtl">
                 <div className="max-w-6xl mx-auto">
                     <div className="mb-8">
                         <Skeleton className="h-10 w-64 mb-2" />
@@ -149,7 +150,7 @@ export default function MyPerformance() {
 
     if (!employee) {
         return (
-            <div className="p-4 md:p-8 bg-gradient-to-br from-[#F4ECD8] to-[#F4ECD8] min-h-screen" dir="rtl">
+            <div className="p-4 md:p-8 bg-gradient-to-br from-[#FAF5E8] via-[#F7EFDD] to-[#F1E6CE] min-h-screen" dir="rtl">
                 <div className="max-w-6xl mx-auto">
                     <Card className="text-center p-8 border-2 border-orange-200 bg-orange-50">
                         <AlertCircle className="w-16 h-16 mx-auto text-orange-500 mb-4" />
@@ -208,22 +209,13 @@ export default function MyPerformance() {
     }
 
     return (
-        <div className="p-4 md:p-8 bg-gradient-to-br from-[#F4ECD8] to-[#F4ECD8] min-h-screen" dir="rtl">
+        <div className="p-4 md:p-8 bg-gradient-to-br from-[#FAF5E8] via-[#F7EFDD] to-[#F1E6CE] min-h-screen" dir="rtl">
             <div className="max-w-6xl mx-auto">
-                {/* Header */}
-                <div className="mb-8">
-                    <div className="flex items-center gap-4 mb-2">
-                        <div className="w-12 h-12 bg-gradient-to-br from-[#44512C] to-[#A04A2E] rounded-full flex items-center justify-center shadow-lg">
-                            <span className="text-white font-bold text-lg">
-                                {employee.full_name.charAt(0).toUpperCase()}
-                            </span>
-                        </div>
-                        <div>
-                            <h1 className="text-3xl font-bold text-gray-900">הביצועים שלי</h1>
-                            <p className="text-gray-600">{employee.full_name} | {employee.role}</p>
-                        </div>
-                    </div>
-                </div>
+                <PageHeader
+                    title="הביצועים שלי"
+                    subtitle={`${employee.full_name} | ${employee.role}`}
+                    icon={Star}
+                />
 
                 {/* Monthly Stats */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">

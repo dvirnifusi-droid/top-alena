@@ -6,6 +6,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
 import { User } from '@/entities/all';
 import PageGuard from '../components/shared/PageGuard';
+import PageHeader from '@/components/shared/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Loader2, Plus, Trash2, ListChecks, ShoppingCart, Search, Check, Copy, Upload, Pencil } from 'lucide-react';
@@ -174,21 +175,20 @@ function OrderListInner() {
   const activeName = lists.find(l => l.id === activeList)?.name || '';
 
   return (
-    <div dir="rtl" className="p-4 md:p-6 min-h-screen" style={{ background: 'linear-gradient(180deg,#FBF7EE 0%,#F4ECD8 100%)' }}>
+    <div dir="rtl" className="p-4 md:p-6 min-h-screen bg-gradient-to-br from-[#FAF5E8] via-[#F7EFDD] to-[#F1E6CE]">
       <style>{`@import url('https://fonts.googleapis.com/css2?family=Frank+Ruhl+Libre:wght@500;700&display=swap');.ol-serif{font-family:'Frank Ruhl Libre',Georgia,serif;}`}</style>
       <div className="max-w-3xl mx-auto space-y-4">
         {/* Header */}
-        <div className="flex items-center justify-between gap-2 flex-wrap">
-          <h1 className="ol-serif text-2xl font-bold flex items-center gap-2" style={{ color: W.terracotta }}>
-            <ShoppingCart className="w-6 h-6" /> רשימת הזמנה
-          </h1>
-          {isAdmin && (
+        <PageHeader
+          title="רשימת הזמנה"
+          icon={ShoppingCart}
+          action={isAdmin && (
             <div className="flex gap-2">
               <Button size="sm" variant="outline" onClick={addList}><Plus className="w-4 h-4 ml-1" />רשימה</Button>
               {activeList && !editMode && <Button size="sm" variant="outline" onClick={openEdit}><Pencil className="w-4 h-4 ml-1" />ערוך קטלוג</Button>}
             </div>
           )}
-        </div>
+        />
 
         {/* List tabs */}
         {lists.length > 0 && (

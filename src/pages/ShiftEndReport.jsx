@@ -347,7 +347,7 @@ export default function ShiftEndReportPage() {
     ];
 
     return (
-        <div className="min-h-screen bg-gray-100 p-4 sm:p-6" dir="rtl">
+        <div className="min-h-screen bg-gradient-to-br from-[#FAF5E8] via-[#F7EFDD] to-[#F1E6CE] p-4 sm:p-6" dir="rtl">
             <div className="max-w-7xl mx-auto">
                 {/* Header */}
                 <div className="bg-white p-4 rounded-xl shadow-sm mb-6">
@@ -371,7 +371,7 @@ export default function ShiftEndReportPage() {
                            {isSaving ? <Loader2 className="w-4 h-4 ml-2 animate-spin" /> : <Save className="w-4 h-4 ml-2" />} שמור דוח
                         </Button>
                         <ZReportScanner onScanComplete={uri => updateReportData('z_report_image_uri', uri)} onDataExtracted={handleDataExtracted}>
-                           <Button variant="outline" className="text-[#A04A2E] border-purple-200 hover:bg-[#F4ECD8]"><Camera className="w-4 h-4 ml-2" /> סרוק דוח Z</Button>
+                           <Button variant="outline" className="text-[#A04A2E] border-[#E8D9B5] hover:bg-[#F4ECD8]"><Camera className="w-4 h-4 ml-2" /> סרוק דוח Z</Button>
                         </ZReportScanner>
                         <DeliveryReportScanner onDataExtracted={handleDataExtracted}>
                              <Button variant="outline" className="text-orange-600 border-orange-200 hover:bg-orange-50"><Truck className="w-4 h-4 ml-2" /> סרוק משלוחים</Button>

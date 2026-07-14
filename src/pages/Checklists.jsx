@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Checklist, ChecklistExecution } from "@/entities/all";
 import PageGuard from "../components/shared/PageGuard";
+import PageHeader from "@/components/shared/PageHeader";
 import { isMainAlena } from "@/lib/tenant";
 import { User } from "@/entities/User";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -268,35 +269,27 @@ function ChecklistsInner() {
     });
 
     return (
-        <div className="min-h-screen bg-gradient-to-b from-[#FAF5E8] to-[#F4ECD8] p-4 md:p-8" dir="rtl">
+        <div className="min-h-screen bg-gradient-to-br from-[#FAF5E8] via-[#F7EFDD] to-[#F1E6CE] p-4 md:p-8" dir="rtl">
             {/* Alena's signature serif for headings (premium, restaurant feel). */}
             <style>{`@import url('https://fonts.googleapis.com/css2?family=Frank+Ruhl+Libre:wght@500;700;900&display=swap'); .chk-serif{font-family:'Frank Ruhl Libre',serif;letter-spacing:-0.01em}`}</style>
             <div className="max-w-7xl mx-auto">
-                {/* Header — clean, warm and restrained to match the app's line */}
-                <div className="mb-6 md:mb-8 flex items-center gap-3">
-                    <div className="w-11 h-11 rounded-xl bg-[#44512C] flex items-center justify-center shadow-sm shrink-0">
-                        <CheckSquare className="w-6 h-6 text-[#F4ECD8]" />
-                    </div>
-                    <div>
-                        <h1 className="chk-serif text-2xl md:text-3xl font-black text-[#1F1B17] leading-tight">רשימות בדיקה</h1>
-                        <p className="text-sm text-[#7A6F5D]">ניהול הצ'קליסטים היומיים של המסעדה</p>
-                    </div>
-                </div>
+                {/* Header — shared design-system PageHeader for app-wide consistency */}
+                <PageHeader title="רשימות בדיקה" subtitle="ניהול הצ'קליסטים היומיים של המסעדה" icon={CheckSquare} />
 
                 <Tabs defaultValue="active" className="w-full space-y-6">
                     {/* טאבים - גריד 2x2 במובייל, שורה אחת בדסקטופ */}
                     <TabsList className="grid grid-cols-2 sm:grid-cols-4 bg-white p-1.5 rounded-2xl border border-[#E8D9B5] shadow-sm gap-1 h-auto">
                         <TabsTrigger value="active" className="py-2.5 px-3 text-sm font-bold rounded-xl text-[#7A6F5D] data-[state=active]:bg-[#44512C] data-[state=active]:text-white transition-all">
-                            🎯 פעילים
+                            פעילים
                         </TabsTrigger>
                         <TabsTrigger value="procedures" className="py-2.5 px-3 text-sm font-bold rounded-xl text-[#7A6F5D] data-[state=active]:bg-[#44512C] data-[state=active]:text-white transition-all">
-                            📋 נהלים
+                            נהלים
                         </TabsTrigger>
                         <TabsTrigger value="archive" className="py-2.5 px-3 text-sm font-bold rounded-xl text-[#7A6F5D] data-[state=active]:bg-[#44512C] data-[state=active]:text-white transition-all">
-                            🗂️ ארכיון
+                            ארכיון
                         </TabsTrigger>
                         <TabsTrigger value="stats" className="py-2.5 px-3 text-sm font-bold rounded-xl text-[#7A6F5D] data-[state=active]:bg-[#44512C] data-[state=active]:text-white transition-all">
-                            📊 סטטיסטיקות
+                            סטטיסטיקות
                         </TabsTrigger>
                     </TabsList>
 

@@ -468,7 +468,7 @@ function ScheduleSettingsDialog({ open, onClose, initialShifts, initialHidden, i
     return (
         <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
             <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto" dir="rtl">
-                <DialogHeader><DialogTitle>⚙️ הגדרות סידור עבודה</DialogTitle></DialogHeader>
+                <DialogHeader><DialogTitle>הגדרות סידור עבודה</DialogTitle></DialogHeader>
                 <div className="space-y-5 py-2">
                     <div>
                         <div className="flex items-center justify-between mb-1">
@@ -1220,7 +1220,7 @@ export default function WorkScheduling() {
     }
 
     return (
-        <div className="p-4 md:p-6" dir="rtl">
+        <div className="min-h-screen bg-gradient-to-br from-[#FAF5E8] via-[#F7EFDD] to-[#F1E6CE] p-4 md:p-6" dir="rtl">
             {/* Identity repair — re-link clock-ins/assignments split by Google login. */}
             {isAdminLike && (
                 <div className="mb-3">

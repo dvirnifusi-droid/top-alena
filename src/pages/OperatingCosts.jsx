@@ -3,7 +3,8 @@
 import React, { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import PageGuard from '../components/shared/PageGuard';
-import { Loader2, RefreshCw, Brain, MessageCircle, Server, Mail, Globe, TrendingDown } from 'lucide-react';
+import PageHeader from '@/components/shared/PageHeader';
+import { Loader2, RefreshCw, Brain, MessageCircle, Server, Mail, Globe, TrendingDown, DollarSign } from 'lucide-react';
 
 const W = { terracotta: '#A04A2E', olive: '#44512C', gold: '#C9A15A', goldLo: '#7c5626', cream: '#FAF5E8', creamCard: '#F4ECD8', border: '#E8D9B5', charcoal: '#1F1B17', muted: '#7A6F5D' };
 const ils = (n) => `₪${Math.round(Number(n) || 0).toLocaleString()}`;
@@ -26,10 +27,9 @@ function Inner() {
     <div dir="rtl" className="p-4 md:p-6 min-h-screen" style={{ background: 'linear-gradient(180deg,#FBF7EE,#F4ECD8)' }}>
       <style>{`@import url('https://fonts.googleapis.com/css2?family=Frank+Ruhl+Libre:wght@500;700&display=swap');.oc-serif{font-family:'Frank Ruhl Libre',Georgia,serif;}`}</style>
       <div className="max-w-3xl mx-auto space-y-5">
-        <div className="flex items-center justify-between">
-          <h1 className="oc-serif text-2xl font-bold flex items-center gap-2" style={{ color: W.terracotta }}>💰 עלויות תפעול</h1>
+        <PageHeader title="עלויות תפעול" icon={DollarSign} action={(
           <button onClick={load} className="w-9 h-9 rounded-lg flex items-center justify-center" style={{ background: '#fff', border: `1px solid ${W.border}` }}><RefreshCw className="w-4 h-4" style={{ color: W.muted }} /></button>
-        </div>
+        )} />
 
         {loading ? (
           <div className="text-center py-16"><Loader2 className="w-7 h-7 animate-spin mx-auto" style={{ color: W.gold }} /></div>

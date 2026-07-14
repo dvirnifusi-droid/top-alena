@@ -7,6 +7,7 @@ import { Loader2, Wallet, RefreshCw, AlertTriangle, ArrowDownCircle, ArrowUpCirc
 import { base44 } from '@/api/base44Client';
 import { RecurringCost } from '@/entities/all';
 import PageGuard from '../components/shared/PageGuard';
+import PageHeader, { PageShell } from '@/components/shared/PageHeader';
 
 const STATUS_LABEL = { received: 'התקבל', paid: 'שולם', planned: 'צפוי' };
 
@@ -79,20 +80,21 @@ function CashFlowInner() {
   const balColor = (n) => n < 0 ? 'text-red-600' : n < 20000 ? 'text-amber-600' : 'text-emerald-700';
 
   return (
-    <div className="p-4 md:p-6 space-y-4 max-w-6xl mx-auto" dir="rtl">
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2">
-            <Wallet className="w-6 h-6 text-emerald-600" /> תזרים מזומנים <Badge className="bg-emerald-100 text-emerald-800">חי</Badge>
-          </h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            מתעדכן אוטומטית מדוחות סוף המשמרת (הכנסות) ומהחשבוניות (הוצאות) · תחזית {days} יום
-          </p>
-        </div>
-        <Button variant="outline" onClick={load} disabled={loading}>
-          <RefreshCw className={`w-4 h-4 ml-1 ${loading ? 'animate-spin' : ''}`} /> רענן
-        </Button>
-      </div>
+    <PageShell>
+      <PageHeader
+        title="תזרים מזומנים"
+        subtitle={`מתעדכן אוטומטית מדוחות סוף המשמרת (הכנסות) ומהחשבוניות (הוצאות) · תחזית ${days} יום`}
+        icon={Wallet}
+        action={
+          <div className="flex items-center gap-2">
+            <Badge className="bg-emerald-100 text-emerald-800">חי</Badge>
+            <Button variant="outline" onClick={load} disabled={loading}>
+              <RefreshCw className={`w-4 h-4 ml-1 ${loading ? 'animate-spin' : ''}`} /> רענן
+            </Button>
+          </div>
+        }
+      />
+      <div className="space-y-4">
 
       {data && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -214,7 +216,8 @@ function CashFlowInner() {
           )}
         </CardContent>
       </Card>
-    </div>
+      </div>
+    </PageShell>
   );
 }
 
