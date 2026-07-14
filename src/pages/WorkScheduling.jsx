@@ -536,6 +536,11 @@ function ScheduleSettingsDialog({ open, onClose, initialShifts, initialHidden, i
 
 
 // =================================================================
+// Normalized employee name — used as a fallback clock-in match key when the
+// ShiftTracking.employee_id was stored as User.id (Google-auth users) instead of
+// Employee.id, which made real clock-ins show as "לא נכנס לשעון".
+const normClockName = (s) => String(s || '').trim().replace(/\s+/g, ' ').toLowerCase();
+
 // Main Component
 // =================================================================
 export default function WorkScheduling() {
@@ -717,15 +722,25 @@ export default function WorkScheduling() {
                 base44.entities.TipReport.list('-date', 200),
                 base44.entities.EmployeeAvailability.list(),
                 // Clock-ins of past 14 days — enough for the visible week + a buffer
-                base44.entities.ShiftTracking.list('-shift_start', 300).catch(() => []),
+                base44.entities.ShiftTracking.list('-shift_start', 800).catch(() => []),
                 base44.functions.getScheduleConfig({}).then(r => r?.data || r || {}).catch(() => ({})),
             ]);
             setScheduleCfg(schedCfg || {});
-            // Build clock-in lookup: key = "employee_id|YYYY-MM-DD"
+            // Build clock-in lookup. Key by BOTH employee_id and (normalized) name,
+            // and by BOTH the `date` field and the shift_start day — so a real
+            // clock-in is found even if the id was stored as User.id or the day
+            // field is slightly off. Value keeps the first (latest) record.
             const cMap = new Map();
+            const put = (k, t) => { if (k && !cMap.has(k)) cMap.set(k, t); };
             for (const t of (allTracks || [])) {
                 const dateKey = (typeof t.date === 'string' ? t.date : new Date(t.date).toISOString()).slice(0, 10);
-                cMap.set(`${t.employee_id}|${dateKey}`, t);
+                const startKey = t.shift_start ? (typeof t.shift_start === 'string' ? t.shift_start : new Date(t.shift_start).toISOString()).slice(0, 10) : null;
+                const nk = normClockName(t.employee_name);
+                for (const dk of [dateKey, startKey]) {
+                    if (!dk) continue;
+                    if (t.employee_id) put(`${t.employee_id}|${dk}`, t);
+                    if (nk) put(`n:${nk}|${dk}`, t);
+                }
             }
             setClockIns(cMap);
             // Normalize date fields once — API returns ISO strings post-migration
@@ -1493,8 +1508,10 @@ export default function WorkScheduling() {
                                                                     return nowMin > startMin + 30;
                                                                 })();
                                                                 const noShowEligible = isPastDay || isTodayLate;
-                                                                const clockKey = `${assignment.employee_id}|${dateStr}`;
-                                                                const track = clockIns.get(clockKey);
+                                                                // Match by employee_id first, then by normalized name (covers
+                                                                // clock-ins stored under User.id instead of Employee.id).
+                                                                const track = clockIns.get(`${assignment.employee_id}|${dateStr}`)
+                                                                    || clockIns.get(`n:${normClockName(assignment.employee_name)}|${dateStr}`);
                                                                 const noShow = noShowEligible && !track;
                                                                 let cardClass = 'bg-[#F4ECD8] hover:bg-[#E8D9B5]';
                                                                 if (noShow) {
