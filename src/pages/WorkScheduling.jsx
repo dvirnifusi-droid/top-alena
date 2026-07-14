@@ -1531,7 +1531,10 @@ export default function WorkScheduling() {
                                                                 // clock-ins stored under User.id instead of Employee.id).
                                                                 const track = clockIns.get(`${assignment.employee_id}|${dateStr}`)
                                                                     || clockIns.get(`n:${normClockName(assignment.employee_name)}|${dateStr}`);
-                                                                const noShow = noShowEligible && !track;
+                                                                // An assignment created BY a clock-in ("נוסף אוטומטית") means they
+                                                                // clocked in — never flag it, even if id/name drifted (Google auth).
+                                                                const fromClockIn = String(assignment.notes || '').includes('נוסף אוטומטית');
+                                                                const noShow = noShowEligible && !track && !fromClockIn;
                                                                 let cardClass = 'bg-[#F4ECD8] hover:bg-[#E8D9B5]';
                                                                 if (noShow) {
                                                                     cardClass = 'bg-red-50 border-2 border-dashed border-red-400 hover:bg-red-100 opacity-75';

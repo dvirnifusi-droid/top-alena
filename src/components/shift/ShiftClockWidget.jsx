@@ -198,8 +198,13 @@ export default function ShiftClockWidget() {
             try {
                 const employeeRecord = await findEmployeeRecord(user);
                 employeeRecordForGearCheck = employeeRecord;
-                const employeeId = employeeRecord?.id || user.id;
-                const employeeName = employeeRecord?.full_name || user.full_name;
+                // Use the id + name the BACKEND resolved for the ShiftTracking row
+                // (shift.employee_id/name) so the auto-added schedule assignment
+                // carries the SAME employee_id as the clock-in record. Otherwise
+                // Google-auth users got assignment=User.id but tracking=Employee.id,
+                // and the schedule read it as "לא נכנס לשעון" though they clocked in.
+                const employeeId = shift?.employee_id || employeeRecord?.id || user.id;
+                const employeeName = shift?.employee_name || employeeRecord?.full_name || user.full_name;
 
                 // Israel local hour (server already runs UTC; add +3 with mod
                 // 24 to handle wrap). Lunch < 16:00 IL, dinner otherwise.
@@ -238,7 +243,7 @@ export default function ShiftClockWidget() {
                     }
                     const updatedStaff = [...(ws.assigned_staff || []), {
                         employee_id: employeeId,
-                        employee_name: user.full_name,
+                        employee_name: employeeName,
                         position: 'בלתם',
                         start_time: format(new Date(now), 'HH:mm'),
                         end_time: '',
