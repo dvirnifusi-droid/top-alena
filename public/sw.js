@@ -2,7 +2,7 @@
 // Bump CACHE on any deploy that must purge stale clients — activate deletes
 // every cache whose name !== CACHE, so a version bump force-refreshes assets
 // for every browser (fixes stale bundles cached by an older SW).
-const CACHE = 'topapollo-v4';
+const CACHE = 'topapollo-v5';
 const SHELL = ['/', '/manifest.json', '/icons/icon-192.png?v=3', '/icons/icon-512.png?v=3'];
 
 self.addEventListener('install', (event) => {
@@ -26,10 +26,12 @@ self.addEventListener('fetch', (event) => {
   // Never cache API calls — always go to network.
   if (url.pathname.startsWith('/api/')) return;
 
-  // SPA navigations: network-first, fall back to cached app shell when offline.
+  // SPA navigations: ALWAYS fetch fresh HTML (no-store) so a new deploy's
+  // index.html — which references the new content-hashed bundle — is never
+  // served from a stale HTTP/SW cache. Falls back to cached shell only offline.
   if (req.mode === 'navigate') {
     event.respondWith(
-      fetch(req).catch(() => caches.match('/').then((r) => r || caches.match(req))),
+      fetch(req, { cache: 'no-store' }).catch(() => caches.match('/').then((r) => r || caches.match(req))),
     );
     return;
   }

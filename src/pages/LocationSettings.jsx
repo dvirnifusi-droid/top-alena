@@ -30,7 +30,12 @@ export default function LocationSettings() {
         } catch (e) { console.error('Employee.list failed:', e); }
         setLoading(false);
     };
-    useEffect(() => { load(); }, []);
+    useEffect(() => {
+        load();
+        // Safety net: never let the page hang on "טוען" even if a request stalls.
+        const t = setTimeout(() => setLoading(false), 8000);
+        return () => clearTimeout(t);
+    }, []);
 
     const captureLocation = async () => {
         if (!navigator.geolocation) { alert('GPS לא זמין במכשיר הזה'); return; }
@@ -72,7 +77,7 @@ export default function LocationSettings() {
         }
     };
 
-    if (loading) return <div className="p-6">טוען...</div>;
+    if (loading) return <div className="p-6">טוען... <span className="text-[10px] text-slate-400">v2</span></div>;
 
     // Prefer coordinates from getGeofenceConfig (safe select) so a drifted
     // RestaurantProfile.list doesn't hide an already-set location.
@@ -85,7 +90,7 @@ export default function LocationSettings() {
 
     return (
         <div className="p-4 max-w-2xl mx-auto space-y-4">
-            <h1 className="text-2xl font-bold">📍 הגדרות מיקום העסק</h1>
+            <h1 className="text-2xl font-bold">📍 הגדרות מיקום העסק <span className="text-[10px] font-normal text-slate-400">v2</span></h1>
 
             <Card>
                 <CardContent className="p-4 space-y-3">
