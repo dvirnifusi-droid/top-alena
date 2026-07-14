@@ -73,9 +73,9 @@ export default function EmployeeHome() {
     const secondary = bc.secondary || '#44512C';
     const accent = bc.accent || '#C9A15A';
     const hasCover = !!branding?.cover_photo_url;
-    const heroStyle = hasCover
-        ? { backgroundImage: `url("${branding.cover_photo_url}")`, backgroundSize: 'cover', backgroundPosition: 'center' }
-        : { background: `radial-gradient(130% 120% at 12% 8%, ${accent}66 0%, transparent 42%), linear-gradient(140deg, ${primary} 0%, ${secondary} 78%, ${primary} 130%)` };
+    // Gradient is always the base (shows under/around the photo). The cover photo
+    // layers on top with a slow Ken Burns zoom for a "living" premium feel.
+    const heroStyle = { background: `radial-gradient(130% 120% at 12% 8%, ${accent}66 0%, transparent 42%), linear-gradient(140deg, ${primary} 0%, ${secondary} 78%, ${primary} 130%)` };
     const overlayStyle = hasCover
         // Bottom-weighted scrim: dark where the greeting sits (readable), light at
         // the top so the photo breathes.
@@ -319,8 +319,9 @@ export default function EmployeeHome() {
                 @keyframes heroFloat1 { 0%,100%{transform:translate(0,0) scale(1)} 50%{transform:translate(-18px,14px) scale(1.15)} }
                 @keyframes heroFloat2 { 0%,100%{transform:translate(0,0) scale(1)} 50%{transform:translate(20px,-12px) scale(1.1)} }
                 @keyframes heroTwinkle { 0%,100%{opacity:.08;transform:scale(1) rotate(0deg)} 50%{opacity:.22;transform:scale(1.15) rotate(12deg)} }
+                @keyframes kenBurns { 0%{transform:scale(1) translate(0,0)} 100%{transform:scale(1.12) translate(-2%,-1.5%)} }
                 @media (prefers-reduced-motion: reduce) {
-                    [style*="heroFloat1"],[style*="heroFloat2"],[style*="heroTwinkle"],[style*="coinShine"]{animation:none !important}
+                    [style*="heroFloat1"],[style*="heroFloat2"],[style*="heroTwinkle"],[style*="coinShine"],[style*="kenBurns"]{animation:none !important}
                 }
             `}</style>
             <div className="max-w-7xl mx-auto">
@@ -329,6 +330,12 @@ export default function EmployeeHome() {
                     className="relative overflow-hidden rounded-3xl shadow-xl mb-6 animate-in fade-in slide-in-from-bottom-4 duration-500"
                     style={heroStyle}
                 >
+                    {hasCover && (
+                        <div
+                            className="absolute inset-0 pointer-events-none"
+                            style={{ backgroundImage: `url("${branding.cover_photo_url}")`, backgroundSize: 'cover', backgroundPosition: 'center', animation: 'kenBurns 22s ease-in-out infinite alternate' }}
+                        />
+                    )}
                     <div className="absolute inset-0 pointer-events-none" style={overlayStyle} />
                     {/* אורות רקע נעים — תחושת אפליקציה "חיה" */}
                     <div className="absolute inset-0 pointer-events-none overflow-hidden">
@@ -345,7 +352,7 @@ export default function EmployeeHome() {
                                     <img src={branding.logo_url} alt="logo" className="h-9 w-9 rounded-xl object-cover bg-white/90 p-0.5 shadow-sm flex-shrink-0" />
                                 )}
                                 <span className="text-white font-bold text-base sm:text-lg drop-shadow-sm truncate">{branding?.name}</span>
-                                <span className="text-white/40 text-[9px] font-mono flex-shrink-0">v9</span>
+                                <span className="text-white/40 text-[9px] font-mono flex-shrink-0">v10</span>
                             </div>
                             <div className="flex items-center gap-2 flex-shrink-0">
                                 {currentEmployee && <CoinWidget employeeId={currentEmployee.id} employeeName={currentEmployee.full_name} />}

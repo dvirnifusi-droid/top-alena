@@ -13,6 +13,7 @@ import LootBox from '../gamification/LootBox';
 import GearUpDialog from './GearUpDialog';
 import GearReturnDialog from './GearReturnDialog';
 import { format } from 'date-fns';
+import confetti from 'canvas-confetti';
 
 // Promise wrapper around navigator.geolocation. Resolves with {lat,lng} or
 // rejects with a short code: 'denied' | 'unavailable' | 'timeout'.
@@ -34,6 +35,7 @@ function readPosition() {
 export default function ShiftClockWidget() {
     const brandName = useTenantBranding()?.name || 'המסעדה';
     const [user, setUser] = useState(null);
+    const [celebrate, setCelebrate] = useState(false);
     const [activeShift, setActiveShift] = useState(null);
     const [loading, setLoading] = useState(true);
     const [currentTime, setCurrentTime] = useState(new Date());
@@ -155,6 +157,24 @@ export default function ShiftClockWidget() {
         return byName || null;
     };
 
+    // 🎉 Clock-in celebration — confetti + haptic + a "great day" banner.
+    const fireClockInCelebration = () => {
+        try { navigator.vibrate?.([40, 30, 60]); } catch { /* no haptics */ }
+        try {
+            const colors = ['#FFD700', '#22C55E', '#FF6B35', '#4d96ff', '#C77DFF'];
+            const end = Date.now() + 1400;
+            const frame = () => {
+                confetti({ particleCount: 4, angle: 60, spread: 62, origin: { x: 0 }, colors });
+                confetti({ particleCount: 4, angle: 120, spread: 62, origin: { x: 1 }, colors });
+                if (Date.now() < end) requestAnimationFrame(frame);
+            };
+            frame();
+            confetti({ particleCount: 130, spread: 95, origin: { y: 0.6 }, colors });
+        } catch { /* canvas-confetti unavailable */ }
+        setCelebrate(true);
+        setTimeout(() => setCelebrate(false), 3200);
+    };
+
     const startShift = async () => {
         setActionLoading(true);
         try {
@@ -184,6 +204,8 @@ export default function ShiftClockWidget() {
                 setActionLoading(false);
                 return;
             }
+            // ✅ Clock-in succeeded — celebrate!
+            fireClockInCelebration();
             const now = new Date().toISOString();
             const today = format(new Date(), 'yyyy-MM-dd');
 
@@ -543,6 +565,16 @@ export default function ShiftClockWidget() {
 
     return (
         <>
+            {/* 🎉 חגיגת כניסה לשעון */}
+            {celebrate && (
+                <div className="fixed inset-0 z-[9999] flex items-center justify-center pointer-events-none p-4">
+                    <div className="bg-white rounded-3xl shadow-2xl px-8 py-6 text-center border-4 animate-in zoom-in-50 fade-in duration-300" style={{ borderColor: 'var(--brand-primary, #22C55E)' }}>
+                        <div className="text-6xl mb-2 animate-bounce">💪</div>
+                        <h2 className="text-2xl font-black text-gray-800">יום מעולה, {user?.full_name?.split(' ')[0] || 'עובד'}!</h2>
+                        <p className="font-bold text-lg mt-1" style={{ color: 'var(--brand-primary, #22C55E)' }}>בהצלחה במשמרת 🚀</p>
+                    </div>
+                </div>
+            )}
             <Card className={`mb-4 rounded-2xl border shadow-sm ${isOnBreak ? 'border-yellow-400 bg-yellow-50' : isActive ? 'border-green-400 bg-green-50' : 'border-[#EADFC8] bg-white'}`}>
                 <CardContent className="p-4">
                     {/* שם + שעה + תאריך */}
