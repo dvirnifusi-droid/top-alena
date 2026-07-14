@@ -10,8 +10,9 @@ import { Label } from "@/components/ui/label";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
-import { Briefcase, Phone, Plus, Edit, Trash2, TrendingUp, Package, CheckCircle2 } from "lucide-react";
+import { Briefcase, Phone, Plus, Edit, Trash2, TrendingUp, Package, CheckCircle2, Bike } from "lucide-react";
 import { format } from "date-fns";
+import PageHeader from "@/components/shared/PageHeader";
 
 export default function Couriers() {
   const [couriers, setCouriers] = useState([]);
@@ -139,12 +140,15 @@ export default function Couriers() {
   return (
     <div className="p-4 max-w-6xl mx-auto space-y-4" dir="rtl">
       {/* כותרת וכפתור הוספה */}
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">🚴 שליחים</h1>
-        <Button onClick={() => { setEditingCourier(null); setFormData({ name: "", phone: "", status: "active", bank_account: "", notes: "" }); setShowAddDialog(true); }} className="bg-primary text-primary-foreground">
-          <Plus className="w-4 h-4 ml-2" /> הוסף שליח
-        </Button>
-      </div>
+      <PageHeader
+        title="שליחים"
+        icon={Bike}
+        action={
+          <Button onClick={() => { setEditingCourier(null); setFormData({ name: "", phone: "", status: "active", bank_account: "", notes: "" }); setShowAddDialog(true); }} className="bg-primary text-primary-foreground">
+            <Plus className="w-4 h-4 ml-2" /> הוסף שליח
+          </Button>
+        }
+      />
 
       {loading ? (
         <div className="text-center text-muted-foreground py-8">טוען...</div>
@@ -218,7 +222,7 @@ export default function Couriers() {
       <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
         <DialogContent className="max-w-sm" dir="rtl">
           <DialogHeader>
-            <DialogTitle>{editingCourier ? "✏️ עדכון שליח" : "➕ שליח חדש"}</DialogTitle>
+            <DialogTitle>{editingCourier ? "עדכון שליח" : "שליח חדש"}</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
             <div>
@@ -258,7 +262,7 @@ export default function Couriers() {
               {selectedCourier.notes && <p><span className="font-semibold">📝 הערות:</span> {selectedCourier.notes}</p>}
 
               <div className="border-t pt-4">
-                <h3 className="font-bold mb-3">📦 משלוחים</h3>
+                <h3 className="font-bold mb-3">משלוחים</h3>
                 <div className="space-y-2 max-h-96 overflow-y-auto">
                   {calculateCourierStats(selectedCourier).deliveries.length === 0 ? (
                     <p className="text-muted-foreground text-sm">אין משלוחים</p>
@@ -286,7 +290,7 @@ export default function Couriers() {
         <Dialog open={showEditWithDeliveriesDialog} onOpenChange={setShowEditWithDeliveriesDialog}>
           <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" dir="rtl">
             <DialogHeader>
-              <DialogTitle>✏️ ערוך שליח + שייך משלוחים</DialogTitle>
+              <DialogTitle>ערוך שליח + שייך משלוחים</DialogTitle>
             </DialogHeader>
             <div className="space-y-4">
               {/* פרטי השליח */}
@@ -312,7 +316,7 @@ export default function Couriers() {
 
               {/* בחירת משלוחים */}
               <div className="border-t pt-4">
-                <p className="text-sm font-semibold mb-3">📦 בחר משלוחים לשייך</p>
+                <p className="text-sm font-semibold mb-3">בחר משלוחים לשייך</p>
                 <div className="space-y-2 max-h-72 overflow-y-auto border rounded-lg p-3 bg-gray-50">
                   {deliveries.length === 0 ? (
                     <p className="text-muted-foreground text-sm">אין משלוחים זמינים</p>

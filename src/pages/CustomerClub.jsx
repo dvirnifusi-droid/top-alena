@@ -358,7 +358,7 @@ export default function CustomerClubPage() {
     const recoveringCount = customers.filter(c => c.satisfaction_status === 'recovering').length;
 
     return (
-        <div className="p-4 md:p-8" dir="rtl">
+        <div className="p-4 md:p-8 min-h-screen bg-gradient-to-br from-[#FAF5E8] via-[#F7EFDD] to-[#F1E6CE]" dir="rtl">
             <Card>
                 <CardHeader>
                     <div className="flex justify-between items-center">

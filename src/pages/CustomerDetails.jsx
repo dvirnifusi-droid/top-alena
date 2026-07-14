@@ -179,7 +179,7 @@ export default function CustomerDetailsPage() {
     const currentSatisfaction = satisfactionConfig[customer.satisfaction_status] || satisfactionConfig.neutral;
 
     return (
-        <div className="p-4 md:p-8 bg-gray-50 min-h-screen" dir="rtl">
+        <div className="p-4 md:p-8 bg-gradient-to-br from-[#FAF5E8] via-[#F7EFDD] to-[#F1E6CE] min-h-screen" dir="rtl">
             <div className="max-w-7xl mx-auto space-y-6">
                 <div>
                     <Button asChild variant="outline">

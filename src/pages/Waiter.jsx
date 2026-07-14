@@ -159,7 +159,7 @@ export default function Waiter() {
         {/* Running order summary — visible whenever there are recommended items */}
         {orderItems.length > 0 && (
           <div className="bg-white rounded-2xl border-2 border-amber-300 p-3 mb-3 shadow-md">
-            <div className="text-xs font-bold text-amber-900 mb-2">📋 ההזמנה שלכם עד עכשיו:</div>
+            <div className="text-xs font-bold text-amber-900 mb-2">ההזמנה שלכם עד עכשיו:</div>
             <div className="space-y-0.5 text-sm">
               {orderItems.map((it, i) => (
                 <div key={i} className="flex justify-between">

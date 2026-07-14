@@ -13,11 +13,12 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { 
-    Users, Clock, CheckCircle, Coffee, Loader2, Search, 
-    Play, RotateCcw, Edit, Utensils, Phone, PlusCircle, Star
+import {
+    Users, Clock, CheckCircle, Coffee, Loader2, Search,
+    Play, RotateCcw, Edit, Utensils, Phone, PlusCircle, Star, LayoutGrid
 } from 'lucide-react';
 import { format } from 'date-fns';
+import PageHeader from '@/components/shared/PageHeader';
 
 const stepGroups = {
     'opening': { label: 'פתיחה (1-3): קבלת פנים ומים', range: [1, 3] },
@@ -257,24 +258,25 @@ export default function TablesManagementPage() {
     }
 
     return (
-        <div className="p-4 sm:p-8 bg-gray-50 min-h-screen" dir="rtl">
+        <div className="p-4 sm:p-8 bg-gradient-to-br from-[#FAF5E8] via-[#F7EFDD] to-[#F1E6CE] min-h-screen" dir="rtl">
             <div className="max-w-7xl mx-auto">
-                <div className="flex justify-between items-center mb-8">
-                    <div>
-                        <h1 className="text-3xl font-bold text-slate-900">ניהול שולחנות - מנהלים</h1>
-                        <p className="text-slate-600 mt-1">מעקב מתקדם וניהול כל השולחנות הפעילים</p>
-                    </div>
-                    <div className="flex items-center gap-4">
-                        <Button onClick={() => setIsAddDialogOpen(true)}>
-                            <PlusCircle className="w-4 h-4 ml-2" />
-                            הוסף שולחן
-                        </Button>
-                        <Button onClick={loadData} variant="outline">
-                            <RotateCcw className="w-4 h-4 ml-2" />
-                            רענן
-                        </Button>
-                    </div>
-                </div>
+                <PageHeader
+                    title="ניהול שולחנות - מנהלים"
+                    subtitle="מעקב מתקדם וניהול כל השולחנות הפעילים"
+                    icon={LayoutGrid}
+                    action={
+                        <div className="flex items-center gap-4">
+                            <Button onClick={() => setIsAddDialogOpen(true)}>
+                                <PlusCircle className="w-4 h-4 ml-2" />
+                                הוסף שולחן
+                            </Button>
+                            <Button onClick={loadData} variant="outline">
+                                <RotateCcw className="w-4 h-4 ml-2" />
+                                רענן
+                            </Button>
+                        </div>
+                    }
+                />
 
                 {/* Filters Row */}
                 <Card className="mb-6">

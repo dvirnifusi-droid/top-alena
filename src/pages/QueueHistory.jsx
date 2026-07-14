@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
-import { Phone, MessageSquare, Download, Search, Gift, AlertTriangle, TrendingDown, Cloud, Ban, CheckCircle } from 'lucide-react';
+import { Phone, MessageSquare, Download, Search, Gift, AlertTriangle, TrendingDown, Cloud, Ban, CheckCircle, History } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import PageHeader from '@/components/shared/PageHeader';
 
 export default function QueueHistory() {
   const [entries, setEntries] = useState([]);
@@ -241,12 +242,13 @@ export default function QueueHistory() {
   }
 
   return (
-    <div className="p-4 sm:p-6 min-h-screen bg-[#FAF5E8]" dir="rtl">
+    <div className="p-4 sm:p-6 min-h-screen bg-gradient-to-br from-[#FAF5E8] via-[#F7EFDD] to-[#F1E6CE]" dir="rtl">
       {/* כותרת */}
-      <div className="mb-6">
-        <h1 className="text-2xl font-black text-gray-800 mb-2">📋 היסטוריית תור</h1>
-        <p className="text-gray-500 text-sm">כל הלקוחות שהיו בתור עם פרטי קשר</p>
-      </div>
+      <PageHeader
+        title="היסטוריית תור"
+        subtitle="כל הלקוחות שהיו בתור עם פרטי קשר"
+        icon={History}
+      />
 
       {/* סטטיסטיקה Analytics */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">

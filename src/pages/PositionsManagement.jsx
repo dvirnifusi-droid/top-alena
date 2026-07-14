@@ -10,6 +10,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Plus, Edit, Trash2, Briefcase, Sparkles, Loader2 } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
+import PageHeader from '@/components/shared/PageHeader';
 
 function PositionForm({ position, onSave, onCancel }) {
     const [formData, setFormData] = useState({
@@ -447,26 +448,24 @@ export default function PositionsManagementPage() {
     }
 
     return (
-        <div className="p-4 md:p-8" dir="rtl">
+        <div className="p-4 md:p-8 bg-gradient-to-br from-[#FAF5E8] via-[#F7EFDD] to-[#F1E6CE] min-h-screen" dir="rtl">
             <div className="max-w-6xl mx-auto">
-                <div className="flex justify-between items-center mb-8">
-                    <div>
-                        <h1 className="text-3xl font-bold flex items-center gap-3">
-                            <Briefcase className="w-8 h-8 text-[#44512C]"/>
-                            ניהול תפקידים
-                        </h1>
-                        <p className="text-gray-600 mt-2">הגדרת תפקידים, תיאורים ונהלי גיוס</p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                        <Button variant="outline" onClick={runAiSuggest} disabled={aiSuggesting} className="gap-1">
-                            {aiSuggesting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-                            {aiSuggesting ? 'AI חושב...' : 'הצע תפקידים לפי הפרופיל'}
-                        </Button>
-                        <Button onClick={() => openForm()}>
-                            <Plus className="w-4 h-4 ml-2" />הוסף תפקיד חדש
-                        </Button>
-                    </div>
-                </div>
+                <PageHeader
+                    title="ניהול תפקידים"
+                    subtitle="הגדרת תפקידים, תיאורים ונהלי גיוס"
+                    icon={Briefcase}
+                    action={
+                        <div className="flex items-center gap-2">
+                            <Button variant="outline" onClick={runAiSuggest} disabled={aiSuggesting} className="gap-1">
+                                {aiSuggesting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                                {aiSuggesting ? 'AI חושב...' : 'הצע תפקידים לפי הפרופיל'}
+                            </Button>
+                            <Button onClick={() => openForm()}>
+                                <Plus className="w-4 h-4 ml-2" />הוסף תפקיד חדש
+                            </Button>
+                        </div>
+                    }
+                />
 
                 {aiSuggestions && (
                     <Card className="mb-4 border-amber-200 bg-amber-50">

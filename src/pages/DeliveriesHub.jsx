@@ -6,6 +6,7 @@ import Deliveries from './Deliveries';
 import Couriers from './Couriers';
 import CourierTracking from './CourierTracking';
 import DeliveryCustomerClub from './DeliveryCustomerClub';
+import PageHeader from '@/components/shared/PageHeader';
 
 const TABS = [
     { id: 'orders', label: 'ניהול משלוחים', icon: Package, C: Deliveries },
@@ -22,10 +23,7 @@ export default function DeliveriesHub() {
     const onChange = (v) => { setTab(v); if (typeof window !== 'undefined') window.location.hash = v; };
     return (
         <div className="p-4" dir="rtl">
-            <h1 className="text-2xl font-bold mb-3 flex items-center gap-2">
-                <Package className="w-6 h-6 text-[#B89556]" />
-                משלוחים
-            </h1>
+            <PageHeader title="משלוחים" icon={Package} />
             <Tabs value={tab} onValueChange={onChange}>
                 <div className="sticky top-0 z-10 bg-white -mx-4 px-4 pb-2 mb-3 border-b">
                     <TabsList className="flex w-full overflow-x-auto h-auto p-1 gap-1 justify-start md:grid md:grid-cols-4 md:max-w-3xl">

@@ -2733,7 +2733,7 @@ export default function SeatingSetup() {
                 // Radix dialogs/popovers render in body portals AFTER us — they
                 // stack above us too. Won't fight either side.
                 ? 'fixed inset-0 z-50 bg-white overflow-auto p-2'
-                : 'p-3 md:p-6 bg-gray-50 min-h-screen'
+                : 'p-3 md:p-6 bg-gradient-to-br from-[#FAF5E8] via-[#F7EFDD] to-[#F1E6CE] min-h-screen'
             }
         >
             {/* === LIVE STATUS BAR — hidden in fullscreen big-map mode === */}

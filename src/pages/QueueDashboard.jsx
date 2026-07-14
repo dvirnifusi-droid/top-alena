@@ -13,6 +13,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { sendFeedbackSms } from '@/functions/sendFeedbackSms';
+import PageHeader from '@/components/shared/PageHeader';
 
 const RESTAURANT_LAT = 31.964780873771108;
 const RESTAURANT_LNG = 34.79326668650769;
@@ -486,40 +487,41 @@ export default function QueueDashboard() {
   };
 
   return (
-    <div className="p-4 sm:p-6 min-h-screen bg-[#FAF5E8]" dir="rtl">
+    <div className="p-4 sm:p-6 min-h-screen bg-gradient-to-br from-[#FAF5E8] via-[#F7EFDD] to-[#F1E6CE]" dir="rtl">
       {/* כותרת */}
-      <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
-        <div>
-          <h1 className="text-2xl font-black text-gray-800">{`🎯 ניהול תור - מסעדת ${brandName}`}</h1>
-          <p className="text-gray-500 text-sm">דאשבורד מארחת בזמן אמת</p>
-        </div>
-        <div className="flex gap-2 items-center flex-wrap">
-          <span className="text-xs text-gray-400 flex items-center gap-1">
-            <span className="w-2 h-2 bg-green-400 rounded-full inline-block"></span>
-            SMS פעיל
-          </span>
-          <Button variant="outline" size="sm" onClick={() => setShowManualAdd(!showManualAdd)}>
-            ➕ הוסף ידנית
-          </Button>
-          <Button variant="outline" size="sm" onClick={fetchEntries}>
-            <RefreshCw className="w-4 h-4 ml-1" /> רענן
-          </Button>
-          <Button variant="outline" size="sm" onClick={() => setShowQR(!showQR)}>
-            <QrCode className="w-4 h-4 ml-1" /> QR
-          </Button>
-          <button
-            onClick={toggleGeofencing}
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold border-2 transition-all ${
-              geofencingEnabled
-                ? 'bg-emerald-50 border-emerald-400 text-emerald-700'
-                : 'bg-gray-100 border-gray-300 text-gray-500'
-            }`}
-          >
-            <span>{geofencingEnabled ? '📍' : '📍'}</span>
-            {geofencingEnabled ? 'מיקום: פעיל' : 'מיקום: כבוי'}
-          </button>
-        </div>
-      </div>
+      <PageHeader
+        title={`ניהול תור - מסעדת ${brandName}`}
+        subtitle="דאשבורד מארחת בזמן אמת"
+        icon={Users}
+        action={
+          <div className="flex gap-2 items-center flex-wrap">
+            <span className="text-xs text-gray-400 flex items-center gap-1">
+              <span className="w-2 h-2 bg-green-400 rounded-full inline-block"></span>
+              SMS פעיל
+            </span>
+            <Button variant="outline" size="sm" onClick={() => setShowManualAdd(!showManualAdd)}>
+              ➕ הוסף ידנית
+            </Button>
+            <Button variant="outline" size="sm" onClick={fetchEntries}>
+              <RefreshCw className="w-4 h-4 ml-1" /> רענן
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => setShowQR(!showQR)}>
+              <QrCode className="w-4 h-4 ml-1" /> QR
+            </Button>
+            <button
+              onClick={toggleGeofencing}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold border-2 transition-all ${
+                geofencingEnabled
+                  ? 'bg-emerald-50 border-emerald-400 text-emerald-700'
+                  : 'bg-gray-100 border-gray-300 text-gray-500'
+              }`}
+            >
+              <span>{geofencingEnabled ? '📍' : '📍'}</span>
+              {geofencingEnabled ? 'מיקום: פעיל' : 'מיקום: כבוי'}
+            </button>
+          </div>
+        }
+      />
 
       {/* Modal הוסף ידנית */}
       {showManualAdd && (
@@ -1064,7 +1066,7 @@ export default function QueueDashboard() {
         <div className="fixed inset-0 bg-black/60 flex items-end justify-center z-50 p-4" dir="rtl">
           <div className="bg-white rounded-3xl w-full max-w-sm p-6 shadow-2xl mb-4 max-h-96 overflow-y-auto">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-black text-gray-800">📋 היסטוריית תור</h3>
+              <h3 className="text-lg font-black text-gray-800">היסטוריית תור</h3>
               <button
                 onClick={() => { setHistoryPhone(null); setHistoryEntries([]); }}
                 className="text-gray-400 hover:text-gray-600 text-2xl leading-none"

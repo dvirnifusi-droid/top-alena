@@ -20,6 +20,7 @@ import { sendDeliveryViaTelegramClient } from "@/functions/sendDeliveryViaTelegr
 import { format } from "date-fns";
 import { createPageUrl } from "@/utils";
 import { Link } from "react-router-dom";
+import PageHeader from "@/components/shared/PageHeader";
 
 const ISSUE_TYPES = [
   { value: "delayed", label: "⏰ עיכוב במשלוח" },
@@ -359,19 +360,22 @@ export default function Deliveries() {
   return (
     <div className="p-4 max-w-2xl mx-auto space-y-4" dir="rtl">
       {/* כותרת */}
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">🛵 משלוחים היום</h1>
-        <div className="hidden sm:flex gap-2">
-          <Link to={createPageUrl("DeliveryCustomerClub")}>
-            <Button variant="outline" size="sm"><Users className="w-4 h-4 ml-1" /> מועדון לקוחות</Button>
-          </Link>
-          <Button onClick={handleManualAdd} variant="outline" size="sm">+ הוסף ידנית</Button>
-          <Button onClick={() => fileInputRef.current?.click()} className="bg-primary text-primary-foreground" size="sm">
-            <Camera className="w-4 h-4 ml-1" /> צלם פתק
-          </Button>
-        </div>
-        <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handlePhotoSelect} />
-      </div>
+      <PageHeader
+        title="משלוחים היום"
+        icon={Package}
+        action={
+          <div className="hidden sm:flex gap-2">
+            <Link to={createPageUrl("DeliveryCustomerClub")}>
+              <Button variant="outline" size="sm"><Users className="w-4 h-4 ml-1" /> מועדון לקוחות</Button>
+            </Link>
+            <Button onClick={handleManualAdd} variant="outline" size="sm">+ הוסף ידנית</Button>
+            <Button onClick={() => fileInputRef.current?.click()} className="bg-primary text-primary-foreground" size="sm">
+              <Camera className="w-4 h-4 ml-1" /> צלם פתק
+            </Button>
+          </div>
+        }
+      />
+      <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handlePhotoSelect} />
 
       {/* כפתור צלם פתק - מובייל בלבד */}
       <div className="sm:hidden">
@@ -470,7 +474,7 @@ export default function Deliveries() {
       <Dialog open={showAddDialog} onOpenChange={(open) => { setShowAddDialog(open); if (!open) setEditingDelivery(null); }}>
         <DialogContent className="max-w-sm max-h-[90vh] overflow-y-auto" dir="rtl">
           <DialogHeader>
-            <DialogTitle>{editingDelivery ? "✏️ עריכת משלוח" : "פרטי משלוח"}</DialogTitle>
+            <DialogTitle>{editingDelivery ? "עריכת משלוח" : "פרטי משלוח"}</DialogTitle>
           </DialogHeader>
           {photoPreview && <img src={photoPreview} className="w-full rounded-lg max-h-40 object-cover" alt="פתק" />}
           <div className="space-y-3">
@@ -561,7 +565,7 @@ export default function Deliveries() {
       {showTelegramDialog && (
         <Dialog open={!!showTelegramDialog} onOpenChange={() => setShowTelegramDialog(null)}>
           <DialogContent className="max-w-sm" dir="rtl">
-            <DialogHeader><DialogTitle>🚴 צוות משלוח חדש</DialogTitle></DialogHeader>
+            <DialogHeader><DialogTitle>צוות משלוח חדש</DialogTitle></DialogHeader>
             <div className="space-y-4">
               <div className="bg-gray-50 rounded-lg p-3 space-y-1 text-sm">
                 <div className="flex items-center gap-2">
@@ -612,11 +616,11 @@ export default function Deliveries() {
       <Dialog open={showSessionDialog} onOpenChange={setShowSessionDialog}>
         <DialogContent className="max-w-md" dir="rtl">
           <DialogHeader>
-            <DialogTitle>🔑 הגדרות Telegram</DialogTitle>
+            <DialogTitle>הגדרות Telegram</DialogTitle>
           </DialogHeader>
           <div className="space-y-3 text-sm">
             <div className="bg-[#F4ECD8] border border-[#E8D9B5] rounded-lg p-3 text-blue-900">
-              <p className="font-semibold mb-2">📚 איך להשיג Session Token?</p>
+              <p className="font-semibold mb-2">איך להשיג Session Token?</p>
               <ol className="space-y-1 text-xs list-decimal list-inside">
                 <li>בPython: <code className="bg-white px-1 rounded">from telethon.sync import TelegramClient</code></li>
                 <li><code className="bg-white px-1 rounded">client = TelegramClient('session', API_ID, API_HASH)</code></li>
@@ -660,7 +664,7 @@ export default function Deliveries() {
       {/* דיאלוג הוספת שליח */}
       <Dialog open={showAddCourierDialog} onOpenChange={setShowAddCourierDialog}>
         <DialogContent className="max-w-sm" dir="rtl">
-          <DialogHeader><DialogTitle>➕ שליח חדש</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>שליח חדש</DialogTitle></DialogHeader>
           <div className="space-y-3">
             <div>
               <Label>שם השליח</Label>
@@ -682,7 +686,7 @@ export default function Deliveries() {
       {showNoteDialog && (
         <Dialog open={!!showNoteDialog} onOpenChange={() => setShowNoteDialog(null)}>
           <DialogContent className="max-w-sm" dir="rtl">
-            <DialogHeader><DialogTitle>📝 הערה למשלוח</DialogTitle></DialogHeader>
+            <DialogHeader><DialogTitle>הערה למשלוח</DialogTitle></DialogHeader>
             <p className="text-sm text-muted-foreground">{showNoteDialog.customer_name || showNoteDialog.address}</p>
             <div className="space-y-3">
               <div>

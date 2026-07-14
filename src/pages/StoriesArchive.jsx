@@ -5,8 +5,9 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Heart, Eye, MessageCircle, Trash2, Search } from "lucide-react";
+import { Heart, Eye, MessageCircle, Trash2, Search, Archive } from "lucide-react";
 import { format } from "date-fns";
+import PageHeader from "@/components/shared/PageHeader";
 
 export default function StoriesArchive() {
   const [user, setUser] = useState(null);
@@ -79,10 +80,7 @@ export default function StoriesArchive() {
 
   return (
     <div className="p-4 max-w-6xl mx-auto space-y-4" dir="rtl">
-      <div>
-        <h1 className="text-3xl font-bold mb-2">📚 ארכיון סטוריז</h1>
-        <p className="text-muted-foreground">כל הסטוריז שנפרסמו, כולל אלה שפגו</p>
-      </div>
+      <PageHeader title="ארכיון סטוריז" subtitle="כל הסטוריז שנפרסמו, כולל אלה שפגו" icon={Archive} />
 
       {/* סיכום */}
       <div className="grid grid-cols-3 gap-3">

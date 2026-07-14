@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Star, MessageSquare, Loader2, ServerCrash, Phone, Users, Utensils, Award } from 'lucide-react'; // Added Award icon
 import { format } from 'date-fns';
+import PageHeader, { PageShell } from '@/components/shared/PageHeader';
 
 const ratingColors = {
     1: 'bg-red-100 text-red-800',
@@ -128,15 +129,12 @@ export default function CustomerSurveysPage() {
     }
 
     return (
-        <div className="p-4 md:p-8" dir="rtl">
-            <div className="max-w-7xl mx-auto">
-                <div className="mb-8">
-                    <h1 className="text-3xl font-bold flex items-center gap-3">
-                        <MessageSquare className="w-8 h-8 text-[#A04A2E]" />
-                        סקרי לקוחות
-                    </h1>
-                    <p className="text-gray-600 mt-2">כל המשובים מהלקוחות שלך במקום אחד.</p>
-                </div>
+        <PageShell>
+                <PageHeader
+                    title="סקרי לקוחות"
+                    subtitle="כל המשובים מהלקוחות שלך במקום אחד."
+                    icon={MessageSquare}
+                />
                 
                 <Tabs value={filter} onValueChange={setFilter} className="mb-6">
                     <TabsList className="grid w-full sm:w-auto sm:grid-cols-3">
@@ -155,7 +153,6 @@ export default function CustomerSurveysPage() {
                         </div>
                     )}
                 </div>
-            </div>
-        </div>
+        </PageShell>
     );
 }
