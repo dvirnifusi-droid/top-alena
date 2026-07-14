@@ -284,11 +284,11 @@ export default function EmployeeHome() {
                     { to: "/UserGuide", icon: BookOpen, color: "from-green-500 to-emerald-600", title: "מדריך שימוש", desc: "הסברים וסרטוני הדרכה", special: true },
                 ].map((item) => (
                     <Link key={item.to} to={item.to}>
-                        <Card className="rounded-2xl border border-[#EADFC8] bg-white/95 hover:shadow-xl hover:-translate-y-0.5 transition-all duration-200 cursor-pointer h-full">
+                        <Card className="rounded-2xl border border-white/60 bg-white/70 backdrop-blur-md shadow-sm hover:shadow-xl hover:-translate-y-1 active:scale-[0.97] transition-all duration-200 cursor-pointer h-full">
                             <CardContent className="p-4 sm:p-5">
                                 <div className="flex flex-col items-center text-center gap-2.5">
-                                    <div className={`w-12 h-12 bg-gradient-to-br ${item.color} rounded-2xl flex items-center justify-center shadow-sm`}>
-                                        <item.icon className="w-6 h-6 text-white" />
+                                    <div className={`w-12 h-12 bg-gradient-to-br ${item.color} rounded-2xl flex items-center justify-center shadow-md ring-1 ring-black/5`}>
+                                        <item.icon className="w-6 h-6 text-white drop-shadow" />
                                     </div>
                                     <h3 className="font-bold text-sm sm:text-base text-[#3A2E1E] leading-tight">{item.title}</h3>
                                     <p className="text-xs text-[#8A7C64] leading-snug hidden sm:block">{item.desc}</p>
@@ -304,6 +304,14 @@ export default function EmployeeHome() {
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-[#FAF5E8] via-[#F7EFDD] to-[#F1E6CE] p-4 sm:p-6" dir="rtl">
+            <style>{`
+                @keyframes heroFloat1 { 0%,100%{transform:translate(0,0) scale(1)} 50%{transform:translate(-18px,14px) scale(1.15)} }
+                @keyframes heroFloat2 { 0%,100%{transform:translate(0,0) scale(1)} 50%{transform:translate(20px,-12px) scale(1.1)} }
+                @keyframes heroTwinkle { 0%,100%{opacity:.08;transform:scale(1) rotate(0deg)} 50%{opacity:.22;transform:scale(1.15) rotate(12deg)} }
+                @media (prefers-reduced-motion: reduce) {
+                    [style*="heroFloat1"],[style*="heroFloat2"],[style*="heroTwinkle"],[style*="coinShine"]{animation:none !important}
+                }
+            `}</style>
             <div className="max-w-7xl mx-auto">
                 {/* אדר "וואו" קומפקטי — תמונת העסק/גרדיאנט מותגי + לוגו + ברכה. כל הכפתורים נשמרים. */}
                 <div
@@ -311,8 +319,13 @@ export default function EmployeeHome() {
                     style={heroStyle}
                 >
                     <div className="absolute inset-0 pointer-events-none" style={overlayStyle} />
+                    {/* אורות רקע נעים — תחושת אפליקציה "חיה" */}
+                    <div className="absolute inset-0 pointer-events-none overflow-hidden">
+                        <div className="absolute -top-16 -right-10 w-52 h-52 rounded-full blur-3xl opacity-40" style={{ background: accent, animation: 'heroFloat1 9s ease-in-out infinite' }} />
+                        <div className="absolute -bottom-20 -left-8 w-56 h-56 rounded-full blur-3xl opacity-25" style={{ background: '#ffffff', animation: 'heroFloat2 11s ease-in-out infinite' }} />
+                    </div>
                     {/* נצנוץ עדין לאנרגיה */}
-                    <Sparkles className="absolute top-3 left-3 w-16 h-16 text-white/10 pointer-events-none" />
+                    <Sparkles className="absolute top-3 left-3 w-16 h-16 text-white/10 pointer-events-none" style={{ animation: 'heroTwinkle 4s ease-in-out infinite' }} />
                     <div className="relative p-5 sm:p-6">
                         {/* שורה עליונה: לוגו + שם העסק | כפתורי פעולה */}
                         <div className="flex items-center justify-between gap-3 mb-4">
