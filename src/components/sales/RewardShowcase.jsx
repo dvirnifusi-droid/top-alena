@@ -92,8 +92,10 @@ export default function RewardShowcase() {
         <Card className="mb-4">
             <CardContent className="p-4">
                 <div className="flex justify-between items-center mb-3">
-                    <h3 className="font-bold">💎 הפרסים שלך</h3>
-                    <span className="text-sm font-bold text-amber-600">{Number(data.balance || 0).toLocaleString()} 🪙</span>
+                    <h3 className="font-bold text-[#3A2E1E]">💎 חנות הפרסים</h3>
+                    <span className="inline-flex items-center gap-1 bg-gradient-to-r from-yellow-400 to-amber-500 text-white text-sm font-black rounded-full px-3 py-1 shadow-sm">
+                        🪙 {Number(data.balance || 0).toLocaleString()}
+                    </span>
                 </div>
 
                 {(() => {
@@ -143,15 +145,15 @@ export default function RewardShowcase() {
 
                         {tab === 'available' && (
                             data.affordable.length > 0 ? (
-                                <div className="flex gap-2 overflow-x-auto pb-2">
-                                    {data.affordable.slice(0, 8).map(r => (
-                                        <div key={r.id} className="flex-shrink-0 w-24 bg-green-50 border border-green-200 rounded-xl p-2 text-center">
-                                            <div className="text-2xl">{r.emoji || '🎁'}</div>
-                                            <div className="text-xs font-bold mt-1 line-clamp-2">{r.title}</div>
-                                            <div className="text-xs text-gray-600">{r.cost} 🪙</div>
-                                            <Button size="sm" className="mt-2 w-full text-xs h-7" onClick={() => redeem(r)} disabled={redeeming === r.id}>
-                                                קנה
-                                            </Button>
+                                <div className="flex gap-2.5 overflow-x-auto pb-2 snap-x">
+                                    {data.affordable.slice(0, 10).map(r => (
+                                        <div key={r.id} className="flex-shrink-0 w-24 rounded-2xl p-2.5 text-center border-2 shadow-sm snap-start hover:-translate-y-0.5 transition-transform" style={{ borderColor: 'var(--brand-primary, #A04A2E)', background: 'linear-gradient(165deg, #ffffff 0%, #F3F8EC 100%)' }}>
+                                            <div className="text-3xl mb-1 leading-none">{r.emoji || '🎁'}</div>
+                                            <div className="text-xs font-bold line-clamp-2 leading-tight h-8 text-[#3A2E1E]">{r.title}</div>
+                                            <div className="inline-flex items-center gap-0.5 text-xs font-black text-amber-600 my-1.5">🪙 {Number(r.cost).toLocaleString()}</div>
+                                            <button onClick={() => redeem(r)} disabled={redeeming === r.id} className="w-full text-xs font-bold text-white rounded-lg py-1.5 shadow-sm active:scale-95 transition-transform disabled:opacity-50" style={{ background: 'var(--brand-primary, #A04A2E)' }}>
+                                                {redeeming === r.id ? '...' : 'קנה'}
+                                            </button>
                                         </div>
                                     ))}
                                 </div>
@@ -162,19 +164,19 @@ export default function RewardShowcase() {
 
                         {tab === 'locked' && (
                             data.locked.length > 0 ? (
-                                <div className="flex gap-2 overflow-x-auto pb-2">
+                                <div className="flex gap-2.5 overflow-x-auto pb-2 snap-x">
                                     {data.locked.map(r => {
                                         const pct = Math.min(100, Math.round((data.balance / Math.max(1, r.cost)) * 100));
                                         const need = Math.max(0, Number(r.cost || 0) - data.balance);
                                         return (
-                                            <div key={r.id} className="flex-shrink-0 w-24 bg-gray-50 border rounded-xl p-2 text-center">
-                                                <div className="text-2xl opacity-60">{r.emoji || '🎁'}</div>
-                                                <div className="text-xs font-bold mt-1 line-clamp-2">{r.title}</div>
-                                                <div className="text-xs text-gray-600">{r.cost} 🪙</div>
-                                                <div className="h-1.5 bg-gray-200 rounded-full mt-2 overflow-hidden">
-                                                    <div className="h-full" style={{ width: `${pct}%`, background: 'var(--brand-accent, #C9A15A)' }} />
+                                            <div key={r.id} className="flex-shrink-0 w-24 rounded-2xl p-2.5 text-center border border-slate-200 bg-white shadow-sm snap-start">
+                                                <div className="text-3xl mb-1 leading-none grayscale opacity-70">{r.emoji || '🎁'}</div>
+                                                <div className="text-xs font-bold line-clamp-2 leading-tight h-8 text-[#3A2E1E]">{r.title}</div>
+                                                <div className="text-[11px] text-slate-500 my-1">🪙 {Number(r.cost).toLocaleString()}</div>
+                                                <div className="h-1.5 bg-slate-200 rounded-full overflow-hidden">
+                                                    <div className="h-full rounded-full" style={{ width: `${pct}%`, background: 'var(--brand-accent, #C9A15A)' }} />
                                                 </div>
-                                                <div className="text-[10px] text-gray-500 mt-1">עוד {need}</div>
+                                                <div className="text-[10px] font-medium mt-1" style={{ color: 'var(--brand-primary, #A04A2E)' }}>עוד {need.toLocaleString()} 🪙</div>
                                             </div>
                                         );
                                     })}
