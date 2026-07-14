@@ -55,7 +55,7 @@ export default function EventVendors() {
     }, [q, category, status]);
 
     return (
-        <div className="p-4 md:p-6 min-h-screen bg-gradient-to-b from-gray-50 to-gray-100" dir="rtl">
+        <div className="p-4 md:p-6 min-h-screen bg-gradient-to-b from-[#FAF5E8] via-[#F7EFDD] to-[#F1E6CE]" dir="rtl">
             <div className="max-w-6xl mx-auto">
                 <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
                     <div>

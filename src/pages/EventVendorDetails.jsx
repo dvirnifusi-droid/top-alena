@@ -129,7 +129,7 @@ export default function EventVendorDetails() {
     if (loading) return <div className="p-6 text-center"><Loader2 className="w-8 h-8 animate-spin mx-auto" /></div>;
 
     return (
-        <div className="p-4 md:p-6 min-h-screen bg-gradient-to-b from-gray-50 to-gray-100" dir="rtl">
+        <div className="p-4 md:p-6 min-h-screen bg-gradient-to-b from-[#FAF5E8] via-[#F7EFDD] to-[#F1E6CE]" dir="rtl">
             <div className="max-w-5xl mx-auto">
                 <div className="flex items-center justify-between mb-4">
                     <Link to={createPageUrl('EventVendors')} className="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1">

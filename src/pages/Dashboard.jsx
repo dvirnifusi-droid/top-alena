@@ -239,7 +239,7 @@ function DashboardInner() {
     // תצוגה לעובדים רגילים
     if (user && user.role !== 'admin') {
         return (
-            <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-6" dir="rtl">
+            <div className="min-h-screen bg-gradient-to-br from-[#FAF5E8] via-[#F7EFDD] to-[#F1E6CE] p-6" dir="rtl">
                 <div className="max-w-7xl mx-auto">
                     <div className="mb-8 flex items-start justify-between">
                         <div>
@@ -335,7 +335,7 @@ function DashboardInner() {
     };
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-6" dir="rtl">
+        <div className="min-h-screen bg-gradient-to-br from-[#FAF5E8] via-[#F7EFDD] to-[#F1E6CE] p-6" dir="rtl">
             <div className="max-w-7xl mx-auto space-y-8">
                 <div className="mb-8 flex items-start justify-between">
                     <div>

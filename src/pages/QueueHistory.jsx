@@ -241,7 +241,7 @@ export default function QueueHistory() {
   }
 
   return (
-    <div className="p-4 sm:p-6 min-h-screen bg-gray-50" dir="rtl">
+    <div className="p-4 sm:p-6 min-h-screen bg-[#FAF5E8]" dir="rtl">
       {/* כותרת */}
       <div className="mb-6">
         <h1 className="text-2xl font-black text-gray-800 mb-2">📋 היסטוריית תור</h1>

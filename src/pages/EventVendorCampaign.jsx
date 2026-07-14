@@ -51,7 +51,7 @@ export default function EventVendorCampaign() {
     const estCost = channel === 'email' ? 0 : (preview.count * 0.13).toFixed(2);
 
     return (
-        <div className="p-4 md:p-6 min-h-screen bg-gradient-to-b from-gray-50 to-gray-100" dir="rtl">
+        <div className="p-4 md:p-6 min-h-screen bg-gradient-to-b from-[#FAF5E8] via-[#F7EFDD] to-[#F1E6CE]" dir="rtl">
             <div className="max-w-3xl mx-auto">
                 <Link to={createPageUrl('EventVendors')} className="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1 mb-3">
                     <ArrowRight className="w-4 h-4" /> חזרה לרשימת ספקים

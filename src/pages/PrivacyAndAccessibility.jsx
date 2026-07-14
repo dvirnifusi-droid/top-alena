@@ -7,7 +7,7 @@ export default function PrivacyAndAccessibility() {
   const [tab, setTab] = useState('privacy');
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4" dir="rtl">
+    <div className="min-h-screen bg-[#FAF5E8] p-4" dir="rtl">
       <div className="max-w-2xl mx-auto">
         {/* Header */}
         <div className="text-center mb-8 pt-6">

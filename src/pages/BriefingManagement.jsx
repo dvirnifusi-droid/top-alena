@@ -171,7 +171,7 @@ export default function BriefingManagement() {
     };
 
     return (
-        <div className="min-h-screen bg-gray-50 p-3 sm:p-6" dir="rtl">
+        <div className="min-h-screen bg-[#FAF5E8] p-3 sm:p-6" dir="rtl">
             <div className="max-w-7xl mx-auto space-y-6">
                 {/* Header */}
                 <div className="bg-white rounded-2xl border p-5 shadow-sm flex items-center gap-4">

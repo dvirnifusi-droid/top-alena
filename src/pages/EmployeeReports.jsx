@@ -699,7 +699,7 @@ function EmployeeReportsInner() {
     }));
 
     return (
-        <div className="p-4 sm:p-8 bg-gradient-to-br from-slate-50 to-slate-100 min-h-screen" dir="rtl">
+        <div className="p-4 sm:p-8 bg-gradient-to-br from-[#FAF5E8] via-[#F7EFDD] to-[#F1E6CE] min-h-screen" dir="rtl">
             <div className="max-w-7xl mx-auto">
                 {isAdmin && selectedEmployeeId && selectedEmployeeId !== 'all' && (
                     <div dir="ltr" className="mb-3 rounded-lg bg-slate-900 text-green-200 text-[11px] font-mono p-3 leading-relaxed">

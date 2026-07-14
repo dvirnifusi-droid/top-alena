@@ -351,7 +351,7 @@ export default function MarketingCampaigns() {
     })();
 
     return (
-        <div className="p-4 md:p-6 min-h-screen bg-gradient-to-b from-gray-50 to-gray-100" dir="rtl">
+        <div className="p-4 md:p-6 min-h-screen bg-gradient-to-b from-[#FAF5E8] via-[#F7EFDD] to-[#F1E6CE]" dir="rtl">
             <div className="max-w-6xl mx-auto">
                 <div className="mb-6">
                     <h1 className="text-3xl md:text-4xl font-black text-gray-800 mb-2 flex items-center gap-2">

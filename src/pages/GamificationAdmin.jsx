@@ -118,7 +118,7 @@ export default function GamificationAdmin() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6" dir="rtl">
+    <div className="min-h-screen bg-[#FAF5E8] p-6" dir="rtl">
       <ConfettiEffect trigger={showConfetti} message="בוצע! 🎉" emoji="✅" onDone={() => setShowConfetti(false)} />
       <div className="max-w-4xl mx-auto">
         <h1 className="text-3xl font-black text-gray-800 mb-6 flex items-center gap-3">
