@@ -77,7 +77,9 @@ export default function EmployeeHome() {
         ? { backgroundImage: `url("${branding.cover_photo_url}")`, backgroundSize: 'cover', backgroundPosition: 'center' }
         : { background: `linear-gradient(135deg, ${primary} 0%, ${secondary} 100%)` };
     const overlayStyle = hasCover
-        ? { background: `linear-gradient(135deg, ${primary}e6 0%, ${secondary}b3 100%)` }
+        // Bottom-weighted scrim: dark where the greeting sits (readable), light at
+        // the top so the photo breathes.
+        ? { background: `linear-gradient(to top, ${secondary}f2 0%, ${primary}80 45%, ${primary}26 100%)` }
         : { background: `radial-gradient(120% 120% at 85% 15%, ${accent}59 0%, transparent 55%)` };
     const firstName = user?.full_name?.split(' ')[0] || 'עובד';
     let todayLabel = 'הכלים שלך למשמרת היום';
@@ -368,8 +370,12 @@ export default function EmployeeHome() {
                 <ConfettiEffect trigger={showConfetti} message={confettiMsg} emoji="🎉" onDone={() => setShowConfetti(false)} />
 
                 {/* גאדג'טים לפי סדר המשתמש */}
+                {/* פעולה ראשית — השעון מוצמד ישר מתחת לאדר, לא נגרר לאמצע הגלילה */}
+                {widgets.shift_clock && (
+                    <div className="mb-4 animate-in fade-in slide-in-from-bottom-3 duration-500">{widgets.shift_clock}</div>
+                )}
                 <div className="space-y-4">
-                    {widgetOrder.map((id, i) => (
+                    {widgetOrder.filter(id => id !== 'shift_clock').map((id, i) => (
                         widgets[id]
                             ? <div key={id} className="animate-in fade-in slide-in-from-bottom-3 duration-500" style={{ animationDelay: `${Math.min(i * 55, 400)}ms`, animationFillMode: 'both' }}>{widgets[id]}</div>
                             : null
