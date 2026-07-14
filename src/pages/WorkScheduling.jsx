@@ -606,6 +606,7 @@ export default function WorkScheduling() {
     // Built once on load. Used to overlay "no-show" badges on scheduled cells
     // when shift_type matches but no matching clock-in exists for that date.
     const [clockIns, setClockIns] = useState(new Map());
+    const [dbgClock, setDbgClock] = useState(null); // temp diagnostic for clock-in matching
     const [laborCost, setLaborCost] = useState(null); // { total, hours, by_day, by_shift, has_rates, budget }
     const [budgetInput, setBudgetInput] = useState('');
     const [savingBudget, setSavingBudget] = useState(false);
@@ -1206,6 +1207,24 @@ export default function WorkScheduling() {
 
     return (
         <div className="p-4 md:p-6" dir="rtl">
+            {/* TEMP diagnostic — why clock-ins don't match the schedule. Admin only. */}
+            {isAdminLike && (
+                <div className="mb-2">
+                    <button
+                        onClick={async () => {
+                            try { const r = await base44.functions.debugClockMatch({}); setDbgClock(r?.data || r); }
+                            catch (e) { setDbgClock({ error: e?.message || 'failed' }); }
+                        }}
+                        className="text-xs bg-slate-800 text-white rounded px-3 py-1.5 font-bold"
+                    >🔍 בדיקת שעון (זמני)</button>
+                    {dbgClock && (
+                        <div className="mt-2 relative">
+                            <button onClick={() => setDbgClock(null)} className="absolute -top-2 -left-2 bg-red-500 text-white rounded-full w-5 h-5 text-xs">×</button>
+                            <pre dir="ltr" className="text-[10px] bg-slate-900 text-green-200 rounded-lg p-3 overflow-auto max-h-72 whitespace-pre-wrap">{JSON.stringify(dbgClock, null, 2)}</pre>
+                        </div>
+                    )}
+                </div>
+            )}
             {/* Draft / Publish banner — per department (future weeks, admin) */}
             {isAdminLike && isFutureWeek && (() => {
                 const bothPublished = isDeptPublished('floor') && isDeptPublished('kitchen');

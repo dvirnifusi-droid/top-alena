@@ -5906,6 +5906,48 @@ registerFn('getOperatingCosts', async ({ user }: any) => {
   };
 });
 
+// Diagnostic — why do clock-ins not match the schedule ("לא נכנס לשעון")?
+// Compares WorkShift assigned_staff to ShiftTracking over the last 10 days and
+// reports how they match (by id / by name / none) + samples, so we can see if
+// the records exist and whether ids/names/dates line up.
+registerFn('debugClockMatch', async ({ user }: any) => {
+  if (!user?.id) throw new Error('unauthorized');
+  if (!isAdminRole((user as any)?.role)) throw new Error('admin only');
+  const db2 = prisma as any;
+  const since = new Date(Date.now() - 10 * 86400 * 1000);
+  const norm = (s: any) => String(s || '').trim().replace(/\s+/g, ' ').toLowerCase();
+  const ilDay = (d: any) => { try { return new Date(d).toLocaleDateString('en-CA', { timeZone: 'Asia/Jerusalem' }); } catch { return String(d).slice(0, 10); } };
+  const utcDay = (d: any) => { try { return new Date(d).toISOString().slice(0, 10); } catch { return String(d).slice(0, 10); } };
+
+  const tracks: any[] = await db2.shiftTracking.findMany({ where: { shift_start: { gte: since } }, orderBy: { shift_start: 'desc' }, take: 300, select: { employee_id: true, employee_name: true, date: true, shift_start: true, status: true } }).catch(() => []);
+  const shifts: any[] = await db2.workShift.findMany({ where: { date: { gte: since } }, take: 80, select: { date: true, shift_type: true, assigned_staff: true } }).catch(() => []);
+
+  const byId = new Set<string>(), byName = new Set<string>();
+  for (const t of tracks) {
+    for (const day of [ilDay(t.shift_start), utcDay(t.date)]) {
+      if (t.employee_id) byId.add(`${t.employee_id}|${day}`);
+      byName.add(`${norm(t.employee_name)}|${day}`);
+    }
+  }
+  let total = 0, mId = 0, mName = 0, none = 0; const unmatched: any[] = [];
+  for (const ws of shifts) {
+    const days = [ilDay(ws.date), utcDay(ws.date)];
+    const staff = Array.isArray(ws.assigned_staff) ? ws.assigned_staff : [];
+    for (const a of staff) {
+      total++;
+      const idHit = !!a.employee_id && days.some(d => byId.has(`${a.employee_id}|${d}`));
+      const nameHit = days.some(d => byName.has(`${norm(a.employee_name)}|${d}`));
+      if (idHit) mId++; else if (nameHit) mName++; else { none++; if (unmatched.length < 20) unmatched.push({ day: ilDay(ws.date), name: a.employee_name, aid: String(a.employee_id || '').slice(0, 8) }); }
+    }
+  }
+  return {
+    tracks_found: tracks.length, shifts_found: shifts.length, staff_total: total,
+    matched_by_id: mId, matched_by_name_only: mName, unmatched: none,
+    sample_tracks: tracks.slice(0, 8).map(t => ({ name: t.employee_name, eid: String(t.employee_id || '').slice(0, 8), il_day: ilDay(t.shift_start), date_field: utcDay(t.date), status: t.status })),
+    sample_unmatched: unmatched,
+  };
+});
+
 // Bulk-resolve every open incident (owner cleanup). Returns how many closed.
 registerFn('clearAllIncidents', async ({ user }: any) => {
   if (!user?.id) throw new Error('unauthorized');
